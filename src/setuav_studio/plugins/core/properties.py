@@ -11,7 +11,8 @@ class PropertiesPanel(QWidget):
         super().__init__()
         self._api = api
         self._layout = QVBoxLayout(self)
-        self._layout.setContentsMargins(8, 8, 8, 8)
+        self._layout.setContentsMargins(6, 4, 6, 6)
+        self._layout.setSpacing(4)
         self._current_widget: QWidget | None = None
         api.on_selection_changed(self.set_selection)
 

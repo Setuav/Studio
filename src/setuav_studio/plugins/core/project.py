@@ -1,13 +1,29 @@
-from PySide6.QtWidgets import QHeaderView, QTreeWidget, QTreeWidgetItem
+from PySide6.QtWidgets import (
+    QHeaderView,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
 from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.project import ProjectDocument
+
+
+class ProjectExplorerPanel(QWidget):
+    def __init__(self, api: StudioAPI) -> None:
+        super().__init__()
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(6, 4, 6, 6)
+        layout.setSpacing(4)
+        layout.addWidget(ProjectExplorer(api))
 
 
 class ProjectExplorer(QTreeWidget):
     def __init__(self, api: StudioAPI) -> None:
         super().__init__()
         self.setHeaderLabels(["Component", "Type"])
+        self.setAlternatingRowColors(True)
         self.header().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         self.header().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.currentItemChanged.connect(self._publish_selection)

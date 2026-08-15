@@ -100,9 +100,20 @@ class StudioAPI:
     ) -> None:
         self._project_content_listeners.append(listener)
 
+    def remove_project_content_listener(
+        self,
+        listener: Callable[[ProjectDocument], None],
+    ) -> None:
+        if listener in self._project_content_listeners:
+            self._project_content_listeners.remove(listener)
+
     def on_modified_changed(self, listener: Callable[[bool], None]) -> None:
         self._modified_listeners.append(listener)
         listener(bool(self.current_project and self.current_project.modified))
+
+    def remove_modified_listener(self, listener: Callable[[bool], None]) -> None:
+        if listener in self._modified_listeners:
+            self._modified_listeners.remove(listener)
 
     def edit_component(
         self,

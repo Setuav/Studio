@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QApplication
 from setuav_studio.plugin_system import PluginManager, StudioAPI
 from setuav_studio.plugins.core import CorePlugin
 from setuav_studio.plugins.core.settings import StudioSettings
+from setuav_studio.plugins.core.theme import apply_theme
 from setuav_studio.shell import MainWindow
 
 
@@ -25,8 +26,7 @@ def main() -> int:
     app.setOrganizationName("Setware")
     app.setApplicationName("Setuav Studio")
     settings = StudioSettings.load()
-    if settings.interface_style:
-        app.setStyle(settings.interface_style)
+    apply_theme(app, settings.theme, settings.font_size)
 
     api = StudioAPI()
     window = MainWindow(api)

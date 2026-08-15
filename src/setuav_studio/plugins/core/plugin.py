@@ -2,7 +2,7 @@ from PySide6.QtCore import Qt
 
 from setuav_studio.plugin_system import PanelContribution, StudioAPI
 from setuav_studio.plugins.core.properties import PropertiesPanel
-from setuav_studio.plugins.core.project import ProjectExplorer
+from setuav_studio.plugins.core.project import ProjectExplorerPanel
 
 
 class CorePlugin:
@@ -13,7 +13,7 @@ class CorePlugin:
             PanelContribution(
                 id="project.explorer",
                 title="Project Explorer",
-                factory=lambda: ProjectExplorer(api),
+                factory=lambda: ProjectExplorerPanel(api),
             )
         )
         api.add_panel(

@@ -7,13 +7,18 @@ from PySide6.QtWidgets import (
     QDialog,
     QDockWidget,
     QFileDialog,
+    QHBoxLayout,
+    QLabel,
     QMainWindow,
     QMessageBox,
+    QStyle,
+    QToolButton,
     QWidget,
 )
 
 from setuav_studio.plugin_system import PanelContribution, StudioAPI
 from setuav_studio.plugins.core.settings import SettingsDialog, StudioSettings
+from setuav_studio.plugins.core.theme import apply_theme
 from setuav_studio.project import (
     ProjectDocument,
     ProjectOpenError,
@@ -21,6 +26,45 @@ from setuav_studio.project import (
     open_project,
     save_project,
 )
+
+
+class DockTitleBar(QWidget):
+    def __init__(self, dock: QDockWidget) -> None:
+        super().__init__(dock)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(4, 1, 4, 1)
+        layout.setSpacing(2)
+
+        self._title = QLabel(dock.windowTitle(), self)
+        self._title.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        layout.addWidget(self._title)
+        layout.addStretch()
+
+        float_button = QToolButton(self)
+        float_button.setAutoRaise(True)
+        float_button.setFixedSize(16, 16)
+        float_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        float_button.setToolTip("Dock or undock panel")
+        float_button.setIcon(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_TitleBarNormalButton)
+        )
+        float_button.clicked.connect(
+            lambda: dock.setFloating(not dock.isFloating())
+        )
+        layout.addWidget(float_button)
+
+        close_button = QToolButton(self)
+        close_button.setAutoRaise(True)
+        close_button.setFixedSize(16, 16)
+        close_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        close_button.setToolTip("Close panel")
+        close_button.setIcon(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_TitleBarCloseButton)
+        )
+        close_button.clicked.connect(dock.close)
+        layout.addWidget(close_button)
+
+        dock.windowTitleChanged.connect(self._title.setText)
 
 
 class MainWindow(QMainWindow):
@@ -34,7 +78,8 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("Setuav Studio")
         self.resize(1200, 800)
-        self.setCentralWidget(QWidget(self))
+        workspace = QWidget(self)
+        self.setCentralWidget(workspace)
 
         self._file_menu = self.menuBar().addMenu("&File")
         open_file_action = self._file_menu.addAction("Open Project File…")
@@ -80,8 +125,9 @@ class MainWindow(QMainWindow):
         self._api.undo_stack.canRedoChanged.connect(self._redo_action.setEnabled)
         self._api.undo_stack.undoTextChanged.connect(self._set_undo_text)
         self._api.undo_stack.redoTextChanged.connect(self._set_redo_text)
-        self._api.on_modified_changed(lambda _modified: self._update_window_title())
-        self._api.on_project_content_changed(lambda _project: self._update_window_title())
+        self._api.on_modified_changed(self._on_modified_changed)
+        self._api.on_project_content_changed(self._on_project_content_changed)
+        self.destroyed.connect(self._detach_api_listeners)
         self._update_recent_menu()
         self._update_actions()
 
@@ -213,6 +259,16 @@ class MainWindow(QMainWindow):
         modified = "*" if self._project.modified else ""
         self.setWindowTitle(f"{name}{modified} — Setuav Studio")
 
+    def _on_modified_changed(self, _modified: bool) -> None:
+        self._update_window_title()
+
+    def _on_project_content_changed(self, _project: ProjectDocument) -> None:
+        self._update_window_title()
+
+    def _detach_api_listeners(self, *_args: object) -> None:
+        self._api.remove_modified_listener(self._on_modified_changed)
+        self._api.remove_project_content_listener(self._on_project_content_changed)
+
     def _update_actions(self) -> None:
         has_project = self._project is not None
         self._save_action.setEnabled(has_project)
@@ -262,8 +318,7 @@ class MainWindow(QMainWindow):
             return
         values = dialog.values()
         values.save()
-        if values.interface_style:
-            QApplication.setStyle(values.interface_style)
+        apply_theme(QApplication.instance(), values.theme, values.font_size)
         self._trim_recent_projects(values.recent_project_limit)
         self._update_recent_menu()
 
@@ -272,6 +327,8 @@ class MainWindow(QMainWindow):
 
     def _add_panel(self, contribution: PanelContribution) -> None:
         dock = QDockWidget(contribution.title, self)
+        dock.setFont(QApplication.font())
+        dock.setTitleBarWidget(DockTitleBar(dock))
         dock.setObjectName(contribution.id)
         dock.setWidget(contribution.factory())
         self.addDockWidget(contribution.area, dock)

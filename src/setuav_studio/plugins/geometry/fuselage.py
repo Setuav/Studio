@@ -1,16 +1,15 @@
+from collections.abc import Callable
 from typing import Any
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QApplication,
     QComboBox,
-    QDoubleSpinBox,
-    QFormLayout,
-    QGroupBox,
     QHeaderView,
     QLabel,
-    QLineEdit,
     QScrollArea,
+    QSizePolicy,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -43,7 +42,8 @@ class FuselageEditor(QWidget):
 
         content = QWidget()
         self._content_layout = QVBoxLayout(content)
-        self._content_layout.setContentsMargins(4, 4, 4, 4)
+        self._content_layout.setContentsMargins(0, 0, 0, 0)
+        self._content_layout.setSpacing(6)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -58,139 +58,121 @@ class FuselageEditor(QWidget):
         self._load_component()
 
     def _create_general_section(self) -> None:
-        group = QGroupBox("General")
-        form = QFormLayout(group)
-
-        self.name_edit = QLineEdit()
-        self.name_edit.editingFinished.connect(self._update_general)
-        form.addRow("Name:", self.name_edit)
-
-        self.type_label = QLabel()
-        self.type_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        self.type_label.setWordWrap(True)
-        form.addRow("Type:", self.type_label)
-
-        self.mass_spin = self._number_box(" g", 0, 1_000_000)
-        self.mass_spin.editingFinished.connect(self._update_general)
-        form.addRow("Mass:", self.mass_spin)
-
-        self._content_layout.addWidget(group)
+        layout = self._create_section("General")
+        self.general_table = self._property_table(
+            [("name", "Name"), ("type", "Type"), ("mass", "Mass (g)")]
+        )
+        self.general_table.cellChanged.connect(self._update_general)
+        layout.addWidget(self.general_table)
 
     def _create_segments_section(self) -> None:
-        segments_group = QGroupBox("Segments")
-        layout = QVBoxLayout(segments_group)
+        layout = self._create_section("Segments")
 
-        self.segments_table = self._table(["Tag", "Sections", "Loft"])
-        self.segments_table.setMaximumHeight(180)
+        self.segments_table = self._table(
+            ["Tag", "Sections", "Method", "Parameterization"]
+        )
+        self.segments_table.setEditTriggers(
+            QAbstractItemView.EditTrigger.DoubleClicked
+            | QAbstractItemView.EditTrigger.EditKeyPressed
+            | QAbstractItemView.EditTrigger.SelectedClicked
+        )
+        self.segments_table.horizontalHeader().setSectionResizeMode(
+            1, QHeaderView.ResizeMode.Fixed
+        )
+        self.segments_table.setColumnWidth(1, 58)
         self.segments_table.currentCellChanged.connect(self._on_segment_selected)
+        self.segments_table.cellChanged.connect(self._update_segment_cell)
         layout.addWidget(self.segments_table)
 
-        selected_group = QGroupBox("Selected Segment")
-        form = QFormLayout(selected_group)
-
-        self.segment_tag_edit = QLineEdit()
-        self.segment_tag_edit.editingFinished.connect(self._update_segment)
-        form.addRow("Tag:", self.segment_tag_edit)
-
-        self.loft_method_combo = QComboBox()
-        self.loft_method_combo.addItems(["auto", "smooth", "ruled"])
-        self.loft_method_combo.currentTextChanged.connect(self._update_segment)
-        form.addRow("Method:", self.loft_method_combo)
-
-        self.parameterization_combo = QComboBox()
-        self.parameterization_combo.addItems(["uniform", "chord_length", "centripetal"])
-        self.parameterization_combo.currentTextChanged.connect(self._update_segment)
-        form.addRow("Parameterization:", self.parameterization_combo)
-
-        correspondence = QLabel("cardinal_quadrants")
-        correspondence.setWordWrap(True)
-        form.addRow("Profile matching:", correspondence)
-
-        layout.addWidget(selected_group)
-        self._content_layout.addWidget(segments_group)
-
     def _create_sections_section(self) -> None:
-        sections_group = QGroupBox("Sections")
-        layout = QVBoxLayout(sections_group)
+        layout = self._create_section("Sections")
 
         self.sections_table = self._table(["#", "Profile", "X", "Size"])
-        self.sections_table.setMaximumHeight(180)
+        self.sections_table.horizontalHeader().setSectionResizeMode(
+            0, QHeaderView.ResizeMode.Fixed
+        )
+        self.sections_table.setColumnWidth(0, 32)
         self.sections_table.currentCellChanged.connect(self._on_section_selected)
         layout.addWidget(self.sections_table)
 
-        selected_group = QGroupBox("Selected Section")
-        self.section_form = QFormLayout(selected_group)
+        transform_layout = self._create_section("Transform")
+        self.transform_table = QTableWidget(2, 3)
+        self.transform_table.setHorizontalHeaderLabels(["X", "Y", "Z"])
+        self.transform_table.setVerticalHeaderLabels(["Position (mm)", "Rotation (°)"])
+        self.transform_table.setSelectionMode(
+            QAbstractItemView.SelectionMode.SingleSelection
+        )
+        self.transform_table.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectItems
+        )
+        self.transform_table.setEditTriggers(
+            QAbstractItemView.EditTrigger.DoubleClicked
+            | QAbstractItemView.EditTrigger.EditKeyPressed
+            | QAbstractItemView.EditTrigger.SelectedClicked
+        )
+        self.transform_table.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self.transform_table.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self.transform_table.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Stretch
+        )
+        self.transform_table.horizontalHeader().setFixedHeight(23)
+        self.transform_table.verticalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Fixed
+        )
+        self.transform_table.verticalHeader().setDefaultSectionSize(23)
+        self.transform_table.verticalHeader().setMinimumWidth(82)
+        self.transform_table.setAlternatingRowColors(True)
+        self.transform_table.setFixedHeight(71)
+        for row in range(2):
+            for column in range(3):
+                item = QTableWidgetItem("0.00")
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                self.transform_table.setItem(row, column, item)
+        self.transform_table.cellChanged.connect(self._update_section)
+        transform_layout.addWidget(self.transform_table)
 
-        self.profile_type_combo = QComboBox()
-        self.profile_type_combo.addItems(self.PROFILE_TYPES)
-        self.profile_type_combo.currentTextChanged.connect(self._change_profile_type)
-        self.section_form.addRow("Profile:", self.profile_type_combo)
-
-        self.pos_x = self._number_box(" mm", -1_000_000, 1_000_000)
-        self.pos_y = self._number_box(" mm", -1_000_000, 1_000_000)
-        self.pos_z = self._number_box(" mm", -1_000_000, 1_000_000)
-        self.section_form.addRow("Position X:", self.pos_x)
-        self.section_form.addRow("Position Y:", self.pos_y)
-        self.section_form.addRow("Position Z:", self.pos_z)
-
-        self.rot_x = self._number_box("°", -180, 180)
-        self.rot_y = self._number_box("°", -180, 180)
-        self.rot_z = self._number_box("°", -180, 180)
-        self.section_form.addRow("Rotation X:", self.rot_x)
-        self.section_form.addRow("Rotation Y:", self.rot_y)
-        self.section_form.addRow("Rotation Z:", self.rot_z)
-
-        self.diameter = self._number_box(" mm", 0, 1_000_000)
-        self.width = self._number_box(" mm", 0, 1_000_000)
-        self.height = self._number_box(" mm", 0, 1_000_000)
-        self.corner_radius = self._number_box(" mm", 0, 1_000_000)
-        self.top_width = self._number_box(" mm", 0, 1_000_000)
-        self.bottom_width = self._number_box(" mm", 0, 1_000_000)
-        self.base_width = self._number_box(" mm", 0, 1_000_000)
-        self.orientation_combo = QComboBox()
-        self.orientation_combo.addItems(["up", "down"])
-
-        self.section_form.addRow("Diameter:", self.diameter)
-        self.section_form.addRow("Width:", self.width)
-        self.section_form.addRow("Height:", self.height)
-        self.section_form.addRow("Corner radius:", self.corner_radius)
-        self.section_form.addRow("Top width:", self.top_width)
-        self.section_form.addRow("Bottom width:", self.bottom_width)
-        self.section_form.addRow("Base width:", self.base_width)
-        self.section_form.addRow("Orientation:", self.orientation_combo)
+        properties_layout = self._create_section("Section Properties")
+        self.section_properties_table = self._property_table([])
+        self.section_properties_table.cellChanged.connect(
+            self._update_section_property
+        )
+        properties_layout.addWidget(self.section_properties_table)
 
         self.vertices_table = self._table(["Y", "Z", "Radius"])
-        self.vertices_table.setMaximumHeight(180)
         self.vertices_table.setEditTriggers(QAbstractItemView.EditTrigger.DoubleClicked)
         self.vertices_table.cellChanged.connect(self._update_vertices)
-        self.section_form.addRow("Vertices:", self.vertices_table)
+        properties_layout.addWidget(self.vertices_table)
 
-        for widget in (
-            self.pos_x,
-            self.pos_y,
-            self.pos_z,
-            self.rot_x,
-            self.rot_y,
-            self.rot_z,
-            self.diameter,
-            self.width,
-            self.height,
-            self.corner_radius,
-            self.top_width,
-            self.bottom_width,
-            self.base_width,
-        ):
-            widget.editingFinished.connect(self._update_section)
-        self.orientation_combo.currentTextChanged.connect(self._update_section)
+    def _create_section(self, title: str) -> QVBoxLayout:
+        section = QWidget()
+        layout = QVBoxLayout(section)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
-        layout.addWidget(selected_group)
-        self._content_layout.addWidget(sections_group)
+        header = QLabel(title)
+        header.setProperty("sectionHeader", True)
+        layout.addWidget(header)
+        self._content_layout.addWidget(section)
+        return layout
 
     def _load_component(self) -> None:
         self._loading = True
-        self.name_edit.setText(str(self._component.get("name") or ""))
-        self.type_label.setText(str(self._component.get("type") or ""))
-        self.mass_spin.setValue(float(self._parameters().get("mass") or 0))
+        self._set_property_value(
+            self.general_table, "name", str(self._component.get("name") or "")
+        )
+        self._set_property_value(
+            self.general_table,
+            "type",
+            str(self._component.get("type") or ""),
+            editable=False,
+        )
+        self._set_property_value(
+            self.general_table, "mass", self._parameters().get("mass") or 0
+        )
         self._populate_segments()
         self._loading = False
 
@@ -207,9 +189,38 @@ class FuselageEditor(QWidget):
                 str(segment.get("tag") or ""),
                 str(len(segment.get("sections") or [])),
                 str(loft.get("method") or "smooth"),
+                str(loft.get("parameterization") or "centripetal"),
             )
             for column, value in enumerate(values):
-                self.segments_table.setItem(row, column, QTableWidgetItem(value))
+                item = QTableWidgetItem(value)
+                if column != 0:
+                    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                self.segments_table.setItem(row, column, item)
+            self._set_table_combo(
+                self.segments_table,
+                row,
+                2,
+                values[2],
+                [("auto", "Auto"), ("smooth", "Smooth"), ("ruled", "Ruled")],
+                lambda value, segment_index=row: self._update_segment_choice(
+                    segment_index, "method", value
+                ),
+            )
+            self._set_table_combo(
+                self.segments_table,
+                row,
+                3,
+                values[3],
+                [
+                    ("uniform", "Uniform"),
+                    ("chord_length", "Chord Length"),
+                    ("centripetal", "Centripetal"),
+                ],
+                lambda value, segment_index=row: self._update_segment_choice(
+                    segment_index, "parameterization", value
+                ),
+            )
+        self._fit_table_height(self.segments_table, len(segments))
 
     def _load_segment(self, index: int) -> None:
         segments = self._segments()
@@ -221,15 +232,6 @@ class FuselageEditor(QWidget):
         self._loading = True
         self._segment_index = index
         self._section_index = -1
-        segment = segments[index]
-        loft = segment.get("loft")
-        if not isinstance(loft, dict):
-            loft = {}
-        self.segment_tag_edit.setText(str(segment.get("tag") or ""))
-        self.loft_method_combo.setCurrentText(str(loft.get("method") or "smooth"))
-        self.parameterization_combo.setCurrentText(
-            str(loft.get("parameterization") or "centripetal")
-        )
         self._populate_sections()
         self._loading = False
 
@@ -256,6 +258,7 @@ class FuselageEditor(QWidget):
             )
             for column, value in enumerate(values):
                 self.sections_table.setItem(row, column, QTableWidgetItem(value))
+        self._fit_table_height(self.sections_table, len(sections))
 
     def _load_section(self, index: int) -> None:
         sections = self._sections()
@@ -269,25 +272,21 @@ class FuselageEditor(QWidget):
         position = self._object(section, "position")
         rotation = self._object(section, "rotation")
         profile = self._object(section, "profile")
-        profile_type = str(profile.get("type") or "circle")
 
-        self.profile_type_combo.setCurrentText(profile_type)
-        self.pos_x.setValue(float(position.get("x") or 0))
-        self.pos_y.setValue(float(position.get("y") or 0))
-        self.pos_z.setValue(float(position.get("z") or 0))
-        self.rot_x.setValue(float(rotation.get("x") or 0))
-        self.rot_y.setValue(float(rotation.get("y") or 0))
-        self.rot_z.setValue(float(rotation.get("z") or 0))
-        self.diameter.setValue(float(profile.get("diameter") or 0))
-        self.width.setValue(float(profile.get("width") or 0))
-        self.height.setValue(float(profile.get("height") or 0))
-        self.corner_radius.setValue(float(profile.get("corner_radius") or 0))
-        self.top_width.setValue(float(profile.get("top_width") or 0))
-        self.bottom_width.setValue(float(profile.get("bottom_width") or 0))
-        self.base_width.setValue(float(profile.get("base_width") or 0))
-        self.orientation_combo.setCurrentText(str(profile.get("orientation") or "up"))
+        self._set_transform_values(
+            (
+                float(position.get("x") or 0),
+                float(position.get("y") or 0),
+                float(position.get("z") or 0),
+            ),
+            (
+                float(rotation.get("x") or 0),
+                float(rotation.get("y") or 0),
+                float(rotation.get("z") or 0),
+            ),
+        )
+        self._populate_section_properties(profile)
         self._populate_vertices(profile)
-        self._set_profile_rows(profile_type)
         self._loading = False
 
     def _on_segment_selected(self, row: int, _column: int, *_previous: int) -> None:
@@ -298,30 +297,43 @@ class FuselageEditor(QWidget):
         if not self._loading and row >= 0:
             self._load_section(row)
 
-    def _update_general(self, *_args: object) -> None:
-        if self._loading:
+    def _update_general(self, row: int, column: int) -> None:
+        if self._loading or column != 1:
+            return
+
+        key = self._property_key(self.general_table, row)
+        value = self._property_text(self.general_table, row)
+        number: float | None = None
+        if key == "mass":
+            number = self._parse_number(value)
+            if number is None or number < 0:
+                self._load_component()
+                return
+        elif key != "name":
             return
 
         def change() -> None:
-            self._component["name"] = self.name_edit.text().strip()
-            self._parameters()["mass"] = self.mass_spin.value()
+            if key == "name":
+                self._component["name"] = value.strip()
+            elif number is not None:
+                self._parameters()["mass"] = number
 
         self._api.edit_component(self._component, "Edit fuselage properties", change)
 
-    def _update_segment(self, *_args: object) -> None:
-        segment = self._current_segment()
-        if self._loading or segment is None:
+    def _update_segment_cell(self, row: int, column: int) -> None:
+        segments = self._segments()
+        if self._loading or column != 0 or not 0 <= row < len(segments):
             return
-
-        def change() -> None:
-            segment["tag"] = self.segment_tag_edit.text().strip()
-            loft = self._object(segment, "loft")
-            loft["method"] = self.loft_method_combo.currentText()
-            loft["parameterization"] = self.parameterization_combo.currentText()
-            loft["profile_correspondence"] = "cardinal_quadrants"
-
-        self._api.edit_component(self._component, "Edit fuselage segment", change)
-        self._refresh_segment_row()
+        item = self.segments_table.item(row, column)
+        if item is None:
+            return
+        segment = segments[row]
+        value = item.text().strip()
+        self._api.edit_component(
+            self._component,
+            "Edit fuselage segment",
+            lambda: segment.__setitem__("tag", value),
+        )
 
     def _change_profile_type(self, profile_type: str) -> None:
         section = self._current_section()
@@ -337,53 +349,134 @@ class FuselageEditor(QWidget):
         self._populate_sections()
         self.sections_table.selectRow(self._section_index)
 
+    def _update_segment_choice(self, index: int, key: str, value: str) -> None:
+        segments = self._segments()
+        allowed = {
+            "method": {"auto", "smooth", "ruled"},
+            "parameterization": {"uniform", "chord_length", "centripetal"},
+        }
+        if (
+            self._loading
+            or not 0 <= index < len(segments)
+            or value not in allowed.get(key, set())
+        ):
+            return
+        segment = segments[index]
+
+        def change() -> None:
+            loft = self._object(segment, "loft")
+            loft[key] = value
+            loft["profile_correspondence"] = "cardinal_quadrants"
+
+        self._api.edit_component(self._component, "Edit fuselage segment", change)
+
     def _update_section(self, *_args: object) -> None:
         section = self._current_section()
         if self._loading or section is None:
             return
 
+        transform_values = self._transform_values()
+        if transform_values is None:
+            self._load_section(self._section_index)
+            return
+        position_values, rotation_values = transform_values
+
         def change() -> None:
             section["position"] = {
-                "x": self.pos_x.value(),
-                "y": self.pos_y.value(),
-                "z": self.pos_z.value(),
+                "x": position_values[0],
+                "y": position_values[1],
+                "z": position_values[2],
             }
             section["rotation"] = {
-                "x": self.rot_x.value(),
-                "y": self.rot_y.value(),
-                "z": self.rot_z.value(),
+                "x": rotation_values[0],
+                "y": rotation_values[1],
+                "z": rotation_values[2],
             }
 
-            profile = self._object(section, "profile")
-            profile_type = str(profile.get("type") or "circle")
-            fields = {
-                "circle": {"diameter": self.diameter.value()},
-                "ellipse": {"width": self.width.value(), "height": self.height.value()},
-                "rectangle": {
-                    "width": self.width.value(),
-                    "height": self.height.value(),
-                    "corner_radius": self.corner_radius.value(),
-                },
-                "trapezoid": {
-                    "top_width": self.top_width.value(),
-                    "bottom_width": self.bottom_width.value(),
-                    "height": self.height.value(),
-                    "corner_radius": self.corner_radius.value(),
-                },
-                "triangle": {
-                    "base_width": self.base_width.value(),
-                    "height": self.height.value(),
-                    "orientation": self.orientation_combo.currentText(),
-                    "corner_radius": self.corner_radius.value(),
-                },
-            }
-            if profile_type in fields:
-                profile.clear()
-                profile["type"] = profile_type
-                profile.update(fields[profile_type])
-
-        self._api.edit_component(self._component, "Edit fuselage section", change)
+        self._api.edit_component(self._component, "Edit section transform", change)
         self._refresh_section_row()
+
+    def _update_section_property(self, row: int, column: int) -> None:
+        section = self._current_section()
+        if self._loading or section is None or column != 1:
+            return
+        key = self._property_key(self.section_properties_table, row)
+        value = self._property_text(self.section_properties_table, row).strip()
+        profile = self._object(section, "profile")
+
+        if key == "type":
+            if value not in self.PROFILE_TYPES:
+                self._load_section(self._section_index)
+                return
+            self._change_profile_type(value)
+            return
+        if key == "orientation":
+            if value not in {"up", "down"}:
+                self._load_section(self._section_index)
+                return
+            converted: str | float = value
+        elif key == "vertices":
+            return
+        else:
+            number = self._parse_number(value)
+            if number is None or number < 0:
+                self._load_section(self._section_index)
+                return
+            converted = number
+
+        self._api.edit_component(
+            self._component,
+            "Edit section profile",
+            lambda: profile.__setitem__(key, converted),
+        )
+        self._refresh_section_row()
+
+    def _update_section_choice(self, key: str, value: str) -> None:
+        if self._loading:
+            return
+        if key == "type":
+            if value in self.PROFILE_TYPES:
+                self._change_profile_type(value)
+            return
+        if key != "orientation" or value not in {"up", "down"}:
+            return
+
+        section = self._current_section()
+        if section is None:
+            return
+        profile = self._object(section, "profile")
+        self._api.edit_component(
+            self._component,
+            "Edit section profile",
+            lambda: profile.__setitem__(key, value),
+        )
+        self._refresh_section_row()
+
+    def _set_transform_values(
+        self,
+        position: tuple[float, float, float],
+        rotation: tuple[float, float, float],
+    ) -> None:
+        for row, values in enumerate((position, rotation)):
+            for column, value in enumerate(values):
+                item = self.transform_table.item(row, column)
+                if item is not None:
+                    item.setText(f"{value:.2f}")
+
+    def _transform_values(
+        self,
+    ) -> tuple[tuple[float, float, float], tuple[float, float, float]] | None:
+        rows: list[tuple[float, float, float]] = []
+        for row in range(2):
+            try:
+                values = tuple(
+                    float(self.transform_table.item(row, column).text())
+                    for column in range(3)
+                )
+            except (AttributeError, ValueError):
+                return None
+            rows.append(values)
+        return rows[0], rows[1]
 
     def _update_vertices(self, row: int, column: int) -> None:
         if self._loading:
@@ -408,20 +501,61 @@ class FuselageEditor(QWidget):
                 lambda: vertices[row].__setitem__(key, value),
             )
 
-    def _set_profile_rows(self, profile_type: str) -> None:
-        visible = {
-            self.diameter: profile_type == "circle",
-            self.width: profile_type in {"ellipse", "rectangle"},
-            self.height: profile_type in {"ellipse", "rectangle", "trapezoid", "triangle"},
-            self.corner_radius: profile_type in {"rectangle", "trapezoid", "triangle"},
-            self.top_width: profile_type == "trapezoid",
-            self.bottom_width: profile_type == "trapezoid",
-            self.base_width: profile_type == "triangle",
-            self.orientation_combo: profile_type == "triangle",
-            self.vertices_table: profile_type == "polygon",
+    def _populate_section_properties(self, profile: dict[str, Any]) -> None:
+        profile_type = str(profile.get("type") or "circle")
+        fields: dict[str, list[tuple[str, str]]] = {
+            "circle": [("diameter", "Diameter (mm)")],
+            "ellipse": [("width", "Width (mm)"), ("height", "Height (mm)")],
+            "rectangle": [
+                ("width", "Width (mm)"),
+                ("height", "Height (mm)"),
+                ("corner_radius", "Corner radius (mm)"),
+            ],
+            "trapezoid": [
+                ("top_width", "Top width (mm)"),
+                ("bottom_width", "Bottom width (mm)"),
+                ("height", "Height (mm)"),
+                ("corner_radius", "Corner radius (mm)"),
+            ],
+            "triangle": [
+                ("base_width", "Base width (mm)"),
+                ("height", "Height (mm)"),
+                ("orientation", "Orientation"),
+                ("corner_radius", "Corner radius (mm)"),
+            ],
+            "polygon": [("vertices", "Vertices")],
         }
-        for widget, is_visible in visible.items():
-            self.section_form.setRowVisible(widget, is_visible)
+        definitions = [("type", "Profile"), *fields.get(profile_type, [])]
+        self._configure_property_table(self.section_properties_table, definitions)
+        for key, _label in definitions:
+            if key == "type":
+                value: object = profile_type
+            elif key == "vertices":
+                value = len(profile.get("vertices") or [])
+            else:
+                value = profile.get(key, 0)
+            self._set_property_value(
+                self.section_properties_table,
+                key,
+                value,
+                editable=key != "vertices",
+            )
+        self._set_property_combo(
+            self.section_properties_table,
+            "type",
+            profile_type,
+            [(value, value.replace("_", " ").title()) for value in self.PROFILE_TYPES],
+            lambda value: self._update_section_choice("type", value),
+        )
+        if profile_type == "triangle":
+            self._set_property_combo(
+                self.section_properties_table,
+                "orientation",
+                str(profile.get("orientation") or "up"),
+                [("up", "Up"), ("down", "Down")],
+                lambda value: self._update_section_choice("orientation", value),
+            )
+        self.vertices_table.setVisible(profile_type == "polygon")
 
     def _populate_vertices(self, profile: dict[str, Any]) -> None:
         vertices = profile.get("vertices")
@@ -437,14 +571,7 @@ class FuselageEditor(QWidget):
                     column,
                     QTableWidgetItem(str(vertex.get(key) or 0)),
                 )
-
-    def _refresh_segment_row(self) -> None:
-        segment = self._current_segment()
-        if segment is None:
-            return
-        loft = segment.get("loft") if isinstance(segment.get("loft"), dict) else {}
-        self.segments_table.item(self._segment_index, 0).setText(str(segment.get("tag") or ""))
-        self.segments_table.item(self._segment_index, 2).setText(str(loft.get("method") or ""))
+        self._fit_table_height(self.vertices_table, len(vertices))
 
     def _refresh_section_row(self) -> None:
         section = self._current_section()
@@ -498,6 +625,135 @@ class FuselageEditor(QWidget):
             owner[key] = value
         return value
 
+    @classmethod
+    def _property_table(
+        cls,
+        definitions: list[tuple[str, str]],
+    ) -> QTableWidget:
+        table = cls._table(["Property", "Value"])
+        table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
+        table.setEditTriggers(
+            QAbstractItemView.EditTrigger.DoubleClicked
+            | QAbstractItemView.EditTrigger.EditKeyPressed
+            | QAbstractItemView.EditTrigger.SelectedClicked
+        )
+        cls._configure_property_table(table, definitions)
+        return table
+
+    @classmethod
+    def _configure_property_table(
+        cls,
+        table: QTableWidget,
+        definitions: list[tuple[str, str]],
+    ) -> None:
+        for row in range(table.rowCount()):
+            widget = table.cellWidget(row, 1)
+            if widget is not None:
+                table.removeCellWidget(row, 1)
+                widget.deleteLater()
+        table.clearContents()
+        table.setRowCount(len(definitions))
+        for row, (key, label) in enumerate(definitions):
+            label_item = QTableWidgetItem(label)
+            label_item.setData(Qt.ItemDataRole.UserRole, key)
+            label_item.setFlags(label_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            table.setItem(row, 0, label_item)
+            table.setItem(row, 1, QTableWidgetItem())
+        cls._fit_table_height(table, len(definitions))
+
+    def _set_property_combo(
+        self,
+        table: QTableWidget,
+        key: str,
+        value: str,
+        options: list[tuple[str, str]],
+        on_changed: Callable[[str], None],
+    ) -> None:
+        for row in range(table.rowCount()):
+            if self._property_key(table, row) != key:
+                continue
+            self._set_table_combo(
+                table,
+                row,
+                1,
+                value,
+                options,
+                on_changed,
+            )
+            return
+
+    @staticmethod
+    def _set_table_combo(
+        table: QTableWidget,
+        row: int,
+        column: int,
+        value: str,
+        options: list[tuple[str, str]],
+        on_changed: Callable[[str], None],
+    ) -> None:
+        combo = QComboBox(table)
+        combo.setProperty("tableEditor", True)
+        combo.setFont(QApplication.font())
+        combo.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
+        )
+        combo.view().setProperty("tableComboPopup", True)
+        combo.view().setFont(QApplication.font())
+        for option_value, label in options:
+            combo.addItem(label, option_value)
+        combo.setCurrentIndex(max(combo.findData(value), 0))
+        combo.currentIndexChanged.connect(
+            lambda _index, editor=combo, callback=on_changed: callback(
+                str(editor.currentData())
+            )
+        )
+        table.setCellWidget(row, column, combo)
+
+    @staticmethod
+    def _set_property_value(
+        table: QTableWidget,
+        key: str,
+        value: object,
+        *,
+        editable: bool = True,
+    ) -> None:
+        for row in range(table.rowCount()):
+            if FuselageEditor._property_key(table, row) != key:
+                continue
+            item = table.item(row, 1)
+            if item is None:
+                item = QTableWidgetItem()
+                table.setItem(row, 1, item)
+            item.setText(str(value))
+            if editable:
+                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
+            else:
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            return
+
+    @staticmethod
+    def _property_key(table: QTableWidget, row: int) -> str:
+        item = table.item(row, 0)
+        if item is None:
+            return ""
+        return str(item.data(Qt.ItemDataRole.UserRole) or "")
+
+    @staticmethod
+    def _property_text(table: QTableWidget, row: int) -> str:
+        editor = table.cellWidget(row, 1)
+        if isinstance(editor, QComboBox):
+            return str(editor.currentData())
+        item = table.item(row, 1)
+        return item.text() if item is not None else ""
+
+    @staticmethod
+    def _parse_number(value: str) -> float | None:
+        try:
+            return float(value)
+        except ValueError:
+            return None
+
     @staticmethod
     def _table(headers: list[str]) -> QTableWidget:
         table = QTableWidget(0, len(headers))
@@ -506,16 +762,25 @@ class FuselageEditor(QWidget):
         table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         table.verticalHeader().setVisible(False)
+        table.verticalHeader().setDefaultSectionSize(22)
+        table.horizontalHeader().setFixedHeight(23)
         table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        table.setAlternatingRowColors(True)
         return table
 
     @staticmethod
-    def _number_box(suffix: str, minimum: float, maximum: float) -> QDoubleSpinBox:
-        box = QDoubleSpinBox()
-        box.setRange(minimum, maximum)
-        box.setDecimals(2)
-        box.setSuffix(suffix)
-        return box
+    def _fit_table_height(
+        table: QTableWidget,
+        row_count: int,
+        maximum_visible_rows: int = 6,
+    ) -> None:
+        visible_rows = min(max(row_count, 1), maximum_visible_rows)
+        height = (
+            table.horizontalHeader().height()
+            + table.verticalHeader().defaultSectionSize() * visible_rows
+            + 2
+        )
+        table.setFixedHeight(height)
 
     @staticmethod
     def _profile_size(profile: dict[str, Any]) -> str:
