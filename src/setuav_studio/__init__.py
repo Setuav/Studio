@@ -1,0 +1,1 @@
+"""Setuav Studio application package."""
