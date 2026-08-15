@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from copy import deepcopy
 from typing import Any
 
 from PySide6.QtCore import Qt
@@ -7,11 +8,13 @@ from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
     QHeaderView,
+    QHBoxLayout,
     QLabel,
     QScrollArea,
     QSizePolicy,
     QTableWidget,
     QTableWidgetItem,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -84,6 +87,31 @@ class FuselageEditor(QWidget):
         self.segments_table.cellChanged.connect(self._update_segment_cell)
         layout.addWidget(self.segments_table)
 
+        segment_actions = QHBoxLayout()
+        segment_actions.setContentsMargins(0, 2, 0, 2)
+        segment_actions.setSpacing(2)
+        self.add_segment_button = self._action_button("Add", self._add_segment)
+        self.duplicate_segment_button = self._action_button(
+            "Duplicate", self._duplicate_segment
+        )
+        self.move_segment_up_button = self._action_button("Up", self._move_segment_up)
+        self.move_segment_down_button = self._action_button(
+            "Down", self._move_segment_down
+        )
+        self.delete_segment_button = self._action_button(
+            "Delete", self._delete_segment
+        )
+        for button in (
+            self.add_segment_button,
+            self.duplicate_segment_button,
+            self.move_segment_up_button,
+            self.move_segment_down_button,
+            self.delete_segment_button,
+        ):
+            segment_actions.addWidget(button)
+        segment_actions.addStretch()
+        layout.addLayout(segment_actions)
+
     def _create_sections_section(self) -> None:
         layout = self._create_section("Sections")
 
@@ -94,6 +122,31 @@ class FuselageEditor(QWidget):
         self.sections_table.setColumnWidth(0, 32)
         self.sections_table.currentCellChanged.connect(self._on_section_selected)
         layout.addWidget(self.sections_table)
+
+        section_actions = QHBoxLayout()
+        section_actions.setContentsMargins(0, 2, 0, 2)
+        section_actions.setSpacing(2)
+        self.add_section_button = self._action_button("Add", self._add_section)
+        self.duplicate_section_button = self._action_button(
+            "Duplicate", self._duplicate_section
+        )
+        self.move_section_up_button = self._action_button("Up", self._move_section_up)
+        self.move_section_down_button = self._action_button(
+            "Down", self._move_section_down
+        )
+        self.delete_section_button = self._action_button(
+            "Delete", self._delete_section
+        )
+        for button in (
+            self.add_section_button,
+            self.duplicate_section_button,
+            self.move_section_up_button,
+            self.move_section_down_button,
+            self.delete_section_button,
+        ):
+            section_actions.addWidget(button)
+        section_actions.addStretch()
+        layout.addLayout(section_actions)
 
         transform_layout = self._create_section("Transform")
         self.transform_table = QTableWidget(2, 3)
@@ -159,6 +212,14 @@ class FuselageEditor(QWidget):
         self._content_layout.addWidget(section)
         return layout
 
+    @staticmethod
+    def _action_button(text: str, callback: Callable[[], None]) -> QToolButton:
+        button = QToolButton()
+        button.setText(text)
+        button.setAutoRaise(False)
+        button.clicked.connect(callback)
+        return button
+
     def _load_component(self) -> None:
         self._loading = True
         self._set_property_value(
@@ -179,6 +240,9 @@ class FuselageEditor(QWidget):
         if self._segments():
             self.segments_table.selectRow(0)
             self._load_segment(0)
+        else:
+            self._update_section_actions()
+        self._update_segment_actions()
 
     def _populate_segments(self) -> None:
         segments = self._segments()
@@ -227,6 +291,8 @@ class FuselageEditor(QWidget):
         if not 0 <= index < len(segments):
             self._segment_index = -1
             self.sections_table.setRowCount(0)
+            self._update_segment_actions()
+            self._update_section_actions()
             return
 
         self._loading = True
@@ -239,6 +305,9 @@ class FuselageEditor(QWidget):
         if sections:
             self.sections_table.selectRow(0)
             self._load_section(0)
+        else:
+            self._update_section_actions()
+        self._update_segment_actions()
 
     def _populate_sections(self) -> None:
         sections = self._sections()
@@ -290,12 +359,283 @@ class FuselageEditor(QWidget):
         self._loading = False
 
     def _on_segment_selected(self, row: int, _column: int, *_previous: int) -> None:
-        if not self._loading and row >= 0:
+        if self._loading:
+            return
+        if row >= 0:
             self._load_segment(row)
+        else:
+            self._segment_index = -1
+        self._update_segment_actions()
+
+    def _add_segment(self) -> None:
+        segments = self._segments()
+        insert_at = (
+            self._segment_index + 1
+            if 0 <= self._segment_index < len(segments)
+            else len(segments)
+        )
+        new_segment = self._new_segment(segments)
+        self._api.edit_component(
+            self._component,
+            "Add fuselage segment",
+            lambda: segments.insert(insert_at, new_segment),
+        )
+        self._reload_segments(insert_at)
+
+    def _duplicate_segment(self) -> None:
+        segments = self._segments()
+        index = self._segment_index
+        if not 0 <= index < len(segments):
+            return
+        insert_at = index + 1
+        duplicate = deepcopy(segments[index])
+        source_tag = str(duplicate.get("tag") or "segment")
+        duplicate["tag"] = self._unique_segment_tag(
+            segments,
+            f"{source_tag}-copy",
+        )
+        self._api.edit_component(
+            self._component,
+            "Duplicate fuselage segment",
+            lambda: segments.insert(insert_at, duplicate),
+        )
+        self._reload_segments(insert_at)
+
+    def _move_segment_up(self) -> None:
+        self._move_segment(-1)
+
+    def _move_segment_down(self) -> None:
+        self._move_segment(1)
+
+    def _move_segment(self, offset: int) -> None:
+        segments = self._segments()
+        source = self._segment_index
+        target = source + offset
+        if not 0 <= source < len(segments) or not 0 <= target < len(segments):
+            return
+
+        def change() -> None:
+            segments.insert(target, segments.pop(source))
+
+        self._api.edit_component(
+            self._component,
+            "Move fuselage segment",
+            change,
+        )
+        self._reload_segments(target)
+
+    def _delete_segment(self) -> None:
+        segments = self._segments()
+        index = self._segment_index
+        if len(segments) <= 1 or not 0 <= index < len(segments):
+            return
+        self._api.edit_component(
+            self._component,
+            "Delete fuselage segment",
+            lambda: segments.pop(index),
+        )
+        self._reload_segments(min(index, len(segments) - 1))
+
+    def _reload_segments(self, selected_index: int) -> None:
+        self._loading = True
+        self._populate_segments()
+        segments = self._segments()
+        if segments:
+            selected_index = min(max(selected_index, 0), len(segments) - 1)
+            self.segments_table.selectRow(selected_index)
+        else:
+            selected_index = -1
+        self._loading = False
+        if selected_index >= 0:
+            self._load_segment(selected_index)
+        else:
+            self._segment_index = -1
+            self.sections_table.setRowCount(0)
+            self._update_section_actions()
+        self._update_segment_actions()
+
+    def _update_segment_actions(self) -> None:
+        segments = self._segments()
+        index = self._segment_index
+        has_segment = 0 <= index < len(segments)
+        self.add_segment_button.setEnabled(True)
+        self.duplicate_segment_button.setEnabled(has_segment)
+        self.move_segment_up_button.setEnabled(has_segment and index > 0)
+        self.move_segment_down_button.setEnabled(
+            has_segment and index < len(segments) - 1
+        )
+        self.delete_segment_button.setEnabled(has_segment and len(segments) > 1)
 
     def _on_section_selected(self, row: int, _column: int, *_previous: int) -> None:
-        if not self._loading and row >= 0:
+        if self._loading:
+            return
+        if row >= 0:
             self._load_section(row)
+        else:
+            self._section_index = -1
+        self._update_section_actions()
+
+    def _add_section(self) -> None:
+        sections = self._sections()
+        if self._current_segment() is None:
+            return
+        insert_at = (
+            self._section_index + 1
+            if 0 <= self._section_index < len(sections)
+            else len(sections)
+        )
+        new_section = self._new_section(sections, insert_at)
+        self._api.edit_component(
+            self._component,
+            "Add fuselage section",
+            lambda: sections.insert(insert_at, new_section),
+        )
+        self._reload_sections(insert_at)
+
+    def _duplicate_section(self) -> None:
+        sections = self._sections()
+        index = self._section_index
+        if not 0 <= index < len(sections):
+            return
+        insert_at = index + 1
+        duplicate = deepcopy(sections[index])
+        self._api.edit_component(
+            self._component,
+            "Duplicate fuselage section",
+            lambda: sections.insert(insert_at, duplicate),
+        )
+        self._reload_sections(insert_at)
+
+    def _move_section_up(self) -> None:
+        self._move_section(-1)
+
+    def _move_section_down(self) -> None:
+        self._move_section(1)
+
+    def _move_section(self, offset: int) -> None:
+        sections = self._sections()
+        source = self._section_index
+        target = source + offset
+        if not 0 <= source < len(sections) or not 0 <= target < len(sections):
+            return
+
+        def change() -> None:
+            sections.insert(target, sections.pop(source))
+
+        self._api.edit_component(
+            self._component,
+            "Move fuselage section",
+            change,
+        )
+        self._reload_sections(target)
+
+    def _delete_section(self) -> None:
+        sections = self._sections()
+        index = self._section_index
+        if len(sections) <= 2 or not 0 <= index < len(sections):
+            return
+        self._api.edit_component(
+            self._component,
+            "Delete fuselage section",
+            lambda: sections.pop(index),
+        )
+        self._reload_sections(min(index, len(sections) - 1))
+
+    def _reload_sections(self, selected_index: int) -> None:
+        self._loading = True
+        self._populate_sections()
+        sections = self._sections()
+        if sections:
+            selected_index = min(max(selected_index, 0), len(sections) - 1)
+            self.sections_table.selectRow(selected_index)
+        else:
+            selected_index = -1
+        self._loading = False
+        if selected_index >= 0:
+            self._load_section(selected_index)
+        else:
+            self._section_index = -1
+        self._update_section_actions()
+
+    def _update_section_actions(self) -> None:
+        sections = self._sections()
+        index = self._section_index
+        has_segment = self._current_segment() is not None
+        has_section = 0 <= index < len(sections)
+        self.add_section_button.setEnabled(has_segment)
+        self.duplicate_section_button.setEnabled(has_section)
+        self.move_section_up_button.setEnabled(has_section and index > 0)
+        self.move_section_down_button.setEnabled(
+            has_section and index < len(sections) - 1
+        )
+        self.delete_section_button.setEnabled(has_section and len(sections) > 2)
+
+    @classmethod
+    def _new_section(
+        cls,
+        sections: list[dict[str, Any]],
+        insert_at: int,
+    ) -> dict[str, Any]:
+        x = cls._new_section_x(sections, insert_at)
+        return cls._default_section(x)
+
+    @classmethod
+    def _new_segment(cls, segments: list[dict[str, Any]]) -> dict[str, Any]:
+        return {
+            "tag": cls._unique_segment_tag(segments, "segment"),
+            "loft": {
+                "method": "smooth",
+                "parameterization": "centripetal",
+                "profile_correspondence": "cardinal_quadrants",
+            },
+            "sections": [
+                cls._default_section(0.0),
+                cls._default_section(100.0),
+            ],
+        }
+
+    @staticmethod
+    def _unique_segment_tag(
+        segments: list[dict[str, Any]],
+        base: str,
+    ) -> str:
+        existing = {str(segment.get("tag") or "") for segment in segments}
+        if base not in existing:
+            return base
+        suffix = 2
+        while f"{base}-{suffix}" in existing:
+            suffix += 1
+        return f"{base}-{suffix}"
+
+    @classmethod
+    def _default_section(cls, x: float) -> dict[str, Any]:
+        return {
+            "position": {"x": x, "y": 0.0, "z": 0.0},
+            "rotation": {"x": 0.0, "y": 0.0, "z": 0.0},
+            "profile": cls._default_profile("circle"),
+            "skin": {"continuity": "curvature", "symmetry": "all"},
+        }
+
+    @staticmethod
+    def _new_section_x(sections: list[dict[str, Any]], insert_at: int) -> float:
+        def x_at(index: int) -> float:
+            position = sections[index].get("position")
+            if not isinstance(position, dict):
+                return 0.0
+            try:
+                return float(position.get("x") or 0)
+            except (TypeError, ValueError):
+                return 0.0
+
+        has_previous = insert_at > 0
+        has_next = insert_at < len(sections)
+        if has_previous and has_next:
+            return (x_at(insert_at - 1) + x_at(insert_at)) / 2
+        if has_previous:
+            return x_at(insert_at - 1) + 100.0
+        if has_next:
+            return x_at(insert_at) - 100.0
+        return 0.0
 
     def _update_general(self, row: int, column: int) -> None:
         if self._loading or column != 1:
@@ -592,18 +932,22 @@ class FuselageEditor(QWidget):
         if not isinstance(geometry, dict):
             return []
         segments = geometry.get("segments")
-        if not isinstance(segments, list):
+        if not isinstance(segments, list) or not all(
+            isinstance(segment, dict) for segment in segments
+        ):
             return []
-        return [segment for segment in segments if isinstance(segment, dict)]
+        return segments
 
     def _sections(self) -> list[dict[str, Any]]:
         segment = self._current_segment()
         if segment is None:
             return []
         sections = segment.get("sections")
-        if not isinstance(sections, list):
+        if not isinstance(sections, list) or not all(
+            isinstance(section, dict) for section in sections
+        ):
             return []
-        return [section for section in sections if isinstance(section, dict)]
+        return sections
 
     def _current_segment(self) -> dict[str, Any] | None:
         segments = self._segments()
@@ -691,6 +1035,10 @@ class FuselageEditor(QWidget):
         options: list[tuple[str, str]],
         on_changed: Callable[[str], None],
     ) -> None:
+        item = table.item(row, column)
+        if item is not None:
+            item.setText("")
+            item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
         combo = QComboBox(table)
         combo.setProperty("tableEditor", True)
         combo.setFont(QApplication.font())
