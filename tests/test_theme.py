@@ -28,6 +28,7 @@ class ThemeTests(unittest.TestCase):
         self.assertIn('QComboBox[tableEditor="true"]', stylesheet)
         self.assertIn('QAbstractItemView[tableComboPopup="true"]', stylesheet)
         self.assertIn("border-radius: 0", stylesheet)
+        self.assertIn("background-color: transparent", stylesheet)
 
     def test_accent_color_is_defined(self) -> None:
         self.assertEqual(ACCENT_COLOR, "#7fc4d1")
