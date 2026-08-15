@@ -12,6 +12,8 @@ from setuav_studio.plugins.core.project import ProjectExplorer
 from setuav_studio.plugins.geometry import GeometryPlugin
 from setuav_studio.plugins.geometry.fuselage import FuselageEditor
 from setuav_studio.plugins.viewer import OpenGLViewerPlugin
+from setuav_studio.plugins.viewer.mesh import build_loft_wire_vertices
+from setuav_studio.geometry_data import GeometryData, LoftGeometry, Section
 from setuav_studio.project import ProjectDocument
 
 
@@ -95,6 +97,41 @@ class PluginTests(unittest.TestCase):
             [workspace.id for workspace in self.workspaces],
             ["studio.viewer.opengl"],
         )
+
+    def test_viewer_builds_closed_loft_sections_and_connectors(self) -> None:
+        data = GeometryData(
+            lofts=(
+                LoftGeometry(
+                    component_id="fuselage",
+                    sections=(
+                        Section(((0.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))),
+                        Section(((1.0, 0.0, 0.0), (1.0, 1.0, 0.0), (1.0, 0.0, 1.0))),
+                    ),
+                    subdivisions=0,
+                ),
+            )
+        )
+
+        vertices = build_loft_wire_vertices(data)
+
+        # 3 edges per loop and 3 longitudinal connectors, 2 vertices per line.
+        self.assertEqual(len(vertices) // 6, 18)
+
+    def test_viewer_rejects_mismatched_loft_sections(self) -> None:
+        data = GeometryData(
+            lofts=(
+                LoftGeometry(
+                    component_id="fuselage",
+                    sections=(
+                        Section(((0.0, 0.0, 0.0),) * 3),
+                        Section(((1.0, 0.0, 0.0),) * 4),
+                    ),
+                ),
+            )
+        )
+
+        with self.assertRaisesRegex(ValueError, "equal point counts"):
+            build_loft_wire_vertices(data)
 
     def test_new_fuselage_section_uses_available_longitudinal_space(self) -> None:
         sections = [

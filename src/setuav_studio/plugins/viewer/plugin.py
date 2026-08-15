@@ -1,5 +1,5 @@
 from setuav_studio.plugin_system import StudioAPI, WorkspaceContribution
-from setuav_studio.plugins.viewer.widget import OpenGLViewer
+from setuav_studio.plugins.viewer.workspace import ViewerWorkspace
 
 
 class OpenGLViewerPlugin:
@@ -9,6 +9,6 @@ class OpenGLViewerPlugin:
         api.set_workspace(
             WorkspaceContribution(
                 id="studio.viewer.opengl",
-                factory=OpenGLViewer,
+                factory=lambda: ViewerWorkspace(api),
             )
         )

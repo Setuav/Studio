@@ -10,6 +10,8 @@ from PySide6.QtGui import QUndoCommand, QUndoStack
 from PySide6.QtWidgets import QWidget
 
 from setuav_studio.project import ProjectDocument
+from setuav_studio.geometry_data import GeometryData
+from setuav_studio.geometry_scene import GeometryProvider, build_project_geometry
 
 
 @dataclass(frozen=True)
@@ -77,6 +79,7 @@ class StudioAPI:
             str,
             Callable[[dict[str, Any]], QWidget],
         ] = {}
+        self._geometry_providers: dict[str, GeometryProvider] = {}
         self._project_requirement_checker: (
             Callable[[dict[str, Any]], list[str]] | None
         ) = None
@@ -245,6 +248,38 @@ class StudioAPI:
         if factory is None:
             return None
         return factory(component)
+
+    def register_geometry_provider(
+        self,
+        component_type: str,
+        provider: GeometryProvider,
+    ) -> None:
+        if component_type in self._geometry_providers:
+            raise ValueError(f"A geometry provider is already registered for: {component_type}")
+        self._geometry_providers[component_type] = provider
+
+    def build_geometry_data(
+        self,
+        project: ProjectDocument | None = None,
+    ) -> GeometryData:
+        document = project or self.current_project
+        if document is None:
+            return GeometryData()
+        return build_project_geometry(document, self._geometry_providers)
+
+    def remove_project_listener(
+        self,
+        listener: Callable[[ProjectDocument], None],
+    ) -> None:
+        if listener in self._project_listeners:
+            self._project_listeners.remove(listener)
+
+    def remove_selection_listener(
+        self,
+        listener: Callable[[Any | None], None],
+    ) -> None:
+        if listener in self._selection_listeners:
+            self._selection_listeners.remove(listener)
 
 
 class StudioPlugin(Protocol):
