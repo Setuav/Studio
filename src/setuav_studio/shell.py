@@ -1,14 +1,17 @@
 from pathlib import Path
 
-from PySide6.QtWidgets import QFileDialog, QMainWindow, QMessageBox
+from PySide6.QtWidgets import QDockWidget, QFileDialog, QMainWindow, QMessageBox
 
+from setuav_studio.plugins import PanelContribution, StudioAPI
 from setuav_studio.project import ProjectDocument, ProjectOpenError, open_project
 
 
 class MainWindow(QMainWindow):
-    def __init__(self) -> None:
+    def __init__(self, api: StudioAPI) -> None:
         super().__init__()
+        self._api = api
         self._project: ProjectDocument | None = None
+        self._api.set_panel_handler(self._add_panel)
 
         self.setWindowTitle("Setuav Studio")
         self.resize(1200, 800)
@@ -43,7 +46,14 @@ class MainWindow(QMainWindow):
             return
 
         self._project = project
+        self._api.set_project(project)
         name = project.data.get("name")
         if not isinstance(name, str) or not name.strip():
             name = Path(path).stem
         self.setWindowTitle(f"{name} — Setuav Studio")
+
+    def _add_panel(self, contribution: PanelContribution) -> None:
+        dock = QDockWidget(contribution.title, self)
+        dock.setObjectName(contribution.id)
+        dock.setWidget(contribution.factory())
+        self.addDockWidget(contribution.area, dock)
