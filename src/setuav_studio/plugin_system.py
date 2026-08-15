@@ -66,6 +66,10 @@ class StudioAPI:
             str,
             Callable[[dict[str, Any]], QWidget],
         ] = {}
+        self._kind_editors: dict[
+            str,
+            Callable[[dict[str, Any]], QWidget],
+        ] = {}
         self._project_requirement_checker: (
             Callable[[dict[str, Any]], list[str]] | None
         ) = None
@@ -195,14 +199,31 @@ class StudioAPI:
             )
         self._component_editors[component_type] = factory
 
+    def register_kind_editor(
+        self,
+        component_kind: str,
+        factory: Callable[[dict[str, Any]], QWidget],
+    ) -> None:
+        if component_kind in self._kind_editors:
+            raise ValueError(
+                f"An editor is already registered for component kind: {component_kind}"
+            )
+        self._kind_editors[component_kind] = factory
+
     def create_component_editor(
         self,
         component: dict[str, Any],
     ) -> QWidget | None:
         component_type = component.get("type")
-        if not isinstance(component_type, str):
-            return None
-        factory = self._component_editors.get(component_type)
+        factory = (
+            self._component_editors.get(component_type)
+            if isinstance(component_type, str)
+            else None
+        )
+        if factory is None:
+            component_kind = component.get("kind")
+            if isinstance(component_kind, str):
+                factory = self._kind_editors.get(component_kind)
         if factory is None:
             return None
         return factory(component)

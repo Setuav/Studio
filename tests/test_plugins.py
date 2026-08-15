@@ -32,11 +32,24 @@ class PluginTests(unittest.TestCase):
 
         self.assertIs(self.api.create_component_editor(component), editor)
 
+    def test_studio_api_creates_registered_kind_editor(self) -> None:
+        instance = {"kind": "instance", "source": "wing-left"}
+        editor = object()
+        self.api.register_kind_editor("instance", lambda _instance: editor)
+
+        self.assertIs(self.api.create_component_editor(instance), editor)
+
     def test_rejects_duplicate_component_editor_registration(self) -> None:
         self.api.register_component_editor("example:wing", lambda _component: object())
 
         with self.assertRaises(ValueError):
             self.api.register_component_editor("example:wing", lambda _component: object())
+
+    def test_rejects_duplicate_kind_editor_registration(self) -> None:
+        self.api.register_kind_editor("instance", lambda _component: object())
+
+        with self.assertRaises(ValueError):
+            self.api.register_kind_editor("instance", lambda _component: object())
 
     def test_core_plugin_contributes_properties_panel(self) -> None:
         self.manager.activate(CorePlugin())
