@@ -17,6 +17,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from setuav_studio.plugin_system import StudioAPI
+
 
 class FuselageEditor(QWidget):
     PROFILE_TYPES = (
@@ -28,8 +30,9 @@ class FuselageEditor(QWidget):
         "polygon",
     )
 
-    def __init__(self, component: dict[str, Any]) -> None:
+    def __init__(self, api: StudioAPI, component: dict[str, Any]) -> None:
         super().__init__()
+        self._api = api
         self._component = component
         self._segment_index = -1
         self._section_index = -1
@@ -68,7 +71,7 @@ class FuselageEditor(QWidget):
         form.addRow("Type:", self.type_label)
 
         self.mass_spin = self._number_box(" g", 0, 1_000_000)
-        self.mass_spin.valueChanged.connect(self._update_general)
+        self.mass_spin.editingFinished.connect(self._update_general)
         form.addRow("Mass:", self.mass_spin)
 
         self._content_layout.addWidget(group)
@@ -177,7 +180,7 @@ class FuselageEditor(QWidget):
             self.bottom_width,
             self.base_width,
         ):
-            widget.valueChanged.connect(self._update_section)
+            widget.editingFinished.connect(self._update_section)
         self.orientation_combo.currentTextChanged.connect(self._update_section)
 
         layout.addWidget(selected_group)
@@ -298,25 +301,38 @@ class FuselageEditor(QWidget):
     def _update_general(self, *_args: object) -> None:
         if self._loading:
             return
-        self._component["name"] = self.name_edit.text().strip()
-        self._parameters()["mass"] = self.mass_spin.value()
+
+        def change() -> None:
+            self._component["name"] = self.name_edit.text().strip()
+            self._parameters()["mass"] = self.mass_spin.value()
+
+        self._api.edit_component(self._component, "Edit fuselage properties", change)
 
     def _update_segment(self, *_args: object) -> None:
         segment = self._current_segment()
         if self._loading or segment is None:
             return
-        segment["tag"] = self.segment_tag_edit.text().strip()
-        loft = self._object(segment, "loft")
-        loft["method"] = self.loft_method_combo.currentText()
-        loft["parameterization"] = self.parameterization_combo.currentText()
-        loft["profile_correspondence"] = "cardinal_quadrants"
+
+        def change() -> None:
+            segment["tag"] = self.segment_tag_edit.text().strip()
+            loft = self._object(segment, "loft")
+            loft["method"] = self.loft_method_combo.currentText()
+            loft["parameterization"] = self.parameterization_combo.currentText()
+            loft["profile_correspondence"] = "cardinal_quadrants"
+
+        self._api.edit_component(self._component, "Edit fuselage segment", change)
         self._refresh_segment_row()
 
     def _change_profile_type(self, profile_type: str) -> None:
         section = self._current_section()
         if self._loading or section is None:
             return
-        section["profile"] = self._default_profile(profile_type)
+
+        self._api.edit_component(
+            self._component,
+            "Change fuselage profile",
+            lambda: section.__setitem__("profile", self._default_profile(profile_type)),
+        )
         self._load_section(self._section_index)
         self._populate_sections()
         self.sections_table.selectRow(self._section_index)
@@ -326,44 +342,47 @@ class FuselageEditor(QWidget):
         if self._loading or section is None:
             return
 
-        section["position"] = {
-            "x": self.pos_x.value(),
-            "y": self.pos_y.value(),
-            "z": self.pos_z.value(),
-        }
-        section["rotation"] = {
-            "x": self.rot_x.value(),
-            "y": self.rot_y.value(),
-            "z": self.rot_z.value(),
-        }
+        def change() -> None:
+            section["position"] = {
+                "x": self.pos_x.value(),
+                "y": self.pos_y.value(),
+                "z": self.pos_z.value(),
+            }
+            section["rotation"] = {
+                "x": self.rot_x.value(),
+                "y": self.rot_y.value(),
+                "z": self.rot_z.value(),
+            }
 
-        profile = self._object(section, "profile")
-        profile_type = str(profile.get("type") or "circle")
-        fields = {
-            "circle": {"diameter": self.diameter.value()},
-            "ellipse": {"width": self.width.value(), "height": self.height.value()},
-            "rectangle": {
-                "width": self.width.value(),
-                "height": self.height.value(),
-                "corner_radius": self.corner_radius.value(),
-            },
-            "trapezoid": {
-                "top_width": self.top_width.value(),
-                "bottom_width": self.bottom_width.value(),
-                "height": self.height.value(),
-                "corner_radius": self.corner_radius.value(),
-            },
-            "triangle": {
-                "base_width": self.base_width.value(),
-                "height": self.height.value(),
-                "orientation": self.orientation_combo.currentText(),
-                "corner_radius": self.corner_radius.value(),
-            },
-        }
-        if profile_type in fields:
-            profile.clear()
-            profile["type"] = profile_type
-            profile.update(fields[profile_type])
+            profile = self._object(section, "profile")
+            profile_type = str(profile.get("type") or "circle")
+            fields = {
+                "circle": {"diameter": self.diameter.value()},
+                "ellipse": {"width": self.width.value(), "height": self.height.value()},
+                "rectangle": {
+                    "width": self.width.value(),
+                    "height": self.height.value(),
+                    "corner_radius": self.corner_radius.value(),
+                },
+                "trapezoid": {
+                    "top_width": self.top_width.value(),
+                    "bottom_width": self.bottom_width.value(),
+                    "height": self.height.value(),
+                    "corner_radius": self.corner_radius.value(),
+                },
+                "triangle": {
+                    "base_width": self.base_width.value(),
+                    "height": self.height.value(),
+                    "orientation": self.orientation_combo.currentText(),
+                    "corner_radius": self.corner_radius.value(),
+                },
+            }
+            if profile_type in fields:
+                profile.clear()
+                profile["type"] = profile_type
+                profile.update(fields[profile_type])
+
+        self._api.edit_component(self._component, "Edit fuselage section", change)
         self._refresh_section_row()
 
     def _update_vertices(self, row: int, column: int) -> None:
@@ -383,7 +402,11 @@ class FuselageEditor(QWidget):
             return
         key = ("y", "z", "radius")[column]
         if isinstance(vertices[row], dict):
-            vertices[row][key] = value
+            self._api.edit_component(
+                self._component,
+                "Edit polygon vertex",
+                lambda: vertices[row].__setitem__(key, value),
+            )
 
     def _set_profile_rows(self, profile_type: str) -> None:
         visible = {

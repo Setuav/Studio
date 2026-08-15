@@ -1,9 +1,11 @@
 import unittest
+from pathlib import Path
 
 from setuav_studio.plugin_system import PanelContribution, PluginManager, StudioAPI
 from setuav_studio.plugins.core import CorePlugin
 from setuav_studio.plugins.geometry import GeometryPlugin
 from setuav_studio.plugins.geometry.fuselage import FuselageEditor
+from setuav_studio.project import ProjectDocument
 
 
 class PluginTests(unittest.TestCase):
@@ -47,7 +49,51 @@ class PluginTests(unittest.TestCase):
         self.manager.activate(GeometryPlugin())
 
         factory = self.api._component_editors["org.setuav.core:fuselage"]
-        self.assertIs(factory, FuselageEditor)
+        self.assertIsNotNone(factory)
+
+    def test_discovers_bundled_geometry_plugin(self) -> None:
+        self.manager.activate(CorePlugin())
+
+        issues = self.manager.discover()
+
+        self.assertEqual(issues, [])
+        self.assertIn("org.setuav.core:fuselage", self.api._component_editors)
+
+    def test_checks_project_plugin_requirements(self) -> None:
+        self.manager.activate(GeometryPlugin())
+
+        compatible = self.manager.check_project_requirements(
+            {"plugins": [{"id": "org.setuav.core", "version": "^1.0.0"}]}
+        )
+        missing = self.manager.check_project_requirements(
+            {"plugins": [{"id": "example.missing", "version": "1.0.0"}]}
+        )
+
+        self.assertEqual(compatible, [])
+        self.assertEqual(missing, ["Missing plugin: example.missing"])
+
+    def test_component_edits_support_undo_and_redo(self) -> None:
+        component = {"name": "Before"}
+        project = ProjectDocument(
+            Path("project.json"),
+            "json",
+            {"components": [component]},
+        )
+        self.api.set_project(project)
+
+        self.api.edit_component(
+            component,
+            "Rename component",
+            lambda: component.__setitem__("name", "After"),
+        )
+
+        self.assertEqual(component["name"], "After")
+        self.assertTrue(project.modified)
+        self.api.undo()
+        self.assertEqual(component["name"], "Before")
+        self.assertFalse(project.modified)
+        self.api.redo()
+        self.assertEqual(component["name"], "After")
 
     def test_rejects_duplicate_plugin_activation(self) -> None:
         self.manager.activate(CorePlugin())

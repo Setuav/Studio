@@ -14,6 +14,7 @@ class ProjectExplorer(QTreeWidget):
         self._api = api
         self._components: list[dict[str, object]] = []
         api.on_project_changed(self.set_project)
+        api.on_project_content_changed(self.refresh_project)
 
     def set_project(self, project: ProjectDocument) -> None:
         self.clear()
@@ -25,6 +26,20 @@ class ProjectExplorer(QTreeWidget):
             item = QTreeWidgetItem([name, component_type])
             item.setData(0, 256, index)
             self.addTopLevelItem(item)
+
+    def refresh_project(self, project: ProjectDocument) -> None:
+        components = project.data.get("components", [])
+        current_components = [item for item in components if isinstance(item, dict)]
+        if len(current_components) != len(self._components):
+            self.set_project(project)
+            return
+
+        self._components = current_components
+        for index, component in enumerate(self._components):
+            item = self.topLevelItem(index)
+            if item is not None:
+                item.setText(0, str(component.get("name") or component.get("id") or "Unnamed"))
+                item.setText(1, str(component.get("type") or component.get("kind") or ""))
 
     def _publish_selection(
         self,
