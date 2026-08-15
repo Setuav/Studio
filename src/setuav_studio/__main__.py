@@ -9,6 +9,8 @@ from setuav_studio.shell import MainWindow
 
 def main() -> int:
     app = QApplication(sys.argv)
+    app.setOrganizationName("Setware")
+    app.setApplicationName("Setuav Studio")
 
     api = StudioAPI()
     window = MainWindow(api)
@@ -16,6 +18,7 @@ def main() -> int:
     plugin_manager = PluginManager(api)
     plugin_manager.activate(ProjectPlugin())
 
+    window.restore_window_layout()
     window.show()
 
     return app.exec()
