@@ -21,6 +21,12 @@ class PanelContribution:
 
 
 @dataclass(frozen=True)
+class WorkspaceContribution:
+    id: str
+    factory: Callable[[], QWidget]
+
+
+@dataclass(frozen=True)
 class PluginLoadIssue:
     source: str
     message: str
@@ -58,6 +64,7 @@ class StudioAPI:
         self.current_project: ProjectDocument | None = None
         self.current_selection: Any | None = None
         self._add_panel: Callable[[PanelContribution], None] | None = None
+        self._set_workspace: Callable[[WorkspaceContribution], None] | None = None
         self._project_listeners: list[Callable[[ProjectDocument], None]] = []
         self._project_content_listeners: list[Callable[[ProjectDocument], None]] = []
         self._modified_listeners: list[Callable[[bool], None]] = []
@@ -83,6 +90,17 @@ class StudioAPI:
         if self._add_panel is None:
             raise RuntimeError("The Studio shell is not ready for panel contributions")
         self._add_panel(contribution)
+
+    def set_workspace_handler(
+        self,
+        handler: Callable[[WorkspaceContribution], None],
+    ) -> None:
+        self._set_workspace = handler
+
+    def set_workspace(self, contribution: WorkspaceContribution) -> None:
+        if self._set_workspace is None:
+            raise RuntimeError("The Studio shell is not ready for a workspace contribution")
+        self._set_workspace(contribution)
 
     def on_project_changed(self, listener: Callable[[ProjectDocument], None]) -> None:
         self._project_listeners.append(listener)

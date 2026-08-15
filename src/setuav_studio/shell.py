@@ -16,7 +16,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.plugin_system import PanelContribution, StudioAPI
+from setuav_studio.plugin_system import (
+    PanelContribution,
+    StudioAPI,
+    WorkspaceContribution,
+)
 from setuav_studio.plugins.core.settings import SettingsDialog, StudioSettings
 from setuav_studio.plugins.core.theme import apply_theme
 from setuav_studio.project import (
@@ -75,10 +79,12 @@ class MainWindow(QMainWindow):
         self._api = api
         self._project: ProjectDocument | None = None
         self._api.set_panel_handler(self._add_panel)
+        self._api.set_workspace_handler(self._set_workspace)
 
         self.setWindowTitle("Setuav Studio")
         self.resize(1200, 800)
         workspace = QWidget(self)
+        workspace.setObjectName("studio.empty-workspace")
         self.setCentralWidget(workspace)
 
         self._file_menu = self.menuBar().addMenu("&File")
@@ -338,3 +344,11 @@ class MainWindow(QMainWindow):
             Qt.DockWidgetArea.RightDockWidgetArea,
         }:
             self.resizeDocks([dock], [320], Qt.Orientation.Horizontal)
+
+    def _set_workspace(self, contribution: WorkspaceContribution) -> None:
+        workspace = contribution.factory()
+        workspace.setObjectName(contribution.id)
+        previous = self.takeCentralWidget()
+        self.setCentralWidget(workspace)
+        if previous is not None:
+            previous.deleteLater()

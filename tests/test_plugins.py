@@ -1,11 +1,17 @@
 import unittest
 from pathlib import Path
 
-from setuav_studio.plugin_system import PanelContribution, PluginManager, StudioAPI
+from setuav_studio.plugin_system import (
+    PanelContribution,
+    PluginManager,
+    StudioAPI,
+    WorkspaceContribution,
+)
 from setuav_studio.plugins.core import CorePlugin
 from setuav_studio.plugins.core.project import ProjectExplorer
 from setuav_studio.plugins.geometry import GeometryPlugin
 from setuav_studio.plugins.geometry.fuselage import FuselageEditor
+from setuav_studio.plugins.viewer import OpenGLViewerPlugin
 from setuav_studio.project import ProjectDocument
 
 
@@ -13,7 +19,9 @@ class PluginTests(unittest.TestCase):
     def setUp(self) -> None:
         self.api = StudioAPI()
         self.panels: list[PanelContribution] = []
+        self.workspaces: list[WorkspaceContribution] = []
         self.api.set_panel_handler(self.panels.append)
+        self.api.set_workspace_handler(self.workspaces.append)
         self.manager = PluginManager(self.api)
 
     def test_studio_api_publishes_selection_changes(self) -> None:
@@ -79,6 +87,14 @@ class PluginTests(unittest.TestCase):
 
         factory = self.api._component_editors["org.setuav.core:fuselage"]
         self.assertIsNotNone(factory)
+
+    def test_opengl_viewer_plugin_contributes_workspace(self) -> None:
+        self.manager.activate(OpenGLViewerPlugin())
+
+        self.assertEqual(
+            [workspace.id for workspace in self.workspaces],
+            ["studio.viewer.opengl"],
+        )
 
     def test_new_fuselage_section_uses_available_longitudinal_space(self) -> None:
         sections = [
