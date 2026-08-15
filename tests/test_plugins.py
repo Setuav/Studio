@@ -3,6 +3,7 @@ from pathlib import Path
 
 from setuav_studio.plugin_system import PanelContribution, PluginManager, StudioAPI
 from setuav_studio.plugins.core import CorePlugin
+from setuav_studio.plugins.core.project import ProjectExplorer
 from setuav_studio.plugins.geometry import GeometryPlugin
 from setuav_studio.plugins.geometry.fuselage import FuselageEditor
 from setuav_studio.project import ProjectDocument
@@ -45,11 +46,44 @@ class PluginTests(unittest.TestCase):
             ["project.explorer", "studio.properties"],
         )
 
+    def test_project_explorer_describes_instance_source_by_name(self) -> None:
+        components = [
+            {"id": "wing-left", "name": "Left Main Wing", "kind": "component"},
+            {
+                "id": "wing-right",
+                "kind": "instance",
+                "source": "wing-left",
+            },
+        ]
+
+        self.assertEqual(
+            ProjectExplorer._component_type_text(components[1], components),
+            "Instance of Left Main Wing",
+        )
+
     def test_geometry_plugin_registers_fuselage_editor(self) -> None:
         self.manager.activate(GeometryPlugin())
 
         factory = self.api._component_editors["org.setuav.core:fuselage"]
         self.assertIsNotNone(factory)
+
+    def test_new_fuselage_section_uses_available_longitudinal_space(self) -> None:
+        sections = [
+            {"position": {"x": 100}},
+            {"position": {"x": 300}},
+        ]
+
+        self.assertEqual(FuselageEditor._new_section_x(sections, 1), 200)
+        self.assertEqual(FuselageEditor._new_section_x(sections, 2), 400)
+
+    def test_new_fuselage_segment_has_valid_defaults_and_unique_tag(self) -> None:
+        segment = FuselageEditor._new_segment(
+            [{"tag": "segment"}, {"tag": "segment-2"}]
+        )
+
+        self.assertEqual(segment["tag"], "segment-3")
+        self.assertEqual(len(segment["sections"]), 2)
+        self.assertEqual(segment["loft"]["method"], "smooth")
 
     def test_discovers_bundled_geometry_plugin(self) -> None:
         self.manager.activate(CorePlugin())
