@@ -4,12 +4,12 @@ from PySide6.QtCore import QSettings, Qt
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QDockWidget, QFileDialog, QMainWindow, QMessageBox, QWidget
 
-from setuav_studio.plugins import PanelContribution, StudioAPI
+from setuav_studio.plugin_system import PanelContribution, StudioAPI
 from setuav_studio.project import ProjectDocument, ProjectOpenError, open_project
 
 
 class MainWindow(QMainWindow):
-    _LAYOUT_VERSION = 1
+    _LAYOUT_VERSION = 2
 
     def __init__(self, api: StudioAPI) -> None:
         super().__init__()
@@ -57,14 +57,14 @@ class MainWindow(QMainWindow):
             "Setuav Projects (*.suav project.json);;All Files (*)",
         )
         if path:
-            self._load_project(path)
+            self.open_project(path)
 
     def _open_project_folder(self) -> None:
         path = QFileDialog.getExistingDirectory(self, "Open Setuav Project Folder")
         if path:
-            self._load_project(path)
+            self.open_project(path)
 
-    def _load_project(self, path: str) -> None:
+    def open_project(self, path: str) -> None:
         try:
             project = open_project(path)
         except ProjectOpenError as exc:
