@@ -1,6 +1,7 @@
 from pathlib import Path
 
-from PySide6.QtWidgets import QDockWidget, QFileDialog, QMainWindow, QMessageBox
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QDockWidget, QFileDialog, QMainWindow, QMessageBox, QWidget
 
 from setuav_studio.plugins import PanelContribution, StudioAPI
 from setuav_studio.project import ProjectDocument, ProjectOpenError, open_project
@@ -15,6 +16,7 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("Setuav Studio")
         self.resize(1200, 800)
+        self.setCentralWidget(QWidget(self))
 
         file_menu = self.menuBar().addMenu("&File")
         open_file_action = file_menu.addAction("Open Project File…")
@@ -57,3 +59,8 @@ class MainWindow(QMainWindow):
         dock.setObjectName(contribution.id)
         dock.setWidget(contribution.factory())
         self.addDockWidget(contribution.area, dock)
+        if contribution.area in {
+            Qt.DockWidgetArea.LeftDockWidgetArea,
+            Qt.DockWidgetArea.RightDockWidgetArea,
+        }:
+            self.resizeDocks([dock], [320], Qt.Orientation.Horizontal)

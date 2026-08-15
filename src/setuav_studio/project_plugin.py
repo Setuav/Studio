@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QTreeWidget, QTreeWidgetItem
+from PySide6.QtWidgets import QHeaderView, QTreeWidget, QTreeWidgetItem
 
 from setuav_studio.plugins import PanelContribution, StudioAPI
 from setuav_studio.project import ProjectDocument
@@ -8,6 +8,8 @@ class ProjectExplorer(QTreeWidget):
     def __init__(self, api: StudioAPI) -> None:
         super().__init__()
         self.setHeaderLabels(["Component", "Type"])
+        self.header().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.header().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         api.on_project_changed(self.set_project)
 
     def set_project(self, project: ProjectDocument) -> None:
