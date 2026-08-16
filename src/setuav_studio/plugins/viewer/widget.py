@@ -17,8 +17,13 @@ from setuav_studio.plugins.viewer.mesh import (
     FACE_COLORED,
     FACE_MONOCHROME,
     FACE_TRANSPARENT,
+    HOVERED_WIRE,
+    SECTION_RING,
+    SELECTED_WIRE,
+    build_component_wire_vertices,
     build_loft_solid_vertices,
     build_loft_wire_vertices,
+    build_section_ring_vertices,
     hit_test_loft,
 )
 
@@ -97,7 +102,7 @@ def _add_reference_line(vertices: list[float], start, end, color) -> None:
 
 
 class OpenGLViewer(QOpenGLWidget):
-    componentPicked = Signal(str)
+    componentPicked = Signal(object)
 
     def __init__(self, parent=None) -> None:
         surface_format = QSurfaceFormat()
@@ -119,10 +124,16 @@ class OpenGLViewer(QOpenGLWidget):
         self._grid_vbo = QOpenGLBuffer(QOpenGLBuffer.Type.VertexBuffer)
         self._axis_vao = QOpenGLVertexArrayObject()
         self._axis_vbo = QOpenGLBuffer(QOpenGLBuffer.Type.VertexBuffer)
+        self._highlight_vao = QOpenGLVertexArrayObject()
+        self._highlight_vbo = QOpenGLBuffer(QOpenGLBuffer.Type.VertexBuffer)
+        self._section_ring_vao = QOpenGLVertexArrayObject()
+        self._section_ring_vbo = QOpenGLBuffer(QOpenGLBuffer.Type.VertexBuffer)
         self._wire_count = 0
         self._solid_count = 0
         self._grid_count = 0
         self._axis_count = 0
+        self._highlight_count = 0
+        self._section_ring_count = 0
         self._show_solid = True
         self._show_wireframe = True
         self._mode = SOLID_WIRE
@@ -130,6 +141,8 @@ class OpenGLViewer(QOpenGLWidget):
         self._transparent = False
         self._geometry_data = GeometryData()
         self._selected_component_id: str | None = None
+        self._hovered_component_id: str | None = None
+        self._section_selection: tuple[str, int, int] | None = None
 
         self._azimuth = 30.0
         self._elevation = 20.0
@@ -147,6 +160,7 @@ class OpenGLViewer(QOpenGLWidget):
         functions.glClearColor(0.12, 0.12, 0.12, 1.0)
         functions.glEnable(_GL_DEPTH_TEST)
         functions.glEnable(_GL_MULTISAMPLE)
+        functions.glLineWidth(1.0)
 
         self._wire_program = self._create_program(
             _WIRE_VERTEX_SHADER,
@@ -178,6 +192,20 @@ class OpenGLViewer(QOpenGLWidget):
             ((0, 0, 3), (1, 3, 3)),
         )
         self._setup_buffer(
+            self._highlight_vao,
+            self._highlight_vbo,
+            self._wire_program,
+            6,
+            ((0, 0, 3), (1, 3, 3)),
+        )
+        self._setup_buffer(
+            self._section_ring_vao,
+            self._section_ring_vbo,
+            self._wire_program,
+            6,
+            ((0, 0, 3), (1, 3, 3)),
+        )
+        self._setup_buffer(
             self._solid_vao,
             self._solid_vbo,
             self._solid_program,
@@ -199,11 +227,11 @@ class OpenGLViewer(QOpenGLWidget):
         self._functions.glClear(_GL_COLOR_BUFFER_BIT | _GL_DEPTH_BUFFER_BIT)
         mvp = self._projection() * self._view()
 
-        both_active = self._show_solid and self._show_wireframe
+        lines_overlay = (self._show_wireframe and self._wire_count > 0) or self._highlight_count > 0
         if self._show_solid and self._solid_program is not None:
             eye_direction = self._eye_position() - self._target
             eye_direction.normalize()
-            if both_active:
+            if lines_overlay:
                 self._functions.glEnable(_GL_POLYGON_OFFSET_FILL)
                 self._functions.glPolygonOffset(1.0, 1.0)
             self._solid_program.bind()
@@ -226,7 +254,7 @@ class OpenGLViewer(QOpenGLWidget):
             if transparent:
                 self._functions.glDepthMask(True)
                 self._functions.glDisable(_GL_BLEND)
-            if both_active:
+            if lines_overlay:
                 self._functions.glDisable(_GL_POLYGON_OFFSET_FILL)
 
         if self._wire_program is None:
@@ -241,6 +269,16 @@ class OpenGLViewer(QOpenGLWidget):
         self._functions.glDrawArrays(_GL_LINES, 0, self._axis_count)
         self._axis_vao.release()
         self._functions.glDepthFunc(_GL_LESS)
+        if self._highlight_count > 0:
+            self._highlight_vao.bind()
+            self._functions.glDrawArrays(_GL_LINES, 0, self._highlight_count)
+            self._highlight_vao.release()
+        if self._section_ring_count > 0:
+            self._functions.glDepthFunc(_GL_LEQUAL)
+            self._section_ring_vao.bind()
+            self._functions.glDrawArrays(_GL_LINES, 0, self._section_ring_count)
+            self._section_ring_vao.release()
+            self._functions.glDepthFunc(_GL_LESS)
         if self._show_wireframe:
             self._wire_vao.bind()
             self._functions.glDrawArrays(_GL_LINES, 0, self._wire_count)
@@ -257,6 +295,20 @@ class OpenGLViewer(QOpenGLWidget):
         if self._selected_component_id == component_id:
             return
         self._selected_component_id = component_id
+        self._update_gpu_meshes()
+
+    def set_selected_section(
+        self,
+        component_id: str | None,
+        segment_index: int | None,
+        section_index: int | None,
+    ) -> None:
+        selection = None
+        if component_id is not None and segment_index is not None and section_index is not None:
+            selection = (component_id, segment_index, section_index)
+        if self._section_selection == selection:
+            return
+        self._section_selection = selection
         self._update_gpu_meshes()
 
     def set_show_solid(self, show: bool) -> None:
@@ -342,6 +394,8 @@ class OpenGLViewer(QOpenGLWidget):
             scale = self._distance * 0.001
             self._target -= right * (dx * scale)
             self._target -= QVector3D(0.0, 0.0, 1.0) * (dy * scale)
+        else:
+            self._pick_hover(current)
         self.update()
 
     def wheelEvent(self, event) -> None:
@@ -350,13 +404,27 @@ class OpenGLViewer(QOpenGLWidget):
         self.update()
         event.accept()
 
+    def leaveEvent(self, event) -> None:
+        if self._hovered_component_id is not None:
+            self._hovered_component_id = None
+            self._update_gpu_meshes()
+        super().leaveEvent(event)
+
     def _pick(self, point: QPoint) -> None:
-        if self._solid_count == 0:
-            return
-        origin, direction = self._screen_ray(point)
-        component_id = hit_test_loft(self._geometry_data, origin, direction)
-        if component_id is not None:
-            self.componentPicked.emit(component_id)
+        component_id = None
+        if self._solid_count > 0:
+            origin, direction = self._screen_ray(point)
+            component_id = hit_test_loft(self._geometry_data, origin, direction)
+        self.componentPicked.emit(component_id)
+
+    def _pick_hover(self, point: QPoint) -> None:
+        component_id = None
+        if self._solid_count > 0:
+            origin, direction = self._screen_ray(point)
+            component_id = hit_test_loft(self._geometry_data, origin, direction)
+        if self._hovered_component_id != component_id:
+            self._hovered_component_id = component_id
+            self._update_gpu_meshes()
 
     def _screen_ray(self, point: QPoint) -> tuple[Point3D, Point3D]:
         width = max(1, self.width())
@@ -387,17 +455,48 @@ class OpenGLViewer(QOpenGLWidget):
         wire_values = build_loft_wire_vertices(
             self._geometry_data,
             self._selected_component_id,
+            self._hovered_component_id,
             self._face_style,
         )
         solid_values = build_loft_solid_vertices(
             self._geometry_data,
             self._selected_component_id,
+            self._hovered_component_id,
             self._face_style,
         )
+        highlight_values = build_component_wire_vertices(
+            self._geometry_data,
+            self._selected_component_id,
+            SELECTED_WIRE,
+        )
+        hovered = (
+            self._hovered_component_id
+            if self._hovered_component_id != self._selected_component_id
+            else None
+        )
+        highlight_values.extend(
+            build_component_wire_vertices(
+                self._geometry_data,
+                hovered,
+                HOVERED_WIRE,
+            )
+        )
+        ring_values = []
+        if self._section_selection is not None:
+            component_id, segment_index, section_index = self._section_selection
+            ring_values = build_section_ring_vertices(
+                self._geometry_data,
+                component_id,
+                segment_index,
+                section_index,
+                SECTION_RING,
+            )
         self._grid_count = self._allocate(self._grid_vbo, grid_values, 6)
         self._axis_count = self._allocate(self._axis_vbo, axis_values, 6)
         self._wire_count = self._allocate(self._wire_vbo, wire_values, 6)
         self._solid_count = self._allocate(self._solid_vbo, solid_values, 9)
+        self._highlight_count = self._allocate(self._highlight_vbo, highlight_values, 6)
+        self._section_ring_count = self._allocate(self._section_ring_vbo, ring_values, 6)
 
     @staticmethod
     def _allocate(buffer: QOpenGLBuffer, values: list[float], stride: int) -> int:
@@ -481,10 +580,24 @@ class OpenGLViewer(QOpenGLWidget):
         if not self.isValid():
             return
         self.makeCurrent()
-        for buffer in (self._wire_vbo, self._solid_vbo, self._grid_vbo, self._axis_vbo):
+        for buffer in (
+            self._wire_vbo,
+            self._solid_vbo,
+            self._grid_vbo,
+            self._axis_vbo,
+            self._highlight_vbo,
+            self._section_ring_vbo,
+        ):
             if buffer.isCreated():
                 buffer.destroy()
-        for vao in (self._wire_vao, self._solid_vao, self._grid_vao, self._axis_vao):
+        for vao in (
+            self._wire_vao,
+            self._solid_vao,
+            self._grid_vao,
+            self._axis_vao,
+            self._highlight_vao,
+            self._section_ring_vao,
+        ):
             if vao.isCreated():
                 vao.destroy()
         self.doneCurrent()

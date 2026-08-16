@@ -323,6 +323,7 @@ class FuselageEditor(QWidget):
             self.sections_table.setRowCount(0)
             self._update_segment_actions()
             self._update_section_actions()
+            self._publish_section_selection()
             return
 
         self._loading = True
@@ -337,6 +338,7 @@ class FuselageEditor(QWidget):
             self._load_section(0)
         else:
             self._update_section_actions()
+            self._publish_section_selection()
         self._update_segment_actions()
 
     def _populate_sections(self) -> None:
@@ -395,6 +397,7 @@ class FuselageEditor(QWidget):
             self._load_segment(row)
         else:
             self._segment_index = -1
+            self._publish_section_selection()
         self._update_segment_actions()
 
     def _add_segment(self) -> None:
@@ -504,6 +507,20 @@ class FuselageEditor(QWidget):
         else:
             self._section_index = -1
         self._update_section_actions()
+        self._publish_section_selection()
+
+    def _publish_section_selection(self) -> None:
+        component_id = self._component.get("id")
+        if (
+            isinstance(component_id, str)
+            and self._segment_index >= 0
+            and self._section_index >= 0
+        ):
+            self._api.set_section_selection(
+                (component_id, self._segment_index, self._section_index)
+            )
+        else:
+            self._api.set_section_selection(None)
 
     def _add_section(self) -> None:
         sections = self._sections()

@@ -3,7 +3,10 @@ import math
 from setuav_studio.geometry_data import GeometryData, LoftGeometry, Point3D
 
 
-_SELECTED_COLOR = (0.50, 0.77, 0.82)
+SELECTED_WIRE = (0.50, 0.77, 0.82)
+HOVERED_WIRE = (1.0, 1.0, 1.0)
+SECTION_RING = (1.0, 0.85, 0.20)
+_DIM_FACTOR = 0.5
 _LONGITUDINAL_LINES = 12
 FACE_COLORED = "colored"
 FACE_MONOCHROME = "monochrome"
@@ -15,44 +18,98 @@ _SOLID_GREY = (0.62, 0.62, 0.62)
 def build_loft_wire_vertices(
     data: GeometryData,
     selected_component_id: str | None = None,
+    hovered_component_id: str | None = None,
     face_style: str = FACE_COLORED,
 ) -> list[float]:
     vertices: list[float] = []
+    excluded = {selected_component_id, hovered_component_id}
     for loft in data.lofts:
+        if loft.component_id in excluded:
+            continue
         loops = _tessellated_loops(loft)
         if not loops:
             continue
         color = (
-            _SELECTED_COLOR
-            if loft.component_id == selected_component_id
-            else loft.color if face_style in (FACE_COLORED, FACE_TRANSPARENT) else _WIRE_GREY
+            loft.color if face_style in (FACE_COLORED, FACE_TRANSPARENT) else _WIRE_GREY
         )
-        for loop in loops:
-            for index, point in enumerate(loop):
-                _add_line(vertices, point, loop[(index + 1) % len(loop)], color)
-        step = max(1, len(loops[0]) // _LONGITUDINAL_LINES)
-        for point_index in range(0, len(loops[0]), step):
-            for current, following in zip(loops, loops[1:]):
-                _add_line(vertices, current[point_index], following[point_index], color)
+        _append_loft_wire(vertices, loops, color)
+    return vertices
+
+
+def build_component_wire_vertices(
+    data: GeometryData,
+    component_id: str | None,
+    color: Point3D = SELECTED_WIRE,
+) -> list[float]:
+    vertices: list[float] = []
+    if component_id is None:
+        return vertices
+    for loft in data.lofts:
+        if loft.component_id != component_id:
+            continue
+        loops = _tessellated_loops(loft)
+        if not loops:
+            continue
+        _append_loft_wire(vertices, loops, color)
+    return vertices
+
+
+def _append_loft_wire(vertices: list[float], loops, color: Point3D) -> None:
+    for loop in loops:
+        for index, point in enumerate(loop):
+            _add_line(vertices, point, loop[(index + 1) % len(loop)], color)
+    step = max(1, len(loops[0]) // _LONGITUDINAL_LINES)
+    for point_index in range(0, len(loops[0]), step):
+        for current, following in zip(loops, loops[1:]):
+            _add_line(vertices, current[point_index], following[point_index], color)
+
+
+def build_section_ring_vertices(
+    data: GeometryData,
+    component_id: str | None,
+    segment_index: int | None,
+    section_index: int | None,
+    color: Point3D = SECTION_RING,
+) -> list[float]:
+    vertices: list[float] = []
+    if component_id is None or segment_index is None or section_index is None:
+        return vertices
+    loft_index = 0
+    for loft in data.lofts:
+        if loft.component_id != component_id:
+            continue
+        if loft_index == segment_index:
+            if 0 <= section_index < len(loft.sections):
+                loop = loft.sections[section_index].points
+                for index, point in enumerate(loop):
+                    _add_line(vertices, point, loop[(index + 1) % len(loop)], color)
+            break
+        loft_index += 1
     return vertices
 
 
 def build_loft_solid_vertices(
     data: GeometryData,
     selected_component_id: str | None = None,
+    hovered_component_id: str | None = None,
     face_style: str = FACE_COLORED,
 ) -> list[float]:
     vertices: list[float] = []
+    highlighted = (
+        {selected_component_id, hovered_component_id}
+        if selected_component_id is not None
+        else set()
+    )
     for loft in data.lofts:
         loops = _tessellated_loops(loft)
         if not loops:
             continue
-        if loft.component_id == selected_component_id:
-            color = tuple(channel * 0.65 for channel in _SELECTED_COLOR)
-        elif face_style in (FACE_COLORED, FACE_TRANSPARENT):
+        if face_style in (FACE_COLORED, FACE_TRANSPARENT):
             color = tuple(channel * 0.65 for channel in loft.color)
         else:
             color = _SOLID_GREY
+        if selected_component_id is not None and loft.component_id not in highlighted:
+            color = tuple(channel * _DIM_FACTOR for channel in color)
         for current, following in zip(loops, loops[1:]):
             _add_quad_strip(vertices, current, following, color)
         if loft.closed_ends:

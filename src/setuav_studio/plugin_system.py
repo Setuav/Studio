@@ -68,12 +68,16 @@ class StudioAPI:
     def __init__(self) -> None:
         self.current_project: ProjectDocument | None = None
         self.current_selection: Any | None = None
+        self.current_section_selection: tuple[str, int, int] | None = None
         self._add_panel: Callable[[PanelContribution], None] | None = None
         self._set_workspace: Callable[[WorkspaceContribution], None] | None = None
         self._project_listeners: list[Callable[[ProjectDocument], None]] = []
         self._project_content_listeners: list[Callable[[ProjectDocument], None]] = []
         self._modified_listeners: list[Callable[[bool], None]] = []
         self._selection_listeners: list[Callable[[Any | None], None]] = []
+        self._section_selection_listeners: list[
+            Callable[[tuple[str, int, int] | None], None]
+        ] = []
         self._component_editors: dict[
             str,
             Callable[[dict[str, Any]], QWidget],
@@ -121,6 +125,7 @@ class StudioAPI:
         self.undo_stack.setClean()
         project.modified = False
         self.set_selection(None)
+        self.set_section_selection(None)
         dead_listeners = []
         for listener in list(self._project_listeners):
             try:
@@ -247,6 +252,38 @@ class StudioAPI:
         for dead in dead_listeners:
             if dead in self._selection_listeners:
                 self._selection_listeners.remove(dead)
+
+    def on_section_selection_changed(
+        self,
+        listener: Callable[[tuple[str, int, int] | None], None],
+    ) -> None:
+        self._section_selection_listeners.append(listener)
+        try:
+            listener(self.current_section_selection)
+        except RuntimeError:
+            pass
+
+    def remove_section_selection_listener(
+        self,
+        listener: Callable[[tuple[str, int, int] | None], None],
+    ) -> None:
+        if listener in self._section_selection_listeners:
+            self._section_selection_listeners.remove(listener)
+
+    def set_section_selection(
+        self,
+        selection: tuple[str, int, int] | None,
+    ) -> None:
+        self.current_section_selection = selection
+        dead_listeners = []
+        for listener in list(self._section_selection_listeners):
+            try:
+                listener(selection)
+            except RuntimeError:
+                dead_listeners.append(listener)
+        for dead in dead_listeners:
+            if dead in self._section_selection_listeners:
+                self._section_selection_listeners.remove(dead)
 
     def register_component_editor(
         self,

@@ -169,6 +169,7 @@ class ViewerWorkspace(QWidget):
         api.on_project_changed(self._on_project_changed)
         api.on_project_content_changed(self._on_project_content_changed)
         api.on_selection_changed(self._on_selection_changed)
+        api.on_section_selection_changed(self._on_section_selection_changed)
         self.viewer.componentPicked.connect(self._on_component_picked)
         self.destroyed.connect(self._detach)
 
@@ -211,8 +212,28 @@ class ViewerWorkspace(QWidget):
         self.viewer.set_selected_component(
             component_id if isinstance(component_id, str) else None
         )
+        current = self._api.current_section_selection
+        if current is not None and current[0] != component_id:
+            self._api.set_section_selection(None)
 
-    def _on_component_picked(self, component_id: str) -> None:
+    def _on_section_selection_changed(
+        self,
+        selection: tuple[str, int, int] | None,
+    ) -> None:
+        if selection is None:
+            self.viewer.set_selected_section(None, None, None)
+            return
+        component_id, segment_index, section_index = selection
+        self.viewer.set_selected_section(
+            component_id,
+            segment_index,
+            section_index,
+        )
+
+    def _on_component_picked(self, component_id: object | None) -> None:
+        if not isinstance(component_id, str):
+            self._api.set_selection(None)
+            return
         project = self._api.current_project
         if project is None:
             return
@@ -232,3 +253,4 @@ class ViewerWorkspace(QWidget):
         self._api.remove_project_listener(self._on_project_changed)
         self._api.remove_project_content_listener(self._on_project_content_changed)
         self._api.remove_selection_listener(self._on_selection_changed)
+        self._api.remove_section_selection_listener(self._on_section_selection_changed)
