@@ -107,8 +107,8 @@ class PropulsionControlsDock(QWidget):
             ("mode", "Mode"),
         ])
         mode_options = [
-            ("airspeed_sweep", "Airspeed Sweep (Fixed Throttle)"),
-            ("throttle_sweep", "Throttle Sweep (Fixed Airspeed)"),
+            ("airspeed_sweep", "Airspeed Sweep"),
+            ("throttle_sweep", "Throttle Sweep"),
             ("operating_point", "Single Operating Point"),
         ]
         self._set_property_combo(
