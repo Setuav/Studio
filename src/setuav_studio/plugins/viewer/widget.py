@@ -247,12 +247,12 @@ class OpenGLViewer(QOpenGLWidget):
         if event.buttons() & Qt.MouseButton.LeftButton:
             self._azimuth -= dx * 0.4
             self._elevation = max(-89.0, min(89.0, self._elevation + dy * 0.4))
-        elif event.buttons() & Qt.MouseButton.MiddleButton:
+        elif event.buttons() & Qt.MouseButton.RightButton:
             azimuth = math.radians(self._azimuth)
             right = QVector3D(math.cos(azimuth), -math.sin(azimuth), 0.0)
             scale = self._distance * 0.001
             self._target -= right * (dx * scale)
-            self._target += QVector3D(0.0, 0.0, 1.0) * (dy * scale)
+            self._target -= QVector3D(0.0, 0.0, 1.0) * (dy * scale)
         self.update()
 
     def wheelEvent(self, event) -> None:

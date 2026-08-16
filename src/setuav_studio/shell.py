@@ -72,12 +72,14 @@ class DockTitleBar(QWidget):
 
 
 class MainWindow(QMainWindow):
-    _LAYOUT_VERSION = 2
+    _LAYOUT_VERSION = 3
 
     def __init__(self, api: StudioAPI) -> None:
         super().__init__()
         self._api = api
         self._project: ProjectDocument | None = None
+        self._workspace_dock: QDockWidget | None = None
+        self.setDockNestingEnabled(True)
         self._api.set_panel_handler(self._add_panel)
         self._api.set_workspace_handler(self._set_workspace)
 
@@ -146,6 +148,7 @@ class MainWindow(QMainWindow):
         state = settings.value("main_window/state")
         if state is not None:
             self.restoreState(state, self._LAYOUT_VERSION)
+
 
     def closeEvent(self, event: QCloseEvent) -> None:
         if not self._confirm_project_close():
@@ -346,9 +349,40 @@ class MainWindow(QMainWindow):
             self.resizeDocks([dock], [320], Qt.Orientation.Horizontal)
 
     def _set_workspace(self, contribution: WorkspaceContribution) -> None:
-        workspace = contribution.factory()
-        workspace.setObjectName(contribution.id)
+        dock = QDockWidget(contribution.title, self)
+        dock.setObjectName(contribution.id)
+        dock.setFont(QApplication.font())
+        dock.setTitleBarWidget(DockTitleBar(dock))
+        dock.setAllowedAreas(Qt.DockWidgetArea.AllDockWidgetAreas)
+        dock.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetClosable
+            | QDockWidget.DockWidgetFeature.DockWidgetMovable
+            | QDockWidget.DockWidgetFeature.DockWidgetFloatable
+        )
+        dock.setWidget(contribution.factory())
+        self._workspace_dock = dock
+
         previous = self.takeCentralWidget()
-        self.setCentralWidget(workspace)
         if previous is not None:
             previous.deleteLater()
+
+        explorer_dock = self.findChild(QDockWidget, "project.explorer")
+        if explorer_dock is not None:
+            self.splitDockWidget(explorer_dock, dock, Qt.Orientation.Horizontal)
+        else:
+            self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, dock)
+
+        self._view_menu.addAction(dock.toggleViewAction())
+
+        props_dock = self.findChild(QDockWidget, "studio.properties")
+        docks_to_resize = []
+        sizes = []
+        if explorer_dock is not None:
+            docks_to_resize.append(explorer_dock)
+            sizes.append(300)
+        docks_to_resize.append(dock)
+        sizes.append(600)
+        if props_dock is not None:
+            docks_to_resize.append(props_dock)
+            sizes.append(300)
+        self.resizeDocks(docks_to_resize, sizes, Qt.Orientation.Horizontal)

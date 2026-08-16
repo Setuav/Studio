@@ -4,7 +4,6 @@ from setuav_studio.plugins.geometry.fuselage_geometry import build_fuselage_geom
 from setuav_studio.plugins.geometry.lifting_surface_geometry import (
     build_lifting_surface_geometry,
 )
-from setuav_studio.plugins.geometry.propulsor_geometry import build_propulsor_geometry
 
 
 class GeometryPlugin:
@@ -23,12 +22,4 @@ class GeometryPlugin:
         api.register_geometry_provider(
             "org.setuav.core:lifting-surface",
             build_lifting_surface_geometry,
-        )
-        api.register_geometry_provider(
-            "org.setuav.core:propeller",
-            build_propulsor_geometry,
-        )
-        api.register_geometry_provider(
-            "org.setuav.core:rotor",
-            build_propulsor_geometry,
         )

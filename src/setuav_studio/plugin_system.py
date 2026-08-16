@@ -25,6 +25,7 @@ class PanelContribution:
 @dataclass(frozen=True)
 class WorkspaceContribution:
     id: str
+    title: str
     factory: Callable[[], QWidget]
 
 

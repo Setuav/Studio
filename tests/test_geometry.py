@@ -13,9 +13,6 @@ from setuav_studio.plugins.geometry.lifting_surface_geometry import (
     build_lifting_surface_geometry,
     sample_airfoil,
 )
-from setuav_studio.plugins.geometry.propulsor_geometry import (
-    build_propulsor_geometry,
-)
 from setuav_studio.plugins.viewer.mesh import build_loft_solid_vertices
 from setuav_studio.project import ProjectDocument
 
@@ -141,16 +138,6 @@ class GeometryTests(unittest.TestCase):
         self.assertGreater(len(vertices), 0)
         self.assertEqual(len(vertices) % 9, 0)
         self.assertEqual((len(vertices) // 9) % 3, 0)
-
-    def test_propulsor_builds_hub_and_blades(self) -> None:
-        lofts = build_propulsor_geometry(
-            {
-                "id": "propeller",
-                "parameters": {"diameter": 300, "blade_count": 3},
-            }
-        )
-        self.assertEqual(len(lofts), 4)
-
 
 if __name__ == "__main__":
     unittest.main()

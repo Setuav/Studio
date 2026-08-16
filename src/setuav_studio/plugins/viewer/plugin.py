@@ -9,6 +9,7 @@ class OpenGLViewerPlugin:
         api.set_workspace(
             WorkspaceContribution(
                 id="studio.viewer.opengl",
+                title="3D Viewer",
                 factory=lambda: ViewerWorkspace(api),
             )
         )
