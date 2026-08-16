@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from setuav_studio.icons import get_icon
 from setuav_studio.plugin_system import (
     PanelContribution,
     StudioAPI,
@@ -46,12 +47,10 @@ class DockTitleBar(QWidget):
 
         float_button = QToolButton(self)
         float_button.setAutoRaise(True)
-        float_button.setFixedSize(16, 16)
+        float_button.setFixedSize(18, 18)
         float_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         float_button.setToolTip("Dock or undock panel")
-        float_button.setIcon(
-            self.style().standardIcon(QStyle.StandardPixmap.SP_TitleBarNormalButton)
-        )
+        float_button.setIcon(get_icon("dock_float"))
         float_button.clicked.connect(
             lambda: dock.setFloating(not dock.isFloating())
         )
@@ -59,12 +58,10 @@ class DockTitleBar(QWidget):
 
         close_button = QToolButton(self)
         close_button.setAutoRaise(True)
-        close_button.setFixedSize(16, 16)
+        close_button.setFixedSize(18, 18)
         close_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         close_button.setToolTip("Close panel")
-        close_button.setIcon(
-            self.style().standardIcon(QStyle.StandardPixmap.SP_TitleBarCloseButton)
-        )
+        close_button.setIcon(get_icon("dock_close"))
         close_button.clicked.connect(dock.close)
         layout.addWidget(close_button)
 
@@ -90,41 +87,41 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(workspace)
 
         self._file_menu = self.menuBar().addMenu("&File")
-        open_file_action = self._file_menu.addAction("Open Project File…")
+        open_file_action = self._file_menu.addAction(get_icon("file_open"), "Open Project File…")
         open_file_action.triggered.connect(self._open_project_file)
 
-        open_folder_action = self._file_menu.addAction("Open Project Folder…")
+        open_folder_action = self._file_menu.addAction(get_icon("folder_open"), "Open Project Folder…")
         open_folder_action.triggered.connect(self._open_project_folder)
 
-        self._recent_menu = self._file_menu.addMenu("Open Recent")
+        self._recent_menu = self._file_menu.addMenu(get_icon("project_folder"), "Open Recent")
         self._file_menu.addSeparator()
 
-        self._save_action = self._file_menu.addAction("Save")
+        self._save_action = self._file_menu.addAction(get_icon("save"), "Save")
         self._save_action.setShortcut(QKeySequence.StandardKey.Save)
         self._save_action.triggered.connect(self.save_project)
 
-        self._save_as_action = self._file_menu.addAction("Save As…")
+        self._save_as_action = self._file_menu.addAction(get_icon("save_as"), "Save As…")
         self._save_as_action.setShortcut(QKeySequence.StandardKey.SaveAs)
         self._save_as_action.triggered.connect(self.save_project_as)
 
         self._file_menu.addSeparator()
-        exit_action = self._file_menu.addAction("Exit")
+        exit_action = self._file_menu.addAction(get_icon("exit"), "Exit")
         exit_action.setShortcut(QKeySequence.StandardKey.Quit)
         exit_action.triggered.connect(self.close)
 
         edit_menu = self.menuBar().addMenu("&Edit")
-        self._undo_action = edit_menu.addAction("Undo")
+        self._undo_action = edit_menu.addAction(get_icon("undo"), "Undo")
         self._undo_action.setShortcut(QKeySequence.StandardKey.Undo)
         self._undo_action.triggered.connect(self._api.undo)
         self._undo_action.setEnabled(False)
 
-        self._redo_action = edit_menu.addAction("Redo")
+        self._redo_action = edit_menu.addAction(get_icon("redo"), "Redo")
         self._redo_action.setShortcut(QKeySequence.StandardKey.Redo)
         self._redo_action.triggered.connect(self._api.redo)
         self._redo_action.setEnabled(False)
 
         edit_menu.addSeparator()
-        settings_action = edit_menu.addAction("Settings…")
+        settings_action = edit_menu.addAction(get_icon("settings"), "Settings…")
         settings_action.triggered.connect(self._open_settings)
 
         self._view_menu = self.menuBar().addMenu("&View")
@@ -341,7 +338,12 @@ class MainWindow(QMainWindow):
         dock.setObjectName(contribution.id)
         dock.setWidget(contribution.factory())
         self.addDockWidget(contribution.area, dock)
-        self._view_menu.addAction(dock.toggleViewAction())
+        action = dock.toggleViewAction()
+        if contribution.id == "project.explorer":
+            action.setIcon(get_icon("project_explorer"))
+        elif contribution.id == "studio.properties":
+            action.setIcon(get_icon("properties"))
+        self._view_menu.addAction(action)
         if contribution.area in {
             Qt.DockWidgetArea.LeftDockWidgetArea,
             Qt.DockWidgetArea.RightDockWidgetArea,
@@ -372,7 +374,9 @@ class MainWindow(QMainWindow):
         else:
             self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, dock)
 
-        self._view_menu.addAction(dock.toggleViewAction())
+        toggle_action = dock.toggleViewAction()
+        toggle_action.setIcon(get_icon("viewer_3d"))
+        self._view_menu.addAction(toggle_action)
 
         props_dock = self.findChild(QDockWidget, "studio.properties")
         docks_to_resize = []

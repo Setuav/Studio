@@ -1,15 +1,20 @@
 import logging
 
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QToolButton, QVBoxLayout, QWidget
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QResizeEvent, QShowEvent
+from PySide6.QtWidgets import (
+    QButtonGroup,
+    QFrame,
+    QHBoxLayout,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
+)
 
+from setuav_studio.icons import get_icon
 from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.project import ProjectDocument
-from setuav_studio.plugins.viewer.widget import (
-    SOLID,
-    SOLID_WIRE,
-    WIREFRAME,
-    OpenGLViewer,
-)
+from setuav_studio.plugins.viewer.widget import OpenGLViewer
 from setuav_studio.plugins.viewer.mesh import (
     FACE_COLORED,
     FACE_MONOCHROME,
@@ -18,6 +23,37 @@ from setuav_studio.plugins.viewer.mesh import (
 
 
 logger = logging.getLogger(__name__)
+
+_HUD_STYLE = """
+QWidget#viewerHUD {
+    background-color: rgba(26, 29, 34, 0.88);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+}
+QWidget#viewerHUD QToolButton {
+    background-color: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 0px;
+    margin: 0px;
+}
+QWidget#viewerHUD QToolButton:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+}
+QWidget#viewerHUD QToolButton:checked {
+    background-color: rgba(127, 196, 209, 0.22);
+    border: 1px solid #7fc4d1;
+}
+QWidget#viewerHUD QToolButton:checked:hover {
+    background-color: rgba(127, 196, 209, 0.32);
+}
+QWidget#viewerHUD QFrame#hudSep {
+    background-color: rgba(255, 255, 255, 0.14);
+    max-width: 1px;
+    margin: 3px 2px;
+}
+"""
 
 
 class ViewerWorkspace(QWidget):
@@ -28,37 +64,100 @@ class ViewerWorkspace(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        controls = QWidget(self)
-        controls_layout = QHBoxLayout(controls)
-        controls_layout.setContentsMargins(4, 3, 4, 3)
-        controls_layout.setSpacing(4)
-        controls_layout.addStretch()
-
-        mode = QComboBox(controls)
-        mode.addItem("Wireframe", WIREFRAME)
-        mode.addItem("Solid", SOLID)
-        mode.addItem("Solid + Wireframe", SOLID_WIRE)
-        mode.setCurrentIndex(2)
-        controls_layout.addWidget(mode)
-
-        face_style = QComboBox(controls)
-        face_style.addItem("Colored", FACE_COLORED)
-        face_style.addItem("Monochrome", FACE_MONOCHROME)
-        face_style.addItem("Transparent", FACE_TRANSPARENT)
-        controls_layout.addWidget(face_style)
-
-        fit_button = QToolButton(controls)
-        fit_button.setText("Fit")
-        controls_layout.addWidget(fit_button)
-        layout.addWidget(controls)
-
         self.viewer = OpenGLViewer(self)
         layout.addWidget(self.viewer, 1)
-        mode.currentIndexChanged.connect(
-            lambda index: self.viewer.set_mode(str(mode.itemData(index)))
+
+        # Floating HUD Capsule over the 3D Viewport
+        self.hud = QWidget(self)
+        self.hud.setObjectName("viewerHUD")
+        self.hud.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.hud.setStyleSheet(_HUD_STYLE)
+
+        hud_layout = QHBoxLayout(self.hud)
+        hud_layout.setContentsMargins(4, 3, 4, 3)
+        hud_layout.setSpacing(3)
+
+        # Display Toggles (Solid & Wireframe active/passive toggles)
+        self.solid_button = QToolButton(self.hud)
+        self.solid_button.setCheckable(True)
+        self.solid_button.setChecked(True)
+        self.solid_button.setIcon(get_icon("fa6s.cube"))
+        self.solid_button.setToolTip("Toggle Solid Surface")
+        self.solid_button.setFixedSize(24, 24)
+        self.solid_button.setAutoRaise(True)
+        self.solid_button.toggled.connect(self._on_display_toggled)
+        hud_layout.addWidget(self.solid_button)
+
+        self.wire_button = QToolButton(self.hud)
+        self.wire_button.setCheckable(True)
+        self.wire_button.setChecked(True)
+        self.wire_button.setIcon(get_icon("mdi6.vector-square"))
+        self.wire_button.setToolTip("Toggle Wireframe Mesh")
+        self.wire_button.setFixedSize(24, 24)
+        self.wire_button.setAutoRaise(True)
+        self.wire_button.toggled.connect(self._on_display_toggled)
+        hud_layout.addWidget(self.wire_button)
+
+        sep1 = QFrame(self.hud)
+        sep1.setObjectName("hudSep")
+        sep1.setFrameShape(QFrame.Shape.VLine)
+        sep1.setFrameShadow(QFrame.Shadow.Plain)
+        hud_layout.addWidget(sep1)
+
+        # Shading / Surface Style Group (Exclusive)
+        self.style_group = QButtonGroup(self)
+        self.style_group.setExclusive(True)
+
+        self.colored_button = QToolButton(self.hud)
+        self.colored_button.setCheckable(True)
+        self.colored_button.setChecked(True)
+        self.colored_button.setIcon(get_icon("fa6s.palette"))
+        self.colored_button.setToolTip("Component Colors")
+        self.colored_button.setFixedSize(24, 24)
+        self.colored_button.setAutoRaise(True)
+        self.style_group.addButton(self.colored_button)
+        hud_layout.addWidget(self.colored_button)
+
+        self.mono_button = QToolButton(self.hud)
+        self.mono_button.setCheckable(True)
+        self.mono_button.setIcon(get_icon("fa6s.circle-half-stroke"))
+        self.mono_button.setToolTip("Monochrome / Neutral")
+        self.mono_button.setFixedSize(24, 24)
+        self.mono_button.setAutoRaise(True)
+        self.style_group.addButton(self.mono_button)
+        hud_layout.addWidget(self.mono_button)
+
+        self.trans_button = QToolButton(self.hud)
+        self.trans_button.setCheckable(True)
+        self.trans_button.setIcon(get_icon("mdi6.opacity"))
+        self.trans_button.setToolTip("Transparent (X-Ray)")
+        self.trans_button.setFixedSize(24, 24)
+        self.trans_button.setAutoRaise(True)
+        self.style_group.addButton(self.trans_button)
+        hud_layout.addWidget(self.trans_button)
+
+        sep2 = QFrame(self.hud)
+        sep2.setObjectName("hudSep")
+        sep2.setFrameShape(QFrame.Shape.VLine)
+        sep2.setFrameShadow(QFrame.Shadow.Plain)
+        hud_layout.addWidget(sep2)
+
+        # Camera Fit Button
+        fit_button = QToolButton(self.hud)
+        fit_button.setIcon(get_icon("fit"))
+        fit_button.setToolTip("Fit View (Reset Camera)")
+        fit_button.setFixedSize(24, 24)
+        fit_button.setAutoRaise(True)
+        hud_layout.addWidget(fit_button)
+
+        self.colored_button.clicked.connect(
+            lambda: self.viewer.set_face_style(FACE_COLORED)
         )
-        face_style.currentIndexChanged.connect(
-            lambda index: self.viewer.set_face_style(str(face_style.itemData(index)))
+        self.mono_button.clicked.connect(
+            lambda: self.viewer.set_face_style(FACE_MONOCHROME)
+        )
+        self.trans_button.clicked.connect(
+            lambda: self.viewer.set_face_style(FACE_TRANSPARENT)
         )
         fit_button.clicked.connect(self.viewer.fit_view)
 
@@ -66,6 +165,34 @@ class ViewerWorkspace(QWidget):
         api.on_project_content_changed(self._on_project_content_changed)
         api.on_selection_changed(self._on_selection_changed)
         self.destroyed.connect(self._detach)
+
+        self.hud.adjustSize()
+        self._reposition_hud()
+
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        super().resizeEvent(event)
+        self._reposition_hud()
+
+    def showEvent(self, event: QShowEvent) -> None:
+        super().showEvent(event)
+        self._reposition_hud()
+
+    def _reposition_hud(self) -> None:
+        margin = 12
+        x = self.width() - self.hud.width() - margin
+        y = margin
+        self.hud.move(max(margin, x), y)
+        self.hud.raise_()
+
+    def _on_display_toggled(self) -> None:
+        if not self.solid_button.isChecked() and not self.wire_button.isChecked():
+            sender = self.sender()
+            if sender == self.solid_button:
+                self.wire_button.setChecked(True)
+            else:
+                self.solid_button.setChecked(True)
+        self.viewer.set_show_solid(self.solid_button.isChecked())
+        self.viewer.set_show_wireframe(self.wire_button.isChecked())
 
     def _on_project_changed(self, project: ProjectDocument) -> None:
         self._refresh(project, fit=True)

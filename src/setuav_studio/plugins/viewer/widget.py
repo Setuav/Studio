@@ -120,6 +120,8 @@ class OpenGLViewer(QOpenGLWidget):
         self._solid_count = 0
         self._grid_count = 0
         self._axis_count = 0
+        self._show_solid = True
+        self._show_wireframe = True
         self._mode = SOLID_WIRE
         self._face_style = FACE_COLORED
         self._geometry_data = GeometryData()
@@ -134,9 +136,9 @@ class OpenGLViewer(QOpenGLWidget):
     def initializeGL(self) -> None:
         functions = QOpenGLFunctions_3_3_Core()
         if not functions.initializeOpenGLFunctions():
-            raise RuntimeError("OpenGL 3.3 core functions are unavailable")
+            raise RuntimeError("Could not initialize OpenGL 3.3 functions")
         self._functions = functions
-        functions.glClearColor(0.10, 0.10, 0.10, 1.0)
+        functions.glClearColor(0.12, 0.12, 0.12, 1.0)
         functions.glEnable(_GL_DEPTH_TEST)
         functions.glEnable(_GL_MULTISAMPLE)
 
@@ -191,10 +193,11 @@ class OpenGLViewer(QOpenGLWidget):
         self._functions.glClear(_GL_COLOR_BUFFER_BIT | _GL_DEPTH_BUFFER_BIT)
         mvp = self._projection() * self._view()
 
-        if self._mode in (SOLID, SOLID_WIRE) and self._solid_program is not None:
+        both_active = self._show_solid and self._show_wireframe
+        if self._show_solid and self._solid_program is not None:
             eye_direction = self._eye_position() - self._target
             eye_direction.normalize()
-            if self._mode == SOLID_WIRE:
+            if both_active:
                 self._functions.glEnable(_GL_POLYGON_OFFSET_FILL)
                 self._functions.glPolygonOffset(1.0, 1.0)
             self._solid_program.bind()
@@ -217,7 +220,7 @@ class OpenGLViewer(QOpenGLWidget):
             if transparent:
                 self._functions.glDepthMask(True)
                 self._functions.glDisable(_GL_BLEND)
-            if self._mode == SOLID_WIRE:
+            if both_active:
                 self._functions.glDisable(_GL_POLYGON_OFFSET_FILL)
 
         if self._wire_program is None:
@@ -232,7 +235,7 @@ class OpenGLViewer(QOpenGLWidget):
         self._functions.glDrawArrays(_GL_LINES, 0, self._axis_count)
         self._axis_vao.release()
         self._functions.glDepthFunc(_GL_LESS)
-        if self._mode in (WIREFRAME, SOLID_WIRE):
+        if self._show_wireframe:
             self._wire_vao.bind()
             self._functions.glDrawArrays(_GL_LINES, 0, self._wire_count)
             self._wire_vao.release()
@@ -250,10 +253,30 @@ class OpenGLViewer(QOpenGLWidget):
         self._selected_component_id = component_id
         self._update_gpu_meshes()
 
+    def set_show_solid(self, show: bool) -> None:
+        self._show_solid = show
+        self._sync_mode()
+        self.update()
+
+    def set_show_wireframe(self, show: bool) -> None:
+        self._show_wireframe = show
+        self._sync_mode()
+        self.update()
+
+    def _sync_mode(self) -> None:
+        if self._show_solid and self._show_wireframe:
+            self._mode = SOLID_WIRE
+        elif self._show_solid:
+            self._mode = SOLID
+        elif self._show_wireframe:
+            self._mode = WIREFRAME
+
     def set_mode(self, mode: str) -> None:
         if mode not in {WIREFRAME, SOLID, SOLID_WIRE}:
             raise ValueError(f"Unknown viewer mode: {mode}")
         self._mode = mode
+        self._show_solid = mode in (SOLID, SOLID_WIRE)
+        self._show_wireframe = mode in (WIREFRAME, SOLID_WIRE)
         self.update()
 
     def set_face_style(self, face_style: str) -> None:

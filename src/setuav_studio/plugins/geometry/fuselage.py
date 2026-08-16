@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from setuav_studio.icons import get_icon
 from setuav_studio.plugin_system import StudioAPI
 
 
@@ -61,7 +62,7 @@ class FuselageEditor(QWidget):
         self._load_component()
 
     def _create_general_section(self) -> None:
-        layout = self._create_section("General")
+        layout = self._create_section("General", "fa6s.circle-info")
         self.general_table = self._property_table(
             [("name", "Name"), ("type", "Type"), ("mass", "Mass (g)")]
         )
@@ -69,7 +70,7 @@ class FuselageEditor(QWidget):
         layout.addWidget(self.general_table)
 
     def _create_segments_section(self) -> None:
-        layout = self._create_section("Segments")
+        layout = self._create_section("Segments", "fa6s.layer-group")
 
         self.segments_table = self._table(
             ["Tag", "Sections", "Method", "Parameterization"]
@@ -90,16 +91,20 @@ class FuselageEditor(QWidget):
         segment_actions = QHBoxLayout()
         segment_actions.setContentsMargins(0, 2, 0, 2)
         segment_actions.setSpacing(2)
-        self.add_segment_button = self._action_button("Add", self._add_segment)
-        self.duplicate_segment_button = self._action_button(
-            "Duplicate", self._duplicate_segment
+        self.add_segment_button = self._action_button(
+            "add", "Add segment", self._add_segment
         )
-        self.move_segment_up_button = self._action_button("Up", self._move_segment_up)
+        self.duplicate_segment_button = self._action_button(
+            "instance", "Duplicate segment", self._duplicate_segment
+        )
+        self.move_segment_up_button = self._action_button(
+            "fa6s.arrow-up", "Move segment up", self._move_segment_up
+        )
         self.move_segment_down_button = self._action_button(
-            "Down", self._move_segment_down
+            "fa6s.arrow-down", "Move segment down", self._move_segment_down
         )
         self.delete_segment_button = self._action_button(
-            "Delete", self._delete_segment
+            "remove", "Delete segment", self._delete_segment
         )
         for button in (
             self.add_segment_button,
@@ -113,7 +118,7 @@ class FuselageEditor(QWidget):
         layout.addLayout(segment_actions)
 
     def _create_sections_section(self) -> None:
-        layout = self._create_section("Sections")
+        layout = self._create_section("Sections", "mdi6.vector-polygon")
 
         self.sections_table = self._table(["#", "Profile", "X", "Size"])
         self.sections_table.horizontalHeader().setSectionResizeMode(
@@ -126,16 +131,20 @@ class FuselageEditor(QWidget):
         section_actions = QHBoxLayout()
         section_actions.setContentsMargins(0, 2, 0, 2)
         section_actions.setSpacing(2)
-        self.add_section_button = self._action_button("Add", self._add_section)
-        self.duplicate_section_button = self._action_button(
-            "Duplicate", self._duplicate_section
+        self.add_section_button = self._action_button(
+            "add", "Add section", self._add_section
         )
-        self.move_section_up_button = self._action_button("Up", self._move_section_up)
+        self.duplicate_section_button = self._action_button(
+            "instance", "Duplicate section", self._duplicate_section
+        )
+        self.move_section_up_button = self._action_button(
+            "fa6s.arrow-up", "Move section up", self._move_section_up
+        )
         self.move_section_down_button = self._action_button(
-            "Down", self._move_section_down
+            "fa6s.arrow-down", "Move section down", self._move_section_down
         )
         self.delete_section_button = self._action_button(
-            "Delete", self._delete_section
+            "remove", "Delete section", self._delete_section
         )
         for button in (
             self.add_section_button,
@@ -148,7 +157,7 @@ class FuselageEditor(QWidget):
         section_actions.addStretch()
         layout.addLayout(section_actions)
 
-        transform_layout = self._create_section("Transform")
+        transform_layout = self._create_section("Transform", "mdi6.axis-arrow")
         self.transform_table = QTableWidget(2, 3)
         self.transform_table.setHorizontalHeaderLabels(["X", "Y", "Z"])
         self.transform_table.setVerticalHeaderLabels(["Position (mm)", "Rotation (°)"])
@@ -188,7 +197,7 @@ class FuselageEditor(QWidget):
         self.transform_table.cellChanged.connect(self._update_section)
         transform_layout.addWidget(self.transform_table)
 
-        properties_layout = self._create_section("Section Properties")
+        properties_layout = self._create_section("Section Properties", "fa6s.sliders")
         self.section_properties_table = self._property_table([])
         self.section_properties_table.cellChanged.connect(
             self._update_section_property
@@ -200,23 +209,44 @@ class FuselageEditor(QWidget):
         self.vertices_table.cellChanged.connect(self._update_vertices)
         properties_layout.addWidget(self.vertices_table)
 
-    def _create_section(self, title: str) -> QVBoxLayout:
+    def _create_section(self, title: str, icon_name: str | None = None) -> QVBoxLayout:
         section = QWidget()
         layout = QVBoxLayout(section)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        layout.setSpacing(2)
 
-        header = QLabel(title)
+        header = QWidget()
         header.setProperty("sectionHeader", True)
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(0, 4, 0, 2)
+        header_layout.setSpacing(6)
+
+        if icon_name:
+            icon_label = QLabel()
+            pixmap = get_icon(icon_name).pixmap(14, 14)
+            icon_label.setPixmap(pixmap)
+            icon_label.setFixedSize(14, 14)
+            header_layout.addWidget(icon_label)
+
+        title_label = QLabel(title)
+        header_layout.addWidget(title_label)
+        header_layout.addStretch()
+
         layout.addWidget(header)
         self._content_layout.addWidget(section)
         return layout
 
     @staticmethod
-    def _action_button(text: str, callback: Callable[[], None]) -> QToolButton:
+    def _action_button(
+        icon_name: str,
+        tooltip: str,
+        callback: Callable[[], None],
+    ) -> QToolButton:
         button = QToolButton()
-        button.setText(text)
-        button.setAutoRaise(False)
+        button.setIcon(get_icon(icon_name))
+        button.setToolTip(tooltip)
+        button.setFixedSize(24, 24)
+        button.setAutoRaise(True)
         button.clicked.connect(callback)
         return button
 

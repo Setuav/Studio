@@ -61,6 +61,27 @@ class PluginTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.api.register_kind_editor("instance", lambda _component: object())
 
+    def test_studio_api_registers_and_resolves_component_icon(self) -> None:
+        self.api.register_component_icon("custom:sensor", "fa6s.camera")
+        component = {"type": "custom:sensor", "kind": "component"}
+        icon = self.api.get_component_icon(component)
+        self.assertFalse(icon.isNull())
+
+        # Fallback to default component icon
+        unknown = {"type": "unknown:item", "kind": "component"}
+        default_icon = self.api.get_component_icon(unknown)
+        self.assertFalse(default_icon.isNull())
+
+        # Instance kind fallback
+        instance = {"kind": "instance", "source": "wing"}
+        instance_icon = self.api.get_component_icon(instance)
+        self.assertFalse(instance_icon.isNull())
+
+    def test_rejects_duplicate_component_icon_registration(self) -> None:
+        self.api.register_component_icon("custom:sensor", "fa6s.camera")
+        with self.assertRaises(ValueError):
+            self.api.register_component_icon("custom:sensor", "fa6s.camera")
+
     def test_core_plugin_contributes_properties_panel(self) -> None:
         self.manager.activate(CorePlugin())
 

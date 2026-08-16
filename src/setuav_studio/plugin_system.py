@@ -2,13 +2,15 @@ from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import dataclass
 from importlib import import_module, metadata
+from pathlib import Path
 import pkgutil
 from typing import Any, Protocol
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QUndoCommand, QUndoStack
+from PySide6.QtGui import QIcon, QUndoCommand, QUndoStack
 from PySide6.QtWidgets import QWidget
 
+from setuav_studio.icons import get_icon
 from setuav_studio.project import ProjectDocument
 from setuav_studio.geometry_data import GeometryData
 from setuav_studio.geometry_scene import GeometryProvider, build_project_geometry
@@ -80,6 +82,8 @@ class StudioAPI:
             str,
             Callable[[dict[str, Any]], QWidget],
         ] = {}
+        self._component_icons: dict[str, str | Path | QIcon] = {}
+        self._kind_icons: dict[str, str | Path | QIcon] = {}
         self._geometry_providers: dict[str, GeometryProvider] = {}
         self._project_requirement_checker: (
             Callable[[dict[str, Any]], list[str]] | None
@@ -249,6 +253,42 @@ class StudioAPI:
         if factory is None:
             return None
         return factory(component)
+
+    def register_component_icon(
+        self,
+        component_type: str,
+        icon: str | Path | QIcon,
+    ) -> None:
+        if component_type in self._component_icons:
+            raise ValueError(
+                f"An icon is already registered for component type: {component_type}"
+            )
+        self._component_icons[component_type] = icon
+
+    def register_kind_icon(
+        self,
+        component_kind: str,
+        icon: str | Path | QIcon,
+    ) -> None:
+        if component_kind in self._kind_icons:
+            raise ValueError(
+                f"An icon is already registered for component kind: {component_kind}"
+            )
+        self._kind_icons[component_kind] = icon
+
+    def get_component_icon(self, component: dict[str, Any]) -> QIcon:
+        component_type = component.get("type")
+        if isinstance(component_type, str) and component_type in self._component_icons:
+            return get_icon(self._component_icons[component_type])
+
+        component_kind = component.get("kind")
+        if isinstance(component_kind, str) and component_kind in self._kind_icons:
+            return get_icon(self._kind_icons[component_kind])
+
+        if component_kind == "instance":
+            return get_icon("instance")
+
+        return get_icon("component")
 
     def register_geometry_provider(
         self,

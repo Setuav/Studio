@@ -1,3 +1,4 @@
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QHeaderView,
@@ -7,6 +8,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from setuav_studio.icons import get_icon
 from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.project import ProjectDocument
 
@@ -51,7 +53,7 @@ class ProjectExplorer(QTableWidget):
         for row, component in enumerate(self._components):
             name = str(component.get("name") or component.get("id") or "Unnamed")
             component_type = self._component_type_text(component, self._components)
-            self.setItem(row, 0, QTableWidgetItem(name))
+            self.setItem(row, 0, QTableWidgetItem(self._api.get_component_icon(component), name))
             self.setItem(row, 1, QTableWidgetItem(component_type))
 
     def refresh_project(self, project: ProjectDocument) -> None:
@@ -69,6 +71,7 @@ class ProjectExplorer(QTableWidget):
                 name_item.setText(
                     str(component.get("name") or component.get("id") or "Unnamed")
                 )
+                name_item.setIcon(self._api.get_component_icon(component))
             if type_item is not None:
                 type_item.setText(
                     self._component_type_text(component, self._components)

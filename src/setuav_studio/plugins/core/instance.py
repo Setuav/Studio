@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
     QHeaderView,
+    QHBoxLayout,
     QLabel,
     QSizePolicy,
     QTableWidget,
@@ -15,6 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from setuav_studio.icons import get_icon
 from setuav_studio.plugin_system import StudioAPI
 
 
@@ -29,7 +31,7 @@ class InstanceEditor(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(6)
 
-        layout.addWidget(self._header("Instance"))
+        layout.addWidget(self._header("Instance", "instance"))
         self.properties_table = self._table(["Property", "Value"])
         self.properties_table.setSelectionBehavior(
             QAbstractItemView.SelectionBehavior.SelectItems
@@ -42,7 +44,7 @@ class InstanceEditor(QWidget):
         self.properties_table.cellChanged.connect(self._update_property)
         layout.addWidget(self.properties_table)
 
-        layout.addWidget(self._header("Transform"))
+        layout.addWidget(self._header("Transform", "mdi6.axis-arrow"))
         self.transform_table = QTableWidget(2, 3)
         self.transform_table.setHorizontalHeaderLabels(["X", "Y", "Z"])
         self.transform_table.setVerticalHeaderLabels(
@@ -66,10 +68,24 @@ class InstanceEditor(QWidget):
         self._refresh()
 
     @staticmethod
-    def _header(text: str) -> QLabel:
-        label = QLabel(text)
-        label.setProperty("sectionHeader", True)
-        return label
+    def _header(text: str, icon_name: str | None = None) -> QWidget:
+        header = QWidget()
+        header.setProperty("sectionHeader", True)
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(0, 4, 0, 2)
+        header_layout.setSpacing(6)
+
+        if icon_name:
+            icon_label = QLabel()
+            pixmap = get_icon(icon_name).pixmap(14, 14)
+            icon_label.setPixmap(pixmap)
+            icon_label.setFixedSize(14, 14)
+            header_layout.addWidget(icon_label)
+
+        title_label = QLabel(text)
+        header_layout.addWidget(title_label)
+        header_layout.addStretch()
+        return header
 
     def _refresh(self) -> None:
         self._loading = True
