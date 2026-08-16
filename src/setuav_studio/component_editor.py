@@ -81,7 +81,12 @@ class BaseComponentEditor(QWidget):
         self._content_layout.addStretch()
         self._load_component()
 
-    def _create_section(self, title: str, icon_name: str | None = None) -> QVBoxLayout:
+    def _create_section(
+        self,
+        title: str,
+        icon_name: str | None = None,
+        action_widget: QWidget | None = None,
+    ) -> QVBoxLayout:
         section = QWidget()
         layout = QVBoxLayout(section)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -103,6 +108,9 @@ class BaseComponentEditor(QWidget):
         title_label = QLabel(title)
         header_layout.addWidget(title_label)
         header_layout.addStretch()
+
+        if action_widget is not None:
+            header_layout.addWidget(action_widget)
 
         layout.addWidget(header)
         self._content_layout.addWidget(section)

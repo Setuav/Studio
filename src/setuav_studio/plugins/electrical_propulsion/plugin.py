@@ -5,7 +5,8 @@ from __future__ import annotations
 from typing import Any
 from PySide6.QtWidgets import QWidget
 
-from setuav_studio.plugin_system import StudioAPI
+from setuav_studio.plugin_system import StudioAPI, ToolContribution
+from .catalog_dialog import ComponentCatalogDialog
 from .editors.assembly import ElectricPropulsionSystemEditor
 from .editors.battery import BatteryEditor
 from .editors.esc import EscEditor
@@ -14,7 +15,7 @@ from .editors.propeller import PropellerEditor
 
 
 class ElectricalPropulsionPlugin:
-    """Plugin providing electrical propulsion component editors, icons, and assemblies."""
+    """Plugin providing electrical propulsion component editors, icons, database, and assemblies."""
 
     id = "org.setuav.studio.electrical_propulsion"
 
@@ -46,7 +47,7 @@ class ElectricalPropulsionPlugin:
         )
 
         # Register Component & Assembly Icons
-        api.register_component_icon("org.setuav.core:motor", "fa6s.rotate")
+        api.register_component_icon("org.setuav.core:motor", "mdi6.engine")
         api.register_component_icon("org.setuav.core:propeller", "fa6s.fan")
         api.register_component_icon("org.setuav.core:rotor", "fa6s.fan")
         api.register_component_icon("org.setuav.core:esc", "fa6s.microchip")
@@ -54,4 +55,18 @@ class ElectricalPropulsionPlugin:
         api.register_component_icon(
             "org.setuav.core:electric-propulsion-system",
             "fa6s.bolt",
+        )
+
+        # Register Tools in Tools menu
+        def open_component_database() -> None:
+            dialog = ComponentCatalogDialog(component_type="all")
+            dialog.exec()
+
+        api.register_tool(
+            ToolContribution(
+                group="Electrical Propulsion",
+                title="Component Database…",
+                callback=open_component_database,
+                icon="fa6s.database",
+            )
         )

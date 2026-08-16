@@ -113,6 +113,22 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertEqual(editor._property_text(editor.members_table, 2), "motor-cruise")
         self.assertEqual(editor._property_text(editor.members_table, 3), "propeller-cruise")
 
+    def test_catalog_database_and_dialog(self) -> None:
+        from setuav_studio.plugins.electrical_propulsion.database import get_motor_database, get_propeller_database
+        from setuav_studio.plugins.electrical_propulsion.catalog_dialog import ComponentCatalogDialog
+
+        mot_db = get_motor_database()
+        self.assertGreater(mot_db.motor_count, 100)
+
+        prop_db = get_propeller_database()
+        self.assertGreater(prop_db.propeller_count, 100)
+
+        dialog = ComponentCatalogDialog(component_type="all")
+        self.assertIsNotNone(dialog)
+        dialog.motor_search.setText("Tiger")
+        self.assertLessEqual(dialog.motor_table.rowCount(), 400)
+
+
 
 if __name__ == "__main__":
     unittest.main()

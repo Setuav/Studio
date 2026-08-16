@@ -179,6 +179,9 @@ class MainWindow(QMainWindow):
         self._view_menu = self.menuBar().addMenu("&View")
         self._menus["view"] = self._view_menu
 
+        self._tools_menu = self.menuBar().addMenu("&Tools")
+        self._menus["tools"] = self._tools_menu
+
         self._api.undo_stack.canUndoChanged.connect(self._undo_action.setEnabled)
         self._api.undo_stack.canRedoChanged.connect(self._redo_action.setEnabled)
         self._api.undo_stack.undoTextChanged.connect(self._set_undo_text)

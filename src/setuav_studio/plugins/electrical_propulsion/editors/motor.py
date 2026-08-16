@@ -1,11 +1,14 @@
-"""Motor component property editor."""
+"""Motor component property editor with PyThrust database catalog picker."""
 
 from __future__ import annotations
 
 from typing import Any
-from PySide6.QtWidgets import QWidget
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QDialog, QPushButton, QWidget
 
+from setuav_studio.icons import get_icon
 from setuav_studio.plugin_system import BaseComponentEditor, ParameterField, StudioAPI
+from setuav_studio.plugins.electrical_propulsion.catalog_dialog import ComponentCatalogDialog
 
 
 class MotorEditor(BaseComponentEditor):
@@ -71,3 +74,61 @@ class MotorEditor(BaseComponentEditor):
 
     def __init__(self, api: StudioAPI, component: dict[str, Any], parent: QWidget | None = None) -> None:
         super().__init__(api, component, parameter_fields=self.FIELDS, parent=parent)
+
+    def _create_general_section(self) -> None:
+        catalog_btn = QPushButton("Catalog…", self)
+        catalog_btn.setIcon(get_icon("fa6s.database"))
+        catalog_btn.setStyleSheet("""
+            QPushButton {
+                padding: 1px 6px;
+                font-size: 8pt;
+                border-radius: 3px;
+                background-color: rgba(255, 255, 255, 0.06);
+                border: 1px solid rgba(255, 255, 255, 0.12);
+            }
+            QPushButton:hover {
+                background-color: rgba(255, 255, 255, 0.12);
+                border-color: #7fc4d1;
+                color: #7fc4d1;
+            }
+        """)
+        catalog_btn.clicked.connect(self._open_catalog)
+
+        layout = self._create_section("General", "fa6s.circle-info", action_widget=catalog_btn)
+        self.general_table = self._property_table(
+            [
+                ("name", "Name"),
+                ("type", "Type"),
+                ("mass", "Mass (g)"),
+                ("manufacturer", "Manufacturer"),
+                ("model", "Model"),
+            ]
+        )
+        self.general_table.cellChanged.connect(self._update_general)
+        layout.addWidget(self.general_table)
+
+    def _open_catalog(self) -> None:
+        dialog = ComponentCatalogDialog(component_type="motor", parent=self.window())
+        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.selected_motor:
+            m = dialog.selected_motor
+
+            def apply_catalog_motor() -> None:
+                self._component["name"] = m.name
+                self._component["manufacturer"] = m.manufacturer
+                self._component["model"] = m.name
+                self._component["mass"] = m.weight_g
+                params = self._component.setdefault("parameters", {})
+                params["kv"] = float(m.kv)
+                params["resistance"] = float(m.resistance)
+                params["no_load_current"] = float(m.io)
+                params["max_current"] = float(m.max_current)
+                if m.max_power:
+                    params["max_power"] = float(m.max_power)
+                params["mass"] = float(m.weight_g)
+
+            self._api.edit_component(
+                self._component,
+                f"Apply catalog motor '{m.manufacturer} {m.name}'",
+                apply_catalog_motor,
+            )
+            self._load_component()

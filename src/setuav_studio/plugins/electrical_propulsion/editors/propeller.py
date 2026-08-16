@@ -1,46 +1,49 @@
-"""Propeller and rotor component property editor."""
+"""Propeller and rotor component property editor with PyThrust APC database picker."""
 
 from __future__ import annotations
 
 from typing import Any
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QDialog, QPushButton, QWidget
 
+from setuav_studio.icons import get_icon
 from setuav_studio.plugin_system import BaseComponentEditor, ParameterField, StudioAPI
+from setuav_studio.plugins.electrical_propulsion.catalog_dialog import ComponentCatalogDialog
 
 
 class PropellerEditor(BaseComponentEditor):
-    """Property editor for propellers and rotors (org.setuav.core:propeller, org.setuav.core:rotor)."""
+    """Property editor for propellers and rotors (org.setuav.core:propeller / rotor)."""
 
     FIELDS = (
         ParameterField(
             key="diameter",
-            label="Prop Diameter",
+            label="Diameter",
             unit="mm",
             field_type=float,
-            default=330.2,  # 13 in
+            default=330.0,
             min_value=10.0,
             max_value=3000.0,
             decimals=1,
-            tooltip="Propeller tip-to-tip diameter in millimeters.",
+            tooltip="Propeller overall tip-to-tip diameter in millimeters.",
         ),
         ParameterField(
             key="pitch",
-            label="Prop Pitch",
+            label="Pitch",
             unit="mm",
             field_type=float,
-            default=152.4,  # 6 in
+            default=165.0,
             min_value=5.0,
             max_value=2000.0,
             decimals=1,
-            tooltip="Geometric pitch distance advanced per single revolution.",
+            tooltip="Geometric pitch advance per revolution in millimeters.",
         ),
         ParameterField(
             key="blade_count",
             label="Blade Count",
+            unit="",
             field_type=int,
             default=2,
             min_value=1,
-            max_value=12,
+            max_value=8,
             tooltip="Number of propeller blades.",
         ),
         ParameterField(
@@ -48,20 +51,75 @@ class PropellerEditor(BaseComponentEditor):
             label="Hub Diameter",
             unit="mm",
             field_type=float,
-            default=32.0,
-            min_value=2.0,
-            max_value=200.0,
+            default=25.0,
+            min_value=0.0,
+            max_value=300.0,
             decimals=1,
+            tooltip="Propeller central hub diameter.",
         ),
         ParameterField(
             key="rotation_direction",
             label="Rotation Direction",
+            unit="",
             field_type=str,
             default="ccw",
-            options=("ccw", "cw"),
-            tooltip="Standard rotation orientation (CCW: Tractor / CW: Pusher).",
+            options=["ccw", "cw"],
+            tooltip="Direction of rotation viewed from front/top (CCW or CW).",
         ),
     )
 
     def __init__(self, api: StudioAPI, component: dict[str, Any], parent: QWidget | None = None) -> None:
         super().__init__(api, component, parameter_fields=self.FIELDS, parent=parent)
+
+    def _create_general_section(self) -> None:
+        catalog_btn = QPushButton("Catalog…", self)
+        catalog_btn.setIcon(get_icon("fa6s.database"))
+        catalog_btn.setStyleSheet("""
+            QPushButton {
+                padding: 1px 6px;
+                font-size: 8pt;
+                border-radius: 3px;
+                background-color: rgba(255, 255, 255, 0.06);
+                border: 1px solid rgba(255, 255, 255, 0.12);
+            }
+            QPushButton:hover {
+                background-color: rgba(255, 255, 255, 0.12);
+                border-color: #7fc4d1;
+                color: #7fc4d1;
+            }
+        """)
+        catalog_btn.clicked.connect(self._open_catalog)
+
+        layout = self._create_section("General", "fa6s.circle-info", action_widget=catalog_btn)
+        self.general_table = self._property_table(
+            [
+                ("name", "Name"),
+                ("type", "Type"),
+                ("mass", "Mass (g)"),
+                ("manufacturer", "Manufacturer"),
+                ("model", "Model"),
+            ]
+        )
+        self.general_table.cellChanged.connect(self._update_general)
+        layout.addWidget(self.general_table)
+
+    def _open_catalog(self) -> None:
+        dialog = ComponentCatalogDialog(component_type="propeller", parent=self.window())
+        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.selected_propeller:
+            p = dialog.selected_propeller
+
+            def apply_catalog_propeller() -> None:
+                self._component["name"] = f"APC {p.metadata.model}"
+                self._component["manufacturer"] = p.metadata.manufacturer
+                self._component["model"] = p.metadata.model
+                params = self._component.setdefault("parameters", {})
+                params["diameter"] = round(p.diameter_m * 1000.0, 1)
+                params["pitch"] = round(p.pitch_m * 1000.0, 1)
+                params["blade_count"] = int(p.metadata.blade_count)
+
+            self._api.edit_component(
+                self._component,
+                f"Apply catalog propeller '{p.metadata.id}'",
+                apply_catalog_propeller,
+            )
+            self._load_component()
