@@ -32,6 +32,7 @@ _GL_DEPTH_TEST = 0x0B71
 _GL_FLOAT = 0x1406
 _GL_LINES = 0x0001
 _GL_MULTISAMPLE = 0x809D
+_GL_POLYGON_OFFSET_FILL = 0x8037
 _GL_TRIANGLES = 0x0004
 _GL_BLEND = 0x0BE2
 _GL_SRC_ALPHA = 0x0302
@@ -167,6 +168,9 @@ class OpenGLViewer(QOpenGLWidget):
         if self._mode in (SOLID, SOLID_WIRE) and self._solid_program is not None:
             eye_direction = self._eye_position() - self._target
             eye_direction.normalize()
+            if self._mode == SOLID_WIRE:
+                self._functions.glEnable(_GL_POLYGON_OFFSET_FILL)
+                self._functions.glPolygonOffset(1.0, 1.0)
             self._solid_program.bind()
             self._solid_program.setUniformValue("mvp", mvp)
             self._solid_program.setUniformValue("eyeDirection", eye_direction)
@@ -187,6 +191,8 @@ class OpenGLViewer(QOpenGLWidget):
             if transparent:
                 self._functions.glDepthMask(True)
                 self._functions.glDisable(_GL_BLEND)
+            if self._mode == SOLID_WIRE:
+                self._functions.glDisable(_GL_POLYGON_OFFSET_FILL)
 
         if self._mode in (WIREFRAME, SOLID_WIRE) and self._wire_program is not None:
             self._wire_program.bind()
