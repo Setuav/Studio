@@ -136,8 +136,8 @@ class PluginTests(unittest.TestCase):
 
         vertices = build_loft_wire_vertices(data)
 
-        # 3 edges per loop and 3 longitudinal connectors, 2 vertices per line.
-        self.assertEqual(len(vertices) // 6, 18)
+        # 3 edges per loop and 3 longitudinal connectors, 2 vertices per line (12 floats per line).
+        self.assertEqual(len(vertices) // 12, 18)
 
     def test_viewer_rejects_mismatched_loft_sections(self) -> None:
         data = GeometryData(

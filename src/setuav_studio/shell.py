@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import shiboken6
-from PySide6.QtCore import QSettings, Qt
+from PySide6.QtCore import QSettings, QSize, Qt
 from PySide6.QtGui import QCloseEvent, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
@@ -11,14 +11,18 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QMenu,
     QMessageBox,
+    QStackedWidget,
     QStyle,
+    QToolBar,
     QToolButton,
     QWidget,
 )
 
 from setuav_studio.icons import get_icon
 from setuav_studio.plugin_system import (
+    ActionContribution,
     PanelContribution,
     StudioAPI,
     WorkspaceContribution,
@@ -76,10 +80,50 @@ class MainWindow(QMainWindow):
         super().__init__()
         self._api = api
         self._project: ProjectDocument | None = None
+        self._workspaces: dict[str, WorkspaceContribution] = {}
+        self._workspace_widgets: dict[str, QWidget] = {}
+        self._workspace_buttons: dict[str, QToolButton] = {}
+        self._panels: dict[str, tuple[PanelContribution, QDockWidget]] = {}
+        self._workspace_stack = QStackedWidget(self)
         self._workspace_dock: QDockWidget | None = None
         self.setDockNestingEnabled(True)
+
+        self._workspace_toolbar = QToolBar("Workspaces", self)
+        self._workspace_toolbar.setObjectName("studio.workspace_toolbar")
+        self._workspace_toolbar.setMovable(False)
+        self._workspace_toolbar.setFloatable(False)
+        self._workspace_toolbar.setIconSize(QSize(15, 15))
+        self._workspace_toolbar.setStyleSheet("""
+            QToolBar#studio.workspace_toolbar {
+                background-color: #1a1d22;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+                padding: 2px 8px;
+                spacing: 6px;
+            }
+            QToolButton {
+                background: transparent;
+                border: 1px solid transparent;
+                border-radius: 4px;
+                padding: 4px 12px;
+                font-size: 8.5pt;
+                font-weight: 600;
+                color: #abb2bf;
+            }
+            QToolButton:hover {
+                background-color: rgba(255, 255, 255, 0.06);
+                color: #ffffff;
+            }
+            QToolButton:checked {
+                background-color: rgba(127, 196, 209, 0.15);
+                border: 1px solid #7fc4d1;
+                color: #7fc4d1;
+            }
+        """)
+        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self._workspace_toolbar)
+
         self._api.set_panel_handler(self._add_panel)
-        self._api.set_workspace_handler(self._set_workspace)
+        self._api.set_workspace_handler(self._add_workspace, self._switch_workspace)
+        self._api.set_action_handler(self._add_action)
 
         self.setWindowTitle("Setuav Studio")
         self.resize(1200, 800)
@@ -94,7 +138,9 @@ class MainWindow(QMainWindow):
         open_folder_action = self._file_menu.addAction(get_icon("folder_open"), "Open Project Folder…")
         open_folder_action.triggered.connect(self._open_project_folder)
 
-        self._recent_menu = self._file_menu.addMenu(get_icon("project_folder"), "Open Recent")
+        self._recent_menu = QMenu("Open Recent", self._file_menu)
+        self._recent_menu.setIcon(get_icon("project_folder"))
+        self._file_menu.addMenu(self._recent_menu)
         self._file_menu.addSeparator()
 
         self._save_action = self._file_menu.addAction(get_icon("save"), "Save")
@@ -318,6 +364,8 @@ class MainWindow(QMainWindow):
         self._update_recent_menu()
 
     def _update_recent_menu(self) -> None:
+        if not hasattr(self, "_recent_menu") or not shiboken6.isValid(self._recent_menu):
+            return
         self._recent_menu.clear()
         recent = self._recent_projects()
         if not recent:
@@ -355,55 +403,160 @@ class MainWindow(QMainWindow):
         dock.setObjectName(contribution.id)
         dock.setWidget(contribution.factory())
         self.addDockWidget(contribution.area, dock)
+        self._panels[contribution.id] = (contribution, dock)
+
         action = dock.toggleViewAction()
         if contribution.id == "project.explorer":
             action.setIcon(get_icon("project_explorer"))
         elif contribution.id == "studio.properties":
             action.setIcon(get_icon("properties"))
         self._view_menu.addAction(action)
+
+        if (
+            contribution.workspace_id is not None
+            and contribution.workspace_id != self._api.current_workspace_id
+        ):
+            dock.hide()
+
         if contribution.area in {
             Qt.DockWidgetArea.LeftDockWidgetArea,
             Qt.DockWidgetArea.RightDockWidgetArea,
         }:
             self.resizeDocks([dock], [320], Qt.Orientation.Horizontal)
 
-    def _set_workspace(self, contribution: WorkspaceContribution) -> None:
-        dock = QDockWidget(contribution.title, self)
-        dock.setObjectName(contribution.id)
-        dock.setFont(QApplication.font())
-        dock.setTitleBarWidget(DockTitleBar(dock))
-        dock.setAllowedAreas(Qt.DockWidgetArea.AllDockWidgetAreas)
-        dock.setFeatures(
-            QDockWidget.DockWidgetFeature.DockWidgetClosable
-            | QDockWidget.DockWidgetFeature.DockWidgetMovable
-            | QDockWidget.DockWidgetFeature.DockWidgetFloatable
-        )
-        dock.setWidget(contribution.factory())
-        self._workspace_dock = dock
+    def _add_action(self, contribution: ActionContribution) -> None:
+        parts = [p.strip().replace("&", "") for p in contribution.menu.split("/") if p.strip()]
+        if not parts:
+            parts = ["Tools"]
 
-        previous = self.takeCentralWidget()
-        if previous is not None:
-            previous.deleteLater()
+        top_name = parts[0]
+        top_menu = None
+        for action in self.menuBar().actions():
+            m = action.menu()
+            if m and m.title().replace("&", "").strip().lower() == top_name.lower():
+                top_menu = m
+                break
+        if top_menu is None:
+            top_menu = self.menuBar().addMenu(f"&{top_name}")
 
-        explorer_dock = self.findChild(QDockWidget, "project.explorer")
-        if explorer_dock is not None:
-            self.splitDockWidget(explorer_dock, dock, Qt.Orientation.Horizontal)
+        current_menu = top_menu
+        for sub_name in parts[1:]:
+            sub_menu = None
+            for action in current_menu.actions():
+                m = action.menu()
+                if m and m.title().replace("&", "").strip().lower() == sub_name.lower():
+                    sub_menu = m
+                    break
+            if sub_menu is None:
+                sub_menu = current_menu.addMenu(f"&{sub_name}")
+            current_menu = sub_menu
+
+        icon = get_icon(contribution.icon) if contribution.icon else None
+        if icon is not None and not icon.isNull():
+            action = current_menu.addAction(icon, contribution.title)
         else:
-            self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, dock)
+            action = current_menu.addAction(contribution.title)
 
-        toggle_action = dock.toggleViewAction()
-        toggle_action.setIcon(get_icon("viewer_3d"))
-        self._view_menu.addAction(toggle_action)
+        if contribution.shortcut:
+            action.setShortcut(QKeySequence(contribution.shortcut))
 
-        props_dock = self.findChild(QDockWidget, "studio.properties")
-        docks_to_resize = []
-        sizes = []
-        if explorer_dock is not None:
-            docks_to_resize.append(explorer_dock)
-            sizes.append(300)
-        docks_to_resize.append(dock)
-        sizes.append(600)
-        if props_dock is not None:
-            docks_to_resize.append(props_dock)
-            sizes.append(300)
-        self.resizeDocks(docks_to_resize, sizes, Qt.Orientation.Horizontal)
+        action.triggered.connect(contribution.callback)
+
+    def _add_workspace(self, contribution: WorkspaceContribution) -> None:
+        self._workspaces[contribution.id] = contribution
+
+        if self._workspace_dock is None:
+            dock = QDockWidget(contribution.title, self)
+            dock.setObjectName(contribution.id)
+            dock.setFont(QApplication.font())
+            dock.setTitleBarWidget(DockTitleBar(dock))
+            dock.setAllowedAreas(Qt.DockWidgetArea.AllDockWidgetAreas)
+            dock.setFeatures(
+                QDockWidget.DockWidgetFeature.DockWidgetClosable
+                | QDockWidget.DockWidgetFeature.DockWidgetMovable
+                | QDockWidget.DockWidgetFeature.DockWidgetFloatable
+            )
+            dock.setWidget(self._workspace_stack)
+            self._workspace_dock = dock
+
+            previous = self.takeCentralWidget()
+            if previous is not None:
+                previous.deleteLater()
+
+            explorer_dock = self.findChild(QDockWidget, "project.explorer")
+            if explorer_dock is not None:
+                self.splitDockWidget(explorer_dock, dock, Qt.Orientation.Horizontal)
+            else:
+                self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, dock)
+
+            toggle_action = dock.toggleViewAction()
+            toggle_action.setIcon(get_icon("viewer_3d"))
+            self._view_menu.addAction(toggle_action)
+
+            props_dock = self.findChild(QDockWidget, "studio.properties")
+            docks_to_resize = []
+            sizes = []
+            if explorer_dock is not None:
+                docks_to_resize.append(explorer_dock)
+                sizes.append(300)
+            docks_to_resize.append(dock)
+            sizes.append(600)
+            if props_dock is not None:
+                docks_to_resize.append(props_dock)
+                sizes.append(300)
+            self.resizeDocks(docks_to_resize, sizes, Qt.Orientation.Horizontal)
+
+        self._rebuild_workspace_toolbar()
+
+        # Default activate
+        if self._api.current_workspace_id is None or contribution.id in {"studio.viewer.opengl", "studio.workspace.design"}:
+            self._api.switch_workspace(contribution.id)
+
+    def _rebuild_workspace_toolbar(self) -> None:
+        self._workspace_toolbar.clear()
+        self._workspace_buttons.clear()
+
+        sorted_workspaces = sorted(self._workspaces.values(), key=lambda w: (w.order, w.title))
+        for contribution in sorted_workspaces:
+            btn = QToolButton(self._workspace_toolbar)
+            btn.setText(contribution.title)
+            btn.setCheckable(True)
+            if contribution.icon:
+                btn.setIcon(get_icon(contribution.icon))
+            btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+            btn.clicked.connect(lambda _checked, cid=contribution.id: self._api.switch_workspace(cid))
+            self._workspace_toolbar.addWidget(btn)
+            self._workspace_buttons[contribution.id] = btn
+
+        if self._api.current_workspace_id and self._api.current_workspace_id in self._workspace_buttons:
+            self._workspace_buttons[self._api.current_workspace_id].setChecked(True)
+
+    def _switch_workspace(self, workspace_id: str) -> None:
+        if workspace_id not in self._workspaces:
+            return
+
+        contribution = self._workspaces[workspace_id]
+        if workspace_id not in self._workspace_widgets:
+            widget = contribution.factory()
+            self._workspace_widgets[workspace_id] = widget
+            self._workspace_stack.addWidget(widget)
+
+        target_widget = self._workspace_widgets[workspace_id]
+        self._workspace_stack.setCurrentWidget(target_widget)
+
+        for cid, btn in self._workspace_buttons.items():
+            btn.blockSignals(True)
+            btn.setChecked(cid == workspace_id)
+            btn.blockSignals(False)
+
+        # Update dock panel visibility for workspace-specific panels
+        for cid, (panel_contrib, dock) in self._panels.items():
+            if panel_contrib.workspace_id is not None:
+                if panel_contrib.workspace_id == workspace_id:
+                    dock.show()
+                else:
+                    dock.hide()
+
+        if self._workspace_dock is not None:
+            self._workspace_dock.setWindowTitle(contribution.title)
+            self._workspace_dock.setObjectName(contribution.id)

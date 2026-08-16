@@ -22,6 +22,7 @@ class PanelContribution:
     title: str
     factory: Callable[[], QWidget]
     area: Qt.DockWidgetArea = Qt.DockWidgetArea.LeftDockWidgetArea
+    workspace_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -29,6 +30,26 @@ class WorkspaceContribution:
     id: str
     title: str
     factory: Callable[[], QWidget]
+    icon: str | Path | QIcon | None = None
+    order: int = 0
+
+
+@dataclass(frozen=True)
+class ToolContribution:
+    title: str
+    callback: Callable[[], None]
+    group: str | None = None
+    icon: str | Path | QIcon | None = None
+    shortcut: str | None = None
+
+
+@dataclass(frozen=True)
+class ActionContribution:
+    menu: str
+    title: str
+    callback: Callable[[], None]
+    icon: str | Path | QIcon | None = None
+    shortcut: str | None = None
 
 
 @dataclass(frozen=True)
@@ -69,11 +90,17 @@ class StudioAPI:
         self.current_project: ProjectDocument | None = None
         self.current_selection: Any | None = None
         self.current_section_selection: tuple[str, int, int] | None = None
+        self.current_workspace_id: str | None = None
         self._add_panel: Callable[[PanelContribution], None] | None = None
-        self._set_workspace: Callable[[WorkspaceContribution], None] | None = None
+        self._add_workspace: Callable[[WorkspaceContribution], None] | None = None
+        self._switch_workspace_handler: Callable[[str], None] | None = None
+        self._pending_workspaces: list[WorkspaceContribution] = []
+        self._add_action: Callable[[ActionContribution], None] | None = None
+        self._pending_actions: list[ActionContribution] = []
         self._project_listeners: list[Callable[[ProjectDocument], None]] = []
         self._project_content_listeners: list[Callable[[ProjectDocument], None]] = []
         self._modified_listeners: list[Callable[[bool], None]] = []
+        self._workspace_listeners: list[Callable[[str], None]] = []
         self._selection_listeners: list[Callable[[Any | None], None]] = []
         self._section_selection_listeners: list[
             Callable[[tuple[str, int, int] | None], None]
@@ -106,13 +133,61 @@ class StudioAPI:
     def set_workspace_handler(
         self,
         handler: Callable[[WorkspaceContribution], None],
+        switch_handler: Callable[[str], None] | None = None,
     ) -> None:
-        self._set_workspace = handler
+        self._add_workspace = handler
+        self._switch_workspace_handler = switch_handler
+        for workspace in self._pending_workspaces:
+            handler(workspace)
+        self._pending_workspaces.clear()
+
+    def add_workspace(self, contribution: WorkspaceContribution) -> None:
+        if self._add_workspace is not None:
+            self._add_workspace(contribution)
+        else:
+            self._pending_workspaces.append(contribution)
 
     def set_workspace(self, contribution: WorkspaceContribution) -> None:
-        if self._set_workspace is None:
-            raise RuntimeError("The Studio shell is not ready for a workspace contribution")
-        self._set_workspace(contribution)
+        self.add_workspace(contribution)
+
+    def switch_workspace(self, workspace_id: str) -> None:
+        self.current_workspace_id = workspace_id
+        if self._switch_workspace_handler is not None:
+            self._switch_workspace_handler(workspace_id)
+        for listener in list(self._workspace_listeners):
+            listener(workspace_id)
+
+    def on_workspace_changed(self, listener: Callable[[str], None]) -> None:
+        self._workspace_listeners.append(listener)
+        if self.current_workspace_id is not None:
+            listener(self.current_workspace_id)
+
+    def set_action_handler(
+        self,
+        handler: Callable[[ActionContribution], None],
+    ) -> None:
+        self._add_action = handler
+        for action in self._pending_actions:
+            handler(action)
+        self._pending_actions.clear()
+
+    def add_action(self, contribution: ActionContribution) -> None:
+        if self._add_action is not None:
+            self._add_action(contribution)
+        else:
+            self._pending_actions.append(contribution)
+
+    def register_tool(self, contribution: ToolContribution) -> None:
+        menu_path = f"Tools/{contribution.group}" if contribution.group else "Tools"
+        self.add_action(
+            ActionContribution(
+                menu=menu_path,
+                title=contribution.title,
+                callback=contribution.callback,
+                icon=contribution.icon,
+                shortcut=contribution.shortcut,
+            )
+        )
 
     def on_project_changed(self, listener: Callable[[ProjectDocument], None]) -> None:
         self._project_listeners.append(listener)
