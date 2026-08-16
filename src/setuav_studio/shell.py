@@ -82,7 +82,7 @@ class DockTitleBar(QWidget):
 
 
 class MainWindow(QMainWindow):
-    _LAYOUT_VERSION = 5
+    _LAYOUT_VERSION = 6
 
     def __init__(self, api: StudioAPI) -> None:
         super().__init__()
@@ -444,7 +444,7 @@ class MainWindow(QMainWindow):
         self._panels[contribution.id] = (contribution, dock)
 
         ws_id = self._current_workspace_id or self._api.current_workspace_id
-        if ws_id and not contribution.is_in_workspace(ws_id):
+        if not contribution.is_in_workspace(ws_id):
             dock.hide()
 
         self._update_view_menu(ws_id)
@@ -546,7 +546,12 @@ class MainWindow(QMainWindow):
         controls = self.findChild(QDockWidget, "propulsion.controls_dock")
         results = self.findChild(QDockWidget, "propulsion.results_dock")
 
-        if workspace_id == "studio.workspace.design":
+        # Hide any panels that do not belong to this workspace
+        for cid, (panel_contrib, dock) in self._panels.items():
+            if not panel_contrib.is_in_workspace(workspace_id):
+                dock.hide()
+
+        if workspace_id in {"studio.workspace.design", "studio.viewer.opengl"}:
             if controls:
                 controls.hide()
             if results:

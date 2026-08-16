@@ -39,8 +39,9 @@ class PropulsionControlsDock(QWidget):
 
         content = QWidget()
         self._content_layout = QVBoxLayout(content)
-        self._content_layout.setContentsMargins(0, 0, 0, 0)
-        self._content_layout.setSpacing(6)
+        self._content_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self._content_layout.setContentsMargins(4, 4, 4, 4)
+        self._content_layout.setSpacing(8)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -55,7 +56,7 @@ class PropulsionControlsDock(QWidget):
         self._create_battery_state_section()
         self._create_actions_section()
 
-        self._content_layout.addStretch()
+        self._content_layout.addStretch(1)
 
         self._api.on_project_changed(lambda _p: self._refresh_assemblies())
         self._api.on_project_content_changed(lambda _p: self._refresh_assemblies())
@@ -63,7 +64,9 @@ class PropulsionControlsDock(QWidget):
 
     def _create_section(self, title: str, icon_name: str | None = None) -> QVBoxLayout:
         section = QWidget()
+        section.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
         layout = QVBoxLayout(section)
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(2)
 
@@ -157,8 +160,10 @@ class PropulsionControlsDock(QWidget):
         layout.addWidget(self.battery_state_table)
 
     def _create_actions_section(self) -> None:
-        actions_layout = QHBoxLayout()
-        actions_layout.setContentsMargins(0, 6, 0, 2)
+        container = QWidget()
+        container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
+        actions_layout = QHBoxLayout(container)
+        actions_layout.setContentsMargins(0, 8, 0, 2)
         actions_layout.setSpacing(6)
 
         self.run_button = QPushButton("Run Analysis", self)
@@ -173,7 +178,7 @@ class PropulsionControlsDock(QWidget):
         self.reset_button.clicked.connect(self._reset_defaults)
         actions_layout.addWidget(self.reset_button, 1)
 
-        self._content_layout.addLayout(actions_layout)
+        self._content_layout.addWidget(container)
 
     def _on_mode_changed(self, mode: str) -> None:
         self._current_mode = mode

@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QScrollArea,
+    QSizePolicy,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -32,8 +33,9 @@ class PropulsionResultsDock(QWidget):
 
         content = QWidget()
         self._content_layout = QVBoxLayout(content)
-        self._content_layout.setContentsMargins(0, 0, 0, 0)
-        self._content_layout.setSpacing(6)
+        self._content_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self._content_layout.setContentsMargins(4, 4, 4, 4)
+        self._content_layout.setSpacing(8)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -44,12 +46,14 @@ class PropulsionResultsDock(QWidget):
         self._create_summary_section()
         self._create_operating_point_section()
 
-        self._content_layout.addStretch()
+        self._content_layout.addStretch(1)
         self.clear_results()
 
     def _create_section(self, title: str, icon_name: str | None = None) -> QVBoxLayout:
         section = QWidget()
+        section.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
         layout = QVBoxLayout(section)
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(2)
 
