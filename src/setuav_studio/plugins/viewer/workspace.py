@@ -104,7 +104,7 @@ class ViewerWorkspace(QWidget):
         sep1.setFrameShadow(QFrame.Shadow.Plain)
         hud_layout.addWidget(sep1)
 
-        # Shading / Surface Style Group (Exclusive)
+        # Shading / Surface Style Group (Exclusive: Colored / Monochrome / Transparent)
         self.style_group = QButtonGroup(self)
         self.style_group.setExclusive(True)
 
@@ -127,20 +127,28 @@ class ViewerWorkspace(QWidget):
         self.style_group.addButton(self.mono_button)
         hud_layout.addWidget(self.mono_button)
 
-        self.trans_button = QToolButton(self.hud)
-        self.trans_button.setCheckable(True)
-        self.trans_button.setIcon(get_icon("mdi6.opacity"))
-        self.trans_button.setToolTip("Transparent (X-Ray)")
-        self.trans_button.setFixedSize(24, 24)
-        self.trans_button.setAutoRaise(True)
-        self.style_group.addButton(self.trans_button)
-        hud_layout.addWidget(self.trans_button)
-
         sep2 = QFrame(self.hud)
         sep2.setObjectName("hudSep")
         sep2.setFrameShape(QFrame.Shape.VLine)
         sep2.setFrameShadow(QFrame.Shadow.Plain)
         hud_layout.addWidget(sep2)
+
+        # Transparency Toggle (Independent)
+        self.trans_button = QToolButton(self.hud)
+        self.trans_button.setCheckable(True)
+        self.trans_button.setChecked(False)
+        self.trans_button.setIcon(get_icon("mdi6.opacity"))
+        self.trans_button.setToolTip("Toggle Transparency (X-Ray)")
+        self.trans_button.setFixedSize(24, 24)
+        self.trans_button.setAutoRaise(True)
+        self.trans_button.toggled.connect(self.viewer.set_transparent)
+        hud_layout.addWidget(self.trans_button)
+
+        sep3 = QFrame(self.hud)
+        sep3.setObjectName("hudSep")
+        sep3.setFrameShape(QFrame.Shape.VLine)
+        sep3.setFrameShadow(QFrame.Shadow.Plain)
+        hud_layout.addWidget(sep3)
 
         # Camera Fit Button
         fit_button = QToolButton(self.hud)
@@ -156,14 +164,12 @@ class ViewerWorkspace(QWidget):
         self.mono_button.clicked.connect(
             lambda: self.viewer.set_face_style(FACE_MONOCHROME)
         )
-        self.trans_button.clicked.connect(
-            lambda: self.viewer.set_face_style(FACE_TRANSPARENT)
-        )
         fit_button.clicked.connect(self.viewer.fit_view)
 
         api.on_project_changed(self._on_project_changed)
         api.on_project_content_changed(self._on_project_content_changed)
         api.on_selection_changed(self._on_selection_changed)
+        self.viewer.componentPicked.connect(self._on_component_picked)
         self.destroyed.connect(self._detach)
 
         self.hud.adjustSize()
@@ -205,6 +211,16 @@ class ViewerWorkspace(QWidget):
         self.viewer.set_selected_component(
             component_id if isinstance(component_id, str) else None
         )
+
+    def _on_component_picked(self, component_id: str) -> None:
+        project = self._api.current_project
+        if project is None:
+            return
+        components = project.data.get("components", [])
+        for component in components:
+            if isinstance(component, dict) and str(component.get("id") or "") == component_id:
+                self._api.set_selection(component)
+                return
 
     def _refresh(self, project: ProjectDocument, fit: bool) -> None:
         try:

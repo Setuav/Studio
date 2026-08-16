@@ -25,7 +25,7 @@ def build_loft_wire_vertices(
         color = (
             _SELECTED_COLOR
             if loft.component_id == selected_component_id
-            else loft.color if face_style == FACE_COLORED else _WIRE_GREY
+            else loft.color if face_style in (FACE_COLORED, FACE_TRANSPARENT) else _WIRE_GREY
         )
         for loop in loops:
             for index, point in enumerate(loop):
@@ -49,7 +49,7 @@ def build_loft_solid_vertices(
             continue
         if loft.component_id == selected_component_id:
             color = tuple(channel * 0.65 for channel in _SELECTED_COLOR)
-        elif face_style == FACE_COLORED:
+        elif face_style in (FACE_COLORED, FACE_TRANSPARENT):
             color = tuple(channel * 0.65 for channel in loft.color)
         else:
             color = _SOLID_GREY
@@ -212,3 +212,82 @@ def _lerp(start: Point3D, end: Point3D, fraction: float) -> Point3D:
 
 def _add_line(vertices, start, end, color) -> None:
     vertices.extend((*start, *color, *end, *color))
+
+
+def hit_test_loft(
+    data: GeometryData,
+    origin: Point3D,
+    direction: Point3D,
+) -> str | None:
+    best_distance: float | None = None
+    best_id: str | None = None
+    for loft in data.lofts:
+        loops = _tessellated_loops(loft)
+        if not loops:
+            continue
+        for current, following in zip(loops, loops[1:]):
+            for index in range(len(current)):
+                next_index = (index + 1) % len(current)
+                first, second = current[index], current[next_index]
+                third, fourth = following[index], following[next_index]
+                for triangle in ((first, second, third), (second, fourth, third)):
+                    distance = _ray_triangle_intersection(origin, direction, triangle)
+                    if distance is None or (best_distance is not None and distance >= best_distance):
+                        continue
+                    best_distance = distance
+                    best_id = loft.component_id
+        if loft.closed_ends:
+            for loop, flip in ((loops[0], True), (loops[-1], False)):
+                centre = tuple(
+                    sum(point[axis] for point in loop) / len(loop) for axis in range(3)
+                )
+                for index, point in enumerate(loop):
+                    following = loop[(index + 1) % len(loop)]
+                    triangle = (centre, following, point) if flip else (centre, point, following)
+                    distance = _ray_triangle_intersection(origin, direction, triangle)
+                    if distance is None or (best_distance is not None and distance >= best_distance):
+                        continue
+                    best_distance = distance
+                    best_id = loft.component_id
+    return best_id
+
+
+def _ray_triangle_intersection(
+    origin: Point3D,
+    direction: Point3D,
+    triangle: tuple[Point3D, Point3D, Point3D],
+) -> float | None:
+    first, second, third = triangle
+    edge1 = _subtract(second, first)
+    edge2 = _subtract(third, first)
+    cross = _cross(direction, edge2)
+    determinant = _dot(edge1, cross)
+    if abs(determinant) < 1e-9:
+        return None
+    inverse = 1.0 / determinant
+    offset = _subtract(origin, first)
+    u = _dot(offset, cross) * inverse
+    if u < 0.0 or u > 1.0:
+        return None
+    perpendicular = _cross(offset, edge1)
+    v = _dot(direction, perpendicular) * inverse
+    if v < 0.0 or u + v > 1.0:
+        return None
+    distance = _dot(edge2, perpendicular) * inverse
+    return distance if distance >= 0.0 else None
+
+
+def _dot(left: Point3D, right: Point3D) -> float:
+    return left[0] * right[0] + left[1] * right[1] + left[2] * right[2]
+
+
+def _cross(left: Point3D, right: Point3D) -> Point3D:
+    return (
+        left[1] * right[2] - left[2] * right[1],
+        left[2] * right[0] - left[0] * right[2],
+        left[0] * right[1] - left[1] * right[0],
+    )
+
+
+def _subtract(left: Point3D, right: Point3D) -> Point3D:
+    return (left[0] - right[0], left[1] - right[1], left[2] - right[2])

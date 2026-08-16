@@ -1,7 +1,7 @@
 from array import array
 import math
 
-from PySide6.QtCore import QPoint, Qt
+from PySide6.QtCore import QPoint, Qt, Signal
 from PySide6.QtGui import QMatrix4x4, QSurfaceFormat, QVector3D
 from PySide6.QtOpenGL import (
     QOpenGLBuffer,
@@ -12,13 +12,14 @@ from PySide6.QtOpenGL import (
 )
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 
-from setuav_studio.geometry_data import GeometryData
+from setuav_studio.geometry_data import GeometryData, Point3D
 from setuav_studio.plugins.viewer.mesh import (
     FACE_COLORED,
     FACE_MONOCHROME,
     FACE_TRANSPARENT,
     build_loft_solid_vertices,
     build_loft_wire_vertices,
+    hit_test_loft,
 )
 
 
@@ -96,6 +97,8 @@ def _add_reference_line(vertices: list[float], start, end, color) -> None:
 
 
 class OpenGLViewer(QOpenGLWidget):
+    componentPicked = Signal(str)
+
     def __init__(self, parent=None) -> None:
         surface_format = QSurfaceFormat()
         surface_format.setVersion(3, 3)
@@ -124,6 +127,7 @@ class OpenGLViewer(QOpenGLWidget):
         self._show_wireframe = True
         self._mode = SOLID_WIRE
         self._face_style = FACE_COLORED
+        self._transparent = False
         self._geometry_data = GeometryData()
         self._selected_component_id: str | None = None
 
@@ -132,6 +136,8 @@ class OpenGLViewer(QOpenGLWidget):
         self._distance = 1500.0
         self._target = QVector3D(400.0, 0.0, 0.0)
         self._last_mouse = QPoint()
+        self._press_position = QPoint()
+        self._press_button = Qt.MouseButton.NoButton
 
     def initializeGL(self) -> None:
         functions = QOpenGLFunctions_3_3_Core()
@@ -203,7 +209,7 @@ class OpenGLViewer(QOpenGLWidget):
             self._solid_program.bind()
             self._solid_program.setUniformValue("mvp", mvp)
             self._solid_program.setUniformValue("eyeDirection", eye_direction)
-            transparent = self._face_style == FACE_TRANSPARENT
+            transparent = self._transparent or (self._face_style == FACE_TRANSPARENT)
             alpha_location = self._solid_program.uniformLocation("alpha")
             self._functions.glUniform1f(
                 alpha_location,
@@ -263,6 +269,10 @@ class OpenGLViewer(QOpenGLWidget):
         self._sync_mode()
         self.update()
 
+    def set_transparent(self, transparent: bool) -> None:
+        self._transparent = transparent
+        self.update()
+
     def _sync_mode(self) -> None:
         if self._show_solid and self._show_wireframe:
             self._mode = SOLID_WIRE
@@ -280,10 +290,14 @@ class OpenGLViewer(QOpenGLWidget):
         self.update()
 
     def set_face_style(self, face_style: str) -> None:
-        if face_style not in {FACE_COLORED, FACE_MONOCHROME, FACE_TRANSPARENT}:
+        if face_style == FACE_TRANSPARENT:
+            self._transparent = True
+        elif face_style in {FACE_COLORED, FACE_MONOCHROME}:
+            self._face_style = face_style
+        else:
             raise ValueError(f"Unknown face style: {face_style}")
-        self._face_style = face_style
         self._update_gpu_meshes()
+        self.update()
 
     def fit_view(self) -> None:
         points = list(self._geometry_data.points())
@@ -302,7 +316,17 @@ class OpenGLViewer(QOpenGLWidget):
 
     def mousePressEvent(self, event) -> None:
         self._last_mouse = event.position().toPoint()
+        self._press_position = self._last_mouse
+        self._press_button = event.button()
         super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton and self._press_button == Qt.MouseButton.LeftButton:
+            delta = event.position().toPoint() - self._press_position
+            if delta.manhattanLength() <= 4:
+                self._pick(self._press_position)
+        self._press_button = Qt.MouseButton.NoButton
+        super().mouseReleaseEvent(event)
 
     def mouseMoveEvent(self, event) -> None:
         current = event.position().toPoint()
@@ -325,6 +349,29 @@ class OpenGLViewer(QOpenGLWidget):
         self._distance = max(10.0, min(100_000.0, self._distance))
         self.update()
         event.accept()
+
+    def _pick(self, point: QPoint) -> None:
+        if self._solid_count == 0:
+            return
+        origin, direction = self._screen_ray(point)
+        component_id = hit_test_loft(self._geometry_data, origin, direction)
+        if component_id is not None:
+            self.componentPicked.emit(component_id)
+
+    def _screen_ray(self, point: QPoint) -> tuple[Point3D, Point3D]:
+        width = max(1, self.width())
+        height = max(1, self.height())
+        x_ndc = (2.0 * point.x() / width) - 1.0
+        y_ndc = 1.0 - (2.0 * point.y() / height)
+        inverted, _invertible = (self._projection() * self._view()).inverted()
+        near = inverted.map(QVector3D(x_ndc, y_ndc, -1.0))
+        far = inverted.map(QVector3D(x_ndc, y_ndc, 1.0))
+        direction = far - near
+        direction.normalize()
+        return (
+            (near.x(), near.y(), near.z()),
+            (direction.x(), direction.y(), direction.z()),
+        )
 
     def _update_gpu_meshes(self) -> None:
         if self._wire_program is None or not self.isValid():
@@ -388,17 +435,17 @@ class OpenGLViewer(QOpenGLWidget):
     @staticmethod
     def _reference_grid_vertices() -> list[float]:
         vertices: list[float] = []
-        for offset in range(-1000, 1001, 100):
+        for offset in range(-2000, 2001, 200):
             _add_reference_line(
                 vertices,
-                (-1000, offset, 0.0),
-                (1000, offset, 0.0),
+                (-2000, offset, 0.0),
+                (2000, offset, 0.0),
                 (0.22, 0.22, 0.22),
             )
             _add_reference_line(
                 vertices,
-                (offset, -1000, 0.0),
-                (offset, 1000, 0.0),
+                (offset, -2000, 0.0),
+                (offset, 2000, 0.0),
                 (0.22, 0.22, 0.22),
             )
         return vertices

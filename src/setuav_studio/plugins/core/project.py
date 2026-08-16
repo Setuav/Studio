@@ -45,6 +45,7 @@ class ProjectExplorer(QTableWidget):
         self._components: list[dict[str, object]] = []
         api.on_project_changed(self.set_project)
         api.on_project_content_changed(self.refresh_project)
+        api.on_selection_changed(self._sync_selection)
 
     def set_project(self, project: ProjectDocument) -> None:
         components = project.data.get("components", [])
@@ -104,3 +105,15 @@ class ProjectExplorer(QTableWidget):
         if 0 <= row < len(self._components):
             component = self._components[row]
         self._api.set_selection(component)
+
+    def _sync_selection(self, selection: object | None) -> None:
+        component_id = selection.get("id") if isinstance(selection, dict) else None
+        if not isinstance(component_id, str):
+            self.clearSelection()
+            return
+        for row, component in enumerate(self._components):
+            if str(component.get("id") or "") == component_id:
+                if self.currentRow() != row:
+                    self.selectRow(row)
+                return
+        self.clearSelection()
