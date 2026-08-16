@@ -29,6 +29,8 @@ SOLID_WIRE = "solid+wire"
 _GL_COLOR_BUFFER_BIT = 0x00004000
 _GL_DEPTH_BUFFER_BIT = 0x00000100
 _GL_DEPTH_TEST = 0x0B71
+_GL_LEQUAL = 0x0203
+_GL_LESS = 0x0201
 _GL_FLOAT = 0x1406
 _GL_LINES = 0x0001
 _GL_MULTISAMPLE = 0x809D
@@ -89,6 +91,10 @@ void main() {
 """
 
 
+def _add_reference_line(vertices: list[float], start, end, color) -> None:
+    vertices.extend((*start, *color, *end, *color))
+
+
 class OpenGLViewer(QOpenGLWidget):
     def __init__(self, parent=None) -> None:
         surface_format = QSurfaceFormat()
@@ -106,8 +112,14 @@ class OpenGLViewer(QOpenGLWidget):
         self._wire_vbo = QOpenGLBuffer(QOpenGLBuffer.Type.VertexBuffer)
         self._solid_vao = QOpenGLVertexArrayObject()
         self._solid_vbo = QOpenGLBuffer(QOpenGLBuffer.Type.VertexBuffer)
+        self._grid_vao = QOpenGLVertexArrayObject()
+        self._grid_vbo = QOpenGLBuffer(QOpenGLBuffer.Type.VertexBuffer)
+        self._axis_vao = QOpenGLVertexArrayObject()
+        self._axis_vbo = QOpenGLBuffer(QOpenGLBuffer.Type.VertexBuffer)
         self._wire_count = 0
         self._solid_count = 0
+        self._grid_count = 0
+        self._axis_count = 0
         self._mode = SOLID_WIRE
         self._face_style = FACE_COLORED
         self._geometry_data = GeometryData()
@@ -139,6 +151,20 @@ class OpenGLViewer(QOpenGLWidget):
         self._setup_buffer(
             self._wire_vao,
             self._wire_vbo,
+            self._wire_program,
+            6,
+            ((0, 0, 3), (1, 3, 3)),
+        )
+        self._setup_buffer(
+            self._grid_vao,
+            self._grid_vbo,
+            self._wire_program,
+            6,
+            ((0, 0, 3), (1, 3, 3)),
+        )
+        self._setup_buffer(
+            self._axis_vao,
+            self._axis_vbo,
             self._wire_program,
             6,
             ((0, 0, 3), (1, 3, 3)),
@@ -194,13 +220,23 @@ class OpenGLViewer(QOpenGLWidget):
             if self._mode == SOLID_WIRE:
                 self._functions.glDisable(_GL_POLYGON_OFFSET_FILL)
 
-        if self._mode in (WIREFRAME, SOLID_WIRE) and self._wire_program is not None:
-            self._wire_program.bind()
-            self._wire_program.setUniformValue("mvp", mvp)
+        if self._wire_program is None:
+            return
+        self._wire_program.bind()
+        self._wire_program.setUniformValue("mvp", mvp)
+        self._grid_vao.bind()
+        self._functions.glDrawArrays(_GL_LINES, 0, self._grid_count)
+        self._grid_vao.release()
+        self._functions.glDepthFunc(_GL_LEQUAL)
+        self._axis_vao.bind()
+        self._functions.glDrawArrays(_GL_LINES, 0, self._axis_count)
+        self._axis_vao.release()
+        self._functions.glDepthFunc(_GL_LESS)
+        if self._mode in (WIREFRAME, SOLID_WIRE):
             self._wire_vao.bind()
             self._functions.glDrawArrays(_GL_LINES, 0, self._wire_count)
             self._wire_vao.release()
-            self._wire_program.release()
+        self._wire_program.release()
 
     def set_geometry(self, data: GeometryData, fit: bool = False) -> None:
         self._geometry_data = data
@@ -276,19 +312,20 @@ class OpenGLViewer(QOpenGLWidget):
         self.update()
 
     def _upload_meshes(self) -> None:
-        wire_values = self._reference_vertices()
-        wire_values.extend(
-            build_loft_wire_vertices(
-                self._geometry_data,
-                self._selected_component_id,
-                self._face_style,
-            )
+        grid_values = self._reference_grid_vertices()
+        axis_values = self._reference_axis_vertices()
+        wire_values = build_loft_wire_vertices(
+            self._geometry_data,
+            self._selected_component_id,
+            self._face_style,
         )
         solid_values = build_loft_solid_vertices(
             self._geometry_data,
             self._selected_component_id,
             self._face_style,
         )
+        self._grid_count = self._allocate(self._grid_vbo, grid_values, 6)
+        self._axis_count = self._allocate(self._axis_vbo, axis_values, 6)
         self._wire_count = self._allocate(self._wire_vbo, wire_values, 6)
         self._solid_count = self._allocate(self._solid_vbo, solid_values, 9)
 
@@ -326,18 +363,29 @@ class OpenGLViewer(QOpenGLWidget):
         vao.release()
 
     @staticmethod
-    def _reference_vertices() -> list[float]:
+    def _reference_grid_vertices() -> list[float]:
         vertices: list[float] = []
-
-        def add_line(start, end, color) -> None:
-            vertices.extend((*start, *color, *end, *color))
-
         for offset in range(-1000, 1001, 100):
-            add_line((-1000, offset, 0.0), (1000, offset, 0.0), (0.22, 0.22, 0.22))
-            add_line((offset, -1000, 0.0), (offset, 1000, 0.0), (0.22, 0.22, 0.22))
-        add_line((0, 0, 0), (400, 0, 0), (0.85, 0.25, 0.25))
-        add_line((0, 0, 0), (0, 400, 0), (0.25, 0.75, 0.35))
-        add_line((0, 0, 0), (0, 0, 400), (0.25, 0.45, 0.90))
+            _add_reference_line(
+                vertices,
+                (-1000, offset, 0.0),
+                (1000, offset, 0.0),
+                (0.22, 0.22, 0.22),
+            )
+            _add_reference_line(
+                vertices,
+                (offset, -1000, 0.0),
+                (offset, 1000, 0.0),
+                (0.22, 0.22, 0.22),
+            )
+        return vertices
+
+    @staticmethod
+    def _reference_axis_vertices() -> list[float]:
+        vertices: list[float] = []
+        _add_reference_line(vertices, (0, 0, 0), (400, 0, 0), (0.85, 0.25, 0.25))
+        _add_reference_line(vertices, (0, 0, 0), (0, 400, 0), (0.25, 0.75, 0.35))
+        _add_reference_line(vertices, (0, 0, 0), (0, 0, 400), (0.25, 0.45, 0.90))
         return vertices
 
     def _eye_position(self) -> QVector3D:
@@ -363,10 +411,10 @@ class OpenGLViewer(QOpenGLWidget):
         if not self.isValid():
             return
         self.makeCurrent()
-        for buffer in (self._wire_vbo, self._solid_vbo):
+        for buffer in (self._wire_vbo, self._solid_vbo, self._grid_vbo, self._axis_vbo):
             if buffer.isCreated():
                 buffer.destroy()
-        for vao in (self._wire_vao, self._solid_vao):
+        for vao in (self._wire_vao, self._solid_vao, self._grid_vao, self._axis_vao):
             if vao.isCreated():
                 vao.destroy()
         self.doneCurrent()
