@@ -3,10 +3,18 @@
 from __future__ import annotations
 
 from typing import Any
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QWidget
 
-from setuav_studio.plugin_system import StudioAPI, ToolContribution
+from setuav_studio.plugin_system import (
+    PanelContribution,
+    StudioAPI,
+    ToolContribution,
+    WorkspaceContribution,
+)
 from .catalog_dialog import ComponentCatalogDialog
+from .controls_dock import PropulsionControlsDock
+from .results_dock import PropulsionResultsDock
 from .editors.assembly import ElectricPropulsionSystemEditor
 from .editors.battery import BatteryEditor
 from .editors.esc import EscEditor
@@ -55,6 +63,40 @@ class ElectricalPropulsionPlugin:
         api.register_component_icon(
             "org.setuav.core:electric-propulsion-system",
             "fa6s.bolt",
+        )
+
+        # Register Propulsion Workspace
+        api.add_workspace(
+            WorkspaceContribution(
+                id="studio.workspace.propulsion",
+                title="Propulsion",
+                icon="fa6s.bolt",
+                order=20,
+            )
+        )
+
+        # Register Propulsion Controls Dock (Left dock in Propulsion workspace)
+        api.add_panel(
+            PanelContribution(
+                id="propulsion.controls_dock",
+                title="Propulsion Controls",
+                factory=lambda: PropulsionControlsDock(api),
+                workspace_id="studio.workspace.propulsion",
+                area=Qt.DockWidgetArea.LeftDockWidgetArea,
+                icon="fa6s.gear",
+            )
+        )
+
+        # Register Propulsion Results Dock (Right dock in Propulsion workspace)
+        api.add_panel(
+            PanelContribution(
+                id="propulsion.results_dock",
+                title="Propulsion Results",
+                factory=lambda: PropulsionResultsDock(api),
+                workspace_id="studio.workspace.propulsion",
+                area=Qt.DockWidgetArea.RightDockWidgetArea,
+                icon="fa6s.chart-line",
+            )
         )
 
         # Register Tools in Tools menu

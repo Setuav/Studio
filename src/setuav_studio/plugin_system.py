@@ -23,14 +23,22 @@ class PanelContribution:
     title: str
     factory: Callable[[], QWidget]
     area: Qt.DockWidgetArea = Qt.DockWidgetArea.LeftDockWidgetArea
-    workspace_id: str | None = None
+    workspace_id: str | list[str] | tuple[str, ...] | None = None
+    icon: str | Path | QIcon | None = None
+
+    def is_in_workspace(self, current_workspace_id: str | None) -> bool:
+        if self.workspace_id is None:
+            return True
+        if isinstance(self.workspace_id, (list, tuple, set)):
+            return current_workspace_id in self.workspace_id
+        return self.workspace_id == current_workspace_id
 
 
 @dataclass(frozen=True)
 class WorkspaceContribution:
     id: str
     title: str
-    factory: Callable[[], QWidget]
+    factory: Callable[[], QWidget] | None = None
     icon: str | Path | QIcon | None = None
     order: int = 0
 

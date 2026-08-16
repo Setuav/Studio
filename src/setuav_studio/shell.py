@@ -39,11 +39,19 @@ from setuav_studio.project import (
 
 
 class DockTitleBar(QWidget):
-    def __init__(self, dock: QDockWidget) -> None:
+    def __init__(self, dock: QDockWidget, icon: str | Path | QIcon | None = None) -> None:
         super().__init__(dock)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(4, 1, 4, 1)
-        layout.setSpacing(2)
+        layout.setSpacing(5)
+
+        if icon:
+            icon_label = QLabel(self)
+            pixmap = get_icon(icon).pixmap(13, 13)
+            icon_label.setPixmap(pixmap)
+            icon_label.setFixedSize(13, 13)
+            icon_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+            layout.addWidget(icon_label)
 
         self._title = QLabel(dock.windowTitle(), self)
         self._title.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
@@ -84,8 +92,8 @@ class MainWindow(QMainWindow):
         self._workspace_widgets: dict[str, QWidget] = {}
         self._workspace_buttons: dict[str, QToolButton] = {}
         self._panels: dict[str, tuple[PanelContribution, QDockWidget]] = {}
-        self._workspace_stack = QStackedWidget(self)
-        self._workspace_dock: QDockWidget | None = None
+        self._current_workspace_id: str | None = None
+        self._workspace_states: dict[str, Any] = {}
         self.setDockNestingEnabled(True)
 
         self._workspace_toolbar = QToolBar("Workspaces", self)
@@ -127,9 +135,7 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("Setuav Studio")
         self.resize(1200, 800)
-        workspace = QWidget(self)
-        workspace.setObjectName("studio.empty-workspace")
-        self.setCentralWidget(workspace)
+        self.setCentralWidget(None)
 
         self._menus: dict[str, QMenu] = {}
         self._file_menu = self.menuBar().addMenu("&File")
@@ -198,10 +204,13 @@ class MainWindow(QMainWindow):
         if geometry is not None:
             self.restoreGeometry(geometry)
 
-        state = settings.value("main_window/state")
-        if state is not None:
-            self.restoreState(state, self._LAYOUT_VERSION)
-
+        active_workspace = settings.value("active_workspace")
+        if active_workspace and str(active_workspace) in self._workspaces:
+            self._api.switch_workspace(str(active_workspace))
+        elif self._api.current_workspace_id:
+            self._api.switch_workspace(self._api.current_workspace_id)
+        elif "studio.workspace.design" in self._workspaces:
+            self._api.switch_workspace("studio.workspace.design")
 
     def closeEvent(self, event: QCloseEvent) -> None:
         if not self._confirm_project_close():
@@ -211,10 +220,13 @@ class MainWindow(QMainWindow):
         self._detach_api_listeners()
         settings = QSettings()
         settings.setValue("main_window/geometry", self.saveGeometry())
-        settings.setValue(
-            "main_window/state",
-            self.saveState(self._LAYOUT_VERSION),
-        )
+        if self._current_workspace_id is not None:
+            state = self.saveState(self._LAYOUT_VERSION)
+            settings.setValue(
+                f"workspace_state/{self._current_workspace_id}",
+                state,
+            )
+            settings.setValue("active_workspace", self._current_workspace_id)
         super().closeEvent(event)
 
     def open_last_project(self) -> None:
@@ -408,30 +420,60 @@ class MainWindow(QMainWindow):
     def _add_panel(self, contribution: PanelContribution) -> None:
         dock = QDockWidget(contribution.title, self)
         dock.setFont(QApplication.font())
-        dock.setTitleBarWidget(DockTitleBar(dock))
+        dock.setTitleBarWidget(DockTitleBar(dock, icon=contribution.icon))
         dock.setObjectName(contribution.id)
         dock.setWidget(contribution.factory())
-        self.addDockWidget(contribution.area, dock)
+
+        if contribution.id == "studio.viewer.opengl":
+            explorer_dock = self.findChild(QDockWidget, "project.explorer")
+            if explorer_dock is not None:
+                self.splitDockWidget(explorer_dock, dock, Qt.Orientation.Horizontal)
+            else:
+                self.addDockWidget(contribution.area, dock)
+        elif contribution.id == "propulsion.controls_dock":
+            explorer_dock = self.findChild(QDockWidget, "project.explorer")
+            if explorer_dock is not None:
+                self.splitDockWidget(explorer_dock, dock, Qt.Orientation.Horizontal)
+            else:
+                self.addDockWidget(contribution.area, dock)
+        elif contribution.id == "propulsion.results_dock":
+            controls_dock = self.findChild(QDockWidget, "propulsion.controls_dock")
+            if controls_dock is not None:
+                self.splitDockWidget(controls_dock, dock, Qt.Orientation.Horizontal)
+            else:
+                self.addDockWidget(contribution.area, dock)
+        elif contribution.id == "studio.properties":
+            target = (
+                self.findChild(QDockWidget, "studio.viewer.opengl")
+                or self.findChild(QDockWidget, "propulsion.results_dock")
+            )
+            if target is not None:
+                self.splitDockWidget(target, dock, Qt.Orientation.Horizontal)
+            else:
+                self.addDockWidget(contribution.area, dock)
+        else:
+            self.addDockWidget(contribution.area, dock)
+
         self._panels[contribution.id] = (contribution, dock)
 
-        action = dock.toggleViewAction()
-        if contribution.id == "project.explorer":
-            action.setIcon(get_icon("project_explorer"))
-        elif contribution.id == "studio.properties":
-            action.setIcon(get_icon("properties"))
-        self._view_menu.addAction(action)
-
-        if (
-            contribution.workspace_id is not None
-            and contribution.workspace_id != self._api.current_workspace_id
-        ):
+        if not contribution.is_in_workspace(self._api.current_workspace_id):
             dock.hide()
 
-        if contribution.area in {
-            Qt.DockWidgetArea.LeftDockWidgetArea,
-            Qt.DockWidgetArea.RightDockWidgetArea,
-        }:
-            self.resizeDocks([dock], [320], Qt.Orientation.Horizontal)
+        if self._api.current_workspace_id:
+            self._update_view_menu(self._api.current_workspace_id)
+
+    def _update_view_menu(self, workspace_id: str) -> None:
+        self._view_menu.clear()
+        for cid, (panel_contrib, dock) in self._panels.items():
+            if panel_contrib.is_in_workspace(workspace_id):
+                action = dock.toggleViewAction()
+                if panel_contrib.icon:
+                    action.setIcon(get_icon(panel_contrib.icon))
+                elif panel_contrib.id == "project.explorer":
+                    action.setIcon(get_icon("project_explorer"))
+                elif panel_contrib.id == "studio.properties":
+                    action.setIcon(get_icon("properties"))
+                self._view_menu.addAction(action)
 
     def _add_action(self, contribution: ActionContribution) -> None:
         parts = [p.strip().replace("&", "") for p in contribution.menu.split("/") if p.strip()]
@@ -466,48 +508,6 @@ class MainWindow(QMainWindow):
 
     def _add_workspace(self, contribution: WorkspaceContribution) -> None:
         self._workspaces[contribution.id] = contribution
-
-        if self._workspace_dock is None:
-            dock = QDockWidget(contribution.title, self)
-            dock.setObjectName(contribution.id)
-            dock.setFont(QApplication.font())
-            dock.setTitleBarWidget(DockTitleBar(dock))
-            dock.setAllowedAreas(Qt.DockWidgetArea.AllDockWidgetAreas)
-            dock.setFeatures(
-                QDockWidget.DockWidgetFeature.DockWidgetClosable
-                | QDockWidget.DockWidgetFeature.DockWidgetMovable
-                | QDockWidget.DockWidgetFeature.DockWidgetFloatable
-            )
-            dock.setWidget(self._workspace_stack)
-            self._workspace_dock = dock
-
-            previous = self.takeCentralWidget()
-            if previous is not None:
-                previous.deleteLater()
-
-            explorer_dock = self.findChild(QDockWidget, "project.explorer")
-            if explorer_dock is not None:
-                self.splitDockWidget(explorer_dock, dock, Qt.Orientation.Horizontal)
-            else:
-                self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, dock)
-
-            toggle_action = dock.toggleViewAction()
-            toggle_action.setIcon(get_icon("viewer_3d"))
-            self._view_menu.addAction(toggle_action)
-
-            props_dock = self.findChild(QDockWidget, "studio.properties")
-            docks_to_resize = []
-            sizes = []
-            if explorer_dock is not None:
-                docks_to_resize.append(explorer_dock)
-                sizes.append(300)
-            docks_to_resize.append(dock)
-            sizes.append(600)
-            if props_dock is not None:
-                docks_to_resize.append(props_dock)
-                sizes.append(300)
-            self.resizeDocks(docks_to_resize, sizes, Qt.Orientation.Horizontal)
-
         self._rebuild_workspace_toolbar()
 
         # Default activate
@@ -537,14 +537,19 @@ class MainWindow(QMainWindow):
         if workspace_id not in self._workspaces:
             return
 
-        contribution = self._workspaces[workspace_id]
-        if workspace_id not in self._workspace_widgets:
-            widget = contribution.factory()
-            self._workspace_widgets[workspace_id] = widget
-            self._workspace_stack.addWidget(widget)
+        # Save previous workspace dock state
+        if (
+            self._current_workspace_id is not None
+            and self._current_workspace_id != workspace_id
+        ):
+            prev_state = self.saveState(self._LAYOUT_VERSION)
+            self._workspace_states[self._current_workspace_id] = prev_state
+            QSettings().setValue(
+                f"workspace_state/{self._current_workspace_id}",
+                prev_state,
+            )
 
-        target_widget = self._workspace_widgets[workspace_id]
-        self._workspace_stack.setCurrentWidget(target_widget)
+        self._current_workspace_id = workspace_id
 
         for cid, btn in self._workspace_buttons.items():
             btn.blockSignals(True)
@@ -553,12 +558,51 @@ class MainWindow(QMainWindow):
 
         # Update dock panel visibility for workspace-specific panels
         for cid, (panel_contrib, dock) in self._panels.items():
-            if panel_contrib.workspace_id is not None:
-                if panel_contrib.workspace_id == workspace_id:
-                    dock.show()
-                else:
-                    dock.hide()
+            if panel_contrib.is_in_workspace(workspace_id):
+                dock.show()
+            else:
+                dock.hide()
 
-        if self._workspace_dock is not None:
-            self._workspace_dock.setWindowTitle(contribution.title)
-            self._workspace_dock.setObjectName(contribution.id)
+        # Update View menu actions for the active workspace only
+        self._update_view_menu(workspace_id)
+
+        # Restore saved workspace layout if available, or apply default layout
+        settings = QSettings()
+        saved_state = self._workspace_states.get(workspace_id) or settings.value(
+            f"workspace_state/{workspace_id}"
+        )
+        if saved_state is not None:
+            self.restoreState(saved_state, self._LAYOUT_VERSION)
+        else:
+            self._apply_default_workspace_layout(workspace_id)
+
+    def _apply_default_workspace_layout(self, workspace_id: str) -> None:
+        if workspace_id == "studio.workspace.design":
+            docks = []
+            sizes = []
+            for did, sz in [
+                ("project.explorer", 260),
+                ("studio.viewer.opengl", 680),
+                ("studio.properties", 260),
+            ]:
+                d = self.findChild(QDockWidget, did)
+                if d is not None and not d.isHidden():
+                    docks.append(d)
+                    sizes.append(sz)
+            if docks:
+                self.resizeDocks(docks, sizes, Qt.Orientation.Horizontal)
+        elif workspace_id == "studio.workspace.propulsion":
+            docks = []
+            sizes = []
+            for did, sz in [
+                ("project.explorer", 240),
+                ("propulsion.controls_dock", 280),
+                ("propulsion.results_dock", 420),
+                ("studio.properties", 260),
+            ]:
+                d = self.findChild(QDockWidget, did)
+                if d is not None and not d.isHidden():
+                    docks.append(d)
+                    sizes.append(sz)
+            if docks:
+                self.resizeDocks(docks, sizes, Qt.Orientation.Horizontal)

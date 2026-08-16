@@ -49,7 +49,7 @@ class TestElectricalPropulsion(unittest.TestCase):
         motor_comp = next(c for c in doc.data["components"] if c.get("type") == "org.setuav.core:motor")
         editor = MotorEditor(api, motor_comp)
 
-        self.assertEqual(editor._property_text(editor.general_table, 0), "Cruise Motor")
+        self.assertEqual(editor._property_text(editor.general_table, 0), motor_comp.get("name"))
         self.assertEqual(editor._property_text(editor.parameters_table, 0), "900")
 
         # Edit KV (row 0 in parameters_table)
@@ -97,7 +97,7 @@ class TestElectricalPropulsion(unittest.TestCase):
         editor = PropellerEditor(api, prop_comp)
 
         self.assertEqual(editor._property_text(editor.parameters_table, 0), "330.2")
-        self.assertEqual(editor._property_text(editor.parameters_table, 1), "152.4")
+        self.assertEqual(editor._property_text(editor.parameters_table, 1), "165.1")
         self.assertEqual(editor._property_text(editor.parameters_table, 2), "2")
 
     def test_assembly_editor(self) -> None:

@@ -116,9 +116,9 @@ class PluginTests(unittest.TestCase):
 
         self.assertEqual(
             [workspace.id for workspace in self.workspaces],
-            ["studio.viewer.opengl"],
+            ["studio.workspace.design"],
         )
-        self.assertEqual(self.workspaces[0].title, "3D Viewer")
+        self.assertEqual(self.workspaces[0].title, "Design")
 
     def test_viewer_builds_closed_loft_sections_and_connectors(self) -> None:
         data = GeometryData(

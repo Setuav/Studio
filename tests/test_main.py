@@ -3,7 +3,7 @@ import unittest
 from PySide6.QtWidgets import QApplication, QDockWidget, QWidget
 
 from setuav_studio.__main__ import _parse_arguments
-from setuav_studio.plugin_system import StudioAPI, WorkspaceContribution
+from setuav_studio.plugin_system import PanelContribution, StudioAPI, WorkspaceContribution
 from setuav_studio.shell import MainWindow
 
 _app = QApplication.instance() or QApplication([])
@@ -20,19 +20,28 @@ class MainTests(unittest.TestCase):
 
         self.assertIsNone(arguments.project)
 
-    def test_workspace_contribution_creates_dock_and_view_action(self) -> None:
+    def test_workspace_and_panel_contributions(self) -> None:
         api = StudioAPI()
         window = MainWindow(api)
-        api.set_workspace(
+        api.add_workspace(
             WorkspaceContribution(
                 id="test.workspace",
                 title="Test Workspace",
                 factory=QWidget,
             )
         )
-        dock = window.findChild(QDockWidget, "test.workspace")
+        self.assertIn("test.workspace", window._workspaces)
+
+        api.add_panel(
+            PanelContribution(
+                id="test.panel",
+                title="Test Panel",
+                factory=QWidget,
+            )
+        )
+        dock = window.findChild(QDockWidget, "test.panel")
         self.assertIsNotNone(dock)
-        self.assertEqual(dock.windowTitle(), "Test Workspace")
+        self.assertEqual(dock.windowTitle(), "Test Panel")
         self.assertIn(dock.toggleViewAction(), window._view_menu.actions())
 
 
