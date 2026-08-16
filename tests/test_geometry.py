@@ -139,5 +139,51 @@ class GeometryTests(unittest.TestCase):
         self.assertEqual(len(vertices) % 9, 0)
         self.assertEqual((len(vertices) // 9) % 3, 0)
 
+    def test_lifting_surface_editor_population_and_metrics(self) -> None:
+        from PySide6.QtWidgets import QApplication
+        from setuav_studio.plugin_system import StudioAPI
+        from setuav_studio.plugins.geometry.lifting_surface import LiftingSurfaceEditor
+        from setuav_studio.project import open_project
+
+        app = QApplication.instance() or QApplication([])
+        api = StudioAPI()
+        doc = open_project("/home/huseyin/dev/setware/setuav-specification/examples/fixed-wing")
+        api.set_project(doc)
+
+        wing_comp = next(c for c in doc.data["components"] if c.get("id") == "wing-right")
+        editor = LiftingSurfaceEditor(api, wing_comp)
+
+        self.assertEqual(editor.profiles_table.rowCount(), 3)
+        self.assertIn("1080.0 mm", editor._property_text(editor.metrics_table, 1))
+        self.assertIn("5.33", editor._property_text(editor.metrics_table, 2))
+
+        # Add control surface
+        editor.add_cs_button.click()
+        self.assertEqual(editor.control_surfaces_table.rowCount(), 1)
+        self.assertEqual(editor._property_text(editor.cs_properties_table, 0), "control_1")
+
+        # Section Selection in 3D Viewport
+        editor.profiles_table.selectRow(1)
+        self.assertEqual(api.current_section_selection, ("wing-right", 0, 1))
+
+        # Edit transform in transform_table
+        editor.transform_table.item(0, 2).setText("25.00")
+        self.assertEqual(wing_comp["parameters"]["geometry"]["profiles"][1]["position"]["z"], 25.0)
+
+        # Edit property in profile_properties_table
+        editor.profile_properties_table.item(1, 1).setText("180.0")
+        self.assertEqual(wing_comp["parameters"]["geometry"]["profiles"][1]["chord"], 180.0)
+        self.assertEqual(editor.profiles_table.item(1, 3).text(), "180.0")
+
+        # Duplicate profile
+        editor.profiles_table.selectRow(0)
+        editor.duplicate_profile_button.click()
+        self.assertEqual(editor.profiles_table.rowCount(), 4)
+
+        # Delete profile
+        editor.delete_profile_button.click()
+        self.assertEqual(editor.profiles_table.rowCount(), 3)
+
+
 if __name__ == "__main__":
     unittest.main()
