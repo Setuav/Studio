@@ -1,10 +1,9 @@
-"""Base reusable property editor and parameter descriptors for Setuav components."""
+"""Electric Propulsion System assembly property editor styled after Fuselage/Wing editors."""
 
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Sequence
+from typing import Any
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -23,41 +22,21 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.icons import get_icon
-
-if TYPE_CHECKING:
-    from setuav_studio.plugin_system import StudioAPI
+from setuav_studio.plugin_system import StudioAPI
 
 
-@dataclass(frozen=True)
-class ParameterField:
-    """Descriptor for a component parameter field in the property editor."""
-
-    key: str
-    label: str
-    unit: str = ""
-    field_type: type = float
-    default: Any = 0.0
-    min_value: float | None = None
-    max_value: float | None = None
-    decimals: int = 2
-    tooltip: str = ""
-    options: tuple[tuple[str, str], ...] | tuple[str, ...] | None = None
-
-
-class BaseComponentEditor(QWidget):
-    """Reusable base property editor for Setuav project components styled after Fuselage/Wing editors."""
+class ElectricPropulsionSystemEditor(QWidget):
+    """Property editor for electric-propulsion-system assemblies styled after Setuav standards."""
 
     def __init__(
         self,
         api: StudioAPI,
-        component: dict[str, Any],
-        parameter_fields: Sequence[ParameterField] = (),
+        assembly: dict[str, Any],
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._api = api
-        self._component = component
-        self._fields = list(parameter_fields)
+        self._assembly = assembly
         self._loading = False
 
         layout = QVBoxLayout(self)
@@ -75,11 +54,10 @@ class BaseComponentEditor(QWidget):
         layout.addWidget(scroll)
 
         self._create_general_section()
-        if self._fields:
-            self._create_parameters_section()
+        self._create_members_section()
 
         self._content_layout.addStretch()
-        self._load_component()
+        self._load_assembly()
 
     def _create_section(self, title: str, icon_name: str | None = None) -> QVBoxLayout:
         section = QWidget()
@@ -114,72 +92,97 @@ class BaseComponentEditor(QWidget):
             [
                 ("name", "Name"),
                 ("type", "Type"),
-                ("mass", "Mass (g)"),
-                ("manufacturer", "Manufacturer"),
-                ("model", "Model"),
             ]
         )
         self.general_table.cellChanged.connect(self._update_general)
         layout.addWidget(self.general_table)
 
-    def _create_parameters_section(self) -> None:
-        layout = self._create_section("Parameters", "fa6s.sliders")
-        defs: list[tuple[str, str]] = []
-        for f in self._fields:
-            display_label = f"{f.label} ({f.unit})" if f.unit else f.label
-            defs.append((f.key, display_label))
+    def _create_members_section(self) -> None:
+        layout = self._create_section("Assembly Members", "fa6s.link")
+        self.members_table = self._property_table(
+            [
+                ("battery", "Battery Pack"),
+                ("controller", "Speed Controller (ESC)"),
+                ("motor", "Motor"),
+                ("propulsor", "Propeller / Rotor"),
+            ]
+        )
+        layout.addWidget(self.members_table)
 
-        self.parameters_table = self._property_table(defs)
-        self.parameters_table.cellChanged.connect(self._update_parameter_cell)
-        layout.addWidget(self.parameters_table)
-
-    def _load_component(self) -> None:
+    def _load_assembly(self) -> None:
         self._loading = True
         try:
-            # Load General
             self._set_property_value(
-                self.general_table, "name", str(self._component.get("name") or "")
+                self.general_table, "name", str(self._assembly.get("name") or "")
             )
             self._set_property_value(
                 self.general_table,
                 "type",
-                str(self._component.get("type") or ""),
+                str(self._assembly.get("type") or ""),
                 editable=False,
             )
-            params = self._component.get("parameters", {})
-            mass = self._component.get("mass", params.get("mass", 0))
-            self._set_property_value(self.general_table, "mass", mass)
-            self._set_property_value(
-                self.general_table, "manufacturer", str(self._component.get("manufacturer") or "")
-            )
-            self._set_property_value(
-                self.general_table, "model", str(self._component.get("model") or "")
-            )
 
-            # Load Parameters
-            if hasattr(self, "parameters_table"):
-                for field in self._fields:
-                    val = params.get(field.key, field.default)
-                    if field.options:
-                        formatted_options: list[tuple[str, str]] = []
-                        for opt in field.options:
-                            if isinstance(opt, tuple):
-                                formatted_options.append((opt[0], opt[1]))
-                            else:
-                                formatted_options.append((str(opt), str(opt)))
-                        self._set_property_combo(
-                            self.parameters_table,
-                            field.key,
-                            str(val),
-                            formatted_options,
-                            lambda new_val, k=field.key: self._on_combo_changed(k, new_val),
-                        )
-                    else:
-                        if field.field_type is float:
-                            str_val = f"{float(val):.{field.decimals}f}" if val is not None else "0.0"
-                        else:
-                            str_val = str(val if val is not None else "")
-                        self._set_property_value(self.parameters_table, field.key, str_val)
+            # Retrieve project components for options
+            project = self._api.current_project
+            components = project.data.get("components", []) if project and project.data else []
+
+            batteries = [
+                (c.get("id"), f"{c.get('name', c.get('id'))} ({c.get('id')})")
+                for c in components
+                if c.get("type") == "org.setuav.core:battery"
+            ]
+            escs = [
+                (c.get("id"), f"{c.get('name', c.get('id'))} ({c.get('id')})")
+                for c in components
+                if c.get("type") == "org.setuav.core:esc"
+            ]
+            motors = [
+                (c.get("id"), f"{c.get('name', c.get('id'))} ({c.get('id')})")
+                for c in components
+                if c.get("type") == "org.setuav.core:motor"
+            ]
+            props = [
+                (c.get("id"), f"{c.get('name', c.get('id'))} ({c.get('id')})")
+                for c in components
+                if c.get("type") in {"org.setuav.core:propeller", "org.setuav.core:rotor"}
+            ]
+
+            none_opt = [("", "(None)")]
+
+            members = self._assembly.get("members", {})
+            bat_id = members.get("battery", "")
+            esc_id = members.get("controllers", [""])[0] if members.get("controllers") else ""
+            mot_id = members.get("motors", [""])[0] if members.get("motors") else ""
+            prp_id = members.get("propulsors", [""])[0] if members.get("propulsors") else ""
+
+            self._set_property_combo(
+                self.members_table,
+                "battery",
+                bat_id,
+                none_opt + [(b[0], b[1]) for b in batteries],
+                lambda val: self._on_member_changed("battery", val),
+            )
+            self._set_property_combo(
+                self.members_table,
+                "controller",
+                esc_id,
+                none_opt + [(e[0], e[1]) for e in escs],
+                lambda val: self._on_member_changed("controller", val),
+            )
+            self._set_property_combo(
+                self.members_table,
+                "motor",
+                mot_id,
+                none_opt + [(m[0], m[1]) for m in motors],
+                lambda val: self._on_member_changed("motor", val),
+            )
+            self._set_property_combo(
+                self.members_table,
+                "propulsor",
+                prp_id,
+                none_opt + [(p[0], p[1]) for p in props],
+                lambda val: self._on_member_changed("propulsor", val),
+            )
         finally:
             self._loading = False
 
@@ -190,67 +193,47 @@ class BaseComponentEditor(QWidget):
         key = self._property_key(self.general_table, row)
         val_text = self._property_text(self.general_table, row)
 
-        def apply_edit() -> None:
+        def apply_name() -> None:
             if key == "name":
-                self._component["name"] = val_text
-            elif key == "mass":
-                num = self._parse_number(val_text) or 0.0
-                self._component["mass"] = num
-                if "parameters" in self._component and "mass" in self._component["parameters"]:
-                    self._component["parameters"]["mass"] = num
-            elif key in {"manufacturer", "model"}:
-                if val_text:
-                    self._component[key] = val_text
-                elif key in self._component:
-                    self._component.pop(key)
+                self._assembly["name"] = val_text
 
         self._api.edit_component(
-            self._component,
-            f"Edit {key} of {self._component.get('name', 'component')}",
-            apply_edit,
+            self._assembly,
+            f"Edit {key} of {self._assembly.get('name', 'assembly')}",
+            apply_name,
         )
 
-    def _update_parameter_cell(self, row: int, column: int) -> None:
-        if self._loading or column != 1:
-            return
-
-        key = self._property_key(self.parameters_table, row)
-        val_text = self._property_text(self.parameters_table, row)
-        field = next((f for f in self._fields if f.key == key), None)
-        if field is None:
-            return
-
-        if field.field_type is int:
-            parsed_num = self._parse_number(val_text)
-            final_val: Any = int(parsed_num) if parsed_num is not None else field.default
-        elif field.field_type is float:
-            parsed_num = self._parse_number(val_text)
-            final_val = float(parsed_num) if parsed_num is not None else field.default
-        else:
-            final_val = val_text
-
-        def apply_param() -> None:
-            p = self._component.setdefault("parameters", {})
-            p[key] = final_val
-
-        self._api.edit_component(
-            self._component,
-            f"Set {key} of {self._component.get('name', 'component')}",
-            apply_param,
-        )
-
-    def _on_combo_changed(self, key: str, value: str) -> None:
+    def _on_member_changed(self, role: str, member_id: str) -> None:
         if self._loading:
             return
 
-        def apply_param() -> None:
-            p = self._component.setdefault("parameters", {})
-            p[key] = value
+        def apply_members() -> None:
+            members = self._assembly.setdefault("members", {})
+            if role == "battery":
+                if member_id:
+                    members["battery"] = member_id
+                elif "battery" in members:
+                    members.pop("battery")
+            elif role == "controller":
+                if member_id:
+                    members["controllers"] = [member_id]
+                elif "controllers" in members:
+                    members.pop("controllers")
+            elif role == "motor":
+                if member_id:
+                    members["motors"] = [member_id]
+                elif "motors" in members:
+                    members.pop("motors")
+            elif role == "propulsor":
+                if member_id:
+                    members["propulsors"] = [member_id]
+                elif "propulsors" in members:
+                    members.pop("propulsors")
 
         self._api.edit_component(
-            self._component,
-            f"Set {key} of {self._component.get('name', 'component')}",
-            apply_param,
+            self._assembly,
+            f"Update {role} in {self._assembly.get('name', 'assembly')}",
+            apply_members,
         )
 
     @classmethod
@@ -351,7 +334,7 @@ class BaseComponentEditor(QWidget):
         editable: bool = True,
     ) -> None:
         for row in range(table.rowCount()):
-            if BaseComponentEditor._property_key(table, row) != key:
+            if ElectricPropulsionSystemEditor._property_key(table, row) != key:
                 continue
             item = table.item(row, 1)
             if item is None:
@@ -378,13 +361,6 @@ class BaseComponentEditor(QWidget):
             return str(editor.currentData())
         item = table.item(row, 1)
         return item.text() if item is not None else ""
-
-    @staticmethod
-    def _parse_number(value: str) -> float | None:
-        try:
-            return float(value)
-        except ValueError:
-            return None
 
     @staticmethod
     def _table(headers: list[str]) -> QTableWidget:

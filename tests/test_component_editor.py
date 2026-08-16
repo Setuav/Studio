@@ -51,18 +51,18 @@ class TestComponentEditor(unittest.TestCase):
 
         editor = BaseComponentEditor(api, comp, parameter_fields=fields)
 
-        # Check loaded values
-        self.assertEqual(editor._name_edit.text(), "Brushless Motor")
-        self.assertEqual(editor._manufacturer_edit.text(), "T-Motor")
-        self.assertEqual(editor._mass_spin.value(), 150.0)
-        self.assertEqual(editor._param_widgets["kv"].value(), 400.0)
+        # Check loaded values in general_table and parameters_table
+        self.assertEqual(editor._property_text(editor.general_table, 0), "Brushless Motor")
+        self.assertEqual(editor._property_text(editor.general_table, 3), "T-Motor")
+        self.assertEqual(editor._property_text(editor.general_table, 2), "150.0")
+        self.assertEqual(editor._property_text(editor.parameters_table, 0), "400.00")
 
-        # Edit a field
-        editor._name_edit.setText("Updated Motor Name")
+        # Edit a field in general table (row 0 = name)
+        editor.general_table.item(0, 1).setText("Updated Motor Name")
         self.assertEqual(comp["name"], "Updated Motor Name")
 
-        # Edit a parameter
-        editor._param_widgets["kv"].setValue(450.0)
+        # Edit a parameter in parameters table (row 0 = kv)
+        editor.parameters_table.item(0, 1).setText("450.0")
         self.assertEqual(comp["parameters"]["kv"], 450.0)
 
         # Test Undo
