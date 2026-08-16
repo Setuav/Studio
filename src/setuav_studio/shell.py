@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import shiboken6
 from PySide6.QtCore import QSettings, Qt
 from PySide6.QtGui import QCloseEvent, QKeySequence
 from PySide6.QtWidgets import (
@@ -152,6 +153,7 @@ class MainWindow(QMainWindow):
             event.ignore()
             return
 
+        self._detach_api_listeners()
         settings = QSettings()
         settings.setValue("main_window/geometry", self.saveGeometry())
         settings.setValue(
@@ -256,6 +258,11 @@ class MainWindow(QMainWindow):
         return answer == QMessageBox.StandardButton.Discard
 
     def _update_window_title(self) -> None:
+        try:
+            if not shiboken6.isValid(self):
+                return
+        except Exception:
+            return
         if self._project is None:
             self.setWindowTitle("Setuav Studio")
             return
@@ -266,9 +273,19 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(f"{name}{modified} — Setuav Studio")
 
     def _on_modified_changed(self, _modified: bool) -> None:
+        try:
+            if not shiboken6.isValid(self):
+                return
+        except Exception:
+            return
         self._update_window_title()
 
     def _on_project_content_changed(self, _project: ProjectDocument) -> None:
+        try:
+            if not shiboken6.isValid(self):
+                return
+        except Exception:
+            return
         self._update_window_title()
 
     def _detach_api_listeners(self, *_args: object) -> None:

@@ -121,8 +121,15 @@ class StudioAPI:
         self.undo_stack.setClean()
         project.modified = False
         self.set_selection(None)
-        for listener in self._project_listeners:
-            listener(project)
+        dead_listeners = []
+        for listener in list(self._project_listeners):
+            try:
+                listener(project)
+            except RuntimeError:
+                dead_listeners.append(listener)
+        for dead in dead_listeners:
+            if dead in self._project_listeners:
+                self._project_listeners.remove(dead)
 
     def on_project_content_changed(
         self,
@@ -139,7 +146,10 @@ class StudioAPI:
 
     def on_modified_changed(self, listener: Callable[[bool], None]) -> None:
         self._modified_listeners.append(listener)
-        listener(bool(self.current_project and self.current_project.modified))
+        try:
+            listener(bool(self.current_project and self.current_project.modified))
+        except RuntimeError:
+            pass
 
     def remove_modified_listener(self, listener: Callable[[bool], None]) -> None:
         if listener in self._modified_listeners:
@@ -195,24 +205,48 @@ class StudioAPI:
     def _notify_project_content_changed(self) -> None:
         if self.current_project is None:
             return
-        for listener in self._project_content_listeners:
-            listener(self.current_project)
+        dead_listeners = []
+        for listener in list(self._project_content_listeners):
+            try:
+                listener(self.current_project)
+            except RuntimeError:
+                dead_listeners.append(listener)
+        for dead in dead_listeners:
+            if dead in self._project_content_listeners:
+                self._project_content_listeners.remove(dead)
 
     def _on_clean_changed(self, clean: bool) -> None:
         modified = not clean
         if self.current_project is not None:
             self.current_project.modified = modified
-        for listener in self._modified_listeners:
-            listener(modified)
+        dead_listeners = []
+        for listener in list(self._modified_listeners):
+            try:
+                listener(modified)
+            except RuntimeError:
+                dead_listeners.append(listener)
+        for dead in dead_listeners:
+            if dead in self._modified_listeners:
+                self._modified_listeners.remove(dead)
 
     def on_selection_changed(self, listener: Callable[[Any | None], None]) -> None:
         self._selection_listeners.append(listener)
-        listener(self.current_selection)
+        try:
+            listener(self.current_selection)
+        except RuntimeError:
+            pass
 
     def set_selection(self, selection: Any | None) -> None:
         self.current_selection = selection
-        for listener in self._selection_listeners:
-            listener(selection)
+        dead_listeners = []
+        for listener in list(self._selection_listeners):
+            try:
+                listener(selection)
+            except RuntimeError:
+                dead_listeners.append(listener)
+        for dead in dead_listeners:
+            if dead in self._selection_listeners:
+                self._selection_listeners.remove(dead)
 
     def register_component_editor(
         self,
