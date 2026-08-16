@@ -404,7 +404,6 @@ class BatteryEditor(QWidget):
             item.setText("")
             item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
         combo = QComboBox(table)
-        combo.setProperty("tableEditor", True)
         combo.setFont(QApplication.font())
         combo.setSizePolicy(
             QSizePolicy.Policy.Expanding,

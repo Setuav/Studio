@@ -25,20 +25,6 @@ QAbstractItemView[tableComboPopup="true"] {{
     font-size: {font_size}pt;
 }}
 
-QComboBox[tableEditor="true"] {{
-    background-color: transparent;
-    border: 0;
-    border-radius: 0;
-    margin: 0;
-    padding: 0 4px;
-    min-height: 0;
-}}
-
-QComboBox[tableEditor="true"]::drop-down {{
-    background-color: transparent;
-    border: 0;
-}}
-
 QDockWidget::title {{
     padding: 1px 4px;
 }}

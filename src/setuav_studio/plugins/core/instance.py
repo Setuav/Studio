@@ -283,7 +283,6 @@ class InstanceEditor(QWidget):
             if item is not None:
                 item.setText("")
             combo = QComboBox(self.properties_table)
-            combo.setProperty("tableEditor", True)
             combo.setFont(QApplication.font())
             combo.setSizePolicy(
                 QSizePolicy.Policy.Expanding,
