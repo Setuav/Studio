@@ -131,7 +131,10 @@ class MainWindow(QMainWindow):
         workspace.setObjectName("studio.empty-workspace")
         self.setCentralWidget(workspace)
 
+        self._menus: dict[str, QMenu] = {}
         self._file_menu = self.menuBar().addMenu("&File")
+        self._menus["file"] = self._file_menu
+
         open_file_action = self._file_menu.addAction(get_icon("file_open"), "Open Project File…")
         open_file_action.triggered.connect(self._open_project_file)
 
@@ -141,6 +144,7 @@ class MainWindow(QMainWindow):
         self._recent_menu = QMenu("Open Recent", self._file_menu)
         self._recent_menu.setIcon(get_icon("project_folder"))
         self._file_menu.addMenu(self._recent_menu)
+        self._menus["file/open recent"] = self._recent_menu
         self._file_menu.addSeparator()
 
         self._save_action = self._file_menu.addAction(get_icon("save"), "Save")
@@ -157,6 +161,7 @@ class MainWindow(QMainWindow):
         exit_action.triggered.connect(self.close)
 
         edit_menu = self.menuBar().addMenu("&Edit")
+        self._menus["edit"] = edit_menu
         self._undo_action = edit_menu.addAction(get_icon("undo"), "Undo")
         self._undo_action.setShortcut(QKeySequence.StandardKey.Undo)
         self._undo_action.triggered.connect(self._api.undo)
@@ -172,6 +177,7 @@ class MainWindow(QMainWindow):
         settings_action.triggered.connect(self._open_settings)
 
         self._view_menu = self.menuBar().addMenu("&View")
+        self._menus["view"] = self._view_menu
 
         self._api.undo_stack.canUndoChanged.connect(self._undo_action.setEnabled)
         self._api.undo_stack.canRedoChanged.connect(self._redo_action.setEnabled)
@@ -429,27 +435,20 @@ class MainWindow(QMainWindow):
         if not parts:
             parts = ["Tools"]
 
-        top_name = parts[0]
-        top_menu = None
-        for action in self.menuBar().actions():
-            m = action.menu()
-            if m and m.title().replace("&", "").strip().lower() == top_name.lower():
-                top_menu = m
-                break
-        if top_menu is None:
-            top_menu = self.menuBar().addMenu(f"&{top_name}")
-
-        current_menu = top_menu
-        for sub_name in parts[1:]:
-            sub_menu = None
-            for action in current_menu.actions():
-                m = action.menu()
-                if m and m.title().replace("&", "").strip().lower() == sub_name.lower():
-                    sub_menu = m
-                    break
-            if sub_menu is None:
-                sub_menu = current_menu.addMenu(f"&{sub_name}")
-            current_menu = sub_menu
+        path_key = ""
+        current_menu = None
+        for i, name in enumerate(parts):
+            path_key = f"{path_key}/{name.lower()}" if path_key else name.lower()
+            if path_key in self._menus and shiboken6.isValid(self._menus[path_key]):
+                current_menu = self._menus[path_key]
+            else:
+                if i == 0:
+                    current_menu = self.menuBar().addMenu(f"&{name}")
+                else:
+                    sub = QMenu(f"&{name}", current_menu)
+                    current_menu.addMenu(sub)
+                    current_menu = sub
+                self._menus[path_key] = current_menu
 
         icon = get_icon(contribution.icon) if contribution.icon else None
         if icon is not None and not icon.isNull():

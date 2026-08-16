@@ -6,10 +6,12 @@ class OpenGLViewerPlugin:
     id = "org.setuav.studio.viewer.opengl"
 
     def activate(self, api: StudioAPI) -> None:
-        api.set_workspace(
+        api.add_workspace(
             WorkspaceContribution(
                 id="studio.viewer.opengl",
                 title="3D Viewer",
+                icon="viewer_3d",
                 factory=lambda: ViewerWorkspace(api),
+                order=0,
             )
         )
