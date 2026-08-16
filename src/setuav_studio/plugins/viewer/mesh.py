@@ -58,8 +58,9 @@ def _append_loft_wire(vertices: list[float], loops, color: Point3D) -> None:
     for loop in loops:
         for index, point in enumerate(loop):
             _add_line(vertices, point, loop[(index + 1) % len(loop)], color)
-    step = max(1, len(loops[0]) // _LONGITUDINAL_LINES)
-    for point_index in range(0, len(loops[0]), step):
+    point_count = len(loops[0])
+    for i in range(_LONGITUDINAL_LINES):
+        point_index = int(i * point_count / _LONGITUDINAL_LINES)
         for current, following in zip(loops, loops[1:]):
             _add_line(vertices, current[point_index], following[point_index], color)
 
