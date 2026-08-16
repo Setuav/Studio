@@ -13,6 +13,7 @@ from setuav_studio.plugin_system import (
     WorkspaceContribution,
 )
 from .catalog_dialog import ComponentCatalogDialog
+from .charts_dock import PropulsionChartsDock
 from .controls_dock import PropulsionControlsDock
 from .results_dock import PropulsionResultsDock
 from .editors.assembly import ElectricPropulsionSystemEditor
@@ -93,6 +94,18 @@ class ElectricalPropulsionPlugin:
                 id="propulsion.results_dock",
                 title="Propulsion Results",
                 factory=lambda: PropulsionResultsDock(api),
+                workspace_id="studio.workspace.propulsion",
+                area=Qt.DockWidgetArea.RightDockWidgetArea,
+                icon="fa6s.table-list",
+            )
+        )
+
+        # Register Propulsion Charts Dock (Center/Right dock in Propulsion workspace)
+        api.add_panel(
+            PanelContribution(
+                id="propulsion.charts_dock",
+                title="Performance Charts",
+                factory=lambda: PropulsionChartsDock(),
                 workspace_id="studio.workspace.propulsion",
                 area=Qt.DockWidgetArea.RightDockWidgetArea,
                 icon="fa6s.chart-line",

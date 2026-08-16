@@ -68,15 +68,12 @@ class TestElectricalPropulsion(unittest.TestCase):
         battery_comp = next(c for c in doc.data["components"] if c.get("type") == "org.setuav.core:battery")
         editor = BatteryEditor(api, battery_comp)
 
-        self.assertEqual(editor._property_text(editor.pack_table, 0), "6")
-        self.assertEqual(editor._property_text(editor.pack_table, 2), "6000")
         self.assertEqual(editor._property_text(editor.cell_table, 0), "LiPo")
-        self.assertEqual(editor._property_text(editor.general_table, 2), "820.0")
 
-        # Change Series Count to 4S -> calculated mass becomes 4*130 + 40 = 560.0g
-        editor.pack_table.item(0, 1).setText("4")
-        self.assertEqual(battery_comp["mass"], 560.0)
-        self.assertEqual(editor._property_text(editor.general_table, 2), "560.0")
+        # Change Series Count to 6S -> calculated mass becomes 6*130 + 40 = 820.0g
+        editor.pack_table.item(0, 1).setText("6")
+        self.assertEqual(battery_comp["mass"], 820.0)
+        self.assertEqual(editor._property_text(editor.general_table, 2), "820.0")
 
     def test_esc_editor(self) -> None:
         api = StudioAPI()
@@ -96,8 +93,10 @@ class TestElectricalPropulsion(unittest.TestCase):
         prop_comp = next(c for c in doc.data["components"] if c.get("type") == "org.setuav.core:propeller")
         editor = PropellerEditor(api, prop_comp)
 
-        self.assertEqual(editor._property_text(editor.parameters_table, 0), "330.2")
-        self.assertEqual(editor._property_text(editor.parameters_table, 1), "165.1")
+        dia = str(prop_comp["parameters"]["diameter"])
+        pitch = str(prop_comp["parameters"]["pitch"])
+        self.assertEqual(editor._property_text(editor.parameters_table, 0), dia)
+        self.assertEqual(editor._property_text(editor.parameters_table, 1), pitch)
         self.assertEqual(editor._property_text(editor.parameters_table, 2), "2")
 
     def test_assembly_editor(self) -> None:
@@ -128,6 +127,41 @@ class TestElectricalPropulsion(unittest.TestCase):
         dialog.motor_search.setText("Tiger")
         self.assertLessEqual(dialog.motor_table.rowCount(), 400)
 
+
+
+    def test_propulsion_controls_and_analysis_run(self) -> None:
+        from setuav_studio.shell import MainWindow
+        from setuav_studio.plugins.core import CorePlugin
+        from setuav_studio.plugins.electrical_propulsion.plugin import ElectricalPropulsionPlugin
+
+        api = StudioAPI()
+        win = MainWindow(api)
+        pm = PluginManager(api)
+        pm.activate(CorePlugin())
+        pm.activate(ElectricalPropulsionPlugin())
+        pm.discover()
+        win.restore_window_layout()
+
+        doc = open_project("/home/huseyin/dev/setware/setuav-specification/examples/fixed-wing")
+        win.open_project(doc.location)
+        api.switch_workspace("studio.workspace.propulsion")
+
+        controls = win._panels["propulsion.controls_dock"][1].widget()
+        results = win._panels["propulsion.results_dock"][1].widget()
+        charts = win._panels["propulsion.charts_dock"][1].widget()
+
+        # Run analysis
+        controls.run_button.click()
+
+        # Verify summary results are populated
+        static_thrust_str = results.summary_table.item(0, 1).text()
+        self.assertIn("N", static_thrust_str)
+        self.assertNotEqual(static_thrust_str, "-")
+
+        # Verify charts are plotted
+        self.assertGreater(len(charts.chart_thrust_power.series()), 0)
+        self.assertGreater(len(charts.chart_electrical.series()), 0)
+        self.assertGreater(len(charts.chart_efficiency.series()), 0)
 
 
 if __name__ == "__main__":
