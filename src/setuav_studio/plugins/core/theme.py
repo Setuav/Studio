@@ -25,6 +25,14 @@ QAbstractItemView[tableComboPopup="true"] {{
     font-size: {font_size}pt;
 }}
 
+QMenuBar,
+QMenuBar::item,
+QMenu,
+QMenu::item {{
+    font-family: \"{font_family}\";
+    font-size: 10pt;
+}}
+
 QDockWidget::title {{
     padding: 1px 4px;
 }}

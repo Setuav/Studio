@@ -106,23 +106,25 @@ class MainWindow(QMainWindow):
         self._workspace_toolbar.setFloatable(False)
         self._workspace_toolbar.setIconSize(QSize(15, 15))
         self._workspace_toolbar.setStyleSheet("""
-            QToolBar#studio.workspace_toolbar {
-                background-color: #1a1d22;
+            QToolBar {
+                background: transparent;
+                border: none;
                 border-bottom: 1px solid rgba(255, 255, 255, 0.08);
                 padding: 2px 8px;
-                spacing: 6px;
             }
             QToolButton {
                 background: transparent;
-                border: 1px solid transparent;
+                border: 1px solid rgba(255, 255, 255, 0.12);
                 border-radius: 4px;
                 padding: 4px 12px;
-                font-size: 8.5pt;
+                margin: 1px 5px 1px 0px;
+                font-size: 11pt;
                 font-weight: 600;
-                color: #abb2bf;
+                color: #cccccc;
             }
             QToolButton:hover {
                 background-color: rgba(255, 255, 255, 0.06);
+                border: 1px solid rgba(255, 255, 255, 0.22);
                 color: #ffffff;
             }
             QToolButton:checked {
@@ -572,26 +574,34 @@ class MainWindow(QMainWindow):
                 self.resizeDocks(docks, [260, 680, 260][:len(docks)], Qt.Orientation.Horizontal)
 
         elif workspace_id == "studio.workspace.propulsion":
+            charts = self.findChild(QDockWidget, "propulsion.charts_dock")
             if viewer:
                 viewer.hide()
+            if explorer and props:
+                self.splitDockWidget(explorer, props, Qt.Orientation.Vertical)
             if explorer and controls:
                 self.splitDockWidget(explorer, controls, Qt.Orientation.Horizontal)
-            if controls and results:
+            if controls and charts:
+                self.splitDockWidget(controls, charts, Qt.Orientation.Horizontal)
+            if charts and results:
+                self.splitDockWidget(charts, results, Qt.Orientation.Horizontal)
+            elif controls and results:
                 self.splitDockWidget(controls, results, Qt.Orientation.Horizontal)
-            if results and props:
-                self.splitDockWidget(results, props, Qt.Orientation.Horizontal)
+
             if explorer:
                 explorer.show()
-            if controls:
-                controls.show()
-            if results:
-                results.show()
             if props:
                 props.show()
+            if controls:
+                controls.show()
+            if charts:
+                charts.show()
+            if results:
+                results.show()
 
-            docks = [d for d in [explorer, controls, results, props] if d is not None and not d.isHidden()]
+            docks = [d for d in [explorer, controls, charts, results] if d is not None and not d.isHidden()]
             if docks:
-                self.resizeDocks(docks, [230, 280, 430, 260][:len(docks)], Qt.Orientation.Horizontal)
+                self.resizeDocks(docks, [220, 280, 480, 260][:len(docks)], Qt.Orientation.Horizontal)
 
         else:
             for cid, (panel_contrib, dock) in self._panels.items():
