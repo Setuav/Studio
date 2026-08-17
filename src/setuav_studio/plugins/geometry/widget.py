@@ -12,8 +12,8 @@ from PySide6.QtOpenGL import (
 )
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 
-from setuav_studio.geometry_data import GeometryData, Point3D
-from setuav_studio.plugins.viewer.mesh import (
+from .data import GeometryData, Point3D
+from .mesh import (
     FACE_COLORED,
     FACE_MONOCHROME,
     FACE_TRANSPARENT,

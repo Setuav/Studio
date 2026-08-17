@@ -1,8 +1,8 @@
 import math
 from typing import Any
 
-from setuav_studio.geometry_data import LoftGeometry, Section
-from setuav_studio.geometry_scene import section_transform, transform_point
+from .data import LoftGeometry, Section
+from .transforms import section_transform, transform_point
 from setuav_studio.plugins.geometry.palettes import segment_colors
 
 

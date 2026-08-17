@@ -1,6 +1,6 @@
 import math
 
-from setuav_studio.geometry_data import GeometryData, LoftGeometry, Point3D
+from .data import GeometryData, LoftGeometry, Point3D
 
 
 SELECTED_WIRE = (0.95, 0.58, 0.28)

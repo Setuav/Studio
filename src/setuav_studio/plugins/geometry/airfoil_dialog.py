@@ -159,6 +159,7 @@ class AirfoilDialog(QDialog):
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
+        self._tokens = tokens()
         self.setWindowTitle("Airfoil Selector & Manager")
         self.setMinimumSize(780, 520)
         self.resize(840, 560)

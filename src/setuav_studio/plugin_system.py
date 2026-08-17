@@ -12,9 +12,9 @@ from PySide6.QtWidgets import QWidget
 
 from setuav_studio.icons import get_icon
 from setuav_studio.component_editor import BaseComponentEditor, ParameterField
-from setuav_studio.geometry_data import GeometryData
-from setuav_studio.geometry_scene import GeometryProvider, build_project_geometry
 from setuav_studio.project import ProjectDocument
+
+GeometryProvider = Callable[[dict[str, Any]], Any]
 
 
 @dataclass(frozen=True)
@@ -465,10 +465,12 @@ class StudioAPI:
     def build_geometry_data(
         self,
         project: ProjectDocument | None = None,
-    ) -> GeometryData:
+    ) -> Any:
         document = project or self.current_project
         if document is None:
+            from setuav_studio.plugins.geometry.data import GeometryData
             return GeometryData()
+        from setuav_studio.plugins.geometry.scene import build_project_geometry
         return build_project_geometry(document, self._geometry_providers)
 
     def remove_project_listener(

@@ -11,9 +11,8 @@ from setuav_studio.plugins.core import CorePlugin
 from setuav_studio.plugins.core.project import ProjectExplorer
 from setuav_studio.plugins.geometry import GeometryPlugin
 from setuav_studio.plugins.geometry.fuselage import FuselageEditor
-from setuav_studio.plugins.viewer import OpenGLViewerPlugin
-from setuav_studio.plugins.viewer.mesh import build_loft_wire_vertices
-from setuav_studio.geometry_data import GeometryData, LoftGeometry, Section
+from setuav_studio.plugins.geometry.mesh import build_loft_wire_vertices
+from setuav_studio.plugins.geometry.data import GeometryData, LoftGeometry, Section
 from setuav_studio.project import ProjectDocument
 
 
@@ -111,8 +110,8 @@ class PluginTests(unittest.TestCase):
         factory = self.api._component_editors["org.setuav.core:fuselage"]
         self.assertIsNotNone(factory)
 
-    def test_opengl_viewer_plugin_contributes_workspace(self) -> None:
-        self.manager.activate(OpenGLViewerPlugin())
+    def test_geometry_plugin_contributes_workspace(self) -> None:
+        self.manager.activate(GeometryPlugin())
 
         self.assertEqual(
             [workspace.id for workspace in self.workspaces],

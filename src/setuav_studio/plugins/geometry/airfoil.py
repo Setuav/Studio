@@ -147,15 +147,8 @@ def parse_airfoil_dat(content: str, samples: int = AIRFOIL_SAMPLES * 2) -> tuple
 
         upper = data_points[:n_upper]  # LE -> TE
         lower = data_points[n_upper : n_upper + n_lower]  # LE -> TE
-
-        # Continuous loop: TE -> Upper -> LE -> Lower -> TE
-        loop = list(reversed(upper))
-        if lower and loop and loop[-1] == lower[0]:
-            loop = loop + lower[1:]
-        else:
-            loop = loop + lower
     else:
-        # Selig format: single continuous loop
+        # Selig format: single continuous loop TE -> LE -> TE
         loop = []
         for line in non_empty[1:]:
             parts = line.replace(",", " ").split()
@@ -164,18 +157,35 @@ def parse_airfoil_dat(content: str, samples: int = AIRFOIL_SAMPLES * 2) -> tuple
                     loop.append((float(parts[0]), float(parts[1])))
                 except ValueError:
                     continue
+        if len(loop) < 3:
+            return name, naca4("0012", samples // 2)
+        le_idx = min(range(len(loop)), key=lambda i: loop[i][0])
+        upper = list(reversed(loop[:le_idx + 1]))  # LE -> TE
+        lower = loop[le_idx:]  # LE -> TE
 
-    if len(loop) < 3:
+    if not upper or not lower:
         return name, naca4("0012", samples // 2)
 
-    # Normalize to [0, 1] range if needed
-    min_x = min(p[0] for p in loop)
-    max_x = max(p[0] for p in loop)
+    # Normalize to [0, 1] range preserving exact leading edge (0, z_LE)
+    all_pts = upper + lower
+    min_x = min(p[0] for p in all_pts)
+    max_x = max(p[0] for p in all_pts)
     chord = max(max_x - min_x, 1e-6)
-    normalized = [((p[0] - min_x) / chord, p[1] / chord) for p in loop]
 
-    resampled = resample_closed_curve(normalized, samples)
-    return name, resampled
+    upper_norm = [((p[0] - min_x) / chord, p[1] / chord) for p in upper]
+    lower_norm = [((p[0] - min_x) / chord, p[1] / chord) for p in lower]
+
+    if upper_norm[0][0] > 0.0:
+        upper_norm.insert(0, (0.0, upper_norm[0][1]))
+    if lower_norm[0][0] > 0.0:
+        lower_norm.insert(0, (0.0, lower_norm[0][1]))
+
+    z_le = (upper_norm[0][1] + lower_norm[0][1]) * 0.5
+    upper_norm[0] = (0.0, z_le)
+    lower_norm[0] = (0.0, z_le)
+
+    loop_clean = tuple(list(reversed(upper_norm)) + lower_norm[1:])
+    return name, loop_clean
 
 
 def resample_closed_curve(
@@ -444,7 +454,13 @@ def sample_airfoil_points(value: object) -> tuple[tuple[float, float], ...]:
                     if isinstance(p, (list, tuple)) and len(p) >= 2
                 ]
                 if len(parsed) >= 3:
-                    return resample_closed_curve(parsed, AIRFOIL_SAMPLES * 2)
+                    min_x = min(p[0] for p in parsed)
+                    max_x = max(p[0] for p in parsed)
+                    chord = max(max_x - min_x, 1e-6)
+                    norm = [((p[0] - min_x) / chord, p[1] / chord) for p in parsed]
+                    le_idx = min(range(len(norm)), key=lambda i: norm[i][0])
+                    norm[le_idx] = (0.0, norm[le_idx][1])
+                    return tuple(norm)
         elif val_type == "naca":
             code = str(value.get("code") or "0012")
             clean_digits = re.sub(r"[^\d]", "", code)

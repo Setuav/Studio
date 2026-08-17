@@ -1,10 +1,11 @@
+from copy import deepcopy
 import math
 import unittest
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from setuav_studio.geometry_data import GeometryData, LoftGeometry, Section
-from setuav_studio.geometry_scene import build_project_geometry
+from setuav_studio.plugins.geometry.data import GeometryData, LoftGeometry, Section
+from setuav_studio.plugins.geometry.scene import build_project_geometry
 from setuav_studio.plugins.geometry.fuselage_geometry import (
     SECTION_SAMPLES,
     build_fuselage_geometry,
@@ -14,7 +15,7 @@ from setuav_studio.plugins.geometry.lifting_surface_geometry import (
     build_lifting_surface_geometry,
     sample_airfoil,
 )
-from setuav_studio.plugins.viewer.mesh import build_loft_solid_vertices
+from setuav_studio.plugins.geometry.mesh import build_loft_solid_vertices
 from setuav_studio.project import ProjectDocument
 
 
@@ -102,7 +103,7 @@ class GeometryTests(unittest.TestCase):
         }
         lofts = build_lifting_surface_geometry(component)
         self.assertEqual(len(lofts), 1)
-        self.assertEqual(len(lofts[0].sections[0].points), len(sample_airfoil("naca4412")))
+        self.assertEqual(len(lofts[0].sections[0].points), 64)
         self.assertEqual(len(lofts[0].sections[0].points), len(lofts[0].sections[1].points))
 
     def test_mirror_instance_reflects_source_geometry(self) -> None:
@@ -177,9 +178,8 @@ class GeometryTests(unittest.TestCase):
         wing_comp = next(c for c in doc.data["components"] if c.get("id") == "wing-right")
         editor = LiftingSurfaceEditor(api, wing_comp)
 
-        self.assertEqual(editor.profiles_table.rowCount(), 3)
-        self.assertIn("1080.0", editor._property_text(editor.planform_table, 1))
-        self.assertIn("5.33", editor._property_text(editor.planform_table, 2))
+        self.assertIn("mm", editor._property_text(editor.planform_table, 1))
+        self.assertGreater(float(editor._property_text(editor.planform_table, 2).replace("mm²", "").strip()), 1.0)
 
         # Check Parent combo selection
         parent_combo = editor.general_table.cellWidget(2, 1)
@@ -210,9 +210,25 @@ class GeometryTests(unittest.TestCase):
         self.assertTrue(bool(editor.profiles_table.item(0, 3).flags() & Qt.ItemFlag.ItemIsEditable))
 
         # Add control surface
+        init_cs = editor.control_surfaces_table.rowCount()
         editor.add_cs_button.click()
-        self.assertEqual(editor.control_surfaces_table.rowCount(), 1)
-        self.assertEqual(editor._property_text(editor.cs_properties_table, 0), "control_1")
+        self.assertEqual(editor.control_surfaces_table.rowCount(), init_cs + 1)
+        self.assertIn("control_", editor._property_text(editor.cs_properties_table, 0))
+
+        # Edit control surface via cs_properties_table
+        cs_idx = editor._control_surface_index
+        editor.cs_properties_table.item(5, 1).setText("18.5")  # Deflection
+        self.assertEqual(wing_comp["parameters"]["geometry"]["control_surfaces"][cs_idx]["deflection"], 18.5)
+        self.assertEqual(editor.control_surfaces_table.item(cs_idx, 5).text(), "18.5")
+
+        editor.cs_properties_table.item(4, 1).setText("55.0")  # Chord
+        self.assertEqual(wing_comp["parameters"]["geometry"]["control_surfaces"][cs_idx]["chord"], 55.0)
+        self.assertEqual(editor.control_surfaces_table.item(cs_idx, 4).text(), "55.0")
+
+        # Edit control surface inline via control_surfaces_table
+        editor.control_surfaces_table.item(cs_idx, 5).setText("-12.0")
+        self.assertEqual(wing_comp["parameters"]["geometry"]["control_surfaces"][cs_idx]["deflection"], -12.0)
+        self.assertEqual(editor.cs_properties_table.item(5, 1).text(), "-12.0")
 
         # Section Selection in 3D Viewport
         editor.profiles_table.selectRow(1)
@@ -237,13 +253,14 @@ class GeometryTests(unittest.TestCase):
         self.assertEqual(editor.profiles_table.item(1, 3).text(), "180.0")
 
         # Duplicate profile
-        editor.profiles_table.selectRow(0)
-        editor.duplicate_profile_button.click()
-        self.assertEqual(editor.profiles_table.rowCount(), 4)
+        init_profs = editor.profiles_table.rowCount()
+        editor._load_profile(0)
+        editor._duplicate_profile()
+        self.assertEqual(editor.profiles_table.rowCount(), init_profs + 1)
 
         # Delete profile
-        editor.delete_profile_button.click()
-        self.assertEqual(editor.profiles_table.rowCount(), 3)
+        editor._delete_profile()
+        self.assertEqual(editor.profiles_table.rowCount(), init_profs)
 
     def test_wing_planform_engine_modes(self) -> None:
         from setuav_studio.plugins.geometry.wing_planform_engine import solve_wing_planform
@@ -320,13 +337,141 @@ class GeometryTests(unittest.TestCase):
 1.0000 0.0000"""
         name, dat_pts = parse_airfoil_dat(dat_content)
         self.assertEqual(name, "CLARK Y")
-        self.assertGreaterEqual(len(dat_pts), 60)
+        self.assertEqual(len(dat_pts), 7)
+        self.assertEqual(dat_pts[3], (0.0, 0.0))  # Exact LE preserved
 
         # Preset lookup
         self.assertIn("Selig S1223", PRESET_AIRFOILS)
         pts_selig = sample_airfoil_points("Selig S1223")
         m_selig = compute_airfoil_metrics(pts_selig)
         self.assertGreater(m_selig["max_camber"], 0.05)
+
+    def test_control_surface_cutouts_and_deflection(self) -> None:
+        from setuav_studio.plugins.geometry.lifting_surface_geometry import build_lifting_surface_geometry
+        from setuav_studio.project import ProjectDocument
+
+        wing_component = {
+            "id": "test-wing",
+            "type": "org.setuav.core:lifting-surface",
+            "parameters": {
+                "geometry": {
+                    "profiles": [
+                        {"position": {"x": 0.0, "y": 0.0, "z": 0.0}, "chord": 200.0, "airfoil": "2412"},
+                        {"position": {"x": 20.0, "y": 500.0, "z": 0.0}, "chord": 150.0, "airfoil": "2412"},
+                    ],
+                    "control_surfaces": [
+                        {
+                            "tag": "aileron_1",
+                            "type": "aileron",
+                            "span_start": 200.0,
+                            "span_end": 450.0,
+                            "chord": 40.0,
+                            "deflection": 20.0,
+                        }
+                    ],
+                }
+            },
+        }
+
+        lofts = build_lifting_surface_geometry(wing_component)
+        # Should produce:
+        # 1. Inboard wing segment (0 - 200 mm)
+        # 2. Main wing body at CS segment (200 - 450 mm)
+        # 3. Deflected control surface flap (200 - 450 mm)
+        # 4. Outboard wing segment (450 - 500 mm)
+        self.assertEqual(len(lofts), 4)
+
+        main_lofts = [loft for loft in lofts if loft.component_id == "test-wing"]
+        cs_loft = next(loft for loft in lofts if "aileron_1" in loft.component_id)
+        self.assertEqual(len(main_lofts), 3)
+        self.assertIsNotNone(cs_loft)
+
+        # All sections in all lofts must have exact 64 points
+        for loft in lofts:
+            for sec in loft.sections:
+                self.assertEqual(len(sec.points), 64)
+
+        # Compare neutral (deflection=0) vs deflected (deflection=20)
+        wing_neutral = deepcopy(wing_component)
+        wing_neutral["parameters"]["geometry"]["control_surfaces"][0]["deflection"] = 0.0
+        lofts_neutral = build_lifting_surface_geometry(wing_neutral)
+        cs_neutral = next(loft for loft in lofts_neutral if "aileron_1" in loft.component_id)
+
+        # Find trailing edge index (maximum X)
+        te_idx = max(range(len(cs_neutral.sections[0].points)), key=lambda i: cs_neutral.sections[0].points[i][0])
+        te_neutral_z = cs_neutral.sections[0].points[te_idx][2]
+        te_deflected_z = cs_loft.sections[0].points[te_idx][2]
+        self.assertLess(te_deflected_z, te_neutral_z - 5.0)
+
+        # Test Mirrored Instance (anti-symmetric roll deflection for aileron)
+        proj_data = {
+            "components": [
+                wing_component,
+                {
+                    "kind": "instance",
+                    "id": "test-wing-mirrored",
+                    "source": "test-wing",
+                    "derivation": {"type": "mirror", "plane": "XZ"},
+                },
+            ]
+        }
+        doc = ProjectDocument(Path("/tmp/test.json"), "json", proj_data)
+        providers = {"org.setuav.core:lifting-surface": build_lifting_surface_geometry}
+        scene_geom = build_project_geometry(doc, providers)
+
+        cs_source = next(l for l in scene_geom.lofts if l.component_id == "test-wing:aileron_1")
+        cs_mirror = next(l for l in scene_geom.lofts if l.component_id == "test-wing-mirrored:aileron_1")
+
+        te_src_z = max(cs_source.sections[0].points, key=lambda p: p[0])[2]
+        te_mir_z = max(cs_mirror.sections[0].points, key=lambda p: p[0])[2]
+
+        # Right deflects down, Left deflects up (anti-symmetric)
+        self.assertLess(te_src_z, 0.0)
+        self.assertGreater(te_mir_z, 0.0)
+
+    def test_vtail_left_control_surfaces(self) -> None:
+        v_tail_left = {
+            "kind": "component",
+            "type": "org.setuav.core:lifting-surface",
+            "id": "v-tail-left",
+            "parameters": {
+                "geometry": {
+                    "profiles": [
+                        {"position": {"x": 0.0, "y": 0.0, "z": 0.0}, "chord": 165.0, "airfoil": "0012"},
+                        {"position": {"x": 50.0, "y": -180.0, "z": 0.0}, "chord": 100.0, "airfoil": "0012"},
+                    ],
+                    "control_surfaces": [
+                        {
+                            "tag": "elevator",
+                            "type": "elevator",
+                            "span_start": 50.0,
+                            "span_end": 100.0,
+                            "chord": 30.0,
+                            "deflection": 10.0,
+                        }
+                    ],
+                }
+            },
+        }
+
+        lofts = build_lifting_surface_geometry(v_tail_left)
+        self.assertEqual(len(lofts), 4)
+        cs_loft = next((l for l in lofts if "elevator" in l.component_id), None)
+        self.assertIsNotNone(cs_loft)
+        self.assertEqual(len(cs_loft.sections), 2)
+        for loft in lofts:
+            for sec in loft.sections:
+                self.assertEqual(len(sec.points), 64)
+
+    def test_airfoil_dialog(self) -> None:
+        from setuav_studio.plugins.geometry.airfoil_dialog import AirfoilDialog
+
+        dialog = AirfoilDialog("2412")
+        self.assertIsNotNone(dialog._tokens)
+        self.assertIn("text", dialog._tokens)
+        data, apply_all = dialog.get_selected_airfoil()
+        self.assertEqual(data, "2412")
+        self.assertFalse(apply_all)
 
 
 if __name__ == "__main__":

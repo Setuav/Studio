@@ -20,9 +20,9 @@ from setuav_studio.plugins.geometry.palettes import (
     palette_names,
     set_active_palette,
 )
-from setuav_studio.plugins.viewer.widget import OpenGLViewer
+from setuav_studio.plugins.geometry.widget import OpenGLViewer
 from setuav_studio.plugins.core.theme import rgba, tokens
-from setuav_studio.plugins.viewer.mesh import (
+from setuav_studio.plugins.geometry.mesh import (
     FACE_COLORED,
     FACE_MONOCHROME,
     FACE_TRANSPARENT,

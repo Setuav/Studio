@@ -79,3 +79,17 @@ def segment_colors() -> tuple[tuple[float, float, float], ...]:
 
 def wing_color() -> tuple[float, float, float]:
     return _WING_COLORS[_active_palette]
+
+
+_CS_COLORS: dict[str, tuple[float, float, float]] = {
+    "warm": (0.88, 0.45, 0.35),
+    "sunset": (0.85, 0.35, 0.50),
+    "forest": (0.50, 0.65, 0.35),
+    "desert": (0.80, 0.50, 0.35),
+    "pastel": (0.85, 0.55, 0.60),
+    "ocean": (0.45, 0.60, 0.80),
+}
+
+
+def control_surface_color() -> tuple[float, float, float]:
+    return _CS_COLORS.get(_active_palette, (0.88, 0.45, 0.35))

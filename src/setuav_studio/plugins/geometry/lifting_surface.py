@@ -303,6 +303,7 @@ class LiftingSurfaceEditor(QWidget):
             "Span Start (mm)",
             "Span End (mm)",
             "Chord (mm)",
+            "Deflection (°)",
         ])
         self.control_surfaces_table.setEditTriggers(
             QAbstractItemView.EditTrigger.DoubleClicked
@@ -348,6 +349,7 @@ class LiftingSurfaceEditor(QWidget):
             ("span_start", "Span Start (mm)"),
             ("span_end", "Span End (mm)"),
             ("chord", "Control Chord (mm)"),
+            ("deflection", "Deflection Angle (°)"),
         ])
         self.cs_properties_table.cellChanged.connect(self._update_cs_property)
         layout.addWidget(self.cs_properties_table)
@@ -788,10 +790,11 @@ class LiftingSurfaceEditor(QWidget):
                     f"{float(cs.get('span_start', 0.0)):.1f}",
                     f"{float(cs.get('span_end', 0.0)):.1f}",
                     f"{float(cs.get('chord', 0.0)):.1f}",
+                    f"{float(cs.get('deflection', 0.0)):.1f}",
                 )
                 for column, value in enumerate(values):
                     item = QTableWidgetItem(value)
-                    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                    item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
                     if column in (0, 1):
                         item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     else:
@@ -937,6 +940,7 @@ class LiftingSurfaceEditor(QWidget):
             self._set_property_value(self.cs_properties_table, "span_start", float(cs.get("span_start", 0.0)))
             self._set_property_value(self.cs_properties_table, "span_end", float(cs.get("span_end", 0.0)))
             self._set_property_value(self.cs_properties_table, "chord", float(cs.get("chord", 0.0)))
+            self._set_property_value(self.cs_properties_table, "deflection", float(cs.get("deflection", 0.0)))
             self._update_cs_actions()
         finally:
             self._loading = was_loading
@@ -1173,6 +1177,8 @@ class LiftingSurfaceEditor(QWidget):
                 cs["span_end"] = self._parse_number(text_val) or 0.0
             elif column == 4:
                 cs["chord"] = max(self._parse_number(text_val) or 10.0, 1.0)
+            elif column == 5:
+                cs["deflection"] = self._parse_number(text_val) or 0.0
 
         self._edit_component("Edit control surface", change)
         if row == self._control_surface_index:
@@ -1187,6 +1193,7 @@ class LiftingSurfaceEditor(QWidget):
             "span_start": 100.0,
             "span_end": 400.0,
             "chord": 40.0,
+            "deflection": 0.0,
         }
         insert_at = len(cs_list)
 
@@ -1288,6 +1295,8 @@ class LiftingSurfaceEditor(QWidget):
                 self.control_surfaces_table.item(row, 3).setText(f"{float(cs.get('span_end', 0.0)):.1f}")
             if self.control_surfaces_table.item(row, 4):
                 self.control_surfaces_table.item(row, 4).setText(f"{float(cs.get('chord', 0.0)):.1f}")
+            if self.control_surfaces_table.item(row, 5):
+                self.control_surfaces_table.item(row, 5).setText(f"{float(cs.get('deflection', 0.0)):.1f}")
         finally:
             self._loading = was_loading
 
@@ -1310,6 +1319,8 @@ class LiftingSurfaceEditor(QWidget):
                 cs["span_end"] = self._parse_number(val_str) or 0.0
             elif key == "chord":
                 cs["chord"] = max(self._parse_number(val_str) or 10.0, 1.0)
+            elif key == "deflection":
+                cs["deflection"] = self._parse_number(val_str) or 0.0
 
         self._edit_component(f"Edit control surface {key}", change)
         self._refresh_cs_table_row(self._control_surface_index)
