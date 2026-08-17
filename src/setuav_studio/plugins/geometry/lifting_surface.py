@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QHBoxLayout,
     QLabel,
+    QPushButton,
     QScrollArea,
     QSizePolicy,
     QTableWidget,
@@ -27,22 +28,12 @@ from PySide6.QtWidgets import (
 
 from setuav_studio.icons import get_icon
 from setuav_studio.plugin_system import StudioAPI
+from setuav_studio.plugins.geometry.airfoil import PRESET_AIRFOILS
+from setuav_studio.plugins.geometry.airfoil_dialog import AirfoilDialog
 
 
 class LiftingSurfaceEditor(QWidget):
     """Component property editor for org.setuav.core:lifting-surface."""
-
-    COMMON_AIRFOILS = [
-        ("2412", "NACA 2412 (General / Trainer)"),
-        ("2414", "NACA 2414 (Thick Root)"),
-        ("4412", "NACA 4412 (High Lift)"),
-        ("4415", "NACA 4415 (High Lift Thick)"),
-        ("0012", "NACA 0012 (Symmetric / Tail)"),
-        ("0009", "NACA 0009 (Thin Symmetric)"),
-        ("0006", "NACA 0006 (Very Thin Symmetric)"),
-        ("23012", "NACA 23012 (Low Pitching Moment)"),
-        ("6412", "NACA 6412 (High Under-Camber)"),
-    ]
 
     CONTROL_SURFACE_TYPES = [
         ("aileron", "Aileron"),
@@ -214,12 +205,23 @@ class LiftingSurfaceEditor(QWidget):
 
     def _create_profile_properties_section(self) -> None:
         layout = self._create_section("Section Properties", "fa6s.sliders")
+
         self.profile_properties_table = self._property_table([
             ("airfoil", "Airfoil"),
             ("chord", "Chord (mm)"),
         ])
         self.profile_properties_table.cellChanged.connect(self._update_profile_property)
         layout.addWidget(self.profile_properties_table)
+
+        # Airfoil Manager / Selector button
+        af_btn_layout = QHBoxLayout()
+        af_btn_layout.setContentsMargins(0, 2, 0, 2)
+        self.choose_airfoil_btn = QPushButton("Choose / Import Airfoil...")
+        self.choose_airfoil_btn.setIcon(get_icon("fa6s.shapes"))
+        self.choose_airfoil_btn.clicked.connect(self._open_airfoil_dialog)
+        af_btn_layout.addWidget(self.choose_airfoil_btn)
+        af_btn_layout.addStretch()
+        layout.addLayout(af_btn_layout)
 
     def _create_control_surfaces_section(self) -> None:
         layout = self._create_section("Control Surfaces", "fa6s.plane")
@@ -423,13 +425,14 @@ class LiftingSurfaceEditor(QWidget):
         for row, cs in enumerate(cs_list):
             values = (
                 str(cs.get("tag") or f"CS_{row + 1}"),
-                str(cs.get("type") or "aileron"),
+                str(cs.get("type") or "aileron").capitalize(),
                 f"{float(cs.get('span_start', 0.0)):.1f}",
                 f"{float(cs.get('span_end', 0.0)):.1f}",
                 f"{float(cs.get('chord', 0.0)):.1f}",
             )
             for column, value in enumerate(values):
                 item = QTableWidgetItem(value)
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 if column in (0, 1):
                     item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 else:
@@ -468,10 +471,7 @@ class LiftingSurfaceEditor(QWidget):
         )
         self._set_transform_values(pos_tuple, rot_tuple)
 
-        airfoil_val = str(profile.get("airfoil") or "2412")
-        if isinstance(profile.get("airfoil"), dict):
-            airfoil_val = str(profile["airfoil"].get("code") or profile["airfoil"].get("name") or "2412")
-
+        airfoil_val = self._format_airfoil_label(profile.get("airfoil"))
         self._set_property_value(self.profile_properties_table, "airfoil", airfoil_val)
         self._set_property_value(self.profile_properties_table, "chord", float(profile.get("chord", 200.0)))
 
@@ -532,6 +532,33 @@ class LiftingSurfaceEditor(QWidget):
         self._edit_component("Edit profile transform", change)
         self._refresh_profile_table_row(self._profile_index)
         self._recalculate_planform_metrics()
+
+    def _open_airfoil_dialog(self) -> None:
+        if self._profile_index < 0:
+            return
+        profiles = self._profiles()
+        if not (0 <= self._profile_index < len(profiles)):
+            return
+        current_af = profiles[self._profile_index].get("airfoil", "2412")
+
+        dialog = AirfoilDialog(current_af, self)
+        if dialog.exec() == AirfoilDialog.DialogCode.Accepted:
+            new_af, apply_all = dialog.get_selected_airfoil()
+            if apply_all:
+                def change() -> None:
+                    for p in profiles:
+                        p["airfoil"] = deepcopy(new_af)
+                self._edit_component("Apply airfoil to all stations", change)
+            else:
+                def change() -> None:
+                    profiles[self._profile_index]["airfoil"] = deepcopy(new_af)
+                self._edit_component("Change station airfoil", change)
+
+            self._loading = True
+            self._populate_profiles()
+            self._loading = False
+            self.profiles_table.selectRow(self._profile_index)
+            self._load_profile(self._profile_index)
 
     def _load_control_surface(self, row: int) -> None:
         cs_list = self._control_surfaces()
@@ -772,6 +799,7 @@ class LiftingSurfaceEditor(QWidget):
         self.move_profile_up_button.setEnabled(has_sel and idx > 0)
         self.move_profile_down_button.setEnabled(has_sel and idx < count - 1)
         self.delete_profile_button.setEnabled(has_sel and count > 2)
+        self.choose_airfoil_btn.setEnabled(has_sel)
 
     # -------------------------------------------------------------------------
     # Profile Properties Mutation
@@ -1090,10 +1118,19 @@ class LiftingSurfaceEditor(QWidget):
     @staticmethod
     def _format_airfoil_label(value: object) -> str:
         if isinstance(value, str):
+            for name, preset in PRESET_AIRFOILS.items():
+                if name.lower() == value.lower() or preset.get("code") == value:
+                    return name
             return value
         if isinstance(value, dict):
-            return str(value.get("code") or value.get("name") or value.get("path") or "custom")
-        return "2412"
+            name = str(value.get("name") or value.get("code") or "")
+            if name:
+                return name
+            if value.get("type") == "coordinates":
+                return f"Custom ({len(value.get('points') or [])} pts)"
+            if value.get("type") == "file":
+                return f"File: {Path(str(value.get('path') or '')).name}"
+        return "NACA 2412"
 
     @classmethod
     def _property_table(

@@ -184,6 +184,54 @@ class GeometryTests(unittest.TestCase):
         editor.delete_profile_button.click()
         self.assertEqual(editor.profiles_table.rowCount(), 3)
 
+    def test_airfoil_generators_and_dat_parser(self) -> None:
+        from setuav_studio.plugins.geometry.airfoil import (
+            naca4,
+            naca5,
+            biconvex,
+            parse_airfoil_dat,
+            compute_airfoil_metrics,
+            sample_airfoil_points,
+            PRESET_AIRFOILS,
+        )
+
+        # NACA 4
+        pts_4 = naca4("2412")
+        m_4 = compute_airfoil_metrics(pts_4)
+        self.assertAlmostEqual(m_4["max_thickness"], 0.12, places=2)
+        self.assertAlmostEqual(m_4["max_camber"], 0.02, places=2)
+
+        # NACA 5
+        pts_5 = naca5("23012")
+        m_5 = compute_airfoil_metrics(pts_5)
+        self.assertAlmostEqual(m_5["max_thickness"], 0.12, places=2)
+        self.assertAlmostEqual(m_5["max_camber"], 0.018, places=2)
+
+        # Biconvex
+        pts_bi = biconvex(0.08)
+        m_bi = compute_airfoil_metrics(pts_bi)
+        self.assertAlmostEqual(m_bi["max_thickness"], 0.08, places=2)
+        self.assertEqual(m_bi["max_camber"], 0.0)
+
+        # DAT Parser
+        dat_content = """CLARK Y
+1.0000 0.0000
+0.7000 0.0818
+0.3000 0.1170
+0.0000 0.0000
+0.3000 -0.0380
+0.7000 -0.0175
+1.0000 0.0000"""
+        name, dat_pts = parse_airfoil_dat(dat_content)
+        self.assertEqual(name, "CLARK Y")
+        self.assertGreaterEqual(len(dat_pts), 60)
+
+        # Preset lookup
+        self.assertIn("Selig S1223", PRESET_AIRFOILS)
+        pts_selig = sample_airfoil_points("Selig S1223")
+        m_selig = compute_airfoil_metrics(pts_selig)
+        self.assertGreater(m_selig["max_camber"], 0.05)
+
 
 if __name__ == "__main__":
     unittest.main()

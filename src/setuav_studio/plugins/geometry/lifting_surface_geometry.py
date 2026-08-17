@@ -4,6 +4,7 @@ from typing import Any
 
 from setuav_studio.geometry_data import LoftGeometry, Section
 from setuav_studio.geometry_scene import section_transform, transform_point
+from setuav_studio.plugins.geometry.airfoil import AIRFOIL_SAMPLES, sample_airfoil_points
 
 
 AIRFOIL_SAMPLES = 64
@@ -59,25 +60,7 @@ def _build_profile_section(value: object) -> Section | None:
 
 
 def sample_airfoil(value: object) -> tuple[tuple[float, float], ...]:
-    if isinstance(value, dict) and value.get("type") == "coordinates":
-        points = value.get("points")
-        if isinstance(points, list):
-            parsed = [
-                (_number(point[0]), _number(point[1]))
-                for point in points
-                if isinstance(point, list) and len(point) == 2
-            ]
-            if len(parsed) >= 3:
-                return _resample_closed(parsed, AIRFOIL_SAMPLES * 2)
-
-    code: str | None = None
-    if isinstance(value, str):
-        match = re.search(r"(?:naca\s*)?(\d{4})", value, re.IGNORECASE)
-        code = match.group(1) if match else None
-    elif isinstance(value, dict) and value.get("type") == "naca":
-        raw_code = str(value.get("code") or "")
-        code = raw_code if re.fullmatch(r"\d{4}", raw_code) else None
-    return _naca4(code or "0012")
+    return sample_airfoil_points(value)
 
 
 def _naca4(code: str) -> tuple[tuple[float, float], ...]:
