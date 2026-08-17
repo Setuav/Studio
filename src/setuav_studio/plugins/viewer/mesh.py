@@ -3,7 +3,7 @@ import math
 from setuav_studio.geometry_data import GeometryData, LoftGeometry, Point3D
 
 
-SELECTED_WIRE = (0.50, 0.77, 0.82)
+SELECTED_WIRE = (0.95, 0.58, 0.28)
 HOVERED_WIRE = (1.0, 1.0, 1.0)
 SECTION_RING = (1.0, 0.85, 0.20)
 _DIM_FACTOR = 0.5
@@ -11,8 +11,17 @@ _LONGITUDINAL_LINES = 12
 FACE_COLORED = "colored"
 FACE_MONOCHROME = "monochrome"
 FACE_TRANSPARENT = "transparent"
-_WIRE_GREY = (0.90, 0.90, 0.90)
-_SOLID_GREY = (0.62, 0.62, 0.62)
+_WIRE_GREY = (0.82, 0.82, 0.82)
+_SOLID_GREY = (0.44, 0.44, 0.44)
+_SOLID_TINT = 0.88
+_WIRE_TINT = 0.30
+_MIN_STATIONS = 1
+_MAX_STATIONS = 32
+
+
+def _wire_tint(color: Point3D) -> Point3D:
+    base = 0.82
+    return tuple(channel + (base - channel) * _WIRE_TINT for channel in color)
 
 
 def build_loft_wire_vertices(
@@ -30,7 +39,9 @@ def build_loft_wire_vertices(
         if not loops:
             continue
         color = (
-            loft.color if face_style in (FACE_COLORED, FACE_TRANSPARENT) else _WIRE_GREY
+            _wire_tint(loft.color)
+            if face_style in (FACE_COLORED, FACE_TRANSPARENT)
+            else _WIRE_GREY
         )
         _append_loft_wire(vertices, loops, color)
     return vertices
@@ -106,7 +117,7 @@ def build_loft_solid_vertices(
         if not loops:
             continue
         if face_style in (FACE_COLORED, FACE_TRANSPARENT):
-            color = tuple(channel * 0.65 for channel in loft.color)
+            color = tuple(channel * _SOLID_TINT for channel in loft.color)
         else:
             color = _SOLID_GREY
         if selected_component_id is not None and loft.component_id not in highlighted:
@@ -129,8 +140,8 @@ def _tessellated_loops(loft: LoftGeometry) -> list[tuple[Point3D, ...]]:
     if any(len(section) != point_count for section in sections):
         raise ValueError(f"Loft {loft.component_id!r} sections must have equal point counts")
 
-    inserted = max(0, loft.subdivisions)
-    if inserted == 0:
+    spacing = loft.station_spacing
+    if spacing <= 0.0:
         return sections
     parameters = _section_parameters(sections)
     use_spline = loft.interpolation == "smooth" and len(sections) > 2
@@ -138,6 +149,8 @@ def _tessellated_loops(loft: LoftGeometry) -> list[tuple[Point3D, ...]]:
     result: list[tuple[Point3D, ...]] = []
     for gap in range(len(sections) - 1):
         result.append(sections[gap])
+        gap_length = parameters[gap + 1] - parameters[gap]
+        inserted = _station_count(gap_length, spacing)
         for step in range(1, inserted + 1):
             fraction = step / (inserted + 1)
             if splines is None:
@@ -161,6 +174,11 @@ def _tessellated_loops(loft: LoftGeometry) -> list[tuple[Point3D, ...]]:
                 )
     result.append(sections[-1])
     return result
+
+
+def _station_count(gap_length: float, spacing: float) -> int:
+    count = round(gap_length / spacing)
+    return min(max(count, _MIN_STATIONS), _MAX_STATIONS)
 
 
 def _section_parameters(sections: list[tuple[Point3D, ...]]) -> list[float]:

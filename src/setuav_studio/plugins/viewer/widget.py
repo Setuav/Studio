@@ -61,9 +61,10 @@ void main() {
 _WIRE_FRAGMENT_SHADER = """
 #version 330 core
 in vec3 vertexColor;
+uniform float alpha;
 out vec4 fragmentColor;
 void main() {
-    fragmentColor = vec4(vertexColor, 1.0);
+    fragmentColor = vec4(vertexColor, alpha);
 }
 """
 
@@ -90,8 +91,12 @@ uniform vec3 eyeDirection;
 uniform float alpha;
 out vec4 fragmentColor;
 void main() {
-    float diffuse = abs(dot(normalize(vertexNormal), normalize(eyeDirection)));
-    vec3 shaded = vertexColor * (0.20 + 0.80 * diffuse);
+    vec3 normal = normalize(vertexNormal);
+    vec3 eye = normalize(eyeDirection);
+    float diffuse = abs(dot(normal, eye));
+    vec3 shaded = vertexColor * (0.35 + 0.65 * diffuse);
+    float specular = pow(max(diffuse, 0.0), 32.0) * 0.10;
+    shaded += vec3(specular);
     fragmentColor = vec4(shaded, alpha);
 }
 """
@@ -108,7 +113,7 @@ class OpenGLViewer(QOpenGLWidget):
         surface_format = QSurfaceFormat()
         surface_format.setVersion(3, 3)
         surface_format.setProfile(QSurfaceFormat.OpenGLContextProfile.CoreProfile)
-        surface_format.setSamples(8)
+        surface_format.setSamples(4)
         super().__init__(parent)
         self.setFormat(surface_format)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -261,6 +266,8 @@ class OpenGLViewer(QOpenGLWidget):
             return
         self._wire_program.bind()
         self._wire_program.setUniformValue("mvp", mvp)
+        alpha_location = self._wire_program.uniformLocation("alpha")
+        self._functions.glUniform1f(alpha_location, 1.0)
         self._grid_vao.bind()
         self._functions.glDrawArrays(_GL_LINES, 0, self._grid_count)
         self._grid_vao.release()
@@ -280,9 +287,14 @@ class OpenGLViewer(QOpenGLWidget):
             self._section_ring_vao.release()
             self._functions.glDepthFunc(_GL_LESS)
         if self._show_wireframe:
+            self._functions.glEnable(_GL_BLEND)
+            self._functions.glBlendFunc(_GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA)
+            self._functions.glUniform1f(alpha_location, 0.9)
             self._wire_vao.bind()
             self._functions.glDrawArrays(_GL_LINES, 0, self._wire_count)
             self._wire_vao.release()
+            self._functions.glUniform1f(alpha_location, 1.0)
+            self._functions.glDisable(_GL_BLEND)
         self._wire_program.release()
 
     def set_geometry(self, data: GeometryData, fit: bool = False) -> None:

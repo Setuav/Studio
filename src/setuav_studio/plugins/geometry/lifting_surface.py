@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from copy import deepcopy
 import math
+from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import Qt
@@ -71,9 +72,9 @@ class LiftingSurfaceEditor(QWidget):
         layout.addWidget(scroll)
 
         self._create_general_section()
+        self._create_attachment_section()
         self._create_planform_metrics_section()
         self._create_profiles_section()
-        self._create_transform_section()
         self._create_profile_properties_section()
         self._create_control_surfaces_section()
         self._create_blending_section()
@@ -98,10 +99,42 @@ class LiftingSurfaceEditor(QWidget):
         self.general_table = self._property_table([
             ("name", "Name"),
             ("type", "Type"),
+            ("parent", "Parent"),
             ("mass", "Mass (g)"),
         ])
         self.general_table.cellChanged.connect(self._update_general)
         layout.addWidget(self.general_table)
+
+    def _create_attachment_section(self) -> None:
+        """Component attachment / mount transform on the fuselage or parent."""
+        layout = self._create_section("Attachment (Transform)", "mdi6.axis-arrow")
+
+        self.attachment_table = QTableWidget(2, 3)
+        self.attachment_table.setHorizontalHeaderLabels(["X", "Y", "Z"])
+        self.attachment_table.setVerticalHeaderLabels(["Position (mm)", "Rotation (°)"])
+        self.attachment_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.attachment_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
+        self.attachment_table.setEditTriggers(
+            QAbstractItemView.EditTrigger.DoubleClicked
+            | QAbstractItemView.EditTrigger.EditKeyPressed
+            | QAbstractItemView.EditTrigger.SelectedClicked
+        )
+        self.attachment_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.attachment_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.attachment_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.attachment_table.horizontalHeader().setFixedHeight(23)
+        self.attachment_table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
+        self.attachment_table.verticalHeader().setDefaultSectionSize(23)
+        self.attachment_table.verticalHeader().setMinimumWidth(82)
+        self.attachment_table.setAlternatingRowColors(True)
+        self.attachment_table.setFixedHeight(71)
+        for row in range(2):
+            for column in range(3):
+                item = QTableWidgetItem("0.00")
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                self.attachment_table.setItem(row, column, item)
+        self.attachment_table.cellChanged.connect(self._update_attachment_transform)
+        layout.addWidget(self.attachment_table)
 
     def _create_planform_metrics_section(self) -> None:
         layout = self._create_section("Planform & Aerodynamics", "fa6s.chart-area")
@@ -174,35 +207,6 @@ class LiftingSurfaceEditor(QWidget):
         profile_actions.addStretch()
         layout.addLayout(profile_actions)
 
-    def _create_transform_section(self) -> None:
-        transform_layout = self._create_section("Transform", "mdi6.axis-arrow")
-        self.transform_table = QTableWidget(2, 3)
-        self.transform_table.setHorizontalHeaderLabels(["X", "Y", "Z"])
-        self.transform_table.setVerticalHeaderLabels(["Position (mm)", "Rotation (°)"])
-        self.transform_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        self.transform_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
-        self.transform_table.setEditTriggers(
-            QAbstractItemView.EditTrigger.DoubleClicked
-            | QAbstractItemView.EditTrigger.EditKeyPressed
-            | QAbstractItemView.EditTrigger.SelectedClicked
-        )
-        self.transform_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.transform_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.transform_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.transform_table.horizontalHeader().setFixedHeight(23)
-        self.transform_table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
-        self.transform_table.verticalHeader().setDefaultSectionSize(23)
-        self.transform_table.verticalHeader().setMinimumWidth(82)
-        self.transform_table.setAlternatingRowColors(True)
-        self.transform_table.setFixedHeight(71)
-        for row in range(2):
-            for column in range(3):
-                item = QTableWidgetItem("0.00")
-                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                self.transform_table.setItem(row, column, item)
-        self.transform_table.cellChanged.connect(self._update_transform)
-        transform_layout.addWidget(self.transform_table)
-
     def _create_profile_properties_section(self) -> None:
         layout = self._create_section("Section Properties", "fa6s.sliders")
 
@@ -222,6 +226,38 @@ class LiftingSurfaceEditor(QWidget):
         af_btn_layout.addWidget(self.choose_airfoil_btn)
         af_btn_layout.addStretch()
         layout.addLayout(af_btn_layout)
+
+        # Section Local Station Transform Table
+        station_header_lbl = QLabel("Station Local Offset & Rotation:")
+        station_header_lbl.setStyleSheet("color: #888888; font-size: 11px; margin-top: 4px;")
+        layout.addWidget(station_header_lbl)
+
+        self.station_transform_table = QTableWidget(2, 3)
+        self.station_transform_table.setHorizontalHeaderLabels(["X", "Y", "Z"])
+        self.station_transform_table.setVerticalHeaderLabels(["Offset (mm)", "Rotation (°)"])
+        self.station_transform_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.station_transform_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
+        self.station_transform_table.setEditTriggers(
+            QAbstractItemView.EditTrigger.DoubleClicked
+            | QAbstractItemView.EditTrigger.EditKeyPressed
+            | QAbstractItemView.EditTrigger.SelectedClicked
+        )
+        self.station_transform_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.station_transform_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.station_transform_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.station_transform_table.horizontalHeader().setFixedHeight(23)
+        self.station_transform_table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
+        self.station_transform_table.verticalHeader().setDefaultSectionSize(23)
+        self.station_transform_table.verticalHeader().setMinimumWidth(82)
+        self.station_transform_table.setAlternatingRowColors(True)
+        self.station_transform_table.setFixedHeight(71)
+        for row in range(2):
+            for column in range(3):
+                item = QTableWidgetItem("0.00")
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                self.station_transform_table.setItem(row, column, item)
+        self.station_transform_table.cellChanged.connect(self._update_station_transform)
+        layout.addWidget(self.station_transform_table)
 
     def _create_control_surfaces_section(self) -> None:
         layout = self._create_section("Control Surfaces", "fa6s.plane")
@@ -342,7 +378,31 @@ class LiftingSurfaceEditor(QWidget):
         # General
         self._set_property_value(self.general_table, "name", str(self._component.get("name") or ""))
         self._set_property_value(self.general_table, "type", str(self._component.get("type") or ""), editable=False)
+
+        # Parent Selection Combo
+        current_parent = str(self._component.get("parent") or "")
+        parent_options = [("", "(None)")]
+        if hasattr(self._api, "project") and self._api.project:
+            comp_list = self._api.project.data.get("components")
+            if isinstance(comp_list, list):
+                for comp in comp_list:
+                    if isinstance(comp, dict):
+                        cid = str(comp.get("id") or "")
+                        if cid and cid != self._component.get("id"):
+                            cname = str(comp.get("name") or cid)
+                            parent_options.append((cid, f"{cname} ({cid})"))
+        self._set_property_combo(
+            self.general_table,
+            "parent",
+            current_parent,
+            parent_options,
+            lambda val: self._update_parent(val if val else None),
+        )
+
         self._set_property_value(self.general_table, "mass", self._parameters().get("mass") or 0)
+
+        # Attachment / Component Transform
+        self._load_attachment_transform()
 
         # Profiles
         self._populate_profiles()
@@ -387,6 +447,71 @@ class LiftingSurfaceEditor(QWidget):
             self._load_control_surface(0)
         else:
             self._update_cs_actions()
+
+    # -------------------------------------------------------------------------
+    # Attachment / Component Transform Handling
+    # -------------------------------------------------------------------------
+
+    def _load_attachment_transform(self) -> None:
+        transform = self._component.get("transform")
+        transform = transform if isinstance(transform, dict) else {}
+        pos = transform.get("position")
+        pos = pos if isinstance(pos, dict) else {}
+        rot = transform.get("rotation")
+        rot = rot if isinstance(rot, dict) else {}
+
+        pos_vals = (
+            float(pos.get("x", 0.0)),
+            float(pos.get("y", 0.0)),
+            float(pos.get("z", 0.0)),
+        )
+        rot_vals = (
+            float(rot.get("roll") if "roll" in rot else rot.get("x", 0.0)),
+            float(rot.get("pitch") if "pitch" in rot else rot.get("y", 0.0)),
+            float(rot.get("yaw") if "yaw" in rot else rot.get("z", 0.0)),
+        )
+
+        for row, values in enumerate((pos_vals, rot_vals)):
+            for col, val in enumerate(values):
+                item = self.attachment_table.item(row, col)
+                if item:
+                    item.setText(f"{val:.2f}")
+
+    def _update_attachment_transform(self, _row: int, _col: int) -> None:
+        if self._loading:
+            return
+        try:
+            pos_x = float(self.attachment_table.item(0, 0).text())
+            pos_y = float(self.attachment_table.item(0, 1).text())
+            pos_z = float(self.attachment_table.item(0, 2).text())
+            rot_r = float(self.attachment_table.item(1, 0).text())
+            rot_p = float(self.attachment_table.item(1, 1).text())
+            rot_y = float(self.attachment_table.item(1, 2).text())
+        except (AttributeError, ValueError):
+            return
+
+        def change() -> None:
+            tf = self._component.get("transform")
+            if not isinstance(tf, dict):
+                tf = {}
+                self._component["transform"] = tf
+            tf["position"] = {"x": pos_x, "y": pos_y, "z": pos_z}
+            tf["rotation"] = {"roll": rot_r, "pitch": rot_p, "yaw": rot_y}
+
+        self._edit_component("Edit wing attachment transform", change)
+
+    def _update_parent(self, new_parent: str | None) -> None:
+        if self._loading:
+            return
+
+        def change() -> None:
+            self._component["parent"] = new_parent
+
+        self._edit_component("Change component parent", change)
+
+    # -------------------------------------------------------------------------
+    # Profiles Handling
+    # -------------------------------------------------------------------------
 
     def _populate_profiles(self) -> None:
         profiles = self._profiles()
@@ -447,7 +572,7 @@ class LiftingSurfaceEditor(QWidget):
         if not (0 <= row < len(profiles)):
             self._profile_index = -1
             self._clear_property_values(self.profile_properties_table)
-            self._set_transform_values((0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
+            self._set_station_transform_values((0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
             self._update_profile_actions()
             self._publish_section_selection()
             return
@@ -469,7 +594,7 @@ class LiftingSurfaceEditor(QWidget):
             float(rot.get("y", 0.0)),
             float(rot.get("z", 0.0)),
         )
-        self._set_transform_values(pos_tuple, rot_tuple)
+        self._set_station_transform_values(pos_tuple, rot_tuple)
 
         airfoil_val = self._format_airfoil_label(profile.get("airfoil"))
         self._set_property_value(self.profile_properties_table, "airfoil", airfoil_val)
@@ -486,50 +611,40 @@ class LiftingSurfaceEditor(QWidget):
         else:
             self._api.set_section_selection(None)
 
-    def _set_transform_values(
+    def _set_station_transform_values(
         self,
         position: tuple[float, float, float],
         rotation: tuple[float, float, float],
     ) -> None:
         for row, values in enumerate((position, rotation)):
             for column, value in enumerate(values):
-                item = self.transform_table.item(row, column)
+                item = self.station_transform_table.item(row, column)
                 if item is not None:
                     item.setText(f"{value:.2f}")
 
-    def _transform_values(
-        self,
-    ) -> tuple[tuple[float, float, float], tuple[float, float, float]] | None:
-        rows: list[tuple[float, float, float]] = []
-        for row in range(2):
-            try:
-                values = tuple(
-                    float(self.transform_table.item(row, column).text())
-                    for column in range(3)
-                )
-            except (AttributeError, ValueError):
-                return None
-            rows.append(values)
-        return rows[0], rows[1]
-
-    def _update_transform(self, _row: int, _column: int) -> None:
+    def _update_station_transform(self, _row: int, _column: int) -> None:
         if self._loading or self._profile_index < 0:
             return
-        transform_values = self._transform_values()
-        if transform_values is None:
+        try:
+            pos_x = float(self.station_transform_table.item(0, 0).text())
+            pos_y = float(self.station_transform_table.item(0, 1).text())
+            pos_z = float(self.station_transform_table.item(0, 2).text())
+            rot_x = float(self.station_transform_table.item(1, 0).text())
+            rot_y = float(self.station_transform_table.item(1, 1).text())
+            rot_z = float(self.station_transform_table.item(1, 2).text())
+        except (AttributeError, ValueError):
             return
 
         profiles = self._profiles()
         if not (0 <= self._profile_index < len(profiles)):
             return
         prof = profiles[self._profile_index]
-        pos_values, rot_values = transform_values
 
         def change() -> None:
-            prof["position"] = {"x": pos_values[0], "y": pos_values[1], "z": pos_values[2]}
-            prof["rotation"] = {"x": rot_values[0], "y": rot_values[1], "z": rot_values[2]}
+            prof["position"] = {"x": pos_x, "y": pos_y, "z": pos_z}
+            prof["rotation"] = {"x": rot_x, "y": rot_y, "z": rot_z}
 
-        self._edit_component("Edit profile transform", change)
+        self._edit_component("Edit station local transform", change)
         self._refresh_profile_table_row(self._profile_index)
         self._recalculate_planform_metrics()
 
@@ -1129,7 +1244,7 @@ class LiftingSurfaceEditor(QWidget):
             if value.get("type") == "coordinates":
                 return f"Custom ({len(value.get('points') or [])} pts)"
             if value.get("type") == "file":
-                return f"File: {Path(str(value.get('path') or '')).name}"
+                return f"File: {Path(str(value.get('path') or value.get('file') or '')).name}"
         return "NACA 2412"
 
     @classmethod

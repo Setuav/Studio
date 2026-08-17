@@ -5,10 +5,10 @@ from typing import Any
 from setuav_studio.geometry_data import LoftGeometry, Section
 from setuav_studio.geometry_scene import section_transform, transform_point
 from setuav_studio.plugins.geometry.airfoil import AIRFOIL_SAMPLES, sample_airfoil_points
+from setuav_studio.plugins.geometry.palettes import wing_color
 
 
 AIRFOIL_SAMPLES = 64
-_WING_COLOR = (51 / 255, 127 / 255, 229 / 255)
 
 
 def build_lifting_surface_geometry(
@@ -35,9 +35,9 @@ def build_lifting_surface_geometry(
         LoftGeometry(
             component_id=str(component.get("id") or "lifting-surface"),
             sections=sections,
-            color=_WING_COLOR,
+            color=wing_color(),
             interpolation="linear" if blending.get("ruled") is True else "smooth",
-            subdivisions=6,
+            station_spacing=15.0,
         ),
     )
 

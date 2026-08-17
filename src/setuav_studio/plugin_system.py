@@ -131,6 +131,14 @@ class StudioAPI:
         self.undo_stack = QUndoStack()
         self.undo_stack.cleanChanged.connect(self._on_clean_changed)
 
+    @property
+    def project(self) -> ProjectDocument | None:
+        return self.current_project
+
+    @project.setter
+    def project(self, value: ProjectDocument | None) -> None:
+        self.current_project = value
+
     def set_panel_handler(self, handler: Callable[[PanelContribution], None]) -> None:
         self._add_panel = handler
 

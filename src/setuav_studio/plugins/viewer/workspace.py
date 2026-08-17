@@ -1,11 +1,12 @@
 import logging
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QResizeEvent, QShowEvent
+from PySide6.QtGui import QAction, QActionGroup, QResizeEvent, QShowEvent
 from PySide6.QtWidgets import (
     QButtonGroup,
     QFrame,
     QHBoxLayout,
+    QMenu,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -14,6 +15,11 @@ from PySide6.QtWidgets import (
 from setuav_studio.icons import get_icon
 from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.project import ProjectDocument
+from setuav_studio.plugins.geometry.palettes import (
+    active_palette,
+    palette_names,
+    set_active_palette,
+)
 from setuav_studio.plugins.viewer.widget import OpenGLViewer
 from setuav_studio.plugins.viewer.mesh import (
     FACE_COLORED,
@@ -150,6 +156,20 @@ class ViewerWorkspace(QWidget):
         sep3.setFrameShadow(QFrame.Shadow.Plain)
         hud_layout.addWidget(sep3)
 
+        # Color Palette Selector
+        self.palette_button = QToolButton(self.hud)
+        self.palette_button.setIcon(get_icon("fa6s.brush"))
+        self.palette_button.setToolTip("Color Palette")
+        self.palette_button.setFixedSize(24, 24)
+        self.palette_button.setAutoRaise(True)
+        self.palette_button.setPopupMode(
+            QToolButton.ToolButtonPopupMode.InstantPopup
+        )
+        self._palette_menu = QMenu(self.palette_button)
+        self.palette_button.setMenu(self._palette_menu)
+        self._build_palette_menu()
+        hud_layout.addWidget(self.palette_button)
+
         # Camera Fit Button
         fit_button = QToolButton(self.hud)
         fit_button.setIcon(get_icon("fit"))
@@ -175,6 +195,32 @@ class ViewerWorkspace(QWidget):
 
         self.hud.adjustSize()
         self._reposition_hud()
+
+    def _build_palette_menu(self) -> None:
+        self._palette_menu.clear()
+        group = QActionGroup(self)
+        group.setExclusive(True)
+        for name in palette_names():
+            action = QAction(name, self)
+            action.setCheckable(True)
+            action.setChecked(name == active_palette())
+            action.triggered.connect(
+                lambda _checked=False, palette_name=name: self._on_palette_selected(
+                    palette_name
+                )
+            )
+            group.addAction(action)
+            self._palette_menu.addAction(action)
+
+    def _on_palette_selected(self, name: str) -> None:
+        try:
+            set_active_palette(name)
+        except ValueError:
+            return
+        self._build_palette_menu()
+        project = self._api.current_project
+        if project is not None:
+            self._refresh(project, fit=False)
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)

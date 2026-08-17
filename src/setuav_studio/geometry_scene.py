@@ -87,9 +87,12 @@ def transform_matrix(value: object) -> Matrix4:
     position = position if isinstance(position, dict) else {}
     rotation = transform.get("rotation")
     rotation = rotation if isinstance(rotation, dict) else {}
-    roll = radians(_number(rotation.get("roll")))
-    pitch = radians(_number(rotation.get("pitch")))
-    yaw = radians(_number(rotation.get("yaw")))
+    roll_val = rotation.get("roll") if "roll" in rotation else rotation.get("x")
+    pitch_val = rotation.get("pitch") if "pitch" in rotation else rotation.get("y")
+    yaw_val = rotation.get("yaw") if "yaw" in rotation else rotation.get("z")
+    roll = radians(_number(roll_val))
+    pitch = radians(_number(pitch_val))
+    yaw = radians(_number(yaw_val))
     cr, sr = cos(roll), sin(roll)
     cp, sp = cos(pitch), sin(pitch)
     cy, sy = cos(yaw), sin(yaw)
@@ -166,7 +169,7 @@ def _transform_loft(loft: LoftGeometry, matrix: Matrix4, component_id: str) -> L
         ),
         color=loft.color,
         interpolation=loft.interpolation,
-        subdivisions=loft.subdivisions,
+        station_spacing=loft.station_spacing,
         closed_ends=loft.closed_ends,
     )
 

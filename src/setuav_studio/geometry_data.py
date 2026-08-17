@@ -22,7 +22,7 @@ class LoftGeometry:
     sections: tuple[Section, ...]
     color: ColorRGB = (0.50, 0.77, 0.82)
     interpolation: Literal["linear", "smooth"] = "smooth"
-    subdivisions: int = 6
+    station_spacing: float = 10.0
     closed_ends: bool = True
 
 

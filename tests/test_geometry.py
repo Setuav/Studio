@@ -64,6 +64,29 @@ class GeometryTests(unittest.TestCase):
         self.assertEqual(len(lofts), 1)
         self.assertEqual(len(lofts[0].sections), 3)
 
+    def test_palettes_are_complete_and_switchable(self) -> None:
+        from setuav_studio.plugins.geometry.palettes import (
+            DEFAULT_PALETTE,
+            active_palette,
+            palette_names,
+            segment_colors,
+            set_active_palette,
+            wing_color,
+        )
+
+        self.assertGreaterEqual(len(palette_names()), 5)
+        for name in palette_names():
+            with self.subTest(palette=name):
+                set_active_palette(name)
+                self.assertEqual(active_palette(), name)
+                self.assertEqual(len(segment_colors()), 5)
+                self.assertEqual(len(wing_color()), 3)
+                for color in (*segment_colors(), wing_color()):
+                    self.assertTrue(all(0.0 <= channel <= 1.0 for channel in color))
+        set_active_palette(DEFAULT_PALETTE)
+        with self.assertRaises(ValueError):
+            set_active_palette("nonexistent")
+
     def test_naca_wing_profiles_build_matching_loops(self) -> None:
         component = {
             "id": "wing-left",
@@ -111,7 +134,7 @@ class GeometryTests(unittest.TestCase):
                         Section(((0, -1, 0), (0, -2, 0), (0, -1, 1))),
                         Section(((1, -1, 0), (1, -2, 0), (1, -1, 1))),
                     ),
-                    subdivisions=0,
+                    station_spacing=0.0,
                 ),
             )
 
@@ -130,7 +153,7 @@ class GeometryTests(unittest.TestCase):
                         Section(((0, 0, 0), (0, 1, 0), (0, 0, 1))),
                         Section(((1, 0, 0), (1, 1, 0), (1, 0, 1))),
                     ),
-                    subdivisions=0,
+                    station_spacing=0.0,
                 ),
             )
         )
@@ -157,6 +180,12 @@ class GeometryTests(unittest.TestCase):
         self.assertIn("1080.0 mm", editor._property_text(editor.metrics_table, 1))
         self.assertIn("5.33", editor._property_text(editor.metrics_table, 2))
 
+        # Check Parent combo selection
+        parent_combo = editor.general_table.cellWidget(2, 1)
+        self.assertIsNotNone(parent_combo)
+        self.assertEqual(parent_combo.currentData(), "fuselage")
+        self.assertGreaterEqual(parent_combo.count(), 2)
+
         # Add control surface
         editor.add_cs_button.click()
         self.assertEqual(editor.control_surfaces_table.rowCount(), 1)
@@ -166,8 +195,17 @@ class GeometryTests(unittest.TestCase):
         editor.profiles_table.selectRow(1)
         self.assertEqual(api.current_section_selection, ("wing-right", 0, 1))
 
-        # Edit transform in transform_table
-        editor.transform_table.item(0, 2).setText("25.00")
+        # Check Attachment (Component Transform)
+        self.assertEqual(editor.attachment_table.item(0, 0).text(), "305.00")
+        self.assertEqual(editor.attachment_table.item(0, 1).text(), "70.00")
+        self.assertEqual(editor.attachment_table.item(0, 2).text(), "40.00")
+
+        # Edit Attachment Transform
+        editor.attachment_table.item(0, 0).setText("320.00")
+        self.assertEqual(wing_comp["transform"]["position"]["x"], 320.0)
+
+        # Edit station local transform in station_transform_table
+        editor.station_transform_table.item(0, 2).setText("25.00")
         self.assertEqual(wing_comp["parameters"]["geometry"]["profiles"][1]["position"]["z"], 25.0)
 
         # Edit property in profile_properties_table

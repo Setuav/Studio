@@ -3,16 +3,10 @@ from typing import Any
 
 from setuav_studio.geometry_data import LoftGeometry, Section
 from setuav_studio.geometry_scene import section_transform, transform_point
+from setuav_studio.plugins.geometry.palettes import segment_colors
 
 
 SECTION_SAMPLES = 128
-_COLORS = (
-    (100 / 255, 150 / 255, 200 / 255),
-    (150 / 255, 200 / 255, 100 / 255),
-    (200 / 255, 150 / 255, 100 / 255),
-    (150 / 255, 100 / 255, 200 / 255),
-    (200 / 255, 100 / 255, 150 / 255),
-)
 
 
 def build_fuselage_geometry(component: dict[str, Any]) -> tuple[LoftGeometry, ...]:
@@ -25,6 +19,7 @@ def build_fuselage_geometry(component: dict[str, Any]) -> tuple[LoftGeometry, ..
         return ()
 
     component_id = str(component.get("id") or "fuselage")
+    colors = segment_colors()
     lofts: list[LoftGeometry] = []
     for index, segment in enumerate(segments):
         if not isinstance(segment, dict):
@@ -45,9 +40,9 @@ def build_fuselage_geometry(component: dict[str, Any]) -> tuple[LoftGeometry, ..
             LoftGeometry(
                 component_id=component_id,
                 sections=sections,
-                color=_COLORS[index % len(_COLORS)],
+                color=colors[index % len(colors)],
                 interpolation="linear" if loft.get("method") == "ruled" else "smooth",
-                subdivisions=8,
+                station_spacing=10.0,
             )
         )
     return tuple(lofts)

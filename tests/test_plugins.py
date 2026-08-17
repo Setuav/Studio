@@ -129,7 +129,7 @@ class PluginTests(unittest.TestCase):
                         Section(((0.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))),
                         Section(((1.0, 0.0, 0.0), (1.0, 1.0, 0.0), (1.0, 0.0, 1.0))),
                     ),
-                    subdivisions=0,
+                    station_spacing=0.0,
                 ),
             )
         )
