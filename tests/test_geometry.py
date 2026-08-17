@@ -2,6 +2,7 @@ import math
 import unittest
 from pathlib import Path
 
+from PySide6.QtCore import Qt
 from setuav_studio.geometry_data import GeometryData, LoftGeometry, Section
 from setuav_studio.geometry_scene import build_project_geometry
 from setuav_studio.plugins.geometry.fuselage_geometry import (
@@ -177,14 +178,36 @@ class GeometryTests(unittest.TestCase):
         editor = LiftingSurfaceEditor(api, wing_comp)
 
         self.assertEqual(editor.profiles_table.rowCount(), 3)
-        self.assertIn("1080.0 mm", editor._property_text(editor.metrics_table, 1))
-        self.assertIn("5.33", editor._property_text(editor.metrics_table, 2))
+        self.assertIn("1080.0", editor._property_text(editor.planform_table, 1))
+        self.assertIn("5.33", editor._property_text(editor.planform_table, 2))
 
         # Check Parent combo selection
         parent_combo = editor.general_table.cellWidget(2, 1)
         self.assertIsNotNone(parent_combo)
         self.assertEqual(parent_combo.currentData(), "fuselage")
         self.assertGreaterEqual(parent_combo.count(), 2)
+
+        # Test Driver Groups mode switch and parametric resizing
+        editor.driver_mode_combo.setCurrentIndex(1)  # Span, Root & Tip
+        self.assertEqual(editor._driver_mode, "span_root_tip")
+        editor.planform_table.item(1, 1).setText("1200.0")  # Change span to 1200
+        # Profiles should scale to 600.0 mm semi-span
+        self.assertAlmostEqual(
+            float(wing_comp["parameters"]["geometry"]["profiles"][-1]["position"]["y"]),
+            600.0,
+            places=1,
+        )
+
+        # Check locking behavior in driver mode
+        # Column 2 (Span Y) should NOT have ItemIsEditable in driver mode
+        self.assertFalse(bool(editor.profiles_table.item(0, 2).flags() & Qt.ItemFlag.ItemIsEditable))
+        self.assertFalse(bool(editor.profiles_table.item(0, 3).flags() & Qt.ItemFlag.ItemIsEditable))
+
+        # Switch to manual mode: all columns become editable
+        editor.driver_mode_combo.setCurrentIndex(4)  # Manual
+        self.assertEqual(editor._driver_mode, "manual")
+        self.assertTrue(bool(editor.profiles_table.item(0, 2).flags() & Qt.ItemFlag.ItemIsEditable))
+        self.assertTrue(bool(editor.profiles_table.item(0, 3).flags() & Qt.ItemFlag.ItemIsEditable))
 
         # Add control surface
         editor.add_cs_button.click()
@@ -221,6 +244,41 @@ class GeometryTests(unittest.TestCase):
         # Delete profile
         editor.delete_profile_button.click()
         self.assertEqual(editor.profiles_table.rowCount(), 3)
+
+    def test_wing_planform_engine_modes(self) -> None:
+        from setuav_studio.plugins.geometry.wing_planform_engine import solve_wing_planform
+
+        profiles = [
+            {"position": {"x": 0, "y": 0, "z": 0}, "chord": 240.0},
+            {"position": {"x": 20, "y": 240, "z": 0}, "chord": 180.0},
+            {"position": {"x": 50, "y": 540, "z": 0}, "chord": 120.0},
+        ]
+
+        # Mode: area_ar_taper with sweep
+        new_p, m = solve_wing_planform(
+            "area_ar_taper",
+            {"area": 200000.0, "aspect_ratio": 8.0, "taper_ratio": 0.5, "sweep": 10.0},
+            profiles,
+            sweep_loc=0.25,
+        )
+        self.assertAlmostEqual(m["span"], math.sqrt(200000.0 * 8.0), places=1)
+        self.assertAlmostEqual(new_p[-1]["position"]["y"], m["span"] / 2.0, places=1)
+        self.assertEqual(m["sweep"], 10.0)
+
+        # Mode: span_root_tip with 0 sweep at c/4
+        new_p2, m2 = solve_wing_planform(
+            "span_root_tip",
+            {"span": 1400.0, "root_chord": 300.0, "tip_chord": 150.0, "sweep": 0.0},
+            profiles,
+            sweep_loc=0.25,
+        )
+        self.assertEqual(m2["span"], 1400.0)
+        self.assertEqual(m2["area"], 1400.0 * (300.0 + 150.0) / 2.0)
+        self.assertAlmostEqual(new_p2[-1]["position"]["y"], 700.0, places=1)
+        self.assertAlmostEqual(new_p2[0]["chord"], 300.0, places=1)
+        self.assertAlmostEqual(new_p2[-1]["chord"], 150.0, places=1)
+        # Tip X offset with 0 deg sweep at c/4 = -0.25 * (150 - 300) = 37.5
+        self.assertAlmostEqual(new_p2[-1]["position"]["x"], 37.5, places=1)
 
     def test_airfoil_generators_and_dat_parser(self) -> None:
         from setuav_studio.plugins.geometry.airfoil import (

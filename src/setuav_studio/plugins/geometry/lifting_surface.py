@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QCloseEvent, QHideEvent
+from PySide6.QtGui import QBrush, QCloseEvent, QColor, QFont, QHideEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -31,6 +31,13 @@ from setuav_studio.icons import get_icon
 from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.plugins.geometry.airfoil import PRESET_AIRFOILS
 from setuav_studio.plugins.geometry.airfoil_dialog import AirfoilDialog
+from setuav_studio.plugins.geometry.wing_planform_engine import (
+    DRIVER_MODES,
+    SWEEP_LOCATIONS,
+    compute_planform_metrics,
+    get_driver_inputs_for_mode,
+    solve_wing_planform,
+)
 
 
 class LiftingSurfaceEditor(QWidget):
@@ -55,6 +62,8 @@ class LiftingSurfaceEditor(QWidget):
         self._component = component
         self._profile_index = -1
         self._control_surface_index = -1
+        self._driver_mode = "area_ar_taper"
+        self._sweep_loc = 0.25
         self._loading = False
 
         layout = QVBoxLayout(self)
@@ -73,7 +82,7 @@ class LiftingSurfaceEditor(QWidget):
 
         self._create_general_section()
         self._create_attachment_section()
-        self._create_planform_metrics_section()
+        self._create_planform_drivers_section()
         self._create_profiles_section()
         self._create_profile_properties_section()
         self._create_control_surfaces_section()
@@ -136,22 +145,48 @@ class LiftingSurfaceEditor(QWidget):
         self.attachment_table.cellChanged.connect(self._update_attachment_transform)
         layout.addWidget(self.attachment_table)
 
-    def _create_planform_metrics_section(self) -> None:
-        layout = self._create_section("Planform & Aerodynamics", "fa6s.chart-area")
-        self.metrics_table = self._property_table([
-            ("wing_area", "Planform Area (S)"),
-            ("wingspan", "Total Span (b)"),
+    def _create_planform_drivers_section(self) -> None:
+        """Parametric Sizing and Driver Groups section."""
+        layout = self._create_section("Planform Sizing & Driver Group", "fa6s.arrows-left-right-to-line")
+
+        # Driver Mode Selector
+        mode_layout = QHBoxLayout()
+        mode_layout.addWidget(QLabel("Driver Mode:"))
+        self.driver_mode_combo = QComboBox()
+        self.driver_mode_combo.setFont(QApplication.font())
+        self.driver_mode_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        for mode_val, mode_label in DRIVER_MODES:
+            self.driver_mode_combo.addItem(mode_label, mode_val)
+        self.driver_mode_combo.currentIndexChanged.connect(self._on_driver_mode_changed)
+        mode_layout.addWidget(self.driver_mode_combo)
+        layout.addLayout(mode_layout)
+
+        # Sweep Reference Location Selector
+        sweep_loc_layout = QHBoxLayout()
+        sweep_loc_layout.addWidget(QLabel("Sweep Reference:"))
+        self.sweep_loc_combo = QComboBox()
+        self.sweep_loc_combo.setFont(QApplication.font())
+        self.sweep_loc_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        for loc_val, loc_label in SWEEP_LOCATIONS:
+            self.sweep_loc_combo.addItem(loc_label, loc_val)
+        self.sweep_loc_combo.setCurrentIndex(1)  # Default: Quarter chord (25%)
+        self.sweep_loc_combo.currentIndexChanged.connect(self._on_sweep_loc_changed)
+        sweep_loc_layout.addWidget(self.sweep_loc_combo)
+        layout.addLayout(sweep_loc_layout)
+
+        # Planform Parameters Table
+        self.planform_table = self._property_table([
+            ("area", "Planform Area (S)"),
+            ("span", "Total Wingspan (b)"),
             ("aspect_ratio", "Aspect Ratio (AR)"),
-            ("mac", "Mean Aerodyn Chord (MAC)"),
             ("taper_ratio", "Taper Ratio (λ)"),
             ("root_chord", "Root Chord (c_root)"),
             ("tip_chord", "Tip Chord (c_tip)"),
+            ("sweep", "Sweep Angle (Λ)"),
+            ("mac", "Mean Aerodyn Chord (MAC)"),
         ])
-        for r in range(self.metrics_table.rowCount()):
-            item = self.metrics_table.item(r, 1)
-            if item:
-                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-        layout.addWidget(self.metrics_table)
+        self.planform_table.cellChanged.connect(self._on_planform_parameter_edited)
+        layout.addWidget(self.planform_table)
 
     def _create_profiles_section(self) -> None:
         layout = self._create_section("Wing Profiles (Sections)", "mdi6.vector-polygon")
@@ -382,15 +417,14 @@ class LiftingSurfaceEditor(QWidget):
         # Parent Selection Combo
         current_parent = str(self._component.get("parent") or "")
         parent_options = [("", "(None)")]
-        if hasattr(self._api, "project") and self._api.project:
-            comp_list = self._api.project.data.get("components")
-            if isinstance(comp_list, list):
-                for comp in comp_list:
-                    if isinstance(comp, dict):
-                        cid = str(comp.get("id") or "")
-                        if cid and cid != self._component.get("id"):
-                            cname = str(comp.get("name") or cid)
-                            parent_options.append((cid, f"{cname} ({cid})"))
+        project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
+        if project and isinstance(project.data.get("components"), list):
+            for comp in project.data["components"]:
+                if isinstance(comp, dict):
+                    cid = str(comp.get("id") or "")
+                    if cid and cid != self._component.get("id"):
+                        cname = str(comp.get("name") or cid)
+                        parent_options.append((cid, f"{cname} ({cid})"))
         self._set_property_combo(
             self.general_table,
             "parent",
@@ -406,6 +440,10 @@ class LiftingSurfaceEditor(QWidget):
 
         # Profiles
         self._populate_profiles()
+
+        # Planform Sizing & Driver Group Initial Setup
+        self._sync_driver_mode_from_project()
+        self._refresh_planform_table()
 
         # Control Surfaces
         self._populate_control_surfaces()
@@ -430,9 +468,6 @@ class LiftingSurfaceEditor(QWidget):
             lambda val: self._update_blending_value("continuity", val),
         )
         self._set_property_value(self.blending_table, "max_degree", blending.get("max_degree") or 3)
-
-        # Planform Metrics
-        self._recalculate_planform_metrics()
 
         self._loading = False
 
@@ -510,62 +545,263 @@ class LiftingSurfaceEditor(QWidget):
         self._edit_component("Change component parent", change)
 
     # -------------------------------------------------------------------------
+    # Planform Sizing & Driver Group Logic
+    # -------------------------------------------------------------------------
+
+    def _sync_driver_mode_from_project(self) -> None:
+        project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
+        if project and isinstance(project.data.get("driver_groups"), list):
+            for dg in project.data["driver_groups"]:
+                if isinstance(dg, dict) and dg.get("id") in ("wing-drivers", f"{self._component.get('id')}-drivers"):
+                    self._driver_mode = "area_ar_taper"
+                    break
+        idx = self.driver_mode_combo.findData(self._driver_mode)
+        if idx >= 0:
+            self.driver_mode_combo.setCurrentIndex(idx)
+
+    def _on_driver_mode_changed(self, index: int) -> None:
+        if self._loading:
+            return
+        self._driver_mode = str(self.driver_mode_combo.itemData(index) or "manual")
+        self._refresh_planform_table()
+
+    def _on_sweep_loc_changed(self, index: int) -> None:
+        if self._loading:
+            return
+        self._sweep_loc = float(self.sweep_loc_combo.itemData(index) or 0.25)
+        self._refresh_planform_table()
+
+    def _refresh_planform_table(self) -> None:
+        profiles = self._profiles()
+        metrics = compute_planform_metrics(profiles, self._sweep_loc)
+        active_driver_keys = [k for k, _l, _u in get_driver_inputs_for_mode(self._driver_mode)]
+
+        was_loading = self._loading
+        self._loading = True
+        try:
+            s_total = metrics["area"]
+            s_m2 = s_total / 1e6
+            s_dm2 = s_total / 1e4
+            is_area_driver = "area" in active_driver_keys
+            area_str = f"{s_total:.1f}" if is_area_driver else f"{s_m2:.4f} m² ({s_dm2:.2f} dm²)"
+            self._set_planform_cell("area", area_str, editable=is_area_driver)
+
+            is_span_driver = "span" in active_driver_keys
+            span_str = f"{metrics['span']:.1f}" if is_span_driver else f"{metrics['span']:.1f} mm"
+            self._set_planform_cell("span", span_str, editable=is_span_driver)
+
+            is_ar_driver = "aspect_ratio" in active_driver_keys
+            self._set_planform_cell("aspect_ratio", f"{metrics['aspect_ratio']:.2f}", editable=is_ar_driver)
+
+            is_taper_driver = "taper_ratio" in active_driver_keys
+            self._set_planform_cell("taper_ratio", f"{metrics['taper_ratio']:.3f}", editable=is_taper_driver)
+
+            is_rc_driver = "root_chord" in active_driver_keys
+            rc_str = f"{metrics['root_chord']:.1f}" if is_rc_driver else f"{metrics['root_chord']:.1f} mm"
+            self._set_planform_cell("root_chord", rc_str, editable=is_rc_driver)
+
+            is_tc_driver = "tip_chord" in active_driver_keys
+            tc_str = f"{metrics['tip_chord']:.1f}" if is_tc_driver else f"{metrics['tip_chord']:.1f} mm"
+            self._set_planform_cell("tip_chord", tc_str, editable=is_tc_driver)
+
+            is_sweep_driver = "sweep" in active_driver_keys
+            sweep_str = f"{metrics['sweep']:.1f}" if is_sweep_driver else f"{metrics['sweep']:.1f}°"
+            self._set_planform_cell("sweep", sweep_str, editable=is_sweep_driver)
+
+            self._set_planform_cell("mac", f"{metrics['mac']:.1f} mm", editable=False)
+
+            self._update_profiles_table_interactivity()
+        finally:
+            self._loading = was_loading
+
+    def _set_planform_cell(self, key: str, value: str, *, editable: bool) -> None:
+        """Set property value with distinct visual styling for active drivers vs computed values."""
+        for row in range(self.planform_table.rowCount()):
+            if self._property_key(self.planform_table, row) != key:
+                continue
+            item = self.planform_table.item(row, 1)
+            if item is None:
+                item = QTableWidgetItem()
+                self.planform_table.setItem(row, 1, item)
+            item.setText(value)
+            label_item = self.planform_table.item(row, 0)
+            if editable:
+                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
+                item.setForeground(QBrush(QColor("#ffffff")))
+                if label_item:
+                    label_item.setForeground(QBrush(QColor("#ffffff")))
+            else:
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                item.setForeground(QBrush(QColor("#777777")))
+                if label_item:
+                    label_item.setForeground(QBrush(QColor("#999999")))
+            return
+
+    def _on_planform_parameter_edited(self, row: int, column: int) -> None:
+        if self._loading or column != 1:
+            return
+        key = self._property_key(self.planform_table, row)
+        val_str = self._property_text(self.planform_table, row)
+        val_num = self._parse_number(val_str)
+        if val_num is None:
+            return
+        if key != "sweep" and val_num <= 0:
+            return
+
+        profiles = self._profiles()
+        current_metrics = compute_planform_metrics(profiles, self._sweep_loc)
+        inputs: dict[str, float] = {
+            "area": current_metrics["area"],
+            "span": current_metrics["span"],
+            "aspect_ratio": current_metrics["aspect_ratio"],
+            "taper_ratio": current_metrics["taper_ratio"],
+            "root_chord": current_metrics["root_chord"],
+            "tip_chord": current_metrics["tip_chord"],
+            "sweep": current_metrics["sweep"],
+        }
+        inputs[key] = val_num
+
+        new_profiles, calculated_metrics = solve_wing_planform(
+            self._driver_mode, inputs, profiles, self._sweep_loc
+        )
+
+        def change() -> None:
+            profiles.clear()
+            profiles.extend(deepcopy(new_profiles))
+            self._sync_project_parameters(inputs, key)
+
+        self._edit_component(f"Parametric wing resize ({key})", change)
+
+        self._populate_profiles()
+        self._refresh_planform_table()
+        if 0 <= self._profile_index < len(profiles):
+            self._load_profile(self._profile_index)
+
+    def _sync_project_parameters(self, inputs: dict[str, float], edited_key: str) -> None:
+        """Sync updated macro parameters to project.data['parameters'] if present."""
+        project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
+        if not project or not isinstance(project.data.get("parameters"), dict):
+            return
+        params = project.data["parameters"]
+        if "wing_area" in params and isinstance(params["wing_area"], dict):
+            params["wing_area"]["value"] = inputs.get("area", 218700.0)
+        if "wing_aspect_ratio" in params and isinstance(params["wing_aspect_ratio"], dict):
+            params["wing_aspect_ratio"]["value"] = inputs.get("aspect_ratio", 5.33)
+
+    def _update_profiles_table_interactivity(self) -> None:
+        """Lock or unlock profiles table columns depending on driver mode."""
+        is_manual = self._driver_mode == "manual"
+        # Columns: 0=#, 1=Airfoil, 2=Span Y, 3=Chord, 4=Offset X, 5=Height Z, 6=Twist X
+        for r in range(self.profiles_table.rowCount()):
+            for c in range(self.profiles_table.columnCount()):
+                item = self.profiles_table.item(r, c)
+                if not item or c == 0:
+                    continue
+                if c in (2, 3, 4):  # Span Y, Chord, Offset X are macro-driven
+                    if is_manual:
+                        item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
+                        item.setForeground(QBrush(QColor("#ffffff")))
+                    else:
+                        item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                        item.setForeground(QBrush(QColor("#777777")))
+                else:  # Airfoil, Height Z, Twist X are always editable
+                    item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
+                    item.setForeground(QBrush(QColor("#ffffff")))
+
+        # In section properties: Chord is locked when driver is active
+        chord_item = self.profile_properties_table.item(1, 1)
+        chord_label = self.profile_properties_table.item(1, 0)
+        if chord_item:
+            if is_manual:
+                chord_item.setFlags(chord_item.flags() | Qt.ItemFlag.ItemIsEditable)
+                chord_item.setForeground(QBrush(QColor("#ffffff")))
+                if chord_label:
+                    chord_label.setForeground(QBrush(QColor("#ffffff")))
+            else:
+                chord_item.setFlags(chord_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                chord_item.setForeground(QBrush(QColor("#777777")))
+                if chord_label:
+                    chord_label.setForeground(QBrush(QColor("#999999")))
+
+        # In station transform table: Offset X and Y are locked when driver is active
+        for col in (0, 1):
+            item = self.station_transform_table.item(0, col)
+            if item:
+                if is_manual:
+                    item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
+                    item.setForeground(QBrush(QColor("#ffffff")))
+                else:
+                    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                    item.setForeground(QBrush(QColor("#777777")))
+
+    # -------------------------------------------------------------------------
     # Profiles Handling
     # -------------------------------------------------------------------------
 
     def _populate_profiles(self) -> None:
-        profiles = self._profiles()
-        self.profiles_table.setRowCount(len(profiles))
-        for row, profile in enumerate(profiles):
-            pos = profile.get("position") if isinstance(profile.get("position"), dict) else {}
-            rot = profile.get("rotation") if isinstance(profile.get("rotation"), dict) else {}
-            airfoil = self._format_airfoil_label(profile.get("airfoil"))
+        was_loading = self._loading
+        self._loading = True
+        try:
+            profiles = self._profiles()
+            self.profiles_table.setRowCount(len(profiles))
+            for row, profile in enumerate(profiles):
+                pos = profile.get("position") if isinstance(profile.get("position"), dict) else {}
+                rot = profile.get("rotation") if isinstance(profile.get("rotation"), dict) else {}
+                airfoil = self._format_airfoil_label(profile.get("airfoil"))
 
-            values = (
-                str(row + 1),
-                airfoil,
-                f"{float(pos.get('y', 0.0)):.1f}",
-                f"{float(profile.get('chord', 0.0)):.1f}",
-                f"{float(pos.get('x', 0.0)):.1f}",
-                f"{float(pos.get('z', 0.0)):.1f}",
-                f"{float(rot.get('x', 0.0)):.1f}",
-            )
-            for column, value in enumerate(values):
-                item = QTableWidgetItem(value)
-                if column == 0:
-                    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                    item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                elif column == 1:
-                    item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                else:
-                    item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-                self.profiles_table.setItem(row, column, item)
+                values = (
+                    str(row + 1),
+                    airfoil,
+                    f"{float(pos.get('y', 0.0)):.1f}",
+                    f"{float(profile.get('chord', 0.0)):.1f}",
+                    f"{float(pos.get('x', 0.0)):.1f}",
+                    f"{float(pos.get('z', 0.0)):.1f}",
+                    f"{float(rot.get('x', 0.0)):.1f}",
+                )
+                for column, value in enumerate(values):
+                    item = QTableWidgetItem(value)
+                    if column == 0:
+                        item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                        item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                    elif column == 1:
+                        item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                    else:
+                        item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                    self.profiles_table.setItem(row, column, item)
 
-        self._fit_table_height(self.profiles_table, len(profiles), maximum_visible_rows=8)
-        self._update_profile_actions()
+            self._fit_table_height(self.profiles_table, len(profiles), maximum_visible_rows=8)
+            self._update_profile_actions()
+            self._update_profiles_table_interactivity()
+        finally:
+            self._loading = was_loading
 
     def _populate_control_surfaces(self) -> None:
-        cs_list = self._control_surfaces()
-        self.control_surfaces_table.setRowCount(len(cs_list))
-        for row, cs in enumerate(cs_list):
-            values = (
-                str(cs.get("tag") or f"CS_{row + 1}"),
-                str(cs.get("type") or "aileron").capitalize(),
-                f"{float(cs.get('span_start', 0.0)):.1f}",
-                f"{float(cs.get('span_end', 0.0)):.1f}",
-                f"{float(cs.get('chord', 0.0)):.1f}",
-            )
-            for column, value in enumerate(values):
-                item = QTableWidgetItem(value)
-                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                if column in (0, 1):
-                    item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                else:
-                    item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-                self.control_surfaces_table.setItem(row, column, item)
+        was_loading = self._loading
+        self._loading = True
+        try:
+            cs_list = self._control_surfaces()
+            self.control_surfaces_table.setRowCount(len(cs_list))
+            for row, cs in enumerate(cs_list):
+                values = (
+                    str(cs.get("tag") or f"CS_{row + 1}"),
+                    str(cs.get("type") or "aileron").capitalize(),
+                    f"{float(cs.get('span_start', 0.0)):.1f}",
+                    f"{float(cs.get('span_end', 0.0)):.1f}",
+                    f"{float(cs.get('chord', 0.0)):.1f}",
+                )
+                for column, value in enumerate(values):
+                    item = QTableWidgetItem(value)
+                    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                    if column in (0, 1):
+                        item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                    else:
+                        item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                    self.control_surfaces_table.setItem(row, column, item)
 
-        self._fit_table_height(self.control_surfaces_table, len(cs_list), maximum_visible_rows=5)
-        self._update_cs_actions()
+            self._fit_table_height(self.control_surfaces_table, len(cs_list), maximum_visible_rows=5)
+            self._update_cs_actions()
+        finally:
+            self._loading = was_loading
 
     def _load_profile(self, row: int) -> None:
         profiles = self._profiles()
@@ -582,26 +818,29 @@ class LiftingSurfaceEditor(QWidget):
         pos = profile.get("position") if isinstance(profile.get("position"), dict) else {}
         rot = profile.get("rotation") if isinstance(profile.get("rotation"), dict) else {}
 
+        was_loading = self._loading
         self._loading = True
+        try:
+            pos_tuple = (
+                float(pos.get("x", 0.0)),
+                float(pos.get("y", 0.0)),
+                float(pos.get("z", 0.0)),
+            )
+            rot_tuple = (
+                float(rot.get("x", 0.0)),
+                float(rot.get("y", 0.0)),
+                float(rot.get("z", 0.0)),
+            )
+            self._set_station_transform_values(pos_tuple, rot_tuple)
 
-        pos_tuple = (
-            float(pos.get("x", 0.0)),
-            float(pos.get("y", 0.0)),
-            float(pos.get("z", 0.0)),
-        )
-        rot_tuple = (
-            float(rot.get("x", 0.0)),
-            float(rot.get("y", 0.0)),
-            float(rot.get("z", 0.0)),
-        )
-        self._set_station_transform_values(pos_tuple, rot_tuple)
+            airfoil_val = self._format_airfoil_label(profile.get("airfoil"))
+            self._set_property_value(self.profile_properties_table, "airfoil", airfoil_val)
+            self._set_property_value(self.profile_properties_table, "chord", float(profile.get("chord", 200.0)))
+            self._update_profile_actions()
+            self._update_profiles_table_interactivity()
+        finally:
+            self._loading = was_loading
 
-        airfoil_val = self._format_airfoil_label(profile.get("airfoil"))
-        self._set_property_value(self.profile_properties_table, "airfoil", airfoil_val)
-        self._set_property_value(self.profile_properties_table, "chord", float(profile.get("chord", 200.0)))
-
-        self._loading = False
-        self._update_profile_actions()
         self._publish_section_selection()
 
     def _publish_section_selection(self) -> None:
@@ -646,7 +885,7 @@ class LiftingSurfaceEditor(QWidget):
 
         self._edit_component("Edit station local transform", change)
         self._refresh_profile_table_row(self._profile_index)
-        self._recalculate_planform_metrics()
+        self._refresh_planform_table()
 
     def _open_airfoil_dialog(self) -> None:
         if self._profile_index < 0:
@@ -669,9 +908,7 @@ class LiftingSurfaceEditor(QWidget):
                     profiles[self._profile_index]["airfoil"] = deepcopy(new_af)
                 self._edit_component("Change station airfoil", change)
 
-            self._loading = True
             self._populate_profiles()
-            self._loading = False
             self.profiles_table.selectRow(self._profile_index)
             self._load_profile(self._profile_index)
 
@@ -686,69 +923,23 @@ class LiftingSurfaceEditor(QWidget):
         self._control_surface_index = row
         cs = cs_list[row]
 
+        was_loading = self._loading
         self._loading = True
-        self._set_property_value(self.cs_properties_table, "tag", str(cs.get("tag") or ""))
-        self._set_property_combo(
-            self.cs_properties_table,
-            "type",
-            str(cs.get("type") or "aileron"),
-            self.CONTROL_SURFACE_TYPES,
-            lambda val: self._update_cs_choice("type", val),
-        )
-        self._set_property_value(self.cs_properties_table, "span_start", float(cs.get("span_start", 0.0)))
-        self._set_property_value(self.cs_properties_table, "span_end", float(cs.get("span_end", 0.0)))
-        self._set_property_value(self.cs_properties_table, "chord", float(cs.get("chord", 0.0)))
-        self._loading = False
-
-        self._update_cs_actions()
-
-    # -------------------------------------------------------------------------
-    # Planform Aerodynamics Live Calculation
-    # -------------------------------------------------------------------------
-
-    def _recalculate_planform_metrics(self) -> None:
-        profiles = self._profiles()
-        if len(profiles) < 2:
-            for key in ["wing_area", "wingspan", "aspect_ratio", "mac", "taper_ratio", "root_chord", "tip_chord"]:
-                self._set_property_value(self.metrics_table, key, "-", editable=False)
-            return
-
-        s_semi = 0.0
-        mac_num = 0.0
-        for i in range(len(profiles) - 1):
-            p0, p1 = profiles[i], profiles[i + 1]
-            pos0 = p0.get("position", {}) if isinstance(p0.get("position"), dict) else {}
-            pos1 = p1.get("position", {}) if isinstance(p1.get("position"), dict) else {}
-            dy = abs(float(pos1.get("y", 0.0)) - float(pos0.get("y", 0.0)))
-            c0 = max(float(p0.get("chord", 0.0)), 0.0)
-            c1 = max(float(p1.get("chord", 0.0)), 0.0)
-            s_i = 0.5 * (c0 + c1) * dy
-            c_mac_i = (2.0 / 3.0) * (c0 + c1 - (c0 * c1) / max(c0 + c1, 1e-6))
-            s_semi += s_i
-            mac_num += s_i * c_mac_i
-
-        b_semi = max(
-            abs(float(p.get("position", {}).get("y", 0.0)))
-            if isinstance(p.get("position"), dict) else 0.0
-            for p in profiles
-        )
-        b_total = 2.0 * b_semi
-        s_total = 2.0 * s_semi
-        ar = (b_total**2) / max(s_total, 1e-6) if s_total > 0 else 0.0
-        mac = mac_num / max(s_semi, 1e-6) if s_semi > 0 else 0.0
-        c_root = float(profiles[0].get("chord", 0.0))
-        c_tip = float(profiles[-1].get("chord", 0.0))
-        taper = c_tip / max(c_root, 1e-6)
-
-        s_m2 = s_total / 1e6
-        s_dm2 = s_total / 1e4
-        self._set_property_value(self.metrics_table, "wing_area", f"{s_m2:.4f} m² ({s_dm2:.2f} dm²)", editable=False)
-        self._set_property_value(self.metrics_table, "wingspan", f"{b_total:.1f} mm", editable=False)
-        self._set_property_value(self.metrics_table, "aspect_ratio", f"{ar:.2f}", editable=False)
-        self._set_property_value(self.metrics_table, "mac", f"{mac:.1f} mm", editable=False)
-        self._set_property_value(self.metrics_table, "taper_ratio", f"{taper:.3f}", editable=False)
-        self._set_property_value(self.metrics_table, "root_chord", f"{c_root:.1f} mm", editable=False)
-        self._set_property_value(self.metrics_table, "tip_chord", f"{c_tip:.1f} mm", editable=False)
+        try:
+            self._set_property_value(self.cs_properties_table, "tag", str(cs.get("tag") or ""))
+            self._set_property_combo(
+                self.cs_properties_table,
+                "type",
+                str(cs.get("type") or "aileron"),
+                self.CONTROL_SURFACE_TYPES,
+                lambda val: self._update_cs_choice("type", val),
+            )
+            self._set_property_value(self.cs_properties_table, "span_start", float(cs.get("span_start", 0.0)))
+            self._set_property_value(self.cs_properties_table, "span_end", float(cs.get("span_end", 0.0)))
+            self._set_property_value(self.cs_properties_table, "chord", float(cs.get("chord", 0.0)))
+            self._update_cs_actions()
+        finally:
+            self._loading = was_loading
 
     # -------------------------------------------------------------------------
     # Profile Station Actions & Inline Edits
@@ -791,7 +982,7 @@ class LiftingSurfaceEditor(QWidget):
         self._edit_component("Edit wing profile station", change)
         if row == self._profile_index:
             self._load_profile(row)
-        self._recalculate_planform_metrics()
+        self._refresh_planform_table()
 
     def _add_profile(self) -> None:
         profiles = self._profiles()
@@ -822,12 +1013,10 @@ class LiftingSurfaceEditor(QWidget):
             profiles.insert(insert_at, new_profile)
 
         self._edit_component("Add wing profile", change)
-        self._loading = True
         self._populate_profiles()
-        self._loading = False
         self.profiles_table.selectRow(insert_at)
         self._load_profile(insert_at)
-        self._recalculate_planform_metrics()
+        self._refresh_planform_table()
 
     def _duplicate_profile(self) -> None:
         idx = self._profile_index
@@ -844,12 +1033,10 @@ class LiftingSurfaceEditor(QWidget):
             profiles.insert(insert_at, target)
 
         self._edit_component("Duplicate wing profile", change)
-        self._loading = True
         self._populate_profiles()
-        self._loading = False
         self.profiles_table.selectRow(insert_at)
         self._load_profile(insert_at)
-        self._recalculate_planform_metrics()
+        self._refresh_planform_table()
 
     def _move_profile_up(self) -> None:
         idx = self._profile_index
@@ -862,12 +1049,10 @@ class LiftingSurfaceEditor(QWidget):
             profiles.insert(target, profiles.pop(idx))
 
         self._edit_component("Move wing profile up", change)
-        self._loading = True
         self._populate_profiles()
-        self._loading = False
         self.profiles_table.selectRow(target)
         self._load_profile(target)
-        self._recalculate_planform_metrics()
+        self._refresh_planform_table()
 
     def _move_profile_down(self) -> None:
         idx = self._profile_index
@@ -880,12 +1065,10 @@ class LiftingSurfaceEditor(QWidget):
             profiles.insert(target, profiles.pop(idx))
 
         self._edit_component("Move wing profile down", change)
-        self._loading = True
         self._populate_profiles()
-        self._loading = False
         self.profiles_table.selectRow(target)
         self._load_profile(target)
-        self._recalculate_planform_metrics()
+        self._refresh_planform_table()
 
     def _delete_profile(self) -> None:
         idx = self._profile_index
@@ -897,13 +1080,11 @@ class LiftingSurfaceEditor(QWidget):
             profiles.pop(idx)
 
         self._edit_component("Delete wing profile", change)
-        self._loading = True
         self._populate_profiles()
-        self._loading = False
         new_idx = min(idx, len(profiles) - 1)
         self.profiles_table.selectRow(new_idx)
         self._load_profile(new_idx)
-        self._recalculate_planform_metrics()
+        self._refresh_planform_table()
 
     def _update_profile_actions(self) -> None:
         profiles = self._profiles()
@@ -939,7 +1120,7 @@ class LiftingSurfaceEditor(QWidget):
 
         self._edit_component(f"Edit profile {key}", change)
         self._refresh_profile_table_row(self._profile_index)
-        self._recalculate_planform_metrics()
+        self._refresh_planform_table()
 
     def _refresh_profile_table_row(self, row: int) -> None:
         profiles = self._profiles()
@@ -950,14 +1131,18 @@ class LiftingSurfaceEditor(QWidget):
         rot = prof.get("rotation", {}) if isinstance(prof.get("rotation"), dict) else {}
         airfoil = self._format_airfoil_label(prof.get("airfoil"))
 
+        was_loading = self._loading
         self._loading = True
-        self.profiles_table.item(row, 1).setText(airfoil)
-        self.profiles_table.item(row, 2).setText(f"{float(pos.get('y', 0.0)):.1f}")
-        self.profiles_table.item(row, 3).setText(f"{float(prof.get('chord', 0.0)):.1f}")
-        self.profiles_table.item(row, 4).setText(f"{float(pos.get('x', 0.0)):.1f}")
-        self.profiles_table.item(row, 5).setText(f"{float(pos.get('z', 0.0)):.1f}")
-        self.profiles_table.item(row, 6).setText(f"{float(rot.get('x', 0.0)):.1f}")
-        self._loading = False
+        try:
+            self.profiles_table.item(row, 1).setText(airfoil)
+            self.profiles_table.item(row, 2).setText(f"{float(pos.get('y', 0.0)):.1f}")
+            self.profiles_table.item(row, 3).setText(f"{float(prof.get('chord', 0.0)):.1f}")
+            self.profiles_table.item(row, 4).setText(f"{float(pos.get('x', 0.0)):.1f}")
+            self.profiles_table.item(row, 5).setText(f"{float(pos.get('z', 0.0)):.1f}")
+            self.profiles_table.item(row, 6).setText(f"{float(rot.get('x', 0.0)):.1f}")
+            self._update_profiles_table_interactivity()
+        finally:
+            self._loading = was_loading
 
     # -------------------------------------------------------------------------
     # Control Surface Actions & Mutation
@@ -1009,9 +1194,7 @@ class LiftingSurfaceEditor(QWidget):
             cs_list.insert(insert_at, new_cs)
 
         self._edit_component("Add control surface", change)
-        self._loading = True
         self._populate_control_surfaces()
-        self._loading = False
         self.control_surfaces_table.selectRow(insert_at)
         self._load_control_surface(insert_at)
 
@@ -1028,9 +1211,7 @@ class LiftingSurfaceEditor(QWidget):
             cs_list.insert(insert_at, target)
 
         self._edit_component("Duplicate control surface", change)
-        self._loading = True
         self._populate_control_surfaces()
-        self._loading = False
         self.control_surfaces_table.selectRow(insert_at)
         self._load_control_surface(insert_at)
 
@@ -1045,9 +1226,7 @@ class LiftingSurfaceEditor(QWidget):
             cs_list.insert(target, cs_list.pop(idx))
 
         self._edit_component("Move control surface up", change)
-        self._loading = True
         self._populate_control_surfaces()
-        self._loading = False
         self.control_surfaces_table.selectRow(target)
         self._load_control_surface(target)
 
@@ -1062,9 +1241,7 @@ class LiftingSurfaceEditor(QWidget):
             cs_list.insert(target, cs_list.pop(idx))
 
         self._edit_component("Move control surface down", change)
-        self._loading = True
         self._populate_control_surfaces()
-        self._loading = False
         self.control_surfaces_table.selectRow(target)
         self._load_control_surface(target)
 
@@ -1078,9 +1255,7 @@ class LiftingSurfaceEditor(QWidget):
             cs_list.pop(idx)
 
         self._edit_component("Delete control surface", change)
-        self._loading = True
         self._populate_control_surfaces()
-        self._loading = False
         new_idx = min(idx, len(cs_list) - 1)
         self.control_surfaces_table.selectRow(new_idx)
         self._load_control_surface(new_idx)
@@ -1100,18 +1275,21 @@ class LiftingSurfaceEditor(QWidget):
         if not (0 <= row < len(cs_list)):
             return
         cs = cs_list[row]
+        was_loading = self._loading
         self._loading = True
-        if self.control_surfaces_table.item(row, 0):
-            self.control_surfaces_table.item(row, 0).setText(str(cs.get("tag") or f"CS_{row + 1}"))
-        if self.control_surfaces_table.item(row, 1):
-            self.control_surfaces_table.item(row, 1).setText(str(cs.get("type") or "aileron").capitalize())
-        if self.control_surfaces_table.item(row, 2):
-            self.control_surfaces_table.item(row, 2).setText(f"{float(cs.get('span_start', 0.0)):.1f}")
-        if self.control_surfaces_table.item(row, 3):
-            self.control_surfaces_table.item(row, 3).setText(f"{float(cs.get('span_end', 0.0)):.1f}")
-        if self.control_surfaces_table.item(row, 4):
-            self.control_surfaces_table.item(row, 4).setText(f"{float(cs.get('chord', 0.0)):.1f}")
-        self._loading = False
+        try:
+            if self.control_surfaces_table.item(row, 0):
+                self.control_surfaces_table.item(row, 0).setText(str(cs.get("tag") or f"CS_{row + 1}"))
+            if self.control_surfaces_table.item(row, 1):
+                self.control_surfaces_table.item(row, 1).setText(str(cs.get("type") or "aileron").capitalize())
+            if self.control_surfaces_table.item(row, 2):
+                self.control_surfaces_table.item(row, 2).setText(f"{float(cs.get('span_start', 0.0)):.1f}")
+            if self.control_surfaces_table.item(row, 3):
+                self.control_surfaces_table.item(row, 3).setText(f"{float(cs.get('span_end', 0.0)):.1f}")
+            if self.control_surfaces_table.item(row, 4):
+                self.control_surfaces_table.item(row, 4).setText(f"{float(cs.get('chord', 0.0)):.1f}")
+        finally:
+            self._loading = was_loading
 
     def _update_cs_property(self, row: int, column: int) -> None:
         if self._loading or column != 1 or self._control_surface_index < 0:
@@ -1370,7 +1548,16 @@ class LiftingSurfaceEditor(QWidget):
     @staticmethod
     def _parse_number(value: str) -> float | None:
         try:
-            return float(value.replace("°", "").replace("mm", "").replace("g", "").strip())
+            return float(
+                value.replace("°", "")
+                .replace("mm²", "")
+                .replace("m²", "")
+                .replace("dm²", "")
+                .replace("mm", "")
+                .replace("g", "")
+                .split("(")[0]
+                .strip()
+            )
         except ValueError:
             return None
 
