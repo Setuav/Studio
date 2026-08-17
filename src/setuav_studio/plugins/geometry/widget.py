@@ -596,18 +596,19 @@ class OpenGLViewer(QOpenGLWidget):
     @staticmethod
     def _reference_grid_vertices() -> list[float]:
         vertices: list[float] = []
-        for offset in range(-2000, 2001, 200):
+        for offset in range(-2000, 2001, 100):
+            color = (0.22, 0.22, 0.22) if offset % 500 == 0 else (0.16, 0.16, 0.16)
             _add_reference_line(
                 vertices,
                 (-2000, offset, 0.0),
                 (2000, offset, 0.0),
-                (0.22, 0.22, 0.22),
+                color,
             )
             _add_reference_line(
                 vertices,
                 (offset, -2000, 0.0),
                 (offset, 2000, 0.0),
-                (0.22, 0.22, 0.22),
+                color,
             )
         return vertices
 
