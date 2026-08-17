@@ -146,9 +146,9 @@ class TestElectricalPropulsion(unittest.TestCase):
         win.open_project(doc.location)
         api.switch_workspace("studio.workspace.propulsion")
 
-        controls = win._panels["propulsion.controls_dock"][1].widget()
-        results = win._panels["propulsion.results_dock"][1].widget()
-        charts = win._panels["propulsion.charts_dock"][1].widget()
+        controls = self._dock_content(win._panels["propulsion.controls_dock"][1])
+        results = self._dock_content(win._panels["propulsion.results_dock"][1])
+        charts = self._dock_content(win._panels["propulsion.charts_dock"][1])
 
         # Run analysis
         controls.run_button.click()
@@ -162,6 +162,13 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertGreater(len(charts.chart_thrust_power.series()), 0)
         self.assertGreater(len(charts.chart_electrical.series()), 0)
         self.assertGreater(len(charts.chart_efficiency.series()), 0)
+
+    @staticmethod
+    def _dock_content(dock) -> object:
+        widget = dock.widget()
+        if widget.objectName() == "studioDockPanel":
+            return widget.layout().itemAt(0).widget()
+        return widget
 
 
 if __name__ == "__main__":

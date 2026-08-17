@@ -2,12 +2,14 @@ from pathlib import Path
 
 import shiboken6
 from PySide6.QtCore import QSettings, QSize, Qt
-from PySide6.QtGui import QCloseEvent, QKeySequence
+from PySide6.QtGui import QCloseEvent, QIcon, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
     QDialog,
     QDockWidget,
     QFileDialog,
+    QHBoxLayout,
+    QLabel,
     QMainWindow,
     QMenu,
     QMessageBox,
@@ -15,6 +17,7 @@ from PySide6.QtWidgets import (
     QStyle,
     QToolBar,
     QToolButton,
+    QVBoxLayout,
     QWidget,
 )
 
@@ -34,6 +37,57 @@ from setuav_studio.project import (
     open_project,
     save_project,
 )
+
+
+class DockTitleBar(QWidget):
+    """Simple custom dock title bar styled through theme tokens."""
+
+    def __init__(self, dock: QDockWidget, icon: str | Path | QIcon | None = None) -> None:
+        super().__init__(dock)
+        self.setObjectName("studioDockTitleBar")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(8, 1, 4, 1)
+        layout.setSpacing(4)
+
+        if icon:
+            icon_label = QLabel(self)
+            icon_label.setPixmap(get_icon(icon).pixmap(13, 13))
+            icon_label.setFixedSize(13, 13)
+            icon_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+            layout.addWidget(icon_label)
+
+        self._title = QLabel(dock.windowTitle(), self)
+        self._title.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        layout.addWidget(self._title)
+        layout.addStretch()
+
+        button_color = tokens()["text"]
+
+        float_button = QToolButton(self)
+        float_button.setAutoRaise(True)
+        float_button.setFixedSize(22, 20)
+        float_button.setIconSize(QSize(13, 13))
+        float_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        float_button.setToolTip("Dock or undock panel")
+        float_button.setIcon(get_icon("dock_float", color=button_color))
+        float_button.clicked.connect(
+            lambda: dock.setFloating(not dock.isFloating())
+        )
+        layout.addWidget(float_button)
+
+        close_button = QToolButton(self)
+        close_button.setAutoRaise(True)
+        close_button.setFixedSize(22, 20)
+        close_button.setIconSize(QSize(13, 13))
+        close_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        close_button.setToolTip("Close panel")
+        close_button.setIcon(get_icon("dock_close", color=button_color))
+        close_button.clicked.connect(dock.close)
+        layout.addWidget(close_button)
+
+        dock.windowTitleChanged.connect(self._title.setText)
 
 
 class MainWindow(QMainWindow):
@@ -394,8 +448,9 @@ class MainWindow(QMainWindow):
     def _add_panel(self, contribution: PanelContribution) -> None:
         dock = QDockWidget(contribution.title, self)
         dock.setFont(QApplication.font())
+        dock.setTitleBarWidget(DockTitleBar(dock, icon=contribution.icon))
         dock.setObjectName(contribution.id)
-        dock.setWidget(contribution.factory())
+        dock.setWidget(self._wrap_panel(contribution.factory()))
         self.addDockWidget(contribution.area, dock)
         self._panels[contribution.id] = (contribution, dock)
 
@@ -404,6 +459,16 @@ class MainWindow(QMainWindow):
             dock.hide()
 
         self._update_view_menu(ws_id)
+
+    @staticmethod
+    def _wrap_panel(content: QWidget) -> QWidget:
+        container = QWidget()
+        container.setObjectName("studioDockPanel")
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(content)
+        return container
 
     def _add_action(self, contribution: ActionContribution) -> None:
         parts = [p.strip().replace("&", "") for p in contribution.menu.split("/") if p.strip()]

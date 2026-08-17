@@ -1,8 +1,8 @@
 from importlib import resources
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QFont, QFontDatabase, QPalette
-from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import QColor, QFont, QFontDatabase, QPainter, QPalette
+from PySide6.QtWidgets import QApplication, QProxyStyle, QStyle
 
 
 FONT_FAMILY = "Inter"
@@ -14,6 +14,8 @@ INACTIVE_SELECTION_COLORS = {
 }
 DARK_TOKENS = {
     "window": "#1a1d22",
+    "title_bar": "#232323",
+    "dock": "#272727",
     "surface": "#181818",
     "surface_alt": "#202020",
     "elevated": "#141414",
@@ -26,6 +28,8 @@ DARK_TOKENS = {
 }
 LIGHT_TOKENS = {
     "window": "#f4f5f7",
+    "title_bar": "#e8eaed",
+    "dock": "#f4f5f7",
     "surface": "#ffffff",
     "surface_alt": "#e8eaed",
     "elevated": "#ffffff",
@@ -47,6 +51,24 @@ def tokens(theme: str = "dark") -> dict[str, str]:
 def rgba(color: str, alpha: float) -> str:
     qcolor = QColor(color)
     return f"rgba({qcolor.red()}, {qcolor.green()}, {qcolor.blue()}, {alpha})"
+
+
+class DockResizeStyle(QProxyStyle):
+    """Draws the dock resize handles in the title bar color."""
+
+    def drawPrimitive(
+        self,
+        element: QStyle.PrimitiveElement,
+        option: QStyleOption,
+        painter: QPainter,
+        widget=None,
+    ) -> None:
+        if element == QStyle.PrimitiveElement.PE_IndicatorDockWidgetResizeHandle:
+            painter.save()
+            painter.fillRect(option.rect, QColor(tokens()["title_bar"]))
+            painter.restore()
+            return
+        super().drawPrimitive(element, option, painter, widget)
 _STYLESHEET_TEMPLATE = """
 QWidget {{
     font-family: \"{font_family}\";
@@ -70,6 +92,35 @@ QMenu::item {{
 
 QDockWidget::title {{
     padding: 1px 4px;
+}}
+
+QDockWidget {{
+    background-color: {dock};
+}}
+
+QWidget#studioDockTitleBar {{
+    background-color: {title_bar};
+    border-bottom: 1px solid {border_strong};
+}}
+
+QWidget#studioDockTitleBar QLabel {{
+    color: {text};
+    font-weight: 600;
+}}
+
+QWidget#studioDockTitleBar QToolButton {{
+    background-color: transparent;
+    border: none;
+    border-radius: 3px;
+    margin: 1px;
+}}
+
+QWidget#studioDockTitleBar QToolButton:hover {{
+    background-color: {dock_hover};
+}}
+
+QWidget#studioDockTitleBar QToolButton:pressed {{
+    background-color: {dock_pressed};
 }}
 
 QTableView,
@@ -108,6 +159,7 @@ _INTER_FONT_FILES = (
 )
 _inter_family: str | None = None
 _inter_load_attempted = False
+_dock_resize_style: DockResizeStyle | None = None
 
 
 def apply_theme(app: QApplication, theme: str, font_size: int) -> None:
@@ -118,6 +170,9 @@ def apply_theme(app: QApplication, theme: str, font_size: int) -> None:
     _apply_accent(app)
     app.setFont(_application_font(font_size))
     app.setStyleSheet(build_stylesheet(font_size, theme))
+    global _dock_resize_style
+    _dock_resize_style = DockResizeStyle(app.style())
+    app.setStyle(_dock_resize_style)
 
 
 def _apply_accent(app: QApplication) -> None:
@@ -138,6 +193,13 @@ def _apply_accent(app: QApplication) -> None:
 
 
 def build_stylesheet(font_size: int, theme: str = "dark") -> str:
+    theme_tokens = tokens(theme)
+    if theme == "light":
+        dock_hover = "rgba(0, 0, 0, 0.08)"
+        dock_pressed = "rgba(0, 0, 0, 0.14)"
+    else:
+        dock_hover = "rgba(255, 255, 255, 0.14)"
+        dock_pressed = "rgba(255, 255, 255, 0.22)"
     return _STYLESHEET_TEMPLATE.format(
         font_family=FONT_FAMILY,
         font_size=font_size,
@@ -145,6 +207,9 @@ def build_stylesheet(font_size: int, theme: str = "dark") -> str:
             theme,
             INACTIVE_SELECTION_COLORS["dark"],
         ),
+        dock_hover=dock_hover,
+        dock_pressed=dock_pressed,
+        **theme_tokens,
     )
 
 
