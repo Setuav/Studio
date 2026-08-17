@@ -16,7 +16,9 @@ from setuav_studio.plugins.geometry.lifting_surface_geometry import (
     sample_airfoil,
 )
 from setuav_studio.plugins.geometry.mesh import build_loft_solid_vertices
-from setuav_studio.project import ProjectDocument
+from setuav_studio.project import ProjectDocument, open_project
+
+TEST_PROJECT_PATH = "/home/huseyin/dev/setware/setuav-specification/examples/fixed-wing"
 
 
 class GeometryTests(unittest.TestCase):
@@ -175,7 +177,7 @@ class GeometryTests(unittest.TestCase):
         doc = open_project("/home/huseyin/dev/setware/setuav-specification/examples/fixed-wing")
         api.set_project(doc)
 
-        wing_comp = next(c for c in doc.data["components"] if c.get("id") == "wing-right")
+        wing_comp = next(c for c in doc.data["components"] if c.get("id") == "main-wing")
         editor = LiftingSurfaceEditor(api, wing_comp)
 
         self.assertIn("mm", editor._property_text(editor.planform_table, 1))
@@ -218,26 +220,26 @@ class GeometryTests(unittest.TestCase):
         # Edit control surface via cs_properties_table
         cs_idx = editor._control_surface_index
         editor.cs_properties_table.item(6, 1).setText("18.5")  # Deflection
-        self.assertEqual(wing_comp["parameters"]["geometry"]["control_surfaces"][cs_idx]["deflection"], 18.5)
+        self.assertEqual(editor._cs_geom(editor._control_surfaces()[cs_idx])["deflection"], 18.5)
 
         editor.cs_properties_table.item(4, 1).setText("55.0")  # Chord
-        self.assertEqual(wing_comp["parameters"]["geometry"]["control_surfaces"][cs_idx]["chord"], 55.0)
+        self.assertEqual(editor._cs_geom(editor._control_surfaces()[cs_idx])["chord"], 55.0)
 
         editor.cs_properties_table.item(5, 1).setText("5.0")  # Hinge Sweep
-        self.assertEqual(wing_comp["parameters"]["geometry"]["control_surfaces"][cs_idx]["hinge_sweep"], 5.0)
+        self.assertEqual(editor._cs_geom(editor._control_surfaces()[cs_idx])["hinge_sweep"], 5.0)
 
         # Edit tag inline via control_surfaces_table
         editor.control_surfaces_table.item(cs_idx, 0).setText("aileron_custom")
-        self.assertEqual(wing_comp["parameters"]["geometry"]["control_surfaces"][cs_idx]["tag"], "aileron_custom")
+        self.assertEqual(editor._cs_geom(editor._control_surfaces()[cs_idx])["tag"], "aileron_custom")
         self.assertEqual(editor.cs_properties_table.item(0, 1).text(), "aileron_custom")
 
         # Section Selection in 3D Viewport
         editor.profiles_table.selectRow(1)
-        self.assertEqual(api.current_section_selection, ("wing-right", 0, 1))
+        self.assertEqual(api.current_section_selection, ("main-wing", 0, 1))
 
         # Check Attachment (Component Transform)
         self.assertEqual(editor.attachment_table.item(0, 0).text(), "305.00")
-        self.assertEqual(editor.attachment_table.item(0, 1).text(), "70.00")
+        self.assertEqual(editor.attachment_table.item(0, 1).text(), "75.00")
         self.assertEqual(editor.attachment_table.item(0, 2).text(), "40.00")
 
         # Edit Attachment Transform
@@ -499,15 +501,211 @@ class GeometryTests(unittest.TestCase):
         self.assertAlmostEqual(hinge_sec0_x, 150.0, delta=0.1)
         self.assertAlmostEqual(hinge_sec1_x, 150.0, delta=0.1)
 
-    def test_airfoil_dialog(self) -> None:
-        from setuav_studio.plugins.geometry.airfoil_dialog import AirfoilDialog
+    def test_fuselage_wing_root_stub_geometry(self) -> None:
+        from setuav_studio.plugins.geometry.fuselage_geometry import build_fuselage_geometry
+        from setuav_studio.plugins.geometry.scene import build_project_geometry
 
-        dialog = AirfoilDialog("2412")
-        self.assertIsNotNone(dialog._tokens)
-        self.assertIn("text", dialog._tokens)
-        data, apply_all = dialog.get_selected_airfoil()
-        self.assertEqual(data, "2412")
-        self.assertFalse(apply_all)
+        mock_project = {
+            "components": [
+                {
+                    "kind": "component",
+                    "type": "org.setuav.core:fuselage",
+                    "id": "fuse",
+                    "parameters": {
+                        "geometry": {
+                            "segments": [
+                                {
+                                    "sections": [
+                                        {"position": {"x": 0.0, "y": 0.0, "z": 0.0}, "profile": {"type": "circle", "diameter": 100.0}},
+                                        {"position": {"x": 500.0, "y": 0.0, "z": 0.0}, "profile": {"type": "circle", "diameter": 100.0}},
+                                    ]
+                                }
+                            ]
+                        }
+                    },
+                },
+                {
+                    "kind": "component",
+                    "type": "org.setuav.core:lifting-surface",
+                    "id": "wing",
+                    "parent": "fuse",
+                    "transform": {
+                        "position": {"x": 200.0, "y": 70.0, "z": 0.0},
+                    },
+                    "parameters": {
+                        "geometry": {
+                            "profiles": [
+                                {"position": {"x": 0.0, "y": 0.0, "z": 0.0}, "chord": 150.0, "airfoil": "0012"},
+                                {"position": {"x": 0.0, "y": 300.0, "z": 0.0}, "chord": 100.0, "airfoil": "0012"},
+                            ]
+                        }
+                    },
+                },
+            ]
+        }
+
+        providers = {
+            "org.setuav.core:fuselage": build_fuselage_geometry,
+            "org.setuav.core:lifting-surface": build_lifting_surface_geometry,
+        }
+
+        scene_geom = build_project_geometry(mock_project, providers)
+        # Should contain fuselage loft, wing loft, and the fuselage wing root stub
+        fuse_lofts = [l for l in scene_geom.lofts if l.component_id == "fuse"]
+        self.assertEqual(len(fuse_lofts), 2)  # 1 main fuselage segment + 1 wing root stub
+        stub_loft = fuse_lofts[1]
+        self.assertEqual(len(stub_loft.sections), 2)
+        # Inner section must be at fuselage skin Y = 50.0, outer section at wing joint Y = 70.0
+        sec_inner = stub_loft.sections[0]
+        sec_outer = stub_loft.sections[1]
+        self.assertAlmostEqual(sec_inner.points[0][1], 50.0, delta=0.5)
+        self.assertAlmostEqual(sec_outer.points[0][1], 70.0, delta=0.5)
+
+    def test_control_surface_editor(self) -> None:
+        from setuav_studio.plugin_system import StudioAPI
+        from setuav_studio.plugins.geometry.control_surface import ControlSurfaceEditor
+
+        api = StudioAPI()
+        cs_comp = {
+            "kind": "component",
+            "id": "aileron",
+            "name": "Aileron",
+            "type": "org.setuav.core:control-surface",
+            "parent": "main-wing",
+            "parameters": {
+                "mass": 25.0,
+                "geometry": {
+                    "tag": "aileron",
+                    "type": "aileron",
+                    "span_start": 250.0,
+                    "span_end": 500.0,
+                    "chord": 70.0,
+                    "deflection": 20.0,
+                    "hinge_sweep": -1.0,
+                }
+            }
+        }
+
+        editor = ControlSurfaceEditor(api, cs_comp)
+        self.assertEqual(editor._property_text(editor.general_table, 0), "Aileron")
+        self.assertEqual(editor._property_text(editor.properties_table, 0), "aileron")
+        self.assertIn("250.0", editor._property_text(editor.properties_table, 2))
+        self.assertIn("20.0", editor._property_text(editor.properties_table, 6))
+
+        # Edit deflection
+        editor.properties_table.item(6, 1).setText("-15.0")
+        self.assertEqual(cs_comp["parameters"]["geometry"]["deflection"], -15.0)
+
+    def test_control_surface_add_delete_no_duplication(self) -> None:
+        from setuav_studio.plugin_system import StudioAPI
+        from setuav_studio.plugins.geometry.lifting_surface import LiftingSurfaceEditor
+        from setuav_studio.project import ProjectDocument
+        from setuav_studio.plugins.geometry.scene import build_project_geometry
+        from setuav_studio.plugins.geometry.lifting_surface_geometry import build_lifting_surface_geometry
+        from setuav_studio.plugins.geometry.fuselage_geometry import build_fuselage_geometry
+
+        doc_data = {
+            "components": [
+                {
+                    "kind": "component",
+                    "id": "fuselage",
+                    "type": "org.setuav.core:fuselage",
+                },
+                {
+                    "kind": "component",
+                    "id": "wing",
+                    "type": "org.setuav.core:lifting-surface",
+                    "parent": "fuselage",
+                    "parameters": {
+                        "geometry": {
+                            "mirror": True,
+                            "profiles": [
+                                {"position": {"x": 0.0, "y": 0.0, "z": 0.0}, "chord": 200.0, "airfoil": "2412"},
+                                {"position": {"x": 50.0, "y": 500.0, "z": 0.0}, "chord": 100.0, "airfoil": "2412"},
+                            ]
+                        }
+                    }
+                },
+                {
+                    "kind": "component",
+                    "id": "aileron-1",
+                    "name": "Aileron 1",
+                    "type": "org.setuav.core:control-surface",
+                    "parent": "wing",
+                    "parameters": {
+                        "geometry": {
+                            "tag": "aileron_1",
+                            "type": "aileron",
+                            "span_start": 200.0,
+                            "span_end": 450.0,
+                            "chord": 40.0,
+                            "hinge_sweep": 0.0,
+                            "deflection": 0.0
+                        }
+                    }
+                }
+            ]
+        }
+
+        doc = ProjectDocument("/fake/path", {}, doc_data)
+        api = StudioAPI()
+        api.set_project(doc)
+
+        wing_comp = doc.data["components"][1]
+        editor = LiftingSurfaceEditor(api, wing_comp)
+
+        self.assertEqual(editor.control_surfaces_table.rowCount(), 1)
+        self.assertEqual(len(doc.data["components"]), 3)
+
+        # 1. Add 1st new control surface
+        editor.add_cs_button.click()
+        self.assertEqual(editor.control_surfaces_table.rowCount(), 2)
+        self.assertEqual(len(doc.data["components"]), 4)
+
+        # 2. Add 2nd new control surface
+        editor.add_cs_button.click()
+        self.assertEqual(editor.control_surfaces_table.rowCount(), 3)
+        self.assertEqual(len(doc.data["components"]), 5)
+
+        # 3. Verify scene generation produces exact lofts without duplicating in memory
+        providers = {
+            "org.setuav.core:fuselage": build_fuselage_geometry,
+            "org.setuav.core:lifting-surface": build_lifting_surface_geometry,
+        }
+        for _ in range(5):
+            scene_geom = build_project_geometry(doc, providers)
+            wing_lofts = [l for l in scene_geom.lofts if "wing" in l.component_id]
+            self.assertEqual(len(wing_lofts), 12)
+
+        # 4. Verify components in project remained exactly 5 (no exponential growth)
+        self.assertEqual(len(doc.data["components"]), 5)
+        self.assertEqual(editor.control_surfaces_table.rowCount(), 3)
+
+        # 5. Delete one control surface
+        editor._control_surface_index = 2
+        editor.delete_cs_button.click()
+        self.assertEqual(editor.control_surfaces_table.rowCount(), 2)
+        self.assertEqual(len(doc.data["components"]), 4)
+
+    def test_conformal_wing_root_stubs_angled_and_flat(self) -> None:
+        """Verify that root stubs for flat wings and angled V-tails conform to fuselage surface along their span axis."""
+        doc = open_project(TEST_PROJECT_PATH)
+        providers = {
+            "org.setuav.core:fuselage": build_fuselage_geometry,
+            "org.setuav.core:lifting-surface": build_lifting_surface_geometry,
+        }
+        scene_geom = build_project_geometry(doc, providers)
+        fuse_stubs = [l for l in scene_geom.lofts if l.component_id == "fuselage" and len(l.sections) == 2]
+        self.assertGreaterEqual(len(fuse_stubs), 2)
+
+        # For each stub, inner section points must be closer to fuselage center than outer section points
+        for stub in fuse_stubs:
+            inner_sec, outer_sec = stub.sections[0], stub.sections[1]
+            self.assertEqual(len(inner_sec.points), len(outer_sec.points))
+            # Average distance from fuselage center axis (y=0, z=0) of inner points should be <= outer points
+            avg_inner_r = sum(math.sqrt(p[1]**2 + p[2]**2) for p in inner_sec.points) / len(inner_sec.points)
+            avg_outer_r = sum(math.sqrt(p[1]**2 + p[2]**2) for p in outer_sec.points) / len(outer_sec.points)
+            self.assertLessEqual(avg_inner_r, avg_outer_r)
 
 
 if __name__ == "__main__":

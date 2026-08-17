@@ -458,10 +458,11 @@ def _sample_structured_airfoil_round(
 
         # 8 points on convex circular nose (from theta = +pi/2 down to -pi/2)
         flap_nose = []
+        r_nose = r_h * 0.97
         for i in range(8):
             theta = math.pi * 0.5 - (i / 7.0) * math.pi
-            x_c = x_h - r_h * math.cos(theta)
-            z_c = z_h + r_h * math.sin(theta)
+            x_c = x_h - r_nose * math.cos(theta)
+            z_c = z_h + r_nose * math.sin(theta)
             flap_nose.append((x_c, z_c))
 
         # 28 lower flap points (x_h up to 1.0)

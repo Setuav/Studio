@@ -1,0 +1,328 @@
+from collections.abc import Callable
+from typing import Any
+
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QApplication,
+    QComboBox,
+    QFrame,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QScrollArea,
+    QSizePolicy,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
+
+from setuav_studio.icons import get_icon
+from setuav_studio.plugin_system import StudioAPI
+
+CONTROL_SURFACE_TYPES = [
+    ("aileron", "Aileron"),
+    ("flap", "Flap"),
+    ("elevator", "Elevator"),
+    ("rudder", "Rudder"),
+    ("elevon", "Elevon"),
+    ("ruddervator", "Ruddervator"),
+]
+
+
+class ControlSurfaceEditor(QWidget):
+    def __init__(self, api: StudioAPI, component: dict[str, Any]) -> None:
+        super().__init__()
+        self._api = api
+        self._component = component
+        self._loading = False
+
+        scroll = QScrollArea(self)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+
+        container = QWidget()
+        self._layout = QVBoxLayout(container)
+        self._layout.setContentsMargins(6, 4, 6, 6)
+        self._layout.setSpacing(4)
+
+        self._create_general_section()
+        self._create_properties_section()
+        self._layout.addStretch(1)
+
+        scroll.setWidget(container)
+        root_layout = QVBoxLayout(self)
+        root_layout.setContentsMargins(0, 0, 0, 0)
+        root_layout.addWidget(scroll)
+
+        self.load_component(component)
+
+    def load_component(self, component: dict[str, Any]) -> None:
+        self._loading = True
+        try:
+            self._component = component
+            self._load_general()
+            self._load_properties()
+        finally:
+            self._loading = False
+
+    def _create_section(self, title: str, icon_name: str) -> QVBoxLayout:
+        header = QWidget()
+        header.setFixedHeight(24)
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(4, 2, 4, 2)
+        header_layout.setSpacing(4)
+
+        icon_label = QLabel()
+        icon_label.setPixmap(get_icon(icon_name).pixmap(14, 14))
+        header_layout.addWidget(icon_label)
+
+        title_label = QLabel(title)
+        title_label.setStyleSheet("font-weight: bold;")
+        header_layout.addWidget(title_label)
+        header_layout.addStretch()
+
+        self._layout.addWidget(header)
+        section_layout = QVBoxLayout()
+        section_layout.setContentsMargins(0, 0, 0, 4)
+        section_layout.setSpacing(4)
+        self._layout.addLayout(section_layout)
+        return section_layout
+
+    def _create_general_section(self) -> None:
+        layout = self._create_section("General", "fa6s.circle-info")
+        self.general_table = self._property_table([
+            ("name", "Name"),
+            ("type", "Type"),
+            ("parent", "Parent Wing"),
+            ("mass", "Mass (g)"),
+        ])
+        self.general_table.cellChanged.connect(self._update_general)
+        layout.addWidget(self.general_table)
+
+    def _create_properties_section(self) -> None:
+        layout = self._create_section("Control Surface Geometry", "fa6s.sliders")
+        self.properties_table = self._property_table([
+            ("tag", "Tag"),
+            ("type", "Surface Type"),
+            ("span_start", "Span Start (mm)"),
+            ("span_end", "Span End (mm)"),
+            ("chord", "Chord (mm)"),
+            ("hinge_sweep", "Hinge Sweep (°)"),
+            ("deflection", "Deflection (°)"),
+        ])
+        self.properties_table.cellChanged.connect(self._update_property)
+        layout.addWidget(self.properties_table)
+
+    def _load_general(self) -> None:
+        name = str(self._component.get("name") or self._component.get("id") or "")
+        comp_type = str(self._component.get("type") or "org.setuav.core:control-surface")
+        mass = float(self._component.get("parameters", {}).get("mass", 0.0))
+        parent = str(self._component.get("parent") or "")
+
+        self._set_property_value(self.general_table, "name", name)
+        self._set_property_value(self.general_table, "type", comp_type)
+        self._set_property_value(self.general_table, "mass", f"{mass:.1f} g")
+
+        # Parent combo (find all lifting surface components)
+        project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
+        options: list[tuple[str, str]] = [("", "-- None --")]
+        if project and isinstance(project.data.get("components"), list):
+            for c in project.data["components"]:
+                if isinstance(c, dict) and c.get("type") == "org.setuav.core:lifting-surface":
+                    cid = str(c.get("id") or "")
+                    cname = str(c.get("name") or cid)
+                    options.append((cid, cname))
+
+        self._set_property_combo(
+            self.general_table,
+            "parent",
+            parent,
+            options,
+            self._update_parent,
+        )
+
+    def _load_properties(self) -> None:
+        geom = self._geometry()
+        tag = str(geom.get("tag") or self._component.get("id") or "control")
+        cs_type = str(geom.get("type") or "aileron")
+        span_start = float(geom.get("span_start", 0.0))
+        span_end = float(geom.get("span_end", 0.0))
+        chord = float(geom.get("chord", 40.0))
+        hinge_sweep = float(geom.get("hinge_sweep", 0.0))
+        deflection = float(geom.get("deflection", 0.0))
+
+        self._set_property_value(self.properties_table, "tag", tag)
+        self._set_property_combo(
+            self.properties_table,
+            "type",
+            cs_type,
+            CONTROL_SURFACE_TYPES,
+            lambda val: self._update_geom_value("type", val),
+        )
+        self._set_property_value(self.properties_table, "span_start", f"{span_start:.1f} mm")
+        self._set_property_value(self.properties_table, "span_end", f"{span_end:.1f} mm")
+        self._set_property_value(self.properties_table, "chord", f"{chord:.1f} mm")
+        self._set_property_value(self.properties_table, "hinge_sweep", f"{hinge_sweep:.1f}°")
+        self._set_property_value(self.properties_table, "deflection", f"{deflection:.1f}°")
+
+    def _geometry(self) -> dict[str, Any]:
+        params = self._component.get("parameters")
+        if not isinstance(params, dict):
+            params = {}
+            self._component["parameters"] = params
+        geom = params.get("geometry")
+        if not isinstance(geom, dict):
+            geom = {}
+            params["geometry"] = geom
+        return geom
+
+    def _update_general(self, row: int, column: int) -> None:
+        if self._loading or column != 1:
+            return
+        key = self._property_key(self.general_table, row)
+        val_str = self._property_text(self.general_table, row).strip()
+        if key == "name":
+            def change() -> None:
+                self._component["name"] = val_str
+                self._geometry()["tag"] = val_str
+            self._edit_component("Rename control surface", change)
+            self._set_property_value(self.properties_table, "tag", val_str)
+        elif key == "mass":
+            val = self._parse_number(val_str) or 0.0
+            def change() -> None:
+                params = self._component.get("parameters")
+                if not isinstance(params, dict):
+                    params = {}
+                    self._component["parameters"] = params
+                params["mass"] = val
+            self._edit_component("Edit mass", change)
+
+    def _update_parent(self, new_parent: str | None) -> None:
+        if self._loading:
+            return
+        def change() -> None:
+            self._component["parent"] = new_parent if new_parent else None
+        self._edit_component("Change control surface parent wing", change)
+
+    def _update_property(self, row: int, column: int) -> None:
+        if self._loading or column != 1:
+            return
+        key = self._property_key(self.properties_table, row)
+        val_str = self._property_text(self.properties_table, row)
+        if key == "tag":
+            tag_val = val_str.strip()
+            def change() -> None:
+                self._geometry()["tag"] = tag_val
+                self._component["name"] = tag_val
+            self._edit_component("Edit tag", change)
+            self._set_property_value(self.general_table, "name", tag_val)
+        elif key in ("span_start", "span_end", "chord", "hinge_sweep", "deflection"):
+            val = self._parse_number(val_str) or 0.0
+            self._update_geom_value(key, val)
+
+    def _update_geom_value(self, key: str, value: Any) -> None:
+        if self._loading:
+            return
+        def change() -> None:
+            self._geometry()[key] = value
+        self._edit_component(f"Edit {key}", change)
+
+    def _edit_component(self, action_name: str, mutation: Callable[[], None]) -> None:
+        if hasattr(self._api, "edit_component"):
+            self._api.edit_component(self._component, action_name, mutation)
+        else:
+            mutation()
+
+    @classmethod
+    def _property_table(cls, definitions: list[tuple[str, str]]) -> QTableWidget:
+        table = QTableWidget(len(definitions), 2)
+        table.setHorizontalHeaderLabels(["Property", "Value"])
+        table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
+        table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        table.setEditTriggers(
+            QAbstractItemView.EditTrigger.DoubleClicked
+            | QAbstractItemView.EditTrigger.EditKeyPressed
+            | QAbstractItemView.EditTrigger.SelectedClicked
+        )
+        table.verticalHeader().setVisible(False)
+        table.verticalHeader().setDefaultSectionSize(22)
+        table.horizontalHeader().setFixedHeight(23)
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        table.setAlternatingRowColors(True)
+        for row, (key, label) in enumerate(definitions):
+            label_item = QTableWidgetItem(label)
+            label_item.setData(Qt.ItemDataRole.UserRole, key)
+            label_item.setFlags(label_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            table.setItem(row, 0, label_item)
+            table.setItem(row, 1, QTableWidgetItem())
+        height = table.horizontalHeader().height() + table.verticalHeader().defaultSectionSize() * max(len(definitions), 1) + 2
+        table.setFixedHeight(height)
+        return table
+
+    def _set_property_value(self, table: QTableWidget, key: str, value: Any) -> None:
+        for row in range(table.rowCount()):
+            if self._property_key(table, row) != key:
+                continue
+            item = table.item(row, 1)
+            if item is None:
+                item = QTableWidgetItem()
+                table.setItem(row, 1, item)
+            item.setText(str(value))
+            return
+
+    def _set_property_combo(
+        self,
+        table: QTableWidget,
+        key: str,
+        value: str,
+        options: list[tuple[str, str]],
+        on_changed: Callable[[str], None],
+    ) -> None:
+        for row in range(table.rowCount()):
+            if self._property_key(table, row) != key:
+                continue
+            item = table.item(row, 1)
+            if item is not None:
+                item.setText("")
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            combo = QComboBox(table)
+            combo.setFont(QApplication.font())
+            combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            for opt_val, opt_label in options:
+                combo.addItem(opt_label, opt_val)
+            idx = combo.findData(value)
+            if idx >= 0:
+                combo.setCurrentIndex(idx)
+            combo.currentIndexChanged.connect(lambda _i: on_changed(str(combo.currentData())))
+            table.setCellWidget(row, 1, combo)
+            return
+
+    @staticmethod
+    def _property_key(table: QTableWidget, row: int) -> str:
+        item = table.item(row, 0)
+        return str(item.data(Qt.ItemDataRole.UserRole) or "") if item is not None else ""
+
+    @staticmethod
+    def _property_text(table: QTableWidget, row: int) -> str:
+        widget = table.cellWidget(row, 1)
+        if isinstance(widget, QComboBox):
+            return str(widget.currentData())
+        item = table.item(row, 1)
+        return item.text() if item is not None else ""
+
+    @staticmethod
+    def _parse_number(value: str) -> float | None:
+        try:
+            return float(
+                value.replace("°", "")
+                .replace("mm", "")
+                .replace("g", "")
+                .split("(")[0]
+                .strip()
+            )
+        except ValueError:
+            return None

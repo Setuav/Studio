@@ -3,6 +3,7 @@ from setuav_studio.plugin_system import (
     StudioAPI,
     WorkspaceContribution,
 )
+from setuav_studio.plugins.geometry.control_surface import ControlSurfaceEditor
 from setuav_studio.plugins.geometry.fuselage import FuselageEditor
 from setuav_studio.plugins.geometry.fuselage_geometry import build_fuselage_geometry
 from setuav_studio.plugins.geometry.lifting_surface import LiftingSurfaceEditor
@@ -45,8 +46,17 @@ class GeometryPlugin:
             "org.setuav.core:lifting-surface",
             lambda component: LiftingSurfaceEditor(api, component),
         )
+        api.register_component_editor(
+            "org.setuav.core:control-surface",
+            lambda component: ControlSurfaceEditor(api, component),
+        )
 
-        # 3. Geometry Providers
+        # 3. Component Icons
+        api.register_component_icon("org.setuav.core:fuselage", "fa6s.shuttle-space")
+        api.register_component_icon("org.setuav.core:lifting-surface", "fa6s.plane")
+        api.register_component_icon("org.setuav.core:control-surface", "fa6s.sliders")
+
+        # 4. Geometry Providers
         api.register_geometry_provider(
             "org.setuav.core:fuselage",
             build_fuselage_geometry,

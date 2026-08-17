@@ -1023,6 +1023,8 @@ class FuselageEditor(QWidget):
     ) -> QTableWidget:
         table = cls._table(["Property", "Value"])
         table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
+        table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         table.setEditTriggers(
             QAbstractItemView.EditTrigger.DoubleClicked
             | QAbstractItemView.EditTrigger.EditKeyPressed
@@ -1050,7 +1052,7 @@ class FuselageEditor(QWidget):
             label_item.setFlags(label_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             table.setItem(row, 0, label_item)
             table.setItem(row, 1, QTableWidgetItem())
-        cls._fit_table_height(table, len(definitions))
+        cls._fit_table_height(table, len(definitions), maximum_visible_rows=None)
 
     def _set_property_combo(
         self,
@@ -1166,9 +1168,12 @@ class FuselageEditor(QWidget):
     def _fit_table_height(
         table: QTableWidget,
         row_count: int,
-        maximum_visible_rows: int = 6,
+        maximum_visible_rows: int | None = None,
     ) -> None:
-        visible_rows = min(max(row_count, 1), maximum_visible_rows)
+        if maximum_visible_rows is None:
+            visible_rows = max(row_count, 1)
+        else:
+            visible_rows = min(max(row_count, 1), maximum_visible_rows)
         height = (
             table.horizontalHeader().height()
             + table.verticalHeader().defaultSectionSize() * visible_rows

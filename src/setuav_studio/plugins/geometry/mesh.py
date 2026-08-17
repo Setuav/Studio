@@ -24,6 +24,21 @@ def _wire_tint(color: Point3D) -> Point3D:
     return tuple(channel + (base - channel) * _WIRE_TINT for channel in color)
 
 
+def _is_matching_component(loft_component_id: str, target_component_id: str | None) -> bool:
+    if target_component_id is None:
+        return False
+    if loft_component_id == target_component_id:
+        return True
+    parts = loft_component_id.split(":")
+    # e.g. "main-wing:mirror" matches "main-wing"
+    if parts[0] == target_component_id:
+        return True
+    # e.g. "main-wing:aileron" or "main-wing:mirror:aileron" matches "aileron"
+    if len(parts) > 1 and parts[-1] == target_component_id:
+        return True
+    return False
+
+
 def build_loft_wire_vertices(
     data: GeometryData,
     selected_component_id: str | None = None,
@@ -31,9 +46,8 @@ def build_loft_wire_vertices(
     face_style: str = FACE_COLORED,
 ) -> list[float]:
     vertices: list[float] = []
-    excluded = {selected_component_id, hovered_component_id}
     for loft in data.lofts:
-        if loft.component_id in excluded:
+        if _is_matching_component(loft.component_id, selected_component_id) or _is_matching_component(loft.component_id, hovered_component_id):
             continue
         loops = _tessellated_loops(loft)
         if not loops:
@@ -56,7 +70,7 @@ def build_component_wire_vertices(
     if component_id is None:
         return vertices
     for loft in data.lofts:
-        if loft.component_id != component_id:
+        if not _is_matching_component(loft.component_id, component_id):
             continue
         loops = _tessellated_loops(loft)
         if not loops:
@@ -88,7 +102,7 @@ def build_section_ring_vertices(
         return vertices
     loft_index = 0
     for loft in data.lofts:
-        if loft.component_id != component_id:
+        if not _is_matching_component(loft.component_id, component_id):
             continue
         if loft_index == segment_index:
             if 0 <= section_index < len(loft.sections):
@@ -107,11 +121,12 @@ def build_loft_solid_vertices(
     face_style: str = FACE_COLORED,
 ) -> list[float]:
     vertices: list[float] = []
-    highlighted = (
-        {selected_component_id, hovered_component_id}
-        if selected_component_id is not None
-        else set()
-    )
+
+    # Only dim if there is an active 3D selection that matches at least one loft in the scene
+    has_3d_selection = False
+    if selected_component_id is not None:
+        has_3d_selection = any(_is_matching_component(loft.component_id, selected_component_id) for loft in data.lofts)
+
     for loft in data.lofts:
         loops = _tessellated_loops(loft)
         if not loops:
@@ -120,8 +135,13 @@ def build_loft_solid_vertices(
             color = tuple(channel * _SOLID_TINT for channel in loft.color)
         else:
             color = _SOLID_GREY
-        if selected_component_id is not None and loft.component_id not in highlighted:
-            color = tuple(channel * _DIM_FACTOR for channel in color)
+
+        if has_3d_selection:
+            is_sel = _is_matching_component(loft.component_id, selected_component_id)
+            is_hov = _is_matching_component(loft.component_id, hovered_component_id)
+            if not is_sel and not is_hov:
+                color = tuple(channel * _DIM_FACTOR for channel in color)
+
         for current, following in zip(loops, loops[1:]):
             _add_quad_strip(vertices, current, following, color)
         if loft.closed_ends:

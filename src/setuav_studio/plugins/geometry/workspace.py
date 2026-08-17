@@ -312,8 +312,30 @@ class ViewerWorkspace(QWidget):
         if project is None:
             return
         components = project.data.get("components", [])
-        for component in components:
-            if isinstance(component, dict) and str(component.get("id") or "") == component_id:
+        raw_components = [c for c in components if isinstance(c, dict)]
+
+        # 1. Direct match with component ID
+        for component in raw_components:
+            if str(component.get("id") or "") == component_id:
+                self._api.set_selection(component)
+                return
+
+        # 2. Match control surface sub-tag or child component (e.g. "main-wing:aileron", "main-wing:mirror:aileron")
+        parts = component_id.split(":")
+        sub_tag = parts[-1]
+        for component in raw_components:
+            cid = str(component.get("id") or "")
+            params = component.get("parameters") if isinstance(component.get("parameters"), dict) else {}
+            geom = params.get("geometry") if isinstance(params.get("geometry"), dict) else {}
+            tag = str(geom.get("tag") or component.get("name") or cid)
+            if cid == sub_tag or tag == sub_tag:
+                self._api.set_selection(component)
+                return
+
+        # 3. Match base component if mirrored or sub-tagged (e.g. "main-wing:mirror" -> "main-wing")
+        base_id = parts[0]
+        for component in raw_components:
+            if str(component.get("id") or "") == base_id:
                 self._api.set_selection(component)
                 return
 

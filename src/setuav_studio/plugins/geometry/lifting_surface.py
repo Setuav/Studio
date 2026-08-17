@@ -138,6 +138,11 @@ class LiftingSurfaceEditor(QWidget):
         self.attachment_table.cellChanged.connect(self._update_attachment_transform)
         layout.addWidget(self.attachment_table)
 
+        self.attachment_options_table = self._property_table([
+            ("mirror", "Symmetry / Mirror"),
+        ])
+        layout.addWidget(self.attachment_options_table)
+
     def _create_planform_drivers_section(self) -> None:
         """Parametric Sizing and Driver Groups section."""
         layout = self._create_section("Planform Sizing & Driver Group", "fa6s.arrows-left-right-to-line")
@@ -288,7 +293,7 @@ class LiftingSurfaceEditor(QWidget):
         layout.addWidget(self.station_transform_table)
 
     def _create_control_surfaces_section(self) -> None:
-        layout = self._create_section("Control Surfaces", "fa6s.plane")
+        layout = self._create_section("Control Surfaces", "fa6s.sliders")
 
         self.control_surfaces_table = self._table([
             "Tag",
@@ -397,13 +402,16 @@ class LiftingSurfaceEditor(QWidget):
         self._set_property_value(self.general_table, "name", str(self._component.get("name") or ""))
         self._set_property_value(self.general_table, "type", str(self._component.get("type") or ""), editable=False)
 
-        # Parent Selection Combo
+        # Parent Selection Combo (Only fuselage and lifting surfaces)
         current_parent = str(self._component.get("parent") or "")
         parent_options = [("", "(None)")]
         project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
         if project and isinstance(project.data.get("components"), list):
             for comp in project.data["components"]:
-                if isinstance(comp, dict):
+                if (
+                    isinstance(comp, dict)
+                    and comp.get("type") in ("org.setuav.core:fuselage", "org.setuav.core:lifting-surface")
+                ):
                     cid = str(comp.get("id") or "")
                     if cid and cid != self._component.get("id"):
                         cname = str(comp.get("name") or cid)
@@ -473,6 +481,28 @@ class LiftingSurfaceEditor(QWidget):
                 item = self.attachment_table.item(row, col)
                 if item:
                     item.setText(f"{val:.2f}")
+
+        # Symmetry / Mirror
+        is_mirror = "true" if self._geometry().get("mirror") is True else "false"
+        self._set_property_combo(
+            self.attachment_options_table,
+            "mirror",
+            is_mirror,
+            [("false", "Single (No Mirror)"), ("true", "Bilateral (Mirror XZ)")],
+            lambda val: self._update_mirror(val == "true"),
+        )
+
+    def _update_mirror(self, is_mirrored: bool) -> None:
+        if self._loading:
+            return
+
+        def change() -> None:
+            if is_mirrored:
+                self._geometry()["mirror"] = True
+            else:
+                self._geometry().pop("mirror", None)
+
+        self._edit_component("Toggle bilateral wing mirror", change)
 
     def _update_attachment_transform(self, _row: int, _col: int) -> None:
         if self._loading:
@@ -744,11 +774,14 @@ class LiftingSurfaceEditor(QWidget):
             cs_list = self._control_surfaces()
             self.control_surfaces_table.setRowCount(len(cs_list))
             for row, cs in enumerate(cs_list):
-                s_start = float(cs.get("span_start", 0.0))
-                s_end = float(cs.get("span_end", 0.0))
+                geom = self._cs_geom(cs)
+                s_start = float(geom.get("span_start", 0.0))
+                s_end = float(geom.get("span_end", 0.0))
+                tag_label = str(geom.get("tag") or cs.get("name") or cs.get("id") or f"CS_{row + 1}")
+                cs_type = str(geom.get("type") or "aileron").capitalize()
                 values = (
-                    str(cs.get("tag") or f"CS_{row + 1}"),
-                    str(cs.get("type") or "aileron").capitalize(),
+                    tag_label,
+                    cs_type,
                     f"{s_start:.1f} - {s_end:.1f}",
                 )
                 for column, value in enumerate(values):
@@ -885,23 +918,24 @@ class LiftingSurfaceEditor(QWidget):
 
         self._control_surface_index = row
         cs = cs_list[row]
+        geom = self._cs_geom(cs)
 
         was_loading = self._loading
         self._loading = True
         try:
-            self._set_property_value(self.cs_properties_table, "tag", str(cs.get("tag") or ""))
+            self._set_property_value(self.cs_properties_table, "tag", str(geom.get("tag") or cs.get("name") or cs.get("id") or ""))
             self._set_property_combo(
                 self.cs_properties_table,
                 "type",
-                str(cs.get("type") or "aileron"),
+                str(geom.get("type") or "aileron"),
                 self.CONTROL_SURFACE_TYPES,
                 lambda val: self._update_cs_choice("type", val),
             )
-            self._set_property_value(self.cs_properties_table, "span_start", float(cs.get("span_start", 0.0)))
-            self._set_property_value(self.cs_properties_table, "span_end", float(cs.get("span_end", 0.0)))
-            self._set_property_value(self.cs_properties_table, "chord", float(cs.get("chord", 0.0)))
-            self._set_property_value(self.cs_properties_table, "hinge_sweep", float(cs.get("hinge_sweep", 0.0)))
-            self._set_property_value(self.cs_properties_table, "deflection", float(cs.get("deflection", 0.0)))
+            self._set_property_value(self.cs_properties_table, "span_start", float(geom.get("span_start", 0.0)))
+            self._set_property_value(self.cs_properties_table, "span_end", float(geom.get("span_end", 0.0)))
+            self._set_property_value(self.cs_properties_table, "chord", float(geom.get("chord", 0.0)))
+            self._set_property_value(self.cs_properties_table, "hinge_sweep", float(geom.get("hinge_sweep", 0.0)))
+            self._set_property_value(self.cs_properties_table, "deflection", float(geom.get("deflection", 0.0)))
             self._update_cs_actions()
         finally:
             self._loading = was_loading
@@ -1110,6 +1144,7 @@ class LiftingSurfaceEditor(QWidget):
             self._loading = was_loading
 
     # -------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # Control Surface Actions & Mutation
     # -------------------------------------------------------------------------
 
@@ -1126,55 +1161,120 @@ class LiftingSurfaceEditor(QWidget):
             return
         text_val = item.text().strip()
         cs = cs_list[row]
+        geom = self._cs_geom(cs)
 
         def change() -> None:
             if column == 0:
-                cs["tag"] = text_val
+                geom["tag"] = text_val
+                if "name" in cs:
+                    cs["name"] = text_val
             elif column == 1:
-                cs["type"] = text_val.lower()
+                geom["type"] = text_val.lower()
 
-        self._edit_component("Edit control surface", change)
+        self._edit_control_surface_item(cs, "Edit control surface", change)
         if row == self._control_surface_index:
             self._load_control_surface(row)
 
     def _add_control_surface(self) -> None:
         cs_list = self._control_surfaces()
+        wing_id = str(self._component.get("id") or "wing")
         new_tag = f"control_{len(cs_list) + 1}"
-        new_cs = {
-            "tag": new_tag,
-            "type": "aileron",
-            "span_start": 100.0,
-            "span_end": 400.0,
-            "chord": 40.0,
-            "hinge_sweep": 0.0,
-            "deflection": 0.0,
-        }
-        insert_at = len(cs_list)
+        new_id = f"{wing_id}-{new_tag}"
+        project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
 
-        def change() -> None:
-            cs_list.insert(insert_at, new_cs)
+        profiles = self._profiles()
+        span_values = [float(p.get("position", {}).get("y", 0.0)) for p in profiles if isinstance(p.get("position"), dict)]
+        root_chord = float(profiles[0].get("chord", 150.0)) if profiles else 150.0
+        semi_span = max(span_values) - min(span_values) if len(span_values) >= 2 else 400.0
+        def_start = round(max(semi_span * 0.4, 20.0), 1)
+        def_end = round(max(semi_span * 0.85, def_start + 50.0), 1)
+        def_chord = round(max(root_chord * 0.25, 10.0), 1)
 
-        self._edit_component("Add control surface", change)
+        if project and isinstance(project.data.get("components"), list):
+            new_comp = {
+                "kind": "component",
+                "id": new_id,
+                "name": new_tag.replace("_", " ").title(),
+                "type": "org.setuav.core:control-surface",
+                "parent": wing_id,
+                "parameters": {
+                    "mass": 15.0,
+                    "geometry": {
+                        "tag": new_tag,
+                        "type": "aileron",
+                        "span_start": def_start,
+                        "span_end": def_end,
+                        "chord": def_chord,
+                        "hinge_sweep": 0.0,
+                        "deflection": 0.0,
+                    },
+                },
+            }
+
+            def change() -> None:
+                project.data["components"].append(new_comp)
+
+            if hasattr(self._api, "edit_project"):
+                self._api.edit_project("Add control surface", change)
+            else:
+                change()
+        else:
+            new_cs = {
+                "tag": new_tag,
+                "type": "aileron",
+                "span_start": def_start,
+                "span_end": def_end,
+                "chord": def_chord,
+                "hinge_sweep": 0.0,
+                "deflection": 0.0,
+            }
+
+            def change() -> None:
+                self._geometry().setdefault("control_surfaces", []).append(new_cs)
+
+            self._edit_component("Add control surface", change)
+
         self._populate_control_surfaces()
-        self.control_surfaces_table.selectRow(insert_at)
-        self._load_control_surface(insert_at)
+        insert_at = len(self._control_surfaces()) - 1
+        if insert_at >= 0:
+            self.control_surfaces_table.selectRow(insert_at)
+            self._load_control_surface(insert_at)
 
     def _duplicate_control_surface(self) -> None:
         idx = self._control_surface_index
         cs_list = self._control_surfaces()
         if not (0 <= idx < len(cs_list)):
             return
-        insert_at = idx + 1
         target = deepcopy(cs_list[idx])
-        target["tag"] = f"{target.get('tag', 'cs')}_copy"
+        project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
 
-        def change() -> None:
-            cs_list.insert(insert_at, target)
+        if project and isinstance(project.data.get("components"), list) and "parameters" in target:
+            base_id = str(target.get("id") or "cs")
+            target["id"] = f"{base_id}-copy"
+            target["name"] = f"{target.get('name', base_id)} (Copy)"
+            geom = target.setdefault("parameters", {}).setdefault("geometry", {})
+            geom["tag"] = f"{geom.get('tag', base_id)}_copy"
 
-        self._edit_component("Duplicate control surface", change)
+            def change() -> None:
+                project.data["components"].append(target)
+
+            if hasattr(self._api, "edit_project"):
+                self._api.edit_project("Duplicate control surface", change)
+            else:
+                change()
+        else:
+            target["tag"] = f"{target.get('tag', 'cs')}_copy"
+
+            def change() -> None:
+                self._geometry().setdefault("control_surfaces", []).insert(idx + 1, target)
+
+            self._edit_component("Duplicate control surface", change)
+
         self._populate_control_surfaces()
-        self.control_surfaces_table.selectRow(insert_at)
-        self._load_control_surface(insert_at)
+        insert_at = len(self._control_surfaces()) - 1
+        if insert_at >= 0:
+            self.control_surfaces_table.selectRow(insert_at)
+            self._load_control_surface(insert_at)
 
     def _move_cs_up(self) -> None:
         idx = self._control_surface_index
@@ -1182,11 +1282,23 @@ class LiftingSurfaceEditor(QWidget):
             return
         cs_list = self._control_surfaces()
         target = idx - 1
+        project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
 
         def change() -> None:
-            cs_list.insert(target, cs_list.pop(idx))
+            if project and isinstance(project.data.get("components"), list) and cs_list[idx] in project.data["components"]:
+                comps = project.data["components"]
+                i1 = comps.index(cs_list[idx])
+                i2 = comps.index(cs_list[target])
+                comps[i1], comps[i2] = comps[i2], comps[i1]
+            elif "control_surfaces" in self._geometry():
+                cs_arr = self._geometry()["control_surfaces"]
+                cs_arr.insert(target, cs_arr.pop(idx))
 
-        self._edit_component("Move control surface up", change)
+        if project and isinstance(project.data.get("components"), list) and cs_list[idx] in project.data["components"] and hasattr(self._api, "edit_project"):
+            self._api.edit_project("Move control surface up", change)
+        else:
+            self._edit_component("Move control surface up", change)
+
         self._populate_control_surfaces()
         self.control_surfaces_table.selectRow(target)
         self._load_control_surface(target)
@@ -1197,11 +1309,23 @@ class LiftingSurfaceEditor(QWidget):
         if idx < 0 or idx >= len(cs_list) - 1:
             return
         target = idx + 1
+        project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
 
         def change() -> None:
-            cs_list.insert(target, cs_list.pop(idx))
+            if project and isinstance(project.data.get("components"), list) and cs_list[idx] in project.data["components"]:
+                comps = project.data["components"]
+                i1 = comps.index(cs_list[idx])
+                i2 = comps.index(cs_list[target])
+                comps[i1], comps[i2] = comps[i2], comps[i1]
+            elif "control_surfaces" in self._geometry():
+                cs_arr = self._geometry()["control_surfaces"]
+                cs_arr.insert(target, cs_arr.pop(idx))
 
-        self._edit_component("Move control surface down", change)
+        if project and isinstance(project.data.get("components"), list) and cs_list[idx] in project.data["components"] and hasattr(self._api, "edit_project"):
+            self._api.edit_project("Move control surface down", change)
+        else:
+            self._edit_component("Move control surface down", change)
+
         self._populate_control_surfaces()
         self.control_surfaces_table.selectRow(target)
         self._load_control_surface(target)
@@ -1212,14 +1336,31 @@ class LiftingSurfaceEditor(QWidget):
         if not (0 <= idx < len(cs_list)):
             return
 
-        def change() -> None:
-            cs_list.pop(idx)
+        target_item = cs_list[idx]
+        project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
 
-        self._edit_component("Delete control surface", change)
+        def change() -> None:
+            if project and isinstance(project.data.get("components"), list) and target_item in project.data["components"]:
+                project.data["components"].remove(target_item)
+            elif "control_surfaces" in self._geometry():
+                cs_arr = self._geometry()["control_surfaces"]
+                if target_item in cs_arr:
+                    cs_arr.remove(target_item)
+                elif 0 <= idx < len(cs_arr):
+                    cs_arr.pop(idx)
+
+        if project and isinstance(project.data.get("components"), list) and target_item in project.data["components"] and hasattr(self._api, "edit_project"):
+            self._api.edit_project("Delete control surface", change)
+        else:
+            self._edit_component("Delete control surface", change)
+
         self._populate_control_surfaces()
-        new_idx = min(idx, len(cs_list) - 1)
-        self.control_surfaces_table.selectRow(new_idx)
-        self._load_control_surface(new_idx)
+        new_idx = min(idx, len(self._control_surfaces()) - 1)
+        if new_idx >= 0:
+            self.control_surfaces_table.selectRow(new_idx)
+            self._load_control_surface(new_idx)
+        else:
+            self._load_control_surface(-1)
 
     def _update_cs_actions(self) -> None:
         cs_list = self._control_surfaces()
@@ -1236,15 +1377,17 @@ class LiftingSurfaceEditor(QWidget):
         if not (0 <= row < len(cs_list)):
             return
         cs = cs_list[row]
-        s_start = float(cs.get("span_start", 0.0))
-        s_end = float(cs.get("span_end", 0.0))
+        geom = self._cs_geom(cs)
+        s_start = float(geom.get("span_start", 0.0))
+        s_end = float(geom.get("span_end", 0.0))
         was_loading = self._loading
         self._loading = True
         try:
             if self.control_surfaces_table.item(row, 0):
-                self.control_surfaces_table.item(row, 0).setText(str(cs.get("tag") or f"CS_{row + 1}"))
+                tag_label = str(geom.get("tag") or cs.get("name") or cs.get("id") or f"CS_{row + 1}")
+                self.control_surfaces_table.item(row, 0).setText(tag_label)
             if self.control_surfaces_table.item(row, 1):
-                self.control_surfaces_table.item(row, 1).setText(str(cs.get("type") or "aileron").capitalize())
+                self.control_surfaces_table.item(row, 1).setText(str(geom.get("type") or "aileron").capitalize())
             if self.control_surfaces_table.item(row, 2):
                 self.control_surfaces_table.item(row, 2).setText(f"{s_start:.1f} - {s_end:.1f}")
         finally:
@@ -1259,22 +1402,25 @@ class LiftingSurfaceEditor(QWidget):
         if not (0 <= self._control_surface_index < len(cs_list)):
             return
         cs = cs_list[self._control_surface_index]
+        geom = self._cs_geom(cs)
 
         def change() -> None:
             if key == "tag":
-                cs["tag"] = val_str.strip()
+                geom["tag"] = val_str.strip()
+                if "name" in cs:
+                    cs["name"] = val_str.strip()
             elif key == "span_start":
-                cs["span_start"] = self._parse_number(val_str) or 0.0
+                geom["span_start"] = self._parse_number(val_str) or 0.0
             elif key == "span_end":
-                cs["span_end"] = self._parse_number(val_str) or 0.0
+                geom["span_end"] = self._parse_number(val_str) or 0.0
             elif key == "chord":
-                cs["chord"] = max(self._parse_number(val_str) or 10.0, 1.0)
+                geom["chord"] = max(self._parse_number(val_str) or 10.0, 1.0)
             elif key == "hinge_sweep":
-                cs["hinge_sweep"] = self._parse_number(val_str) or 0.0
+                geom["hinge_sweep"] = self._parse_number(val_str) or 0.0
             elif key == "deflection":
-                cs["deflection"] = self._parse_number(val_str) or 0.0
+                geom["deflection"] = self._parse_number(val_str) or 0.0
 
-        self._edit_component(f"Edit control surface {key}", change)
+        self._edit_control_surface_item(cs, f"Edit control surface {key}", change)
         self._refresh_cs_table_row(self._control_surface_index)
 
     def _update_cs_choice(self, key: str, value: str) -> None:
@@ -1284,11 +1430,12 @@ class LiftingSurfaceEditor(QWidget):
         if not (0 <= self._control_surface_index < len(cs_list)):
             return
         cs = cs_list[self._control_surface_index]
+        geom = self._cs_geom(cs)
 
         def change() -> None:
-            cs[key] = value
+            geom[key] = value
 
-        self._edit_component(f"Edit control surface {key}", change)
+        self._edit_control_surface_item(cs, f"Edit control surface {key}", change)
         self._refresh_cs_table_row(self._control_surface_index)
 
     # -------------------------------------------------------------------------
@@ -1314,6 +1461,18 @@ class LiftingSurfaceEditor(QWidget):
     # -------------------------------------------------------------------------
     # Helpers & Edit Component Transaction
     # -------------------------------------------------------------------------
+
+    def _edit_control_surface_item(self, cs: dict[str, Any], description: str, change_fn: Callable[[], None]) -> None:
+        project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
+        if project and isinstance(project.data.get("components"), list) and cs in project.data["components"]:
+            if hasattr(self._api, "edit_component"):
+                self._api.edit_component(cs, description, change_fn)
+            elif hasattr(self._api, "edit_project"):
+                self._api.edit_project(description, change_fn)
+            else:
+                change_fn()
+        else:
+            self._edit_component(description, change_fn)
 
     def _edit_component(self, description: str, change_fn: Callable[[], None]) -> None:
         if hasattr(self._api, "edit_component"):
@@ -1342,7 +1501,29 @@ class LiftingSurfaceEditor(QWidget):
             self._geometry()["profiles"] = profs
         return profs
 
+    def _cs_geom(self, cs: dict[str, Any]) -> dict[str, Any]:
+        if "parameters" in cs and isinstance(cs["parameters"], dict):
+            geom = cs["parameters"].get("geometry")
+            if isinstance(geom, dict):
+                return geom
+        return cs
+
     def _control_surfaces(self) -> list[dict[str, Any]]:
+        project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
+        child_cs: list[dict[str, Any]] = []
+        if project and isinstance(project.data.get("components"), list):
+            wing_id = self._component.get("id")
+            for comp in project.data["components"]:
+                if (
+                    isinstance(comp, dict)
+                    and comp.get("type") == "org.setuav.core:control-surface"
+                    and comp.get("parent") == wing_id
+                ):
+                    child_cs.append(comp)
+
+        if child_cs:
+            return child_cs
+
         cs = self._geometry().get("control_surfaces")
         if not isinstance(cs, list):
             cs = []
@@ -1373,6 +1554,8 @@ class LiftingSurfaceEditor(QWidget):
     ) -> QTableWidget:
         table = cls._table(["Property", "Value"])
         table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
+        table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         table.setEditTriggers(
             QAbstractItemView.EditTrigger.DoubleClicked
             | QAbstractItemView.EditTrigger.EditKeyPressed
@@ -1400,7 +1583,7 @@ class LiftingSurfaceEditor(QWidget):
             label_item.setFlags(label_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             table.setItem(row, 0, label_item)
             table.setItem(row, 1, QTableWidgetItem())
-        cls._fit_table_height(table, len(definitions))
+        cls._fit_table_height(table, len(definitions), maximum_visible_rows=None)
 
     def _set_property_combo(
         self,
@@ -1520,9 +1703,12 @@ class LiftingSurfaceEditor(QWidget):
     def _fit_table_height(
         table: QTableWidget,
         row_count: int,
-        maximum_visible_rows: int = 6,
+        maximum_visible_rows: int | None = None,
     ) -> None:
-        visible_rows = min(max(row_count, 1), maximum_visible_rows)
+        if maximum_visible_rows is None:
+            visible_rows = max(row_count, 1)
+        else:
+            visible_rows = min(max(row_count, 1), maximum_visible_rows)
         height = (
             table.horizontalHeader().height()
             + table.verticalHeader().defaultSectionSize() * visible_rows

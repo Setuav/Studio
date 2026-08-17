@@ -14,15 +14,21 @@ class PropertiesPanel(QWidget):
         self._layout.setContentsMargins(6, 4, 6, 6)
         self._layout.setSpacing(4)
         self._current_widget: QWidget | None = None
+        self._current_selection_id: str | None = None
         api.on_selection_changed(self.set_selection)
 
     def set_selection(self, selection: Any | None) -> None:
-        self._replace_widget(None)
-
         if not isinstance(selection, dict):
+            self._current_selection_id = None
             self._replace_widget(self._message("Select a component"))
             return
 
+        new_id = str(selection.get("id") or "")
+        if self._current_selection_id is not None and new_id == self._current_selection_id and self._current_widget is not None:
+            # Same component is already selected; keep current editor widget intact
+            return
+
+        self._current_selection_id = new_id
         editor = self._api.create_component_editor(selection)
         if editor is not None:
             self._replace_widget(editor)

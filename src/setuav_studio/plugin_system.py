@@ -94,6 +94,33 @@ class _ComponentEditCommand(QUndoCommand):
         self._changed()
 
 
+class _ProjectEditCommand(QUndoCommand):
+    def __init__(
+        self,
+        project: ProjectDocument,
+        before: dict[str, Any],
+        after: dict[str, Any],
+        description: str,
+        changed: Callable[[], None],
+    ) -> None:
+        super().__init__(description)
+        self._project = project
+        self._before = before
+        self._after = after
+        self._changed = changed
+
+    def undo(self) -> None:
+        self._apply(self._before)
+
+    def redo(self) -> None:
+        self._apply(self._after)
+
+    def _apply(self, value: dict[str, Any]) -> None:
+        self._project.data.clear()
+        self._project.data.update(deepcopy(value))
+        self._changed()
+
+
 class StudioAPI:
     def __init__(self) -> None:
         self.current_project: ProjectDocument | None = None
@@ -268,6 +295,31 @@ class StudioAPI:
         self.undo_stack.push(
             _ComponentEditCommand(
                 component,
+                before,
+                after,
+                description,
+                self._notify_project_content_changed,
+            )
+        )
+
+    def edit_project(
+        self,
+        description: str,
+        change: Callable[[], None],
+    ) -> None:
+        if self.current_project is None:
+            change()
+            return
+        before = deepcopy(self.current_project.data)
+        change()
+        after = deepcopy(self.current_project.data)
+        self.current_project.data.clear()
+        self.current_project.data.update(before)
+        if before == after:
+            return
+        self.undo_stack.push(
+            _ProjectEditCommand(
+                self.current_project,
                 before,
                 after,
                 description,
