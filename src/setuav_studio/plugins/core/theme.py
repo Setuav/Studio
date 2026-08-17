@@ -82,12 +82,40 @@ QAbstractItemView[tableComboPopup="true"] {{
     font-size: {font_size}pt;
 }}
 
-QMenuBar,
-QMenuBar::item,
-QMenu,
+QMenuBar {{
+    font-family: \"{font_family}\";
+    font-size: 10pt;
+    padding: 0px 2px;
+}}
+
+QMenuBar::item {{
+    font-family: \"{font_family}\";
+    font-size: 10pt;
+    padding: 2px 5px;
+    margin: 0px;
+    border-radius: 2px;
+}}
+
+QMenu {{
+    font-family: \"{font_family}\";
+    font-size: 10pt;
+    padding: 2px 0px;
+    border: 1px solid {border_strong};
+    border-radius: 2px;
+}}
+
 QMenu::item {{
     font-family: \"{font_family}\";
     font-size: 10pt;
+    padding: 2px 14px 2px 8px;
+    margin: 0px 1px;
+    border-radius: 2px;
+}}
+
+QMenu::separator {{
+    height: 1px;
+    background-color: {border_strong};
+    margin: 2px 3px;
 }}
 
 QDockWidget::title {{
