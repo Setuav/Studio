@@ -50,12 +50,6 @@ class LiftingSurfaceEditor(QWidget):
         ("rudder", "Rudder"),
     ]
 
-    BLENDING_CONTINUITY = [
-        ("G0", "G0 (Positional)"),
-        ("G1", "G1 (Tangency)"),
-        ("G2", "G2 (Curvature)"),
-    ]
-
     def __init__(self, api: StudioAPI, component: dict[str, Any]) -> None:
         super().__init__()
         self._api = api
@@ -86,7 +80,6 @@ class LiftingSurfaceEditor(QWidget):
         self._create_profiles_section()
         self._create_profile_properties_section()
         self._create_control_surfaces_section()
-        self._create_blending_section()
         self._content_layout.addStretch()
 
         self._load_component()
@@ -300,10 +293,7 @@ class LiftingSurfaceEditor(QWidget):
         self.control_surfaces_table = self._table([
             "Tag",
             "Type",
-            "Span Start (mm)",
-            "Span End (mm)",
-            "Chord (mm)",
-            "Deflection (°)",
+            "Span (mm)",
         ])
         self.control_surfaces_table.setEditTriggers(
             QAbstractItemView.EditTrigger.DoubleClicked
@@ -349,20 +339,11 @@ class LiftingSurfaceEditor(QWidget):
             ("span_start", "Span Start (mm)"),
             ("span_end", "Span End (mm)"),
             ("chord", "Control Chord (mm)"),
+            ("hinge_sweep", "Hinge Sweep (°)"),
             ("deflection", "Deflection Angle (°)"),
         ])
         self.cs_properties_table.cellChanged.connect(self._update_cs_property)
         layout.addWidget(self.cs_properties_table)
-
-    def _create_blending_section(self) -> None:
-        layout = self._create_section("Loft & Blending", "fa6s.gear")
-        self.blending_table = self._property_table([
-            ("ruled", "Interpolation"),
-            ("continuity", "Continuity"),
-            ("max_degree", "Max Degree"),
-        ])
-        self.blending_table.cellChanged.connect(self._update_blending)
-        layout.addWidget(self.blending_table)
 
     def _create_section(self, title: str, icon_name: str | None = None) -> QVBoxLayout:
         section = QWidget()
@@ -449,27 +430,6 @@ class LiftingSurfaceEditor(QWidget):
 
         # Control Surfaces
         self._populate_control_surfaces()
-
-        # Blending
-        blending = self._geometry().get("blending")
-        blending = blending if isinstance(blending, dict) else {}
-        is_ruled = "true" if blending.get("ruled") is True else "false"
-        self._set_property_combo(
-            self.blending_table,
-            "ruled",
-            is_ruled,
-            [("false", "Smooth (Spline)"), ("true", "Linear (Ruled)")],
-            lambda val: self._update_blending_value("ruled", val == "true"),
-        )
-        continuity = str(blending.get("continuity") or "G2")
-        self._set_property_combo(
-            self.blending_table,
-            "continuity",
-            continuity,
-            self.BLENDING_CONTINUITY,
-            lambda val: self._update_blending_value("continuity", val),
-        )
-        self._set_property_value(self.blending_table, "max_degree", blending.get("max_degree") or 3)
 
         self._loading = False
 
@@ -784,21 +744,21 @@ class LiftingSurfaceEditor(QWidget):
             cs_list = self._control_surfaces()
             self.control_surfaces_table.setRowCount(len(cs_list))
             for row, cs in enumerate(cs_list):
+                s_start = float(cs.get("span_start", 0.0))
+                s_end = float(cs.get("span_end", 0.0))
                 values = (
                     str(cs.get("tag") or f"CS_{row + 1}"),
                     str(cs.get("type") or "aileron").capitalize(),
-                    f"{float(cs.get('span_start', 0.0)):.1f}",
-                    f"{float(cs.get('span_end', 0.0)):.1f}",
-                    f"{float(cs.get('chord', 0.0)):.1f}",
-                    f"{float(cs.get('deflection', 0.0)):.1f}",
+                    f"{s_start:.1f} - {s_end:.1f}",
                 )
                 for column, value in enumerate(values):
                     item = QTableWidgetItem(value)
-                    item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
-                    if column in (0, 1):
+                    if column == 2:
+                        item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                         item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     else:
-                        item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                        item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
+                        item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     self.control_surfaces_table.setItem(row, column, item)
 
             self._fit_table_height(self.control_surfaces_table, len(cs_list), maximum_visible_rows=5)
@@ -940,6 +900,7 @@ class LiftingSurfaceEditor(QWidget):
             self._set_property_value(self.cs_properties_table, "span_start", float(cs.get("span_start", 0.0)))
             self._set_property_value(self.cs_properties_table, "span_end", float(cs.get("span_end", 0.0)))
             self._set_property_value(self.cs_properties_table, "chord", float(cs.get("chord", 0.0)))
+            self._set_property_value(self.cs_properties_table, "hinge_sweep", float(cs.get("hinge_sweep", 0.0)))
             self._set_property_value(self.cs_properties_table, "deflection", float(cs.get("deflection", 0.0)))
             self._update_cs_actions()
         finally:
@@ -1171,14 +1132,6 @@ class LiftingSurfaceEditor(QWidget):
                 cs["tag"] = text_val
             elif column == 1:
                 cs["type"] = text_val.lower()
-            elif column == 2:
-                cs["span_start"] = self._parse_number(text_val) or 0.0
-            elif column == 3:
-                cs["span_end"] = self._parse_number(text_val) or 0.0
-            elif column == 4:
-                cs["chord"] = max(self._parse_number(text_val) or 10.0, 1.0)
-            elif column == 5:
-                cs["deflection"] = self._parse_number(text_val) or 0.0
 
         self._edit_component("Edit control surface", change)
         if row == self._control_surface_index:
@@ -1193,6 +1146,7 @@ class LiftingSurfaceEditor(QWidget):
             "span_start": 100.0,
             "span_end": 400.0,
             "chord": 40.0,
+            "hinge_sweep": 0.0,
             "deflection": 0.0,
         }
         insert_at = len(cs_list)
@@ -1210,9 +1164,9 @@ class LiftingSurfaceEditor(QWidget):
         cs_list = self._control_surfaces()
         if not (0 <= idx < len(cs_list)):
             return
+        insert_at = idx + 1
         target = deepcopy(cs_list[idx])
         target["tag"] = f"{target.get('tag', 'cs')}_copy"
-        insert_at = idx + 1
 
         def change() -> None:
             cs_list.insert(insert_at, target)
@@ -1282,6 +1236,8 @@ class LiftingSurfaceEditor(QWidget):
         if not (0 <= row < len(cs_list)):
             return
         cs = cs_list[row]
+        s_start = float(cs.get("span_start", 0.0))
+        s_end = float(cs.get("span_end", 0.0))
         was_loading = self._loading
         self._loading = True
         try:
@@ -1290,13 +1246,7 @@ class LiftingSurfaceEditor(QWidget):
             if self.control_surfaces_table.item(row, 1):
                 self.control_surfaces_table.item(row, 1).setText(str(cs.get("type") or "aileron").capitalize())
             if self.control_surfaces_table.item(row, 2):
-                self.control_surfaces_table.item(row, 2).setText(f"{float(cs.get('span_start', 0.0)):.1f}")
-            if self.control_surfaces_table.item(row, 3):
-                self.control_surfaces_table.item(row, 3).setText(f"{float(cs.get('span_end', 0.0)):.1f}")
-            if self.control_surfaces_table.item(row, 4):
-                self.control_surfaces_table.item(row, 4).setText(f"{float(cs.get('chord', 0.0)):.1f}")
-            if self.control_surfaces_table.item(row, 5):
-                self.control_surfaces_table.item(row, 5).setText(f"{float(cs.get('deflection', 0.0)):.1f}")
+                self.control_surfaces_table.item(row, 2).setText(f"{s_start:.1f} - {s_end:.1f}")
         finally:
             self._loading = was_loading
 
@@ -1319,6 +1269,8 @@ class LiftingSurfaceEditor(QWidget):
                 cs["span_end"] = self._parse_number(val_str) or 0.0
             elif key == "chord":
                 cs["chord"] = max(self._parse_number(val_str) or 10.0, 1.0)
+            elif key == "hinge_sweep":
+                cs["hinge_sweep"] = self._parse_number(val_str) or 0.0
             elif key == "deflection":
                 cs["deflection"] = self._parse_number(val_str) or 0.0
 
@@ -1340,7 +1292,7 @@ class LiftingSurfaceEditor(QWidget):
         self._refresh_cs_table_row(self._control_surface_index)
 
     # -------------------------------------------------------------------------
-    # General & Blending Mutations
+    # General Mutations
     # -------------------------------------------------------------------------
 
     def _update_general(self, row: int, column: int) -> None:
@@ -1358,28 +1310,6 @@ class LiftingSurfaceEditor(QWidget):
                 self._component["mass"] = max(mass_val, 0.0)
 
         self._edit_component(f"Edit {key}", change)
-
-    def _update_blending(self, row: int, column: int) -> None:
-        if self._loading or column != 1:
-            return
-        key = self._property_key(self.blending_table, row)
-        val_str = self._property_text(self.blending_table, row)
-        if key == "max_degree":
-            deg = int(self._parse_number(val_str) or 3)
-            self._update_blending_value("max_degree", max(1, min(deg, 8)))
-
-    def _update_blending_value(self, key: str, value: Any) -> None:
-        if self._loading:
-            return
-        blending = self._geometry().get("blending")
-        if not isinstance(blending, dict):
-            blending = {}
-            self._geometry()["blending"] = blending
-
-        def change() -> None:
-            blending[key] = value
-
-        self._edit_component(f"Edit blending {key}", change)
 
     # -------------------------------------------------------------------------
     # Helpers & Edit Component Transaction

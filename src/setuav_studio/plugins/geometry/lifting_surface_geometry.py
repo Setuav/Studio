@@ -27,9 +27,7 @@ def build_lifting_surface_geometry(
         return ()
 
     comp_id = str(component.get("id") or "lifting-surface")
-    blending = geometry.get("blending")
-    blending = blending if isinstance(blending, dict) else {}
-    interpolation = "linear" if blending.get("ruled") is True else "smooth"
+    interpolation = "smooth" if len(profiles) > 2 else "linear"
 
     control_surfaces = geometry.get("control_surfaces")
     if not isinstance(control_surfaces, list) or not control_surfaces:
@@ -123,7 +121,10 @@ def _build_lifting_surface_with_control_surfaces(
             "type": str(cs.get("type") or "aileron"),
             "y_min": y_min_seg,
             "y_max": y_max_seg,
+            "s_start": min(s_start, s_end),
+            "s_end": max(s_start, s_end),
             "chord": max(float(cs.get("chord", 40.0)), 1.0),
+            "hinge_sweep": float(cs.get("hinge_sweep")) if cs.get("hinge_sweep") is not None else None,
             "deflection": float(cs.get("deflection", 0.0)),
         })
 
@@ -201,6 +202,14 @@ def _build_lifting_surface_with_control_surfaces(
             cs_chord = covering_cs["chord"]
             deflection_deg = covering_cs["deflection"]
             cs_tag = covering_cs["tag"]
+            hinge_sweep = covering_cs["hinge_sweep"]
+            s_0 = covering_cs["s_start"]
+
+            # Interpolate reference station properties at s_0
+            y_s0 = y_root + span_dir * s_0
+            chord_0, prof_0, _ = _interpolate_station_props(y_s0, profiles)
+            x_le_0 = float(prof_0.get("position", {}).get("x", 0.0)) if isinstance(prof_0.get("position"), dict) else 0.0
+            X_h0 = (x_le_0 + chord_0) - cs_chord
 
             main_sections: list[Section] = []
             flap_sections: list[Section] = []
@@ -209,7 +218,18 @@ def _build_lifting_surface_with_control_surfaces(
             for y_s in interval_stations:
                 chord, prof, coords = _interpolate_station_props(y_s, profiles)
                 matrix = section_transform(prof)
-                x_h = 1.0 - min(max(cs_chord / max(chord, 1.0), 0.05), 0.95)
+                pos = prof.get("position") if isinstance(prof.get("position"), dict) else {}
+                x_le_s = float(pos.get("x", 0.0))
+
+                s_curr = abs(y_s - y_root)
+                if hinge_sweep is not None:
+                    # Global swept hinge line
+                    X_h_curr = X_h0 + (s_curr - s_0) * math.tan(math.radians(hinge_sweep))
+                    x_rel = (X_h_curr - x_le_s) / max(chord, 1.0)
+                    x_h = min(max(x_rel, 0.05), 0.95)
+                else:
+                    # Constant chord depth from trailing edge
+                    x_h = 1.0 - min(max(cs_chord / max(chord, 1.0), 0.05), 0.95)
 
                 main_2d, h_pt = _sample_structured_airfoil_round(coords, x_h=x_h, is_flap=False)
                 flap_2d, _ = _sample_structured_airfoil_round(coords, x_h=x_h, is_flap=True)
@@ -380,7 +400,7 @@ def _sample_structured_airfoil_round(
     n_lower: int = 28,
     n_wall: int = 7,
 ) -> tuple[tuple[tuple[float, float], ...], tuple[float, float]]:
-    """Sample structured 64-point loop with cosine-smooth leading edge and round circular hinge socket/nose."""
+    """Sample structured 64-point loop with global chord alignment and round circular hinge socket/nose."""
     upper_branch, lower_branch = _split_airfoil_upper_lower(coords)
 
     z_u_h = _interp_branch_z(upper_branch, x_h)
@@ -388,25 +408,28 @@ def _sample_structured_airfoil_round(
     z_h = (z_u_h + z_l_h) * 0.5
     r_h = max((z_u_h - z_l_h) * 0.5, 0.0) if x_h < 0.999 else 0.0
 
+    global_x_upper = [0.5 * (1.0 + math.cos(math.pi * i / (n_upper - 1))) for i in range(n_upper)]
+    global_x_lower = [0.5 * (1.0 - math.cos(math.pi * i / (n_lower - 1))) for i in range(n_lower)]
+
     if not is_flap:
         # Main Wing Section (64 pts):
-        # 28 upper points (x_h down to 0) using cosine distribution
+        # Upper points: global aligned grid clamped at x_h
         upper_pts = []
         for i in range(n_upper):
-            u = i / n_upper
-            x_val = x_h * 0.5 * (1.0 + math.cos(math.pi * u))
-            z_val = _interp_branch_z(upper_branch, x_val)
-            upper_pts.append((x_val, z_val))
+            x_val = global_x_upper[i]
+            x_clamped = min(x_val, x_h)
+            z_val = _interp_branch_z(upper_branch, x_clamped)
+            upper_pts.append((x_clamped, z_val))
 
         le_pt = (0.0, upper_branch[0][1])
 
-        # 28 lower points (0 up to x_h) using cosine distribution
+        # Lower points: global aligned grid clamped at x_h
         lower_pts = []
         for i in range(1, n_lower + 1):
-            u = i / n_lower
-            x_val = x_h * 0.5 * (1.0 - math.cos(math.pi * u))
-            z_val = _interp_branch_z(lower_branch, x_val)
-            lower_pts.append((x_val, z_val))
+            x_val = global_x_lower[i - 1] if i <= n_lower else global_x_lower[-1]
+            x_clamped = min(x_val, x_h)
+            z_val = _interp_branch_z(lower_branch, x_clamped)
+            lower_pts.append((x_clamped, z_val))
 
         # 7 points on socket / TE
         socket_pts = []
@@ -429,8 +452,7 @@ def _sample_structured_airfoil_round(
         # 28 upper flap points (1.0 down to x_h)
         flap_upper = []
         for i in range(n_upper):
-            u = i / n_upper
-            x_val = 1.0 - (1.0 - x_h) * u
+            x_val = 1.0 - (1.0 - x_h) * (i / (n_upper - 1))
             z_val = _interp_branch_z(upper_branch, x_val)
             flap_upper.append((x_val, z_val))
 
@@ -445,8 +467,7 @@ def _sample_structured_airfoil_round(
         # 28 lower flap points (x_h up to 1.0)
         flap_lower = []
         for i in range(1, n_lower + 1):
-            u = i / n_lower
-            x_val = x_h + (1.0 - x_h) * u
+            x_val = x_h + (1.0 - x_h) * (i / n_lower)
             z_val = _interp_branch_z(lower_branch, x_val)
             flap_lower.append((x_val, z_val))
 

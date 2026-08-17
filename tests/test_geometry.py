@@ -217,18 +217,19 @@ class GeometryTests(unittest.TestCase):
 
         # Edit control surface via cs_properties_table
         cs_idx = editor._control_surface_index
-        editor.cs_properties_table.item(5, 1).setText("18.5")  # Deflection
+        editor.cs_properties_table.item(6, 1).setText("18.5")  # Deflection
         self.assertEqual(wing_comp["parameters"]["geometry"]["control_surfaces"][cs_idx]["deflection"], 18.5)
-        self.assertEqual(editor.control_surfaces_table.item(cs_idx, 5).text(), "18.5")
 
         editor.cs_properties_table.item(4, 1).setText("55.0")  # Chord
         self.assertEqual(wing_comp["parameters"]["geometry"]["control_surfaces"][cs_idx]["chord"], 55.0)
-        self.assertEqual(editor.control_surfaces_table.item(cs_idx, 4).text(), "55.0")
 
-        # Edit control surface inline via control_surfaces_table
-        editor.control_surfaces_table.item(cs_idx, 5).setText("-12.0")
-        self.assertEqual(wing_comp["parameters"]["geometry"]["control_surfaces"][cs_idx]["deflection"], -12.0)
-        self.assertEqual(editor.cs_properties_table.item(5, 1).text(), "-12.0")
+        editor.cs_properties_table.item(5, 1).setText("5.0")  # Hinge Sweep
+        self.assertEqual(wing_comp["parameters"]["geometry"]["control_surfaces"][cs_idx]["hinge_sweep"], 5.0)
+
+        # Edit tag inline via control_surfaces_table
+        editor.control_surfaces_table.item(cs_idx, 0).setText("aileron_custom")
+        self.assertEqual(wing_comp["parameters"]["geometry"]["control_surfaces"][cs_idx]["tag"], "aileron_custom")
+        self.assertEqual(editor.cs_properties_table.item(0, 1).text(), "aileron_custom")
 
         # Section Selection in 3D Viewport
         editor.profiles_table.selectRow(1)
@@ -462,6 +463,41 @@ class GeometryTests(unittest.TestCase):
         for loft in lofts:
             for sec in loft.sections:
                 self.assertEqual(len(sec.points), 64)
+
+    def test_control_surface_hinge_sweep(self) -> None:
+        wing_with_sweep = {
+            "kind": "component",
+            "type": "org.setuav.core:lifting-surface",
+            "id": "swept-wing",
+            "parameters": {
+                "geometry": {
+                    "profiles": [
+                        {"position": {"x": 0.0, "y": 0.0, "z": 0.0}, "chord": 200.0, "airfoil": "0012"},
+                        {"position": {"x": 50.0, "y": 500.0, "z": 0.0}, "chord": 100.0, "airfoil": "0012"},
+                    ],
+                    "control_surfaces": [
+                        {
+                            "tag": "aileron",
+                            "type": "aileron",
+                            "span_start": 100.0,
+                            "span_end": 400.0,
+                            "chord": 40.0,
+                            "hinge_sweep": 0.0,  # Parallel to Y axis (zero sweep)
+                            "deflection": 0.0,
+                        }
+                    ],
+                }
+            },
+        }
+
+        lofts = build_lifting_surface_geometry(wing_with_sweep)
+        cs_loft = next(l for l in lofts if "aileron" in l.component_id)
+        self.assertEqual(len(cs_loft.sections), 2)
+        # Top hinge line X location should be exactly 150.0 mm at both section 0 and section 1
+        hinge_sec0_x = cs_loft.sections[0].points[27][0]
+        hinge_sec1_x = cs_loft.sections[1].points[27][0]
+        self.assertAlmostEqual(hinge_sec0_x, 150.0, delta=0.1)
+        self.assertAlmostEqual(hinge_sec1_x, 150.0, delta=0.1)
 
     def test_airfoil_dialog(self) -> None:
         from setuav_studio.plugins.geometry.airfoil_dialog import AirfoilDialog
