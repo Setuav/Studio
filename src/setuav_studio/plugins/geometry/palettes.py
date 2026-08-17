@@ -1,60 +1,42 @@
-"""Color palettes for component and wing geometry."""
+"""Color palettes for component, fuselage, and wing geometry."""
 
 _COLORS: dict[str, tuple[tuple[float, float, float], ...]] = {
-    "warm": (
-        (0.90, 0.60, 0.45),  # light terracotta
-        (0.65, 0.76, 0.50),  # light olive
-        (0.95, 0.78, 0.50),  # light gold
-        (0.76, 0.69, 0.60),  # light taupe
-        (0.86, 0.60, 0.62),  # light rose
+    "titanium": (
+        (0.72, 0.76, 0.82),  # titanium slate
+        (0.55, 0.65, 0.78),  # steel blue
+        (0.62, 0.66, 0.72),  # graphite aluminum
+        (0.48, 0.58, 0.70),  # midnight steel
+        (0.78, 0.82, 0.88),  # light titanium
     ),
-    "sunset": (
-        (0.95, 0.55, 0.30),  # orange
-        (0.90, 0.72, 0.40),  # amber
-        (0.85, 0.45, 0.60),  # pink
-        (0.68, 0.50, 0.75),  # violet
-        (0.95, 0.85, 0.60),  # cream
+    "carbon": (
+        (0.32, 0.35, 0.40),  # dark carbon anthracite
+        (0.25, 0.42, 0.55),  # cobalt navy
+        (0.28, 0.42, 0.38),  # emerald anthracite
+        (0.38, 0.40, 0.45),  # gunmetal grey
+        (0.45, 0.48, 0.52),  # carbon titanium
     ),
-    "forest": (
-        (0.55, 0.72, 0.45),  # green
-        (0.65, 0.60, 0.40),  # olive
-        (0.75, 0.65, 0.45),  # khaki
-        (0.60, 0.70, 0.55),  # sage
-        (0.80, 0.72, 0.50),  # sand
-    ),
-    "desert": (
-        (0.95, 0.80, 0.55),  # sand
-        (0.85, 0.68, 0.45),  # taupe
-        (0.90, 0.75, 0.50),  # beige
-        (0.80, 0.62, 0.42),  # brown
-        (0.92, 0.84, 0.65),  # cream
-    ),
-    "pastel": (
-        (0.95, 0.75, 0.70),  # peach
-        (0.75, 0.85, 0.65),  # light green
-        (0.95, 0.85, 0.65),  # light yellow
-        (0.85, 0.80, 0.75),  # light grey
-        (0.92, 0.70, 0.72),  # light pink
-    ),
-    "ocean": (
-        (0.55, 0.72, 0.85),  # blue
-        (0.60, 0.80, 0.75),  # turquoise
-        (0.75, 0.70, 0.85),  # lavender
-        (0.55, 0.60, 0.75),  # steel
-        (0.80, 0.85, 0.90),  # ice
+    "studio": (
+        (0.65, 0.68, 0.72),  # neutral studio clay
+        (0.58, 0.64, 0.72),  # slate blue
+        (0.62, 0.66, 0.64),  # muted sage
+        (0.70, 0.68, 0.65),  # warm clay
+        (0.75, 0.76, 0.78),  # light stone
     ),
 }
 
 _WING_COLORS: dict[str, tuple[float, float, float]] = {
-    "warm": (0.92, 0.70, 0.50),
-    "sunset": (0.95, 0.65, 0.35),
-    "forest": (0.70, 0.78, 0.50),
-    "desert": (0.90, 0.72, 0.48),
-    "pastel": (0.90, 0.78, 0.65),
-    "ocean": (0.60, 0.75, 0.85),
+    "titanium": (0.86, 0.89, 0.93),  # composite aero white-grey
+    "carbon": (0.82, 0.85, 0.88),    # matte aero grey
+    "studio": (0.88, 0.88, 0.90),    # pearl white / studio off-white
 }
 
-DEFAULT_PALETTE = "warm"
+_CS_COLORS: dict[str, tuple[float, float, float]] = {
+    "titanium": (0.95, 0.52, 0.12),  # aerospace amber / signal orange
+    "carbon": (0.15, 0.65, 0.92),    # electric cyan / neon blue
+    "studio": (0.92, 0.28, 0.25),    # safety crimson / coral red
+}
+
+DEFAULT_PALETTE = "studio"
 _active_palette = DEFAULT_PALETTE
 
 
@@ -81,15 +63,5 @@ def wing_color() -> tuple[float, float, float]:
     return _WING_COLORS[_active_palette]
 
 
-_CS_COLORS: dict[str, tuple[float, float, float]] = {
-    "warm": (0.88, 0.45, 0.35),
-    "sunset": (0.85, 0.35, 0.50),
-    "forest": (0.50, 0.65, 0.35),
-    "desert": (0.80, 0.50, 0.35),
-    "pastel": (0.85, 0.55, 0.60),
-    "ocean": (0.45, 0.60, 0.80),
-}
-
-
 def control_surface_color() -> tuple[float, float, float]:
-    return _CS_COLORS.get(_active_palette, (0.88, 0.45, 0.35))
+    return _CS_COLORS.get(_active_palette, (0.95, 0.52, 0.12))

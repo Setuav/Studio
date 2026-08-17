@@ -78,7 +78,7 @@ class GeometryTests(unittest.TestCase):
             wing_color,
         )
 
-        self.assertGreaterEqual(len(palette_names()), 5)
+        self.assertEqual(len(palette_names()), 3)
         for name in palette_names():
             with self.subTest(palette=name):
                 set_active_palette(name)

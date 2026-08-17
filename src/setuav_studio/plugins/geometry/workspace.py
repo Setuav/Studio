@@ -229,7 +229,7 @@ class ViewerWorkspace(QWidget):
         group = QActionGroup(self)
         group.setExclusive(True)
         for name in palette_names():
-            action = QAction(name, self)
+            action = QAction(name.capitalize(), self)
             action.setCheckable(True)
             action.setChecked(name == active_palette())
             action.triggered.connect(
