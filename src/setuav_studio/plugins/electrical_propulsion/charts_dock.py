@@ -21,6 +21,7 @@ from PySide6.QtCharts import (
 )
 
 from setuav_studio.icons import get_icon
+from setuav_studio.plugins.core.theme import tokens
 
 
 class PropulsionChartsDock(QWidget):
@@ -29,6 +30,7 @@ class PropulsionChartsDock(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("propulsion.charts_widget")
+        self._tokens = tokens()
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
@@ -63,12 +65,12 @@ class PropulsionChartsDock(QWidget):
         chart.setTitle(title)
         chart.setTitleFont(QFont("Inter", 11, QFont.Weight.Bold))
         chart.setTitleBrush(QColor("#e0e0e0"))
-        chart.setBackgroundBrush(QColor("#181818"))
-        chart.setPlotAreaBackgroundBrush(QColor("#111111"))
+        chart.setBackgroundBrush(QColor(self._tokens["surface"]))
+        chart.setPlotAreaBackgroundBrush(QColor(self._tokens["plot"]))
         chart.setPlotAreaBackgroundVisible(True)
         chart.legend().setVisible(True)
         chart.legend().setAlignment(Qt.AlignmentFlag.AlignTop)
-        chart.legend().setLabelBrush(QColor("#cccccc"))
+        chart.legend().setLabelBrush(QColor(self._tokens["text"]))
         chart.legend().setFont(QFont("Inter", 9))
         chart.setMargins(QChart.margins(chart))
         return chart
@@ -76,7 +78,7 @@ class PropulsionChartsDock(QWidget):
     def _create_chart_view(self, chart: QChart) -> QChartView:
         view = QChartView(chart)
         view.setRenderHint(QPainter.RenderHint.Antialiasing)
-        view.setStyleSheet("background-color: #181818; border: none;")
+        view.setStyleSheet(f"background-color: {self._tokens['surface']}; border: none;")
         return view
 
     def clear_charts(self) -> None:
@@ -124,14 +126,14 @@ class PropulsionChartsDock(QWidget):
         axis_x1.setTitleText(x_label)
         axis_x1.setTitleBrush(QColor("#b0b0b0"))
         axis_x1.setLabelsBrush(QColor("#888888"))
-        axis_x1.setGridLineColor(QColor("#262626"))
+        axis_x1.setGridLineColor(QColor(self._tokens["grid"]))
         axis_x1.setRange(x_min, x_max)
 
         axis_y_thrust = QValueAxis()
         axis_y_thrust.setTitleText("Thrust (N)")
         axis_y_thrust.setTitleBrush(QColor("#4ec9b0"))
         axis_y_thrust.setLabelsBrush(QColor("#4ec9b0"))
-        axis_y_thrust.setGridLineColor(QColor("#262626"))
+        axis_y_thrust.setGridLineColor(QColor(self._tokens["grid"]))
         t_max = max(thrust_n) * 1.1 if thrust_n else 10.0
         axis_y_thrust.setRange(0, max(t_max, 1.0))
 
@@ -174,14 +176,14 @@ class PropulsionChartsDock(QWidget):
         axis_x2.setTitleText(x_label)
         axis_x2.setTitleBrush(QColor("#b0b0b0"))
         axis_x2.setLabelsBrush(QColor("#888888"))
-        axis_x2.setGridLineColor(QColor("#262626"))
+        axis_x2.setGridLineColor(QColor(self._tokens["grid"]))
         axis_x2.setRange(x_min, x_max)
 
         axis_y_curr = QValueAxis()
         axis_y_curr.setTitleText("Current (A)")
         axis_y_curr.setTitleBrush(QColor("#e06c75"))
         axis_y_curr.setLabelsBrush(QColor("#e06c75"))
-        axis_y_curr.setGridLineColor(QColor("#262626"))
+        axis_y_curr.setGridLineColor(QColor(self._tokens["grid"]))
         c_max = max(current_a) * 1.15 if current_a else 20.0
         axis_y_curr.setRange(0, max(c_max, 5.0))
 
@@ -227,14 +229,14 @@ class PropulsionChartsDock(QWidget):
         axis_x3.setTitleText(x_label)
         axis_x3.setTitleBrush(QColor("#b0b0b0"))
         axis_x3.setLabelsBrush(QColor("#888888"))
-        axis_x3.setGridLineColor(QColor("#262626"))
+        axis_x3.setGridLineColor(QColor(self._tokens["grid"]))
         axis_x3.setRange(x_min, x_max)
 
         axis_y_eta = QValueAxis()
         axis_y_eta.setTitleText("Efficiency (%)")
         axis_y_eta.setTitleBrush(QColor("#b0b0b0"))
         axis_y_eta.setLabelsBrush(QColor("#888888"))
-        axis_y_eta.setGridLineColor(QColor("#262626"))
+        axis_y_eta.setGridLineColor(QColor(self._tokens["grid"]))
         axis_y_eta.setRange(0, 100.0)
 
         self.chart_efficiency.addAxis(axis_x3, Qt.AlignmentFlag.AlignBottom)

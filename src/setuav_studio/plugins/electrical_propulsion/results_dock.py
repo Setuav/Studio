@@ -19,6 +19,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from setuav_studio.plugins.core.theme import tokens
+
 from setuav_studio.icons import get_icon
 from setuav_studio.plugin_system import StudioAPI
 
@@ -30,6 +32,7 @@ class PropulsionResultsDock(QWidget):
         super().__init__(parent)
         self.setObjectName("propulsion.results_widget")
         self._api = api
+        self._tokens = tokens()
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
@@ -97,24 +100,24 @@ class PropulsionResultsDock(QWidget):
         table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         table.horizontalHeader().setStretchLastSection(True)
         table.setAlternatingRowColors(True)
-        table.setStyleSheet("""
-            QTableWidget {
-                background-color: #141414;
-                alternate-background-color: #1a1a1a;
-                gridline-color: #262626;
+        table.setStyleSheet(f"""
+            QTableWidget {{
+                background-color: {self._tokens["elevated"]};
+                alternate-background-color: {self._tokens["row_alt"]};
+                gridline-color: {self._tokens["grid"]};
                 font-size: 11.5px;
-                border: 1px solid #282828;
+                border: 1px solid {self._tokens["border"]};
                 border-radius: 4px;
-            }
-            QHeaderView::section {
-                background-color: #202020;
+            }}
+            QHeaderView::section {{
+                background-color: {self._tokens["surface_alt"]};
                 color: #b0b0b0;
                 padding: 4px 6px;
                 border: none;
-                border-bottom: 1px solid #333333;
+                border-bottom: 1px solid {self._tokens["border_strong"]};
                 font-weight: 600;
                 font-size: 11px;
-            }
+            }}
         """)
         return table
 

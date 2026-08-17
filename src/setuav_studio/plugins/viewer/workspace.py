@@ -21,6 +21,7 @@ from setuav_studio.plugins.geometry.palettes import (
     set_active_palette,
 )
 from setuav_studio.plugins.viewer.widget import OpenGLViewer
+from setuav_studio.plugins.core.theme import rgba, tokens
 from setuav_studio.plugins.viewer.mesh import (
     FACE_COLORED,
     FACE_MONOCHROME,
@@ -30,35 +31,35 @@ from setuav_studio.plugins.viewer.mesh import (
 
 logger = logging.getLogger(__name__)
 
-_HUD_STYLE = """
-QWidget#viewerHUD {
-    background-color: rgba(26, 29, 34, 0.88);
+_HUD_STYLE = f"""
+QWidget#viewerHUD {{
+    background-color: {rgba(tokens()["window"], 0.88)};
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 6px;
-}
-QWidget#viewerHUD QToolButton {
+}}
+QWidget#viewerHUD QToolButton {{
     background-color: transparent;
     border: 1px solid transparent;
     border-radius: 4px;
     padding: 0px;
     margin: 0px;
-}
-QWidget#viewerHUD QToolButton:hover {
+}}
+QWidget#viewerHUD QToolButton:hover {{
     background-color: rgba(255, 255, 255, 0.12);
     border: 1px solid rgba(255, 255, 255, 0.18);
-}
-QWidget#viewerHUD QToolButton:checked {
+}}
+QWidget#viewerHUD QToolButton:checked {{
     background-color: rgba(127, 196, 209, 0.22);
     border: 1px solid #7fc4d1;
-}
-QWidget#viewerHUD QToolButton:checked:hover {
+}}
+QWidget#viewerHUD QToolButton:checked:hover {{
     background-color: rgba(127, 196, 209, 0.32);
-}
-QWidget#viewerHUD QFrame#hudSep {
+}}
+QWidget#viewerHUD QFrame#hudSep {{
     background-color: rgba(255, 255, 255, 0.14);
     max-width: 1px;
     margin: 3px 2px;
-}
+}}
 """
 
 

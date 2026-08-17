@@ -8,8 +8,6 @@ from PySide6.QtWidgets import (
     QDialog,
     QDockWidget,
     QFileDialog,
-    QHBoxLayout,
-    QLabel,
     QMainWindow,
     QMenu,
     QMessageBox,
@@ -28,7 +26,7 @@ from setuav_studio.plugin_system import (
     WorkspaceContribution,
 )
 from setuav_studio.plugins.core.settings import SettingsDialog, StudioSettings
-from setuav_studio.plugins.core.theme import apply_theme
+from setuav_studio.plugins.core.theme import apply_theme, tokens
 from setuav_studio.project import (
     ProjectDocument,
     ProjectOpenError,
@@ -36,49 +34,6 @@ from setuav_studio.project import (
     open_project,
     save_project,
 )
-
-
-class DockTitleBar(QWidget):
-    def __init__(self, dock: QDockWidget, icon: str | Path | QIcon | None = None) -> None:
-        super().__init__(dock)
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(4, 1, 4, 1)
-        layout.setSpacing(5)
-
-        if icon:
-            icon_label = QLabel(self)
-            pixmap = get_icon(icon).pixmap(13, 13)
-            icon_label.setPixmap(pixmap)
-            icon_label.setFixedSize(13, 13)
-            icon_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-            layout.addWidget(icon_label)
-
-        self._title = QLabel(dock.windowTitle(), self)
-        self._title.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        layout.addWidget(self._title)
-        layout.addStretch()
-
-        float_button = QToolButton(self)
-        float_button.setAutoRaise(True)
-        float_button.setFixedSize(18, 18)
-        float_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        float_button.setToolTip("Dock or undock panel")
-        float_button.setIcon(get_icon("dock_float"))
-        float_button.clicked.connect(
-            lambda: dock.setFloating(not dock.isFloating())
-        )
-        layout.addWidget(float_button)
-
-        close_button = QToolButton(self)
-        close_button.setAutoRaise(True)
-        close_button.setFixedSize(18, 18)
-        close_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        close_button.setToolTip("Close panel")
-        close_button.setIcon(get_icon("dock_close"))
-        close_button.clicked.connect(dock.close)
-        layout.addWidget(close_button)
-
-        dock.windowTitleChanged.connect(self._title.setText)
 
 
 class MainWindow(QMainWindow):
@@ -105,14 +60,14 @@ class MainWindow(QMainWindow):
         self._workspace_toolbar.setMovable(False)
         self._workspace_toolbar.setFloatable(False)
         self._workspace_toolbar.setIconSize(QSize(15, 15))
-        self._workspace_toolbar.setStyleSheet("""
-            QToolBar {
+        self._workspace_toolbar.setStyleSheet(f"""
+            QToolBar {{
                 background: transparent;
                 border: none;
                 border-bottom: 1px solid rgba(255, 255, 255, 0.08);
                 padding: 2px 8px;
-            }
-            QToolButton {
+            }}
+            QToolButton {{
                 background: transparent;
                 border: 1px solid rgba(255, 255, 255, 0.12);
                 border-radius: 4px;
@@ -120,18 +75,18 @@ class MainWindow(QMainWindow):
                 margin: 1px 5px 1px 0px;
                 font-size: 11pt;
                 font-weight: 600;
-                color: #cccccc;
-            }
-            QToolButton:hover {
+                color: {tokens()["text"]};
+            }}
+            QToolButton:hover {{
                 background-color: rgba(255, 255, 255, 0.06);
                 border: 1px solid rgba(255, 255, 255, 0.22);
                 color: #ffffff;
-            }
-            QToolButton:checked {
+            }}
+            QToolButton:checked {{
                 background-color: rgba(127, 196, 209, 0.15);
                 border: 1px solid #7fc4d1;
                 color: #7fc4d1;
-            }
+            }}
         """)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self._workspace_toolbar)
 
@@ -439,7 +394,6 @@ class MainWindow(QMainWindow):
     def _add_panel(self, contribution: PanelContribution) -> None:
         dock = QDockWidget(contribution.title, self)
         dock.setFont(QApplication.font())
-        dock.setTitleBarWidget(DockTitleBar(dock, icon=contribution.icon))
         dock.setObjectName(contribution.id)
         dock.setWidget(contribution.factory())
         self.addDockWidget(contribution.area, dock)

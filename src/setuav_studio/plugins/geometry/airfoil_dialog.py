@@ -40,6 +40,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.icons import get_icon
+from setuav_studio.plugins.core.theme import tokens
 from setuav_studio.plugins.geometry.airfoil import (
     PRESET_AIRFOILS,
     compute_airfoil_metrics,
@@ -55,6 +56,7 @@ class AirfoilCanvasWidget(QWidget):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self._tokens = tokens()
         self._points: tuple[tuple[float, float], ...] = ()
         self._airfoil_name: str = "NACA 2412"
         self._metrics: dict[str, float] = {}
@@ -75,7 +77,7 @@ class AirfoilCanvasWidget(QWidget):
         height = self.height()
 
         # Background
-        painter.fillRect(0, 0, width, height, QColor("#141414"))
+        painter.fillRect(0, 0, width, height, QColor(self._tokens["elevated"]))
 
         # Plot margins
         margin_x = 40
@@ -287,7 +289,7 @@ class AirfoilDialog(QDialog):
         self.pts_count_label = QLabel("Points: 128")
 
         for lbl in (self.max_thick_label, self.max_camber_label, self.te_gap_label, self.pts_count_label):
-            lbl.setStyleSheet("font-size: 12px; color: #cccccc;")
+            lbl.setStyleSheet(f"font-size: 12px; color: {self._tokens['text']};")
             m_layout.addWidget(lbl)
 
         right_layout.addWidget(metrics_box)

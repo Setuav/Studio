@@ -9,9 +9,44 @@ FONT_FAMILY = "Inter"
 DEFAULT_FONT_SIZE = 10
 ACCENT_COLOR = "#7fc4d1"
 INACTIVE_SELECTION_COLORS = {
-    "dark": "#38555a",
+    "dark": "#404040",
     "light": "#c5e2e7",
 }
+DARK_TOKENS = {
+    "window": "#1a1d22",
+    "surface": "#181818",
+    "surface_alt": "#202020",
+    "elevated": "#141414",
+    "row_alt": "#1a1a1a",
+    "plot": "#111111",
+    "grid": "#262626",
+    "border": "#282828",
+    "border_strong": "#333333",
+    "text": "#cccccc",
+}
+LIGHT_TOKENS = {
+    "window": "#f4f5f7",
+    "surface": "#ffffff",
+    "surface_alt": "#e8eaed",
+    "elevated": "#ffffff",
+    "row_alt": "#f2f3f5",
+    "plot": "#fafbfc",
+    "grid": "#d9dce0",
+    "border": "#d3d6db",
+    "border_strong": "#bfc4ca",
+    "text": "#1f2329",
+}
+
+
+def tokens(theme: str = "dark") -> dict[str, str]:
+    if theme == "light":
+        return LIGHT_TOKENS
+    return DARK_TOKENS
+
+
+def rgba(color: str, alpha: float) -> str:
+    qcolor = QColor(color)
+    return f"rgba({qcolor.red()}, {qcolor.green()}, {qcolor.blue()}, {alpha})"
 _STYLESHEET_TEMPLATE = """
 QWidget {{
     font-family: \"{font_family}\";
