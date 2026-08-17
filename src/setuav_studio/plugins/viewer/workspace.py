@@ -170,6 +170,33 @@ class ViewerWorkspace(QWidget):
         self._build_palette_menu()
         hud_layout.addWidget(self.palette_button)
 
+        sep4 = QFrame(self.hud)
+        sep4.setObjectName("hudSep")
+        sep4.setFrameShape(QFrame.Shape.VLine)
+        sep4.setFrameShadow(QFrame.Shadow.Plain)
+        hud_layout.addWidget(sep4)
+
+        # Standard View Presets
+        view_buttons = (
+            ("fa6s.arrow-up", "Top View", 0.0, 90.0),
+            ("fa6s.arrow-down", "Bottom View", 0.0, -90.0),
+            ("fa6s.arrow-right", "Front View", 270.0, 0.0),
+            ("fa6s.arrow-left", "Side View", 180.0, 0.0),
+            ("fa6s.cubes", "Isometric View", 210.0, 20.0),
+        )
+        for icon, tooltip, azimuth, elevation in view_buttons:
+            button = QToolButton(self.hud)
+            button.setIcon(get_icon(icon))
+            button.setToolTip(tooltip)
+            button.setFixedSize(24, 24)
+            button.setAutoRaise(True)
+            button.clicked.connect(
+                lambda _checked=False, az=azimuth, el=elevation: self.viewer.set_view(
+                    az, el
+                )
+            )
+            hud_layout.addWidget(button)
+
         # Camera Fit Button
         fit_button = QToolButton(self.hud)
         fit_button.setIcon(get_icon("fit"))

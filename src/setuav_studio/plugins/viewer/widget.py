@@ -94,8 +94,8 @@ void main() {
     vec3 normal = normalize(vertexNormal);
     vec3 eye = normalize(eyeDirection);
     float diffuse = abs(dot(normal, eye));
-    vec3 shaded = vertexColor * (0.35 + 0.65 * diffuse);
-    float specular = pow(max(diffuse, 0.0), 32.0) * 0.10;
+    vec3 shaded = vertexColor * (0.45 + 0.55 * diffuse);
+    float specular = pow(max(diffuse, 0.0), 32.0) * 0.04;
     shaded += vec3(specular);
     fragmentColor = vec4(shaded, alpha);
 }
@@ -104,6 +104,14 @@ void main() {
 
 def _add_reference_line(vertices: list[float], start, end, color) -> None:
     vertices.extend((*start, *color, *end, *color))
+
+
+def _cross(left: Point3D, right: Point3D) -> Point3D:
+    return (
+        left[1] * right[2] - left[2] * right[1],
+        left[2] * right[0] - left[0] * right[2],
+        left[0] * right[1] - left[1] * right[0],
+    )
 
 
 class OpenGLViewer(QOpenGLWidget):
@@ -363,6 +371,11 @@ class OpenGLViewer(QOpenGLWidget):
         self._update_gpu_meshes()
         self.update()
 
+    def set_view(self, azimuth: float, elevation: float) -> None:
+        self._azimuth = azimuth
+        self._elevation = max(-89.0, min(89.0, elevation))
+        self.update()
+
     def fit_view(self) -> None:
         points = list(self._geometry_data.points())
         if not points:
@@ -373,9 +386,46 @@ class OpenGLViewer(QOpenGLWidget):
         minimum = [min(point[axis] for point in points) for axis in range(3)]
         maximum = [max(point[axis] for point in points) for axis in range(3)]
         centre = [(minimum[axis] + maximum[axis]) * 0.5 for axis in range(3)]
-        diagonal = math.dist(minimum, maximum)
+        azimuth = math.radians(self._azimuth)
+        elevation = math.radians(self._elevation)
+        eye_direction = (
+            math.cos(elevation) * math.sin(azimuth),
+            math.cos(elevation) * math.cos(azimuth),
+            math.sin(elevation),
+        )
+        right = _cross(eye_direction, (0.0, 0.0, 1.0))
+        right_length = math.sqrt(
+            right[0] * right[0] + right[1] * right[1] + right[2] * right[2]
+        )
+        if right_length < 1e-6:
+            right = (1.0, 0.0, 0.0)
+        else:
+            right = (
+                right[0] / right_length,
+                right[1] / right_length,
+                right[2] / right_length,
+            )
+        up = _cross(right, eye_direction)
+        width = 0.0
+        height = 0.0
+        depth = 0.0
+        for point in points:
+            offset = (
+                point[0] - centre[0],
+                point[1] - centre[1],
+                point[2] - centre[2],
+            )
+            width = max(width, abs(offset[0] * right[0] + offset[1] * right[1] + offset[2] * right[2]))
+            height = max(height, abs(offset[0] * up[0] + offset[1] * up[1] + offset[2] * up[2]))
+            depth = max(depth, abs(offset[0] * eye_direction[0] + offset[1] * eye_direction[1] + offset[2] * eye_direction[2]))
+        fov = math.radians(45.0)
+        aspect = self.width() / max(1, self.height())
+        distance = max(
+            width / (math.tan(fov * 0.5) * aspect),
+            height / math.tan(fov * 0.5),
+        ) + depth
         self._target = QVector3D(*centre)
-        self._distance = max(10.0, diagonal * 1.35)
+        self._distance = max(100.0, distance * 1.35)
         self.update()
 
     def mousePressEvent(self, event) -> None:
