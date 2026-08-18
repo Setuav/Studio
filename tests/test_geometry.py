@@ -707,6 +707,71 @@ class GeometryTests(unittest.TestCase):
             avg_outer_r = sum(math.sqrt(p[1]**2 + p[2]**2) for p in outer_sec.points) / len(outer_sec.points)
             self.assertLessEqual(avg_inner_r, avg_outer_r)
 
+    def test_twist_location_pivot_rotation(self) -> None:
+        """Verify that section transform rotates exactly around the chosen twist_location chord fraction."""
+        from setuav_studio.plugins.geometry.transforms import section_transform, transform_point
+
+        pos = {"x": 100.0, "y": 200.0, "z": 50.0}
+        chord = 200.0
+        sec_0 = {"position": pos, "rotation": {"x": 0.0, "y": 0.0, "z": 0.0}}
+        sec_w = {"position": pos, "rotation": {"x": 0.0, "y": -5.0, "z": 0.0}}  # -5 deg pitch (washout)
+
+        # 1. Test Quarter-Chord pivot (0.25)
+        mat0_qc = section_transform(sec_0, chord=chord, twist_location=0.25)
+        matw_qc = section_transform(sec_w, chord=chord, twist_location=0.25)
+        p0_qc = transform_point(mat0_qc, (50.0, 0.0, 0.0))  # 0.25 * 200 = 50 mm
+        pw_qc = transform_point(matw_qc, (50.0, 0.0, 0.0))
+        self.assertAlmostEqual(p0_qc[0], pw_qc[0], places=4)
+        self.assertAlmostEqual(p0_qc[1], pw_qc[1], places=4)
+        self.assertAlmostEqual(p0_qc[2], pw_qc[2], places=4)
+
+        # 2. Test Leading-Edge pivot (0.0)
+        mat0_le = section_transform(sec_0, chord=chord, twist_location=0.0)
+        matw_le = section_transform(sec_w, chord=chord, twist_location=0.0)
+        p0_le = transform_point(mat0_le, (0.0, 0.0, 0.0))
+        pw_le = transform_point(matw_le, (0.0, 0.0, 0.0))
+        self.assertAlmostEqual(p0_le[0], pw_le[0], places=4)
+        self.assertAlmostEqual(p0_le[1], pw_le[1], places=4)
+        self.assertAlmostEqual(p0_le[2], pw_le[2], places=4)
+
+        # 3. Test Trailing-Edge pivot (1.0)
+        mat0_te = section_transform(sec_0, chord=chord, twist_location=1.0)
+        matw_te = section_transform(sec_w, chord=chord, twist_location=1.0)
+        p0_te = transform_point(mat0_te, (200.0, 0.0, 0.0))
+        pw_te = transform_point(matw_te, (200.0, 0.0, 0.0))
+        self.assertAlmostEqual(p0_te[0], pw_te[0], places=4)
+        self.assertAlmostEqual(p0_te[1], pw_te[1], places=4)
+        self.assertAlmostEqual(p0_te[2], pw_te[2], places=4)
+
+    def test_wing_planform_washout_and_twist_location(self) -> None:
+        """Verify planform engine distributes washout linearly and computes metrics correctly."""
+        from setuav_studio.plugins.geometry.wing_planform_engine import (
+            compute_planform_metrics,
+            solve_wing_planform,
+        )
+
+        profiles = [
+            {"position": {"x": 0.0, "y": 0.0, "z": 0.0}, "chord": 200.0, "rotation": {"x": 0.0, "y": 0.0, "z": 0.0}},
+            {"position": {"x": 0.0, "y": 250.0, "z": 0.0}, "chord": 150.0, "rotation": {"x": 0.0, "y": 0.0, "z": 0.0}},
+            {"position": {"x": 0.0, "y": 500.0, "z": 0.0}, "chord": 100.0, "rotation": {"x": 0.0, "y": 0.0, "z": 0.0}},
+        ]
+        inputs = {
+            "span": 1000.0,
+            "root_chord": 200.0,
+            "tip_chord": 100.0,
+            "sweep": 5.0,
+            "washout": -3.0,
+        }
+        new_profiles, metrics = solve_wing_planform("span_root_tip", inputs, profiles)
+        self.assertEqual(len(new_profiles), 3)
+        self.assertAlmostEqual(metrics["washout"], -3.0, places=3)
+        self.assertAlmostEqual(new_profiles[0]["rotation"]["y"], 0.0, places=3)
+        self.assertAlmostEqual(new_profiles[1]["rotation"]["y"], -1.5, places=3)
+        self.assertAlmostEqual(new_profiles[2]["rotation"]["y"], -3.0, places=3)
+
+        computed = compute_planform_metrics(new_profiles)
+        self.assertAlmostEqual(computed["washout"], -3.0, places=3)
+
 
 if __name__ == "__main__":
     unittest.main()

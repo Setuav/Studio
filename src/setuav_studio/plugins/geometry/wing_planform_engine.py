@@ -22,6 +22,14 @@ SWEEP_LOCATIONS = [
     (1.0, "Trailing Edge (100%)"),
 ]
 
+TWIST_LOCATIONS = [
+    (0.0, "Leading Edge (0%)"),
+    (0.25, "Quarter Chord (25% c)"),
+    (0.50, "Half Chord (50%)"),
+    (0.75, "Hinge Line (75%)"),
+    (1.0, "Trailing Edge (100%)"),
+]
+
 
 def get_driver_inputs_for_mode(mode: str) -> list[tuple[str, str, str]]:
     """Return list of (key, label, unit) for active inputs in the given driver mode."""
@@ -31,6 +39,7 @@ def get_driver_inputs_for_mode(mode: str) -> list[tuple[str, str, str]]:
             ("aspect_ratio", "Aspect Ratio (AR)", "1"),
             ("taper_ratio", "Taper Ratio (λ)", "1"),
             ("sweep", "Sweep Angle (Λ)", "°"),
+            ("washout", "Tip Twist / Washout (ε)", "°"),
         ]
     if mode == "span_root_tip":
         return [
@@ -38,6 +47,7 @@ def get_driver_inputs_for_mode(mode: str) -> list[tuple[str, str, str]]:
             ("root_chord", "Root Chord (c_root)", "mm"),
             ("tip_chord", "Tip Chord (c_tip)", "mm"),
             ("sweep", "Sweep Angle (Λ)", "°"),
+            ("washout", "Tip Twist / Washout (ε)", "°"),
         ]
     if mode == "span_area_taper":
         return [
@@ -45,6 +55,7 @@ def get_driver_inputs_for_mode(mode: str) -> list[tuple[str, str, str]]:
             ("area", "Planform Area (S)", "mm²"),
             ("taper_ratio", "Taper Ratio (λ)", "1"),
             ("sweep", "Sweep Angle (Λ)", "°"),
+            ("washout", "Tip Twist / Washout (ε)", "°"),
         ]
     if mode == "span_ar_taper":
         return [
@@ -52,6 +63,7 @@ def get_driver_inputs_for_mode(mode: str) -> list[tuple[str, str, str]]:
             ("aspect_ratio", "Aspect Ratio (AR)", "1"),
             ("taper_ratio", "Taper Ratio (λ)", "1"),
             ("sweep", "Sweep Angle (Λ)", "°"),
+            ("washout", "Tip Twist / Washout (ε)", "°"),
         ]
     return []
 
@@ -117,8 +129,17 @@ def solve_wing_planform(
     old_b_semi = max(old_b_semi, 1e-6)
     root_x0 = float(current_profiles[0].get("position", {}).get("x", 0.0)) if current_profiles else 0.0
 
-    # 3. Scale profiles with sweep equation:
+    # 3. Scale profiles with sweep and twist equations:
     # x_LE,i = x_0 + dy * tan(sweep) - sweep_loc * (c_i - c_root)
+    # twist_i = twist_root + fraction * washout
+    has_washout = "washout" in inputs
+    washout_deg = float(inputs.get("washout", 0.0))
+    root_pitch = (
+        float(current_profiles[0].get("rotation", {}).get("y", 0.0))
+        if current_profiles and isinstance(current_profiles[0].get("rotation"), dict)
+        else 0.0
+    )
+
     new_profiles = []
     for p in current_profiles:
         p_new = deepcopy(p)
@@ -126,6 +147,11 @@ def solve_wing_planform(
         if not isinstance(pos, dict):
             pos = {"x": 0.0, "y": 0.0, "z": 0.0}
             p_new["position"] = pos
+        rot = p_new.get("rotation")
+        if not isinstance(rot, dict):
+            rot = {"x": 0.0, "y": 0.0, "z": 0.0}
+            p_new["rotation"] = rot
+
         y_old = float(pos.get("y", 0.0))
         fraction = min(max(abs(y_old) / old_b_semi, 0.0), 1.0)
         sign = 1.0 if y_old >= 0 else -1.0
@@ -139,9 +165,18 @@ def solve_wing_planform(
 
         # Sweep X offset
         pos["x"] = root_x0 + dy_new * math.tan(sweep_rad) - sweep_loc * (c_i - c_root)
+
+        # Washout (Pitch / Twist)
+        if has_washout:
+            rot["y"] = root_pitch + fraction * washout_deg
+
         new_profiles.append(p_new)
 
     mac = (2.0 / 3.0) * (c_root + c_tip - (c_root * c_tip) / max(c_root + c_tip, 1e-6))
+    current_washout = (
+        float(new_profiles[-1].get("rotation", {}).get("y", 0.0)) - float(new_profiles[0].get("rotation", {}).get("y", 0.0))
+        if len(new_profiles) >= 2 else 0.0
+    )
     metrics = {
         "area": s,
         "span": b,
@@ -151,6 +186,7 @@ def solve_wing_planform(
         "tip_chord": c_tip,
         "mac": mac,
         "sweep": sweep_deg,
+        "washout": washout_deg if has_washout else current_washout,
     }
     return new_profiles, metrics
 
@@ -159,7 +195,7 @@ def compute_planform_metrics(
     profiles: list[dict[str, Any]],
     sweep_loc: float = 0.25,
 ) -> dict[str, float]:
-    """Calculate aerodynamic planform metrics and sweep angle for arbitrary multi-station profiles."""
+    """Calculate aerodynamic planform metrics, sweep angle, and washout for arbitrary multi-station profiles."""
     if len(profiles) < 2:
         return {
             "area": 0.0,
@@ -170,6 +206,7 @@ def compute_planform_metrics(
             "tip_chord": 0.0,
             "mac": 0.0,
             "sweep": 0.0,
+            "washout": 0.0,
         }
 
     s_semi = 0.0
@@ -213,6 +250,13 @@ def compute_planform_metrics(
     else:
         sweep_deg = 0.0
 
+    # Washout (tip pitch - root pitch)
+    rot_root = profiles[0].get("rotation", {}) if isinstance(profiles[0].get("rotation"), dict) else {}
+    rot_tip = profiles[-1].get("rotation", {}) if isinstance(profiles[-1].get("rotation"), dict) else {}
+    root_pitch = float(rot_root.get("y", rot_root.get("pitch", 0.0)))
+    tip_pitch = float(rot_tip.get("y", rot_tip.get("pitch", 0.0)))
+    washout_deg = tip_pitch - root_pitch
+
     return {
         "area": s_total,
         "span": b_total,
@@ -222,4 +266,5 @@ def compute_planform_metrics(
         "tip_chord": c_tip,
         "mac": mac,
         "sweep": sweep_deg,
+        "washout": washout_deg,
     }

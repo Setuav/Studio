@@ -30,12 +30,14 @@ def build_lifting_surface_geometry(
     interpolation = "smooth" if len(profiles) > 2 else "linear"
 
     control_surfaces = geometry.get("control_surfaces")
+    twist_location = float(geometry.get("twist_location", 0.25))
+
     if not isinstance(control_surfaces, list) or not control_surfaces:
         # Simple continuous lifting surface without control surfaces
         sections = tuple(
             section
             for value in profiles
-            if (section := _build_profile_section(value)) is not None
+            if (section := _build_profile_section(value, twist_location=twist_location)) is not None
         )
         if len(sections) < 2:
             return ()
@@ -56,10 +58,11 @@ def build_lifting_surface_geometry(
         profiles=profiles,
         control_surfaces=control_surfaces,
         interpolation=interpolation,
+        twist_location=twist_location,
     )
 
 
-def _build_profile_section(value: object) -> Section | None:
+def _build_profile_section(value: object, twist_location: float = 0.25) -> Section | None:
     profile = value if isinstance(value, dict) else None
     if profile is None:
         return None
@@ -67,7 +70,7 @@ def _build_profile_section(value: object) -> Section | None:
     if chord <= 0:
         return None
     coords = sample_airfoil_points(profile.get("airfoil"))
-    matrix = section_transform(profile)
+    matrix = section_transform(profile, chord=chord, twist_location=twist_location)
     main_2d, _ = _sample_structured_airfoil_round(coords, x_h=1.0, is_flap=False)
     return Section(
         tuple(
@@ -82,6 +85,7 @@ def _build_lifting_surface_with_control_surfaces(
     profiles: list[dict[str, Any]],
     control_surfaces: list[dict[str, Any]],
     interpolation: str,
+    twist_location: float = 0.25,
 ) -> tuple[LoftGeometry, ...]:
     """Segment the wing cleanly along span so that each segment is straight/smooth without spline oscillations."""
     # 1. Collect all span Y coordinates
@@ -179,7 +183,7 @@ def _build_lifting_surface_with_control_surfaces(
             seg_sections: list[Section] = []
             for y_s in interval_stations:
                 chord, prof, coords = _interpolate_station_props(y_s, profiles)
-                matrix = section_transform(prof)
+                matrix = section_transform(prof, chord=chord, twist_location=twist_location)
                 main_2d, _ = _sample_structured_airfoil_round(coords, x_h=1.0, is_flap=False)
                 main_3d = tuple(
                     transform_point(matrix, (x * chord, 0.0, z * chord))
@@ -217,7 +221,7 @@ def _build_lifting_surface_with_control_surfaces(
 
             for y_s in interval_stations:
                 chord, prof, coords = _interpolate_station_props(y_s, profiles)
-                matrix = section_transform(prof)
+                matrix = section_transform(prof, chord=chord, twist_location=twist_location)
                 pos = prof.get("position") if isinstance(prof.get("position"), dict) else {}
                 x_le_s = float(pos.get("x", 0.0))
 

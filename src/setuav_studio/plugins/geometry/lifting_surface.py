@@ -34,6 +34,7 @@ from setuav_studio.plugins.geometry.airfoil_dialog import AirfoilDialog
 from setuav_studio.plugins.geometry.wing_planform_engine import (
     DRIVER_MODES,
     SWEEP_LOCATIONS,
+    TWIST_LOCATIONS,
     compute_planform_metrics,
     get_driver_inputs_for_mode,
     solve_wing_planform,
@@ -76,7 +77,8 @@ class LiftingSurfaceEditor(QWidget):
 
         self._create_general_section()
         self._create_attachment_section()
-        self._create_planform_drivers_section()
+        self._create_driver_groups_section()
+        self._create_planform_sizing_section()
         self._create_profiles_section()
         self._create_profile_properties_section()
         self._create_control_surfaces_section()
@@ -143,9 +145,9 @@ class LiftingSurfaceEditor(QWidget):
         ])
         layout.addWidget(self.attachment_options_table)
 
-    def _create_planform_drivers_section(self) -> None:
-        """Parametric Sizing and Driver Groups section."""
-        layout = self._create_section("Planform Sizing & Driver Group", "fa6s.arrows-left-right-to-line")
+    def _create_driver_groups_section(self) -> None:
+        """Driver Groups configuration section."""
+        layout = self._create_section("Driver Group", "fa6s.arrows-left-right-to-line")
 
         # Driver Mode Selector
         mode_layout = QHBoxLayout()
@@ -172,6 +174,23 @@ class LiftingSurfaceEditor(QWidget):
         sweep_loc_layout.addWidget(self.sweep_loc_combo)
         layout.addLayout(sweep_loc_layout)
 
+        # Twist Axis Location Selector
+        twist_loc_layout = QHBoxLayout()
+        twist_loc_layout.addWidget(QLabel("Twist Axis:"))
+        self.twist_loc_combo = QComboBox()
+        self.twist_loc_combo.setFont(QApplication.font())
+        self.twist_loc_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        for loc_val, loc_label in TWIST_LOCATIONS:
+            self.twist_loc_combo.addItem(loc_label, loc_val)
+        self.twist_loc_combo.setCurrentIndex(1)  # Default: Quarter chord (25% c)
+        self.twist_loc_combo.currentIndexChanged.connect(self._on_twist_loc_changed)
+        twist_loc_layout.addWidget(self.twist_loc_combo)
+        layout.addLayout(twist_loc_layout)
+
+    def _create_planform_sizing_section(self) -> None:
+        """Parametric Planform Sizing table section."""
+        layout = self._create_section("Planform Sizing", "fa6s.ruler-combined")
+
         # Planform Parameters Table
         self.planform_table = self._property_table([
             ("area", "Planform Area (S)"),
@@ -181,6 +200,7 @@ class LiftingSurfaceEditor(QWidget):
             ("root_chord", "Root Chord (c_root)"),
             ("tip_chord", "Tip Chord (c_tip)"),
             ("sweep", "Sweep Angle (Λ)"),
+            ("washout", "Tip Twist / Washout (ε)"),
             ("mac", "Mean Aerodyn Chord (MAC)"),
         ])
         self.planform_table.cellChanged.connect(self._on_planform_parameter_edited)
@@ -196,7 +216,7 @@ class LiftingSurfaceEditor(QWidget):
             "Chord (mm)",
             "Offset X (mm)",
             "Height Z (mm)",
-            "Twist X (°)",
+            "Twist (°)",
         ])
         self.profiles_table.setEditTriggers(
             QAbstractItemView.EditTrigger.DoubleClicked
@@ -246,6 +266,7 @@ class LiftingSurfaceEditor(QWidget):
         self.profile_properties_table = self._property_table([
             ("airfoil", "Airfoil"),
             ("chord", "Chord (mm)"),
+            ("twist", "Twist Angle (°)"),
         ])
         self.profile_properties_table.cellChanged.connect(self._update_profile_property)
         layout.addWidget(self.profile_properties_table)
@@ -434,6 +455,11 @@ class LiftingSurfaceEditor(QWidget):
 
         # Planform Sizing & Driver Group Initial Setup
         self._sync_driver_mode_from_project()
+        twist_loc = float(self._geometry().get("twist_location", 0.25))
+        for i in range(self.twist_loc_combo.count()):
+            if abs(float(self.twist_loc_combo.itemData(i)) - twist_loc) < 1e-4:
+                self.twist_loc_combo.setCurrentIndex(i)
+                break
         self._refresh_planform_table()
 
         # Control Surfaces
@@ -563,6 +589,16 @@ class LiftingSurfaceEditor(QWidget):
         self._sweep_loc = float(self.sweep_loc_combo.itemData(index) or 0.25)
         self._refresh_planform_table()
 
+    def _on_twist_loc_changed(self, index: int) -> None:
+        if self._loading:
+            return
+        twist_loc = float(self.twist_loc_combo.itemData(index) or 0.25)
+
+        def change() -> None:
+            self._geometry()["twist_location"] = twist_loc
+
+        self._edit_component("Change wing twist axis location", change)
+
     def _refresh_planform_table(self) -> None:
         profiles = self._profiles()
         metrics = compute_planform_metrics(profiles, self._sweep_loc)
@@ -599,6 +635,10 @@ class LiftingSurfaceEditor(QWidget):
             is_sweep_driver = "sweep" in active_driver_keys
             sweep_str = f"{metrics['sweep']:.1f}" if is_sweep_driver else f"{metrics['sweep']:.1f}°"
             self._set_planform_cell("sweep", sweep_str, editable=is_sweep_driver)
+
+            is_washout_driver = "washout" in active_driver_keys
+            washout_str = f"{metrics['washout']:.1f}" if is_washout_driver else f"{metrics['washout']:.1f}°"
+            self._set_planform_cell("washout", washout_str, editable=is_washout_driver)
 
             self._set_planform_cell("mac", f"{metrics['mac']:.1f} mm", editable=False)
 
@@ -637,7 +677,7 @@ class LiftingSurfaceEditor(QWidget):
         val_num = self._parse_number(val_str)
         if val_num is None:
             return
-        if key != "sweep" and val_num <= 0:
+        if key not in ("sweep", "washout") and val_num <= 0:
             return
 
         profiles = self._profiles()
@@ -650,6 +690,7 @@ class LiftingSurfaceEditor(QWidget):
             "root_chord": current_metrics["root_chord"],
             "tip_chord": current_metrics["tip_chord"],
             "sweep": current_metrics["sweep"],
+            "washout": current_metrics["washout"],
         }
         inputs[key] = val_num
 
@@ -683,7 +724,7 @@ class LiftingSurfaceEditor(QWidget):
     def _update_profiles_table_interactivity(self) -> None:
         """Lock or unlock profiles table columns depending on driver mode."""
         is_manual = self._driver_mode == "manual"
-        # Columns: 0=#, 1=Airfoil, 2=Span Y, 3=Chord, 4=Offset X, 5=Height Z, 6=Twist X
+        # Columns: 0=#, 1=Airfoil, 2=Span Y, 3=Chord, 4=Offset X, 5=Height Z, 6=Twist
         for r in range(self.profiles_table.rowCount()):
             for c in range(self.profiles_table.columnCount()):
                 item = self.profiles_table.item(r, c)
@@ -696,7 +737,7 @@ class LiftingSurfaceEditor(QWidget):
                     else:
                         item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                         item.setForeground(QBrush(QColor("#777777")))
-                else:  # Airfoil, Height Z, Twist X are always editable
+                else:  # Airfoil, Height Z, Twist are editable
                     item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
                     item.setForeground(QBrush(QColor("#ffffff")))
 
@@ -748,7 +789,7 @@ class LiftingSurfaceEditor(QWidget):
                     f"{float(profile.get('chord', 0.0)):.1f}",
                     f"{float(pos.get('x', 0.0)):.1f}",
                     f"{float(pos.get('z', 0.0)):.1f}",
-                    f"{float(rot.get('x', 0.0)):.1f}",
+                    f"{float(rot.get('y', 0.0)):.1f}",
                 )
                 for column, value in enumerate(values):
                     item = QTableWidgetItem(value)
@@ -832,6 +873,7 @@ class LiftingSurfaceEditor(QWidget):
             airfoil_val = self._format_airfoil_label(profile.get("airfoil"))
             self._set_property_value(self.profile_properties_table, "airfoil", airfoil_val)
             self._set_property_value(self.profile_properties_table, "chord", float(profile.get("chord", 200.0)))
+            self._set_property_value(self.profile_properties_table, "twist", float(rot.get("y", 0.0)))
             self._update_profile_actions()
             self._update_profiles_table_interactivity()
         finally:
@@ -975,8 +1017,8 @@ class LiftingSurfaceEditor(QWidget):
                 pos["x"] = self._parse_number(text_val) or 0.0
             elif column == 5:  # Height Z
                 pos["z"] = self._parse_number(text_val) or 0.0
-            elif column == 6:  # Twist X
-                rot["x"] = self._parse_number(text_val) or 0.0
+            elif column == 6:  # Twist (Pitch)
+                rot["y"] = self._parse_number(text_val) or 0.0
 
         self._edit_component("Edit wing profile station", change)
         if row == self._profile_index:
@@ -1110,12 +1152,20 @@ class LiftingSurfaceEditor(QWidget):
         if not (0 <= self._profile_index < len(profiles)):
             return
         prof = profiles[self._profile_index]
+        pos = prof.get("position") if isinstance(prof.get("position"), dict) else {}
+        if not isinstance(prof.get("position"), dict):
+            prof["position"] = pos
+        rot = prof.get("rotation") if isinstance(prof.get("rotation"), dict) else {}
+        if not isinstance(prof.get("rotation"), dict):
+            prof["rotation"] = rot
 
         def change() -> None:
             if key == "airfoil":
                 prof["airfoil"] = val_str.strip()
             elif key == "chord":
                 prof["chord"] = max(self._parse_number(val_str) or 10.0, 1.0)
+            elif key == "twist":
+                rot["y"] = self._parse_number(val_str) or 0.0
 
         self._edit_component(f"Edit profile {key}", change)
         self._refresh_profile_table_row(self._profile_index)
@@ -1138,7 +1188,7 @@ class LiftingSurfaceEditor(QWidget):
             self.profiles_table.item(row, 3).setText(f"{float(prof.get('chord', 0.0)):.1f}")
             self.profiles_table.item(row, 4).setText(f"{float(pos.get('x', 0.0)):.1f}")
             self.profiles_table.item(row, 5).setText(f"{float(pos.get('z', 0.0)):.1f}")
-            self.profiles_table.item(row, 6).setText(f"{float(rot.get('x', 0.0)):.1f}")
+            self.profiles_table.item(row, 6).setText(f"{float(rot.get('y', 0.0)):.1f}")
             self._update_profiles_table_interactivity()
         finally:
             self._loading = was_loading

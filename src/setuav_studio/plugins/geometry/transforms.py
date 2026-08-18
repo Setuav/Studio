@@ -67,19 +67,45 @@ def transform_point(matrix: Matrix4, point: Point3D) -> Point3D:
     )
 
 
-def section_transform(value: object) -> Matrix4:
+def section_transform(
+    value: object,
+    chord: float = 0.0,
+    twist_location: float = 0.0,
+) -> Matrix4:
     section = value if isinstance(value, dict) else {}
     rotation = section.get("rotation")
     rotation = rotation if isinstance(rotation, dict) else {}
-    return transform_matrix(
-        {
-            "position": section.get("position"),
-            "rotation": {
-                "roll": rotation.get("x", 0),
-                "pitch": rotation.get("y", 0),
-                "yaw": rotation.get("z", 0),
-            },
-        }
+    position = section.get("position")
+    position = position if isinstance(position, dict) else {}
+
+    roll_val = rotation.get("roll") if "roll" in rotation else rotation.get("x")
+    pitch_val = rotation.get("pitch") if "pitch" in rotation else rotation.get("y")
+    yaw_val = rotation.get("yaw") if "yaw" in rotation else rotation.get("z")
+    roll = radians(_number(roll_val))
+    pitch = radians(_number(pitch_val))
+    yaw = radians(_number(yaw_val))
+    cr, sr = cos(roll), sin(roll)
+    cp, sp = cos(pitch), sin(pitch)
+    cy, sy = cos(yaw), sin(yaw)
+
+    r00, r01, r02 = cp * cy, cy * sp * sr - sy * cr, cy * sp * cr + sy * sr
+    r10, r11, r12 = cp * sy, sy * sp * sr + cy * cr, sy * sp * cr - cy * sr
+    r20, r21, r22 = -sp, cp * sr, cp * cr
+
+    x_pivot = twist_location * chord
+    px = _number(position.get("x"))
+    py = _number(position.get("y"))
+    pz = _number(position.get("z"))
+
+    tx = px + x_pivot * (1.0 - r00)
+    ty = py - x_pivot * r10
+    tz = pz - x_pivot * r20
+
+    return (
+        (r00, r01, r02, tx),
+        (r10, r11, r12, ty),
+        (r20, r21, r22, tz),
+        (0.0, 0.0, 0.0, 1.0),
     )
 
 
