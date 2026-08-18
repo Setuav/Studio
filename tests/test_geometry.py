@@ -786,6 +786,99 @@ class GeometryTests(unittest.TestCase):
         computed = compute_planform_metrics(new_profiles)
         self.assertAlmostEqual(computed["washout"], -3.0, places=3)
 
+    def test_wing_tip_caps_flat_round_sharp(self) -> None:
+        """Verify that flat, round, and sharp wingtip caps generate correct 3D loft extensions."""
+        wing_comp = {
+            "id": "wing-test",
+            "type": "org.setuav.core:lifting-surface",
+            "parameters": {
+                "geometry": {
+                    "profiles": [
+                        {"position": {"x": 0.0, "y": 0.0, "z": 0.0}, "chord": 200.0, "airfoil": "0012"},
+                        {"position": {"x": 0.0, "y": 500.0, "z": 0.0}, "chord": 100.0, "airfoil": "0012"},
+                    ]
+                }
+            }
+        }
+
+        # 1. Default (flat) tip cap: exactly 1 loft with 2 sections
+        lofts_flat = build_lifting_surface_geometry(wing_comp)
+        self.assertEqual(len(lofts_flat), 1)
+        self.assertEqual(len(lofts_flat[0].sections), 2)
+        tip_flat_y = max(p[1] for p in lofts_flat[0].sections[-1].points)
+        self.assertAlmostEqual(tip_flat_y, 500.0, places=2)
+
+        # 2. Round tip cap with length 25 mm: returns main wing + dedicated bullnose tip cap loft
+        wing_round = deepcopy(wing_comp)
+        wing_round["parameters"]["geometry"]["tip_treatment"] = {
+            "type": "round",
+            "length": 25.0,
+            "offset_x": 0.0,
+        }
+        lofts_round = build_lifting_surface_geometry(wing_round)
+        self.assertEqual(len(lofts_round), 2)
+        tip_cap_loft = lofts_round[1]
+        self.assertEqual(tip_cap_loft.component_id, "wing-test:tip-cap")
+        self.assertEqual(len(tip_cap_loft.sections), 17)
+        all_y = [p[1] for sec in tip_cap_loft.sections for p in sec.points]
+        self.assertAlmostEqual(min(all_y), 500.0, places=2)
+        self.assertAlmostEqual(max(all_y), 525.0, places=2)
+
+        # 3. Sharp tip cap with length 15 mm: returns main wing + dedicated sharp beveled tip cap loft
+        wing_sharp = deepcopy(wing_comp)
+        wing_sharp["parameters"]["geometry"]["tip_treatment"] = {
+            "type": "sharp",
+            "length": 15.0,
+            "offset_x": 5.0,
+        }
+        lofts_sharp = build_lifting_surface_geometry(wing_sharp)
+        self.assertEqual(len(lofts_sharp), 2)
+        sharp_cap_loft = lofts_sharp[1]
+        self.assertEqual(sharp_cap_loft.component_id, "wing-test:tip-cap")
+        self.assertEqual(len(sharp_cap_loft.sections), 3)
+        all_sharp_y = [p[1] for sec in sharp_cap_loft.sections for p in sec.points]
+        self.assertAlmostEqual(min(all_sharp_y), 500.0, places=2)
+        self.assertAlmostEqual(max(all_sharp_y), 515.0, places=2)
+
+    def test_lifting_surface_editor_tip_caps_ui(self) -> None:
+        """Verify LiftingSurfaceEditor tip caps table interactions and project mutation."""
+        from setuav_studio.plugin_system import StudioAPI
+        from setuav_studio.plugins.geometry.lifting_surface import LiftingSurfaceEditor
+
+        api = StudioAPI()
+        wing_comp = {
+            "id": "main-wing",
+            "name": "Main Wing",
+            "type": "org.setuav.core:lifting-surface",
+            "parameters": {
+                "geometry": {
+                    "profiles": [
+                        {"position": {"x": 0.0, "y": 0.0, "z": 0.0}, "chord": 200.0, "airfoil": "0012"},
+                        {"position": {"x": 0.0, "y": 500.0, "z": 0.0}, "chord": 100.0, "airfoil": "0012"},
+                    ]
+                }
+            }
+        }
+        mock_doc = type("Doc", (), {"data": {"components": [wing_comp]}})()
+        api.current_project = mock_doc
+
+        editor = LiftingSurfaceEditor(api, wing_comp)
+        # Default tip cap is flat
+        self.assertEqual(editor.tip_caps_table.rowCount(), 3)
+        self.assertEqual(wing_comp["parameters"]["geometry"].get("tip_treatment", {}).get("type", "flat"), "flat")
+
+        # Change tip cap type to round via UI
+        editor._on_tip_cap_type_changed("round")
+        self.assertEqual(wing_comp["parameters"]["geometry"]["tip_treatment"]["type"], "round")
+
+        # Edit tip length
+        for r in range(editor.tip_caps_table.rowCount()):
+            if editor._property_key(editor.tip_caps_table, r) == "tip_length":
+                editor.tip_caps_table.item(r, 1).setText("35.0")
+                editor._on_tip_cap_cell_edited(r, 1)
+                break
+        self.assertAlmostEqual(wing_comp["parameters"]["geometry"]["tip_treatment"]["length"], 35.0)
+
 
 if __name__ == "__main__":
     unittest.main()

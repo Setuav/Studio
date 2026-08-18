@@ -81,6 +81,7 @@ class LiftingSurfaceEditor(QWidget):
         self._create_planform_sizing_section()
         self._create_profiles_section()
         self._create_profile_properties_section()
+        self._create_tip_caps_section()
         self._create_control_surfaces_section()
         self._content_layout.addStretch()
 
@@ -252,6 +253,18 @@ class LiftingSurfaceEditor(QWidget):
         af_btn_layout.addStretch()
         layout.addLayout(af_btn_layout)
 
+    def _create_tip_caps_section(self) -> None:
+        """End Caps (Tip Treatment) configuration section."""
+        layout = self._create_section("End Caps (Tip Treatment)", "fa6s.shapes")
+
+        self.tip_caps_table = self._property_table([
+            ("tip_type", "Tip Cap Type"),
+            ("tip_length", "Tip Length (mm)"),
+            ("tip_offset_x", "Tip Sweep Offset (mm)"),
+        ])
+        self.tip_caps_table.cellChanged.connect(self._on_tip_cap_cell_edited)
+        layout.addWidget(self.tip_caps_table)
+
     def _create_control_surfaces_section(self) -> None:
         layout = self._create_section("Control Surfaces", "fa6s.sliders")
 
@@ -397,6 +410,9 @@ class LiftingSurfaceEditor(QWidget):
         self._sync_driver_mode_from_project()
         self._load_driver_groups_table()
         self._refresh_planform_table()
+
+        # End Caps (Tip Treatment)
+        self._load_tip_caps()
 
         # Control Surfaces
         self._populate_control_surfaces()
@@ -1137,6 +1153,82 @@ class LiftingSurfaceEditor(QWidget):
             self._loading = was_loading
 
     # -------------------------------------------------------------------------
+    # End Caps (Tip Treatment) Actions & Mutation
+    # -------------------------------------------------------------------------
+
+    def _load_tip_caps(self) -> None:
+        geom = self._geometry()
+        tip_treatment = geom.get("tip_treatment")
+        tip_treatment = tip_treatment if isinstance(tip_treatment, dict) else {}
+        tip_type = str(tip_treatment.get("type", "flat")).lower()
+        tip_length = float(tip_treatment.get("length", 20.0))
+        tip_offset_x = float(tip_treatment.get("offset_x", 0.0))
+
+        self._set_property_combo(
+            self.tip_caps_table,
+            "tip_type",
+            tip_type,
+            [("flat", "Flat"), ("round", "Round (Dome)"), ("sharp", "Sharp (Bevel)")],
+            self._on_tip_cap_type_changed,
+        )
+        self._set_property_value(self.tip_caps_table, "tip_length", tip_length)
+        self._set_property_value(self.tip_caps_table, "tip_offset_x", tip_offset_x)
+        self._update_tip_caps_interactivity(tip_type)
+
+    def _update_tip_caps_interactivity(self, tip_type: str) -> None:
+        is_cap_active = tip_type in ("round", "sharp")
+        for row in range(self.tip_caps_table.rowCount()):
+            key = self._property_key(self.tip_caps_table, row)
+            if key in ("tip_length", "tip_offset_x"):
+                val_item = self.tip_caps_table.item(row, 1)
+                lbl_item = self.tip_caps_table.item(row, 0)
+                if val_item:
+                    if is_cap_active:
+                        val_item.setFlags(val_item.flags() | Qt.ItemFlag.ItemIsEditable)
+                        val_item.setForeground(QBrush(QColor("#ffffff")))
+                        if lbl_item:
+                            lbl_item.setForeground(QBrush(QColor("#ffffff")))
+                    else:
+                        val_item.setFlags(val_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                        val_item.setForeground(QBrush(QColor("#777777")))
+                        if lbl_item:
+                            lbl_item.setForeground(QBrush(QColor("#999999")))
+
+    def _on_tip_cap_type_changed(self, new_type: str) -> None:
+        if self._loading:
+            return
+
+        def change() -> None:
+            geom = self._geometry()
+            tt = geom.setdefault("tip_treatment", {})
+            tt["type"] = new_type
+
+        self._edit_component("Change wingtip cap type", change)
+        self._update_tip_caps_interactivity(new_type)
+
+    def _on_tip_cap_cell_edited(self, row: int, column: int) -> None:
+        if self._loading or column != 1:
+            return
+        key = self._property_key(self.tip_caps_table, row)
+        if key not in ("tip_length", "tip_offset_x"):
+            return
+        val_str = self._property_text(self.tip_caps_table, row)
+        val_num = self._parse_number(val_str)
+        if val_num is None:
+            return
+        if key == "tip_length" and val_num < 0:
+            return
+
+        def change() -> None:
+            geom = self._geometry()
+            tt = geom.setdefault("tip_treatment", {})
+            if key == "tip_length":
+                tt["length"] = float(val_num)
+            elif key == "tip_offset_x":
+                tt["offset_x"] = float(val_num)
+
+        self._edit_component(f"Update wingtip cap {key}", change)
+
     # -------------------------------------------------------------------------
     # Control Surface Actions & Mutation
     # -------------------------------------------------------------------------

@@ -32,6 +32,12 @@ def build_lifting_surface_geometry(
     control_surfaces = geometry.get("control_surfaces")
     twist_location = float(geometry.get("twist_location", 0.25))
 
+    tip_treatment = geometry.get("tip_treatment")
+    tip_treatment = tip_treatment if isinstance(tip_treatment, dict) else {}
+    tip_type = str(tip_treatment.get("type", "flat")).lower()
+    tip_length = float(tip_treatment.get("length", 20.0))
+    tip_offset_x = float(tip_treatment.get("offset_x", 0.0))
+
     if not isinstance(control_surfaces, list) or not control_surfaces:
         # Simple continuous lifting surface without control surfaces
         sections = tuple(
@@ -41,7 +47,7 @@ def build_lifting_surface_geometry(
         )
         if len(sections) < 2:
             return ()
-        return (
+        lofts_list = [
             LoftGeometry(
                 component_id=comp_id,
                 sections=sections,
@@ -49,17 +55,59 @@ def build_lifting_surface_geometry(
                 interpolation=interpolation,
                 station_spacing=15.0,
                 closed_ends=True,
-            ),
+            )
+        ]
+    else:
+        # Segmented wing with clean rectangular bay cutouts and round hinges
+        lofts_list = list(
+            _build_lifting_surface_with_control_surfaces(
+                comp_id=comp_id,
+                profiles=profiles,
+                control_surfaces=control_surfaces,
+                interpolation=interpolation,
+                twist_location=twist_location,
+            )
         )
 
-    # Segmented wing with clean rectangular bay cutouts and round hinges
-    return _build_lifting_surface_with_control_surfaces(
-        comp_id=comp_id,
-        profiles=profiles,
-        control_surfaces=control_surfaces,
-        interpolation=interpolation,
-        twist_location=twist_location,
-    )
+    # Attach dedicated G1-continuous aerodynamic tip cap mesh if round or sharp
+    if tip_type in ("round", "sharp") and tip_length > 0.0:
+        y0 = float(profiles[0].get("position", {}).get("y", 0.0)) if isinstance(profiles[0].get("position"), dict) else 0.0
+        y1 = float(profiles[-1].get("position", {}).get("y", 0.0)) if isinstance(profiles[-1].get("position"), dict) else 0.0
+        span_dir = 1.0 if y1 >= y0 else -1.0
+
+        # Compute LE and TE sweep slopes from the last two profiles
+        # so the tip cap follows both leading and trailing edge lines
+        p_prev = profiles[-2] if len(profiles) >= 2 else profiles[-1]
+        p_tip = profiles[-1]
+        prev_pos = p_prev.get("position", {}) if isinstance(p_prev.get("position"), dict) else {}
+        tip_pos = p_tip.get("position", {}) if isinstance(p_tip.get("position"), dict) else {}
+        dy = float(tip_pos.get("y", 0.0)) - float(prev_pos.get("y", 0.0))
+        if abs(dy) > 1e-4:
+            dx_le = float(tip_pos.get("x", 0.0)) - float(prev_pos.get("x", 0.0))
+            dx_te = (float(tip_pos.get("x", 0.0)) + _number(p_tip.get("chord"))) - \
+                    (float(prev_pos.get("x", 0.0)) + _number(p_prev.get("chord")))
+            le_sweep_slope = dx_le / dy
+            te_sweep_slope = dx_te / dy
+        else:
+            le_sweep_slope = 0.0
+            te_sweep_slope = 0.0
+
+        tip_profile = profiles[-1]
+        tip_cap = _build_tip_cap_loft(
+            comp_id=comp_id,
+            tip_profile=tip_profile,
+            tip_type=tip_type,
+            tip_length=tip_length,
+            offset_x=tip_offset_x,
+            span_dir=span_dir,
+            le_sweep_slope=le_sweep_slope,
+            te_sweep_slope=te_sweep_slope,
+            twist_location=twist_location,
+        )
+        if tip_cap is not None:
+            lofts_list.append(tip_cap)
+
+    return tuple(lofts_list)
 
 
 def _build_profile_section(value: object, twist_location: float = 0.25) -> Section | None:
@@ -519,3 +567,77 @@ def _number(value: object) -> float:
         return float(value or 0.0)
     except (TypeError, ValueError):
         return 0.0
+
+
+def _build_tip_cap_loft(
+    comp_id: str,
+    tip_profile: dict[str, Any],
+    tip_type: str = "round",
+    tip_length: float = 20.0,
+    offset_x: float = 0.0,
+    span_dir: float = 1.0,
+    le_sweep_slope: float = 0.0,
+    te_sweep_slope: float = 0.0,
+    twist_location: float = 0.25,
+) -> LoftGeometry | None:
+    """Generate a smooth, aerodynamic G1-conformal bullnose or beveled edge cap mesh.
+
+    le_sweep_slope / te_sweep_slope: dX/dY of the wing's leading / trailing
+    edge line at the tip.  The cap's chordwise stations are shifted along X
+    proportionally so that the LE and TE edges of the cap continue the wing
+    planform lines without a kink.
+    """
+    if tip_type not in ("round", "sharp") or tip_length <= 0.0:
+        return None
+
+    chord = _number(tip_profile.get("chord"))
+    if chord <= 0:
+        return None
+
+    coords = sample_airfoil_points(tip_profile.get("airfoil"))
+    upper_b, lower_b = _split_airfoil_upper_lower(coords)
+    matrix = section_transform(tip_profile, chord=chord, twist_location=twist_location)
+
+    num_x = 33
+    x_stations = [0.5 * (1.0 - math.cos(math.pi * i / (num_x - 1))) for i in range(num_x)]
+    max_h = max((_interp_branch_z(upper_b, x) - _interp_branch_z(lower_b, x)) * 0.5 for x in x_stations)
+    if max_h < 1e-6:
+        return None
+
+    num_theta = 17 if tip_type == "round" else 3
+    cap_sections: list[Section] = []
+
+    for k in range(num_theta):
+        theta = math.pi * 0.5 - (k / (num_theta - 1)) * math.pi
+        cos_t = math.cos(theta)
+        sin_t = math.sin(theta)
+
+        pts: list[Point3D] = []
+        for x_rel in x_stations:
+            z_u = _interp_branch_z(upper_b, x_rel)
+            z_l = _interp_branch_z(lower_b, x_rel)
+            z_c = (z_u + z_l) * 0.5
+            h = (z_u - z_l) * 0.5
+            h_ratio = h / max_h
+
+            delta_y = span_dir * tip_length * h_ratio * cos_t
+            # Sweep-following offset: interpolate between LE and TE sweep slopes
+            # along chord so each edge continues the wing planform line
+            sweep_slope = le_sweep_slope + (te_sweep_slope - le_sweep_slope) * x_rel
+            delta_x = (offset_x * h_ratio * cos_t) + (delta_y * sweep_slope)
+            z_val = z_c + h * sin_t
+
+            p_local = (x_rel * chord + delta_x, delta_y, z_val * chord)
+            p_world = transform_point(matrix, p_local)
+            pts.append(p_world)
+
+        cap_sections.append(Section(tuple(pts)))
+
+    return LoftGeometry(
+        component_id=f"{comp_id}:tip-cap",
+        sections=tuple(cap_sections),
+        color=wing_color(),
+        interpolation="linear",
+        station_spacing=10.0,
+        closed_ends=False,
+    )
