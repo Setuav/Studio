@@ -42,16 +42,16 @@ class ControlSurfaceEditor(QWidget):
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
 
-        container = QWidget()
-        self._layout = QVBoxLayout(container)
-        self._layout.setContentsMargins(6, 4, 6, 6)
-        self._layout.setSpacing(4)
+        content = QWidget()
+        self._content_layout = QVBoxLayout(content)
+        self._content_layout.setContentsMargins(6, 6, 6, 8)
+        self._content_layout.setSpacing(10)
 
         self._create_general_section()
         self._create_properties_section()
-        self._layout.addStretch(1)
+        self._content_layout.addStretch(1)
 
-        scroll.setWidget(container)
+        scroll.setWidget(content)
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.addWidget(scroll)
@@ -67,28 +67,33 @@ class ControlSurfaceEditor(QWidget):
         finally:
             self._loading = False
 
-    def _create_section(self, title: str, icon_name: str) -> QVBoxLayout:
-        header = QWidget()
-        header.setFixedHeight(24)
-        header_layout = QHBoxLayout(header)
-        header_layout.setContentsMargins(4, 2, 4, 2)
-        header_layout.setSpacing(4)
+    def _create_section(self, title: str, icon_name: str | None = None) -> QVBoxLayout:
+        section = QWidget()
+        layout = QVBoxLayout(section)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(3)
 
-        icon_label = QLabel()
-        icon_label.setPixmap(get_icon(icon_name).pixmap(14, 14))
-        header_layout.addWidget(icon_label)
+        header = QWidget()
+        header.setProperty("sectionHeader", True)
+        header.setFixedHeight(20)
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(5)
+
+        if icon_name:
+            icon_label = QLabel()
+            pixmap = get_icon(icon_name).pixmap(14, 14)
+            icon_label.setPixmap(pixmap)
+            icon_label.setFixedSize(14, 14)
+            header_layout.addWidget(icon_label)
 
         title_label = QLabel(title)
-        title_label.setStyleSheet("font-weight: bold;")
         header_layout.addWidget(title_label)
         header_layout.addStretch()
 
-        self._layout.addWidget(header)
-        section_layout = QVBoxLayout()
-        section_layout.setContentsMargins(0, 0, 0, 4)
-        section_layout.setSpacing(4)
-        self._layout.addLayout(section_layout)
-        return section_layout
+        layout.addWidget(header)
+        self._content_layout.addWidget(section)
+        return layout
 
     def _create_general_section(self) -> None:
         layout = self._create_section("General", "fa6s.circle-info")
@@ -104,7 +109,6 @@ class ControlSurfaceEditor(QWidget):
     def _create_properties_section(self) -> None:
         layout = self._create_section("Control Surface Geometry", "fa6s.sliders")
         self.properties_table = self._property_table([
-            ("tag", "Tag"),
             ("type", "Surface Type"),
             ("span_start", "Span Start (mm)"),
             ("span_end", "Span End (mm)"),
@@ -145,7 +149,6 @@ class ControlSurfaceEditor(QWidget):
 
     def _load_properties(self) -> None:
         geom = self._geometry()
-        tag = str(geom.get("tag") or self._component.get("id") or "control")
         cs_type = str(geom.get("type") or "aileron")
         span_start = float(geom.get("span_start", 0.0))
         span_end = float(geom.get("span_end", 0.0))
@@ -153,7 +156,6 @@ class ControlSurfaceEditor(QWidget):
         hinge_sweep = float(geom.get("hinge_sweep", 0.0))
         deflection = float(geom.get("deflection", 0.0))
 
-        self._set_property_value(self.properties_table, "tag", tag)
         self._set_property_combo(
             self.properties_table,
             "type",
@@ -188,7 +190,6 @@ class ControlSurfaceEditor(QWidget):
                 self._component["name"] = val_str
                 self._geometry()["tag"] = val_str
             self._edit_component("Rename control surface", change)
-            self._set_property_value(self.properties_table, "tag", val_str)
         elif key == "mass":
             val = self._parse_number(val_str) or 0.0
             def change() -> None:
@@ -211,14 +212,7 @@ class ControlSurfaceEditor(QWidget):
             return
         key = self._property_key(self.properties_table, row)
         val_str = self._property_text(self.properties_table, row)
-        if key == "tag":
-            tag_val = val_str.strip()
-            def change() -> None:
-                self._geometry()["tag"] = tag_val
-                self._component["name"] = tag_val
-            self._edit_component("Edit tag", change)
-            self._set_property_value(self.general_table, "name", tag_val)
-        elif key in ("span_start", "span_end", "chord", "hinge_sweep", "deflection"):
+        if key in ("span_start", "span_end", "chord", "hinge_sweep", "deflection"):
             val = self._parse_number(val_str) or 0.0
             self._update_geom_value(key, val)
 

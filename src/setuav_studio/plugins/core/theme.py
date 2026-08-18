@@ -151,6 +151,16 @@ QWidget#studioDockTitleBar QToolButton:pressed {{
     background-color: {dock_pressed};
 }}
 
+QWidget[sectionHeader="true"] {{
+    background-color: transparent;
+}}
+
+QWidget[sectionHeader="true"] QLabel {{
+    color: {text};
+    font-weight: 600;
+    font-size: {font_size}pt;
+}}
+
 QTableView,
 QTreeView {{
     alternate-background-color: palette(alternate-base);

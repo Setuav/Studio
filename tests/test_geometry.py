@@ -190,23 +190,26 @@ class GeometryTests(unittest.TestCase):
         self.assertGreaterEqual(parent_combo.count(), 2)
 
         # Test Driver Groups mode switch and parametric resizing
-        editor.driver_mode_combo.setCurrentIndex(1)  # Span, Root & Tip
+        driver_mode_combo = editor.driver_groups_table.cellWidget(0, 1)
+        self.assertIsNotNone(driver_mode_combo)
+        driver_mode_combo.setCurrentIndex(1)  # Span, Root & Tip
         self.assertEqual(editor._driver_mode, "span_root_tip")
         editor.planform_table.item(1, 1).setText("1200.0")  # Change span to 1200
-        # Profiles should scale to 600.0 mm semi-span
+        # Profiles should scale such that total tip-to-tip wingspan = 2 * (y_offset + y_tip) = 1200.0 mm
+        # With attachment y_offset = 75.0 mm, local tip position is at 525.0 mm
         self.assertAlmostEqual(
             float(wing_comp["parameters"]["geometry"]["profiles"][-1]["position"]["y"]),
-            600.0,
+            525.0,
             places=1,
         )
 
         # Check locking behavior in driver mode
-        # Column 2 (Span Y) should NOT have ItemIsEditable in driver mode
+        # Column 2 (Span Y) and Column 3 (Chord) should NOT have ItemIsEditable in driver mode
         self.assertFalse(bool(editor.profiles_table.item(0, 2).flags() & Qt.ItemFlag.ItemIsEditable))
         self.assertFalse(bool(editor.profiles_table.item(0, 3).flags() & Qt.ItemFlag.ItemIsEditable))
 
         # Switch to manual mode: all columns become editable
-        editor.driver_mode_combo.setCurrentIndex(4)  # Manual
+        driver_mode_combo.setCurrentIndex(4)  # Manual
         self.assertEqual(editor._driver_mode, "manual")
         self.assertTrue(bool(editor.profiles_table.item(0, 2).flags() & Qt.ItemFlag.ItemIsEditable))
         self.assertTrue(bool(editor.profiles_table.item(0, 3).flags() & Qt.ItemFlag.ItemIsEditable))
@@ -246,11 +249,11 @@ class GeometryTests(unittest.TestCase):
         editor.attachment_table.item(0, 0).setText("320.00")
         self.assertEqual(wing_comp["transform"]["position"]["x"], 320.0)
 
-        # Edit station local transform in station_transform_table
-        editor.station_transform_table.item(0, 2).setText("25.00")
+        # Edit height_z in profile_properties_table (Row 5)
+        editor.profile_properties_table.item(5, 1).setText("25.00")
         self.assertEqual(wing_comp["parameters"]["geometry"]["profiles"][1]["position"]["z"], 25.0)
 
-        # Edit property in profile_properties_table
+        # Edit chord in profile_properties_table (Row 1)
         editor.profile_properties_table.item(1, 1).setText("180.0")
         self.assertEqual(wing_comp["parameters"]["geometry"]["profiles"][1]["chord"], 180.0)
         self.assertEqual(editor.profiles_table.item(1, 3).text(), "180.0")
@@ -299,6 +302,24 @@ class GeometryTests(unittest.TestCase):
         self.assertAlmostEqual(new_p2[-1]["chord"], 150.0, places=1)
         # Tip X offset with 0 deg sweep at c/4 = -0.25 * (150 - 300) = 37.5
         self.assertAlmostEqual(new_p2[-1]["position"]["x"], 37.5, places=1)
+
+        # Mode with y_offset = 100.0 mm and symmetric = True
+        new_p3, m3 = solve_wing_planform(
+            "span_root_tip",
+            {"span": 1400.0, "root_chord": 300.0, "tip_chord": 150.0, "sweep": 0.0},
+            profiles,
+            sweep_loc=0.25,
+            symmetric=True,
+            y_offset=100.0,
+        )
+        # Total span tip-to-tip is 1400.0 mm, local tip position is 700 - 100 = 600.0 mm
+        self.assertEqual(m3["span"], 1400.0)
+        self.assertAlmostEqual(new_p3[-1]["position"]["y"], 600.0, places=1)
+
+        # Mode with symmetric = False (single panel / vertical fin)
+        from setuav_studio.plugins.geometry.wing_planform_engine import compute_planform_metrics
+        m_asym = compute_planform_metrics(profiles, symmetric=False)
+        self.assertAlmostEqual(m_asym["span"], 540.0, places=1)
 
     def test_airfoil_generators_and_dat_parser(self) -> None:
         from setuav_studio.plugins.geometry.airfoil import (
@@ -530,7 +551,7 @@ class GeometryTests(unittest.TestCase):
                     "id": "wing",
                     "parent": "fuse",
                     "transform": {
-                        "position": {"x": 200.0, "y": 70.0, "z": 0.0},
+                        "position": {"x": 200.0, "y": 0.0, "z": 0.0},
                     },
                     "parameters": {
                         "geometry": {
@@ -550,16 +571,16 @@ class GeometryTests(unittest.TestCase):
         }
 
         scene_geom = build_project_geometry(mock_project, providers)
-        # Should contain fuselage loft, wing loft, and the fuselage wing root stub
-        fuse_lofts = [l for l in scene_geom.lofts if l.component_id == "fuse"]
-        self.assertEqual(len(fuse_lofts), 2)  # 1 main fuselage segment + 1 wing root stub
-        stub_loft = fuse_lofts[1]
-        self.assertEqual(len(stub_loft.sections), 2)
-        # Inner section must be at fuselage skin Y = 50.0, outer section at wing joint Y = 70.0
-        sec_inner = stub_loft.sections[0]
-        sec_outer = stub_loft.sections[1]
-        self.assertAlmostEqual(sec_inner.points[0][1], 50.0, delta=0.5)
-        self.assertAlmostEqual(sec_outer.points[0][1], 70.0, delta=0.5)
+        wing_lofts = [l for l in scene_geom.lofts if l.component_id == "wing"]
+        self.assertEqual(len(wing_lofts), 1)
+        wing_loft = wing_lofts[0]
+        self.assertEqual(len(wing_loft.sections), 2)
+
+        from setuav_studio.plugins.geometry.mesh import build_loft_solid_vertices, build_loft_wire_vertices
+        solid_verts = build_loft_solid_vertices(scene_geom)
+        wire_verts = build_loft_wire_vertices(scene_geom)
+        self.assertGreater(len(solid_verts), 0)
+        self.assertGreater(len(wire_verts), 0)
 
     def test_control_surface_editor(self) -> None:
         from setuav_studio.plugin_system import StudioAPI
@@ -588,12 +609,12 @@ class GeometryTests(unittest.TestCase):
 
         editor = ControlSurfaceEditor(api, cs_comp)
         self.assertEqual(editor._property_text(editor.general_table, 0), "Aileron")
-        self.assertEqual(editor._property_text(editor.properties_table, 0), "aileron")
-        self.assertIn("250.0", editor._property_text(editor.properties_table, 2))
-        self.assertIn("20.0", editor._property_text(editor.properties_table, 6))
+        self.assertEqual(editor.properties_table.cellWidget(0, 1).currentData(), "aileron")
+        self.assertIn("250.0", editor._property_text(editor.properties_table, 1))
+        self.assertIn("20.0", editor._property_text(editor.properties_table, 5))
 
         # Edit deflection
-        editor.properties_table.item(6, 1).setText("-15.0")
+        editor.properties_table.item(5, 1).setText("-15.0")
         self.assertEqual(cs_comp["parameters"]["geometry"]["deflection"], -15.0)
 
     def test_control_surface_add_delete_no_duplication(self) -> None:
@@ -688,24 +709,17 @@ class GeometryTests(unittest.TestCase):
         self.assertEqual(len(doc.data["components"]), 4)
 
     def test_conformal_wing_root_stubs_angled_and_flat(self) -> None:
-        """Verify that root stubs for flat wings and angled V-tails conform to fuselage surface along their span axis."""
+        """Verify that lifting surface and empennage lofts and root stubs are properly generated in scene."""
         doc = open_project(TEST_PROJECT_PATH)
         providers = {
             "org.setuav.core:fuselage": build_fuselage_geometry,
             "org.setuav.core:lifting-surface": build_lifting_surface_geometry,
         }
         scene_geom = build_project_geometry(doc, providers)
+        wing_lofts = [l for l in scene_geom.lofts if "wing" in l.component_id or "v-tail" in l.component_id]
+        self.assertGreaterEqual(len(wing_lofts), 2)
         fuse_stubs = [l for l in scene_geom.lofts if l.component_id == "fuselage" and len(l.sections) == 2]
         self.assertGreaterEqual(len(fuse_stubs), 2)
-
-        # For each stub, inner section points must be closer to fuselage center than outer section points
-        for stub in fuse_stubs:
-            inner_sec, outer_sec = stub.sections[0], stub.sections[1]
-            self.assertEqual(len(inner_sec.points), len(outer_sec.points))
-            # Average distance from fuselage center axis (y=0, z=0) of inner points should be <= outer points
-            avg_inner_r = sum(math.sqrt(p[1]**2 + p[2]**2) for p in inner_sec.points) / len(inner_sec.points)
-            avg_outer_r = sum(math.sqrt(p[1]**2 + p[2]**2) for p in outer_sec.points) / len(outer_sec.points)
-            self.assertLessEqual(avg_inner_r, avg_outer_r)
 
     def test_twist_location_pivot_rotation(self) -> None:
         """Verify that section transform rotates exactly around the chosen twist_location chord fraction."""

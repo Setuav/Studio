@@ -73,6 +73,8 @@ def solve_wing_planform(
     inputs: dict[str, float],
     current_profiles: list[dict[str, Any]],
     sweep_loc: float = 0.25,
+    symmetric: bool = True,
+    y_offset: float = 0.0,
 ) -> tuple[list[dict[str, Any]], dict[str, float]]:
     """Solve wing planform dimensions, sweep angle, and scale profile stations accordingly.
 
@@ -80,10 +82,12 @@ def solve_wing_planform(
         (new_profiles, calculated_metrics)
     """
     if mode == "manual" or not current_profiles:
-        metrics = compute_planform_metrics(current_profiles, sweep_loc)
+        metrics = compute_planform_metrics(current_profiles, sweep_loc, symmetric, y_offset)
         return current_profiles, metrics
 
     # 1. Compute macro parameters
+    abs_y_offset = abs(float(y_offset))
+
     if mode == "area_ar_taper":
         s = max(float(inputs.get("area", 200000.0)), 100.0)
         ar = max(float(inputs.get("aspect_ratio", 5.0)), 0.1)
@@ -95,9 +99,14 @@ def solve_wing_planform(
         b = max(float(inputs.get("span", 1000.0)), 10.0)
         c_root = max(float(inputs.get("root_chord", 200.0)), 1.0)
         c_tip = max(float(inputs.get("tip_chord", 100.0)), 1.0)
-        s = b * (c_root + c_tip) / 2.0
-        ar = (b**2) / max(s, 1e-6)
         taper = c_tip / max(c_root, 1e-6)
+        if symmetric:
+            b_semi = b / 2.0
+            b_panel = max(b_semi - abs_y_offset, 1.0)
+            s = b_panel * (c_root + c_tip) + 2.0 * abs_y_offset * c_root
+        else:
+            s = b * (c_root + c_tip) / 2.0
+        ar = (b**2) / max(s, 1e-6)
     elif mode == "span_area_taper":
         b = max(float(inputs.get("span", 1000.0)), 10.0)
         s = max(float(inputs.get("area", 200000.0)), 100.0)
@@ -113,25 +122,30 @@ def solve_wing_planform(
         c_root = (2.0 * s) / (b * (1.0 + taper))
         c_tip = taper * c_root
     else:
-        metrics = compute_planform_metrics(current_profiles, sweep_loc)
+        metrics = compute_planform_metrics(current_profiles, sweep_loc, symmetric, y_offset)
         return current_profiles, metrics
 
     sweep_deg = float(inputs.get("sweep", 0.0))
     sweep_rad = math.radians(sweep_deg)
-    b_semi_new = b / 2.0
 
-    # 2. Find old semi-span from current profiles
-    old_b_semi = max(
-        abs(float(p.get("position", {}).get("y", 0.0)))
+    # 2. Determine target panel span
+    if symmetric:
+        b_semi_new = b / 2.0
+        target_panel_span = max(b_semi_new - abs_y_offset, 1.0)
+    else:
+        target_panel_span = max(b, 1.0)
+
+    # 3. Find old panel span from current profiles
+    y_vals = [
+        float(p.get("position", {}).get("y", 0.0))
         if isinstance(p.get("position"), dict) else 0.0
         for p in current_profiles
-    )
-    old_b_semi = max(old_b_semi, 1e-6)
+    ]
+    y_root_old = min(y_vals) if y_vals else 0.0
+    y_tip_old = max(y_vals) if y_vals else 0.0
+    old_panel_span = max(y_tip_old - y_root_old, 1e-6)
     root_x0 = float(current_profiles[0].get("position", {}).get("x", 0.0)) if current_profiles else 0.0
 
-    # 3. Scale profiles with sweep and twist equations:
-    # x_LE,i = x_0 + dy * tan(sweep) - sweep_loc * (c_i - c_root)
-    # twist_i = twist_root + fraction * washout
     has_washout = "washout" in inputs
     washout_deg = float(inputs.get("washout", 0.0))
     root_pitch = (
@@ -153,11 +167,10 @@ def solve_wing_planform(
             p_new["rotation"] = rot
 
         y_old = float(pos.get("y", 0.0))
-        fraction = min(max(abs(y_old) / old_b_semi, 0.0), 1.0)
-        sign = 1.0 if y_old >= 0 else -1.0
+        fraction = min(max((y_old - y_root_old) / old_panel_span, 0.0), 1.0)
 
-        dy_new = fraction * b_semi_new
-        pos["y"] = sign * dy_new
+        dy_new = fraction * target_panel_span
+        pos["y"] = y_root_old + dy_new
 
         # Chord
         c_i = max(c_root + (c_tip - c_root) * fraction, 1.0)
@@ -172,30 +185,24 @@ def solve_wing_planform(
 
         new_profiles.append(p_new)
 
-    mac = (2.0 / 3.0) * (c_root + c_tip - (c_root * c_tip) / max(c_root + c_tip, 1e-6))
-    current_washout = (
-        float(new_profiles[-1].get("rotation", {}).get("y", 0.0)) - float(new_profiles[0].get("rotation", {}).get("y", 0.0))
-        if len(new_profiles) >= 2 else 0.0
-    )
-    metrics = {
-        "area": s,
-        "span": b,
-        "aspect_ratio": ar,
-        "taper_ratio": taper,
-        "root_chord": c_root,
-        "tip_chord": c_tip,
-        "mac": mac,
-        "sweep": sweep_deg,
-        "washout": washout_deg if has_washout else current_washout,
-    }
+    metrics = compute_planform_metrics(new_profiles, sweep_loc, symmetric, y_offset)
     return new_profiles, metrics
 
 
 def compute_planform_metrics(
     profiles: list[dict[str, Any]],
     sweep_loc: float = 0.25,
+    symmetric: bool = True,
+    y_offset: float = 0.0,
 ) -> dict[str, float]:
-    """Calculate aerodynamic planform metrics, sweep angle, and washout for arbitrary multi-station profiles."""
+    """Calculate aerodynamic planform metrics, sweep angle, and washout for arbitrary multi-station profiles.
+
+    Args:
+        profiles: List of station profile dicts with local coordinates.
+        sweep_loc: Chord fraction for sweep reference (e.g. 0.0 LE, 0.25 QC, 0.50 HC, 1.0 TE).
+        symmetric: True if wing is mirrored across Y=0 plane (tip-to-tip span = 2*(|y_offset| + y_tip)).
+        y_offset: Component attachment Y translation from centerline.
+    """
     if len(profiles) < 2:
         return {
             "area": 0.0,
@@ -209,7 +216,7 @@ def compute_planform_metrics(
             "washout": 0.0,
         }
 
-    s_semi = 0.0
+    s_panel = 0.0
     mac_num = 0.0
     for i in range(len(profiles) - 1):
         p0, p1 = profiles[i], profiles[i + 1]
@@ -220,21 +227,40 @@ def compute_planform_metrics(
         c1 = max(float(p1.get("chord", 0.0)), 0.0)
         s_i = 0.5 * (c0 + c1) * dy
         c_mac_i = (2.0 / 3.0) * (c0 + c1 - (c0 * c1) / max(c0 + c1, 1e-6))
-        s_semi += s_i
+        s_panel += s_i
         mac_num += s_i * c_mac_i
 
-    b_semi = max(
-        abs(float(p.get("position", {}).get("y", 0.0)))
+    y_vals = [
+        float(p.get("position", {}).get("y", 0.0))
         if isinstance(p.get("position"), dict) else 0.0
         for p in profiles
-    )
-    b_total = 2.0 * b_semi
-    s_total = 2.0 * s_semi
-    ar = (b_total**2) / max(s_total, 1e-6) if s_total > 0 else 0.0
-    mac = mac_num / max(s_semi, 1e-6) if s_semi > 0 else 0.0
+    ]
+    y_root = min(y_vals)
+    y_tip = max(y_vals)
+    b_panel = max(y_tip - y_root, 0.0)
     c_root = float(profiles[0].get("chord", 0.0))
     c_tip = float(profiles[-1].get("chord", 0.0))
     taper = c_tip / max(c_root, 1e-6)
+
+    abs_y_offset = abs(float(y_offset))
+
+    if symmetric:
+        # Tip-to-tip span including attachment Y offset and station tip
+        b_semi = abs_y_offset + y_tip
+        b_total = 2.0 * b_semi
+
+        # Carry-through center section area between fuselage centerline and root
+        center_gap = 2.0 * (abs_y_offset + y_root)
+        s_center = center_gap * c_root
+        s_total = 2.0 * s_panel + s_center
+        mac_total = (2.0 * mac_num + s_center * c_root) / max(s_total, 1e-6) if s_total > 0 else 0.0
+    else:
+        # Asymmetric / single panel (e.g. vertical fin)
+        b_total = b_panel
+        s_total = s_panel
+        mac_total = mac_num / max(s_panel, 1e-6) if s_panel > 0 else 0.0
+
+    ar = (b_total**2) / max(s_total, 1e-6) if s_total > 0 else 0.0
 
     # Compute sweep angle at sweep_loc
     pos_root = profiles[0].get("position", {}) if isinstance(profiles[0].get("position"), dict) else {}
@@ -264,7 +290,7 @@ def compute_planform_metrics(
         "taper_ratio": taper,
         "root_chord": c_root,
         "tip_chord": c_tip,
-        "mac": mac,
+        "mac": mac_total,
         "sweep": sweep_deg,
         "washout": washout_deg,
     }

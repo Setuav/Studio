@@ -116,14 +116,15 @@ def build_project_geometry(
         if provider is None:
             continue
         matrix = world_matrix(item_id)
+        parent_id = item.get("parent")
+        params = source.get("parameters") if isinstance(source.get("parameters"), dict) else {}
+        geom = params.get("geometry") if isinstance(params.get("geometry"), dict) else {}
+
         for loft in provider(source):
             lofts.append(_transform_loft(loft, matrix, item_id))
 
         # Check if bilateral mirror is enabled on lifting surface
-        params = source.get("parameters") if isinstance(source.get("parameters"), dict) else {}
-        geom = params.get("geometry") if isinstance(params.get("geometry"), dict) else {}
         if component_type == "org.setuav.core:lifting-surface" and (geom.get("mirror") is True or source.get("mirror") is True):
-            parent_id = item.get("parent")
             parent_mat = world_matrix(parent_id) if isinstance(parent_id, str) else identity_matrix()
             local_mat = transform_matrix(item.get("transform"))
             mirror_deriv = derivation_matrix({"type": "mirror", "plane": "XZ"})
@@ -141,7 +142,7 @@ def build_project_geometry(
             for loft in provider(source_mirror):
                 lofts.append(_transform_loft(loft, mirrored_world_mat, f"{item_id}:mirror"))
 
-    # Automatic 3D-printed wing-fuselage root stubs attached directly to fuselage
+    # Automatic wing-fuselage root stubs connecting wing root to fuselage skin
     lofts.extend(_build_wing_root_stubs(items, providers, world_matrix))
     return GeometryData(tuple(lofts))
 
@@ -388,3 +389,6 @@ def _project_point_to_fuselage(
 
     p_in = (gx + t * dx, gy + t * dy, gz + t * dz)
     return p_in, True
+
+
+

@@ -28,8 +28,8 @@ class InstanceEditor(QWidget):
         self._loading = False
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(6)
+        layout.setContentsMargins(6, 6, 6, 8)
+        layout.setSpacing(10)
 
         layout.addWidget(self._header("Instance", "instance"))
         self.properties_table = self._table(["Property", "Value"])
@@ -71,9 +71,10 @@ class InstanceEditor(QWidget):
     def _header(text: str, icon_name: str | None = None) -> QWidget:
         header = QWidget()
         header.setProperty("sectionHeader", True)
+        header.setFixedHeight(20)
         header_layout = QHBoxLayout(header)
-        header_layout.setContentsMargins(0, 4, 0, 2)
-        header_layout.setSpacing(6)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(5)
 
         if icon_name:
             icon_label = QLabel()

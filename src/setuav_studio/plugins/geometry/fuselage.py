@@ -46,8 +46,8 @@ class FuselageEditor(QWidget):
 
         content = QWidget()
         self._content_layout = QVBoxLayout(content)
-        self._content_layout.setContentsMargins(0, 0, 0, 0)
-        self._content_layout.setSpacing(6)
+        self._content_layout.setContentsMargins(6, 6, 6, 8)
+        self._content_layout.setSpacing(10)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -213,13 +213,14 @@ class FuselageEditor(QWidget):
         section = QWidget()
         layout = QVBoxLayout(section)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(2)
+        layout.setSpacing(3)
 
         header = QWidget()
         header.setProperty("sectionHeader", True)
+        header.setFixedHeight(20)
         header_layout = QHBoxLayout(header)
-        header_layout.setContentsMargins(0, 4, 0, 2)
-        header_layout.setSpacing(6)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(5)
 
         if icon_name:
             icon_label = QLabel()
