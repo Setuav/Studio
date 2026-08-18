@@ -452,10 +452,16 @@ class OpenGLViewer(QOpenGLWidget):
             self._elevation = max(-89.0, min(89.0, self._elevation + dy * 0.4))
         elif event.buttons() & Qt.MouseButton.RightButton:
             azimuth = math.radians(self._azimuth)
+            elevation = math.radians(self._elevation)
             right = QVector3D(math.cos(azimuth), -math.sin(azimuth), 0.0)
+            up = QVector3D(
+                -math.sin(azimuth) * math.sin(elevation),
+                -math.cos(azimuth) * math.sin(elevation),
+                math.cos(elevation),
+            )
             scale = self._distance * 0.001
             self._target -= right * (dx * scale)
-            self._target -= QVector3D(0.0, 0.0, 1.0) * (dy * scale)
+            self._target -= up * (dy * scale)
         else:
             self._pick_hover(current)
         self.update()
