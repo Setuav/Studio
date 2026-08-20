@@ -1,6 +1,9 @@
 import argparse
+import logging
 import sys
+from pathlib import Path
 
+from PySide6.QtCore import QStandardPaths
 from PySide6.QtWidgets import QApplication
 
 from setuav_studio.plugin_system import PluginManager, StudioAPI
@@ -10,6 +13,29 @@ from setuav_studio.plugins.core.theme import apply_theme
 from setuav_studio.shell import MainWindow
 
 
+def _configure_logging(verbose: bool = False) -> None:
+    log_dir = Path(QStandardPaths.writableLocation(QStandardPaths.AppDataLocation))
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / "setuav-studio.log"
+
+    level = logging.DEBUG if verbose else logging.INFO
+    formatter = logging.Formatter(
+        "%(asctime)s %(levelname)-8s %(name)s: %(message)s",
+        datefmt="%H:%M:%S",
+    )
+
+    root = logging.getLogger()
+    root.setLevel(level)
+
+    file_handler = logging.FileHandler(log_file, encoding="utf-8")
+    file_handler.setFormatter(formatter)
+    root.addHandler(file_handler)
+
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    root.addHandler(console_handler)
+
+
 def _parse_arguments(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="setuav-studio")
     parser.add_argument(
@@ -17,11 +43,18 @@ def _parse_arguments(argv: list[str]) -> argparse.Namespace:
         nargs="?",
         help="project folder, project.json, or .suav file to open",
     )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="enable debug-level logging",
+    )
     return parser.parse_args(argv)
 
 
 def main() -> int:
     arguments = _parse_arguments(sys.argv[1:])
+    _configure_logging(arguments.verbose)
+    logging.getLogger(__name__).info("Setuav Studio starting")
     app = QApplication([sys.argv[0]])
     app.setOrganizationName("Setware")
     app.setApplicationName("Setuav Studio")
@@ -35,6 +68,9 @@ def main() -> int:
     plugin_manager.activate(CorePlugin())
     plugin_issues = plugin_manager.discover()
     if plugin_issues:
+        logger = logging.getLogger(__name__)
+        for issue in plugin_issues:
+            logger.warning("Plugin load issue (%s): %s", issue.source, issue.message)
         window.statusBar().showMessage(
             "Plugin load issues: "
             + "; ".join(f"{issue.source}: {issue.message}" for issue in plugin_issues)

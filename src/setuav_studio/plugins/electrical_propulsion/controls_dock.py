@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import math
 from typing import Any, Callable
 from PySide6.QtCore import Qt
@@ -33,6 +34,8 @@ from pythrust.propulsion.solver import PropulsionSolver, evaluate_propulsion_sta
 from .database import get_propeller_database
 from setuav_studio.icons import get_icon
 from setuav_studio.plugin_system import StudioAPI
+
+logger = logging.getLogger(__name__)
 
 
 class PropulsionControlsDock(QWidget):
@@ -567,6 +570,7 @@ class PropulsionControlsDock(QWidget):
                 res_root = root_scalar(g, bracket=[100.0, rpm_max], method="brentq")
                 rpm_solved = res_root.root
             except Exception:
+                logger.warning("RPM solver failed at v=%.1f m/s; falling back to rpm_max", v_mps)
                 rpm_solved = rpm_max
 
             n = rpm_solved / 60.0

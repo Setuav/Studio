@@ -3,6 +3,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from importlib import import_module, metadata
 from pathlib import Path
+import logging
 import pkgutil
 from typing import Any, Protocol
 
@@ -13,6 +14,8 @@ from PySide6.QtWidgets import QWidget
 from setuav_studio.icons import get_icon
 from setuav_studio.component_editor import BaseComponentEditor, ParameterField
 from setuav_studio.project import ProjectDocument
+
+logger = logging.getLogger(__name__)
 
 GeometryProvider = Callable[[dict[str, Any]], Any]
 
@@ -556,6 +559,7 @@ class PluginManager:
     def activate(self, plugin: StudioPlugin) -> None:
         if plugin.id in self._plugins:
             raise ValueError(f"Plugin is already active: {plugin.id}")
+        logger.info("Activating plugin: %s", plugin.id)
         plugin.activate(self._api)
         self._plugins[plugin.id] = plugin
         provides = getattr(plugin, "provides", {})
@@ -564,6 +568,7 @@ class PluginManager:
                 self._providers[str(plugin_id)] = str(version)
 
     def discover(self) -> list[PluginLoadIssue]:
+        logger.info("Discovering plugins")
         issues = self._discover_bundled()
         issues.extend(self._discover_entry_points())
         return issues
@@ -601,6 +606,7 @@ class PluginManager:
                 if candidate is not None:
                     self._activate_candidate(candidate)
             except Exception as exc:
+                logger.warning("Failed to load bundled plugin %s: %s", source, exc)
                 issues.append(PluginLoadIssue(source, str(exc)))
         return issues
 
@@ -608,8 +614,10 @@ class PluginManager:
         issues: list[PluginLoadIssue] = []
         for entry_point in metadata.entry_points(group="setuav_studio.plugins"):
             try:
+                logger.info("Loading entry-point plugin: %s", entry_point.name)
                 self._activate_candidate(entry_point.load())
             except Exception as exc:
+                logger.warning("Failed to load entry-point plugin %s: %s", entry_point.name, exc)
                 issues.append(PluginLoadIssue(entry_point.name, str(exc)))
         return issues
 

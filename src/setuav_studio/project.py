@@ -1,10 +1,13 @@
 import json
+import logging
 import os
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 from zipfile import ZIP_DEFLATED, BadZipFile, ZipFile
+
+logger = logging.getLogger(__name__)
 
 
 class ProjectOpenError(Exception):
@@ -36,6 +39,7 @@ class ProjectDocument:
 
 def open_project(path: str | Path) -> ProjectDocument:
     selected_path = Path(path).expanduser().resolve()
+    logger.info("Opening project: %s", selected_path)
 
     if selected_path.is_dir():
         project_file = selected_path / "project.json"
@@ -55,6 +59,7 @@ def save_project(
     path: str | Path | None = None,
 ) -> None:
     target = project.path if path is None else Path(path).expanduser().resolve()
+    logger.info("Saving project: %s", target)
 
     try:
         if target.suffix.lower() == ".suav":
