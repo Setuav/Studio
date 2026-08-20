@@ -629,8 +629,8 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
         try:
             res_root = root_scalar(g, bracket=[100.0, rpm_max], method="brentq")
             return res_root.root
-        except Exception:
-            logger.warning("RPM solver failed at v=%.1f m/s; falling back to rpm_max", v_mps)
+        except (ValueError, RuntimeError) as exc:
+            logger.warning("RPM solver failed at v=%.1f m/s (%s); falling back to rpm_max", v_mps, exc)
             return rpm_max
 
     def _solve_point(self, context: dict[str, Any], v_mps: float, throttle_val: float) -> dict[str, Any]:

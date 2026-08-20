@@ -190,6 +190,56 @@ class TestElectricalPropulsion(unittest.TestCase):
         controls.run_button.click()
         self.assertIn("Current limit exceeded", win._status_label.text())
 
+    def test_pythrust_data_dir_resolution(self) -> None:
+        """5.17: hardcoded path is gone; resolution prefers env var, then QSettings, then relatives."""
+        import os
+        import tempfile
+        from pathlib import Path
+
+        from PySide6.QtCore import QSettings
+
+        from setuav_studio.plugins.electrical_propulsion import database as db_module
+        from setuav_studio.plugins.core.settings import StudioSettings
+
+        # 1. Hardcoded user-home absolute path is gone.
+        source = Path(db_module.__file__).read_text(encoding="utf-8")
+        self.assertNotIn("/home/huseyin", source)
+        self.assertIn("PYTHRUST_DATA_DIR", source)
+        self.assertIn("pythrust_data_dir", source)
+
+        # 2. StudioSettings round-trips the field through QSettings.
+        get_qapp()
+        original = StudioSettings.load()
+        try:
+            StudioSettings(
+                reopen_last_project=original.reopen_last_project,
+                recent_project_limit=original.recent_project_limit,
+                pythrust_data_dir="/nonexistent/path",
+            ).save()
+            reloaded = StudioSettings.load()
+            self.assertEqual(reloaded.pythrust_data_dir, "/nonexistent/path")
+
+            # 3. When env is unset and QSettings points at a real tempdir, resolution follows it.
+            env = os.environ.pop("PYTHRUST_DATA_DIR", None)
+            with tempfile.TemporaryDirectory() as tmp:
+                QSettings().setValue("propulsion/pythrust_data_dir", tmp)
+                resolved = db_module._resolve_pythrust_data_dir()
+                self.assertIsNotNone(resolved)
+                self.assertEqual(resolved, Path(tmp))
+            # 4. When env + setting are both unset/invalid, resolution may still find a sibling
+            #    PyThrust checkout in this dev environment, but never raises.
+            QSettings().remove("propulsion/pythrust_data_dir")
+            resolved = db_module._resolve_pythrust_data_dir()
+            self.assertTrue(resolved is None or isinstance(resolved, Path))
+        finally:
+            StudioSettings(
+                reopen_last_project=original.reopen_last_project,
+                recent_project_limit=original.recent_project_limit,
+                pythrust_data_dir=original.pythrust_data_dir,
+            ).save()
+            if env is not None:
+                os.environ["PYTHRUST_DATA_DIR"] = env
+
     @staticmethod
     def _dock_content(dock) -> object:
         widget = dock.widget()

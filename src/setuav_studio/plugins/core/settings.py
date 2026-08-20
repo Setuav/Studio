@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFormLayout,
+    QLineEdit,
     QSpinBox,
     QVBoxLayout,
 )
@@ -16,6 +17,7 @@ from PySide6.QtWidgets import (
 class StudioSettings:
     reopen_last_project: bool = False
     recent_project_limit: int = 10
+    pythrust_data_dir: str = ""
 
     @classmethod
     def load(cls) -> "StudioSettings":
@@ -27,12 +29,16 @@ class StudioSettings:
             recent_project_limit=int(
                 settings.value("general/recent_project_limit", 10)
             ),
+            pythrust_data_dir=str(
+                settings.value("propulsion/pythrust_data_dir", "")
+            ),
         )
 
     def save(self) -> None:
         settings = QSettings()
         settings.setValue("general/reopen_last_project", self.reopen_last_project)
         settings.setValue("general/recent_project_limit", self.recent_project_limit)
+        settings.setValue("propulsion/pythrust_data_dir", self.pythrust_data_dir)
         settings.remove("appearance/theme")
         settings.remove("appearance/font_size")
         settings.remove("appearance/style")
@@ -58,6 +64,12 @@ class SettingsDialog(QDialog):
         self.recent_limit_spin.setValue(values.recent_project_limit)
         form.addRow("Recent projects:", self.recent_limit_spin)
 
+        self.pythrust_dir_edit = QLineEdit(values.pythrust_data_dir)
+        self.pythrust_dir_edit.setPlaceholderText(
+            "Bundled with the pythrust package; or set PYTHRUST_DATA_DIR"
+        )
+        form.addRow("PyThrust data directory:", self.pythrust_dir_edit)
+
         layout.addLayout(form)
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok
@@ -71,6 +83,7 @@ class SettingsDialog(QDialog):
         return StudioSettings(
             reopen_last_project=self.reopen_check.isChecked(),
             recent_project_limit=self.recent_limit_spin.value(),
+            pythrust_data_dir=self.pythrust_dir_edit.text().strip(),
         )
 
 

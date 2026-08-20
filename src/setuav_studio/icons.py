@@ -1,7 +1,10 @@
 from pathlib import Path
 from typing import Any
+import logging
 import qtawesome as qta
 from PySide6.QtGui import QIcon
+
+logger = logging.getLogger(__name__)
 
 _ICON_MAP = {
     # File / Project actions
@@ -57,7 +60,8 @@ def get_icon(
             if color:
                 return qta.icon(specifier, color=color, **kwargs)
             return qta.icon(specifier, **kwargs)
-        except Exception:
+        except Exception as exc:
+            logger.warning("Failed to load icon %r: %s", specifier, exc)
             return QIcon()
 
     return QIcon()
