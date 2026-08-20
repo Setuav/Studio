@@ -148,7 +148,7 @@ class InstanceEditor(QWidget):
         if key == "source":
             return self._component_name(self._instance.get("source"))
         if key == "parent":
-            parent = self._instance.get("parent")
+            parent = self._instance.get("attach_to") or self._instance.get("parent")
             return self._component_name(parent) if parent is not None else "—"
         if key == "derivation_type":
             return str(derivation.get("type") or "copy")
