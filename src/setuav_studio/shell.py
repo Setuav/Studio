@@ -2,7 +2,7 @@ from pathlib import Path
 
 import shiboken6
 from PySide6.QtCore import QSettings, QSize, Qt
-from PySide6.QtGui import QCloseEvent, QIcon, QKeySequence
+from PySide6.QtGui import QCloseEvent, QFont, QFontMetrics, QIcon, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
     QDialog,
@@ -125,9 +125,9 @@ class MainWindow(QMainWindow):
                 background: transparent;
                 border: 1px solid rgba(255, 255, 255, 0.12);
                 border-radius: 4px;
-                padding: 4px 12px;
+                padding: 0px 8px;
                 margin: 1px 5px 1px 0px;
-                font-size: 11pt;
+                font-size: 10.5pt;
                 font-weight: 600;
                 color: {tokens()["text"]};
             }}
@@ -573,13 +573,19 @@ class MainWindow(QMainWindow):
         self._workspace_buttons.clear()
 
         sorted_workspaces = sorted(self._workspaces.values(), key=lambda w: (w.order, w.title))
+        button_font = QFont(self._workspace_toolbar.font())
+        button_font.setPointSizeF(10.5)
+        font_metrics = QFontMetrics(button_font)
+        button_width = (
+            max(font_metrics.horizontalAdvance(w.title) for w in sorted_workspaces)
+            + 64
+        )
         for contribution in sorted_workspaces:
             btn = QToolButton(self._workspace_toolbar)
             btn.setText(contribution.title)
             btn.setCheckable(True)
-            if contribution.icon:
-                btn.setIcon(get_icon(contribution.icon))
-            btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+            btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+            btn.setFixedSize(button_width, 26)
             btn.clicked.connect(lambda _checked, cid=contribution.id: self._api.switch_workspace(cid))
             self._workspace_toolbar.addWidget(btn)
             self._workspace_buttons[contribution.id] = btn

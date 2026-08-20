@@ -71,7 +71,6 @@ class ElectricalPropulsionPlugin:
             WorkspaceContribution(
                 id="studio.workspace.propulsion",
                 title="Propulsion",
-                icon="fa6s.bolt",
                 order=20,
             )
         )

@@ -23,7 +23,6 @@ class GeometryPlugin:
             WorkspaceContribution(
                 id="studio.workspace.design",
                 title="Design",
-                icon="fa6s.cubes",
                 order=0,
             )
         )
