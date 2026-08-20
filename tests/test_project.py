@@ -42,6 +42,20 @@ class ProjectTests(unittest.TestCase):
         self.assertEqual(project.kind, "archive")
         self.assertEqual(project.data, self.project_data)
 
+    def test_save_rejects_read_only_project(self) -> None:
+        """4.13: read-only projects (opened under a failing validation) refuse to save."""
+        from setuav_studio.project import ProjectSaveError, ProjectDocument
+
+        project = ProjectDocument(
+            path=Path("/tmp/ro.json"),
+            kind="json",
+            data={"name": "ro"},
+            read_only=True,
+        )
+        with self.assertRaises(ProjectSaveError):
+            save_project(project)
+
+
     def test_rejects_folder_without_project_json(self) -> None:
         with self.assertRaises(ProjectOpenError):
             open_project(self.root)

@@ -25,12 +25,13 @@ from PySide6.QtWidgets import (
 from setuav_studio.icons import get_icon
 from setuav_studio.log_buffer import install_log_buffer
 from setuav_studio.plugin_system import (
-    ActionContribution,
     PanelContribution,
     StudioAPI,
+    ToolContribution,
     WorkspaceContribution,
 )
 from setuav_studio.plugins.core.settings import SettingsDialog, StudioSettings
+from setuav_studio.schema_validation import validate_project
 from setuav_studio.ui.theme import STATUS_COLORS, accent_color, rgba, tokens
 from setuav_studio.project import (
     ProjectDocument,
@@ -90,6 +91,54 @@ class DockTitleBar(QWidget):
         layout.addWidget(close_button)
 
         dock.windowTitleChanged.connect(self._title.setText)
+
+
+def apply_runtime_validation(
+    project: ProjectDocument,
+    issues: object,
+    strictness: str,
+    parent: QWidget | None = None,
+    *,
+    interactive: bool = True,
+) -> str:
+    """Apply runtime schema validation decisions to a freshly opened project.
+
+    Returns ``"open"``, ``"read_only"``, or ``"cancel"``. When
+    ``interactive`` is ``False`` the strict-mode blocking dialog is skipped
+    and the project is forced read-only (used by tests).
+    """
+    if not issues or strictness == "off":
+        return "open"
+    if strictness == "warn":
+        project.read_only = True
+        return "read_only"
+    if strictness != "strict":
+        return "open"
+
+    if not interactive:
+        project.read_only = True
+        return "read_only"
+
+    message = "\n".join(
+        f"• {issue.path}: {issue.message}"
+        for issue in issues[:10]
+    )
+    if len(issues) > 10:
+        message += f"\n…and {len(issues) - 10} more."
+
+    box = QMessageBox(parent)
+    box.setIcon(QMessageBox.Icon.Critical)
+    box.setWindowTitle("Project validation failed")
+    box.setText(f"Found {len(issues)} schema issue(s).")
+    box.setInformativeText(message)
+    btn_ro = box.addButton("Open read-only", QMessageBox.ButtonRole.AcceptRole)
+    btn_cancel = box.addButton(QMessageBox.StandardButton.Cancel)
+    box.setDefaultButton(btn_ro)
+    box.exec()
+    if box.clickedButton() is btn_cancel:
+        return "cancel"
+    project.read_only = True
+    return "read_only"
 
 
 class MainWindow(QMainWindow):
@@ -375,6 +424,17 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Cannot Open Project", str(exc))
             return False
 
+        validation_issues = validate_project(project.data)
+        settings = StudioSettings.load()
+        decision = apply_runtime_validation(
+            project,
+            validation_issues,
+            settings.validation_strictness,
+            parent=self,
+        )
+        if decision == "cancel":
+            return False
+
         if not self._confirm_project_close():
             return False
 
@@ -384,6 +444,12 @@ class MainWindow(QMainWindow):
         self._add_recent_project(project.location)
         self._update_window_title()
         self._update_actions()
+        if project.read_only:
+            self._api.show_status(
+                f"Project opened read-only: {len(validation_issues)} validation issue(s)",
+                "warning",
+                8000,
+            )
         project_name = str(
             project.data.get("name") or project.location.name or project.path.name
         )
@@ -395,9 +461,11 @@ class MainWindow(QMainWindow):
                 "warning",
                 0,
             )
-        else:
+        elif not project.read_only:
             self._degraded_badge.hide()
             self._api.show_status(f"Project opened: {project_name}", "info", 4000)
+        else:
+            self._degraded_badge.hide()
         return True
 
     def _show_degraded_details(self) -> None:

@@ -25,6 +25,7 @@ class ProjectDocument:
     data: dict[str, Any]
     modified: bool = field(default=False, compare=False)
     plugin_issues: list[str] = field(default_factory=list, compare=False)
+    read_only: bool = field(default=False, compare=False)
 
     @property
     def location(self) -> Path:
@@ -58,6 +59,10 @@ def save_project(
     project: ProjectDocument,
     path: str | Path | None = None,
 ) -> None:
+    if project.read_only:
+        raise ProjectSaveError(
+            f"Cannot save project: opened read-only due to validation issues ({project.path})"
+        )
     target = project.path if path is None else Path(path).expanduser().resolve()
     logger.info("Saving project: %s", target)
 

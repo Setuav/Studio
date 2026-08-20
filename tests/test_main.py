@@ -62,6 +62,47 @@ class MainTests(unittest.TestCase):
         self.assertIsNotNone(dock)
         self.assertEqual(dock.windowTitle(), "Test Panel")
         self.assertIn(dock.toggleViewAction(), window._view_menu.actions())
+        """4.13: validation_strictness drives open/read_only/cancel outcomes."""
+        from types import SimpleNamespace
+        from pathlib import Path
+
+        from setuav_studio.shell import apply_runtime_validation
+        from setuav_studio.project import ProjectDocument
+
+        valid = ProjectDocument(path=Path("/tmp/x.json"), kind="json", data={})
+        issues = [
+            SimpleNamespace(path="$.components[0].id", message="Duplicate ID 'a'"),
+            SimpleNamespace(path="$.components[1].id", message="Duplicate ID 'a'"),
+        ]
+
+        self.assertEqual(
+            apply_runtime_validation(valid, [], "strict", interactive=True),
+            "open",
+        )
+        self.assertEqual(
+            apply_runtime_validation(valid, issues, "off", interactive=True),
+            "open",
+        )
+        self.assertFalse(valid.read_only)
+
+        self.assertEqual(
+            apply_runtime_validation(valid, issues, "warn", interactive=True),
+            "read_only",
+        )
+        self.assertTrue(valid.read_only)
+
+        ro2 = ProjectDocument(path=Path("/tmp/y.json"), kind="json", data={})
+        self.assertEqual(
+            apply_runtime_validation(ro2, issues, "strict", interactive=False),
+            "read_only",
+        )
+        self.assertTrue(ro2.read_only)
+
+        ok = ProjectDocument(path=Path("/tmp/z.json"), kind="json", data={})
+        self.assertEqual(
+            apply_runtime_validation(ok, issues, "unexpected", interactive=True),
+            "open",
+        )
 
 
 if __name__ == "__main__":
