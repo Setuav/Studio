@@ -3,6 +3,20 @@
 Plugin-based desktop application for parametric UAV design and analysis.
 
 # to-do
-- viewera alttan, üstten, önden, yandan, izometrik görünüm
-- 2d viewer ../Setuav'daki gibi ama daha dinamik olacak gövde section seçilince doğrudan section görünümü gelecek mesela.
-- polygon section çizimi
+- genel tarama
+- StudioAPI ve Şema nihaileştirme
+- testler
+- aerodinamik plugin
+- ağırlık ve denge plugin
+- uçuş mekaniği plugin
+- ci-cd
+- dökümantasyon
+
+-> vtol roadmap
+-> multicopter roadmap
+
+-> openvsp plugin
+-> avl plugin
+-> gazebo plugin
+-> jsbsim plugin
+-> openfoam/su2 plugin
