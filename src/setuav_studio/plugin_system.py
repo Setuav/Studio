@@ -7,6 +7,7 @@ import logging
 import pkgutil
 from typing import Any, Protocol
 
+from packaging.version import InvalidVersion, Version
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon, QUndoCommand, QUndoStack
 from PySide6.QtWidgets import QWidget
@@ -720,23 +721,20 @@ def _version_satisfies(installed: str, requirement: str) -> bool:
         minimum = _parse_version(requirement[1:])
         if minimum is None or installed_version < minimum:
             return False
-        major, minor, patch = minimum
+        major, minor, patch = (list(minimum.release) + [0, 0, 0])[:3]
         if major > 0:
-            maximum = (major + 1, 0, 0)
+            maximum = f"{major + 1}.0.0"
         elif minor > 0:
-            maximum = (0, minor + 1, 0)
+            maximum = f"0.{minor + 1}.0"
         else:
-            maximum = (0, 0, patch + 1)
-        return installed_version < maximum
+            maximum = f"0.0.{patch + 1}"
+        return installed_version < _parse_version(maximum)
     expected = _parse_version(requirement)
     return expected == installed_version
 
 
-def _parse_version(value: str) -> tuple[int, int, int] | None:
+def _parse_version(value: str) -> Version | None:
     try:
-        parts = value.split("-", 1)[0].split("+", 1)[0].split(".")
-        if len(parts) != 3:
-            return None
-        return int(parts[0]), int(parts[1]), int(parts[2])
-    except ValueError:
+        return Version(value)
+    except InvalidVersion:
         return None

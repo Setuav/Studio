@@ -1,0 +1,1 @@
+- component databasede motorların power vs sütunları sıralanırken sayısal değer gibi değil string gibi sıralanıyor.

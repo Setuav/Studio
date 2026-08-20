@@ -43,11 +43,12 @@ Amaç: Plugin davranış sınırlarını netleştirmek.
    - Bundled + entry-points aynı sıralama; hata toplama korundu
    - `_candidate_sort_key` + test
 
-7. **Versiyon çözümleyici genişletme**
-   - PEP 440 desteği (`packaging.version` zaten standart kütüphane)
-   - Pre-release, build metadata, 4 parça versiyon
-   - Bağımlılık: yok
-   - Risk: düşük
+7. **Versiyon çözümleyici genişletme** ✅ *tamamlandı*
+   - `packaging.version.Version` (PEP 440) → pre-release, build metadata, 4 parça destekleniyor
+   - `packaging>=23.0` pyproject.toml'a eklendi
+   - Caret semantiği korundu (major/minor/patch kuralları)
+   - Geçersiz versiyon → `None` (uyumsuz sayılır)
+   - 12 durumluk test
 
 ## Faz 3 — Editör Altyapısı (3-4 hafta, orta risk)
 Amaç: Kod tekrarını ve editör büyüklüğünü kontrol etmek.

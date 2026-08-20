@@ -198,6 +198,22 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(compatible, [])
         self.assertEqual(missing, ["Missing plugin: example.missing"])
 
+    def test_version_satisfies_pep440_pre_release_and_build_metadata(self) -> None:
+        from setuav_studio.plugin_system import _version_satisfies
+
+        self.assertTrue(_version_satisfies("1.2.3-rc1", "^1.2.0"))
+        self.assertTrue(_version_satisfies("1.2.3.4", "^1.2.0"))
+        self.assertFalse(_version_satisfies("1.2.3+build5", "1.2.3"))
+        self.assertFalse(_version_satisfies("1.2.0-rc1", "^1.2.0"))
+        self.assertFalse(_version_satisfies("2.0.0", "^1.2.3"))
+        self.assertTrue(_version_satisfies("0.2.9", "^0.2.3"))
+        self.assertFalse(_version_satisfies("0.3.0", "^0.2.3"))
+        self.assertTrue(_version_satisfies("0.0.3", "^0.0.3"))
+        self.assertFalse(_version_satisfies("0.0.4", "^0.0.3"))
+        self.assertTrue(_version_satisfies("1.0.0", "1.0.0"))
+        self.assertTrue(_version_satisfies("0.0.1", "*"))
+        self.assertFalse(_version_satisfies("not-a-version", "1.0.0"))
+
     def test_component_edits_support_undo_and_redo(self) -> None:
         component = {"name": "Before"}
         project = ProjectDocument(
