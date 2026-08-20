@@ -127,6 +127,37 @@ def build_lifting_surface_geometry(
         if tip_cap is not None:
             lofts_list.append(tip_cap)
 
+    elif tip_type == "winglet":
+        # Winglet: a separate swept/canted surface growing from the tip
+        y0 = float(profiles[0].get("position", {}).get("y", 0.0)) if isinstance(profiles[0].get("position"), dict) else 0.0
+        y1 = float(profiles[-1].get("position", {}).get("y", 0.0)) if isinstance(profiles[-1].get("position"), dict) else 0.0
+        span_dir = 1.0 if y1 >= y0 else -1.0
+
+        winglet_height = float(tip_treatment.get("winglet_height", 100.0))
+        cant_angle = float(tip_treatment.get("cant_angle", 75.0))
+        winglet_sweep = float(tip_treatment.get("winglet_sweep", 30.0))
+        toe_angle = float(tip_treatment.get("toe_angle", 0.0))
+        root_chord_scale = float(tip_treatment.get("root_chord_scale", 1.0))
+        tip_chord_scale = float(tip_treatment.get("tip_chord_scale", 0.5))
+
+        winglet_loft = _build_winglet_loft(
+            comp_id=comp_id,
+            tip_profile=profiles[-1],
+            span_dir=span_dir,
+            winglet_height=winglet_height,
+            cant_angle_deg=cant_angle,
+            sweep_deg=winglet_sweep,
+            toe_angle_deg=toe_angle,
+            root_chord_scale=root_chord_scale,
+            tip_chord_scale=tip_chord_scale,
+            twist_location=twist_location,
+            te_thickness=te_thickness,
+            thickness_scale=thickness_scale,
+            camber_scale=camber_scale,
+        )
+        if winglet_loft is not None:
+            lofts_list.append(winglet_loft)
+
     return tuple(lofts_list)
 
 
@@ -710,4 +741,142 @@ def _build_tip_cap_loft(
         interpolation="linear",
         station_spacing=10.0,
         closed_ends=False,
+    )
+
+
+def _build_winglet_loft(
+    comp_id: str,
+    tip_profile: dict[str, Any],
+    span_dir: float = 1.0,
+    winglet_height: float = 100.0,
+    cant_angle_deg: float = 75.0,
+    sweep_deg: float = 30.0,
+    toe_angle_deg: float = 0.0,
+    root_chord_scale: float = 1.0,
+    tip_chord_scale: float = 0.5,
+    twist_location: float = 0.25,
+    te_thickness: float = 0.0,
+    thickness_scale: float = 1.0,
+    camber_scale: float = 1.0,
+    n_stations: int = 12,
+) -> LoftGeometry | None:
+    """Generate a parametric winglet loft extending from the wing tip.
+
+    The winglet grows from the tip station in a direction controlled by
+    cant_angle_deg (0° = horizontal extension, 90° = straight up).
+    sweep_deg applies a forward/aft lean to each successive chord plane.
+    toe_angle_deg twists the entire winglet around the span axis (pitch).
+
+    Coordinate conventions (winglet local frame):
+        s     — distance along winglet height from 0 to winglet_height
+        dy_ds — component of s in the wing Y direction  = cos(cant_rad)  * span_dir
+        dz_ds — component of s in the global Z direction = sin(cant_rad)
+        dx_ds — sweep offset per unit s                 = tan(sweep_rad)
+    """
+    if winglet_height <= 0.0:
+        return None
+
+    tip_chord = _number(tip_profile.get("chord"))
+    if tip_chord <= 0.0:
+        return None
+
+    # Tip station world position & rotation (use section_transform to get the base matrix)
+    matrix = section_transform(tip_profile, chord=tip_chord, twist_location=twist_location)
+
+    # Airfoil coords (with shaping applied)
+    coords = sample_airfoil_points(tip_profile.get("airfoil"))
+    coords = apply_airfoil_shaping(coords, te_thickness=te_thickness,
+                                   thickness_scale=thickness_scale, camber_scale=camber_scale)
+    upper_b, lower_b = _split_airfoil_upper_lower(coords)
+
+    cant_rad = math.radians(cant_angle_deg)
+    sweep_rad = math.radians(sweep_deg)
+    toe_rad = math.radians(toe_angle_deg)
+    cos_cant = math.cos(cant_rad)
+    sin_cant = math.sin(cant_rad)
+    tan_sweep = math.tan(sweep_rad)
+
+    # Cosine-spaced stations along winglet height (denser at root/tip)
+    s_vals = [
+        winglet_height * 0.5 * (1.0 - math.cos(math.pi * i / (n_stations - 1)))
+        for i in range(n_stations)
+    ]
+
+    # Structured airfoil sample count (same as main wing sections)
+    n_upper, n_lower, n_wall = 28, 28, 7
+    global_x_upper = [0.5 * (1.0 + math.cos(math.pi * i / (n_upper - 1))) for i in range(n_upper)]
+    global_x_lower = [0.5 * (1.0 - math.cos(math.pi * i / (n_lower - 1))) for i in range(n_lower)]
+
+    sections: list[Section] = []
+
+    for idx, s in enumerate(s_vals):
+        frac = s / winglet_height  # 0 at root, 1 at tip
+
+        # Chord interpolated root→tip
+        chord_wl = tip_chord * (root_chord_scale + (tip_chord_scale - root_chord_scale) * frac)
+
+        # Local offsets from tip LE in winglet-local space:
+        #   along Y (wing span):  s * cos(cant) * span_dir
+        #   along Z (up):         s * sin(cant)
+        #   along X (fwd/aft):    s * tan(sweep)  (positive = aft)
+        ds_y = s * cos_cant * span_dir
+        ds_z = s * sin_cant
+        ds_x = s * tan_sweep
+
+        # Toe angle: rotate chord axis around span axis by toe_angle_deg
+        # This is applied as an additional pitch of the section in XZ
+        cos_toe = math.cos(toe_rad)
+        sin_toe = math.sin(toe_rad)
+
+        pts: list[Point3D] = []
+
+        # Upper surface (TE → LE)
+        for i in range(n_upper):
+            x_rel = global_x_upper[i]
+            z_val = _interp_branch_z(upper_b, x_rel)
+            # Scale to winglet chord and apply toe rotation in local XZ
+            x_local = x_rel * chord_wl
+            z_local = z_val * chord_wl
+            x_toe = x_local * cos_toe - z_local * sin_toe + ds_x
+            z_toe = x_local * sin_toe + z_local * cos_toe
+            p_local = (x_toe, ds_y, z_toe + ds_z)
+            pts.append(transform_point(matrix, p_local))
+
+        # LE point
+        z_le = _interp_branch_z(upper_b, 0.0) * chord_wl
+        x_le_toe = -z_le * sin_toe + ds_x
+        z_le_toe = z_le * cos_toe
+        pts.append(transform_point(matrix, (x_le_toe, ds_y, z_le_toe + ds_z)))
+
+        # Lower surface (LE → TE)
+        for i in range(n_lower):
+            x_rel = global_x_lower[i]
+            z_val = _interp_branch_z(lower_b, x_rel)
+            x_local = x_rel * chord_wl
+            z_local = z_val * chord_wl
+            x_toe = x_local * cos_toe - z_local * sin_toe + ds_x
+            z_toe = x_local * sin_toe + z_local * cos_toe
+            p_local = (x_toe, ds_y, z_toe + ds_z)
+            pts.append(transform_point(matrix, p_local))
+
+        # TE closure (7 wall pts, upper→lower)
+        z_te_u = _interp_branch_z(upper_b, 1.0) * chord_wl
+        z_te_l = _interp_branch_z(lower_b, 1.0) * chord_wl
+        x_te_base = chord_wl
+        for j in range(1, n_wall + 1):
+            fj = j / n_wall
+            z_wall = z_te_u + fj * (z_te_l - z_te_u)
+            x_toe = x_te_base * cos_toe - z_wall * sin_toe + ds_x
+            z_toe = x_te_base * sin_toe + z_wall * cos_toe
+            pts.append(transform_point(matrix, (x_toe, ds_y, z_toe + ds_z)))
+
+        sections.append(Section(tuple(pts)))
+
+    return LoftGeometry(
+        component_id=f"{comp_id}:winglet",
+        sections=tuple(sections),
+        color=wing_color(),
+        interpolation="smooth" if n_stations > 2 else "linear",
+        station_spacing=10.0,
+        closed_ends=True,
     )

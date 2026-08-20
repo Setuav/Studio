@@ -3,23 +3,21 @@ from typing import Any
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QAbstractItemView,
     QApplication,
     QComboBox,
     QFrame,
     QHBoxLayout,
-    QHeaderView,
     QLabel,
     QScrollArea,
     QSizePolicy,
     QTableWidget,
-    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
 from setuav_studio.icons import get_icon
 from setuav_studio.plugin_system import StudioAPI
+from setuav_studio.ui.property_tables import PropertyTableMixin
 
 CONTROL_SURFACE_TYPES = [
     ("aileron", "Aileron"),
@@ -31,7 +29,9 @@ CONTROL_SURFACE_TYPES = [
 ]
 
 
-class ControlSurfaceEditor(QWidget):
+class ControlSurfaceEditor(PropertyTableMixin, QWidget):
+    table_scroll_policy_off = True
+    table_max_visible_rows = None
     def __init__(self, api: StudioAPI, component: dict[str, Any]) -> None:
         super().__init__()
         self._api = api
@@ -229,45 +229,6 @@ class ControlSurfaceEditor(QWidget):
         else:
             mutation()
 
-    @classmethod
-    def _property_table(cls, definitions: list[tuple[str, str]]) -> QTableWidget:
-        table = QTableWidget(len(definitions), 2)
-        table.setHorizontalHeaderLabels(["Property", "Value"])
-        table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
-        table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        table.setEditTriggers(
-            QAbstractItemView.EditTrigger.DoubleClicked
-            | QAbstractItemView.EditTrigger.EditKeyPressed
-            | QAbstractItemView.EditTrigger.SelectedClicked
-        )
-        table.verticalHeader().setVisible(False)
-        table.verticalHeader().setDefaultSectionSize(22)
-        table.horizontalHeader().setFixedHeight(23)
-        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        table.setAlternatingRowColors(True)
-        for row, (key, label) in enumerate(definitions):
-            label_item = QTableWidgetItem(label)
-            label_item.setData(Qt.ItemDataRole.UserRole, key)
-            label_item.setFlags(label_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-            table.setItem(row, 0, label_item)
-            table.setItem(row, 1, QTableWidgetItem())
-        height = table.horizontalHeader().height() + table.verticalHeader().defaultSectionSize() * max(len(definitions), 1) + 2
-        table.setFixedHeight(height)
-        return table
-
-    def _set_property_value(self, table: QTableWidget, key: str, value: Any) -> None:
-        for row in range(table.rowCount()):
-            if self._property_key(table, row) != key:
-                continue
-            item = table.item(row, 1)
-            if item is None:
-                item = QTableWidgetItem()
-                table.setItem(row, 1, item)
-            item.setText(str(value))
-            return
-
     def _set_property_combo(
         self,
         table: QTableWidget,
@@ -295,18 +256,6 @@ class ControlSurfaceEditor(QWidget):
             table.setCellWidget(row, 1, combo)
             return
 
-    @staticmethod
-    def _property_key(table: QTableWidget, row: int) -> str:
-        item = table.item(row, 0)
-        return str(item.data(Qt.ItemDataRole.UserRole) or "") if item is not None else ""
-
-    @staticmethod
-    def _property_text(table: QTableWidget, row: int) -> str:
-        widget = table.cellWidget(row, 1)
-        if isinstance(widget, QComboBox):
-            return str(widget.currentData())
-        item = table.item(row, 1)
-        return item.text() if item is not None else ""
 
     @staticmethod
     def _parse_number(value: str) -> float | None:

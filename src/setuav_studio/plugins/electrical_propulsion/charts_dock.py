@@ -21,7 +21,7 @@ from PySide6.QtCharts import (
 )
 
 from setuav_studio.icons import get_icon
-from setuav_studio.plugins.core.theme import tokens
+from setuav_studio.ui.theme import tokens
 
 
 class PropulsionChartsDock(QWidget):

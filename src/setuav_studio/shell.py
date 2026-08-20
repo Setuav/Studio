@@ -29,7 +29,7 @@ from setuav_studio.plugin_system import (
     WorkspaceContribution,
 )
 from setuav_studio.plugins.core.settings import SettingsDialog, StudioSettings
-from setuav_studio.plugins.core.theme import apply_theme, tokens
+from setuav_studio.ui.theme import apply_theme, tokens
 from setuav_studio.project import (
     ProjectDocument,
     ProjectOpenError,

@@ -53,12 +53,12 @@ Amaç: Plugin davranış sınırlarını netleştirmek.
 ## Faz 3 — Editör Altyapısı (3-4 hafta, orta risk)
 Amaç: Kod tekrarını ve editör büyüklüğünü kontrol etmek.
 
-8. **Property table mixin / utility**
-   - `_property_table/_set_property_value/_set_property_combo/_property_key/_fit_table_height` tek base/mixin'e
-   - Tüm editörler mixin'i kullansın
+8. **Property table mixin / utility** ✅ *tamamlandı*
+   - `src/setuav_studio/ui/property_tables.py` → `PropertyTableMixin` (attribute tabanlı varyasyonlar)
+   - 8 sınıf mixin'i kullanıyor: BaseComponentEditor, BatteryEditor, ElectricPropulsionSystemEditor, PropulsionControlsDock, PropulsionResultsDock, FuselageEditor, LiftingSurfaceEditor, ControlSurfaceEditor
+   - Ek olarak `ui/` paketi kuruldu; `theme.py` ve `numeric_spinbox.py` `plugins/core`'dan `ui/`'ye taşındı (core plugin artık diğer pluginlere UI bağımlılığı taşımıyor)
    - Bağımlılık: yok
    - Risk: düşük
-   - Gerekçe: 6+ dosyada neredeyse identical kopya; en yüksek duplication oranı burada
 
 9. **`_on_run_analysis` parçalama**
    - `run_sweep / run_throttle / run_operating_point` ayrı metotlar

@@ -6,7 +6,7 @@ from setuav_studio.plugins.core.settings import (
     _font_size_value,
     _theme_value,
 )
-from setuav_studio.plugins.core.theme import (
+from setuav_studio.ui.theme import (
     ACCENT_COLOR,
     DEFAULT_FONT_SIZE,
     FONT_FAMILY,

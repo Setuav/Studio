@@ -4,20 +4,16 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import Any, Callable
+from typing import Any
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QAbstractItemView,
-    QApplication,
     QComboBox,
-    QHeaderView,
     QHBoxLayout,
     QLabel,
     QPushButton,
     QScrollArea,
     QSizePolicy,
     QTableWidget,
-    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -34,12 +30,15 @@ from pythrust.propulsion.solver import PropulsionSolver, evaluate_propulsion_sta
 from .database import get_propeller_database
 from setuav_studio.icons import get_icon
 from setuav_studio.plugin_system import StudioAPI
+from setuav_studio.ui.property_tables import PropertyTableMixin
 
 logger = logging.getLogger(__name__)
 
 
-class PropulsionControlsDock(QWidget):
+class PropulsionControlsDock(PropertyTableMixin, QWidget):
     """Clean controls and configuration dock for Propulsion Analysis."""
+
+    table_combo_strict_find = True
 
     def __init__(self, api: StudioAPI, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -839,84 +838,6 @@ class PropulsionControlsDock(QWidget):
             )
 
     # Helper Table Methods
-    @classmethod
-    def _property_table(cls, definitions: list[tuple[str, str]]) -> QTableWidget:
-        table = cls._table(["Property", "Value"])
-        table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
-        table.setEditTriggers(
-            QAbstractItemView.EditTrigger.DoubleClicked
-            | QAbstractItemView.EditTrigger.EditKeyPressed
-            | QAbstractItemView.EditTrigger.SelectedClicked
-        )
-        cls._configure_property_table(table, definitions)
-        return table
-
-    @classmethod
-    def _configure_property_table(
-        cls, table: QTableWidget, definitions: list[tuple[str, str]]
-    ) -> None:
-        for row in range(table.rowCount()):
-            widget = table.cellWidget(row, 1)
-            if widget is not None:
-                table.removeCellWidget(row, 1)
-                widget.deleteLater()
-        table.clearContents()
-        table.setRowCount(len(definitions))
-        for row, (key, label) in enumerate(definitions):
-            label_item = QTableWidgetItem(label)
-            label_item.setData(Qt.ItemDataRole.UserRole, key)
-            label_item.setFlags(label_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-            table.setItem(row, 0, label_item)
-            val_item = QTableWidgetItem()
-            table.setItem(row, 1, val_item)
-        cls._fit_table_height(table, len(definitions))
-
-    def _set_property_combo(
-        self,
-        table: QTableWidget,
-        key: str,
-        value: str,
-        options: list[tuple[str, str]],
-        on_changed: Callable[[str], None],
-    ) -> None:
-        for row in range(table.rowCount()):
-            if self._property_key(table, row) != key:
-                continue
-            self._set_table_combo(table, row, 1, value, options, on_changed)
-            return
-
-    @staticmethod
-    def _set_table_combo(
-        table: QTableWidget,
-        row: int,
-        column: int,
-        value: str,
-        options: list[tuple[str, str]],
-        on_changed: Callable[[str], None],
-    ) -> None:
-        item = table.item(row, column)
-        if item is not None:
-            item.setText("")
-            item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-        combo = QComboBox(table)
-        combo.setFont(QApplication.font())
-        combo.setSizePolicy(
-            QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.Expanding,
-        )
-        combo.view().setProperty("tableComboPopup", True)
-        combo.view().setFont(QApplication.font())
-        for option_value, label in options:
-            combo.addItem(label, option_value)
-        idx = combo.findData(value)
-        if idx >= 0:
-            combo.setCurrentIndex(idx)
-        combo.currentIndexChanged.connect(
-            lambda _index, editor=combo, callback=on_changed: callback(
-                str(editor.currentData())
-            )
-        )
-        table.setCellWidget(row, column, combo)
 
     @staticmethod
     def _set_table_combo_selection(table: QTableWidget, key: str, value: str) -> None:
@@ -940,27 +861,6 @@ class PropulsionControlsDock(QWidget):
                 return item.text() if item else ""
         return ""
 
-    @staticmethod
-    def _set_property_value(
-        table: QTableWidget,
-        key: str,
-        value: object,
-        *,
-        editable: bool = True,
-    ) -> None:
-        for row in range(table.rowCount()):
-            if PropulsionControlsDock._property_key(table, row) != key:
-                continue
-            item = table.item(row, 1)
-            if item is None:
-                item = QTableWidgetItem()
-                table.setItem(row, 1, item)
-            item.setText(str(value))
-            if editable:
-                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
-            else:
-                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-            return
 
     @staticmethod
     def _property_value(table: QTableWidget, key: str) -> str:
@@ -975,37 +875,3 @@ class PropulsionControlsDock(QWidget):
         item = table.item(row, 1)
         return item.text().strip() if item else ""
 
-    @staticmethod
-    def _property_key(table: QTableWidget, row: int) -> str:
-        item = table.item(row, 0)
-        if item is None:
-            return ""
-        return str(item.data(Qt.ItemDataRole.UserRole) or "")
-
-    @staticmethod
-    def _table(headers: list[str]) -> QTableWidget:
-        table = QTableWidget(0, len(headers))
-        table.setHorizontalHeaderLabels(headers)
-        table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        table.verticalHeader().setVisible(False)
-        table.verticalHeader().setDefaultSectionSize(22)
-        table.horizontalHeader().setFixedHeight(23)
-        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        table.setAlternatingRowColors(True)
-        return table
-
-    @staticmethod
-    def _fit_table_height(
-        table: QTableWidget,
-        row_count: int,
-        maximum_visible_rows: int = 15,
-    ) -> None:
-        visible_rows = min(max(row_count, 1), maximum_visible_rows)
-        height = (
-            table.horizontalHeader().height()
-            + table.verticalHeader().defaultSectionSize() * visible_rows
-            + 2
-        )
-        table.setFixedHeight(height)

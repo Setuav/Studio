@@ -12,15 +12,12 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QCloseEvent, QColor, QFont, QHideEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
-    QApplication,
-    QComboBox,
     QDoubleSpinBox,
     QHeaderView,
     QHBoxLayout,
     QLabel,
     QPushButton,
     QScrollArea,
-    QSizePolicy,
     QTableWidget,
     QTableWidgetItem,
     QToolButton,
@@ -30,11 +27,12 @@ from PySide6.QtWidgets import (
 
 from setuav_studio.icons import get_icon
 from setuav_studio.plugin_system import StudioAPI
-from setuav_studio.plugins.core.numeric_spinbox import (
+from setuav_studio.ui.numeric_spinbox import (
     NoWheelComboBox,
     NumericSpinBox,
     set_table_spinbox,
 )
+from setuav_studio.ui.property_tables import PropertyTableMixin
 from setuav_studio.plugins.geometry.airfoil import PRESET_AIRFOILS
 from setuav_studio.plugins.geometry.airfoil_dialog import AirfoilDialog
 from setuav_studio.plugins.geometry.wing_planform_engine import (
@@ -47,8 +45,13 @@ from setuav_studio.plugins.geometry.wing_planform_engine import (
 )
 
 
-class LiftingSurfaceEditor(QWidget):
+class LiftingSurfaceEditor(PropertyTableMixin, QWidget):
     """Component property editor for org.setuav.core:lifting-surface."""
+
+    table_combo_cls = NoWheelComboBox
+    table_scroll_policy_off = True
+    table_max_visible_rows = None
+    table_property_text_spinbox = True
 
     CONTROL_SURFACE_TYPES = [
         ("aileron", "Aileron"),
@@ -280,6 +283,12 @@ class LiftingSurfaceEditor(QWidget):
             ("tip_type", "Tip Cap Type"),
             ("tip_length", "Tip Length (mm)"),
             ("tip_offset_x", "Tip Sweep Offset (mm)"),
+            ("winglet_height", "Winglet Height (mm)"),
+            ("cant_angle", "Cant Angle (°)"),
+            ("winglet_sweep", "Winglet Sweep (°)"),
+            ("toe_angle", "Toe Angle (°)"),
+            ("root_chord_scale", "Root Chord Scale"),
+            ("tip_chord_scale", "Tip Chord Scale"),
         ])
         self.tip_caps_table.cellChanged.connect(self._on_tip_cap_cell_edited)
         layout.addWidget(self.tip_caps_table)
@@ -1441,12 +1450,23 @@ class LiftingSurfaceEditor(QWidget):
         tip_type = str(tip_treatment.get("type", "flat")).lower()
         tip_length = float(tip_treatment.get("length", 20.0))
         tip_offset_x = float(tip_treatment.get("offset_x", 0.0))
+        winglet_height = float(tip_treatment.get("winglet_height", 100.0))
+        cant_angle = float(tip_treatment.get("cant_angle", 75.0))
+        winglet_sweep = float(tip_treatment.get("winglet_sweep", 30.0))
+        toe_angle = float(tip_treatment.get("toe_angle", 0.0))
+        root_chord_scale = float(tip_treatment.get("root_chord_scale", 1.0))
+        tip_chord_scale = float(tip_treatment.get("tip_chord_scale", 0.5))
 
         self._set_property_combo(
             self.tip_caps_table,
             "tip_type",
             tip_type,
-            [("flat", "Flat"), ("round", "Round (Dome)"), ("sharp", "Sharp (Bevel)")],
+            [
+                ("flat", "Flat"),
+                ("round", "Round (Dome)"),
+                ("sharp", "Sharp (Bevel)"),
+                ("winglet", "Winglet"),
+            ],
             self._on_tip_cap_type_changed,
         )
         self._set_property_spinbox(
@@ -1468,19 +1488,91 @@ class LiftingSurfaceEditor(QWidget):
             suffix="mm",
             on_changed=lambda val: self._on_tip_cap_spinbox_changed("tip_offset_x", val),
         )
+        self._set_property_spinbox(
+            self.tip_caps_table,
+            "winglet_height",
+            winglet_height,
+            min_val=0.0,
+            max_val=5000.0,
+            step=10.0,
+            decimals=1,
+            suffix="mm",
+            on_changed=lambda val: self._on_tip_cap_spinbox_changed("winglet_height", val),
+        )
+        self._set_property_spinbox(
+            self.tip_caps_table,
+            "cant_angle",
+            cant_angle,
+            min_val=0.0,
+            max_val=90.0,
+            step=5.0,
+            decimals=1,
+            suffix="°",
+            on_changed=lambda val: self._on_tip_cap_spinbox_changed("cant_angle", val),
+        )
+        self._set_property_spinbox(
+            self.tip_caps_table,
+            "winglet_sweep",
+            winglet_sweep,
+            min_val=-80.0,
+            max_val=80.0,
+            step=5.0,
+            decimals=1,
+            suffix="°",
+            on_changed=lambda val: self._on_tip_cap_spinbox_changed("winglet_sweep", val),
+        )
+        self._set_property_spinbox(
+            self.tip_caps_table,
+            "toe_angle",
+            toe_angle,
+            min_val=-30.0,
+            max_val=30.0,
+            step=0.5,
+            decimals=2,
+            suffix="°",
+            on_changed=lambda val: self._on_tip_cap_spinbox_changed("toe_angle", val),
+        )
+        self._set_property_spinbox(
+            self.tip_caps_table,
+            "root_chord_scale",
+            root_chord_scale,
+            min_val=0.1,
+            max_val=3.0,
+            step=0.05,
+            decimals=3,
+            on_changed=lambda val: self._on_tip_cap_spinbox_changed("root_chord_scale", val),
+        )
+        self._set_property_spinbox(
+            self.tip_caps_table,
+            "tip_chord_scale",
+            tip_chord_scale,
+            min_val=0.0,
+            max_val=3.0,
+            step=0.05,
+            decimals=3,
+            on_changed=lambda val: self._on_tip_cap_spinbox_changed("tip_chord_scale", val),
+        )
         self._update_tip_caps_interactivity(tip_type)
 
     def _update_tip_caps_interactivity(self, tip_type: str) -> None:
-        is_cap_active = tip_type in ("round", "sharp")
+        is_cap = tip_type in ("round", "sharp")
+        is_winglet = tip_type == "winglet"
+        cap_keys = {"tip_length", "tip_offset_x"}
+        winglet_keys = {"winglet_height", "cant_angle", "winglet_sweep", "toe_angle", "root_chord_scale", "tip_chord_scale"}
         for row in range(self.tip_caps_table.rowCount()):
             key = self._property_key(self.tip_caps_table, row)
-            if key in ("tip_length", "tip_offset_x"):
-                w = self.tip_caps_table.cellWidget(row, 1)
-                lbl_item = self.tip_caps_table.item(row, 0)
-                if w is not None:
-                    w.setEnabled(is_cap_active)
-                    if lbl_item:
-                        lbl_item.setForeground(QBrush(QColor("#ffffff" if is_cap_active else "#999999")))
+            w = self.tip_caps_table.cellWidget(row, 1)
+            lbl_item = self.tip_caps_table.item(row, 0)
+            if key in cap_keys:
+                active = is_cap
+            elif key in winglet_keys:
+                active = is_winglet
+            else:
+                continue
+            if w is not None:
+                w.setEnabled(active)
+            if lbl_item:
+                lbl_item.setForeground(QBrush(QColor("#ffffff" if active else "#999999")))
 
     def _on_tip_cap_type_changed(self, new_type: str) -> None:
         if self._loading:
@@ -1505,8 +1597,20 @@ class LiftingSurfaceEditor(QWidget):
                 tt["length"] = max(float(value), 0.0)
             elif key == "tip_offset_x":
                 tt["offset_x"] = float(value)
+            elif key == "winglet_height":
+                tt["winglet_height"] = max(float(value), 0.0)
+            elif key == "cant_angle":
+                tt["cant_angle"] = min(max(float(value), 0.0), 90.0)
+            elif key == "winglet_sweep":
+                tt["winglet_sweep"] = float(value)
+            elif key == "toe_angle":
+                tt["toe_angle"] = float(value)
+            elif key == "root_chord_scale":
+                tt["root_chord_scale"] = max(float(value), 0.1)
+            elif key == "tip_chord_scale":
+                tt["tip_chord_scale"] = max(float(value), 0.0)
 
-        self._edit_component(f"Update wingtip cap {key}", change)
+        self._edit_component(f"Update wingtip {key}", change)
 
     def _on_tip_cap_cell_edited(self, row: int, column: int) -> None:
         pass
@@ -2018,105 +2122,6 @@ class LiftingSurfaceEditor(QWidget):
                 return f"File: {Path(str(value.get('path') or value.get('file') or '')).name}"
         return "NACA 2412"
 
-    @classmethod
-    def _property_table(
-        cls,
-        definitions: list[tuple[str, str]],
-    ) -> QTableWidget:
-        table = cls._table(["Property", "Value"])
-        table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
-        table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        table.setEditTriggers(
-            QAbstractItemView.EditTrigger.DoubleClicked
-            | QAbstractItemView.EditTrigger.EditKeyPressed
-            | QAbstractItemView.EditTrigger.SelectedClicked
-        )
-        cls._configure_property_table(table, definitions)
-        return table
-
-    @classmethod
-    def _configure_property_table(
-        cls,
-        table: QTableWidget,
-        definitions: list[tuple[str, str]],
-    ) -> None:
-        for row in range(table.rowCount()):
-            widget = table.cellWidget(row, 1)
-            if widget is not None:
-                table.removeCellWidget(row, 1)
-                widget.deleteLater()
-        table.clearContents()
-        table.setRowCount(len(definitions))
-        for row, (key, label) in enumerate(definitions):
-            label_item = QTableWidgetItem(label)
-            label_item.setData(Qt.ItemDataRole.UserRole, key)
-            label_item.setFlags(label_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-            table.setItem(row, 0, label_item)
-            table.setItem(row, 1, QTableWidgetItem())
-        cls._fit_table_height(table, len(definitions), maximum_visible_rows=None)
-
-    def _set_property_combo(
-        self,
-        table: QTableWidget,
-        key: str,
-        value: str,
-        options: list[tuple[str, str]],
-        on_changed: Callable[[str], None],
-    ) -> None:
-        for row in range(table.rowCount()):
-            if self._property_key(table, row) != key:
-                continue
-            self._set_table_combo(table, row, 1, value, options, on_changed)
-            return
-
-    @staticmethod
-    def _set_table_combo(
-        table: QTableWidget,
-        row: int,
-        column: int,
-        value: str,
-        options: list[tuple[str, str]],
-        on_changed: Callable[[str], None],
-    ) -> None:
-        item = table.item(row, column)
-        if item is not None:
-            item.setText("")
-            item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-        combo = NoWheelComboBox(table)
-        combo.setFont(QApplication.font())
-        combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        combo.view().setProperty("tableComboPopup", True)
-        combo.view().setFont(QApplication.font())
-        for option_value, label in options:
-            combo.addItem(label, option_value)
-        combo.setCurrentIndex(max(combo.findData(value), 0))
-        combo.currentIndexChanged.connect(
-            lambda _index, editor=combo, callback=on_changed: callback(str(editor.currentData()))
-        )
-        table.setCellWidget(row, column, combo)
-
-    @staticmethod
-    def _set_property_value(
-        table: QTableWidget,
-        key: str,
-        value: object,
-        *,
-        editable: bool = True,
-    ) -> None:
-        for row in range(table.rowCount()):
-            if LiftingSurfaceEditor._property_key(table, row) != key:
-                continue
-            item = table.item(row, 1)
-            if item is None:
-                item = QTableWidgetItem()
-                table.setItem(row, 1, item)
-            item.setText(str(value))
-            if editable:
-                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
-            else:
-                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-            return
 
     def _set_property_spinbox(
         self,
@@ -2156,23 +2161,6 @@ class LiftingSurfaceEditor(QWidget):
                 item.setText("")
 
     @staticmethod
-    def _property_key(table: QTableWidget, row: int) -> str:
-        item = table.item(row, 0)
-        if item is None:
-            return ""
-        return str(item.data(Qt.ItemDataRole.UserRole) or "")
-
-    @staticmethod
-    def _property_text(table: QTableWidget, row: int) -> str:
-        editor = table.cellWidget(row, 1)
-        if isinstance(editor, QComboBox):
-            return str(editor.currentData())
-        if isinstance(editor, QDoubleSpinBox):
-            return str(editor.value())
-        item = table.item(row, 1)
-        return item.text() if item is not None else ""
-
-    @staticmethod
     def _parse_number(value: str) -> float | None:
         try:
             return float(
@@ -2188,33 +2176,3 @@ class LiftingSurfaceEditor(QWidget):
         except ValueError:
             return None
 
-    @staticmethod
-    def _table(headers: list[str]) -> QTableWidget:
-        table = QTableWidget(0, len(headers))
-        table.setHorizontalHeaderLabels(headers)
-        table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        table.verticalHeader().setVisible(False)
-        table.verticalHeader().setDefaultSectionSize(22)
-        table.horizontalHeader().setFixedHeight(23)
-        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        table.setAlternatingRowColors(True)
-        return table
-
-    @staticmethod
-    def _fit_table_height(
-        table: QTableWidget,
-        row_count: int,
-        maximum_visible_rows: int | None = None,
-    ) -> None:
-        if maximum_visible_rows is None:
-            visible_rows = max(row_count, 1)
-        else:
-            visible_rows = min(max(row_count, 1), maximum_visible_rows)
-        height = (
-            table.horizontalHeader().height()
-            + table.verticalHeader().defaultSectionSize() * visible_rows
-            + 2
-        )
-        table.setFixedHeight(height)

@@ -896,8 +896,9 @@ class GeometryTests(unittest.TestCase):
         api.current_project = mock_doc
 
         editor = LiftingSurfaceEditor(api, wing_comp)
-        # Default tip cap is flat
-        self.assertEqual(editor.tip_caps_table.rowCount(), 3)
+        # Default tip cap is flat — table now has: tip_type, tip_length, tip_offset_x,
+        # winglet_height, cant_angle, winglet_sweep, toe_angle, root_chord_scale, tip_chord_scale = 9 rows
+        self.assertEqual(editor.tip_caps_table.rowCount(), 9)
         self.assertEqual(wing_comp["parameters"]["geometry"].get("tip_treatment", {}).get("type", "flat"), "flat")
 
         # Change tip cap type to round via UI
@@ -914,6 +915,74 @@ class GeometryTests(unittest.TestCase):
                     editor._on_tip_cap_spinbox_changed("tip_length", 35.0)
                 break
         self.assertAlmostEqual(wing_comp["parameters"]["geometry"]["tip_treatment"]["length"], 35.0)
+
+    def test_winglet_geometry(self) -> None:
+        """Verify _build_winglet_loft generates correct geometry."""
+        from setuav_studio.plugins.geometry.lifting_surface_geometry import _build_winglet_loft
+
+        tip_profile = {
+            "chord": 100.0,
+            "airfoil": "NACA 0012",
+            "position": {"x": 0.0, "y": 500.0, "z": 0.0},
+            "rotation": {"x": 0.0, "y": 0.0, "z": 0.0},
+        }
+
+        # Basic vertical winglet (cant=90°)
+        loft = _build_winglet_loft(
+            comp_id="wing",
+            tip_profile=tip_profile,
+            span_dir=1.0,
+            winglet_height=100.0,
+            cant_angle_deg=90.0,
+            sweep_deg=30.0,
+            toe_angle_deg=0.0,
+            root_chord_scale=1.0,
+            tip_chord_scale=0.5,
+        )
+        self.assertIsNotNone(loft)
+        self.assertEqual(loft.component_id, "wing:winglet")
+        # Should have n_stations=12 sections
+        self.assertEqual(len(loft.sections), 12)
+        # All sections should have the same number of points
+        pts_per_section = len(loft.sections[0].points)
+        self.assertGreater(pts_per_section, 0)
+        for sec in loft.sections:
+            self.assertEqual(len(sec.points), pts_per_section)
+
+        # Root section (s=0) should overlap tip profile Y position (y=500)
+        root_ys = [p[1] for p in loft.sections[0].points]
+        self.assertAlmostEqual(min(root_ys), 500.0, delta=2.0)
+
+        # Tip section (s=100) fully vertical cant=90° → Y barely changes, Z increases
+        tip_zs = [p[2] for p in loft.sections[-1].points]
+        root_zs = [p[2] for p in loft.sections[0].points]
+        self.assertGreater(max(tip_zs), max(root_zs))
+
+        # Zero winglet_height → None
+        none_loft = _build_winglet_loft(
+            comp_id="wing", tip_profile=tip_profile, winglet_height=0.0
+        )
+        self.assertIsNone(none_loft)
+
+        # Winglet with sweep should shift LE forward
+        swept = _build_winglet_loft(
+            comp_id="wing",
+            tip_profile=tip_profile,
+            winglet_height=100.0,
+            cant_angle_deg=75.0,
+            sweep_deg=30.0,
+        )
+        unswept = _build_winglet_loft(
+            comp_id="wing",
+            tip_profile=tip_profile,
+            winglet_height=100.0,
+            cant_angle_deg=75.0,
+            sweep_deg=0.0,
+        )
+        # Swept tip section should have higher mean X
+        swept_x = sum(p[0] for p in swept.sections[-1].points) / len(swept.sections[-1].points)
+        unswept_x = sum(p[0] for p in unswept.sections[-1].points) / len(unswept.sections[-1].points)
+        self.assertGreater(swept_x, unswept_x)
 
     def test_fuselage_section_dialog_and_metrics(self) -> None:
         """Verify 2D fuselage section metrics calculation and dialog functionality."""
@@ -1075,7 +1144,7 @@ class GeometryTests(unittest.TestCase):
         from PySide6.QtCore import QPoint, QPointF, Qt
         from PySide6.QtGui import QWheelEvent
         from PySide6.QtWidgets import QTableWidget
-        from setuav_studio.plugins.core.numeric_spinbox import (
+        from setuav_studio.ui.numeric_spinbox import (
             NumericSpinBox,
             set_table_spinbox,
         )
@@ -1141,8 +1210,8 @@ class GeometryTests(unittest.TestCase):
         from PySide6.QtCore import QPoint, QPointF, Qt
         from PySide6.QtGui import QWheelEvent
         from PySide6.QtWidgets import QApplication, QComboBox
-        from setuav_studio.plugins.core.numeric_spinbox import NoWheelComboBox
-        from setuav_studio.plugins.core.theme import ComboBoxWheelFilter
+        from setuav_studio.ui.numeric_spinbox import NoWheelComboBox
+        from setuav_studio.ui.theme import ComboBoxWheelFilter
 
         # 1. Test NoWheelComboBox ignores wheelEvent
         combo = NoWheelComboBox()

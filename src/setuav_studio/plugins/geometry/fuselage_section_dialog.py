@@ -47,12 +47,12 @@ from PySide6.QtWidgets import (
 
 from setuav_studio.icons import get_icon
 from setuav_studio.plugin_system import StudioAPI
-from setuav_studio.plugins.core.numeric_spinbox import (
+from setuav_studio.ui.numeric_spinbox import (
     NoWheelComboBox,
     NumericSpinBox,
     set_table_spinbox,
 )
-from setuav_studio.plugins.core.theme import tokens
+from setuav_studio.ui.theme import tokens
 from setuav_studio.plugins.geometry.fuselage_geometry import sample_profile
 
 

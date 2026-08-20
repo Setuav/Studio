@@ -19,14 +19,20 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.plugins.core.theme import tokens
+from setuav_studio.ui.theme import tokens
 
 from setuav_studio.icons import get_icon
 from setuav_studio.plugin_system import StudioAPI
+from setuav_studio.ui.property_tables import PropertyTableMixin
 
 
-class PropulsionResultsDock(QWidget):
+class PropulsionResultsDock(PropertyTableMixin, QWidget):
     """2-Tab propulsion analysis results dock featuring Summary and Detailed Sweep Tables."""
+
+    table_headers = ("Metric", "Value")
+    table_edit_triggers = QAbstractItemView.EditTrigger.NoEditTriggers
+    table_value_placeholder = "-"
+    table_value_editable_default = False
 
     def __init__(self, api: StudioAPI, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -256,88 +262,3 @@ class PropulsionResultsDock(QWidget):
         if hasattr(self, "detail_table"):
             self.detail_table.setRowCount(0)
 
-    @classmethod
-    def _property_table(
-        cls,
-        definitions: list[tuple[str, str]],
-    ) -> QTableWidget:
-        table = cls._table(["Metric", "Value"])
-        table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
-        table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        cls._configure_property_table(table, definitions)
-        return table
-
-    @classmethod
-    def _configure_property_table(
-        cls,
-        table: QTableWidget,
-        definitions: list[tuple[str, str]],
-    ) -> None:
-        table.clearContents()
-        table.setRowCount(len(definitions))
-        for row, (key, label) in enumerate(definitions):
-            label_item = QTableWidgetItem(label)
-            label_item.setData(Qt.ItemDataRole.UserRole, key)
-            label_item.setFlags(label_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-            table.setItem(row, 0, label_item)
-            val_item = QTableWidgetItem("-")
-            val_item.setFlags(val_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-            table.setItem(row, 1, val_item)
-        cls._fit_table_height(table, len(definitions))
-
-    @staticmethod
-    def _set_property_value(
-        table: QTableWidget,
-        key: str,
-        value: object,
-        *,
-        editable: bool = False,
-    ) -> None:
-        for row in range(table.rowCount()):
-            if PropulsionResultsDock._property_key(table, row) != key:
-                continue
-            item = table.item(row, 1)
-            if item is None:
-                item = QTableWidgetItem()
-                table.setItem(row, 1, item)
-            item.setText(str(value))
-            if editable:
-                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
-            else:
-                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-            return
-
-    @staticmethod
-    def _property_key(table: QTableWidget, row: int) -> str:
-        item = table.item(row, 0)
-        if item is None:
-            return ""
-        return str(item.data(Qt.ItemDataRole.UserRole) or "")
-
-    @staticmethod
-    def _table(headers: list[str]) -> QTableWidget:
-        table = QTableWidget(0, len(headers))
-        table.setHorizontalHeaderLabels(headers)
-        table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        table.verticalHeader().setVisible(False)
-        table.verticalHeader().setDefaultSectionSize(22)
-        table.horizontalHeader().setFixedHeight(23)
-        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        table.setAlternatingRowColors(True)
-        return table
-
-    @staticmethod
-    def _fit_table_height(
-        table: QTableWidget,
-        row_count: int,
-        maximum_visible_rows: int = 15,
-    ) -> None:
-        visible_rows = min(max(row_count, 1), maximum_visible_rows)
-        height = (
-            table.horizontalHeader().height()
-            + table.verticalHeader().defaultSectionSize() * visible_rows
-            + 2
-        )
-        table.setFixedHeight(height)

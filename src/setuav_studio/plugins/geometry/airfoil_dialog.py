@@ -40,7 +40,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.icons import get_icon
-from setuav_studio.plugins.core.theme import tokens
+from setuav_studio.ui.theme import tokens
 from setuav_studio.plugins.geometry.airfoil import (
     PRESET_AIRFOILS,
     compute_airfoil_metrics,
