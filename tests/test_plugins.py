@@ -325,6 +325,26 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(keys[1][0], 90)
         self.assertEqual(keys[2][0], 100)
 
+    def test_show_status_delivers_and_queues_messages(self) -> None:
+        received: list[tuple[str, str, int]] = []
+        self.api.show_status("queued", "warning", 0)
+        self.assertEqual(received, [])
+        self.assertEqual(self.api._pending_status, [("queued", "warning", 0)])
+
+        self.api.set_status_handler(
+            lambda message, level, timeout_ms: received.append(
+                (message, level, timeout_ms)
+            )
+        )
+        self.assertEqual(received, [("queued", "warning", 0)])
+        self.assertEqual(self.api._pending_status, [])
+
+        self.api.show_status("done", "success", 3000)
+        self.assertEqual(received[-1], ("done", "success", 3000))
+
+        self.api.clear_status()
+        self.assertEqual(received[-1], ("", "info", 0))
+
     def test_remove_panel_and_workspace_via_shell(self) -> None:
         from setuav_studio.shell import MainWindow
 

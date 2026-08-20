@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import shiboken6
-from PySide6.QtCore import QSettings, QSize, Qt
+from PySide6.QtCore import QSettings, QSize, Qt, QTimer
 from PySide6.QtGui import QCloseEvent, QFont, QFontMetrics, QIcon, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
@@ -29,7 +29,7 @@ from setuav_studio.plugin_system import (
     WorkspaceContribution,
 )
 from setuav_studio.plugins.core.settings import SettingsDialog, StudioSettings
-from setuav_studio.ui.theme import accent_color, apply_theme, rgba, tokens
+from setuav_studio.ui.theme import STATUS_COLORS, accent_color, rgba, tokens
 from setuav_studio.project import (
     ProjectDocument,
     ProjectOpenError,
@@ -226,6 +226,38 @@ class MainWindow(QMainWindow):
         self._degraded_badge.clicked.connect(self._show_degraded_details)
         self.statusBar().addPermanentWidget(self._degraded_badge)
 
+        self._status_label = QLabel(self)
+        self._status_label.setObjectName("studioStatusMessage")
+        self.statusBar().addWidget(self._status_label)
+        self.statusBar().setStyleSheet(
+            "QStatusBar {"
+            " border-top: 1px solid rgba(255, 255, 255, 0.08);"
+            " background-color: rgba(0, 0, 0, 0.25);"
+            "}"
+        )
+        self._status_timer = QTimer(self)
+        self._status_timer.setSingleShot(True)
+        self._status_timer.timeout.connect(self._clear_status_message)
+        self._api.set_status_handler(self._show_status_message)
+        self._api.show_status("Ready", "info", 0)
+
+    def _show_status_message(
+        self,
+        message: str,
+        level: str = "info",
+        timeout_ms: int = 5000,
+    ) -> None:
+        self._status_timer.stop()
+        color = STATUS_COLORS.get(level, STATUS_COLORS["info"])
+        self._status_label.setStyleSheet(f"color: {color};")
+        self._status_label.setText(message)
+        if timeout_ms > 0:
+            self._status_timer.start(timeout_ms)
+
+    def _clear_status_message(self) -> None:
+        self._status_timer.stop()
+        self._status_label.clear()
+
     def restore_window_layout(self) -> None:
         settings = QSettings()
         geometry = settings.value("main_window/geometry")
@@ -293,15 +325,20 @@ class MainWindow(QMainWindow):
         self._add_recent_project(project.location)
         self._update_window_title()
         self._update_actions()
+        project_name = str(
+            project.data.get("name") or project.location.name or project.path.name
+        )
         if project.degraded:
             self._degraded_badge.setToolTip("\n".join(project.plugin_issues))
             self._degraded_badge.show()
-            self.statusBar().showMessage(
-                "Degraded mode — " + "; ".join(project.plugin_issues)
+            self._api.show_status(
+                "Degraded mode — " + "; ".join(project.plugin_issues),
+                "warning",
+                0,
             )
         else:
             self._degraded_badge.hide()
-            self.statusBar().clearMessage()
+            self._api.show_status(f"Project opened: {project_name}", "info", 4000)
         return True
 
     def _show_degraded_details(self) -> None:
@@ -325,6 +362,7 @@ class MainWindow(QMainWindow):
         self._api.mark_project_saved()
         self._add_recent_project(self._project.location)
         self._update_window_title()
+        self._api.show_status("Project saved", "success", 3000)
         return True
 
     def save_project_as(self) -> bool:
@@ -451,7 +489,6 @@ class MainWindow(QMainWindow):
             return
         values = dialog.values()
         values.save()
-        apply_theme(QApplication.instance(), values.theme, values.font_size)
         self._trim_recent_projects(values.recent_project_limit)
         self._update_recent_menu()
 

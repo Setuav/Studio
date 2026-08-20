@@ -140,6 +140,10 @@ class StudioAPI:
         self._add_action: Callable[[ActionContribution], None] | None = None
         self._remove_action: Callable[[str, str], None] | None = None
         self._pending_actions: list[ActionContribution] = []
+        self._status_handler: (
+            Callable[[str, str, int], None] | None
+        ) = None
+        self._pending_status: list[tuple[str, str, int]] = []
         self._project_listeners: list[Callable[[ProjectDocument], None]] = []
         self._project_content_listeners: list[Callable[[ProjectDocument], None]] = []
         self._modified_listeners: list[Callable[[bool], None]] = []
@@ -189,6 +193,35 @@ class StudioAPI:
     def remove_panel(self, panel_id: str) -> None:
         if self._remove_panel is not None:
             self._remove_panel(panel_id)
+
+    def set_status_handler(
+        self,
+        handler: Callable[[str, str, int], None],
+    ) -> None:
+        self._status_handler = handler
+        for message, level, timeout_ms in self._pending_status:
+            handler(message, level, timeout_ms)
+        self._pending_status.clear()
+
+    def show_status(
+        self,
+        message: str,
+        level: str = "info",
+        timeout_ms: int = 5000,
+    ) -> None:
+        """Show a message in the shell status bar.
+
+        Levels: "info", "success", "warning", "error". A timeout_ms of 0
+        keeps the message until replaced or cleared.
+        """
+        if self._status_handler is not None:
+            self._status_handler(message, level, timeout_ms)
+        else:
+            self._pending_status.append((message, level, timeout_ms))
+
+    def clear_status(self) -> None:
+        if self._status_handler is not None:
+            self._status_handler("", "info", 0)
 
     def set_workspace_handler(
         self,

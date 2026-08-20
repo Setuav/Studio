@@ -29,9 +29,12 @@ class ComboBoxWheelFilter(QObject):
 FONT_FAMILY = "Inter"
 DEFAULT_FONT_SIZE = 10
 ACCENT_COLOR = "#c5a9eb"
-INACTIVE_SELECTION_COLORS = {
-    "dark": "#404040",
-    "light": "#e7dcf8",
+INACTIVE_SELECTION_COLOR = "#404040"
+STATUS_COLORS = {
+    "info": "#cccccc",
+    "success": "#6fce9c",
+    "warning": "#e5b567",
+    "error": "#e06c75",
 }
 DARK_TOKENS = {
     "window": "#1a1d22",
@@ -47,25 +50,9 @@ DARK_TOKENS = {
     "border_strong": "#333333",
     "text": "#cccccc",
 }
-LIGHT_TOKENS = {
-    "window": "#f4f5f7",
-    "title_bar": "#e8eaed",
-    "dock": "#f4f5f7",
-    "surface": "#ffffff",
-    "surface_alt": "#e8eaed",
-    "elevated": "#ffffff",
-    "row_alt": "#f2f3f5",
-    "plot": "#fafbfc",
-    "grid": "#d9dce0",
-    "border": "#d3d6db",
-    "border_strong": "#bfc4ca",
-    "text": "#1f2329",
-}
 
 
-def tokens(theme: str = "dark") -> dict[str, str]:
-    if theme == "light":
-        return LIGHT_TOKENS
+def tokens() -> dict[str, str]:
     return DARK_TOKENS
 
 
@@ -227,14 +214,10 @@ _dock_resize_style: DockResizeStyle | None = None
 _combobox_wheel_filter: ComboBoxWheelFilter | None = None
 
 
-def apply_theme(app: QApplication, theme: str, font_size: int) -> None:
-    color_scheme = (
-        Qt.ColorScheme.Light if theme == "light" else Qt.ColorScheme.Dark
-    )
-    app.styleHints().setColorScheme(color_scheme)
+def apply_theme(app: QApplication) -> None:
     _apply_accent(app)
-    app.setFont(_application_font(font_size))
-    app.setStyleSheet(build_stylesheet(font_size, theme))
+    app.setFont(_application_font(DEFAULT_FONT_SIZE))
+    app.setStyleSheet(build_stylesheet())
     global _dock_resize_style, _combobox_wheel_filter
     _dock_resize_style = DockResizeStyle(app.style())
     app.setStyle(_dock_resize_style)
@@ -260,24 +243,14 @@ def _apply_accent(app: QApplication) -> None:
     app.setPalette(palette)
 
 
-def build_stylesheet(font_size: int, theme: str = "dark") -> str:
-    theme_tokens = tokens(theme)
-    if theme == "light":
-        dock_hover = "rgba(0, 0, 0, 0.08)"
-        dock_pressed = "rgba(0, 0, 0, 0.14)"
-    else:
-        dock_hover = "rgba(255, 255, 255, 0.14)"
-        dock_pressed = "rgba(255, 255, 255, 0.22)"
+def build_stylesheet(font_size: int = DEFAULT_FONT_SIZE) -> str:
     return _STYLESHEET_TEMPLATE.format(
         font_family=FONT_FAMILY,
         font_size=font_size,
-        inactive_selection=INACTIVE_SELECTION_COLORS.get(
-            theme,
-            INACTIVE_SELECTION_COLORS["dark"],
-        ),
-        dock_hover=dock_hover,
-        dock_pressed=dock_pressed,
-        **theme_tokens,
+        inactive_selection=INACTIVE_SELECTION_COLOR,
+        dock_hover="rgba(255, 255, 255, 0.14)",
+        dock_pressed="rgba(255, 255, 255, 0.22)",
+        **tokens(),
     )
 
 

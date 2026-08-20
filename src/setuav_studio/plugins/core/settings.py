@@ -2,9 +2,8 @@ from dataclasses import dataclass
 
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import (
-    QCheckBox,
-    QComboBox,
     QAbstractSpinBox,
+    QCheckBox,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
@@ -17,8 +16,6 @@ from PySide6.QtWidgets import (
 class StudioSettings:
     reopen_last_project: bool = False
     recent_project_limit: int = 10
-    theme: str = "dark"
-    font_size: int = 10
 
     @classmethod
     def load(cls) -> "StudioSettings":
@@ -30,16 +27,14 @@ class StudioSettings:
             recent_project_limit=int(
                 settings.value("general/recent_project_limit", 10)
             ),
-            theme=_theme_value(settings.value("appearance/theme", "dark")),
-            font_size=_font_size_value(settings.value("appearance/font_size", 10)),
         )
 
     def save(self) -> None:
         settings = QSettings()
         settings.setValue("general/reopen_last_project", self.reopen_last_project)
         settings.setValue("general/recent_project_limit", self.recent_project_limit)
-        settings.setValue("appearance/theme", self.theme)
-        settings.setValue("appearance/font_size", self.font_size)
+        settings.remove("appearance/theme")
+        settings.remove("appearance/font_size")
         settings.remove("appearance/style")
 
 
@@ -63,22 +58,6 @@ class SettingsDialog(QDialog):
         self.recent_limit_spin.setValue(values.recent_project_limit)
         form.addRow("Recent projects:", self.recent_limit_spin)
 
-        self.theme_combo = QComboBox()
-        self.theme_combo.addItem("Dark", "dark")
-        self.theme_combo.addItem("Light", "light")
-        index = self.theme_combo.findData(values.theme)
-        self.theme_combo.setCurrentIndex(max(0, index))
-        form.addRow("Theme:", self.theme_combo)
-
-        self.font_size_spin = QSpinBox()
-        self.font_size_spin.setButtonSymbols(
-            QAbstractSpinBox.ButtonSymbols.NoButtons
-        )
-        self.font_size_spin.setRange(8, 18)
-        self.font_size_spin.setSuffix(" pt")
-        self.font_size_spin.setValue(values.font_size)
-        form.addRow("UI font size:", self.font_size_spin)
-
         layout.addLayout(form)
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok
@@ -92,8 +71,6 @@ class SettingsDialog(QDialog):
         return StudioSettings(
             reopen_last_project=self.reopen_check.isChecked(),
             recent_project_limit=self.recent_limit_spin.value(),
-            theme=str(self.theme_combo.currentData()),
-            font_size=self.font_size_spin.value(),
         )
 
 
@@ -101,16 +78,3 @@ def _as_bool(value: object) -> bool:
     if isinstance(value, bool):
         return value
     return str(value).lower() in {"1", "true", "yes"}
-
-
-def _theme_value(value: object) -> str:
-    theme = str(value).lower()
-    return theme if theme in {"light", "dark"} else "dark"
-
-
-def _font_size_value(value: object) -> int:
-    try:
-        size = int(value)
-    except (TypeError, ValueError):
-        return 10
-    return min(max(size, 8), 18)

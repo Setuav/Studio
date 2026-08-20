@@ -64,6 +64,30 @@ class TestWorkspacesAndTools(unittest.TestCase):
         api.switch_workspace("studio.custom.workspace")
         self.assertFalse(custom_dock.isHidden())
 
+    def test_status_bar_shows_colored_messages_and_auto_clears(self) -> None:
+        from PySide6.QtCore import QTimer
+        from setuav_studio.ui.theme import STATUS_COLORS
+
+        api = StudioAPI()
+        win = MainWindow(api)
+        get_qapp().processEvents()
+
+        api.show_status("analysis complete", "success", 0)
+        self.assertEqual(win._status_label.text(), "analysis complete")
+        self.assertIn(STATUS_COLORS["success"], win._status_label.styleSheet())
+
+        api.show_status("invalid input", "error", 0)
+        self.assertEqual(win._status_label.text(), "invalid input")
+        self.assertIn(STATUS_COLORS["error"], win._status_label.styleSheet())
+
+        api.clear_status()
+        self.assertEqual(win._status_label.text(), "")
+
+        api.show_status("will clear", "warning", 20)
+        QTimer.singleShot(60, get_qapp().quit)
+        get_qapp().exec()
+        self.assertEqual(win._status_label.text(), "")
+
     def test_tool_registration_in_tools_menu(self) -> None:
         api = StudioAPI()
         win = MainWindow(api)

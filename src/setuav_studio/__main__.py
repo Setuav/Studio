@@ -59,7 +59,7 @@ def main() -> int:
     app.setOrganizationName("Setware")
     app.setApplicationName("Setuav Studio")
     settings = StudioSettings.load()
-    apply_theme(app, settings.theme, settings.font_size)
+    apply_theme(app)
 
     api = StudioAPI()
     window = MainWindow(api)

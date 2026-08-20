@@ -1,16 +1,12 @@
 import unittest
 from importlib import resources
 
-from setuav_studio.plugins.core.settings import (
-    StudioSettings,
-    _font_size_value,
-    _theme_value,
-)
+from setuav_studio.plugins.core.settings import StudioSettings
 from setuav_studio.ui.theme import (
     ACCENT_COLOR,
     DEFAULT_FONT_SIZE,
     FONT_FAMILY,
-    INACTIVE_SELECTION_COLORS,
+    INACTIVE_SELECTION_COLOR,
     build_stylesheet,
 )
 
@@ -36,27 +32,17 @@ class ThemeTests(unittest.TestCase):
         self.assertIn("alternate-background-color: palette(alternate-base)", stylesheet)
         self.assertIn("QTableView:!focus", stylesheet)
         self.assertIn(
-            f'selection-background-color: {INACTIVE_SELECTION_COLORS["dark"]}',
+            f"selection-background-color: {INACTIVE_SELECTION_COLOR}",
             stylesheet,
-        )
-        self.assertIn(
-            f'selection-background-color: {INACTIVE_SELECTION_COLORS["light"]}',
-            build_stylesheet(DEFAULT_FONT_SIZE, "light"),
         )
         self.assertIn("padding: 0 4px", stylesheet)
         self.assertIn("padding: 1px 4px", stylesheet)
         self.assertIn("width: 8px", stylesheet)
         self.assertIn("height: 8px", stylesheet)
 
-    def test_settings_offer_light_and_dark_themes(self) -> None:
-        self.assertEqual(StudioSettings().theme, "dark")
-        self.assertEqual(StudioSettings().font_size, 10)
-        self.assertEqual(_theme_value("light"), "light")
-        self.assertEqual(_theme_value("dark"), "dark")
-        self.assertEqual(_theme_value("unknown"), "dark")
-        self.assertEqual(_font_size_value(7), 8)
-        self.assertEqual(_font_size_value(12), 12)
-        self.assertEqual(_font_size_value(30), 18)
+    def test_settings_have_no_theme_or_font_selection(self) -> None:
+        self.assertEqual(StudioSettings().reopen_last_project, False)
+        self.assertEqual(StudioSettings().recent_project_limit, 10)
 
     def test_inter_font_files_are_bundled(self) -> None:
         font_root = resources.files("setuav_studio").joinpath(
