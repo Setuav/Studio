@@ -149,6 +149,7 @@ class OpenGLViewer(QOpenGLWidget):
         self._section_ring_count = 0
         self._show_solid = True
         self._show_wireframe = True
+        self._show_grid = True
         self._mode = SOLID_WIRE
         self._face_style = FACE_COLORED
         self._transparent = False
@@ -276,9 +277,10 @@ class OpenGLViewer(QOpenGLWidget):
         self._wire_program.setUniformValue("mvp", mvp)
         alpha_location = self._wire_program.uniformLocation("alpha")
         self._functions.glUniform1f(alpha_location, 1.0)
-        self._grid_vao.bind()
-        self._functions.glDrawArrays(_GL_LINES, 0, self._grid_count)
-        self._grid_vao.release()
+        if self._show_grid:
+            self._grid_vao.bind()
+            self._functions.glDrawArrays(_GL_LINES, 0, self._grid_count)
+            self._grid_vao.release()
         self._functions.glDepthFunc(_GL_LEQUAL)
         self._axis_vao.bind()
         self._functions.glDrawArrays(_GL_LINES, 0, self._axis_count)
@@ -339,6 +341,10 @@ class OpenGLViewer(QOpenGLWidget):
     def set_show_wireframe(self, show: bool) -> None:
         self._show_wireframe = show
         self._sync_mode()
+        self.update()
+
+    def set_show_grid(self, show: bool) -> None:
+        self._show_grid = show
         self.update()
 
     def set_transparent(self, transparent: bool) -> None:

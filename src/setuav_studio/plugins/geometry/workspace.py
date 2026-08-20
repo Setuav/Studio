@@ -151,6 +151,16 @@ class ViewerWorkspace(QWidget):
         self.trans_button.toggled.connect(self.viewer.set_transparent)
         hud_layout.addWidget(self.trans_button)
 
+        self.grid_button = QToolButton(self.hud)
+        self.grid_button.setCheckable(True)
+        self.grid_button.setChecked(True)
+        self.grid_button.setIcon(get_icon("mdi6.grid"))
+        self.grid_button.setToolTip("Toggle Reference Grid")
+        self.grid_button.setFixedSize(24, 24)
+        self.grid_button.setAutoRaise(True)
+        self.grid_button.toggled.connect(self.viewer.set_show_grid)
+        hud_layout.addWidget(self.grid_button)
+
         sep3 = QFrame(self.hud)
         sep3.setObjectName("hudSep")
         sep3.setFrameShape(QFrame.Shape.VLine)
