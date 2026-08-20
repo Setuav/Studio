@@ -2,7 +2,8 @@
 
 ## Şema Tanımı
 - Studio: tüm varlıklar raw `dict[str, Any]`; tek tip adacımı `GeometryData/LoftGeometry/Section` (frozen+slots dataclass)
-- Komşu repo `../setuav-specification/`: JSON Schema 2020-12 + `$ref` registry + `setuav_validator.py`
+- Şema artık repoya vendored: `src/setuav_studio/schemas/` (JSON Schema 2020-12 + `$ref` registry, core + `org.setuav.core` plugin) — kaynak `../setuav-specification/` idi, Faz 4.12'de taşındı; upstream repo dokümantasyon/standardizasyon için duruyor
+- Validator vendored: `setuav_studio/schema_validation.py` (`SchemaCatalog`, `validate_project`); `jsonschema` + `referencing` bağımlılığı
 - `ProjectDocument.data: dict[str, Any]` JSON olarak yazılıyor
 
 ## Tip Güvenliği
@@ -11,15 +12,15 @@
 - Schema drift riski yüksek: rename edilirse eski projeler sessizce boş profile/yüklenemeyen geometri olarak açılır
 
 ## Validation Katmanı
-- `open_project()` sadece JSON decode + dict kontrolü yapıyor; JSON Schema çağrısı yok
-- `setuav_validator.py` studio tarafından import edilmiyor, sadece bağımsız CLI
+- `open_project()` sadece JSON decode + dict kontrolü yapıyor; JSON Schema çağrısı henüz yok (Faz 4.13'te eklenecek)
+- ✅ Faz 4.12: `setuav_studio/schema_validation.py` vendored; `tests/test_schema_drift.py` fixture'ı (`tests/fixtures/fixed-wing/`) her CI'da doğrular — drift gate aktif
 - Studio'nun kendi validasyonu sadece `check_project_requirements` (plugin id/version eşleşmesi)
-- Şema ihlalleri sessizce yutuluyor; degraded mode sadece plugin eksikliğinde tetikleniyor
+- Şema ihlalleri runtime'da hâlâ sessizce yutuluyor; degraded mode sadece plugin eksikliğinde tetikleniyor
 
 ## Komşu Repo İlişkisi
-- Doğrudan bağımlılık yok; `pyproject.toml`'da sadece PySide6/qtawesome/setuav-pythrust
-- Tüketim: import yok, subprocess yok; testler hardcoded path ile örneklere erişiyor
-- Versiyon senkronizasyonu yok → şema değişiklikleri manuel yansıyor
+- ✅ Faz 4.12: Doğrudan bağımlılık yok; şema + validator + örnek proje repoya vendored (`src/setuav_studio/schemas/`, `setuav_studio/schema_validation.py`, `tests/fixtures/fixed-wing/`)
+- `../setuav-specification/` artık sadece upstream dokümantasyon referansı; versiyon senkronizasyonu manuel
+- Testler repo-içi fixture kullanıyor (`tests/_common.py` TEST_PROJECT_PATH)
 
 ## Çakışma Noktaları
 - Editörler `mass`/`name`/`manufacturer` gibi alanları hem bileşene hem `parameters`'a yazıyor; şema `additionalProperties: false` ise validator kırar

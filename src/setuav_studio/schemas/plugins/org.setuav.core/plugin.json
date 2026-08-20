@@ -1,0 +1,55 @@
+{
+  "$schema": "https://schemas.setuav.org/core/plugin-manifest.schema.json",
+  "id": "org.setuav.core",
+  "version": "1.0.0",
+  "component_types": {
+    "org.setuav.core:fuselage": {
+      "schema": "components/fuselage.schema.json"
+    },
+    "org.setuav.core:lifting-surface": {
+      "schema": "components/lifting-surface.schema.json"
+    },
+    "org.setuav.core:control-surface": {
+      "schema": "components/control-surface.schema.json"
+    },
+    "org.setuav.core:motor": {
+      "schema": "components/motor.schema.json"
+    },
+    "org.setuav.core:propeller": {
+      "schema": "components/propeller.schema.json"
+    },
+    "org.setuav.core:rotor": {
+      "schema": "components/rotor.schema.json"
+    },
+    "org.setuav.core:esc": {
+      "schema": "components/esc.schema.json"
+    },
+    "org.setuav.core:battery": {
+      "schema": "components/battery.schema.json"
+    },
+    "org.setuav.core:point-mass": {
+      "schema": "components/point-mass.schema.json"
+    }
+  },
+  "assembly_types": {
+    "org.setuav.core:electric-propulsion-system": {
+      "schema": "assemblies/electric-propulsion-system.schema.json",
+      "member_types": {
+        "battery": [
+          "org.setuav.core:battery"
+        ],
+        "controllers": [
+          "org.setuav.core:esc"
+        ],
+        "motors": [
+          "org.setuav.core:motor"
+        ],
+        "propulsors": [
+          "org.setuav.core:propeller",
+          "org.setuav.core:rotor"
+        ]
+      }
+    }
+  },
+  "analysis_types": {}
+}

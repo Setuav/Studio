@@ -1,0 +1,22 @@
+{
+  "$schema": "https://schemas.setuav.org/core/run-manifest.schema.json",
+  "analysis_ref": "analyses/cruise.json",
+  "analysis_type": "org.setuav.aerosandbox:steady-aero",
+  "plugin": {
+    "id": "org.setuav.aerosandbox",
+    "version": "1.0.0"
+  },
+  "project_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "analysis_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "started_at": "2026-08-15T12:00:00Z",
+  "completed_at": "2026-08-15T12:00:04Z",
+  "status": "succeeded",
+  "artifacts": [
+    {
+      "path": "summary.json",
+      "role": "summary",
+      "media_type": "application/json",
+      "schema": "https://schemas.example.org/aerosandbox/steady-aero-output.schema.json"
+    }
+  ]
+}

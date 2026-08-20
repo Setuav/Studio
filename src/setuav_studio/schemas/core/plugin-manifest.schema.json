@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.setuav.org/core/plugin-manifest.schema.json",
+  "title": "Setuav Schema Plugin Manifest",
+  "$defs": {
+    "componentType": {
+      "type": "object",
+      "required": [
+        "schema"
+      ],
+      "properties": {
+        "schema": {
+          "$ref": "definitions.schema.json#/$defs/relativePath"
+        }
+      },
+      "additionalProperties": false
+    },
+    "assemblyType": {
+      "type": "object",
+      "required": [
+        "schema",
+        "member_types"
+      ],
+      "properties": {
+        "schema": {
+          "$ref": "definitions.schema.json#/$defs/relativePath"
+        },
+        "member_types": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "definitions.schema.json#/$defs/localId"
+          },
+          "additionalProperties": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "$ref": "definitions.schema.json#/$defs/typedId"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "type": "object",
+  "required": [
+    "id",
+    "version",
+    "component_types",
+    "assembly_types",
+    "analysis_types"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "https://schemas.setuav.org/core/plugin-manifest.schema.json"
+    },
+    "id": {
+      "$ref": "definitions.schema.json#/$defs/pluginId"
+    },
+    "version": {
+      "$ref": "definitions.schema.json#/$defs/semver"
+    },
+    "component_types": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "definitions.schema.json#/$defs/typedId"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/componentType"
+      }
+    },
+    "assembly_types": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "definitions.schema.json#/$defs/typedId"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/assemblyType"
+      }
+    },
+    "analysis_types": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "definitions.schema.json#/$defs/typedId"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "input_schema"
+        ],
+        "properties": {
+          "input_schema": {
+            "$ref": "definitions.schema.json#/$defs/relativePath"
+          },
+          "output_schema": {
+            "$ref": "definitions.schema.json#/$defs/relativePath"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

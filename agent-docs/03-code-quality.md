@@ -46,8 +46,7 @@
 
 ## Hardcoded Yollar
 - `database.py:20` `/home/huseyin/dev/setware/PyThrust/data` kullanıcı-spesifik
-- `tests/test_geometry.py:21` `/home/huseyin/dev/setware/setuav-specification/examples/fixed-wing`
-- Aynı yol `test_electrical_propulsion.py`'de 6 kez tekrarlanıyor → fixture'a alınabilir
+- ~~`tests/test_geometry.py:21` hardcoded fixture yolu~~ ✅ Faz 4.12: fixture `tests/fixtures/fixed-wing/` içine taşındı, `tests/_common.py` repo-içi yol kullanıyor
 
 ## Ölü/Garip Kod
 - `shell.py:108-110` `central_anchor` oluştur → hemen `setCentralWidget(None)` sıfırla

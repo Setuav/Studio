@@ -292,7 +292,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
             step=10.0,
             decimals=1,
             suffix="g",
-            on_changed=lambda _v: self._update_general(3, 1),
+            on_changed=lambda _v: self._update_general(2, 1),
         )
         self._populate_segments()
         self._loading = False

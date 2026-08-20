@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.setuav.org/plugins/org.setuav.core/components/control-surface.schema.json",
+  "title": "Control Surface Component",
+  "type": "object",
+  "required": ["geometry"],
+  "properties": {
+    "mass": { "type": "number", "minimum": 0, "x-setuav-unit": "g" },
+    "geometry": {
+      "type": "object",
+      "required": ["type", "span_start", "span_end", "chord"],
+      "properties": {
+        "tag": { "type": "string", "minLength": 1 },
+        "type": { "enum": ["aileron", "flap", "elevator", "rudder", "elevon", "ruddervator"] },
+        "span_start": { "type": "number", "x-setuav-unit": "mm" },
+        "span_end": { "type": "number", "x-setuav-unit": "mm" },
+        "chord": { "type": "number", "exclusiveMinimum": 0, "x-setuav-unit": "mm" },
+        "hinge_sweep": { "type": "number", "default": 0, "x-setuav-unit": "deg" },
+        "deflection": { "type": "number", "default": 0, "x-setuav-unit": "deg" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

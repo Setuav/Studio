@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.setuav.org/plugins/org.setuav.core/components/lifting-surface.schema.json",
+  "title": "Lifting Surface Parameters",
+  "$defs": {
+    "position": {
+      "type": "object",
+      "required": ["x"],
+      "properties": {
+        "x": { "type": "number", "x-setuav-unit": "mm" },
+        "y": { "type": "number", "default": 0, "x-setuav-unit": "mm" },
+        "z": { "type": "number", "default": 0, "x-setuav-unit": "mm" }
+      },
+      "additionalProperties": false
+    },
+    "rotation": {
+      "type": "object",
+      "properties": {
+        "x": { "type": "number", "default": 0, "x-setuav-unit": "deg" },
+        "y": { "type": "number", "default": 0, "x-setuav-unit": "deg" },
+        "z": { "type": "number", "default": 0, "x-setuav-unit": "deg" }
+      },
+      "additionalProperties": false
+    },
+    "airfoil": {
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        {
+          "type": "object",
+          "required": ["type", "code"],
+          "properties": {
+            "type": { "const": "naca" },
+            "code": { "type": "string", "minLength": 4 }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["type", "path"],
+          "properties": {
+            "type": { "const": "file" },
+            "path": {
+              "$ref": "https://schemas.setuav.org/core/definitions.schema.json#/$defs/relativePath"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["type", "points"],
+          "properties": {
+            "type": { "const": "coordinates" },
+            "name": { "type": "string" },
+            "points": {
+              "type": "array",
+              "minItems": 2,
+              "items": {
+                "type": "array",
+                "prefixItems": [{ "type": "number" }, { "type": "number" }],
+                "items": false,
+                "minItems": 2,
+                "maxItems": 2
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "tipTreatment": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "enum": ["flat", "round", "sharp", "winglet"],
+          "default": "flat"
+        },
+        "length": { "type": "number", "default": 20.0, "x-setuav-unit": "mm" },
+        "offset_x": { "type": "number", "default": 0.0, "x-setuav-unit": "mm" },
+        "winglet_height": { "type": "number", "default": 100.0, "x-setuav-unit": "mm" },
+        "cant_angle": { "type": "number", "default": 75.0, "x-setuav-unit": "deg" },
+        "winglet_sweep": { "type": "number", "default": 30.0, "x-setuav-unit": "deg" },
+        "toe_angle": { "type": "number", "default": 0.0, "x-setuav-unit": "deg" },
+        "root_chord_scale": { "type": "number", "default": 1.0 },
+        "tip_chord_scale": { "type": "number", "default": 0.5 }
+      },
+      "additionalProperties": false
+    },
+    "airfoilShaping": {
+      "type": "object",
+      "properties": {
+        "te_thickness": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0.0,
+          "description": "Trailing-edge thickness as a fraction of chord."
+        },
+        "thickness_scale": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 1.0,
+          "description": "Multiplier applied to the airfoil thickness distribution."
+        },
+        "camber_scale": {
+          "type": "number",
+          "minimum": 0,
+          "default": 1.0,
+          "description": "Multiplier applied to the airfoil camber distribution."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "type": "object",
+  "required": ["geometry"],
+  "properties": {
+    "mass": { "type": "number", "minimum": 0, "x-setuav-unit": "g" },
+    "geometry": {
+      "type": "object",
+      "required": ["profiles"],
+      "properties": {
+        "mirror": { "type": "boolean", "default": false },
+        "twist_location": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.25,
+          "description": "Chordwise twist pivot location as a fraction of chord (0.25 = quarter chord)."
+        },
+        "section_align": {
+          "enum": ["xz", "normal"],
+          "default": "xz",
+          "description": "How section profiles are oriented: 'xz' keeps sections in the XZ plane, 'normal' orients them perpendicular to the spanwise (dihedral) direction."
+        },
+        "airfoil_shaping": { "$ref": "#/$defs/airfoilShaping" },
+        "tip_treatment": { "$ref": "#/$defs/tipTreatment" },
+        "profiles": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "object",
+            "required": ["position", "chord", "airfoil"],
+            "properties": {
+              "position": { "$ref": "#/$defs/position" },
+              "chord": { "type": "number", "exclusiveMinimum": 0, "x-setuav-unit": "mm" },
+              "rotation": { "$ref": "#/$defs/rotation" },
+              "airfoil": { "$ref": "#/$defs/airfoil" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "control_surfaces": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["tag", "type", "span_start", "span_end", "chord"],
+            "properties": {
+              "tag": { "type": "string", "minLength": 1 },
+              "type": { "enum": ["aileron", "flap", "elevator", "rudder"] },
+              "span_start": { "type": "number", "x-setuav-unit": "mm" },
+              "span_end": { "type": "number", "x-setuav-unit": "mm" },
+              "chord": { "type": "number", "exclusiveMinimum": 0, "x-setuav-unit": "mm" },
+              "hinge_sweep": { "type": "number", "default": 0, "x-setuav-unit": "deg" },
+              "deflection": { "type": "number", "default": 0, "x-setuav-unit": "deg" }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

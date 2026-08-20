@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.setuav.org/plugins/org.setuav.core/components/esc.schema.json",
+  "title": "Electronic Speed Controller (ESC) Parameters",
+  "type": "object",
+  "required": ["continuous_current", "max_voltage"],
+  "properties": {
+    "continuous_current": { "type": "number", "exclusiveMinimum": 0, "x-setuav-unit": "A" },
+    "max_current": { "type": "number", "exclusiveMinimum": 0, "x-setuav-unit": "A" },
+    "max_voltage": { "type": "number", "exclusiveMinimum": 0, "x-setuav-unit": "V" },
+    "resistance": { "type": "number", "exclusiveMinimum": 0, "x-setuav-unit": "ohm" },
+    "mass": { "type": "number", "minimum": 0, "x-setuav-unit": "g" }
+  },
+  "additionalProperties": false
+}

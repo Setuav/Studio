@@ -6,7 +6,7 @@ from pathlib import Path
 
 from PySide6.QtWidgets import QApplication
 
-TEST_PROJECT_PATH = Path("/home/huseyin/dev/setware/setuav-specification/examples/fixed-wing")
+TEST_PROJECT_PATH = Path(__file__).parent / "fixtures" / "fixed-wing"
 
 
 def get_qapp() -> QApplication:

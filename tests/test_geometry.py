@@ -1,7 +1,9 @@
 from copy import deepcopy
 import math
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from PySide6.QtCore import Qt
 from setuav_studio.plugins.geometry.data import GeometryData, LoftGeometry, Section
@@ -1242,6 +1244,421 @@ class GeometryTests(unittest.TestCase):
         res = filter_obj.eventFilter(std_combo, wheel_ev)
         self.assertTrue(res)
         self.assertFalse(wheel_ev.isAccepted())
+
+    # -------------------------------------------------------------------------
+    # AirfoilDialog coverage (Faz 3.11)
+    # -------------------------------------------------------------------------
+
+    def test_airfoil_dialog_initial_selection(self) -> None:
+        """Verify initial selection resolves preset names, NACA codes, and dict specs."""
+        from setuav_studio.plugins.geometry.airfoil_dialog import AirfoilDialog
+
+        # Full preset name -> preset row selected on library tab
+        dlg = AirfoilDialog("NACA 0012")
+        self.assertEqual(dlg.tabs.currentIndex(), 0)
+        self.assertEqual(dlg._selected_airfoil_data, "0012")
+        current = dlg.preset_list.currentItem()
+        self.assertEqual(str(current.data(Qt.ItemDataRole.UserRole)), "NACA 0012")
+
+        # Raw code -> falls through to NACA generator tab
+        dlg_code = AirfoilDialog("23012")
+        self.assertEqual(dlg_code.tabs.currentIndex(), 1)
+        self.assertEqual(dlg_code.naca_code_input.text(), "23012")
+        self.assertEqual(dlg_code._selected_airfoil_data, "23012")
+
+        # Dict spec with code -> NACA tab, code loaded
+        dlg_dict = AirfoilDialog({"code": "0012"})
+        self.assertEqual(dlg_dict.tabs.currentIndex(), 1)
+        self.assertEqual(dlg_dict.naca_code_input.text(), "0012")
+        self.assertEqual(dlg_dict._selected_airfoil_data, "0012")
+
+    def test_airfoil_dialog_preset_selection_and_metrics(self) -> None:
+        """Verify preset selection updates canvas, metrics, and selected spec."""
+        from setuav_studio.plugins.geometry.airfoil import PRESET_AIRFOILS
+        from setuav_studio.plugins.geometry.airfoil_dialog import AirfoilDialog
+
+        dialog = AirfoilDialog("NACA 2412")
+        # naca-type preset selected -> spec is the code string
+        self.assertEqual(dialog._selected_airfoil_data, "2412")
+        self.assertIn("12.0%", dialog.max_thick_label.text())
+        self.assertEqual(len(dialog.canvas._points), 128)  # 65 upper + 63 lower
+
+        # coordinates-type preset (file-backed) -> dict spec with points
+        clark_row = next(
+            i
+            for i in range(dialog.preset_list.count())
+            if dialog.preset_list.item(i).data(Qt.ItemDataRole.UserRole) == "Clark-Y"
+        )
+        dialog.preset_list.setCurrentRow(clark_row)
+        selected = dialog._selected_airfoil_data
+        self.assertIsInstance(selected, dict)
+        self.assertEqual(selected["type"], "coordinates")
+        self.assertEqual(selected["name"], "Clark-Y")
+        self.assertGreater(len(selected["points"]), 0)
+        self.assertEqual(len(dialog.canvas._points), len(selected["points"]))
+        self.assertGreater(len(dialog.canvas._metrics), 0)
+        self.assertIn("Points:", dialog.pts_count_label.text())
+
+        # metrics reflect the new airfoil
+        self.assertGreater(len(PRESET_AIRFOILS), 0)
+
+    def test_airfoil_dialog_naca_generation(self) -> None:
+        """Verify 4/5-digit NACA generation, radio swapping, and desc label."""
+        from setuav_studio.plugins.geometry.airfoil_dialog import AirfoilDialog
+
+        dialog = AirfoilDialog("2412")
+        self.assertEqual(dialog.tabs.currentIndex(), 1)
+        self.assertIn("12% thickness", dialog.naca_desc_label.text())
+
+        dialog.naca_code_input.setText("4415")
+        self.assertEqual(dialog._selected_airfoil_data, "4415")
+        self.assertEqual(len(dialog.canvas._points), 128)
+        self.assertIn("15.0%", dialog.max_thick_label.text())
+        self.assertIn("4% camber at 40% chord", dialog.naca_desc_label.text())
+
+        # Switch to 5-digit: 4-digit code is replaced with a 5-digit default
+        dialog.naca5_radio.setChecked(True)
+        self.assertEqual(dialog.naca_code_input.text(), "23012")
+        self.assertEqual(dialog._selected_airfoil_data, "23012")
+        self.assertIn("5-digit", dialog.naca_desc_label.text())
+
+        # Back to 4-digit
+        dialog.naca4_radio.setChecked(True)
+        self.assertEqual(dialog.naca_code_input.text(), "2412")
+        self.assertEqual(dialog._selected_airfoil_data, "2412")
+
+    def test_airfoil_dialog_dat_import(self) -> None:
+        """Verify .dat import populates coordinates table, canvas, and spec."""
+        from PySide6.QtWidgets import QFileDialog
+        from setuav_studio.plugins.geometry.airfoil_dialog import AirfoilDialog
+
+        with tempfile.TemporaryDirectory() as tmp:
+            dat_path = Path(tmp) / "custom.dat"
+            dat_path.write_text(
+                "My Custom Foil\n"
+                "1.0   0.001\n"
+                "0.5   0.05\n"
+                "0.0   0.0\n"
+                "0.5  -0.05\n"
+                "1.0  -0.001\n",
+                encoding="utf-8",
+            )
+            dialog = AirfoilDialog("2412")
+            with mock.patch.object(
+                QFileDialog,
+                "getOpenFileName",
+                return_value=(str(dat_path), ""),
+            ):
+                dialog._browse_dat_file()
+
+            self.assertEqual(dialog.coord_table.rowCount(), 5)
+            self.assertIn("custom.dat (5 points)", dialog.file_path_label.text())
+            selected = dialog._selected_airfoil_data
+            self.assertIsInstance(selected, dict)
+            self.assertEqual(selected["type"], "coordinates")
+            self.assertEqual(selected["name"], "My Custom Foil")
+            self.assertEqual(len(selected["points"]), 5)
+            self.assertEqual(len(dialog.canvas._points), 5)
+            # normalized coordinates: leading edge at x = 0
+            self.assertAlmostEqual(min(p[0] for p in dialog.canvas._points), 0.0)
+
+    def test_airfoil_dialog_category_filter_and_apply_semantics(self) -> None:
+        """Verify category filtering and apply/apply-all result semantics."""
+        from setuav_studio.plugins.geometry.airfoil import PRESET_AIRFOILS
+        from setuav_studio.plugins.geometry.airfoil_dialog import AirfoilDialog
+
+        dialog = AirfoilDialog("2412")
+        self.assertEqual(dialog.preset_list.count(), len(PRESET_AIRFOILS))
+
+        dialog._filter_presets("Symmetric & Tail")
+        self.assertGreater(dialog.preset_list.count(), 0)
+        self.assertLess(dialog.preset_list.count(), len(PRESET_AIRFOILS))
+        for i in range(dialog.preset_list.count()):
+            name = dialog.preset_list.item(i).data(Qt.ItemDataRole.UserRole)
+            self.assertEqual(PRESET_AIRFOILS[name]["category"], "Symmetric & Tail")
+        # auto-selects first row -> canvas updated
+        self.assertGreater(len(dialog.canvas._points), 0)
+
+        dialog._filter_presets("All Categories")
+        self.assertEqual(dialog.preset_list.count(), len(PRESET_AIRFOILS))
+
+        # Apply semantics
+        dialog._on_apply()
+        data, apply_all = dialog.get_selected_airfoil()
+        self.assertFalse(apply_all)
+        dialog._on_apply_all()
+        _, apply_all = dialog.get_selected_airfoil()
+        self.assertTrue(apply_all)
+
+    # -------------------------------------------------------------------------
+    # FuselageEditor coverage (Faz 3.11)
+    # -------------------------------------------------------------------------
+
+    def test_fuselage_editor_population(self) -> None:
+        """Verify FuselageEditor loads general info, segments, sections, and transforms."""
+        from setuav_studio.plugin_system import StudioAPI
+        from setuav_studio.plugins.geometry.fuselage import FuselageEditor
+
+        api = StudioAPI()
+        comp = _build_fuselage_component()
+        editor = FuselageEditor(api, comp)
+
+        # General section
+        self.assertEqual(editor.general_table.item(0, 1).text(), "Main Fuselage")
+        self.assertEqual(editor.general_table.item(1, 1).text(), "org.setuav.core:fuselage")
+        self.assertAlmostEqual(editor.general_table.cellWidget(2, 1).value(), 500.0)
+
+        # Segments table: tags, method/parameterization combos
+        self.assertEqual(editor.segments_table.rowCount(), 2)
+        self.assertEqual(editor.segments_table.item(0, 0).text(), "nose")
+        self.assertEqual(editor.segments_table.item(0, 1).text(), "3")
+        self.assertEqual(editor.segments_table.cellWidget(0, 2).currentData(), "smooth")
+        self.assertEqual(editor.segments_table.cellWidget(0, 3).currentData(), "centripetal")
+        self.assertEqual(editor.segments_table.cellWidget(1, 2).currentData(), "ruled")
+
+        # First segment auto-loaded -> sections populated
+        self.assertEqual(editor._segment_index, 0)
+        self.assertEqual(editor.sections_table.rowCount(), 3)
+        self.assertEqual(editor.sections_table.item(0, 1).text(), "circle")
+        self.assertEqual(editor.sections_table.item(0, 2).text(), "0")
+
+        # Section properties for circle: type + diameter
+        self.assertEqual(editor.section_properties_table.rowCount(), 2)
+        self.assertAlmostEqual(editor.section_properties_table.cellWidget(1, 1).value(), 80.0)
+
+        # Transform spinboxes
+        self.assertAlmostEqual(editor.transform_table.cellWidget(0, 0).value(), 0.0)
+        self.assertAlmostEqual(editor.transform_table.cellWidget(1, 0).value(), 0.0)
+
+        # Action states
+        self.assertTrue(editor.add_segment_button.isEnabled())
+        self.assertTrue(editor.delete_segment_button.isEnabled())  # 2 segments
+        self.assertTrue(editor.add_section_button.isEnabled())
+        self.assertTrue(editor.delete_section_button.isEnabled())  # 3 sections
+
+    def test_fuselage_editor_segment_actions(self) -> None:
+        """Verify add/duplicate/move/delete segment mutations."""
+        from setuav_studio.plugin_system import StudioAPI
+        from setuav_studio.plugins.geometry.fuselage import FuselageEditor
+
+        api = StudioAPI()
+        comp = _build_fuselage_component()
+        editor = FuselageEditor(api, comp)
+
+        # Add inserts after the selected segment (index 0 -> 1)
+        editor._add_segment()
+        segments = comp["parameters"]["geometry"]["segments"]
+        self.assertEqual([s["tag"] for s in segments], ["nose", "segment", "tail"])
+        self.assertEqual(len(segments[1]["sections"]), 2)
+        self.assertEqual(segments[1]["loft"]["method"], "smooth")
+        self.assertEqual(editor.segments_table.currentRow(), 1)
+
+        editor._duplicate_segment()
+        segments = comp["parameters"]["geometry"]["segments"]
+        self.assertEqual([s["tag"] for s in segments], ["nose", "segment", "segment-copy", "tail"])
+        self.assertEqual(editor.segments_table.currentRow(), 2)
+
+        editor._move_segment_up()
+        segments = comp["parameters"]["geometry"]["segments"]
+        self.assertEqual([s["tag"] for s in segments], ["nose", "segment-copy", "segment", "tail"])
+        self.assertEqual(editor.segments_table.currentRow(), 1)
+
+        editor._move_segment_down()
+        segments = comp["parameters"]["geometry"]["segments"]
+        self.assertEqual([s["tag"] for s in segments], ["nose", "segment", "segment-copy", "tail"])
+        self.assertEqual(editor.segments_table.currentRow(), 2)
+
+        editor._delete_segment()
+        segments = comp["parameters"]["geometry"]["segments"]
+        self.assertEqual([s["tag"] for s in segments], ["nose", "segment", "tail"])
+
+    def test_fuselage_editor_section_actions(self) -> None:
+        """Verify add/duplicate/move/delete section mutations and x interpolation."""
+        from setuav_studio.plugin_system import StudioAPI
+        from setuav_studio.plugins.geometry.fuselage import FuselageEditor
+
+        api = StudioAPI()
+        comp = _build_fuselage_component()
+        editor = FuselageEditor(api, comp)
+        self.assertEqual(editor._section_index, 0)
+
+        # Add: inserted after selection at midpoint of neighbours (0, 300) -> 150
+        editor._add_section()
+        sections = comp["parameters"]["geometry"]["segments"][0]["sections"]
+        self.assertEqual(len(sections), 4)
+        self.assertAlmostEqual(sections[1]["position"]["x"], 150.0)
+        self.assertEqual(sections[1]["profile"]["type"], "circle")
+        self.assertEqual(editor.sections_table.currentRow(), 1)
+
+        # Duplicate
+        editor._duplicate_section()
+        sections = comp["parameters"]["geometry"]["segments"][0]["sections"]
+        self.assertEqual(len(sections), 5)
+        self.assertEqual(editor.sections_table.currentRow(), 2)
+        self.assertAlmostEqual(sections[2]["position"]["x"], 150.0)
+
+        # Move up / down
+        editor._move_section_up()
+        sections = comp["parameters"]["geometry"]["segments"][0]["sections"]
+        self.assertEqual(editor.sections_table.currentRow(), 1)
+        self.assertAlmostEqual(sections[1]["position"]["x"], 150.0)
+        editor._move_section_down()
+        sections = comp["parameters"]["geometry"]["segments"][0]["sections"]
+        self.assertEqual(editor.sections_table.currentRow(), 2)
+        self.assertAlmostEqual(sections[2]["position"]["x"], 150.0)
+
+        # Delete (needs > 2 sections)
+        editor._delete_section()
+        sections = comp["parameters"]["geometry"]["segments"][0]["sections"]
+        self.assertEqual(len(sections), 4)
+        self.assertEqual(editor.sections_table.currentRow(), 2)
+
+    def test_fuselage_editor_profile_transform_and_vertices(self) -> None:
+        """Verify profile type change, numeric property, transform, and polygon vertex edits."""
+        from setuav_studio.plugin_system import StudioAPI
+        from setuav_studio.plugins.geometry.fuselage import FuselageEditor
+
+        api = StudioAPI()
+        comp = _build_fuselage_component()
+        editor = FuselageEditor(api, comp)
+
+        # Profile type change circle -> ellipse
+        editor._change_profile_type("ellipse")
+        profile = comp["parameters"]["geometry"]["segments"][0]["sections"][0]["profile"]
+        self.assertEqual(profile["type"], "ellipse")
+        self.assertEqual(editor.section_properties_table.rowCount(), 3)  # type, width, height
+        editor._on_property_spin_changed("width", 140.0)
+        profile = comp["parameters"]["geometry"]["segments"][0]["sections"][0]["profile"]
+        self.assertAlmostEqual(profile["width"], 140.0)
+        self.assertIn("140.0 × 100.0", editor.sections_table.item(0, 3).text())
+
+        # Transform edit through the spinbox -> position committed
+        editor.transform_table.cellWidget(0, 0).setValue(25.0)
+        self.assertAlmostEqual(
+            comp["parameters"]["geometry"]["segments"][0]["sections"][0]["position"]["x"],
+            25.0,
+        )
+
+        # Triangle orientation via segment 1
+        editor.segments_table.selectRow(1)
+        self.assertEqual(editor._segment_index, 1)
+        editor.sections_table.selectRow(1)  # triangle section
+        self.assertEqual(editor.section_properties_table.rowCount(), 5)  # type, base_width, height, orientation, corner_radius
+        editor._update_section_choice("orientation", "down")
+        tri_profile = comp["parameters"]["geometry"]["segments"][1]["sections"][1]["profile"]
+        self.assertEqual(tri_profile["orientation"], "down")
+
+        # Polygon vertices
+        editor.sections_table.selectRow(0)
+        self.assertEqual(editor.vertices_table.rowCount(), 3)
+        self.assertAlmostEqual(editor.vertices_table.cellWidget(0, 0).value(), -50.0)
+        editor._on_vertex_spin_changed(0, 0, 60.0)
+        self.assertAlmostEqual(
+            comp["parameters"]["geometry"]["segments"][1]["sections"][0]["profile"]["vertices"][0]["y"],
+            60.0,
+        )
+
+    def test_fuselage_editor_general_and_segment_edits(self) -> None:
+        """Verify general name/mass edits and segment tag/loft choice edits."""
+        from setuav_studio.plugin_system import StudioAPI
+        from setuav_studio.plugins.geometry.fuselage import FuselageEditor
+
+        api = StudioAPI()
+        comp = _build_fuselage_component()
+        editor = FuselageEditor(api, comp)
+
+        # Name edit
+        editor.general_table.item(0, 1).setText("Renamed Body")
+        editor._update_general(0, 1)
+        self.assertEqual(comp["name"], "Renamed Body")
+
+        # Mass edit via spinbox (row 2) -> persists
+        editor.general_table.cellWidget(2, 1).setValue(1234.0)
+        self.assertAlmostEqual(comp["parameters"]["mass"], 1234.0)
+
+        # Segment tag inline edit
+        editor.segments_table.item(0, 0).setText("nose-renamed")
+        editor._update_segment_cell(0, 0)
+        self.assertEqual(comp["parameters"]["geometry"]["segments"][0]["tag"], "nose-renamed")
+
+        # Segment loft choice edits
+        editor._update_segment_choice(0, "method", "ruled")
+        self.assertEqual(comp["parameters"]["geometry"]["segments"][0]["loft"]["method"], "ruled")
+        self.assertEqual(
+            comp["parameters"]["geometry"]["segments"][0]["loft"]["profile_correspondence"],
+            "cardinal_quadrants",
+        )
+        editor._update_segment_choice(1, "parameterization", "chord_length")
+        self.assertEqual(
+            comp["parameters"]["geometry"]["segments"][1]["loft"]["parameterization"],
+            "chord_length",
+        )
+
+
+def _build_fuselage_component() -> dict:
+    """Build a two-segment fuselage component for editor tests."""
+    return {
+        "id": "fuselage-1",
+        "name": "Main Fuselage",
+        "type": "org.setuav.core:fuselage",
+        "parameters": {
+            "mass": 500.0,
+            "geometry": {
+                "segments": [
+                    {
+                        "tag": "nose",
+                        "loft": {"method": "smooth", "parameterization": "centripetal"},
+                        "sections": [
+                            {
+                                "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+                                "rotation": {"x": 0.0, "y": 0.0, "z": 0.0},
+                                "profile": {"type": "circle", "diameter": 80.0},
+                            },
+                            {
+                                "position": {"x": 300.0, "y": 0.0, "z": 0.0},
+                                "rotation": {"x": 0.0, "y": 0.0, "z": 0.0},
+                                "profile": {"type": "circle", "diameter": 120.0},
+                            },
+                            {
+                                "position": {"x": 700.0, "y": 0.0, "z": 0.0},
+                                "rotation": {"x": 0.0, "y": 0.0, "z": 0.0},
+                                "profile": {"type": "circle", "diameter": 60.0},
+                            },
+                        ],
+                    },
+                    {
+                        "tag": "tail",
+                        "loft": {"method": "ruled", "parameterization": "uniform"},
+                        "sections": [
+                            {
+                                "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+                                "rotation": {"x": 0.0, "y": 0.0, "z": 0.0},
+                                "profile": {
+                                    "type": "polygon",
+                                    "vertices": [
+                                        {"y": -50.0, "z": -50.0, "radius": 0.0},
+                                        {"y": 50.0, "z": -50.0, "radius": 0.0},
+                                        {"y": 0.0, "z": 50.0, "radius": 0.0},
+                                    ],
+                                },
+                            },
+                            {
+                                "position": {"x": 100.0, "y": 0.0, "z": 0.0},
+                                "rotation": {"x": 0.0, "y": 0.0, "z": 0.0},
+                                "profile": {
+                                    "type": "triangle",
+                                    "base_width": 60.0,
+                                    "height": 40.0,
+                                    "orientation": "up",
+                                    "corner_radius": 2.0,
+                                },
+                            },
+                        ],
+                    },
+                ]
+            }
+        },
+    }
 
 
 if __name__ == "__main__":

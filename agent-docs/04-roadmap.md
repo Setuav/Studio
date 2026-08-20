@@ -74,27 +74,35 @@ Amaç: Kod tekrarını ve editör büyüklüğünü kontrol etmek.
     - Bağımlılık: Faz 3.8
     - Risk: orta — 74 test + smoke (attachment/mirror/shaping/tip/parent mutasyonları) doğrulandı
 
-11. **`airfoil_dialog.py` + `fuselage.py` test coverage**
-    - UI testleri (pytest-qt ekle) veya state-mutation testleri
+11. **`airfoil_dialog.py` + `fuselage.py` test coverage** ✅ *tamamlandı*
+    - 5 AirfoilDialog testi: initial selection (preset adı / NACA kodu / dict spec), preset seçimi + canvas/metrics, 4/5-digit NACA üretimi + radio swap, .dat import (QFileDialog mock + geçici dosya), kategori filtresi + apply/apply-all semantiği
+    - 5 FuselageEditor testi: population (general/segments/sections/transform), segment actions (add/duplicate/move/delete), section actions (add/duplicate/move/delete + x interpolasyonu), profile/transform/polygon vertex mutasyonları, general name/mass + segment tag/loft edits
+    - Bonus bug: `_update_general` mass spinbox `on_changed` yanlış satır index'i (fuselage row 3→2, lifting_surface row 1→3) — mass düzenleme artık çalışıyor
+    - Test sayısı: 74 → 84
     - Bağımlılık: Faz 1.2
     - Risk: düşük
 
 ## Faz 4 — Şema Olgunlaşması (devam eden, paralel)
 Amaç: Studio ↔ setuav-specification uyumunu güvenceye almak.
 
-12. **Schema drift tespiti (CI gate)**
-    - Studio'daki tüm string-literal key'leri topla (`segments`, `profile.type`, vb.)
-    - setuav-specification şemalarıyla karşılaştır
-    - PR reddet: eklenen yeni key şemada yoksa
+12. **Schema drift tespiti (CI gate)** ✅ *tamamlandı — veri-seviyesi gate*
+    - Karar: kod-seviyesi AST key toplama çok gürültülü (166/246 yanlış pozitif: Qt ikonları, panel ID'leri, preset adları, analiz çıktıları) → gate veri-seviyesinde kuruldu
+    - Şema repoya vendored: `src/setuav_studio/schemas/` (core + org.setuav.core plugin; wheel'e dahil — doğrulandı)
+    - Validator vendored: `setuav_studio/schema_validation.py` (`setuav_validator.py`'den adapte; `get_catalog()` paket şemalarından yükler, `validate_project()` kullanılır); `jsonschema>=4.19` + `referencing>=0.30` dependency
+    - Örnek proje repoya taşındı: `tests/fixtures/fixed-wing/`; `tests/_common.py` artık repo-içi yol kullanıyor (hardcoded mutlak yol temizlendi)
+    - Fixture tüm core component tiplerini kapsıyor: `payload` (point-mass) + `rotor-lift` (rotor) eklendi (9/9 tip)
+    - Şema ↔ editör eşitlemesi: lifting-surface şemasına `tip_treatment` (flat/round/sharp/winglet + length, offset_x, winglet_height, cant_angle, winglet_sweep, toe_angle, root_chord_scale, tip_chord_scale), `section_align` (xz/normal), `airfoil_shaping` (te_thickness, thickness_scale, camber_scale), `twist_location` (0-1) ve airfoil coordinates `name` eklendi — fixture'ın 4 drift hatası çözüldü
+    - Gate: `tests/test_schema_drift.py` (6 test) — fixture temiz doğrulanmalı, tip kapsama, editor-yazılan key'ler yasal, bilinmeyen key + geçersiz enum reddedilmeli, bilinmeyen plugin tipi sessizce atlanmalı
+    - Test sayısı: 84 → 90
     - Bağımlılık: yok (Faz 1.2 ile paralel)
     - Risk: orta (yanlış pozitif olabilir, sürdürülebilirlik için bir araç yatırımı)
 
 13. **Runtime schema validation (kademeli)** ✅ *karar: hybrid + ayar*
-    - Proje açılırken `setuav_validator.py` çağrılsın (subprocess veya import)
+    - Proje açılırken `setuav_studio.schema_validation.validate_project` çağrılsın (Faz 4.12 ile vendored, import yeterli — subprocess gerek yok)
     - Kritik hata (yapısal bozuk, eksik required) → dialog "Read-only aç / İptal"
     - Uyarı (additionalProperties, deprecated) → status bar; yazmaya izin ver
     - `StudioSettings.validation_strictness: "strict" | "warn" | "off"`
-    - Bağımlılık: Faz 4.12
+    - Bağımlılık: Faz 4.12 ✅
     - Risk: orta
 
 14. **Component dataclass modelleri (kademeli)** ✅ *karar: frozen dataclass (Pydantic değil)*
@@ -141,6 +149,7 @@ Faz 4.12 ──► Faz 4.13 ──► Faz 4.14
 ## Kararlar (4 açık soru çözüldü)
 
 - **Faz 2.5 — Plugin deactivate:** Evet; contract şimdi, no-op default, hot-reload backend'i sonra
+- **Faz 4.12 — Spec plugin namespace:** Tek `org.setuav.core` korunuyor (domain'e bölme yapılmıyor); spec plugin'i = şema dağıtım birimi, Studio plugin'i = kod/UI birimi — ikisi farklı granülerlik
 - **Faz 4.13 — Şema ihlali:** Hybrid + ayar; kritik → dialog, uyarı → status bar; `validation_strictness` StudioSettings'te
 - **Faz 4.14 — Tip katmanı:** Frozen dataclass (Pydantic değil); undo/redo overhead'i sebebi
 - **Faz 5.15 — Solver iptal:** Evet; `isInterruptionRequested()` + Cancel button

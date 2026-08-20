@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.setuav.org/plugins/org.setuav.core/components/propeller.schema.json",
+  "title": "Propeller Parameters",
+  "type": "object",
+  "required": ["diameter", "pitch", "blade_count", "rotation_direction"],
+  "properties": {
+    "diameter": { "type": "number", "exclusiveMinimum": 0, "x-setuav-unit": "mm" },
+    "pitch": { "type": "number", "exclusiveMinimum": 0, "x-setuav-unit": "mm" },
+    "blade_count": { "type": "integer", "minimum": 1 },
+    "hub_diameter": { "type": "number", "minimum": 0, "x-setuav-unit": "mm" },
+    "rotation_direction": { "enum": ["cw", "ccw"] },
+    "mass": { "type": "number", "minimum": 0, "x-setuav-unit": "g" }
+  },
+  "additionalProperties": false
+}

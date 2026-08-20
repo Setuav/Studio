@@ -1,0 +1,23 @@
+{
+  "$schema": "https://schemas.setuav.org/core/analysis.schema.json",
+  "name": "Cruise aerodynamics",
+  "type": "org.setuav.aerosandbox:steady-aero",
+  "plugin": {
+    "id": "org.setuav.aerosandbox",
+    "version": "^1.0.0"
+  },
+  "settings": {
+    "velocity": {
+      "value": 25,
+      "unit": "m/s"
+    },
+    "altitude": {
+      "value": 1000,
+      "unit": "m"
+    },
+    "angle_of_attack": {
+      "value": 4,
+      "unit": "deg"
+    }
+  }
+}

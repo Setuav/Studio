@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.setuav.org/core/assembly.schema.json",
+  "title": "Plugin-defined Component Assembly",
+  "type": "object",
+  "required": ["id", "name", "type", "members"],
+  "properties": {
+    "id": { "$ref": "definitions.schema.json#/$defs/localId" },
+    "name": { "type": "string", "minLength": 1 },
+    "type": { "$ref": "definitions.schema.json#/$defs/typedId" },
+    "description": { "type": "string" },
+    "members": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "$ref": "definitions.schema.json#/$defs/localId" },
+      "additionalProperties": {
+        "oneOf": [
+          { "$ref": "definitions.schema.json#/$defs/localId" },
+          {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "$ref": "definitions.schema.json#/$defs/localId" }
+          }
+        ]
+      },
+      "description": "Role-to-component mapping constrained by the assembly plugin."
+    },
+    "parameters": { "type": "object" },
+    "extensions": { "type": "object" }
+  },
+  "additionalProperties": false
+}
