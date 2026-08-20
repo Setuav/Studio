@@ -153,11 +153,11 @@ class AttachmentMixin:
     def _update_attachment_transform(self, _row: int, _col: int) -> None:
         pass
 
-    def _update_parent(self, new_parent: str | None) -> None:
+    def _update_attach_to(self, new_parent: str | None) -> None:
         if self._loading:
             return
 
         def change() -> None:
-            self._component["parent"] = new_parent
+            self._component["attach_to"] = new_parent
 
-        self._edit_component("Change component parent", change)
+        self._edit_component("Change component attach_to", change)

@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import logging
 import math
 from pathlib import Path
 import re
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 AIRFOIL_SAMPLES = 64
@@ -536,8 +539,8 @@ def sample_airfoil_points(value: object) -> tuple[tuple[float, float], ...]:
                 try:
                     _, pts = parse_airfoil_dat(path.read_text(encoding="utf-8"))
                     return pts
-                except Exception:
-                    pass
+                except (ValueError, OSError, IndexError) as exc:
+                    logger.warning("Failed to parse airfoil file %s: %s", path, exc)
 
     # String matching
     if isinstance(value, str):
@@ -561,7 +564,7 @@ def sample_airfoil_points(value: object) -> tuple[tuple[float, float], ...]:
             try:
                 _, pts = parse_airfoil_dat(path.read_text(encoding="utf-8"))
                 return pts
-            except Exception:
-                pass
+            except (ValueError, OSError, IndexError) as exc:
+                logger.warning("Failed to parse airfoil file %s: %s", path, exc)
 
     return naca4("0012")

@@ -215,7 +215,7 @@
       "id": "main-wing",
       "name": "Main Wing",
       "type": "org.setuav.core:lifting-surface",
-      "parent": "fuselage",
+      "attach_to": "fuselage",
       "transform": {
         "position": {
           "x": 305.0,
@@ -1310,6 +1310,7 @@
       "name": "Aileron",
       "type": "org.setuav.core:control-surface",
       "parent": "main-wing",
+      "attach_to": "main-wing",
       "parameters": {
         "mass": 25,
         "geometry": {
@@ -1328,7 +1329,7 @@
       "id": "v-tail",
       "name": "V-Tail",
       "type": "org.setuav.core:lifting-surface",
-      "parent": "fuselage",
+      "attach_to": "fuselage",
       "transform": {
         "position": {
           "x": 645.0,
@@ -1389,6 +1390,7 @@
       "name": "Ruddervator",
       "type": "org.setuav.core:control-surface",
       "parent": "v-tail",
+      "attach_to": "v-tail",
       "parameters": {
         "mass": 10,
         "geometry": {
@@ -1435,7 +1437,7 @@
       "id": "propeller-cruise",
       "name": "APC 12x6E",
       "type": "org.setuav.core:propeller",
-      "parent": "motor-cruise",
+      "attach_to": "motor-cruise",
       "transform": {},
       "parameters": {
         "diameter": 304.8,
@@ -1499,6 +1501,7 @@
       "name": "Payload",
       "type": "org.setuav.core:point-mass",
       "parent": "fuselage",
+      "attach_to": "fuselage",
       "transform": {
         "position": {
           "x": 300.0,
@@ -1515,7 +1518,7 @@
       "id": "rotor-lift",
       "name": "Lift Rotor",
       "type": "org.setuav.core:rotor",
-      "parent": "main-wing",
+      "attach_to": "main-wing",
       "transform": {
         "position": {
           "x": 200.0,

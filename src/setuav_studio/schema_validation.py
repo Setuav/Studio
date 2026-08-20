@@ -178,33 +178,39 @@ def validate_project(
         comp_ids.add(cid)
         comp_by_id[cid] = comp
 
-    # 3. Check Parent References & DAG Cycle
-    parent_map: dict[str, str | None] = {}
-    for idx, comp in enumerate(components):
-        cid = comp.get("id")
-        parent = comp.get("parent")
-        if parent:
-            if parent not in comp_ids:
-                issues.append(
-                    Issue("error", f"Unknown parent '{parent}'", f"$.components[{idx}].parent")
-                )
-            elif parent == cid:
-                issues.append(
-                    Issue("error", f"Component '{cid}' cannot be its own parent", f"$.components[{idx}].parent")
-                )
-        parent_map[cid] = parent
+    # 3. Check parent / attach_to references & DAG cycles
+    def _validate_link_field(field: str) -> dict[str, str | None]:
+        link_map: dict[str, str | None] = {}
+        for idx, comp in enumerate(components):
+            cid = comp.get("id")
+            if not cid:
+                continue
+            link = comp.get(field)
+            if link:
+                if link not in comp_ids:
+                    issues.append(
+                        Issue("error", f"Unknown {field} '{link}'", f"$.components[{idx}].{field}")
+                    )
+                elif link == cid:
+                    issues.append(
+                        Issue("error", f"Component '{cid}' cannot be its own {field}", f"$.components[{idx}].{field}")
+                    )
+            link_map[cid] = link
+        return link_map
 
-    for cid in comp_ids:
-        visited = set()
-        curr = cid
-        while curr:
-            if curr in visited:
-                issues.append(
-                    Issue("error", f"Parent cycle involving '{cid}'", "$.components")
-                )
-                break
-            visited.add(curr)
-            curr = parent_map.get(curr)
+    for field, label in (("parent", "Parent"), ("attach_to", "attach_to")):
+        link_map = _validate_link_field(field)
+        for cid in comp_ids:
+            visited: set[str] = set()
+            curr = link_map.get(cid)
+            while curr:
+                if curr in visited:
+                    issues.append(
+                        Issue("error", f"{label} cycle involving '{cid}'", "$.components")
+                    )
+                    break
+                visited.add(curr)
+                curr = link_map.get(curr)
 
     # 4. Component Parameter Validation against Plugin Schemas
     for idx, comp in enumerate(components):

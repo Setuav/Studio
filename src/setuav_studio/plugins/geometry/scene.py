@@ -17,6 +17,15 @@ from .transforms import (
 GeometryProvider = Callable[[dict[str, Any]], tuple[LoftGeometry, ...]]
 
 
+def _frame_parent(item: dict[str, Any]) -> str | None:
+    """Return the geometric coordinate-frame parent (attach_to, fallback parent)."""
+    attach_to = item.get("attach_to")
+    if isinstance(attach_to, str) and attach_to:
+        return attach_to
+    parent = item.get("parent")
+    return parent if isinstance(parent, str) and parent else None
+
+
 def build_project_geometry(
     project: Any,
     providers: dict[str, GeometryProvider],
@@ -42,7 +51,7 @@ def build_project_geometry(
         if item is None:
             return identity_matrix()
 
-        parent_id = item.get("parent")
+        parent_id = _frame_parent(item)
         parent = (
             world_matrix(parent_id, resolving | {item_id})
             if isinstance(parent_id, str)
@@ -101,7 +110,7 @@ def build_project_geometry(
                 if (
                     isinstance(child, dict)
                     and child.get("type") == "org.setuav.core:control-surface"
-                    and child.get("parent") == item_id
+                    and (_frame_parent(child) or "") == item_id
                 ):
                     child_params = child.get("parameters") if isinstance(child.get("parameters"), dict) else {}
                     child_geom = deepcopy(child_params.get("geometry", {})) if isinstance(child_params.get("geometry"), dict) else {}
@@ -116,7 +125,7 @@ def build_project_geometry(
         if provider is None:
             continue
         matrix = world_matrix(item_id)
-        parent_id = item.get("parent")
+        parent_id = _frame_parent(item)
         params = source.get("parameters") if isinstance(source.get("parameters"), dict) else {}
         geom = params.get("geometry") if isinstance(params.get("geometry"), dict) else {}
 
@@ -196,7 +205,7 @@ def _build_wing_root_stubs(
         for item_id, item in items.items():
             if not isinstance(item, dict):
                 continue
-            parent_id = item.get("parent")
+            parent_id = _frame_parent(item)
             if parent_id != fuse_id:
                 continue
 

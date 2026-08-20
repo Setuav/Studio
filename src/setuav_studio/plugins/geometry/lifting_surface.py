@@ -104,7 +104,7 @@ class LiftingSurfaceEditor(
         self.general_table = self._property_table([
             ("name", "Name"),
             ("type", "Type"),
-            ("parent", "Parent"),
+            ("attach_to", "Attach to"),
             ("mass", "Mass (g)"),
         ])
         self.general_table.cellChanged.connect(self._update_general)
@@ -165,7 +165,7 @@ class LiftingSurfaceEditor(
         self._set_property_value(self.general_table, "type", str(self._component.get("type") or ""), editable=False)
 
         # Parent Selection Combo (Only fuselage and lifting surfaces)
-        current_parent = str(self._component.get("parent") or "")
+        current_attach = str(self._component.get("attach_to") or self._component.get("parent") or "")
         parent_options = [("", "(None)")]
         project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
         if project and isinstance(project.data.get("components"), list):
@@ -180,10 +180,10 @@ class LiftingSurfaceEditor(
                         parent_options.append((cid, f"{cname} ({cid})"))
         self._set_property_combo(
             self.general_table,
-            "parent",
-            current_parent,
+            "attach_to",
+            current_attach,
             parent_options,
-            lambda val: self._update_parent(val if val else None),
+            lambda val: self._update_attach_to(val if val else None),
         )
 
         mass_val = float(self._parameters().get("mass") or 0.0)
@@ -311,7 +311,7 @@ class LiftingSurfaceEditor(
                 if (
                     isinstance(comp, dict)
                     and comp.get("type") == "org.setuav.core:control-surface"
-                    and comp.get("parent") == wing_id
+                    and (comp.get("attach_to") or comp.get("parent")) == wing_id
                 ):
                     child_cs.append(comp)
 

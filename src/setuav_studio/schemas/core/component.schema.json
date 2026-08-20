@@ -26,7 +26,16 @@
         { "$ref": "definitions.schema.json#/$defs/localId" },
         { "type": "null" }
       ],
-      "default": null
+      "default": null,
+      "description": "Structural containment parent for the project explorer tree."
+    },
+    "attach_to": {
+      "oneOf": [
+        { "$ref": "definitions.schema.json#/$defs/localId" },
+        { "type": "null" }
+      ],
+      "default": null,
+      "description": "Geometric coordinate-frame parent; the component's transform resolves relative to this parent."
     },
     "transform": { "$ref": "transform.schema.json" },
     "parameters": {

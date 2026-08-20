@@ -124,7 +124,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
         name = str(self._component.get("name") or self._component.get("id") or "")
         comp_type = str(self._component.get("type") or "org.setuav.core:control-surface")
         mass = float(self._component.get("parameters", {}).get("mass", 0.0))
-        parent = str(self._component.get("parent") or "")
+        parent = str(self._component.get("parent") or self._component.get("attach_to") or "")
 
         self._set_property_value(self.general_table, "name", name)
         self._set_property_value(self.general_table, "type", comp_type)
@@ -206,6 +206,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
             return
         def change() -> None:
             self._component["parent"] = new_parent if new_parent else None
+            self._component["attach_to"] = new_parent if new_parent else None
         self._edit_component("Change control surface parent wing", change)
 
     def _update_property(self, row: int, column: int) -> None:

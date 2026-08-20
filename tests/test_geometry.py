@@ -183,7 +183,7 @@ class GeometryTests(unittest.TestCase):
         self.assertIn("mm", editor._property_text(editor.planform_table, 1))
         self.assertGreater(float(editor._property_text(editor.planform_table, 2).replace("mm²", "").strip()), 1.0)
 
-        # Check Parent combo selection
+        # Check Attach to combo selection
         parent_combo = editor.general_table.cellWidget(2, 1)
         self.assertIsNotNone(parent_combo)
         self.assertEqual(parent_combo.currentData(), "fuselage")
@@ -584,7 +584,7 @@ class GeometryTests(unittest.TestCase):
                     "kind": "component",
                     "type": "org.setuav.core:lifting-surface",
                     "id": "wing",
-                    "parent": "fuse",
+                    "attach_to": "fuse",
                     "transform": {
                         "position": {"x": 200.0, "y": 0.0, "z": 0.0},
                     },
@@ -628,6 +628,7 @@ class GeometryTests(unittest.TestCase):
             "name": "Aileron",
             "type": "org.setuav.core:control-surface",
             "parent": "main-wing",
+            "attach_to": "main-wing",
             "parameters": {
                 "mass": 25.0,
                 "geometry": {
@@ -671,7 +672,7 @@ class GeometryTests(unittest.TestCase):
                     "kind": "component",
                     "id": "wing",
                     "type": "org.setuav.core:lifting-surface",
-                    "parent": "fuselage",
+                    "attach_to": "fuselage",
                     "parameters": {
                         "geometry": {
                             "mirror": True,
@@ -688,6 +689,7 @@ class GeometryTests(unittest.TestCase):
                     "name": "Aileron 1",
                     "type": "org.setuav.core:control-surface",
                     "parent": "wing",
+                    "attach_to": "wing",
                     "parameters": {
                         "geometry": {
                             "tag": "aileron_1",
