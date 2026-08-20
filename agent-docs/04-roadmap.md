@@ -67,11 +67,12 @@ Amaç: Kod tekrarını ve editör büyüklüğünü kontrol etmek.
    - Bağımlılık: Faz 3.8
    - Risk: orta — integration test (`run_button.click()`) + 3 mod smoke testi doğrulandı
 
-10. **`lifting_surface.py` bölme (1802 → 4-5 modül)**
-    - `profile_table.py`, `control_surface.py` (zaten ayrı dosya), `tip_cap.py`, `attachment.py`
-    - Editör bu modülleri compose etsin
+10. **`lifting_surface.py` bölme (2178 → 6 modül)** ✅ *tamamlandı*
+    - 5 mixin modülü: `lifting_surface_attachment.py` (AttachmentMixin), `lifting_surface_planform.py` (PlanformMixin), `lifting_surface_profiles.py` (ProfilesMixin + airfoil shaping), `lifting_surface_tip_caps.py` (TipCapsMixin), `lifting_surface_control_surfaces.py` (ControlSurfacesMixin)
+    - Ana dosya ~600 satıra indi: `__init__`, genel section, loading, mutations, helpers; MRO: `LiftingSurfaceEditor(PropertyTableMixin, AttachmentMixin, PlanformMixin, ProfilesMixin, TipCapsMixin, ControlSurfacesMixin, QWidget)`
+    - Ölü importlar temizlendi (`math`, `QFont`); `CONTROL_SURFACE_TYPES` CS mixin'ine taşındı
     - Bağımlılık: Faz 3.8
-    - Risk: orta-yüksek (büyük refactor, test coverage zayıf)
+    - Risk: orta — 74 test + smoke (attachment/mirror/shaping/tip/parent mutasyonları) doğrulandı
 
 11. **`airfoil_dialog.py` + `fuselage.py` test coverage**
     - UI testleri (pytest-qt ekle) veya state-mutation testleri
