@@ -8,7 +8,7 @@ from typing import Any
 
 from .data import LoftGeometry, Point3D, Section
 from .transforms import section_transform, transform_point
-from setuav_studio.plugins.geometry.airfoil import AIRFOIL_SAMPLES, sample_airfoil_points
+from setuav_studio.plugins.geometry.airfoil import AIRFOIL_SAMPLES, apply_airfoil_shaping, sample_airfoil_points
 from setuav_studio.plugins.geometry.palettes import control_surface_color, wing_color
 
 sample_airfoil = sample_airfoil_points
@@ -32,6 +32,15 @@ def build_lifting_surface_geometry(
     control_surfaces = geometry.get("control_surfaces")
     twist_location = float(geometry.get("twist_location", 0.25))
 
+    # Airfoil Shaping parameters
+    shaping = geometry.get("airfoil_shaping")
+    shaping = shaping if isinstance(shaping, dict) else {}
+    te_thickness = float(shaping.get("te_thickness", 0.0))      # fraction of chord, e.g. 0.004
+    thickness_scale = float(shaping.get("thickness_scale", 1.0))
+    camber_scale = float(shaping.get("camber_scale", 1.0))
+    # Section alignment: "xz" (default) | "normal" (perpendicular to span)
+    section_align = str(geometry.get("section_align", "xz")).lower()
+
     tip_treatment = geometry.get("tip_treatment")
     tip_treatment = tip_treatment if isinstance(tip_treatment, dict) else {}
     tip_type = str(tip_treatment.get("type", "flat")).lower()
@@ -43,7 +52,14 @@ def build_lifting_surface_geometry(
         sections = tuple(
             section
             for value in profiles
-            if (section := _build_profile_section(value, twist_location=twist_location)) is not None
+            if (section := _build_profile_section(
+                value,
+                twist_location=twist_location,
+                te_thickness=te_thickness,
+                thickness_scale=thickness_scale,
+                camber_scale=camber_scale,
+                section_align=section_align,
+            )) is not None
         )
         if len(sections) < 2:
             return ()
@@ -66,6 +82,10 @@ def build_lifting_surface_geometry(
                 control_surfaces=control_surfaces,
                 interpolation=interpolation,
                 twist_location=twist_location,
+                te_thickness=te_thickness,
+                thickness_scale=thickness_scale,
+                camber_scale=camber_scale,
+                section_align=section_align,
             )
         )
 
@@ -110,16 +130,41 @@ def build_lifting_surface_geometry(
     return tuple(lofts_list)
 
 
-def _build_profile_section(value: object, twist_location: float = 0.25) -> Section | None:
-    profile = value if isinstance(value, dict) else None
-    if profile is None:
-        return None
-    chord = _number(profile.get("chord"))
-    if chord <= 0:
-        return None
-    coords = sample_airfoil_points(profile.get("airfoil"))
-    matrix = section_transform(profile, chord=chord, twist_location=twist_location)
-    main_2d, _ = _sample_structured_airfoil_round(coords, x_h=1.0, is_flap=False)
+def _apply_shaping(
+    coords: tuple[tuple[float, float], ...],
+    te_thickness: float,
+    thickness_scale: float,
+    camber_scale: float,
+) -> tuple[tuple[float, float], ...]:
+    """Apply airfoil shaping transforms (TE blunting, t/c scale, camber scale)."""
+    return apply_airfoil_shaping(coords, te_thickness=te_thickness, thickness_scale=thickness_scale, camber_scale=camber_scale)
+
+
+def _section_with_align(
+    matrix: object,
+    chord: float,
+    main_2d: tuple[tuple[float, float], ...],
+    dihedral_rad: float,
+    section_align: str,
+) -> Section:
+    """Build a 3D Section, optionally rotating the airfoil plane to be normal to the span direction.
+
+    When section_align == 'normal', the 2D airfoil profile is treated as lying in a plane perpendicular
+    to the span (Y) axis of the wing rather than the global XZ plane.  This corrects the effective
+    cross-section at high dihedral angles so that the section thickness appears correct when viewed
+    perpendicular to the wing surface — matching OpenVSP / AVL behaviour.
+    """
+    if section_align == "normal" and abs(dihedral_rad) > 1e-4:
+        # Rotate the 2D points around the X-axis by dihedral_rad before applying the full matrix.
+        # In the wing-local frame x=chord, z=thickness; dihedral tilts the z-axis toward Y.
+        cos_d = math.cos(dihedral_rad)
+        sin_d = math.sin(dihedral_rad)
+        corrected: list[tuple[float, float, float]] = []
+        for x, z in main_2d:
+            # After dihedral rotation: new y_local = -z*sin_d, new z_local = z*cos_d
+            corrected.append((x * chord, -z * chord * sin_d, z * chord * cos_d))
+        from .transforms import transform_point as _tp
+        return Section(tuple(_tp(matrix, p) for p in corrected))
     return Section(
         tuple(
             transform_point(matrix, (x * chord, 0.0, z * chord))
@@ -128,12 +173,39 @@ def _build_profile_section(value: object, twist_location: float = 0.25) -> Secti
     )
 
 
+def _build_profile_section(
+    value: object,
+    twist_location: float = 0.25,
+    te_thickness: float = 0.0,
+    thickness_scale: float = 1.0,
+    camber_scale: float = 1.0,
+    section_align: str = "xz",
+) -> Section | None:
+    profile = value if isinstance(value, dict) else None
+    if profile is None:
+        return None
+    chord = _number(profile.get("chord"))
+    if chord <= 0:
+        return None
+    coords = sample_airfoil_points(profile.get("airfoil"))
+    coords = _apply_shaping(coords, te_thickness, thickness_scale, camber_scale)
+    rot = profile.get("rotation") if isinstance(profile.get("rotation"), dict) else {}
+    dihedral_rad = math.radians(_number(rot.get("x", rot.get("roll", 0.0))))
+    matrix = section_transform(profile, chord=chord, twist_location=twist_location)
+    main_2d, _ = _sample_structured_airfoil_round(coords, x_h=1.0, is_flap=False)
+    return _section_with_align(matrix, chord, main_2d, dihedral_rad, section_align)
+
+
 def _build_lifting_surface_with_control_surfaces(
     comp_id: str,
     profiles: list[dict[str, Any]],
     control_surfaces: list[dict[str, Any]],
     interpolation: str,
     twist_location: float = 0.25,
+    te_thickness: float = 0.0,
+    thickness_scale: float = 1.0,
+    camber_scale: float = 1.0,
+    section_align: str = "xz",
 ) -> tuple[LoftGeometry, ...]:
     """Segment the wing cleanly along span so that each segment is straight/smooth without spline oscillations."""
     # 1. Collect all span Y coordinates
@@ -184,7 +256,13 @@ def _build_lifting_surface_with_control_surfaces(
         sections = tuple(
             section
             for value in profiles
-            if (section := _build_profile_section(value)) is not None
+            if (section := _build_profile_section(
+                value,
+                te_thickness=te_thickness,
+                thickness_scale=thickness_scale,
+                camber_scale=camber_scale,
+                section_align=section_align,
+            )) is not None
         )
         return (
             LoftGeometry(
@@ -231,13 +309,12 @@ def _build_lifting_surface_with_control_surfaces(
             seg_sections: list[Section] = []
             for y_s in interval_stations:
                 chord, prof, coords = _interpolate_station_props(y_s, profiles)
+                coords = _apply_shaping(coords, te_thickness, thickness_scale, camber_scale)
+                rot = prof.get("rotation") if isinstance(prof.get("rotation"), dict) else {}
+                dihedral_rad = math.radians(_number(rot.get("x", rot.get("roll", 0.0))))
                 matrix = section_transform(prof, chord=chord, twist_location=twist_location)
                 main_2d, _ = _sample_structured_airfoil_round(coords, x_h=1.0, is_flap=False)
-                main_3d = tuple(
-                    transform_point(matrix, (x * chord, 0.0, z * chord))
-                    for x, z in main_2d
-                )
-                seg_sections.append(Section(main_3d))
+                seg_sections.append(_section_with_align(matrix, chord, main_2d, dihedral_rad, section_align))
 
             lofts.append(
                 LoftGeometry(
@@ -269,6 +346,9 @@ def _build_lifting_surface_with_control_surfaces(
 
             for y_s in interval_stations:
                 chord, prof, coords = _interpolate_station_props(y_s, profiles)
+                coords = _apply_shaping(coords, te_thickness, thickness_scale, camber_scale)
+                rot = prof.get("rotation") if isinstance(prof.get("rotation"), dict) else {}
+                dihedral_rad = math.radians(_number(rot.get("x", rot.get("roll", 0.0))))
                 matrix = section_transform(prof, chord=chord, twist_location=twist_location)
                 pos = prof.get("position") if isinstance(prof.get("position"), dict) else {}
                 x_le_s = float(pos.get("x", 0.0))
@@ -286,19 +366,9 @@ def _build_lifting_surface_with_control_surfaces(
                 main_2d, h_pt = _sample_structured_airfoil_round(coords, x_h=x_h, is_flap=False)
                 flap_2d, _ = _sample_structured_airfoil_round(coords, x_h=x_h, is_flap=True)
 
-                main_3d = tuple(
-                    transform_point(matrix, (x * chord, 0.0, z * chord))
-                    for x, z in main_2d
-                )
-                flap_3d = tuple(
-                    transform_point(matrix, (x * chord, 0.0, z * chord))
-                    for x, z in flap_2d
-                )
-                hinge_3d = transform_point(matrix, (h_pt[0] * chord, 0.0, h_pt[1] * chord))
-
-                main_sections.append(Section(main_3d))
-                flap_sections.append(Section(flap_3d))
-                hinge_pts_3d.append(hinge_3d)
+                main_sections.append(_section_with_align(matrix, chord, main_2d, dihedral_rad, section_align))
+                flap_sections.append(_section_with_align(matrix, chord, flap_2d, dihedral_rad, section_align))
+                hinge_pts_3d.append(transform_point(matrix, (h_pt[0] * chord, 0.0, h_pt[1] * chord)))
 
             # Main wing bay
             lofts.append(

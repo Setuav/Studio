@@ -272,6 +272,66 @@ def compute_airfoil_metrics(points: tuple[tuple[float, float], ...] | list[tuple
     }
 
 
+def apply_airfoil_shaping(
+    coords: tuple[tuple[float, float], ...],
+    te_thickness: float = 0.0,
+    thickness_scale: float = 1.0,
+    camber_scale: float = 1.0,
+) -> tuple[tuple[float, float], ...]:
+    """Apply trailing-edge blunting, thickness scaling, and camber scaling to normalized airfoil coords.
+
+    Args:
+        coords: Normalized (x, z) closed-loop airfoil coordinates.
+        te_thickness: Target TE gap as a fraction of chord (e.g. 0.004 = 0.4%). 0 = no change.
+        thickness_scale: Multiplier for half-thickness (1.0 = no change, 1.2 = 20% thicker).
+        camber_scale: Multiplier for camber line offset (1.0 = no change).
+    Returns:
+        Modified normalized coordinate tuple.
+    """
+    if not coords:
+        return coords
+    if abs(te_thickness) < 1e-6 and abs(thickness_scale - 1.0) < 1e-6 and abs(camber_scale - 1.0) < 1e-6:
+        return coords
+
+    # Split into upper / lower branches from LE to TE
+    le_idx = min(range(len(coords)), key=lambda i: coords[i][0])
+    n = len(coords)
+    # Build upper (LE->TE going up) and lower (LE->TE going down)
+    ordered = [coords[(le_idx + i) % n] for i in range(n)]
+    te_idx = max(range(len(ordered)), key=lambda i: ordered[i][0])
+    upper = ordered[:te_idx + 1]          # LE -> TE (upper side)
+    lower = [ordered[0]] + list(reversed(ordered[te_idx:]))  # LE -> TE (lower side)
+
+    avg_u = sum(p[1] for p in upper) / max(len(upper), 1)
+    avg_l = sum(p[1] for p in lower) / max(len(lower), 1)
+    if avg_u < avg_l:
+        upper, lower = lower, upper
+
+    # Sample camberline and half-thickness on a common x-grid
+    x_grid = sorted({p[0] for p in upper} | {p[0] for p in lower})
+
+    result_upper: list[tuple[float, float]] = []
+    result_lower: list[tuple[float, float]] = []
+
+    for x in x_grid:
+        zu = _interpolate_z_at_x(upper, x)
+        zl = _interpolate_z_at_x(lower, x)
+        camber = (zu + zl) * 0.5
+        half_t = (zu - zl) * 0.5
+
+        # Apply TE blunting: linearly increase TE gap from LE to TE
+        te_add = te_thickness * 0.5 * x
+        new_half_t = max(half_t * thickness_scale, 0.0) + te_add
+        new_camber = camber * camber_scale
+
+        result_upper.append((x, new_camber + new_half_t))
+        result_lower.append((x, new_camber - new_half_t))
+
+    # Reconstruct closed loop: upper reversed (TE->LE) + lower (LE->TE), drop duplicates
+    loop = list(reversed(result_upper)) + result_lower[1:]
+    return tuple(loop)
+
+
 def _interpolate_z_at_x(points: tuple[tuple[float, float], ...] | list[tuple[float, float]], x_target: float) -> float:
     if not points:
         return 0.0

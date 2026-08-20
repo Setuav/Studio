@@ -48,12 +48,14 @@
 ---
 
 ### 🟢 Aşama 3: İmalat & İnce Ayar Özellikleri
-7. **[ ] Firar Kenarı Kalınlığı & Kırpma (TE Blunting / Thickness) (6.5/10)**
-   * Üretim/imalat için firar kenarına sonlu kalınlık ($0.5 - 1.5\,\text{mm}$) verebilme.
-   * Profil kalınlık ($t/c$) ve kamburluk (camber) ölçekleyicileri.
+7. **[x] Firar Kenarı Kalınlığı & Kırpma (TE Blunting / Thickness) (8/10)**
+   * `apply_airfoil_shaping()` fonksiyonu (`airfoil.py`): firar kenarına lineer olarak artan sonlu kalınlık ekleme, t/c ölçekleyici ve kamburluk ölçekleyici.
+   * `lifting_surface_geometry.py`: Tüm profil, segment ve kumanda yüzeyi oluşturmadan önce airfoil koordinatlarına shaping uygulanıyor.
+   * `LiftingSurfaceEditor` → **Airfoil Shaping** paneli: **TE Blunting (% chord)**, **Thickness Scale**, **Camber Scale** spinbox'ları.
 
-8. **[ ] Dihedral Kesit Hizalaması (Rotate Foil to Match Dihedral) (6/10)**
-   * Yüksek dihedral/V-tail durumunda profilin kanat hattına dik kesilmesi veya $XZ$ düzlemine paralel kalması seçeneği.
+8. **[x] Dihedral Kesit Hizalaması (Rotate Foil to Match Dihedral) (7.5/10)**
+   * `_section_with_align()` (`lifting_surface_geometry.py`): `section_align = "normal"` modunda dihedral açısına göre 2D profil koordinatları kanat yayına dik dönüştürülerek 3D kesit oluşturuluyor.
+   * `LiftingSurfaceEditor` → **Airfoil Shaping** paneli: **Section Alignment** combobox'ı — `XZ Plane (default)` veya `Normal to Span (dihedral-correct)` seçenekleri.
 
 ---
 

@@ -87,6 +87,7 @@ class LiftingSurfaceEditor(QWidget):
         self._create_planform_sizing_section()
         self._create_profiles_section()
         self._create_profile_properties_section()
+        self._create_airfoil_shaping_section()
         self._create_tip_caps_section()
         self._create_control_surfaces_section()
         self._content_layout.addStretch()
@@ -259,6 +260,18 @@ class LiftingSurfaceEditor(QWidget):
         af_btn_layout.addStretch()
         layout.addLayout(af_btn_layout)
 
+    def _create_airfoil_shaping_section(self) -> None:
+        """Airfoil Shaping: TE blunting, thickness/camber scalers, and dihedral section alignment."""
+        layout = self._create_section("Airfoil Shaping", "fa6s.pen-ruler")
+
+        self.airfoil_shaping_table = self._property_table([
+            ("section_align", "Section Alignment"),
+            ("te_thickness", "TE Blunting (% chord)"),
+            ("thickness_scale", "Thickness Scale"),
+            ("camber_scale", "Camber Scale"),
+        ])
+        layout.addWidget(self.airfoil_shaping_table)
+
     def _create_tip_caps_section(self) -> None:
         """End Caps (Tip Treatment) configuration section."""
         layout = self._create_section("End Caps (Tip Treatment)", "fa6s.shapes")
@@ -429,6 +442,9 @@ class LiftingSurfaceEditor(QWidget):
 
         # End Caps (Tip Treatment)
         self._load_tip_caps()
+
+        # Airfoil Shaping
+        self._load_airfoil_shaping()
 
         # Control Surfaces
         self._populate_control_surfaces()
@@ -1494,6 +1510,86 @@ class LiftingSurfaceEditor(QWidget):
 
     def _on_tip_cap_cell_edited(self, row: int, column: int) -> None:
         pass
+
+    # -------------------------------------------------------------------------
+    # Airfoil Shaping (TE Blunting, Thickness/Camber Scale, Section Alignment)
+    # -------------------------------------------------------------------------
+
+    def _load_airfoil_shaping(self) -> None:
+        geom = self._geometry()
+        shaping = geom.get("airfoil_shaping")
+        shaping = shaping if isinstance(shaping, dict) else {}
+        te_pct = float(shaping.get("te_thickness", 0.0)) * 100.0  # stored as fraction, shown as %
+        thickness_scale = float(shaping.get("thickness_scale", 1.0))
+        camber_scale = float(shaping.get("camber_scale", 1.0))
+        section_align = str(geom.get("section_align", "xz")).lower()
+
+        self._set_property_combo(
+            self.airfoil_shaping_table,
+            "section_align",
+            section_align,
+            [
+                ("xz", "XZ Plane (default)"),
+                ("normal", "Normal to Span (dihedral-correct)"),
+            ],
+            self._on_section_align_changed,
+        )
+        self._set_property_spinbox(
+            self.airfoil_shaping_table,
+            "te_thickness",
+            te_pct,
+            min_val=0.0,
+            max_val=5.0,
+            step=0.05,
+            decimals=3,
+            suffix="%",
+            on_changed=lambda val: self._on_airfoil_shaping_spinbox_changed("te_thickness", val),
+        )
+        self._set_property_spinbox(
+            self.airfoil_shaping_table,
+            "thickness_scale",
+            thickness_scale,
+            min_val=0.1,
+            max_val=5.0,
+            step=0.05,
+            decimals=3,
+            on_changed=lambda val: self._on_airfoil_shaping_spinbox_changed("thickness_scale", val),
+        )
+        self._set_property_spinbox(
+            self.airfoil_shaping_table,
+            "camber_scale",
+            camber_scale,
+            min_val=0.0,
+            max_val=5.0,
+            step=0.05,
+            decimals=3,
+            on_changed=lambda val: self._on_airfoil_shaping_spinbox_changed("camber_scale", val),
+        )
+
+    def _on_section_align_changed(self, value: str) -> None:
+        if self._loading:
+            return
+
+        def change() -> None:
+            self._geometry()["section_align"] = str(value)
+
+        self._edit_component("Change section alignment", change)
+
+    def _on_airfoil_shaping_spinbox_changed(self, key: str, value: float) -> None:
+        if self._loading:
+            return
+
+        def change() -> None:
+            geom = self._geometry()
+            sh = geom.setdefault("airfoil_shaping", {})
+            if key == "te_thickness":
+                sh["te_thickness"] = max(float(value) / 100.0, 0.0)  # convert % -> fraction
+            elif key == "thickness_scale":
+                sh["thickness_scale"] = max(float(value), 0.1)
+            elif key == "camber_scale":
+                sh["camber_scale"] = max(float(value), 0.0)
+
+        self._edit_component(f"Update airfoil shaping ({key})", change)
 
     def _on_cs_prop_spinbox_changed(self, key: str, value: float) -> None:
         if self._loading or self._control_surface_index < 0:
