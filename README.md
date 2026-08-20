@@ -3,7 +3,7 @@
 Plugin-based desktop application for parametric UAV design and analysis.
 
 # to-do
-- genel tarama
+- genel tarama (x)
 - StudioAPI ve Şema nihaileştirme
 - testler
 - aerodinamik plugin

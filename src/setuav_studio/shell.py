@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMenu,
     QMessageBox,
+    QProgressBar,
     QStackedWidget,
     QStyle,
     QToolBar,
@@ -22,6 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.icons import get_icon
+from setuav_studio.log_buffer import install_log_buffer
 from setuav_studio.plugin_system import (
     ActionContribution,
     PanelContribution,
@@ -226,20 +228,68 @@ class MainWindow(QMainWindow):
         self._degraded_badge.clicked.connect(self._show_degraded_details)
         self.statusBar().addPermanentWidget(self._degraded_badge)
 
+        self._log_button = QToolButton(self)
+        self._log_button.setObjectName("studioStatusLogButton")
+        self._log_button.setIcon(get_icon("log", color=tokens()["text"]))
+        self._log_button.setToolTip("Application logs")
+        self._log_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._log_button.setAutoRaise(True)
+        self._log_button.setFixedSize(22, 22)
+        self._log_button.clicked.connect(self._open_log_window)
+        self._log_window: QDialog | None = None
+
+        self._progress_bar = QProgressBar(self)
+        self._progress_bar.setObjectName("studioStatusProgress")
+        self._progress_bar.setFixedWidth(200)
+        self._progress_bar.setTextVisible(True)
+        self._progress_bar.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._progress_bar.hide()
+        self.statusBar().addPermanentWidget(self._progress_bar)
+
         self._status_label = QLabel(self)
         self._status_label.setObjectName("studioStatusMessage")
+        self.statusBar().addWidget(self._log_button)
         self.statusBar().addWidget(self._status_label)
         self.statusBar().setStyleSheet(
             "QStatusBar {"
             " border-top: 1px solid rgba(255, 255, 255, 0.08);"
             " background-color: rgba(0, 0, 0, 0.25);"
             "}"
+            "QStatusBar QToolButton {"
+            " background: transparent;"
+            " border: none;"
+            " border-radius: 3px;"
+            "}"
+            "QStatusBar QToolButton:hover {"
+            " background-color: rgba(255, 255, 255, 0.1);"
+            "}"
+            "QStatusBar QProgressBar {"
+            f" background-color: {rgba(accent_color(), 0.12)};"
+            f" border: 1px solid {tokens()['border_strong']};"
+            " border-radius: 3px;"
+            " height: 14px;"
+            "}"
+            "QStatusBar QProgressBar::chunk {"
+            f" background-color: {accent_color()};"
+            " border-radius: 2px;"
+            "}"
         )
+        self._api.set_progress_handler(self._show_progress)
         self._status_timer = QTimer(self)
         self._status_timer.setSingleShot(True)
         self._status_timer.timeout.connect(self._clear_status_message)
         self._api.set_status_handler(self._show_status_message)
         self._api.show_status("Ready", "info", 0)
+        install_log_buffer()
+
+    def _open_log_window(self) -> None:
+        if self._log_window is None:
+            from setuav_studio.ui.log_window import LogWindow
+
+            self._log_window = LogWindow(self)
+        self._log_window.show()
+        self._log_window.raise_()
+        self._log_window.activateWindow()
 
     def _show_status_message(
         self,
@@ -253,6 +303,15 @@ class MainWindow(QMainWindow):
         self._status_label.setText(message)
         if timeout_ms > 0:
             self._status_timer.start(timeout_ms)
+
+    def _show_progress(self, completed: int, total: int, label: str = "") -> None:
+        if total <= 0 or completed >= total:
+            self._progress_bar.hide()
+            return
+        self._progress_bar.setRange(0, total)
+        self._progress_bar.setValue(completed)
+        self._progress_bar.setFormat(f"{label} %p%" if label else "%p%")
+        self._progress_bar.show()
 
     def _clear_status_message(self) -> None:
         self._status_timer.stop()

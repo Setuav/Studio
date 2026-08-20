@@ -163,6 +163,33 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertGreater(len(charts.chart_electrical.series()), 0)
         self.assertGreater(len(charts.chart_efficiency.series()), 0)
 
+    def test_analysis_posts_status_messages(self) -> None:
+        from setuav_studio.shell import MainWindow
+        from setuav_studio.plugins.core import CorePlugin
+        from setuav_studio.plugins.electrical_propulsion.plugin import ElectricalPropulsionPlugin
+
+        api = StudioAPI()
+        win = MainWindow(api)
+        pm = PluginManager(api)
+        pm.activate(CorePlugin())
+        pm.activate(ElectricalPropulsionPlugin())
+        pm.discover()
+        win.restore_window_layout()
+
+        doc = open_project(TEST_PROJECT_PATH)
+        win.open_project(doc.location)
+        api.switch_workspace("studio.workspace.propulsion")
+
+        controls = self._dock_content(win._panels["propulsion.controls_dock"][1])
+        controls.run_button.click()
+        self.assertIn("Analysis complete", win._status_label.text())
+
+        for comp in api.current_project.data["components"]:
+            if comp["id"] == "motor-cruise":
+                comp["parameters"]["max_current"] = 0.001
+        controls.run_button.click()
+        self.assertIn("Current limit exceeded", win._status_label.text())
+
     @staticmethod
     def _dock_content(dock) -> object:
         widget = dock.widget()

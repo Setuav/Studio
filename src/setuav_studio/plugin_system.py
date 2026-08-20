@@ -144,6 +144,7 @@ class StudioAPI:
             Callable[[str, str, int], None] | None
         ) = None
         self._pending_status: list[tuple[str, str, int]] = []
+        self._progress_handler: Callable[[int, int, str], None] | None = None
         self._project_listeners: list[Callable[[ProjectDocument], None]] = []
         self._project_content_listeners: list[Callable[[ProjectDocument], None]] = []
         self._modified_listeners: list[Callable[[bool], None]] = []
@@ -222,6 +223,23 @@ class StudioAPI:
     def clear_status(self) -> None:
         if self._status_handler is not None:
             self._status_handler("", "info", 0)
+
+    def set_progress_handler(
+        self,
+        handler: Callable[[int, int, str], None],
+    ) -> None:
+        self._progress_handler = handler
+
+    def report_progress(self, completed: int, total: int, label: str = "") -> None:
+        """Report task progress to the shell status bar.
+
+        A total of 0 (or completed >= total) hides the progress bar.
+        """
+        if self._progress_handler is not None:
+            self._progress_handler(completed, total, label)
+
+    def clear_progress(self) -> None:
+        self.report_progress(1, 1, "")
 
     def set_workspace_handler(
         self,

@@ -88,6 +88,26 @@ class TestWorkspacesAndTools(unittest.TestCase):
         get_qapp().exec()
         self.assertEqual(win._status_label.text(), "")
 
+    def test_progress_bar_shows_and_hides(self) -> None:
+        from PySide6.QtWidgets import QProgressBar
+
+        api = StudioAPI()
+        win = MainWindow(api)
+        get_qapp().processEvents()
+
+        bar = win._progress_bar
+        self.assertIsInstance(bar, QProgressBar)
+        self.assertTrue(bar.isHidden())
+
+        api.report_progress(2, 10, "Analyzing")
+        self.assertFalse(bar.isHidden())
+        self.assertEqual(bar.maximum(), 10)
+        self.assertEqual(bar.value(), 2)
+        self.assertIn("Analyzing", bar.text())
+
+        api.report_progress(10, 10, "Analyzing")
+        self.assertTrue(bar.isHidden())
+
     def test_tool_registration_in_tools_menu(self) -> None:
         api = StudioAPI()
         win = MainWindow(api)
@@ -117,6 +137,34 @@ class TestWorkspacesAndTools(unittest.TestCase):
         sample_action = next(a for a in prop_menu.actions() if "sample tool" in a.text().lower())
         sample_action.trigger()
         self.assertEqual(called, [True])
+
+    def test_log_button_opens_log_window(self) -> None:
+        import logging
+
+        from setuav_studio.log_buffer import clear_log_buffer, install_log_buffer
+
+        clear_log_buffer()
+        install_log_buffer()
+        logging.getLogger("setuav_studio.test").warning("hello log window")
+
+        api = StudioAPI()
+        win = MainWindow(api)
+        get_qapp().processEvents()
+
+        self.assertIsNotNone(win._log_button)
+        win._log_button.click()
+        self.assertIsNotNone(win._log_window)
+        self.assertTrue(win._log_window.isVisible())
+        self.assertEqual(win._log_window._table.columnCount(), 3)
+        table_text = " ".join(
+            item.text()
+            for row in range(win._log_window._table.rowCount())
+            for item in [win._log_window._table.item(row, c) for c in range(3)]
+            if item is not None
+        )
+        self.assertIn("hello log window", table_text)
+        self.assertIn("WARNING", table_text)
+        self.assertTrue(win._log_window._table.wordWrap())
 
 
 if __name__ == "__main__":

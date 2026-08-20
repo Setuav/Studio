@@ -25,6 +25,7 @@ _ICON_MAP = {
     "add": "fa6s.plus",
     "remove": "fa6s.trash-can",
     "fit": "fa6s.expand",
+    "log": "mdi6.message-text-outline",
     # Default Component Types
     "component": "fa6s.cube",
     "instance": "fa6s.clone",

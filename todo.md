@@ -59,11 +59,11 @@
 
 ---
 
-### ⚪ Aşama 4: İleri Seviye / Opsiyonel
+### ⚪ Aşama 4: İleri Seviye / Opsiyonel (Yarım kaldı)
 9. **[x] Winglet / Kıvrımlı Uç Geometrisi (7/10)**
    * `_build_winglet_loft()` (`lifting_surface_geometry.py`): cant açısı, ok açısı, toe açısı, kök/uç veter ölçeği ve kanatçık yüksekliği parametreleriyle tam parametrik winglet loft motoru.
    * Winglet, kanat ucu profilinden kosinus-aralıklı 12 istasyonla büyüyor; airfoil shaping (TE blunting, t/c scale) entegre.
    * `LiftingSurfaceEditor` → **End Caps** paneline `"Winglet"` tipi eklendi; cant/sweep/toe/veter spinbox'ları winglet seçilince aktif, diğer tiplerde soluk.
 
-10. **[ ] CST (Class-Shape Transformation) Profil Üreteci (3.5/10)**
+10. **[ ] CST (Class-Shape Transformation) Profil Üreteci (3.5/10)** (ERTELENDİ)
     * Parametrik matematiksel profil eğri optimizasyonu.

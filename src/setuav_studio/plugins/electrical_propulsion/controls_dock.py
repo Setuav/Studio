@@ -443,17 +443,39 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
         if context is None:
             return
 
-        res: dict[str, Any] | None = None
         mode = context["mode"]
-        if mode == "airspeed_sweep":
-            res = self.run_sweep(context)
-        elif mode == "throttle_sweep":
-            res = self.run_throttle(context)
-        elif mode == "operating_point":
-            res = self.run_operating_point(context)
+        mode_label = {
+            "airspeed_sweep": "airspeed sweep",
+            "throttle_sweep": "throttle sweep",
+            "operating_point": "operating point",
+        }.get(mode, mode)
+        self._api.show_status(f"Running {mode_label}…", "info", 0)
 
+        try:
+            if mode == "airspeed_sweep":
+                res = self.run_sweep(context)
+            elif mode == "throttle_sweep":
+                res = self.run_throttle(context)
+            elif mode == "operating_point":
+                res = self.run_operating_point(context)
+        except Exception as exc:
+            logger.exception("Propulsion analysis failed")
+            self._api.clear_progress()
+            self._api.show_status(f"Analysis failed: {exc}", "error", 8000)
+            return
+
+        self._api.clear_progress()
         if res is not None:
             self._show_feasibility_alert(context, res)
+
+    @staticmethod
+    def _arange(start: float, end: float, step: float) -> list[float]:
+        values: list[float] = []
+        curr = start
+        while curr <= end + 1e-4:
+            values.append(curr)
+            curr += step
+        return values
 
     def _build_analysis_context(self) -> dict[str, Any] | None:
         proj = self._api.current_project
@@ -704,9 +726,15 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
         eta_mots: list[float] = []
         sweep_rows: list[dict[str, Any]] = []
 
-        curr_v = v_min
         throttle_norm = max(min(throttle_pct / 100.0, 1.0), 0.01)
-        while curr_v <= v_max + 1e-4:
+        v_vals = self._arange(v_min, v_max, v_step)
+        total_points = len(v_vals)
+        for index, curr_v in enumerate(v_vals, start=1):
+            self._api.report_progress(
+                index,
+                total_points,
+                f"Airspeed {curr_v:.0f} m/s",
+            )
             pt = self._solve_point(context, curr_v, throttle_norm)
             x_vals.append(curr_v)
             thrusts.append(pt["thrust"])
@@ -729,7 +757,6 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
                 "j": pt["j"],
                 "feasible": pt["feasible"],
             })
-            curr_v += v_step
 
         # Operating point at cruise (~18 m/s or mid)
         cruise_idx = min(len(x_vals) - 1, max(0, int(len(x_vals) * 0.5)))
@@ -790,8 +817,14 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
         eta_mots = []
         sweep_rows = []
 
-        curr_t = t_min
-        while curr_t <= t_max + 1e-4:
+        t_vals = self._arange(t_min, t_max, t_step)
+        total_points = len(t_vals)
+        for index, curr_t in enumerate(t_vals, start=1):
+            self._api.report_progress(
+                index,
+                total_points,
+                f"Throttle {curr_t:.0f}%",
+            )
             pt = self._solve_point(context, v_fixed, curr_t / 100.0)
             x_vals.append(curr_t)
             thrusts.append(pt["thrust"])
@@ -814,7 +847,6 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
                 "j": pt["j"],
                 "feasible": pt["feasible"],
             })
-            curr_t += t_step
 
         cruise_idx = len(x_vals) - 1
         cruise_power = max(powers[cruise_idx], 1e-3)
@@ -922,6 +954,12 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
 
         if peak_curr > max_curr_limit:
             over_pct = ((peak_curr / max(max_curr_limit, 1e-3)) - 1.0) * 100.0
+            self._api.show_status(
+                f"Current limit exceeded: peak {peak_curr:.1f} A vs "
+                f"{max_curr_limit:.1f} A max ({over_pct:.0f}%)",
+                "error",
+                8000,
+            )
             self.show_alert(
                 severity="danger",
                 title="Motor Current Limit Exceeded",
@@ -933,6 +971,12 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
             )
         elif max_pwr_limit > 0 and peak_pwr > max_pwr_limit:
             over_pct = ((peak_pwr / max_pwr_limit) - 1.0) * 100.0
+            self._api.show_status(
+                f"Power limit exceeded: peak {peak_pwr:.1f} W vs "
+                f"{max_pwr_limit:.1f} W max ({over_pct:.0f}%)",
+                "warning",
+                8000,
+            )
             self.show_alert(
                 severity="warning",
                 title="Motor Power Limit Exceeded",
@@ -942,6 +986,12 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
                 ),
             )
         else:
+            self._api.show_status(
+                f"Analysis complete — feasible, peak {peak_curr:.1f} A "
+                f"({max_curr_limit:.1f} A max)",
+                "success",
+                5000,
+            )
             self.show_alert(
                 severity="success",
                 title="Operating Point Feasible",
