@@ -28,7 +28,7 @@ class ThemeTests(unittest.TestCase):
         self.assertIn('QAbstractItemView[tableComboPopup="true"]', stylesheet)
 
     def test_accent_color_is_defined(self) -> None:
-        self.assertEqual(ACCENT_COLOR, "#7fc4d1")
+        self.assertEqual(ACCENT_COLOR, "#c5a9eb")
 
     def test_tables_are_compact_and_use_alternating_palette_rows(self) -> None:
         stylesheet = build_stylesheet(DEFAULT_FONT_SIZE)

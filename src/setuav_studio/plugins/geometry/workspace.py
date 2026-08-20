@@ -21,7 +21,7 @@ from setuav_studio.plugins.geometry.palettes import (
     set_active_palette,
 )
 from setuav_studio.plugins.geometry.widget import OpenGLViewer
-from setuav_studio.ui.theme import rgba, tokens
+from setuav_studio.ui.theme import accent_color, rgba, tokens
 from setuav_studio.plugins.geometry.mesh import (
     FACE_COLORED,
     FACE_MONOCHROME,
@@ -49,11 +49,11 @@ QWidget#viewerHUD QToolButton:hover {{
     border: 1px solid rgba(255, 255, 255, 0.18);
 }}
 QWidget#viewerHUD QToolButton:checked {{
-    background-color: rgba(127, 196, 209, 0.22);
-    border: 1px solid #7fc4d1;
+    background-color: {rgba(accent_color(), 0.22)};
+    border: 1px solid {accent_color()};
 }}
 QWidget#viewerHUD QToolButton:checked:hover {{
-    background-color: rgba(127, 196, 209, 0.32);
+    background-color: {rgba(accent_color(), 0.32)};
 }}
 QWidget#viewerHUD QFrame#hudSep {{
     background-color: rgba(255, 255, 255, 0.14);

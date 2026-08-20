@@ -52,7 +52,7 @@ from setuav_studio.ui.numeric_spinbox import (
     NumericSpinBox,
     set_table_spinbox,
 )
-from setuav_studio.ui.theme import tokens
+from setuav_studio.ui.theme import accent_color, tokens
 from setuav_studio.plugins.geometry.fuselage_geometry import sample_profile
 
 
@@ -544,15 +544,15 @@ class FuselageCanvasWidget(QWidget):
                 painter,
                 self._active_points,
                 world_to_screen,
-                stroke_color=QColor("#7fc4d1"),
-                fill_color=QColor(127, 196, 209, 38),
+                stroke_color=QColor(accent_color()),
+                fill_color=QColor(*QColor(accent_color()).getRgb()[:3], 38),
                 pen_style=Qt.PenStyle.SolidLine,
                 line_width=2.2,
             )
 
             if self.show_radial_samples:
                 painter.setPen(Qt.PenStyle.NoPen)
-                painter.setBrush(QColor("#7fc4d1"))
+                painter.setBrush(QColor(accent_color()))
                 for y, z in self._active_points:
                     pt = world_to_screen(y, z)
                     painter.drawEllipse(pt, 1.8, 1.8)
@@ -628,7 +628,7 @@ class FuselageCanvasWidget(QWidget):
                 painter.drawText(text_rect, Qt.AlignmentFlag.AlignCenter, badge_text)
 
             elif is_hovered:
-                painter.setPen(QPen(QColor("#7fc4d1"), 2.0))
+                painter.setPen(QPen(QColor(accent_color()), 2.0))
                 painter.setBrush(QColor("#e67e22"))
                 painter.drawEllipse(pt, 5.5, 5.5)
                 painter.setPen(QColor("#ffffff"))
@@ -780,7 +780,7 @@ class FuselageCanvasWidget(QWidget):
         legend_y = 12
         painter.setFont(QFont("sans-serif", 7))
 
-        painter.setPen(QPen(QColor("#7fc4d1"), 2.0))
+        painter.setPen(QPen(QColor(accent_color()), 2.0))
         painter.drawLine(legend_x, legend_y + 6, legend_x + 16, legend_y + 6)
         painter.setPen(QColor("#cccccc"))
         painter.drawText(legend_x + 22, legend_y + 10, "Current Section")

@@ -28,10 +28,10 @@ class ComboBoxWheelFilter(QObject):
 
 FONT_FAMILY = "Inter"
 DEFAULT_FONT_SIZE = 10
-ACCENT_COLOR = "#7fc4d1"
+ACCENT_COLOR = "#c5a9eb"
 INACTIVE_SELECTION_COLORS = {
     "dark": "#404040",
-    "light": "#c5e2e7",
+    "light": "#e7dcf8",
 }
 DARK_TOKENS = {
     "window": "#1a1d22",
@@ -67,6 +67,11 @@ def tokens(theme: str = "dark") -> dict[str, str]:
     if theme == "light":
         return LIGHT_TOKENS
     return DARK_TOKENS
+
+
+def accent_color() -> str:
+    """Return the current UI accent color as a hex string."""
+    return ACCENT_COLOR
 
 
 def rgba(color: str, alpha: float) -> str:

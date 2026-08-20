@@ -29,7 +29,7 @@ from setuav_studio.plugin_system import (
     WorkspaceContribution,
 )
 from setuav_studio.plugins.core.settings import SettingsDialog, StudioSettings
-from setuav_studio.ui.theme import apply_theme, tokens
+from setuav_studio.ui.theme import accent_color, apply_theme, rgba, tokens
 from setuav_studio.project import (
     ProjectDocument,
     ProjectOpenError,
@@ -137,9 +137,9 @@ class MainWindow(QMainWindow):
                 color: #ffffff;
             }}
             QToolButton:checked {{
-                background-color: rgba(127, 196, 209, 0.15);
-                border: 1px solid #7fc4d1;
-                color: #7fc4d1;
+                background-color: {rgba(accent_color(), 0.15)};
+                border: 1px solid {accent_color()};
+                color: {accent_color()};
             }}
         """)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self._workspace_toolbar)
@@ -573,13 +573,16 @@ class MainWindow(QMainWindow):
         self._workspace_buttons.clear()
 
         sorted_workspaces = sorted(self._workspaces.values(), key=lambda w: (w.order, w.title))
-        button_font = QFont(self._workspace_toolbar.font())
-        button_font.setPointSizeF(10.5)
-        font_metrics = QFontMetrics(button_font)
-        button_width = (
-            max(font_metrics.horizontalAdvance(w.title) for w in sorted_workspaces)
-            + 64
-        )
+        if sorted_workspaces:
+            button_font = QFont(self._workspace_toolbar.font())
+            button_font.setPointSizeF(10.5)
+            font_metrics = QFontMetrics(button_font)
+            button_width = (
+                max(font_metrics.horizontalAdvance(w.title) for w in sorted_workspaces)
+                + 64
+            )
+        else:
+            button_width = 0
         for contribution in sorted_workspaces:
             btn = QToolButton(self._workspace_toolbar)
             btn.setText(contribution.title)
