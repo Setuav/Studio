@@ -2,7 +2,7 @@ from array import array
 import math
 
 from PySide6.QtCore import QPoint, Qt, Signal
-from PySide6.QtGui import QMatrix4x4, QSurfaceFormat, QVector3D
+from PySide6.QtGui import QMatrix4x4, QSurfaceFormat, QVector3D, QVector4D
 from PySide6.QtOpenGL import (
     QOpenGLBuffer,
     QOpenGLFunctions_3_3_Core,
@@ -281,11 +281,6 @@ class OpenGLViewer(QOpenGLWidget):
             self._grid_vao.bind()
             self._functions.glDrawArrays(_GL_LINES, 0, self._grid_count)
             self._grid_vao.release()
-        self._functions.glDepthFunc(_GL_LEQUAL)
-        self._axis_vao.bind()
-        self._functions.glDrawArrays(_GL_LINES, 0, self._axis_count)
-        self._axis_vao.release()
-        self._functions.glDepthFunc(_GL_LESS)
         if self._highlight_count > 0:
             self._highlight_vao.bind()
             self._functions.glDrawArrays(_GL_LINES, 0, self._highlight_count)
@@ -306,6 +301,37 @@ class OpenGLViewer(QOpenGLWidget):
             self._functions.glUniform1f(alpha_location, 1.0)
             self._functions.glDisable(_GL_BLEND)
         self._wire_program.release()
+        self._draw_axis_gizmo()
+
+    def _draw_axis_gizmo(self) -> None:
+        if self.width() < 1 or self.height() < 1:
+            return
+        rotation = self._view()
+        rotation.setColumn(3, QVector4D(0.0, 0.0, 0.0, 1.0))
+        vertices = self._axis_gizmo_quads(rotation)
+        if not vertices:
+            return
+        size = 160
+        margin = 12
+        x = margin
+        y = margin
+        self._functions.glViewport(x, y, size, size)
+        self._functions.glDisable(_GL_DEPTH_TEST)
+        projection = QMatrix4x4()
+        projection.ortho(-1.0, 1.0, -1.0, 1.0, -1.0, 1.0)
+
+        count = self._allocate(self._axis_vbo, vertices, 6)
+        self._wire_program.bind()
+        self._wire_program.setUniformValue("mvp", projection)
+        alpha_location = self._wire_program.uniformLocation("alpha")
+        self._functions.glUniform1f(alpha_location, 1.0)
+        self._axis_vao.bind()
+        self._functions.glDrawArrays(_GL_TRIANGLES, 0, count)
+        self._axis_vao.release()
+        self._wire_program.release()
+
+        self._functions.glEnable(_GL_DEPTH_TEST)
+        self._functions.glViewport(0, 0, self.width(), self.height())
 
     def set_geometry(self, data: GeometryData, fit: bool = False) -> None:
         self._geometry_data = data
@@ -525,7 +551,6 @@ class OpenGLViewer(QOpenGLWidget):
 
     def _upload_meshes(self) -> None:
         grid_values = self._reference_grid_vertices()
-        axis_values = self._reference_axis_vertices()
         wire_values = build_loft_wire_vertices(
             self._geometry_data,
             self._selected_component_id,
@@ -566,7 +591,6 @@ class OpenGLViewer(QOpenGLWidget):
                 SECTION_RING,
             )
         self._grid_count = self._allocate(self._grid_vbo, grid_values, 6)
-        self._axis_count = self._allocate(self._axis_vbo, axis_values, 6)
         self._wire_count = self._allocate(self._wire_vbo, wire_values, 6)
         self._solid_count = self._allocate(self._solid_vbo, solid_values, 9)
         self._highlight_count = self._allocate(self._highlight_vbo, highlight_values, 6)
@@ -625,11 +649,27 @@ class OpenGLViewer(QOpenGLWidget):
         return vertices
 
     @staticmethod
-    def _reference_axis_vertices() -> list[float]:
+    def _axis_gizmo_quads(rotation: QMatrix4x4) -> list[float]:
         vertices: list[float] = []
-        _add_reference_line(vertices, (0, 0, 0), (400, 0, 0), (0.85, 0.25, 0.25))
-        _add_reference_line(vertices, (0, 0, 0), (0, 400, 0), (0.25, 0.75, 0.35))
-        _add_reference_line(vertices, (0, 0, 0), (0, 0, 400), (0.25, 0.45, 0.90))
+        axes = (
+            ((0.85, 0.25, 0.25), 0),
+            ((0.25, 0.75, 0.35), 1),
+            ((0.25, 0.45, 0.90), 2),
+        )
+        length = 0.65
+        half_width = 0.0175
+        for color, column_index in axes:
+            direction = rotation.column(column_index).toVector3D()
+            if abs(direction.x()) < 1e-4 and abs(direction.y()) < 1e-4:
+                continue
+            perpendicular = QVector3D(-direction.y(), direction.x(), 0.0)
+            perpendicular.normalize()
+            offset = perpendicular * half_width
+            tip = direction * length
+            corners = (offset, -offset, tip - offset, tip + offset)
+            for a, b, c in ((0, 1, 2), (0, 2, 3)):
+                for index in (a, b, c):
+                    vertices.extend((*corners[index].toTuple(), *color))
         return vertices
 
     def _eye_position(self) -> QVector3D:
