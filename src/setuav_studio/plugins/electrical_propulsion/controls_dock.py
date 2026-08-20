@@ -439,9 +439,26 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
         }
 
     def _on_run_analysis(self) -> None:
+        context = self._build_analysis_context()
+        if context is None:
+            return
+
+        res: dict[str, Any] | None = None
+        mode = context["mode"]
+        if mode == "airspeed_sweep":
+            res = self.run_sweep(context)
+        elif mode == "throttle_sweep":
+            res = self.run_throttle(context)
+        elif mode == "operating_point":
+            res = self.run_operating_point(context)
+
+        if res is not None:
+            self._show_feasibility_alert(context, res)
+
+    def _build_analysis_context(self) -> dict[str, Any] | None:
         proj = self._api.current_project
         if not proj:
-            return
+            return None
 
         config = self.get_configuration()
         assembly_id = config["assembly_id"]
@@ -493,29 +510,8 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
                 or prop_db.get(f"APC_{int(diameter_in)}x{int(pitch_in)}")
                 or prop_db.find_by_size(diameter_in, pitch_in)
             )
-
         if prop_entry is None:
-            prop_meta = PropellerMetadata(
-                id=f"prop_{diameter_in:.1f}x{pitch_in:.1f}",
-                manufacturer="APC",
-                model=f"{diameter_in:.1f}x{pitch_in:.1f}",
-                diameter_in=diameter_in,
-                pitch_in=pitch_in,
-                blade_count=blades,
-                data_csv="",
-            )
-            prop_data: dict[int, list[PropellerDataPoint]] = {}
-            p_d = pitch_in / max(diameter_in, 1e-3)
-            j_max = p_d * 1.15
-            for r in [2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 12000, 15000]:
-                pts = []
-                for j_i in range(30):
-                    j_val = j_i * (j_max / 29.0)
-                    ct = max(0.0, 0.095 * (1.0 - (j_val / max(j_max, 1e-3))**1.4))
-                    cp = max(0.005, 0.039 * (1.0 - 0.70 * (j_val / max(j_max, 1e-3))**1.8))
-                    pts.append(PropellerDataPoint(j=float(j_val), ct=float(ct), cp=float(cp)))
-                prop_data[r] = pts
-            prop_entry = PropellerEntry(metadata=prop_meta, data_by_rpm=prop_data)
+            prop_entry = self._fallback_propeller(diameter_in, pitch_in, blades)
 
         # Extract battery
         bat_comp = None
@@ -546,231 +542,182 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
             (d for d in win.findChildren(QWidget) if d.__class__.__name__ == "PropulsionChartsDock"), None
         )
 
-        def solve_point(v_mps: float, throttle_val: float) -> dict[str, Any]:
-            v_app = max(throttle_val * total_voltage, 0.1)
-            rpm_max = motor_spec.kv_rpm_per_v * v_app * 1.05
+        return {
+            "mode": mode,
+            "params": params,
+            "motor_spec": motor_spec,
+            "motor_params": motor_params,
+            "prop_spec": prop_spec,
+            "prop_entry": prop_entry,
+            "total_voltage": total_voltage,
+            "capacity_mah": capacity_mah,
+            "rho": rho,
+            "diameter_in": diameter_in,
+            "pitch_in": pitch_in,
+            "results_dock": results_dock,
+            "charts_dock": charts_dock,
+        }
 
-            def g(rpm_val: float) -> float:
-                if rpm_val <= 10.0:
-                    return -v_app
-                n_val = rpm_val / 60.0
-                j_val = v_mps / (n_val * prop_spec.diameter_m) if prop_spec.diameter_m > 0 else 0.0
-                ct_v, cp_v = prop_entry.get_coefficients(rpm_val, j_val)
-                ct_v = max(ct_v, 0.0)
-                cp_v = max(cp_v, 0.0)
-                torque_nm = cp_v * rho * (n_val**2) * (prop_spec.diameter_m**5) / (2.0 * math.pi)
-                kt = 30.0 / (math.pi * motor_spec.kv_rpm_per_v)
-                i_a = torque_nm / kt + motor_spec.get_no_load_current(rpm_val)
-                v_b = rpm_val / motor_spec.kv_rpm_per_v
-                v_mot = v_b + i_a * motor_spec.get_winding_resistance(i_a)
-                return v_mot + i_a * 0.01 - v_app
+    @staticmethod
+    def _fallback_propeller(diameter_in: float, pitch_in: float, blades: int) -> PropellerEntry:
+        prop_meta = PropellerMetadata(
+            id=f"prop_{diameter_in:.1f}x{pitch_in:.1f}",
+            manufacturer="APC",
+            model=f"{diameter_in:.1f}x{pitch_in:.1f}",
+            diameter_in=diameter_in,
+            pitch_in=pitch_in,
+            blade_count=blades,
+            data_csv="",
+        )
+        prop_data: dict[int, list[PropellerDataPoint]] = {}
+        p_d = pitch_in / max(diameter_in, 1e-3)
+        j_max = p_d * 1.15
+        for r in [2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 12000, 15000]:
+            pts = []
+            for j_i in range(30):
+                j_val = j_i * (j_max / 29.0)
+                ct = max(0.0, 0.095 * (1.0 - (j_val / max(j_max, 1e-3))**1.4))
+                cp = max(0.005, 0.039 * (1.0 - 0.70 * (j_val / max(j_max, 1e-3))**1.8))
+                pts.append(PropellerDataPoint(j=float(j_val), ct=float(ct), cp=float(cp)))
+            prop_data[r] = pts
+        return PropellerEntry(metadata=prop_meta, data_by_rpm=prop_data)
 
-            try:
-                res_root = root_scalar(g, bracket=[100.0, rpm_max], method="brentq")
-                rpm_solved = res_root.root
-            except Exception:
-                logger.warning("RPM solver failed at v=%.1f m/s; falling back to rpm_max", v_mps)
-                rpm_solved = rpm_max
+    def _solve_rpm(self, context: dict[str, Any], v_mps: float, throttle_val: float) -> float:
+        motor_spec = context["motor_spec"]
+        prop_spec = context["prop_spec"]
+        prop_entry = context["prop_entry"]
+        v_app = max(throttle_val * context["total_voltage"], 0.1)
+        rpm_max = motor_spec.kv_rpm_per_v * v_app * 1.05
 
-            n = rpm_solved / 60.0
-            j_solved = v_mps / (n * prop_spec.diameter_m) if (n * prop_spec.diameter_m) > 0 else 0.0
-            ct_s, cp_s = prop_entry.get_coefficients(rpm_solved, j_solved)
-            ct_s = max(ct_s, 0.0)
-            cp_s = max(cp_s, 0.0)
-            thrust = ct_s * rho * (n**2) * (prop_spec.diameter_m**4)
-            p_shaft = cp_s * rho * (n**3) * (prop_spec.diameter_m**5)
-            torque_nm = p_shaft / (2.0 * math.pi * n) if n > 0 else 0.0
+        def g(rpm_val: float) -> float:
+            if rpm_val <= 10.0:
+                return -v_app
+            n_val = rpm_val / 60.0
+            j_val = v_mps / (n_val * prop_spec.diameter_m) if prop_spec.diameter_m > 0 else 0.0
+            ct_v, cp_v = prop_entry.get_coefficients(rpm_val, j_val)
+            ct_v = max(ct_v, 0.0)
+            cp_v = max(cp_v, 0.0)
+            torque_nm = cp_v * context["rho"] * (n_val**2) * (prop_spec.diameter_m**5) / (2.0 * math.pi)
             kt = 30.0 / (math.pi * motor_spec.kv_rpm_per_v)
-            current_a = torque_nm / kt + motor_spec.get_no_load_current(rpm_solved)
-            v_back = rpm_solved / motor_spec.kv_rpm_per_v
-            v_motor = v_back + current_a * motor_spec.get_winding_resistance(current_a)
-            p_elec = v_motor * current_a
-            eta_p = (thrust * v_mps) / p_shaft if p_shaft > 0 else 0.0
-            eta_m = p_shaft / p_elec if p_elec > 0 else 0.0
-            eta_sys = (thrust * v_mps) / p_elec if p_elec > 0 else 0.0
-            feasible = current_a <= motor_spec.current_max_a
+            i_a = torque_nm / kt + motor_spec.get_no_load_current(rpm_val)
+            v_b = rpm_val / motor_spec.kv_rpm_per_v
+            v_mot = v_b + i_a * motor_spec.get_winding_resistance(i_a)
+            return v_mot + i_a * 0.01 - v_app
 
-            return {
-                "rpm": rpm_solved,
-                "thrust": max(thrust, 0.0),
-                "power": max(p_elec, 0.0),
-                "current": max(current_a, 0.0),
-                "eta_p": min(max(eta_p, 0.0), 1.0),
-                "eta_m": min(max(eta_m, 0.0), 1.0),
-                "eta_sys": min(max(eta_sys, 0.0), 1.0),
-                "j": j_solved,
-                "feasible": feasible,
-            }
+        try:
+            res_root = root_scalar(g, bracket=[100.0, rpm_max], method="brentq")
+            return res_root.root
+        except Exception:
+            logger.warning("RPM solver failed at v=%.1f m/s; falling back to rpm_max", v_mps)
+            return rpm_max
 
-        if mode == "airspeed_sweep":
-            throttle_pct = float(params.get("throttle", 100.0))
-            v_min = float(params.get("v_min", 0.0))
-            v_max = float(params.get("v_max", 35.0))
-            v_step = max(float(params.get("v_step", 1.0)), 0.1)
+    def _solve_point(self, context: dict[str, Any], v_mps: float, throttle_val: float) -> dict[str, Any]:
+        motor_spec = context["motor_spec"]
+        prop_spec = context["prop_spec"]
+        prop_entry = context["prop_entry"]
 
-            x_vals: list[float] = []
-            thrusts: list[float] = []
-            powers: list[float] = []
-            currents: list[float] = []
-            rpms: list[float] = []
-            eta_tots: list[float] = []
-            eta_props: list[float] = []
-            eta_mots: list[float] = []
-            sweep_rows: list[dict[str, Any]] = []
+        rpm_solved = self._solve_rpm(context, v_mps, throttle_val)
+        n = rpm_solved / 60.0
+        j_solved = v_mps / (n * prop_spec.diameter_m) if (n * prop_spec.diameter_m) > 0 else 0.0
+        ct_s, cp_s = prop_entry.get_coefficients(rpm_solved, j_solved)
+        ct_s = max(ct_s, 0.0)
+        cp_s = max(cp_s, 0.0)
+        thrust = ct_s * context["rho"] * (n**2) * (prop_spec.diameter_m**4)
+        p_shaft = cp_s * context["rho"] * (n**3) * (prop_spec.diameter_m**5)
+        torque_nm = p_shaft / (2.0 * math.pi * n) if n > 0 else 0.0
+        kt = 30.0 / (math.pi * motor_spec.kv_rpm_per_v)
+        current_a = torque_nm / kt + motor_spec.get_no_load_current(rpm_solved)
+        v_back = rpm_solved / motor_spec.kv_rpm_per_v
+        v_motor = v_back + current_a * motor_spec.get_winding_resistance(current_a)
+        p_elec = v_motor * current_a
+        eta_p = (thrust * v_mps) / p_shaft if p_shaft > 0 else 0.0
+        eta_m = p_shaft / p_elec if p_elec > 0 else 0.0
+        eta_sys = (thrust * v_mps) / p_elec if p_elec > 0 else 0.0
+        feasible = current_a <= motor_spec.current_max_a
 
-            curr_v = v_min
-            throttle_norm = max(min(throttle_pct / 100.0, 1.0), 0.01)
-            while curr_v <= v_max + 1e-4:
-                pt = solve_point(curr_v, throttle_norm)
-                x_vals.append(curr_v)
-                thrusts.append(pt["thrust"])
-                powers.append(pt["power"])
-                currents.append(pt["current"])
-                rpms.append(pt["rpm"])
-                eta_tots.append(pt["eta_sys"])
-                eta_props.append(pt["eta_p"])
-                eta_mots.append(pt["eta_m"])
-                sweep_rows.append({
-                    "x_val": curr_v,
-                    "x_label": "Airspeed (m/s)",
-                    "rpm": pt["rpm"],
-                    "thrust": pt["thrust"],
-                    "power": pt["power"],
-                    "current": pt["current"],
-                    "eta_sys": pt["eta_sys"],
-                    "eta_p": pt["eta_p"],
-                    "eta_m": pt["eta_m"],
-                    "j": pt["j"],
-                    "feasible": pt["feasible"],
-                })
-                curr_v += v_step
+        return {
+            "rpm": rpm_solved,
+            "thrust": max(thrust, 0.0),
+            "power": max(p_elec, 0.0),
+            "current": max(current_a, 0.0),
+            "eta_p": min(max(eta_p, 0.0), 1.0),
+            "eta_m": min(max(eta_m, 0.0), 1.0),
+            "eta_sys": min(max(eta_sys, 0.0), 1.0),
+            "j": j_solved,
+            "feasible": feasible,
+        }
 
-            # Operating point at cruise (~18 m/s or mid)
-            cruise_idx = min(len(x_vals) - 1, max(0, int(len(x_vals) * 0.5)))
-            cruise_power = max(powers[cruise_idx], 1e-3)
-            batt_wh = (total_voltage * capacity_mah / 1000.0)
-            endurance_min = (batt_wh * 0.8 / cruise_power) * 60.0
+    def _render_results(
+        self,
+        context: dict[str, Any],
+        *,
+        x_label: str,
+        x_vals: list[float],
+        thrusts: list[float],
+        powers: list[float],
+        currents: list[float],
+        rpms: list[float],
+        eta_tots: list[float],
+        eta_props: list[float],
+        eta_mots: list[float],
+        res: dict[str, Any],
+        clear_charts: bool = False,
+    ) -> None:
+        charts_dock = context["charts_dock"]
+        results_dock = context["results_dock"]
+        if clear_charts and charts_dock and hasattr(charts_dock, "clear_charts"):
+            charts_dock.clear_charts()
+        if charts_dock and hasattr(charts_dock, "plot_sweep_results"):
+            charts_dock.plot_sweep_results(
+                x_label=x_label,
+                x_values=x_vals,
+                thrust_n=thrusts,
+                power_w=powers,
+                current_a=currents,
+                rpm=rpms,
+                eta_total=eta_tots,
+                eta_prop=eta_props,
+                eta_motor=eta_mots,
+            )
+        if results_dock and hasattr(results_dock, "set_results"):
+            results_dock.set_results(res)
 
-            res = {
-                "static_thrust": thrusts[0] if thrusts else 0.0,
-                "peak_power": max(powers) if powers else 0.0,
-                "peak_current": max(currents) if currents else 0.0,
-                "max_rpm": max(rpms) if rpms else 0.0,
-                "cruise_thrust": thrusts[cruise_idx] if thrusts else 0.0,
-                "cruise_efficiency": eta_tots[cruise_idx] if eta_tots else 0.0,
-                "endurance_min": endurance_min,
-                "advance_ratio": (x_vals[cruise_idx] / max((rpms[cruise_idx]/60.0) * prop_spec.diameter_m, 1e-3)),
-                "prop_efficiency": eta_props[cruise_idx],
-                "motor_efficiency": eta_mots[cruise_idx],
-                "voltage_loaded": total_voltage - currents[cruise_idx] * 0.02,
-                "sweep_table": sweep_rows,
-                "motor_max_current": motor_spec.current_max_a,
-            }
+    def run_sweep(self, context: dict[str, Any]) -> dict[str, Any]:
+        params = context["params"]
+        motor_spec = context["motor_spec"]
+        prop_spec = context["prop_spec"]
+        total_voltage = context["total_voltage"]
+        capacity_mah = context["capacity_mah"]
 
-            if charts_dock and hasattr(charts_dock, "plot_sweep_results"):
-                charts_dock.plot_sweep_results(
-                    x_label="Airspeed (m/s)",
-                    x_values=x_vals,
-                    thrust_n=thrusts,
-                    power_w=powers,
-                    current_a=currents,
-                    rpm=rpms,
-                    eta_total=eta_tots,
-                    eta_prop=eta_props,
-                    eta_motor=eta_mots,
-                )
-            if results_dock and hasattr(results_dock, "set_results"):
-                results_dock.set_results(res)
+        throttle_pct = float(params.get("throttle", 100.0))
+        v_min = float(params.get("v_min", 0.0))
+        v_max = float(params.get("v_max", 35.0))
+        v_step = max(float(params.get("v_step", 1.0)), 0.1)
 
-        elif mode == "throttle_sweep":
-            v_fixed = float(params.get("airspeed", 15.0))
-            t_min = float(params.get("t_min", 10.0))
-            t_max = float(params.get("t_max", 100.0))
-            t_step = max(float(params.get("t_step", 5.0)), 1.0)
+        x_vals: list[float] = []
+        thrusts: list[float] = []
+        powers: list[float] = []
+        currents: list[float] = []
+        rpms: list[float] = []
+        eta_tots: list[float] = []
+        eta_props: list[float] = []
+        eta_mots: list[float] = []
+        sweep_rows: list[dict[str, Any]] = []
 
-            x_vals = []
-            thrusts = []
-            powers = []
-            currents = []
-            rpms = []
-            eta_tots = []
-            eta_props = []
-            eta_mots = []
-            sweep_rows = []
-
-            curr_t = t_min
-            while curr_t <= t_max + 1e-4:
-                pt = solve_point(v_fixed, curr_t / 100.0)
-                x_vals.append(curr_t)
-                thrusts.append(pt["thrust"])
-                powers.append(pt["power"])
-                currents.append(pt["current"])
-                rpms.append(pt["rpm"])
-                eta_tots.append(pt["eta_sys"])
-                eta_props.append(pt["eta_p"])
-                eta_mots.append(pt["eta_m"])
-                sweep_rows.append({
-                    "x_val": curr_t,
-                    "x_label": "Throttle (%)",
-                    "rpm": pt["rpm"],
-                    "thrust": pt["thrust"],
-                    "power": pt["power"],
-                    "current": pt["current"],
-                    "eta_sys": pt["eta_sys"],
-                    "eta_p": pt["eta_p"],
-                    "eta_m": pt["eta_m"],
-                    "j": pt["j"],
-                    "feasible": pt["feasible"],
-                })
-                curr_t += t_step
-
-            cruise_idx = len(x_vals) - 1
-            cruise_power = max(powers[cruise_idx], 1e-3)
-            batt_wh = (total_voltage * capacity_mah / 1000.0)
-            endurance_min = (batt_wh * 0.8 / cruise_power) * 60.0
-
-            res = {
-                "static_thrust": thrusts[-1] if thrusts else 0.0,
-                "peak_power": max(powers) if powers else 0.0,
-                "peak_current": max(currents) if currents else 0.0,
-                "max_rpm": max(rpms) if rpms else 0.0,
-                "cruise_thrust": thrusts[cruise_idx] if thrusts else 0.0,
-                "cruise_efficiency": eta_tots[cruise_idx] if eta_tots else 0.0,
-                "endurance_min": endurance_min,
-                "advance_ratio": (v_fixed / max((rpms[cruise_idx]/60.0) * prop_spec.diameter_m, 1e-3)),
-                "prop_efficiency": eta_props[cruise_idx],
-                "motor_efficiency": eta_mots[cruise_idx],
-                "voltage_loaded": total_voltage - currents[cruise_idx] * 0.02,
-                "sweep_table": sweep_rows,
-                "motor_max_current": motor_spec.current_max_a,
-            }
-
-            if charts_dock and hasattr(charts_dock, "plot_sweep_results"):
-                charts_dock.plot_sweep_results(
-                    x_label="Throttle (%)",
-                    x_values=x_vals,
-                    thrust_n=thrusts,
-                    power_w=powers,
-                    current_a=currents,
-                    rpm=rpms,
-                    eta_total=eta_tots,
-                    eta_prop=eta_props,
-                    eta_motor=eta_mots,
-                )
-            if results_dock and hasattr(results_dock, "set_results"):
-                results_dock.set_results(res)
-
-        elif mode == "operating_point":
-            v_val = float(params.get("airspeed", 18.0))
-            t_val = float(params.get("throttle", 75.0))
-            pt = solve_point(v_val, t_val / 100.0)
-
-            cruise_power = max(pt["power"], 1e-3)
-            batt_wh = (total_voltage * capacity_mah / 1000.0)
-            endurance_min = (batt_wh * 0.8 / cruise_power) * 60.0
-
-            sweep_rows = [{
-                "x_val": v_val,
+        curr_v = v_min
+        throttle_norm = max(min(throttle_pct / 100.0, 1.0), 0.01)
+        while curr_v <= v_max + 1e-4:
+            pt = self._solve_point(context, curr_v, throttle_norm)
+            x_vals.append(curr_v)
+            thrusts.append(pt["thrust"])
+            powers.append(pt["power"])
+            currents.append(pt["current"])
+            rpms.append(pt["rpm"])
+            eta_tots.append(pt["eta_sys"])
+            eta_props.append(pt["eta_p"])
+            eta_mots.append(pt["eta_m"])
+            sweep_rows.append({
+                "x_val": curr_v,
                 "x_label": "Airspeed (m/s)",
                 "rpm": pt["rpm"],
                 "thrust": pt["thrust"],
@@ -781,31 +728,195 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
                 "eta_m": pt["eta_m"],
                 "j": pt["j"],
                 "feasible": pt["feasible"],
-            }]
+            })
+            curr_v += v_step
 
-            res = {
-                "static_thrust": pt["thrust"],
-                "peak_power": pt["power"],
-                "peak_current": pt["current"],
-                "max_rpm": pt["rpm"],
-                "cruise_thrust": pt["thrust"],
-                "cruise_efficiency": pt["eta_sys"],
-                "endurance_min": endurance_min,
-                "advance_ratio": pt["j"],
-                "prop_efficiency": pt["eta_p"],
-                "motor_efficiency": pt["eta_m"],
-                "voltage_loaded": total_voltage - pt["current"] * 0.02,
-                "sweep_table": sweep_rows,
-                "motor_max_current": motor_spec.current_max_a,
-            }
-            if charts_dock and hasattr(charts_dock, "clear_charts"):
-                charts_dock.clear_charts()
-            if results_dock and hasattr(results_dock, "set_results"):
-                results_dock.set_results(res)
+        # Operating point at cruise (~18 m/s or mid)
+        cruise_idx = min(len(x_vals) - 1, max(0, int(len(x_vals) * 0.5)))
+        cruise_power = max(powers[cruise_idx], 1e-3)
+        batt_wh = (total_voltage * capacity_mah / 1000.0)
+        endurance_min = (batt_wh * 0.8 / cruise_power) * 60.0
 
-        # Check overall feasibility and alert user with PyThrust diagnosis
-        peak_curr = res.get("peak_current", 0.0) if "res" in locals() and res else 0.0
-        peak_pwr = res.get("peak_power", 0.0) if "res" in locals() and res else 0.0
+        res = {
+            "static_thrust": thrusts[0] if thrusts else 0.0,
+            "peak_power": max(powers) if powers else 0.0,
+            "peak_current": max(currents) if currents else 0.0,
+            "max_rpm": max(rpms) if rpms else 0.0,
+            "cruise_thrust": thrusts[cruise_idx] if thrusts else 0.0,
+            "cruise_efficiency": eta_tots[cruise_idx] if eta_tots else 0.0,
+            "endurance_min": endurance_min,
+            "advance_ratio": (x_vals[cruise_idx] / max((rpms[cruise_idx]/60.0) * prop_spec.diameter_m, 1e-3)),
+            "prop_efficiency": eta_props[cruise_idx],
+            "motor_efficiency": eta_mots[cruise_idx],
+            "voltage_loaded": total_voltage - currents[cruise_idx] * 0.02,
+            "sweep_table": sweep_rows,
+            "motor_max_current": motor_spec.current_max_a,
+        }
+
+        self._render_results(
+            context,
+            x_label="Airspeed (m/s)",
+            x_vals=x_vals,
+            thrusts=thrusts,
+            powers=powers,
+            currents=currents,
+            rpms=rpms,
+            eta_tots=eta_tots,
+            eta_props=eta_props,
+            eta_mots=eta_mots,
+            res=res,
+        )
+        return res
+
+    def run_throttle(self, context: dict[str, Any]) -> dict[str, Any]:
+        params = context["params"]
+        motor_spec = context["motor_spec"]
+        prop_spec = context["prop_spec"]
+        total_voltage = context["total_voltage"]
+        capacity_mah = context["capacity_mah"]
+
+        v_fixed = float(params.get("airspeed", 15.0))
+        t_min = float(params.get("t_min", 10.0))
+        t_max = float(params.get("t_max", 100.0))
+        t_step = max(float(params.get("t_step", 5.0)), 1.0)
+
+        x_vals = []
+        thrusts = []
+        powers = []
+        currents = []
+        rpms = []
+        eta_tots = []
+        eta_props = []
+        eta_mots = []
+        sweep_rows = []
+
+        curr_t = t_min
+        while curr_t <= t_max + 1e-4:
+            pt = self._solve_point(context, v_fixed, curr_t / 100.0)
+            x_vals.append(curr_t)
+            thrusts.append(pt["thrust"])
+            powers.append(pt["power"])
+            currents.append(pt["current"])
+            rpms.append(pt["rpm"])
+            eta_tots.append(pt["eta_sys"])
+            eta_props.append(pt["eta_p"])
+            eta_mots.append(pt["eta_m"])
+            sweep_rows.append({
+                "x_val": curr_t,
+                "x_label": "Throttle (%)",
+                "rpm": pt["rpm"],
+                "thrust": pt["thrust"],
+                "power": pt["power"],
+                "current": pt["current"],
+                "eta_sys": pt["eta_sys"],
+                "eta_p": pt["eta_p"],
+                "eta_m": pt["eta_m"],
+                "j": pt["j"],
+                "feasible": pt["feasible"],
+            })
+            curr_t += t_step
+
+        cruise_idx = len(x_vals) - 1
+        cruise_power = max(powers[cruise_idx], 1e-3)
+        batt_wh = (total_voltage * capacity_mah / 1000.0)
+        endurance_min = (batt_wh * 0.8 / cruise_power) * 60.0
+
+        res = {
+            "static_thrust": thrusts[-1] if thrusts else 0.0,
+            "peak_power": max(powers) if powers else 0.0,
+            "peak_current": max(currents) if currents else 0.0,
+            "max_rpm": max(rpms) if rpms else 0.0,
+            "cruise_thrust": thrusts[cruise_idx] if thrusts else 0.0,
+            "cruise_efficiency": eta_tots[cruise_idx] if eta_tots else 0.0,
+            "endurance_min": endurance_min,
+            "advance_ratio": (v_fixed / max((rpms[cruise_idx]/60.0) * prop_spec.diameter_m, 1e-3)),
+            "prop_efficiency": eta_props[cruise_idx],
+            "motor_efficiency": eta_mots[cruise_idx],
+            "voltage_loaded": total_voltage - currents[cruise_idx] * 0.02,
+            "sweep_table": sweep_rows,
+            "motor_max_current": motor_spec.current_max_a,
+        }
+
+        self._render_results(
+            context,
+            x_label="Throttle (%)",
+            x_vals=x_vals,
+            thrusts=thrusts,
+            powers=powers,
+            currents=currents,
+            rpms=rpms,
+            eta_tots=eta_tots,
+            eta_props=eta_props,
+            eta_mots=eta_mots,
+            res=res,
+        )
+        return res
+
+    def run_operating_point(self, context: dict[str, Any]) -> dict[str, Any]:
+        params = context["params"]
+        motor_spec = context["motor_spec"]
+        total_voltage = context["total_voltage"]
+        capacity_mah = context["capacity_mah"]
+
+        v_val = float(params.get("airspeed", 18.0))
+        t_val = float(params.get("throttle", 75.0))
+        pt = self._solve_point(context, v_val, t_val / 100.0)
+
+        cruise_power = max(pt["power"], 1e-3)
+        batt_wh = (total_voltage * capacity_mah / 1000.0)
+        endurance_min = (batt_wh * 0.8 / cruise_power) * 60.0
+
+        sweep_rows = [{
+            "x_val": v_val,
+            "x_label": "Airspeed (m/s)",
+            "rpm": pt["rpm"],
+            "thrust": pt["thrust"],
+            "power": pt["power"],
+            "current": pt["current"],
+            "eta_sys": pt["eta_sys"],
+            "eta_p": pt["eta_p"],
+            "eta_m": pt["eta_m"],
+            "j": pt["j"],
+            "feasible": pt["feasible"],
+        }]
+
+        res = {
+            "static_thrust": pt["thrust"],
+            "peak_power": pt["power"],
+            "peak_current": pt["current"],
+            "max_rpm": pt["rpm"],
+            "cruise_thrust": pt["thrust"],
+            "cruise_efficiency": pt["eta_sys"],
+            "endurance_min": endurance_min,
+            "advance_ratio": pt["j"],
+            "prop_efficiency": pt["eta_p"],
+            "motor_efficiency": pt["eta_m"],
+            "voltage_loaded": total_voltage - pt["current"] * 0.02,
+            "sweep_table": sweep_rows,
+            "motor_max_current": motor_spec.current_max_a,
+        }
+        self._render_results(
+            context,
+            x_label="Airspeed (m/s)",
+            x_vals=[v_val],
+            thrusts=[pt["thrust"]],
+            powers=[pt["power"]],
+            currents=[pt["current"]],
+            rpms=[pt["rpm"]],
+            eta_tots=[pt["eta_sys"]],
+            eta_props=[pt["eta_p"]],
+            eta_mots=[pt["eta_m"]],
+            res=res,
+            clear_charts=True,
+        )
+        return res
+
+    def _show_feasibility_alert(self, context: dict[str, Any], res: dict[str, Any]) -> None:
+        motor_spec = context["motor_spec"]
+        motor_params = context["motor_params"]
+
+        peak_curr = res.get("peak_current", 0.0)
+        peak_pwr = res.get("peak_power", 0.0)
         max_curr_limit = motor_spec.current_max_a
         max_pwr_limit = float(motor_params.get("max_power") or 0.0)
 
@@ -817,7 +928,7 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
                 message=(
                     f"PyThrust Warning: Peak current draw ({peak_curr:.1f} A) exceeds "
                     f"the motor continuous rating ({max_curr_limit:.1f} A) by {over_pct:.0f}%. "
-                    f"The propeller ({diameter_in:.1f}×{pitch_in:.1f}) is overloading the motor at this battery voltage."
+                    f"The propeller ({context['diameter_in']:.1f}×{context['pitch_in']:.1f}) is overloading the motor at this battery voltage."
                 ),
             )
         elif max_pwr_limit > 0 and peak_pwr > max_pwr_limit:
@@ -835,9 +946,7 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
                 severity="success",
                 title="Operating Point Feasible",
                 message=f"PyThrust: All operating points are within safe motor limits (Peak: {peak_curr:.1f} A / Max: {max_curr_limit:.1f} A).",
-            )
-
-    # Helper Table Methods
+            )    # Helper Table Methods
 
     @staticmethod
     def _set_table_combo_selection(table: QTableWidget, key: str, value: str) -> None:

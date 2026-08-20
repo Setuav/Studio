@@ -60,11 +60,12 @@ Amaç: Kod tekrarını ve editör büyüklüğünü kontrol etmek.
    - Bağımlılık: yok
    - Risk: düşük
 
-9. **`_on_run_analysis` parçalama**
-   - `run_sweep / run_throttle / run_operating_point` ayrı metotlar
-   - Her biri `_fallback_data()` / `_solve_rpm()` / `_render_results()` çağırsın
+9. **`_on_run_analysis` parçalama** ✅ *tamamlandı*
+   - `_on_run_analysis` → orkestratör: `_build_analysis_context()` + mode dispatch + `_show_feasibility_alert()`
+   - Ayrı metotlar: `run_sweep` / `run_throttle` / `run_operating_point` (her biri `_solve_point` → `_solve_rpm` kullanır, `_render_results` ile dock'ları günceller)
+   - `_fallback_propeller` (DB fallback verisi), `_solve_rpm` (brentq + rpm_max fallback), `_render_results` (charts + results dock)
    - Bağımlılık: Faz 3.8
-   - Risk: orta (test coverage zayıf, regression riski var)
+   - Risk: orta — integration test (`run_button.click()`) + 3 mod smoke testi doğrulandı
 
 10. **`lifting_surface.py` bölme (1802 → 4-5 modül)**
     - `profile_table.py`, `control_surface.py` (zaten ayrı dosya), `tip_cap.py`, `attachment.py`
