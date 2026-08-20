@@ -25,11 +25,10 @@ Amaç: Sonraki tüm fazların hızını ve güvenliğini artırmak.
 ## Faz 2 — Plugin Sistemi Sağlamlaştırma (2-3 hafta, orta risk)
 Amaç: Plugin davranış sınırlarını netleştirmek.
 
-4. **Degraded mode UI göstergesi**
-   - Status bar / banner bileşeni: eksik plugin listesi + link
-   - `check_project_requirements` çıktısını render et
-   - Bağımlılık: Faz 1.1 (log)
-   - Risk: düşük-orta
+4. **Degraded mode UI göstergesi** ✅ *tamamlandı*
+   - Status bar'a kalıcı "⚠ Degraded mode" badge (tıklanabilir, tooltip = eksik pluginler)
+   - Tıklama → detay dialog (QMessageBox.warning)
+   - `_show_degraded_details` + test (test_main.py)
 
 5. **Plugin deactivate / katkı sökme API'si** ✅ *karar: evet, no-op default*
    - `StudioAPI.remove_panel/workspace/action/editor/...`

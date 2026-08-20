@@ -213,6 +213,15 @@ class MainWindow(QMainWindow):
         self._update_recent_menu()
         self._update_actions()
 
+        self._degraded_badge = QToolButton(self)
+        self._degraded_badge.setText("⚠ Degraded mode")
+        self._degraded_badge.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+        self._degraded_badge.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._degraded_badge.setAutoRaise(True)
+        self._degraded_badge.hide()
+        self._degraded_badge.clicked.connect(self._show_degraded_details)
+        self.statusBar().addPermanentWidget(self._degraded_badge)
+
     def restore_window_layout(self) -> None:
         settings = QSettings()
         geometry = settings.value("main_window/geometry")
@@ -281,12 +290,25 @@ class MainWindow(QMainWindow):
         self._update_window_title()
         self._update_actions()
         if project.degraded:
+            self._degraded_badge.setToolTip("\n".join(project.plugin_issues))
+            self._degraded_badge.show()
             self.statusBar().showMessage(
                 "Degraded mode — " + "; ".join(project.plugin_issues)
             )
         else:
+            self._degraded_badge.hide()
             self.statusBar().clearMessage()
         return True
+
+    def _show_degraded_details(self) -> None:
+        if self._project is None or not self._project.plugin_issues:
+            return
+        QMessageBox.warning(
+            self,
+            "Degraded Mode",
+            "Some plugins required by this project are missing or incompatible:\n\n"
+            + "\n".join(f"• {issue}" for issue in self._project.plugin_issues),
+        )
 
     def save_project(self) -> bool:
         if self._project is None:
