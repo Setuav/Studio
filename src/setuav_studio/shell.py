@@ -144,9 +144,13 @@ class MainWindow(QMainWindow):
         """)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self._workspace_toolbar)
 
-        self._api.set_panel_handler(self._add_panel)
-        self._api.set_workspace_handler(self._add_workspace, self._switch_workspace)
-        self._api.set_action_handler(self._add_action)
+        self._api.set_panel_handler(self._add_panel, self._remove_panel)
+        self._api.set_workspace_handler(
+            self._add_workspace,
+            self._switch_workspace,
+            self._remove_workspace,
+        )
+        self._api.set_action_handler(self._add_action, self._remove_action)
 
         self.setWindowTitle("Setuav Studio")
         self.resize(1200, 800)
@@ -482,6 +486,15 @@ class MainWindow(QMainWindow):
 
         self._update_view_menu(ws_id)
 
+    def _remove_panel(self, panel_id: str) -> None:
+        entry = self._panels.pop(panel_id, None)
+        if entry is None:
+            return
+        _, dock = entry
+        dock.close()
+        dock.deleteLater()
+        self._update_view_menu(self._current_workspace_id)
+
     @staticmethod
     def _wrap_panel(content: QWidget) -> QWidget:
         container = QWidget()
@@ -523,9 +536,37 @@ class MainWindow(QMainWindow):
 
         action.triggered.connect(contribution.callback)
 
+    def _remove_action(self, menu_path: str, title: str) -> None:
+        parts = [p.strip().replace("&", "") for p in menu_path.split("/") if p.strip()]
+        if not parts:
+            parts = ["Tools"]
+        path_key = ""
+        for name in parts:
+            path_key = f"{path_key}/{name.lower()}" if path_key else name.lower()
+        menu = self._menus.get(path_key)
+        if menu is None or not shiboken6.isValid(menu):
+            return
+        for action in menu.actions():
+            if action.text() == title:
+                menu.removeAction(action)
+                break
+
     def _add_workspace(self, contribution: WorkspaceContribution) -> None:
         self._workspaces[contribution.id] = contribution
         self._rebuild_workspace_toolbar()
+
+    def _remove_workspace(self, workspace_id: str) -> None:
+        if workspace_id not in self._workspaces:
+            return
+        del self._workspaces[workspace_id]
+        self._rebuild_workspace_toolbar()
+        for panel_id in list(self._panels):
+            contribution, _ = self._panels[panel_id]
+            if contribution.workspace_id == workspace_id or (
+                isinstance(contribution.workspace_id, (list, tuple, set))
+                and workspace_id in contribution.workspace_id
+            ):
+                self._remove_panel(panel_id)
 
     def _rebuild_workspace_toolbar(self) -> None:
         self._workspace_toolbar.clear()

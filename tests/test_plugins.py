@@ -1,11 +1,14 @@
 import unittest
 from pathlib import Path
 
+from PySide6.QtWidgets import QWidget
+
 from setuav_studio.plugin_system import (
     PanelContribution,
     PluginManager,
     StudioAPI,
     WorkspaceContribution,
+    _candidate_sort_key,
 )
 from setuav_studio.plugins.core import CorePlugin
 from setuav_studio.plugins.core.project import ProjectExplorer
@@ -14,6 +17,8 @@ from setuav_studio.plugins.geometry.fuselage import FuselageEditor
 from setuav_studio.plugins.geometry.mesh import build_loft_wire_vertices
 from setuav_studio.plugins.geometry.data import GeometryData, LoftGeometry, Section
 from setuav_studio.project import ProjectDocument
+
+from tests._common import get_qapp
 
 
 class PluginTests(unittest.TestCase):
@@ -221,6 +226,116 @@ class PluginTests(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             self.manager.activate(CorePlugin())
+
+    def test_plugin_deactivate_and_reactivate(self) -> None:
+        activated: list[str] = []
+        deactivated: list[str] = []
+
+        class ReversiblePlugin:
+            id = "com.example.reversible"
+            provides = {"org.example.dep": "1.0.0"}
+
+            def activate(self, api: StudioAPI) -> None:
+                activated.append(self.id)
+                api.register_component_editor("com.example:thing", lambda c: QWidget())
+
+            def deactivate(self, api: StudioAPI) -> None:
+                deactivated.append(self.id)
+                api.remove_component_editor("com.example:thing")
+
+        plugin = ReversiblePlugin()
+        self.manager.activate(plugin)
+
+        self.assertEqual(activated, ["com.example.reversible"])
+        self.assertIn("com.example:thing", self.api._component_editors)
+        self.assertIn("org.example.dep", self.manager._providers)
+
+        self.manager.deactivate("com.example.reversible")
+
+        self.assertEqual(deactivated, ["com.example.reversible"])
+        self.assertNotIn("com.example:thing", self.api._component_editors)
+        self.assertNotIn("org.example.dep", self.manager._providers)
+        self.assertNotIn("com.example.reversible", self.manager._plugins)
+
+        self.manager.activate(plugin)
+        self.assertIn("com.example:thing", self.api._component_editors)
+
+    def test_deactivate_without_deactivate_method_is_noop(self) -> None:
+        class PlainPlugin:
+            id = "com.example.plain"
+
+            def activate(self, api: StudioAPI) -> None:
+                api.register_component_editor("com.example:plain", lambda c: QWidget())
+
+        plugin = PlainPlugin()
+        self.manager.activate(plugin)
+        self.manager.deactivate("com.example.plain")
+
+        self.assertNotIn("com.example.plain", self.manager._plugins)
+        self.assertIn("com.example:plain", self.api._component_editors)
+        with self.assertRaises(ValueError):
+            self.manager.deactivate("com.example.plain")
+
+    def test_candidate_sort_key_orders_by_priority_then_id(self) -> None:
+        class LowPriority:
+            id = "z-low"
+            priority = 10
+
+            def activate(self, api: StudioAPI) -> None: ...
+
+        class HighPriority:
+            id = "a-high"
+            priority = 90
+
+            def activate(self, api: StudioAPI) -> None: ...
+
+        class NoPriority:
+            id = "b-plain"
+
+            def activate(self, api: StudioAPI) -> None: ...
+
+        keys = [
+            _candidate_sort_key(HighPriority, "src-high"),
+            _candidate_sort_key(LowPriority, "src-low"),
+            _candidate_sort_key(NoPriority, "src-plain"),
+        ]
+        keys.sort(key=lambda item: (item[0], item[1]))
+
+        self.assertEqual(
+            [key[1] for key in keys],
+            ["z-low", "a-high", "b-plain"],
+        )
+        self.assertEqual(keys[0][0], 10)
+        self.assertEqual(keys[1][0], 90)
+        self.assertEqual(keys[2][0], 100)
+
+    def test_remove_panel_and_workspace_via_shell(self) -> None:
+        from setuav_studio.shell import MainWindow
+
+        get_qapp()
+        api = StudioAPI()
+        window = MainWindow(api)
+        api.add_panel(
+            PanelContribution(
+                id="test.removable",
+                title="Removable Panel",
+                factory=QWidget,
+            )
+        )
+        api.add_workspace(
+            WorkspaceContribution(
+                id="test.removable-ws",
+                title="Removable Workspace",
+            )
+        )
+        self.assertIn("test.removable", window._panels)
+        self.assertIn("test.removable-ws", window._workspaces)
+
+        api.remove_panel("test.removable")
+        api.remove_workspace("test.removable-ws")
+
+        self.assertNotIn("test.removable", window._panels)
+        self.assertNotIn("test.removable-ws", window._workspaces)
 
 
 if __name__ == "__main__":

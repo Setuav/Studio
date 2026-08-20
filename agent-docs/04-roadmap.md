@@ -30,19 +30,18 @@ Amaç: Plugin davranış sınırlarını netleştirmek.
    - Tıklama → detay dialog (QMessageBox.warning)
    - `_show_degraded_details` + test (test_main.py)
 
-5. **Plugin deactivate / katkı sökme API'si** ✅ *karar: evet, no-op default*
-   - `StudioAPI.remove_panel/workspace/action/editor/...`
-   - `StudioPlugin.deactivate(self, api)` opsiyonel; yoksa no-op
-   - Contract şimdi belirlenir; hot-reload backend'i sonra
-   - Test: bir plugin activate → deactivate → yeniden activate
-   - Bağımlılık: Faz 2.4
-   - Risk: orta
+5. **Plugin deactivate / katkı sökme API'si** ✅ *tamamlandı*
+   - `StudioAPI.remove_panel/workspace/action/component_editor/kind_editor/icon/kind_icon/geometry_provider`
+   - `StudioPlugin.deactivate(api)` opsiyonel; yoksa no-op (sadece manager kayıtları sökülür)
+   - `PluginManager.deactivate(plugin_id)` + `_plugin_providers` takibi (yeniden activate edilebilir)
+   - Shell: `_remove_panel`/`_remove_workspace` (bağlı panelleri de söker)/`_remove_action`
+   - 3 test: reversible plugin round-trip, no-op davranış, shell üzerinden panel/workspace sökme
 
-6. **Plugin yükleme sırası deterministik**
-   - `Contribution`'a opsiyonel `priority: int` ekle (default 100)
-   - `PluginManager` toplama + priority'ye göre sırala
-   - Bağımlılık: yok
-   - Risk: düşük
+6. **Plugin yükleme sırası deterministik** ✅ *tamamlandı*
+   - `StudioPlugin.priority: int` (default 100, düşük = önce)
+   - Keşif iki aşamalı: candidate topla → `(priority, id)` sırala → tek tek activate
+   - Bundled + entry-points aynı sıralama; hata toplama korundu
+   - `_candidate_sort_key` + test
 
 7. **Versiyon çözümleyici genişletme**
    - PEP 440 desteği (`packaging.version` zaten standart kütüphane)

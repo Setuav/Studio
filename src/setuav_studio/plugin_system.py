@@ -131,10 +131,13 @@ class StudioAPI:
         self.current_section_selection: tuple[str, int, int] | None = None
         self.current_workspace_id: str | None = None
         self._add_panel: Callable[[PanelContribution], None] | None = None
+        self._remove_panel: Callable[[str], None] | None = None
         self._add_workspace: Callable[[WorkspaceContribution], None] | None = None
+        self._remove_workspace: Callable[[str], None] | None = None
         self._switch_workspace_handler: Callable[[str], None] | None = None
         self._pending_workspaces: list[WorkspaceContribution] = []
         self._add_action: Callable[[ActionContribution], None] | None = None
+        self._remove_action: Callable[[str, str], None] | None = None
         self._pending_actions: list[ActionContribution] = []
         self._project_listeners: list[Callable[[ProjectDocument], None]] = []
         self._project_content_listeners: list[Callable[[ProjectDocument], None]] = []
@@ -169,21 +172,32 @@ class StudioAPI:
     def project(self, value: ProjectDocument | None) -> None:
         self.current_project = value
 
-    def set_panel_handler(self, handler: Callable[[PanelContribution], None]) -> None:
+    def set_panel_handler(
+        self,
+        handler: Callable[[PanelContribution], None],
+        remove_handler: Callable[[str], None] | None = None,
+    ) -> None:
         self._add_panel = handler
+        self._remove_panel = remove_handler
 
     def add_panel(self, contribution: PanelContribution) -> None:
         if self._add_panel is None:
             raise RuntimeError("The Studio shell is not ready for panel contributions")
         self._add_panel(contribution)
 
+    def remove_panel(self, panel_id: str) -> None:
+        if self._remove_panel is not None:
+            self._remove_panel(panel_id)
+
     def set_workspace_handler(
         self,
         handler: Callable[[WorkspaceContribution], None],
         switch_handler: Callable[[str], None] | None = None,
+        remove_handler: Callable[[str], None] | None = None,
     ) -> None:
         self._add_workspace = handler
         self._switch_workspace_handler = switch_handler
+        self._remove_workspace = remove_handler
         for workspace in self._pending_workspaces:
             handler(workspace)
         self._pending_workspaces.clear()
@@ -193,6 +207,10 @@ class StudioAPI:
             self._add_workspace(contribution)
         else:
             self._pending_workspaces.append(contribution)
+
+    def remove_workspace(self, workspace_id: str) -> None:
+        if self._remove_workspace is not None:
+            self._remove_workspace(workspace_id)
 
     def set_workspace(self, contribution: WorkspaceContribution) -> None:
         self.add_workspace(contribution)
@@ -212,8 +230,10 @@ class StudioAPI:
     def set_action_handler(
         self,
         handler: Callable[[ActionContribution], None],
+        remove_handler: Callable[[str, str], None] | None = None,
     ) -> None:
         self._add_action = handler
+        self._remove_action = remove_handler
         for action in self._pending_actions:
             handler(action)
         self._pending_actions.clear()
@@ -223,6 +243,10 @@ class StudioAPI:
             self._add_action(contribution)
         else:
             self._pending_actions.append(contribution)
+
+    def remove_action(self, menu: str, title: str) -> None:
+        if self._remove_action is not None:
+            self._remove_action(menu, title)
 
     def register_tool(self, contribution: ToolContribution) -> None:
         menu_path = f"Tools/{contribution.group}" if contribution.group else "Tools"
@@ -443,6 +467,9 @@ class StudioAPI:
             )
         self._component_editors[component_type] = factory
 
+    def remove_component_editor(self, component_type: str) -> None:
+        self._component_editors.pop(component_type, None)
+
     def register_kind_editor(
         self,
         component_kind: str,
@@ -453,6 +480,9 @@ class StudioAPI:
                 f"An editor is already registered for component kind: {component_kind}"
             )
         self._kind_editors[component_kind] = factory
+
+    def remove_kind_editor(self, component_kind: str) -> None:
+        self._kind_editors.pop(component_kind, None)
 
     def create_component_editor(
         self,
@@ -483,6 +513,9 @@ class StudioAPI:
             )
         self._component_icons[component_type] = icon
 
+    def remove_component_icon(self, component_type: str) -> None:
+        self._component_icons.pop(component_type, None)
+
     def register_kind_icon(
         self,
         component_kind: str,
@@ -493,6 +526,9 @@ class StudioAPI:
                 f"An icon is already registered for component kind: {component_kind}"
             )
         self._kind_icons[component_kind] = icon
+
+    def remove_kind_icon(self, component_kind: str) -> None:
+        self._kind_icons.pop(component_kind, None)
 
     def get_component_icon(self, component: dict[str, Any]) -> QIcon:
         component_type = component.get("type")
@@ -516,6 +552,9 @@ class StudioAPI:
         if component_type in self._geometry_providers:
             raise ValueError(f"A geometry provider is already registered for: {component_type}")
         self._geometry_providers[component_type] = provider
+
+    def remove_geometry_provider(self, component_type: str) -> None:
+        self._geometry_providers.pop(component_type, None)
 
     def build_geometry_data(
         self,
@@ -545,8 +584,11 @@ class StudioAPI:
 
 class StudioPlugin(Protocol):
     id: str
+    priority: int
 
     def activate(self, api: StudioAPI) -> None: ...
+
+    def deactivate(self, api: StudioAPI) -> None: ...
 
 
 class PluginManager:
@@ -554,6 +596,7 @@ class PluginManager:
         self._api = api
         self._plugins: dict[str, StudioPlugin] = {}
         self._providers: dict[str, str] = {}
+        self._plugin_providers: dict[str, dict[str, str]] = {}
         api.set_project_requirement_checker(self.check_project_requirements)
 
     def activate(self, plugin: StudioPlugin) -> None:
@@ -564,8 +607,20 @@ class PluginManager:
         self._plugins[plugin.id] = plugin
         provides = getattr(plugin, "provides", {})
         if isinstance(provides, dict):
-            for plugin_id, version in provides.items():
-                self._providers[str(plugin_id)] = str(version)
+            provided = {str(plugin_id): str(version) for plugin_id, version in provides.items()}
+            self._providers.update(provided)
+            self._plugin_providers[plugin.id] = provided
+
+    def deactivate(self, plugin_id: str) -> None:
+        plugin = self._plugins.pop(plugin_id, None)
+        if plugin is None:
+            raise ValueError(f"Plugin is not active: {plugin_id}")
+        logger.info("Deactivating plugin: %s", plugin_id)
+        deactivate = getattr(plugin, "deactivate", None)
+        if callable(deactivate):
+            deactivate(self._api)
+        for provided_id in self._plugin_providers.pop(plugin_id, {}):
+            self._providers.pop(provided_id, None)
 
     def discover(self) -> list[PluginLoadIssue]:
         logger.info("Discovering plugins")
@@ -598,27 +653,43 @@ class PluginManager:
     def _discover_bundled(self) -> list[PluginLoadIssue]:
         package = import_module("setuav_studio.plugins")
         issues: list[PluginLoadIssue] = []
+        candidates: list[tuple[int, str, object]] = []
         for module_info in pkgutil.iter_modules(package.__path__):
             source = f"setuav_studio.plugins.{module_info.name}"
             try:
                 module = import_module(source)
                 candidate = getattr(module, "PLUGIN", None)
                 if candidate is not None:
-                    self._activate_candidate(candidate)
+                    candidates.append(_candidate_sort_key(candidate, source))
             except Exception as exc:
                 logger.warning("Failed to load bundled plugin %s: %s", source, exc)
                 issues.append(PluginLoadIssue(source, str(exc)))
+        candidates.sort(key=lambda item: (item[0], item[1]))
+        for _, _, candidate in candidates:
+            try:
+                self._activate_candidate(candidate)
+            except Exception as exc:
+                logger.warning("Failed to activate plugin: %s", exc)
+                issues.append(PluginLoadIssue("plugin", str(exc)))
         return issues
 
     def _discover_entry_points(self) -> list[PluginLoadIssue]:
         issues: list[PluginLoadIssue] = []
+        candidates: list[tuple[int, str, object]] = []
         for entry_point in metadata.entry_points(group="setuav_studio.plugins"):
             try:
                 logger.info("Loading entry-point plugin: %s", entry_point.name)
-                self._activate_candidate(entry_point.load())
+                candidates.append(_candidate_sort_key(entry_point.load(), entry_point.name))
             except Exception as exc:
                 logger.warning("Failed to load entry-point plugin %s: %s", entry_point.name, exc)
                 issues.append(PluginLoadIssue(entry_point.name, str(exc)))
+        candidates.sort(key=lambda item: (item[0], item[1]))
+        for _, _, candidate in candidates:
+            try:
+                self._activate_candidate(candidate)
+            except Exception as exc:
+                logger.warning("Failed to activate plugin: %s", exc)
+                issues.append(PluginLoadIssue("plugin", str(exc)))
         return issues
 
     def _activate_candidate(self, candidate: object) -> None:
@@ -629,6 +700,14 @@ class PluginManager:
         if not hasattr(plugin, "activate") or not isinstance(plugin_id, str):
             raise TypeError("Plugin entry must provide id and activate(api)")
         self.activate(plugin)
+
+
+def _candidate_sort_key(candidate: object, source: str) -> tuple[int, str, object]:
+    priority = getattr(candidate, "priority", 100)
+    if not isinstance(priority, int):
+        priority = 100
+    plugin_id = getattr(candidate, "id", source)
+    return priority, str(plugin_id), candidate
 
 
 def _version_satisfies(installed: str, requirement: str) -> bool:
