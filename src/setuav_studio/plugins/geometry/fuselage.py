@@ -7,9 +7,11 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
     QComboBox,
+    QDoubleSpinBox,
     QHeaderView,
     QHBoxLayout,
     QLabel,
+    QPushButton,
     QScrollArea,
     QSizePolicy,
     QTableWidget,
@@ -21,6 +23,12 @@ from PySide6.QtWidgets import (
 
 from setuav_studio.icons import get_icon
 from setuav_studio.plugin_system import StudioAPI
+from setuav_studio.plugins.core.numeric_spinbox import (
+    NoWheelComboBox,
+    NumericSpinBox,
+    set_table_spinbox,
+)
+from setuav_studio.plugins.geometry.fuselage_section_dialog import FuselageSectionDialog
 
 
 class FuselageEditor(QWidget):
@@ -126,11 +134,15 @@ class FuselageEditor(QWidget):
         )
         self.sections_table.setColumnWidth(0, 32)
         self.sections_table.currentCellChanged.connect(self._on_section_selected)
+        self.sections_table.doubleClicked.connect(self._on_section_double_clicked)
         layout.addWidget(self.sections_table)
 
         section_actions = QHBoxLayout()
         section_actions.setContentsMargins(0, 2, 0, 2)
         section_actions.setSpacing(2)
+        self.inspect_section_button = self._action_button(
+            "mdi6.eye-outline", "Inspect & Edit 2D Cross-Section...", self._inspect_section
+        )
         self.add_section_button = self._action_button(
             "add", "Add section", self._add_section
         )
@@ -147,6 +159,7 @@ class FuselageEditor(QWidget):
             "remove", "Delete section", self._delete_section
         )
         for button in (
+            self.inspect_section_button,
             self.add_section_button,
             self.duplicate_section_button,
             self.move_section_up_button,
@@ -187,7 +200,6 @@ class FuselageEditor(QWidget):
         )
         self.transform_table.verticalHeader().setDefaultSectionSize(23)
         self.transform_table.verticalHeader().setMinimumWidth(82)
-        self.transform_table.setAlternatingRowColors(True)
         self.transform_table.setFixedHeight(71)
         for row in range(2):
             for column in range(3):
@@ -198,6 +210,13 @@ class FuselageEditor(QWidget):
         transform_layout.addWidget(self.transform_table)
 
         properties_layout = self._create_section("Section Properties", "fa6s.sliders")
+
+        self.inspect_2d_button = QPushButton("Inspect & Edit 2D Section...")
+        self.inspect_2d_button.setIcon(get_icon("mdi6.vector-polygon"))
+        self.inspect_2d_button.setToolTip("Open interactive 2D cross-section inspector & metrics")
+        self.inspect_2d_button.clicked.connect(self._inspect_section)
+        properties_layout.addWidget(self.inspect_2d_button)
+
         self.section_properties_table = self._property_table([])
         self.section_properties_table.cellChanged.connect(
             self._update_section_property
@@ -205,7 +224,6 @@ class FuselageEditor(QWidget):
         properties_layout.addWidget(self.section_properties_table)
 
         self.vertices_table = self._table(["Y", "Z", "Radius"])
-        self.vertices_table.setEditTriggers(QAbstractItemView.EditTrigger.DoubleClicked)
         self.vertices_table.cellChanged.connect(self._update_vertices)
         properties_layout.addWidget(self.vertices_table)
 
@@ -262,8 +280,16 @@ class FuselageEditor(QWidget):
             str(self._component.get("type") or ""),
             editable=False,
         )
-        self._set_property_value(
-            self.general_table, "mass", self._parameters().get("mass") or 0
+        mass_val = float(self._parameters().get("mass") or 0.0)
+        self._set_property_spinbox(
+            self.general_table,
+            "mass",
+            mass_val,
+            min_val=0.0,
+            step=10.0,
+            decimals=1,
+            suffix="g",
+            on_changed=lambda _v: self._update_general(3, 1),
         )
         self._populate_segments()
         self._loading = False
@@ -610,6 +636,8 @@ class FuselageEditor(QWidget):
         index = self._section_index
         has_segment = self._current_segment() is not None
         has_section = 0 <= index < len(sections)
+        self.inspect_section_button.setEnabled(has_section)
+        self.inspect_2d_button.setEnabled(has_section)
         self.add_section_button.setEnabled(has_segment)
         self.duplicate_section_button.setEnabled(has_section)
         self.move_section_up_button.setEnabled(has_section and index > 0)
@@ -617,6 +645,29 @@ class FuselageEditor(QWidget):
             has_section and index < len(sections) - 1
         )
         self.delete_section_button.setEnabled(has_section and len(sections) > 2)
+
+    def _on_section_double_clicked(self, _index: Any = None) -> None:
+        self._inspect_section()
+
+    def _inspect_section(self) -> None:
+        if self._segment_index < 0 or self._section_index < 0:
+            return
+        segs = self._segments()
+        if not (0 <= self._segment_index < len(segs)):
+            return
+        secs = self._sections()
+        if not (0 <= self._section_index < len(secs)):
+            return
+
+        dlg = FuselageSectionDialog(
+            self._api,
+            self._component,
+            segment_index=self._segment_index,
+            section_index=self._section_index,
+            parent=self,
+        )
+        if dlg.exec():
+            self._load_component()
 
     @classmethod
     def _new_section(
@@ -845,25 +896,48 @@ class FuselageEditor(QWidget):
         position: tuple[float, float, float],
         rotation: tuple[float, float, float],
     ) -> None:
-        for row, values in enumerate((position, rotation)):
-            for column, value in enumerate(values):
-                item = self.transform_table.item(row, column)
-                if item is not None:
-                    item.setText(f"{value:.2f}")
+        for column, value in enumerate(position):
+            set_table_spinbox(
+                self.transform_table,
+                0,
+                column,
+                value,
+                step=5.0,
+                decimals=2,
+                suffix="mm",
+                on_changed=lambda _v: self._update_section(0, 0),
+            )
+        for column, value in enumerate(rotation):
+            set_table_spinbox(
+                self.transform_table,
+                1,
+                column,
+                value,
+                min_val=-360.0,
+                max_val=360.0,
+                step=1.0,
+                decimals=2,
+                suffix="°",
+                on_changed=lambda _v: self._update_section(1, 0),
+            )
 
     def _transform_values(
         self,
     ) -> tuple[tuple[float, float, float], tuple[float, float, float]] | None:
         rows: list[tuple[float, float, float]] = []
         for row in range(2):
-            try:
-                values = tuple(
-                    float(self.transform_table.item(row, column).text())
-                    for column in range(3)
-                )
-            except (AttributeError, ValueError):
-                return None
-            rows.append(values)
+            vals: list[float] = []
+            for column in range(3):
+                w = self.transform_table.cellWidget(row, column)
+                if isinstance(w, QDoubleSpinBox):
+                    vals.append(float(w.value()))
+                else:
+                    item = self.transform_table.item(row, column)
+                    try:
+                        vals.append(float(item.text()) if item is not None else 0.0)
+                    except (AttributeError, ValueError):
+                        return None
+            rows.append(tuple(vals))
         return rows[0], rows[1]
 
     def _update_vertices(self, row: int, column: int) -> None:
@@ -876,11 +950,15 @@ class FuselageEditor(QWidget):
         vertices = profile.get("vertices")
         if not isinstance(vertices, list) or not 0 <= row < len(vertices):
             return
-        item = self.vertices_table.item(row, column)
-        try:
-            value = float(item.text()) if item is not None else 0.0
-        except ValueError:
-            return
+        w = self.vertices_table.cellWidget(row, column)
+        if isinstance(w, QDoubleSpinBox):
+            value = float(w.value())
+        else:
+            item = self.vertices_table.item(row, column)
+            try:
+                value = float(item.text()) if item is not None else 0.0
+            except ValueError:
+                return
         key = ("y", "z", "radius")[column]
         if isinstance(vertices[row], dict):
             self._api.edit_component(
@@ -917,17 +995,43 @@ class FuselageEditor(QWidget):
         self._configure_property_table(self.section_properties_table, definitions)
         for key, _label in definitions:
             if key == "type":
-                value: object = profile_type
+                continue
             elif key == "vertices":
                 value = len(profile.get("vertices") or [])
+                self._set_property_value(
+                    self.section_properties_table,
+                    key,
+                    value,
+                    editable=False,
+                )
+            elif key in ("corner_radius", "fillet_radius"):
+                self._set_property_spinbox(
+                    self.section_properties_table,
+                    key,
+                    float(profile.get(key, 0.0)),
+                    min_val=0.0,
+                    step=1.0,
+                    decimals=2,
+                    suffix="mm",
+                    on_changed=lambda _v, k=key: self._on_property_spin_changed(k, _v),
+                )
+            elif key in ("diameter", "width", "height", "top_width", "bottom_width", "base_width"):
+                self._set_property_spinbox(
+                    self.section_properties_table,
+                    key,
+                    float(profile.get(key, 0.0)),
+                    min_val=0.0,
+                    step=5.0,
+                    decimals=2,
+                    suffix="mm",
+                    on_changed=lambda _v, k=key: self._on_property_spin_changed(k, _v),
+                )
             else:
-                value = profile.get(key, 0)
-            self._set_property_value(
-                self.section_properties_table,
-                key,
-                value,
-                editable=key != "vertices",
-            )
+                self._set_property_value(
+                    self.section_properties_table,
+                    key,
+                    profile.get(key, 0),
+                )
         self._set_property_combo(
             self.section_properties_table,
             "type",
@@ -945,6 +1049,20 @@ class FuselageEditor(QWidget):
             )
         self.vertices_table.setVisible(profile_type == "polygon")
 
+    def _on_property_spin_changed(self, key: str, value: float) -> None:
+        if self._loading:
+            return
+        section = self._current_section()
+        if section is None:
+            return
+        profile = self._object(section, "profile")
+        self._api.edit_component(
+            self._component,
+            "Edit section profile",
+            lambda: profile.__setitem__(key, float(value)),
+        )
+        self._refresh_section_row()
+
     def _populate_vertices(self, profile: dict[str, Any]) -> None:
         vertices = profile.get("vertices")
         if not isinstance(vertices, list):
@@ -953,13 +1071,56 @@ class FuselageEditor(QWidget):
         for row, vertex in enumerate(vertices):
             if not isinstance(vertex, dict):
                 continue
-            for column, key in enumerate(("y", "z", "radius")):
-                self.vertices_table.setItem(
-                    row,
-                    column,
-                    QTableWidgetItem(str(vertex.get(key) or 0)),
-                )
+            set_table_spinbox(
+                self.vertices_table,
+                row,
+                0,
+                float(vertex.get("y") or 0.0),
+                step=1.0,
+                decimals=2,
+                suffix="mm",
+                on_changed=lambda val, r=row: self._on_vertex_spin_changed(r, 0, val),
+            )
+            set_table_spinbox(
+                self.vertices_table,
+                row,
+                1,
+                float(vertex.get("z") or 0.0),
+                step=1.0,
+                decimals=2,
+                suffix="mm",
+                on_changed=lambda val, r=row: self._on_vertex_spin_changed(r, 1, val),
+            )
+            set_table_spinbox(
+                self.vertices_table,
+                row,
+                2,
+                float(vertex.get("radius") or 0.0),
+                min_val=0.0,
+                step=0.5,
+                decimals=2,
+                suffix="mm",
+                on_changed=lambda val, r=row: self._on_vertex_spin_changed(r, 2, val),
+            )
         self._fit_table_height(self.vertices_table, len(vertices))
+
+    def _on_vertex_spin_changed(self, row: int, column: int, value: float) -> None:
+        if self._loading:
+            return
+        section = self._current_section()
+        if section is None:
+            return
+        profile = self._object(section, "profile")
+        vertices = profile.get("vertices")
+        if not isinstance(vertices, list) or not 0 <= row < len(vertices):
+            return
+        key = ("y", "z", "radius")[column]
+        if isinstance(vertices[row], dict):
+            self._api.edit_component(
+                self._component,
+                "Edit polygon vertex",
+                lambda: vertices[row].__setitem__(key, float(value)),
+            )
 
     def _refresh_section_row(self) -> None:
         section = self._current_section()
@@ -1089,7 +1250,7 @@ class FuselageEditor(QWidget):
         if item is not None:
             item.setText("")
             item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-        combo = QComboBox(table)
+        combo = NoWheelComboBox(table)
         combo.setFont(QApplication.font())
         combo.setSizePolicy(
             QSizePolicy.Policy.Expanding,
@@ -1129,6 +1290,36 @@ class FuselageEditor(QWidget):
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             return
 
+    def _set_property_spinbox(
+        self,
+        table: QTableWidget,
+        key: str,
+        value: float,
+        *,
+        min_val: float = -1e6,
+        max_val: float = 1e6,
+        step: float = 1.0,
+        decimals: int = 2,
+        suffix: str = "",
+        on_changed: Callable[[float], None] | None = None,
+    ) -> NumericSpinBox | None:
+        for row in range(table.rowCount()):
+            if self._property_key(table, row) != key:
+                continue
+            return set_table_spinbox(
+                table,
+                row,
+                1,
+                value,
+                min_val=min_val,
+                max_val=max_val,
+                step=step,
+                decimals=decimals,
+                suffix=suffix,
+                on_changed=on_changed,
+            )
+        return None
+
     @staticmethod
     def _property_key(table: QTableWidget, row: int) -> str:
         item = table.item(row, 0)
@@ -1141,6 +1332,8 @@ class FuselageEditor(QWidget):
         editor = table.cellWidget(row, 1)
         if isinstance(editor, QComboBox):
             return str(editor.currentData())
+        if isinstance(editor, QDoubleSpinBox):
+            return str(editor.value())
         item = table.item(row, 1)
         return item.text() if item is not None else ""
 

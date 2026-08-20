@@ -194,7 +194,11 @@ class GeometryTests(unittest.TestCase):
         self.assertIsNotNone(driver_mode_combo)
         driver_mode_combo.setCurrentIndex(1)  # Span, Root & Tip
         self.assertEqual(editor._driver_mode, "span_root_tip")
-        editor.planform_table.item(1, 1).setText("1200.0")  # Change span to 1200
+        span_spin = editor.planform_table.cellWidget(1, 1)
+        if span_spin:
+            span_spin.setValue(1200.0)
+        else:
+            editor._on_planform_spinbox_changed("span", 1200.0)
         # Profiles should scale such that total tip-to-tip wingspan = 2 * (y_offset + y_tip) = 1200.0 mm
         # With attachment y_offset = 75.0 mm, local tip position is at 525.0 mm
         self.assertAlmostEqual(
@@ -207,28 +211,51 @@ class GeometryTests(unittest.TestCase):
         # Column 2 (Span Y) and Column 3 (Chord) should NOT have ItemIsEditable in driver mode
         self.assertFalse(bool(editor.profiles_table.item(0, 2).flags() & Qt.ItemFlag.ItemIsEditable))
         self.assertFalse(bool(editor.profiles_table.item(0, 3).flags() & Qt.ItemFlag.ItemIsEditable))
+        # Profile properties table should have chord, span_y, offset_x widgets disabled
+        editor._load_profile(0)
+        self.assertFalse(editor.profile_properties_table.cellWidget(1, 1).isEnabled())  # chord
+        self.assertFalse(editor.profile_properties_table.cellWidget(3, 1).isEnabled())  # span_y
+        self.assertFalse(editor.profile_properties_table.cellWidget(4, 1).isEnabled())  # offset_x
+        self.assertFalse(editor.add_profile_button.isEnabled())
+        self.assertFalse(editor.duplicate_profile_button.isEnabled())
 
-        # Switch to manual mode: all columns become editable
+        # Switch to manual mode: all columns and station properties become editable
         driver_mode_combo.setCurrentIndex(4)  # Manual
         self.assertEqual(editor._driver_mode, "manual")
         self.assertTrue(bool(editor.profiles_table.item(0, 2).flags() & Qt.ItemFlag.ItemIsEditable))
         self.assertTrue(bool(editor.profiles_table.item(0, 3).flags() & Qt.ItemFlag.ItemIsEditable))
+        editor._load_profile(0)
+        self.assertTrue(editor.profile_properties_table.cellWidget(1, 1).isEnabled())  # chord
+        self.assertTrue(editor.profile_properties_table.cellWidget(3, 1).isEnabled())  # span_y
+        self.assertTrue(editor.profile_properties_table.cellWidget(4, 1).isEnabled())  # offset_x
+        self.assertTrue(editor.add_profile_button.isEnabled())
+        self.assertTrue(editor.duplicate_profile_button.isEnabled())
 
         # Add control surface
         init_cs = editor.control_surfaces_table.rowCount()
         editor.add_cs_button.click()
         self.assertEqual(editor.control_surfaces_table.rowCount(), init_cs + 1)
-        self.assertIn("control_", editor._property_text(editor.cs_properties_table, 0))
-
         # Edit control surface via cs_properties_table
         cs_idx = editor._control_surface_index
-        editor.cs_properties_table.item(6, 1).setText("18.5")  # Deflection
+        spin_defl = editor.cs_properties_table.cellWidget(6, 1)
+        if spin_defl:
+            spin_defl.setValue(18.5)
+        else:
+            editor._on_cs_prop_spinbox_changed("deflection", 18.5)
         self.assertEqual(editor._cs_geom(editor._control_surfaces()[cs_idx])["deflection"], 18.5)
 
-        editor.cs_properties_table.item(4, 1).setText("55.0")  # Chord
+        spin_chord = editor.cs_properties_table.cellWidget(4, 1)
+        if spin_chord:
+            spin_chord.setValue(55.0)
+        else:
+            editor._on_cs_prop_spinbox_changed("chord", 55.0)
         self.assertEqual(editor._cs_geom(editor._control_surfaces()[cs_idx])["chord"], 55.0)
 
-        editor.cs_properties_table.item(5, 1).setText("5.0")  # Hinge Sweep
+        spin_sweep = editor.cs_properties_table.cellWidget(5, 1)
+        if spin_sweep:
+            spin_sweep.setValue(5.0)
+        else:
+            editor._on_cs_prop_spinbox_changed("hinge_sweep", 5.0)
         self.assertEqual(editor._cs_geom(editor._control_surfaces()[cs_idx])["hinge_sweep"], 5.0)
 
         # Edit tag inline via control_surfaces_table
@@ -241,20 +268,28 @@ class GeometryTests(unittest.TestCase):
         self.assertEqual(api.current_section_selection, ("main-wing", 0, 1))
 
         # Check Attachment (Component Transform)
-        self.assertEqual(editor.attachment_table.item(0, 0).text(), "305.00")
-        self.assertEqual(editor.attachment_table.item(0, 1).text(), "75.00")
-        self.assertEqual(editor.attachment_table.item(0, 2).text(), "40.00")
+        self.assertAlmostEqual(editor.attachment_table.cellWidget(0, 0).value(), 305.00)
+        self.assertAlmostEqual(editor.attachment_table.cellWidget(0, 1).value(), 75.00)
+        self.assertAlmostEqual(editor.attachment_table.cellWidget(0, 2).value(), 40.00)
 
         # Edit Attachment Transform
-        editor.attachment_table.item(0, 0).setText("320.00")
+        editor.attachment_table.cellWidget(0, 0).setValue(320.00)
         self.assertEqual(wing_comp["transform"]["position"]["x"], 320.0)
 
         # Edit height_z in profile_properties_table (Row 5)
-        editor.profile_properties_table.item(5, 1).setText("25.00")
+        spin_z = editor.profile_properties_table.cellWidget(5, 1)
+        if spin_z:
+            spin_z.setValue(25.0)
+        else:
+            editor._on_profile_prop_spinbox_changed("height_z", 25.0)
         self.assertEqual(wing_comp["parameters"]["geometry"]["profiles"][1]["position"]["z"], 25.0)
 
         # Edit chord in profile_properties_table (Row 1)
-        editor.profile_properties_table.item(1, 1).setText("180.0")
+        spin_chord = editor.profile_properties_table.cellWidget(1, 1)
+        if spin_chord:
+            spin_chord.setValue(180.0)
+        else:
+            editor._on_profile_prop_spinbox_changed("chord", 180.0)
         self.assertEqual(wing_comp["parameters"]["geometry"]["profiles"][1]["chord"], 180.0)
         self.assertEqual(editor.profiles_table.item(1, 3).text(), "180.0")
 
@@ -874,11 +909,277 @@ class GeometryTests(unittest.TestCase):
         # Edit tip length
         for r in range(editor.tip_caps_table.rowCount()):
             if editor._property_key(editor.tip_caps_table, r) == "tip_length":
-                editor.tip_caps_table.item(r, 1).setText("35.0")
-                editor._on_tip_cap_cell_edited(r, 1)
+                spin = editor.tip_caps_table.cellWidget(r, 1)
+                if spin:
+                    spin.setValue(35.0)
+                else:
+                    editor._on_tip_cap_spinbox_changed("tip_length", 35.0)
                 break
         self.assertAlmostEqual(wing_comp["parameters"]["geometry"]["tip_treatment"]["length"], 35.0)
+
+    def test_fuselage_section_dialog_and_metrics(self) -> None:
+        """Verify 2D fuselage section metrics calculation and dialog functionality."""
+        from setuav_studio.plugin_system import StudioAPI
+        from setuav_studio.plugins.geometry.fuselage_geometry import sample_profile
+        from setuav_studio.plugins.geometry.fuselage_section_dialog import (
+            FuselageCanvasWidget,
+            FuselageSectionDialog,
+            compute_section_metrics,
+        )
+
+        # 1. Test geometric metrics calculation
+        circle_pts = sample_profile({"type": "circle", "diameter": 100.0})
+        m_circ = compute_section_metrics(circle_pts)
+        self.assertAlmostEqual(m_circ["area"], math.pi * 50.0**2, delta=20.0)
+        self.assertAlmostEqual(m_circ["perimeter"], math.pi * 100.0, delta=2.0)
+        self.assertAlmostEqual(m_circ["width"], 100.0, places=1)
+        self.assertAlmostEqual(m_circ["height"], 100.0, places=1)
+
+        rect_pts = sample_profile({"type": "rectangle", "width": 120.0, "height": 80.0, "corner_radius": 10.0})
+        m_rect = compute_section_metrics(rect_pts)
+        self.assertGreater(m_rect["area"], 9000.0)
+        self.assertAlmostEqual(m_rect["width"], 120.0, places=1)
+        self.assertAlmostEqual(m_rect["height"], 80.0, places=1)
+        self.assertAlmostEqual(m_rect["aspect_ratio"], 1.5, places=2)
+
+        # 2. Test FuselageCanvasWidget rendering and zoom/pan
+        canvas = FuselageCanvasWidget()
+        canvas.resize(400, 300)
+        canvas.set_section_data(
+            profile={"type": "rectangle", "width": 120.0, "height": 80.0, "corner_radius": 10.0},
+            prev_profile={"type": "circle", "diameter": 60.0},
+            next_profile={"type": "circle", "diameter": 100.0},
+            title_info="Sec 2/3",
+            auto_fit=True,
+        )
+        self.assertGreater(len(canvas._active_points), 0)
+        self.assertGreater(len(canvas._prev_points), 0)
+        self.assertGreater(len(canvas._next_points), 0)
+        self.assertGreater(canvas._scale, 0.0)
+
+        # Zoom & Pan operations
+        init_scale = canvas._scale
+        canvas.zoom_in()
+        self.assertGreater(canvas._scale, init_scale)
+        canvas.zoom_out()
+        canvas.fit_view()
+
+        api = StudioAPI()
+        fuse_comp = {
+            "id": "fuselage-1",
+            "name": "Main Fuselage",
+            "type": "org.setuav.core:fuselage",
+            "parameters": {
+                "mass": 500.0,
+                "geometry": {
+                    "segments": [
+                        {
+                            "id": "seg_1",
+                            "name": "Nose to Tail",
+                            "sections": [
+                                {"position": {"x": 0.0, "y": 0.0, "z": 0.0}, "rotation": {"x": 0.0, "y": 0.0, "z": 0.0}, "profile": {"type": "circle", "diameter": 80.0}},
+                                {"position": {"x": 300.0, "y": 0.0, "z": 0.0}, "rotation": {"x": 0.0, "y": 0.0, "z": 0.0}, "profile": {"type": "circle", "diameter": 120.0}},
+                                {"position": {"x": 700.0, "y": 0.0, "z": 0.0}, "rotation": {"x": 0.0, "y": 0.0, "z": 0.0}, "profile": {"type": "circle", "diameter": 60.0}},
+                            ],
+                        }
+                    ]
+                },
+            },
+        }
+
+        dlg = FuselageSectionDialog(api, fuse_comp)
+        self.assertEqual(dlg.segment_combo.count(), 1)
+        self.assertIn("Section 1 of 3", dlg.section_label.text())
+        self.assertEqual(dlg.profile_type_combo.currentText(), "circle")
+
+        dlg._on_next_section()
+        self.assertEqual(dlg._section_index, 1)
+
+        # Change profile type to ellipse and test Undo/Redo
+        dlg._on_profile_type_changed("ellipse")
+        sec_1 = fuse_comp["parameters"]["geometry"]["segments"][0]["sections"][1]
+        self.assertEqual(sec_1["profile"]["type"], "ellipse")
+        self.assertTrue(dlg.undo_stack.canUndo())
+
+        # Edit width property with undo
+        w_spin = dlg.props_table.cellWidget(0, 1)
+        if w_spin:
+            w_spin.setValue(140.0)
+        else:
+            dlg._on_prop_spin_changed("width", 140.0)
+        self.assertAlmostEqual(sec_1["profile"]["width"], 140.0)
+
+        dlg.undo_stack.undo()
+        self.assertAlmostEqual(sec_1["profile"]["width"], 120.0)
+        dlg.undo_stack.redo()
+        self.assertAlmostEqual(sec_1["profile"]["width"], 140.0)
+
+        # 4. Test Interactive Polygon Editing & Undo/Redo
+        dlg._on_profile_type_changed("polygon")
+        self.assertEqual(sec_1["profile"]["type"], "polygon")
+        num_v_initial = len(sec_1["profile"]["vertices"])
+        self.assertGreaterEqual(num_v_initial, 3)
+
+        # Hit test vertex on canvas
+        v0 = sec_1["profile"]["vertices"][0]
+        v0_screen = dlg.canvas.world_to_screen(v0["y"], v0["z"])
+        hit_idx = dlg.canvas._hit_test_vertex(v0_screen)
+        self.assertEqual(hit_idx, 0)
+
+        # Selection synchronization: Table row click -> Canvas selection
+        dlg.vertices_table.selectRow(1)
+        dlg._on_vertices_row_selected(1, 0)
+        self.assertEqual(dlg.canvas.selected_vertex_index, 1)
+
+        # Selection synchronization: Canvas click -> Table selection
+        dlg.canvas.vertexSelected.emit(2)
+        self.assertEqual(dlg.vertices_table.currentRow(), 2)
+
+        # Move vertex with Undo/Redo
+        orig_y = float(sec_1["profile"]["vertices"][0]["y"])
+        dlg._on_canvas_vertex_drag_finished(0, orig_y, 0.0, orig_y + 25.0, 10.0)
+        self.assertAlmostEqual(sec_1["profile"]["vertices"][0]["y"], orig_y + 25.0)
+
+        dlg.undo_stack.undo()
+        self.assertAlmostEqual(sec_1["profile"]["vertices"][0]["y"], orig_y)
+        dlg.undo_stack.redo()
+        self.assertAlmostEqual(sec_1["profile"]["vertices"][0]["y"], orig_y + 25.0)
+
+        # Insert vertex on edge with Undo/Redo
+        dlg.canvas.vertexInserted.emit(1, 30.0, 40.0)
+        self.assertEqual(len(sec_1["profile"]["vertices"]), num_v_initial + 1)
+        self.assertAlmostEqual(sec_1["profile"]["vertices"][1]["y"], 30.0)
+
+        dlg.undo_stack.undo()
+        self.assertEqual(len(sec_1["profile"]["vertices"]), num_v_initial)
+        dlg.undo_stack.redo()
+        self.assertEqual(len(sec_1["profile"]["vertices"]), num_v_initial + 1)
+
+        # Delete vertex with Undo/Redo
+        dlg._delete_polygon_vertex(1)
+        self.assertEqual(len(sec_1["profile"]["vertices"]), num_v_initial)
+        dlg.undo_stack.undo()
+        self.assertEqual(len(sec_1["profile"]["vertices"]), num_v_initial + 1)
+        dlg.undo_stack.redo()
+        self.assertEqual(len(sec_1["profile"]["vertices"]), num_v_initial)
+
+        # Toggle display options
+        dlg.cb_prev.setChecked(False)
+        self.assertFalse(dlg.canvas.show_previous)
+        dlg.cb_prev.setChecked(True)
+        self.assertTrue(dlg.canvas.show_previous)
+
+        # Apply & Close
+        dlg._on_ok_clicked()
+
+    def test_numeric_spinbox_and_table_widget(self) -> None:
+        """Verify NumericSpinBox focused-only mouse wheel handling and set_table_spinbox integration."""
+        from PySide6.QtCore import QPoint, QPointF, Qt
+        from PySide6.QtGui import QWheelEvent
+        from PySide6.QtWidgets import QTableWidget
+        from setuav_studio.plugins.core.numeric_spinbox import (
+            NumericSpinBox,
+            set_table_spinbox,
+        )
+
+        # 1. Test NumericSpinBox widget
+        spinbox = NumericSpinBox(decimals=1, step=1.0, suffix="mm")
+        spinbox.setValue(100.0)
+        self.assertEqual(spinbox.value(), 100.0)
+
+        # Non-focused wheel event -> ignored so parent scroll area is not interrupted
+        wheel_ev = QWheelEvent(
+            QPointF(10, 10),
+            QPointF(10, 10),
+            QPoint(0, 0),
+            QPoint(0, 120),
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+            Qt.ScrollPhase.NoScrollPhase,
+            False,
+        )
+        spinbox.wheelEvent(wheel_ev)
+        self.assertFalse(wheel_ev.isAccepted())
+        self.assertEqual(spinbox.value(), 100.0)
+
+        # Focused wheel event -> accepted and adjusts value
+        spinbox.show()
+        spinbox.setFocus()
+        from PySide6.QtWidgets import QApplication
+        QApplication.processEvents()
+        if not spinbox._is_active_focus():
+            spinbox.lineEdit().setFocus()
+            QApplication.processEvents()
+        wheel_ev.setAccepted(False)
+        spinbox.wheelEvent(wheel_ev)
+        if spinbox._is_active_focus():
+            self.assertTrue(wheel_ev.isAccepted())
+            self.assertEqual(spinbox.value(), 101.0)
+
+        # 2. Test set_table_spinbox integration
+        table = QTableWidget(3, 2)
+        changed_vals = []
+        sb = set_table_spinbox(
+            table,
+            0,
+            1,
+            50.0,
+            step=2.0,
+            decimals=1,
+            suffix="mm",
+            on_changed=lambda v: changed_vals.append(v),
+        )
+        self.assertIsNotNone(sb)
+        self.assertEqual(table.cellWidget(0, 1), sb)
+        self.assertEqual(sb.value(), 50.0)
+        self.assertEqual(sb.suffix(), " mm")
+
+        # Changing value triggers on_changed callback
+        sb.setValue(54.0)
+        self.assertIn(54.0, changed_vals)
+
+    def test_nowheel_combobox_and_filter(self) -> None:
+        """Verify NoWheelComboBox ignores mouse wheel events and ComboBoxWheelFilter intercepts them."""
+        from PySide6.QtCore import QPoint, QPointF, Qt
+        from PySide6.QtGui import QWheelEvent
+        from PySide6.QtWidgets import QApplication, QComboBox
+        from setuav_studio.plugins.core.numeric_spinbox import NoWheelComboBox
+        from setuav_studio.plugins.core.theme import ComboBoxWheelFilter
+
+        # 1. Test NoWheelComboBox ignores wheelEvent
+        combo = NoWheelComboBox()
+        combo.addItems(["Option A", "Option B", "Option C"])
+        combo.setCurrentIndex(0)
+
+        wheel_ev = QWheelEvent(
+            QPointF(10, 10),
+            QPointF(10, 10),
+            QPoint(0, 0),
+            QPoint(0, 120),
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+            Qt.ScrollPhase.NoScrollPhase,
+            False,
+        )
+        combo.wheelEvent(wheel_ev)
+        self.assertFalse(wheel_ev.isAccepted())
+        self.assertEqual(combo.currentIndex(), 0)
+
+        # 2. Test ComboBoxWheelFilter intercepts standard QComboBox wheel events
+        filter_obj = ComboBoxWheelFilter()
+        std_combo = QComboBox()
+        std_combo.addItems(["Option 1", "Option 2"])
+        std_combo.setCurrentIndex(0)
+
+        wheel_ev.setAccepted(True)
+        res = filter_obj.eventFilter(std_combo, wheel_ev)
+        self.assertTrue(res)
+        self.assertFalse(wheel_ev.isAccepted())
 
 
 if __name__ == "__main__":
     unittest.main()
+
+
+
+

@@ -1,8 +1,29 @@
 from importlib import resources
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QPainter, QPalette
-from PySide6.QtWidgets import QApplication, QProxyStyle, QStyle
+from PySide6.QtWidgets import QApplication, QComboBox, QProxyStyle, QStyle
+
+
+class ComboBoxWheelFilter(QObject):
+    """Global event filter that disables mouse wheel value changes on closed QComboBoxes."""
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if event.type() == QEvent.Type.Wheel:
+            combo = (
+                watched
+                if isinstance(watched, QComboBox)
+                else (watched.parent() if isinstance(watched.parent(), QComboBox) else None)
+            )
+            if combo is not None:
+                view = combo.view()
+                if view is None or not view.isVisible():
+                    event.ignore()
+                    parent = combo.parentWidget()
+                    if parent is not None:
+                        QApplication.sendEvent(parent, event)
+                    return True
+        return super().eventFilter(watched, event)
 
 
 FONT_FAMILY = "Inter"
@@ -198,6 +219,7 @@ _INTER_FONT_FILES = (
 _inter_family: str | None = None
 _inter_load_attempted = False
 _dock_resize_style: DockResizeStyle | None = None
+_combobox_wheel_filter: ComboBoxWheelFilter | None = None
 
 
 def apply_theme(app: QApplication, theme: str, font_size: int) -> None:
@@ -208,9 +230,12 @@ def apply_theme(app: QApplication, theme: str, font_size: int) -> None:
     _apply_accent(app)
     app.setFont(_application_font(font_size))
     app.setStyleSheet(build_stylesheet(font_size, theme))
-    global _dock_resize_style
+    global _dock_resize_style, _combobox_wheel_filter
     _dock_resize_style = DockResizeStyle(app.style())
     app.setStyle(_dock_resize_style)
+    if _combobox_wheel_filter is None:
+        _combobox_wheel_filter = ComboBoxWheelFilter(app)
+        app.installEventFilter(_combobox_wheel_filter)
 
 
 def _apply_accent(app: QApplication) -> None:

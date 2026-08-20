@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
     QComboBox,
+    QDoubleSpinBox,
     QHeaderView,
     QHBoxLayout,
     QLabel,
@@ -29,6 +30,11 @@ from PySide6.QtWidgets import (
 
 from setuav_studio.icons import get_icon
 from setuav_studio.plugin_system import StudioAPI
+from setuav_studio.plugins.core.numeric_spinbox import (
+    NoWheelComboBox,
+    NumericSpinBox,
+    set_table_spinbox,
+)
 from setuav_studio.plugins.geometry.airfoil import PRESET_AIRFOILS
 from setuav_studio.plugins.geometry.airfoil_dialog import AirfoilDialog
 from setuav_studio.plugins.geometry.wing_planform_engine import (
@@ -398,7 +404,17 @@ class LiftingSurfaceEditor(QWidget):
             lambda val: self._update_parent(val if val else None),
         )
 
-        self._set_property_value(self.general_table, "mass", self._parameters().get("mass") or 0)
+        mass_val = float(self._parameters().get("mass") or 0.0)
+        self._set_property_spinbox(
+            self.general_table,
+            "mass",
+            mass_val,
+            min_val=0.0,
+            step=10.0,
+            decimals=1,
+            suffix="g",
+            on_changed=lambda _v: self._update_general(1, 1),
+        )
 
         # Attachment / Component Transform
         self._load_attachment_transform()
@@ -454,11 +470,30 @@ class LiftingSurfaceEditor(QWidget):
             float(rot.get("yaw") if "yaw" in rot else rot.get("z", 0.0)),
         )
 
-        for row, values in enumerate((pos_vals, rot_vals)):
-            for col, val in enumerate(values):
-                item = self.attachment_table.item(row, col)
-                if item:
-                    item.setText(f"{val:.2f}")
+        for col, val in enumerate(pos_vals):
+            set_table_spinbox(
+                self.attachment_table,
+                0,
+                col,
+                val,
+                step=5.0,
+                decimals=2,
+                suffix="mm",
+                on_changed=lambda _v: self._on_attachment_spinbox_changed(),
+            )
+        for col, val in enumerate(rot_vals):
+            set_table_spinbox(
+                self.attachment_table,
+                1,
+                col,
+                val,
+                min_val=-360.0,
+                max_val=360.0,
+                step=1.0,
+                decimals=2,
+                suffix="°",
+                on_changed=lambda _v: self._on_attachment_spinbox_changed(),
+            )
 
         # Symmetry / Mirror
         is_mirror = "true" if self._geometry().get("mirror") is True else "false"
@@ -482,29 +517,31 @@ class LiftingSurfaceEditor(QWidget):
 
         self._edit_component("Toggle bilateral wing mirror", change)
 
-    def _update_attachment_transform(self, _row: int, _col: int) -> None:
+    def _on_attachment_spinbox_changed(self) -> None:
         if self._loading:
             return
-        try:
-            pos_x = float(self.attachment_table.item(0, 0).text())
-            pos_y = float(self.attachment_table.item(0, 1).text())
-            pos_z = float(self.attachment_table.item(0, 2).text())
-            rot_r = float(self.attachment_table.item(1, 0).text())
-            rot_p = float(self.attachment_table.item(1, 1).text())
-            rot_y = float(self.attachment_table.item(1, 2).text())
-        except (AttributeError, ValueError):
-            return
+        vals_pos = []
+        for col in range(3):
+            w = self.attachment_table.cellWidget(0, col)
+            vals_pos.append(float(w.value()) if isinstance(w, QDoubleSpinBox) else 0.0)
+        vals_rot = []
+        for col in range(3):
+            w = self.attachment_table.cellWidget(1, col)
+            vals_rot.append(float(w.value()) if isinstance(w, QDoubleSpinBox) else 0.0)
 
         def change() -> None:
             tf = self._component.get("transform")
             if not isinstance(tf, dict):
                 tf = {}
                 self._component["transform"] = tf
-            tf["position"] = {"x": pos_x, "y": pos_y, "z": pos_z}
-            tf["rotation"] = {"roll": rot_r, "pitch": rot_p, "yaw": rot_y}
+            tf["position"] = {"x": vals_pos[0], "y": vals_pos[1], "z": vals_pos[2]}
+            tf["rotation"] = {"roll": vals_rot[0], "pitch": vals_rot[1], "yaw": vals_rot[2]}
 
         self._edit_component("Edit wing attachment transform", change)
         self._refresh_planform_table()
+
+    def _update_attachment_transform(self, _row: int, _col: int) -> None:
+        pass
 
     def _update_parent(self, new_parent: str | None) -> None:
         if self._loading:
@@ -561,6 +598,10 @@ class LiftingSurfaceEditor(QWidget):
             return
         self._driver_mode = str(mode_val or "manual")
         self._refresh_planform_table()
+        self._update_profile_actions()
+        self._update_profiles_table_interactivity()
+        if 0 <= self._profile_index < len(self._profiles()):
+            self._load_profile(self._profile_index)
 
     def _on_sweep_loc_changed(self, loc_val_str: str) -> None:
         if self._loading:
@@ -612,35 +653,119 @@ class LiftingSurfaceEditor(QWidget):
             s_total = metrics["area"]
             s_m2 = s_total / 1e6
             s_dm2 = s_total / 1e4
-            is_area_driver = "area" in active_driver_keys
-            area_str = f"{s_total:.1f}" if is_area_driver else f"{s_m2:.4f} m² ({s_dm2:.2f} dm²)"
-            self._set_planform_cell("area", area_str, editable=is_area_driver)
+            if "area" in active_driver_keys:
+                self._set_property_spinbox(
+                    self.planform_table,
+                    "area",
+                    s_total,
+                    min_val=100.0,
+                    step=1000.0,
+                    decimals=1,
+                    suffix="mm²",
+                    on_changed=lambda val: self._on_planform_spinbox_changed("area", val),
+                )
+            else:
+                self._set_planform_cell("area", f"{s_m2:.4f} m² ({s_dm2:.2f} dm²)", editable=False)
 
-            is_span_driver = "span" in active_driver_keys
-            span_str = f"{metrics['span']:.1f}" if is_span_driver else f"{metrics['span']:.1f} mm"
-            self._set_planform_cell("span", span_str, editable=is_span_driver)
+            if "span" in active_driver_keys:
+                self._set_property_spinbox(
+                    self.planform_table,
+                    "span",
+                    metrics["span"],
+                    min_val=10.0,
+                    step=50.0,
+                    decimals=1,
+                    suffix="mm",
+                    on_changed=lambda val: self._on_planform_spinbox_changed("span", val),
+                )
+            else:
+                self._set_planform_cell("span", f"{metrics['span']:.1f} mm", editable=False)
 
-            is_ar_driver = "aspect_ratio" in active_driver_keys
-            self._set_planform_cell("aspect_ratio", f"{metrics['aspect_ratio']:.2f}", editable=is_ar_driver)
+            if "aspect_ratio" in active_driver_keys:
+                self._set_property_spinbox(
+                    self.planform_table,
+                    "aspect_ratio",
+                    metrics["aspect_ratio"],
+                    min_val=0.5,
+                    max_val=50.0,
+                    step=0.1,
+                    decimals=2,
+                    on_changed=lambda val: self._on_planform_spinbox_changed("aspect_ratio", val),
+                )
+            else:
+                self._set_planform_cell("aspect_ratio", f"{metrics['aspect_ratio']:.2f}", editable=False)
 
-            is_taper_driver = "taper_ratio" in active_driver_keys
-            self._set_planform_cell("taper_ratio", f"{metrics['taper_ratio']:.3f}", editable=is_taper_driver)
+            if "taper_ratio" in active_driver_keys:
+                self._set_property_spinbox(
+                    self.planform_table,
+                    "taper_ratio",
+                    metrics["taper_ratio"],
+                    min_val=0.01,
+                    max_val=5.0,
+                    step=0.05,
+                    decimals=3,
+                    on_changed=lambda val: self._on_planform_spinbox_changed("taper_ratio", val),
+                )
+            else:
+                self._set_planform_cell("taper_ratio", f"{metrics['taper_ratio']:.3f}", editable=False)
 
-            is_rc_driver = "root_chord" in active_driver_keys
-            rc_str = f"{metrics['root_chord']:.1f}" if is_rc_driver else f"{metrics['root_chord']:.1f} mm"
-            self._set_planform_cell("root_chord", rc_str, editable=is_rc_driver)
+            if "root_chord" in active_driver_keys:
+                self._set_property_spinbox(
+                    self.planform_table,
+                    "root_chord",
+                    metrics["root_chord"],
+                    min_val=5.0,
+                    step=10.0,
+                    decimals=1,
+                    suffix="mm",
+                    on_changed=lambda val: self._on_planform_spinbox_changed("root_chord", val),
+                )
+            else:
+                self._set_planform_cell("root_chord", f"{metrics['root_chord']:.1f} mm", editable=False)
 
-            is_tc_driver = "tip_chord" in active_driver_keys
-            tc_str = f"{metrics['tip_chord']:.1f}" if is_tc_driver else f"{metrics['tip_chord']:.1f} mm"
-            self._set_planform_cell("tip_chord", tc_str, editable=is_tc_driver)
+            if "tip_chord" in active_driver_keys:
+                self._set_property_spinbox(
+                    self.planform_table,
+                    "tip_chord",
+                    metrics["tip_chord"],
+                    min_val=5.0,
+                    step=10.0,
+                    decimals=1,
+                    suffix="mm",
+                    on_changed=lambda val: self._on_planform_spinbox_changed("tip_chord", val),
+                )
+            else:
+                self._set_planform_cell("tip_chord", f"{metrics['tip_chord']:.1f} mm", editable=False)
 
-            is_sweep_driver = "sweep" in active_driver_keys
-            sweep_str = f"{metrics['sweep']:.1f}" if is_sweep_driver else f"{metrics['sweep']:.1f}°"
-            self._set_planform_cell("sweep", sweep_str, editable=is_sweep_driver)
+            if "sweep" in active_driver_keys:
+                self._set_property_spinbox(
+                    self.planform_table,
+                    "sweep",
+                    metrics["sweep"],
+                    min_val=-80.0,
+                    max_val=80.0,
+                    step=1.0,
+                    decimals=1,
+                    suffix="°",
+                    on_changed=lambda val: self._on_planform_spinbox_changed("sweep", val),
+                )
+            else:
+                self._set_planform_cell("sweep", f"{metrics['sweep']:.1f}°", editable=False)
 
-            is_washout_driver = "washout" in active_driver_keys
-            washout_str = f"{metrics['washout']:.1f}" if is_washout_driver else f"{metrics['washout']:.1f}°"
-            self._set_planform_cell("washout", washout_str, editable=is_washout_driver)
+            if "washout" in active_driver_keys:
+                self._set_property_spinbox(
+                    self.planform_table,
+                    "washout",
+                    metrics["washout"],
+                    min_val=-45.0,
+                    max_val=45.0,
+                    step=0.5,
+                    decimals=1,
+                    suffix="°",
+                    on_changed=lambda val: self._on_planform_spinbox_changed("washout", val),
+                )
+            else:
+                self._set_planform_cell("washout", f"{metrics['washout']:.1f}°", editable=False)
 
             self._set_planform_cell("mac", f"{metrics['mac']:.1f} mm", editable=False)
 
@@ -653,6 +778,8 @@ class LiftingSurfaceEditor(QWidget):
         for row in range(self.planform_table.rowCount()):
             if self._property_key(self.planform_table, row) != key:
                 continue
+            if self.planform_table.cellWidget(row, 1) is not None:
+                self.planform_table.removeCellWidget(row, 1)
             item = self.planform_table.item(row, 1)
             if item is None:
                 item = QTableWidgetItem()
@@ -671,13 +798,8 @@ class LiftingSurfaceEditor(QWidget):
                     label_item.setForeground(QBrush(QColor("#999999")))
             return
 
-    def _on_planform_parameter_edited(self, row: int, column: int) -> None:
-        if self._loading or column != 1:
-            return
-        key = self._property_key(self.planform_table, row)
-        val_str = self._property_text(self.planform_table, row)
-        val_num = self._parse_number(val_str)
-        if val_num is None:
+    def _on_planform_spinbox_changed(self, key: str, val_num: float) -> None:
+        if self._loading:
             return
         if key not in ("sweep", "washout") and val_num <= 0:
             return
@@ -701,7 +823,7 @@ class LiftingSurfaceEditor(QWidget):
             "sweep": current_metrics["sweep"],
             "washout": current_metrics["washout"],
         }
-        inputs[key] = val_num
+        inputs[key] = float(val_num)
 
         new_profiles, calculated_metrics = solve_wing_planform(
             self._driver_mode,
@@ -723,6 +845,15 @@ class LiftingSurfaceEditor(QWidget):
         self._refresh_planform_table()
         if 0 <= self._profile_index < len(profiles):
             self._load_profile(self._profile_index)
+
+    def _on_planform_parameter_edited(self, row: int, column: int) -> None:
+        if self._loading or column != 1:
+            return
+        key = self._property_key(self.planform_table, row)
+        val_str = self._property_text(self.planform_table, row)
+        val_num = self._parse_number(val_str)
+        if val_num is not None:
+            self._on_planform_spinbox_changed(key, val_num)
 
     def _sync_project_parameters(self, inputs: dict[str, float], edited_key: str) -> None:
         """Sync updated macro parameters to project.data['parameters'] if present."""
@@ -761,20 +892,21 @@ class LiftingSurfaceEditor(QWidget):
         locked_keys = {"chord", "span_y", "offset_x"}
         for row in range(self.profile_properties_table.rowCount()):
             key = self._property_key(self.profile_properties_table, row)
+            widget = self.profile_properties_table.cellWidget(row, 1)
             val_item = self.profile_properties_table.item(row, 1)
             lbl_item = self.profile_properties_table.item(row, 0)
-            if not val_item:
-                continue
-            if key in locked_keys and not is_manual:
-                val_item.setFlags(val_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                val_item.setForeground(QBrush(QColor("#777777")))
-                if lbl_item:
-                    lbl_item.setForeground(QBrush(QColor("#999999")))
-            else:
-                val_item.setFlags(val_item.flags() | Qt.ItemFlag.ItemIsEditable)
-                val_item.setForeground(QBrush(QColor("#ffffff")))
-                if lbl_item:
-                    lbl_item.setForeground(QBrush(QColor("#ffffff")))
+            is_locked = (key in locked_keys) and not is_manual
+            if widget is not None:
+                widget.setEnabled(not is_locked)
+            if val_item is not None:
+                if is_locked:
+                    val_item.setFlags(val_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                    val_item.setForeground(QBrush(QColor("#777777")))
+                else:
+                    val_item.setFlags(val_item.flags() | Qt.ItemFlag.ItemIsEditable)
+                    val_item.setForeground(QBrush(QColor("#ffffff")))
+            if lbl_item is not None:
+                lbl_item.setForeground(QBrush(QColor("#777777" if is_locked else "#ffffff")))
 
     # -------------------------------------------------------------------------
     # Profiles Handling
@@ -863,13 +995,76 @@ class LiftingSurfaceEditor(QWidget):
         try:
             airfoil_val = self._format_airfoil_label(profile.get("airfoil"))
             self._set_property_value(self.profile_properties_table, "airfoil", airfoil_val)
-            self._set_property_value(self.profile_properties_table, "chord", float(profile.get("chord", 200.0)))
-            self._set_property_value(self.profile_properties_table, "twist", float(rot.get("y", 0.0)))
-            self._set_property_value(self.profile_properties_table, "span_y", float(pos.get("y", 0.0)))
-            self._set_property_value(self.profile_properties_table, "offset_x", float(pos.get("x", 0.0)))
-            self._set_property_value(self.profile_properties_table, "height_z", float(pos.get("z", 0.0)))
-            self._set_property_value(self.profile_properties_table, "dihedral", float(rot.get("x", 0.0)))
-            self._set_property_value(self.profile_properties_table, "yaw", float(rot.get("z", 0.0)))
+            self._set_property_spinbox(
+                self.profile_properties_table,
+                "chord",
+                float(profile.get("chord", 200.0)),
+                min_val=1.0,
+                step=5.0,
+                decimals=1,
+                suffix="mm",
+                on_changed=lambda val: self._on_profile_prop_spinbox_changed("chord", val),
+            )
+            self._set_property_spinbox(
+                self.profile_properties_table,
+                "twist",
+                float(rot.get("y", 0.0)),
+                min_val=-45.0,
+                max_val=45.0,
+                step=0.5,
+                decimals=2,
+                suffix="°",
+                on_changed=lambda val: self._on_profile_prop_spinbox_changed("twist", val),
+            )
+            self._set_property_spinbox(
+                self.profile_properties_table,
+                "span_y",
+                float(pos.get("y", 0.0)),
+                step=5.0,
+                decimals=1,
+                suffix="mm",
+                on_changed=lambda val: self._on_profile_prop_spinbox_changed("span_y", val),
+            )
+            self._set_property_spinbox(
+                self.profile_properties_table,
+                "offset_x",
+                float(pos.get("x", 0.0)),
+                step=5.0,
+                decimals=1,
+                suffix="mm",
+                on_changed=lambda val: self._on_profile_prop_spinbox_changed("offset_x", val),
+            )
+            self._set_property_spinbox(
+                self.profile_properties_table,
+                "height_z",
+                float(pos.get("z", 0.0)),
+                step=5.0,
+                decimals=1,
+                suffix="mm",
+                on_changed=lambda val: self._on_profile_prop_spinbox_changed("height_z", val),
+            )
+            self._set_property_spinbox(
+                self.profile_properties_table,
+                "dihedral",
+                float(rot.get("x", 0.0)),
+                min_val=-90.0,
+                max_val=90.0,
+                step=1.0,
+                decimals=2,
+                suffix="°",
+                on_changed=lambda val: self._on_profile_prop_spinbox_changed("dihedral", val),
+            )
+            self._set_property_spinbox(
+                self.profile_properties_table,
+                "yaw",
+                float(rot.get("z", 0.0)),
+                min_val=-90.0,
+                max_val=90.0,
+                step=1.0,
+                decimals=2,
+                suffix="°",
+                on_changed=lambda val: self._on_profile_prop_spinbox_changed("yaw", val),
+            )
             self._update_profile_actions()
             self._update_profiles_table_interactivity()
         finally:
@@ -932,11 +1127,58 @@ class LiftingSurfaceEditor(QWidget):
                 self.CONTROL_SURFACE_TYPES,
                 lambda val: self._update_cs_choice("type", val),
             )
-            self._set_property_value(self.cs_properties_table, "span_start", float(geom.get("span_start", 0.0)))
-            self._set_property_value(self.cs_properties_table, "span_end", float(geom.get("span_end", 0.0)))
-            self._set_property_value(self.cs_properties_table, "chord", float(geom.get("chord", 0.0)))
-            self._set_property_value(self.cs_properties_table, "hinge_sweep", float(geom.get("hinge_sweep", 0.0)))
-            self._set_property_value(self.cs_properties_table, "deflection", float(geom.get("deflection", 0.0)))
+            self._set_property_spinbox(
+                self.cs_properties_table,
+                "span_start",
+                float(geom.get("span_start", 0.0)),
+                min_val=0.0,
+                step=5.0,
+                decimals=1,
+                suffix="mm",
+                on_changed=lambda val: self._on_cs_prop_spinbox_changed("span_start", val),
+            )
+            self._set_property_spinbox(
+                self.cs_properties_table,
+                "span_end",
+                float(geom.get("span_end", 0.0)),
+                min_val=0.0,
+                step=5.0,
+                decimals=1,
+                suffix="mm",
+                on_changed=lambda val: self._on_cs_prop_spinbox_changed("span_end", val),
+            )
+            self._set_property_spinbox(
+                self.cs_properties_table,
+                "chord",
+                float(geom.get("chord", 0.0)),
+                min_val=1.0,
+                step=2.0,
+                decimals=1,
+                suffix="mm",
+                on_changed=lambda val: self._on_cs_prop_spinbox_changed("chord", val),
+            )
+            self._set_property_spinbox(
+                self.cs_properties_table,
+                "hinge_sweep",
+                float(geom.get("hinge_sweep", 0.0)),
+                min_val=-80.0,
+                max_val=80.0,
+                step=1.0,
+                decimals=1,
+                suffix="°",
+                on_changed=lambda val: self._on_cs_prop_spinbox_changed("hinge_sweep", val),
+            )
+            self._set_property_spinbox(
+                self.cs_properties_table,
+                "deflection",
+                float(geom.get("deflection", 0.0)),
+                min_val=-90.0,
+                max_val=90.0,
+                step=1.0,
+                decimals=1,
+                suffix="°",
+                on_changed=lambda val: self._on_cs_prop_spinbox_changed("deflection", val),
+            )
             self._update_cs_actions()
         finally:
             self._loading = was_loading
@@ -952,6 +1194,8 @@ class LiftingSurfaceEditor(QWidget):
     def _update_profiles_table_cell(self, row: int, column: int) -> None:
         profiles = self._profiles()
         if self._loading or column == 0 or not (0 <= row < len(profiles)):
+            return
+        if self._driver_mode != "manual" and column in (2, 3):
             return
         item = self.profiles_table.item(row, column)
         if item is None:
@@ -1085,22 +1329,23 @@ class LiftingSurfaceEditor(QWidget):
         count = len(profiles)
         idx = self._profile_index
         has_sel = 0 <= idx < count
-        self.duplicate_profile_button.setEnabled(has_sel)
-        self.move_profile_up_button.setEnabled(has_sel and idx > 0)
-        self.move_profile_down_button.setEnabled(has_sel and idx < count - 1)
-        self.delete_profile_button.setEnabled(has_sel and count > 2)
+        is_manual = self._driver_mode == "manual"
+        self.add_profile_button.setEnabled(is_manual)
+        self.duplicate_profile_button.setEnabled(has_sel and is_manual)
+        self.move_profile_up_button.setEnabled(has_sel and idx > 0 and is_manual)
+        self.move_profile_down_button.setEnabled(has_sel and idx < count - 1 and is_manual)
+        self.delete_profile_button.setEnabled(has_sel and count > 2 and is_manual)
         self.choose_airfoil_btn.setEnabled(has_sel)
 
     # -------------------------------------------------------------------------
     # Profile Properties Mutation
     # -------------------------------------------------------------------------
 
-    def _update_profile_property(self, row: int, column: int) -> None:
-        if self._loading or column != 1 or self._profile_index < 0:
+    def _on_profile_prop_spinbox_changed(self, key: str, value: float) -> None:
+        if self._loading or self._profile_index < 0:
             return
-        key = self._property_key(self.profile_properties_table, row)
-        val_str = self._property_text(self.profile_properties_table, row)
-
+        if self._driver_mode != "manual" and key in ("chord", "span_y", "offset_x"):
+            return
         profiles = self._profiles()
         if not (0 <= self._profile_index < len(profiles)):
             return
@@ -1113,22 +1358,39 @@ class LiftingSurfaceEditor(QWidget):
             prof["rotation"] = rot
 
         def change() -> None:
+            if key == "chord":
+                prof["chord"] = max(float(value), 1.0)
+            elif key == "twist":
+                rot["y"] = float(value)
+            elif key == "span_y":
+                pos["y"] = float(value)
+            elif key == "offset_x":
+                pos["x"] = float(value)
+            elif key == "height_z":
+                pos["z"] = float(value)
+            elif key == "dihedral":
+                rot["x"] = float(value)
+            elif key == "yaw":
+                rot["z"] = float(value)
+
+        self._edit_component(f"Edit profile {key}", change)
+        self._refresh_profile_table_row(self._profile_index)
+        self._refresh_planform_table()
+
+    def _update_profile_property(self, row: int, column: int) -> None:
+        if self._loading or column != 1 or self._profile_index < 0:
+            return
+        key = self._property_key(self.profile_properties_table, row)
+        val_str = self._property_text(self.profile_properties_table, row)
+
+        profiles = self._profiles()
+        if not (0 <= self._profile_index < len(profiles)):
+            return
+        prof = profiles[self._profile_index]
+
+        def change() -> None:
             if key == "airfoil":
                 prof["airfoil"] = val_str.strip()
-            elif key == "chord":
-                prof["chord"] = max(self._parse_number(val_str) or 10.0, 1.0)
-            elif key == "twist":
-                rot["y"] = self._parse_number(val_str) or 0.0
-            elif key == "span_y":
-                pos["y"] = self._parse_number(val_str) or 0.0
-            elif key == "offset_x":
-                pos["x"] = self._parse_number(val_str) or 0.0
-            elif key == "height_z":
-                pos["z"] = self._parse_number(val_str) or 0.0
-            elif key == "dihedral":
-                rot["x"] = self._parse_number(val_str) or 0.0
-            elif key == "yaw":
-                rot["z"] = self._parse_number(val_str) or 0.0
 
         self._edit_component(f"Edit profile {key}", change)
         self._refresh_profile_table_row(self._profile_index)
@@ -1171,8 +1433,25 @@ class LiftingSurfaceEditor(QWidget):
             [("flat", "Flat"), ("round", "Round (Dome)"), ("sharp", "Sharp (Bevel)")],
             self._on_tip_cap_type_changed,
         )
-        self._set_property_value(self.tip_caps_table, "tip_length", tip_length)
-        self._set_property_value(self.tip_caps_table, "tip_offset_x", tip_offset_x)
+        self._set_property_spinbox(
+            self.tip_caps_table,
+            "tip_length",
+            tip_length,
+            min_val=0.0,
+            step=2.0,
+            decimals=1,
+            suffix="mm",
+            on_changed=lambda val: self._on_tip_cap_spinbox_changed("tip_length", val),
+        )
+        self._set_property_spinbox(
+            self.tip_caps_table,
+            "tip_offset_x",
+            tip_offset_x,
+            step=2.0,
+            decimals=1,
+            suffix="mm",
+            on_changed=lambda val: self._on_tip_cap_spinbox_changed("tip_offset_x", val),
+        )
         self._update_tip_caps_interactivity(tip_type)
 
     def _update_tip_caps_interactivity(self, tip_type: str) -> None:
@@ -1180,19 +1459,12 @@ class LiftingSurfaceEditor(QWidget):
         for row in range(self.tip_caps_table.rowCount()):
             key = self._property_key(self.tip_caps_table, row)
             if key in ("tip_length", "tip_offset_x"):
-                val_item = self.tip_caps_table.item(row, 1)
+                w = self.tip_caps_table.cellWidget(row, 1)
                 lbl_item = self.tip_caps_table.item(row, 0)
-                if val_item:
-                    if is_cap_active:
-                        val_item.setFlags(val_item.flags() | Qt.ItemFlag.ItemIsEditable)
-                        val_item.setForeground(QBrush(QColor("#ffffff")))
-                        if lbl_item:
-                            lbl_item.setForeground(QBrush(QColor("#ffffff")))
-                    else:
-                        val_item.setFlags(val_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                        val_item.setForeground(QBrush(QColor("#777777")))
-                        if lbl_item:
-                            lbl_item.setForeground(QBrush(QColor("#999999")))
+                if w is not None:
+                    w.setEnabled(is_cap_active)
+                    if lbl_item:
+                        lbl_item.setForeground(QBrush(QColor("#ffffff" if is_cap_active else "#999999")))
 
     def _on_tip_cap_type_changed(self, new_type: str) -> None:
         if self._loading:
@@ -1206,28 +1478,46 @@ class LiftingSurfaceEditor(QWidget):
         self._edit_component("Change wingtip cap type", change)
         self._update_tip_caps_interactivity(new_type)
 
-    def _on_tip_cap_cell_edited(self, row: int, column: int) -> None:
-        if self._loading or column != 1:
-            return
-        key = self._property_key(self.tip_caps_table, row)
-        if key not in ("tip_length", "tip_offset_x"):
-            return
-        val_str = self._property_text(self.tip_caps_table, row)
-        val_num = self._parse_number(val_str)
-        if val_num is None:
-            return
-        if key == "tip_length" and val_num < 0:
+    def _on_tip_cap_spinbox_changed(self, key: str, value: float) -> None:
+        if self._loading:
             return
 
         def change() -> None:
             geom = self._geometry()
             tt = geom.setdefault("tip_treatment", {})
             if key == "tip_length":
-                tt["length"] = float(val_num)
+                tt["length"] = max(float(value), 0.0)
             elif key == "tip_offset_x":
-                tt["offset_x"] = float(val_num)
+                tt["offset_x"] = float(value)
 
         self._edit_component(f"Update wingtip cap {key}", change)
+
+    def _on_tip_cap_cell_edited(self, row: int, column: int) -> None:
+        pass
+
+    def _on_cs_prop_spinbox_changed(self, key: str, value: float) -> None:
+        if self._loading or self._control_surface_index < 0:
+            return
+        cs_list = self._control_surfaces()
+        if not (0 <= self._control_surface_index < len(cs_list)):
+            return
+        cs = cs_list[self._control_surface_index]
+        geom = self._cs_geom(cs)
+
+        def change() -> None:
+            if key == "span_start":
+                geom["span_start"] = float(value)
+            elif key == "span_end":
+                geom["span_end"] = float(value)
+            elif key == "chord":
+                geom["chord"] = max(float(value), 1.0)
+            elif key == "hinge_sweep":
+                geom["hinge_sweep"] = float(value)
+            elif key == "deflection":
+                geom["deflection"] = float(value)
+
+        self._edit_control_surface_item(cs, f"Edit control surface {key}", change)
+        self._refresh_cs_table_row(self._control_surface_index)
 
     # -------------------------------------------------------------------------
     # Control Surface Actions & Mutation
@@ -1697,7 +1987,7 @@ class LiftingSurfaceEditor(QWidget):
         if item is not None:
             item.setText("")
             item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-        combo = QComboBox(table)
+        combo = NoWheelComboBox(table)
         combo.setFont(QApplication.font())
         combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         combo.view().setProperty("tableComboPopup", True)
@@ -1732,6 +2022,36 @@ class LiftingSurfaceEditor(QWidget):
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             return
 
+    def _set_property_spinbox(
+        self,
+        table: QTableWidget,
+        key: str,
+        value: float,
+        *,
+        min_val: float = -1e6,
+        max_val: float = 1e6,
+        step: float = 1.0,
+        decimals: int = 2,
+        suffix: str = "",
+        on_changed: Callable[[float], None] | None = None,
+    ) -> NumericSpinBox | None:
+        for row in range(table.rowCount()):
+            if self._property_key(table, row) != key:
+                continue
+            return set_table_spinbox(
+                table,
+                row,
+                1,
+                value,
+                min_val=min_val,
+                max_val=max_val,
+                step=step,
+                decimals=decimals,
+                suffix=suffix,
+                on_changed=on_changed,
+            )
+        return None
+
     @staticmethod
     def _clear_property_values(table: QTableWidget) -> None:
         for row in range(table.rowCount()):
@@ -1751,6 +2071,8 @@ class LiftingSurfaceEditor(QWidget):
         editor = table.cellWidget(row, 1)
         if isinstance(editor, QComboBox):
             return str(editor.currentData())
+        if isinstance(editor, QDoubleSpinBox):
+            return str(editor.value())
         item = table.item(row, 1)
         return item.text() if item is not None else ""
 
