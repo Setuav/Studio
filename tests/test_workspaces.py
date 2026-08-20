@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import unittest
-from PySide6.QtWidgets import QApplication, QLabel, QWidget
+from PySide6.QtWidgets import QLabel, QWidget
 
 from setuav_studio.plugin_system import (
     PanelContribution,
@@ -13,11 +13,13 @@ from setuav_studio.plugin_system import (
 )
 from setuav_studio.shell import MainWindow
 
+from tests._common import get_qapp
+
 
 class TestWorkspacesAndTools(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.app = QApplication.instance() or QApplication([])
+        cls.app = get_qapp()
 
     def test_multi_workspace_and_dock_visibility(self) -> None:
         api = StudioAPI()

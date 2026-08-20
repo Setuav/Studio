@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 import unittest
-from PySide6.QtWidgets import QApplication
 
 from setuav_studio.plugin_system import (
     BaseComponentEditor,
@@ -13,11 +12,13 @@ from setuav_studio.plugin_system import (
 )
 from setuav_studio.project import ProjectDocument
 
+from tests._common import get_qapp
+
 
 class TestComponentEditor(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.app = QApplication.instance() or QApplication([])
+        cls.app = get_qapp()
 
     def test_base_component_editor_and_undo_redo(self) -> None:
         api = StudioAPI()

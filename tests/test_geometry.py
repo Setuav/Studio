@@ -18,7 +18,7 @@ from setuav_studio.plugins.geometry.lifting_surface_geometry import (
 from setuav_studio.plugins.geometry.mesh import build_loft_solid_vertices
 from setuav_studio.project import ProjectDocument, open_project
 
-TEST_PROJECT_PATH = "/home/huseyin/dev/setware/setuav-specification/examples/fixed-wing"
+from tests._common import TEST_PROJECT_PATH, get_qapp
 
 
 class GeometryTests(unittest.TestCase):
@@ -167,14 +167,12 @@ class GeometryTests(unittest.TestCase):
         self.assertEqual((len(vertices) // 9) % 3, 0)
 
     def test_lifting_surface_editor_population_and_metrics(self) -> None:
-        from PySide6.QtWidgets import QApplication
         from setuav_studio.plugin_system import StudioAPI
         from setuav_studio.plugins.geometry.lifting_surface import LiftingSurfaceEditor
-        from setuav_studio.project import open_project
 
-        app = QApplication.instance() or QApplication([])
+        get_qapp()
         api = StudioAPI()
-        doc = open_project("/home/huseyin/dev/setware/setuav-specification/examples/fixed-wing")
+        doc = open_project(TEST_PROJECT_PATH)
         api.set_project(doc)
 
         wing_comp = next(c for c in doc.data["components"] if c.get("id") == "main-wing")

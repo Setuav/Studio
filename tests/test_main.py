@@ -1,12 +1,14 @@
 import unittest
 
-from PySide6.QtWidgets import QApplication, QDockWidget, QWidget
+from PySide6.QtWidgets import QDockWidget, QWidget
 
 from setuav_studio.__main__ import _parse_arguments
 from setuav_studio.plugin_system import PanelContribution, StudioAPI, WorkspaceContribution
 from setuav_studio.shell import MainWindow
 
-_app = QApplication.instance() or QApplication([])
+from tests._common import get_qapp
+
+_app = get_qapp()
 
 
 class MainTests(unittest.TestCase):

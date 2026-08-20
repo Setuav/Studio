@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import unittest
-from pathlib import Path
-from PySide6.QtWidgets import QApplication
 
 from setuav_studio.plugin_system import PluginManager, StudioAPI
 from setuav_studio.plugins.core import CorePlugin
@@ -17,11 +15,13 @@ from setuav_studio.plugins.electrical_propulsion.editors import (
 )
 from setuav_studio.project import open_project
 
+from tests._common import TEST_PROJECT_PATH, get_qapp
+
 
 class TestElectricalPropulsion(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.app = QApplication.instance() or QApplication([])
+        cls.app = get_qapp()
 
     def test_plugin_discovery_and_registration(self) -> None:
         from setuav_studio.shell import MainWindow
@@ -43,7 +43,7 @@ class TestElectricalPropulsion(unittest.TestCase):
 
     def test_motor_editor(self) -> None:
         api = StudioAPI()
-        doc = open_project("/home/huseyin/dev/setware/setuav-specification/examples/fixed-wing")
+        doc = open_project(TEST_PROJECT_PATH)
         api.set_project(doc)
 
         motor_comp = next(c for c in doc.data["components"] if c.get("type") == "org.setuav.core:motor")
@@ -62,7 +62,7 @@ class TestElectricalPropulsion(unittest.TestCase):
 
     def test_battery_editor(self) -> None:
         api = StudioAPI()
-        doc = open_project("/home/huseyin/dev/setware/setuav-specification/examples/fixed-wing")
+        doc = open_project(TEST_PROJECT_PATH)
         api.set_project(doc)
 
         battery_comp = next(c for c in doc.data["components"] if c.get("type") == "org.setuav.core:battery")
@@ -77,7 +77,7 @@ class TestElectricalPropulsion(unittest.TestCase):
 
     def test_esc_editor(self) -> None:
         api = StudioAPI()
-        doc = open_project("/home/huseyin/dev/setware/setuav-specification/examples/fixed-wing")
+        doc = open_project(TEST_PROJECT_PATH)
         api.set_project(doc)
 
         esc_comp = next(c for c in doc.data["components"] if c.get("type") == "org.setuav.core:esc")
@@ -87,7 +87,7 @@ class TestElectricalPropulsion(unittest.TestCase):
 
     def test_propeller_editor(self) -> None:
         api = StudioAPI()
-        doc = open_project("/home/huseyin/dev/setware/setuav-specification/examples/fixed-wing")
+        doc = open_project(TEST_PROJECT_PATH)
         api.set_project(doc)
 
         prop_comp = next(c for c in doc.data["components"] if c.get("type") == "org.setuav.core:propeller")
@@ -101,7 +101,7 @@ class TestElectricalPropulsion(unittest.TestCase):
 
     def test_assembly_editor(self) -> None:
         api = StudioAPI()
-        doc = open_project("/home/huseyin/dev/setware/setuav-specification/examples/fixed-wing")
+        doc = open_project(TEST_PROJECT_PATH)
         api.set_project(doc)
 
         asm = doc.data["assemblies"][0]
@@ -142,7 +142,7 @@ class TestElectricalPropulsion(unittest.TestCase):
         pm.discover()
         win.restore_window_layout()
 
-        doc = open_project("/home/huseyin/dev/setware/setuav-specification/examples/fixed-wing")
+        doc = open_project(TEST_PROJECT_PATH)
         win.open_project(doc.location)
         api.switch_workspace("studio.workspace.propulsion")
 
