@@ -28,7 +28,7 @@ from pythrust.propulsion.models.system import SystemSpec
 from pythrust.propulsion.solver import PropulsionSolver, evaluate_propulsion_state
 
 from .database import get_propeller_database
-from setuav_studio.icons import get_icon
+from setuav_studio.ui.icons import get_icon
 from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.ui.property_tables import PropertyTableMixin
 

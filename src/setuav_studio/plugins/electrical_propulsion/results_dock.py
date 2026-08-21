@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 
 from setuav_studio.ui.theme import tokens
 
-from setuav_studio.icons import get_icon
+from setuav_studio.ui.icons import get_icon
 from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.ui.property_tables import PropertyTableMixin
 

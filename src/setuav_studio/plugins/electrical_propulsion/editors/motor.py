@@ -6,7 +6,7 @@ from typing import Any
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog, QPushButton, QWidget
 
-from setuav_studio.icons import get_icon
+from setuav_studio.ui.icons import get_icon
 from setuav_studio.plugin_system import BaseComponentEditor, ParameterField, StudioAPI
 from setuav_studio.plugins.electrical_propulsion.catalog_dialog import ComponentCatalogDialog
 from setuav_studio.ui.theme import accent_color

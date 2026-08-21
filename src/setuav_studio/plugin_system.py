@@ -12,7 +12,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon, QUndoCommand, QUndoStack
 from PySide6.QtWidgets import QWidget
 
-from setuav_studio.icons import get_icon
+from setuav_studio.ui.icons import get_icon
 from setuav_studio.component_editor import BaseComponentEditor, ParameterField
 from setuav_studio.project import ProjectDocument
 

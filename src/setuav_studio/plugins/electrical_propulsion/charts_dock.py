@@ -20,7 +20,7 @@ from PySide6.QtCharts import (
     QValueAxis,
 )
 
-from setuav_studio.icons import get_icon
+from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.theme import tokens
 
 

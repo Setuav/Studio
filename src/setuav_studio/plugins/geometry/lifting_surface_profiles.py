@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
 )
 
-from setuav_studio.icons import get_icon
+from setuav_studio.ui.icons import get_icon
 from setuav_studio.plugins.geometry.airfoil_dialog import AirfoilDialog
 
 

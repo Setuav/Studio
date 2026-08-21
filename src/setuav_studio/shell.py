@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.icons import get_icon
+from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.log_buffer import install_log_buffer
 from setuav_studio.plugin_system import (
     PanelContribution,
