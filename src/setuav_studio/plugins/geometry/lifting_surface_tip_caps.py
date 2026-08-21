@@ -78,8 +78,6 @@ class TipCapsMixin:
         else:  # winglet
             definitions = [
                 ("tip_type", "Tip Cap Type"),
-                ("tip_length", "Tip Length (mm)"),
-                ("tip_offset_x", "Tip Sweep Offset (mm)"),
                 ("match_wing_tangent", "Match Wing Tangent"),
                 ("winglet_height", "Winglet Arc Span (mm)"),
                 ("winglet_projected_metrics", "Height / Span"),
@@ -124,7 +122,7 @@ class TipCapsMixin:
                 self._on_tip_cap_type_changed,
             )
 
-            if tip_type in ("round", "sharp", "winglet"):
+            if tip_type in ("round", "sharp"):
                 self._set_property_spinbox(
                     self.tip_caps_table,
                     "tip_length",

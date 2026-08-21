@@ -144,6 +144,11 @@
           "default": 0.25,
           "description": "Chordwise twist pivot location as a fraction of chord (0.25 = quarter chord)."
         },
+        "sweep_curvature": {
+          "type": "number",
+          "default": 0.0,
+          "description": "Curvature parameter for leading edge sweep distribution."
+        },
         "section_align": {
           "enum": ["xz", "normal"],
           "default": "xz",
@@ -170,15 +175,21 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["tag", "type", "span_start", "span_end", "chord"],
+            "required": ["tag", "type"],
             "properties": {
               "tag": { "type": "string", "minLength": 1 },
-              "type": { "enum": ["aileron", "flap", "elevator", "rudder"] },
+              "type": { "enum": ["aileron", "flap", "elevator", "rudder", "elevon", "ruddervator"] },
+              "span_mode": { "enum": ["ratio", "dimension"], "default": "ratio" },
               "span_start": { "type": "number", "x-setuav-unit": "mm" },
               "span_end": { "type": "number", "x-setuav-unit": "mm" },
+              "eta_start": { "type": "number", "minimum": 0, "maximum": 1 },
+              "eta_end": { "type": "number", "minimum": 0, "maximum": 1 },
+              "chord_mode": { "enum": ["ratio", "dimension"], "default": "ratio" },
+              "chord_fraction": { "type": "number", "minimum": 0, "maximum": 1 },
               "chord": { "type": "number", "exclusiveMinimum": 0, "x-setuav-unit": "mm" },
               "hinge_sweep": { "type": "number", "default": 0, "x-setuav-unit": "deg" },
-              "deflection": { "type": "number", "default": 0, "x-setuav-unit": "deg" }
+              "deflection": { "type": "number", "default": 0, "x-setuav-unit": "deg" },
+              "symmetry_mode": { "enum": ["auto", "antisymmetric", "symmetric", "none"], "default": "auto" }
             },
             "additionalProperties": false
           }

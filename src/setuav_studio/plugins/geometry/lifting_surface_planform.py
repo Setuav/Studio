@@ -273,6 +273,9 @@ class PlanformMixin:
         elif self._get_sections():
             self._load_section(0)
 
+        if hasattr(self, "_sync_control_surfaces_with_wing"):
+            self._sync_control_surfaces_with_wing()
+
     def _on_planform_spinbox_changed(self, key: str, val_num: float) -> None:
         if self._loading:
             return

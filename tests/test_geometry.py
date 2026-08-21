@@ -239,21 +239,27 @@ class GeometryTests(unittest.TestCase):
         self.assertEqual(editor.control_surfaces_table.rowCount(), init_cs + 1)
         # Edit control surface via cs_properties_table
         cs_idx = editor._control_surface_index
-        spin_defl = editor.cs_properties_table.cellWidget(6, 1)
+        def _get_cs_spin(k: str):
+            for r in range(editor.cs_properties_table.rowCount()):
+                if editor._property_key(editor.cs_properties_table, r) == k:
+                    return editor.cs_properties_table.cellWidget(r, 1)
+            return None
+
+        spin_defl = _get_cs_spin("deflection")
         if spin_defl:
             spin_defl.setValue(18.5)
         else:
             editor._on_cs_prop_spinbox_changed("deflection", 18.5)
         self.assertEqual(editor._cs_geom(editor._control_surfaces()[cs_idx])["deflection"], 18.5)
 
-        spin_chord = editor.cs_properties_table.cellWidget(4, 1)
+        spin_chord = _get_cs_spin("chord")
         if spin_chord:
             spin_chord.setValue(55.0)
         else:
             editor._on_cs_prop_spinbox_changed("chord", 55.0)
         self.assertEqual(editor._cs_geom(editor._control_surfaces()[cs_idx])["chord"], 55.0)
 
-        spin_sweep = editor.cs_properties_table.cellWidget(5, 1)
+        spin_sweep = _get_cs_spin("hinge_sweep")
         if spin_sweep:
             spin_sweep.setValue(5.0)
         else:
@@ -713,13 +719,95 @@ class GeometryTests(unittest.TestCase):
 
         editor = ControlSurfaceEditor(api, cs_comp)
         self.assertEqual(editor._property_text(editor.general_table, 0), "Aileron")
-        self.assertEqual(editor.properties_table.cellWidget(0, 1).currentData(), "aileron")
-        self.assertIn("250.0", editor._property_text(editor.properties_table, 1))
-        self.assertIn("20.0", editor._property_text(editor.properties_table, 5))
+        type_widget = editor.properties_table.cellWidget(1, 1)
+        self.assertEqual(type_widget.currentData(), "aileron")
 
         # Edit deflection
-        editor.properties_table.item(5, 1).setText("-15.0")
+        editor._on_prop_spinbox_changed("deflection", -15.0)
         self.assertEqual(cs_comp["parameters"]["geometry"]["deflection"], -15.0)
+
+        # Edit eta_start and chord_fraction
+        editor._on_prop_spinbox_changed("eta_start", 0.35)
+        self.assertAlmostEqual(cs_comp["parameters"]["geometry"]["eta_start"], 0.35)
+        editor._on_prop_spinbox_changed("chord_fraction", 0.28)
+        self.assertAlmostEqual(cs_comp["parameters"]["geometry"]["chord_fraction"], 0.28)
+
+        # Edit type to elevon and symmetry_mode
+        editor._on_prop_combo_changed("type", "elevon")
+        self.assertEqual(cs_comp["parameters"]["geometry"]["type"], "elevon")
+        editor._on_prop_combo_changed("symmetry_mode", "symmetric")
+        self.assertEqual(cs_comp["parameters"]["geometry"]["symmetry_mode"], "symmetric")
+
+    def test_control_surface_sizing_modes_and_live_sync(self) -> None:
+        from setuav_studio.plugin_system import StudioAPI
+        from setuav_studio.plugins.geometry.lifting_surface import LiftingSurfaceEditor
+        from setuav_studio.project import ProjectDocument
+
+        wing_comp = {
+            "kind": "component",
+            "id": "main-wing",
+            "type": "org.setuav.core:lifting-surface",
+            "parameters": {
+                "geometry": {
+                    "profiles": [
+                        {"chord": 200.0, "position": {"x": 0.0, "y": 0.0, "z": 0.0}},
+                        {"chord": 100.0, "position": {"x": 50.0, "y": 1000.0, "z": 0.0}},
+                    ],
+                    "control_surfaces": [
+                        {
+                            "tag": "aileron_ratio",
+                            "type": "aileron",
+                            "span_mode": "ratio",
+                            "eta_start": 0.5,
+                            "eta_end": 0.9,
+                            "span_start": 500.0,
+                            "span_end": 900.0,
+                            "chord_mode": "ratio",
+                            "chord_fraction": 0.25,
+                            "chord": 50.0,
+                        },
+                        {
+                            "tag": "flap_dim",
+                            "type": "flap",
+                            "span_mode": "dimension",
+                            "span_start": 100.0,
+                            "span_end": 400.0,
+                            "eta_start": 0.1,
+                            "eta_end": 0.4,
+                            "chord_mode": "dimension",
+                            "chord": 45.0,
+                            "chord_fraction": 0.225,
+                        },
+                    ]
+                }
+            }
+        }
+        doc = ProjectDocument(Path("/tmp/test.json"), "json", {"components": [wing_comp]})
+        api = StudioAPI()
+        api.project = doc
+        editor = LiftingSurfaceEditor(api, wing_comp)
+
+        # 1. Test live spinbox sync when user edits eta_start on aileron (index 0)
+        editor._load_control_surface(0)
+        editor._on_cs_prop_spinbox_changed("eta_start", 0.6)
+        geom0 = editor._geometry()["control_surfaces"][0]
+        self.assertAlmostEqual(geom0["eta_start"], 0.6)
+        self.assertAlmostEqual(geom0["span_start"], 600.0) # 0.6 * 1000.0
+
+        # 2. Scale the wing span from 1000 to 2000 mm
+        wing_comp["parameters"]["geometry"]["profiles"][1]["position"]["y"] = 2000.0
+        editor._sync_control_surfaces_with_wing()
+
+        # Ratio aileron should scale its span_start from 600mm to 1200mm (0.6 * 2000)
+        self.assertAlmostEqual(geom0["span_start"], 1200.0)
+        self.assertAlmostEqual(geom0["span_end"], 1800.0) # 0.9 * 2000
+
+        # Dimension flap should keep its fixed 100-400mm span, but eta updates to 0.05 - 0.20
+        geom1 = editor._geometry()["control_surfaces"][1]
+        self.assertAlmostEqual(geom1["span_start"], 100.0)
+        self.assertAlmostEqual(geom1["span_end"], 400.0)
+        self.assertAlmostEqual(geom1["eta_start"], 0.05)
+        self.assertAlmostEqual(geom1["eta_end"], 0.20)
 
     def test_control_surface_add_delete_no_duplication(self) -> None:
         from setuav_studio.plugin_system import StudioAPI

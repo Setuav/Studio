@@ -474,6 +474,8 @@ class SectionsMixin:
         self._populate_sections()
         self.sections_table.selectRow(idx)
         self._refresh_planform_table()
+        if hasattr(self, "_sync_control_surfaces_with_wing"):
+            self._sync_control_surfaces_with_wing()
 
     def _on_section_angle_changed(self, key: str, value: float) -> None:
         if self._loading:

@@ -13,11 +13,11 @@
       "unit": "m/s"
     },
     "wing_area": {
-      "value": 240000.0,
+      "value": 30.00000000000001,
       "unit": "mm^2"
     },
     "wing_aspect_ratio": {
-      "value": 6.0,
+      "value": 6.999999999999999,
       "unit": "1"
     }
   },
@@ -239,7 +239,7 @@
                 "y": 0.0,
                 "z": 0.0
               },
-              "chord": 242.42424242424244,
+              "chord": 239.1835186581984,
               "rotation": {
                 "x": 0.0,
                 "y": 0.0,
@@ -766,11 +766,11 @@
             },
             {
               "position": {
-                "x": 42.164582907169844,
-                "y": 600.0,
+                "x": 29.277030129948525,
+                "y": 649.568837309472,
                 "z": 0.0
               },
-              "chord": 157.5757575757576,
+              "chord": 167.42846306073886,
               "rotation": {
                 "x": 0.0,
                 "y": 3.0,
@@ -1298,23 +1298,26 @@
           ],
           "tip_treatment": {
             "type": "winglet",
-            "length": 40.0,
+            "length": 35.0,
             "offset_x": 0.0,
             "match_wing_tangent": true,
             "cant_root": 10.0,
-            "winglet_height": 80.0,
+            "winglet_height": 60.0,
             "cant_tip": 50.0,
             "cant_angle": 50.0,
             "blend_radius": 60.0,
             "le_sweep_root": 5.0,
             "sweep_root": 5.0,
             "winglet_sweep": 5.0,
-            "le_sweep_tip": 70.0,
+            "le_sweep_tip": 76.0,
             "sweep_tip": 70.0,
             "tip_chord_scale": 0.25,
             "tip_thickness_scale": 0.2,
-            "te_sweep_tip": 25.0
-          }
+            "te_sweep_tip": 20.0,
+            "le_curvature": -1.0,
+            "te_curvature": 2.0
+          },
+          "sweep_curvature": 0.0
         }
       }
     },
@@ -1330,11 +1333,14 @@
         "geometry": {
           "tag": "Aileron",
           "type": "aileron",
-          "span_start": 250.0,
-          "span_end": 550.0,
-          "chord": 65.0,
+          "span_start": 261.7,
+          "span_end": 575.8,
+          "chord": 64.1,
           "deflection": 0.0,
-          "hinge_sweep": -1.0
+          "hinge_sweep": -1.0,
+          "chord_fraction": 0.268,
+          "eta_start": 0.4029,
+          "eta_end": 0.8865
         }
       }
     },
