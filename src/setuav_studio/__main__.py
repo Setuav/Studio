@@ -7,7 +7,7 @@ from PySide6.QtCore import QStandardPaths
 from PySide6.QtWidgets import QApplication
 
 from setuav_studio.plugin_system import PluginManager, StudioAPI
-from setuav_studio.log_buffer import install_log_buffer
+from setuav_studio.ui.log_buffer import install_log_buffer
 from setuav_studio.plugins.core import CorePlugin
 from setuav_studio.plugins.core.settings import StudioSettings
 from setuav_studio.ui.theme import apply_theme
