@@ -900,9 +900,12 @@ class GeometryTests(unittest.TestCase):
         api.current_project = mock_doc
 
         editor = LiftingSurfaceEditor(api, wing_comp)
-        # Default tip cap is flat — table now has: tip_type, tip_length, tip_offset_x,
-        # winglet_height, cant_angle, winglet_sweep, toe_angle, root_chord_scale, tip_chord_scale = 9 rows
-        self.assertEqual(editor.tip_caps_table.rowCount(), 9)
+        # Default tip cap is flat — table has 21 rows:
+        # tip_type, tip_length, tip_offset_x, match_wing_tangent, winglet_height,
+        # winglet_projected_metrics, cant_root, cant_tip, blend_radius, le_sweep_root,
+        # le_sweep_tip, le_curvature, te_sweep_root, te_sweep_tip, te_curvature,
+        # toe_root, toe_tip, root_chord_scale, tip_chord_scale, tip_thickness_scale, taper_curve
+        self.assertEqual(editor.tip_caps_table.rowCount(), 21)
         self.assertEqual(wing_comp["parameters"]["geometry"].get("tip_treatment", {}).get("type", "flat"), "flat")
 
         # Change tip cap type to round via UI
@@ -920,8 +923,29 @@ class GeometryTests(unittest.TestCase):
                 break
         self.assertAlmostEqual(wing_comp["parameters"]["geometry"]["tip_treatment"]["length"], 35.0)
 
+        # Switch to winglet and edit winglet parameters directly via UI
+        editor._on_tip_cap_type_changed("winglet")
+        editor._on_tip_cap_spinbox_changed("le_sweep_root", 25.0)
+        editor._on_tip_cap_spinbox_changed("le_sweep_tip", 55.0)
+        editor._on_tip_cap_spinbox_changed("le_curvature", 10.0)
+        editor._on_tip_cap_spinbox_changed("te_sweep_tip", -15.0)
+        editor._on_tip_cap_spinbox_changed("tip_thickness_scale", 0.6)
+        tt = wing_comp["parameters"]["geometry"]["tip_treatment"]
+        self.assertEqual(tt["type"], "winglet")
+        self.assertEqual(tt["le_sweep_root"], 25.0)
+        self.assertEqual(tt["le_sweep_tip"], 55.0)
+        self.assertEqual(tt["le_curvature"], 10.0)
+        self.assertEqual(tt["te_sweep_tip"], -15.0)
+        self.assertEqual(tt["tip_thickness_scale"], 0.6)
+
+        # Check 4-cell projected metrics live update widget
+        self.assertTrue(hasattr(editor, "metric_height_val"))
+        self.assertTrue(hasattr(editor, "metric_span_val"))
+        self.assertIn("mm", editor.metric_height_val.text())
+        self.assertIn("mm", editor.metric_span_val.text())
+
     def test_winglet_geometry(self) -> None:
-        """Verify _build_winglet_loft generates correct geometry."""
+        """Verify _build_winglet_loft generates correct curved/scimitar geometry."""
         from setuav_studio.plugins.geometry.lifting_surface_geometry import _build_winglet_loft
 
         tip_profile = {
@@ -942,20 +966,21 @@ class GeometryTests(unittest.TestCase):
             toe_angle_deg=0.0,
             root_chord_scale=1.0,
             tip_chord_scale=0.5,
+            n_stations=24,
         )
         self.assertIsNotNone(loft)
         self.assertEqual(loft.component_id, "wing:winglet")
-        # Should have n_stations=12 sections
-        self.assertEqual(len(loft.sections), 12)
+        self.assertEqual(len(loft.sections), 24)
         # All sections should have the same number of points
         pts_per_section = len(loft.sections[0].points)
         self.assertGreater(pts_per_section, 0)
         for sec in loft.sections:
             self.assertEqual(len(sec.points), pts_per_section)
 
-        # Root section (s=0) should overlap tip profile Y position (y=500)
+        # Root section (s=0) should be centered on tip profile Y position (y=500)
         root_ys = [p[1] for p in loft.sections[0].points]
-        self.assertAlmostEqual(min(root_ys), 500.0, delta=2.0)
+        root_mean_y = sum(root_ys) / len(root_ys)
+        self.assertAlmostEqual(root_mean_y, 500.0, delta=1.0)
 
         # Tip section (s=100) fully vertical cant=90° → Y barely changes, Z increases
         tip_zs = [p[2] for p in loft.sections[-1].points]
@@ -968,25 +993,40 @@ class GeometryTests(unittest.TestCase):
         )
         self.assertIsNone(none_loft)
 
-        # Winglet with sweep should shift LE forward
-        swept = _build_winglet_loft(
+        # Curved scimitar winglet with independent LE/TE curves and thickness taper
+        scimitar_loft = _build_winglet_loft(
             comp_id="wing",
             tip_profile=tip_profile,
-            winglet_height=100.0,
-            cant_angle_deg=75.0,
-            sweep_deg=30.0,
+            winglet_height=140.0,
+            cant_root_deg=0.0,
+            cant_tip_deg=85.0,
+            blend_radius=50.0,
+            match_wing_tangent=True,
+            incoming_le_sweep_deg=10.0,
+            incoming_te_sweep_deg=5.0,
+            le_sweep_tip_deg=55.0,
+            le_curvature=10.0,
+            te_sweep_tip_deg=-15.0,
+            te_curvature=-8.0,
+            toe_root_deg=0.0,
+            toe_tip_deg=-2.0,
+            tip_thickness_scale=0.6,
+            taper_curve=0.85,
+            n_stations=24,
         )
-        unswept = _build_winglet_loft(
-            comp_id="wing",
-            tip_profile=tip_profile,
-            winglet_height=100.0,
-            cant_angle_deg=75.0,
-            sweep_deg=0.0,
-        )
-        # Swept tip section should have higher mean X
-        swept_x = sum(p[0] for p in swept.sections[-1].points) / len(swept.sections[-1].points)
-        unswept_x = sum(p[0] for p in unswept.sections[-1].points) / len(unswept.sections[-1].points)
-        self.assertGreater(swept_x, unswept_x)
+        self.assertIsNotNone(scimitar_loft)
+        self.assertEqual(len(scimitar_loft.sections), 24)
+
+        # Blended cant check: root section should emerge in span direction (near Y=500)
+        # Mid/tip sections should reach higher Z smoothly
+        mid_z = max(p[2] for p in scimitar_loft.sections[len(scimitar_loft.sections) // 2].points)
+        tip_scimitar_z = max(p[2] for p in scimitar_loft.sections[-1].points)
+        self.assertGreater(tip_scimitar_z, mid_z)
+        self.assertGreater(mid_z, max(root_zs))
+
+        # Thickness check at root section (in Z since cant_root=0 is horizontal)
+        root_thickness_z = max(p[2] for p in scimitar_loft.sections[0].points) - min(p[2] for p in scimitar_loft.sections[0].points)
+        self.assertGreater(root_thickness_z, 5.0)
 
     def test_fuselage_section_dialog_and_metrics(self) -> None:
         """Verify 2D fuselage section metrics calculation and dialog functionality."""

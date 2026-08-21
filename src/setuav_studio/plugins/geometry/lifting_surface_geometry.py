@@ -133,12 +133,46 @@ def build_lifting_surface_geometry(
         y1 = float(profiles[-1].get("position", {}).get("y", 0.0)) if isinstance(profiles[-1].get("position"), dict) else 0.0
         span_dir = 1.0 if y1 >= y0 else -1.0
 
-        winglet_height = float(tip_treatment.get("winglet_height", 100.0))
-        cant_angle = float(tip_treatment.get("cant_angle", 75.0))
-        winglet_sweep = float(tip_treatment.get("winglet_sweep", 30.0))
+        p_prev = profiles[-2] if len(profiles) >= 2 else profiles[-1]
+        p_tip = profiles[-1]
+        prev_pos = p_prev.get("position", {}) if isinstance(p_prev.get("position"), dict) else {}
+        tip_pos = p_tip.get("position", {}) if isinstance(p_tip.get("position"), dict) else {}
+        dy = float(tip_pos.get("y", 0.0)) - float(prev_pos.get("y", 0.0))
+        if abs(dy) > 1e-4:
+            dx_le = float(tip_pos.get("x", 0.0)) - float(prev_pos.get("x", 0.0))
+            dx_te = (float(tip_pos.get("x", 0.0)) + _number(p_tip.get("chord"))) - \
+                    (float(prev_pos.get("x", 0.0)) + _number(p_prev.get("chord")))
+            incoming_le_sweep_deg = math.degrees(math.atan2(dx_le, abs(dy)))
+            incoming_te_sweep_deg = math.degrees(math.atan2(dx_te, abs(dy)))
+        else:
+            incoming_le_sweep_deg = 0.0
+            incoming_te_sweep_deg = 0.0
+
+        match_tangent = bool(tip_treatment.get("match_wing_tangent", True))
+        winglet_height = float(tip_treatment.get("winglet_height", 130.0))
+        cant_angle = float(tip_treatment.get("cant_angle", 80.0))
+        cant_root = float(tip_treatment.get("cant_root", 0.0))
+        cant_tip = tip_treatment.get("cant_tip")
+        blend_radius = float(tip_treatment.get("blend_radius", 45.0 if "blend_radius" in tip_treatment else 0.0))
+
+        # Sweep & Curvatures
+        sweep_default = float(tip_treatment.get("winglet_sweep", 20.0))
+        le_sweep_root = tip_treatment.get("le_sweep_root", tip_treatment.get("sweep_root"))
+        le_sweep_tip = tip_treatment.get("le_sweep_tip", tip_treatment.get("sweep_tip", 48.0))
+        le_curvature = float(tip_treatment.get("le_curvature", tip_treatment.get("scimitar_offset", 0.0)))
+
+        te_sweep_root = tip_treatment.get("te_sweep_root")
+        te_sweep_tip = tip_treatment.get("te_sweep_tip")
+        te_curvature = float(tip_treatment.get("te_curvature", 0.0))
+
         toe_angle = float(tip_treatment.get("toe_angle", 0.0))
+        toe_root = tip_treatment.get("toe_root")
+        toe_tip = tip_treatment.get("toe_tip", -1.5 if "toe_tip" not in tip_treatment else 0.0)
+
         root_chord_scale = float(tip_treatment.get("root_chord_scale", 1.0))
-        tip_chord_scale = float(tip_treatment.get("tip_chord_scale", 0.5))
+        tip_chord_scale = float(tip_treatment.get("tip_chord_scale", 0.45))
+        tip_thickness_scale = float(tip_treatment.get("tip_thickness_scale", 0.7))
+        taper_curve = float(tip_treatment.get("taper_curve", 1.0))
 
         winglet_loft = _build_winglet_loft(
             comp_id=comp_id,
@@ -146,10 +180,26 @@ def build_lifting_surface_geometry(
             span_dir=span_dir,
             winglet_height=winglet_height,
             cant_angle_deg=cant_angle,
-            sweep_deg=winglet_sweep,
+            cant_root_deg=float(cant_root) if cant_root is not None else None,
+            cant_tip_deg=float(cant_tip) if cant_tip is not None else None,
+            blend_radius=blend_radius,
+            match_wing_tangent=match_tangent,
+            incoming_le_sweep_deg=incoming_le_sweep_deg,
+            incoming_te_sweep_deg=incoming_te_sweep_deg,
+            sweep_deg=sweep_default,
+            le_sweep_root_deg=float(le_sweep_root) if le_sweep_root is not None else None,
+            le_sweep_tip_deg=float(le_sweep_tip) if le_sweep_tip is not None else None,
+            le_curvature=le_curvature,
+            te_sweep_root_deg=float(te_sweep_root) if te_sweep_root is not None else None,
+            te_sweep_tip_deg=float(te_sweep_tip) if te_sweep_tip is not None else None,
+            te_curvature=te_curvature,
             toe_angle_deg=toe_angle,
+            toe_root_deg=float(toe_root) if toe_root is not None else None,
+            toe_tip_deg=float(toe_tip) if toe_tip is not None else None,
             root_chord_scale=root_chord_scale,
             tip_chord_scale=tip_chord_scale,
+            tip_thickness_scale=tip_thickness_scale,
+            taper_curve=taper_curve,
             twist_location=twist_location,
             te_thickness=te_thickness,
             thickness_scale=thickness_scale,
@@ -744,34 +794,97 @@ def _build_tip_cap_loft(
     )
 
 
+def compute_winglet_projected_dimensions(
+    winglet_height: float,
+    cant_root_deg: float,
+    cant_tip_deg: float,
+    blend_radius: float,
+    n_pts: int = 50,
+) -> tuple[float, float]:
+    """Compute projected vertical height (delta Z) and span extension (delta Y) in mm.
+
+    Returns:
+        tuple[float, float]: (delta_z_height_mm, delta_y_span_mm)
+    """
+    if winglet_height <= 0.0:
+        return 0.0, 0.0
+    u_blend = min(1.0, max(0.01, blend_radius / winglet_height)) if blend_radius > 0.0 else 0.0
+    c_root = cant_root_deg
+    c_tip = cant_tip_deg
+
+    u_vals = [
+        0.5 * (1.0 - math.cos(math.pi * i / (n_pts - 1)))
+        for i in range(n_pts)
+    ]
+    cant_angles_rad: list[float] = []
+    for u in u_vals:
+        if blend_radius > 0.0:
+            if u <= u_blend:
+                t = u / u_blend
+                w = t * t * t * (t * (t * 6.0 - 15.0) + 10.0)
+                angle = c_root + (c_tip - c_root) * w
+            else:
+                angle = c_tip
+        else:
+            angle = c_root + (c_tip - c_root) * u
+        cant_angles_rad.append(math.radians(angle))
+
+    delta_y = 0.0
+    delta_z = 0.0
+    for i in range(1, n_pts):
+        du = u_vals[i] - u_vals[i - 1]
+        ds = winglet_height * du
+        avg_cos = 0.5 * (math.cos(cant_angles_rad[i - 1]) + math.cos(cant_angles_rad[i]))
+        avg_sin = 0.5 * (math.sin(cant_angles_rad[i - 1]) + math.sin(cant_angles_rad[i]))
+        delta_y += ds * avg_cos
+        delta_z += ds * avg_sin
+
+    return delta_z, delta_y
+
+
 def _build_winglet_loft(
     comp_id: str,
     tip_profile: dict[str, Any],
     span_dir: float = 1.0,
-    winglet_height: float = 100.0,
-    cant_angle_deg: float = 75.0,
-    sweep_deg: float = 30.0,
+    winglet_height: float = 130.0,
+    cant_angle_deg: float = 80.0,
+    cant_root_deg: float | None = 0.0,
+    cant_tip_deg: float | None = None,
+    blend_radius: float = 45.0,
+    match_wing_tangent: bool = True,
+    incoming_le_sweep_deg: float = 0.0,
+    incoming_te_sweep_deg: float = 0.0,
+    sweep_deg: float = 20.0,
+    sweep_root_deg: float | None = None,
+    sweep_tip_deg: float | None = None,
+    le_sweep_root_deg: float | None = None,
+    le_sweep_tip_deg: float | None = None,
+    le_curvature: float = 0.0,
+    te_sweep_root_deg: float | None = None,
+    te_sweep_tip_deg: float | None = None,
+    te_curvature: float = 0.0,
+    scimitar_offset: float = 0.0,
     toe_angle_deg: float = 0.0,
+    toe_root_deg: float | None = None,
+    toe_tip_deg: float | None = None,
     root_chord_scale: float = 1.0,
-    tip_chord_scale: float = 0.5,
+    tip_chord_scale: float = 0.45,
+    tip_thickness_scale: float = 0.7,
+    taper_curve: float = 1.0,
     twist_location: float = 0.25,
     te_thickness: float = 0.0,
     thickness_scale: float = 1.0,
     camber_scale: float = 1.0,
-    n_stations: int = 12,
+    n_stations: int = 24,
 ) -> LoftGeometry | None:
-    """Generate a parametric winglet loft extending from the wing tip.
+    """Generate a parametric curved winglet loft with G1 tangency and independent LE/TE curves.
 
-    The winglet grows from the tip station in a direction controlled by
-    cant_angle_deg (0° = horizontal extension, 90° = straight up).
-    sweep_deg applies a forward/aft lean to each successive chord plane.
-    toe_angle_deg twists the entire winglet around the span axis (pitch).
-
-    Coordinate conventions (winglet local frame):
-        s     — distance along winglet height from 0 to winglet_height
-        dy_ds — component of s in the wing Y direction  = cos(cant_rad)  * span_dir
-        dz_ds — component of s in the global Z direction = sin(cant_rad)
-        dx_ds — sweep offset per unit s                 = tan(sweep_rad)
+    Supports:
+    - G1 continuity with incoming wing planform (zero kink at junction).
+    - Independent cubic Hermite/Bézier Leading Edge and Trailing Edge curves.
+    - Smooth quintic transition blend from cant_root to cant_tip.
+    - Thickness tapering towards the tip.
+    - Normal section rotation and aerodynamic washout progression.
     """
     if winglet_height <= 0.0:
         return None
@@ -780,95 +893,185 @@ def _build_winglet_loft(
     if tip_chord <= 0.0:
         return None
 
-    # Tip station world position & rotation (use section_transform to get the base matrix)
+    # Tip station world position & rotation
     matrix = section_transform(tip_profile, chord=tip_chord, twist_location=twist_location)
 
     # Airfoil coords (with shaping applied)
     coords = sample_airfoil_points(tip_profile.get("airfoil"))
-    coords = apply_airfoil_shaping(coords, te_thickness=te_thickness,
-                                   thickness_scale=thickness_scale, camber_scale=camber_scale)
+    coords = apply_airfoil_shaping(
+        coords,
+        te_thickness=te_thickness,
+        thickness_scale=thickness_scale,
+        camber_scale=camber_scale,
+    )
     upper_b, lower_b = _split_airfoil_upper_lower(coords)
 
-    cant_rad = math.radians(cant_angle_deg)
-    sweep_rad = math.radians(sweep_deg)
-    toe_rad = math.radians(toe_angle_deg)
-    cos_cant = math.cos(cant_rad)
-    sin_cant = math.sin(cant_rad)
-    tan_sweep = math.tan(sweep_rad)
+    # Resolve cant parameters
+    c_tip = cant_tip_deg if cant_tip_deg is not None else cant_angle_deg
+    c_root = cant_root_deg if cant_root_deg is not None else 0.0
 
-    # Cosine-spaced stations along winglet height (denser at root/tip)
-    s_vals = [
-        winglet_height * 0.5 * (1.0 - math.cos(math.pi * i / (n_stations - 1)))
-        for i in range(n_stations)
+    # Resolve LE sweep
+    if le_sweep_tip_deg is not None:
+        le_s_tip = le_sweep_tip_deg
+    elif sweep_tip_deg is not None:
+        le_s_tip = sweep_tip_deg
+    else:
+        le_s_tip = sweep_deg
+
+    if le_sweep_root_deg is not None:
+        le_s_root = le_sweep_root_deg
+    elif match_wing_tangent:
+        le_s_root = incoming_le_sweep_deg
+    elif sweep_root_deg is not None:
+        le_s_root = sweep_root_deg
+    else:
+        le_s_root = sweep_deg
+
+    # Resolve TE sweep
+    if te_sweep_root_deg is not None:
+        te_s_root = te_sweep_root_deg
+    elif match_wing_tangent:
+        te_s_root = incoming_te_sweep_deg
+    else:
+        te_s_root = le_s_root * 0.7
+
+    if te_sweep_tip_deg is not None:
+        te_s_tip = te_sweep_tip_deg
+    else:
+        te_s_tip = le_s_tip * 0.5
+
+    # Curvature parameters
+    le_curv_val = le_curvature + scimitar_offset
+    te_curv_val = te_curvature + (scimitar_offset * 0.4)
+
+    # Toe parameters
+    t_root = toe_root_deg if toe_root_deg is not None else toe_angle_deg
+    t_tip = toe_tip_deg if toe_tip_deg is not None else toe_angle_deg
+
+    # Cosine-spaced stations along height u in [0, 1]
+    n_pts = max(n_stations, 20)
+    u_vals = [
+        0.5 * (1.0 - math.cos(math.pi * i / (n_pts - 1)))
+        for i in range(n_pts)
     ]
 
-    # Structured airfoil sample count (same as main wing sections)
+    # Pre-calculate cant angle Gamma(u) at each station
+    u_blend = min(1.0, max(0.01, blend_radius / winglet_height)) if blend_radius > 0.0 else 0.0
+
+    cant_angles_rad: list[float] = []
+    for u in u_vals:
+        if blend_radius > 0.0:
+            if u <= u_blend:
+                t = u / u_blend
+                w = t * t * t * (t * (t * 6.0 - 15.0) + 10.0)  # quintic smoothstep
+                angle = c_root + (c_tip - c_root) * w
+            else:
+                angle = c_tip
+        else:
+            angle = c_root + (c_tip - c_root) * u
+        cant_angles_rad.append(math.radians(angle))
+
+    # Integrate delta Y and delta Z along height
+    y_offsets: list[float] = [0.0]
+    z_offsets: list[float] = [0.0]
+
+    for i in range(1, n_pts):
+        du = u_vals[i] - u_vals[i - 1]
+        ds = winglet_height * du
+        avg_cos = 0.5 * (math.cos(cant_angles_rad[i - 1]) + math.cos(cant_angles_rad[i]))
+        avg_sin = 0.5 * (math.sin(cant_angles_rad[i - 1]) + math.sin(cant_angles_rad[i]))
+        y_offsets.append(y_offsets[-1] + ds * avg_cos * span_dir)
+        z_offsets.append(z_offsets[-1] + ds * avg_sin)
+
+    # Hermite boundary values for LE and TE curves
+    m0_le = winglet_height * math.tan(math.radians(le_s_root))
+    m1_le = winglet_height * math.tan(math.radians(le_s_tip))
+    x_le_tip = 0.5 * (m0_le + m1_le)
+
+    c0 = tip_chord * root_chord_scale
+    c1 = tip_chord * tip_chord_scale
+    k0_te = winglet_height * math.tan(math.radians(te_s_root))
+    k1_te = winglet_height * math.tan(math.radians(te_s_tip))
+    x_te_tip = x_le_tip + c1
+
+    # Structured airfoil sample count
     n_upper, n_lower, n_wall = 28, 28, 7
     global_x_upper = [0.5 * (1.0 + math.cos(math.pi * i / (n_upper - 1))) for i in range(n_upper)]
     global_x_lower = [0.5 * (1.0 - math.cos(math.pi * i / (n_lower - 1))) for i in range(n_lower)]
 
     sections: list[Section] = []
 
-    for idx, s in enumerate(s_vals):
-        frac = s / winglet_height  # 0 at root, 1 at tip
+    for idx, u in enumerate(u_vals):
+        # Cubic Hermite basis functions
+        h00 = 2.0 * u**3 - 3.0 * u**2 + 1.0
+        h10 = u**3 - 2.0 * u**2 + u
+        h01 = -2.0 * u**3 + 3.0 * u**2
+        h11 = u**3 - u**2
+        # C2 bow bell curve with zero derivatives at endpoints
+        bow = 16.0 * (u**2) * ((1.0 - u)**2)
 
-        # Chord interpolated root→tip
-        chord_wl = tip_chord * (root_chord_scale + (tip_chord_scale - root_chord_scale) * frac)
+        # Leading edge X position
+        x_le_u = x_le_tip * h01 + m0_le * h10 + m1_le * h11 + le_curv_val * bow
+        # Trailing edge X position
+        x_te_u = c0 * h00 + x_te_tip * h01 + k0_te * h10 + k1_te * h11 + te_curv_val * bow
 
-        # Local offsets from tip LE in winglet-local space:
-        #   along Y (wing span):  s * cos(cant) * span_dir
-        #   along Z (up):         s * sin(cant)
-        #   along X (fwd/aft):    s * tan(sweep)  (positive = aft)
-        ds_y = s * cos_cant * span_dir
-        ds_z = s * sin_cant
-        ds_x = s * tan_sweep
+        chord_wl = max(x_te_u - x_le_u, 0.05 * c1)
 
-        # Toe angle: rotate chord axis around span axis by toe_angle_deg
-        # This is applied as an additional pitch of the section in XZ
+        ds_y = y_offsets[idx]
+        ds_z = z_offsets[idx]
+
+        cant_rad = cant_angles_rad[idx]
+        cos_cant = math.cos(cant_rad)
+        sin_cant = math.sin(cant_rad)
+
+        # Washout / Toe angle
+        toe_deg = t_root + (t_tip - t_root) * u
+        toe_rad = math.radians(toe_deg)
         cos_toe = math.cos(toe_rad)
         sin_toe = math.sin(toe_rad)
 
+        # Thickness scale (taper from root to tip)
+        t_scale = 1.0 + (tip_thickness_scale - 1.0) * u
+
+        x_pivot = x_le_u + 0.25 * chord_wl
+
+        def _calc_pt(x_rel: float, z_rel: float) -> Point3D:
+            x_local = x_le_u + x_rel * chord_wl
+            z_local = z_rel * chord_wl * t_scale
+            dx_p = x_local - x_pivot
+            x_toe = dx_p * cos_toe - z_local * sin_toe + x_pivot
+            z_toe = dx_p * sin_toe + z_local * cos_toe
+            # Cant roll rotation (perpendicular to cant curve)
+            dy_sec = -z_toe * sin_cant * span_dir
+            dz_sec = z_toe * cos_cant
+            p_local = (x_toe, ds_y + dy_sec, ds_z + dz_sec)
+            return transform_point(matrix, p_local)
+
         pts: list[Point3D] = []
 
-        # Upper surface (TE → LE)
+        # Upper surface (TE -> LE)
         for i in range(n_upper):
             x_rel = global_x_upper[i]
             z_val = _interp_branch_z(upper_b, x_rel)
-            # Scale to winglet chord and apply toe rotation in local XZ
-            x_local = x_rel * chord_wl
-            z_local = z_val * chord_wl
-            x_toe = x_local * cos_toe - z_local * sin_toe + ds_x
-            z_toe = x_local * sin_toe + z_local * cos_toe
-            p_local = (x_toe, ds_y, z_toe + ds_z)
-            pts.append(transform_point(matrix, p_local))
+            pts.append(_calc_pt(x_rel, z_val))
 
         # LE point
-        z_le = _interp_branch_z(upper_b, 0.0) * chord_wl
-        x_le_toe = -z_le * sin_toe + ds_x
-        z_le_toe = z_le * cos_toe
-        pts.append(transform_point(matrix, (x_le_toe, ds_y, z_le_toe + ds_z)))
+        z_le = _interp_branch_z(upper_b, 0.0)
+        pts.append(_calc_pt(0.0, z_le))
 
-        # Lower surface (LE → TE)
+        # Lower surface (LE -> TE)
         for i in range(n_lower):
             x_rel = global_x_lower[i]
             z_val = _interp_branch_z(lower_b, x_rel)
-            x_local = x_rel * chord_wl
-            z_local = z_val * chord_wl
-            x_toe = x_local * cos_toe - z_local * sin_toe + ds_x
-            z_toe = x_local * sin_toe + z_local * cos_toe
-            p_local = (x_toe, ds_y, z_toe + ds_z)
-            pts.append(transform_point(matrix, p_local))
+            pts.append(_calc_pt(x_rel, z_val))
 
-        # TE closure (7 wall pts, upper→lower)
-        z_te_u = _interp_branch_z(upper_b, 1.0) * chord_wl
-        z_te_l = _interp_branch_z(lower_b, 1.0) * chord_wl
-        x_te_base = chord_wl
+        # TE closure (7 wall pts, upper -> lower)
+        z_te_u = _interp_branch_z(upper_b, 1.0)
+        z_te_l = _interp_branch_z(lower_b, 1.0)
         for j in range(1, n_wall + 1):
             fj = j / n_wall
             z_wall = z_te_u + fj * (z_te_l - z_te_u)
-            x_toe = x_te_base * cos_toe - z_wall * sin_toe + ds_x
-            z_toe = x_te_base * sin_toe + z_wall * cos_toe
-            pts.append(transform_point(matrix, (x_toe, ds_y, z_toe + ds_z)))
+            pts.append(_calc_pt(1.0, z_wall))
 
         sections.append(Section(tuple(pts)))
 
@@ -876,7 +1079,7 @@ def _build_winglet_loft(
         component_id=f"{comp_id}:winglet",
         sections=tuple(sections),
         color=wing_color(),
-        interpolation="smooth" if n_stations > 2 else "linear",
+        interpolation="smooth" if len(sections) > 2 else "linear",
         station_spacing=10.0,
         closed_ends=True,
     )
