@@ -29,13 +29,25 @@ def _is_matching_component(loft_component_id: str, target_component_id: str | No
         return False
     if loft_component_id == target_component_id:
         return True
+
+    loft_lower = loft_component_id.lower()
+    target_lower = target_component_id.lower()
+    if loft_lower == target_lower:
+        return True
+
     parts = loft_component_id.split(":")
-    # e.g. "main-wing:mirror" matches "main-wing"
-    if parts[0] == target_component_id:
+    parts_lower = [p.lower() for p in parts]
+
+    # 1. If target matches a subpart (e.g. "aileron" matches "main-wing:Aileron" or "main-wing:mirror:Aileron")
+    if target_lower in parts_lower:
         return True
-    # e.g. "main-wing:aileron" or "main-wing:mirror:aileron" matches "aileron"
-    if len(parts) > 1 and parts[-1] == target_component_id:
-        return True
+
+    # 2. If target is the main component (e.g. "main-wing"), matches base wing body and its mirror, but not control surface lofts
+    if parts_lower[0] == target_lower:
+        subparts = [p for p in parts_lower if p not in (target_lower, "mirror", "stations", "tip-cap", "winglet")]
+        if not subparts:
+            return True
+
     return False
 
 
@@ -47,6 +59,8 @@ def build_loft_wire_vertices(
 ) -> list[float]:
     vertices: list[float] = []
     for loft in data.lofts:
+        if ":stations" in loft.component_id:
+            continue
         if _is_matching_component(loft.component_id, selected_component_id) or _is_matching_component(loft.component_id, hovered_component_id):
             continue
         loops = _tessellated_loops(loft)
@@ -70,6 +84,8 @@ def build_component_wire_vertices(
     if component_id is None:
         return vertices
     for loft in data.lofts:
+        if ":stations" in loft.component_id:
+            continue
         if not _is_matching_component(loft.component_id, component_id):
             continue
         loops = _tessellated_loops(loft)
@@ -90,6 +106,12 @@ def _append_loft_wire(vertices: list[float], loops, color: Point3D) -> None:
             _add_line(vertices, current[point_index], following[point_index], color)
 
 
+CS_HIGHLIGHT = SELECTED_WIRE
+HINGE_HIGHLIGHT = (1.0, 0.40, 0.15)
+AIRFOIL_HIGHLIGHT = SELECTED_WIRE
+AIRFOIL_CHORD_HIGHLIGHT = SELECTED_WIRE
+
+
 def build_section_ring_vertices(
     data: GeometryData,
     component_id: str | None,
@@ -98,19 +120,117 @@ def build_section_ring_vertices(
     color: Point3D = SECTION_RING,
 ) -> list[float]:
     vertices: list[float] = []
-    if component_id is None or segment_index is None or section_index is None:
+    if component_id is None or section_index is None:
         return vertices
-    loft_index = 0
-    for loft in data.lofts:
-        if not _is_matching_component(loft.component_id, component_id):
-            continue
-        if loft_index == segment_index:
-            if 0 <= section_index < len(loft.sections):
-                loop = loft.sections[section_index].points
+
+    # 1. Control Surface Selection (segment_index == 1)
+    if segment_index == 1:
+        cs_lofts: list[LoftGeometry] = []
+        distinct_tags: list[str] = []
+        for loft in data.lofts:
+            if not _is_matching_component(loft.component_id, component_id):
+                continue
+            parts = loft.component_id.split(":")
+            subtags = [p for p in parts if p not in (component_id, "mirror", "stations", "tip-cap", "winglet")]
+            if subtags:
+                cs_lofts.append(loft)
+                for st in subtags:
+                    if st not in distinct_tags:
+                        distinct_tags.append(st)
+
+        if 0 <= section_index < len(distinct_tags):
+            target_tag = distinct_tags[section_index]
+            for loft in cs_lofts:
+                if target_tag in loft.component_id:
+                    loops = _tessellated_loops(loft)
+                    if loops:
+                        _append_loft_wire(vertices, loops, CS_HIGHLIGHT)
+        elif cs_lofts:
+            for loft in cs_lofts:
+                loops = _tessellated_loops(loft)
+                if loops:
+                    _append_loft_wire(vertices, loops, CS_HIGHLIGHT)
+        return vertices
+
+    # 2. Single Station / Airfoil Selection (segment_index == 2)
+    if segment_index == 2:
+        for is_mirror in (False, True):
+            matched_lofts = [
+                loft for loft in data.lofts
+                if _is_matching_component(loft.component_id, component_id)
+                and ((":mirror" in loft.component_id) == is_mirror)
+                and not (":cs-" in loft.component_id or ":hinge-" in loft.component_id or ":tip-cap" in loft.component_id)
+            ]
+            if not matched_lofts:
+                continue
+
+            seen_y: list[float] = []
+            station_sections: list[Section] = []
+            for loft in matched_lofts:
+                for sec in loft.sections:
+                    if not getattr(sec, "is_station", True):
+                        continue
+                    y_coord = sec.points[0][1] if sec.points else 0.0
+                    if not any(abs(y_coord - sy) < 1e-2 for sy in seen_y):
+                        seen_y.append(y_coord)
+                        station_sections.append(sec)
+
+            station_sections.sort(key=lambda s: abs(s.points[0][1]))
+
+            if 0 <= section_index < len(station_sections):
+                loop = station_sections[section_index].points
                 for index, point in enumerate(loop):
-                    _add_line(vertices, point, loop[(index + 1) % len(loop)], color)
-            break
-        loft_index += 1
+                    _add_line(vertices, point, loop[(index + 1) % len(loop)], AIRFOIL_HIGHLIGHT)
+                if loop:
+                    min_x_pt = min(loop, key=lambda p: p[0])
+                    max_x_pt = max(loop, key=lambda p: p[0])
+                    _add_line(vertices, min_x_pt, max_x_pt, AIRFOIL_CHORD_HIGHLIGHT)
+        return vertices
+
+    # 2. Wing Section (Panel) Selection (segment_index == 0 or None)
+    for is_mirror in (False, True):
+        matched_lofts = [
+            loft for loft in data.lofts
+            if _is_matching_component(loft.component_id, component_id)
+            and ((":mirror" in loft.component_id) == is_mirror)
+            and not (":cs-" in loft.component_id or ":hinge-" in loft.component_id or ":tip-cap" in loft.component_id)
+        ]
+        if not matched_lofts:
+            continue
+
+        # Extract only genuine profile stations (filtering out structural control surface bay cuts)
+        seen_y: list[float] = []
+        station_sections: list[Section] = []
+        for loft in matched_lofts:
+            for sec in loft.sections:
+                if not getattr(sec, "is_station", True):
+                    continue
+                y_coord = sec.points[0][1] if sec.points else 0.0
+                if not any(abs(y_coord - sy) < 1e-2 for sy in seen_y):
+                    seen_y.append(y_coord)
+                    station_sections.append(sec)
+
+        # Sort along span from root to tip
+        station_sections.sort(key=lambda s: abs(s.points[0][1]))
+
+        # Highlight root station ring and tip station ring of the selected panel
+        if 0 <= section_index < len(station_sections):
+            root_loop = station_sections[section_index].points
+            for index, point in enumerate(root_loop):
+                _add_line(vertices, point, root_loop[(index + 1) % len(root_loop)], color)
+
+            tip_idx = section_index + 1
+            if tip_idx < len(station_sections):
+                tip_loop = station_sections[tip_idx].points
+                for index, point in enumerate(tip_loop):
+                    _add_line(vertices, point, tip_loop[(index + 1) % len(tip_loop)], color)
+
+                # Add connecting longitudinal rails between root and tip
+                p_count = min(len(root_loop), len(tip_loop))
+                for frac in (0.0, 0.25, 0.5, 0.75):
+                    idx_pt = int(frac * p_count) % p_count
+                    _add_line(vertices, root_loop[idx_pt], tip_loop[idx_pt], color)
+
     return vertices
 
 
@@ -125,9 +245,15 @@ def build_loft_solid_vertices(
     # Only dim if there is an active 3D selection that matches at least one loft in the scene
     has_3d_selection = False
     if selected_component_id is not None:
-        has_3d_selection = any(_is_matching_component(loft.component_id, selected_component_id) for loft in data.lofts)
+        has_3d_selection = any(
+            _is_matching_component(loft.component_id, selected_component_id)
+            for loft in data.lofts
+            if ":stations" not in loft.component_id
+        )
 
     for loft in data.lofts:
+        if ":stations" in loft.component_id:
+            continue
         loops = _tessellated_loops(loft)
         if not loops:
             continue

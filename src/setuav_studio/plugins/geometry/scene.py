@@ -164,7 +164,10 @@ def _transform_loft(loft: LoftGeometry, matrix: Matrix4, component_id: str) -> L
     return LoftGeometry(
         component_id=target_id,
         sections=tuple(
-            Section(tuple(transform_point(matrix, point) for point in section.points))
+            Section(
+                tuple(transform_point(matrix, point) for point in section.points),
+                is_station=section.is_station,
+            )
             for section in loft.sections
         ),
         color=loft.color,

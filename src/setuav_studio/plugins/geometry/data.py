@@ -12,6 +12,7 @@ class Section:
     """A closed, ordered profile loop in three-dimensional space."""
 
     points: tuple[Point3D, ...]
+    is_station: bool = True
 
 
 @dataclass(frozen=True, slots=True)

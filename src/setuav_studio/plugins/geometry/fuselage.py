@@ -76,7 +76,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
     def _create_general_section(self) -> None:
         layout = self._create_section("General", "fa6s.circle-info")
         self.general_table = self._property_table(
-            [("name", "Name"), ("type", "Type"), ("mass", "Mass (g)")]
+            [("name", "Name"), ("type", "Type")]
         )
         self.general_table.cellChanged.connect(self._update_general)
         layout.addWidget(self.general_table)
@@ -284,17 +284,6 @@ class FuselageEditor(PropertyTableMixin, QWidget):
             "type",
             str(self._component.get("type") or ""),
             editable=False,
-        )
-        mass_val = float(self._parameters().get("mass") or 0.0)
-        self._set_property_spinbox(
-            self.general_table,
-            "mass",
-            mass_val,
-            min_val=0.0,
-            step=10.0,
-            decimals=1,
-            suffix="g",
-            on_changed=lambda _v: self._update_general(2, 1),
         )
         self._populate_segments()
         self._loading = False
@@ -747,20 +736,12 @@ class FuselageEditor(PropertyTableMixin, QWidget):
 
         key = self._property_key(self.general_table, row)
         value = self._property_text(self.general_table, row)
-        number: float | None = None
-        if key == "mass":
-            number = self._parse_number(value)
-            if number is None or number < 0:
-                self._load_component()
-                return
-        elif key != "name":
+        if key != "name":
             return
 
         def change() -> None:
             if key == "name":
                 self._component["name"] = value.strip()
-            elif number is not None:
-                self._parameters()["mass"] = number
 
         self._api.edit_component(self._component, "Edit fuselage properties", change)
 

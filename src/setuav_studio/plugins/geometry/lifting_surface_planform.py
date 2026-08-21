@@ -1,111 +1,76 @@
-"""Planform sizing and driver group handling for the Lifting Surface Editor."""
+"""Wing Planform Sizing & Angles handling for the Lifting Surface Editor."""
 
 from __future__ import annotations
 
 from copy import deepcopy
+import math
+from typing import Any
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import QTableWidget, QTableWidgetItem
 
+from setuav_studio.plugins.geometry.wing_driver_solver import compute_all_8_parameters
+from setuav_studio.plugins.geometry.wing_driver_table import DriverPlanformTable
 from setuav_studio.plugins.geometry.wing_planform_engine import (
-    DRIVER_MODES,
     SWEEP_LOCATIONS,
     TWIST_LOCATIONS,
     compute_planform_metrics,
-    get_driver_inputs_for_mode,
+    set_wing_global_dihedral,
+    set_wing_global_sweep,
+    set_wing_global_twist,
     solve_wing_planform,
 )
-from setuav_studio.ui.numeric_spinbox import set_table_spinbox
+from setuav_studio.plugins.geometry.wing_sections_engine import (
+    scale_wing_total_area,
+    scale_wing_total_chord,
+    scale_wing_total_span,
+)
 
 
 class PlanformMixin:
-    """Driver groups and parametric planform sizing logic."""
+    """8-Variable 3-Driver Wing Planform Sizing and Wing Angles/Alignment logic."""
 
     # -------------------------------------------------------------------------
     # UI Sections Creation
     # -------------------------------------------------------------------------
 
-    def _create_driver_groups_section(self) -> None:
-        """Driver Groups configuration table section."""
-        layout = self._create_section("Driver Group", "fa6s.arrows-left-right-to-line")
-
-        self.driver_groups_table = self._property_table([
-            ("driver_mode", "Driver Mode"),
-            ("sweep_loc", "Sweep Reference"),
-            ("twist_axis", "Twist Axis"),
-        ])
-        layout.addWidget(self.driver_groups_table)
-
     def _create_planform_sizing_section(self) -> None:
-        """Parametric Planform Sizing table section."""
-        layout = self._create_section("Planform Sizing", "fa6s.ruler-combined")
+        """Parametric Wing Planform table (8 parameters with 3-driver checkbox system)."""
+        layout = self._create_section("Wing Planform", "fa6s.ruler-combined")
 
-        # Planform Parameters Table
-        self.planform_table = self._property_table([
-            ("area", "Planform Area (S)"),
-            ("span", "Total Wingspan (b)"),
-            ("aspect_ratio", "Aspect Ratio (AR)"),
-            ("taper_ratio", "Taper Ratio (λ)"),
-            ("root_chord", "Root Chord (c_root)"),
-            ("tip_chord", "Tip Chord (c_tip)"),
-            ("sweep", "Sweep Angle (Λ)"),
-            ("washout", "Tip Twist / Washout (ε)"),
-            ("mac", "Mean Aerodyn Chord (MAC)"),
-        ])
-        self.planform_table.cellChanged.connect(self._on_planform_parameter_edited)
+        self.planform_table = DriverPlanformTable(
+            default_drivers=["area", "aspect_ratio", "taper_ratio"],
+            on_values_changed=self._on_wing_driver_values_changed,
+        )
         layout.addWidget(self.planform_table)
 
+    def _create_wing_angles_section(self) -> None:
+        """Global Wing Sweep, Dihedral, Twist/Washout, and Reference Axes table section."""
+        layout = self._create_section("Wing Angles", "fa6s.arrows-spin")
+
+        self.wing_angles_table = self._property_table([
+            ("sweep", "Sweep Angle (°)"),
+            ("sweep_loc", "Sweep Location"),
+            ("sweep_curvature", "Sweep Curvature (mm)"),
+            ("dihedral", "Dihedral Angle (°)"),
+            ("twist", "Twist / Washout (°)"),
+            ("twist_axis", "Twist Axis Location"),
+        ])
+        layout.addWidget(self.wing_angles_table)
+
     # -------------------------------------------------------------------------
-    # Planform Sizing & Driver Group Logic
+    # Planform Sizing & Angles Logic
     # -------------------------------------------------------------------------
 
     def _sync_driver_mode_from_project(self) -> None:
-        project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
-        if project and isinstance(project.data.get("driver_groups"), list):
-            for dg in project.data["driver_groups"]:
-                if isinstance(dg, dict) and dg.get("id") in ("wing-drivers", f"{self._component.get('id')}-drivers"):
-                    self._driver_mode = "area_ar_taper"
-                    break
+        pass
 
     def _load_driver_groups_table(self) -> None:
-        # Driver Mode
-        self._set_property_combo(
-            self.driver_groups_table,
-            "driver_mode",
-            self._driver_mode,
-            DRIVER_MODES,
-            self._on_driver_mode_changed,
-        )
-
-        # Sweep Reference
-        self._set_property_combo(
-            self.driver_groups_table,
-            "sweep_loc",
-            str(self._sweep_loc),
-            [(str(val), label) for val, label in SWEEP_LOCATIONS],
-            self._on_sweep_loc_changed,
-        )
-
-        # Twist Axis Location
-        twist_loc = float(self._geometry().get("twist_location", 0.25))
-        self._set_property_combo(
-            self.driver_groups_table,
-            "twist_axis",
-            str(twist_loc),
-            [(str(val), label) for val, label in TWIST_LOCATIONS],
-            self._on_twist_loc_changed,
-        )
+        pass
 
     def _on_driver_mode_changed(self, mode_val: str) -> None:
-        if self._loading:
-            return
-        self._driver_mode = str(mode_val or "manual")
-        self._refresh_planform_table()
-        self._update_profile_actions()
-        self._update_profiles_table_interactivity()
-        if 0 <= self._profile_index < len(self._profiles()):
-            self._load_profile(self._profile_index)
+        pass
 
     def _on_sweep_loc_changed(self, loc_val_str: str) -> None:
         if self._loading:
@@ -145,195 +110,152 @@ class PlanformMixin:
         profiles = self._profiles()
         metrics = compute_planform_metrics(
             profiles,
-            self._sweep_loc,
+            getattr(self, "_sweep_loc", 0.25),
             symmetric=self._is_symmetric(),
             y_offset=self._y_offset(),
         )
-        active_driver_keys = [k for k, _l, _u in get_driver_inputs_for_mode(self._driver_mode)]
+
+        all_8 = compute_all_8_parameters(
+            metrics["span"],
+            metrics["root_chord"],
+            metrics["tip_chord"],
+            is_symmetric=self._is_symmetric(),
+            y_offset=self._y_offset(),
+        )
 
         was_loading = self._loading
         self._loading = True
         try:
-            s_total = metrics["area"]
-            s_m2 = s_total / 1e6
-            s_dm2 = s_total / 1e4
-            if "area" in active_driver_keys:
-                self._set_property_spinbox(
-                    self.planform_table,
-                    "area",
-                    s_total,
-                    min_val=100.0,
-                    step=1000.0,
-                    decimals=1,
-                    suffix="mm²",
-                    on_changed=lambda val: self._on_planform_spinbox_changed("area", val),
-                )
-            else:
-                self._set_planform_cell("area", f"{s_m2:.4f} m² ({s_dm2:.2f} dm²)", editable=False)
+            # 1. Update 8-parameter Wing Planform Sizing Table
+            self.planform_table.set_parameters(
+                all_8,
+                is_symmetric=self._is_symmetric(),
+                y_offset=self._y_offset(),
+            )
 
-            if "span" in active_driver_keys:
+            # 2. Update Wing Angles & Alignment Table
+            if hasattr(self, "wing_angles_table"):
                 self._set_property_spinbox(
-                    self.planform_table,
-                    "span",
-                    metrics["span"],
-                    min_val=10.0,
-                    step=50.0,
-                    decimals=1,
-                    suffix="mm",
-                    on_changed=lambda val: self._on_planform_spinbox_changed("span", val),
-                )
-            else:
-                self._set_planform_cell("span", f"{metrics['span']:.1f} mm", editable=False)
-
-            if "aspect_ratio" in active_driver_keys:
-                self._set_property_spinbox(
-                    self.planform_table,
-                    "aspect_ratio",
-                    metrics["aspect_ratio"],
-                    min_val=0.5,
-                    max_val=50.0,
-                    step=0.1,
-                    decimals=2,
-                    on_changed=lambda val: self._on_planform_spinbox_changed("aspect_ratio", val),
-                )
-            else:
-                self._set_planform_cell("aspect_ratio", f"{metrics['aspect_ratio']:.2f}", editable=False)
-
-            if "taper_ratio" in active_driver_keys:
-                self._set_property_spinbox(
-                    self.planform_table,
-                    "taper_ratio",
-                    metrics["taper_ratio"],
-                    min_val=0.01,
-                    max_val=5.0,
-                    step=0.05,
-                    decimals=3,
-                    on_changed=lambda val: self._on_planform_spinbox_changed("taper_ratio", val),
-                )
-            else:
-                self._set_planform_cell("taper_ratio", f"{metrics['taper_ratio']:.3f}", editable=False)
-
-            if "root_chord" in active_driver_keys:
-                self._set_property_spinbox(
-                    self.planform_table,
-                    "root_chord",
-                    metrics["root_chord"],
-                    min_val=5.0,
-                    step=10.0,
-                    decimals=1,
-                    suffix="mm",
-                    on_changed=lambda val: self._on_planform_spinbox_changed("root_chord", val),
-                )
-            else:
-                self._set_planform_cell("root_chord", f"{metrics['root_chord']:.1f} mm", editable=False)
-
-            if "tip_chord" in active_driver_keys:
-                self._set_property_spinbox(
-                    self.planform_table,
-                    "tip_chord",
-                    metrics["tip_chord"],
-                    min_val=5.0,
-                    step=10.0,
-                    decimals=1,
-                    suffix="mm",
-                    on_changed=lambda val: self._on_planform_spinbox_changed("tip_chord", val),
-                )
-            else:
-                self._set_planform_cell("tip_chord", f"{metrics['tip_chord']:.1f} mm", editable=False)
-
-            if "sweep" in active_driver_keys:
-                self._set_property_spinbox(
-                    self.planform_table,
+                    self.wing_angles_table,
                     "sweep",
-                    metrics["sweep"],
-                    min_val=-80.0,
-                    max_val=80.0,
-                    step=1.0,
-                    decimals=1,
+                    float(metrics.get("sweep", 0.0)),
+                    min_val=-85.0,
+                    max_val=85.0,
+                    step=0.5,
+                    decimals=2,
                     suffix="°",
-                    on_changed=lambda val: self._on_planform_spinbox_changed("sweep", val),
+                    on_changed=lambda val: self._on_wing_angle_changed("sweep", val),
                 )
-            else:
-                self._set_planform_cell("sweep", f"{metrics['sweep']:.1f}°", editable=False)
-
-            if "washout" in active_driver_keys:
+                self._set_property_combo(
+                    self.wing_angles_table,
+                    "sweep_loc",
+                    str(getattr(self, "_sweep_loc", 0.25)),
+                    [(str(val), label) for val, label in SWEEP_LOCATIONS],
+                    self._on_sweep_loc_changed,
+                )
+                sw_curv = float(self._geometry().get("sweep_curvature", 0.0))
                 self._set_property_spinbox(
-                    self.planform_table,
-                    "washout",
-                    metrics["washout"],
+                    self.wing_angles_table,
+                    "sweep_curvature",
+                    sw_curv,
+                    min_val=-500.0,
+                    max_val=500.0,
+                    step=5.0,
+                    decimals=1,
+                    suffix="mm",
+                    on_changed=lambda val: self._on_wing_angle_changed("sweep_curvature", val),
+                )
+                self._set_property_spinbox(
+                    self.wing_angles_table,
+                    "dihedral",
+                    float(metrics.get("dihedral", 0.0)),
+                    min_val=-85.0,
+                    max_val=85.0,
+                    step=0.5,
+                    decimals=2,
+                    suffix="°",
+                    on_changed=lambda val: self._on_wing_angle_changed("dihedral", val),
+                )
+                self._set_property_spinbox(
+                    self.wing_angles_table,
+                    "twist",
+                    float(metrics.get("washout", 0.0)),
                     min_val=-45.0,
                     max_val=45.0,
                     step=0.5,
-                    decimals=1,
+                    decimals=2,
                     suffix="°",
-                    on_changed=lambda val: self._on_planform_spinbox_changed("washout", val),
+                    on_changed=lambda val: self._on_wing_angle_changed("twist", val),
                 )
-            else:
-                self._set_planform_cell("washout", f"{metrics['washout']:.1f}°", editable=False)
-
-            self._set_planform_cell("mac", f"{metrics['mac']:.1f} mm", editable=False)
+                twist_loc = float(self._geometry().get("twist_location", 0.25))
+                self._set_property_combo(
+                    self.wing_angles_table,
+                    "twist_axis",
+                    str(twist_loc),
+                    [(str(val), label) for val, label in TWIST_LOCATIONS],
+                    self._on_twist_loc_changed,
+                )
 
             self._update_profiles_table_interactivity()
         finally:
             self._loading = was_loading
 
-    def _set_planform_cell(self, key: str, value: str, *, editable: bool) -> None:
-        """Set property value with distinct visual styling for active drivers vs computed values."""
-        for row in range(self.planform_table.rowCount()):
-            if self._property_key(self.planform_table, row) != key:
-                continue
-            if self.planform_table.cellWidget(row, 1) is not None:
-                self.planform_table.removeCellWidget(row, 1)
-            item = self.planform_table.item(row, 1)
-            if item is None:
-                item = QTableWidgetItem()
-                self.planform_table.setItem(row, 1, item)
-            item.setText(value)
-            label_item = self.planform_table.item(row, 0)
-            if editable:
-                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
-                item.setForeground(QBrush(QColor("#ffffff")))
-                if label_item:
-                    label_item.setForeground(QBrush(QColor("#ffffff")))
-            else:
-                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                item.setForeground(QBrush(QColor("#777777")))
-                if label_item:
-                    label_item.setForeground(QBrush(QColor("#999999")))
-            return
-
-    def _on_planform_spinbox_changed(self, key: str, val_num: float) -> None:
+    def _on_wing_angle_changed(self, key: str, value: float) -> None:
         if self._loading:
             return
-        if key not in ("sweep", "washout") and val_num <= 0:
+        profiles = self._profiles()
+        sw_loc = getattr(self, "_sweep_loc", 0.25)
+        geom = self._geometry()
+        metrics = compute_planform_metrics(
+            profiles,
+            sw_loc,
+            symmetric=self._is_symmetric(),
+            y_offset=self._y_offset(),
+        )
+
+        if key in ("sweep", "sweep_curvature"):
+            sweep_val = float(value if key == "sweep" else metrics.get("sweep", 0.0))
+            curv_val = float(value if key == "sweep_curvature" else geom.get("sweep_curvature", 0.0))
+            new_profiles = set_wing_global_sweep(profiles, sweep_val, sw_loc, sweep_curvature=curv_val)
+            geom["sweep_curvature"] = curv_val
+        elif key == "dihedral":
+            new_profiles = set_wing_global_dihedral(profiles, value)
+        elif key == "twist":
+            new_profiles = set_wing_global_twist(profiles, value)
+        else:
+            return
+
+        def change() -> None:
+            profiles.clear()
+            profiles.extend(deepcopy(new_profiles))
+
+        self._edit_component(f"Change wing {key}", change)
+        self._populate_sections()
+        self._refresh_planform_table()
+        if 0 <= getattr(self, "_section_index", -1) < len(self._get_sections()):
+            self._load_section(self._section_index)
+
+    def _on_wing_driver_values_changed(self, new_metrics: dict[str, float]) -> None:
+        if self._loading:
             return
 
         profiles = self._profiles()
         is_sym = self._is_symmetric()
         y_off = self._y_offset()
-        current_metrics = compute_planform_metrics(
-            profiles,
-            self._sweep_loc,
-            symmetric=is_sym,
-            y_offset=y_off,
-        )
-        inputs: dict[str, float] = {
-            "area": current_metrics["area"],
-            "span": current_metrics["span"],
-            "aspect_ratio": current_metrics["aspect_ratio"],
-            "taper_ratio": current_metrics["taper_ratio"],
-            "root_chord": current_metrics["root_chord"],
-            "tip_chord": current_metrics["tip_chord"],
-            "sweep": current_metrics["sweep"],
-            "washout": current_metrics["washout"],
-        }
-        inputs[key] = float(val_num)
+        sw_loc = getattr(self, "_sweep_loc", 0.25)
 
-        new_profiles, calculated_metrics = solve_wing_planform(
-            self._driver_mode,
+        inputs = {
+            "span": new_metrics["span"],
+            "root_chord": new_metrics["root_chord"],
+            "tip_chord": new_metrics["tip_chord"],
+            "sweep": 0.0,
+        }
+
+        new_profiles, _ = solve_wing_planform(
+            "span_root_tip",
             inputs,
             profiles,
-            self._sweep_loc,
+            sw_loc,
             symmetric=is_sym,
             y_offset=y_off,
         )
@@ -341,23 +263,25 @@ class PlanformMixin:
         def change() -> None:
             profiles.clear()
             profiles.extend(deepcopy(new_profiles))
-            self._sync_project_parameters(inputs, key)
+            self._sync_project_parameters(new_metrics, "planform")
 
-        self._edit_component(f"Parametric wing resize ({key})", change)
+        self._edit_component("Parametric wing resize", change)
 
-        self._populate_profiles()
-        self._refresh_planform_table()
-        if 0 <= self._profile_index < len(profiles):
-            self._load_profile(self._profile_index)
+        self._populate_sections()
+        if 0 <= getattr(self, "_section_index", -1) < len(self._get_sections()):
+            self._load_section(self._section_index)
+        elif self._get_sections():
+            self._load_section(0)
+
+    def _on_planform_spinbox_changed(self, key: str, val_num: float) -> None:
+        if self._loading:
+            return
+        inputs = self.planform_table.get_current_values()
+        inputs[key] = float(val_num)
+        self._on_wing_driver_values_changed(inputs)
 
     def _on_planform_parameter_edited(self, row: int, column: int) -> None:
-        if self._loading or column != 1:
-            return
-        key = self._property_key(self.planform_table, row)
-        val_str = self._property_text(self.planform_table, row)
-        val_num = self._parse_number(val_str)
-        if val_num is not None:
-            self._on_planform_spinbox_changed(key, val_num)
+        pass
 
     def _sync_project_parameters(self, inputs: dict[str, float], edited_key: str) -> None:
         """Sync updated macro parameters to project.data['parameters'] if present."""
@@ -365,49 +289,34 @@ class PlanformMixin:
         if not project or not isinstance(project.data.get("parameters"), dict):
             return
         params = project.data["parameters"]
-        if "wing_area" in params and isinstance(params["wing_area"], dict):
-            params["wing_area"]["value"] = inputs.get("area", 218700.0)
-        if "wing_aspect_ratio" in params and isinstance(params["wing_aspect_ratio"], dict):
-            params["wing_aspect_ratio"]["value"] = inputs.get("aspect_ratio", 5.33)
+        comp_id = str(self._component.get("id") or "")
+        is_main_wing = comp_id in ("main-wing", "wing", "wing-1", "")
+
+        if is_main_wing:
+            if "wing_area" in params and isinstance(params["wing_area"], dict) and "area" in inputs:
+                params["wing_area"]["value"] = float(inputs["area"])
+            if "wing_aspect_ratio" in params and isinstance(params["wing_aspect_ratio"], dict) and "aspect_ratio" in inputs:
+                params["wing_aspect_ratio"]["value"] = float(inputs["aspect_ratio"])
+            if "wingspan" in params and isinstance(params["wingspan"], dict) and "span" in inputs:
+                params["wingspan"]["value"] = float(inputs["span"])
+        else:
+            comp_area_key = f"{comp_id}_area"
+            if comp_area_key in params and isinstance(params[comp_area_key], dict) and "area" in inputs:
+                params[comp_area_key]["value"] = float(inputs["area"])
+            comp_span_key = f"{comp_id}_span"
+            if comp_span_key in params and isinstance(params[comp_span_key], dict) and "span" in inputs:
+                params[comp_span_key]["value"] = float(inputs["span"])
 
     def _update_profiles_table_interactivity(self) -> None:
-        """Lock or unlock profiles table columns depending on driver mode."""
-        is_manual = self._driver_mode == "manual"
-        # Columns: 0=#, 1=Airfoil, 2=Span Y, 3=Chord
-        for r in range(self.profiles_table.rowCount()):
-            # Airfoil is always editable
-            af_item = self.profiles_table.item(r, 1)
-            if af_item:
-                af_item.setFlags(af_item.flags() | Qt.ItemFlag.ItemIsEditable)
-                af_item.setForeground(QBrush(QColor("#ffffff")))
-            # Span Y and Chord depend on driver mode
-            for c in (2, 3):
-                item = self.profiles_table.item(r, c)
-                if not item:
-                    continue
-                if is_manual:
-                    item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
-                    item.setForeground(QBrush(QColor("#ffffff")))
-                else:
-                    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                    item.setForeground(QBrush(QColor("#777777")))
-
-        # In section properties: chord, span_y, offset_x are locked when macro driver is active
-        locked_keys = {"chord", "span_y", "offset_x"}
-        for row in range(self.profile_properties_table.rowCount()):
-            key = self._property_key(self.profile_properties_table, row)
-            widget = self.profile_properties_table.cellWidget(row, 1)
-            val_item = self.profile_properties_table.item(row, 1)
-            lbl_item = self.profile_properties_table.item(row, 0)
-            is_locked = (key in locked_keys) and not is_manual
-            if widget is not None:
-                widget.setEnabled(not is_locked)
-            if val_item is not None:
-                if is_locked:
-                    val_item.setFlags(val_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                    val_item.setForeground(QBrush(QColor("#777777")))
-                else:
-                    val_item.setFlags(val_item.flags() | Qt.ItemFlag.ItemIsEditable)
-                    val_item.setForeground(QBrush(QColor("#ffffff")))
-            if lbl_item is not None:
-                lbl_item.setForeground(QBrush(QColor("#777777" if is_locked else "#ffffff")))
+        """Ensure sections table is fully interactive."""
+        table = getattr(self, "sections_table", None)
+        if table is not None:
+            for r in range(table.rowCount()):
+                for c in range(1, table.columnCount()):
+                    try:
+                        item = table.item(r, c)
+                        if item:
+                            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
+                            item.setForeground(QBrush(QColor("#ffffff")))
+                    except RuntimeError:
+                        pass

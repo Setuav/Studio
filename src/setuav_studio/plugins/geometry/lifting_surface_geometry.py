@@ -227,6 +227,7 @@ def _section_with_align(
     main_2d: tuple[tuple[float, float], ...],
     dihedral_rad: float,
     section_align: str,
+    is_station: bool = True,
 ) -> Section:
     """Build a 3D Section, optionally rotating the airfoil plane to be normal to the span direction.
 
@@ -245,12 +246,13 @@ def _section_with_align(
             # After dihedral rotation: new y_local = -z*sin_d, new z_local = z*cos_d
             corrected.append((x * chord, -z * chord * sin_d, z * chord * cos_d))
         from .transforms import transform_point as _tp
-        return Section(tuple(_tp(matrix, p) for p in corrected))
+        return Section(tuple(_tp(matrix, p) for p in corrected), is_station=is_station)
     return Section(
         tuple(
             transform_point(matrix, (x * chord, 0.0, z * chord))
             for x, z in main_2d
-        )
+        ),
+        is_station=is_station,
     )
 
 
@@ -395,7 +397,8 @@ def _build_lifting_surface_with_control_surfaces(
                 dihedral_rad = math.radians(_number(rot.get("x", rot.get("roll", 0.0))))
                 matrix = section_transform(prof, chord=chord, twist_location=twist_location)
                 main_2d, _ = _sample_structured_airfoil_round(coords, x_h=1.0, is_flap=False)
-                seg_sections.append(_section_with_align(matrix, chord, main_2d, dihedral_rad, section_align))
+                is_orig_station = any(abs(y_s - y_p) < 1e-3 for y_p in span_values)
+                seg_sections.append(_section_with_align(matrix, chord, main_2d, dihedral_rad, section_align, is_station=is_orig_station))
 
             lofts.append(
                 LoftGeometry(
@@ -447,8 +450,9 @@ def _build_lifting_surface_with_control_surfaces(
                 main_2d, h_pt = _sample_structured_airfoil_round(coords, x_h=x_h, is_flap=False)
                 flap_2d, _ = _sample_structured_airfoil_round(coords, x_h=x_h, is_flap=True)
 
-                main_sections.append(_section_with_align(matrix, chord, main_2d, dihedral_rad, section_align))
-                flap_sections.append(_section_with_align(matrix, chord, flap_2d, dihedral_rad, section_align))
+                is_orig_station = any(abs(y_s - y_p) < 1e-3 for y_p in span_values)
+                main_sections.append(_section_with_align(matrix, chord, main_2d, dihedral_rad, section_align, is_station=is_orig_station))
+                flap_sections.append(_section_with_align(matrix, chord, flap_2d, dihedral_rad, section_align, is_station=False))
                 hinge_pts_3d.append(transform_point(matrix, (h_pt[0] * chord, 0.0, h_pt[1] * chord)))
 
             # Main wing bay

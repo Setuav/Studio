@@ -102,7 +102,6 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
             ("name", "Name"),
             ("type", "Type"),
             ("parent", "Parent Wing"),
-            ("mass", "Mass (g)"),
         ])
         self.general_table.cellChanged.connect(self._update_general)
         layout.addWidget(self.general_table)
@@ -123,12 +122,10 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
     def _load_general(self) -> None:
         name = str(self._component.get("name") or self._component.get("id") or "")
         comp_type = str(self._component.get("type") or "org.setuav.core:control-surface")
-        mass = float(self._component.get("parameters", {}).get("mass", 0.0))
         parent = str(self._component.get("parent") or self._component.get("attach_to") or "")
 
         self._set_property_value(self.general_table, "name", name)
         self._set_property_value(self.general_table, "type", comp_type)
-        self._set_property_value(self.general_table, "mass", f"{mass:.1f} g")
 
         # Parent combo (find all lifting surface components)
         project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
@@ -191,15 +188,6 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
                 self._component["name"] = val_str
                 self._geometry()["tag"] = val_str
             self._edit_component("Rename control surface", change)
-        elif key == "mass":
-            val = self._parse_number(val_str) or 0.0
-            def change() -> None:
-                params = self._component.get("parameters")
-                if not isinstance(params, dict):
-                    params = {}
-                    self._component["parameters"] = params
-                params["mass"] = val
-            self._edit_component("Edit mass", change)
 
     def _update_parent(self, new_parent: str | None) -> None:
         if self._loading:

@@ -30,7 +30,7 @@ from setuav_studio.plugins.geometry.airfoil import PRESET_AIRFOILS
 from setuav_studio.plugins.geometry.lifting_surface_attachment import AttachmentMixin
 from setuav_studio.plugins.geometry.lifting_surface_control_surfaces import ControlSurfacesMixin
 from setuav_studio.plugins.geometry.lifting_surface_planform import PlanformMixin
-from setuav_studio.plugins.geometry.lifting_surface_profiles import ProfilesMixin
+from setuav_studio.plugins.geometry.lifting_surface_sections import SectionsMixin
 from setuav_studio.plugins.geometry.lifting_surface_tip_caps import TipCapsMixin
 
 
@@ -38,7 +38,7 @@ class LiftingSurfaceEditor(
     PropertyTableMixin,
     AttachmentMixin,
     PlanformMixin,
-    ProfilesMixin,
+    SectionsMixin,
     TipCapsMixin,
     ControlSurfacesMixin,
     QWidget,
@@ -54,6 +54,7 @@ class LiftingSurfaceEditor(
         super().__init__()
         self._api = api
         self._component = component
+        self._section_index = -1
         self._profile_index = -1
         self._control_surface_index = -1
         self._driver_mode = "area_ar_taper"
@@ -76,14 +77,21 @@ class LiftingSurfaceEditor(
 
         self._create_general_section()
         self._create_attachment_section()
-        self._create_driver_groups_section()
         self._create_planform_sizing_section()
-        self._create_profiles_section()
-        self._create_profile_properties_section()
-        self._create_airfoil_shaping_section()
+        self._create_wing_angles_section()
+        self._create_sections_section()
+        self._create_section_properties_section()
         self._create_tip_caps_section()
         self._create_control_surfaces_section()
+        self._create_airfoil_shaping_section()
         self._content_layout.addStretch()
+
+        # Aliases for backward compatibility
+        self.profiles_table = self.sections_table
+        self.profile_properties_table = self.section_properties_table
+        self.add_profile_button = self.insert_section_button
+        self.duplicate_profile_button = self.split_section_button
+        self.delete_profile_button = self.delete_section_button
 
         self._load_component()
 
@@ -105,7 +113,6 @@ class LiftingSurfaceEditor(
             ("name", "Name"),
             ("type", "Type"),
             ("attach_to", "Attach to"),
-            ("mass", "Mass (g)"),
         ])
         self.general_table.cellChanged.connect(self._update_general)
         layout.addWidget(self.general_table)
@@ -186,45 +193,32 @@ class LiftingSurfaceEditor(
             lambda val: self._update_attach_to(val if val else None),
         )
 
-        mass_val = float(self._parameters().get("mass") or 0.0)
-        self._set_property_spinbox(
-            self.general_table,
-            "mass",
-            mass_val,
-            min_val=0.0,
-            step=10.0,
-            decimals=1,
-            suffix="g",
-            on_changed=lambda _v: self._update_general(3, 1),
-        )
-
         # Attachment / Component Transform
         self._load_attachment_transform()
 
-        # Profiles
-        self._populate_profiles()
+        # Sections (Panels)
+        self._populate_sections()
 
-        # Planform Sizing & Driver Group Initial Setup
+        # Planform Sizing Initial Setup
         self._sync_driver_mode_from_project()
-        self._load_driver_groups_table()
         self._refresh_planform_table()
 
         # End Caps (Tip Treatment)
         self._load_tip_caps()
 
-        # Airfoil Shaping
-        self._load_airfoil_shaping()
-
         # Control Surfaces
         self._populate_control_surfaces()
 
+        # Airfoil Shaping
+        self._load_airfoil_shaping()
+
         self._loading = False
 
-        if self._profiles():
-            self.profiles_table.selectRow(0)
-            self._load_profile(0)
+        if self._get_sections():
+            self.sections_table.selectRow(0)
+            self._load_section(0)
         else:
-            self._update_profile_actions()
+            self._update_section_actions()
 
         if self._control_surfaces():
             self.control_surfaces_table.selectRow(0)
@@ -245,10 +239,6 @@ class LiftingSurfaceEditor(
         def change() -> None:
             if key == "name":
                 self._component["name"] = val_str.strip()
-            elif key == "mass":
-                mass_val = self._parse_number(val_str) or 0.0
-                self._parameters()["mass"] = max(mass_val, 0.0)
-                self._component["mass"] = max(mass_val, 0.0)
 
         self._edit_component(f"Edit {key}", change)
 

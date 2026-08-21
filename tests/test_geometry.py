@@ -180,8 +180,8 @@ class GeometryTests(unittest.TestCase):
         wing_comp = next(c for c in doc.data["components"] if c.get("id") == "main-wing")
         editor = LiftingSurfaceEditor(api, wing_comp)
 
-        self.assertIn("mm", editor._property_text(editor.planform_table, 1))
-        self.assertGreater(float(editor._property_text(editor.planform_table, 2).replace("mm²", "").strip()), 1.0)
+        self.assertEqual(editor.planform_table.rowCount(), 8)
+        self.assertIn("span", editor.planform_table.get_current_values())
 
         # Check Attach to combo selection
         parent_combo = editor.general_table.cellWidget(2, 1)
@@ -189,16 +189,8 @@ class GeometryTests(unittest.TestCase):
         self.assertEqual(parent_combo.currentData(), "fuselage")
         self.assertGreaterEqual(parent_combo.count(), 2)
 
-        # Test Driver Groups mode switch and parametric resizing
-        driver_mode_combo = editor.driver_groups_table.cellWidget(0, 1)
-        self.assertIsNotNone(driver_mode_combo)
-        driver_mode_combo.setCurrentIndex(1)  # Span, Root & Tip
-        self.assertEqual(editor._driver_mode, "span_root_tip")
-        span_spin = editor.planform_table.cellWidget(1, 1)
-        if span_spin:
-            span_spin.setValue(1200.0)
-        else:
-            editor._on_planform_spinbox_changed("span", 1200.0)
+        # Test Wing Planform Sizing driver resize
+        editor._on_planform_spinbox_changed("span", 1200.0)
         # Profiles should scale such that total tip-to-tip wingspan = 2 * (y_offset + y_tip) = 1200.0 mm
         # With attachment y_offset = 75.0 mm, local tip position is at 525.0 mm
         self.assertAlmostEqual(
@@ -207,29 +199,39 @@ class GeometryTests(unittest.TestCase):
             places=1,
         )
 
-        # Check locking behavior in driver mode
-        # Column 2 (Span Y) and Column 3 (Chord) should NOT have ItemIsEditable in driver mode
-        self.assertFalse(bool(editor.profiles_table.item(0, 2).flags() & Qt.ItemFlag.ItemIsEditable))
-        self.assertFalse(bool(editor.profiles_table.item(0, 3).flags() & Qt.ItemFlag.ItemIsEditable))
-        # Profile properties table should have chord, span_y, offset_x widgets disabled
-        editor._load_profile(0)
-        self.assertFalse(editor.profile_properties_table.cellWidget(1, 1).isEnabled())  # chord
-        self.assertFalse(editor.profile_properties_table.cellWidget(3, 1).isEnabled())  # span_y
-        self.assertFalse(editor.profile_properties_table.cellWidget(4, 1).isEnabled())  # offset_x
-        self.assertFalse(editor.add_profile_button.isEnabled())
-        self.assertFalse(editor.duplicate_profile_button.isEnabled())
+        # Test Wing Angles table
+        self.assertEqual(editor.wing_angles_table.rowCount(), 6)
+        editor._on_wing_angle_changed("dihedral", 3.0)
+        self.assertGreater(float(wing_comp["parameters"]["geometry"]["profiles"][-1]["position"]["z"]), 0.0)
+        editor._on_wing_angle_changed("sweep_curvature", 25.0)
+        self.assertEqual(wing_comp["parameters"]["geometry"].get("sweep_curvature"), 25.0)
 
-        # Switch to manual mode: all columns and station properties become editable
-        driver_mode_combo.setCurrentIndex(4)  # Manual
-        self.assertEqual(editor._driver_mode, "manual")
-        self.assertTrue(bool(editor.profiles_table.item(0, 2).flags() & Qt.ItemFlag.ItemIsEditable))
-        self.assertTrue(bool(editor.profiles_table.item(0, 3).flags() & Qt.ItemFlag.ItemIsEditable))
-        editor._load_profile(0)
-        self.assertTrue(editor.profile_properties_table.cellWidget(1, 1).isEnabled())  # chord
-        self.assertTrue(editor.profile_properties_table.cellWidget(3, 1).isEnabled())  # span_y
-        self.assertTrue(editor.profile_properties_table.cellWidget(4, 1).isEnabled())  # offset_x
-        self.assertTrue(editor.add_profile_button.isEnabled())
-        self.assertTrue(editor.duplicate_profile_button.isEnabled())
+        # Check sections table, section planform sizing, angles, and airfoils
+        self.assertGreaterEqual(editor.sections_table.rowCount(), 1)
+        editor._load_section(0)
+        self.assertEqual(editor.section_planform_table.rowCount(), 8)
+        self.assertEqual(editor.section_properties_table.rowCount(), 6)
+        self.assertTrue(editor.insert_section_button.isEnabled())
+        self.assertTrue(editor.split_section_button.isEnabled())
+
+        # Test Wing Sections table direct cell editing
+        editor.sections_table.item(0, 1).setText("600.0")
+        editor._update_sections_table_cell(0, 1)
+        self.assertAlmostEqual(editor._get_sections()[0]["span"], 600.0)
+
+        # Test Section Driver: when 3 drivers are active, checking a 4th is blocked
+        init_drivers = list(editor.section_planform_table.get_active_drivers())
+        self.assertEqual(len(init_drivers), 3)
+        editor.section_planform_table._on_driver_toggled("area", True)
+        self.assertEqual(editor.section_planform_table.get_active_drivers(), init_drivers)
+
+        # Unchecking one frees up a slot
+        editor.section_planform_table._on_driver_toggled("tip_chord", False)
+        self.assertEqual(len(editor.section_planform_table.get_active_drivers()), 2)
+        # Now checking area succeeds
+        editor.section_planform_table._on_driver_toggled("area", True)
+        self.assertIn("area", editor.section_planform_table.get_active_drivers())
+        self.assertEqual(len(editor.section_planform_table.get_active_drivers()), 3)
 
         # Add control surface
         init_cs = editor.control_surfaces_table.rowCount()
@@ -264,8 +266,8 @@ class GeometryTests(unittest.TestCase):
         self.assertEqual(editor.cs_properties_table.item(0, 1).text(), "aileron_custom")
 
         # Section Selection in 3D Viewport
-        editor.profiles_table.selectRow(1)
-        self.assertEqual(api.current_section_selection, ("main-wing", 0, 1))
+        editor._on_section_selected(0, 0)
+        self.assertEqual(api.current_section_selection, ("main-wing", 0, 0))
 
         # Check Attachment (Component Transform)
         self.assertAlmostEqual(editor.attachment_table.cellWidget(0, 0).value(), 305.00)
@@ -276,35 +278,32 @@ class GeometryTests(unittest.TestCase):
         editor.attachment_table.cellWidget(0, 0).setValue(320.00)
         self.assertEqual(wing_comp["transform"]["position"]["x"], 320.0)
 
-        # Edit height_z in profile_properties_table (Row 5)
-        spin_z = editor.profile_properties_table.cellWidget(5, 1)
-        if spin_z:
-            spin_z.setValue(25.0)
-        else:
-            editor._on_profile_prop_spinbox_changed("height_z", 25.0)
-        self.assertEqual(wing_comp["parameters"]["geometry"]["profiles"][1]["position"]["z"], 25.0)
-
-        # Edit chord in profile_properties_table (Row 1)
-        spin_chord = editor.profile_properties_table.cellWidget(1, 1)
-        if spin_chord:
-            spin_chord.setValue(180.0)
-        else:
-            editor._on_profile_prop_spinbox_changed("chord", 180.0)
+        # Edit tip_chord in section_planform_table
+        sec_values = editor.section_planform_table.get_current_values()
+        sec_values["tip_chord"] = 180.0
+        editor._on_section_planform_changed(sec_values)
         self.assertEqual(wing_comp["parameters"]["geometry"]["profiles"][1]["chord"], 180.0)
-        self.assertEqual(editor.profiles_table.item(1, 3).text(), "180.0")
 
-        # Duplicate profile
-        init_profs = editor.profiles_table.rowCount()
-        editor._load_profile(0)
-        editor._duplicate_profile()
-        self.assertEqual(editor.profiles_table.rowCount(), init_profs + 1)
+        # Edit dihedral in section_angles_table
+        editor._on_section_angle_changed("dihedral", 5.0)
+        self.assertEqual(editor.sections_table.item(0, 3).text(), "180.0")
 
-        # Delete profile
-        editor._delete_profile()
-        self.assertEqual(editor.profiles_table.rowCount(), init_profs)
+        # Split section
+        init_secs = editor.sections_table.rowCount()
+        editor._load_section(0)
+        editor._split_section()
+        self.assertEqual(editor.sections_table.rowCount(), init_secs + 1)
+
+        # Delete section
+        editor._delete_section()
+        self.assertEqual(editor.sections_table.rowCount(), init_secs)
 
     def test_wing_planform_engine_modes(self) -> None:
-        from setuav_studio.plugins.geometry.wing_planform_engine import solve_wing_planform
+        from setuav_studio.plugins.geometry.wing_planform_engine import (
+            calc_tan_sweep_at,
+            compute_planform_metrics,
+            solve_wing_planform,
+        )
 
         profiles = [
             {"position": {"x": 0, "y": 0, "z": 0}, "chord": 240.0},
@@ -323,7 +322,7 @@ class GeometryTests(unittest.TestCase):
         self.assertAlmostEqual(new_p[-1]["position"]["y"], m["span"] / 2.0, places=1)
         self.assertEqual(m["sweep"], 10.0)
 
-        # Mode: span_root_tip with 0 sweep at c/4
+        # Mode: span_root_tip with multi-station morphing (preserves intermediate relative chord)
         new_p2, m2 = solve_wing_planform(
             "span_root_tip",
             {"span": 1400.0, "root_chord": 300.0, "tip_chord": 150.0, "sweep": 0.0},
@@ -331,12 +330,28 @@ class GeometryTests(unittest.TestCase):
             sweep_loc=0.25,
         )
         self.assertEqual(m2["span"], 1400.0)
-        self.assertEqual(m2["area"], 1400.0 * (300.0 + 150.0) / 2.0)
         self.assertAlmostEqual(new_p2[-1]["position"]["y"], 700.0, places=1)
         self.assertAlmostEqual(new_p2[0]["chord"], 300.0, places=1)
         self.assertAlmostEqual(new_p2[-1]["chord"], 150.0, places=1)
+        # Intermediate station preserves relative chord ratio (0.5 -> 225.0 mm)
+        self.assertAlmostEqual(new_p2[1]["chord"], 225.0, places=1)
+        self.assertAlmostEqual(m2["area"], 309166.67, places=0)
         # Tip X offset with 0 deg sweep at c/4 = -0.25 * (150 - 300) = 37.5
         self.assertAlmostEqual(new_p2[-1]["position"]["x"], 37.5, places=1)
+
+        # Pure 2-station trapezoid solving
+        profiles_2s = [
+            {"position": {"x": 0, "y": 0, "z": 0}, "chord": 300.0},
+            {"position": {"x": 0, "y": 500, "z": 0}, "chord": 150.0},
+        ]
+        new_p_2s, m_2s = solve_wing_planform(
+            "span_root_tip",
+            {"span": 1400.0, "root_chord": 300.0, "tip_chord": 150.0, "sweep": 0.0},
+            profiles_2s,
+            sweep_loc=0.25,
+        )
+        self.assertEqual(m_2s["span"], 1400.0)
+        self.assertEqual(m_2s["area"], 1400.0 * (300.0 + 150.0) / 2.0)
 
         # Mode with y_offset = 100.0 mm and symmetric = True
         new_p3, m3 = solve_wing_planform(
@@ -352,9 +367,62 @@ class GeometryTests(unittest.TestCase):
         self.assertAlmostEqual(new_p3[-1]["position"]["y"], 600.0, places=1)
 
         # Mode with symmetric = False (single panel / vertical fin)
-        from setuav_studio.plugins.geometry.wing_planform_engine import compute_planform_metrics
         m_asym = compute_planform_metrics(profiles, symmetric=False)
         self.assertAlmostEqual(m_asym["span"], 540.0, places=1)
+
+        # OpenVSP analytic sweep conversion formula test
+        # Sweep 30 deg at LE (0.0), AR=6.0, taper=0.5 -> QC (0.25) sweep is ~27.55 deg
+        sw_qc = calc_tan_sweep_at(0.25, 30.0, 0.0, aspect_ratio=6.0, taper_ratio=0.5)
+        self.assertAlmostEqual(sw_qc, 27.55, places=1)
+
+    def test_wing_sections_engine_kinematics(self) -> None:
+        from setuav_studio.plugins.geometry.wing_sections_engine import (
+            delete_section,
+            insert_section,
+            profiles_to_sections,
+            sections_to_profiles,
+            split_section,
+        )
+
+        profiles = [
+            {"position": {"x": 0.0, "y": 0.0, "z": 0.0}, "chord": 240.0, "rotation": {"x": 0.0, "y": 0.0, "z": 0.0}, "airfoil": "2412"},
+            {"position": {"x": 50.0, "y": 500.0, "z": 20.0}, "chord": 120.0, "rotation": {"x": 0.0, "y": -2.0, "z": 0.0}, "airfoil": "0012"},
+        ]
+
+        # 1. Convert to section
+        sections = profiles_to_sections(profiles, sweep_loc=0.25)
+        self.assertEqual(len(sections), 1)
+        self.assertEqual(sections[0]["span"], 500.0)
+        self.assertEqual(sections[0]["root_chord"], 240.0)
+        self.assertEqual(sections[0]["tip_chord"], 120.0)
+        self.assertEqual(sections[0]["twist"], -2.0)
+
+        # 2. Round-trip conversion back to profiles
+        reconstructed = sections_to_profiles(sections, profiles[0], sweep_loc=0.25)
+        self.assertEqual(len(reconstructed), 2)
+        self.assertAlmostEqual(reconstructed[1]["position"]["x"], 50.0, places=2)
+        self.assertAlmostEqual(reconstructed[1]["position"]["y"], 500.0, places=2)
+        self.assertAlmostEqual(reconstructed[1]["position"]["z"], 20.0, places=2)
+        self.assertAlmostEqual(reconstructed[1]["chord"], 120.0, places=2)
+        self.assertAlmostEqual(reconstructed[1]["rotation"]["y"], -2.0, places=2)
+
+        # 3. Split section
+        split_profs = split_section(profiles, 0, sweep_loc=0.25)
+        self.assertEqual(len(split_profs), 3)
+        split_secs = profiles_to_sections(split_profs, sweep_loc=0.25)
+        self.assertEqual(len(split_secs), 2)
+        # Midpoint chord is 180.0
+        self.assertAlmostEqual(split_secs[0]["tip_chord"], 180.0, places=1)
+        # Section 2 root chord automatically matches Section 1 tip chord
+        self.assertAlmostEqual(split_secs[1]["root_chord"], 180.0, places=1)
+
+        # 4. Insert section
+        inserted_profs = insert_section(profiles, sweep_loc=0.25)
+        self.assertEqual(len(inserted_profs), 3)
+
+        # 5. Delete section
+        del_profs = delete_section(split_profs, 1, sweep_loc=0.25)
+        self.assertEqual(len(del_profs), 2)
 
     def test_airfoil_generators_and_dat_parser(self) -> None:
         from setuav_studio.plugins.geometry.airfoil import (
@@ -900,16 +968,13 @@ class GeometryTests(unittest.TestCase):
         api.current_project = mock_doc
 
         editor = LiftingSurfaceEditor(api, wing_comp)
-        # Default tip cap is flat — table has 21 rows:
-        # tip_type, tip_length, tip_offset_x, match_wing_tangent, winglet_height,
-        # winglet_projected_metrics, cant_root, cant_tip, blend_radius, le_sweep_root,
-        # le_sweep_tip, le_curvature, te_sweep_root, te_sweep_tip, te_curvature,
-        # toe_root, toe_tip, root_chord_scale, tip_chord_scale, tip_thickness_scale, taper_curve
-        self.assertEqual(editor.tip_caps_table.rowCount(), 21)
+        # Default tip cap is flat — table has 1 row: tip_type
+        self.assertEqual(editor.tip_caps_table.rowCount(), 1)
         self.assertEqual(wing_comp["parameters"]["geometry"].get("tip_treatment", {}).get("type", "flat"), "flat")
 
-        # Change tip cap type to round via UI
+        # Change tip cap type to round via UI (expands to 3 rows)
         editor._on_tip_cap_type_changed("round")
+        self.assertEqual(editor.tip_caps_table.rowCount(), 3)
         self.assertEqual(wing_comp["parameters"]["geometry"]["tip_treatment"]["type"], "round")
 
         # Edit tip length
@@ -1448,7 +1513,6 @@ class GeometryTests(unittest.TestCase):
         # General section
         self.assertEqual(editor.general_table.item(0, 1).text(), "Main Fuselage")
         self.assertEqual(editor.general_table.item(1, 1).text(), "org.setuav.core:fuselage")
-        self.assertAlmostEqual(editor.general_table.cellWidget(2, 1).value(), 500.0)
 
         # Segments table: tags, method/parameterization combos
         self.assertEqual(editor.segments_table.rowCount(), 2)
@@ -1614,10 +1678,6 @@ class GeometryTests(unittest.TestCase):
         editor._update_general(0, 1)
         self.assertEqual(comp["name"], "Renamed Body")
 
-        # Mass edit via spinbox (row 2) -> persists
-        editor.general_table.cellWidget(2, 1).setValue(1234.0)
-        self.assertAlmostEqual(comp["parameters"]["mass"], 1234.0)
-
         # Segment tag inline edit
         editor.segments_table.item(0, 0).setText("nose-renamed")
         editor._update_segment_cell(0, 0)
@@ -1635,6 +1695,28 @@ class GeometryTests(unittest.TestCase):
             comp["parameters"]["geometry"]["segments"][1]["loft"]["parameterization"],
             "chord_length",
         )
+
+    def test_3d_section_and_control_surface_selection_highlight(self) -> None:
+        """Verify 3D section ring vertices highlight both bounding stations and control surfaces."""
+        from setuav_studio.plugins.geometry.lifting_surface_geometry import build_lifting_surface_geometry
+        from setuav_studio.plugins.geometry.mesh import build_section_ring_vertices
+        from setuav_studio.plugins.geometry.scene import build_project_geometry
+
+        doc = open_project(TEST_PROJECT_PATH)
+        providers = {"org.setuav.core:lifting-surface": build_lifting_surface_geometry}
+        geom_data = build_project_geometry(doc, providers)
+
+        # 1. Wing Section (Panel) Selection: highlights root station, tip station, and connecting rails
+        panel_verts = build_section_ring_vertices(geom_data, "main-wing", 0, 0)
+        self.assertGreater(len(panel_verts), 0)
+
+        # 2. Control Surface Selection: highlights flap wireframe loops and hinge lines
+        cs_verts = build_section_ring_vertices(geom_data, "main-wing", 1, 0)
+        self.assertGreater(len(cs_verts), 0)
+
+        # 3. Single Station / Airfoil Selection: highlights individual station ring and chord
+        station_verts = build_section_ring_vertices(geom_data, "main-wing", 2, 0)
+        self.assertGreater(len(station_verts), 0)
 
 
 def _build_fuselage_component() -> dict:

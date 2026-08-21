@@ -241,7 +241,7 @@ class OpenGLViewer(QOpenGLWidget):
         self._functions.glClear(_GL_COLOR_BUFFER_BIT | _GL_DEPTH_BUFFER_BIT)
         mvp = self._projection() * self._view()
 
-        lines_overlay = (self._show_wireframe and self._wire_count > 0) or self._highlight_count > 0
+        lines_overlay = (self._show_wireframe and self._wire_count > 0) or self._highlight_count > 0 or self._section_ring_count > 0
         if self._show_solid and self._solid_program is not None:
             eye_direction = self._eye_position() - self._target
             eye_direction.normalize()
@@ -286,11 +286,9 @@ class OpenGLViewer(QOpenGLWidget):
             self._functions.glDrawArrays(_GL_LINES, 0, self._highlight_count)
             self._highlight_vao.release()
         if self._section_ring_count > 0:
-            self._functions.glDepthFunc(_GL_LEQUAL)
             self._section_ring_vao.bind()
             self._functions.glDrawArrays(_GL_LINES, 0, self._section_ring_count)
             self._section_ring_vao.release()
-            self._functions.glDepthFunc(_GL_LESS)
         if self._show_wireframe:
             self._functions.glEnable(_GL_BLEND)
             self._functions.glBlendFunc(_GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA)

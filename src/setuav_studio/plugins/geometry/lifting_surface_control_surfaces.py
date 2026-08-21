@@ -36,6 +36,7 @@ class ControlSurfacesMixin:
             | QAbstractItemView.EditTrigger.SelectedClicked
         )
         self.control_surfaces_table.currentCellChanged.connect(self._on_control_surface_selected)
+        self.control_surfaces_table.itemSelectionChanged.connect(self._on_cs_selection_changed)
         self.control_surfaces_table.cellChanged.connect(self._update_cs_table_cell)
         layout.addWidget(self.control_surfaces_table)
 
@@ -122,11 +123,15 @@ class ControlSurfacesMixin:
             self._control_surface_index = -1
             self._clear_property_values(self.cs_properties_table)
             self._update_cs_actions()
+            self._api.set_section_selection(None)
             return
 
         self._control_surface_index = row
         cs = cs_list[row]
         geom = self._cs_geom(cs)
+
+        comp_id = str(self._component.get("id") or "")
+        self._api.set_section_selection((comp_id, 1, row))
 
         was_loading = self._loading
         self._loading = True
@@ -223,8 +228,14 @@ class ControlSurfacesMixin:
     # Control Surface Actions & Mutation
     # -------------------------------------------------------------------------
 
-    def _on_control_surface_selected(self, row: int, _col: int, _prev_row: int, _prev_col: int) -> None:
+    def _on_cs_selection_changed(self) -> None:
         if not self._loading:
+            row = self.control_surfaces_table.currentRow()
+            if row >= 0:
+                self._load_control_surface(row)
+
+    def _on_control_surface_selected(self, row: int, _col: int, _prev_row: int, _prev_col: int) -> None:
+        if not self._loading and row >= 0:
             self._load_control_surface(row)
 
     def _update_cs_table_cell(self, row: int, column: int) -> None:

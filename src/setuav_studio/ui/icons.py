@@ -27,6 +27,11 @@ _ICON_MAP = {
     # Toolbar & General actions
     "add": "fa6s.plus",
     "remove": "fa6s.trash-can",
+    "edit": "fa6s.pen-to-square",
+    "pencil": "mdi6.pencil",
+    "pen": "fa6s.pen",
+    "split": "mdi6.call-split",
+    "call_split": "mdi6.call-split",
     "fit": "fa6s.expand",
     "log": "mdi6.message-text-outline",
     # Default Component Types
