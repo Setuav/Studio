@@ -2,7 +2,7 @@ from pathlib import Path
 
 import shiboken6
 from PySide6.QtCore import QSettings, QSize, Qt, QTimer
-from PySide6.QtGui import QCloseEvent, QFont, QFontMetrics, QIcon, QKeySequence
+from PySide6.QtGui import QAction, QCloseEvent, QFont, QFontMetrics, QIcon, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
     QDialog,
@@ -152,6 +152,7 @@ class MainWindow(QMainWindow):
         self._workspace_widgets: dict[str, QWidget] = {}
         self._workspace_buttons: dict[str, QToolButton] = {}
         self._panels: dict[str, tuple[PanelContribution, QDockWidget]] = {}
+        self._panel_actions: dict[str, QAction] = {}
         self._current_workspace_id: str | None = None
         self._workspace_states: dict[str, Any] = {}
         self.setDockNestingEnabled(True)
@@ -624,16 +625,26 @@ class MainWindow(QMainWindow):
 
     def _update_view_menu(self, workspace_id: str | None) -> None:
         self._view_menu.clear()
-        for cid, (panel_contrib, dock) in self._panels.items():
+        for cid, (panel_contrib, _dock) in self._panels.items():
             if workspace_id is None or panel_contrib.is_in_workspace(workspace_id):
-                action = dock.toggleViewAction()
-                if panel_contrib.icon:
-                    action.setIcon(get_icon(panel_contrib.icon))
-                elif panel_contrib.id == "project.explorer":
-                    action.setIcon(get_icon("project_explorer"))
-                elif panel_contrib.id == "studio.properties":
-                    action.setIcon(get_icon("properties"))
-                self._view_menu.addAction(action)
+                action = self._panel_actions.get(cid)
+                if action is not None:
+                    self._view_menu.addAction(action)
+
+    def _update_panel_action_icon(self, panel_id: str) -> None:
+        action = self._panel_actions.get(panel_id)
+        if action is None:
+            return
+        action.setIcon(get_icon("fa6s.square-check" if action.isChecked() else "fa6s.square"))
+
+    def _sync_panel_action(self, panel_id: str) -> None:
+        entry = self._panels.get(panel_id)
+        action = self._panel_actions.get(panel_id)
+        if entry is None or action is None:
+            return
+        _, dock = entry
+        action.setChecked(dock.isVisible())
+        self._update_panel_action_icon(panel_id)
 
     def _add_panel(self, contribution: PanelContribution) -> None:
         dock = QDockWidget(contribution.title, self)
@@ -643,6 +654,19 @@ class MainWindow(QMainWindow):
         dock.setWidget(self._wrap_panel(contribution.factory()))
         self.addDockWidget(contribution.area, dock)
         self._panels[contribution.id] = (contribution, dock)
+
+        action = QAction(contribution.title, self)
+        action.setCheckable(True)
+        action.setChecked(dock.isVisible())
+        action.toggled.connect(lambda checked, d=dock: d.setVisible(checked))
+        action.toggled.connect(
+            lambda _checked, pid=contribution.id: self._update_panel_action_icon(pid)
+        )
+        dock.visibilityChanged.connect(
+            lambda _visible=False, pid=contribution.id: self._sync_panel_action(pid)
+        )
+        self._panel_actions[contribution.id] = action
+        self._update_panel_action_icon(contribution.id)
 
         ws_id = self._current_workspace_id or self._api.current_workspace_id
         if not contribution.is_in_workspace(ws_id):
@@ -657,6 +681,9 @@ class MainWindow(QMainWindow):
         _, dock = entry
         dock.close()
         dock.deleteLater()
+        action = self._panel_actions.pop(panel_id, None)
+        if action is not None:
+            action.deleteLater()
         self._update_view_menu(self._current_workspace_id)
 
     @staticmethod
