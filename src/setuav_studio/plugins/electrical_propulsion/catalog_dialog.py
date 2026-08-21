@@ -33,6 +33,14 @@ from pythrust.motors.database import MotorEntry
 from pythrust.propellers.database import PropellerEntry
 
 
+class _NumericItem(QTableWidgetItem):
+    """Table item that keeps the raw numeric value in UserRole for sorting."""
+
+    def __init__(self, text: str, value: float | None = None) -> None:
+        super().__init__(text)
+        self.setData(Qt.ItemDataRole.UserRole, value)
+
+
 class ComponentCatalogDialog(QDialog):
     """Search and select motors or propellers from the PyThrust database."""
 
@@ -103,6 +111,8 @@ class ComponentCatalogDialog(QDialog):
         if component_type in {"propeller", "rotor", "all"}:
             self._load_propellers()
 
+        self._sort_orders: dict[tuple[int, int], Qt.SortOrder] = {}
+
     def _create_motor_page(self) -> QWidget:
         page = QWidget(self)
         layout = QVBoxLayout(page)
@@ -132,6 +142,9 @@ class ComponentCatalogDialog(QDialog):
             "Manufacturer", "Model / Name", "KV (RPM/V)", "Max Current (A)", "Max Power (W)", "Mass (g)", "Rm (Ω)"
         ])
         self._style_table(self.motor_table)
+        self.motor_table.horizontalHeader().sectionClicked.connect(
+            lambda col: self._sort_table(self.motor_table, col)
+        )
         self.motor_table.itemSelectionChanged.connect(self._on_motor_selected)
         self.motor_table.doubleClicked.connect(lambda: self.accept() if self.selected_motor else None)
         layout.addWidget(self.motor_table)
@@ -162,6 +175,9 @@ class ComponentCatalogDialog(QDialog):
             "Manufacturer", "Model", "Diameter (in)", "Diameter (mm)", "Pitch (in)", "Blades"
         ])
         self._style_table(self.prop_table)
+        self.prop_table.horizontalHeader().sectionClicked.connect(
+            lambda col: self._sort_table(self.prop_table, col)
+        )
         self.prop_table.itemSelectionChanged.connect(self._on_propeller_selected)
         self.prop_table.doubleClicked.connect(lambda: self.accept() if self.selected_propeller else None)
         layout.addWidget(self.prop_table)
@@ -178,7 +194,7 @@ class ComponentCatalogDialog(QDialog):
         table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         table.horizontalHeader().setStretchLastSection(True)
         table.setAlternatingRowColors(True)
-        table.setSortingEnabled(True)
+        table.setSortingEnabled(False)
 
     def _load_motors(self) -> None:
         db = get_motor_database()
@@ -214,23 +230,21 @@ class ComponentCatalogDialog(QDialog):
         self.status_label.setText(f"Showing {len(filtered)} matching motors (out of {len(self._motor_entries):,})")
 
     def _populate_motor_table(self, motors: list[MotorEntry]) -> None:
-        self.motor_table.setSortingEnabled(False)
         self.motor_table.setRowCount(len(motors))
         for row, m in enumerate(motors):
             items = [
                 QTableWidgetItem(m.manufacturer),
                 QTableWidgetItem(m.name),
-                QTableWidgetItem(f"{m.kv:.0f}"),
-                QTableWidgetItem(f"{m.max_current:.1f}"),
-                QTableWidgetItem(f"{m.max_power:.0f}" if m.max_power else "-"),
-                QTableWidgetItem(f"{m.weight_g:.1f}"),
-                QTableWidgetItem(f"{m.resistance:.4f}"),
+                _NumericItem(f"{m.kv:.0f}", m.kv),
+                _NumericItem(f"{m.max_current:.1f}", m.max_current),
+                _NumericItem(f"{m.max_power:.0f}" if m.max_power else "-", m.max_power),
+                _NumericItem(f"{m.weight_g:.1f}", m.weight_g),
+                _NumericItem(f"{m.resistance:.4f}", m.resistance),
             ]
             items[0].setData(Qt.ItemDataRole.UserRole, m.id)
             for col, item in enumerate(items):
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 self.motor_table.setItem(row, col, item)
-        self.motor_table.setSortingEnabled(True)
 
     def _load_propellers(self) -> None:
         db = get_propeller_database()
@@ -252,23 +266,69 @@ class ComponentCatalogDialog(QDialog):
         self.status_label.setText(f"Showing {len(filtered)} matching propellers")
 
     def _populate_propeller_table(self, props: list[PropellerEntry]) -> None:
-        self.prop_table.setSortingEnabled(False)
         self.prop_table.setRowCount(len(props))
         for row, p in enumerate(props):
             d_mm = p.diameter_m * 1000.0
             items = [
                 QTableWidgetItem(p.metadata.manufacturer),
                 QTableWidgetItem(p.metadata.model),
-                QTableWidgetItem(f"{p.metadata.diameter_in:.1f}"),
-                QTableWidgetItem(f"{d_mm:.1f}"),
-                QTableWidgetItem(f"{p.metadata.pitch_in:.1f}"),
-                QTableWidgetItem(str(p.metadata.blade_count)),
+                _NumericItem(f"{p.metadata.diameter_in:.1f}", p.metadata.diameter_in),
+                _NumericItem(f"{d_mm:.1f}", d_mm),
+                _NumericItem(f"{p.metadata.pitch_in:.1f}", p.metadata.pitch_in),
+                _NumericItem(str(p.metadata.blade_count), p.metadata.blade_count),
             ]
             items[0].setData(Qt.ItemDataRole.UserRole, p.metadata.id)
             for col, item in enumerate(items):
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 self.prop_table.setItem(row, col, item)
-        self.prop_table.setSortingEnabled(True)
+
+    def _sort_table(self, table: QTableWidget, column: int) -> None:
+        """Sort a table by the numeric UserRole value of the given column.
+
+        Numeric columns sort numerically in both directions; missing values
+        (``None`` / "-") always sort last. Text columns sort alphabetically.
+        Qt's built-in sort compares display text, which breaks numeric order
+        (e.g. "100" before "20"), so sorting is done manually here.
+        """
+        key = (id(table), column)
+        prev = self._sort_orders.get(key, Qt.SortOrder.DescendingOrder)
+        order = (
+            Qt.SortOrder.AscendingOrder
+            if prev == Qt.SortOrder.DescendingOrder
+            else Qt.SortOrder.DescendingOrder
+        )
+        self._sort_orders[key] = order
+        ascending = order == Qt.SortOrder.AscendingOrder
+
+        def row_key(row: int):
+            item = table.item(row, column)
+            text = item.text() if item is not None else ""
+            value = item.data(Qt.ItemDataRole.UserRole) if item is not None else None
+            if isinstance(value, (int, float)):
+                sec = value if ascending else -value
+                return (0, sec)
+            if text in ("", "-"):
+                return (2, text)
+            return (1, text)
+
+        ordered = sorted(range(table.rowCount()), key=row_key)
+        # Text columns honor direction by reversing instead of negating.
+        numeric_column = any(
+            isinstance(table.item(r, column).data(Qt.ItemDataRole.UserRole), (int, float))
+            for r in range(table.rowCount())
+        )
+        if not ascending and not numeric_column:
+            ordered = list(reversed(ordered))
+
+        columns = table.columnCount()
+        collected = [
+            [table.takeItem(row, col) for col in range(columns)]
+            for row in ordered
+        ]
+        for new_row, row_items in enumerate(collected):
+            for col, item in enumerate(row_items):
+                table.setItem(new_row, col, item)
+        table.horizontalHeader().setSortIndicator(column, order)
 
     def _on_motor_selected(self) -> None:
         selected_rows = self.motor_table.selectionModel().selectedRows()
