@@ -90,7 +90,7 @@ class ElectricalPropulsionPlugin:
             PanelContribution(
                 id="propulsion.charts_dock",
                 title="Performance Charts",
-                factory=lambda: PropulsionChartsDock(),
+                factory=lambda: PropulsionChartsDock(api),
                 workspace_id="studio.workspace.propulsion",
                 area=Qt.DockWidgetArea.RightDockWidgetArea,
                 icon="fa6s.chart-line",

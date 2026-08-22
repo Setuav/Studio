@@ -1,7 +1,7 @@
 """Unified Propulsion Performance Charts Dock hosting all curves simultaneously."""
 from __future__ import annotations
 
-from typing import Sequence
+from typing import Any, Sequence
 from PySide6.QtCore import QPointF, QSettings, Qt
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import (
@@ -16,6 +16,7 @@ from PySide6.QtCharts import (
     QValueAxis,
 )
 
+from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.ui.theme import tokens
 
 
@@ -330,10 +331,15 @@ class PowerLoadingChartDock(SinglePropulsionChartWidget):
 class PropulsionChartsDock(QWidget):
     """Unified dock hosting all 4 propulsion performance curves simultaneously in a 2x2 grid with persistent splitters."""
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, api: StudioAPI | None = None, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("propulsion.charts_widget")
+        self._api = api
         self._tokens = tokens()
+
+        if self._api is not None:
+            self._api.subscribe("propulsion.plot_sweep", self._on_plot_sweep)
+            self._api.subscribe("propulsion.clear_charts", lambda _p=None: self.clear_charts())
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(1, 1, 1, 1)
@@ -430,3 +436,20 @@ class PropulsionChartsDock(QWidget):
         self.chart_electrical.plot_data(x_label, x_values, current_a, rpm)
         self.chart_efficiency.plot_data(x_label, x_values, eta_total, eta_prop, eta_motor)
         self.chart_power_loading.plot_data(x_label, x_values, thrust_n, power_w)
+
+    def _on_plot_sweep(self, payload: dict[str, Any]) -> None:
+        if not payload:
+            return
+        if payload.get("clear_charts", False):
+            self.clear_charts()
+        self.plot_sweep_results(
+            x_label=payload["x_label"],
+            x_values=payload["x_values"],
+            thrust_n=payload["thrust_n"],
+            power_w=payload["power_w"],
+            current_a=payload["current_a"],
+            rpm=payload["rpm"],
+            eta_total=payload["eta_total"],
+            eta_prop=payload["eta_prop"],
+            eta_motor=payload["eta_motor"],
+        )

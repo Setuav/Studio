@@ -551,19 +551,6 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
         mode = config.get("mode", "airspeed_sweep")
         params = config.get("parameters", {})
 
-        # Find Results Dock and Charts Dock
-        win = self.window()
-        results_dock = win.findChild(QWidget, "propulsion.results_widget") or next(
-            (d for d in win.findChildren(QWidget) if d.__class__.__name__ == "PropulsionResultsDock"), None
-        )
-        charts_dock = win.findChild(QWidget, "propulsion.charts_widget") or next(
-            (d for d in win.findChildren(QWidget) if d.__class__.__name__ == "PropulsionChartsDock"), None
-        )
-        chart_thrust = win.findChild(QWidget, "propulsion.chart_thrust_widget")
-        chart_electrical = win.findChild(QWidget, "propulsion.chart_electrical_widget")
-        chart_efficiency = win.findChild(QWidget, "propulsion.chart_efficiency_widget")
-        chart_power_loading = win.findChild(QWidget, "propulsion.chart_power_loading_widget")
-
         return {
             "mode": mode,
             "params": params,
@@ -576,12 +563,6 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
             "rho": rho,
             "diameter_in": diameter_in,
             "pitch_in": pitch_in,
-            "results_dock": results_dock,
-            "charts_dock": charts_dock,
-            "chart_thrust": chart_thrust,
-            "chart_electrical": chart_electrical,
-            "chart_efficiency": chart_efficiency,
-            "chart_power_loading": chart_power_loading,
         }
 
     @staticmethod
@@ -637,44 +618,23 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
         res: dict[str, Any],
         clear_charts: bool = False,
     ) -> None:
-        charts_dock = context.get("charts_dock")
-        results_dock = context.get("results_dock")
-        chart_thrust = context.get("chart_thrust")
-        chart_electrical = context.get("chart_electrical")
-        chart_efficiency = context.get("chart_efficiency")
-        chart_power_loading = context.get("chart_power_loading")
-
-        if clear_charts:
-            if charts_dock and hasattr(charts_dock, "clear_charts"):
-                charts_dock.clear_charts()
-            for cd in (chart_thrust, chart_electrical, chart_efficiency, chart_power_loading):
-                if cd and hasattr(cd, "clear"):
-                    cd.clear()
-
-        if charts_dock and hasattr(charts_dock, "plot_sweep_results"):
-            charts_dock.plot_sweep_results(
-                x_label=x_label,
-                x_values=x_vals,
-                thrust_n=thrusts,
-                power_w=powers,
-                current_a=currents,
-                rpm=rpms,
-                eta_total=eta_tots,
-                eta_prop=eta_props,
-                eta_motor=eta_mots,
-            )
-
-        if chart_thrust and hasattr(chart_thrust, "plot_data"):
-            chart_thrust.plot_data(x_label, x_vals, thrusts, powers)
-        if chart_electrical and hasattr(chart_electrical, "plot_data"):
-            chart_electrical.plot_data(x_label, x_vals, currents, rpms)
-        if chart_efficiency and hasattr(chart_efficiency, "plot_data"):
-            chart_efficiency.plot_data(x_label, x_vals, eta_tots, eta_props, eta_mots)
-        if chart_power_loading and hasattr(chart_power_loading, "plot_data"):
-            chart_power_loading.plot_data(x_label, x_vals, thrusts, powers)
-
-        if results_dock and hasattr(results_dock, "set_results"):
-            results_dock.set_results(res)
+        # Decoupled event emission via StudioAPI Event Bus
+        self._api.publish("propulsion.results_updated", res)
+        self._api.publish(
+            "propulsion.plot_sweep",
+            {
+                "x_label": x_label,
+                "x_values": x_vals,
+                "thrust_n": thrusts,
+                "power_w": powers,
+                "current_a": currents,
+                "rpm": rpms,
+                "eta_total": eta_tots,
+                "eta_prop": eta_props,
+                "eta_motor": eta_mots,
+                "clear_charts": clear_charts,
+            },
+        )
         self._api.clear_progress()
 
     def run_sweep(self, context: dict[str, Any]) -> dict[str, Any]:

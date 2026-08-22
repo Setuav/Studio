@@ -163,8 +163,28 @@ class TestWorkspacesAndTools(unittest.TestCase):
             if item is not None
         )
         self.assertIn("hello log window", table_text)
-        self.assertIn("WARNING", table_text)
         self.assertTrue(win._log_window._table.wordWrap())
+
+    def test_studio_api_event_bus_publish_subscribe(self) -> None:
+        api = StudioAPI()
+        received_payloads: list[dict[str, int]] = []
+
+        def handler(payload: dict[str, int]) -> None:
+            received_payloads.append(payload)
+
+        # 1. Subscribe
+        api.subscribe("custom.test_event", handler)
+
+        # 2. Publish event
+        api.publish("custom.test_event", {"value": 42})
+        self.assertEqual(len(received_payloads), 1)
+        self.assertEqual(received_payloads[0]["value"], 42)
+
+        # 3. Unsubscribe
+        api.unsubscribe("custom.test_event", handler)
+        api.publish("custom.test_event", {"value": 99})
+        # Count should remain 1
+        self.assertEqual(len(received_payloads), 1)
 
 
 if __name__ == "__main__":

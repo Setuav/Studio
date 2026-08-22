@@ -38,6 +38,9 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
         self._tokens = tokens()
         self._last_data: dict[str, Any] | None = None
 
+        if self._api is not None:
+            self._api.subscribe("propulsion.results_updated", self.set_results)
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(4)

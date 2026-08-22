@@ -39,6 +39,9 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
         self._tokens = tokens()
         self._current_result: AeroResult | None = None
 
+        if self._api is not None:
+            self._api.subscribe("aerodynamics.analysis_completed", self.display_results)
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(4)

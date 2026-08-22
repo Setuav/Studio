@@ -177,6 +177,7 @@ class StudioAPI:
         self._project_requirement_checker: (
             Callable[[dict[str, Any]], list[str]] | None
         ) = None
+        self._event_subscribers: dict[str, list[Callable[[Any], None]]] = {}
         self.undo_stack = QUndoStack()
         self.undo_stack.cleanChanged.connect(self._on_clean_changed)
 
@@ -250,6 +251,27 @@ class StudioAPI:
 
     def clear_progress(self) -> None:
         self.report_progress(1, 1, "")
+
+    def subscribe(self, event_name: str, handler: Callable[[Any], None]) -> None:
+        """Subscribe a callback handler to a named studio event (Event Bus)."""
+        self._event_subscribers.setdefault(event_name, []).append(handler)
+
+    def unsubscribe(self, event_name: str, handler: Callable[[Any], None]) -> None:
+        """Unsubscribe a callback handler from a named studio event."""
+        if event_name in self._event_subscribers:
+            try:
+                self._event_subscribers[event_name].remove(handler)
+            except ValueError:
+                pass
+
+    def publish(self, event_name: str, payload: Any = None) -> None:
+        """Publish an event to all subscribed listeners."""
+        handlers = list(self._event_subscribers.get(event_name, []))
+        for handler in handlers:
+            try:
+                handler(payload)
+            except Exception as exc:
+                logger.error("Error executing subscriber for event '%s': %s", event_name, exc, exc_info=True)
 
     def set_workspace_handler(
         self,

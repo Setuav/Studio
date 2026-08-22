@@ -66,7 +66,20 @@ class Aero3DDock(QWidget):
         self._show_wake = True
         self._show_freestream = False
 
+        if self._api is not None:
+            self._api.subscribe("aerodynamics.analysis_completed", self._on_analysis_completed)
+
         self._setup_ui()
+
+    def _on_analysis_completed(self, result: AeroResult) -> None:
+        """Handle incoming analysis results from the Event Bus."""
+        if result and result.raw and "airplane" in result.raw:
+            self.set_airplane_context(
+                airplane=result.raw["airplane"],
+                velocity=result.raw.get("velocity", 20.0),
+                alpha=result.ld_max_alpha if result.ld_max_alpha is not None else 4.0,
+                result=result,
+            )
 
     def _setup_ui(self) -> None:
         self.main_layout = QVBoxLayout(self)

@@ -175,6 +175,9 @@ class AeroChartsDock(QWidget):
         self.setObjectName("aerodynamics.charts_widget")
         self._api = api
 
+        if self._api is not None:
+            self._api.subscribe("aerodynamics.analysis_completed", self.plot_results)
+
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(1, 1, 1, 1)
         main_layout.setSpacing(2)
