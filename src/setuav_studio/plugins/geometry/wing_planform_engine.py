@@ -37,43 +37,6 @@ TWIST_LOCATIONS = [
 ]
 
 
-def get_driver_inputs_for_mode(mode: str) -> list[tuple[str, str, str]]:
-    """Return list of (key, label, unit) for active inputs in the given driver mode."""
-    if mode == "area_ar_taper":
-        return [
-            ("area", "Planform Area (S)", "mm²"),
-            ("aspect_ratio", "Aspect Ratio (AR)", "1"),
-            ("taper_ratio", "Taper Ratio (λ)", "1"),
-            ("sweep", "Sweep Angle (Λ)", "°"),
-            ("washout", "Tip Twist / Washout (ε)", "°"),
-        ]
-    if mode == "span_root_tip":
-        return [
-            ("span", "Total Wingspan (b)", "mm"),
-            ("root_chord", "Root Chord (c_root)", "mm"),
-            ("tip_chord", "Tip Chord (c_tip)", "mm"),
-            ("sweep", "Sweep Angle (Λ)", "°"),
-            ("washout", "Tip Twist / Washout (ε)", "°"),
-        ]
-    if mode == "span_area_taper":
-        return [
-            ("span", "Total Wingspan (b)", "mm"),
-            ("area", "Planform Area (S)", "mm²"),
-            ("taper_ratio", "Taper Ratio (λ)", "1"),
-            ("sweep", "Sweep Angle (Λ)", "°"),
-            ("washout", "Tip Twist / Washout (ε)", "°"),
-        ]
-    if mode == "span_ar_taper":
-        return [
-            ("span", "Total Wingspan (b)", "mm"),
-            ("aspect_ratio", "Aspect Ratio (AR)", "1"),
-            ("taper_ratio", "Taper Ratio (λ)", "1"),
-            ("sweep", "Sweep Angle (Λ)", "°"),
-            ("washout", "Tip Twist / Washout (ε)", "°"),
-        ]
-    return []
-
-
 def calc_tan_sweep_at(
     loc_target: float,
     sweep_deg: float,

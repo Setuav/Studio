@@ -191,40 +191,6 @@ def parse_airfoil_dat(content: str, samples: int = AIRFOIL_SAMPLES * 2) -> tuple
     return name, loop_clean
 
 
-def resample_closed_curve(
-    points: list[tuple[float, float]],
-    count: int,
-) -> tuple[tuple[float, float], ...]:
-    """Resample a closed polygon to uniform arc-length points."""
-    if len(points) < 2:
-        return ((0.0, 0.0),) * count
-    if points[0] == points[-1]:
-        points = points[:-1]
-    lengths = [0.0]
-    closed = points + [points[0]]
-    for start, end in zip(closed, closed[1:]):
-        lengths.append(lengths[-1] + math.dist(start, end))
-    total = lengths[-1]
-    if total < 1e-9:
-        return ((0.0, 0.0),) * count
-    result: list[tuple[float, float]] = []
-    segment = 0
-    for index in range(count):
-        distance = total * index / count
-        while segment + 1 < len(lengths) and lengths[segment + 1] < distance:
-            segment += 1
-        span = lengths[segment + 1] - lengths[segment]
-        fraction = 0.0 if span < 1e-9 else (distance - lengths[segment]) / span
-        start, end = closed[segment], closed[segment + 1]
-        result.append(
-            (
-                start[0] * (1 - fraction) + end[0] * fraction,
-                start[1] * (1 - fraction) + end[1] * fraction,
-            )
-        )
-    return tuple(result)
-
-
 def compute_airfoil_metrics(points: tuple[tuple[float, float], ...] | list[tuple[float, float]]) -> dict[str, float]:
     """Compute geometric properties: max thickness, max camber, TE gap."""
     if len(points) < 4:

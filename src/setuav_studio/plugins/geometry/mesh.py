@@ -107,7 +107,6 @@ def _append_loft_wire(vertices: list[float], loops, color: Point3D) -> None:
 
 
 CS_HIGHLIGHT = SELECTED_WIRE
-HINGE_HIGHLIGHT = (1.0, 0.40, 0.15)
 AIRFOIL_HIGHLIGHT = SELECTED_WIRE
 AIRFOIL_CHORD_HIGHLIGHT = SELECTED_WIRE
 

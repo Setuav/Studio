@@ -21,11 +21,6 @@ from setuav_studio.plugins.geometry.wing_planform_engine import (
     set_wing_global_twist,
     solve_wing_planform,
 )
-from setuav_studio.plugins.geometry.wing_sections_engine import (
-    scale_wing_total_area,
-    scale_wing_total_chord,
-    scale_wing_total_span,
-)
 
 
 class PlanformMixin:
