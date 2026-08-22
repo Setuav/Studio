@@ -179,6 +179,7 @@ class AeroSandboxEngine(AeroEngine):
             reference=ref,
             reynolds=reynolds,
             oswald_efficiency=oswald,
+            raw={"airplane": airplane, "velocity": condition.velocity},
         )
 
     def _build_airplane(self, components: list[dict[str, Any]]) -> asb.Airplane:

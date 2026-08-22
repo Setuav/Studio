@@ -155,6 +155,8 @@ class MainWindow(QMainWindow):
         self._panel_actions: dict[str, QAction] = {}
         self._current_workspace_id: str | None = None
         self._workspace_states: dict[str, Any] = {}
+        self._hidden_panels: set[tuple[str, str]] = set()
+        self._is_switching_workspace: bool = False
         self.setDockNestingEnabled(True)
 
         central_anchor = QWidget(self)
@@ -625,10 +627,12 @@ class MainWindow(QMainWindow):
 
     def _update_view_menu(self, workspace_id: str | None) -> None:
         self._view_menu.clear()
-        for cid, (panel_contrib, _dock) in self._panels.items():
+        for cid, (panel_contrib, dock) in self._panels.items():
             if workspace_id is None or panel_contrib.is_in_workspace(workspace_id):
                 action = self._panel_actions.get(cid)
                 if action is not None:
+                    action.setChecked(dock.isVisible())
+                    self._update_panel_action_icon(cid)
                     self._view_menu.addAction(action)
 
     def _update_panel_action_icon(self, panel_id: str) -> None:
@@ -636,6 +640,14 @@ class MainWindow(QMainWindow):
         if action is None:
             return
         action.setIcon(get_icon("fa6s.square-check" if action.isChecked() else "fa6s.square"))
+
+    def _on_panel_visibility_toggled(self, panel_id: str, visible: bool) -> None:
+        ws_id = self._current_workspace_id or self._api.current_workspace_id
+        if ws_id:
+            if not visible:
+                self._hidden_panels.add((ws_id, panel_id))
+            else:
+                self._hidden_panels.discard((ws_id, panel_id))
 
     def _sync_panel_action(self, panel_id: str) -> None:
         entry = self._panels.get(panel_id)
@@ -658,13 +670,21 @@ class MainWindow(QMainWindow):
         action = QAction(contribution.title, self)
         action.setCheckable(True)
         action.setChecked(dock.isVisible())
-        action.toggled.connect(lambda checked, d=dock: d.setVisible(checked))
-        action.toggled.connect(
-            lambda _checked, pid=contribution.id: self._update_panel_action_icon(pid)
-        )
-        dock.visibilityChanged.connect(
-            lambda _visible=False, pid=contribution.id: self._sync_panel_action(pid)
-        )
+
+        def on_action_toggled(checked: bool, d=dock, pid=contribution.id):
+            d.setVisible(checked)
+            self._on_panel_visibility_toggled(pid, checked)
+            self._update_panel_action_icon(pid)
+
+        action.toggled.connect(on_action_toggled)
+
+        def on_dock_visibility_changed(visible: bool, pid=contribution.id):
+            if not self._is_switching_workspace:
+                self._on_panel_visibility_toggled(pid, visible)
+            self._sync_panel_action(pid)
+
+        dock.visibilityChanged.connect(on_dock_visibility_changed)
+
         self._panel_actions[contribution.id] = action
         self._update_panel_action_icon(contribution.id)
 
@@ -750,6 +770,11 @@ class MainWindow(QMainWindow):
         if workspace_id not in self._workspaces:
             return
         del self._workspaces[workspace_id]
+        btn = self._workspace_buttons.pop(workspace_id, None)
+        if btn is not None:
+            btn.deleteLater()
+        self._workspace_states.pop(workspace_id, None)
+        QSettings().remove(f"workspace_perspective/{workspace_id}")
         self._rebuild_workspace_toolbar()
         for panel_id in list(self._panels):
             contribution, _ = self._panels[panel_id]
@@ -791,18 +816,6 @@ class MainWindow(QMainWindow):
         if workspace_id not in self._workspaces:
             return
 
-        # 1. Save previous workspace perspective
-        if (
-            self._current_workspace_id is not None
-            and self._current_workspace_id != workspace_id
-        ):
-            prev_state = self.saveState(self._LAYOUT_VERSION)
-            self._workspace_states[self._current_workspace_id] = prev_state
-            QSettings().setValue(
-                f"workspace_perspective/{self._current_workspace_id}",
-                prev_state,
-            )
-
         self._current_workspace_id = workspace_id
 
         for cid, btn in self._workspace_buttons.items():
@@ -810,110 +823,135 @@ class MainWindow(QMainWindow):
             btn.setChecked(cid == workspace_id)
             btn.blockSignals(False)
 
-        # 2. Restore saved workspace perspective if available, or apply default layout
-        settings = QSettings()
-        saved_state = self._workspace_states.get(workspace_id) or settings.value(
-            f"workspace_perspective/{workspace_id}"
-        )
-        if saved_state is not None:
-            self.restoreState(saved_state, self._LAYOUT_VERSION)
-        else:
-            self._apply_default_workspace_layout(workspace_id)
+        # Apply layout for the target workspace
+        self._apply_default_workspace_layout(workspace_id)
 
-        # 3. Update View menu actions for the active workspace only
+        # Update View menu actions for the active workspace only
         self._update_view_menu(workspace_id)
 
     def _apply_default_workspace_layout(self, workspace_id: str) -> None:
-        explorer = self.findChild(QDockWidget, "project.explorer")
-        viewer = self.findChild(QDockWidget, "studio.viewer.opengl")
-        props = self.findChild(QDockWidget, "studio.properties")
-        controls = self.findChild(QDockWidget, "propulsion.controls_dock")
-        results = self.findChild(QDockWidget, "propulsion.results_dock")
+        self._is_switching_workspace = True
+        try:
+            def should_show(dock_id: str) -> bool:
+                return (workspace_id, dock_id) not in self._hidden_panels
 
-        # Hide any panels that do not belong to this workspace
-        for cid, (panel_contrib, dock) in self._panels.items():
-            if not panel_contrib.is_in_workspace(workspace_id):
-                dock.hide()
+            explorer = self.findChild(QDockWidget, "project.explorer")
+            viewer = self.findChild(QDockWidget, "studio.viewer.opengl")
+            props = self.findChild(QDockWidget, "studio.properties")
+            controls = self.findChild(QDockWidget, "propulsion.controls_dock")
+            results = self.findChild(QDockWidget, "propulsion.results_dock")
 
-        if workspace_id in {"studio.workspace.design", "studio.viewer.opengl"}:
-            if controls:
-                controls.hide()
-            if results:
-                results.hide()
-            if explorer and viewer:
-                self.splitDockWidget(explorer, viewer, Qt.Orientation.Horizontal)
-            if viewer and props:
-                self.splitDockWidget(viewer, props, Qt.Orientation.Horizontal)
-            if explorer:
-                explorer.show()
-            if viewer:
-                viewer.show()
-            if props:
-                props.show()
-
-            docks = [d for d in [explorer, viewer, props] if d is not None and not d.isHidden()]
-            if docks:
-                self.resizeDocks(docks, [260, 680, 260][:len(docks)], Qt.Orientation.Horizontal)
-
-        elif workspace_id == "studio.workspace.propulsion":
-            charts = self.findChild(QDockWidget, "propulsion.charts_dock")
-            if viewer:
-                viewer.hide()
-            if explorer and props:
-                self.splitDockWidget(explorer, props, Qt.Orientation.Vertical)
-            if explorer and controls:
-                self.splitDockWidget(explorer, controls, Qt.Orientation.Horizontal)
-            if controls and charts:
-                self.splitDockWidget(controls, charts, Qt.Orientation.Horizontal)
-            if charts and results:
-                self.splitDockWidget(charts, results, Qt.Orientation.Horizontal)
-            elif controls and results:
-                self.splitDockWidget(controls, results, Qt.Orientation.Horizontal)
-
-            if explorer:
-                explorer.show()
-            if props:
-                props.show()
-            if controls:
-                controls.show()
-            if charts:
-                charts.show()
-            if results:
-                results.show()
-
-            docks = [d for d in [explorer, controls, charts, results] if d is not None and not d.isHidden()]
-            if docks:
-                self.resizeDocks(docks, [220, 280, 480, 260][:len(docks)], Qt.Orientation.Horizontal)
-
-        elif workspace_id == "studio.workspace.aerodynamics":
-            aero_controls = self.findChild(QDockWidget, "aerodynamics.controls_dock")
-            aero_charts = self.findChild(QDockWidget, "aerodynamics.charts_dock")
-            aero_results = self.findChild(QDockWidget, "aerodynamics.results_dock")
-
-            if viewer:
-                viewer.hide()
-            if explorer and props:
-                self.splitDockWidget(explorer, props, Qt.Orientation.Vertical)
-            if explorer and aero_controls:
-                self.splitDockWidget(explorer, aero_controls, Qt.Orientation.Horizontal)
-            if aero_controls and aero_charts:
-                self.splitDockWidget(aero_controls, aero_charts, Qt.Orientation.Horizontal)
-            if aero_charts and aero_results:
-                self.splitDockWidget(aero_charts, aero_results, Qt.Orientation.Horizontal)
-            elif aero_controls and aero_results:
-                self.splitDockWidget(aero_controls, aero_results, Qt.Orientation.Horizontal)
-
-            for d in (explorer, props, aero_controls, aero_charts, aero_results):
-                if d:
-                    d.show()
-
-            docks = [d for d in [explorer, aero_controls, aero_charts, aero_results] if d is not None and not d.isHidden()]
-            if docks:
-                self.resizeDocks(docks, [200, 260, 560, 260][:len(docks)], Qt.Orientation.Horizontal)
-
-        else:
+            # Hide any panels that do not belong to this workspace
             for cid, (panel_contrib, dock) in self._panels.items():
-                if panel_contrib.is_in_workspace(workspace_id):
-                    dock.show()
-                else:
+                if not panel_contrib.is_in_workspace(workspace_id) or not should_show(cid):
                     dock.hide()
+
+            if workspace_id in {"studio.workspace.design", "studio.viewer.opengl"}:
+                if controls:
+                    controls.hide()
+                if results:
+                    results.hide()
+                if explorer and viewer and should_show("project.explorer") and should_show("studio.viewer.opengl"):
+                    self.splitDockWidget(explorer, viewer, Qt.Orientation.Horizontal)
+                if viewer and props and should_show("studio.viewer.opengl") and should_show("studio.properties"):
+                    self.splitDockWidget(viewer, props, Qt.Orientation.Horizontal)
+
+                if explorer:
+                    if should_show("project.explorer"):
+                        explorer.show()
+                    else:
+                        explorer.hide()
+
+                if viewer:
+                    if should_show("studio.viewer.opengl"):
+                        viewer.show()
+                        viewer.raise_()
+                    else:
+                        viewer.hide()
+
+                if props:
+                    if should_show("studio.properties"):
+                        props.show()
+                    else:
+                        props.hide()
+
+                docks = [d for d in [explorer, viewer, props] if d is not None and not d.isHidden()]
+                if docks:
+                    self.resizeDocks(docks, [260, 680, 260][:len(docks)], Qt.Orientation.Horizontal)
+
+            elif workspace_id == "studio.workspace.propulsion":
+                charts = self.findChild(QDockWidget, "propulsion.charts_dock")
+                if viewer:
+                    viewer.hide()
+                if explorer and props and should_show("project.explorer") and should_show("studio.properties"):
+                    self.splitDockWidget(explorer, props, Qt.Orientation.Vertical)
+                if explorer and controls and should_show("project.explorer") and should_show("propulsion.controls_dock"):
+                    self.splitDockWidget(explorer, controls, Qt.Orientation.Horizontal)
+                if controls and charts and should_show("propulsion.controls_dock") and should_show("propulsion.charts_dock"):
+                    self.splitDockWidget(controls, charts, Qt.Orientation.Horizontal)
+                if charts and results and should_show("propulsion.charts_dock") and should_show("propulsion.results_dock"):
+                    self.splitDockWidget(charts, results, Qt.Orientation.Horizontal)
+
+                for cid, d in [
+                    ("project.explorer", explorer),
+                    ("studio.properties", props),
+                    ("propulsion.controls_dock", controls),
+                    ("propulsion.charts_dock", charts),
+                    ("propulsion.results_dock", results),
+                ]:
+                    if d:
+                        if should_show(cid):
+                            d.show()
+                        else:
+                            d.hide()
+
+                docks = [d for d in [explorer, controls, charts, results] if d is not None and not d.isHidden()]
+                if docks:
+                    self.resizeDocks(docks, [220, 280, 480, 260][:len(docks)], Qt.Orientation.Horizontal)
+
+            elif workspace_id == "studio.workspace.aerodynamics":
+                aero_controls = self.findChild(QDockWidget, "aerodynamics.controls_dock")
+                aero_charts = self.findChild(QDockWidget, "aerodynamics.charts_dock")
+                aero_3d = self.findChild(QDockWidget, "aerodynamics.aero_3d")
+                aero_results = self.findChild(QDockWidget, "aerodynamics.results_dock")
+
+                if viewer:
+                    viewer.hide()
+                if explorer and props and should_show("project.explorer") and should_show("studio.properties"):
+                    self.splitDockWidget(explorer, props, Qt.Orientation.Vertical)
+                if explorer and aero_controls and should_show("project.explorer") and should_show("aerodynamics.controls_dock"):
+                    self.splitDockWidget(explorer, aero_controls, Qt.Orientation.Horizontal)
+                if aero_controls and aero_charts and should_show("aerodynamics.controls_dock") and should_show("aerodynamics.charts_dock"):
+                    self.splitDockWidget(aero_controls, aero_charts, Qt.Orientation.Horizontal)
+                if aero_charts and aero_3d and should_show("aerodynamics.charts_dock") and should_show("aerodynamics.aero_3d"):
+                    self.tabifyDockWidget(aero_charts, aero_3d)
+                    aero_charts.raise_()
+                if aero_charts and aero_results and should_show("aerodynamics.charts_dock") and should_show("aerodynamics.results_dock"):
+                    self.splitDockWidget(aero_charts, aero_results, Qt.Orientation.Horizontal)
+
+                for cid, d in [
+                    ("project.explorer", explorer),
+                    ("studio.properties", props),
+                    ("aerodynamics.controls_dock", aero_controls),
+                    ("aerodynamics.charts_dock", aero_charts),
+                    ("aerodynamics.aero_3d", aero_3d),
+                    ("aerodynamics.results_dock", aero_results),
+                ]:
+                    if d:
+                        if should_show(cid):
+                            d.show()
+                        else:
+                            d.hide()
+
+                docks = [d for d in [explorer, aero_controls, aero_charts, aero_results] if d is not None and not d.isHidden()]
+                if docks:
+                    self.resizeDocks(docks, [200, 260, 560, 260][:len(docks)], Qt.Orientation.Horizontal)
+
+            else:
+                for cid, (panel_contrib, dock) in self._panels.items():
+                    if panel_contrib.is_in_workspace(workspace_id) and should_show(cid):
+                        dock.show()
+                    else:
+                        dock.hide()
+        finally:
+            self._is_switching_workspace = False

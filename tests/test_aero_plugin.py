@@ -48,7 +48,7 @@ class AerodynamicsPluginTests(unittest.TestCase):
 
         self.plugin = AerodynamicsPlugin()
 
-    def test_activation_registers_workspace_panels_and_tool(self) -> None:
+    def test_activation_registers_workspace_and_panels(self) -> None:
         self.plugin.activate(self.api)
 
         # Check Workspace
@@ -60,10 +60,7 @@ class AerodynamicsPluginTests(unittest.TestCase):
         self.assertIn("aerodynamics.controls_dock", panel_ids)
         self.assertIn("aerodynamics.results_dock", panel_ids)
         self.assertIn("aerodynamics.charts_dock", panel_ids)
-
-        # Check Tool
-        tool_titles = [a.title for a in self.actions]
-        self.assertIn("Run Aerodynamic Analysis…", tool_titles)
+        self.assertIn("aerodynamics.aero_3d", panel_ids)
 
     def test_panel_factories_create_widgets_and_handle_results(self) -> None:
         self.plugin.activate(self.api)
@@ -72,10 +69,12 @@ class AerodynamicsPluginTests(unittest.TestCase):
         controls_widget = panels_by_id["aerodynamics.controls_dock"].factory()
         results_widget = panels_by_id["aerodynamics.results_dock"].factory()
         charts_widget = panels_by_id["aerodynamics.charts_dock"].factory()
+        aero_3d_widget = panels_by_id["aerodynamics.aero_3d"].factory()
 
         self.assertIsNotNone(controls_widget)
         self.assertIsNotNone(results_widget)
         self.assertIsNotNone(charts_widget)
+        self.assertIsNotNone(aero_3d_widget)
 
         # Create dummy result and dispatch
         dummy_result = AeroResult(
@@ -115,5 +114,5 @@ class AerodynamicsPluginTests(unittest.TestCase):
         self.assertIn("aerodynamics.controls_dock", self.removed_panels)
         self.assertIn("aerodynamics.results_dock", self.removed_panels)
         self.assertIn("aerodynamics.charts_dock", self.removed_panels)
+        self.assertIn("aerodynamics.aero_3d", self.removed_panels)
         self.assertIn("studio.workspace.aerodynamics", self.removed_workspaces)
-        self.assertIn(("Tools/Aerodynamics", "Run Aerodynamic Analysis…"), self.removed_actions)
