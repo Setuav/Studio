@@ -1336,8 +1336,8 @@
           "span_start": 261.7,
           "span_end": 575.8,
           "chord": 64.1,
-          "deflection": 0.0,
-          "hinge_sweep": -1.0,
+          "deflection": 20.0,
+          "hinge_sweep": -2.0,
           "chord_fraction": 0.268,
           "eta_start": 0.4029,
           "eta_end": 0.8865
@@ -1419,7 +1419,7 @@
           "span_start": 20.0,
           "span_end": 160.0,
           "chord": 50.0,
-          "deflection": 0.0,
+          "deflection": 5.0,
           "hinge_sweep": 1.0,
           "chord_fraction": 0.303
         }

@@ -512,7 +512,7 @@ class OpenGLViewer(QOpenGLWidget):
         if event.buttons() & Qt.MouseButton.LeftButton:
             self._azimuth -= dx * 0.4
             self._elevation = max(-89.0, min(89.0, self._elevation + dy * 0.4))
-        elif event.buttons() & Qt.MouseButton.RightButton:
+        elif event.buttons() & Qt.MouseButton.MiddleButton:
             azimuth = math.radians(self._azimuth)
             elevation = math.radians(self._elevation)
             right = QVector3D(math.cos(azimuth), -math.sin(azimuth), 0.0)
@@ -524,6 +524,14 @@ class OpenGLViewer(QOpenGLWidget):
             scale = self._distance * 0.001
             self._target -= right * (dx * scale)
             self._target -= up * (dy * scale)
+        elif event.buttons() & Qt.MouseButton.RightButton:
+            # Match PyVista's trackball-camera controls: dragging upward
+            # dollies in, while dragging downward dollies out.  VTK scales
+            # the motion against half the viewport height.
+            half_height = max(self.height() * 0.5, 1.0)
+            zoom_factor = math.pow(1.1, (dy * 10.0) / half_height)
+            self._distance *= zoom_factor
+            self._distance = max(10.0, min(100_000.0, self._distance))
         else:
             self._pick_hover(current)
         self.update()
