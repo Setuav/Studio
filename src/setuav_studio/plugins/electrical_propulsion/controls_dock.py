@@ -26,6 +26,7 @@ from pythrust.propulsion.models.propeller import PropellerSpec
 from .database import get_propeller_database
 from .engine.solver import PropulsionSolverEngine
 from setuav_studio.ui.icons import get_icon, set_label_icon
+from setuav_studio.ui.buttons import refresh_button_role, set_button_role
 from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.ui.property_tables import PropertyTableMixin
 
@@ -77,9 +78,9 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
         for lbl, name in self._section_icons:
             set_label_icon(lbl, name)
         if hasattr(self, "run_button"):
-            self.run_button.setIcon(get_icon("fa6s.play"))
+            refresh_button_role(self.run_button)
         if hasattr(self, "reset_button"):
-            self.reset_button.setIcon(get_icon("fa6s.arrow-rotate-left"))
+            refresh_button_role(self.reset_button)
         if hasattr(self, "alert_box") and self.alert_box.isVisible():
             self.show_alert(
                 self._alert_severity,
@@ -193,14 +194,13 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
         actions_layout.setSpacing(6)
 
         self.run_button = QPushButton("Run Analysis", self)
-        self.run_button.setProperty("accent", True)
-        self.run_button.setIcon(get_icon("fa6s.play"))
+        set_button_role(self.run_button, "primary", "fa6s.play")
         self.run_button.setFixedHeight(28)
         self.run_button.clicked.connect(self._on_run_analysis)
         actions_layout.addWidget(self.run_button, 2)
 
         self.reset_button = QPushButton("Reset", self)
-        self.reset_button.setIcon(get_icon("fa6s.arrow-rotate-left"))
+        set_button_role(self.reset_button, "warning", "fa6s.arrow-rotate-left")
         self.reset_button.setFixedHeight(28)
         self.reset_button.clicked.connect(self._reset_defaults)
         actions_layout.addWidget(self.reset_button, 1)

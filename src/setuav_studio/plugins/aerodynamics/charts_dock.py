@@ -44,10 +44,10 @@ class SingleChartWidget(QWidget):
         self.update_theme_style()
 
     def update_theme_style(self) -> None:
-        from setuav_studio.ui.theme import chart_color, current_theme_mode, tokens
+        from setuav_studio.ui.theme import chart_color, is_light_theme, tokens
 
         tok = tokens()
-        is_light = current_theme_mode() == "light"
+        is_light = is_light_theme()
         text_col = QColor(tok.get("text", "#1e1e1e" if is_light else "#e0e0e0"))
         dim_col = QColor(tok.get("text_dim", "#666666" if is_light else "#888888"))
         bg_col = QColor(tok.get("surface", "#ffffff" if is_light else "#1e1e1e"))
@@ -88,10 +88,10 @@ class SingleChartWidget(QWidget):
         return self.chart.axes()
 
     def _create_axis(self, title: str = "") -> QValueAxis:
-        from setuav_studio.ui.theme import current_theme_mode, tokens
+        from setuav_studio.ui.theme import is_light_theme, tokens
 
         tok = tokens()
-        is_light = current_theme_mode() == "light"
+        is_light = is_light_theme()
         dim_col = QColor(tok.get("text_dim", "#555555" if is_light else "#888888"))
         grid_col = QColor(tok.get("grid", "#e2e4e8" if is_light else "#2d2d35"))
 

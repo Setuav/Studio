@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.ui.theme import tokens
+from setuav_studio.ui.buttons import refresh_button_role, set_button_role
 from setuav_studio.ui.icons import get_icon
 from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.ui.property_tables import ContentFitTableWidget, PropertyTableMixin
@@ -88,7 +89,7 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
         bottom_bar.addStretch(1)
 
         self.btn_export_csv = QPushButton(" Export CSV", self)
-        self.btn_export_csv.setIcon(get_icon("export_csv"))
+        set_button_role(self.btn_export_csv, "secondary", "export_csv")
         self.btn_export_csv.setToolTip("Export propulsion summary and detailed sweep table to CSV")
         self.btn_export_csv.clicked.connect(self._export_csv)
         self.btn_export_csv.setEnabled(False)
@@ -203,9 +204,9 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
             item_pwr.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.detail_table.setItem(r_idx, 3, item_pwr)
 
-            from setuav_studio.ui.theme import current_theme_mode
+            from setuav_studio.ui.theme import is_light_theme
 
-            is_light = current_theme_mode() == "light"
+            is_light = is_light_theme()
             over_fg = QColor("#cf222e") if is_light else QColor("#f85149")
             best_fg = QColor("#0e8a5b") if is_light else QColor("#4ec9b0")
             safe_fg = QColor("#1a7f37") if is_light else QColor("#3fb950")
@@ -335,6 +336,6 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
         self.tabs.setTabIcon(0, get_icon("fa6s.chart-simple"))
         self.tabs.setTabIcon(1, get_icon("fa6s.table"))
         if hasattr(self, "btn_export_csv"):
-            self.btn_export_csv.setIcon(get_icon("export_csv"))
+            refresh_button_role(self.btn_export_csv)
         if self._last_data is not None:
             self.set_results(self._last_data)

@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.ui.icons import get_icon
+from setuav_studio.ui.buttons import set_button_role
 from .airfoil_dialog import AirfoilDialog
 from ..engine.wing_driver_solver import compute_all_8_parameters
 from .wing_driver_table import DriverPlanformTable
@@ -313,7 +313,7 @@ class SectionsMixin:
         lbl.setToolTip(f"{'Root' if is_root else 'Tip'} Airfoil: {label_str}")
 
         btn = QToolButton()
-        btn.setIcon(get_icon("edit"))
+        set_button_role(btn, "secondary", "edit", variant="icon")
         btn.setText("Choose")
         btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         btn.setToolTip("Select or import airfoil for this station")

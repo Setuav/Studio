@@ -256,10 +256,10 @@ class OpenGLViewer(QOpenGLWidget):
                 # Keep the data dirty so a later, valid paint context can
                 # retry instead of leaving the viewer permanently empty.
                 logger.exception("Geometry OpenGL mesh upload failed")
-        from setuav_studio.ui.theme import current_theme_mode, tokens
+        from setuav_studio.ui.theme import is_light_theme, tokens
 
         tok = tokens()
-        is_light = current_theme_mode() == "light"
+        is_light = is_light_theme()
         bg_hex = tok.get("plot", "#ffffff" if is_light else "#141414")
         from PySide6.QtGui import QColor
 
@@ -667,9 +667,9 @@ class OpenGLViewer(QOpenGLWidget):
 
     @staticmethod
     def _reference_grid_vertices() -> list[float]:
-        from setuav_studio.ui.theme import current_theme_mode
+        from setuav_studio.ui.theme import is_light_theme
 
-        is_light = current_theme_mode() == "light"
+        is_light = is_light_theme()
         major_col = (0.78, 0.78, 0.78) if is_light else (0.24, 0.24, 0.24)
         minor_col = (0.88, 0.88, 0.88) if is_light else (0.16, 0.16, 0.16)
 

@@ -45,7 +45,6 @@ _ICON_MAP = {
 _LABEL_ICON_SOURCE = "setuavThemeIconSource"
 _LABEL_ICON_SIZE = "setuavThemeIconSize"
 
-
 class _ThemeIconEngine(QIconEngine):
     """Render a QtAwesome glyph from the palette in effect at paint time."""
 

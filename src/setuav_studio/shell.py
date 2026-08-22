@@ -183,17 +183,57 @@ class MainWindow(QMainWindow):
         cur_mode = current_theme_mode()
         self._theme_action_group = QActionGroup(self)
         self._theme_action_group.setExclusive(True)
-        self._dark_theme_action = QAction("Dark Theme", self)
+        self._dark_theme_action = QAction("Native Dark", self)
         self._dark_theme_action.setCheckable(True)
         self._dark_theme_action.setChecked(cur_mode == "dark")
         self._dark_theme_action.triggered.connect(lambda: self._switch_theme("dark"))
         self._theme_action_group.addAction(self._dark_theme_action)
 
-        self._light_theme_action = QAction("Light Theme", self)
+        self._light_theme_action = QAction("Native Light", self)
         self._light_theme_action.setCheckable(True)
         self._light_theme_action.setChecked(cur_mode == "light")
         self._light_theme_action.triggered.connect(lambda: self._switch_theme("light"))
         self._theme_action_group.addAction(self._light_theme_action)
+
+        self._blender_theme_action = QAction("Blender Theme", self)
+        self._blender_theme_action.setCheckable(True)
+        self._blender_theme_action.setChecked(cur_mode == "blender")
+        self._blender_theme_action.triggered.connect(
+            lambda: self._switch_theme("blender")
+        )
+        self._theme_action_group.addAction(self._blender_theme_action)
+
+        self._github_dark_theme_action = QAction("GitHub Dark", self)
+        self._github_dark_theme_action.setCheckable(True)
+        self._github_dark_theme_action.setChecked(cur_mode == "github_dark")
+        self._github_dark_theme_action.triggered.connect(
+            lambda: self._switch_theme("github_dark")
+        )
+        self._theme_action_group.addAction(self._github_dark_theme_action)
+
+        self._github_light_theme_action = QAction("GitHub Light", self)
+        self._github_light_theme_action.setCheckable(True)
+        self._github_light_theme_action.setChecked(cur_mode == "github_light")
+        self._github_light_theme_action.triggered.connect(
+            lambda: self._switch_theme("github_light")
+        )
+        self._theme_action_group.addAction(self._github_light_theme_action)
+
+        self._monokai_theme_action = QAction("Monokai", self)
+        self._monokai_theme_action.setCheckable(True)
+        self._monokai_theme_action.setChecked(cur_mode == "monokai")
+        self._monokai_theme_action.triggered.connect(
+            lambda: self._switch_theme("monokai")
+        )
+        self._theme_action_group.addAction(self._monokai_theme_action)
+
+        self._nord_theme_action = QAction("Nord", self)
+        self._nord_theme_action.setCheckable(True)
+        self._nord_theme_action.setChecked(cur_mode == "nord")
+        self._nord_theme_action.triggered.connect(
+            lambda: self._switch_theme("nord")
+        )
+        self._theme_action_group.addAction(self._nord_theme_action)
         self._populate_view_menu()
 
         self._tools_menu = self.menuBar().addMenu("&Tools")
@@ -278,6 +318,7 @@ class MainWindow(QMainWindow):
             logger.debug("Error refreshing icons: %s", exc)
 
     def _switch_theme(self, mode: str) -> None:
+        from setuav_studio.ui.buttons import refresh_all_button_roles
         from setuav_studio.ui.theme import apply_theme
 
         app = QApplication.instance()
@@ -287,6 +328,11 @@ class MainWindow(QMainWindow):
             self._update_all_icons()
             self._dark_theme_action.setChecked(mode == "dark")
             self._light_theme_action.setChecked(mode == "light")
+            self._blender_theme_action.setChecked(mode == "blender")
+            self._github_dark_theme_action.setChecked(mode == "github_dark")
+            self._github_light_theme_action.setChecked(mode == "github_light")
+            self._monokai_theme_action.setChecked(mode == "monokai")
+            self._nord_theme_action.setChecked(mode == "nord")
             self._refresh_status_color()
             for widget in app.allWidgets():
                 try:
@@ -294,6 +340,10 @@ class MainWindow(QMainWindow):
                         widget.update_theme_style()
                 except Exception:
                     pass
+
+            # Some plugin hooks rebuild their icons. Reapply semantic colors
+            # after those hooks so their button roles always win.
+            refresh_all_button_roles(app)
 
             self.repaint()
 
@@ -345,11 +395,20 @@ class MainWindow(QMainWindow):
         self._status_label.setPalette(palette)
 
     def restore_window_layout(self) -> None:
+        """Restore the window geometry and active workspace layout."""
+        self.restore_window_geometry()
+        self.restore_workspace_layout()
+
+    def restore_window_geometry(self) -> None:
+        """Restore only the top-level window geometry."""
         settings = QSettings()
         geometry = settings.value("main_window/geometry")
         if geometry is not None:
             self.restoreGeometry(geometry)
 
+    def restore_workspace_layout(self) -> None:
+        """Restore the active dock perspective after the window is exposed."""
+        settings = QSettings()
         active_workspace = settings.value("active_workspace")
         if active_workspace and str(active_workspace) in self._workspaces:
             self._api.switch_workspace(str(active_workspace))
@@ -623,6 +682,12 @@ class MainWindow(QMainWindow):
         theme_menu = self._view_menu.addMenu("Theme")
         theme_menu.addAction(self._dark_theme_action)
         theme_menu.addAction(self._light_theme_action)
+        theme_menu.addSeparator()
+        theme_menu.addAction(self._blender_theme_action)
+        theme_menu.addAction(self._github_dark_theme_action)
+        theme_menu.addAction(self._github_light_theme_action)
+        theme_menu.addAction(self._monokai_theme_action)
+        theme_menu.addAction(self._nord_theme_action)
         self._view_menu.addSeparator()
         for cid, (panel_contrib, dock) in self._panels.items():
             if workspace_id is None or panel_contrib.is_in_workspace(workspace_id):

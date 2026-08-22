@@ -44,6 +44,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.ui.icons import get_icon
+from setuav_studio.ui.buttons import set_button_role
 from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.ui.numeric_spinbox import (
     NoWheelComboBox,
@@ -440,10 +441,10 @@ class FuselageCanvasWidget(QWidget):
         height = self.height()
 
         # Canvas background
-        from setuav_studio.ui.theme import current_theme_mode, tokens
+        from setuav_studio.ui.theme import is_light_theme, tokens
 
         tok = tokens()
-        is_light = current_theme_mode() == "light"
+        is_light = is_light_theme()
         bg_color = QColor(tok.get("elevated", "#ffffff" if is_light else "#1a1a1c"))
         painter.fillRect(0, 0, width, height, bg_color)
 
@@ -625,10 +626,10 @@ class FuselageCanvasWidget(QWidget):
         ox: float,
         oy: float,
     ) -> None:
-        from setuav_studio.ui.theme import current_theme_mode, tokens
+        from setuav_studio.ui.theme import is_light_theme, tokens
 
         tok = tokens()
-        is_light = current_theme_mode() == "light"
+        is_light = is_light_theme()
         grid_color = QColor(tok.get("grid", "#e2e4e8" if is_light else "#262626"))
         dim_text = QColor(tok.get("text_dim", "#787878" if is_light else "#555555"))
 
@@ -672,10 +673,10 @@ class FuselageCanvasWidget(QWidget):
         ox: float,
         oy: float,
     ) -> None:
-        from setuav_studio.ui.theme import current_theme_mode, tokens
+        from setuav_studio.ui.theme import is_light_theme, tokens
 
         tok = tokens()
-        is_light = current_theme_mode() == "light"
+        is_light = is_light_theme()
         axis_color = QColor(tok.get("border_strong", "#b0b4bc" if is_light else "#404040"))
         dim_text = QColor(tok.get("text_dim", "#787878" if is_light else "#777777"))
 
@@ -991,11 +992,11 @@ class FuselageSectionDialog(QDialog):
 
         v_actions = QHBoxLayout()
         self.add_v_btn = QToolButton()
-        self.add_v_btn.setIcon(get_icon("add"))
+        set_button_role(self.add_v_btn, "success", "add", variant="icon")
         self.add_v_btn.setToolTip("Add Vertex")
         self.add_v_btn.clicked.connect(self._add_polygon_vertex)
         self.del_v_btn = QToolButton()
-        self.del_v_btn.setIcon(get_icon("remove"))
+        set_button_role(self.del_v_btn, "danger", "remove", variant="icon")
         self.del_v_btn.setToolTip("Delete Vertex (Delete key)")
         self.del_v_btn.clicked.connect(self._delete_polygon_vertex)
         v_actions.addWidget(self.add_v_btn)
@@ -1170,11 +1171,12 @@ class FuselageSectionDialog(QDialog):
         btn_layout.addStretch()
 
         self.apply_btn = QPushButton("Apply")
-        self.apply_btn.setIcon(get_icon("fa6s.check"))
+        set_button_role(self.apply_btn, "success", "fa6s.check")
         self.apply_btn.clicked.connect(self._on_apply_clicked)
         btn_layout.addWidget(self.apply_btn)
 
         self.ok_btn = QPushButton("Save & Close")
+        set_button_role(self.ok_btn, "primary", "fa6s.floppy-disk")
         self.ok_btn.clicked.connect(self._on_ok_clicked)
         btn_layout.addWidget(self.ok_btn)
 

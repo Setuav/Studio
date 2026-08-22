@@ -3,7 +3,7 @@ import logging
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QStandardPaths, Qt
+from PySide6.QtCore import QStandardPaths, QTimer, Qt
 from PySide6.QtGui import QSurfaceFormat
 from PySide6.QtWidgets import QApplication
 
@@ -98,12 +98,20 @@ def main() -> int:
             + "; ".join(f"{issue.source}: {issue.message}" for issue in plugin_issues)
         )
 
-    window.restore_window_layout()
-    if arguments.project:
-        window.open_project(arguments.project)
-    elif settings.reopen_last_project:
-        window.open_last_project()
+    # Restore the top-level geometry before showing, but defer dock/workspace
+    # restoration until the platform has created and exposed the native
+    # window. VTK and QOpenGLWidget surfaces are unreliable before that point.
+    window.restore_window_geometry()
     window.show()
+
+    def finish_startup() -> None:
+        window.restore_workspace_layout()
+        if arguments.project:
+            window.open_project(arguments.project)
+        elif settings.reopen_last_project:
+            window.open_last_project()
+
+    QTimer.singleShot(0, finish_startup)
 
     return app.exec()
 

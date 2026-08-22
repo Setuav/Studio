@@ -1,8 +1,13 @@
 from importlib import resources
+from functools import lru_cache
+import logging
 
 from PySide6.QtCore import QEvent, QObject
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QPalette
 from PySide6.QtWidgets import QApplication, QComboBox, QLabel
+
+
+logger = logging.getLogger(__name__)
 
 
 class ComboBoxWheelFilter(QObject):
@@ -116,23 +121,159 @@ LIGHT_TOKENS: dict[str, str] = {
     "viewer_panel_edge": "#303030",
 }
 
-_current_mode: str = "dark"
+BLENDER_TOKENS: dict[str, str] = {
+    "window": "#303030",
+    "title_bar": "#3d3d3d",
+    "dock": "#303030",
+    "surface": "#282828",
+    "surface_alt": "#3d3d3d",
+    "elevated": "#1d1d1d",
+    "row_alt": "#303030",
+    "plot": "#1d1d1d",
+    "grid": "#3d3d3d",
+    "border": "#282828",
+    "border_strong": "#6c6c6c",
+    "text": "#ffffff",
+    "text_muted": "#b9b9b9",
+    "text_dim": "#989898",
+    "text_bright": "#ffffff",
+    "axis": "#848484",
+    "accent": "#4772b3",
+    "accent_text": "#282828",
+    "inactive_selection": "#545454",
+    "viewer_surface": "#4772b3",
+    "viewer_surface_edge": "#5db6ea",
+    "viewer_fuselage": "#545454",
+    "viewer_fuselage_edge": "#b9b9b9",
+    "viewer_panel_edge": "#f1a355",
+}
+
+QT_THEME_NAMES: dict[str, str] = {
+    "blender": "blender",
+    "github_dark": "github_dark",
+    "github_light": "github_light",
+    "monokai": "monokai",
+    "nord": "nord",
+}
+LIGHT_THEME_MODES = {"light", "github_light"}
+
+_current_mode: str = "blender"
+
+
+@lru_cache(maxsize=None)
+def _load_qt_theme(mode: str):
+    theme_name = QT_THEME_NAMES.get(mode)
+    if theme_name is None:
+        return None
+    try:
+        from qt_themes import get_theme
+    except ModuleNotFoundError:
+        logger.error(
+            "Theme %s requested but qt-themes is not installed",
+            theme_name,
+        )
+        return None
+    return get_theme(theme_name)
+
+
+@lru_cache(maxsize=None)
+def _named_theme_tokens(mode: str) -> dict[str, str]:
+    if mode == "blender":
+        return BLENDER_TOKENS
+
+    theme = _load_qt_theme(mode)
+    if theme is None:
+        return LIGHT_TOKENS if mode in LIGHT_THEME_MODES else DARK_TOKENS
+
+    def color(name: str, fallback: str) -> str:
+        value = getattr(theme, name, None)
+        return value.name() if isinstance(value, QColor) else fallback
+
+    text = color("text", "#ffffff")
+    primary = color("primary", "#4772b3")
+    mantle = color("mantle", "#282828")
+    is_dark = theme.is_dark_theme()
+    accent_text = mantle if QColor(primary).valueF() > 0.5 else text
+    return {
+        "window": color("base", "#303030"),
+        "title_bar": color("surface0", "#3d3d3d"),
+        "dock": color("base", "#303030"),
+        "surface": mantle,
+        "surface_alt": color("surface0", "#3d3d3d"),
+        "elevated": color("crust", "#1d1d1d"),
+        "row_alt": color("base", "#303030"),
+        "plot": color("crust", "#1d1d1d" if is_dark else "#ffffff"),
+        "grid": color("surface0", "#3d3d3d"),
+        "border": mantle if is_dark else color("surface1", "#bbbbbb"),
+        "border_strong": color("surface2", "#6c6c6c"),
+        "text": text,
+        "text_muted": color("overlay2", "#b9b9b9"),
+        "text_dim": color("overlay1", "#989898"),
+        "text_bright": text,
+        "axis": color("overlay0", "#848484"),
+        "accent": primary,
+        "accent_text": accent_text,
+        "inactive_selection": color("surface1", "#545454"),
+        "viewer_surface": primary,
+        "viewer_surface_edge": color("blue", primary),
+        "viewer_fuselage": color("surface1", "#545454"),
+        "viewer_fuselage_edge": color("overlay2", "#b9b9b9"),
+        "viewer_panel_edge": color("orange", "#f1a355"),
+    }
+
+
+@lru_cache(maxsize=None)
+def _named_theme_chart_colors(mode: str) -> dict[str, str]:
+    theme = _load_qt_theme(mode)
+    if theme is None:
+        return LIGHT_CHART_COLORS if mode in LIGHT_THEME_MODES else DARK_CHART_COLORS
+
+    fallback = _named_theme_tokens(mode)["accent"]
+    return {
+        role: value.name() if isinstance(value, QColor) else fallback
+        for role in ("blue", "green", "orange", "magenta", "red", "cyan")
+        for value in (getattr(theme, role, None),)
+    }
+
+
+@lru_cache(maxsize=None)
+def _named_theme_status_colors(mode: str) -> dict[str, str]:
+    theme = _load_qt_theme(mode)
+    if theme is None:
+        return LIGHT_STATUS_COLORS if mode in LIGHT_THEME_MODES else STATUS_COLORS
+
+    colors = _named_theme_chart_colors(mode)
+    overlay = getattr(theme, "overlay2", None)
+    yellow = getattr(theme, "yellow", None)
+    return {
+        "info": overlay.name() if isinstance(overlay, QColor) else colors["blue"],
+        "success": colors["green"],
+        "warning": yellow.name() if isinstance(yellow, QColor) else colors["orange"],
+        "error": colors["red"],
+    }
 
 
 def set_theme_mode(mode: str) -> None:
-    """Set the active theme mode ('dark' or 'light')."""
+    """Set the active built-in or qt-themes mode."""
     global _current_mode
-    if mode in ("dark", "light"):
+    if mode in {"dark", "light", *QT_THEME_NAMES}:
         _current_mode = mode
 
 
 def current_theme_mode() -> str:
-    """Return the active theme mode ('dark' or 'light')."""
+    """Return the active theme mode."""
     return _current_mode
+
+
+def is_light_theme() -> bool:
+    """Return whether the active palette is a light theme."""
+    return _current_mode in LIGHT_THEME_MODES
 
 
 def tokens() -> dict[str, str]:
     """Return active theme tokens dictionary."""
+    if _current_mode in QT_THEME_NAMES:
+        return _named_theme_tokens(_current_mode)
     return LIGHT_TOKENS if _current_mode == "light" else DARK_TOKENS
 
 
@@ -143,14 +284,46 @@ def accent_color() -> str:
 
 def chart_color(role: str) -> str:
     """Return a data-series color with sufficient contrast for the active theme."""
-    palette = LIGHT_CHART_COLORS if _current_mode == "light" else DARK_CHART_COLORS
+    if _current_mode in QT_THEME_NAMES:
+        palette = _named_theme_chart_colors(_current_mode)
+    else:
+        palette = LIGHT_CHART_COLORS if _current_mode == "light" else DARK_CHART_COLORS
     return palette.get(role, palette["blue"])
 
 
 def status_color(level: str) -> str:
     """Return a semantic status color suitable for the active theme."""
-    palette = LIGHT_STATUS_COLORS if _current_mode == "light" else STATUS_COLORS
+    if _current_mode in QT_THEME_NAMES:
+        palette = _named_theme_status_colors(_current_mode)
+    else:
+        palette = LIGHT_STATUS_COLORS if _current_mode == "light" else STATUS_COLORS
     return palette.get(level, palette["info"])
+
+
+def semantic_color(role: str) -> str:
+    """Return the active theme color for a semantic button/action role."""
+    if _current_mode in QT_THEME_NAMES:
+        theme = _load_qt_theme(_current_mode)
+        if theme is not None:
+            attribute = {
+                "primary": "primary",
+                "secondary": "secondary",
+                "success": "green",
+                "warning": "yellow",
+                "danger": "red",
+            }.get(role)
+            value = getattr(theme, attribute, None) if attribute else None
+            if isinstance(value, QColor):
+                return value.name()
+
+    return {
+        "primary": accent_color(),
+        "secondary": chart_color("blue"),
+        "success": status_color("success"),
+        "warning": status_color("warning"),
+        "danger": status_color("error"),
+        "neutral": QApplication.palette().color(QPalette.ColorRole.ButtonText).name(),
+    }.get(role, accent_color())
 
 
 def rgba(color: str, alpha: float) -> str:
@@ -282,6 +455,33 @@ def _create_light_palette() -> QPalette:
     return light_palette
 
 
+def _create_named_theme_palette(mode: str) -> QPalette:
+    """Create a qt-themes palette without resetting the active Qt style."""
+    theme = _load_qt_theme(mode)
+    if theme is None:
+        return _create_light_palette() if mode in LIGHT_THEME_MODES else _create_dark_palette()
+
+    from qt_themes import update_palette
+
+    palette = QPalette()
+    update_palette(palette, theme)
+
+    # qt-themes already defines the principal Disabled roles. Complete the
+    # remaining ones explicitly so native Fusion controls never fall back to
+    # platform-dependent black brushes.
+    disabled = QPalette.ColorGroup.Disabled
+    disabled_text = theme.overlay1
+    palette.setColor(disabled, QPalette.ColorRole.Window, theme.base)
+    palette.setColor(disabled, QPalette.ColorRole.ToolTipBase, theme.mantle)
+    palette.setColor(disabled, QPalette.ColorRole.ToolTipText, disabled_text)
+    palette.setColor(disabled, QPalette.ColorRole.Light, theme.crust)
+    palette.setColor(disabled, QPalette.ColorRole.Midlight, theme.mantle)
+    palette.setColor(disabled, QPalette.ColorRole.Mid, theme.surface0)
+    palette.setColor(disabled, QPalette.ColorRole.Dark, theme.surface1)
+    palette.setColor(disabled, QPalette.ColorRole.Shadow, theme.overlay0)
+    return palette
+
+
 def apply_theme(app: QApplication, mode: str | None = None) -> None:
     """Pure 100% native Qt Fusion styling with instant dynamic light/dark palette."""
     if mode is not None:
@@ -289,7 +489,12 @@ def apply_theme(app: QApplication, mode: str | None = None) -> None:
 
     if app.style().objectName().lower() != "fusion":
         app.setStyle("Fusion")
-    palette = _create_dark_palette() if current_theme_mode() == "dark" else _create_light_palette()
+    if current_theme_mode() in QT_THEME_NAMES:
+        palette = _create_named_theme_palette(current_theme_mode())
+    elif current_theme_mode() == "light":
+        palette = _create_light_palette()
+    else:
+        palette = _create_dark_palette()
     if app.styleSheet():
         app.setStyleSheet("")
     app.setPalette(palette)
@@ -297,6 +502,7 @@ def apply_theme(app: QApplication, mode: str | None = None) -> None:
     if app.font() != application_font:
         app.setFont(application_font)
 
+    from setuav_studio.ui.buttons import refresh_all_button_roles
     from setuav_studio.ui.icons import refresh_label_icon
 
     for widget in app.allWidgets():
@@ -305,6 +511,7 @@ def apply_theme(app: QApplication, mode: str | None = None) -> None:
         if isinstance(widget, QLabel):
             refresh_label_icon(widget)
         widget.update()
+    refresh_all_button_roles(app)
 
     global _combobox_wheel_filter
     if _combobox_wheel_filter is None:

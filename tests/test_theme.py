@@ -25,7 +25,7 @@ class ThemeTests(unittest.TestCase):
         settings = StudioSettings()
         self.assertEqual(settings.reopen_last_project, False)
         self.assertEqual(settings.recent_project_limit, 10)
-        self.assertEqual(settings.theme_mode, "dark")
+        self.assertEqual(settings.theme_mode, "blender")
 
     def test_inter_font_files_are_bundled(self) -> None:
         font_root = resources.files("setuav_studio").joinpath(
@@ -41,9 +41,11 @@ class ThemeTests(unittest.TestCase):
     def test_theme_mode_switching_and_tokens(self) -> None:
         from setuav_studio.ui.theme import (
             DARK_TOKENS,
+            BLENDER_TOKENS,
             LIGHT_TOKENS,
             accent_color,
             current_theme_mode,
+            is_light_theme,
             set_theme_mode,
             tokens,
         )
@@ -57,6 +59,22 @@ class ThemeTests(unittest.TestCase):
         self.assertEqual(current_theme_mode(), "light")
         self.assertEqual(tokens()["window"], LIGHT_TOKENS["window"])
         self.assertEqual(accent_color(), LIGHT_TOKENS["accent"])
+
+        set_theme_mode("blender")
+        self.assertEqual(current_theme_mode(), "blender")
+        self.assertEqual(tokens()["window"], BLENDER_TOKENS["window"])
+        self.assertEqual(accent_color(), BLENDER_TOKENS["accent"])
+
+        for mode in ("github_dark", "github_light", "monokai", "nord"):
+            set_theme_mode(mode)
+            self.assertEqual(current_theme_mode(), mode)
+            self.assertTrue(tokens()["window"].startswith("#"))
+            self.assertTrue(accent_color().startswith("#"))
+
+        set_theme_mode("github_light")
+        self.assertTrue(is_light_theme())
+        set_theme_mode("github_dark")
+        self.assertFalse(is_light_theme())
 
         # Reset back to dark
         set_theme_mode("dark")

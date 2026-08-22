@@ -60,8 +60,13 @@ class Aero3DDock(QWidget):
         self._vlm_summary: dict[str, float] = {}
         self.plotter: Any | None = None
         self._plotter_loading = False
+        self._plotter_ready = False
+        self._surface_wait_attempts = 0
         self._theme_update_pending = False
         self._placeholder: QLabel | None = None
+        self._plotter_retry_timer = QTimer(self)
+        self._plotter_retry_timer.setSingleShot(True)
+        self._plotter_retry_timer.timeout.connect(self._ensure_plotter)
 
         # Visibility flags
         self._show_surface = True
@@ -185,16 +190,49 @@ class Aero3DDock(QWidget):
 
     def showEvent(self, event: Any) -> None:
         super().showEvent(event)
-        QTimer.singleShot(0, self._ensure_plotter)
+        self._surface_wait_attempts = 0
+        if self.plotter is None:
+            self._schedule_plotter_init()
+        elif not self._plotter_ready:
+            QTimer.singleShot(0, self._finish_plotter_initialization)
         # An existing plotter may have been hidden while the application
         # palette changed. Apply the current theme after the lazy init slot.
         QTimer.singleShot(0, self._apply_plotter_theme)
+
+    def hideEvent(self, event: Any) -> None:
+        self._plotter_retry_timer.stop()
+        super().hideEvent(event)
+
+    def _schedule_plotter_init(self, delay_ms: int = 0) -> None:
+        if self.plotter is not None or self._plotter_loading:
+            return
+        if not self._plotter_retry_timer.isActive():
+            self._plotter_retry_timer.start(max(0, delay_ms))
+
+    def _native_surface_ready(self) -> bool:
+        if not self.isVisible() or self.width() < 32 or self.height() < 32:
+            return False
+        top_level = self.window()
+        if top_level is None or not top_level.isVisible():
+            return False
+        handle = top_level.windowHandle()
+        return handle is not None and handle.isExposed()
 
     def _ensure_plotter(self) -> None:
         # Tabified docks briefly receive show events while Qt restores the
         # layout. Creating VTK before this tab is actually visible can leave
         # its render window with an unusable native surface.
         if not self.isVisible() or self.plotter is not None or self._plotter_loading:
+            return
+        if not self._native_surface_ready():
+            self._surface_wait_attempts += 1
+            if self._placeholder is not None:
+                self._placeholder.setText("Preparing Aero 3D viewer…")
+            # Stop polling eventually; a later show event starts a fresh
+            # cycle. This also avoids background retries while minimized.
+            if self._surface_wait_attempts < 80:
+                delay_ms = min(250, 25 + self._surface_wait_attempts * 5)
+                self._schedule_plotter_init(delay_ms)
             return
         if not PYVISTA_AVAILABLE:
             if self._placeholder is not None:
@@ -206,10 +244,10 @@ class Aero3DDock(QWidget):
         plotter = None
         self._plotter_loading = True
         try:
-            from setuav_studio.ui.theme import current_theme_mode, tokens
+            from setuav_studio.ui.theme import is_light_theme, tokens
 
             tok = tokens()
-            is_light = current_theme_mode() == "light"
+            is_light = is_light_theme()
             bg_color = tok.get("plot", "#ffffff" if is_light else "#141414")
             text_color = tok.get("text", "#1e1e1e" if is_light else "#e0e0e0")
 
@@ -221,31 +259,77 @@ class Aero3DDock(QWidget):
                 multi_samples=0,
                 auto_update=False,
             )
+            plotter.suppress_rendering = True
             plotter.set_background(bg_color)
             self.plotter = plotter
-            self._update_display()
-            self._set_camera_view("iso")
             if self._placeholder is not None:
                 self.main_layout.removeWidget(self._placeholder)
                 self._placeholder.deleteLater()
                 self._placeholder = None
-            self.main_layout.addWidget(plotter.interactor, 1)
-            plotter.render()
+            self.main_layout.addWidget(plotter, 1)
+            plotter.show()
+            # Analysis may have completed while this tab was inactive. Its
+            # renderer-neutral VLM data already exists, but the PyVista meshes
+            # could not be created until a plotter was available.
+            if self._vlm_instance is not None:
+                self._build_vlm_mesh()
+                self._build_surface_meshes()
+                self._build_fuselage_meshes()
+                self._calculate_streamlines()
+            self._update_display()
+            self._set_camera_view("iso")
+            QTimer.singleShot(0, self._finish_plotter_initialization)
         except Exception as err:
             logger.exception("[Aero3DDock] Lazy plotter init error")
-            self.plotter = None
-            if plotter is not None:
-                try:
-                    plotter.close()
-                except Exception:
-                    pass
-            if self._placeholder is not None:
-                self._placeholder.setText(
-                    "Aero 3D viewer could not be initialized.\n"
-                    f"{err}\n\nHide and show this panel to retry."
-                )
+            self._discard_plotter(
+                plotter,
+                "Aero 3D viewer could not be initialized.\n"
+                f"{err}\n\nHide and show this panel to retry.",
+            )
         finally:
             self._plotter_loading = False
+
+    def _finish_plotter_initialization(self) -> None:
+        if self.plotter is None:
+            return
+        if not self.isVisible():
+            return
+        if not self._native_surface_ready() or not self.plotter.isVisible():
+            QTimer.singleShot(50, self._finish_plotter_initialization)
+            return
+        try:
+            self.plotter.suppress_rendering = False
+            self.plotter.render()
+            self._plotter_ready = True
+            logger.info(
+                "[Aero3DDock] Viewer initialized after %d surface wait(s)",
+                self._surface_wait_attempts,
+            )
+            self._apply_plotter_theme()
+        except Exception as err:
+            logger.exception("[Aero3DDock] Initial render failed")
+            self._discard_plotter(
+                self.plotter,
+                "Aero 3D viewer could not complete its first render.\n"
+                f"{err}\n\nHide and show this panel to retry.",
+            )
+
+    def _discard_plotter(self, plotter: Any | None, message: str) -> None:
+        """Remove a partially initialized VTK widget without leaving a black surface."""
+        self._plotter_ready = False
+        self.plotter = None
+        if plotter is not None:
+            self.main_layout.removeWidget(plotter)
+            try:
+                plotter.close()
+            except Exception:
+                pass
+            plotter.deleteLater()
+        if self._placeholder is None:
+            self._placeholder = QLabel(self)
+            self._placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.main_layout.addWidget(self._placeholder, 1)
+        self._placeholder.setText(message)
 
     def update_theme_style(self) -> None:
         self.btn_iso.setIcon(get_icon("fa6s.cube"))
@@ -258,7 +342,12 @@ class Aero3DDock(QWidget):
 
     def _apply_plotter_theme(self) -> None:
         self._theme_update_pending = False
-        if self.plotter is None or not self.isVisible() or not PYVISTA_AVAILABLE:
+        if (
+            self.plotter is None
+            or not self._plotter_ready
+            or not self.isVisible()
+            or not PYVISTA_AVAILABLE
+        ):
             return
         try:
             tok = tokens()
@@ -768,6 +857,8 @@ class Aero3DDock(QWidget):
         self._recompute_vlm(alpha)
 
     def closeEvent(self, event: Any) -> None:
+        self._plotter_retry_timer.stop()
+        self._plotter_ready = False
         if self.plotter is not None:
             try:
                 self.plotter.close()

@@ -19,7 +19,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.ui.icons import get_icon, set_label_icon
+from setuav_studio.ui.icons import set_label_icon
+from setuav_studio.ui.buttons import set_button_role
 from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.ui.numeric_spinbox import (
     NoWheelComboBox,
@@ -147,6 +148,12 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         self.inspect_section_button = self._action_button(
             "mdi6.eye-outline", "Inspect & Edit 2D Cross-Section...", self._inspect_section
         )
+        set_button_role(
+            self.inspect_section_button,
+            "secondary",
+            "mdi6.eye-outline",
+            variant="icon",
+        )
         self.add_section_button = self._action_button(
             "add", "Add section", self._add_section
         )
@@ -216,7 +223,12 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         properties_layout = self._create_section("Section Properties", "fa6s.sliders")
 
         self.inspect_2d_button = QPushButton("Inspect & Edit 2D Section...")
-        self.inspect_2d_button.setIcon(get_icon("mdi6.vector-polygon"))
+        set_button_role(
+            self.inspect_2d_button,
+            "secondary",
+            "mdi6.vector-polygon",
+            variant="icon",
+        )
         self.inspect_2d_button.setToolTip("Open interactive 2D cross-section inspector & metrics")
         self.inspect_2d_button.clicked.connect(self._inspect_section)
         properties_layout.addWidget(self.inspect_2d_button)
@@ -266,7 +278,14 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         callback: Callable[[], None],
     ) -> QToolButton:
         button = QToolButton()
-        button.setIcon(get_icon(icon_name))
+        role = (
+            "success"
+            if icon_name == "add"
+            else "danger"
+            if icon_name == "remove"
+            else "neutral"
+        )
+        set_button_role(button, role, icon_name, variant="icon")
         button.setToolTip(tooltip)
         button.setFixedSize(24, 24)
         button.setAutoRaise(True)

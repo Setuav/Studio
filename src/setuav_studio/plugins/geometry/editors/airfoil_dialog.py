@@ -37,7 +37,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.ui.icons import get_icon
+from setuav_studio.ui.buttons import set_button_role
 from setuav_studio.ui.theme import tokens
 from ..engine.airfoil import (
     PRESET_AIRFOILS,
@@ -67,10 +67,10 @@ class AirfoilCanvasWidget(QWidget):
         self.update()
 
     def paintEvent(self, _event: Any) -> None:
-        from setuav_studio.ui.theme import current_theme_mode, tokens
+        from setuav_studio.ui.theme import is_light_theme, tokens
 
         tok = tokens()
-        is_light = current_theme_mode() == "light"
+        is_light = is_light_theme()
         bg_color = QColor(tok.get("elevated", "#ffffff" if is_light else "#1a1a1c"))
         grid_color = QColor(tok.get("grid", "#e2e4e8" if is_light else "#2d2d35"))
         chord_color = QColor(tok.get("border_strong", "#b0b4bc" if is_light else "#484852"))
@@ -255,7 +255,7 @@ class AirfoilDialog(QDialog):
         file_layout.setSpacing(8)
 
         browse_btn = QPushButton("Browse .DAT File...")
-        browse_btn.setIcon(get_icon("fa6s.folder-open"))
+        set_button_role(browse_btn, "secondary", "fa6s.folder-open", variant="icon")
         browse_btn.clicked.connect(self._browse_dat_file)
         file_layout.addWidget(browse_btn)
 
@@ -312,6 +312,7 @@ class AirfoilDialog(QDialog):
         btn_layout.setSpacing(8)
 
         self.apply_all_btn = QPushButton("Apply to All Stations")
+        set_button_role(self.apply_all_btn, "secondary", "fa6s.check-double")
         self.apply_all_btn.clicked.connect(self._on_apply_all)
         btn_layout.addWidget(self.apply_all_btn)
 
@@ -322,6 +323,7 @@ class AirfoilDialog(QDialog):
         btn_layout.addWidget(cancel_btn)
 
         self.apply_btn = QPushButton("Apply to Section")
+        set_button_role(self.apply_btn, "success", "fa6s.check")
         self.apply_btn.setDefault(True)
         self.apply_btn.clicked.connect(self._on_apply)
         btn_layout.addWidget(self.apply_btn)

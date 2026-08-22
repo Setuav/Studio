@@ -13,11 +13,21 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from setuav_studio.ui.buttons import set_button_role
+
 
 VALIDATION_STRICTNESS_LEVELS: tuple[str, ...] = ("strict", "warn", "off")
 
 
-THEME_MODES: tuple[str, ...] = ("dark", "light")
+THEME_MODES: tuple[str, ...] = (
+    "dark",
+    "light",
+    "blender",
+    "github_dark",
+    "github_light",
+    "monokai",
+    "nord",
+)
 
 
 @dataclass(frozen=True)
@@ -26,7 +36,7 @@ class StudioSettings:
     recent_project_limit: int = 10
     pythrust_data_dir: str = ""
     validation_strictness: str = "strict"
-    theme_mode: str = "dark"
+    theme_mode: str = "blender"
 
     @classmethod
     def load(cls) -> "StudioSettings":
@@ -36,9 +46,9 @@ class StudioSettings:
         )
         if strictness not in VALIDATION_STRICTNESS_LEVELS:
             strictness = "strict"
-        theme = str(settings.value("appearance/theme_mode", "dark")).lower()
+        theme = str(settings.value("appearance/theme_mode", "blender")).lower()
         if theme not in THEME_MODES:
-            theme = "dark"
+            theme = "blender"
         return cls(
             reopen_last_project=_as_bool(
                 settings.value("general/reopen_last_project", False)
@@ -71,8 +81,13 @@ class SettingsDialog(QDialog):
         form = QFormLayout()
 
         self.theme_combo = QComboBox()
-        self.theme_combo.addItem("Dark Theme", "dark")
-        self.theme_combo.addItem("Light Theme", "light")
+        self.theme_combo.addItem("Native Dark", "dark")
+        self.theme_combo.addItem("Native Light", "light")
+        self.theme_combo.addItem("Blender Theme", "blender")
+        self.theme_combo.addItem("GitHub Dark", "github_dark")
+        self.theme_combo.addItem("GitHub Light", "github_light")
+        self.theme_combo.addItem("Monokai", "monokai")
+        self.theme_combo.addItem("Nord", "nord")
         idx_theme = self.theme_combo.findData(values.theme_mode)
         if idx_theme >= 0:
             self.theme_combo.setCurrentIndex(idx_theme)
@@ -118,6 +133,9 @@ class SettingsDialog(QDialog):
         )
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
+        ok_button = buttons.button(QDialogButtonBox.StandardButton.Ok)
+        if ok_button is not None:
+            set_button_role(ok_button, "primary")
         layout.addWidget(buttons)
 
     def values(self) -> StudioSettings:

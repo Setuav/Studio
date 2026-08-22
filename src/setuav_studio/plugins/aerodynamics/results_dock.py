@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.plugin_system import StudioAPI
+from setuav_studio.ui.buttons import refresh_button_role, set_button_role
 from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.property_tables import ContentFitTableWidget, PropertyTableMixin
 from setuav_studio.ui.theme import tokens
@@ -94,7 +95,7 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
         bottom_bar.addStretch(1)
 
         self.btn_export_csv = QPushButton(" Export CSV", self)
-        self.btn_export_csv.setIcon(get_icon("export_csv"))
+        set_button_role(self.btn_export_csv, "secondary", "export_csv")
         self.btn_export_csv.setToolTip("Export aerodynamic summary and polar table to CSV")
         self.btn_export_csv.clicked.connect(self._export_csv)
         self.btn_export_csv.setEnabled(False)
@@ -242,4 +243,4 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
         self.tabs.setTabIcon(0, get_icon("fa6s.chart-simple"))
         self.tabs.setTabIcon(1, get_icon("fa6s.table"))
         if hasattr(self, "btn_export_csv"):
-            self.btn_export_csv.setIcon(get_icon("export_csv"))
+            refresh_button_role(self.btn_export_csv)

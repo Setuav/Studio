@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 from PySide6.QtWidgets import QDialog, QPushButton, QWidget
 
-from setuav_studio.ui.icons import get_icon
+from setuav_studio.ui.buttons import set_button_role
 from setuav_studio.plugin_system import BaseComponentEditor, ParameterField, StudioAPI
 from setuav_studio.plugins.electrical_propulsion.catalog_dialog import ComponentCatalogDialog
 
@@ -76,7 +76,7 @@ class MotorEditor(BaseComponentEditor):
 
     def _create_general_section(self) -> None:
         catalog_btn = QPushButton("Catalog…", self)
-        catalog_btn.setIcon(get_icon("fa6s.database"))
+        set_button_role(catalog_btn, "secondary", "fa6s.database", variant="icon")
         catalog_btn.clicked.connect(self._open_catalog)
 
         layout = self._create_section("General", "fa6s.circle-info", action_widget=catalog_btn)

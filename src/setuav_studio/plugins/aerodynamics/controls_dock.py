@@ -21,7 +21,8 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.plugin_system import StudioAPI
-from setuav_studio.ui.icons import get_icon, set_label_icon
+from setuav_studio.ui.icons import set_label_icon
+from setuav_studio.ui.buttons import refresh_button_role, set_button_role
 from setuav_studio.ui.numeric_spinbox import NumericSpinBox
 from setuav_studio.ui.property_tables import PropertyTableMixin
 from setuav_studio.ui.theme import tokens
@@ -87,9 +88,9 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         for lbl, name in self._section_icons:
             set_label_icon(lbl, name)
         if hasattr(self, "btn_run"):
-            self.btn_run.setIcon(get_icon("fa6s.play"))
+            refresh_button_role(self.btn_run)
         if hasattr(self, "btn_save_config"):
-            self.btn_save_config.setIcon(get_icon("fa6s.floppy-disk"))
+            refresh_button_role(self.btn_save_config)
 
     def _create_section(self, title: str, icon_name: str | None = None) -> QVBoxLayout:
         section = QWidget()
@@ -249,12 +250,12 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         btn_layout.setSpacing(6)
 
         self.btn_run = QPushButton(" Run")
-        self.btn_run.setIcon(get_icon("fa6s.play"))
+        set_button_role(self.btn_run, "primary", "fa6s.play")
         self.btn_run.clicked.connect(self.run_analysis)
         btn_layout.addWidget(self.btn_run)
 
         self.btn_save_config = QPushButton(" Save Configuration")
-        self.btn_save_config.setIcon(get_icon("fa6s.floppy-disk"))
+        set_button_role(self.btn_save_config, "secondary", "fa6s.floppy-disk")
         self.btn_save_config.clicked.connect(self._save_configuration)
         btn_layout.addWidget(self.btn_save_config)
 

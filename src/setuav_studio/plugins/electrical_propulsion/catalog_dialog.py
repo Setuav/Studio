@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
 from pythrust.motors.database import MotorEntry
 from pythrust.propellers.database import PropellerEntry
 from setuav_studio.ui.icons import get_icon
+from setuav_studio.ui.buttons import set_button_role
 from setuav_studio.plugins.electrical_propulsion.database import (
     get_motor_database,
     get_propeller_database,
@@ -347,8 +348,7 @@ class ComponentCatalogDialog(QDialog):
         btn_layout.addStretch()
 
         self.apply_btn = QPushButton("Apply to Component", self)
-        self.apply_btn.setProperty("accent", True)
-        self.apply_btn.setIcon(get_icon("fa6s.check"))
+        set_button_role(self.apply_btn, "success", "fa6s.check")
         self.apply_btn.setEnabled(False)
         self.apply_btn.clicked.connect(self.accept)
         btn_layout.addWidget(self.apply_btn)
