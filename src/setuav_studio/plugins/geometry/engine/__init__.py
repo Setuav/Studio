@@ -12,7 +12,18 @@ from .airfoil import (
     parse_airfoil_dat,
     sample_airfoil_points,
 )
-from .fuselage_geometry import SECTION_SAMPLES, build_fuselage_geometry, sample_profile
+from .fuselage_geometry import (
+    DEFAULT_PROFILES,
+    FUSELAGE_PROFILE_TYPES,
+    SECTION_SAMPLES,
+    build_fuselage_geometry,
+    compute_section_metrics,
+    create_default_section,
+    create_default_segment,
+    format_profile_size,
+    get_default_profile,
+    sample_profile,
+)
 from .lifting_surface_geometry import (
     build_lifting_surface_geometry,
     compute_winglet_projected_dimensions,
@@ -48,6 +59,8 @@ from .wing_sections_engine import (
 __all__ = [
     "AIRFOILS_DATA_DIR",
     "AIRFOIL_SAMPLES",
+    "DEFAULT_PROFILES",
+    "FUSELAGE_PROFILE_TYPES",
     "GeometryData",
     "LoftGeometry",
     "Matrix4",
@@ -65,9 +78,14 @@ __all__ = [
     "compute_airfoil_metrics",
     "compute_all_8_parameters",
     "compute_planform_metrics",
+    "compute_section_metrics",
     "compute_winglet_projected_dimensions",
+    "create_default_section",
+    "create_default_segment",
     "delete_section",
     "derivation_matrix",
+    "format_profile_size",
+    "get_default_profile",
     "identity_matrix",
     "insert_section",
     "multiply_matrix",

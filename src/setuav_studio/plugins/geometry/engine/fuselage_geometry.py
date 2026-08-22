@@ -234,3 +234,155 @@ def _number(value: object) -> float:
         return float(value or 0.0)
     except (TypeError, ValueError):
         return 0.0
+
+
+FUSELAGE_PROFILE_TYPES: tuple[str, ...] = (
+    "circle",
+    "ellipse",
+    "rectangle",
+    "trapezoid",
+    "triangle",
+    "polygon",
+)
+
+DEFAULT_PROFILES: dict[str, dict[str, Any]] = {
+    "circle": {"type": "circle", "diameter": 100.0},
+    "ellipse": {"type": "ellipse", "width": 100.0, "height": 100.0},
+    "rectangle": {
+        "type": "rectangle",
+        "width": 100.0,
+        "height": 100.0,
+        "corner_radius": 0.0,
+    },
+    "trapezoid": {
+        "type": "trapezoid",
+        "top_width": 80.0,
+        "bottom_width": 100.0,
+        "height": 100.0,
+        "corner_radius": 0.0,
+    },
+    "triangle": {
+        "type": "triangle",
+        "base_width": 100.0,
+        "height": 100.0,
+        "orientation": "up",
+        "corner_radius": 0.0,
+    },
+    "polygon": {
+        "type": "polygon",
+        "vertices": [
+            {"y": -50.0, "z": -50.0, "radius": 0.0},
+            {"y": 50.0, "z": -50.0, "radius": 0.0},
+            {"y": 0.0, "z": 50.0, "radius": 0.0},
+        ],
+    },
+}
+
+
+def get_default_profile(profile_type: str) -> dict[str, Any]:
+    """Return a deepcopy of the default profile configuration dictionary."""
+    template = DEFAULT_PROFILES.get(profile_type, DEFAULT_PROFILES["circle"])
+    return {
+        key: [v.copy() if isinstance(v, dict) else v for v in val]
+        if isinstance(val, list)
+        else val
+        for key, val in template.items()
+    }
+
+
+def create_default_section(x: float = 0.0, profile_type: str = "circle") -> dict[str, Any]:
+    """Create a standard default fuselage cross-section data structure."""
+    return {
+        "position": {"x": x, "y": 0.0, "z": 0.0},
+        "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
+        "profile": get_default_profile(profile_type),
+    }
+
+
+def create_default_segment(
+    tag: str = "main",
+    x_start: float = 0.0,
+    x_end: float = 500.0,
+) -> dict[str, Any]:
+    """Create a standard fuselage segment with start and end sections."""
+    return {
+        "tag": tag,
+        "loft": {"method": "smooth", "parameterization": "uniform"},
+        "sections": [
+            create_default_section(x_start),
+            create_default_section(x_end),
+        ],
+    }
+
+
+def format_profile_size(profile: dict[str, Any]) -> str:
+    """Format human-readable profile dimensions."""
+    profile_type = profile.get("type")
+    if profile_type == "circle":
+        return f'D {profile.get("diameter", 0)}'
+    if profile_type in {"ellipse", "rectangle"}:
+        return f'{profile.get("width", 0)} × {profile.get("height", 0)}'
+    if profile_type == "trapezoid":
+        return f'{profile.get("top_width", 0)} / {profile.get("bottom_width", 0)}'
+    if profile_type == "triangle":
+        return f'{profile.get("base_width", 0)} × {profile.get("height", 0)}'
+    if profile_type == "polygon":
+        return f'{len(profile.get("vertices") or [])} vertices'
+    return ""
+
+
+def compute_section_metrics(points: tuple[tuple[float, float], ...]) -> dict[str, float]:
+    """Compute geometric and engineering metrics from a 2D closed polygon outline."""
+    if len(points) < 3:
+        return {
+            "area": 0.0,
+            "perimeter": 0.0,
+            "width": 0.0,
+            "height": 0.0,
+            "y_cg": 0.0,
+            "z_cg": 0.0,
+            "aspect_ratio": 0.0,
+            "hydraulic_diam": 0.0,
+        }
+
+    n = len(points)
+    area2 = 0.0
+    perimeter = 0.0
+    y_sum = 0.0
+    z_sum = 0.0
+
+    ys = [p[0] for p in points]
+    zs = [p[1] for p in points]
+
+    for i in range(n):
+        y0, z0 = points[i]
+        y1, z1 = points[(i + 1) % n]
+        cross = y0 * z1 - y1 * z0
+        area2 += cross
+        perimeter += math.hypot(y1 - y0, z1 - z0)
+        y_sum += (y0 + y1) * cross
+        z_sum += (z0 + z1) * cross
+
+    area = abs(area2) * 0.5
+    if abs(area2) > 1e-9:
+        y_cg = y_sum / (3.0 * area2)
+        z_cg = z_sum / (3.0 * area2)
+    else:
+        y_cg = sum(ys) / n
+        z_cg = sum(zs) / n
+
+    width = max(ys) - min(ys)
+    height = max(zs) - min(zs)
+    aspect_ratio = width / max(height, 1e-6)
+    dh = (4.0 * area / perimeter) if perimeter > 1e-9 else 0.0
+
+    return {
+        "area": area,
+        "perimeter": perimeter,
+        "width": width,
+        "height": height,
+        "y_cg": y_cg,
+        "z_cg": z_cg,
+        "aspect_ratio": aspect_ratio,
+        "hydraulic_diam": dh,
+    }

@@ -1875,6 +1875,43 @@ def _build_fuselage_component() -> dict:
         },
     }
 
+    def test_fuselage_engine_helpers_and_metrics(self) -> None:
+        """Verify fuselage engine calculation and data template helpers."""
+        from setuav_studio.plugins.geometry.engine.fuselage_geometry import (
+            compute_section_metrics,
+            create_default_section,
+            create_default_segment,
+            format_profile_size,
+            get_default_profile,
+        )
+
+        # 1. Section metrics computation (unit square: -50..50)
+        square_points = ((-50.0, -50.0), (50.0, -50.0), (50.0, 50.0), (-50.0, 50.0))
+        metrics = compute_section_metrics(square_points)
+        self.assertAlmostEqual(metrics["area"], 10000.0, places=1)
+        self.assertAlmostEqual(metrics["perimeter"], 400.0, places=1)
+        self.assertAlmostEqual(metrics["width"], 100.0, places=1)
+        self.assertAlmostEqual(metrics["height"], 100.0, places=1)
+        self.assertAlmostEqual(metrics["aspect_ratio"], 1.0, places=2)
+
+        # 2. Template creators
+        profile = get_default_profile("rectangle")
+        self.assertEqual(profile["type"], "rectangle")
+        self.assertEqual(profile["width"], 100.0)
+
+        section = create_default_section(150.0, "ellipse")
+        self.assertEqual(section["position"]["x"], 150.0)
+        self.assertEqual(section["profile"]["type"], "ellipse")
+
+        segment = create_default_segment("mid", 0.0, 300.0)
+        self.assertEqual(segment["tag"], "mid")
+        self.assertEqual(len(segment["sections"]), 2)
+        self.assertEqual(segment["sections"][1]["position"]["x"], 300.0)
+
+        # 3. Formatter
+        self.assertEqual(format_profile_size({"type": "circle", "diameter": 80.0}), "D 80.0")
+        self.assertEqual(format_profile_size({"type": "ellipse", "width": 120.0, "height": 60.0}), "120.0 × 60.0")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -50,64 +50,7 @@ from setuav_studio.ui.numeric_spinbox import (
     set_table_spinbox,
 )
 from setuav_studio.ui.theme import accent_color, tokens
-from ..engine.fuselage_geometry import sample_profile
-
-
-def compute_section_metrics(points: tuple[tuple[float, float], ...]) -> dict[str, float]:
-    """Compute geometric and engineering metrics from a 2D closed polygon outline."""
-    if len(points) < 3:
-        return {
-            "area": 0.0,
-            "perimeter": 0.0,
-            "width": 0.0,
-            "height": 0.0,
-            "y_cg": 0.0,
-            "z_cg": 0.0,
-            "aspect_ratio": 0.0,
-            "hydraulic_diam": 0.0,
-        }
-
-    n = len(points)
-    area2 = 0.0
-    perimeter = 0.0
-    y_sum = 0.0
-    z_sum = 0.0
-
-    ys = [p[0] for p in points]
-    zs = [p[1] for p in points]
-
-    for i in range(n):
-        y0, z0 = points[i]
-        y1, z1 = points[(i + 1) % n]
-        cross = y0 * z1 - y1 * z0
-        area2 += cross
-        perimeter += math.hypot(y1 - y0, z1 - z0)
-        y_sum += (y0 + y1) * cross
-        z_sum += (z0 + z1) * cross
-
-    area = abs(area2) * 0.5
-    if abs(area2) > 1e-9:
-        y_cg = y_sum / (3.0 * area2)
-        z_cg = z_sum / (3.0 * area2)
-    else:
-        y_cg = sum(ys) / n
-        z_cg = sum(zs) / n
-
-    width = max(ys) - min(ys)
-    height = max(zs) - min(zs)
-    aspect_ratio = width / max(height, 1e-6)
-    dh = (4.0 * area / perimeter) if perimeter > 1e-9 else 0.0
-
-    return {
-        "area": area,
-        "perimeter": perimeter,
-        "width": width,
-        "height": height,
-        "y_cg": y_cg,
-        "z_cg": z_cg,
-        "aspect_ratio": aspect_ratio,
-        "hydraulic_diam": dh,
-    }
+from ..engine.fuselage_geometry import compute_section_metrics, sample_profile
 
 
 class FuselageCanvasWidget(QWidget):

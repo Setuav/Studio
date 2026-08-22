@@ -28,6 +28,13 @@ from setuav_studio.ui.numeric_spinbox import (
 )
 from setuav_studio.ui.property_tables import PropertyTableMixin
 from .fuselage_section_dialog import FuselageSectionDialog
+from ..engine.fuselage_geometry import (
+    FUSELAGE_PROFILE_TYPES,
+    create_default_section,
+    create_default_segment,
+    format_profile_size,
+    get_default_profile,
+)
 
 
 class FuselageEditor(PropertyTableMixin, QWidget):
@@ -36,14 +43,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
     table_max_visible_rows = None
     table_property_text_spinbox = True
 
-    PROFILE_TYPES = (
-        "circle",
-        "ellipse",
-        "rectangle",
-        "trapezoid",
-        "triangle",
-        "polygon",
-    )
+    PROFILE_TYPES = FUSELAGE_PROFILE_TYPES
 
     def __init__(self, api: StudioAPI, component: dict[str, Any]) -> None:
         super().__init__()
@@ -674,18 +674,8 @@ class FuselageEditor(PropertyTableMixin, QWidget):
 
     @classmethod
     def _new_segment(cls, segments: list[dict[str, Any]]) -> dict[str, Any]:
-        return {
-            "tag": cls._unique_segment_tag(segments, "segment"),
-            "loft": {
-                "method": "smooth",
-                "parameterization": "centripetal",
-                "profile_correspondence": "cardinal_quadrants",
-            },
-            "sections": [
-                cls._default_section(0.0),
-                cls._default_section(100.0),
-            ],
-        }
+        tag = cls._unique_segment_tag(segments, "segment")
+        return create_default_segment(tag=tag, x_start=0.0, x_end=100.0)
 
     @staticmethod
     def _unique_segment_tag(
@@ -702,12 +692,10 @@ class FuselageEditor(PropertyTableMixin, QWidget):
 
     @classmethod
     def _default_section(cls, x: float) -> dict[str, Any]:
-        return {
-            "position": {"x": x, "y": 0.0, "z": 0.0},
-            "rotation": {"x": 0.0, "y": 0.0, "z": 0.0},
-            "profile": cls._default_profile("circle"),
-            "skin": {"continuity": "curvature", "symmetry": "all"},
-        }
+        section = create_default_section(x, "circle")
+        section["rotation"] = {"x": 0.0, "y": 0.0, "z": 0.0}
+        section["skin"] = {"continuity": "curvature", "symmetry": "all"}
+        return section
 
     @staticmethod
     def _new_section_x(sections: list[dict[str, Any]], insert_at: int) -> float:
@@ -1196,51 +1184,8 @@ class FuselageEditor(PropertyTableMixin, QWidget):
 
     @staticmethod
     def _profile_size(profile: dict[str, Any]) -> str:
-        profile_type = profile.get("type")
-        if profile_type == "circle":
-            return f'D {profile.get("diameter", 0)}'
-        if profile_type in {"ellipse", "rectangle"}:
-            return f'{profile.get("width", 0)} × {profile.get("height", 0)}'
-        if profile_type == "trapezoid":
-            return f'{profile.get("top_width", 0)} / {profile.get("bottom_width", 0)}'
-        if profile_type == "triangle":
-            return f'{profile.get("base_width", 0)} × {profile.get("height", 0)}'
-        if profile_type == "polygon":
-            return f'{len(profile.get("vertices") or [])} vertices'
-        return ""
+        return format_profile_size(profile)
 
     @staticmethod
     def _default_profile(profile_type: str) -> dict[str, Any]:
-        defaults: dict[str, dict[str, Any]] = {
-            "circle": {"type": "circle", "diameter": 100.0},
-            "ellipse": {"type": "ellipse", "width": 100.0, "height": 100.0},
-            "rectangle": {
-                "type": "rectangle",
-                "width": 100.0,
-                "height": 100.0,
-                "corner_radius": 0.0,
-            },
-            "trapezoid": {
-                "type": "trapezoid",
-                "top_width": 80.0,
-                "bottom_width": 100.0,
-                "height": 100.0,
-                "corner_radius": 0.0,
-            },
-            "triangle": {
-                "type": "triangle",
-                "base_width": 100.0,
-                "height": 100.0,
-                "orientation": "up",
-                "corner_radius": 0.0,
-            },
-            "polygon": {
-                "type": "polygon",
-                "vertices": [
-                    {"y": -50.0, "z": -50.0, "radius": 0.0},
-                    {"y": 50.0, "z": -50.0, "radius": 0.0},
-                    {"y": 0.0, "z": 50.0, "radius": 0.0},
-                ],
-            },
-        }
-        return defaults.get(profile_type, defaults["circle"]).copy()
+        return get_default_profile(profile_type)
