@@ -1,0 +1,191 @@
+"""Aerodynamic Analysis Results dock widget."""
+from __future__ import annotations
+
+import csv
+from typing import Any
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QFileDialog,
+    QHBoxLayout,
+    QHeaderView,
+    QPushButton,
+    QTabWidget,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
+
+from setuav_studio.plugin_system import StudioAPI
+from setuav_studio.ui.icons import get_icon
+from setuav_studio.ui.property_tables import PropertyTableMixin
+from setuav_studio.ui.theme import tokens
+from .engine.base import AeroResult
+
+
+class AeroResultsDock(PropertyTableMixin, QWidget):
+    """Aerodynamic analysis results dock displaying summary metrics and polar table."""
+
+    table_headers = ("Metric", "Value")
+    table_edit_triggers = QAbstractItemView.EditTrigger.NoEditTriggers
+    table_value_placeholder = "-"
+    table_value_editable_default = False
+
+    def __init__(self, api: StudioAPI, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("aerodynamics.results_widget")
+        self._api = api
+        self._tokens = tokens()
+        self._current_result: AeroResult | None = None
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(4)
+
+        self.tabs = QTabWidget(self)
+        self.tabs.setDocumentMode(True)
+
+        # Tab 1: Summary Metrics
+        summary_tab = QWidget()
+        summary_layout = QVBoxLayout(summary_tab)
+        summary_layout.setContentsMargins(4, 4, 4, 4)
+        summary_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        summary_layout.setSpacing(6)
+
+        self.summary_table = self._property_table([
+            ("solver_engine", "Solver / Method"),
+            ("cl_max", "Max Lift Coefficient (CL_max)"),
+            ("cl_max_alpha", "AoA @ CL_max (α_stall)"),
+            ("cd_min", "Min Drag Coefficient (CD_min)"),
+            ("ld_max", "Max L/D"),
+            ("ld_max_alpha", "AoA @ Max L/D"),
+            ("ref_span", "Ref. Wingspan (b)"),
+            ("ref_area", "Ref. Wing Area (S)"),
+            ("ref_ar", "Aspect Ratio (AR)"),
+            ("ref_mac", "Mean Aero Chord (MAC)"),
+            ("reynolds", "Reynolds Number (Re)"),
+            ("oswald_e", "Oswald Efficiency (e)"),
+        ])
+        summary_layout.addWidget(self.summary_table)
+        summary_layout.addStretch(1)
+
+        self.tabs.addTab(summary_tab, get_icon("fa6s.chart-simple"), "Summary")
+
+        # Tab 2: Detailed Polar Table
+        detail_tab = QWidget()
+        detail_layout = QVBoxLayout(detail_tab)
+        detail_layout.setContentsMargins(4, 4, 4, 4)
+        detail_layout.setSpacing(4)
+
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch(1)
+        self.btn_export_csv = QPushButton(" Export CSV")
+        self.btn_export_csv.setIcon(get_icon("fa6s.file-csv"))
+        self.btn_export_csv.clicked.connect(self._export_csv)
+        self.btn_export_csv.setEnabled(False)
+        btn_layout.addWidget(self.btn_export_csv)
+        detail_layout.addLayout(btn_layout)
+
+        self.detail_table = self._create_detail_table()
+        detail_layout.addWidget(self.detail_table)
+
+        self.tabs.addTab(detail_tab, get_icon("fa6s.table"), "Polar Table")
+
+        layout.addWidget(self.tabs)
+        self.clear_results()
+
+    def _create_detail_table(self) -> QTableWidget:
+        headers = [
+            "AoA α (°)",
+            "CL",
+            "CD",
+            "CD_ind",
+            "CD_prof",
+            "Cm",
+            "L/D",
+        ]
+        table = QTableWidget(0, len(headers))
+        table.setHorizontalHeaderLabels(headers)
+        table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        table.setAlternatingRowColors(True)
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        table.verticalHeader().setDefaultSectionSize(24)
+        return table
+
+    def clear_results(self) -> None:
+        self._current_result = None
+        for key in (
+            "solver_engine", "cl_max", "cl_max_alpha", "cd_min",
+            "ld_max", "ld_max_alpha", "ref_span", "ref_area",
+            "ref_ar", "ref_mac", "reynolds", "oswald_e",
+        ):
+            self._set_property_value(self.summary_table, key, "-")
+        self.detail_table.setRowCount(0)
+        self.btn_export_csv.setEnabled(False)
+
+    def display_results(self, result: AeroResult) -> None:
+        self._current_result = result
+        ref = result.reference
+
+        ar = (ref.b_ref ** 2 / ref.s_ref) if ref.s_ref > 0 else 0.0
+        oswald_str = f"{result.oswald_efficiency:.3f}" if result.oswald_efficiency is not None else "N/A"
+
+        metrics = {
+            "solver_engine": f"{result.engine_name} ({result.method.value.upper()})",
+            "cl_max": f"{result.cl_max:.4f}",
+            "cl_max_alpha": f"{result.cl_max_alpha:.2f}°",
+            "cd_min": f"{result.cd_min:.5f}",
+            "ld_max": f"{result.ld_max:.2f}",
+            "ld_max_alpha": f"{result.ld_max_alpha:.2f}°",
+            "ref_span": f"{ref.b_ref * 1000.0:.1f} mm ({ref.b_ref:.3f} m)",
+            "ref_area": f"{ref.s_ref * 1e4:.1f} cm² ({ref.s_ref:.4f} m²)",
+            "ref_ar": f"{ar:.2f}",
+            "ref_mac": f"{ref.c_ref * 1000.0:.1f} mm",
+            "reynolds": f"{result.reynolds:,.0f}" if result.reynolds > 0 else "N/A",
+            "oswald_e": oswald_str,
+        }
+        for key, val in metrics.items():
+            self._set_property_value(self.summary_table, key, val)
+
+        points = result.polar_points
+        self.detail_table.setRowCount(len(points))
+
+        for row, pt in enumerate(points):
+            self.detail_table.setItem(row, 0, QTableWidgetItem(f"{pt.alpha:+.2f}"))
+            self.detail_table.setItem(row, 1, QTableWidgetItem(f"{pt.cl:.4f}"))
+            self.detail_table.setItem(row, 2, QTableWidgetItem(f"{pt.cd:.5f}"))
+            self.detail_table.setItem(row, 3, QTableWidgetItem(f"{pt.cd_induced:.5f}"))
+            self.detail_table.setItem(row, 4, QTableWidgetItem(f"{pt.cd_profile:.5f}"))
+            self.detail_table.setItem(row, 5, QTableWidgetItem(f"{pt.cm:+.4f}"))
+            self.detail_table.setItem(row, 6, QTableWidgetItem(f"{pt.cl_over_cd:.2f}"))
+
+        self.btn_export_csv.setEnabled(len(points) > 0)
+
+    def _export_csv(self) -> None:
+        if not self._current_result or not self._current_result.polar_points:
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Polar Data CSV",
+            "aerodynamic_polar.csv",
+            "CSV Files (*.csv)",
+        )
+        if not path:
+            return
+
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["Alpha_deg", "CL", "CD", "CD_ind", "CD_prof", "Cm", "L_over_D"])
+            for pt in self._current_result.polar_points:
+                writer.writerow([
+                    f"{pt.alpha:.4f}",
+                    f"{pt.cl:.6f}",
+                    f"{pt.cd:.6f}",
+                    f"{pt.cd_induced:.6f}",
+                    f"{pt.cd_profile:.6f}",
+                    f"{pt.cm:.6f}",
+                    f"{pt.cl_over_cd:.4f}",
+                ])
+        self._api.show_status(f"Exported polar data to {path}", "success")

@@ -1,15 +1,11 @@
-"""Propulsion Analysis Charts dock widget."""
-
+"""Unified Propulsion Performance Charts Dock hosting all curves simultaneously."""
 from __future__ import annotations
 
-from typing import Any, Sequence
-from PySide6.QtCore import Qt, QPointF
+from typing import Sequence
+from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import (
-    QHBoxLayout,
-    QLabel,
-    QPushButton,
-    QTabWidget,
+    QSplitter,
     QVBoxLayout,
     QWidget,
 )
@@ -20,72 +16,96 @@ from PySide6.QtCharts import (
     QValueAxis,
 )
 
-from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.theme import tokens
 
 
+class SinglePropulsionChartWidget(QWidget):
+    """Sub-chart widget providing themed QtCharts plotting capabilities."""
+
+    def __init__(self, title: str, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._tokens = tokens()
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(2, 2, 2, 2)
+        layout.setSpacing(0)
+
+        self.chart = QChart()
+        self.chart.setTitle(title)
+        self.chart.setTitleFont(QFont("Inter", 9, QFont.Weight.Bold))
+        self.chart.setTitleBrush(QColor("#e0e0e0"))
+        self.chart.setBackgroundBrush(QColor(self._tokens.get("surface", "#1e1e1e")))
+        self.chart.setPlotAreaBackgroundBrush(QColor(self._tokens.get("plot", "#121212")))
+        self.chart.setPlotAreaBackgroundVisible(True)
+        self.chart.legend().setVisible(True)
+        self.chart.legend().setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.chart.legend().setLabelBrush(QColor("#aaaaaa"))
+        self.chart.legend().setFont(QFont("Inter", 8))
+        self.chart.layout().setContentsMargins(0, 0, 0, 0)
+        self.chart.setMargins(QChart.margins(self.chart))
+
+        self.view = QChartView(self.chart)
+        self.view.setRenderHint(QPainter.RenderHint.Antialiasing)
+        self.view.setStyleSheet(
+            f"background-color: {self._tokens.get('surface', '#1e1e1e')}; border: none;"
+        )
+        layout.addWidget(self.view)
+
+    def clear(self) -> None:
+        self.chart.removeAllSeries()
+        for axis in list(self.chart.axes()):
+            self.chart.removeAxis(axis)
+
+    def series(self) -> list:
+        return self.chart.series()
+
+    def axes(self) -> list:
+        return self.chart.axes()
+
+
 class PropulsionChartsDock(QWidget):
-    """Interactive dark-themed performance curves and sweep visualization dock."""
+    """Unified dock hosting all 4 propulsion performance curves simultaneously in a 2x2 grid."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("propulsion.charts_widget")
         self._tokens = tokens()
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(4)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(1, 1, 1, 1)
+        main_layout.setSpacing(2)
 
-        # Header with tabs and export
-        self.tabs = QTabWidget(self)
-        self.tabs.setDocumentMode(True)
+        # 4 Sub-charts
+        self.chart_thrust_power = SinglePropulsionChartWidget("Thrust & Electrical Power")
+        self.chart_electrical = SinglePropulsionChartWidget("Current & Motor Speed")
+        self.chart_efficiency = SinglePropulsionChartWidget("Efficiency Breakdown (η)")
+        self.chart_power_loading = SinglePropulsionChartWidget("Power Loading — g/W")
+        self.chart_power_loading.chart.legend().setVisible(False)
 
-        # Tab 1: Thrust & Power
-        self.chart_thrust_power = self._create_chart("Thrust & Electrical Power")
-        self.view_thrust_power = self._create_chart_view(self.chart_thrust_power)
-        self.tabs.addTab(self.view_thrust_power, get_icon("fa6s.bolt"), "Thrust & Power")
+        # Main Vertical Splitter
+        self.main_splitter = QSplitter(Qt.Orientation.Vertical, self)
 
-        # Tab 2: Electrical (Current & RPM)
-        self.chart_electrical = self._create_chart("Current & Motor Speed")
-        self.view_electrical = self._create_chart_view(self.chart_electrical)
-        self.tabs.addTab(self.view_electrical, get_icon("fa6s.gauge-high"), "Current & RPM")
+        # Top Row Horizontal Splitter (Thrust/Power | Current/RPM)
+        self.top_splitter = QSplitter(Qt.Orientation.Horizontal, self.main_splitter)
+        self.top_splitter.addWidget(self.chart_thrust_power)
+        self.top_splitter.addWidget(self.chart_electrical)
 
-        # Tab 3: Efficiencies
-        self.chart_efficiency = self._create_chart("Efficiency Curves (η)")
-        self.view_efficiency = self._create_chart_view(self.chart_efficiency)
-        self.tabs.addTab(self.view_efficiency, get_icon("fa6s.chart-line"), "Efficiencies")
+        # Bottom Row Horizontal Splitter (Efficiencies | Power Loading)
+        self.bottom_splitter = QSplitter(Qt.Orientation.Horizontal, self.main_splitter)
+        self.bottom_splitter.addWidget(self.chart_efficiency)
+        self.bottom_splitter.addWidget(self.chart_power_loading)
 
-        layout.addWidget(self.tabs)
+        self.main_splitter.addWidget(self.top_splitter)
+        self.main_splitter.addWidget(self.bottom_splitter)
 
-        self._current_data: dict[str, Any] | None = None
+        main_layout.addWidget(self.main_splitter)
         self.clear_charts()
 
-    def _create_chart(self, title: str) -> QChart:
-        chart = QChart()
-        chart.setTitle(title)
-        chart.setTitleFont(QFont("Inter", 11, QFont.Weight.Bold))
-        chart.setTitleBrush(QColor("#e0e0e0"))
-        chart.setBackgroundBrush(QColor(self._tokens["surface"]))
-        chart.setPlotAreaBackgroundBrush(QColor(self._tokens["plot"]))
-        chart.setPlotAreaBackgroundVisible(True)
-        chart.legend().setVisible(True)
-        chart.legend().setAlignment(Qt.AlignmentFlag.AlignTop)
-        chart.legend().setLabelBrush(QColor(self._tokens["text"]))
-        chart.legend().setFont(QFont("Inter", 9))
-        chart.setMargins(QChart.margins(chart))
-        return chart
-
-    def _create_chart_view(self, chart: QChart) -> QChartView:
-        view = QChartView(chart)
-        view.setRenderHint(QPainter.RenderHint.Antialiasing)
-        view.setStyleSheet(f"background-color: {self._tokens['surface']}; border: none;")
-        return view
-
     def clear_charts(self) -> None:
-        for chart in (self.chart_thrust_power, self.chart_electrical, self.chart_efficiency):
-            chart.removeAllSeries()
-            for axis in list(chart.axes()):
-                chart.removeAxis(axis)
+        self.chart_thrust_power.clear()
+        self.chart_electrical.clear()
+        self.chart_efficiency.clear()
+        self.chart_power_loading.clear()
 
     def plot_sweep_results(
         self,
@@ -107,16 +127,18 @@ class PropulsionChartsDock(QWidget):
         if x_min == x_max:
             x_max += 1.0
 
+        grid_color = QColor("#2d2d35")
+        text_muted = QColor("#888888")
+
         # --- 1. Thrust & Power Chart ---
+        c1 = self.chart_thrust_power.chart
         series_thrust = QLineSeries()
         series_thrust.setName("Thrust (N)")
-        pen_thrust = QPen(QColor("#4ec9b0"), 2.5)
-        series_thrust.setPen(pen_thrust)
+        series_thrust.setPen(QPen(QColor("#4da6ff"), 2.5))
 
         series_power = QLineSeries()
         series_power.setName("Power (W)")
-        pen_power = QPen(QColor("#e5c07b"), 2.5)
-        series_power.setPen(pen_power)
+        series_power.setPen(QPen(QColor("#e5c07b"), 2.5))
 
         for x, t, p in zip(x_values, thrust_n, power_w):
             series_thrust.append(QPointF(x, t))
@@ -124,33 +146,39 @@ class PropulsionChartsDock(QWidget):
 
         axis_x1 = QValueAxis()
         axis_x1.setTitleText(x_label)
-        axis_x1.setTitleBrush(QColor("#b0b0b0"))
-        axis_x1.setLabelsBrush(QColor("#888888"))
-        axis_x1.setGridLineColor(QColor(self._tokens["grid"]))
+        axis_x1.setTitleBrush(text_muted)
+        axis_x1.setTitleFont(QFont("Inter", 8))
+        axis_x1.setLabelsBrush(text_muted)
+        axis_x1.setLabelsFont(QFont("Inter", 8))
+        axis_x1.setGridLineColor(grid_color)
         axis_x1.setRange(x_min, x_max)
 
         axis_y_thrust = QValueAxis()
         axis_y_thrust.setTitleText("Thrust (N)")
-        axis_y_thrust.setTitleBrush(QColor("#4ec9b0"))
-        axis_y_thrust.setLabelsBrush(QColor("#4ec9b0"))
-        axis_y_thrust.setGridLineColor(QColor(self._tokens["grid"]))
+        axis_y_thrust.setTitleBrush(text_muted)
+        axis_y_thrust.setTitleFont(QFont("Inter", 8))
+        axis_y_thrust.setLabelsBrush(text_muted)
+        axis_y_thrust.setLabelsFont(QFont("Inter", 8))
+        axis_y_thrust.setGridLineColor(grid_color)
         t_max = max(thrust_n) * 1.1 if thrust_n else 10.0
         axis_y_thrust.setRange(0, max(t_max, 1.0))
 
         axis_y_power = QValueAxis()
         axis_y_power.setTitleText("Power (W)")
-        axis_y_power.setTitleBrush(QColor("#e5c07b"))
-        axis_y_power.setLabelsBrush(QColor("#e5c07b"))
+        axis_y_power.setTitleBrush(text_muted)
+        axis_y_power.setTitleFont(QFont("Inter", 8))
+        axis_y_power.setLabelsBrush(text_muted)
+        axis_y_power.setLabelsFont(QFont("Inter", 8))
         axis_y_power.setGridLineVisible(False)
         p_max = max(power_w) * 1.1 if power_w else 100.0
         axis_y_power.setRange(0, max(p_max, 10.0))
 
-        self.chart_thrust_power.addAxis(axis_x1, Qt.AlignmentFlag.AlignBottom)
-        self.chart_thrust_power.addAxis(axis_y_thrust, Qt.AlignmentFlag.AlignLeft)
-        self.chart_thrust_power.addAxis(axis_y_power, Qt.AlignmentFlag.AlignRight)
+        c1.addAxis(axis_x1, Qt.AlignmentFlag.AlignBottom)
+        c1.addAxis(axis_y_thrust, Qt.AlignmentFlag.AlignLeft)
+        c1.addAxis(axis_y_power, Qt.AlignmentFlag.AlignRight)
 
-        self.chart_thrust_power.addSeries(series_thrust)
-        self.chart_thrust_power.addSeries(series_power)
+        c1.addSeries(series_thrust)
+        c1.addSeries(series_power)
 
         series_thrust.attachAxis(axis_x1)
         series_thrust.attachAxis(axis_y_thrust)
@@ -158,15 +186,14 @@ class PropulsionChartsDock(QWidget):
         series_power.attachAxis(axis_y_power)
 
         # --- 2. Current & RPM Chart ---
+        c2 = self.chart_electrical.chart
         series_current = QLineSeries()
         series_current.setName("Current (A)")
-        pen_current = QPen(QColor("#e06c75"), 2.5)
-        series_current.setPen(pen_current)
+        series_current.setPen(QPen(QColor("#e06c75"), 2.5))
 
         series_rpm = QLineSeries()
-        series_rpm.setName("Motor Speed (RPM)")
-        pen_rpm = QPen(QColor("#98c379"), 2.5)
-        series_rpm.setPen(pen_rpm)
+        series_rpm.setName("RPM")
+        series_rpm.setPen(QPen(QColor("#98c379"), 2.5))
 
         for x, i_val, r_val in zip(x_values, current_a, rpm):
             series_current.append(QPointF(x, i_val))
@@ -174,33 +201,39 @@ class PropulsionChartsDock(QWidget):
 
         axis_x2 = QValueAxis()
         axis_x2.setTitleText(x_label)
-        axis_x2.setTitleBrush(QColor("#b0b0b0"))
-        axis_x2.setLabelsBrush(QColor("#888888"))
-        axis_x2.setGridLineColor(QColor(self._tokens["grid"]))
+        axis_x2.setTitleBrush(text_muted)
+        axis_x2.setTitleFont(QFont("Inter", 8))
+        axis_x2.setLabelsBrush(text_muted)
+        axis_x2.setLabelsFont(QFont("Inter", 8))
+        axis_x2.setGridLineColor(grid_color)
         axis_x2.setRange(x_min, x_max)
 
         axis_y_curr = QValueAxis()
         axis_y_curr.setTitleText("Current (A)")
-        axis_y_curr.setTitleBrush(QColor("#e06c75"))
-        axis_y_curr.setLabelsBrush(QColor("#e06c75"))
-        axis_y_curr.setGridLineColor(QColor(self._tokens["grid"]))
+        axis_y_curr.setTitleBrush(text_muted)
+        axis_y_curr.setTitleFont(QFont("Inter", 8))
+        axis_y_curr.setLabelsBrush(text_muted)
+        axis_y_curr.setLabelsFont(QFont("Inter", 8))
+        axis_y_curr.setGridLineColor(grid_color)
         c_max = max(current_a) * 1.15 if current_a else 20.0
         axis_y_curr.setRange(0, max(c_max, 5.0))
 
         axis_y_rpm = QValueAxis()
         axis_y_rpm.setTitleText("Speed (RPM)")
-        axis_y_rpm.setTitleBrush(QColor("#98c379"))
-        axis_y_rpm.setLabelsBrush(QColor("#98c379"))
+        axis_y_rpm.setTitleBrush(text_muted)
+        axis_y_rpm.setTitleFont(QFont("Inter", 8))
+        axis_y_rpm.setLabelsBrush(text_muted)
+        axis_y_rpm.setLabelsFont(QFont("Inter", 8))
         axis_y_rpm.setGridLineVisible(False)
         r_max = max(rpm) * 1.1 if rpm else 10000.0
         axis_y_rpm.setRange(0, max(r_max, 1000.0))
 
-        self.chart_electrical.addAxis(axis_x2, Qt.AlignmentFlag.AlignBottom)
-        self.chart_electrical.addAxis(axis_y_curr, Qt.AlignmentFlag.AlignLeft)
-        self.chart_electrical.addAxis(axis_y_rpm, Qt.AlignmentFlag.AlignRight)
+        c2.addAxis(axis_x2, Qt.AlignmentFlag.AlignBottom)
+        c2.addAxis(axis_y_curr, Qt.AlignmentFlag.AlignLeft)
+        c2.addAxis(axis_y_rpm, Qt.AlignmentFlag.AlignRight)
 
-        self.chart_electrical.addSeries(series_current)
-        self.chart_electrical.addSeries(series_rpm)
+        c2.addSeries(series_current)
+        c2.addSeries(series_rpm)
 
         series_current.attachAxis(axis_x2)
         series_current.attachAxis(axis_y_curr)
@@ -208,17 +241,18 @@ class PropulsionChartsDock(QWidget):
         series_rpm.attachAxis(axis_y_rpm)
 
         # --- 3. Efficiency Curves Chart ---
+        c3 = self.chart_efficiency.chart
         series_eta_tot = QLineSeries()
-        series_eta_tot.setName("Total System η")
-        series_eta_tot.setPen(QPen(QColor("#4ec9b0"), 2.5))
+        series_eta_tot.setName("Total η")
+        series_eta_tot.setPen(QPen(QColor("#00e676"), 2.5))
 
         series_eta_prop = QLineSeries()
-        series_eta_prop.setName("Propeller ηp")
-        series_eta_prop.setPen(QPen(QColor("#61afef"), 2.0, Qt.PenStyle.DashLine))
+        series_eta_prop.setName("Prop ηp")
+        series_eta_prop.setPen(QPen(QColor("#4da6ff"), 2.0, Qt.PenStyle.DashLine))
 
         series_eta_mot = QLineSeries()
         series_eta_mot.setName("Motor ηm")
-        series_eta_mot.setPen(QPen(QColor("#c678dd"), 2.0, Qt.PenStyle.DashLine))
+        series_eta_mot.setPen(QPen(QColor("#e040fb"), 2.0, Qt.PenStyle.DashLine))
 
         for x, et, ep, em in zip(x_values, eta_total, eta_prop, eta_motor):
             series_eta_tot.append(QPointF(x, et * 100.0))
@@ -227,24 +261,28 @@ class PropulsionChartsDock(QWidget):
 
         axis_x3 = QValueAxis()
         axis_x3.setTitleText(x_label)
-        axis_x3.setTitleBrush(QColor("#b0b0b0"))
-        axis_x3.setLabelsBrush(QColor("#888888"))
-        axis_x3.setGridLineColor(QColor(self._tokens["grid"]))
+        axis_x3.setTitleBrush(text_muted)
+        axis_x3.setTitleFont(QFont("Inter", 8))
+        axis_x3.setLabelsBrush(text_muted)
+        axis_x3.setLabelsFont(QFont("Inter", 8))
+        axis_x3.setGridLineColor(grid_color)
         axis_x3.setRange(x_min, x_max)
 
         axis_y_eta = QValueAxis()
         axis_y_eta.setTitleText("Efficiency (%)")
-        axis_y_eta.setTitleBrush(QColor("#b0b0b0"))
-        axis_y_eta.setLabelsBrush(QColor("#888888"))
-        axis_y_eta.setGridLineColor(QColor(self._tokens["grid"]))
+        axis_y_eta.setTitleBrush(text_muted)
+        axis_y_eta.setTitleFont(QFont("Inter", 8))
+        axis_y_eta.setLabelsBrush(text_muted)
+        axis_y_eta.setLabelsFont(QFont("Inter", 8))
+        axis_y_eta.setGridLineColor(grid_color)
         axis_y_eta.setRange(0, 100.0)
 
-        self.chart_efficiency.addAxis(axis_x3, Qt.AlignmentFlag.AlignBottom)
-        self.chart_efficiency.addAxis(axis_y_eta, Qt.AlignmentFlag.AlignLeft)
+        c3.addAxis(axis_x3, Qt.AlignmentFlag.AlignBottom)
+        c3.addAxis(axis_y_eta, Qt.AlignmentFlag.AlignLeft)
 
-        self.chart_efficiency.addSeries(series_eta_tot)
-        self.chart_efficiency.addSeries(series_eta_prop)
-        self.chart_efficiency.addSeries(series_eta_mot)
+        c3.addSeries(series_eta_tot)
+        c3.addSeries(series_eta_prop)
+        c3.addSeries(series_eta_mot)
 
         series_eta_tot.attachAxis(axis_x3)
         series_eta_tot.attachAxis(axis_y_eta)
@@ -252,3 +290,41 @@ class PropulsionChartsDock(QWidget):
         series_eta_prop.attachAxis(axis_y_eta)
         series_eta_mot.attachAxis(axis_x3)
         series_eta_mot.attachAxis(axis_y_eta)
+
+        # --- 4. Power Loading (g/W) Chart ---
+        c4 = self.chart_power_loading.chart
+        series_pl = QLineSeries()
+        series_pl.setName("g/W")
+        series_pl.setPen(QPen(QColor("#ff9100"), 2.5))
+
+        pl_values: list[float] = []
+        for x, t, p in zip(x_values, thrust_n, power_w):
+            val = (t * 1000.0 / 9.80665) / max(p, 0.001)
+            series_pl.append(QPointF(x, val))
+            pl_values.append(val)
+
+        axis_x4 = QValueAxis()
+        axis_x4.setTitleText(x_label)
+        axis_x4.setTitleBrush(text_muted)
+        axis_x4.setTitleFont(QFont("Inter", 8))
+        axis_x4.setLabelsBrush(text_muted)
+        axis_x4.setLabelsFont(QFont("Inter", 8))
+        axis_x4.setGridLineColor(grid_color)
+        axis_x4.setRange(x_min, x_max)
+
+        axis_y_pl = QValueAxis()
+        axis_y_pl.setTitleText("Power Loading (g/W)")
+        axis_y_pl.setTitleBrush(text_muted)
+        axis_y_pl.setTitleFont(QFont("Inter", 8))
+        axis_y_pl.setLabelsBrush(text_muted)
+        axis_y_pl.setLabelsFont(QFont("Inter", 8))
+        axis_y_pl.setGridLineColor(grid_color)
+        pl_max = max(pl_values) * 1.1 if pl_values else 10.0
+        axis_y_pl.setRange(0, max(pl_max, 2.0))
+
+        c4.addAxis(axis_x4, Qt.AlignmentFlag.AlignBottom)
+        c4.addAxis(axis_y_pl, Qt.AlignmentFlag.AlignLeft)
+
+        c4.addSeries(series_pl)
+        series_pl.attachAxis(axis_x4)
+        series_pl.attachAxis(axis_y_pl)

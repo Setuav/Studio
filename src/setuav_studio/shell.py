@@ -885,6 +885,32 @@ class MainWindow(QMainWindow):
             if docks:
                 self.resizeDocks(docks, [220, 280, 480, 260][:len(docks)], Qt.Orientation.Horizontal)
 
+        elif workspace_id == "studio.workspace.aerodynamics":
+            aero_controls = self.findChild(QDockWidget, "aerodynamics.controls_dock")
+            aero_charts = self.findChild(QDockWidget, "aerodynamics.charts_dock")
+            aero_results = self.findChild(QDockWidget, "aerodynamics.results_dock")
+
+            if viewer:
+                viewer.hide()
+            if explorer and props:
+                self.splitDockWidget(explorer, props, Qt.Orientation.Vertical)
+            if explorer and aero_controls:
+                self.splitDockWidget(explorer, aero_controls, Qt.Orientation.Horizontal)
+            if aero_controls and aero_charts:
+                self.splitDockWidget(aero_controls, aero_charts, Qt.Orientation.Horizontal)
+            if aero_charts and aero_results:
+                self.splitDockWidget(aero_charts, aero_results, Qt.Orientation.Horizontal)
+            elif aero_controls and aero_results:
+                self.splitDockWidget(aero_controls, aero_results, Qt.Orientation.Horizontal)
+
+            for d in (explorer, props, aero_controls, aero_charts, aero_results):
+                if d:
+                    d.show()
+
+            docks = [d for d in [explorer, aero_controls, aero_charts, aero_results] if d is not None and not d.isHidden()]
+            if docks:
+                self.resizeDocks(docks, [200, 260, 560, 260][:len(docks)], Qt.Orientation.Horizontal)
+
         else:
             for cid, (panel_contrib, dock) in self._panels.items():
                 if panel_contrib.is_in_workspace(workspace_id):

@@ -19,7 +19,11 @@ class CorePlugin:
                 id="project.explorer",
                 title="Project Explorer",
                 factory=lambda: ProjectExplorerPanel(api),
-                workspace_id=["studio.workspace.design", "studio.workspace.propulsion"],
+                workspace_id=[
+                    "studio.workspace.design",
+                    "studio.workspace.propulsion",
+                    "studio.workspace.aerodynamics",
+                ],
                 icon="project_explorer",
             )
         )
@@ -29,7 +33,11 @@ class CorePlugin:
                 title="Properties",
                 factory=lambda: PropertiesPanel(api),
                 area=Qt.DockWidgetArea.RightDockWidgetArea,
-                workspace_id=["studio.workspace.design", "studio.workspace.propulsion"],
+                workspace_id=[
+                    "studio.workspace.design",
+                    "studio.workspace.propulsion",
+                    "studio.workspace.aerodynamics",
+                ],
                 icon="properties",
             )
         )

@@ -16,5 +16,10 @@ dependencies = [
     "referencing>=0.30",
 ]
 
+[project.optional-dependencies]
+aerodynamics = [
+    "aerosandbox>=4.0.0",
+]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/setuav_studio"]
