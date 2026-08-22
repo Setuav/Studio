@@ -183,20 +183,26 @@ class AeroSandboxEngine(AeroEngine):
         )
 
     def _build_airplane(self, components: list[dict[str, Any]]) -> asb.Airplane:
-        """Convert Setuav Studio components list to AeroSandbox Airplane object."""
+        """Convert Setuav Studio components list to AeroSandbox Airplane object with attachment hierarchy."""
         wings: list[asb.Wing] = []
         fuselages: list[asb.Fuselage] = []
+
+        comp_by_id = {
+            str(comp.get("id")): comp
+            for comp in components
+            if isinstance(comp, dict) and comp.get("id")
+        }
 
         for comp in components:
             if not isinstance(comp, dict):
                 continue
             comp_type = comp.get("type", "")
             if comp_type == "org.setuav.core:lifting-surface":
-                wing = self._convert_lifting_surface(comp)
+                wing = self._convert_lifting_surface(comp, comp_by_id=comp_by_id)
                 if wing is not None:
                     wings.append(wing)
             elif comp_type == "org.setuav.core:fuselage":
-                fuselage = self._convert_fuselage(comp)
+                fuselage = self._convert_fuselage(comp, comp_by_id=comp_by_id)
                 if fuselage is not None:
                     fuselages.append(fuselage)
 
@@ -226,8 +232,55 @@ class AeroSandboxEngine(AeroEngine):
             xyz_ref=xyz_ref,
         )
 
-    def _convert_lifting_surface(self, comp: dict[str, Any]) -> asb.Wing | None:
-        """Convert a single lifting surface dictionary to AeroSandbox Wing with full 3D transforms."""
+    def _resolve_world_transform(
+        self,
+        comp: dict[str, Any],
+        comp_by_id: dict[str, dict[str, Any]],
+        visited: set[str] | None = None,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Compute accumulated world translation (meters) and 3x3 rotation matrix for a component."""
+        if visited is None:
+            visited = set()
+
+        cid = str(comp.get("id") or "")
+        if cid in visited:
+            return np.zeros(3), np.eye(3)
+        visited.add(cid)
+
+        transform = comp.get("transform")
+        transform = transform if isinstance(transform, dict) else {}
+        pos = transform.get("position")
+        pos = pos if isinstance(pos, dict) else {}
+        rot = transform.get("rotation")
+        rot = rot if isinstance(rot, dict) else {}
+
+        local_pos = np.array([
+            float(pos.get("x", 0.0)) / 1000.0,
+            float(pos.get("y", 0.0)) / 1000.0,
+            float(pos.get("z", 0.0)) / 1000.0,
+        ])
+
+        roll_deg = float(rot.get("roll") if "roll" in rot else rot.get("x", 0.0))
+        pitch_deg = float(rot.get("pitch") if "pitch" in rot else rot.get("y", 0.0))
+        yaw_deg = float(rot.get("yaw") if "yaw" in rot else rot.get("z", 0.0))
+        local_rot = self._rotation_matrix_xyz(roll_deg, pitch_deg, yaw_deg)
+
+        parent_id = comp.get("parent") or comp.get("attach_to")
+        if parent_id and str(parent_id) in comp_by_id:
+            parent_comp = comp_by_id[str(parent_id)]
+            parent_pos, parent_rot = self._resolve_world_transform(parent_comp, comp_by_id, visited)
+            world_pos = parent_pos + parent_rot @ local_pos
+            world_rot = parent_rot @ local_rot
+            return world_pos, world_rot
+
+        return local_pos, local_rot
+
+    def _convert_lifting_surface(
+        self,
+        comp: dict[str, Any],
+        comp_by_id: dict[str, dict[str, Any]] | None = None,
+    ) -> asb.Wing | None:
+        """Convert a single lifting surface dictionary to AeroSandbox Wing with full 3D transforms and junction handling."""
         params = comp.get("parameters")
         params = params if isinstance(params, dict) else {}
         geometry = params.get("geometry")
@@ -237,28 +290,30 @@ class AeroSandboxEngine(AeroEngine):
         if not isinstance(profiles, list) or len(profiles) < 2:
             return None
 
-        # Component transform
-        comp_transform = comp.get("transform")
-        comp_transform = comp_transform if isinstance(comp_transform, dict) else {}
-        pos = comp_transform.get("position")
-        pos = pos if isinstance(pos, dict) else {}
-        rot = comp_transform.get("rotation")
-        rot = rot if isinstance(rot, dict) else {}
+        # Resolve global 3D world transform including parent/attachment chain
+        if comp_by_id:
+            attach_pos, attach_rot = self._resolve_world_transform(comp, comp_by_id)
+        else:
+            comp_transform = comp.get("transform")
+            comp_transform = comp_transform if isinstance(comp_transform, dict) else {}
+            pos = comp_transform.get("position")
+            pos = pos if isinstance(pos, dict) else {}
+            rot = comp_transform.get("rotation")
+            rot = rot if isinstance(rot, dict) else {}
+            attach_pos = np.array([
+                float(pos.get("x", 0.0)) / 1000.0,
+                float(pos.get("y", 0.0)) / 1000.0,
+                float(pos.get("z", 0.0)) / 1000.0,
+            ])
+            roll_deg = float(rot.get("roll") if "roll" in rot else rot.get("x", 0.0))
+            pitch_deg = float(rot.get("pitch") if "pitch" in rot else rot.get("y", 0.0))
+            yaw_deg = float(rot.get("yaw") if "yaw" in rot else rot.get("z", 0.0))
+            attach_rot = self._rotation_matrix_xyz(roll_deg, pitch_deg, yaw_deg)
 
         mirror = bool(geometry.get("mirror", False) or comp.get("mirror", False))
-
-        # Position in meters (lock Y to 0 for symmetric/centerline attached wings)
-        attach_pos = np.array([
-            float(pos.get("x", 0.0)) / 1000.0,
-            0.0 if mirror else float(pos.get("y", 0.0)) / 1000.0,
-            float(pos.get("z", 0.0)) / 1000.0,
-        ])
-
-        # Rotation angles in degrees (roll, pitch, yaw)
-        roll_deg = float(rot.get("roll") if "roll" in rot else rot.get("x", 0.0))
-        pitch_deg = float(rot.get("pitch") if "pitch" in rot else rot.get("y", 0.0))
-        yaw_deg = float(rot.get("yaw") if "yaw" in rot else rot.get("z", 0.0))
-        attach_rot = self._rotation_matrix_xyz(roll_deg, pitch_deg, yaw_deg)
+        if mirror:
+            # Symmetric wings are mirrored across the centerline plane (Y=0)
+            attach_pos[1] = 0.0
 
         xsecs: list[asb.WingXSec] = []
         for profile in profiles:
@@ -269,19 +324,15 @@ class AeroSandboxEngine(AeroEngine):
             prof_rot = profile.get("rotation")
             prof_rot = prof_rot if isinstance(prof_rot, dict) else {}
 
-            # Raw profile position relative to component root (in meters)
             raw_xyz = np.array([
                 float(prof_pos.get("x", 0.0)) / 1000.0,
                 float(prof_pos.get("y", 0.0)) / 1000.0,
                 float(prof_pos.get("z", 0.0)) / 1000.0,
             ])
 
-            # Apply component 3D rotation and translation
             xyz_le = attach_rot @ raw_xyz + attach_pos
-
             chord = float(profile.get("chord", 100.0)) / 1000.0
 
-            # Twist / Pitch angle: pitch rotation of profile + component pitch
             prof_pitch = float(
                 profile.get("twist")
                 if "twist" in profile
@@ -291,7 +342,9 @@ class AeroSandboxEngine(AeroEngine):
                     else (prof_rot.get("y") if "y" in prof_rot else prof_rot.get("x", 0.0))
                 )
             )
-            total_twist = prof_pitch + pitch_deg
+
+            pitch_angle_deg = np.degrees(np.arcsin(-np.clip(attach_rot[2, 0], -1.0, 1.0)))
+            total_twist = prof_pitch + pitch_angle_deg
 
             airfoil_spec = profile.get("airfoil")
             airfoil = self._resolve_airfoil(airfoil_spec, shaping=geometry.get("airfoil_shaping"))
@@ -307,6 +360,18 @@ class AeroSandboxEngine(AeroEngine):
 
         if len(xsecs) < 2:
             return None
+
+        # Wing-Fuselage Root Junction Alignment:
+        # If symmetric and first xsec has a non-zero Y offset (starting at fuselage shoulder),
+        # ensure continuous aerodynamic spanwise load distribution by adding a root center xsec at Y=0.
+        if mirror and abs(xsecs[0].xyz_le[1]) > 1e-4:
+            root_ext = asb.WingXSec(
+                xyz_le=[float(xsecs[0].xyz_le[0]), 0.0, float(xsecs[0].xyz_le[2])],
+                chord=float(xsecs[0].chord),
+                twist=float(xsecs[0].twist),
+                airfoil=xsecs[0].airfoil,
+            )
+            xsecs.insert(0, root_ext)
 
         name = str(comp.get("name") or comp.get("id") or "Wing")
 
@@ -360,8 +425,12 @@ class AeroSandboxEngine(AeroEngine):
             area *= 2.0
         return span, area
 
-    def _convert_fuselage(self, comp: dict[str, Any]) -> asb.Fuselage | None:
-        """Convert a fuselage component dictionary to AeroSandbox Fuselage."""
+    def _convert_fuselage(
+        self,
+        comp: dict[str, Any],
+        comp_by_id: dict[str, dict[str, Any]] | None = None,
+    ) -> asb.Fuselage | None:
+        """Convert a fuselage component dictionary to AeroSandbox Fuselage with 3D world positioning."""
         params = comp.get("parameters")
         params = params if isinstance(params, dict) else {}
         geometry = params.get("geometry")
@@ -371,13 +440,19 @@ class AeroSandboxEngine(AeroEngine):
         if not isinstance(segments, list) or not segments:
             return None
 
-        comp_transform = comp.get("transform")
-        comp_transform = comp_transform if isinstance(comp_transform, dict) else {}
-        pos = comp_transform.get("position")
-        pos = pos if isinstance(pos, dict) else {}
-        base_x = float(pos.get("x", 0.0)) / 1000.0
-        base_y = float(pos.get("y", 0.0)) / 1000.0
-        base_z = float(pos.get("z", 0.0)) / 1000.0
+        if comp_by_id:
+            base_pos, base_rot = self._resolve_world_transform(comp, comp_by_id)
+        else:
+            comp_transform = comp.get("transform")
+            comp_transform = comp_transform if isinstance(comp_transform, dict) else {}
+            pos = comp_transform.get("position")
+            pos = pos if isinstance(pos, dict) else {}
+            base_pos = np.array([
+                float(pos.get("x", 0.0)) / 1000.0,
+                float(pos.get("y", 0.0)) / 1000.0,
+                float(pos.get("z", 0.0)) / 1000.0,
+            ])
+            base_rot = np.eye(3)
 
         xsecs: list[asb.FuselageXSec] = []
         for seg in segments:
@@ -392,9 +467,12 @@ class AeroSandboxEngine(AeroEngine):
                 sec_prof = sec.get("profile")
                 sec_prof = sec_prof if isinstance(sec_prof, dict) else {}
 
-                x = float(sec_pos.get("x", 0.0)) / 1000.0 + base_x
-                y = float(sec_pos.get("y", 0.0)) / 1000.0 + base_y
-                z = float(sec_pos.get("z", 0.0)) / 1000.0 + base_z
+                raw_xyz = np.array([
+                    float(sec_pos.get("x", 0.0)) / 1000.0,
+                    float(sec_pos.get("y", 0.0)) / 1000.0,
+                    float(sec_pos.get("z", 0.0)) / 1000.0,
+                ])
+                xyz_c = base_rot @ raw_xyz + base_pos
 
                 p_type = str(sec_prof.get("type", "circle")).lower()
                 if p_type == "circle":
@@ -406,7 +484,7 @@ class AeroSandboxEngine(AeroEngine):
 
                 xsecs.append(
                     asb.FuselageXSec(
-                        xyz_c=[x, y, z],
+                        xyz_c=[float(xyz_c[0]), float(xyz_c[1]), float(xyz_c[2])],
                         width=max(w, 1e-4),
                         height=max(h, 1e-4),
                     )

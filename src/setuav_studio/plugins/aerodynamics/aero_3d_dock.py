@@ -542,6 +542,37 @@ class Aero3DDock(QWidget):
             except Exception:
                 pass
 
+    def _get_fuselage_envelope(self) -> list[tuple[float, float, float, float]]:
+        """Return list of (x, z_center, radius_y, radius_z) along fuselage length."""
+        envelopes = []
+        if self._airplane and hasattr(self._airplane, "fuselages"):
+            for f in self._airplane.fuselages:
+                for sec in f.xsecs:
+                    x = float(sec.xyz_c[0])
+                    z = float(sec.xyz_c[2])
+                    ry = float(sec.width) / 2.0 if hasattr(sec, "width") else (float(sec.radius) if hasattr(sec, "radius") else 0.06)
+                    rz = float(sec.height) / 2.0 if hasattr(sec, "height") else (float(sec.radius) if hasattr(sec, "radius") else 0.06)
+                    envelopes.append((x, z, max(ry, 0.01), max(rz, 0.01)))
+        return envelopes
+
+    @staticmethod
+    def _is_inside_fuselage(pt: np.ndarray, envelopes: list[tuple[float, float, float, float]]) -> bool:
+        if not envelopes:
+            return False
+        x, y, z = pt[0], pt[1], pt[2]
+        best_env = None
+        min_dx = float("inf")
+        for env in envelopes:
+            dx = abs(x - env[0])
+            if dx < min_dx:
+                min_dx = dx
+                best_env = env
+        if best_env is not None and min_dx < 0.35:
+            _, z_c, ry, rz = best_env
+            if (y / ry) ** 2 + ((z - z_c) / rz) ** 2 <= 1.05:
+                return True
+        return False
+
     def _add_wake_streamlines(self) -> None:
         if self._vlm_instance is None or not hasattr(self._vlm_instance, "streamlines") or not PYVISTA_AVAILABLE:
             return
@@ -551,17 +582,25 @@ class Aero3DDock(QWidget):
             if streamlines is None or len(streamlines) == 0:
                 return
 
+            envelopes = self._get_fuselage_envelope()
             n_lines = streamlines.shape[0]
             step = max(1, n_lines // 80)
             lines_list = []
 
             for i in range(0, n_lines, step):
                 pts = streamlines[i, :, :].T
-                if len(pts) >= 3:
-                    try:
-                        lines_list.append(pv.lines_from_points(pts))
-                    except Exception:
-                        pass
+                if len(pts) < 3:
+                    continue
+
+                # Exclude wake streamlines originating or passing inside fuselage volume
+                if envelopes:
+                    if self._is_inside_fuselage(pts[0], envelopes) or self._is_inside_fuselage(pts[1], envelopes):
+                        continue
+
+                try:
+                    lines_list.append(pv.lines_from_points(pts))
+                except Exception:
+                    pass
 
             if lines_list and self.plotter is not None:
                 combined = pv.MultiBlock(lines_list).combine()
@@ -585,12 +624,14 @@ class Aero3DDock(QWidget):
             y_min, y_max = np.min(all_pts[:, 1]), np.max(all_pts[:, 1])
             z_min, z_max = np.min(all_pts[:, 2]), np.max(all_pts[:, 2])
 
+            envelopes = self._get_fuselage_envelope()
+
             chord = x_max - x_min
             x_start = x_min - min(0.12 * chord, 0.06)
 
-            y_seeds = np.linspace(y_min * 0.9, y_max * 0.9, 10)
+            y_seeds = np.linspace(y_min * 0.9, y_max * 0.9, 12)
             z_center = (z_min + z_max) / 2
-            z_seeds = np.linspace(z_center - chord * 0.25, z_center + chord * 0.25, 7)
+            z_seeds = np.linspace(z_center - chord * 0.25, z_center + chord * 0.25, 8)
 
             lines_list = []
             n_steps = 50
@@ -598,10 +639,18 @@ class Aero3DDock(QWidget):
 
             for y in y_seeds:
                 for z in z_seeds:
+                    # Skip seeds directly inside fuselage projected upstream
+                    if envelopes and self._is_inside_fuselage(np.array([x_min, y, z]), envelopes):
+                        continue
+
                     cur = np.array([x_start, y, z])
                     pts = [cur.copy()]
                     for _ in range(n_steps):
                         try:
+                            # Stop streamline if it enters the fuselage solid boundary
+                            if envelopes and self._is_inside_fuselage(cur, envelopes):
+                                break
+
                             V = vlm.get_velocity_at_points(cur.reshape(1, -1))[0]
                             V_norm = np.linalg.norm(V)
                             if V_norm < 1e-5:
