@@ -167,8 +167,38 @@ class SingleChartWidget(QWidget):
             axis_y.setRange(min(all_y) - pad_y, max(all_y) + pad_y)
 
 
+class LiftChartDock(SingleChartWidget):
+    """Dock widget for Lift Curve (CL vs α)."""
+    def __init__(self, api: StudioAPI | None = None, parent: QWidget | None = None) -> None:
+        super().__init__("Lift Curve (CL vs α)", parent)
+        self.setObjectName("aerodynamics.chart_lift_widget")
+
+
+class PolarChartDock(SingleChartWidget):
+    """Dock widget for Drag Polar (CL vs CD)."""
+    def __init__(self, api: StudioAPI | None = None, parent: QWidget | None = None) -> None:
+        super().__init__("Drag Polar (CL vs CD)", parent)
+        self.setObjectName("aerodynamics.chart_polar_widget")
+
+
+class MomentChartDock(SingleChartWidget):
+    """Dock widget for Pitching Moment (Cm vs α)."""
+    def __init__(self, api: StudioAPI | None = None, parent: QWidget | None = None) -> None:
+        super().__init__("Pitching Moment (Cm vs α)", parent)
+        self.setObjectName("aerodynamics.chart_moment_widget")
+
+
+class LdChartDock(SingleChartWidget):
+    """Dock widget for Aerodynamic Efficiency (L/D vs α)."""
+    def __init__(self, api: StudioAPI | None = None, parent: QWidget | None = None) -> None:
+        super().__init__("Aerodynamic Efficiency (L/D vs α)", parent)
+        self.setObjectName("aerodynamics.chart_ld_widget")
+
+
+from PySide6.QtCore import QPointF, QSettings, Qt
+
 class AeroChartsDock(QWidget):
-    """Unified dock hosting all 4 aerodynamic charts in a 2x2 grid."""
+    """Unified dock hosting all 4 aerodynamic charts in a 2x2 grid with persistent resizable splitters."""
 
     def __init__(self, api: StudioAPI | None = None, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -180,28 +210,72 @@ class AeroChartsDock(QWidget):
         main_layout.setSpacing(2)
 
         # 4 Sub-charts with descriptive compact headers
-        self.chart_lift = SingleChartWidget("Lift Curve (CL vs α)")
-        self.chart_polar = SingleChartWidget("Drag Polar (CL vs CD)")
-        self.chart_moment = SingleChartWidget("Pitching Moment (Cm vs α)")
-        self.chart_ld = SingleChartWidget("Aerodynamic Efficiency (L/D vs α)")
+        self.chart_lift = SingleChartWidget("Lift Curve (CL vs α)", self)
+        self.chart_polar = SingleChartWidget("Drag Polar (CL vs CD)", self)
+        self.chart_moment = SingleChartWidget("Pitching Moment (Cm vs α)", self)
+        self.chart_ld = SingleChartWidget("Aerodynamic Efficiency (L/D vs α)", self)
+
+        splitter_style = """
+            QSplitter::handle {
+                background-color: #262626;
+            }
+            QSplitter::handle:hover {
+                background-color: #4a4a4a;
+            }
+            QSplitter::handle:pressed {
+                background-color: #6a6a6a;
+            }
+        """
 
         # Main Vertical Splitter
         self.main_splitter = QSplitter(Qt.Orientation.Vertical, self)
+        self.main_splitter.setChildrenCollapsible(False)
+        self.main_splitter.setHandleWidth(4)
+        self.main_splitter.setStyleSheet(splitter_style)
 
         # Top Row Horizontal Splitter (Lift | Polar)
         self.top_splitter = QSplitter(Qt.Orientation.Horizontal, self.main_splitter)
+        self.top_splitter.setChildrenCollapsible(False)
+        self.top_splitter.setHandleWidth(4)
+        self.top_splitter.setStyleSheet(splitter_style)
         self.top_splitter.addWidget(self.chart_lift)
         self.top_splitter.addWidget(self.chart_polar)
 
         # Bottom Row Horizontal Splitter (Moment | Efficiency)
         self.bottom_splitter = QSplitter(Qt.Orientation.Horizontal, self.main_splitter)
+        self.bottom_splitter.setChildrenCollapsible(False)
+        self.bottom_splitter.setHandleWidth(4)
+        self.bottom_splitter.setStyleSheet(splitter_style)
         self.bottom_splitter.addWidget(self.chart_moment)
         self.bottom_splitter.addWidget(self.chart_ld)
 
         self.main_splitter.addWidget(self.top_splitter)
         self.main_splitter.addWidget(self.bottom_splitter)
 
+        self.main_splitter.splitterMoved.connect(self._save_splitter_state)
+        self.top_splitter.splitterMoved.connect(self._save_splitter_state)
+        self.bottom_splitter.splitterMoved.connect(self._save_splitter_state)
+
         main_layout.addWidget(self.main_splitter)
+        self._restore_splitter_state()
+
+    def _save_splitter_state(self) -> None:
+        settings = QSettings("Setware", "SetuavStudio")
+        settings.setValue("aero_charts/main_splitter", self.main_splitter.saveState())
+        settings.setValue("aero_charts/top_splitter", self.top_splitter.saveState())
+        settings.setValue("aero_charts/bottom_splitter", self.bottom_splitter.saveState())
+
+    def _restore_splitter_state(self) -> None:
+        settings = QSettings("Setware", "SetuavStudio")
+        ms = settings.value("aero_charts/main_splitter")
+        if ms:
+            self.main_splitter.restoreState(ms)
+        ts = settings.value("aero_charts/top_splitter")
+        if ts:
+            self.top_splitter.restoreState(ts)
+        bs = settings.value("aero_charts/bottom_splitter")
+        if bs:
+            self.bottom_splitter.restoreState(bs)
 
     def clear_charts(self) -> None:
         self.chart_lift.clear()

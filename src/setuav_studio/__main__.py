@@ -60,6 +60,7 @@ def main() -> int:
     app = QApplication([sys.argv[0]])
     app.setOrganizationName("Setware")
     app.setApplicationName("Setuav Studio")
+    app.setQuitOnLastWindowClosed(True)
     settings = StudioSettings.load()
     apply_theme(app)
 

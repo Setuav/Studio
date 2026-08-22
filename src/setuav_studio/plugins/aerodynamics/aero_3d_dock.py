@@ -13,13 +13,14 @@ from PySide6.QtWidgets import (
     QLabel,
     QPushButton,
     QSlider,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
 from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.ui.icons import get_icon
-from setuav_studio.ui.theme import tokens
+from setuav_studio.ui.theme import accent_color, rgba, tokens
 from .engine.base import AeroResult
 
 try:
@@ -69,15 +70,13 @@ class Aero3DDock(QWidget):
         self.main_layout.setContentsMargins(2, 2, 2, 2)
         self.main_layout.setSpacing(2)
 
+        tok = tokens()
+        acc = accent_color()
+
         # 1. Compact Control Toolbar
         toolbar = QWidget(self)
-        toolbar.setStyleSheet(
-            f"background-color: {self._tokens.get('surface', '#1e1e1e')};"
-            f"border-bottom: 1px solid {self._tokens.get('border', '#333333')};"
-            f"padding: 2px 4px;"
-        )
         tb_layout = QHBoxLayout(toolbar)
-        tb_layout.setContentsMargins(4, 2, 4, 2)
+        tb_layout.setContentsMargins(4, 4, 4, 4)
         tb_layout.setSpacing(6)
 
         # Visibility Toggles
@@ -113,52 +112,9 @@ class Aero3DDock(QWidget):
 
         # Scalar Colormap Selector
         lbl_color = QLabel("Color:", self)
-        lbl_color.setStyleSheet("color: #aaaaaa; font-size: 11px;")
         tb_layout.addWidget(lbl_color)
 
         self.combo_scalar = QComboBox(self)
-        self.combo_scalar.setStyleSheet(
-            """
-            QComboBox {
-                background-color: #26262e;
-                color: #e0e0e0;
-                border: 1px solid #3e3e4a;
-                border-radius: 3px;
-                padding: 2px 6px;
-                font-size: 11px;
-                min-width: 110px;
-            }
-            QComboBox:hover {
-                border-color: #4da6ff;
-            }
-            QComboBox::drop-down {
-                border: none;
-                width: 14px;
-            }
-            QComboBox QAbstractItemView {
-                background-color: #1e1e24;
-                color: #e0e0e0;
-                border: 1px solid #3e3e4a;
-                selection-background-color: #385080;
-                selection-color: #ffffff;
-                outline: none;
-                padding: 2px;
-            }
-            QComboBox QAbstractItemView::item {
-                min-height: 22px;
-                padding: 2px 6px;
-                color: #e0e0e0;
-            }
-            QComboBox QAbstractItemView::item:hover {
-                background-color: #2b3d63;
-                color: #ffffff;
-            }
-            QComboBox QAbstractItemView::item:selected {
-                background-color: #385080;
-                color: #ffffff;
-            }
-            """
-        )
         self.combo_scalar.addItem("Pressure (Cp)", "cp")
         self.combo_scalar.addItem("Vortex Strength (Γ)", "vortex_strength")
         self.combo_scalar.addItem("Local Lift (L')", "local_lift")
@@ -166,44 +122,17 @@ class Aero3DDock(QWidget):
         self.combo_scalar.currentIndexChanged.connect(self._on_scalar_changed)
         tb_layout.addWidget(self.combo_scalar)
 
-        # Live Alpha Slider (Neutral styling, no accent coloring)
+        # Live Alpha Slider
         lbl_alpha_prefix = QLabel("α:", self)
-        lbl_alpha_prefix.setStyleSheet("color: #888888; font-size: 11px;")
         tb_layout.addWidget(lbl_alpha_prefix)
 
         self.lbl_alpha_val = QLabel("4.0°", self)
-        self.lbl_alpha_val.setStyleSheet("color: #c0c0c8; font-size: 11px; min-width: 32px;")
         tb_layout.addWidget(self.lbl_alpha_val)
 
         self.slider_alpha = QSlider(Qt.Orientation.Horizontal, self)
         self.slider_alpha.setRange(-40, 200)  # -4.0 to 20.0 deg
         self.slider_alpha.setValue(40)
         self.slider_alpha.setFixedWidth(100)
-        self.slider_alpha.setStyleSheet(
-            """
-            QSlider::groove:horizontal {
-                border: 1px solid #383842;
-                height: 4px;
-                background: #24242a;
-                border-radius: 2px;
-            }
-            QSlider::sub-page:horizontal {
-                background: #50505c;
-                border-radius: 2px;
-            }
-            QSlider::handle:horizontal {
-                background: #787884;
-                border: 1px solid #4a4a56;
-                width: 10px;
-                margin-top: -3px;
-                margin-bottom: -3px;
-                border-radius: 5px;
-            }
-            QSlider::handle:horizontal:hover {
-                background: #9898a8;
-            }
-            """
-        )
         self.slider_alpha.setToolTip("Live Angle of Attack Adjustment (α)")
         self.slider_alpha.valueChanged.connect(self._on_alpha_slider_changed)
         self.slider_alpha.sliderReleased.connect(self._on_alpha_slider_released)
@@ -227,8 +156,15 @@ class Aero3DDock(QWidget):
         # 2. Placeholder initially (Lazy load PyVista on showEvent)
         self._placeholder = QLabel("Aero 3D View Ready", self)
         self._placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._placeholder.setStyleSheet("color: #888888; font-size: 13px;")
         self.main_layout.addWidget(self._placeholder, 1)
+
+    def _create_cam_button(self, icon_name: str, tooltip: str, callback: Any) -> QToolButton:
+        btn = QToolButton(self)
+        btn.setIcon(get_icon(icon_name))
+        btn.setToolTip(tooltip)
+        btn.setAutoRaise(True)
+        btn.clicked.connect(callback)
+        return btn
 
     def showEvent(self, event: Any) -> None:
         super().showEvent(event)
@@ -239,13 +175,17 @@ class Aero3DDock(QWidget):
             return
 
         try:
-            pv.global_theme.background = "#141416"
-            pv.global_theme.font.color = "#e0e0e0"
+            tok = tokens()
+            bg_color = tok.get("surface", "#181818")
+            text_color = tok.get("text", "#cccccc")
+
+            pv.global_theme.background = bg_color
+            pv.global_theme.font.color = text_color
 
             self.plotter = QtInteractor(self)
-            self.plotter.set_background("#141416")
+            self.plotter.set_background(bg_color)
             self.plotter.add_axes(
-                color="#888888",
+                color=tok.get("border_strong", "#444444"),
                 line_width=2,
                 labels_off=False,
             )
@@ -258,18 +198,6 @@ class Aero3DDock(QWidget):
             self._set_camera_view("iso")
         except Exception as err:
             print(f"[Aero3DDock] Lazy plotter init error: {err}")
-
-    def _create_cam_button(self, icon_name: str, tooltip: str, callback: Any) -> QPushButton:
-        btn = QPushButton(self)
-        btn.setIcon(get_icon(icon_name))
-        btn.setToolTip(tooltip)
-        btn.setFixedSize(26, 24)
-        btn.setStyleSheet(
-            "QPushButton { background: #2a2a30; border: 1px solid #3d3d48; border-radius: 3px; }"
-            "QPushButton:hover { background: #3a3a44; border-color: #555566; }"
-        )
-        btn.clicked.connect(callback)
-        return btn
 
     def set_airplane_context(self, airplane: Any, velocity: float = 20.0, alpha: float = 4.0) -> None:
         """Set airplane geometry and trigger initial VLM snapshot."""
@@ -725,3 +653,12 @@ class Aero3DDock(QWidget):
     def _on_alpha_slider_released(self) -> None:
         alpha = self.slider_alpha.value() / 10.0
         self._recompute_vlm(alpha)
+
+    def closeEvent(self, event: Any) -> None:
+        if self.plotter is not None:
+            try:
+                self.plotter.close()
+            except Exception:
+                pass
+            self.plotter = None
+        super().closeEvent(event)

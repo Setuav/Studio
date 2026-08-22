@@ -255,14 +255,6 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
 
         layout.addLayout(btn_layout)
 
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setFixedHeight(6)
-        self.progress_bar.setTextVisible(False)
-        self.progress_bar.setRange(0, 100)
-        self.progress_bar.setValue(0)
-        self.progress_bar.setVisible(False)
-        layout.addWidget(self.progress_bar)
-
     def run_analysis(self) -> None:
         if self._is_running:
             return
@@ -315,8 +307,7 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
 
         self._is_running = True
         self.btn_run.setEnabled(False)
-        self.progress_bar.setValue(10)
-        self.progress_bar.setVisible(True)
+        self._api.report_progress(1, 100, "Aerodynamics")
         self._api.show_status("Running aerodynamic analysis in background...", "info")
 
         worker = AnalysisWorker(
@@ -332,16 +323,13 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         QThreadPool.globalInstance().start(worker)
 
     def _on_analysis_progress(self, current: int, total: int, msg: str) -> None:
-        if total > 0:
-            pct = int((current / total) * 100)
-            self.progress_bar.setValue(pct)
-        if msg:
-            self._api.show_status(msg, "info")
+        label = f"Aerodynamics ({msg})" if msg else "Aerodynamics"
+        self._api.report_progress(current, total, label)
 
     def _on_analysis_finished(self, result: AeroResult) -> None:
         self._is_running = False
         self.btn_run.setEnabled(True)
-        self.progress_bar.setVisible(False)
+        self._api.clear_progress()
         self._api.show_status(
             f"Aerodynamic analysis complete: CL_max={result.cl_max:.2f} @ {result.cl_max_alpha:.1f}°, "
             f"L/D_max={result.ld_max:.1f}",
@@ -354,7 +342,7 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
     def _on_analysis_error(self, err_msg: str) -> None:
         self._is_running = False
         self.btn_run.setEnabled(True)
-        self.progress_bar.setVisible(False)
+        self._api.clear_progress()
         self._api.show_status(f"Aerodynamic analysis failed: {err_msg}", "error")
         QMessageBox.critical(
             self,

@@ -1,15 +1,16 @@
 """Propulsion Analysis Results dock widget."""
 
-from __future__ import annotations
-
+import csv
 from typing import Any
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QBrush, QColor
+from PySide6.QtGui import QBrush, QColor, QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QFileDialog,
     QHeaderView,
     QHBoxLayout,
     QLabel,
+    QPushButton,
     QScrollArea,
     QSizePolicy,
     QTabWidget,
@@ -20,7 +21,6 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.ui.theme import tokens
-
 from setuav_studio.ui.icons import get_icon
 from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.ui.property_tables import PropertyTableMixin
@@ -39,6 +39,7 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
         self.setObjectName("propulsion.results_widget")
         self._api = api
         self._tokens = tokens()
+        self._last_data: dict[str, Any] | None = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
@@ -68,7 +69,7 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
 
         self.tabs.addTab(summary_tab, get_icon("fa6s.chart-simple"), "Summary")
 
-        # Tab 2: Detailed Sweep Table (Inspired by Setuav MotorDataTableWidget)
+        # Tab 2: Detailed Sweep Table (Styled like Aero Polar Table)
         detail_tab = QWidget()
         detail_layout = QVBoxLayout(detail_tab)
         detail_layout.setContentsMargins(4, 4, 4, 4)
@@ -79,7 +80,21 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
 
         self.tabs.addTab(detail_tab, get_icon("fa6s.table"), "Detailed Table")
 
-        layout.addWidget(self.tabs)
+        layout.addWidget(self.tabs, 1)
+
+        # Bottom Bar with Export CSV Button (Bottom-Right)
+        bottom_bar = QHBoxLayout()
+        bottom_bar.setContentsMargins(4, 2, 4, 2)
+        bottom_bar.addStretch(1)
+
+        self.btn_export_csv = QPushButton(" Export CSV", self)
+        self.btn_export_csv.setIcon(get_icon("fa6s.file-csv"))
+        self.btn_export_csv.setToolTip("Export propulsion summary and detailed sweep table to CSV")
+        self.btn_export_csv.clicked.connect(self._export_csv)
+        self.btn_export_csv.setEnabled(False)
+        bottom_bar.addWidget(self.btn_export_csv)
+
+        layout.addLayout(bottom_bar)
         self.clear_results()
 
     def _create_detail_table(self) -> QTableWidget:
@@ -101,28 +116,30 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
         table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         table.verticalHeader().setVisible(False)
-        table.verticalHeader().setDefaultSectionSize(22)
-        table.horizontalHeader().setFixedHeight(24)
-        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        table.horizontalHeader().setStretchLastSection(True)
+        table.verticalHeader().setDefaultSectionSize(20)
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         table.setAlternatingRowColors(True)
+        font = QFont(table.font().family())
+        font.setPointSizeF(8.5)
+        table.setFont(font)
+        table.horizontalHeader().setFont(font)
         table.setStyleSheet(f"""
             QTableWidget {{
-                background-color: {self._tokens["elevated"]};
-                alternate-background-color: {self._tokens["row_alt"]};
-                gridline-color: {self._tokens["grid"]};
-                font-size: 11.5px;
-                border: 1px solid {self._tokens["border"]};
+                background-color: {self._tokens.get("elevated", "#141414")};
+                alternate-background-color: {self._tokens.get("row_alt", "#1a1a1a")};
+                gridline-color: {self._tokens.get("grid", "#262626")};
+                font-size: 8.5pt;
+                border: 1px solid {self._tokens.get("border", "#282828")};
                 border-radius: 4px;
             }}
             QHeaderView::section {{
-                background-color: {self._tokens["surface_alt"]};
+                background-color: {self._tokens.get("surface_alt", "#202020")};
                 color: #b0b0b0;
-                padding: 4px 6px;
+                padding: 3px 4px;
                 border: none;
-                border-bottom: 1px solid {self._tokens["border_strong"]};
+                border-bottom: 1px solid {self._tokens.get("border_strong", "#333333")};
                 font-weight: 600;
-                font-size: 11px;
+                font-size: 8.5pt;
             }}
         """)
         return table
@@ -256,9 +273,81 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
                     if it:
                         it.setBackground(bg)
 
+        self._last_data = data
+        if hasattr(self, "btn_export_csv"):
+            self.btn_export_csv.setEnabled(bool(sweep_rows))
+
     def clear_results(self) -> None:
+        self._last_data = None
         for key in ["static_thrust", "peak_power", "peak_current", "max_rpm", "cruise_thrust", "cruise_efficiency", "endurance"]:
             self._set_property_value(self.summary_table, key, "-", editable=False)
         if hasattr(self, "detail_table"):
             self.detail_table.setRowCount(0)
+        if hasattr(self, "btn_export_csv"):
+            self.btn_export_csv.setEnabled(False)
+
+    def _export_csv(self) -> None:
+        if not self._last_data:
+            return
+
+        is_summary = (self.tabs.currentIndex() == 0)
+        default_name = "propulsion_summary.csv" if is_summary else "propulsion_sweep.csv"
+        dialog_title = "Export Propulsion Summary to CSV" if is_summary else "Export Propulsion Sweep Table to CSV"
+
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            dialog_title,
+            default_name,
+            "CSV Files (*.csv);;All Files (*)",
+        )
+        if not file_path:
+            return
+
+        try:
+            with open(file_path, "w", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+
+                if is_summary:
+                    writer.writerow(["Metric", "Value"])
+                    for row in range(self.summary_table.rowCount()):
+                        k_item = self.summary_table.item(row, 0)
+                        v_item = self.summary_table.item(row, 1)
+                        if k_item and v_item:
+                            writer.writerow([k_item.text(), v_item.text()])
+                else:
+                    headers = [
+                        "Operating_Point",
+                        "RPM",
+                        "Thrust_N",
+                        "Power_W",
+                        "Current_A",
+                        "Total_Efficiency",
+                        "Prop_Efficiency",
+                        "Motor_Efficiency",
+                        "Advance_Ratio_J",
+                        "Status",
+                    ]
+                    writer.writerow(headers)
+                    sweep_rows: list[dict[str, Any]] = self._last_data.get("sweep_table", [])
+                    for row in sweep_rows:
+                        x_val = row.get("x_val", "")
+                        x_lbl = row.get("x_label", "")
+                        unit = "%" if "Throttle" in x_lbl else "m/s"
+                        op_text = f"{x_val:.1f} {unit}" if unit == "m/s" else f"{x_val:.0f}%"
+                        writer.writerow([
+                            op_text,
+                            row.get("rpm", ""),
+                            f"{row.get('thrust', 0.0):.4f}",
+                            f"{row.get('power', 0.0):.2f}",
+                            f"{row.get('current', 0.0):.3f}",
+                            f"{row.get('eta_sys', 0.0):.4f}",
+                            f"{row.get('eta_p', 0.0):.4f}",
+                            f"{row.get('eta_m', 0.0):.4f}",
+                            f"{row.get('j', 0.0):.4f}",
+                            "Safe" if row.get("feasible", True) else "Overload",
+                        ])
+
+            self._api.show_status(f"Exported {default_name} to {file_path}", "success")
+        except Exception as err:
+            self._api.show_status(f"CSV Export failed: {err}", "error")
 

@@ -563,6 +563,10 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
         charts_dock = win.findChild(QWidget, "propulsion.charts_widget") or next(
             (d for d in win.findChildren(QWidget) if d.__class__.__name__ == "PropulsionChartsDock"), None
         )
+        chart_thrust = win.findChild(QWidget, "propulsion.chart_thrust_widget")
+        chart_electrical = win.findChild(QWidget, "propulsion.chart_electrical_widget")
+        chart_efficiency = win.findChild(QWidget, "propulsion.chart_efficiency_widget")
+        chart_power_loading = win.findChild(QWidget, "propulsion.chart_power_loading_widget")
 
         return {
             "mode": mode,
@@ -578,6 +582,10 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
             "pitch_in": pitch_in,
             "results_dock": results_dock,
             "charts_dock": charts_dock,
+            "chart_thrust": chart_thrust,
+            "chart_electrical": chart_electrical,
+            "chart_efficiency": chart_efficiency,
+            "chart_power_loading": chart_power_loading,
         }
 
     @staticmethod
@@ -598,11 +606,12 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
             pts = []
             for j_i in range(30):
                 j_val = j_i * (j_max / 29.0)
-                ct = max(0.0, 0.095 * (1.0 - (j_val / max(j_max, 1e-3))**1.4))
-                cp = max(0.005, 0.039 * (1.0 - 0.70 * (j_val / max(j_max, 1e-3))**1.8))
-                pts.append(PropellerDataPoint(j=float(j_val), ct=float(ct), cp=float(cp)))
+                ct_val = max(0.12 - 0.10 * (j_val / max(p_d, 0.1)), 0.0)
+                cp_val = max(0.06 - 0.03 * (j_val / max(p_d, 0.1)), 0.005)
+                eta_val = (ct_val * j_val / cp_val) if cp_val > 0 else 0.0
+                pts.append(PropellerDataPoint(advance_ratio=j_val, thrust_coeff=ct_val, power_coeff=cp_val, efficiency=eta_val))
             prop_data[r] = pts
-        return PropellerEntry(metadata=prop_meta, data_by_rpm=prop_data)
+        return PropellerEntry(metadata=prop_meta, data=prop_data)
 
     def _solve_rpm(self, context: dict[str, Any], v_mps: float, throttle_val: float) -> float:
         motor_spec = context["motor_spec"]
@@ -685,10 +694,20 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
         res: dict[str, Any],
         clear_charts: bool = False,
     ) -> None:
-        charts_dock = context["charts_dock"]
-        results_dock = context["results_dock"]
-        if clear_charts and charts_dock and hasattr(charts_dock, "clear_charts"):
-            charts_dock.clear_charts()
+        charts_dock = context.get("charts_dock")
+        results_dock = context.get("results_dock")
+        chart_thrust = context.get("chart_thrust")
+        chart_electrical = context.get("chart_electrical")
+        chart_efficiency = context.get("chart_efficiency")
+        chart_power_loading = context.get("chart_power_loading")
+
+        if clear_charts:
+            if charts_dock and hasattr(charts_dock, "clear_charts"):
+                charts_dock.clear_charts()
+            for cd in (chart_thrust, chart_electrical, chart_efficiency, chart_power_loading):
+                if cd and hasattr(cd, "clear"):
+                    cd.clear()
+
         if charts_dock and hasattr(charts_dock, "plot_sweep_results"):
             charts_dock.plot_sweep_results(
                 x_label=x_label,
@@ -701,8 +720,19 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
                 eta_prop=eta_props,
                 eta_motor=eta_mots,
             )
+
+        if chart_thrust and hasattr(chart_thrust, "plot_data"):
+            chart_thrust.plot_data(x_label, x_vals, thrusts, powers)
+        if chart_electrical and hasattr(chart_electrical, "plot_data"):
+            chart_electrical.plot_data(x_label, x_vals, currents, rpms)
+        if chart_efficiency and hasattr(chart_efficiency, "plot_data"):
+            chart_efficiency.plot_data(x_label, x_vals, eta_tots, eta_props, eta_mots)
+        if chart_power_loading and hasattr(chart_power_loading, "plot_data"):
+            chart_power_loading.plot_data(x_label, x_vals, thrusts, powers)
+
         if results_dock and hasattr(results_dock, "set_results"):
             results_dock.set_results(res)
+        self._api.clear_progress()
 
     def run_sweep(self, context: dict[str, Any]) -> dict[str, Any]:
         params = context["params"]

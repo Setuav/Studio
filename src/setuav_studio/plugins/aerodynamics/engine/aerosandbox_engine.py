@@ -57,6 +57,7 @@ class AeroSandboxEngine(AeroEngine):
         condition: FlightCondition,
         method: AnalysisMethod = AnalysisMethod.AERO_BUILDUP,
         settings: dict[str, Any] | None = None,
+        progress_callback: Any | None = None,
     ) -> AeroResult:
         if not HAS_AEROSANDBOX:
             raise RuntimeError(
@@ -94,8 +95,12 @@ class AeroSandboxEngine(AeroEngine):
         oswald_list: list[float] = []
 
         ref_area = area if area > 0 else 1.0
+        total_steps = len(alphas)
 
-        for alpha in alphas:
+        for idx, alpha in enumerate(alphas, start=1):
+            if progress_callback:
+                progress_callback(idx, total_steps, f"α={alpha:.1f}°")
+
             op = asb.OperatingPoint(
                 atmosphere=atmosphere,
                 velocity=condition.velocity,

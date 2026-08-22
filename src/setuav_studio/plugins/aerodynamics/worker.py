@@ -41,14 +41,18 @@ class AnalysisWorker(QRunnable):
     @Slot()
     def run(self) -> None:
         try:
-            self.signals.progress.emit(0, 100, f"Initializing {self._engine.name} solver...")
+            def on_step(curr: int, total: int, msg: str) -> None:
+                self.signals.progress.emit(curr, total, msg)
+
+            self.signals.progress.emit(0, 100, "Starting solver...")
             result = self._engine.analyze(
                 components=self._components,
                 condition=self._condition,
                 method=self._method,
                 settings=self._settings,
+                progress_callback=on_step,
             )
-            self.signals.progress.emit(100, 100, "Analysis complete.")
+            self.signals.progress.emit(100, 100, "Complete")
             self.signals.finished.emit(result)
         except Exception as exc:
             logger.exception("Aerodynamic analysis failed: %s", exc)

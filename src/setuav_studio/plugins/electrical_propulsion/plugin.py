@@ -13,7 +13,13 @@ from setuav_studio.plugin_system import (
     WorkspaceContribution,
 )
 from .catalog_dialog import ComponentCatalogDialog
-from .charts_dock import PropulsionChartsDock
+from .charts_dock import (
+    PropulsionChartsDock,
+    ThrustPowerChartDock,
+    ElectricalChartDock,
+    EfficiencyChartDock,
+    PowerLoadingChartDock,
+)
 from .controls_dock import PropulsionControlsDock
 from .results_dock import PropulsionResultsDock
 from .editors.assembly import ElectricPropulsionSystemEditor
@@ -87,18 +93,6 @@ class ElectricalPropulsionPlugin:
             )
         )
 
-        # Register Propulsion Results Dock (Right dock in Propulsion workspace)
-        api.add_panel(
-            PanelContribution(
-                id="propulsion.results_dock",
-                title="Propulsion Results",
-                factory=lambda: PropulsionResultsDock(api),
-                workspace_id="studio.workspace.propulsion",
-                area=Qt.DockWidgetArea.RightDockWidgetArea,
-                icon="fa6s.table-list",
-            )
-        )
-
         # Register Propulsion Charts Dock (Center/Right dock in Propulsion workspace)
         api.add_panel(
             PanelContribution(
@@ -108,6 +102,18 @@ class ElectricalPropulsionPlugin:
                 workspace_id="studio.workspace.propulsion",
                 area=Qt.DockWidgetArea.RightDockWidgetArea,
                 icon="fa6s.chart-line",
+            )
+        )
+
+        # Register Propulsion Results Dock (Right dock in Propulsion workspace)
+        api.add_panel(
+            PanelContribution(
+                id="propulsion.results_dock",
+                title="Propulsion Results",
+                factory=lambda: PropulsionResultsDock(api),
+                workspace_id="studio.workspace.propulsion",
+                area=Qt.DockWidgetArea.RightDockWidgetArea,
+                icon="fa6s.table-list",
             )
         )
 
@@ -124,3 +130,9 @@ class ElectricalPropulsionPlugin:
                 icon="fa6s.database",
             )
         )
+
+    def deactivate(self, api: StudioAPI) -> None:
+        api.remove_panel("propulsion.controls_dock")
+        api.remove_panel("propulsion.results_dock")
+        api.remove_panel("propulsion.charts_dock")
+        api.remove_workspace("studio.workspace.propulsion")

@@ -4,6 +4,7 @@ from __future__ import annotations
 import csv
 from typing import Any
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QFileDialog,
@@ -78,21 +79,26 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
         detail_layout.setContentsMargins(4, 4, 4, 4)
         detail_layout.setSpacing(4)
 
-        btn_layout = QHBoxLayout()
-        btn_layout.addStretch(1)
-        self.btn_export_csv = QPushButton(" Export CSV")
-        self.btn_export_csv.setIcon(get_icon("fa6s.file-csv"))
-        self.btn_export_csv.clicked.connect(self._export_csv)
-        self.btn_export_csv.setEnabled(False)
-        btn_layout.addWidget(self.btn_export_csv)
-        detail_layout.addLayout(btn_layout)
-
         self.detail_table = self._create_detail_table()
         detail_layout.addWidget(self.detail_table)
 
         self.tabs.addTab(detail_tab, get_icon("fa6s.table"), "Polar Table")
 
-        layout.addWidget(self.tabs)
+        layout.addWidget(self.tabs, 1)
+
+        # Bottom Bar with Export CSV Button (Bottom-Right)
+        bottom_bar = QHBoxLayout()
+        bottom_bar.setContentsMargins(4, 2, 4, 2)
+        bottom_bar.addStretch(1)
+
+        self.btn_export_csv = QPushButton(" Export CSV", self)
+        self.btn_export_csv.setIcon(get_icon("fa6s.file-csv"))
+        self.btn_export_csv.setToolTip("Export aerodynamic summary and polar table to CSV")
+        self.btn_export_csv.clicked.connect(self._export_csv)
+        self.btn_export_csv.setEnabled(False)
+        bottom_bar.addWidget(self.btn_export_csv)
+
+        layout.addLayout(bottom_bar)
         self.clear_results()
 
     def _create_detail_table(self) -> QTableWidget:
@@ -108,10 +114,35 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
         table = QTableWidget(0, len(headers))
         table.setHorizontalHeaderLabels(headers)
         table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         table.setAlternatingRowColors(True)
         table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        table.verticalHeader().setDefaultSectionSize(24)
+        table.verticalHeader().setDefaultSectionSize(20)
+        table.verticalHeader().setVisible(False)
+        font = QFont(table.font().family())
+        font.setPointSizeF(8.5)
+        table.setFont(font)
+        table.horizontalHeader().setFont(font)
+        table.setStyleSheet(f"""
+            QTableWidget {{
+                background-color: {self._tokens.get("elevated", "#141414")};
+                alternate-background-color: {self._tokens.get("row_alt", "#1a1a1a")};
+                gridline-color: {self._tokens.get("grid", "#262626")};
+                font-size: 8.5pt;
+                border: 1px solid {self._tokens.get("border", "#282828")};
+                border-radius: 4px;
+            }}
+            QHeaderView::section {{
+                background-color: {self._tokens.get("surface_alt", "#202020")};
+                color: #b0b0b0;
+                padding: 3px 4px;
+                border: none;
+                border-bottom: 1px solid {self._tokens.get("border_strong", "#333333")};
+                font-weight: 600;
+                font-size: 8.5pt;
+            }}
+        """)
         return table
 
     def clear_results(self) -> None:
@@ -164,28 +195,56 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
         self.btn_export_csv.setEnabled(len(points) > 0)
 
     def _export_csv(self) -> None:
-        if not self._current_result or not self._current_result.polar_points:
+        if not self._current_result:
             return
+
+        is_summary = (self.tabs.currentIndex() == 0)
+        default_name = "aerodynamic_summary.csv" if is_summary else "aerodynamic_polar.csv"
+        dialog_title = "Export Aerodynamic Summary to CSV" if is_summary else "Export Aerodynamic Polar Table to CSV"
+
         path, _ = QFileDialog.getSaveFileName(
             self,
-            "Export Polar Data CSV",
-            "aerodynamic_polar.csv",
-            "CSV Files (*.csv)",
+            dialog_title,
+            default_name,
+            "CSV Files (*.csv);;All Files (*)",
         )
         if not path:
             return
 
-        with open(path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow(["Alpha_deg", "CL", "CD", "CD_ind", "CD_prof", "Cm", "L_over_D"])
-            for pt in self._current_result.polar_points:
-                writer.writerow([
-                    f"{pt.alpha:.4f}",
-                    f"{pt.cl:.6f}",
-                    f"{pt.cd:.6f}",
-                    f"{pt.cd_induced:.6f}",
-                    f"{pt.cd_profile:.6f}",
-                    f"{pt.cm:.6f}",
-                    f"{pt.cl_over_cd:.4f}",
-                ])
-        self._api.show_status(f"Exported polar data to {path}", "success")
+        try:
+            with open(path, "w", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+
+                if is_summary:
+                    writer.writerow(["Metric", "Value"])
+                    for row in range(self.summary_table.rowCount()):
+                        k_item = self.summary_table.item(row, 0)
+                        v_item = self.summary_table.item(row, 1)
+                        if k_item and v_item:
+                            writer.writerow([k_item.text(), v_item.text()])
+                else:
+                    headers = [
+                        "AoA_deg",
+                        "CL",
+                        "CD",
+                        "CD_ind",
+                        "CD_prof",
+                        "Cm",
+                        "L_over_D",
+                    ]
+                    writer.writerow(headers)
+
+                    for pt in self._current_result.polar_points:
+                        writer.writerow([
+                            f"{pt.alpha:.4f}",
+                            f"{pt.cl:.6f}",
+                            f"{pt.cd:.6f}",
+                            f"{pt.cd_induced:.6f}",
+                            f"{pt.cd_profile:.6f}",
+                            f"{pt.cm:.6f}",
+                            f"{pt.cl_over_cd:.4f}",
+                        ])
+
+            self._api.show_status(f"Exported {default_name} to {path}", "success")
+        except Exception as err:
+            self._api.show_status(f"CSV Export failed: {err}", "error")

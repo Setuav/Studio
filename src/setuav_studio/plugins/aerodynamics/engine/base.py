@@ -114,6 +114,7 @@ class AeroEngine(ABC):
         condition: FlightCondition,
         method: AnalysisMethod = AnalysisMethod.AERO_BUILDUP,
         settings: dict[str, Any] | None = None,
+        progress_callback: Any | None = None,
     ) -> AeroResult:
         """Run aerodynamic analysis.
 
@@ -122,6 +123,7 @@ class AeroEngine(ABC):
             condition: Flight conditions and sweep parameters
             method: Selected solver method
             settings: Optional engine-specific configuration options
+            progress_callback: Optional callback(completed, total, message)
 
         Returns:
             AeroResult containing polar curve data and key aerodynamic metrics
