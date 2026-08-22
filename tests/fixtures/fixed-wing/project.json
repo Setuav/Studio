@@ -1,6 +1,6 @@
 {
   "$schema": "https://schemas.setuav.org/core/project.schema.json",
-  "name": "Setuav Fixed Wing",
+  "name": "Pusher",
   "plugins": [
     {
       "id": "org.setuav.core",

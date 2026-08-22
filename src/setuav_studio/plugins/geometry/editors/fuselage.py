@@ -420,9 +420,9 @@ class FuselageEditor(PropertyTableMixin, QWidget):
                 float(position.get("z") or 0),
             ),
             (
-                float(rotation.get("x") or 0),
-                float(rotation.get("y") or 0),
-                float(rotation.get("z") or 0),
+                float(rotation.get("x", rotation.get("roll", 0)) or 0),
+                float(rotation.get("y", rotation.get("pitch", 0)) or 0),
+                float(rotation.get("z", rotation.get("yaw", 0)) or 0),
             ),
         )
         self._populate_section_properties(profile)

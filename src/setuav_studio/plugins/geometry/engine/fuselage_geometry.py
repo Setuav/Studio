@@ -294,7 +294,7 @@ def create_default_section(x: float = 0.0, profile_type: str = "circle") -> dict
     """Create a standard default fuselage cross-section data structure."""
     return {
         "position": {"x": x, "y": 0.0, "z": 0.0},
-        "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
+        "rotation": {"x": 0.0, "y": 0.0, "z": 0.0},
         "profile": get_default_profile(profile_type),
     }
 

@@ -563,20 +563,32 @@ class ProjectExplorer(QTreeWidget):
         component_ids: set[str] = set()
         assembly_ids: set[str] = set()
         if kind == "assembly":
-            assembly_ids.add(element_id)
+            member_ids = self._assembly_member_ids(element)
+            component_ids = self._dependent_component_ids_from(member_ids)
+            assembly_ids = {element_id}
+            assembly_ids.update(self._assemblies_invalidated_by(component_ids))
         else:
             component_ids = self._dependent_component_ids(element_id)
             assembly_ids = self._assemblies_invalidated_by(component_ids)
 
         details: list[str] = []
-        dependent_count = max(0, len(component_ids) - 1)
-        if dependent_count:
+        if kind == "assembly" and component_ids:
             details.append(
-                f"{dependent_count} structurally dependent item(s) will also be deleted."
+                f"All {len(component_ids)} member and dependent component(s) "
+                "will also be deleted."
             )
-        if assembly_ids and kind != "assembly":
+        elif kind != "assembly":
+            dependent_count = max(0, len(component_ids) - 1)
+            if dependent_count:
+                details.append(
+                    f"{dependent_count} structurally dependent item(s) will also "
+                    "be deleted."
+                )
+        additional_assemblies = assembly_ids - {element_id}
+        if additional_assemblies:
             details.append(
-                f"{len(assembly_ids)} assembly group(s) that would become invalid "
+                f"{len(additional_assemblies)} other assembly group(s) that would "
+                "become invalid "
                 "will also be removed; their remaining components will be kept."
             )
         detail_text = "\n\n" + "\n".join(details) if details else ""
@@ -670,12 +682,15 @@ class ProjectExplorer(QTreeWidget):
         )
 
     def _dependent_component_ids(self, root_id: str) -> set[str]:
+        return self._dependent_component_ids_from({root_id})
+
+    def _dependent_component_ids_from(self, root_ids: set[str]) -> set[str]:
         project = self._api.current_project
         components = project.data.get("components") if project is not None else None
         if not isinstance(components, list):
-            return {root_id}
+            return set(root_ids)
 
-        deleted_ids = {root_id}
+        deleted_ids = set(root_ids)
         changed = True
         while changed:
             changed = False
@@ -691,6 +706,21 @@ class ProjectExplorer(QTreeWidget):
                     deleted_ids.add(component_id)
                     changed = True
         return deleted_ids
+
+    @staticmethod
+    def _assembly_member_ids(assembly: dict[str, Any]) -> set[str]:
+        members = assembly.get("members")
+        if not isinstance(members, dict):
+            return set()
+        member_ids: set[str] = set()
+        for member in members.values():
+            if isinstance(member, str) and member:
+                member_ids.add(member)
+            elif isinstance(member, list):
+                member_ids.update(
+                    value for value in member if isinstance(value, str) and value
+                )
+        return member_ids
 
     def _assemblies_invalidated_by(self, component_ids: set[str]) -> set[str]:
         project = self._api.current_project

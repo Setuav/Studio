@@ -1426,6 +1426,7 @@ class FuselageSectionDialog(QDialog):
         pos = section.get("position", {}) if isinstance(section.get("position"), dict) else {}
         rot = section.get("rotation", {}) if isinstance(section.get("rotation"), dict) else {}
 
+        rotation_aliases = {"x": "roll", "y": "pitch", "z": "yaw"}
         for col, axis in enumerate(("x", "y", "z")):
             set_table_spinbox(
                 self.trans_table,
@@ -1441,7 +1442,7 @@ class FuselageSectionDialog(QDialog):
                 self.trans_table,
                 1,
                 col,
-                float(rot.get(axis, 0.0)),
+                float(rot.get(axis, rot.get(rotation_aliases[axis], 0.0))),
                 min_val=-360.0,
                 max_val=360.0,
                 step=1.0,
@@ -1457,7 +1458,7 @@ class FuselageSectionDialog(QDialog):
         if not sec:
             return
         pos = sec.get("position") if isinstance(sec.get("position"), dict) else {}
-        rot = sec.get("rotation") if isinstance(sec.get("rotation"), dict) else {}
+        rotation: dict[str, float] = {}
 
         for col, axis in enumerate(("x", "y", "z")):
             w_pos = self.trans_table.cellWidget(0, col)
@@ -1465,9 +1466,9 @@ class FuselageSectionDialog(QDialog):
                 pos[axis] = float(w_pos.value())
             w_rot = self.trans_table.cellWidget(1, col)
             if isinstance(w_rot, QDoubleSpinBox):
-                rot[axis] = float(w_rot.value())
+                rotation[axis] = float(w_rot.value())
         sec["position"] = pos
-        sec["rotation"] = rot
+        sec["rotation"] = rotation
         self._refresh_canvas_and_metrics()
 
     def _update_metrics_labels(self) -> None:
@@ -1796,8 +1797,13 @@ class FuselageSectionDialog(QDialog):
             rot = sec.get("rotation")
             if not isinstance(rot, dict):
                 rot = {}
-                sec["rotation"] = rot
-            rot[key_axis] = val
+            canonical_rotation = {
+                "x": float(rot.get("x", rot.get("roll", 0.0))),
+                "y": float(rot.get("y", rot.get("pitch", 0.0))),
+                "z": float(rot.get("z", rot.get("yaw", 0.0))),
+            }
+            canonical_rotation[key_axis] = val
+            sec["rotation"] = canonical_rotation
 
     def _on_display_option_toggled(self) -> None:
         self.canvas.show_previous = self.cb_prev.isChecked()

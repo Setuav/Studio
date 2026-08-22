@@ -10,6 +10,7 @@ from setuav_studio.plugin_system import (
     ToolContribution,
     WorkspaceContribution,
 )
+from .creation import PropulsionCreationController
 from .catalog_dialog import ComponentCatalogDialog
 from .charts_dock import PropulsionChartsDock
 from .controls_dock import PropulsionControlsDock
@@ -27,6 +28,10 @@ class ElectricalPropulsionPlugin:
     id = "org.setuav.studio.electrical_propulsion"
 
     def activate(self, api: StudioAPI) -> None:
+        self._creation_controller = PropulsionCreationController(api)
+        for contribution in self._creation_controller.contributions():
+            api.add_toolbar_item(contribution)
+
         # Register Component Editors
         api.register_component_editor(
             "org.setuav.core:motor",
@@ -124,6 +129,10 @@ class ElectricalPropulsionPlugin:
         )
 
     def deactivate(self, api: StudioAPI) -> None:
+        controller = getattr(self, "_creation_controller", None)
+        if controller is not None:
+            for contribution_id in controller.toolbar_ids:
+                api.remove_toolbar_item(contribution_id)
         api.remove_panel("propulsion.controls_dock")
         api.remove_panel("propulsion.results_dock")
         api.remove_panel("propulsion.charts_dock")

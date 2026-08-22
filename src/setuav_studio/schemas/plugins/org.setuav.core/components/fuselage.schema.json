@@ -14,13 +14,27 @@
       "additionalProperties": false
     },
     "rotation": {
-      "type": "object",
-      "properties": {
-        "x": { "type": "number", "default": 0, "x-setuav-unit": "deg" },
-        "y": { "type": "number", "default": 0, "x-setuav-unit": "deg" },
-        "z": { "type": "number", "default": 0, "x-setuav-unit": "deg" }
-      },
-      "additionalProperties": false
+      "description": "Section rotation. x/y/z is canonical; roll/pitch/yaw is accepted for projects created by earlier Studio builds.",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "x": { "type": "number", "default": 0, "x-setuav-unit": "deg" },
+            "y": { "type": "number", "default": 0, "x-setuav-unit": "deg" },
+            "z": { "type": "number", "default": 0, "x-setuav-unit": "deg" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "roll": { "type": "number", "default": 0, "x-setuav-unit": "deg" },
+            "pitch": { "type": "number", "default": 0, "x-setuav-unit": "deg" },
+            "yaw": { "type": "number", "default": 0, "x-setuav-unit": "deg" }
+          },
+          "additionalProperties": false
+        }
+      ]
     },
     "transitionMethod": {
       "enum": ["auto", "smooth", "ruled"],
