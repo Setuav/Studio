@@ -42,6 +42,7 @@ class Aero3DDock(QWidget):
         self._tokens = tokens()
 
         self._airplane = None
+        self._current_result = None
         self._vlm_instance = None
         self._velocity = 20.0
         self._current_alpha = 4.0
@@ -199,7 +200,13 @@ class Aero3DDock(QWidget):
         except Exception as err:
             print(f"[Aero3DDock] Lazy plotter init error: {err}")
 
-    def set_airplane_context(self, airplane: Any, velocity: float = 20.0, alpha: float = 4.0) -> None:
+    def set_airplane_context(
+        self,
+        airplane: Any,
+        velocity: float = 20.0,
+        alpha: float = 4.0,
+        result: AeroResult | None = None,
+    ) -> None:
         """Set airplane geometry and trigger initial VLM snapshot."""
         if airplane is None:
             return
@@ -207,10 +214,22 @@ class Aero3DDock(QWidget):
         self._airplane = airplane
         self._velocity = velocity
         self._current_alpha = alpha
+        self._current_result = result
+
+        if result and result.polar_points:
+            alphas = [p.alpha for p in result.polar_points]
+            if alphas:
+                self._alpha_min = min(alphas)
+                self._alpha_max = max(alphas)
+                self.slider_alpha.blockSignals(True)
+                self.slider_alpha.setRange(int(round(self._alpha_min * 10)), int(round(self._alpha_max * 10)))
+                self.slider_alpha.setValue(int(round(alpha * 10)))
+                self.slider_alpha.blockSignals(False)
+
         self._recompute_vlm(alpha)
 
     def _recompute_vlm(self, alpha: float) -> None:
-        """Run single on-demand VLM solution for 3D scalar visualization."""
+        """Run on-demand VLM solution for 3D panels and streamline flow visualization."""
         if self._airplane is None:
             return
 
@@ -233,10 +252,31 @@ class Aero3DDock(QWidget):
             self._current_alpha = alpha
             self.lbl_alpha_val.setText(f"{alpha:.1f}°")
 
-            cl = float(np.ravel(vlm_res.get("CL", 0.0))[0]) if "CL" in vlm_res else 0.0
-            cd = float(np.ravel(vlm_res.get("CD", 0.0))[0]) if "CD" in vlm_res else 0.0
-            cm = float(np.ravel(vlm_res.get("Cm", 0.0))[0]) if "Cm" in vlm_res else 0.0
-            ld = cl / cd if abs(cd) > 1e-7 else 0.0
+            # Match exact polar analysis results from the active Polar Table
+            if self._current_result and self._current_result.polar_points:
+                points = self._current_result.polar_points
+                exact = next((p for p in points if abs(p.alpha - alpha) < 1e-3), None)
+                if exact is not None:
+                    cl = exact.cl
+                    cd = exact.cd
+                    cm = exact.cm
+                    ld = exact.cl_over_cd
+                else:
+                    p_alphas = np.array([p.alpha for p in points])
+                    p_cls = np.array([p.cl for p in points])
+                    p_cds = np.array([p.cd for p in points])
+                    p_cms = np.array([p.cm for p in points])
+                    p_lds = np.array([p.cl_over_cd for p in points])
+
+                    cl = float(np.interp(alpha, p_alphas, p_cls))
+                    cd = float(np.interp(alpha, p_alphas, p_cds))
+                    cm = float(np.interp(alpha, p_alphas, p_cms))
+                    ld = float(np.interp(alpha, p_alphas, p_lds))
+            else:
+                cl = float(np.ravel(vlm_res.get("CL", 0.0))[0]) if "CL" in vlm_res else 0.0
+                cd = float(np.ravel(vlm_res.get("CD", 0.0))[0]) if "CD" in vlm_res else 0.0
+                cm = float(np.ravel(vlm_res.get("Cm", 0.0))[0]) if "Cm" in vlm_res else 0.0
+                ld = cl / cd if abs(cd) > 1e-7 else 0.0
 
             self._vlm_summary = {
                 "cl": cl,

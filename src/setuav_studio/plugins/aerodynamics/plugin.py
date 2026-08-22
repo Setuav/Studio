@@ -128,4 +128,5 @@ class AerodynamicsPlugin:
                 airplane=result.raw["airplane"],
                 velocity=result.raw.get("velocity", 20.0),
                 alpha=result.ld_max_alpha if result.ld_max_alpha is not None else 4.0,
+                result=result,
             )
