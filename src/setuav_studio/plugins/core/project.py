@@ -1,9 +1,11 @@
 from typing import Any
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QAbstractItemView,
-    QHeaderView,
+    QHBoxLayout,
+    QLineEdit,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -12,31 +14,59 @@ from PySide6.QtWidgets import (
 
 from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.project import ProjectDocument
+from setuav_studio.ui.icons import get_icon
 
 
 class ProjectExplorerPanel(QWidget):
+    """Panel containing search box and the clean model tree."""
+
     def __init__(self, api: StudioAPI) -> None:
         super().__init__()
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(6, 4, 6, 6)
+        layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(4)
-        layout.addWidget(ProjectExplorer(api))
+
+        # Search bar
+        search_box = QWidget()
+        s_layout = QHBoxLayout(search_box)
+        s_layout.setContentsMargins(2, 2, 2, 2)
+        s_layout.setSpacing(4)
+
+        self.search_edit = QLineEdit()
+        self.search_edit.setPlaceholderText("Filter model...")
+        self.search_edit.setClearButtonEnabled(True)
+        self.search_edit.addAction(
+            get_icon("fa6s.magnifying-glass"),
+            QLineEdit.ActionPosition.LeadingPosition,
+        )
+        s_layout.addWidget(self.search_edit)
+        layout.addWidget(search_box)
+
+        self.explorer = ProjectExplorer(api)
+        layout.addWidget(self.explorer, 1)
+
+        self.search_edit.textChanged.connect(self.explorer.filter_items)
+
+    def update_theme_style(self) -> None:
+        self.explorer.refresh_project()
+        self.explorer.viewport().update()
 
 
 class ProjectExplorer(QTreeWidget):
+    """Clean, single-column model tree with dedicated icons and hierarchy."""
+
     def __init__(self, api: StudioAPI) -> None:
         super().__init__()
-        self.setColumnCount(2)
-        self.setHeaderLabels(["Component / Assembly", "Type"])
+        self.setColumnCount(1)
+        self.setHeaderHidden(True)
         self.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.setAlternatingRowColors(True)
+        self.setAlternatingRowColors(False)
         self.setAnimated(True)
-        self.setIndentation(16)
-        self.header().setFixedHeight(23)
-        self.header().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        self.header().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.setIndentation(20)
+        self.setRootIsDecorated(True)
+        self.setUniformRowHeights(True)
 
         self.currentItemChanged.connect(self._publish_selection)
         self._api = api
@@ -83,8 +113,11 @@ class ProjectExplorer(QTreeWidget):
                 aid = str(asm.get("id") or "")
                 aname = str(asm.get("name") or aid or "Unnamed Assembly")
                 atype = self._assembly_type_text(asm)
+                icon = self._assembly_icon(asm)
 
-                tree_item = QTreeWidgetItem([aname, atype])
+                tree_item = QTreeWidgetItem([aname])
+                tree_item.setIcon(0, icon)
+                tree_item.setToolTip(0, f"{aname} ({atype})")
                 tree_item.setData(0, Qt.ItemDataRole.UserRole, aid)
                 self._item_map[aid] = tree_item
                 self._element_map[tree_item] = asm
@@ -95,8 +128,11 @@ class ProjectExplorer(QTreeWidget):
                 cid = str(comp.get("id") or "")
                 cname = self._component_name_text(comp)
                 ctype = self._component_type_text(comp, raw_components)
+                icon = self._component_icon(comp)
 
-                tree_item = QTreeWidgetItem([cname, ctype])
+                tree_item = QTreeWidgetItem([cname])
+                tree_item.setIcon(0, icon)
+                tree_item.setToolTip(0, f"{cname} ({ctype})")
                 tree_item.setData(0, Qt.ItemDataRole.UserRole, cid)
                 self._item_map[cid] = tree_item
                 self._element_map[tree_item] = comp
@@ -131,6 +167,30 @@ class ProjectExplorer(QTreeWidget):
     def refresh_project(self, project: ProjectDocument) -> None:
         self.set_project(project)
 
+    def filter_items(self, query: str) -> None:
+        """Filter tree items based on search query."""
+        q = query.strip().lower()
+
+        def apply_filter(item: QTreeWidgetItem) -> bool:
+            name = item.text(0).lower()
+            tooltip = item.toolTip(0).lower()
+            matches_self = (q in name) or (q in tooltip) if q else True
+
+            child_matched = False
+            for i in range(item.childCount()):
+                child = item.child(i)
+                if apply_filter(child):
+                    child_matched = True
+
+            visible = matches_self or child_matched
+            item.setHidden(not visible)
+            if visible and q:
+                item.setExpanded(True)
+            return visible
+
+        for i in range(self.topLevelItemCount()):
+            apply_filter(self.topLevelItem(i))
+
     @staticmethod
     def _component_name_text(component: dict[str, object]) -> str:
         ctype = str(component.get("type") or component.get("kind") or "")
@@ -150,6 +210,37 @@ class ProjectExplorer(QTreeWidget):
         if atype == "org.setuav.core:electric-propulsion-system":
             return "Electric Propulsion System"
         return atype
+
+    @staticmethod
+    def _assembly_icon(assembly: dict[str, object]) -> QIcon:
+        atype = str(assembly.get("type") or "")
+        if atype == "org.setuav.core:electric-propulsion-system":
+            return get_icon("fa6s.bolt")
+        return get_icon("fa6s.cubes")
+
+    @staticmethod
+    def _component_icon(component: dict[str, object]) -> QIcon:
+        if component.get("kind") == "instance":
+            return get_icon("fa6s.clone")
+
+        ctype = str(component.get("type") or component.get("kind") or "")
+        if ctype == "org.setuav.core:lifting-surface":
+            return get_icon("fa6s.plane")
+        if ctype == "org.setuav.core:control-surface":
+            return get_icon("fa6s.sliders")
+        if ctype == "org.setuav.core:fuselage":
+            return get_icon("fa6s.shield-halved")
+        if ctype == "org.setuav.core:motor":
+            return get_icon("fa6s.gear")
+        if ctype == "org.setuav.core:propeller":
+            return get_icon("fa6s.fan")
+        if ctype == "org.setuav.core:battery":
+            return get_icon("fa6s.battery-full")
+        if ctype == "org.setuav.core:esc":
+            return get_icon("fa6s.microchip")
+        if ctype == "org.setuav.core:rotor":
+            return get_icon("fa6s.arrows-spin")
+        return get_icon("fa6s.cube")
 
     @staticmethod
     def _component_type_text(

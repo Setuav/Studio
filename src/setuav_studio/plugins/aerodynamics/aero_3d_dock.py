@@ -5,7 +5,7 @@ import logging
 from typing import Any
 import numpy as np
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
 
 from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.ui.icons import get_icon
-from setuav_studio.ui.theme import tokens
+from setuav_studio.ui.theme import chart_color, tokens
 from .engine.base import AeroResult
 
 logger = logging.getLogger(__name__)
@@ -28,9 +28,11 @@ try:
     import pyvista as pv
     from pyvistaqt import QtInteractor
     PYVISTA_AVAILABLE = True
+    PYVISTA_IMPORT_ERROR = ""
 except (ImportError, Exception) as err:
     PYVISTA_AVAILABLE = False
     QtInteractor = None
+    PYVISTA_IMPORT_ERROR = str(err)
     logger.debug("PyVista/QtInteractor not available for 3D visualization: %s", err)
 
 
@@ -57,6 +59,8 @@ class Aero3DDock(QWidget):
         self._scalar_data: dict[str, np.ndarray] = {}
         self._vlm_summary: dict[str, float] = {}
         self.plotter: Any | None = None
+        self._plotter_loading = False
+        self._theme_update_pending = False
         self._placeholder: QLabel | None = None
 
         # Visibility flags
@@ -181,36 +185,90 @@ class Aero3DDock(QWidget):
 
     def showEvent(self, event: Any) -> None:
         super().showEvent(event)
-        self._ensure_plotter()
+        QTimer.singleShot(0, self._ensure_plotter)
+        # An existing plotter may have been hidden while the application
+        # palette changed. Apply the current theme after the lazy init slot.
+        QTimer.singleShot(0, self._apply_plotter_theme)
 
     def _ensure_plotter(self) -> None:
-        if self.plotter is not None or not PYVISTA_AVAILABLE:
+        # Tabified docks briefly receive show events while Qt restores the
+        # layout. Creating VTK before this tab is actually visible can leave
+        # its render window with an unusable native surface.
+        if not self.isVisible() or self.plotter is not None or self._plotter_loading:
+            return
+        if not PYVISTA_AVAILABLE:
+            if self._placeholder is not None:
+                self._placeholder.setText(
+                    "Aero 3D viewer is unavailable.\n" + PYVISTA_IMPORT_ERROR
+                )
             return
 
+        plotter = None
+        self._plotter_loading = True
         try:
+            from setuav_studio.ui.theme import current_theme_mode, tokens
+
             tok = tokens()
-            bg_color = tok.get("surface", "#181818")
-            text_color = tok.get("text", "#cccccc")
+            is_light = current_theme_mode() == "light"
+            bg_color = tok.get("plot", "#ffffff" if is_light else "#141414")
+            text_color = tok.get("text", "#1e1e1e" if is_light else "#e0e0e0")
 
             pv.global_theme.background = bg_color
             pv.global_theme.font.color = text_color
 
-            self.plotter = QtInteractor(self)
-            self.plotter.set_background(bg_color)
-            self.plotter.add_axes(
-                color=tok.get("border_strong", "#444444"),
-                line_width=2,
-                labels_off=False,
+            plotter = QtInteractor(
+                self,
+                multi_samples=0,
+                auto_update=False,
             )
+            plotter.set_background(bg_color)
+            self.plotter = plotter
+            self._update_display()
+            self._set_camera_view("iso")
             if self._placeholder is not None:
                 self.main_layout.removeWidget(self._placeholder)
                 self._placeholder.deleteLater()
                 self._placeholder = None
-            self.main_layout.addWidget(self.plotter.interactor, 1)
-            self._update_display()
-            self._set_camera_view("iso")
+            self.main_layout.addWidget(plotter.interactor, 1)
+            plotter.render()
         except Exception as err:
-            logger.warning("[Aero3DDock] Lazy plotter init error: %s", err)
+            logger.exception("[Aero3DDock] Lazy plotter init error")
+            self.plotter = None
+            if plotter is not None:
+                try:
+                    plotter.close()
+                except Exception:
+                    pass
+            if self._placeholder is not None:
+                self._placeholder.setText(
+                    "Aero 3D viewer could not be initialized.\n"
+                    f"{err}\n\nHide and show this panel to retry."
+                )
+        finally:
+            self._plotter_loading = False
+
+    def update_theme_style(self) -> None:
+        self.btn_iso.setIcon(get_icon("fa6s.cube"))
+        self.btn_top.setIcon(get_icon("fa6s.arrow-down"))
+        self.btn_side.setIcon(get_icon("fa6s.arrow-right"))
+        self.btn_front.setIcon(get_icon("fa6s.arrow-left"))
+        if self.plotter is not None and PYVISTA_AVAILABLE and not self._theme_update_pending:
+            self._theme_update_pending = True
+            QTimer.singleShot(0, self._apply_plotter_theme)
+
+    def _apply_plotter_theme(self) -> None:
+        self._theme_update_pending = False
+        if self.plotter is None or not self.isVisible() or not PYVISTA_AVAILABLE:
+            return
+        try:
+            tok = tokens()
+            pv.global_theme.background = tok["plot"]
+            pv.global_theme.font.color = tok["text"]
+            self.plotter.set_background(tok["plot"])
+            self._update_display()
+            self.plotter.render()
+        except Exception:
+            logger.exception("[Aero3DDock] Theme update failed")
 
     def set_airplane_context(
         self,
@@ -416,16 +474,23 @@ class Aero3DDock(QWidget):
         except Exception:
             pass
         self.plotter.renderer.RemoveAllViewProps()
+        tok = tokens()
+        self.plotter.set_background(tok["plot"])
+        self.plotter.add_axes(
+            color=tok["text_muted"],
+            line_width=2,
+            labels_off=False,
+        )
 
         # 1. Wing Surfaces (OML)
         if self._show_surface and self._surface_meshes:
             for mesh in self._surface_meshes:
                 self.plotter.add_mesh(
                     mesh,
-                    color="#4a7090",
+                    color=tok["viewer_surface"],
                     opacity=0.65,
                     show_edges=True,
-                    edge_color="#2b4860",
+                    edge_color=tok["viewer_surface_edge"],
                     line_width=0.4,
                     lighting=True,
                     smooth_shading=True,
@@ -436,10 +501,10 @@ class Aero3DDock(QWidget):
             for f_mesh in self._fuselage_meshes:
                 self.plotter.add_mesh(
                     f_mesh,
-                    color="#555866",
+                    color=tok["viewer_fuselage"],
                     opacity=0.85,
                     show_edges=True,
-                    edge_color="#363842",
+                    edge_color=tok["viewer_fuselage_edge"],
                     line_width=0.4,
                     lighting=True,
                     smooth_shading=True,
@@ -464,12 +529,12 @@ class Aero3DDock(QWidget):
                 scalars=scalars,
                 cmap=cmap,
                 show_edges=True,
-                edge_color="#ffffff",
+                edge_color=tok["viewer_panel_edge"],
                 line_width=0.8,
                 opacity=0.85 if not self._show_surface else 0.55,
                 scalar_bar_args={
                     "title": "",
-                    "color": "#b0b0b8",
+                    "color": tok["text_muted"],
                     "label_font_size": 8,
                     "n_labels": 5,
                     "fmt": "%.3g",
@@ -511,7 +576,7 @@ class Aero3DDock(QWidget):
                     hud_text,
                     position="upper_left",
                     font_size=8,
-                    color="#9c9ca6",
+                    color=tok["text_dim"],
                     shadow=False,
                     name="aero_3d_hud_summary",
                 )
@@ -582,7 +647,7 @@ class Aero3DDock(QWidget):
                 combined = pv.MultiBlock(lines_list).combine()
                 self.plotter.add_mesh(
                     combined,
-                    color="#b388ff",
+                    color=chart_color("magenta"),
                     opacity=0.75,
                     line_width=1.8,
                 )
@@ -648,7 +713,7 @@ class Aero3DDock(QWidget):
                 combined = pv.MultiBlock(lines_list).combine()
                 self.plotter.add_mesh(
                     combined,
-                    color="#40c4ff",
+                    color=chart_color("cyan"),
                     opacity=0.65,
                     line_width=1.4,
                 )

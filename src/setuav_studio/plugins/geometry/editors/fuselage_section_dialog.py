@@ -440,7 +440,12 @@ class FuselageCanvasWidget(QWidget):
         height = self.height()
 
         # Canvas background
-        painter.fillRect(0, 0, width, height, QColor(self._tokens["elevated"]))
+        from setuav_studio.ui.theme import current_theme_mode, tokens
+
+        tok = tokens()
+        is_light = current_theme_mode() == "light"
+        bg_color = QColor(tok.get("elevated", "#ffffff" if is_light else "#1a1a1c"))
+        painter.fillRect(0, 0, width, height, bg_color)
 
         ox = width / 2.0 + self._pan_offset.x()
         oy = height / 2.0 + self._pan_offset.y()
@@ -534,6 +539,12 @@ class FuselageCanvasWidget(QWidget):
         self._draw_hud(painter, width, height)
 
     def _draw_polygon_handles(self, painter: QPainter, to_screen: Any) -> None:
+        from setuav_studio.ui.theme import tokens
+
+        tok = tokens()
+        text_color = QColor(tok["text"])
+        surface_color = QColor(tok["surface"])
+        border_color = QColor(tok["border_strong"])
         verts = self._profile.get("vertices")
         if not isinstance(verts, list):
             return
@@ -554,30 +565,30 @@ class FuselageCanvasWidget(QWidget):
             # Selection / Hover Rings
             if is_selected:
                 # Outer glow ring
-                painter.setPen(QPen(QColor("#ffffff"), 2.0))
+                painter.setPen(QPen(surface_color, 2.0))
                 painter.setBrush(QColor("#f39c12"))
                 painter.drawEllipse(pt, 6.5, 6.5)
 
                 # Coordinate badge for selected vertex
                 badge_text = f"P{idx+1}: ({vy:.1f}, {vz:.1f}) r={vr:.1f}"
-                painter.setPen(QColor("#111111"))
-                painter.setBrush(QColor("#ffffff"))
+                painter.setPen(text_color)
+                painter.setBrush(surface_color)
                 text_rect = QRectF(pt.x() + 8, pt.y() - 18, len(badge_text) * 6.5 + 8, 16)
                 painter.drawRoundedRect(text_rect, 3, 3)
-                painter.setPen(QColor("#111111"))
+                painter.setPen(text_color)
                 painter.drawText(text_rect, Qt.AlignmentFlag.AlignCenter, badge_text)
 
             elif is_hovered:
                 painter.setPen(QPen(QColor(accent_color()), 2.0))
                 painter.setBrush(QColor("#e67e22"))
                 painter.drawEllipse(pt, 5.5, 5.5)
-                painter.setPen(QColor("#ffffff"))
+                painter.setPen(text_color)
                 painter.drawText(int(pt.x()) + 8, int(pt.y()) - 4, f"P{idx+1}")
             else:
-                painter.setPen(QPen(QColor("#111111"), 1.2))
+                painter.setPen(QPen(border_color, 1.2))
                 painter.setBrush(QColor("#f39c12"))
                 painter.drawEllipse(pt, 4.0, 4.0)
-                painter.setPen(QColor("#dddddd"))
+                painter.setPen(text_color)
                 painter.drawText(int(pt.x()) + 6, int(pt.y()) - 4, f"P{idx+1}")
 
     def _draw_profile_outline(
@@ -614,13 +625,20 @@ class FuselageCanvasWidget(QWidget):
         ox: float,
         oy: float,
     ) -> None:
+        from setuav_studio.ui.theme import current_theme_mode, tokens
+
+        tok = tokens()
+        is_light = current_theme_mode() == "light"
+        grid_color = QColor(tok.get("grid", "#e2e4e8" if is_light else "#262626"))
+        dim_text = QColor(tok.get("text_dim", "#787878" if is_light else "#555555"))
+
         raw_step = 60.0 / max(self._scale, 1e-4)
         magnitude = 10.0 ** math.floor(math.log10(max(raw_step, 1.0)))
         step_candidates = [1.0 * magnitude, 2.0 * magnitude, 5.0 * magnitude, 10.0 * magnitude]
         grid_step_mm = min(step_candidates, key=lambda s: abs(s * self._scale - 60.0))
         grid_step_px = grid_step_mm * self._scale
 
-        grid_pen = QPen(QColor("#262626"), 1, Qt.PenStyle.DashLine)
+        grid_pen = QPen(grid_color, 1, Qt.PenStyle.DashLine)
         painter.setPen(grid_pen)
         painter.setFont(QFont("sans-serif", 7))
 
@@ -632,7 +650,7 @@ class FuselageCanvasWidget(QWidget):
             painter.drawLine(int(gx), 0, int(gx), height)
             val_y = k * grid_step_mm
             if abs(val_y) > 1e-4:
-                painter.setPen(QColor("#555555"))
+                painter.setPen(dim_text)
                 painter.drawText(int(gx) + 3, height - 6, f"{val_y:.0f}")
 
         start_k_z = math.floor((oy - height) / grid_step_px)
@@ -643,7 +661,7 @@ class FuselageCanvasWidget(QWidget):
             painter.drawLine(0, int(gy), width, int(gy))
             val_z = k * grid_step_mm
             if abs(val_z) > 1e-4:
-                painter.setPen(QColor("#555555"))
+                painter.setPen(dim_text)
                 painter.drawText(6, int(gy) - 3, f"{val_z:.0f}")
 
     def _draw_axes(
@@ -654,18 +672,25 @@ class FuselageCanvasWidget(QWidget):
         ox: float,
         oy: float,
     ) -> None:
-        axis_pen = QPen(QColor("#404040"), 1.2, Qt.PenStyle.SolidLine)
+        from setuav_studio.ui.theme import current_theme_mode, tokens
+
+        tok = tokens()
+        is_light = current_theme_mode() == "light"
+        axis_color = QColor(tok.get("border_strong", "#b0b4bc" if is_light else "#404040"))
+        dim_text = QColor(tok.get("text_dim", "#787878" if is_light else "#777777"))
+
+        axis_pen = QPen(axis_color, 1.2, Qt.PenStyle.SolidLine)
         painter.setPen(axis_pen)
 
         painter.drawLine(0, int(oy), width, int(oy))
         painter.drawLine(int(ox), 0, int(ox), height)
 
-        painter.setBrush(QColor("#666666"))
+        painter.setBrush(dim_text)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawEllipse(QPointF(ox, oy), 2.5, 2.5)
 
         painter.setFont(QFont("sans-serif", 8, QFont.Weight.Bold))
-        painter.setPen(QColor("#777777"))
+        painter.setPen(dim_text)
         painter.drawText(width - 25, int(oy) - 6, "+Y")
         painter.drawText(int(ox) + 6, 16, "+Z")
 
@@ -682,7 +707,9 @@ class FuselageCanvasWidget(QWidget):
         w_mm = max_y - min_y
         h_mm = max_z - min_z
 
-        dim_pen = QPen(QColor("#888888"), 1.0, Qt.PenStyle.SolidLine)
+        from setuav_studio.ui.theme import tokens
+
+        dim_pen = QPen(QColor(tokens()["text_dim"]), 1.0, Qt.PenStyle.SolidLine)
         painter.setPen(dim_pen)
         painter.setFont(QFont("sans-serif", 8))
 
@@ -711,7 +738,10 @@ class FuselageCanvasWidget(QWidget):
         painter.drawText(int(dim_x + 6), int((p_bot.y() + p_top.y()) / 2.0 + 4), f"H = {h_mm:.1f} mm")
 
     def _draw_hud(self, painter: QPainter, width: int, _height: int) -> None:
-        painter.setPen(QColor("#ffffff"))
+        from setuav_studio.ui.theme import chart_color, tokens
+
+        tok = tokens()
+        painter.setPen(QColor(tok["text"]))
         painter.setFont(QFont("sans-serif", 9, QFont.Weight.Bold))
         prof_type = str(self._profile.get("type", "Unknown")).capitalize()
         painter.drawText(12, 22, f"{self._title_info} ({prof_type})")
@@ -722,19 +752,19 @@ class FuselageCanvasWidget(QWidget):
 
         painter.setPen(QPen(QColor(accent_color()), 2.0))
         painter.drawLine(legend_x, legend_y + 6, legend_x + 16, legend_y + 6)
-        painter.setPen(QColor("#cccccc"))
+        painter.setPen(QColor(tok["text_muted"]))
         painter.drawText(legend_x + 22, legend_y + 10, "Current Section")
 
         if self.show_previous and self._prev_points:
-            painter.setPen(QPen(QColor(51, 127, 229), 1.5, Qt.PenStyle.DashLine))
+            painter.setPen(QPen(QColor(chart_color("blue")), 1.5, Qt.PenStyle.DashLine))
             painter.drawLine(legend_x, legend_y + 20, legend_x + 16, legend_y + 20)
-            painter.setPen(QColor("#999999"))
+            painter.setPen(QColor(tok["text_muted"]))
             painter.drawText(legend_x + 22, legend_y + 24, "Previous (Loft In)")
 
         if self.show_next and self._next_points:
-            painter.setPen(QPen(QColor(230, 126, 34), 1.5, Qt.PenStyle.DashLine))
+            painter.setPen(QPen(QColor(chart_color("orange")), 1.5, Qt.PenStyle.DashLine))
             painter.drawLine(legend_x, legend_y + 34, legend_x + 16, legend_y + 34)
-            painter.setPen(QColor("#999999"))
+            painter.setPen(QColor(tok["text_muted"]))
             painter.drawText(legend_x + 22, legend_y + 38, "Next (Loft Out)")
 
 
@@ -890,7 +920,6 @@ class FuselageSectionDialog(QDialog):
         nav_layout.addWidget(self.prev_btn)
 
         self.section_label = QLabel("Section 1 of 1")
-        self.section_label.setStyleSheet("font-weight: bold; font-size: 12px;")
         nav_layout.addWidget(self.section_label)
 
         self.next_btn = QToolButton()
@@ -1146,7 +1175,6 @@ class FuselageSectionDialog(QDialog):
         btn_layout.addWidget(self.apply_btn)
 
         self.ok_btn = QPushButton("Save & Close")
-        self.ok_btn.setStyleSheet("background-color: #337fe5; color: white; font-weight: bold;")
         self.ok_btn.clicked.connect(self._on_ok_clicked)
         btn_layout.addWidget(self.ok_btn)
 

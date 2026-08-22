@@ -67,6 +67,16 @@ class AirfoilCanvasWidget(QWidget):
         self.update()
 
     def paintEvent(self, _event: Any) -> None:
+        from setuav_studio.ui.theme import current_theme_mode, tokens
+
+        tok = tokens()
+        is_light = current_theme_mode() == "light"
+        bg_color = QColor(tok.get("elevated", "#ffffff" if is_light else "#1a1a1c"))
+        grid_color = QColor(tok.get("grid", "#e2e4e8" if is_light else "#2d2d35"))
+        chord_color = QColor(tok.get("border_strong", "#b0b4bc" if is_light else "#484852"))
+        text_color = QColor(tok.get("text", "#202020" if is_light else "#e0e0e0"))
+        dim_text = QColor(tok.get("text_dim", "#666666" if is_light else "#888888"))
+
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
@@ -74,7 +84,7 @@ class AirfoilCanvasWidget(QWidget):
         height = self.height()
 
         # Background
-        painter.fillRect(0, 0, width, height, QColor(self._tokens["elevated"]))
+        painter.fillRect(0, 0, width, height, bg_color)
 
         # Plot margins
         margin_x = 40
@@ -82,26 +92,23 @@ class AirfoilCanvasWidget(QWidget):
         plot_w = max(width - 2 * margin_x, 100)
         plot_h = max(height - 2 * margin_y, 80)
 
-        # Scale factor (chord length mapped to plot_w, aspect ratio preserved with z)
-        # Airfoil x is [0, 1], z is approx [-0.2, 0.2]
         center_y = margin_y + plot_h / 2.0
         scale = plot_w
 
         # Draw grid lines
-        grid_pen = QPen(QColor("#242424"), 1, Qt.PenStyle.DashLine)
+        grid_pen = QPen(grid_color, 1, Qt.PenStyle.DashLine)
         painter.setPen(grid_pen)
-        # 0%, 25%, 50%, 75%, 100% chord lines
         for step in (0.0, 0.25, 0.5, 0.75, 1.0):
             gx = margin_x + step * scale
             painter.drawLine(int(gx), margin_y, int(gx), margin_y + plot_h)
             # Label
-            painter.setPen(QColor("#666666"))
+            painter.setPen(dim_text)
             painter.setFont(QFont("sans-serif", 8))
             painter.drawText(int(gx) - 10, margin_y + plot_h + 14, f"{int(step * 100)}%")
             painter.setPen(grid_pen)
 
         # Chord line (z = 0)
-        chord_pen = QPen(QColor("#3d3d3d"), 1, Qt.PenStyle.DashLine)
+        chord_pen = QPen(chord_color, 1, Qt.PenStyle.DashLine)
         painter.setPen(chord_pen)
         painter.drawLine(margin_x, int(center_y), margin_x + plot_w, int(center_y))
 
@@ -122,19 +129,23 @@ class AirfoilCanvasWidget(QWidget):
         path.closeSubpath()
 
         # Fill & Stroke Airfoil
-        fill_color = QColor(51, 127, 229, 35)
+        from setuav_studio.ui.theme import chart_color
+
+        series_color = QColor(chart_color("blue"))
+        fill_color = QColor(series_color)
+        fill_color.setAlpha(35)
         painter.fillPath(path, QBrush(fill_color))
 
-        stroke_pen = QPen(QColor("#337fe5"), 2.0, Qt.PenStyle.SolidLine)
+        stroke_pen = QPen(series_color, 2.0, Qt.PenStyle.SolidLine)
         painter.strokePath(path, stroke_pen)
 
         # Draw Leading Edge Marker
-        painter.setBrush(QColor("#337fe5"))
+        painter.setBrush(series_color)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawEllipse(QPointF(margin_x, center_y), 3.5, 3.5)
 
         # Draw Title & Quick stats
-        painter.setPen(QColor("#e0e0e0"))
+        painter.setPen(text_color)
         painter.setFont(QFont("sans-serif", 10, QFont.Weight.Bold))
         painter.drawText(margin_x, margin_y - 12, self._airfoil_name)
 
@@ -143,7 +154,7 @@ class AirfoilCanvasWidget(QWidget):
             yc = self._metrics.get("max_camber", 0.0) * 100.0
             stat_text = f"t/c: {tc:.1f}%   camber: {yc:.1f}%"
             painter.setFont(QFont("sans-serif", 8))
-            painter.setPen(QColor("#999999"))
+            painter.setPen(dim_text)
             painter.drawText(width - margin_x - 140, margin_y - 12, stat_text)
 
 
@@ -232,7 +243,6 @@ class AirfoilDialog(QDialog):
 
         self.naca_desc_label = QLabel("Standard 4-digit: 2% camber at 40% chord, 12% thickness.")
         self.naca_desc_label.setWordWrap(True)
-        self.naca_desc_label.setStyleSheet("color: #888888; font-size: 11px;")
         naca_layout.addWidget(self.naca_desc_label)
         naca_layout.addStretch()
 
@@ -250,7 +260,6 @@ class AirfoilDialog(QDialog):
         file_layout.addWidget(browse_btn)
 
         self.file_path_label = QLabel("No file loaded")
-        self.file_path_label.setStyleSheet("color: #aaaaaa; font-size: 11px;")
         self.file_path_label.setWordWrap(True)
         file_layout.addWidget(self.file_path_label)
 
@@ -287,7 +296,6 @@ class AirfoilDialog(QDialog):
         self.pts_count_label = QLabel("Points: 128")
 
         for lbl in (self.max_thick_label, self.max_camber_label, self.te_gap_label, self.pts_count_label):
-            lbl.setStyleSheet(f"font-size: 12px; color: {self._tokens['text']};")
             m_layout.addWidget(lbl)
 
         right_layout.addWidget(metrics_box)

@@ -304,14 +304,12 @@ class SectionsMixin:
     def _setup_airfoil_cell(self, row: int, airfoil_data: Any, is_root: bool) -> None:
         """Render airfoil name in standard font size with inline choose button."""
         container = QWidget()
-        container.setStyleSheet("background: transparent;")
         layout = QHBoxLayout(container)
         layout.setContentsMargins(4, 1, 4, 1)
         layout.setSpacing(6)
 
         label_str = self._format_airfoil_label(airfoil_data) if hasattr(self, "_format_airfoil_label") else str(airfoil_data)
         lbl = QLabel(label_str)
-        lbl.setStyleSheet("color: #e0e0e0; font-weight: 500;")
         lbl.setToolTip(f"{'Root' if is_root else 'Tip'} Airfoil: {label_str}")
 
         btn = QToolButton()
@@ -319,11 +317,6 @@ class SectionsMixin:
         btn.setText("Choose")
         btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         btn.setToolTip("Select or import airfoil for this station")
-        btn.setStyleSheet(
-            "QToolButton { background: #2a2a2a; border: 1px solid #3d3d3d; border-radius: 3px; padding: 2px 6px; color: #ffffff; font-size: 11px; }"
-            "QToolButton:hover { background: #383838; border-color: #555555; }"
-            "QToolButton:pressed { background: #444444; }"
-        )
 
         def on_choose_clicked():
             self.section_properties_table.selectRow(row)

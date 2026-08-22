@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
 from setuav_studio.ui.theme import tokens
 from setuav_studio.ui.icons import get_icon
 from setuav_studio.plugin_system import StudioAPI
-from setuav_studio.ui.property_tables import PropertyTableMixin
+from setuav_studio.ui.property_tables import ContentFitTableWidget, PropertyTableMixin
 
 
 class PropulsionResultsDock(PropertyTableMixin, QWidget):
@@ -88,7 +88,7 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
         bottom_bar.addStretch(1)
 
         self.btn_export_csv = QPushButton(" Export CSV", self)
-        self.btn_export_csv.setIcon(get_icon("fa6s.file-csv"))
+        self.btn_export_csv.setIcon(get_icon("export_csv"))
         self.btn_export_csv.setToolTip("Export propulsion summary and detailed sweep table to CSV")
         self.btn_export_csv.clicked.connect(self._export_csv)
         self.btn_export_csv.setEnabled(False)
@@ -110,38 +110,24 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
             "Advance (J)",
             "Status",
         ]
-        table = QTableWidget(0, len(headers))
+        table = ContentFitTableWidget(0, len(headers))
         table.setHorizontalHeaderLabels(headers)
         table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         table.verticalHeader().setVisible(False)
         table.verticalHeader().setDefaultSectionSize(20)
-        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        header = table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        header.setStretchLastSection(False)
+        table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        table.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        table.setTextElideMode(Qt.TextElideMode.ElideNone)
+        table.setWordWrap(False)
         table.setAlternatingRowColors(True)
         font = QFont(table.font().family())
         font.setPointSizeF(8.5)
         table.setFont(font)
-        table.horizontalHeader().setFont(font)
-        table.setStyleSheet(f"""
-            QTableWidget {{
-                background-color: {self._tokens.get("elevated", "#141414")};
-                alternate-background-color: {self._tokens.get("row_alt", "#1a1a1a")};
-                gridline-color: {self._tokens.get("grid", "#262626")};
-                font-size: 8.5pt;
-                border: 1px solid {self._tokens.get("border", "#282828")};
-                border-radius: 4px;
-            }}
-            QHeaderView::section {{
-                background-color: {self._tokens.get("surface_alt", "#202020")};
-                color: #b0b0b0;
-                padding: 3px 4px;
-                border: none;
-                border-bottom: 1px solid {self._tokens.get("border_strong", "#333333")};
-                font-weight: 600;
-                font-size: 8.5pt;
-            }}
-        """)
         return table
 
     def set_results(self, data: dict[str, Any]) -> None:
@@ -217,11 +203,18 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
             item_pwr.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.detail_table.setItem(r_idx, 3, item_pwr)
 
+            from setuav_studio.ui.theme import current_theme_mode
+
+            is_light = current_theme_mode() == "light"
+            over_fg = QColor("#cf222e") if is_light else QColor("#f85149")
+            best_fg = QColor("#0e8a5b") if is_light else QColor("#4ec9b0")
+            safe_fg = QColor("#1a7f37") if is_light else QColor("#3fb950")
+
             # Col 4: Current (A)
             item_curr = QTableWidgetItem(f"{curr:.1f}")
             item_curr.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             if is_overcurrent:
-                item_curr.setForeground(QBrush(QColor("#f85149")))
+                item_curr.setForeground(QBrush(over_fg))
             self.detail_table.setItem(r_idx, 4, item_curr)
 
             # Col 5: Total Efficiency
@@ -231,7 +224,7 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
             item_eff = QTableWidgetItem(eff_str)
             item_eff.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             if is_best_row:
-                item_eff.setForeground(QBrush(QColor("#4ec9b0")))
+                item_eff.setForeground(QBrush(best_fg))
             self.detail_table.setItem(r_idx, 5, item_eff)
 
             # Col 6: Prop Efficiency
@@ -252,27 +245,14 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
             # Col 9: Status
             if is_overcurrent:
                 status_item = QTableWidgetItem("⚠️ Overload")
-                status_item.setForeground(QBrush(QColor("#f85149")))
+                status_item.setForeground(QBrush(over_fg))
             else:
                 status_item = QTableWidgetItem("✓ Safe")
-                status_item.setForeground(QBrush(QColor("#3fb950")))
+                status_item.setForeground(QBrush(safe_fg))
             status_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.detail_table.setItem(r_idx, 9, status_item)
 
-            # Row background highlight
-            if is_best_row and not is_overcurrent:
-                bg = QBrush(QColor(25, 45, 35))
-                for c in range(self.detail_table.columnCount()):
-                    it = self.detail_table.item(r_idx, c)
-                    if it:
-                        it.setBackground(bg)
-            elif is_overcurrent:
-                bg = QBrush(QColor(40, 20, 22))
-                for c in range(self.detail_table.columnCount()):
-                    it = self.detail_table.item(r_idx, c)
-                    if it:
-                        it.setBackground(bg)
-
+        self.detail_table.fit_columns_to_viewport()
         self._last_data = data
         if hasattr(self, "btn_export_csv"):
             self.btn_export_csv.setEnabled(bool(sweep_rows))
@@ -351,3 +331,10 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
         except Exception as err:
             self._api.show_status(f"CSV Export failed: {err}", "error")
 
+    def update_theme_style(self) -> None:
+        self.tabs.setTabIcon(0, get_icon("fa6s.chart-simple"))
+        self.tabs.setTabIcon(1, get_icon("fa6s.table"))
+        if hasattr(self, "btn_export_csv"):
+            self.btn_export_csv.setIcon(get_icon("export_csv"))
+        if self._last_data is not None:
+            self.set_results(self._last_data)

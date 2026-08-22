@@ -343,7 +343,6 @@ class ComponentCatalogDialog(QDialog):
         # Bottom status and action buttons
         btn_layout = QHBoxLayout()
         self.status_label = QLabel(self)
-        self.status_label.setStyleSheet("color: #8b949e; font-size: 8.5pt;")
         btn_layout.addWidget(self.status_label)
         btn_layout.addStretch()
 

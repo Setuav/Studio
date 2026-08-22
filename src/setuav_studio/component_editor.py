@@ -9,11 +9,12 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QScrollArea,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
 
-from setuav_studio.ui.icons import get_icon
+from setuav_studio.ui.icons import set_label_icon
 from setuav_studio.ui.property_tables import PropertyTableMixin
 
 if TYPE_CHECKING:
@@ -80,6 +81,13 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
         action_widget: QWidget | None = None,
     ) -> QVBoxLayout:
         section = QWidget()
+        # Tables already calculate and fix their content height. Prevent the
+        # scroll area's spare vertical space from being distributed into the
+        # section and separating its header from its table.
+        section.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Maximum,
+        )
         layout = QVBoxLayout(section)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(3)
@@ -93,8 +101,7 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
 
         if icon_name:
             icon_label = QLabel()
-            pixmap = get_icon(icon_name).pixmap(14, 14)
-            icon_label.setPixmap(pixmap)
+            set_label_icon(icon_label, icon_name)
             icon_label.setFixedSize(14, 14)
             header_layout.addWidget(icon_label)
 
@@ -253,4 +260,3 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
             f"Set {key} of {self._component.get('name', 'component')}",
             apply_param,
         )
-

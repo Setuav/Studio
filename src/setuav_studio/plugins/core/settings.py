@@ -17,12 +17,16 @@ from PySide6.QtWidgets import (
 VALIDATION_STRICTNESS_LEVELS: tuple[str, ...] = ("strict", "warn", "off")
 
 
+THEME_MODES: tuple[str, ...] = ("dark", "light")
+
+
 @dataclass(frozen=True)
 class StudioSettings:
     reopen_last_project: bool = False
     recent_project_limit: int = 10
     pythrust_data_dir: str = ""
     validation_strictness: str = "strict"
+    theme_mode: str = "dark"
 
     @classmethod
     def load(cls) -> "StudioSettings":
@@ -32,6 +36,9 @@ class StudioSettings:
         )
         if strictness not in VALIDATION_STRICTNESS_LEVELS:
             strictness = "strict"
+        theme = str(settings.value("appearance/theme_mode", "dark")).lower()
+        if theme not in THEME_MODES:
+            theme = "dark"
         return cls(
             reopen_last_project=_as_bool(
                 settings.value("general/reopen_last_project", False)
@@ -43,6 +50,7 @@ class StudioSettings:
                 settings.value("propulsion/pythrust_data_dir", "")
             ),
             validation_strictness=strictness,
+            theme_mode=theme,
         )
 
     def save(self) -> None:
@@ -51,9 +59,7 @@ class StudioSettings:
         settings.setValue("general/recent_project_limit", self.recent_project_limit)
         settings.setValue("propulsion/pythrust_data_dir", self.pythrust_data_dir)
         settings.setValue("general/validation_strictness", self.validation_strictness)
-        settings.remove("appearance/theme")
-        settings.remove("appearance/font_size")
-        settings.remove("appearance/style")
+        settings.setValue("appearance/theme_mode", self.theme_mode)
 
 
 class SettingsDialog(QDialog):
@@ -63,6 +69,14 @@ class SettingsDialog(QDialog):
 
         layout = QVBoxLayout(self)
         form = QFormLayout()
+
+        self.theme_combo = QComboBox()
+        self.theme_combo.addItem("Dark Theme", "dark")
+        self.theme_combo.addItem("Light Theme", "light")
+        idx_theme = self.theme_combo.findData(values.theme_mode)
+        if idx_theme >= 0:
+            self.theme_combo.setCurrentIndex(idx_theme)
+        form.addRow("Appearance theme:", self.theme_combo)
 
         self.reopen_check = QCheckBox("Reopen the last project at startup")
         self.reopen_check.setChecked(values.reopen_last_project)
@@ -114,6 +128,7 @@ class SettingsDialog(QDialog):
             validation_strictness=str(
                 self.validation_strictness_combo.currentData()
             ),
+            theme_mode=str(self.theme_combo.currentData()),
         )
 
 

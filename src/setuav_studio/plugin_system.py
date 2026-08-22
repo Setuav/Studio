@@ -505,6 +505,10 @@ class StudioAPI:
             return []
         return self._project_requirement_checker(data)
 
+    def notify_project_content_changed(self) -> None:
+        """Explicitly notify listeners that project content was updated or needs refresh."""
+        self._notify_project_content_changed()
+
     def _notify_project_content_changed(self) -> None:
         if self.current_project is None:
             return

@@ -63,6 +63,11 @@ class MainTests(unittest.TestCase):
         self.assertIsNotNone(view_action)
         self.assertTrue(view_action.isCheckable())
         self.assertIn(view_action, window._view_menu.actions())
+        self.assertEqual(window._view_menu.actions()[0].text(), "Theme")
+
+        window._update_view_menu("test.workspace")
+        self.assertEqual(window._view_menu.actions()[0].text(), "Theme")
+        self.assertIn(view_action, window._view_menu.actions())
         """4.13: validation_strictness drives open/read_only/cancel outcomes."""
         from types import SimpleNamespace
         from pathlib import Path

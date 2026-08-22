@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.plugin_system import StudioAPI
-from setuav_studio.ui.icons import get_icon
+from setuav_studio.ui.icons import get_icon, set_label_icon
 from setuav_studio.ui.numeric_spinbox import NumericSpinBox
 from setuav_studio.ui.property_tables import PropertyTableMixin
 from setuav_studio.ui.theme import tokens
@@ -72,6 +72,7 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         scroll.setWidget(content)
         layout.addWidget(scroll)
 
+        self._section_icons: list[tuple[QLabel, str]] = []
         self._create_engine_section()
         self._create_conditions_section()
         self._create_sweep_section()
@@ -81,6 +82,14 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
 
     def set_result_callback(self, callback: Callable[[AeroResult], None]) -> None:
         self._on_result_callback = callback
+
+    def update_theme_style(self) -> None:
+        for lbl, name in self._section_icons:
+            set_label_icon(lbl, name)
+        if hasattr(self, "btn_run"):
+            self.btn_run.setIcon(get_icon("fa6s.play"))
+        if hasattr(self, "btn_save_config"):
+            self.btn_save_config.setIcon(get_icon("fa6s.floppy-disk"))
 
     def _create_section(self, title: str, icon_name: str | None = None) -> QVBoxLayout:
         section = QWidget()
@@ -96,7 +105,8 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
 
         if icon_name:
             icon_label = QLabel()
-            icon_label.setPixmap(get_icon(icon_name).pixmap(14, 14))
+            set_label_icon(icon_label, icon_name)
+            self._section_icons.append((icon_label, icon_name))
             h_layout.addWidget(icon_label)
 
         title_label = QLabel(title)
@@ -137,7 +147,6 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         # Single-sentence note
         self.lbl_solver_note = QLabel()
         self.lbl_solver_note.setWordWrap(True)
-        self.lbl_solver_note.setStyleSheet("QLabel { color: #888898; font-size: 11px; padding: 2px 2px; }")
         layout.addWidget(self.lbl_solver_note)
 
         self._on_engine_changed()

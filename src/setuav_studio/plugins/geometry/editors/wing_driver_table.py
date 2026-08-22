@@ -11,7 +11,6 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -176,7 +175,9 @@ class DriverPlanformTable(QTableWidget):
                 # Style parameter label
                 label_item = self.item(row, 1)
                 if label_item:
-                    label_item.setForeground(QBrush(QColor("#ffffff" if is_driver else "#9e9e9e")))
+                    font = label_item.font()
+                    font.setBold(is_driver)
+                    label_item.setFont(font)
 
                 if is_driver:
                     step_map = {
@@ -225,7 +226,6 @@ class DriverPlanformTable(QTableWidget):
                     else:
                         val_item.setText(val_str)
                     val_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-                    val_item.setForeground(QBrush(QColor("#9e9e9e")))
         finally:
             self._updating = was
 

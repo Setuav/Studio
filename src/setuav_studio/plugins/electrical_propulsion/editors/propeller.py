@@ -8,7 +8,6 @@ from PySide6.QtWidgets import QDialog, QPushButton, QWidget
 from setuav_studio.ui.icons import get_icon
 from setuav_studio.plugin_system import BaseComponentEditor, ParameterField, StudioAPI
 from setuav_studio.plugins.electrical_propulsion.catalog_dialog import ComponentCatalogDialog
-from setuav_studio.ui.theme import accent_color
 
 
 class PropellerEditor(BaseComponentEditor):
@@ -75,20 +74,6 @@ class PropellerEditor(BaseComponentEditor):
     def _create_general_section(self) -> None:
         catalog_btn = QPushButton("Catalog…", self)
         catalog_btn.setIcon(get_icon("fa6s.database"))
-        catalog_btn.setStyleSheet(f"""
-            QPushButton {{
-                padding: 1px 6px;
-                font-size: 8pt;
-                border-radius: 3px;
-                background-color: rgba(255, 255, 255, 0.06);
-                border: 1px solid rgba(255, 255, 255, 0.12);
-            }}
-            QPushButton:hover {{
-                background-color: rgba(255, 255, 255, 0.12);
-                border-color: {accent_color()};
-                color: {accent_color()};
-            }}
-        """)
         catalog_btn.clicked.connect(self._open_catalog)
 
         layout = self._create_section("General", "fa6s.circle-info", action_widget=catalog_btn)

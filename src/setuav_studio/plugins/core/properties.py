@@ -54,3 +54,11 @@ class PropertiesPanel(QWidget):
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         label.setWordWrap(True)
         return label
+
+    def update_theme_style(self) -> None:
+        if self._current_widget is not None:
+            if hasattr(self._current_widget, "update_theme_style") and callable(self._current_widget.update_theme_style):
+                self._current_widget.update_theme_style()
+            for child in self._current_widget.findChildren(QWidget):
+                if hasattr(child, "update_theme_style") and callable(child.update_theme_style):
+                    child.update_theme_style()

@@ -22,7 +22,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QTimer, Qt
+from PySide6.QtGui import QResizeEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -33,6 +34,62 @@ from PySide6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
 )
+
+
+class ContentFitTableWidget(QTableWidget):
+    """Keep columns content-sized, then share any spare viewport width."""
+
+    def __init__(self, rows: int, columns: int, parent=None) -> None:
+        super().__init__(rows, columns, parent)
+        self._column_fit_pending = False
+        self._fitting_columns = False
+
+    def schedule_column_fit(self) -> None:
+        if self._column_fit_pending:
+            return
+        self._column_fit_pending = True
+        QTimer.singleShot(0, self._fit_columns_to_viewport)
+
+    def fit_columns_to_viewport(self) -> None:
+        self._fit_columns_to_viewport()
+
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        super().resizeEvent(event)
+        self.schedule_column_fit()
+
+    def _fit_columns_to_viewport(self) -> None:
+        self._column_fit_pending = False
+        if self._fitting_columns or self.columnCount() == 0:
+            return
+
+        self._fitting_columns = True
+        try:
+            # Reset expanded columns to their real header/data requirements.
+            self.resizeColumnsToContents()
+            visible_columns = [
+                column
+                for column in range(self.columnCount())
+                if not self.isColumnHidden(column)
+            ]
+            if not visible_columns:
+                return
+
+            natural_widths = {
+                column: self.columnWidth(column)
+                for column in visible_columns
+            }
+            spare_width = self.viewport().width() - sum(natural_widths.values())
+            if spare_width <= 0:
+                return
+
+            share, remainder = divmod(spare_width, len(visible_columns))
+            for index, column in enumerate(visible_columns):
+                self.setColumnWidth(
+                    column,
+                    natural_widths[column] + share + (1 if index < remainder else 0),
+                )
+        finally:
+            self._fitting_columns = False
 
 
 class PropertyTableMixin:

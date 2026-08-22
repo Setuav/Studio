@@ -1,8 +1,8 @@
 from importlib import resources
 
 from PySide6.QtCore import QEvent, QObject
-from PySide6.QtGui import QColor, QFont, QFontDatabase, QPainter, QPalette
-from PySide6.QtWidgets import QApplication, QComboBox, QProxyStyle, QStyle, QStyleOption
+from PySide6.QtGui import QColor, QFont, QFontDatabase, QPalette
+from PySide6.QtWidgets import QApplication, QComboBox, QLabel
 
 
 class ComboBoxWheelFilter(QObject):
@@ -36,29 +36,121 @@ STATUS_COLORS = {
     "warning": "#e5b567",
     "error": "#e06c75",
 }
-DARK_TOKENS = {
-    "window": "#1a1d22",
-    "title_bar": "#232323",
-    "dock": "#272727",
-    "surface": "#181818",
-    "surface_alt": "#202020",
-    "elevated": "#141414",
-    "row_alt": "#1a1a1a",
-    "plot": "#111111",
-    "grid": "#262626",
-    "border": "#282828",
-    "border_strong": "#333333",
-    "text": "#cccccc",
+
+DARK_CHART_COLORS: dict[str, str] = {
+    "blue": "#61afef",
+    "green": "#6fce9c",
+    "orange": "#e5b567",
+    "magenta": "#c678dd",
+    "red": "#e06c75",
+    "cyan": "#56b6c2",
 }
+
+LIGHT_CHART_COLORS: dict[str, str] = {
+    "blue": "#0969da",
+    "green": "#1a7f37",
+    "orange": "#bc4c00",
+    "magenta": "#8250df",
+    "red": "#cf222e",
+    "cyan": "#0a7f8c",
+}
+
+LIGHT_STATUS_COLORS: dict[str, str] = {
+    "info": "#57606a",
+    "success": "#1a7f37",
+    "warning": "#9a6700",
+    "error": "#cf222e",
+}
+
+DARK_TOKENS: dict[str, str] = {
+    "window": "#242424",
+    "title_bar": "#303030",
+    "dock": "#242424",
+    "surface": "#1c1c1c",
+    "surface_alt": "#303030",
+    "elevated": "#181818",
+    "row_alt": "#222222",
+    "plot": "#141414",
+    "grid": "#333333",
+    "border": "#282828",
+    "border_strong": "#555555",
+    "text": "#e0e0e0",
+    "text_muted": "#999999",
+    "text_dim": "#777777",
+    "text_bright": "#ffffff",
+    "axis": "#666666",
+    "accent": "#c5a9eb",
+    "accent_text": "#101010",
+    "inactive_selection": "#333333",
+    "viewer_surface": "#4a7090",
+    "viewer_surface_edge": "#8db3cf",
+    "viewer_fuselage": "#555866",
+    "viewer_fuselage_edge": "#9a9dab",
+    "viewer_panel_edge": "#e0e0e0",
+}
+
+LIGHT_TOKENS: dict[str, str] = {
+    "window": "#f4f4f4",
+    "title_bar": "#e8e8e8",
+    "dock": "#f4f4f4",
+    "surface": "#ffffff",
+    "surface_alt": "#e8e8e8",
+    "elevated": "#f5f5f5",
+    "row_alt": "#fafafa",
+    "plot": "#ffffff",
+    "grid": "#e0e0e0",
+    "border": "#dddddd",
+    "border_strong": "#b0b0b0",
+    "text": "#1e1e1e",
+    "text_muted": "#555555",
+    "text_dim": "#777777",
+    "text_bright": "#1a73e8",
+    "axis": "#777777",
+    "accent": "#7048e8",
+    "accent_text": "#ffffff",
+    "inactive_selection": "#e4e4e4",
+    "viewer_surface": "#7894aa",
+    "viewer_surface_edge": "#2b4860",
+    "viewer_fuselage": "#8b8e99",
+    "viewer_fuselage_edge": "#4b4e58",
+    "viewer_panel_edge": "#303030",
+}
+
+_current_mode: str = "dark"
+
+
+def set_theme_mode(mode: str) -> None:
+    """Set the active theme mode ('dark' or 'light')."""
+    global _current_mode
+    if mode in ("dark", "light"):
+        _current_mode = mode
+
+
+def current_theme_mode() -> str:
+    """Return the active theme mode ('dark' or 'light')."""
+    return _current_mode
 
 
 def tokens() -> dict[str, str]:
-    return DARK_TOKENS
+    """Return active theme tokens dictionary."""
+    return LIGHT_TOKENS if _current_mode == "light" else DARK_TOKENS
 
 
 def accent_color() -> str:
     """Return the current UI accent color as a hex string."""
-    return ACCENT_COLOR
+    return tokens()["accent"]
+
+
+def chart_color(role: str) -> str:
+    """Return a data-series color with sufficient contrast for the active theme."""
+    palette = LIGHT_CHART_COLORS if _current_mode == "light" else DARK_CHART_COLORS
+    return palette.get(role, palette["blue"])
+
+
+def status_color(level: str) -> str:
+    """Return a semantic status color suitable for the active theme."""
+    palette = LIGHT_STATUS_COLORS if _current_mode == "light" else STATUS_COLORS
+    return palette.get(level, palette["info"])
 
 
 def rgba(color: str, alpha: float) -> str:
@@ -66,192 +158,172 @@ def rgba(color: str, alpha: float) -> str:
     return f"rgba({qcolor.red()}, {qcolor.green()}, {qcolor.blue()}, {alpha})"
 
 
-class DockResizeStyle(QProxyStyle):
-    """Draws the dock resize handles in the title bar color."""
+def _create_dark_palette() -> QPalette:
+    """Create complete robust dark palette for Qt Fusion."""
+    dark_palette = QPalette()
 
-    def drawPrimitive(
-        self,
-        element: QStyle.PrimitiveElement,
-        option: QStyleOption,
-        painter: QPainter,
-        widget=None,
-    ) -> None:
-        if element == QStyle.PrimitiveElement.PE_IndicatorDockWidgetResizeHandle:
-            painter.save()
-            painter.fillRect(option.rect, QColor(tokens()["title_bar"]))
-            painter.restore()
-            return
-        super().drawPrimitive(element, option, painter, widget)
-_STYLESHEET_TEMPLATE = """
-QWidget {{
-    font-family: \"{font_family}\";
-    font-size: {font_size}pt;
-}}
+    window = QColor("#242424")
+    base = QColor("#1c1c1c")
+    alt_base = QColor("#222222")
+    text = QColor("#e0e0e0")
+    disabled_text = QColor("#757575")
+    button = QColor("#303030")
+    highlight = QColor(DARK_TOKENS["accent"])
+    highlighted_text = QColor(DARK_TOKENS["accent_text"])
 
-QDockWidget,
-QComboBox QAbstractItemView,
-QAbstractItemView[tableComboPopup="true"] {{
-    font-family: \"{font_family}\";
-    font-size: {font_size}pt;
-}}
+    for group in (QPalette.ColorGroup.Active, QPalette.ColorGroup.Inactive):
+        dark_palette.setColor(group, QPalette.ColorRole.Window, window)
+        dark_palette.setColor(group, QPalette.ColorRole.WindowText, text)
+        dark_palette.setColor(group, QPalette.ColorRole.Base, base)
+        dark_palette.setColor(group, QPalette.ColorRole.AlternateBase, alt_base)
+        dark_palette.setColor(group, QPalette.ColorRole.ToolTipBase, window)
+        dark_palette.setColor(group, QPalette.ColorRole.ToolTipText, text)
+        dark_palette.setColor(group, QPalette.ColorRole.Text, text)
+        dark_palette.setColor(group, QPalette.ColorRole.Button, button)
+        dark_palette.setColor(group, QPalette.ColorRole.ButtonText, text)
+        dark_palette.setColor(group, QPalette.ColorRole.BrightText, QColor("#ffffff"))
+        dark_palette.setColor(group, QPalette.ColorRole.Light, QColor("#3c3c3c"))
+        dark_palette.setColor(group, QPalette.ColorRole.Midlight, QColor("#303030"))
+        dark_palette.setColor(group, QPalette.ColorRole.Dark, QColor("#1c1c1c"))
+        dark_palette.setColor(group, QPalette.ColorRole.Mid, QColor("#282828"))
+        dark_palette.setColor(group, QPalette.ColorRole.Shadow, QColor("#181818"))
+        dark_palette.setColor(group, QPalette.ColorRole.Highlight, highlight)
+        dark_palette.setColor(group, QPalette.ColorRole.HighlightedText, highlighted_text)
+        dark_palette.setColor(group, QPalette.ColorRole.Link, QColor("#61afef"))
+        dark_palette.setColor(group, QPalette.ColorRole.LinkVisited, QColor("#c678dd"))
+        dark_palette.setColor(group, QPalette.ColorRole.Accent, highlight)
+        dark_palette.setColor(group, QPalette.ColorRole.PlaceholderText, disabled_text)
 
-QMenuBar {{
-    font-family: \"{font_family}\";
-    font-size: 10pt;
-    padding: 0px 2px;
-}}
+    disabled = QPalette.ColorGroup.Disabled
+    dark_palette.setColor(disabled, QPalette.ColorRole.Window, window)
+    dark_palette.setColor(disabled, QPalette.ColorRole.WindowText, disabled_text)
+    dark_palette.setColor(disabled, QPalette.ColorRole.Base, base)
+    dark_palette.setColor(disabled, QPalette.ColorRole.AlternateBase, alt_base)
+    dark_palette.setColor(disabled, QPalette.ColorRole.ToolTipBase, window)
+    dark_palette.setColor(disabled, QPalette.ColorRole.ToolTipText, disabled_text)
+    dark_palette.setColor(disabled, QPalette.ColorRole.Text, disabled_text)
+    dark_palette.setColor(disabled, QPalette.ColorRole.Button, button)
+    dark_palette.setColor(disabled, QPalette.ColorRole.ButtonText, disabled_text)
+    dark_palette.setColor(disabled, QPalette.ColorRole.BrightText, disabled_text)
+    dark_palette.setColor(disabled, QPalette.ColorRole.Light, QColor("#3c3c3c"))
+    dark_palette.setColor(disabled, QPalette.ColorRole.Midlight, QColor("#303030"))
+    dark_palette.setColor(disabled, QPalette.ColorRole.Dark, QColor("#1c1c1c"))
+    dark_palette.setColor(disabled, QPalette.ColorRole.Mid, QColor("#282828"))
+    dark_palette.setColor(disabled, QPalette.ColorRole.Shadow, QColor("#181818"))
+    dark_palette.setColor(disabled, QPalette.ColorRole.Highlight, QColor("#353535"))
+    dark_palette.setColor(disabled, QPalette.ColorRole.HighlightedText, disabled_text)
+    dark_palette.setColor(disabled, QPalette.ColorRole.Link, disabled_text)
+    dark_palette.setColor(disabled, QPalette.ColorRole.LinkVisited, disabled_text)
+    dark_palette.setColor(disabled, QPalette.ColorRole.Accent, QColor("#353535"))
+    dark_palette.setColor(disabled, QPalette.ColorRole.PlaceholderText, disabled_text)
 
-QMenuBar::item {{
-    font-family: \"{font_family}\";
-    font-size: 10pt;
-    padding: 2px 5px;
-    margin: 0px;
-    border-radius: 2px;
-}}
+    return dark_palette
 
-QMenu {{
-    font-family: \"{font_family}\";
-    font-size: 10pt;
-    padding: 2px 0px;
-    border: 1px solid {border_strong};
-    border-radius: 2px;
-}}
 
-QMenu::item {{
-    font-family: \"{font_family}\";
-    font-size: 10pt;
-    padding: 2px 14px 2px 8px;
-    margin: 0px 1px;
-    border-radius: 2px;
-}}
+def _create_light_palette() -> QPalette:
+    """Create complete robust clean light palette for Qt Fusion."""
+    light_palette = QPalette()
 
-QMenu::separator {{
-    height: 1px;
-    background-color: {border_strong};
-    margin: 2px 3px;
-}}
+    window = QColor("#f4f4f4")
+    base = QColor("#ffffff")
+    alt_base = QColor("#fafafa")
+    text = QColor("#1e1e1e")
+    disabled_text = QColor("#8a8a8a")
+    button = QColor("#e8e8e8")
+    highlight = QColor("#7048e8")
+    highlighted_text = QColor("#ffffff")
 
-QDockWidget::title {{
-    padding: 1px 4px;
-}}
+    for group in (QPalette.ColorGroup.Active, QPalette.ColorGroup.Inactive):
+        light_palette.setColor(group, QPalette.ColorRole.Window, window)
+        light_palette.setColor(group, QPalette.ColorRole.WindowText, text)
+        light_palette.setColor(group, QPalette.ColorRole.Base, base)
+        light_palette.setColor(group, QPalette.ColorRole.AlternateBase, alt_base)
+        light_palette.setColor(group, QPalette.ColorRole.ToolTipBase, QColor("#ffffdc"))
+        light_palette.setColor(group, QPalette.ColorRole.ToolTipText, text)
+        light_palette.setColor(group, QPalette.ColorRole.Text, text)
+        light_palette.setColor(group, QPalette.ColorRole.Button, button)
+        light_palette.setColor(group, QPalette.ColorRole.ButtonText, text)
+        light_palette.setColor(group, QPalette.ColorRole.BrightText, QColor("#ffffff"))
+        light_palette.setColor(group, QPalette.ColorRole.Light, QColor("#ffffff"))
+        light_palette.setColor(group, QPalette.ColorRole.Midlight, QColor("#f0f0f0"))
+        light_palette.setColor(group, QPalette.ColorRole.Dark, QColor("#cccccc"))
+        light_palette.setColor(group, QPalette.ColorRole.Mid, QColor("#dddddd"))
+        light_palette.setColor(group, QPalette.ColorRole.Shadow, QColor("#b8b8b8"))
+        light_palette.setColor(group, QPalette.ColorRole.Highlight, highlight)
+        light_palette.setColor(group, QPalette.ColorRole.HighlightedText, highlighted_text)
+        light_palette.setColor(group, QPalette.ColorRole.Link, QColor("#0969da"))
+        light_palette.setColor(group, QPalette.ColorRole.LinkVisited, QColor("#8250df"))
+        light_palette.setColor(group, QPalette.ColorRole.Accent, highlight)
+        light_palette.setColor(group, QPalette.ColorRole.PlaceholderText, disabled_text)
 
-QDockWidget {{
-    background-color: {dock};
-}}
+    disabled = QPalette.ColorGroup.Disabled
+    light_palette.setColor(disabled, QPalette.ColorRole.Window, window)
+    light_palette.setColor(disabled, QPalette.ColorRole.WindowText, disabled_text)
+    light_palette.setColor(disabled, QPalette.ColorRole.Base, base)
+    light_palette.setColor(disabled, QPalette.ColorRole.AlternateBase, alt_base)
+    light_palette.setColor(disabled, QPalette.ColorRole.ToolTipBase, QColor("#ffffdc"))
+    light_palette.setColor(disabled, QPalette.ColorRole.ToolTipText, disabled_text)
+    light_palette.setColor(disabled, QPalette.ColorRole.Text, disabled_text)
+    light_palette.setColor(disabled, QPalette.ColorRole.Button, button)
+    light_palette.setColor(disabled, QPalette.ColorRole.ButtonText, disabled_text)
+    light_palette.setColor(disabled, QPalette.ColorRole.BrightText, disabled_text)
+    light_palette.setColor(disabled, QPalette.ColorRole.Light, QColor("#ffffff"))
+    light_palette.setColor(disabled, QPalette.ColorRole.Midlight, QColor("#f0f0f0"))
+    light_palette.setColor(disabled, QPalette.ColorRole.Dark, QColor("#cccccc"))
+    light_palette.setColor(disabled, QPalette.ColorRole.Mid, QColor("#dddddd"))
+    light_palette.setColor(disabled, QPalette.ColorRole.Shadow, QColor("#b8b8b8"))
+    light_palette.setColor(disabled, QPalette.ColorRole.Highlight, QColor("#d0d0d0"))
+    light_palette.setColor(disabled, QPalette.ColorRole.HighlightedText, disabled_text)
+    light_palette.setColor(disabled, QPalette.ColorRole.Link, disabled_text)
+    light_palette.setColor(disabled, QPalette.ColorRole.LinkVisited, disabled_text)
+    light_palette.setColor(disabled, QPalette.ColorRole.Accent, QColor("#d0d0d0"))
+    light_palette.setColor(disabled, QPalette.ColorRole.PlaceholderText, disabled_text)
 
-QWidget#studioDockTitleBar {{
-    background-color: {title_bar};
-    border-bottom: 1px solid {border_strong};
-}}
+    return light_palette
 
-QWidget#studioDockTitleBar QLabel {{
-    color: {text};
-    font-weight: 600;
-}}
 
-QWidget#studioDockTitleBar QToolButton {{
-    background-color: transparent;
-    border: none;
-    border-radius: 3px;
-    margin: 1px;
-}}
+def apply_theme(app: QApplication, mode: str | None = None) -> None:
+    """Pure 100% native Qt Fusion styling with instant dynamic light/dark palette."""
+    if mode is not None:
+        set_theme_mode(mode)
 
-QWidget#studioDockTitleBar QToolButton:hover {{
-    background-color: {dock_hover};
-}}
+    if app.style().objectName().lower() != "fusion":
+        app.setStyle("Fusion")
+    palette = _create_dark_palette() if current_theme_mode() == "dark" else _create_light_palette()
+    if app.styleSheet():
+        app.setStyleSheet("")
+    app.setPalette(palette)
+    application_font = _application_font(DEFAULT_FONT_SIZE)
+    if app.font() != application_font:
+        app.setFont(application_font)
 
-QWidget#studioDockTitleBar QToolButton:pressed {{
-    background-color: {dock_pressed};
-}}
+    from setuav_studio.ui.icons import refresh_label_icon
 
-QWidget[sectionHeader="true"] {{
-    background-color: transparent;
-}}
+    for widget in app.allWidgets():
+        # Application palette propagation preserves intentional per-widget
+        # palette overrides and emits Qt's normal palette-change events.
+        if isinstance(widget, QLabel):
+            refresh_label_icon(widget)
+        widget.update()
 
-QWidget[sectionHeader="true"] QLabel {{
-    color: {text};
-    font-weight: 600;
-    font-size: {font_size}pt;
-}}
+    global _combobox_wheel_filter
+    if _combobox_wheel_filter is None:
+        _combobox_wheel_filter = ComboBoxWheelFilter(app)
+        app.installEventFilter(_combobox_wheel_filter)
 
-QTableView,
-QTreeView {{
-    alternate-background-color: palette(alternate-base);
-}}
 
-QTableView:!focus,
-QTreeView:!focus {{
-    selection-background-color: {inactive_selection};
-    selection-color: palette(text);
-}}
+def build_stylesheet(font_size: int = DEFAULT_FONT_SIZE) -> str:
+    """Return empty stylesheet to allow pure native Qt Fusion rendering."""
+    return ""
 
-QTableView::item,
-QTreeView::item {{
-    padding: 0 4px;
-}}
 
-QHeaderView::section {{
-    font-family: \"{font_family}\";
-    font-size: {font_size}pt;
-    padding: 1px 4px;
-}}
-
-QScrollBar:vertical {{
-    width: 8px;
-}}
-
-QScrollBar:horizontal {{
-    height: 8px;
-}}
-"""
 _INTER_FONT_FILES = (
     "Inter-VariableFont_opsz,wght.ttf",
     "Inter-Italic-VariableFont_opsz,wght.ttf",
 )
 _inter_family: str | None = None
 _inter_load_attempted = False
-_dock_resize_style: DockResizeStyle | None = None
 _combobox_wheel_filter: ComboBoxWheelFilter | None = None
-
-
-def apply_theme(app: QApplication) -> None:
-    _apply_accent(app)
-    app.setFont(_application_font(DEFAULT_FONT_SIZE))
-    app.setStyleSheet(build_stylesheet())
-    global _dock_resize_style, _combobox_wheel_filter
-    _dock_resize_style = DockResizeStyle(app.style())
-    app.setStyle(_dock_resize_style)
-    if _combobox_wheel_filter is None:
-        _combobox_wheel_filter = ComboBoxWheelFilter(app)
-        app.installEventFilter(_combobox_wheel_filter)
-
-
-def _apply_accent(app: QApplication) -> None:
-    palette = app.palette()
-    accent = QColor(ACCENT_COLOR)
-    accent_text = QColor("#101010")
-
-    for group in (
-        QPalette.ColorGroup.Active,
-        QPalette.ColorGroup.Inactive,
-    ):
-        palette.setColor(group, QPalette.ColorRole.Accent, accent)
-        palette.setColor(group, QPalette.ColorRole.Highlight, accent)
-        palette.setColor(group, QPalette.ColorRole.HighlightedText, accent_text)
-        palette.setColor(group, QPalette.ColorRole.Link, accent)
-        palette.setColor(group, QPalette.ColorRole.LinkVisited, accent)
-    app.setPalette(palette)
-
-
-def build_stylesheet(font_size: int = DEFAULT_FONT_SIZE) -> str:
-    return _STYLESHEET_TEMPLATE.format(
-        font_family=FONT_FAMILY,
-        font_size=font_size,
-        inactive_selection=INACTIVE_SELECTION_COLOR,
-        dock_hover="rgba(255, 255, 255, 0.14)",
-        dock_pressed="rgba(255, 255, 255, 0.22)",
-        **tokens(),
-    )
 
 
 def _application_font(font_size: int) -> QFont:

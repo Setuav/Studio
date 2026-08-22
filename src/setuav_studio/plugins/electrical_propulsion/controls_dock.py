@@ -6,6 +6,7 @@ import logging
 import math
 from typing import Any
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont, QPalette
 from PySide6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
@@ -24,7 +25,7 @@ from pythrust.propulsion.models.propeller import PropellerSpec
 
 from .database import get_propeller_database
 from .engine.solver import PropulsionSolverEngine
-from setuav_studio.ui.icons import get_icon
+from setuav_studio.ui.icons import get_icon, set_label_icon
 from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.ui.property_tables import PropertyTableMixin
 
@@ -41,6 +42,7 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
         self._api = api
         self._loading = False
         self._current_mode = "airspeed_sweep"
+        self._alert_severity = "success"
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -57,6 +59,7 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
         scroll.setWidget(content)
         layout.addWidget(scroll)
 
+        self._section_icons: list[tuple[QLabel, str]] = []
         self._create_system_section()
         self._create_mode_section()
         self._create_parameters_section()
@@ -69,6 +72,20 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
         self._api.on_project_changed(lambda _p: self._refresh_assemblies())
         self._api.on_project_content_changed(lambda _p: self._refresh_assemblies())
         self._refresh_assemblies()
+
+    def update_theme_style(self) -> None:
+        for lbl, name in self._section_icons:
+            set_label_icon(lbl, name)
+        if hasattr(self, "run_button"):
+            self.run_button.setIcon(get_icon("fa6s.play"))
+        if hasattr(self, "reset_button"):
+            self.reset_button.setIcon(get_icon("fa6s.arrow-rotate-left"))
+        if hasattr(self, "alert_box") and self.alert_box.isVisible():
+            self.show_alert(
+                self._alert_severity,
+                self.alert_title.text(),
+                self.alert_message.text(),
+            )
 
     def _create_section(self, title: str, icon_name: str | None = None) -> QVBoxLayout:
         section = QWidget()
@@ -87,9 +104,9 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
 
         if icon_name:
             icon_label = QLabel()
-            pixmap = get_icon(icon_name).pixmap(14, 14)
-            icon_label.setPixmap(pixmap)
+            set_label_icon(icon_label, icon_name)
             icon_label.setFixedSize(14, 14)
+            self._section_icons.append((icon_label, icon_name))
             header_layout.addWidget(icon_label)
 
         title_label = QLabel(title)
@@ -212,40 +229,32 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
         text_layout.setSpacing(2)
 
         self.alert_title = QLabel(text_container)
-        self.alert_title.setStyleSheet("font-weight: bold; font-size: 11px;")
+        title_font = QFont(self.alert_title.font())
+        title_font.setBold(True)
+        self.alert_title.setFont(title_font)
         text_layout.addWidget(self.alert_title)
 
         self.alert_message = QLabel(text_container)
         self.alert_message.setWordWrap(True)
-        self.alert_message.setStyleSheet("font-size: 10.5px; line-height: 1.3;")
         text_layout.addWidget(self.alert_message)
 
         alert_layout.addWidget(text_container, 1)
         self._content_layout.addWidget(self.alert_box)
 
     def show_alert(self, severity: str, title: str, message: str) -> None:
+        from setuav_studio.ui.theme import status_color
+
+        self._alert_severity = severity
         if severity in ("warning", "danger", "error"):
-            self.alert_box.setStyleSheet(
-                "#propulsionAlertBox {"
-                "  background-color: #2b1819;"
-                "  border: 1px solid #da3633;"
-                "  border-radius: 6px;"
-                "}"
-            )
-            self.alert_title.setStyleSheet("color: #f85149; font-weight: bold; font-size: 11px;")
-            self.alert_message.setStyleSheet("color: #e6edf3; font-size: 10.5px;")
-            self.alert_icon.setPixmap(get_icon("fa6s.triangle-exclamation").pixmap(16, 16))
+            color = status_color("error")
+            self.alert_icon.setPixmap(get_icon("fa6s.triangle-exclamation", color=color).pixmap(16, 16))
         else:
-            self.alert_box.setStyleSheet(
-                "#propulsionAlertBox {"
-                "  background-color: #122619;"
-                "  border: 1px solid #238636;"
-                "  border-radius: 6px;"
-                "}"
-            )
-            self.alert_title.setStyleSheet("color: #3fb950; font-weight: bold; font-size: 11px;")
-            self.alert_message.setStyleSheet("color: #e6edf3; font-size: 10.5px;")
-            self.alert_icon.setPixmap(get_icon("fa6s.circle-check").pixmap(16, 16))
+            color = status_color("success")
+            self.alert_icon.setPixmap(get_icon("fa6s.circle-check", color=color).pixmap(16, 16))
+
+        palette = self.alert_title.palette()
+        palette.setColor(QPalette.ColorRole.WindowText, color)
+        self.alert_title.setPalette(palette)
 
         self.alert_title.setText(title)
         self.alert_message.setText(message)
@@ -966,4 +975,3 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
     def _property_value_by_row(table: QTableWidget, row: int) -> str:
         item = table.item(row, 1)
         return item.text().strip() if item else ""
-

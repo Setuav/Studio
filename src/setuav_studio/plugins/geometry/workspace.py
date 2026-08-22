@@ -1,14 +1,14 @@
 import logging
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction, QActionGroup, QResizeEvent, QShowEvent
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QAction, QActionGroup
 from PySide6.QtWidgets import (
     QButtonGroup,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QMenu,
     QToolButton,
-    QVBoxLayout,
     QWidget,
 )
 
@@ -21,63 +21,31 @@ from .viewport.palettes import (
     set_active_palette,
 )
 from .viewport.widget import OpenGLViewer
-from setuav_studio.ui.theme import accent_color, rgba, tokens
 from .viewport.mesh import (
     FACE_COLORED,
     FACE_MONOCHROME,
 )
 
-
 logger = logging.getLogger(__name__)
-
-_HUD_STYLE = f"""
-QWidget#viewerHUD {{
-    background-color: {rgba(tokens()["window"], 0.88)};
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 6px;
-}}
-QWidget#viewerHUD QToolButton {{
-    background-color: transparent;
-    border: 1px solid transparent;
-    border-radius: 4px;
-    padding: 0px;
-    margin: 0px;
-}}
-QWidget#viewerHUD QToolButton:hover {{
-    background-color: rgba(255, 255, 255, 0.12);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-}}
-QWidget#viewerHUD QToolButton:checked {{
-    background-color: {rgba(accent_color(), 0.22)};
-    border: 1px solid {accent_color()};
-}}
-QWidget#viewerHUD QToolButton:checked:hover {{
-    background-color: {rgba(accent_color(), 0.32)};
-}}
-QWidget#viewerHUD QFrame#hudSep {{
-    background-color: rgba(255, 255, 255, 0.14);
-    max-width: 1px;
-    margin: 3px 2px;
-}}
-"""
 
 
 class ViewerWorkspace(QWidget):
     def __init__(self, api: StudioAPI) -> None:
         super().__init__()
         self._api = api
-        layout = QVBoxLayout(self)
+        layout = QGridLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
         self.viewer = OpenGLViewer(self)
-        layout.addWidget(self.viewer, 1)
+        layout.addWidget(self.viewer, 0, 0)
 
         # Floating HUD Capsule over the 3D Viewport
-        self.hud = QWidget(self)
+        self.hud = QFrame(self)
         self.hud.setObjectName("viewerHUD")
-        self.hud.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        self.hud.setStyleSheet(_HUD_STYLE)
+        self.hud.setFrameShape(QFrame.Shape.StyledPanel)
+        self.hud.setFrameShadow(QFrame.Shadow.Raised)
+        self.hud.setAutoFillBackground(True)
 
         hud_layout = QHBoxLayout(self.hud)
         hud_layout.setContentsMargins(4, 3, 4, 3)
@@ -187,6 +155,7 @@ class ViewerWorkspace(QWidget):
         hud_layout.addWidget(sep4)
 
         # Standard View Presets
+        self._cam_buttons: list[tuple[QToolButton, str]] = []
         view_buttons = (
             ("fa6s.arrow-up", "Top View", 0.0, 90.0),
             ("fa6s.arrow-down", "Bottom View", 0.0, -90.0),
@@ -205,15 +174,17 @@ class ViewerWorkspace(QWidget):
                     az, el
                 )
             )
+            self._cam_buttons.append((button, icon))
             hud_layout.addWidget(button)
 
         # Camera Fit Button
-        fit_button = QToolButton(self.hud)
-        fit_button.setIcon(get_icon("fit"))
-        fit_button.setToolTip("Fit View (Reset Camera)")
-        fit_button.setFixedSize(24, 24)
-        fit_button.setAutoRaise(True)
-        hud_layout.addWidget(fit_button)
+        self.fit_button = QToolButton(self.hud)
+        self.fit_button.setIcon(get_icon("fa6s.expand"))
+        self.fit_button.setToolTip("Fit Model in View (F)")
+        self.fit_button.setFixedSize(24, 24)
+        self.fit_button.setAutoRaise(True)
+        self.fit_button.clicked.connect(self.viewer.fit_view)
+        hud_layout.addWidget(self.fit_button)
 
         self.colored_button.clicked.connect(
             lambda: self.viewer.set_face_style(FACE_COLORED)
@@ -221,7 +192,6 @@ class ViewerWorkspace(QWidget):
         self.mono_button.clicked.connect(
             lambda: self.viewer.set_face_style(FACE_MONOCHROME)
         )
-        fit_button.clicked.connect(self.viewer.fit_view)
 
         api.on_project_changed(self._on_project_changed)
         api.on_project_content_changed(self._on_project_content_changed)
@@ -231,7 +201,34 @@ class ViewerWorkspace(QWidget):
         self.destroyed.connect(self._detach)
 
         self.hud.adjustSize()
-        self._reposition_hud()
+        layout.addWidget(
+            self.hud,
+            0,
+            0,
+            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight,
+        )
+        self.hud.raise_()
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        # QOpenGLWidget creates its native surface lazily. Raise the overlay
+        # after that show cycle as well, otherwise the surface may cover it on
+        # some window managers/drivers.
+        QTimer.singleShot(0, self.hud.raise_)
+
+    def update_theme_style(self) -> None:
+        self.hud.setPalette(self.palette())
+        self.solid_button.setIcon(get_icon("fa6s.cube"))
+        self.wire_button.setIcon(get_icon("mdi6.vector-square"))
+        self.colored_button.setIcon(get_icon("fa6s.palette"))
+        self.mono_button.setIcon(get_icon("fa6s.circle-half-stroke"))
+        self.trans_button.setIcon(get_icon("fa6s.droplet"))
+        self.grid_button.setIcon(get_icon("fa6s.table-cells"))
+        self.palette_button.setIcon(get_icon("fa6s.brush"))
+        for btn, icon_name in self._cam_buttons:
+            btn.setIcon(get_icon(icon_name))
+        self.fit_button.setIcon(get_icon("fa6s.expand"))
+        self.viewer.update_theme_style()
 
     def _build_palette_menu(self) -> None:
         self._palette_menu.clear()
@@ -258,21 +255,6 @@ class ViewerWorkspace(QWidget):
         project = self._api.current_project
         if project is not None:
             self._refresh(project, fit=False)
-
-    def resizeEvent(self, event: QResizeEvent) -> None:
-        super().resizeEvent(event)
-        self._reposition_hud()
-
-    def showEvent(self, event: QShowEvent) -> None:
-        super().showEvent(event)
-        self._reposition_hud()
-
-    def _reposition_hud(self) -> None:
-        margin = 12
-        x = self.width() - self.hud.width() - margin
-        y = margin
-        self.hud.move(max(margin, x), y)
-        self.hud.raise_()
 
     def _on_display_toggled(self) -> None:
         if not self.solid_button.isChecked() and not self.wire_button.isChecked():

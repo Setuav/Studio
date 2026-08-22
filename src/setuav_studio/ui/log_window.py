@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.ui.log_buffer import LogEntry, log_buffer_entries, log_signal
-from setuav_studio.ui.theme import STATUS_COLORS, tokens
+from setuav_studio.ui.theme import status_color, tokens
 
 
 class LogWindow(QDialog):
@@ -39,11 +39,6 @@ class LogWindow(QDialog):
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
 
-        tokens_ = tokens()
-        self._table.setStyleSheet(
-            f"QTableWidget {{ background-color: {tokens_['surface']};"
-            f" color: {tokens_['text']}; border: none; }}"
-        )
         layout.addWidget(self._table)
 
         for entry in log_buffer_entries():
@@ -60,7 +55,8 @@ class LogWindow(QDialog):
         message = f"{entry.name}: {entry.message}" if entry.name else entry.message
         message_item = QTableWidgetItem(message)
 
-        color = STATUS_COLORS.get(entry.level.lower(), tokens()["text"])
+        level = entry.level.lower()
+        color = status_color(level) if level in {"info", "success", "warning", "error"} else tokens()["text"]
         brush = QBrush(QColor(color))
         time_item.setForeground(brush)
         level_item.setForeground(brush)
@@ -72,6 +68,19 @@ class LogWindow(QDialog):
         if resize:
             self._table.resizeRowToContents(row)
         self._scroll_to_bottom()
+
+    def update_theme_style(self) -> None:
+        for row in range(self._table.rowCount()):
+            level_item = self._table.item(row, 1)
+            if level_item is None:
+                continue
+            level = level_item.text().lower()
+            color = status_color(level) if level in {"info", "success", "warning", "error"} else tokens()["text"]
+            brush = QBrush(QColor(color))
+            for column in range(self._table.columnCount()):
+                item = self._table.item(row, column)
+                if item is not None:
+                    item.setForeground(brush)
 
     def showEvent(self, event) -> None:
         super().showEvent(event)

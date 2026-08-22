@@ -4,13 +4,12 @@ import logging
 
 import shiboken6
 from PySide6.QtCore import QSettings, QSize, Qt, QTimer
-from PySide6.QtGui import QAction, QCloseEvent, QFont, QFontMetrics, QIcon, QKeySequence
+from PySide6.QtGui import QAction, QActionGroup, QCloseEvent, QFont, QFontMetrics, QKeySequence, QPalette
 from PySide6.QtWidgets import (
     QApplication,
     QDialog,
     QDockWidget,
     QFileDialog,
-    QHBoxLayout,
     QLabel,
     QMainWindow,
     QMenu,
@@ -32,7 +31,7 @@ from setuav_studio.plugin_system import (
 )
 from setuav_studio.plugins.core.settings import SettingsDialog, StudioSettings
 from setuav_studio.schema_validation import validate_project
-from setuav_studio.ui.theme import STATUS_COLORS, accent_color, rgba, tokens
+from setuav_studio.ui.theme import status_color
 from setuav_studio.project import (
     ProjectDocument,
     ProjectOpenError,
@@ -42,57 +41,6 @@ from setuav_studio.project import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-class DockTitleBar(QWidget):
-    """Simple custom dock title bar styled through theme tokens."""
-
-    def __init__(self, dock: QDockWidget, icon: str | Path | QIcon | None = None) -> None:
-        super().__init__(dock)
-        self.setObjectName("studioDockTitleBar")
-        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(8, 1, 4, 1)
-        layout.setSpacing(4)
-
-        if icon:
-            icon_label = QLabel(self)
-            icon_label.setPixmap(get_icon(icon).pixmap(13, 13))
-            icon_label.setFixedSize(13, 13)
-            icon_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-            layout.addWidget(icon_label)
-
-        self._title = QLabel(dock.windowTitle(), self)
-        self._title.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        layout.addWidget(self._title)
-        layout.addStretch()
-
-        button_color = tokens()["text"]
-
-        float_button = QToolButton(self)
-        float_button.setAutoRaise(True)
-        float_button.setFixedSize(22, 20)
-        float_button.setIconSize(QSize(13, 13))
-        float_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        float_button.setToolTip("Dock or undock panel")
-        float_button.setIcon(get_icon("dock_float", color=button_color))
-        float_button.clicked.connect(
-            lambda: dock.setFloating(not dock.isFloating())
-        )
-        layout.addWidget(float_button)
-
-        close_button = QToolButton(self)
-        close_button.setAutoRaise(True)
-        close_button.setFixedSize(22, 20)
-        close_button.setIconSize(QSize(13, 13))
-        close_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        close_button.setToolTip("Close panel")
-        close_button.setIcon(get_icon("dock_close", color=button_color))
-        close_button.clicked.connect(dock.close)
-        layout.addWidget(close_button)
-
-        dock.windowTitleChanged.connect(self._title.setText)
 
 
 def apply_runtime_validation(
@@ -167,34 +115,7 @@ class MainWindow(QMainWindow):
         self._workspace_toolbar.setMovable(False)
         self._workspace_toolbar.setFloatable(False)
         self._workspace_toolbar.setIconSize(QSize(15, 15))
-        self._workspace_toolbar.setStyleSheet(f"""
-            QToolBar {{
-                background: transparent;
-                border: none;
-                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-                padding: 2px 8px;
-            }}
-            QToolButton {{
-                background: transparent;
-                border: 1px solid rgba(255, 255, 255, 0.12);
-                border-radius: 4px;
-                padding: 0px 8px;
-                margin: 1px 5px 1px 0px;
-                font-size: 10.5pt;
-                font-weight: 600;
-                color: {tokens()["text"]};
-            }}
-            QToolButton:hover {{
-                background-color: rgba(255, 255, 255, 0.06);
-                border: 1px solid rgba(255, 255, 255, 0.22);
-                color: #ffffff;
-            }}
-            QToolButton:checked {{
-                background-color: {rgba(accent_color(), 0.15)};
-                border: 1px solid {accent_color()};
-                color: {accent_color()};
-            }}
-        """)
+        self._update_workspace_toolbar_style()
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self._workspace_toolbar)
 
         self._api.set_panel_handler(self._add_panel, self._remove_panel)
@@ -213,11 +134,11 @@ class MainWindow(QMainWindow):
         self._file_menu = self.menuBar().addMenu("&File")
         self._menus["file"] = self._file_menu
 
-        open_file_action = self._file_menu.addAction(get_icon("file_open"), "Open Project File…")
-        open_file_action.triggered.connect(self._open_project_file)
+        self._open_file_action = self._file_menu.addAction(get_icon("file_open"), "Open Project File…")
+        self._open_file_action.triggered.connect(self._open_project_file)
 
-        open_folder_action = self._file_menu.addAction(get_icon("folder_open"), "Open Project Folder…")
-        open_folder_action.triggered.connect(self._open_project_folder)
+        self._open_folder_action = self._file_menu.addAction(get_icon("folder_open"), "Open Project Folder…")
+        self._open_folder_action.triggered.connect(self._open_project_folder)
 
         self._recent_menu = QMenu("Open Recent", self._file_menu)
         self._recent_menu.setIcon(get_icon("project_folder"))
@@ -234,9 +155,9 @@ class MainWindow(QMainWindow):
         self._save_as_action.triggered.connect(self.save_project_as)
 
         self._file_menu.addSeparator()
-        exit_action = self._file_menu.addAction(get_icon("exit"), "Exit")
-        exit_action.setShortcut(QKeySequence.StandardKey.Quit)
-        exit_action.triggered.connect(self.close)
+        self._exit_action = self._file_menu.addAction(get_icon("exit"), "Exit")
+        self._exit_action.setShortcut(QKeySequence.StandardKey.Quit)
+        self._exit_action.triggered.connect(self.close)
 
         edit_menu = self.menuBar().addMenu("&Edit")
         self._menus["edit"] = edit_menu
@@ -251,11 +172,29 @@ class MainWindow(QMainWindow):
         self._redo_action.setEnabled(False)
 
         edit_menu.addSeparator()
-        settings_action = edit_menu.addAction(get_icon("settings"), "Settings…")
-        settings_action.triggered.connect(self._open_settings)
+        self._settings_action = edit_menu.addAction(get_icon("settings"), "Settings…")
+        self._settings_action.triggered.connect(self._open_settings)
 
         self._view_menu = self.menuBar().addMenu("&View")
         self._menus["view"] = self._view_menu
+
+        from setuav_studio.ui.theme import current_theme_mode
+
+        cur_mode = current_theme_mode()
+        self._theme_action_group = QActionGroup(self)
+        self._theme_action_group.setExclusive(True)
+        self._dark_theme_action = QAction("Dark Theme", self)
+        self._dark_theme_action.setCheckable(True)
+        self._dark_theme_action.setChecked(cur_mode == "dark")
+        self._dark_theme_action.triggered.connect(lambda: self._switch_theme("dark"))
+        self._theme_action_group.addAction(self._dark_theme_action)
+
+        self._light_theme_action = QAction("Light Theme", self)
+        self._light_theme_action.setCheckable(True)
+        self._light_theme_action.setChecked(cur_mode == "light")
+        self._light_theme_action.triggered.connect(lambda: self._switch_theme("light"))
+        self._theme_action_group.addAction(self._light_theme_action)
+        self._populate_view_menu()
 
         self._tools_menu = self.menuBar().addMenu("&Tools")
         self._menus["tools"] = self._tools_menu
@@ -281,7 +220,7 @@ class MainWindow(QMainWindow):
 
         self._log_button = QToolButton(self)
         self._log_button.setObjectName("studioStatusLogButton")
-        self._log_button.setIcon(get_icon("log", color=tokens()["text"]))
+        self._log_button.setIcon(get_icon("log"))
         self._log_button.setToolTip("Application logs")
         self._log_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self._log_button.setAutoRaise(True)
@@ -299,32 +238,9 @@ class MainWindow(QMainWindow):
 
         self._status_label = QLabel(self)
         self._status_label.setObjectName("studioStatusMessage")
+        self._status_level = "info"
         self.statusBar().addWidget(self._log_button)
         self.statusBar().addWidget(self._status_label)
-        self.statusBar().setStyleSheet(
-            "QStatusBar {"
-            " border-top: 1px solid rgba(255, 255, 255, 0.08);"
-            " background-color: rgba(0, 0, 0, 0.25);"
-            "}"
-            "QStatusBar QToolButton {"
-            " background: transparent;"
-            " border: none;"
-            " border-radius: 3px;"
-            "}"
-            "QStatusBar QToolButton:hover {"
-            " background-color: rgba(255, 255, 255, 0.1);"
-            "}"
-            "QStatusBar QProgressBar {"
-            f" background-color: {rgba(accent_color(), 0.12)};"
-            f" border: 1px solid {tokens()['border_strong']};"
-            " border-radius: 3px;"
-            " height: 14px;"
-            "}"
-            "QStatusBar QProgressBar::chunk {"
-            f" background-color: {accent_color()};"
-            " border-radius: 2px;"
-            "}"
-        )
         self._api.set_progress_handler(self._show_progress)
         self._status_timer = QTimer(self)
         self._status_timer.setSingleShot(True)
@@ -332,6 +248,61 @@ class MainWindow(QMainWindow):
         self._api.set_status_handler(self._show_status_message)
         self._api.show_status("Ready", "info", 0)
         install_log_buffer()
+
+    def _update_workspace_toolbar_style(self) -> None:
+        self._workspace_toolbar.setStyleSheet("")
+
+    def _update_all_icons(self) -> None:
+        try:
+            if hasattr(self, "_open_file_action"):
+                self._open_file_action.setIcon(get_icon("file_open"))
+            if hasattr(self, "_open_folder_action"):
+                self._open_folder_action.setIcon(get_icon("folder_open"))
+            if hasattr(self, "_recent_menu"):
+                self._recent_menu.setIcon(get_icon("project_folder"))
+            if hasattr(self, "_save_action"):
+                self._save_action.setIcon(get_icon("save"))
+            if hasattr(self, "_save_as_action"):
+                self._save_as_action.setIcon(get_icon("save_as"))
+            if hasattr(self, "_exit_action"):
+                self._exit_action.setIcon(get_icon("exit"))
+            if hasattr(self, "_undo_action"):
+                self._undo_action.setIcon(get_icon("undo"))
+            if hasattr(self, "_redo_action"):
+                self._redo_action.setIcon(get_icon("redo"))
+            if hasattr(self, "_settings_action"):
+                self._settings_action.setIcon(get_icon("settings"))
+            if hasattr(self, "_log_button"):
+                self._log_button.setIcon(get_icon("log"))
+        except Exception as exc:
+            logger.debug("Error refreshing icons: %s", exc)
+
+    def _switch_theme(self, mode: str) -> None:
+        from setuav_studio.ui.theme import apply_theme
+
+        app = QApplication.instance()
+        if isinstance(app, QApplication):
+            apply_theme(app, mode)
+            self._update_workspace_toolbar_style()
+            self._update_all_icons()
+            self._dark_theme_action.setChecked(mode == "dark")
+            self._light_theme_action.setChecked(mode == "light")
+            self._refresh_status_color()
+            for widget in app.allWidgets():
+                try:
+                    if hasattr(widget, "update_theme_style") and callable(widget.update_theme_style):
+                        widget.update_theme_style()
+                except Exception:
+                    pass
+
+            self.repaint()
+
+            curr_settings = StudioSettings.load()
+            if curr_settings.theme_mode != mode:
+                from dataclasses import replace
+
+                replace(curr_settings, theme_mode=mode).save()
+            self.update()
 
     def _open_log_window(self) -> None:
         if self._log_window is None:
@@ -349,8 +320,8 @@ class MainWindow(QMainWindow):
         timeout_ms: int = 5000,
     ) -> None:
         self._status_timer.stop()
-        color = STATUS_COLORS.get(level, STATUS_COLORS["info"])
-        self._status_label.setStyleSheet(f"color: {color};")
+        self._status_level = level
+        self._refresh_status_color()
         self._status_label.setText(message)
         if timeout_ms > 0:
             self._status_timer.start(timeout_ms)
@@ -367,6 +338,11 @@ class MainWindow(QMainWindow):
     def _clear_status_message(self) -> None:
         self._status_timer.stop()
         self._status_label.clear()
+
+    def _refresh_status_color(self) -> None:
+        palette = self._status_label.palette()
+        palette.setColor(QPalette.ColorRole.WindowText, status_color(self._status_level))
+        self._status_label.setPalette(palette)
 
     def restore_window_layout(self) -> None:
         settings = QSettings()
@@ -632,6 +608,7 @@ class MainWindow(QMainWindow):
             return
         values = dialog.values()
         values.save()
+        self._switch_theme(values.theme_mode)
         self._trim_recent_projects(values.recent_project_limit)
         self._update_recent_menu()
 
@@ -639,7 +616,14 @@ class MainWindow(QMainWindow):
         QSettings().setValue("recent_projects", self._recent_projects()[:limit])
 
     def _update_view_menu(self, workspace_id: str | None) -> None:
+        self._populate_view_menu(workspace_id)
+
+    def _populate_view_menu(self, workspace_id: str | None = None) -> None:
         self._view_menu.clear()
+        theme_menu = self._view_menu.addMenu("Theme")
+        theme_menu.addAction(self._dark_theme_action)
+        theme_menu.addAction(self._light_theme_action)
+        self._view_menu.addSeparator()
         for cid, (panel_contrib, dock) in self._panels.items():
             if workspace_id is None or panel_contrib.is_in_workspace(workspace_id):
                 action = self._panel_actions.get(cid)
@@ -666,7 +650,6 @@ class MainWindow(QMainWindow):
     def _add_panel(self, contribution: PanelContribution) -> None:
         dock = QDockWidget(contribution.title, self)
         dock.setFont(QApplication.font())
-        dock.setTitleBarWidget(DockTitleBar(dock, icon=contribution.icon))
         dock.setObjectName(contribution.id)
         dock.setWidget(self._wrap_panel(contribution.factory()))
         self.addDockWidget(contribution.area, dock)

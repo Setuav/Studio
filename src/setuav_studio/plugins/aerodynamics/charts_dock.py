@@ -17,7 +17,6 @@ from PySide6.QtCharts import (
 )
 
 from setuav_studio.plugin_system import StudioAPI
-from setuav_studio.ui.theme import tokens
 from .engine.base import AeroResult
 
 
@@ -26,8 +25,6 @@ class SingleChartWidget(QWidget):
 
     def __init__(self, title: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self._tokens = tokens()
-
         layout = QVBoxLayout(self)
         layout.setContentsMargins(2, 2, 2, 2)
         layout.setSpacing(0)
@@ -35,9 +32,6 @@ class SingleChartWidget(QWidget):
         self.chart = QChart()
         self.chart.setTitle(title)
         self.chart.setTitleFont(QFont("Inter", 9, QFont.Weight.Bold))
-        self.chart.setTitleBrush(QColor(self._tokens.get("text", "#e0e0e0")))
-        self.chart.setBackgroundBrush(QColor(self._tokens.get("surface", "#1e1e1e")))
-        self.chart.setPlotAreaBackgroundBrush(QColor(self._tokens.get("plot", "#121212")))
         self.chart.setPlotAreaBackgroundVisible(True)
         self.chart.legend().setVisible(False)
         self.chart.layout().setContentsMargins(0, 0, 0, 0)
@@ -45,10 +39,42 @@ class SingleChartWidget(QWidget):
 
         self.view = QChartView(self.chart)
         self.view.setRenderHint(QPainter.RenderHint.Antialiasing)
-        self.view.setStyleSheet(
-            f"background-color: {self._tokens.get('surface', '#1e1e1e')}; border: none;"
-        )
         layout.addWidget(self.view)
+
+        self.update_theme_style()
+
+    def update_theme_style(self) -> None:
+        from setuav_studio.ui.theme import chart_color, current_theme_mode, tokens
+
+        tok = tokens()
+        is_light = current_theme_mode() == "light"
+        text_col = QColor(tok.get("text", "#1e1e1e" if is_light else "#e0e0e0"))
+        dim_col = QColor(tok.get("text_dim", "#666666" if is_light else "#888888"))
+        bg_col = QColor(tok.get("surface", "#ffffff" if is_light else "#1e1e1e"))
+        plot_bg_col = QColor(tok.get("plot", "#ffffff" if is_light else "#141414"))
+        grid_col = QColor(tok.get("grid", "#e0e0e0" if is_light else "#333333"))
+        border_col = QColor(tok.get("border", "#dddddd" if is_light else "#282828"))
+
+        self.chart.setTitleBrush(text_col)
+        self.chart.setBackgroundBrush(bg_col)
+        self.chart.setBackgroundPen(QPen(border_col))
+        self.chart.setPlotAreaBackgroundBrush(plot_bg_col)
+        self.chart.setDropShadowEnabled(False)
+
+        for axis in list(self.chart.axes()):
+            if isinstance(axis, QValueAxis):
+                axis.setTitleBrush(dim_col)
+                axis.setLabelsBrush(dim_col)
+                axis.setGridLineColor(grid_col)
+                axis.setMinorGridLineColor(grid_col)
+                axis.setLinePenColor(dim_col)
+
+        for series in self.chart.series():
+            role = series.property("themeColorRole")
+            if isinstance(role, str) and role:
+                pen = series.pen()
+                pen.setColor(QColor(chart_color(role)))
+                series.setPen(pen)
 
     def clear(self) -> None:
         self.chart.removeAllSeries()
@@ -61,12 +87,32 @@ class SingleChartWidget(QWidget):
     def axes(self) -> list:
         return self.chart.axes()
 
+    def _create_axis(self, title: str = "") -> QValueAxis:
+        from setuav_studio.ui.theme import current_theme_mode, tokens
+
+        tok = tokens()
+        is_light = current_theme_mode() == "light"
+        dim_col = QColor(tok.get("text_dim", "#555555" if is_light else "#888888"))
+        grid_col = QColor(tok.get("grid", "#e2e4e8" if is_light else "#2d2d35"))
+
+        axis = QValueAxis()
+        if title:
+            axis.setTitleText(title)
+            axis.setTitleBrush(dim_col)
+            axis.setTitleFont(QFont("Inter", 8))
+        axis.setLabelsBrush(dim_col)
+        axis.setLabelsFont(QFont("Inter", 8))
+        axis.setGridLineColor(grid_col)
+        axis.setMinorGridLineColor(grid_col)
+        axis.setLinePenColor(dim_col)
+        return axis
+
     def plot_single(
         self,
         x_vals: Sequence[float],
         y_vals: Sequence[float],
         name: str,
-        color: str,
+        color_role: str,
         x_title: str = "",
         y_title: str = "",
     ) -> None:
@@ -74,9 +120,14 @@ class SingleChartWidget(QWidget):
         if not x_vals or not y_vals:
             return
 
+        self.update_theme_style()
+
         series = QLineSeries()
         series.setName(name)
-        pen = QPen(QColor(color), 2.5)
+        series.setProperty("themeColorRole", color_role)
+        from setuav_studio.ui.theme import chart_color
+
+        pen = QPen(QColor(chart_color(color_role)), 2.5)
         series.setPen(pen)
 
         for x, y in zip(x_vals, y_vals):
@@ -84,25 +135,11 @@ class SingleChartWidget(QWidget):
 
         self.chart.addSeries(series)
 
-        axis_x = QValueAxis()
-        if x_title:
-            axis_x.setTitleText(x_title)
-            axis_x.setTitleBrush(QColor("#888888"))
-            axis_x.setTitleFont(QFont("Inter", 8))
-        axis_x.setLabelsBrush(QColor("#888888"))
-        axis_x.setLabelsFont(QFont("Inter", 8))
-        axis_x.setGridLineColor(QColor("#2d2d35"))
+        axis_x = self._create_axis(x_title)
         pad_x = max((max(x_vals) - min(x_vals)) * 0.05, 0.5)
         axis_x.setRange(min(x_vals) - pad_x, max(x_vals) + pad_x)
 
-        axis_y = QValueAxis()
-        if y_title:
-            axis_y.setTitleText(y_title)
-            axis_y.setTitleBrush(QColor("#888888"))
-            axis_y.setTitleFont(QFont("Inter", 8))
-        axis_y.setLabelsBrush(QColor("#888888"))
-        axis_y.setLabelsFont(QFont("Inter", 8))
-        axis_y.setGridLineColor(QColor("#2d2d35"))
+        axis_y = self._create_axis(y_title)
         pad_y = max((max(y_vals) - min(y_vals)) * 0.05, 0.05)
         axis_y.setRange(min(y_vals) - pad_y, max(y_vals) + pad_y)
 
@@ -122,33 +159,23 @@ class SingleChartWidget(QWidget):
         if not x_vals or not curves:
             return
 
-        axis_x = QValueAxis()
-        if x_title:
-            axis_x.setTitleText(x_title)
-            axis_x.setTitleBrush(QColor("#888888"))
-            axis_x.setTitleFont(QFont("Inter", 8))
-        axis_x.setLabelsBrush(QColor("#888888"))
-        axis_x.setLabelsFont(QFont("Inter", 8))
-        axis_x.setGridLineColor(QColor("#2d2d35"))
+        self.update_theme_style()
 
-        axis_y = QValueAxis()
-        if y_title:
-            axis_y.setTitleText(y_title)
-            axis_y.setTitleBrush(QColor("#888888"))
-            axis_y.setTitleFont(QFont("Inter", 8))
-        axis_y.setLabelsBrush(QColor("#888888"))
-        axis_y.setLabelsFont(QFont("Inter", 8))
-        axis_y.setGridLineColor(QColor("#2d2d35"))
+        axis_x = self._create_axis(x_title)
+        axis_y = self._create_axis(y_title)
 
         self.chart.addAxis(axis_x, Qt.AlignmentFlag.AlignBottom)
         self.chart.addAxis(axis_y, Qt.AlignmentFlag.AlignLeft)
 
         all_y: list[float] = []
 
-        for y_vals, name, color in curves:
+        for y_vals, name, color_role in curves:
             series = QLineSeries()
             series.setName(name)
-            pen = QPen(QColor(color), 2.5)
+            series.setProperty("themeColorRole", color_role)
+            from setuav_studio.ui.theme import chart_color
+
+            pen = QPen(QColor(chart_color(color_role)), 2.5)
             series.setPen(pen)
 
             for x, y in zip(x_vals, y_vals):
@@ -188,29 +215,15 @@ class AeroChartsDock(QWidget):
         self.chart_moment = SingleChartWidget("Pitching Moment (Cm vs α)", self)
         self.chart_ld = SingleChartWidget("Aerodynamic Efficiency (L/D vs α)", self)
 
-        splitter_style = """
-            QSplitter::handle {
-                background-color: #262626;
-            }
-            QSplitter::handle:hover {
-                background-color: #4a4a4a;
-            }
-            QSplitter::handle:pressed {
-                background-color: #6a6a6a;
-            }
-        """
-
         # Main Vertical Splitter
         self.main_splitter = QSplitter(Qt.Orientation.Vertical, self)
         self.main_splitter.setChildrenCollapsible(False)
         self.main_splitter.setHandleWidth(4)
-        self.main_splitter.setStyleSheet(splitter_style)
 
         # Top Row Horizontal Splitter (Lift | Polar)
         self.top_splitter = QSplitter(Qt.Orientation.Horizontal, self.main_splitter)
         self.top_splitter.setChildrenCollapsible(False)
         self.top_splitter.setHandleWidth(4)
-        self.top_splitter.setStyleSheet(splitter_style)
         self.top_splitter.addWidget(self.chart_lift)
         self.top_splitter.addWidget(self.chart_polar)
 
@@ -218,7 +231,6 @@ class AeroChartsDock(QWidget):
         self.bottom_splitter = QSplitter(Qt.Orientation.Horizontal, self.main_splitter)
         self.bottom_splitter.setChildrenCollapsible(False)
         self.bottom_splitter.setHandleWidth(4)
-        self.bottom_splitter.setStyleSheet(splitter_style)
         self.bottom_splitter.addWidget(self.chart_moment)
         self.bottom_splitter.addWidget(self.chart_ld)
 
@@ -273,7 +285,7 @@ class AeroChartsDock(QWidget):
             x_vals=alphas,
             y_vals=cls,
             name="CL",
-            color="#4da6ff",
+            color_role="blue",
             x_title="α (°)",
             y_title="CL",
         )
@@ -282,7 +294,7 @@ class AeroChartsDock(QWidget):
         self.chart_polar.plot_multi(
             x_vals=cds,
             curves=[
-                (cls, "CL", "#00e676"),
+                (cls, "CL", "green"),
             ],
             x_title="CD",
             y_title="CL",
@@ -293,7 +305,7 @@ class AeroChartsDock(QWidget):
             x_vals=alphas,
             y_vals=cms,
             name="Cm",
-            color="#ff9100",
+            color_role="orange",
             x_title="α (°)",
             y_title="Cm",
         )
@@ -303,9 +315,13 @@ class AeroChartsDock(QWidget):
             x_vals=alphas,
             y_vals=lds,
             name="L/D",
-            color="#e040fb",
+            color_role="magenta",
             x_title="α (°)",
             y_title="L/D",
         )
 
-
+    def update_theme_style(self) -> None:
+        self.chart_lift.update_theme_style()
+        self.chart_polar.update_theme_style()
+        self.chart_moment.update_theme_style()
+        self.chart_ld.update_theme_style()

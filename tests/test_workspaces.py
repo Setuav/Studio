@@ -66,7 +66,8 @@ class TestWorkspacesAndTools(unittest.TestCase):
 
     def test_status_bar_shows_colored_messages_and_auto_clears(self) -> None:
         from PySide6.QtCore import QTimer
-        from setuav_studio.ui.theme import STATUS_COLORS
+        from PySide6.QtGui import QPalette
+        from setuav_studio.ui.theme import status_color
 
         api = StudioAPI()
         win = MainWindow(api)
@@ -74,11 +75,17 @@ class TestWorkspacesAndTools(unittest.TestCase):
 
         api.show_status("analysis complete", "success", 0)
         self.assertEqual(win._status_label.text(), "analysis complete")
-        self.assertIn(STATUS_COLORS["success"], win._status_label.styleSheet())
+        self.assertEqual(
+            win._status_label.palette().color(QPalette.ColorRole.WindowText).name(),
+            status_color("success"),
+        )
 
         api.show_status("invalid input", "error", 0)
         self.assertEqual(win._status_label.text(), "invalid input")
-        self.assertIn(STATUS_COLORS["error"], win._status_label.styleSheet())
+        self.assertEqual(
+            win._status_label.palette().color(QPalette.ColorRole.WindowText).name(),
+            status_color("error"),
+        )
 
         api.clear_status()
         self.assertEqual(win._status_label.text(), "")

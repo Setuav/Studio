@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.ui.icons import get_icon
+from setuav_studio.ui.icons import set_label_icon
 from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.ui.property_tables import PropertyTableMixin
 
@@ -68,8 +68,7 @@ class ElectricPropulsionSystemEditor(PropertyTableMixin, QWidget):
 
         if icon_name:
             icon_label = QLabel()
-            pixmap = get_icon(icon_name).pixmap(14, 14)
-            icon_label.setPixmap(pixmap)
+            set_label_icon(icon_label, icon_name)
             icon_label.setFixedSize(14, 14)
             header_layout.addWidget(icon_label)
 
@@ -230,4 +229,3 @@ class ElectricPropulsionSystemEditor(PropertyTableMixin, QWidget):
             f"Update {role} in {self._assembly.get('name', 'assembly')}",
             apply_members,
         )
-

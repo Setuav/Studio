@@ -340,34 +340,26 @@ class TipCapsMixin:
                 if metrics_row >= 0:
                     self.tip_caps_table.setSpan(metrics_row, 0, 1, 2)
                     self.winglet_metrics_widget = QFrame()
-                    self.winglet_metrics_widget.setStyleSheet(
-                        "QFrame { background: #161616; border: 1px solid #2d2d2d; border-radius: 3px; }"
-                        "QLabel { font-size: 11px; padding: 2px 4px; }"
-                    )
                     m_layout = QHBoxLayout(self.winglet_metrics_widget)
                     m_layout.setContentsMargins(0, 0, 0, 0)
-                    m_layout.setSpacing(0)
+                    m_layout.setSpacing(4)
 
-                    self.lbl_metric_h_tag = QLabel("Height")
-                    self.lbl_metric_h_tag.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                    self.lbl_metric_h_tag.setStyleSheet("background: #222222; color: #888888; font-weight: bold; border-right: 1px solid #2d2d2d;")
+                    self.lbl_metric_h_tag = QLabel("Height:")
+                    self.lbl_metric_h_tag.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
                     self.metric_height_val = QLabel("0.0 mm")
-                    self.metric_height_val.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                    self.metric_height_val.setStyleSheet("background: #181818; color: #ffffff; font-weight: bold; border-right: 1px solid #2d2d2d;")
+                    self.metric_height_val.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
-                    self.lbl_metric_span_tag = QLabel("Span")
-                    self.lbl_metric_span_tag.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                    self.lbl_metric_span_tag.setStyleSheet("background: #222222; color: #888888; font-weight: bold; border-right: 1px solid #2d2d2d;")
+                    self.lbl_metric_span_tag = QLabel("Span:")
+                    self.lbl_metric_span_tag.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
                     self.metric_span_val = QLabel("0.0 mm")
-                    self.metric_span_val.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                    self.metric_span_val.setStyleSheet("background: #181818; color: #ffffff; font-weight: bold;")
+                    self.metric_span_val.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
-                    m_layout.addWidget(self.lbl_metric_h_tag, 1)
-                    m_layout.addWidget(self.metric_height_val, 1)
-                    m_layout.addWidget(self.lbl_metric_span_tag, 1)
-                    m_layout.addWidget(self.metric_span_val, 1)
+                    m_layout.addWidget(self.lbl_metric_h_tag)
+                    m_layout.addWidget(self.metric_height_val)
+                    m_layout.addWidget(self.lbl_metric_span_tag)
+                    m_layout.addWidget(self.metric_span_val)
 
                     self.tip_caps_table.setCellWidget(metrics_row, 0, self.winglet_metrics_widget)
 

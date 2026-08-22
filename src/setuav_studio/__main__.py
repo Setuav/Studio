@@ -3,7 +3,8 @@ import logging
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QStandardPaths
+from PySide6.QtCore import QStandardPaths, Qt
+from PySide6.QtGui import QSurfaceFormat
 from PySide6.QtWidgets import QApplication
 
 from setuav_studio.plugin_system import PluginManager, StudioAPI
@@ -52,17 +53,35 @@ def _parse_arguments(argv: list[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def _configure_opengl() -> None:
+    """Configure one conservative shared format for Qt and VTK viewers."""
+    QApplication.setAttribute(
+        Qt.ApplicationAttribute.AA_ShareOpenGLContexts,
+        True,
+    )
+    surface_format = QSurfaceFormat()
+    surface_format.setRenderableType(QSurfaceFormat.RenderableType.OpenGL)
+    surface_format.setVersion(3, 3)
+    surface_format.setProfile(QSurfaceFormat.OpenGLContextProfile.CoreProfile)
+    surface_format.setDepthBufferSize(24)
+    surface_format.setStencilBufferSize(8)
+    surface_format.setSamples(0)
+    surface_format.setSwapBehavior(QSurfaceFormat.SwapBehavior.DoubleBuffer)
+    QSurfaceFormat.setDefaultFormat(surface_format)
+
+
 def main() -> int:
     arguments = _parse_arguments(sys.argv[1:])
     _configure_logging(arguments.verbose)
     install_log_buffer(logging.DEBUG if arguments.verbose else logging.INFO)
     logging.getLogger(__name__).info("Setuav Studio starting")
+    _configure_opengl()
     app = QApplication([sys.argv[0]])
     app.setOrganizationName("Setware")
     app.setApplicationName("Setuav Studio")
     app.setQuitOnLastWindowClosed(True)
     settings = StudioSettings.load()
-    apply_theme(app)
+    apply_theme(app, settings.theme_mode)
 
     api = StudioAPI()
     window = MainWindow(api)

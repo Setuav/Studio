@@ -1,48 +1,31 @@
 import unittest
 from importlib import resources
 
+from PySide6.QtGui import QPalette
+
 from setuav_studio.plugins.core.settings import StudioSettings
+from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.theme import (
     ACCENT_COLOR,
     DEFAULT_FONT_SIZE,
     FONT_FAMILY,
-    INACTIVE_SELECTION_COLOR,
-    build_stylesheet,
 )
+from tests._common import get_qapp
 
 
 class ThemeTests(unittest.TestCase):
     def test_inter_font_is_applied_globally(self) -> None:
-        stylesheet = build_stylesheet(DEFAULT_FONT_SIZE)
-
         self.assertEqual(FONT_FAMILY, "Inter")
         self.assertEqual(DEFAULT_FONT_SIZE, 10)
-        self.assertIn('font-family: "Inter"', stylesheet)
-        self.assertIn("font-size: 10pt", stylesheet)
-        self.assertIn("QDockWidget", stylesheet)
-        self.assertIn("QComboBox QAbstractItemView", stylesheet)
-        self.assertIn('QAbstractItemView[tableComboPopup="true"]', stylesheet)
 
     def test_accent_color_is_defined(self) -> None:
         self.assertEqual(ACCENT_COLOR, "#c5a9eb")
 
-    def test_tables_are_compact_and_use_alternating_palette_rows(self) -> None:
-        stylesheet = build_stylesheet(DEFAULT_FONT_SIZE)
-
-        self.assertIn("alternate-background-color: palette(alternate-base)", stylesheet)
-        self.assertIn("QTableView:!focus", stylesheet)
-        self.assertIn(
-            f"selection-background-color: {INACTIVE_SELECTION_COLOR}",
-            stylesheet,
-        )
-        self.assertIn("padding: 0 4px", stylesheet)
-        self.assertIn("padding: 1px 4px", stylesheet)
-        self.assertIn("width: 8px", stylesheet)
-        self.assertIn("height: 8px", stylesheet)
-
-    def test_settings_have_no_theme_or_font_selection(self) -> None:
-        self.assertEqual(StudioSettings().reopen_last_project, False)
-        self.assertEqual(StudioSettings().recent_project_limit, 10)
+    def test_settings_have_theme_mode_selection(self) -> None:
+        settings = StudioSettings()
+        self.assertEqual(settings.reopen_last_project, False)
+        self.assertEqual(settings.recent_project_limit, 10)
+        self.assertEqual(settings.theme_mode, "dark")
 
     def test_inter_font_files_are_bundled(self) -> None:
         font_root = resources.files("setuav_studio").joinpath(
@@ -54,6 +37,71 @@ class ThemeTests(unittest.TestCase):
             font_root.joinpath("Inter-Italic-VariableFont_opsz,wght.ttf").is_file()
         )
         self.assertTrue(font_root.joinpath("OFL.txt").is_file())
+
+    def test_theme_mode_switching_and_tokens(self) -> None:
+        from setuav_studio.ui.theme import (
+            DARK_TOKENS,
+            LIGHT_TOKENS,
+            accent_color,
+            current_theme_mode,
+            set_theme_mode,
+            tokens,
+        )
+
+        set_theme_mode("dark")
+        self.assertEqual(current_theme_mode(), "dark")
+        self.assertEqual(tokens()["window"], DARK_TOKENS["window"])
+        self.assertEqual(accent_color(), DARK_TOKENS["accent"])
+
+        set_theme_mode("light")
+        self.assertEqual(current_theme_mode(), "light")
+        self.assertEqual(tokens()["window"], LIGHT_TOKENS["window"])
+        self.assertEqual(accent_color(), LIGHT_TOKENS["accent"])
+
+        # Reset back to dark
+        set_theme_mode("dark")
+
+    def test_application_palette_and_existing_icons_follow_theme(self) -> None:
+        from setuav_studio.ui.theme import apply_theme, tokens
+
+        app = get_qapp()
+        icon = get_icon("save")
+
+        apply_theme(app, "dark")
+        dark_icon = icon.pixmap(24, 24).toImage().pixelColor(12, 12)
+        self.assertEqual(
+            app.palette().color(QPalette.ColorRole.Window).name(),
+            tokens()["window"],
+        )
+
+        apply_theme(app, "light")
+        light_icon = icon.pixmap(24, 24).toImage().pixelColor(12, 12)
+        self.assertEqual(
+            app.palette().color(QPalette.ColorRole.Window).name(),
+            tokens()["window"],
+        )
+        self.assertGreater(dark_icon.lightness(), light_icon.lightness())
+
+        apply_theme(app, "dark")
+
+    def test_chart_series_and_axes_are_rethemed(self) -> None:
+        from setuav_studio.plugins.aerodynamics.charts_dock import SingleChartWidget
+        from setuav_studio.ui.theme import apply_theme, chart_color, tokens
+
+        app = get_qapp()
+        apply_theme(app, "dark")
+        widget = SingleChartWidget("Theme test")
+        widget.plot_single([0.0, 1.0], [0.0, 1.0], "CL", "blue")
+        series = widget.series()[0]
+        self.assertEqual(series.pen().color().name(), chart_color("blue"))
+
+        apply_theme(app, "light")
+        widget.update_theme_style()
+        self.assertEqual(series.pen().color().name(), chart_color("blue"))
+        self.assertEqual(widget.axes()[0].linePenColor().name(), tokens()["text_dim"])
+
+        widget.deleteLater()
+        apply_theme(app, "dark")
 
 
 if __name__ == "__main__":

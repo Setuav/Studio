@@ -1,8 +1,8 @@
 from array import array
 import math
 
-from PySide6.QtCore import QPoint, Qt, Signal
-from PySide6.QtGui import QMatrix4x4, QSurfaceFormat, QVector3D, QVector4D
+from PySide6.QtCore import QPoint, Qt, QTimer, Signal
+from PySide6.QtGui import QMatrix4x4, QPainter, QPalette, QSurfaceFormat, QVector3D, QVector4D
 from PySide6.QtOpenGL import (
     QOpenGLBuffer,
     QOpenGLFunctions_3_3_Core,
@@ -17,15 +17,17 @@ from .mesh import (
     FACE_COLORED,
     FACE_MONOCHROME,
     FACE_TRANSPARENT,
-    HOVERED_WIRE,
-    SECTION_RING,
-    SELECTED_WIRE,
     build_component_wire_vertices,
     build_loft_solid_vertices,
     build_loft_wire_vertices,
     build_section_ring_vertices,
     hit_test_loft,
 )
+
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 
 WIREFRAME = "wireframe"
@@ -39,7 +41,6 @@ _GL_LEQUAL = 0x0203
 _GL_LESS = 0x0201
 _GL_FLOAT = 0x1406
 _GL_LINES = 0x0001
-_GL_MULTISAMPLE = 0x809D
 _GL_POLYGON_OFFSET_FILL = 0x8037
 _GL_TRIANGLES = 0x0004
 _GL_BLEND = 0x0BE2
@@ -118,13 +119,15 @@ class OpenGLViewer(QOpenGLWidget):
     componentPicked = Signal(object)
 
     def __init__(self, parent=None) -> None:
-        surface_format = QSurfaceFormat()
-        surface_format.setVersion(3, 3)
-        surface_format.setProfile(QSurfaceFormat.OpenGLContextProfile.CoreProfile)
-        surface_format.setSamples(4)
+        surface_format = QSurfaceFormat.defaultFormat()
+        surface_format.setDepthBufferSize(24)
+        surface_format.setStencilBufferSize(8)
+        surface_format.setSamples(0)
         super().__init__(parent)
         self.setFormat(surface_format)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self._initialization_error: str | None = None
+        self._mesh_dirty = True
 
         self._functions: QOpenGLFunctions_3_3_Core | None = None
         self._wire_program: QOpenGLShaderProgram | None = None
@@ -167,69 +170,76 @@ class OpenGLViewer(QOpenGLWidget):
         self._press_button = Qt.MouseButton.NoButton
 
     def initializeGL(self) -> None:
-        functions = QOpenGLFunctions_3_3_Core()
-        if not functions.initializeOpenGLFunctions():
-            raise RuntimeError("Could not initialize OpenGL 3.3 functions")
-        self._functions = functions
-        functions.glClearColor(0.12, 0.12, 0.12, 1.0)
-        functions.glEnable(_GL_DEPTH_TEST)
-        functions.glEnable(_GL_MULTISAMPLE)
-        functions.glLineWidth(1.0)
+        try:
+            functions = QOpenGLFunctions_3_3_Core()
+            if not functions.initializeOpenGLFunctions():
+                raise RuntimeError("OpenGL 3.3 functions are unavailable")
+            self._functions = functions
+            functions.glClearColor(0.12, 0.12, 0.12, 1.0)
+            functions.glEnable(_GL_DEPTH_TEST)
+            functions.glLineWidth(1.0)
 
-        self._wire_program = self._create_program(
-            _WIRE_VERTEX_SHADER,
-            _WIRE_FRAGMENT_SHADER,
+            self._wire_program = self._create_program(
+                _WIRE_VERTEX_SHADER,
+                _WIRE_FRAGMENT_SHADER,
+            )
+            self._solid_program = self._create_program(
+                _SOLID_VERTEX_SHADER,
+                _SOLID_FRAGMENT_SHADER,
+            )
+            for vao, vbo in (
+                (self._wire_vao, self._wire_vbo),
+                (self._grid_vao, self._grid_vbo),
+                (self._axis_vao, self._axis_vbo),
+                (self._highlight_vao, self._highlight_vbo),
+                (self._section_ring_vao, self._section_ring_vbo),
+            ):
+                self._setup_buffer(vao, vbo, self._wire_program, 6, ((0, 0, 3), (1, 3, 3)))
+            self._setup_buffer(
+                self._solid_vao,
+                self._solid_vbo,
+                self._solid_program,
+                9,
+                ((0, 0, 3), (1, 3, 3), (2, 6, 3)),
+            )
+            self._upload_meshes()
+            self._mesh_dirty = False
+            self._initialization_error = None
+            context = self.context()
+            if context is not None:
+                context.aboutToBeDestroyed.connect(self._release_resources)
+        except Exception as exc:
+            self._functions = None
+            self._wire_program = None
+            self._solid_program = None
+            self._initialization_error = str(exc)
+            logger.exception("Geometry OpenGL viewer initialization failed")
+            QTimer.singleShot(0, self.update)
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        QTimer.singleShot(250, self._check_context)
+
+    def _check_context(self) -> None:
+        if self.isVisible() and not self.isValid() and self._initialization_error is None:
+            self._initialization_error = "OpenGL context could not be created"
+            logger.error("Geometry OpenGL viewer context is invalid")
+            self.update()
+
+    def paintEvent(self, event) -> None:
+        if self._initialization_error is None:
+            super().paintEvent(event)
+            return
+        painter = QPainter(self)
+        painter.fillRect(self.rect(), self.palette().color(QPalette.ColorRole.Base))
+        painter.setPen(self.palette().color(QPalette.ColorRole.Text))
+        painter.drawText(
+            self.rect().adjusted(24, 24, -24, -24),
+            Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap,
+            "3D viewer could not be initialized.\n"
+            f"{self._initialization_error}\n\n"
+            "OpenGL 3.3 or newer is required.",
         )
-        self._solid_program = self._create_program(
-            _SOLID_VERTEX_SHADER,
-            _SOLID_FRAGMENT_SHADER,
-        )
-        self._setup_buffer(
-            self._wire_vao,
-            self._wire_vbo,
-            self._wire_program,
-            6,
-            ((0, 0, 3), (1, 3, 3)),
-        )
-        self._setup_buffer(
-            self._grid_vao,
-            self._grid_vbo,
-            self._wire_program,
-            6,
-            ((0, 0, 3), (1, 3, 3)),
-        )
-        self._setup_buffer(
-            self._axis_vao,
-            self._axis_vbo,
-            self._wire_program,
-            6,
-            ((0, 0, 3), (1, 3, 3)),
-        )
-        self._setup_buffer(
-            self._highlight_vao,
-            self._highlight_vbo,
-            self._wire_program,
-            6,
-            ((0, 0, 3), (1, 3, 3)),
-        )
-        self._setup_buffer(
-            self._section_ring_vao,
-            self._section_ring_vbo,
-            self._wire_program,
-            6,
-            ((0, 0, 3), (1, 3, 3)),
-        )
-        self._setup_buffer(
-            self._solid_vao,
-            self._solid_vbo,
-            self._solid_program,
-            9,
-            ((0, 0, 3), (1, 3, 3), (2, 6, 3)),
-        )
-        self._upload_meshes()
-        context = self.context()
-        if context is not None:
-            context.aboutToBeDestroyed.connect(self._release_resources)
 
     def resizeGL(self, width: int, height: int) -> None:
         if self._functions is not None:
@@ -238,6 +248,23 @@ class OpenGLViewer(QOpenGLWidget):
     def paintGL(self) -> None:
         if self._functions is None:
             return
+        if self._mesh_dirty:
+            try:
+                self._upload_meshes()
+                self._mesh_dirty = False
+            except Exception:
+                # Keep the data dirty so a later, valid paint context can
+                # retry instead of leaving the viewer permanently empty.
+                logger.exception("Geometry OpenGL mesh upload failed")
+        from setuav_studio.ui.theme import current_theme_mode, tokens
+
+        tok = tokens()
+        is_light = current_theme_mode() == "light"
+        bg_hex = tok.get("plot", "#ffffff" if is_light else "#141414")
+        from PySide6.QtGui import QColor
+
+        qbg = QColor(bg_hex)
+        self._functions.glClearColor(qbg.redF(), qbg.greenF(), qbg.blueF(), 1.0)
         self._functions.glClear(_GL_COLOR_BUFFER_BIT | _GL_DEPTH_BUFFER_BIT)
         mvp = self._projection() * self._view()
 
@@ -369,6 +396,11 @@ class OpenGLViewer(QOpenGLWidget):
 
     def set_show_grid(self, show: bool) -> None:
         self._show_grid = show
+        self.update()
+
+    def update_theme_style(self) -> None:
+        """Queue palette-dependent GPU data for the next valid paint context."""
+        self._mesh_dirty = True
         self.update()
 
     def set_transparent(self, transparent: bool) -> None:
@@ -540,14 +572,20 @@ class OpenGLViewer(QOpenGLWidget):
         )
 
     def _update_gpu_meshes(self) -> None:
-        if self._wire_program is None or not self.isValid():
-            return
-        self.makeCurrent()
-        self._upload_meshes()
-        self.doneCurrent()
+        # Project and selection events may arrive before the widget has a
+        # native surface. Upload only from paintGL, where Qt owns the context.
+        self._mesh_dirty = True
         self.update()
 
     def _upload_meshes(self) -> None:
+        from PySide6.QtGui import QColor
+        from setuav_studio.ui.theme import chart_color, tokens
+
+        def rgb(color: str) -> tuple[float, float, float]:
+            value = QColor(color)
+            return value.redF(), value.greenF(), value.blueF()
+
+        tok = tokens()
         grid_values = self._reference_grid_vertices()
         wire_values = build_loft_wire_vertices(
             self._geometry_data,
@@ -564,7 +602,7 @@ class OpenGLViewer(QOpenGLWidget):
         highlight_values = build_component_wire_vertices(
             self._geometry_data,
             self._selected_component_id,
-            SELECTED_WIRE,
+            rgb(chart_color("orange")),
         )
         hovered = (
             self._hovered_component_id
@@ -575,7 +613,7 @@ class OpenGLViewer(QOpenGLWidget):
             build_component_wire_vertices(
                 self._geometry_data,
                 hovered,
-                HOVERED_WIRE,
+                rgb(tok["text"]),
             )
         )
         ring_values = []
@@ -586,7 +624,7 @@ class OpenGLViewer(QOpenGLWidget):
                 component_id,
                 segment_index,
                 section_index,
-                SECTION_RING,
+                rgb(chart_color("orange")),
             )
         self._grid_count = self._allocate(self._grid_vbo, grid_values, 6)
         self._wire_count = self._allocate(self._wire_vbo, wire_values, 6)
@@ -629,9 +667,15 @@ class OpenGLViewer(QOpenGLWidget):
 
     @staticmethod
     def _reference_grid_vertices() -> list[float]:
+        from setuav_studio.ui.theme import current_theme_mode
+
+        is_light = current_theme_mode() == "light"
+        major_col = (0.78, 0.78, 0.78) if is_light else (0.24, 0.24, 0.24)
+        minor_col = (0.88, 0.88, 0.88) if is_light else (0.16, 0.16, 0.16)
+
         vertices: list[float] = []
         for offset in range(-2000, 2001, 100):
-            color = (0.22, 0.22, 0.22) if offset % 500 == 0 else (0.16, 0.16, 0.16)
+            color = major_col if offset % 500 == 0 else minor_col
             _add_reference_line(
                 vertices,
                 (-2000, offset, 0.0),
@@ -690,27 +734,43 @@ class OpenGLViewer(QOpenGLWidget):
         return matrix
 
     def _release_resources(self) -> None:
-        if not self.isValid():
-            return
-        self.makeCurrent()
-        for buffer in (
-            self._wire_vbo,
-            self._solid_vbo,
-            self._grid_vbo,
-            self._axis_vbo,
-            self._highlight_vbo,
-            self._section_ring_vbo,
-        ):
-            if buffer.isCreated():
-                buffer.destroy()
-        for vao in (
-            self._wire_vao,
-            self._solid_vao,
-            self._grid_vao,
-            self._axis_vao,
-            self._highlight_vao,
-            self._section_ring_vao,
-        ):
-            if vao.isCreated():
-                vao.destroy()
-        self.doneCurrent()
+        has_context = self.isValid()
+        try:
+            if has_context:
+                self.makeCurrent()
+                for buffer in (
+                    self._wire_vbo,
+                    self._solid_vbo,
+                    self._grid_vbo,
+                    self._axis_vbo,
+                    self._highlight_vbo,
+                    self._section_ring_vbo,
+                ):
+                    if buffer.isCreated():
+                        buffer.destroy()
+                for vao in (
+                    self._wire_vao,
+                    self._solid_vao,
+                    self._grid_vao,
+                    self._axis_vao,
+                    self._highlight_vao,
+                    self._section_ring_vao,
+                ):
+                    if vao.isCreated():
+                        vao.destroy()
+        finally:
+            if has_context:
+                self.doneCurrent()
+            # A QOpenGLWidget can receive a fresh context after native widget
+            # or screen changes. Never let wrappers from the old context be
+            # reused by the next initializeGL call.
+            self._functions = None
+            self._wire_program = None
+            self._solid_program = None
+            self._wire_count = 0
+            self._solid_count = 0
+            self._grid_count = 0
+            self._axis_count = 0
+            self._highlight_count = 0
+            self._section_ring_count = 0
+            self._mesh_dirty = True

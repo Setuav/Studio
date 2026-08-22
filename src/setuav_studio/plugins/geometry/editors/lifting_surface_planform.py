@@ -5,8 +5,6 @@ from __future__ import annotations
 from copy import deepcopy
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QBrush, QColor
-
 from ..engine.wing_driver_solver import compute_all_8_parameters
 from .wing_driver_table import DriverPlanformTable
 from ..engine.wing_planform_engine import (
@@ -312,6 +310,5 @@ class PlanformMixin:
                         item = table.item(r, c)
                         if item:
                             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
-                            item.setForeground(QBrush(QColor("#ffffff")))
                     except RuntimeError:
                         pass
