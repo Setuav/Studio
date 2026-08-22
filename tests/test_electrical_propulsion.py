@@ -240,6 +240,36 @@ class TestElectricalPropulsion(unittest.TestCase):
             if env is not None:
                 os.environ["PYTHRUST_DATA_DIR"] = env
 
+    def test_propulsion_solver_engine_calculation(self) -> None:
+        from pythrust.propulsion.models.motor import MotorSpec
+        from pythrust.propulsion.models.propeller import PropellerSpec
+        from setuav_studio.plugins.electrical_propulsion.engine import (
+            PropulsionSolverEngine,
+            PropulsionPoint,
+        )
+
+        motor_spec = MotorSpec(kv_rpm_per_v=900.0, resistance_ohm=0.035, no_load_current_a=1.2, current_max_a=45.0)
+        prop_spec = PropellerSpec(diameter_m=0.3302, pitch_m=0.1651, blade_count=2)
+        prop_entry = PropulsionSolverEngine.fallback_propeller(13.0, 6.5, 2)
+
+        pt = PropulsionSolverEngine.solve_point(
+            motor_spec=motor_spec,
+            prop_spec=prop_spec,
+            prop_entry=prop_entry,
+            total_voltage=22.2,
+            rho=1.225,
+            v_mps=15.0,
+            throttle_val=1.0,
+            x_val=15.0,
+        )
+
+        self.assertIsInstance(pt, PropulsionPoint)
+        self.assertGreater(pt.rpm, 1000.0)
+        self.assertGreater(pt.thrust, 0.0)
+        self.assertGreater(pt.power, 0.0)
+        self.assertGreater(pt.current, 0.0)
+        self.assertTrue(0.0 <= pt.eta_sys <= 1.0)
+
     @staticmethod
     def _dock_content(dock) -> object:
         widget = dock.widget()
