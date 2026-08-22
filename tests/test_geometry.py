@@ -23,6 +23,10 @@ from tests._common import TEST_PROJECT_PATH, get_qapp
 
 
 class GeometryTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = get_qapp()
+
     def test_all_fuselage_profiles_use_matching_samples(self) -> None:
         profiles = (
             {"type": "circle", "diameter": 100},
