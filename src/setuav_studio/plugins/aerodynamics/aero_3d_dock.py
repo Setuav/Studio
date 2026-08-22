@@ -1,6 +1,7 @@
 """Aero 3D Visualization Dock Widget using PyVista and VTK."""
 from __future__ import annotations
 
+import logging
 from typing import Any
 import numpy as np
 
@@ -21,13 +22,16 @@ from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.theme import tokens
 from .engine.base import AeroResult
 
+logger = logging.getLogger(__name__)
+
 try:
     import pyvista as pv
     from pyvistaqt import QtInteractor
     PYVISTA_AVAILABLE = True
-except Exception:
+except (ImportError, Exception) as err:
     PYVISTA_AVAILABLE = False
     QtInteractor = None
+    logger.debug("PyVista/QtInteractor not available for 3D visualization: %s", err)
 
 
 class Aero3DDock(QWidget):
@@ -193,7 +197,7 @@ class Aero3DDock(QWidget):
             self._update_display()
             self._set_camera_view("iso")
         except Exception as err:
-            print(f"[Aero3DDock] Lazy plotter init error: {err}")
+            logger.warning("[Aero3DDock] Lazy plotter init error: %s", err)
 
     def set_airplane_context(
         self,
@@ -290,7 +294,7 @@ class Aero3DDock(QWidget):
                 self._update_display()
 
         except Exception as err:
-            print(f"[Aero3DDock] VLM calculation failed: {err}")
+            logger.error("[Aero3DDock] VLM calculation failed: %s", err, exc_info=True)
 
     def _build_vlm_mesh(self) -> None:
         """Extract panel vertices and scalar distributions from VLM instance."""
@@ -376,7 +380,7 @@ class Aero3DDock(QWidget):
                 mesh = pv.PolyData(points, np.array(pv_faces))
                 self._fuselage_meshes.append(mesh)
         except Exception as err:
-            print(f"[Aero3DDock] Fuselage mesh generation skipped: {err}")
+            logger.debug("[Aero3DDock] Fuselage mesh generation skipped: %s", err)
 
     def _calculate_streamlines(self) -> None:
         """Pre-calculate wake and flow streamlines."""

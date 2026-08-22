@@ -35,7 +35,7 @@ class SingleChartWidget(QWidget):
         self.chart = QChart()
         self.chart.setTitle(title)
         self.chart.setTitleFont(QFont("Inter", 9, QFont.Weight.Bold))
-        self.chart.setTitleBrush(QColor("#e0e0e0"))
+        self.chart.setTitleBrush(QColor(self._tokens.get("text", "#e0e0e0")))
         self.chart.setBackgroundBrush(QColor(self._tokens.get("surface", "#1e1e1e")))
         self.chart.setPlotAreaBackgroundBrush(QColor(self._tokens.get("plot", "#121212")))
         self.chart.setPlotAreaBackgroundVisible(True)

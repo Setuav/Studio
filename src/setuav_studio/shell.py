@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Any
+import logging
 
 import shiboken6
 from PySide6.QtCore import QSettings, QSize, Qt, QTimer
@@ -39,6 +40,8 @@ from setuav_studio.project import (
     open_project,
     save_project,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class DockTitleBar(QWidget):
@@ -399,8 +402,8 @@ class MainWindow(QMainWindow):
         for _, dock in self._panels.values():
             try:
                 dock.close()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Error closing dock widget: %s", exc)
 
         super().closeEvent(event)
         app = QApplication.instance()
@@ -544,7 +547,8 @@ class MainWindow(QMainWindow):
         try:
             if not shiboken6.isValid(self):
                 return
-        except Exception:
+        except (RuntimeError, Exception) as exc:
+            logger.debug("Window title update skipped (widget invalid): %s", exc)
             return
         if self._project is None:
             self.setWindowTitle("Setuav Studio")
@@ -559,7 +563,8 @@ class MainWindow(QMainWindow):
         try:
             if not shiboken6.isValid(self):
                 return
-        except Exception:
+        except (RuntimeError, Exception) as exc:
+            logger.debug("Modified listener skipped (widget invalid): %s", exc)
             return
         self._update_window_title()
 
@@ -567,7 +572,8 @@ class MainWindow(QMainWindow):
         try:
             if not shiboken6.isValid(self):
                 return
-        except Exception:
+        except (RuntimeError, Exception) as exc:
+            logger.debug("Content changed listener skipped (widget invalid): %s", exc)
             return
         self._update_window_title()
 
