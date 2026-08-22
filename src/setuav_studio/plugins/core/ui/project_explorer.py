@@ -1,7 +1,8 @@
+from copy import deepcopy
 from typing import Any
 
 from PySide6.QtCore import QLine, QPoint, QRect, QSize, Qt
-from PySide6.QtGui import QKeyEvent, QPainter, QPalette, QPen
+from PySide6.QtGui import QBrush, QColor, QKeyEvent, QPainter, QPalette, QPen
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QHBoxLayout,
@@ -170,12 +171,19 @@ class ProjectExplorer(QTreeWidget):
         self._element_map: dict[QTreeWidgetItem, dict[str, Any]] = {}
         self._project_root_item: QTreeWidgetItem | None = None
         self._geometry_group_item: QTreeWidgetItem | None = None
+        self._saved_components: dict[str, dict[str, Any]] = {}
+        self._saved_assemblies: dict[str, dict[str, Any]] = {}
 
         api.on_project_changed(self.set_project)
         api.on_project_content_changed(self.refresh_project)
         api.on_selection_changed(self._sync_selection)
+        api.on_modified_changed(self._on_modified_changed)
 
     def set_project(self, project: ProjectDocument) -> None:
+        self._capture_saved_state(project)
+        self._rebuild_project(project)
+
+    def _rebuild_project(self, project: ProjectDocument) -> None:
         project_is_selected = self._api.current_selection is project.data
         geometry_group_is_selected = self.currentItem() is self._geometry_group_item
         current_sel_id = (
@@ -248,6 +256,11 @@ class ProjectExplorer(QTreeWidget):
                     )
                 tree_item.setToolTip(0, f"{aname} ({atype})")
                 tree_item.setData(0, Qt.ItemDataRole.UserRole, aid)
+                self._apply_modified_color(
+                    tree_item,
+                    asm,
+                    self._saved_assemblies,
+                )
                 self._item_map[aid] = tree_item
                 self._element_map[tree_item] = asm
                 project_item.addChild(tree_item)
@@ -268,6 +281,11 @@ class ProjectExplorer(QTreeWidget):
                     tree_item.setIcon(0, get_icon(icon_source))
                 tree_item.setToolTip(0, f"{cname} ({ctype})")
                 tree_item.setData(0, Qt.ItemDataRole.UserRole, cid)
+                self._apply_modified_color(
+                    tree_item,
+                    comp,
+                    self._saved_components,
+                )
                 self._item_map[cid] = tree_item
                 self._element_map[tree_item] = comp
 
@@ -313,8 +331,53 @@ class ProjectExplorer(QTreeWidget):
         if current_sel_id and self._api.current_selection is not fresh_selection:
             self._api.set_selection(fresh_selection)
 
-    def refresh_project(self, project: ProjectDocument) -> None:
-        self.set_project(project)
+    def refresh_project(self, project: ProjectDocument | None = None) -> None:
+        current_project = project or self._api.current_project
+        if current_project is not None:
+            self._rebuild_project(current_project)
+
+    def _capture_saved_state(self, project: ProjectDocument) -> None:
+        self._saved_components = self._snapshot_collection(project, "components")
+        self._saved_assemblies = self._snapshot_collection(project, "assemblies")
+
+    @staticmethod
+    def _snapshot_collection(
+        project: ProjectDocument,
+        collection_name: str,
+    ) -> dict[str, dict[str, Any]]:
+        collection = project.data.get(collection_name)
+        if not isinstance(collection, list):
+            return {}
+        return {
+            element_id: deepcopy(element)
+            for element in collection
+            if isinstance(element, dict)
+            and (element_id := str(element.get("id") or ""))
+        }
+
+    @staticmethod
+    def _apply_modified_color(
+        item: QTreeWidgetItem,
+        element: dict[str, Any],
+        saved_elements: dict[str, dict[str, Any]],
+    ) -> None:
+        element_id = str(element.get("id") or "")
+        if element_id and saved_elements.get(element_id) != element:
+            from setuav_studio.ui.theme import status_color
+
+            item.setForeground(
+                0,
+                QBrush(QColor(status_color("warning"))),
+            )
+
+    def _on_modified_changed(self, modified: bool) -> None:
+        if modified:
+            return
+        project = self._api.current_project
+        if project is None:
+            return
+        self._capture_saved_state(project)
+        self._rebuild_project(project)
 
     def filter_items(self, query: str) -> None:
         """Filter tree items based on search query."""

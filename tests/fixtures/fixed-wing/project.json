@@ -1420,7 +1420,8 @@
           "span_end": 160.0,
           "chord": 50.0,
           "deflection": 0.0,
-          "hinge_sweep": 1.0
+          "hinge_sweep": 1.0,
+          "chord_fraction": 0.303
         }
       }
     },
@@ -1514,6 +1515,31 @@
         "internal_resistance": 0.0075
       },
       "mass": 430.0
+    },
+    {
+      "kind": "component",
+      "id": "main-wing-flap",
+      "name": "Flap",
+      "type": "org.setuav.core:control-surface",
+      "parent": "main-wing",
+      "attach_to": "main-wing",
+      "parameters": {
+        "geometry": {
+          "tag": "flap",
+          "type": "flap",
+          "span_mode": "ratio",
+          "span_start": 16.2,
+          "span_end": 246.8,
+          "eta_start": 0.025,
+          "eta_end": 0.38,
+          "chord_mode": "ratio",
+          "chord_fraction": 0.32,
+          "chord": 76.5,
+          "hinge_sweep": -1.0,
+          "deflection": 10.0,
+          "symmetry_mode": "auto"
+        }
+      }
     }
   ],
   "assemblies": [

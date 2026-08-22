@@ -36,7 +36,7 @@ _CS_COLORS: dict[str, tuple[float, float, float]] = {
     "studio": (0.92, 0.28, 0.25),    # safety crimson / coral red
 }
 
-DEFAULT_PALETTE = "studio"
+DEFAULT_PALETTE = "titanium"
 _active_palette = DEFAULT_PALETTE
 
 
