@@ -8,6 +8,7 @@ from .editors.fuselage import FuselageEditor
 from .editors.lifting_surface import LiftingSurfaceEditor
 from .engine.fuselage_geometry import build_fuselage_geometry
 from .engine.lifting_surface_geometry import build_lifting_surface_geometry
+from .creation import GeometryCreationController
 from .workspace import ViewerWorkspace
 
 
@@ -16,6 +17,10 @@ class GeometryPlugin:
     provides = {"org.setuav.core": "1.0.0"}
 
     def activate(self, api: StudioAPI) -> None:
+        self._creation_controller = GeometryCreationController(api)
+        for contribution in self._creation_controller.contributions():
+            api.add_toolbar_item(contribution)
+
         # 1. 3D Design Workspace & Viewport
         api.add_workspace(
             WorkspaceContribution(
@@ -49,14 +54,17 @@ class GeometryPlugin:
         )
 
         # 3. Component Icons
-        api.register_component_icon("org.setuav.core:fuselage", "component_fuselage")
+        api.register_component_icon(
+            "org.setuav.core:fuselage",
+            "geometry_add_fuselage",
+        )
         api.register_component_icon(
             "org.setuav.core:lifting-surface",
-            "component_lifting_surface",
+            "geometry_add_lifting_surface",
         )
         api.register_component_icon(
             "org.setuav.core:control-surface",
-            "component_control_surface",
+            "geometry_add_control_surface",
         )
 
         # 4. Geometry Providers
@@ -68,3 +76,19 @@ class GeometryPlugin:
             "org.setuav.core:lifting-surface",
             build_lifting_surface_geometry,
         )
+
+    def deactivate(self, api: StudioAPI) -> None:
+        controller = getattr(self, "_creation_controller", None)
+        if controller is not None:
+            for contribution_id in controller.toolbar_ids:
+                api.remove_toolbar_item(contribution_id)
+        api.remove_geometry_provider("org.setuav.core:fuselage")
+        api.remove_geometry_provider("org.setuav.core:lifting-surface")
+        api.remove_component_icon("org.setuav.core:fuselage")
+        api.remove_component_icon("org.setuav.core:lifting-surface")
+        api.remove_component_icon("org.setuav.core:control-surface")
+        api.remove_component_editor("org.setuav.core:fuselage")
+        api.remove_component_editor("org.setuav.core:lifting-surface")
+        api.remove_component_editor("org.setuav.core:control-surface")
+        api.remove_panel("studio.viewer.opengl")
+        api.remove_workspace("studio.workspace.design")

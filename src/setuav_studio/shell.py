@@ -3,8 +3,8 @@ from typing import Any
 import logging
 
 import shiboken6
-from PySide6.QtCore import QSettings, QSize, Qt, QTimer
-from PySide6.QtGui import QAction, QActionGroup, QCloseEvent, QFont, QFontMetrics, QKeySequence, QPalette
+from PySide6.QtCore import QSettings, Qt, QTimer
+from PySide6.QtGui import QAction, QActionGroup, QCloseEvent, QKeySequence, QPalette
 from PySide6.QtWidgets import (
     QApplication,
     QDialog,
@@ -15,7 +15,6 @@ from PySide6.QtWidgets import (
     QMenu,
     QMessageBox,
     QProgressBar,
-    QToolBar,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -23,10 +22,13 @@ from PySide6.QtWidgets import (
 
 from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.log_buffer import install_log_buffer
+from setuav_studio.ui.main_toolbar import ToolSetBar, WorkspaceToolBar
 from setuav_studio.plugin_system import (
     ActionContribution,
     PanelContribution,
     StudioAPI,
+    ToolbarContribution,
+    ToolbarMenuItemContribution,
     WorkspaceContribution,
 )
 from setuav_studio.plugins.core.settings import SettingsDialog, StudioSettings
@@ -99,7 +101,15 @@ class MainWindow(QMainWindow):
         self._api = api
         self._project: ProjectDocument | None = None
         self._workspaces: dict[str, WorkspaceContribution] = {}
-        self._workspace_buttons: dict[str, QToolButton] = {}
+        self._toolbar_contributions: dict[str, ToolbarContribution] = {}
+        self._toolbar_actions: dict[str, QAction] = {}
+        self._toolbar_menu_actions: dict[
+            str,
+            list[tuple[ToolbarMenuItemContribution, QAction]],
+        ] = {}
+        self._owned_toolbar_actions: set[str] = set()
+        self._command_actions: dict[str, QAction] = {}
+        self._toolset_bars: dict[str, ToolSetBar] = {}
         self._panels: dict[str, tuple[PanelContribution, QDockWidget]] = {}
         self._panel_actions: dict[str, QAction] = {}
         self._current_workspace_id: str | None = None
@@ -110,12 +120,10 @@ class MainWindow(QMainWindow):
         central_anchor.setObjectName("studio.central-anchor")
         self.setCentralWidget(central_anchor)
 
-        self._workspace_toolbar = QToolBar("Workspaces", self)
-        self._workspace_toolbar.setObjectName("studio.workspace_toolbar")
-        self._workspace_toolbar.setMovable(False)
-        self._workspace_toolbar.setFloatable(False)
-        self._workspace_toolbar.setIconSize(QSize(15, 15))
-        self._update_workspace_toolbar_style()
+        self._workspace_toolbar = WorkspaceToolBar(self)
+        self._workspace_toolbar.workspace_activated.connect(
+            self._api.switch_workspace
+        )
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self._workspace_toolbar)
 
         self._api.set_panel_handler(self._add_panel, self._remove_panel)
@@ -123,6 +131,10 @@ class MainWindow(QMainWindow):
             self._add_workspace,
             self._switch_workspace,
             self._remove_workspace,
+        )
+        self._api.set_toolbar_handler(
+            self._add_toolbar_item,
+            self._remove_toolbar_item,
         )
         self._api.set_action_handler(self._add_action, self._remove_action)
 
@@ -172,8 +184,24 @@ class MainWindow(QMainWindow):
         self._redo_action.setEnabled(False)
 
         edit_menu.addSeparator()
-        self._settings_action = edit_menu.addAction(get_icon("settings"), "Settings…")
+        self._settings_action = edit_menu.addAction(
+            get_icon("fa6s.gear"),
+            "Settings…",
+        )
         self._settings_action.triggered.connect(self._open_settings)
+
+        self._command_actions.update(
+            {
+                "core.project.open-file": self._open_file_action,
+                "core.project.open-folder": self._open_folder_action,
+                "core.project.save": self._save_action,
+                "core.project.save-as": self._save_as_action,
+                "core.edit.undo": self._undo_action,
+                "core.edit.redo": self._redo_action,
+                "core.settings.open": self._settings_action,
+            }
+        )
+        self._rebuild_toolbar_tools()
 
         self._view_menu = self.menuBar().addMenu("&View")
         self._menus["view"] = self._view_menu
@@ -245,6 +273,7 @@ class MainWindow(QMainWindow):
         self._api.undo_stack.redoTextChanged.connect(self._set_redo_text)
         self._api.on_modified_changed(self._on_modified_changed)
         self._api.on_project_content_changed(self._on_project_content_changed)
+        self._api.on_selection_changed(self._on_toolbar_context_changed)
         self.destroyed.connect(self._detach_api_listeners)
         self._update_recent_menu()
         self._update_actions()
@@ -289,8 +318,10 @@ class MainWindow(QMainWindow):
         self._api.show_status("Ready", "info", 0)
         install_log_buffer()
 
-    def _update_workspace_toolbar_style(self) -> None:
+    def _update_main_toolbar_style(self) -> None:
         self._workspace_toolbar.setStyleSheet("")
+        for toolbar in self._toolset_bars.values():
+            toolbar.setStyleSheet("")
 
     def _update_all_icons(self) -> None:
         try:
@@ -311,9 +342,20 @@ class MainWindow(QMainWindow):
             if hasattr(self, "_redo_action"):
                 self._redo_action.setIcon(get_icon("redo"))
             if hasattr(self, "_settings_action"):
-                self._settings_action.setIcon(get_icon("settings"))
+                self._settings_action.setIcon(get_icon("fa6s.gear"))
             if hasattr(self, "_log_button"):
                 self._log_button.setIcon(get_icon("log"))
+            for contribution_id, contribution in self._toolbar_contributions.items():
+                action = self._toolbar_actions.get(contribution_id)
+                if action is not None and contribution.icon:
+                    action.setIcon(get_icon(contribution.icon))
+                for menu_item, menu_action in self._toolbar_menu_actions.get(
+                    contribution_id,
+                    [],
+                ):
+                    if menu_item.icon:
+                        menu_action.setIcon(get_icon(menu_item.icon))
+            self._refresh_workspace_combo()
         except Exception as exc:
             logger.debug("Error refreshing icons: %s", exc)
 
@@ -324,7 +366,7 @@ class MainWindow(QMainWindow):
         app = QApplication.instance()
         if isinstance(app, QApplication):
             apply_theme(app, mode)
-            self._update_workspace_toolbar_style()
+            self._update_main_toolbar_style()
             self._update_all_icons()
             self._dark_theme_action.setChecked(mode == "dark")
             self._light_theme_action.setChecked(mode == "light")
@@ -611,15 +653,21 @@ class MainWindow(QMainWindow):
             logger.debug("Content changed listener skipped (widget invalid): %s", exc)
             return
         self._update_window_title()
+        self._refresh_toolbar_action_states()
+
+    def _on_toolbar_context_changed(self, _selection: object | None) -> None:
+        self._refresh_toolbar_action_states()
 
     def _detach_api_listeners(self, *_args: object) -> None:
         self._api.remove_modified_listener(self._on_modified_changed)
         self._api.remove_project_content_listener(self._on_project_content_changed)
+        self._api.remove_selection_listener(self._on_toolbar_context_changed)
 
     def _update_actions(self) -> None:
         has_project = self._project is not None
         self._save_action.setEnabled(has_project)
         self._save_as_action.setEnabled(has_project)
+        self._refresh_toolbar_action_states()
 
     def _set_undo_text(self, text: str) -> None:
         self._undo_action.setText(f"Undo {text}" if text else "Undo")
@@ -807,20 +855,160 @@ class MainWindow(QMainWindow):
                 menu.removeAction(action)
                 break
 
+    def _add_toolbar_item(self, contribution: ToolbarContribution) -> None:
+        if contribution.id in self._toolbar_contributions:
+            self._remove_toolbar_item(contribution.id)
+
+        self._toolbar_contributions[contribution.id] = contribution
+        if contribution.callback is not None:
+            action = QAction(contribution.title, self)
+            action.triggered.connect(contribution.callback)
+            self._toolbar_actions[contribution.id] = action
+            self._owned_toolbar_actions.add(contribution.id)
+        elif contribution.command is not None:
+            action = self._command_actions.get(contribution.command or "")
+            if action is not None:
+                self._toolbar_actions[contribution.id] = action
+        else:
+            action = QAction(contribution.title, self)
+            self._toolbar_actions[contribution.id] = action
+            self._owned_toolbar_actions.add(contribution.id)
+
+        action = self._toolbar_actions.get(contribution.id)
+        if action is not None:
+            action.setToolTip(contribution.title)
+            if contribution.icon:
+                action.setIcon(get_icon(contribution.icon))
+            if contribution.menu_items:
+                menu = QMenu(contribution.title, self)
+                menu_actions: list[
+                    tuple[ToolbarMenuItemContribution, QAction]
+                ] = []
+                for menu_item in contribution.menu_items:
+                    if menu_item.icon:
+                        menu_action = menu.addAction(
+                            get_icon(menu_item.icon),
+                            menu_item.title,
+                        )
+                    else:
+                        menu_action = menu.addAction(menu_item.title)
+                    menu_action.triggered.connect(
+                        lambda _checked=False, callback=menu_item.callback: callback()
+                    )
+                    menu_actions.append((menu_item, menu_action))
+                action.setMenu(menu)
+                self._toolbar_menu_actions[contribution.id] = menu_actions
+        self._rebuild_toolbar_tools()
+        self._refresh_toolbar_action_states()
+
+    def _remove_toolbar_item(self, contribution_id: str) -> None:
+        self._toolbar_contributions.pop(contribution_id, None)
+        action = self._toolbar_actions.pop(contribution_id, None)
+        self._toolbar_menu_actions.pop(contribution_id, None)
+        owned = contribution_id in self._owned_toolbar_actions
+        self._owned_toolbar_actions.discard(contribution_id)
+        self._rebuild_toolbar_tools()
+        if owned and action is not None:
+            menu = action.menu()
+            if menu is not None:
+                menu.deleteLater()
+            action.deleteLater()
+
+    def _refresh_toolbar_action_states(self) -> None:
+        for contribution_id, contribution in self._toolbar_contributions.items():
+            action = self._toolbar_actions.get(contribution_id)
+            if action is None:
+                continue
+            enabled = True
+            if contribution.enabled_when is not None:
+                try:
+                    enabled = bool(contribution.enabled_when())
+                except Exception:
+                    logger.exception(
+                        "Could not evaluate toolbar state: %s",
+                        contribution_id,
+                    )
+                    enabled = False
+
+            menu_has_enabled_item = not contribution.menu_items
+            for menu_item, menu_action in self._toolbar_menu_actions.get(
+                contribution_id,
+                [],
+            ):
+                item_enabled = True
+                if menu_item.enabled_when is not None:
+                    try:
+                        item_enabled = bool(menu_item.enabled_when())
+                    except Exception:
+                        logger.exception(
+                            "Could not evaluate toolbar menu state: %s",
+                            menu_item.title,
+                        )
+                        item_enabled = False
+                menu_action.setEnabled(enabled and item_enabled)
+                menu_has_enabled_item = menu_has_enabled_item or item_enabled
+            action.setEnabled(enabled and menu_has_enabled_item)
+
+    def _rebuild_toolbar_tools(self) -> None:
+        workspace_id = self._current_workspace_id or self._api.current_workspace_id
+        grouped_actions: dict[str, list[QAction]] = {}
+        group_order: list[str] = []
+        contributions = sorted(
+            self._toolbar_contributions.values(),
+            key=lambda item: (item.order, item.group, item.title.casefold()),
+        )
+        for contribution in contributions:
+            if not contribution.is_in_workspace(workspace_id):
+                continue
+            action = self._toolbar_actions.get(contribution.id)
+            if action is None and contribution.command:
+                action = self._command_actions.get(contribution.command)
+                if action is not None:
+                    self._toolbar_actions[contribution.id] = action
+                    action.setToolTip(contribution.title)
+                    if contribution.icon:
+                        action.setIcon(get_icon(contribution.icon))
+            if action is not None:
+                if contribution.group not in grouped_actions:
+                    grouped_actions[contribution.group] = []
+                    group_order.append(contribution.group)
+                grouped_actions[contribution.group].append(action)
+
+        registered_groups = {
+            contribution.group
+            for contribution in self._toolbar_contributions.values()
+        }
+        for group, toolbar in list(self._toolset_bars.items()):
+            if group not in registered_groups:
+                self.removeToolBar(toolbar)
+                toolbar.deleteLater()
+                del self._toolset_bars[group]
+
+        for group in group_order:
+            toolbar = self._toolset_bars.get(group)
+            if toolbar is None:
+                toolbar = ToolSetBar(group, self)
+                self._toolset_bars[group] = toolbar
+                self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
+            toolbar.set_tools(grouped_actions[group])
+            toolbar.show()
+
+        for group, toolbar in self._toolset_bars.items():
+            if group not in grouped_actions:
+                toolbar.set_tools([])
+                toolbar.hide()
+
     def _add_workspace(self, contribution: WorkspaceContribution) -> None:
         self._workspaces[contribution.id] = contribution
-        self._rebuild_workspace_toolbar()
+        self._refresh_workspace_combo()
 
     def _remove_workspace(self, workspace_id: str) -> None:
         if workspace_id not in self._workspaces:
             return
         del self._workspaces[workspace_id]
-        btn = self._workspace_buttons.pop(workspace_id, None)
-        if btn is not None:
-            btn.deleteLater()
         self._workspace_states.pop(workspace_id, None)
         QSettings().remove(f"workspace_perspective/{workspace_id}")
-        self._rebuild_workspace_toolbar()
+        self._refresh_workspace_combo()
         for panel_id in list(self._panels):
             contribution, _ = self._panels[panel_id]
             if contribution.workspace_id == workspace_id or (
@@ -829,33 +1017,13 @@ class MainWindow(QMainWindow):
             ):
                 self._remove_panel(panel_id)
 
-    def _rebuild_workspace_toolbar(self) -> None:
-        self._workspace_toolbar.clear()
-        self._workspace_buttons.clear()
-
-        sorted_workspaces = sorted(self._workspaces.values(), key=lambda w: (w.order, w.title))
-        if sorted_workspaces:
-            button_font = QFont(self._workspace_toolbar.font())
-            button_font.setPointSizeF(10.5)
-            font_metrics = QFontMetrics(button_font)
-            button_width = (
-                max(font_metrics.horizontalAdvance(w.title) for w in sorted_workspaces)
-                + 64
-            )
-        else:
-            button_width = 0
-        for contribution in sorted_workspaces:
-            btn = QToolButton(self._workspace_toolbar)
-            btn.setText(contribution.title)
-            btn.setCheckable(True)
-            btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
-            btn.setFixedSize(button_width, 26)
-            btn.clicked.connect(lambda _checked, cid=contribution.id: self._api.switch_workspace(cid))
-            self._workspace_toolbar.addWidget(btn)
-            self._workspace_buttons[contribution.id] = btn
-
-        if self._api.current_workspace_id and self._api.current_workspace_id in self._workspace_buttons:
-            self._workspace_buttons[self._api.current_workspace_id].setChecked(True)
+    def _refresh_workspace_combo(self) -> None:
+        workspaces = sorted(
+            self._workspaces.values(),
+            key=lambda item: (item.order, item.title.casefold()),
+        )
+        current_id = self._current_workspace_id or self._api.current_workspace_id
+        self._workspace_toolbar.set_workspaces(workspaces, current_id)
 
     def _switch_workspace(self, workspace_id: str) -> None:
         if workspace_id not in self._workspaces:
@@ -874,11 +1042,8 @@ class MainWindow(QMainWindow):
             )
 
         self._current_workspace_id = workspace_id
-
-        for cid, btn in self._workspace_buttons.items():
-            btn.blockSignals(True)
-            btn.setChecked(cid == workspace_id)
-            btn.blockSignals(False)
+        self._workspace_toolbar.set_current_workspace(workspace_id)
+        self._rebuild_toolbar_tools()
 
         # 2. Restore saved workspace perspective if available, or apply default layout
         settings = QSettings()

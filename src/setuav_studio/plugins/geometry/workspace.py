@@ -38,8 +38,8 @@ class ViewerWorkspace(QWidget):
         layout.setSpacing(0)
 
         self.viewer = OpenGLViewer(self)
-        layout.setRowMinimumHeight(0, 12)
-        layout.setRowStretch(1, 1)
+        layout.setRowStretch(0, 1)
+        layout.setRowMinimumHeight(1, 12)
         layout.addWidget(self.viewer, 0, 0, 2, 1)
 
         # Floating HUD Capsule over the 3D Viewport
@@ -205,9 +205,9 @@ class ViewerWorkspace(QWidget):
         self.hud.adjustSize()
         layout.addWidget(
             self.hud,
-            1,
             0,
-            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter,
+            0,
+            Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignHCenter,
         )
         self.hud.raise_()
 

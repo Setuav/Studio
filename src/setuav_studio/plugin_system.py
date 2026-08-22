@@ -21,6 +21,8 @@ __all__ = [
     "ParameterField",
     "PanelContribution",
     "StudioAPI",
+    "ToolbarContribution",
+    "ToolbarMenuItemContribution",
     "ToolContribution",
     "WorkspaceContribution",
     "PluginManager",
@@ -55,6 +57,47 @@ class WorkspaceContribution:
     factory: Callable[[], QWidget] | None = None
     icon: str | Path | QIcon | None = None
     order: int = 0
+
+
+@dataclass(frozen=True)
+class ToolbarMenuItemContribution:
+    """One command inside a contributed toolbar action's popup menu."""
+
+    title: str
+    callback: Callable[[], None]
+    icon: str | Path | QIcon | None = None
+    enabled_when: Callable[[], bool] | None = None
+
+
+@dataclass(frozen=True)
+class ToolbarContribution:
+    """A plugin-provided action displayed in the main application toolbar."""
+
+    id: str
+    title: str
+    icon: str | Path | QIcon | None = None
+    callback: Callable[[], None] | None = None
+    command: str | None = None
+    menu_items: tuple[ToolbarMenuItemContribution, ...] = ()
+    enabled_when: Callable[[], bool] | None = None
+    group: str = "default"
+    order: int = 0
+    workspace_id: str | list[str] | tuple[str, ...] | None = None
+
+    def __post_init__(self) -> None:
+        if self.callback is not None and self.command is not None:
+            raise ValueError(
+                "Toolbar contributions cannot define both callback and command"
+            )
+        if self.callback is None and self.command is None and not self.menu_items:
+            raise ValueError("Toolbar contributions require an action or menu")
+
+    def is_in_workspace(self, current_workspace_id: str | None) -> bool:
+        if self.workspace_id is None:
+            return True
+        if isinstance(self.workspace_id, (list, tuple, set)):
+            return current_workspace_id in self.workspace_id
+        return self.workspace_id == current_workspace_id
 
 
 @dataclass(frozen=True)
@@ -147,6 +190,9 @@ class StudioAPI:
         self._remove_workspace: Callable[[str], None] | None = None
         self._switch_workspace_handler: Callable[[str], None] | None = None
         self._pending_workspaces: list[WorkspaceContribution] = []
+        self._add_toolbar_item: Callable[[ToolbarContribution], None] | None = None
+        self._remove_toolbar_item: Callable[[str], None] | None = None
+        self._pending_toolbar_items: list[ToolbarContribution] = []
         self._add_action: Callable[[ActionContribution], None] | None = None
         self._remove_action: Callable[[str, str], None] | None = None
         self._pending_actions: list[ActionContribution] = []
@@ -310,6 +356,30 @@ class StudioAPI:
         self._workspace_listeners.append(listener)
         if self.current_workspace_id is not None:
             listener(self.current_workspace_id)
+
+    def set_toolbar_handler(
+        self,
+        handler: Callable[[ToolbarContribution], None],
+        remove_handler: Callable[[str], None] | None = None,
+    ) -> None:
+        self._add_toolbar_item = handler
+        self._remove_toolbar_item = remove_handler
+        for contribution in self._pending_toolbar_items:
+            handler(contribution)
+        self._pending_toolbar_items.clear()
+
+    def add_toolbar_item(self, contribution: ToolbarContribution) -> None:
+        if self._add_toolbar_item is not None:
+            self._add_toolbar_item(contribution)
+        else:
+            self._pending_toolbar_items.append(contribution)
+
+    def remove_toolbar_item(self, contribution_id: str) -> None:
+        self._pending_toolbar_items = [
+            item for item in self._pending_toolbar_items if item.id != contribution_id
+        ]
+        if self._remove_toolbar_item is not None:
+            self._remove_toolbar_item(contribution_id)
 
     def set_action_handler(
         self,

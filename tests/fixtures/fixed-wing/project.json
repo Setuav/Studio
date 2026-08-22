@@ -1514,45 +1514,6 @@
         "internal_resistance": 0.0075
       },
       "mass": 430.0
-    },
-    {
-      "kind": "component",
-      "id": "payload",
-      "name": "Payload",
-      "type": "org.setuav.core:point-mass",
-      "parent": "fuselage",
-      "attach_to": "fuselage",
-      "transform": {
-        "position": {
-          "x": 300.0,
-          "y": 0.0,
-          "z": -50.0
-        }
-      },
-      "parameters": {
-        "mass": 500.0
-      }
-    },
-    {
-      "kind": "component",
-      "id": "rotor-lift",
-      "name": "Lift Rotor",
-      "type": "org.setuav.core:rotor",
-      "attach_to": "main-wing",
-      "transform": {
-        "position": {
-          "x": 200.0,
-          "y": 400.0,
-          "z": 0.0
-        }
-      },
-      "parameters": {
-        "diameter": 400.0,
-        "pitch": 250.0,
-        "blade_count": 2,
-        "rotation_direction": "ccw",
-        "mass": 60.0
-      }
     }
   ],
   "assemblies": [
