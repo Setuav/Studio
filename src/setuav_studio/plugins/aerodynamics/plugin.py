@@ -10,13 +10,7 @@ from setuav_studio.plugin_system import (
     WorkspaceContribution,
 )
 from .aero_3d_dock import Aero3DDock
-from .charts_dock import (
-    AeroChartsDock,
-    LiftChartDock,
-    PolarChartDock,
-    MomentChartDock,
-    LdChartDock,
-)
+from .charts_dock import AeroChartsDock
 from .controls_dock import AeroControlsDock
 from .results_dock import AeroResultsDock
 from .engine.base import AeroResult
@@ -33,10 +27,6 @@ class AerodynamicsPlugin:
         self._results_dock: AeroResultsDock | None = None
         self._charts_dock: AeroChartsDock | None = None
         self._aero_3d_dock: Aero3DDock | None = None
-        self._chart_lift: LiftChartDock | None = None
-        self._chart_polar: PolarChartDock | None = None
-        self._chart_moment: MomentChartDock | None = None
-        self._chart_ld: LdChartDock | None = None
 
     def activate(self, api: StudioAPI) -> None:
         # 1. Register Aerodynamics Workspace
@@ -67,26 +57,6 @@ class AerodynamicsPlugin:
         def create_aero_3d_dock() -> Aero3DDock:
             dock = Aero3DDock(api)
             self._aero_3d_dock = dock
-            return dock
-
-        def create_chart_lift() -> LiftChartDock:
-            dock = LiftChartDock(api)
-            self._chart_lift = dock
-            return dock
-
-        def create_chart_polar() -> PolarChartDock:
-            dock = PolarChartDock(api)
-            self._chart_polar = dock
-            return dock
-
-        def create_chart_moment() -> MomentChartDock:
-            dock = MomentChartDock(api)
-            self._chart_moment = dock
-            return dock
-
-        def create_chart_ld() -> LdChartDock:
-            dock = LdChartDock(api)
-            self._chart_ld = dock
             return dock
 
         # 3. Register Controls Dock (Left)

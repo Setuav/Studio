@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QWidget
 
 from setuav_studio.plugin_system import (
     PanelContribution,
@@ -13,13 +11,7 @@ from setuav_studio.plugin_system import (
     WorkspaceContribution,
 )
 from .catalog_dialog import ComponentCatalogDialog
-from .charts_dock import (
-    PropulsionChartsDock,
-    ThrustPowerChartDock,
-    ElectricalChartDock,
-    EfficiencyChartDock,
-    PowerLoadingChartDock,
-)
+from .charts_dock import PropulsionChartsDock
 from .controls_dock import PropulsionControlsDock
 from .results_dock import PropulsionResultsDock
 from .editors.assembly import ElectricPropulsionSystemEditor

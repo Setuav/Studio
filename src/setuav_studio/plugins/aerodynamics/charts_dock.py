@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from typing import Sequence
-from PySide6.QtCore import QPointF, Qt
+from PySide6.QtCore import QPointF, QSettings, Qt
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import (
     QSplitter,
@@ -166,36 +166,6 @@ class SingleChartWidget(QWidget):
             pad_y = max((max(all_y) - min(all_y)) * 0.05, 0.05)
             axis_y.setRange(min(all_y) - pad_y, max(all_y) + pad_y)
 
-
-class LiftChartDock(SingleChartWidget):
-    """Dock widget for Lift Curve (CL vs α)."""
-    def __init__(self, api: StudioAPI | None = None, parent: QWidget | None = None) -> None:
-        super().__init__("Lift Curve (CL vs α)", parent)
-        self.setObjectName("aerodynamics.chart_lift_widget")
-
-
-class PolarChartDock(SingleChartWidget):
-    """Dock widget for Drag Polar (CL vs CD)."""
-    def __init__(self, api: StudioAPI | None = None, parent: QWidget | None = None) -> None:
-        super().__init__("Drag Polar (CL vs CD)", parent)
-        self.setObjectName("aerodynamics.chart_polar_widget")
-
-
-class MomentChartDock(SingleChartWidget):
-    """Dock widget for Pitching Moment (Cm vs α)."""
-    def __init__(self, api: StudioAPI | None = None, parent: QWidget | None = None) -> None:
-        super().__init__("Pitching Moment (Cm vs α)", parent)
-        self.setObjectName("aerodynamics.chart_moment_widget")
-
-
-class LdChartDock(SingleChartWidget):
-    """Dock widget for Aerodynamic Efficiency (L/D vs α)."""
-    def __init__(self, api: StudioAPI | None = None, parent: QWidget | None = None) -> None:
-        super().__init__("Aerodynamic Efficiency (L/D vs α)", parent)
-        self.setObjectName("aerodynamics.chart_ld_widget")
-
-
-from PySide6.QtCore import QPointF, QSettings, Qt
 
 class AeroChartsDock(QWidget):
     """Unified dock hosting all 4 aerodynamic charts in a 2x2 grid with persistent resizable splitters."""
