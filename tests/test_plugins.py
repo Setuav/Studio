@@ -373,6 +373,57 @@ class PluginTests(unittest.TestCase):
         self.assertNotIn("test.removable", window._panels)
         self.assertNotIn("test.removable-ws", window._workspaces)
 
+    def test_dynamic_schema_registration_and_validation(self) -> None:
+        """Verify 3rd party plugins can dynamically register schemas and validate component types."""
+        from setuav_studio.schema_validation import validate_project
+
+        api = StudioAPI()
+
+        # 1. Custom 3rd-party component schema
+        custom_schema = {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "required": ["frequency_ghz"],
+            "properties": {
+                "frequency_ghz": {"type": "number", "minimum": 1.0, "maximum": 100.0},
+            },
+        }
+
+        # 2. Register via StudioAPI
+        api.register_component_type_schema("com.custom:radar-sensor", custom_schema)
+
+        # 3. Valid project with custom component
+        valid_project = {
+            "name": "Radar Drone",
+            "plugins": [],
+            "components": [
+                {
+                    "id": "radar_1",
+                    "name": "Front Radar",
+                    "type": "com.custom:radar-sensor",
+                    "parameters": {"frequency_ghz": 77.0},
+                }
+            ],
+        }
+        issues = validate_project(valid_project)
+        self.assertEqual(len(issues), 0)
+
+        # 4. Invalid project (frequency out of bounds)
+        invalid_project = {
+            "name": "Radar Drone",
+            "plugins": [],
+            "components": [
+                {
+                    "id": "radar_1",
+                    "name": "Front Radar",
+                    "type": "com.custom:radar-sensor",
+                    "parameters": {"frequency_ghz": 500.0},
+                }
+            ],
+        }
+        issues = validate_project(invalid_project)
+        self.assertGreater(len(issues), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

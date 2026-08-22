@@ -125,6 +125,41 @@ class SchemaCatalog:
             issues.append(Issue("error", err.message, path_str))
         return issues
 
+    def register_schema(self, schema: dict[str, Any], schema_id: str | None = None) -> str:
+        """Register a dynamic JSON Schema into the catalog."""
+        sid = schema_id or schema.get("$id")
+        if not sid:
+            raise ValueError("Schema must provide an '$id' field or schema_id parameter")
+        self.schemas[sid] = schema
+        self.registry = self.registry.with_resource(sid, Resource.from_contents(schema))
+        return sid
+
+    def register_component_type_schema(
+        self,
+        component_type: str,
+        schema: dict[str, Any],
+        plugin_id: str | None = None,
+    ) -> None:
+        """Register a dynamic component type schema under a plugin."""
+        pid = plugin_id or (component_type.split(":")[0] if ":" in component_type else "custom")
+        sid = (
+            schema.get("$id")
+            or f"https://schemas.setuav.org/plugins/{pid}/{component_type.replace(':', '_')}.schema.json"
+        )
+        schema["$id"] = sid
+        self.register_schema(schema, sid)
+        if pid not in self.plugins:
+            self.plugins[pid] = PluginInfo(
+                manifest_path=Path("dynamic"),
+                manifest={"id": pid},
+                component_types={},
+                assembly_types={},
+            )
+        self.plugins[pid].component_types[component_type] = {
+            "path": Path("dynamic"),
+            "schema": schema,
+        }
+
 
 _default_catalog: SchemaCatalog | None = None
 

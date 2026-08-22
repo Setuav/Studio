@@ -37,6 +37,54 @@ class ProjectDocument:
     def degraded(self) -> bool:
         return bool(self.plugin_issues)
 
+    def get_extension(self, namespace: str, default: Any = None) -> Any:
+        """Retrieve root-level extension data for a given namespace."""
+        extensions = self.data.get("extensions")
+        if not isinstance(extensions, dict):
+            return default
+        return extensions.get(namespace, default)
+
+    def set_extension(self, namespace: str, value: Any) -> None:
+        """Set root-level extension data for a given namespace."""
+        if "extensions" not in self.data or not isinstance(self.data["extensions"], dict):
+            self.data["extensions"] = {}
+        self.data["extensions"][namespace] = value
+        self.modified = True
+
+    def remove_extension(self, namespace: str) -> None:
+        """Remove root-level extension data for a given namespace."""
+        extensions = self.data.get("extensions")
+        if isinstance(extensions, dict) and namespace in extensions:
+            del extensions[namespace]
+            self.modified = True
+
+    def get_component(self, comp_id: str) -> dict[str, Any] | None:
+        """Find a component by its ID."""
+        components = self.data.get("components")
+        if not isinstance(components, list):
+            return None
+        return next((c for c in components if isinstance(c, dict) and c.get("id") == comp_id), None)
+
+    def get_component_extension(self, comp_id: str, namespace: str, default: Any = None) -> Any:
+        """Retrieve component-level extension data for a given namespace."""
+        comp = self.get_component(comp_id)
+        if comp is None:
+            return default
+        extensions = comp.get("extensions")
+        if not isinstance(extensions, dict):
+            return default
+        return extensions.get(namespace, default)
+
+    def set_component_extension(self, comp_id: str, namespace: str, value: Any) -> None:
+        """Set component-level extension data for a given namespace."""
+        comp = self.get_component(comp_id)
+        if comp is None:
+            raise KeyError(f"Component '{comp_id}' not found in project")
+        if "extensions" not in comp or not isinstance(comp["extensions"], dict):
+            comp["extensions"] = {}
+        comp["extensions"][namespace] = value
+        self.modified = True
+
 
 def open_project(path: str | Path) -> ProjectDocument:
     selected_path = Path(path).expanduser().resolve()

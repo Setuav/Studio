@@ -438,6 +438,49 @@ class StudioAPI:
             )
         )
 
+    def edit_project_extension(
+        self,
+        namespace: str,
+        description: str,
+        change: Callable[[dict[str, Any]], None],
+    ) -> None:
+        """Edit root-level extension data for a given namespace with full Undo/Redo tracking."""
+        if self.current_project is None:
+            return
+
+        def wrapper() -> None:
+            assert self.current_project is not None
+            if "extensions" not in self.current_project.data or not isinstance(
+                self.current_project.data["extensions"], dict
+            ):
+                self.current_project.data["extensions"] = {}
+            ext = self.current_project.data["extensions"].setdefault(namespace, {})
+            change(ext)
+
+        self.edit_project(description, wrapper)
+
+    def edit_component_extension(
+        self,
+        component_id: str,
+        namespace: str,
+        description: str,
+        change: Callable[[dict[str, Any]], None],
+    ) -> None:
+        """Edit component-level extension data for a given namespace with full Undo/Redo tracking."""
+        if self.current_project is None:
+            return
+        comp = self.current_project.get_component(component_id)
+        if comp is None:
+            return
+
+        def wrapper() -> None:
+            if "extensions" not in comp or not isinstance(comp["extensions"], dict):
+                comp["extensions"] = {}
+            ext = comp["extensions"].setdefault(namespace, {})
+            change(ext)
+
+        self.edit_component(comp, description, wrapper)
+
     def undo(self) -> None:
         if self.undo_stack.canUndo():
             self.undo_stack.undo()
@@ -639,6 +682,23 @@ class StudioAPI:
 
     def remove_geometry_provider(self, component_type: str) -> None:
         self._geometry_providers.pop(component_type, None)
+
+    def register_schema(self, schema_id: str, schema_dict: dict[str, Any]) -> None:
+        """Register a custom JSON schema dynamically (for 3rd-party plugins)."""
+        from setuav_studio.schema_validation import get_catalog
+
+        get_catalog().register_schema(schema_dict, schema_id)
+
+    def register_component_type_schema(
+        self,
+        component_type: str,
+        schema_dict: dict[str, Any],
+        plugin_id: str | None = None,
+    ) -> None:
+        """Register a custom component type schema dynamically under a plugin."""
+        from setuav_studio.schema_validation import get_catalog
+
+        get_catalog().register_component_type_schema(component_type, schema_dict, plugin_id=plugin_id)
 
     def build_geometry_data(
         self,
