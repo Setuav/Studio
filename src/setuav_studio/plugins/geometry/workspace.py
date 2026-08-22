@@ -57,7 +57,7 @@ class ViewerWorkspace(QWidget):
         self.solid_button = QToolButton(self.hud)
         self.solid_button.setCheckable(True)
         self.solid_button.setChecked(True)
-        self.solid_button.setIcon(get_icon("fa6s.cube"))
+        self.solid_button.setIcon(get_icon("view_solid"))
         self.solid_button.setToolTip("Toggle Solid Surface")
         self.solid_button.setFixedSize(24, 24)
         self.solid_button.setAutoRaise(True)
@@ -67,7 +67,7 @@ class ViewerWorkspace(QWidget):
         self.wire_button = QToolButton(self.hud)
         self.wire_button.setCheckable(True)
         self.wire_button.setChecked(True)
-        self.wire_button.setIcon(get_icon("mdi6.vector-square"))
+        self.wire_button.setIcon(get_icon("view_wireframe"))
         self.wire_button.setToolTip("Toggle Wireframe Mesh")
         self.wire_button.setFixedSize(24, 24)
         self.wire_button.setAutoRaise(True)
@@ -87,7 +87,7 @@ class ViewerWorkspace(QWidget):
         self.colored_button = QToolButton(self.hud)
         self.colored_button.setCheckable(True)
         self.colored_button.setChecked(True)
-        self.colored_button.setIcon(get_icon("fa6s.palette"))
+        self.colored_button.setIcon(get_icon("view_colored"))
         self.colored_button.setToolTip("Component Colors")
         self.colored_button.setFixedSize(24, 24)
         self.colored_button.setAutoRaise(True)
@@ -96,7 +96,7 @@ class ViewerWorkspace(QWidget):
 
         self.mono_button = QToolButton(self.hud)
         self.mono_button.setCheckable(True)
-        self.mono_button.setIcon(get_icon("fa6s.circle-half-stroke"))
+        self.mono_button.setIcon(get_icon("view_monochrome"))
         self.mono_button.setToolTip("Monochrome / Neutral")
         self.mono_button.setFixedSize(24, 24)
         self.mono_button.setAutoRaise(True)
@@ -113,7 +113,7 @@ class ViewerWorkspace(QWidget):
         self.trans_button = QToolButton(self.hud)
         self.trans_button.setCheckable(True)
         self.trans_button.setChecked(False)
-        self.trans_button.setIcon(get_icon("mdi6.opacity"))
+        self.trans_button.setIcon(get_icon("view_transparent"))
         self.trans_button.setToolTip("Toggle Transparency (X-Ray)")
         self.trans_button.setFixedSize(24, 24)
         self.trans_button.setAutoRaise(True)
@@ -123,7 +123,7 @@ class ViewerWorkspace(QWidget):
         self.grid_button = QToolButton(self.hud)
         self.grid_button.setCheckable(True)
         self.grid_button.setChecked(True)
-        self.grid_button.setIcon(get_icon("mdi6.grid"))
+        self.grid_button.setIcon(get_icon("view_grid"))
         self.grid_button.setToolTip("Toggle Reference Grid")
         self.grid_button.setFixedSize(24, 24)
         self.grid_button.setAutoRaise(True)
@@ -138,7 +138,7 @@ class ViewerWorkspace(QWidget):
 
         # Color Palette Selector
         self.palette_button = QToolButton(self.hud)
-        self.palette_button.setIcon(get_icon("fa6s.brush"))
+        self.palette_button.setIcon(get_icon("view_palette"))
         self.palette_button.setToolTip("Color Palette")
         self.palette_button.setFixedSize(24, 24)
         self.palette_button.setAutoRaise(True)
@@ -159,11 +159,11 @@ class ViewerWorkspace(QWidget):
         # Standard View Presets
         self._cam_buttons: list[tuple[QToolButton, str]] = []
         view_buttons = (
-            ("fa6s.arrow-up", "Top View", 0.0, 90.0),
-            ("fa6s.arrow-down", "Bottom View", 0.0, -90.0),
-            ("fa6s.arrow-right", "Front View", 270.0, 0.0),
-            ("fa6s.arrow-left", "Side View", 180.0, 0.0),
-            ("fa6s.cubes", "Isometric View", 210.0, 20.0),
+            ("camera_top", "Top View", 0.0, 90.0),
+            ("camera_bottom", "Bottom View", 0.0, -90.0),
+            ("camera_front", "Front View", 270.0, 0.0),
+            ("camera_side", "Side View", 180.0, 0.0),
+            ("camera_iso", "Isometric View", 210.0, 20.0),
         )
         for icon, tooltip, azimuth, elevation in view_buttons:
             button = QToolButton(self.hud)
@@ -181,7 +181,7 @@ class ViewerWorkspace(QWidget):
 
         # Camera Fit Button
         self.fit_button = QToolButton(self.hud)
-        self.fit_button.setIcon(get_icon("fa6s.expand"))
+        self.fit_button.setIcon(get_icon("view_fit"))
         self.fit_button.setToolTip("Fit Model in View (F)")
         self.fit_button.setFixedSize(24, 24)
         self.fit_button.setAutoRaise(True)
@@ -220,16 +220,16 @@ class ViewerWorkspace(QWidget):
 
     def update_theme_style(self) -> None:
         self.hud.setPalette(self.palette())
-        self.solid_button.setIcon(get_icon("fa6s.cube"))
-        self.wire_button.setIcon(get_icon("mdi6.vector-square"))
-        self.colored_button.setIcon(get_icon("fa6s.palette"))
-        self.mono_button.setIcon(get_icon("fa6s.circle-half-stroke"))
-        self.trans_button.setIcon(get_icon("fa6s.droplet"))
-        self.grid_button.setIcon(get_icon("fa6s.table-cells"))
-        self.palette_button.setIcon(get_icon("fa6s.brush"))
+        self.solid_button.setIcon(get_icon("view_solid"))
+        self.wire_button.setIcon(get_icon("view_wireframe"))
+        self.colored_button.setIcon(get_icon("view_colored"))
+        self.mono_button.setIcon(get_icon("view_monochrome"))
+        self.trans_button.setIcon(get_icon("view_transparent"))
+        self.grid_button.setIcon(get_icon("view_grid"))
+        self.palette_button.setIcon(get_icon("view_palette"))
         for btn, icon_name in self._cam_buttons:
             btn.setIcon(get_icon(icon_name))
-        self.fit_button.setIcon(get_icon("fa6s.expand"))
+        self.fit_button.setIcon(get_icon("view_fit"))
         self.viewer.update_theme_style()
 
     def _build_palette_menu(self) -> None:

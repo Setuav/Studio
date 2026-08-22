@@ -1,12 +1,18 @@
+from functools import lru_cache
+import logging
 from pathlib import Path
 from typing import Any
-import logging
+import tomllib
+
 import qtawesome as qta
 from PySide6.QtCore import QRect, QSize
 from PySide6.QtGui import QIcon, QIconEngine, QPainter, QPalette, QPixmap
 from PySide6.QtWidgets import QApplication, QLabel
 
 logger = logging.getLogger(__name__)
+
+_ASSET_ROOT = Path(__file__).resolve().parent.parent / "assets" / "icons"
+_ICON_MANIFEST = _ASSET_ROOT / "manifest.toml"
 
 _ICON_MAP = {
     # File / Project actions
@@ -37,13 +43,56 @@ _ICON_MAP = {
     "fit": "fa6s.expand",
     "log": "mdi6.message-text-outline",
     "export_csv": "fa6s.file-export",
+    # QtAwesome controls intentionally used inside 3D viewers
+    "view_colored": "fa6s.palette",
+    "view_grid": "mdi6.grid",
+    "view_palette": "fa6s.eye-dropper",
+    "view_fit": "fa6s.expand",
     # Default Component Types
     "component": "fa6s.cube",
     "instance": "fa6s.clone",
+    "assembly_generic": "fa6s.cubes",
+    "component_fuselage": "fa6s.shuttle-space",
+    "component_lifting_surface": "fa6s.plane",
+    "component_control_surface": "fa6s.sliders",
+    "component_motor": "mdi6.engine",
+    "component_propeller": "fa6s.fan",
+    "component_rotor": "fa6s.arrows-spin",
+    "component_esc": "fa6s.microchip",
+    "component_battery": "fa6s.battery-full",
+    "component_propulsion_system": "fa6s.bolt",
 }
 
 _LABEL_ICON_SOURCE = "setuavThemeIconSource"
 _LABEL_ICON_SIZE = "setuavThemeIconSize"
+
+
+@lru_cache(maxsize=1)
+def _asset_icon_map() -> dict[str, str]:
+    """Load logical icon names from the vendored asset manifest."""
+    try:
+        with _ICON_MANIFEST.open("rb") as stream:
+            values = tomllib.load(stream).get("icons", {})
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        logger.warning("Could not load icon manifest %s: %s", _ICON_MANIFEST, exc)
+        return {}
+    return {
+        str(name): str(relative_path)
+        for name, relative_path in values.items()
+        if isinstance(relative_path, str)
+    }
+
+
+def _asset_icon(icon_source: str) -> QIcon | None:
+    relative_path = _asset_icon_map().get(icon_source)
+    if relative_path is None:
+        return None
+    icon_path = _ASSET_ROOT / relative_path
+    if not icon_path.is_file():
+        logger.warning("Mapped icon asset is missing: %s", icon_path)
+        return None
+    return QIcon(str(icon_path))
+
 
 class _ThemeIconEngine(QIconEngine):
     """Render a QtAwesome glyph from the palette in effect at paint time."""
@@ -132,6 +181,9 @@ def get_icon(
         return QIcon(str(icon_source))
 
     if isinstance(icon_source, str):
+        asset_icon = _asset_icon(icon_source)
+        if asset_icon is not None:
+            return asset_icon
         specifier = _ICON_MAP.get(icon_source, icon_source)
         try:
             # A custom icon engine avoids storing the current theme color in the

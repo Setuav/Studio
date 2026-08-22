@@ -1,0 +1,29 @@
+[icons]
+# File menu
+file_open = "project-open.png"
+folder_open = "project-open.png"
+project_folder = "project-open.png"
+save = "project-save.png"
+save_as = "project-save-as.png"
+exit = "application-exit.png"
+
+# Edit menu
+undo = "edit-undo.png"
+redo = "edit-redo.png"
+settings = "application-settings.png"
+
+# View menu 3D panel
+viewer_3d = "view-isometric.png"
+
+# 3D viewport display modes and camera presets
+# Colored view, grid, and color selection intentionally use QtAwesome.
+view_solid = "view-solid.png"
+view_wireframe = "view-wireframe.png"
+view_monochrome = "view-monochrome.png"
+view_transparent = "view-transparent.png"
+camera_iso = "view-isometric.png"
+camera_top = "view-top.png"
+camera_bottom = "view-bottom.png"
+camera_front = "view-front.png"
+camera_side = "view-side.png"
+view_fit = "view-fit.png"

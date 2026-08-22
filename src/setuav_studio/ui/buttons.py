@@ -23,7 +23,7 @@ def set_button_role(
     """Assign a semantic, theme-aware role to a native Qt button.
 
     ``filled`` colors the native button surface and its contents. ``icon``
-    keeps the native neutral surface and colors only the icon.
+    keeps both the native neutral surface and the theme's standard icon color.
     """
     button.setProperty(_ROLE_PROPERTY, role)
     button.setProperty(_VARIANT_PROPERTY, variant)
@@ -68,7 +68,10 @@ def refresh_button_role(button: QAbstractButton) -> None:
         # Do not leave a stale per-widget palette behind if a button changes
         # from filled to icon-only at runtime.
         button.setPalette(app_palette)
-        icon_color = role_color
+        icon_color = app_palette.color(
+            QPalette.ColorGroup.Active,
+            QPalette.ColorRole.ButtonText,
+        )
 
     icon_source = button.property(_ICON_PROPERTY)
     if isinstance(icon_source, str) and icon_source:

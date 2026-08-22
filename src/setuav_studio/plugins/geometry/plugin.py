@@ -49,9 +49,15 @@ class GeometryPlugin:
         )
 
         # 3. Component Icons
-        api.register_component_icon("org.setuav.core:fuselage", "fa6s.shuttle-space")
-        api.register_component_icon("org.setuav.core:lifting-surface", "fa6s.plane")
-        api.register_component_icon("org.setuav.core:control-surface", "fa6s.sliders")
+        api.register_component_icon("org.setuav.core:fuselage", "component_fuselage")
+        api.register_component_icon(
+            "org.setuav.core:lifting-surface",
+            "component_lifting_surface",
+        )
+        api.register_component_icon(
+            "org.setuav.core:control-surface",
+            "component_control_surface",
+        )
 
         # 4. Geometry Providers
         api.register_geometry_provider(

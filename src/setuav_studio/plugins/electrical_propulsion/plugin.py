@@ -54,14 +54,14 @@ class ElectricalPropulsionPlugin:
         )
 
         # Register Component & Assembly Icons
-        api.register_component_icon("org.setuav.core:motor", "mdi6.engine")
-        api.register_component_icon("org.setuav.core:propeller", "fa6s.fan")
-        api.register_component_icon("org.setuav.core:rotor", "fa6s.fan")
-        api.register_component_icon("org.setuav.core:esc", "fa6s.microchip")
-        api.register_component_icon("org.setuav.core:battery", "fa6s.battery-full")
+        api.register_component_icon("org.setuav.core:motor", "component_motor")
+        api.register_component_icon("org.setuav.core:propeller", "component_propeller")
+        api.register_component_icon("org.setuav.core:rotor", "component_rotor")
+        api.register_component_icon("org.setuav.core:esc", "component_esc")
+        api.register_component_icon("org.setuav.core:battery", "component_battery")
         api.register_component_icon(
             "org.setuav.core:electric-propulsion-system",
-            "fa6s.bolt",
+            "component_propulsion_system",
         )
 
         # Register Propulsion Workspace

@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.plugin_system import StudioAPI
-from setuav_studio.ui.icons import get_icon
+from setuav_studio.ui.icons import get_icon, set_label_icon
 from setuav_studio.ui.theme import chart_color, tokens
 from .engine.base import AeroResult
 
@@ -133,6 +133,11 @@ class Aero3DDock(QWidget):
         tb_layout.addWidget(self.chk_freestream)
 
         # Scalar Colormap Selector
+        color_icon = QLabel(self)
+        set_label_icon(color_icon, "view_palette", 16)
+        color_icon.setToolTip("Scalar Color Map")
+        tb_layout.addWidget(color_icon)
+
         lbl_color = QLabel("Color:", self)
         tb_layout.addWidget(lbl_color)
 
@@ -163,10 +168,10 @@ class Aero3DDock(QWidget):
         tb_layout.addStretch()
 
         # Camera preset buttons
-        self.btn_iso = self._create_cam_button("fa6s.cube", "Isometric View (Perspective)", lambda: self._set_camera_view("iso"))
-        self.btn_top = self._create_cam_button("fa6s.arrow-down", "Top View (XY Plane)", lambda: self._set_camera_view("top"))
-        self.btn_side = self._create_cam_button("fa6s.arrow-right", "Side View (XZ Plane)", lambda: self._set_camera_view("side"))
-        self.btn_front = self._create_cam_button("fa6s.arrow-left", "Front View (YZ Plane)", lambda: self._set_camera_view("front"))
+        self.btn_iso = self._create_cam_button("camera_iso", "Isometric View (Perspective)", lambda: self._set_camera_view("iso"))
+        self.btn_top = self._create_cam_button("camera_top", "Top View (XY Plane)", lambda: self._set_camera_view("top"))
+        self.btn_side = self._create_cam_button("camera_side", "Side View (XZ Plane)", lambda: self._set_camera_view("side"))
+        self.btn_front = self._create_cam_button("camera_front", "Front View (YZ Plane)", lambda: self._set_camera_view("front"))
 
         tb_layout.addWidget(self.btn_iso)
         tb_layout.addWidget(self.btn_top)
@@ -332,10 +337,10 @@ class Aero3DDock(QWidget):
         self._placeholder.setText(message)
 
     def update_theme_style(self) -> None:
-        self.btn_iso.setIcon(get_icon("fa6s.cube"))
-        self.btn_top.setIcon(get_icon("fa6s.arrow-down"))
-        self.btn_side.setIcon(get_icon("fa6s.arrow-right"))
-        self.btn_front.setIcon(get_icon("fa6s.arrow-left"))
+        self.btn_iso.setIcon(get_icon("camera_iso"))
+        self.btn_top.setIcon(get_icon("camera_top"))
+        self.btn_side.setIcon(get_icon("camera_side"))
+        self.btn_front.setIcon(get_icon("camera_front"))
         if self.plotter is not None and PYVISTA_AVAILABLE and not self._theme_update_pending:
             self._theme_update_pending = True
             QTimer.singleShot(0, self._apply_plotter_theme)

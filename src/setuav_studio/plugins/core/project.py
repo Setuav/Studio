@@ -215,32 +215,32 @@ class ProjectExplorer(QTreeWidget):
     def _assembly_icon(assembly: dict[str, object]) -> QIcon:
         atype = str(assembly.get("type") or "")
         if atype == "org.setuav.core:electric-propulsion-system":
-            return get_icon("fa6s.bolt")
-        return get_icon("fa6s.cubes")
+            return get_icon("component_propulsion_system")
+        return get_icon("assembly_generic")
 
     @staticmethod
     def _component_icon(component: dict[str, object]) -> QIcon:
         if component.get("kind") == "instance":
-            return get_icon("fa6s.clone")
+            return get_icon("instance")
 
         ctype = str(component.get("type") or component.get("kind") or "")
         if ctype == "org.setuav.core:lifting-surface":
-            return get_icon("fa6s.plane")
+            return get_icon("component_lifting_surface")
         if ctype == "org.setuav.core:control-surface":
-            return get_icon("fa6s.sliders")
+            return get_icon("component_control_surface")
         if ctype == "org.setuav.core:fuselage":
-            return get_icon("fa6s.shield-halved")
+            return get_icon("component_fuselage")
         if ctype == "org.setuav.core:motor":
-            return get_icon("fa6s.gear")
+            return get_icon("component_motor")
         if ctype == "org.setuav.core:propeller":
-            return get_icon("fa6s.fan")
+            return get_icon("component_propeller")
         if ctype == "org.setuav.core:battery":
-            return get_icon("fa6s.battery-full")
+            return get_icon("component_battery")
         if ctype == "org.setuav.core:esc":
-            return get_icon("fa6s.microchip")
+            return get_icon("component_esc")
         if ctype == "org.setuav.core:rotor":
-            return get_icon("fa6s.arrows-spin")
-        return get_icon("fa6s.cube")
+            return get_icon("component_rotor")
+        return get_icon("component")
 
     @staticmethod
     def _component_type_text(
