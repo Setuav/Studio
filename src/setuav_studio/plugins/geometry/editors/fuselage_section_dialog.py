@@ -50,7 +50,7 @@ from setuav_studio.ui.numeric_spinbox import (
     set_table_spinbox,
 )
 from setuav_studio.ui.theme import accent_color, tokens
-from setuav_studio.plugins.geometry.fuselage_geometry import sample_profile
+from ..engine.fuselage_geometry import sample_profile
 
 
 def compute_section_metrics(points: tuple[tuple[float, float], ...]) -> dict[str, float]:

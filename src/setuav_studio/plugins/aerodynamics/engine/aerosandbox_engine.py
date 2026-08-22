@@ -15,7 +15,7 @@ from .base import (
     PolarPoint,
     ReferenceValues,
 )
-from setuav_studio.plugins.geometry.airfoil import (
+from setuav_studio.plugins.geometry.engine.airfoil import (
     apply_airfoil_shaping,
     sample_airfoil_points,
 )

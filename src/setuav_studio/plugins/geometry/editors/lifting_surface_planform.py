@@ -7,9 +7,9 @@ from copy import deepcopy
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor
 
-from setuav_studio.plugins.geometry.wing_driver_solver import compute_all_8_parameters
-from setuav_studio.plugins.geometry.wing_driver_table import DriverPlanformTable
-from setuav_studio.plugins.geometry.wing_planform_engine import (
+from ..engine.wing_driver_solver import compute_all_8_parameters
+from .wing_driver_table import DriverPlanformTable
+from ..engine.wing_planform_engine import (
     SWEEP_LOCATIONS,
     TWIST_LOCATIONS,
     compute_planform_metrics,

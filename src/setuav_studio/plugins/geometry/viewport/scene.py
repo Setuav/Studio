@@ -3,9 +3,9 @@ from collections.abc import Callable
 from copy import deepcopy
 from typing import Any
 
-from .data import GeometryData, LoftGeometry, Section
+from ..engine.data import GeometryData, LoftGeometry, Section
 from .palettes import segment_colors
-from .transforms import (
+from ..engine.transforms import (
     Matrix4,
     derivation_matrix,
     identity_matrix,

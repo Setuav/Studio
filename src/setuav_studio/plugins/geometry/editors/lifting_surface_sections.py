@@ -17,11 +17,11 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.ui.icons import get_icon
-from setuav_studio.plugins.geometry.airfoil_dialog import AirfoilDialog
-from setuav_studio.plugins.geometry.wing_driver_solver import compute_all_8_parameters
-from setuav_studio.plugins.geometry.wing_driver_table import DriverPlanformTable
-from setuav_studio.plugins.geometry.wing_planform_engine import SWEEP_LOCATIONS
-from setuav_studio.plugins.geometry.wing_sections_engine import (
+from .airfoil_dialog import AirfoilDialog
+from ..engine.wing_driver_solver import compute_all_8_parameters
+from .wing_driver_table import DriverPlanformTable
+from ..engine.wing_planform_engine import SWEEP_LOCATIONS
+from ..engine.wing_sections_engine import (
     delete_section,
     insert_section,
     profiles_to_sections,

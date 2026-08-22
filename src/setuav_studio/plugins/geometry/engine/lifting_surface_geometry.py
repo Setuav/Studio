@@ -7,8 +7,8 @@ from typing import Any
 
 from .data import LoftGeometry, Point3D, Section
 from .transforms import section_transform, transform_point
-from setuav_studio.plugins.geometry.airfoil import apply_airfoil_shaping, sample_airfoil_points
-from setuav_studio.plugins.geometry.palettes import control_surface_color, wing_color
+from .airfoil import apply_airfoil_shaping, sample_airfoil_points
+from ..viewport.palettes import control_surface_color, wing_color
 
 sample_airfoil = sample_airfoil_points
 

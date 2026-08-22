@@ -646,9 +646,9 @@ class StudioAPI:
     ) -> Any:
         document = project or self.current_project
         if document is None:
-            from setuav_studio.plugins.geometry.data import GeometryData
+            from setuav_studio.plugins.geometry.engine.data import GeometryData
             return GeometryData()
-        from setuav_studio.plugins.geometry.scene import build_project_geometry
+        from setuav_studio.plugins.geometry.viewport.scene import build_project_geometry
         return build_project_geometry(document, self._geometry_providers)
 
     def remove_project_listener(

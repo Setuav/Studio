@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.ui.numeric_spinbox import set_table_spinbox
-from setuav_studio.plugins.geometry.wing_driver_solver import (
+from ..engine.wing_driver_solver import (
     PLANFORM_PARAM_KEYS,
     PLANFORM_PARAM_LABELS,
     PLANFORM_PARAM_UNITS,

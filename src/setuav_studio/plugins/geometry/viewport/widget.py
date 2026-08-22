@@ -12,7 +12,7 @@ from PySide6.QtOpenGL import (
 )
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 
-from .data import GeometryData, Point3D
+from ..engine.data import GeometryData, Point3D
 from .mesh import (
     FACE_COLORED,
     FACE_MONOCHROME,

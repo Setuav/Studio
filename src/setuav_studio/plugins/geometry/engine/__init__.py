@@ -1,0 +1,89 @@
+"""Geometry Engine package for parametric aerodynamics and lofting math."""
+from .data import GeometryData, LoftGeometry, Point3D, Section
+from .airfoil import (
+    AIRFOIL_SAMPLES,
+    AIRFOILS_DATA_DIR,
+    PRESET_AIRFOILS,
+    apply_airfoil_shaping,
+    biconvex,
+    compute_airfoil_metrics,
+    naca4,
+    naca5,
+    parse_airfoil_dat,
+    sample_airfoil_points,
+)
+from .fuselage_geometry import SECTION_SAMPLES, build_fuselage_geometry, sample_profile
+from .lifting_surface_geometry import (
+    build_lifting_surface_geometry,
+    compute_winglet_projected_dimensions,
+)
+from .transforms import (
+    Matrix4,
+    derivation_matrix,
+    identity_matrix,
+    multiply_matrix,
+    section_transform,
+    transform_matrix,
+    transform_point,
+)
+from .wing_driver_solver import compute_all_8_parameters
+from .wing_planform_engine import (
+    SWEEP_LOCATIONS,
+    TWIST_LOCATIONS,
+    calc_tan_sweep_at,
+    compute_planform_metrics,
+    set_wing_global_dihedral,
+    set_wing_global_sweep,
+    set_wing_global_twist,
+    solve_wing_planform,
+)
+from .wing_sections_engine import (
+    delete_section,
+    insert_section,
+    profiles_to_sections,
+    sections_to_profiles,
+    split_section,
+)
+
+__all__ = [
+    "AIRFOILS_DATA_DIR",
+    "AIRFOIL_SAMPLES",
+    "GeometryData",
+    "LoftGeometry",
+    "Matrix4",
+    "PRESET_AIRFOILS",
+    "Point3D",
+    "SECTION_SAMPLES",
+    "SWEEP_LOCATIONS",
+    "Section",
+    "TWIST_LOCATIONS",
+    "apply_airfoil_shaping",
+    "biconvex",
+    "build_fuselage_geometry",
+    "build_lifting_surface_geometry",
+    "calc_tan_sweep_at",
+    "compute_airfoil_metrics",
+    "compute_all_8_parameters",
+    "compute_planform_metrics",
+    "compute_winglet_projected_dimensions",
+    "delete_section",
+    "derivation_matrix",
+    "identity_matrix",
+    "insert_section",
+    "multiply_matrix",
+    "naca4",
+    "naca5",
+    "parse_airfoil_dat",
+    "profiles_to_sections",
+    "sample_airfoil_points",
+    "sample_profile",
+    "section_transform",
+    "sections_to_profiles",
+    "set_wing_global_dihedral",
+    "set_wing_global_sweep",
+    "set_wing_global_twist",
+    "solve_wing_planform",
+    "split_section",
+    "transform_matrix",
+    "transform_point",
+]

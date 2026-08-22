@@ -3,7 +3,7 @@ from typing import Any
 
 from .data import LoftGeometry, Section
 from .transforms import section_transform, transform_point
-from setuav_studio.plugins.geometry.palettes import segment_colors
+from ..viewport.palettes import segment_colors
 
 
 SECTION_SAMPLES = 128

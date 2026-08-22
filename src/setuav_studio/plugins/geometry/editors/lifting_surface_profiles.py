@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from setuav_studio.plugins.geometry.lifting_surface_sections import SectionsMixin
+from .lifting_surface_sections import SectionsMixin
 
 ProfilesMixin = SectionsMixin
 

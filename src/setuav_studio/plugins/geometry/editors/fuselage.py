@@ -27,7 +27,7 @@ from setuav_studio.ui.numeric_spinbox import (
     set_table_spinbox,
 )
 from setuav_studio.ui.property_tables import PropertyTableMixin
-from setuav_studio.plugins.geometry.fuselage_section_dialog import FuselageSectionDialog
+from .fuselage_section_dialog import FuselageSectionDialog
 
 
 class FuselageEditor(PropertyTableMixin, QWidget):

@@ -26,12 +26,12 @@ from setuav_studio.ui.numeric_spinbox import (
     set_table_spinbox,
 )
 from setuav_studio.ui.property_tables import PropertyTableMixin
-from setuav_studio.plugins.geometry.airfoil import PRESET_AIRFOILS
-from setuav_studio.plugins.geometry.lifting_surface_attachment import AttachmentMixin
-from setuav_studio.plugins.geometry.lifting_surface_control_surfaces import ControlSurfacesMixin
-from setuav_studio.plugins.geometry.lifting_surface_planform import PlanformMixin
-from setuav_studio.plugins.geometry.lifting_surface_sections import SectionsMixin
-from setuav_studio.plugins.geometry.lifting_surface_tip_caps import TipCapsMixin
+from ..engine.airfoil import PRESET_AIRFOILS
+from .lifting_surface_attachment import AttachmentMixin
+from .lifting_surface_control_surfaces import ControlSurfacesMixin
+from .lifting_surface_planform import PlanformMixin
+from .lifting_surface_sections import SectionsMixin
+from .lifting_surface_tip_caps import TipCapsMixin
 
 
 class LiftingSurfaceEditor(

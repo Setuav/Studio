@@ -3,14 +3,12 @@ from setuav_studio.plugin_system import (
     StudioAPI,
     WorkspaceContribution,
 )
-from setuav_studio.plugins.geometry.control_surface import ControlSurfaceEditor
-from setuav_studio.plugins.geometry.fuselage import FuselageEditor
-from setuav_studio.plugins.geometry.fuselage_geometry import build_fuselage_geometry
-from setuav_studio.plugins.geometry.lifting_surface import LiftingSurfaceEditor
-from setuav_studio.plugins.geometry.lifting_surface_geometry import (
-    build_lifting_surface_geometry,
-)
-from setuav_studio.plugins.geometry.workspace import ViewerWorkspace
+from .editors.control_surface import ControlSurfaceEditor
+from .editors.fuselage import FuselageEditor
+from .editors.lifting_surface import LiftingSurfaceEditor
+from .engine.fuselage_geometry import build_fuselage_geometry
+from .engine.lifting_surface_geometry import build_lifting_surface_geometry
+from .workspace import ViewerWorkspace
 
 
 class GeometryPlugin:

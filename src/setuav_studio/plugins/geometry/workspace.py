@@ -15,14 +15,14 @@ from PySide6.QtWidgets import (
 from setuav_studio.ui.icons import get_icon
 from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.project import ProjectDocument
-from setuav_studio.plugins.geometry.palettes import (
+from .viewport.palettes import (
     active_palette,
     palette_names,
     set_active_palette,
 )
-from setuav_studio.plugins.geometry.widget import OpenGLViewer
+from .viewport.widget import OpenGLViewer
 from setuav_studio.ui.theme import accent_color, rgba, tokens
-from setuav_studio.plugins.geometry.mesh import (
+from .viewport.mesh import (
     FACE_COLORED,
     FACE_MONOCHROME,
 )
