@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from typing import Callable
 
-from PySide6.QtCore import QEvent, QObject, Qt, Signal
-from PySide6.QtGui import QKeyEvent, QWheelEvent
+from PySide6.QtCore import QEvent, QObject, Qt
+from PySide6.QtGui import QWheelEvent
 from PySide6.QtWidgets import (
     QAbstractSpinBox,
     QApplication,
@@ -13,7 +13,6 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QSizePolicy,
     QTableWidget,
-    QTableWidgetItem,
     QWidget,
 )
 

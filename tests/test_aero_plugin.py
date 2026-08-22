@@ -5,7 +5,6 @@ import unittest
 from setuav_studio.plugin_system import (
     ActionContribution,
     PanelContribution,
-    PluginManager,
     StudioAPI,
     WorkspaceContribution,
 )

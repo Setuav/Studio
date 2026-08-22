@@ -5,11 +5,10 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-from typing import Any
 
 from PySide6.QtCore import QSettings
-from pythrust.motors.database import MotorDatabase, MotorEntry
-from pythrust.propellers.database import PropellerDatabase, PropellerEntry
+from pythrust.motors.database import MotorDatabase
+from pythrust.propellers.database import PropellerDatabase
 
 logger = logging.getLogger(__name__)
 

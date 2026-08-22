@@ -8,7 +8,6 @@ from typing import Any
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import (
-    QAction,
     QBrush,
     QColor,
     QFont,
@@ -25,7 +24,6 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
-    QComboBox,
     QDialog,
     QDoubleSpinBox,
     QFrame,
@@ -49,7 +47,6 @@ from setuav_studio.ui.icons import get_icon
 from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.ui.numeric_spinbox import (
     NoWheelComboBox,
-    NumericSpinBox,
     set_table_spinbox,
 )
 from setuav_studio.ui.theme import accent_color, tokens

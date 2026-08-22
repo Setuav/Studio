@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import (
     QBrush,
     QColor,
@@ -16,7 +16,6 @@ from PySide6.QtGui import (
     QPolygonF,
 )
 from PySide6.QtWidgets import (
-    QButtonGroup,
     QComboBox,
     QDialog,
     QFileDialog,
@@ -29,7 +28,6 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QPushButton,
     QRadioButton,
-    QScrollArea,
     QSizePolicy,
     QSplitter,
     QTableWidget,
@@ -47,7 +45,6 @@ from setuav_studio.plugins.geometry.airfoil import (
     naca4,
     naca5,
     parse_airfoil_dat,
-    sample_airfoil_points,
 )
 
 

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QTableWidgetItem
 
 from .lifting_surface_geometry import compute_winglet_projected_dimensions

@@ -21,11 +21,8 @@ from PySide6.QtWidgets import (
 from scipy.optimize import root_scalar
 
 from pythrust.propellers.database import PropellerDataPoint, PropellerEntry, PropellerMetadata
-from pythrust.propulsion.models.battery import BatterySpec
 from pythrust.propulsion.models.motor import MotorSpec
 from pythrust.propulsion.models.propeller import PropellerSpec
-from pythrust.propulsion.models.system import SystemSpec
-from pythrust.propulsion.solver import PropulsionSolver, evaluate_propulsion_state
 
 from .database import get_propeller_database
 from setuav_studio.ui.icons import get_icon

@@ -3,12 +3,9 @@
 from __future__ import annotations
 
 from copy import deepcopy
-import math
-from typing import Any
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor
-from PySide6.QtWidgets import QTableWidget, QTableWidgetItem
 
 from setuav_studio.plugins.geometry.wing_driver_solver import compute_all_8_parameters
 from setuav_studio.plugins.geometry.wing_driver_table import DriverPlanformTable

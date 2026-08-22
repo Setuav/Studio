@@ -9,7 +9,6 @@ Provides an 8-row table with:
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor
@@ -28,7 +27,6 @@ from setuav_studio.plugins.geometry.wing_driver_solver import (
     PLANFORM_PARAM_KEYS,
     PLANFORM_PARAM_LABELS,
     PLANFORM_PARAM_UNITS,
-    compute_all_8_parameters,
     solve_8_parameter_driver,
 )
 

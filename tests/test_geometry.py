@@ -15,7 +15,6 @@ from setuav_studio.plugins.geometry.fuselage_geometry import (
 )
 from setuav_studio.plugins.geometry.lifting_surface_geometry import (
     build_lifting_surface_geometry,
-    sample_airfoil,
 )
 from setuav_studio.plugins.geometry.mesh import build_loft_solid_vertices
 from setuav_studio.project import ProjectDocument, open_project
@@ -1406,7 +1405,7 @@ class GeometryTests(unittest.TestCase):
         """Verify NoWheelComboBox ignores mouse wheel events and ComboBoxWheelFilter intercepts them."""
         from PySide6.QtCore import QPoint, QPointF, Qt
         from PySide6.QtGui import QWheelEvent
-        from PySide6.QtWidgets import QApplication, QComboBox
+        from PySide6.QtWidgets import QComboBox
         from setuav_studio.ui.numeric_spinbox import NoWheelComboBox
         from setuav_studio.ui.theme import ComboBoxWheelFilter
 

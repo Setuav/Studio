@@ -6,7 +6,7 @@ from typing import Any
 
 from PySide6.QtCore import QObject, QRunnable, Signal, Slot
 
-from .engine.base import AeroEngine, AeroResult, AnalysisMethod, FlightCondition
+from .engine.base import AeroEngine, AnalysisMethod, FlightCondition
 
 logger = logging.getLogger(__name__)
 

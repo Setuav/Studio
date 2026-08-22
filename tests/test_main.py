@@ -23,8 +23,6 @@ class MainTests(unittest.TestCase):
         self.assertIsNone(arguments.project)
 
     def test_degraded_mode_badge_shown_for_missing_plugins(self) -> None:
-        from setuav_studio.plugins.core.settings import StudioSettings
-
         api = StudioAPI()
         api.set_project_requirement_checker(lambda data: ["Missing plugin: com.example.foo"])
         window = MainWindow(api)

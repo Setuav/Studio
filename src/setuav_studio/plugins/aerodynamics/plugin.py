@@ -1,7 +1,6 @@
 """Aerodynamics Analysis Plugin for Setuav Studio."""
 from __future__ import annotations
 
-from typing import Any
 from PySide6.QtCore import Qt
 
 from setuav_studio.plugin_system import (

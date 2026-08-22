@@ -1,17 +1,15 @@
 """Aero 3D Visualization Dock Widget using PyVista and VTK."""
 from __future__ import annotations
 
-from typing import Any, Sequence
+from typing import Any
 import numpy as np
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QHBoxLayout,
     QLabel,
-    QPushButton,
     QSlider,
     QToolButton,
     QVBoxLayout,
@@ -20,7 +18,7 @@ from PySide6.QtWidgets import (
 
 from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.ui.icons import get_icon
-from setuav_studio.ui.theme import accent_color, rgba, tokens
+from setuav_studio.ui.theme import accent_color, tokens
 from .engine.base import AeroResult
 
 try:

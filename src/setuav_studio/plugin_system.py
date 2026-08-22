@@ -16,6 +16,16 @@ from setuav_studio.ui.icons import get_icon
 from setuav_studio.component_editor import BaseComponentEditor, ParameterField
 from setuav_studio.project import ProjectDocument
 
+__all__ = [
+    "BaseComponentEditor",
+    "ParameterField",
+    "PanelContribution",
+    "StudioAPI",
+    "ToolContribution",
+    "WorkspaceContribution",
+    "PluginManager",
+]
+
 logger = logging.getLogger(__name__)
 
 GeometryProvider = Callable[[dict[str, Any]], Any]

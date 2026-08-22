@@ -13,7 +13,6 @@ from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
     QDialog,
-    QFrame,
     QHBoxLayout,
     QHeaderView,
     QLabel,

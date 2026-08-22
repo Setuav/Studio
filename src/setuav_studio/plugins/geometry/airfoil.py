@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from copy import deepcopy
 import logging
 import math
 from pathlib import Path

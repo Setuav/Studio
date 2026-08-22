@@ -11,11 +11,8 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
-    QPushButton,
-    QTableWidget,
     QTableWidgetItem,
     QToolButton,
-    QVBoxLayout,
     QWidget,
 )
 
@@ -25,7 +22,6 @@ from setuav_studio.plugins.geometry.wing_driver_solver import compute_all_8_para
 from setuav_studio.plugins.geometry.wing_driver_table import DriverPlanformTable
 from setuav_studio.plugins.geometry.wing_planform_engine import SWEEP_LOCATIONS
 from setuav_studio.plugins.geometry.wing_sections_engine import (
-    compute_section_planform_metrics,
     delete_section,
     insert_section,
     profiles_to_sections,

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import unittest
-from PySide6.QtWidgets import QLabel, QWidget
+from PySide6.QtWidgets import QLabel
 
 from setuav_studio.plugin_system import (
     PanelContribution,

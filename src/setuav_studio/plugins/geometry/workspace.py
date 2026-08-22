@@ -25,7 +25,6 @@ from setuav_studio.ui.theme import accent_color, rgba, tokens
 from setuav_studio.plugins.geometry.mesh import (
     FACE_COLORED,
     FACE_MONOCHROME,
-    FACE_TRANSPARENT,
 )
 
 

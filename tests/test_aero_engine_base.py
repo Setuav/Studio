@@ -1,7 +1,6 @@
 """Unit tests for Aerodynamic Engine Base abstractions and data models."""
 from __future__ import annotations
 
-import pytest
 from setuav_studio.plugins.aerodynamics.engine.base import (
     AeroEngine,
     AeroResult,

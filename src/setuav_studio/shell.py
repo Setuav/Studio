@@ -14,8 +14,6 @@ from PySide6.QtWidgets import (
     QMenu,
     QMessageBox,
     QProgressBar,
-    QStackedWidget,
-    QStyle,
     QToolBar,
     QToolButton,
     QVBoxLayout,
@@ -27,7 +25,6 @@ from setuav_studio.ui.log_buffer import install_log_buffer
 from setuav_studio.plugin_system import (
     PanelContribution,
     StudioAPI,
-    ToolContribution,
     WorkspaceContribution,
 )
 from setuav_studio.plugins.core.settings import SettingsDialog, StudioSettings
@@ -149,7 +146,6 @@ class MainWindow(QMainWindow):
         self._api = api
         self._project: ProjectDocument | None = None
         self._workspaces: dict[str, WorkspaceContribution] = {}
-        self._workspace_widgets: dict[str, QWidget] = {}
         self._workspace_buttons: dict[str, QToolButton] = {}
         self._panels: dict[str, tuple[PanelContribution, QDockWidget]] = {}
         self._panel_actions: dict[str, QAction] = {}
