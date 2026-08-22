@@ -59,7 +59,7 @@ def naca5(code: str, samples: int = AIRFOIL_SAMPLES) -> tuple[tuple[float, float
     clean = re.sub(r"[^\d]", "", code)
     if len(clean) < 5:
         return naca4("0012", samples)
-    L = int(clean[0])
+    _ = int(clean[0])
     P = int(clean[1])
     thickness = int(clean[3:5]) / 100.0
     p = P * 0.05

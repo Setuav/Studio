@@ -169,8 +169,8 @@ def sections_to_profiles(
     # 1. Base root station (Station 0)
     if root_profile is not None:
         p0 = deepcopy(root_profile)
-        pos0 = p0.setdefault("position", {"x": 0.0, "y": 0.0, "z": 0.0})
-        rot0 = p0.setdefault("rotation", {"x": 0.0, "y": 0.0, "z": 0.0})
+        p0.setdefault("position", {"x": 0.0, "y": 0.0, "z": 0.0})
+        p0.setdefault("rotation", {"x": 0.0, "y": 0.0, "z": 0.0})
         p0["chord"] = float(sections[0].get("root_chord", 200.0))
         p0["airfoil"] = deepcopy(sections[0].get("root_airfoil", p0.get("airfoil", "2412")))
     else:

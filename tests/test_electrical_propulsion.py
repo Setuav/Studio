@@ -27,7 +27,7 @@ class TestElectricalPropulsion(unittest.TestCase):
         from setuav_studio.shell import MainWindow
 
         api = StudioAPI()
-        win = MainWindow(api)
+        _win = MainWindow(api)
         pm = PluginManager(api)
         pm.activate(CorePlugin())
         issues = pm.discover()

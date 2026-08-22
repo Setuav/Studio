@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 import shiboken6
 from PySide6.QtCore import QSettings, QSize, Qt, QTimer
@@ -23,6 +24,7 @@ from PySide6.QtWidgets import (
 from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.log_buffer import install_log_buffer
 from setuav_studio.plugin_system import (
+    ActionContribution,
     PanelContribution,
     StudioAPI,
     WorkspaceContribution,

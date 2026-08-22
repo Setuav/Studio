@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 
 from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.ui.icons import get_icon
-from setuav_studio.ui.theme import accent_color, tokens
+from setuav_studio.ui.theme import tokens
 from .engine.base import AeroResult
 
 try:
@@ -68,9 +68,6 @@ class Aero3DDock(QWidget):
         self.main_layout = QVBoxLayout(self)
         self.main_layout.setContentsMargins(2, 2, 2, 2)
         self.main_layout.setSpacing(2)
-
-        tok = tokens()
-        acc = accent_color()
 
         # 1. Compact Control Toolbar
         toolbar = QWidget(self)
@@ -438,16 +435,12 @@ class Aero3DDock(QWidget):
 
             if scalar_key == "cp":
                 cmap = "RdBu_r"
-                title_str = "Pressure Cp"
             elif scalar_key == "vortex_strength":
                 cmap = "viridis"
-                title_str = "Vortex Γ [m²/s]"
             elif scalar_key == "local_lift":
                 cmap = "plasma"
-                title_str = "Local Lift L'"
             else:
                 cmap = "plasma"
-                title_str = "Panel Area [m²]"
 
             self.plotter.add_mesh(
                 self._vlm_mesh,

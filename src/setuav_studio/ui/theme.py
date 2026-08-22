@@ -2,7 +2,7 @@ from importlib import resources
 
 from PySide6.QtCore import QEvent, QObject
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QPainter, QPalette
-from PySide6.QtWidgets import QApplication, QComboBox, QProxyStyle, QStyle
+from PySide6.QtWidgets import QApplication, QComboBox, QProxyStyle, QStyle, QStyleOption
 
 
 class ComboBoxWheelFilter(QObject):
