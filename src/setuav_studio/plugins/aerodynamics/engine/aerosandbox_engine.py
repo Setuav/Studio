@@ -21,6 +21,8 @@ from .base import (
     ReferenceValues,
     SweepVariable,
 )
+from .airfoil_engine import AirfoilAnalysisEngine
+from .airfoil_models import AirfoilPolar
 from setuav_studio.plugins.geometry.engine.airfoil import (
     apply_airfoil_shaping,
     sample_airfoil_points,
@@ -148,6 +150,33 @@ class AeroSandboxEngine(AeroEngine):
             pg_factor = 1.0 / math.sqrt(max(1.0 - (mach ** 2), 0.05))
         else:
             pg_factor = 1.0
+
+        # Pre-compute and cache 2D airfoil section aerodynamics for all lifting surfaces
+        airfoil_engine = AirfoilAnalysisEngine()
+        section_polars: dict[str, Any] = {}
+        section_cl_max_list: list[float] = []
+
+        for wing in airplane.wings:
+            for xsec in wing.xsecs:
+                af = getattr(xsec, "airfoil", None)
+                if af is not None:
+                    af_name = str(getattr(af, "name", "airfoil"))
+                    local_chord = max(float(xsec.chord), 1e-4)
+                    local_re = (reynolds * (local_chord / mean_chord)) if mean_chord > 0 else reynolds
+                    try:
+                        p2d = airfoil_engine.analyze_airfoil(
+                            airfoil=af,
+                            reynolds=local_re,
+                            alphas=alphas,
+                            mach=mach,
+                        )
+                        section_polars[f"{wing.name}_{af_name}"] = p2d.to_dict()
+                        if p2d.cl_max > 0:
+                            section_cl_max_list.append(p2d.cl_max)
+                    except Exception as err:
+                        logger.debug("2D Section analysis skipped for %s: %s", af_name, err)
+
+        est_stall_cl = (min(section_cl_max_list) * 0.92) if section_cl_max_list else 1.25
 
         for idx, alpha in enumerate(alphas, start=1):
             if progress_callback:
@@ -324,8 +353,11 @@ class AeroSandboxEngine(AeroEngine):
                 tot_cd = max(tot_cd_ind + tot_cd_prof + tot_cd_wave, 1e-4)
 
                 # CL: Linear VLM slope pre-stall, smoothly blended into AeroBuildup stall curve
-                if abs(alpha) > 12.0:
-                    weight = min((abs(alpha) - 12.0) / 4.0, 1.0)
+                # dynamically triggered when lift approaches section stall envelope
+                if abs(vlm_cl) >= (est_stall_cl * 0.88) or abs(alpha) > 12.0:
+                    stall_excess = max(abs(vlm_cl) - est_stall_cl * 0.88, 0.0) / max(est_stall_cl * 0.25, 0.1)
+                    alpha_excess = max(abs(alpha) - 12.0, 0.0) / 4.0
+                    weight = min(max(stall_excess, alpha_excess), 1.0)
                     tot_cl = (1.0 - weight) * vlm_cl + weight * ab_cl
                 else:
                     tot_cl = vlm_cl
@@ -462,6 +494,7 @@ class AeroSandboxEngine(AeroEngine):
                 "velocity": condition.velocity,
                 "propulsion_points": [p.to_dict() for p in propulsion_points],
                 "solver_results": {k: [pt.to_dict() for pt in v] for k, v in clean_solvers.items()},
+                "section_polars": section_polars,
             },
         )
 

@@ -251,13 +251,12 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         if self._is_running:
             return
 
-        engine_name = self.combo_engine.currentText()
-        engine = self._engines.get(engine_name)
+        engine = self._engines.get("AeroSandbox")
         if not engine or not engine.is_available():
             QMessageBox.warning(
                 self,
                 "Engine Not Available",
-                f"{engine_name} is not available or required dependencies are missing.\n"
+                "AeroSandbox is not available or required dependencies are missing.\n"
                 "Please run: pip install aerosandbox",
             )
             return
@@ -368,7 +367,7 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         config_data = {
             "$schema": "https://schemas.setuav.org/core/analysis.schema.json",
             "name": name.strip(),
-            "type": f"org.setuav.{self.combo_engine.currentText().lower()}:steady-aero",
+            "type": "org.setuav.aerosandbox:steady-aero",
             "plugin": {
                 "id": "org.setuav.studio.aerodynamics",
                 "version": "^0.1.0",
@@ -377,7 +376,7 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
                 "velocity": {"value": float(self.spin_velocity.value()), "unit": "m/s"},
                 "altitude": {"value": float(self.spin_altitude.value()), "unit": "m"},
                 "angle_of_attack": {"value": float(self.spin_ref_alpha.value()), "unit": "deg"},
-                "method": str(self.combo_method.currentData().value if self.combo_method.currentData() else "aero_buildup"),
+                "method": "comprehensive",
             },
         }
 

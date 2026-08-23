@@ -1,0 +1,282 @@
+"""2D Airfoil Analysis Engine integrating NeuralFoil and XFoil with automated caching."""
+from __future__ import annotations
+
+import logging
+import math
+from typing import Any, Sequence
+
+import numpy as np
+
+try:
+    import aerosandbox as asb
+    HAS_AEROSANDBOX = True
+except ImportError:
+    HAS_AEROSANDBOX = False
+
+from .airfoil_cache import AirfoilPolarCache, global_airfoil_cache
+from .airfoil_models import AirfoilPolar, AirfoilPolarPoint
+
+logger = logging.getLogger(__name__)
+
+
+class AirfoilAnalysisEngine:
+    """Computes high-fidelity 2D airfoil aerodynamic characteristics using NeuralFoil and XFoil."""
+
+    def __init__(self, cache: AirfoilPolarCache | None = None) -> None:
+        self.cache = cache or global_airfoil_cache
+
+    def analyze_airfoil(
+        self,
+        airfoil: str | Sequence[Sequence[float]] | Any,
+        reynolds: float,
+        alphas: Sequence[float] | np.ndarray,
+        mach: float = 0.0,
+        backend: str = "neuralfoil",
+        use_cache: bool = True,
+    ) -> AirfoilPolar:
+        """Run 2D aerodynamic analysis on an airfoil across an angle of attack range.
+
+        Args:
+            airfoil: Name of airfoil (e.g. 'naca2412', 'clarky'), coordinate array, or asb.Airfoil object.
+            reynolds: Reynolds number based on section chord.
+            alphas: Angles of attack in degrees.
+            mach: Flight Mach number (default 0.0).
+            backend: 'neuralfoil' (default fast surrogate), 'xfoil' (panel method), or 'auto'.
+            use_cache: Whether to query and populate the polar cache.
+
+        Returns:
+            AirfoilPolar instance with full section aerodynamic metrics.
+        """
+        if not HAS_AEROSANDBOX:
+            raise RuntimeError("AeroSandbox is required for 2D airfoil analysis.")
+
+        # Resolve asb.Airfoil instance and identifier
+        asb_airfoil, ident = self._resolve_airfoil(airfoil)
+
+        alphas_list = [float(a) for a in alphas]
+        if not alphas_list:
+            alphas_list = [0.0]
+
+        # Check cache
+        if use_cache:
+            cached = self.cache.get(ident, reynolds, mach, alphas_list)
+            if cached is not None:
+                return cached
+
+        backend_lower = backend.strip().lower()
+        polar: AirfoilPolar | None = None
+
+        if backend_lower in ("xfoil", "xfoil_preferred"):
+            try:
+                polar = self._analyze_xfoil(asb_airfoil, reynolds, alphas_list, mach)
+            except Exception as exc:
+                logger.warning("XFoil analysis failed (%s), falling back to NeuralFoil.", exc)
+                polar = self._analyze_neuralfoil(asb_airfoil, reynolds, alphas_list, mach)
+                polar.backend_used = "neuralfoil (xfoil_fallback)"
+        else:
+            # Default NeuralFoil
+            polar = self._analyze_neuralfoil(asb_airfoil, reynolds, alphas_list, mach)
+
+        if use_cache and polar is not None:
+            self.cache.put(polar, alphas_list, airfoil_identifier=ident)
+
+        return polar
+
+    def _resolve_airfoil(self, airfoil: Any) -> tuple[Any, str]:
+        """Convert input to an asb.Airfoil instance and a hashable identifier string."""
+        if hasattr(airfoil, "get_aero_from_neuralfoil"):
+            name = getattr(airfoil, "name", "custom_airfoil")
+            return airfoil, str(name)
+
+        if isinstance(airfoil, str):
+            clean_name = airfoil.strip().lower()
+            return asb.Airfoil(clean_name), clean_name
+
+        if isinstance(airfoil, (list, tuple, np.ndarray)):
+            coords = np.asarray(airfoil, dtype=float)
+            af = asb.Airfoil(name="custom_airfoil", coordinates=coords)
+            return af, "custom_airfoil_coords"
+
+        return asb.Airfoil("naca0012"), "naca0012"
+
+    def _analyze_neuralfoil(
+        self,
+        airfoil: Any,
+        reynolds: float,
+        alphas: list[float],
+        mach: float,
+    ) -> AirfoilPolar:
+        """Evaluate 2D section polar using the NeuralFoil deep-learning surrogate model."""
+        alpha_arr = np.array(alphas, dtype=float)
+        re_val = max(float(reynolds), 1000.0)
+        mach_val = max(float(mach), 0.0)
+
+        raw = airfoil.get_aero_from_neuralfoil(
+            alpha=alpha_arr,
+            Re=re_val,
+            mach=mach_val,
+        )
+
+        cls = np.ravel(raw["CL"])
+        cds = np.ravel(raw["CD"])
+        cms = np.ravel(raw["CM"])
+
+        top_sep = np.ravel(raw.get("upper_bl_theta_0", np.zeros_like(cls)))
+        bot_sep = np.ravel(raw.get("lower_bl_theta_0", np.zeros_like(cls)))
+
+        points: list[AirfoilPolarPoint] = []
+        for i, a in enumerate(alphas):
+            cl_i = float(cls[i])
+            cd_i = max(float(cds[i]), 1e-5)
+            cm_i = float(cms[i])
+            ld_i = cl_i / cd_i if abs(cd_i) > 1e-7 else 0.0
+
+            pt = AirfoilPolarPoint(
+                alpha=float(a),
+                cl=cl_i,
+                cd=cd_i,
+                cm=cm_i,
+                cd_profile=cd_i * 0.6,
+                cd_friction=cd_i * 0.4,
+                top_separation=float(top_sep[i]) if i < len(top_sep) else 0.0,
+                bottom_separation=float(bot_sep[i]) if i < len(bot_sep) else 0.0,
+                cl_over_cd=ld_i,
+                converged=True,
+            )
+            points.append(pt)
+
+        metrics = self._compute_summary_metrics(points)
+
+        return AirfoilPolar(
+            airfoil_name=str(airfoil.name),
+            reynolds=re_val,
+            mach=mach_val,
+            points=points,
+            cl_max=metrics["cl_max"],
+            cl_max_alpha=metrics["cl_max_alpha"],
+            cl_min=metrics["cl_min"],
+            cl_min_alpha=metrics["cl_min_alpha"],
+            cd_min=metrics["cd_min"],
+            cl_at_cd_min=metrics["cl_at_cd_min"],
+            ld_max=metrics["ld_max"],
+            ld_max_alpha=metrics["ld_max_alpha"],
+            cl_alpha_slope=metrics["cl_alpha_slope"],
+            alpha_zero_lift=metrics["alpha_zero_lift"],
+            cm_zero_lift=metrics["cm_zero_lift"],
+            backend_used="neuralfoil",
+        )
+
+    def _analyze_xfoil(
+        self,
+        airfoil: Any,
+        reynolds: float,
+        alphas: list[float],
+        mach: float,
+    ) -> AirfoilPolar:
+        """Run viscous panel analysis with XFoil."""
+        re_val = max(float(reynolds), 1000.0)
+        mach_val = max(float(mach), 0.0)
+
+        xf = asb.XFoil(
+            airfoil=airfoil,
+            Re=re_val,
+            mach=mach_val,
+            max_iter=50,
+        )
+
+        points: list[AirfoilPolarPoint] = []
+        for a in alphas:
+            try:
+                res = xf.alpha(float(a))
+                cl_val = float(res["CL"]) if "CL" in res else 0.0
+                cd_val = float(res["CD"]) if "CD" in res else 0.02
+                cm_val = float(res["CM"]) if "CM" in res else 0.0
+                conv = bool(res.get("converged", True))
+            except Exception:
+                cl_val, cd_val, cm_val, conv = 0.0, 0.05, 0.0, False
+
+            cd_val = max(cd_val, 1e-5)
+            ld_val = cl_val / cd_val if abs(cd_val) > 1e-7 else 0.0
+
+            points.append(
+                AirfoilPolarPoint(
+                    alpha=float(a),
+                    cl=cl_val,
+                    cd=cd_val,
+                    cm=cm_val,
+                    cd_profile=cd_val * 0.6,
+                    cd_friction=cd_val * 0.4,
+                    cl_over_cd=ld_val,
+                    converged=conv,
+                )
+            )
+
+        metrics = self._compute_summary_metrics(points)
+
+        return AirfoilPolar(
+            airfoil_name=str(airfoil.name),
+            reynolds=re_val,
+            mach=mach_val,
+            points=points,
+            cl_max=metrics["cl_max"],
+            cl_max_alpha=metrics["cl_max_alpha"],
+            cl_min=metrics["cl_min"],
+            cl_min_alpha=metrics["cl_min_alpha"],
+            cd_min=metrics["cd_min"],
+            cl_at_cd_min=metrics["cl_at_cd_min"],
+            ld_max=metrics["ld_max"],
+            ld_max_alpha=metrics["ld_max_alpha"],
+            cl_alpha_slope=metrics["cl_alpha_slope"],
+            alpha_zero_lift=metrics["alpha_zero_lift"],
+            cm_zero_lift=metrics["cm_zero_lift"],
+            backend_used="xfoil",
+        )
+
+    def _compute_summary_metrics(self, points: list[AirfoilPolarPoint]) -> dict[str, float]:
+        """Compute key aerodynamic coefficients and stability derivatives from polar points."""
+        if not points:
+            return {
+                "cl_max": 0.0, "cl_max_alpha": 0.0,
+                "cl_min": 0.0, "cl_min_alpha": 0.0,
+                "cd_min": 0.0, "cl_at_cd_min": 0.0,
+                "ld_max": 0.0, "ld_max_alpha": 0.0,
+                "cl_alpha_slope": 0.1, "alpha_zero_lift": 0.0, "cm_zero_lift": 0.0,
+            }
+
+        alphas = np.array([p.alpha for p in points])
+        cls = np.array([p.cl for p in points])
+        cds = np.array([p.cd for p in points])
+        cms = np.array([p.cm for p in points])
+        lds = np.array([p.cl_over_cd for p in points])
+
+        cl_max_idx = int(np.argmax(cls))
+        cl_min_idx = int(np.argmin(cls))
+        cd_min_idx = int(np.argmin(cds))
+        ld_max_idx = int(np.argmax(lds))
+
+        # Linear lift slope calculation in linear pre-stall region (e.g. -2 to 6 deg)
+        mask = (alphas >= -4.0) & (alphas <= 6.0)
+        if np.sum(mask) >= 2:
+            poly = np.polyfit(alphas[mask], cls[mask], 1)
+            cla_slope = float(poly[0])
+            a0l = float(-poly[1] / poly[0]) if abs(poly[0]) > 1e-4 else 0.0
+        else:
+            cla_slope = float((cls[-1] - cls[0]) / (alphas[-1] - alphas[0])) if len(alphas) > 1 else 0.1
+            a0l = 0.0
+
+        # Pitching moment at zero lift (interpolate Cm at alpha_zero_lift)
+        cm_zero = float(np.interp(a0l, alphas, cms))
+
+        return {
+            "cl_max": float(cls[cl_max_idx]),
+            "cl_max_alpha": float(alphas[cl_max_idx]),
+            "cl_min": float(cls[cl_min_idx]),
+            "cl_min_alpha": float(alphas[cl_min_idx]),
+            "cd_min": float(cds[cd_min_idx]),
+            "cl_at_cd_min": float(cls[cd_min_idx]),
+            "ld_max": float(lds[ld_max_idx]),
+            "ld_max_alpha": float(alphas[ld_max_idx]),
+            "cl_alpha_slope": cla_slope,
+            "alpha_zero_lift": a0l,
+            "cm_zero_lift": cm_zero,
+        }
