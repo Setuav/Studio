@@ -22,7 +22,7 @@ from setuav_studio.ui.buttons import refresh_button_role, set_native_button
 from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.property_tables import ContentFitTableWidget, PropertyTableMixin
 from setuav_studio.ui.theme import tokens
-from .engine.base import AeroResult
+from .engine.base import AeroResult, SweepType
 
 
 class AeroResultsDock(PropertyTableMixin, QWidget):
@@ -39,79 +39,70 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
         self._api = api
         self._tokens = tokens()
         self._current_result: AeroResult | None = None
+        self._init_ui()
 
         if self._api is not None:
             self._api.subscribe("aerodynamics.analysis_completed", self.display_results)
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(4)
+    def _init_ui(self) -> None:
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
 
-        self.tabs = QTabWidget(self)
-        self.tabs.setDocumentMode(True)
+        # Tab widget for Summary vs Detailed Data Table
+        self.tab_widget = QTabWidget()
 
-        # Tab 1: Summary Metrics
-        summary_tab = QWidget()
-        summary_layout = QVBoxLayout(summary_tab)
-        summary_layout.setContentsMargins(4, 4, 4, 4)
-        summary_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        summary_layout.setSpacing(6)
+        # Tab 1: Summary Key Performance Indicators
+        self.summary_tab = QWidget()
+        sum_layout = QVBoxLayout(self.summary_tab)
+        sum_layout.setContentsMargins(6, 6, 6, 6)
+        sum_layout.setSpacing(6)
 
         self.summary_table = self._property_table([
-            ("solver_engine", "Solver / Method"),
-            ("cl_max", "Max Lift Coefficient (CL_max)"),
-            ("cl_max_alpha", "AoA @ CL_max (α_stall)"),
-            ("cd_min", "Min Drag Coefficient (CD_min)"),
-            ("ld_max", "Max L/D"),
-            ("ld_max_alpha", "AoA @ Max L/D"),
-            ("cd_ind_cruise", "Induced Drag (CD_i @ Max L/D)"),
-            ("cd_prof_cruise", "Profile Drag (CD_p @ Max L/D)"),
-            ("drag_ratio", "Drag Breakdown (Ind / Prof)"),
-            ("ref_span", "Ref. Wingspan (b)"),
-            ("ref_area", "Ref. Wing Area (S)"),
+            ("solver_engine", "Analysis Pipeline"),
+            ("cl_max", "Max Lift (CL_max)"),
+            ("cl_max_alpha", "Stall Angle (α_stall)"),
+            ("cd_min", "Min Drag (CD_min)"),
+            ("ld_max", "Max Efficiency (L/D_max)"),
+            ("ld_max_alpha", "Best Glide AoA (α_L/D)"),
+            ("cd_ind_cruise", "Induced Drag (CD_i @ L/D)"),
+            ("cd_prof_cruise", "Profile Drag (CD_p @ L/D)"),
+            ("drag_ratio", "Drag Ratio (CD_i / CD_p)"),
+            ("ref_span", "Ref Wingspan (b)"),
+            ("ref_area", "Ref Wing Area (S)"),
             ("ref_ar", "Aspect Ratio (AR)"),
-            ("ref_mac", "Mean Aero Chord (MAC)"),
+            ("ref_mac", "Mean Aerodyn Chord (MAC)"),
             ("mach", "Mach Number (M)"),
-            ("dynamic_pressure", "Dynamic Pressure (q_inf)"),
+            ("dynamic_pressure", "Dynamic Pressure (q)"),
             ("reynolds", "Reynolds Number (Re)"),
             ("oswald_e", "Oswald Efficiency (e)"),
         ])
-        summary_layout.addWidget(self.summary_table)
-        summary_layout.addStretch(1)
-
-        self.tabs.addTab(summary_tab, get_icon("fa6s.chart-simple"), "Summary")
+        sum_layout.addWidget(self.summary_table)
+        self.tab_widget.addTab(self.summary_tab, "Summary")
 
         # Tab 2: Detailed Polar Table
-        detail_tab = QWidget()
-        detail_layout = QVBoxLayout(detail_tab)
-        detail_layout.setContentsMargins(4, 4, 4, 4)
-        detail_layout.setSpacing(4)
+        self.detail_tab = QWidget()
+        det_layout = QVBoxLayout(self.detail_tab)
+        det_layout.setContentsMargins(6, 6, 6, 6)
+        det_layout.setSpacing(6)
 
         self.detail_table = self._create_detail_table()
-        detail_layout.addWidget(self.detail_table)
+        det_layout.addWidget(self.detail_table)
 
-        self.tabs.addTab(detail_tab, get_icon("fa6s.table"), "Polar Table")
-
-        layout.addWidget(self.tabs, 1)
-
-        # Bottom Bar with Export CSV Button (Bottom-Right)
-        bottom_bar = QHBoxLayout()
-        bottom_bar.setContentsMargins(4, 2, 4, 2)
-        bottom_bar.addStretch(1)
-
-        self.btn_export_csv = QPushButton(" Export CSV", self)
-        set_native_button(self.btn_export_csv, "export_csv")
-        self.btn_export_csv.setToolTip("Export aerodynamic summary and polar table to CSV")
+        # Export CSV Button
+        self.btn_export_csv = QPushButton(" Export Polar Data (CSV)")
+        set_native_button(self.btn_export_csv, "fa6s.file-csv")
         self.btn_export_csv.clicked.connect(self._export_csv)
         self.btn_export_csv.setEnabled(False)
-        bottom_bar.addWidget(self.btn_export_csv)
+        det_layout.addWidget(self.btn_export_csv)
 
-        layout.addLayout(bottom_bar)
-        self.clear_results()
+        self.tab_widget.addTab(self.detail_tab, "Polar Table")
 
-    def _create_detail_table(self) -> QTableWidget:
+        main_layout.addWidget(self.tab_widget)
+
+    def _create_detail_table(self) -> ContentFitTableWidget:
         headers = [
-            "AoA α (°)",
+            "α (deg)",
             "CL",
             "CD",
             "CD_ind",
@@ -160,6 +151,9 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
         self._current_result = result
         ref = result.reference
         points = result.polar_points
+        cond = result.condition
+        sweep_type = cond.sweep_type if cond else SweepType.ALPHA
+        sweep_var = cond.sweep_variable if cond else "alpha"
 
         ar = (ref.b_ref ** 2 / ref.s_ref) if ref.s_ref > 0 else 0.0
         oswald_str = f"{result.oswald_efficiency:.3f}" if result.oswald_efficiency is not None else "N/A"
@@ -195,11 +189,48 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
         for key, val in metrics.items():
             self._set_property_value(self.summary_table, key, val)
 
-        points = result.polar_points
+        # Set dynamic column 0 header based on sweep variable
+        if sweep_type == SweepType.BETA:
+            col0_header = "β (deg)"
+        elif sweep_type == SweepType.CONTROL_DEFLECTION:
+            col0_header = f"δ_{sweep_var} (deg)"
+        elif sweep_type == SweepType.VELOCITY:
+            col0_header = "V (m/s)"
+        elif sweep_type == SweepType.ALTITUDE:
+            col0_header = "h (m)"
+        else:
+            col0_header = "α (deg)"
+
+        headers = [
+            col0_header,
+            "CL",
+            "CD",
+            "CD_ind",
+            "CD_prof",
+            "Cm",
+            "L/D",
+            "CX",
+            "CY",
+            "CZ",
+            "Cl",
+            "Cn",
+        ]
+        self.detail_table.setHorizontalHeaderLabels(headers)
         self.detail_table.setRowCount(len(points))
 
         for row, pt in enumerate(points):
-            self.detail_table.setItem(row, 0, QTableWidgetItem(f"{pt.alpha:+.2f}"))
+            if sweep_type == SweepType.BETA:
+                v0_str = f"{pt.beta:+.2f}"
+            elif sweep_type == SweepType.CONTROL_DEFLECTION:
+                v0_str = f"{pt.control_deflections.get(sweep_var, 0.0):+.2f}"
+            elif sweep_type == SweepType.VELOCITY:
+                v0_str = f"{pt.velocity:.2f}"
+            elif sweep_type == SweepType.ALTITUDE:
+                v0_str = f"{pt.altitude:.0f}"
+            else:
+                v0_str = f"{pt.alpha:+.2f}"
+
+            self.detail_table.setItem(row, 0, QTableWidgetItem(v0_str))
             self.detail_table.setItem(row, 1, QTableWidgetItem(f"{pt.cl:.4f}"))
             self.detail_table.setItem(row, 2, QTableWidgetItem(f"{pt.cd:.5f}"))
             self.detail_table.setItem(row, 3, QTableWidgetItem(f"{pt.cd_induced:.5f}"))

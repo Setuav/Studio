@@ -19,6 +19,7 @@ from .base import (
     PolarPoint,
     PropulsionPoint,
     ReferenceValues,
+    SweepType,
     SweepVariable,
 )
 from .airfoil_engine import AirfoilAnalysisEngine
@@ -92,8 +93,8 @@ class AeroSandboxEngine(AeroEngine):
         include_wave = bool(settings.get("include_wave_drag", True))
         apply_pg = bool(settings.get("compressibility_correction", True))
 
-        airplane = self._build_airplane(components, condition=condition)
-        if not airplane.wings:
+        base_airplane = self._build_airplane(components, condition=condition)
+        if not base_airplane.wings:
             raise ValueError("No valid lifting surfaces found in project for aerodynamic analysis.")
 
         comp_by_id = {
@@ -103,72 +104,43 @@ class AeroSandboxEngine(AeroEngine):
         }
         propulsion_points = self._extract_propulsion_points(components, comp_by_id)
 
-        atmosphere = asb.Atmosphere(altitude=condition.altitude)
-
-        if condition.alpha_steps <= 1:
-            alphas = [float(condition.alpha)]
-        else:
-            alphas = [
-                float(a)
-                for a in np.linspace(
-                    condition.alpha_min, condition.alpha_max, condition.alpha_steps
-                )
-            ]
-
-        span, area = self._compute_reference_geometry(airplane)
+        span, area = self._compute_reference_geometry(base_airplane)
         mean_chord = area / span if span > 0 else 0.0
         ref = ReferenceValues(
             s_ref=area,
             b_ref=span,
             c_ref=mean_chord,
-            x_cg=float(airplane.xyz_ref[0]) if hasattr(airplane, "xyz_ref") and airplane.xyz_ref is not None else 0.0,
-            y_cg=float(airplane.xyz_ref[1]) if hasattr(airplane, "xyz_ref") and airplane.xyz_ref is not None else 0.0,
-            z_cg=float(airplane.xyz_ref[2]) if hasattr(airplane, "xyz_ref") and airplane.xyz_ref is not None else 0.0,
+            x_cg=float(base_airplane.xyz_ref[0]) if hasattr(base_airplane, "xyz_ref") and base_airplane.xyz_ref is not None else 0.0,
+            y_cg=float(base_airplane.xyz_ref[1]) if hasattr(base_airplane, "xyz_ref") and base_airplane.xyz_ref is not None else 0.0,
+            z_cg=float(base_airplane.xyz_ref[2]) if hasattr(base_airplane, "xyz_ref") and base_airplane.xyz_ref is not None else 0.0,
         )
-
-        polar_points: list[PolarPoint] = []
-        solver_points_map: dict[str, list[PolarPoint]] = {
-            "vlm": [],
-            "aero_buildup": [],
-            "lifting_line": [],
-        }
-        oswald_list: list[float] = []
-
         ref_area = area if area > 0 else 1.0
-        total_steps = len(alphas)
-
-        rho = float(atmosphere.density())
-        mu = float(atmosphere.dynamic_viscosity())
-        speed_of_sound = float(atmosphere.speed_of_sound())
-        mach = condition.velocity / speed_of_sound if speed_of_sound > 0 else 0.0
-        q_inf = 0.5 * rho * (condition.velocity ** 2)
-        qs = q_inf * ref_area
-        reynolds = (rho * condition.velocity * mean_chord / mu) if mu > 0 else 0.0
-
-        # Prandtl-Glauert compressibility correction factor for subsonic flow
-        if apply_pg and 0.1 <= mach < 0.95:
-            pg_factor = 1.0 / math.sqrt(max(1.0 - (mach ** 2), 0.05))
-        else:
-            pg_factor = 1.0
 
         # Pre-compute and cache 2D airfoil section aerodynamics for all lifting surfaces
         airfoil_engine = AirfoilAnalysisEngine()
         section_polars: dict[str, Any] = {}
         section_cl_max_list: list[float] = []
 
-        for wing in airplane.wings:
+        ref_atmosphere = asb.Atmosphere(altitude=condition.altitude)
+        ref_rho = float(ref_atmosphere.density())
+        ref_mu = float(ref_atmosphere.dynamic_viscosity())
+        ref_reynolds = (ref_rho * condition.velocity * mean_chord / ref_mu) if ref_mu > 0 else 1e5
+        ref_sos = float(ref_atmosphere.speed_of_sound())
+        ref_mach = condition.velocity / ref_sos if ref_sos > 0 else 0.0
+
+        for wing in base_airplane.wings:
             for xsec in wing.xsecs:
                 af = getattr(xsec, "airfoil", None)
                 if af is not None:
                     af_name = str(getattr(af, "name", "airfoil"))
                     local_chord = max(float(xsec.chord), 1e-4)
-                    local_re = (reynolds * (local_chord / mean_chord)) if mean_chord > 0 else reynolds
+                    local_re = (ref_reynolds * (local_chord / mean_chord)) if mean_chord > 0 else ref_reynolds
                     try:
                         p2d = airfoil_engine.analyze_airfoil(
                             airfoil=af,
                             reynolds=local_re,
-                            alphas=alphas,
-                            mach=mach,
+                            alphas=[-4.0, 0.0, 4.0, 8.0, 12.0, 16.0],
+                            mach=ref_mach,
                         )
                         section_polars[f"{wing.name}_{af_name}"] = p2d.to_dict()
                         if p2d.cl_max > 0:
@@ -178,32 +150,138 @@ class AeroSandboxEngine(AeroEngine):
 
         est_stall_cl = (min(section_cl_max_list) * 0.92) if section_cl_max_list else 1.25
 
-        for idx, alpha in enumerate(alphas, start=1):
+        # Generate primary and secondary sweep evaluation points
+        primary_vals = condition.get_primary_sweep_values()
+        sec_vals = condition.get_secondary_sweep_values() if condition.secondary_variable else [None]
+        sweep_type = condition.sweep_type
+
+        eval_states: list[dict[str, Any]] = []
+        for s_val in sec_vals:
+            for p_val in primary_vals:
+                st_dict: dict[str, Any] = {
+                    "alpha": float(condition.alpha),
+                    "beta": float(condition.beta),
+                    "velocity": float(condition.velocity),
+                    "altitude": float(condition.altitude),
+                    "controls": dict(condition.control_deflections),
+                    "p_val": float(p_val),
+                    "s_val": float(s_val) if s_val is not None else None,
+                }
+
+                # Primary variable mapping
+                if sweep_type == SweepType.ALPHA or condition.sweep_variable == "alpha":
+                    st_dict["alpha"] = float(p_val)
+                elif sweep_type == SweepType.BETA or condition.sweep_variable == "beta":
+                    st_dict["beta"] = float(p_val)
+                elif sweep_type == SweepType.VELOCITY or condition.sweep_variable in ("velocity", "v", "speed"):
+                    st_dict["velocity"] = float(p_val)
+                elif sweep_type == SweepType.ALTITUDE or condition.sweep_variable in ("altitude", "alt", "h"):
+                    st_dict["altitude"] = float(p_val)
+                else:
+                    st_dict["controls"][condition.sweep_variable] = float(p_val)
+
+                # Secondary variable mapping
+                if s_val is not None and condition.secondary_variable:
+                    s_var = condition.secondary_variable
+                    if s_var == "alpha":
+                        st_dict["alpha"] = float(s_val)
+                    elif s_var == "beta":
+                        st_dict["beta"] = float(s_val)
+                    elif s_var in ("velocity", "v", "speed"):
+                        st_dict["velocity"] = float(s_val)
+                    elif s_var in ("altitude", "alt", "h"):
+                        st_dict["altitude"] = float(s_val)
+                    else:
+                        st_dict["controls"][s_var] = float(s_val)
+
+                eval_states.append(st_dict)
+
+        polar_points: list[PolarPoint] = []
+        solver_points_map: dict[str, list[PolarPoint]] = {
+            "vlm": [],
+            "aero_buildup": [],
+            "lifting_line": [],
+        }
+        oswald_list: list[float] = []
+        total_steps = len(eval_states)
+
+        for idx, st_dict in enumerate(eval_states, start=1):
+            cur_alpha = float(st_dict["alpha"])
+            cur_beta = float(st_dict["beta"])
+            cur_vel = max(float(st_dict["velocity"]), 0.1)
+            cur_alt = max(float(st_dict["altitude"]), 0.0)
+            cur_controls = dict(st_dict["controls"])
+
+            cur_cond = FlightCondition(
+                velocity=cur_vel,
+                altitude=cur_alt,
+                alpha=cur_alpha,
+                beta=cur_beta,
+                p=float(condition.p),
+                q=float(condition.q),
+                r=float(condition.r),
+                control_deflections=cur_controls,
+            )
+
+            # Rebuild airplane if control deflections are non-zero / modified
+            if cur_controls != condition.control_deflections:
+                cur_airplane = self._build_airplane(components, condition=cur_cond)
+            else:
+                cur_airplane = base_airplane
+
+            cur_atmosphere = asb.Atmosphere(altitude=cur_alt)
+            cur_rho = float(cur_atmosphere.density())
+            cur_mu = float(cur_atmosphere.dynamic_viscosity())
+            cur_sos = float(cur_atmosphere.speed_of_sound())
+            cur_mach = cur_vel / cur_sos if cur_sos > 0 else 0.0
+            cur_q_inf = 0.5 * cur_rho * (cur_vel ** 2)
+            cur_qs = cur_q_inf * ref_area
+            cur_reynolds = (cur_rho * cur_vel * mean_chord / cur_mu) if cur_mu > 0 else 0.0
+
+            # Prandtl-Glauert compressibility correction factor for subsonic flow
+            if apply_pg and 0.1 <= cur_mach < 0.95:
+                pg_factor = 1.0 / math.sqrt(max(1.0 - (cur_mach ** 2), 0.05))
+            else:
+                pg_factor = 1.0
+
+            # Progress callback label
             if progress_callback:
-                progress_callback(idx, total_steps, f"α={alpha:.1f}°")
+                if sweep_type == SweepType.ALPHA:
+                    msg = f"α={cur_alpha:.1f}°"
+                elif sweep_type == SweepType.BETA:
+                    msg = f"β={cur_beta:.1f}°"
+                elif sweep_type == SweepType.CONTROL_DEFLECTION:
+                    msg = f"{condition.sweep_variable}={st_dict['p_val']:.1f}°"
+                elif sweep_type == SweepType.VELOCITY:
+                    msg = f"V={cur_vel:.1f}m/s"
+                elif sweep_type == SweepType.ALTITUDE:
+                    msg = f"h={cur_alt:.0f}m"
+                else:
+                    msg = f"Step {idx}/{total_steps}"
+                progress_callback(idx, total_steps, msg)
 
             op = asb.OperatingPoint(
-                atmosphere=atmosphere,
-                velocity=condition.velocity,
-                alpha=float(alpha),
-                beta=float(condition.beta),
+                atmosphere=cur_atmosphere,
+                velocity=cur_vel,
+                alpha=cur_alpha,
+                beta=cur_beta,
                 p=float(condition.p),
                 q=float(condition.q),
                 r=float(condition.r),
             )
 
             state = AeroState(
-                alpha=float(alpha),
-                beta=float(condition.beta),
+                alpha=cur_alpha,
+                beta=cur_beta,
                 p=float(condition.p),
                 q=float(condition.q),
                 r=float(condition.r),
-                velocity=float(condition.velocity),
-                altitude=float(condition.altitude),
-                mach=mach,
-                reynolds=reynolds,
-                dynamic_pressure=q_inf,
-                control_deflections=dict(condition.control_deflections),
+                velocity=cur_vel,
+                altitude=cur_alt,
+                mach=cur_mach,
+                reynolds=cur_reynolds,
+                dynamic_pressure=cur_q_inf,
+                control_deflections=cur_controls,
             )
 
             def build_pt(
@@ -216,14 +294,15 @@ class AeroSandboxEngine(AeroEngine):
                 cy_val: float,
                 cl_r_val: float,
                 cn_val: float,
+                conv: bool = True,
             ) -> PolarPoint:
                 ld_v = cl_val / cd_val if abs(cd_val) > 1e-7 else 0.0
-                lift_v = qs * cl_val
-                drag_v = qs * cd_val
-                side_v = qs * cy_val
+                lift_v = cur_qs * cl_val
+                drag_v = cur_qs * cd_val
+                side_v = cur_qs * cy_val
 
-                a_rad = math.radians(float(alpha))
-                b_rad = math.radians(float(condition.beta))
+                a_rad = math.radians(float(cur_alpha))
+                b_rad = math.radians(float(cur_beta))
                 ca, sa = math.cos(a_rad), math.sin(a_rad)
                 cb, sb = math.cos(b_rad), math.sin(b_rad)
 
@@ -231,9 +310,9 @@ class AeroSandboxEngine(AeroEngine):
                 fy_b_v = side_v * cb - drag_v * sb
                 fz_b_v = -lift_v * ca - drag_v * sa * cb - side_v * sa * sb
 
-                mx_b_v = qs * span * cl_r_val
-                my_b_v = qs * mean_chord * cm_val
-                mz_b_v = qs * span * cn_val
+                mx_b_v = cur_qs * span * cl_r_val
+                my_b_v = cur_qs * mean_chord * cm_val
+                mz_b_v = cur_qs * span * cn_val
 
                 fm = AeroForcesMoments(
                     fx_b=fx_b_v,
@@ -251,87 +330,98 @@ class AeroSandboxEngine(AeroEngine):
                 )
 
                 return PolarPoint(
-                    alpha=float(alpha),
+                    alpha=cur_alpha,
                     cl=cl_val,
                     cd=cd_val,
                     cm=cm_val,
                     cd_induced=cd_ind_val,
                     cd_profile=cd_prof_val,
                     cl_over_cd=ld_v,
-                    cx=(fx_b_v / qs) if qs > 0 else 0.0,
-                    cy=(fy_b_v / qs) if qs > 0 else cy_val,
-                    cz=(fz_b_v / qs) if qs > 0 else 0.0,
+                    cx=(fx_b_v / cur_qs) if cur_qs > 0 else 0.0,
+                    cy=(fy_b_v / cur_qs) if cur_qs > 0 else cy_val,
+                    cz=(fz_b_v / cur_qs) if cur_qs > 0 else 0.0,
                     cl_roll=cl_r_val,
                     cn=cn_val,
                     cd_wave=cd_wave_val,
-                    beta=float(condition.beta),
+                    beta=cur_beta,
                     p=float(condition.p),
                     q=float(condition.q),
                     r=float(condition.r),
                     forces_moments=fm,
                     state=state,
-                    velocity=float(condition.velocity),
-                    altitude=float(condition.altitude),
-                    mach=mach,
-                    reynolds=reynolds,
-                    dynamic_pressure=q_inf,
-                    control_deflections=dict(condition.control_deflections),
-                    converged=True,
+                    velocity=cur_vel,
+                    altitude=cur_alt,
+                    mach=cur_mach,
+                    reynolds=cur_reynolds,
+                    dynamic_pressure=cur_q_inf,
+                    control_deflections=cur_controls,
+                    converged=conv,
                 )
 
             # Solver execution
             if method == AnalysisMethod.COMPREHENSIVE:
                 # 1. Run VLM for 3D vortex distribution and induced drag
-                vlm_solver = asb.VortexLatticeMethod(
-                    airplane=airplane,
-                    op_point=op,
-                    spanwise_resolution=span_res,
-                    chordwise_resolution=chord_res,
-                    spanwise_spacing_function=span_spacing_fn,
-                    chordwise_spacing_function=chord_spacing_fn,
-                )
-                res_vlm = vlm_solver.run()
+                try:
+                    vlm_solver = asb.VortexLatticeMethod(
+                        airplane=cur_airplane,
+                        op_point=op,
+                        spanwise_resolution=span_res,
+                        chordwise_resolution=chord_res,
+                        spanwise_spacing_function=span_spacing_fn,
+                        chordwise_spacing_function=chord_spacing_fn,
+                    )
+                    res_vlm = vlm_solver.run()
 
-                vlm_cl = float(np.ravel(res_vlm["CL"])[0]) * pg_factor
-                vlm_cd = float(np.ravel(res_vlm["CD"])[0]) * pg_factor  # Induced drag
-                vlm_cm = float(np.ravel(res_vlm.get("Cm", 0.0))[0]) * pg_factor
-                vlm_cy = float(np.ravel(res_vlm.get("CY", 0.0))[0])
-                vlm_clr = float(np.ravel(res_vlm.get("Cl", 0.0))[0])
-                vlm_cn = float(np.ravel(res_vlm.get("Cn", 0.0))[0])
-
-                pt_vlm = build_pt(vlm_cl, vlm_cd, vlm_cm, vlm_cd, 0.0, 0.0, vlm_cy, vlm_clr, vlm_cn)
-                solver_points_map["vlm"].append(pt_vlm)
+                    vlm_cl = float(np.ravel(res_vlm["CL"])[0]) * pg_factor
+                    vlm_cd = float(np.ravel(res_vlm["CD"])[0]) * pg_factor
+                    vlm_cm = float(np.ravel(res_vlm.get("Cm", 0.0))[0]) * pg_factor
+                    vlm_cy = float(np.ravel(res_vlm.get("CY", 0.0))[0])
+                    vlm_clr = float(np.ravel(res_vlm.get("Cl", 0.0))[0])
+                    vlm_cn = float(np.ravel(res_vlm.get("Cn", 0.0))[0])
+                    pt_vlm = build_pt(vlm_cl, vlm_cd, vlm_cm, vlm_cd, 0.0, 0.0, vlm_cy, vlm_clr, vlm_cn)
+                    solver_points_map["vlm"].append(pt_vlm)
+                except Exception as err:
+                    logger.warning("VLM evaluation error at step %d: %s", idx, err)
+                    vlm_cl, vlm_cd, vlm_cm, vlm_cy, vlm_clr, vlm_cn = 0.0, 0.02, 0.0, 0.0, 0.0, 0.0
 
                 # 2. Run AeroBuildup for viscous profile drag and stall envelope
-                ab_solver = asb.AeroBuildup(
-                    airplane=airplane,
-                    op_point=op,
-                    include_wave_drag=include_wave,
-                    model_size="small",
-                )
-                res_ab = ab_solver.run()
+                try:
+                    ab_solver = asb.AeroBuildup(
+                        airplane=cur_airplane,
+                        op_point=op,
+                        include_wave_drag=include_wave,
+                        model_size="small",
+                    )
+                    res_ab = ab_solver.run()
 
-                ab_cl = float(np.ravel(res_ab["CL"])[0])
-                ab_cd = float(np.ravel(res_ab["CD"])[0])
-                ab_cm = float(np.ravel(res_ab.get("Cm", 0.0))[0])
-                ab_d_prof = float(np.ravel(res_ab.get("D_profile", 0.0))[0])
-                ab_d_ind = float(np.ravel(res_ab.get("D_induced", 0.0))[0])
-                ab_d_wave = float(np.ravel(res_ab.get("D_wave", 0.0))[0]) if "D_wave" in res_ab else 0.0
+                    ab_cl = float(np.ravel(res_ab["CL"])[0])
+                    ab_cd = float(np.ravel(res_ab["CD"])[0])
+                    ab_cm = float(np.ravel(res_ab.get("Cm", 0.0))[0])
+                    ab_d_prof = float(np.ravel(res_ab.get("D_profile", 0.0))[0])
+                    ab_d_ind = float(np.ravel(res_ab.get("D_induced", 0.0))[0])
+                    ab_d_wave = float(np.ravel(res_ab.get("D_wave", 0.0))[0]) if "D_wave" in res_ab else 0.0
 
-                ab_cd_prof = (ab_d_prof / qs) if qs > 0 else 0.0
-                ab_cd_ind = (ab_d_ind / qs) if qs > 0 else 0.0
-                ab_cd_wave = (ab_d_wave / qs) if qs > 0 else 0.0
-                ab_cy = float(np.ravel(res_ab.get("CY", 0.0))[0])
-                ab_clr = float(np.ravel(res_ab.get("Cl", 0.0))[0])
-                ab_cn = float(np.ravel(res_ab.get("Cn", 0.0))[0])
+                    ab_cd_prof = (ab_d_prof / cur_qs) if cur_qs > 0 else 0.0
+                    ab_cd_ind = (ab_d_ind / cur_qs) if cur_qs > 0 else 0.0
+                    ab_cd_wave = (ab_d_wave / cur_qs) if cur_qs > 0 else 0.0
+                    ab_cy = float(np.ravel(res_ab.get("CY", 0.0))[0])
+                    ab_clr = float(np.ravel(res_ab.get("Cl", 0.0))[0])
+                    ab_cn = float(np.ravel(res_ab.get("Cn", 0.0))[0])
 
-                pt_ab = build_pt(ab_cl, ab_cd, ab_cm, ab_cd_ind, ab_cd_prof, ab_cd_wave, ab_cy, ab_clr, ab_cn)
-                solver_points_map["aero_buildup"].append(pt_ab)
+                    pt_ab = build_pt(ab_cl, ab_cd, ab_cm, ab_cd_ind, ab_cd_prof, ab_cd_wave, ab_cy, ab_clr, ab_cn)
+                    solver_points_map["aero_buildup"].append(pt_ab)
+
+                    wing_comps = res_ab.get("wing_aero_components", [])
+                    if wing_comps:
+                        oswald_list.append(float(wing_comps[0].oswalds_efficiency))
+                except Exception as err:
+                    logger.warning("AeroBuildup evaluation error at step %d: %s", idx, err)
+                    ab_cl, ab_cd, ab_cm, ab_cd_prof, ab_cd_ind, ab_cd_wave, ab_cy, ab_clr, ab_cn = 0.0, 0.02, 0.0, 0.015, 0.0, 0.0, 0.0, 0.0, 0.0
 
                 # 3. Run LiftingLine (if feasible)
                 try:
                     ll_solver = asb.LiftingLine(
-                        airplane=airplane,
+                        airplane=cur_airplane,
                         op_point=op,
                         spanwise_resolution=max(span_res // 2, 4),
                         spanwise_spacing_function=span_spacing_fn,
@@ -343,20 +433,18 @@ class AeroSandboxEngine(AeroEngine):
                     pt_ll = build_pt(ll_cl, ll_cd, ll_cm, ll_cd, 0.0, 0.0, 0.0, 0.0, 0.0)
                     solver_points_map["lifting_line"].append(pt_ll)
                 except Exception as err:
-                    logger.debug("LiftingLine solver skipped for alpha=%.1f: %s", alpha, err)
+                    logger.debug("LiftingLine solver skipped for state %d: %s", idx, err)
 
                 # 4. Synthesize Unified Result:
-                # CD = 3D induced (VLM) + Viscous profile/fuselage (AeroBuildup) + Wave drag
                 tot_cd_ind = vlm_cd
                 tot_cd_prof = ab_cd_prof
                 tot_cd_wave = ab_cd_wave
                 tot_cd = max(tot_cd_ind + tot_cd_prof + tot_cd_wave, 1e-4)
 
-                # CL: Linear VLM slope pre-stall, smoothly blended into AeroBuildup stall curve
-                # dynamically triggered when lift approaches section stall envelope
-                if abs(vlm_cl) >= (est_stall_cl * 0.88) or abs(alpha) > 12.0:
+                # Dynamic stall transition
+                if abs(vlm_cl) >= (est_stall_cl * 0.88) or abs(cur_alpha) > 12.0:
                     stall_excess = max(abs(vlm_cl) - est_stall_cl * 0.88, 0.0) / max(est_stall_cl * 0.25, 0.1)
-                    alpha_excess = max(abs(alpha) - 12.0, 0.0) / 4.0
+                    alpha_excess = max(abs(cur_alpha) - 12.0, 0.0) / 4.0
                     weight = min(max(stall_excess, alpha_excess), 1.0)
                     tot_cl = (1.0 - weight) * vlm_cl + weight * ab_cl
                 else:
@@ -370,13 +458,9 @@ class AeroSandboxEngine(AeroEngine):
                 pt_unified = build_pt(tot_cl, tot_cd, tot_cm, tot_cd_ind, tot_cd_prof, tot_cd_wave, tot_cy, tot_clr, tot_cn)
                 polar_points.append(pt_unified)
 
-                wing_comps = res_ab.get("wing_aero_components", [])
-                if wing_comps:
-                    oswald_list.append(float(wing_comps[0].oswalds_efficiency))
-
             elif method == AnalysisMethod.VLM:
                 solver = asb.VortexLatticeMethod(
-                    airplane=airplane,
+                    airplane=cur_airplane,
                     op_point=op,
                     spanwise_resolution=span_res,
                     chordwise_resolution=chord_res,
@@ -398,7 +482,7 @@ class AeroSandboxEngine(AeroEngine):
 
             elif method == AnalysisMethod.LIFTING_LINE:
                 solver = asb.LiftingLine(
-                    airplane=airplane,
+                    airplane=cur_airplane,
                     op_point=op,
                     spanwise_resolution=span_res,
                     spanwise_spacing_function=span_spacing_fn,
@@ -418,7 +502,7 @@ class AeroSandboxEngine(AeroEngine):
 
             else:  # AERO_BUILDUP
                 solver = asb.AeroBuildup(
-                    airplane=airplane,
+                    airplane=cur_airplane,
                     op_point=op,
                     include_wave_drag=include_wave,
                     model_size="small",
@@ -436,9 +520,9 @@ class AeroSandboxEngine(AeroEngine):
                 d_ind = float(np.ravel(res.get("D_induced", 0.0))[0])
                 d_wave = float(np.ravel(res.get("D_wave", 0.0))[0]) if "D_wave" in res else 0.0
 
-                cd_p = (d_prof / qs) if qs > 0 else 0.0
-                cd_i = (d_ind / qs) if qs > 0 else 0.0
-                cd_w = (d_wave / qs) if qs > 0 else 0.0
+                cd_p = (d_prof / cur_qs) if cur_qs > 0 else 0.0
+                cd_i = (d_ind / cur_qs) if cur_qs > 0 else 0.0
+                cd_w = (d_wave / cur_qs) if cur_qs > 0 else 0.0
 
                 pt = build_pt(cl, cd, cm, cd_i, cd_p, cd_w, cy, clr, cn)
                 polar_points.append(pt)
@@ -448,9 +532,9 @@ class AeroSandboxEngine(AeroEngine):
                 if wing_comps:
                     oswald_list.append(float(wing_comps[0].oswalds_efficiency))
 
-        cl_values = [p.cl for p in polar_points]
-        cd_values = [p.cd for p in polar_points]
-        ld_values = [p.cl_over_cd for p in polar_points]
+        cl_values = [p.cl for p in polar_points if p.converged]
+        cd_values = [p.cd for p in polar_points if p.converged]
+        ld_values = [p.cl_over_cd for p in polar_points if p.converged]
 
         cl_max = max(cl_values) if cl_values else 0.0
         cl_max_alpha = polar_points[cl_values.index(cl_max)].alpha if cl_values else 0.0
@@ -460,12 +544,37 @@ class AeroSandboxEngine(AeroEngine):
 
         oswald = float(sum(oswald_list) / len(oswald_list)) if oswald_list else None
 
+        # Build MultiDimensionalSweepResult
         sweep_result: MultiDimensionalSweepResult | None = None
-        if len(alphas) > 1:
+        if len(eval_states) > 1:
+            var_unit = "deg"
+            if sweep_type == SweepType.VELOCITY:
+                var_unit = "m/s"
+            elif sweep_type == SweepType.ALTITUDE:
+                var_unit = "m"
+
+            if condition.secondary_variable and len(sec_vals) > 1:
+                sec_unit = "deg"
+                if condition.secondary_variable in ("velocity", "v", "speed"):
+                    sec_unit = "m/s"
+                elif condition.secondary_variable in ("altitude", "alt", "h"):
+                    sec_unit = "m"
+
+                sweep_vars = [
+                    SweepVariable(name=str(condition.secondary_variable), values=[float(v) for v in sec_vals], unit=sec_unit),
+                    SweepVariable(name=str(condition.sweep_variable), values=primary_vals, unit=var_unit),
+                ]
+                grid_shp = (len(sec_vals), len(primary_vals))
+            else:
+                sweep_vars = [
+                    SweepVariable(name=str(condition.sweep_variable), values=primary_vals, unit=var_unit)
+                ]
+                grid_shp = (len(primary_vals),)
+
             sweep_result = MultiDimensionalSweepResult(
-                variables=[SweepVariable(name="alpha", values=alphas, unit="deg")],
+                variables=sweep_vars,
                 points=list(polar_points),
-                grid_shape=(len(alphas),),
+                grid_shape=grid_shp,
             )
 
         # Filter out empty solver curve lists
@@ -482,15 +591,15 @@ class AeroSandboxEngine(AeroEngine):
             ld_max=ld_max,
             ld_max_alpha=ld_max_alpha,
             reference=ref,
-            reynolds=reynolds,
-            mach=mach,
-            dynamic_pressure=q_inf,
+            reynolds=ref_reynolds,
+            mach=ref_mach,
+            dynamic_pressure=0.5 * ref_rho * (condition.velocity ** 2),
             oswald_efficiency=oswald,
             sweep_result=sweep_result,
             condition=condition,
             propulsion_points=propulsion_points,
             raw={
-                "airplane": airplane,
+                "airplane": base_airplane,
                 "velocity": condition.velocity,
                 "propulsion_points": [p.to_dict() for p in propulsion_points],
                 "solver_results": {k: [pt.to_dict() for pt in v] for k, v in clean_solvers.items()},
@@ -733,13 +842,15 @@ class AeroSandboxEngine(AeroEngine):
         if len(station_raw) < 2:
             return None
 
-        # Compute span coordinates eta in [0, 1]
-        y_vals = [s["local_y"] for s in station_raw]
-        y_min, y_max = min(y_vals), max(y_vals)
-        span_length = max(y_max - y_min, 1e-4)
+        # Compute span coordinates eta in [0, 1] along the 3D loft stations
+        cum_dist = [0.0]
+        for i in range(1, len(station_raw)):
+            d = float(np.linalg.norm(station_raw[i]["xyz_le"] - station_raw[i-1]["xyz_le"]))
+            cum_dist.append(cum_dist[-1] + max(d, 1e-6))
+        total_span = max(cum_dist[-1], 1e-4)
 
-        for s in station_raw:
-            s["eta"] = (s["local_y"] - y_min) / span_length
+        for i, s in enumerate(station_raw):
+            s["eta"] = float(cum_dist[i] / total_span)
 
         # Collect control surfaces attached to this lifting surface
         cs_list: list[dict[str, Any]] = []
@@ -760,6 +871,21 @@ class AeroSandboxEngine(AeroEngine):
                         cs_copy.setdefault("tag", other.get("name") or other.get("id"))
                         cs_copy.setdefault("id", other.get("id"))
                         cs_list.append(cs_copy)
+
+        # Check if the lifting surface itself has control tags (e.g. tags: ["elevator"], tags: ["rudder"])
+        comp_tags = [str(t).lower() for t in comp.get("parameters", {}).get("tags", [])] if isinstance(comp.get("parameters"), dict) else []
+        comp_name_lower = str(comp.get("name") or "").lower()
+        if not cs_list:
+            for tag_candidate in ("elevator", "rudder", "aileron", "flap", "elevon"):
+                if tag_candidate in comp_tags or tag_candidate in comp_name_lower:
+                    cs_list.append({
+                        "tag": tag_candidate,
+                        "type": tag_candidate,
+                        "eta_start": 0.0,
+                        "eta_end": 1.0,
+                        "chord_fraction": 0.35,
+                        "symmetry_mode": "antisymmetric" if tag_candidate in ("aileron", "elevon") else "symmetric",
+                    })
 
         # Parse control surface definitions
         parsed_cs: list[dict[str, Any]] = []
@@ -782,8 +908,13 @@ class AeroSandboxEngine(AeroEngine):
                 eta_s = float(np.clip(float(cs["eta_start"]), 0.0, 1.0))
                 eta_e = float(np.clip(float(cs["eta_end"]), 0.0, 1.0))
             elif "span_start" in cs and "span_end" in cs:
-                eta_s = float(np.clip((float(cs["span_start"]) - y_min) / span_length, 0.0, 1.0))
-                eta_e = float(np.clip((float(cs["span_end"]) - y_min) / span_length, 0.0, 1.0))
+                s_s = float(cs["span_start"])
+                s_e = float(cs["span_end"])
+                if s_s > 5.0 or s_e > 5.0:  # Value given in mm
+                    s_s /= 1000.0
+                    s_e /= 1000.0
+                eta_s = float(np.clip(s_s / total_span, 0.0, 1.0))
+                eta_e = float(np.clip(s_e / total_span, 0.0, 1.0))
             else:
                 eta_s, eta_e = 0.0, 1.0
 
@@ -793,7 +924,10 @@ class AeroSandboxEngine(AeroEngine):
             # Chord fraction
             chord_frac = float(cs.get("chord_fraction", 0.25))
             if cs.get("chord_mode") == "dimension" and "chord" in cs:
-                chord_frac = float(cs["chord"]) / (span_length * 0.25)
+                c_val = float(cs["chord"])
+                if c_val > 5.0:
+                    c_val /= 1000.0
+                chord_frac = c_val / max(float(station_raw[0]["chord"]), 0.01)
             chord_frac = float(np.clip(chord_frac, 0.05, 0.95))
 
             sym_mode = str(cs.get("symmetry_mode") or "auto").lower()

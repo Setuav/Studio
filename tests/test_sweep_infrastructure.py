@@ -1,0 +1,222 @@
+"""Unit tests for parametric sweep infrastructure (Alpha, Beta, Control Deflections, Velocity, Altitude, and Multi-grids)."""
+from __future__ import annotations
+
+import math
+import unittest
+
+from setuav_studio.plugins.aerodynamics.engine.base import (
+    AnalysisMethod,
+    FlightCondition,
+    MultiDimensionalSweepResult,
+    PolarPoint,
+    SweepType,
+    SweepVariable,
+)
+from setuav_studio.plugins.aerodynamics.engine.aerosandbox_engine import (
+    HAS_AEROSANDBOX,
+    AeroSandboxEngine,
+)
+
+
+class TestSweepConfiguration(unittest.TestCase):
+    """Test FlightCondition sweep configuration and range calculations."""
+
+    def test_flight_condition_sweep_values(self) -> None:
+        cond = FlightCondition(
+            sweep_type=SweepType.ALPHA,
+            sweep_variable="alpha",
+            sweep_min=-4.0,
+            sweep_max=16.0,
+            sweep_steps=5,
+        )
+        vals = cond.get_primary_sweep_values()
+        self.assertEqual(len(vals), 5)
+        self.assertAlmostEqual(vals[0], -4.0)
+        self.assertAlmostEqual(vals[-1], 16.0)
+
+        # 2D Grid sweep values
+        grid_cond = FlightCondition(
+            sweep_type=SweepType.MULTI_GRID,
+            sweep_variable="alpha",
+            sweep_min=-4.0,
+            sweep_max=8.0,
+            sweep_steps=4,
+            secondary_variable="beta",
+            secondary_min=-10.0,
+            secondary_max=10.0,
+            secondary_steps=3,
+        )
+        p_vals = grid_cond.get_primary_sweep_values()
+        s_vals = grid_cond.get_secondary_sweep_values()
+        self.assertEqual(len(p_vals), 4)
+        self.assertEqual(len(s_vals), 3)
+
+    def test_sweep_serialization(self) -> None:
+        cond = FlightCondition(
+            sweep_type=SweepType.CONTROL_DEFLECTION,
+            sweep_variable="elevator",
+            sweep_min=-15.0,
+            sweep_max=15.0,
+            sweep_steps=7,
+        )
+        d = cond.to_dict()
+        self.assertEqual(d["sweep_type"], "control_deflection")
+        self.assertEqual(d["sweep_variable"], "elevator")
+
+        restored = FlightCondition.from_dict(d)
+        self.assertEqual(restored.sweep_type, SweepType.CONTROL_DEFLECTION)
+        self.assertEqual(restored.sweep_variable, "elevator")
+        self.assertAlmostEqual(restored.sweep_min, -15.0)
+
+
+@unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
+class TestParametricSweeps(unittest.TestCase):
+    """Test parametric sweep execution across flight mechanics states."""
+
+    def setUp(self) -> None:
+        self.engine = AeroSandboxEngine()
+        # Aircraft with main wing, horizontal tail with elevator, and vertical fin
+        self.components = [
+            {
+                "id": "wing-1",
+                "name": "Main Wing",
+                "type": "org.setuav.core:lifting-surface",
+                "parameters": {
+                    "geometry": {
+                        "mirror": True,
+                        "profiles": [
+                            {"position": {"x": 0, "y": 0, "z": 0}, "chord": 200, "twist": 0, "airfoil": "naca2412"},
+                            {"position": {"x": 30, "y": 500, "z": 0}, "chord": 140, "twist": 0, "airfoil": "naca2412"},
+                        ]
+                    }
+                },
+            },
+            {
+                "id": "htail-1",
+                "name": "Horizontal Tail",
+                "type": "org.setuav.core:lifting-surface",
+                "parameters": {
+                    "tags": ["elevator"],
+                    "geometry": {
+                        "mirror": True,
+                        "profiles": [
+                            {"position": {"x": 500, "y": 0, "z": 50}, "chord": 100, "twist": 0, "airfoil": "naca0012"},
+                            {"position": {"x": 520, "y": 180, "z": 50}, "chord": 80, "twist": 0, "airfoil": "naca0012"},
+                        ]
+                    }
+                },
+            },
+            {
+                "id": "vfin-1",
+                "name": "Vertical Fin",
+                "type": "org.setuav.core:lifting-surface",
+                "parameters": {
+                    "tags": ["rudder"],
+                    "geometry": {
+                        "mirror": False,
+                        "profiles": [
+                            {"position": {"x": 480, "y": 0, "z": 0}, "chord": 120, "twist": 0, "airfoil": "naca0012"},
+                            {"position": {"x": 510, "y": 0, "z": 150}, "chord": 80, "twist": 0, "airfoil": "naca0012"},
+                        ]
+                    }
+                },
+            },
+        ]
+
+    def test_beta_sideslip_sweep(self) -> None:
+        """Verify sideslip sweep produces consistent sideforce CY and directional yaw moment Cn."""
+        cond = FlightCondition(
+            velocity=20.0,
+            alpha=2.0,
+            sweep_type=SweepType.BETA,
+            sweep_variable="beta",
+            sweep_min=-10.0,
+            sweep_max=10.0,
+            sweep_steps=5,
+        )
+        res = self.engine.analyze(self.components, cond, method=AnalysisMethod.COMPREHENSIVE)
+
+        self.assertEqual(len(res.polar_points), 5)
+        self.assertIsNotNone(res.sweep_result)
+
+        # Check points at beta=-10 and beta=+10
+        pt_neg = res.polar_points[0]
+        pt_pos = res.polar_points[-1]
+
+        self.assertAlmostEqual(pt_neg.beta, -10.0)
+        self.assertAlmostEqual(pt_pos.beta, 10.0)
+
+        # Positive sideslip (wind from right) produces negative sideforce CY
+        self.assertGreater(pt_neg.cy, pt_pos.cy)
+        # Vertical fin directional restoring moment (Cn_beta > 0) -> Cn(beta=+10) > Cn(beta=-10)
+        self.assertGreater(pt_pos.cn, pt_neg.cn)
+
+    def test_control_deflection_sweep(self) -> None:
+        """Verify elevator deflection sweep produces pitching moment control derivative."""
+        cond = FlightCondition(
+            velocity=20.0,
+            alpha=2.0,
+            sweep_type=SweepType.CONTROL_DEFLECTION,
+            sweep_variable="elevator",
+            sweep_min=-10.0,
+            sweep_max=10.0,
+            sweep_steps=5,
+        )
+        res = self.engine.analyze(self.components, cond, method=AnalysisMethod.COMPREHENSIVE)
+
+        self.assertEqual(len(res.polar_points), 5)
+        # Elevator deflection down (+10 deg) causes nose-down pitch (negative Cm)
+        # Elevator deflection up (-10 deg) causes nose-up pitch (positive Cm)
+        cm_up = res.polar_points[0].cm    # delta_e = -10 deg
+        cm_down = res.polar_points[-1].cm  # delta_e = +10 deg
+        self.assertGreater(cm_up, cm_down)
+
+    def test_velocity_sweep(self) -> None:
+        """Verify airspeed sweep scales total dynamic forces quadratically."""
+        cond = FlightCondition(
+            alpha=4.0,
+            sweep_type=SweepType.VELOCITY,
+            sweep_variable="velocity",
+            sweep_min=15.0,
+            sweep_max=30.0,
+            sweep_steps=3,
+        )
+        res = self.engine.analyze(self.components, cond, method=AnalysisMethod.COMPREHENSIVE)
+
+        self.assertEqual(len(res.polar_points), 3)
+        pt_v1 = res.polar_points[0]  # V=15
+        pt_v2 = res.polar_points[-1] # V=30
+
+        self.assertIsNotNone(pt_v1.forces_moments)
+        self.assertIsNotNone(pt_v2.forces_moments)
+
+        lift_v1 = pt_v1.forces_moments.lift
+        lift_v2 = pt_v2.forces_moments.lift
+
+        # Doubling speed (15 -> 30) should quadruple lift (ratio ~ 4.0)
+        lift_ratio = lift_v2 / max(lift_v1, 1e-4)
+        self.assertAlmostEqual(lift_ratio, 4.0, delta=0.5)
+
+    def test_altitude_sweep(self) -> None:
+        """Verify altitude sweep reduces air density and dynamic pressure."""
+        cond = FlightCondition(
+            velocity=25.0,
+            alpha=3.0,
+            sweep_type=SweepType.ALTITUDE,
+            sweep_variable="altitude",
+            sweep_min=0.0,
+            sweep_max=4000.0,
+            sweep_steps=3,
+        )
+        res = self.engine.analyze(self.components, cond, method=AnalysisMethod.COMPREHENSIVE)
+
+        self.assertEqual(len(res.polar_points), 3)
+        pt_sea = res.polar_points[0]
+        pt_high = res.polar_points[-1]
+
+        self.assertGreater(pt_sea.dynamic_pressure, pt_high.dynamic_pressure)
+        self.assertGreater(pt_sea.reynolds, pt_high.reynolds)
+
+
+if __name__ == "__main__":
+    unittest.main()

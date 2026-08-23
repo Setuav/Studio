@@ -27,6 +27,16 @@ class AnalysisType(enum.Enum):
     STABILITY_DERIVATIVES = "stability_derivatives"
 
 
+class SweepType(enum.Enum):
+    """Types of parametric sweeps available."""
+    ALPHA = "alpha"                              # Angle of attack sweep (AoA α)
+    BETA = "beta"                                # Sideslip angle sweep (Sideslip β)
+    CONTROL_DEFLECTION = "control_deflection"    # Control surface deflection sweep (δ)
+    VELOCITY = "velocity"                        # Airspeed sweep (V)
+    ALTITUDE = "altitude"                        # Altitude MSL sweep (h)
+    MULTI_GRID = "multi_grid"                    # 2D Parametric grid sweep
+
+
 @dataclass(frozen=True)
 class FlightCondition:
     """Operating conditions and sweep parameters for aerodynamic analysis."""
@@ -38,13 +48,64 @@ class FlightCondition:
     q: float = 0.0                    # rad/s (body pitch rate)
     r: float = 0.0                    # rad/s (body yaw rate)
     control_deflections: dict[str, float] = field(default_factory=dict)  # deg per control surface
-    # Sweep ranges
-    alpha_min: float = -10.0          # deg (polar sweep start)
-    alpha_max: float = 18.0           # deg (polar sweep end)
-    alpha_steps: int = 29             # number of sweep evaluation points
-    beta_min: float = 0.0             # deg
-    beta_max: float = 0.0             # deg
-    beta_steps: int = 1               # number of beta sweep points
+    # Sweep configuration
+    sweep_type: SweepType = SweepType.ALPHA
+    sweep_variable: str = "alpha"     # Primary variable name ('alpha', 'beta', 'velocity', 'altitude', 'elevator', etc.)
+    sweep_min: float = -10.0          # Range start
+    sweep_max: float = 18.0           # Range end
+    sweep_steps: int = 29             # Number of evaluation points
+    # Secondary sweep configuration (for 2D grid sweeps)
+    secondary_variable: str | None = None
+    secondary_min: float = 0.0
+    secondary_max: float = 0.0
+    secondary_steps: int = 1
+    # Backward compatibility fields
+    alpha_min: float = -10.0          # deg
+    alpha_max: float = 18.0           # deg
+    alpha_steps: int = 29
+    beta_min: float = 0.0
+    beta_max: float = 0.0
+    beta_steps: int = 1
+
+    def get_primary_sweep_values(self) -> list[float]:
+        """Compute the array of evaluated values for the primary sweep parameter."""
+        import numpy as _np
+        if self.sweep_type == SweepType.ALPHA:
+            if self.alpha_steps != 29:
+                steps = self.alpha_steps
+                s_min = self.alpha_min
+                s_max = self.alpha_max
+            elif self.sweep_steps != 29:
+                steps = self.sweep_steps
+                s_min = self.sweep_min
+                s_max = self.sweep_max
+            else:
+                steps = self.alpha_steps
+                s_min = self.alpha_min
+                s_max = self.alpha_max
+
+            if steps <= 1:
+                return [float(self.alpha)]
+            return [float(v) for v in _np.linspace(s_min, s_max, max(steps, 2))]
+        else:
+            steps = max(int(self.sweep_steps), 1)
+            if steps <= 1:
+                if self.sweep_type == SweepType.BETA:
+                    return [float(self.beta)]
+                elif self.sweep_type == SweepType.VELOCITY:
+                    return [float(self.velocity)]
+                elif self.sweep_type == SweepType.ALTITUDE:
+                    return [float(self.altitude)]
+                return [float(self.sweep_min)]
+            return [float(v) for v in _np.linspace(self.sweep_min, self.sweep_max, steps)]
+
+    def get_secondary_sweep_values(self) -> list[float]:
+        """Compute the array of evaluated values for the secondary sweep parameter."""
+        steps = max(int(self.secondary_steps), 1)
+        if steps <= 1 or not self.secondary_variable:
+            return [float(self.secondary_min)]
+        import numpy as _np
+        return [float(v) for v in _np.linspace(self.secondary_min, self.secondary_max, steps)]
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -56,6 +117,15 @@ class FlightCondition:
             "q": self.q,
             "r": self.r,
             "control_deflections": dict(self.control_deflections),
+            "sweep_type": self.sweep_type.value,
+            "sweep_variable": self.sweep_variable,
+            "sweep_min": self.sweep_min,
+            "sweep_max": self.sweep_max,
+            "sweep_steps": self.sweep_steps,
+            "secondary_variable": self.secondary_variable,
+            "secondary_min": self.secondary_min,
+            "secondary_max": self.secondary_max,
+            "secondary_steps": self.secondary_steps,
             "alpha_min": self.alpha_min,
             "alpha_max": self.alpha_max,
             "alpha_steps": self.alpha_steps,
@@ -66,6 +136,17 @@ class FlightCondition:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> FlightCondition:
+        st_val = data.get("sweep_type", "alpha")
+        try:
+            st = SweepType(st_val)
+        except ValueError:
+            st = SweepType.ALPHA
+
+        # Handle backward compatibility with alpha_min / alpha_max
+        s_min = float(data.get("sweep_min", data.get("alpha_min", -4.0)))
+        s_max = float(data.get("sweep_max", data.get("alpha_max", 16.0)))
+        s_steps = int(data.get("sweep_steps", data.get("alpha_steps", 21)))
+
         return cls(
             velocity=float(data.get("velocity", 25.0)),
             alpha=float(data.get("alpha", 2.0)),
@@ -75,9 +156,18 @@ class FlightCondition:
             q=float(data.get("q", 0.0)),
             r=float(data.get("r", 0.0)),
             control_deflections=dict(data.get("control_deflections") or {}),
-            alpha_min=float(data.get("alpha_min", -10.0)),
-            alpha_max=float(data.get("alpha_max", 18.0)),
-            alpha_steps=int(data.get("alpha_steps", 29)),
+            sweep_type=st,
+            sweep_variable=str(data.get("sweep_variable", "alpha")),
+            sweep_min=s_min,
+            sweep_max=s_max,
+            sweep_steps=s_steps,
+            secondary_variable=data.get("secondary_variable"),
+            secondary_min=float(data.get("secondary_min", 0.0)),
+            secondary_max=float(data.get("secondary_max", 0.0)),
+            secondary_steps=int(data.get("secondary_steps", 1)),
+            alpha_min=float(data.get("alpha_min", s_min)),
+            alpha_max=float(data.get("alpha_max", s_max)),
+            alpha_steps=int(data.get("alpha_steps", s_steps)),
             beta_min=float(data.get("beta_min", 0.0)),
             beta_max=float(data.get("beta_max", 0.0)),
             beta_steps=int(data.get("beta_steps", 1)),

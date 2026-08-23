@@ -32,6 +32,7 @@ from .engine.base import (
     AeroResult,
     AnalysisMethod,
     FlightCondition,
+    SweepType,
 )
 from .engine.aerosandbox_engine import AeroSandboxEngine
 from .worker import AnalysisWorker
@@ -186,47 +187,97 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         layout.addWidget(self.conditions_table)
 
     def _create_sweep_section(self) -> None:
-        layout = self._create_section("Polar Sweep Range", "fa6s.arrows-left-right")
+        layout = self._create_section("Parametric Sweep Range", "fa6s.arrows-left-right")
 
         self.sweep_table = self._property_table([
-            ("mode", "Analysis Mode"),
-            ("alpha_min", "AoA Start (α_min)"),
-            ("alpha_max", "AoA End (α_max)"),
-            ("alpha_steps", "Step Count (N)"),
+            ("mode", "Sweep Mode"),
+            ("ctrl_surface", "Control Surface"),
+            ("sweep_min", "Start Value (Min)"),
+            ("sweep_max", "End Value (Max)"),
+            ("sweep_steps", "Step Count (N)"),
         ])
 
         self.combo_mode = QComboBox()
-        self.combo_mode.addItem("Polar Sweep (α-range)")
-        self.combo_mode.addItem("Single Point (Ref AoA)")
+        self.combo_mode.addItem("Alpha Sweep (AoA α Polar)", SweepType.ALPHA)
+        self.combo_mode.addItem("Beta Sweep (Sideslip β Response)", SweepType.BETA)
+        self.combo_mode.addItem("Control Deflection Sweep (δ)", SweepType.CONTROL_DEFLECTION)
+        self.combo_mode.addItem("Airspeed Sweep (Velocity V)", SweepType.VELOCITY)
+        self.combo_mode.addItem("Altitude Sweep (MSL Altitude)", SweepType.ALTITUDE)
+        self.combo_mode.addItem("Single Point (Ref Condition)", None)
         self.combo_mode.currentIndexChanged.connect(self._on_mode_changed)
 
-        self.spin_alpha_min = NumericSpinBox()
-        self.spin_alpha_min.setRange(-30.0, 10.0)
-        self.spin_alpha_min.setValue(-10.0)
-        self.spin_alpha_min.setSuffix(" °")
+        self.combo_ctrl = QComboBox()
+        self.combo_ctrl.addItem("Elevator (Pitch)", "elevator")
+        self.combo_ctrl.addItem("Aileron (Roll)", "aileron")
+        self.combo_ctrl.addItem("Rudder (Yaw)", "rudder")
+        self.combo_ctrl.addItem("Flap", "flap")
 
-        self.spin_alpha_max = NumericSpinBox()
-        self.spin_alpha_max.setRange(0.0, 45.0)
-        self.spin_alpha_max.setValue(18.0)
-        self.spin_alpha_max.setSuffix(" °")
+        self.spin_sweep_min = NumericSpinBox()
+        self.spin_sweep_min.setRange(-100.0, 20000.0)
+        self.spin_sweep_min.setValue(-10.0)
+        self.spin_sweep_min.setSuffix(" °")
 
-        self.spin_alpha_steps = NumericSpinBox()
-        self.spin_alpha_steps.setDecimals(0)
-        self.spin_alpha_steps.setRange(3, 100)
-        self.spin_alpha_steps.setValue(29)
+        self.spin_sweep_max = NumericSpinBox()
+        self.spin_sweep_max.setRange(-100.0, 20000.0)
+        self.spin_sweep_max.setValue(18.0)
+        self.spin_sweep_max.setSuffix(" °")
+
+        self.spin_sweep_steps = NumericSpinBox()
+        self.spin_sweep_steps.setDecimals(0)
+        self.spin_sweep_steps.setRange(2, 100)
+        self.spin_sweep_steps.setValue(29)
 
         self.sweep_table.setCellWidget(0, 1, self.combo_mode)
-        self.sweep_table.setCellWidget(1, 1, self.spin_alpha_min)
-        self.sweep_table.setCellWidget(2, 1, self.spin_alpha_max)
-        self.sweep_table.setCellWidget(3, 1, self.spin_alpha_steps)
+        self.sweep_table.setCellWidget(1, 1, self.combo_ctrl)
+        self.sweep_table.setCellWidget(2, 1, self.spin_sweep_min)
+        self.sweep_table.setCellWidget(3, 1, self.spin_sweep_max)
+        self.sweep_table.setCellWidget(4, 1, self.spin_sweep_steps)
 
         layout.addWidget(self.sweep_table)
+        self._on_mode_changed()
 
     def _on_mode_changed(self) -> None:
-        is_sweep = self.combo_mode.currentIndex() == 0
-        self.spin_alpha_min.setEnabled(is_sweep)
-        self.spin_alpha_max.setEnabled(is_sweep)
-        self.spin_alpha_steps.setEnabled(is_sweep)
+        sweep_data = self.combo_mode.currentData()
+        is_sweep = sweep_data is not None
+
+        self.spin_sweep_min.setEnabled(is_sweep)
+        self.spin_sweep_max.setEnabled(is_sweep)
+        self.spin_sweep_steps.setEnabled(is_sweep)
+
+        is_ctrl = sweep_data == SweepType.CONTROL_DEFLECTION
+        self.combo_ctrl.setEnabled(is_ctrl)
+        self.sweep_table.setRowHidden(1, not is_ctrl)
+
+        if sweep_data == SweepType.ALPHA:
+            self.spin_sweep_min.setSuffix(" °")
+            self.spin_sweep_max.setSuffix(" °")
+            self.spin_sweep_min.setValue(-10.0)
+            self.spin_sweep_max.setValue(18.0)
+            self.spin_sweep_steps.setValue(29)
+        elif sweep_data == SweepType.BETA:
+            self.spin_sweep_min.setSuffix(" °")
+            self.spin_sweep_max.setSuffix(" °")
+            self.spin_sweep_min.setValue(-15.0)
+            self.spin_sweep_max.setValue(15.0)
+            self.spin_sweep_steps.setValue(31)
+        elif sweep_data == SweepType.CONTROL_DEFLECTION:
+            self.spin_sweep_min.setSuffix(" °")
+            self.spin_sweep_max.setSuffix(" °")
+            self.spin_sweep_min.setValue(-20.0)
+            self.spin_sweep_max.setValue(20.0)
+            self.spin_sweep_steps.setValue(21)
+        elif sweep_data == SweepType.VELOCITY:
+            self.spin_sweep_min.setSuffix(" m/s")
+            self.spin_sweep_max.setSuffix(" m/s")
+            self.spin_sweep_min.setValue(10.0)
+            self.spin_sweep_max.setValue(45.0)
+            self.spin_sweep_steps.setValue(15)
+        elif sweep_data == SweepType.ALTITUDE:
+            self.spin_sweep_min.setSuffix(" m")
+            self.spin_sweep_max.setSuffix(" m")
+            self.spin_sweep_min.setValue(0.0)
+            self.spin_sweep_max.setValue(4000.0)
+            self.spin_sweep_steps.setValue(9)
 
     def _create_actions_section(self) -> None:
         layout = self._create_section("Actions", "fa6s.play")
@@ -283,16 +334,46 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
             )
             return
 
-        # Build FlightCondition
-        is_sweep = self.combo_mode.currentIndex() == 0
+        # Build FlightCondition with generalized sweep mode
+        sweep_data = self.combo_mode.currentData()
+        is_sweep = sweep_data is not None
+
+        if sweep_data == SweepType.ALPHA:
+            sweep_type = SweepType.ALPHA
+            sweep_var = "alpha"
+        elif sweep_data == SweepType.BETA:
+            sweep_type = SweepType.BETA
+            sweep_var = "beta"
+        elif sweep_data == SweepType.CONTROL_DEFLECTION:
+            sweep_type = SweepType.CONTROL_DEFLECTION
+            sweep_var = str(self.combo_ctrl.currentData() or "elevator")
+        elif sweep_data == SweepType.VELOCITY:
+            sweep_type = SweepType.VELOCITY
+            sweep_var = "velocity"
+        elif sweep_data == SweepType.ALTITUDE:
+            sweep_type = SweepType.ALTITUDE
+            sweep_var = "altitude"
+        else:
+            sweep_type = SweepType.ALPHA
+            sweep_var = "alpha"
+
+        s_min = float(self.spin_sweep_min.value())
+        s_max = float(self.spin_sweep_max.value())
+        s_steps = int(self.spin_sweep_steps.value()) if is_sweep else 1
+
         condition = FlightCondition(
             velocity=float(self.spin_velocity.value()),
             altitude=float(self.spin_altitude.value()),
             alpha=float(self.spin_ref_alpha.value()),
             beta=float(self.spin_ref_beta.value()),
-            alpha_min=float(self.spin_alpha_min.value()),
-            alpha_max=float(self.spin_alpha_max.value()),
-            alpha_steps=int(self.spin_alpha_steps.value()) if is_sweep else 1,
+            sweep_type=sweep_type,
+            sweep_variable=sweep_var,
+            sweep_min=s_min,
+            sweep_max=s_max,
+            sweep_steps=s_steps,
+            alpha_min=s_min if sweep_type == SweepType.ALPHA else -10.0,
+            alpha_max=s_max if sweep_type == SweepType.ALPHA else 18.0,
+            alpha_steps=s_steps if sweep_type == SweepType.ALPHA else 1,
         )
 
         method = AnalysisMethod.COMPREHENSIVE
