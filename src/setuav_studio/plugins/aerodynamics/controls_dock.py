@@ -176,6 +176,7 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
             ("velocity", "Airspeed (V)"),
             ("altitude", "Altitude (MSL)"),
             ("ref_alpha", "Reference AoA (α)"),
+            ("ref_beta", "Sideslip Angle (β)"),
         ])
 
         self.spin_velocity = NumericSpinBox()
@@ -193,9 +194,15 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         self.spin_ref_alpha.setValue(2.0)
         self.spin_ref_alpha.setSuffix(" °")
 
+        self.spin_ref_beta = NumericSpinBox()
+        self.spin_ref_beta.setRange(-45.0, 45.0)
+        self.spin_ref_beta.setValue(0.0)
+        self.spin_ref_beta.setSuffix(" °")
+
         self.conditions_table.setCellWidget(0, 1, self.spin_velocity)
         self.conditions_table.setCellWidget(1, 1, self.spin_altitude)
         self.conditions_table.setCellWidget(2, 1, self.spin_ref_alpha)
+        self.conditions_table.setCellWidget(3, 1, self.spin_ref_beta)
 
         layout.addWidget(self.conditions_table)
 
@@ -304,6 +311,7 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
             velocity=float(self.spin_velocity.value()),
             altitude=float(self.spin_altitude.value()),
             alpha=float(self.spin_ref_alpha.value()),
+            beta=float(self.spin_ref_beta.value()),
             alpha_min=float(self.spin_alpha_min.value()),
             alpha_max=float(self.spin_alpha_max.value()),
             alpha_steps=int(self.spin_alpha_steps.value()) if is_sweep else 1,

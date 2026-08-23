@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 import unittest
 
@@ -221,6 +222,152 @@ class AeroSandboxEngineTests(unittest.TestCase):
         self.assertEqual(len(result_vlm.polar_points), 5)
         self.assertGreater(result_vlm.cl_max, 0.5)
 
+    @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
+    def test_control_surface_aileron_roll_moment(self) -> None:
+        """Verify that aileron deflection generates aerodynamic roll moment in VLM."""
+        engine = AeroSandboxEngine()
+        components = [
+            {
+                "id": "wing-1",
+                "name": "Main Wing",
+                "type": "org.setuav.core:lifting-surface",
+                "parameters": {
+                    "geometry": {
+                        "mirror": True,
+                        "profiles": [
+                            {"position": {"x": 0, "y": 0, "z": 0}, "chord": 200, "twist": 0, "airfoil": "naca2412"},
+                            {"position": {"x": 50, "y": 800, "z": 0}, "chord": 120, "twist": 0, "airfoil": "naca2412"},
+                        ],
+                        "control_surfaces": [
+                            {
+                                "tag": "aileron",
+                                "type": "aileron",
+                                "eta_start": 0.5,
+                                "eta_end": 0.95,
+                                "chord_fraction": 0.25,
+                                "deflection": 0.0,
+                                "symmetry_mode": "auto",
+                            }
+                        ],
+                    }
+                },
+            }
+        ]
+
+        # 1. Neutral aileron (0 deg) -> zero roll moment
+        cond_neutral = FlightCondition(velocity=25.0, alpha=2.0, alpha_steps=1, control_deflections={"aileron": 0.0})
+        res_neutral = engine.analyze(components, cond_neutral, method=AnalysisMethod.VLM)
+        self.assertAlmostEqual(res_neutral.polar_points[0].cl_roll, 0.0, places=3)
+
+        # 2. Deflected aileron (10 deg) -> significant roll moment
+        cond_deflected = FlightCondition(velocity=25.0, alpha=2.0, alpha_steps=1, control_deflections={"aileron": 10.0})
+        res_deflected = engine.analyze(components, cond_deflected, method=AnalysisMethod.VLM)
+        cl_roll = res_deflected.polar_points[0].cl_roll
+        self.assertNotAlmostEqual(cl_roll, 0.0, places=2)
+        self.assertLess(cl_roll, -0.01)  # Right down (+10) -> left up (-10) -> roll to left (negative Cl)
+
+    @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
+    def test_control_surface_child_component_and_elevator_pitch(self) -> None:
+        """Verify child control-surface components and elevator pitch moment effects."""
+        engine = AeroSandboxEngine()
+        components = [
+            {
+                "id": "htail-1",
+                "name": "Horizontal Tail",
+                "type": "org.setuav.core:lifting-surface",
+                "transform": {"position": {"x": 800, "y": 0, "z": 50}},
+                "parameters": {
+                    "geometry": {
+                        "mirror": True,
+                        "profiles": [
+                            {"position": {"x": 0, "y": 0, "z": 0}, "chord": 150, "twist": 0, "airfoil": "naca0012"},
+                            {"position": {"x": 0, "y": 300, "z": 0}, "chord": 100, "twist": 0, "airfoil": "naca0012"},
+                        ],
+                    }
+                },
+            },
+            {
+                "id": "elev-1",
+                "name": "Elevator",
+                "type": "org.setuav.core:control-surface",
+                "transform": {"parent": "htail-1"},
+                "parameters": {
+                    "geometry": {
+                        "tag": "elevator",
+                        "type": "elevator",
+                        "eta_start": 0.0,
+                        "eta_end": 1.0,
+                        "chord_fraction": 0.35,
+                        "deflection": 5.0,
+                        "symmetry_mode": "symmetric",
+                    }
+                },
+            },
+        ]
+
+        # 1. Deflect down (+10 deg) -> increases tail lift, pitching nose down (more negative Cm)
+        cond_down = FlightCondition(velocity=25.0, alpha=0.0, alpha_steps=1, control_deflections={"elevator": 10.0})
+        res_down = engine.analyze(components, cond_down, method=AnalysisMethod.VLM)
+
+        # 2. Deflect up (-10 deg) -> decreases tail lift, pitching nose up (more positive Cm)
+        cond_up = FlightCondition(velocity=25.0, alpha=0.0, alpha_steps=1, control_deflections={"elevator": -10.0})
+        res_up = engine.analyze(components, cond_up, method=AnalysisMethod.VLM)
+
+        cm_down = res_down.polar_points[0].cm
+        cm_up = res_up.polar_points[0].cm
+        self.assertLess(cm_down, cm_up)
+
+    @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
+    def test_propulsion_points_extraction(self) -> None:
+        """Verify motor and propeller attachment points and thrust lines extraction."""
+        engine = AeroSandboxEngine()
+        components = [
+            {
+                "id": "wing-1",
+                "name": "Wing",
+                "type": "org.setuav.core:lifting-surface",
+                "parameters": {
+                    "geometry": {
+                        "mirror": True,
+                        "profiles": [
+                            {"position": {"x": 0, "y": 0, "z": 0}, "chord": 200, "twist": 0, "airfoil": "naca2412"},
+                            {"position": {"x": 50, "y": 500, "z": 0}, "chord": 150, "twist": 0, "airfoil": "naca2412"},
+                        ]
+                    }
+                },
+            },
+            {
+                "id": "motor-1",
+                "name": "Front Motor",
+                "type": "org.setuav.core:motor",
+                "transform": {
+                    "position": {"x": -150, "y": 0, "z": 10},
+                    "rotation": {"pitch": -2.0, "yaw": 0.0, "roll": 0.0},
+                },
+                "parameters": {
+                    "diameter": 254.0,  # 10 inch in mm
+                    "pitch": 4.5,
+                    "max_thrust": 18.5,
+                    "kv": 920.0,
+                },
+            },
+        ]
+
+        cond = FlightCondition(velocity=20.0, alpha=2.0, alpha_steps=1)
+        result = engine.analyze(components, cond, method=AnalysisMethod.AERO_BUILDUP)
+
+        self.assertEqual(len(result.propulsion_points), 1)
+        prop = result.propulsion_points[0]
+        self.assertEqual(prop.id, "motor-1")
+        self.assertEqual(prop.name, "Front Motor")
+        self.assertAlmostEqual(prop.position[0], -0.150, places=3)
+        self.assertAlmostEqual(prop.position[2], 0.010, places=3)
+        self.assertAlmostEqual(prop.diameter, 0.254, places=3)
+        self.assertEqual(prop.max_thrust, 18.5)
+        self.assertEqual(prop.motor_kv, 920.0)
+        self.assertAlmostEqual(prop.thrust_vector[0], math.cos(math.radians(-2.0)), places=3)
+
 
 if __name__ == "__main__":
     unittest.main()
+

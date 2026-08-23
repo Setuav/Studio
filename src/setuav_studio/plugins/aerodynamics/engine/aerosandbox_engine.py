@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import math
+from copy import deepcopy
 from typing import Any
 
 from .base import (
@@ -16,6 +17,7 @@ from .base import (
     FlightCondition,
     MultiDimensionalSweepResult,
     PolarPoint,
+    PropulsionPoint,
     ReferenceValues,
     SweepVariable,
 )
@@ -50,9 +52,14 @@ class AeroSandboxEngine(AeroEngine):
     def capabilities(self) -> EngineCapabilities:
         return EngineCapabilities(
             methods=frozenset({AnalysisMethod.VLM, AnalysisMethod.AERO_BUILDUP}),
-            analysis_types=frozenset({AnalysisType.SINGLE_POINT, AnalysisType.ALPHA_SWEEP}),
+            analysis_types=frozenset({
+                AnalysisType.SINGLE_POINT,
+                AnalysisType.ALPHA_SWEEP,
+                AnalysisType.BETA_SWEEP,
+                AnalysisType.MULTI_SWEEP,
+            }),
             supports_fuselage=True,
-            supports_control_surfaces=False,
+            supports_control_surfaces=True,
         )
 
     def analyze(
@@ -68,9 +75,16 @@ class AeroSandboxEngine(AeroEngine):
                 "AeroSandbox library is not installed. Please install it using 'pip install aerosandbox'."
             )
 
-        airplane = self._build_airplane(components)
+        airplane = self._build_airplane(components, condition=condition)
         if not airplane.wings:
             raise ValueError("No valid lifting surfaces found in project for aerodynamic analysis.")
+
+        comp_by_id = {
+            str(comp.get("id")): comp
+            for comp in components
+            if isinstance(comp, dict) and comp.get("id")
+        }
+        propulsion_points = self._extract_propulsion_points(components, comp_by_id)
 
         atmosphere = asb.Atmosphere(altitude=condition.altitude)
 
@@ -304,11 +318,20 @@ class AeroSandboxEngine(AeroEngine):
             oswald_efficiency=oswald,
             sweep_result=sweep_result,
             condition=condition,
-            raw={"airplane": airplane, "velocity": condition.velocity},
+            raw={
+                "airplane": airplane,
+                "velocity": condition.velocity,
+                "propulsion_points": [p.to_dict() for p in propulsion_points],
+            },
+            propulsion_points=propulsion_points,
         )
 
-    def _build_airplane(self, components: list[dict[str, Any]]) -> asb.Airplane:
-        """Convert Setuav Studio components list to AeroSandbox Airplane object with attachment hierarchy."""
+    def _build_airplane(
+        self,
+        components: list[dict[str, Any]],
+        condition: FlightCondition | None = None,
+    ) -> asb.Airplane:
+        """Convert Setuav Studio components list to AeroSandbox Airplane object with attachment hierarchy and control surfaces."""
         wings: list[asb.Wing] = []
         fuselages: list[asb.Fuselage] = []
 
@@ -323,9 +346,11 @@ class AeroSandboxEngine(AeroEngine):
                 continue
             comp_type = comp.get("type", "")
             if comp_type == "org.setuav.core:lifting-surface":
-                wing = self._convert_lifting_surface(comp, comp_by_id=comp_by_id)
-                if wing is not None:
-                    wings.append(wing)
+                wing_res = self._convert_lifting_surface(comp, comp_by_id=comp_by_id, condition=condition)
+                if isinstance(wing_res, list):
+                    wings.extend(wing_res)
+                elif wing_res is not None:
+                    wings.append(wing_res)
             elif comp_type == "org.setuav.core:fuselage":
                 fuselage = self._convert_fuselage(comp, comp_by_id=comp_by_id)
                 if fuselage is not None:
@@ -356,6 +381,64 @@ class AeroSandboxEngine(AeroEngine):
             b_ref=main_span,
             xyz_ref=xyz_ref,
         )
+
+    def _extract_propulsion_points(
+        self,
+        components: list[dict[str, Any]],
+        comp_by_id: dict[str, dict[str, Any]],
+    ) -> list[PropulsionPoint]:
+        """Extract propulsion installation positions, thrust vectors, and geometry for aero analysis."""
+        prop_types = {
+            "org.setuav.core:motor",
+            "org.setuav.core:propeller",
+            "org.setuav.core:rotor",
+            "org.setuav.core:electric-propulsion-system",
+        }
+        prop_points: list[PropulsionPoint] = []
+        for comp in components:
+            if not isinstance(comp, dict):
+                continue
+            ctype = str(comp.get("type") or "")
+            if ctype not in prop_types:
+                continue
+
+            cid = str(comp.get("id") or "")
+            cname = str(comp.get("name") or cid)
+            pos_m, rot_m = self._resolve_world_transform(comp, comp_by_id)
+
+            # Default forward thrust direction is along +X body axis
+            thrust_vec = rot_m @ np.array([1.0, 0.0, 0.0])
+            norm = float(np.linalg.norm(thrust_vec))
+            t_dir = tuple((thrust_vec / norm).tolist()) if norm > 1e-6 else (1.0, 0.0, 0.0)
+
+            params = comp.get("parameters") if isinstance(comp.get("parameters"), dict) else {}
+
+            # Extract diameter in meters
+            diameter_val = float(params.get("diameter") or params.get("propeller_diameter") or params.get("rotor_diameter") or 0.0)
+            if diameter_val > 5.0:  # Value given in mm
+                diameter_val /= 1000.0
+
+            pitch_val = float(params.get("pitch") or params.get("propeller_pitch") or 0.0)
+            rot_dir = str(params.get("rotation_direction") or params.get("direction") or "CW").upper()
+            max_thrust = float(params.get("max_thrust") or params.get("thrust") or 0.0)
+            kv = float(params.get("kv") or params.get("motor_kv") or 0.0)
+
+            prop_points.append(
+                PropulsionPoint(
+                    id=cid,
+                    name=cname,
+                    component_type=ctype,
+                    position=(float(pos_m[0]), float(pos_m[1]), float(pos_m[2])),
+                    thrust_vector=(float(t_dir[0]), float(t_dir[1]), float(t_dir[2])),
+                    diameter=diameter_val,
+                    pitch=pitch_val,
+                    rotation_direction=rot_dir,
+                    max_thrust=max_thrust,
+                    motor_kv=kv,
+                    properties=dict(params),
+                )
+            )
+        return prop_points
 
     def _resolve_world_transform(
         self,
@@ -390,7 +473,7 @@ class AeroSandboxEngine(AeroEngine):
         yaw_deg = float(rot.get("yaw") if "yaw" in rot else rot.get("z", 0.0))
         local_rot = self._rotation_matrix_xyz(roll_deg, pitch_deg, yaw_deg)
 
-        parent_id = comp.get("parent") or comp.get("attach_to")
+        parent_id = comp.get("parent") or comp.get("attach_to") or (transform.get("parent") if isinstance(transform, dict) else None)
         if parent_id and str(parent_id) in comp_by_id:
             parent_comp = comp_by_id[str(parent_id)]
             parent_pos, parent_rot = self._resolve_world_transform(parent_comp, comp_by_id, visited)
@@ -404,12 +487,12 @@ class AeroSandboxEngine(AeroEngine):
         self,
         comp: dict[str, Any],
         comp_by_id: dict[str, dict[str, Any]] | None = None,
-    ) -> asb.Wing | None:
-        """Convert a single lifting surface dictionary to AeroSandbox Wing with full 3D transforms and junction handling."""
-        params = comp.get("parameters")
-        params = params if isinstance(params, dict) else {}
-        geometry = params.get("geometry")
-        geometry = geometry if isinstance(geometry, dict) else {}
+        condition: FlightCondition | None = None,
+    ) -> list[asb.Wing] | asb.Wing | None:
+        """Convert a single lifting surface and its control surfaces into AeroSandbox Wing(s)."""
+        comp_id = str(comp.get("id") or "")
+        params = comp.get("parameters") if isinstance(comp.get("parameters"), dict) else {}
+        geometry = params.get("geometry") if isinstance(params.get("geometry"), dict) else {}
         profiles = geometry.get("profiles")
 
         if not isinstance(profiles, list) or len(profiles) < 2:
@@ -419,12 +502,9 @@ class AeroSandboxEngine(AeroEngine):
         if comp_by_id:
             attach_pos, attach_rot = self._resolve_world_transform(comp, comp_by_id)
         else:
-            comp_transform = comp.get("transform")
-            comp_transform = comp_transform if isinstance(comp_transform, dict) else {}
-            pos = comp_transform.get("position")
-            pos = pos if isinstance(pos, dict) else {}
-            rot = comp_transform.get("rotation")
-            rot = rot if isinstance(rot, dict) else {}
+            comp_transform = comp.get("transform") if isinstance(comp.get("transform"), dict) else {}
+            pos = comp_transform.get("position") if isinstance(comp_transform.get("position"), dict) else {}
+            rot = comp_transform.get("rotation") if isinstance(comp_transform.get("rotation"), dict) else {}
             attach_pos = np.array([
                 float(pos.get("x", 0.0)) / 1000.0,
                 float(pos.get("y", 0.0)) / 1000.0,
@@ -437,24 +517,21 @@ class AeroSandboxEngine(AeroEngine):
 
         mirror = bool(geometry.get("mirror", False) or comp.get("mirror", False))
         if mirror:
-            # Symmetric wings are mirrored across the centerline plane (Y=0)
             attach_pos[1] = 0.0
 
-        xsecs: list[asb.WingXSec] = []
+        # Collect raw station data
+        station_raw: list[dict[str, Any]] = []
         for profile in profiles:
             if not isinstance(profile, dict):
                 continue
-            prof_pos = profile.get("position")
-            prof_pos = prof_pos if isinstance(prof_pos, dict) else {}
-            prof_rot = profile.get("rotation")
-            prof_rot = prof_rot if isinstance(prof_rot, dict) else {}
+            prof_pos = profile.get("position") if isinstance(profile.get("position"), dict) else {}
+            prof_rot = profile.get("rotation") if isinstance(profile.get("rotation"), dict) else {}
 
             raw_xyz = np.array([
                 float(prof_pos.get("x", 0.0)) / 1000.0,
                 float(prof_pos.get("y", 0.0)) / 1000.0,
                 float(prof_pos.get("z", 0.0)) / 1000.0,
             ])
-
             xyz_le = attach_rot @ raw_xyz + attach_pos
             chord = float(profile.get("chord", 100.0)) / 1000.0
 
@@ -467,44 +544,208 @@ class AeroSandboxEngine(AeroEngine):
                     else (prof_rot.get("y") if "y" in prof_rot else prof_rot.get("x", 0.0))
                 )
             )
-
             pitch_angle_deg = np.degrees(np.arcsin(-np.clip(attach_rot[2, 0], -1.0, 1.0)))
             total_twist = prof_pitch + pitch_angle_deg
 
             airfoil_spec = profile.get("airfoil")
             airfoil = self._resolve_airfoil(airfoil_spec, shaping=geometry.get("airfoil_shaping"))
 
-            xsecs.append(
+            station_raw.append({
+                "local_y": float(prof_pos.get("y", 0.0)),
+                "xyz_le": xyz_le,
+                "chord": max(chord, 1e-4),
+                "twist": total_twist,
+                "airfoil": airfoil,
+            })
+
+        if len(station_raw) < 2:
+            return None
+
+        # Compute span coordinates eta in [0, 1]
+        y_vals = [s["local_y"] for s in station_raw]
+        y_min, y_max = min(y_vals), max(y_vals)
+        span_length = max(y_max - y_min, 1e-4)
+
+        for s in station_raw:
+            s["eta"] = (s["local_y"] - y_min) / span_length
+
+        # Collect control surfaces attached to this lifting surface
+        cs_list: list[dict[str, Any]] = []
+        if isinstance(geometry.get("control_surfaces"), list):
+            cs_list.extend(cs for cs in geometry["control_surfaces"] if isinstance(cs, dict))
+
+        if comp_by_id:
+            for other in comp_by_id.values():
+                if not isinstance(other, dict):
+                    continue
+                if other.get("type") == "org.setuav.core:control-surface":
+                    parent_id = other.get("parent") or other.get("attach_to") or (
+                        other.get("transform", {}).get("parent") if isinstance(other.get("transform"), dict) else None
+                    )
+                    if str(parent_id) == comp_id:
+                        other_geom = other.get("parameters", {}).get("geometry", {}) if isinstance(other.get("parameters"), dict) else {}
+                        cs_copy = deepcopy(other_geom)
+                        cs_copy.setdefault("tag", other.get("name") or other.get("id"))
+                        cs_copy.setdefault("id", other.get("id"))
+                        cs_list.append(cs_copy)
+
+        # Parse control surface definitions
+        parsed_cs: list[dict[str, Any]] = []
+        for cs in cs_list:
+            cs_type = str(cs.get("type") or "flap").lower()
+            tag = str(cs.get("tag") or cs.get("name") or cs.get("id") or cs_type)
+            cs_id = str(cs.get("id") or tag)
+
+            # Deflection angle resolution (checking condition override first)
+            deflection = float(cs.get("deflection", 0.0))
+            if condition and condition.control_deflections:
+                for k, v in condition.control_deflections.items():
+                    k_clean = k.strip().lower()
+                    if k_clean in (tag.lower(), cs_type, cs_id.lower()):
+                        deflection = float(v)
+                        break
+
+            # Span range [eta_start, eta_end]
+            if "eta_start" in cs and "eta_end" in cs:
+                eta_s = float(np.clip(float(cs["eta_start"]), 0.0, 1.0))
+                eta_e = float(np.clip(float(cs["eta_end"]), 0.0, 1.0))
+            elif "span_start" in cs and "span_end" in cs:
+                eta_s = float(np.clip((float(cs["span_start"]) - y_min) / span_length, 0.0, 1.0))
+                eta_e = float(np.clip((float(cs["span_end"]) - y_min) / span_length, 0.0, 1.0))
+            else:
+                eta_s, eta_e = 0.0, 1.0
+
+            if eta_s > eta_e:
+                eta_s, eta_e = eta_e, eta_s
+
+            # Chord fraction
+            chord_frac = float(cs.get("chord_fraction", 0.25))
+            if cs.get("chord_mode") == "dimension" and "chord" in cs:
+                chord_frac = float(cs["chord"]) / (span_length * 0.25)
+            chord_frac = float(np.clip(chord_frac, 0.05, 0.95))
+
+            sym_mode = str(cs.get("symmetry_mode") or "auto").lower()
+            if sym_mode == "auto":
+                sym_mode = "antisymmetric" if cs_type in ("aileron", "elevon") else "symmetric"
+
+            parsed_cs.append({
+                "tag": tag,
+                "type": cs_type,
+                "eta_start": eta_s,
+                "eta_end": eta_e,
+                "chord_fraction": chord_frac,
+                "deflection": deflection,
+                "symmetry_mode": sym_mode,
+            })
+
+        # Discretize spanwise breakpoints
+        unique_etas = sorted({round(s["eta"], 4) for s in station_raw})
+        for cs in parsed_cs:
+            unique_etas.append(round(cs["eta_start"], 4))
+            unique_etas.append(round(cs["eta_end"], 4))
+        unique_etas = sorted(list(set(unique_etas)))
+
+        # Interpolate station properties at each eta breakpoint
+        def interp_station(eta_val: float) -> dict[str, Any]:
+            for idx in range(len(station_raw) - 1):
+                s0 = station_raw[idx]
+                s1 = station_raw[idx + 1]
+                if s0["eta"] <= eta_val <= s1["eta"] or math.isclose(eta_val, s0["eta"], abs_tol=1e-4) or math.isclose(eta_val, s1["eta"], abs_tol=1e-4):
+                    d_eta = max(s1["eta"] - s0["eta"], 1e-6)
+                    t = float(np.clip((eta_val - s0["eta"]) / d_eta, 0.0, 1.0))
+                    xyz = (1.0 - t) * s0["xyz_le"] + t * s1["xyz_le"]
+                    chord_v = (1.0 - t) * s0["chord"] + t * s1["chord"]
+                    twist_v = (1.0 - t) * s0["twist"] + t * s1["twist"]
+                    af = s0["airfoil"] if t < 0.5 else s1["airfoil"]
+                    return {"xyz_le": xyz, "chord": chord_v, "twist": twist_v, "airfoil": af, "eta": eta_val}
+            last = station_raw[-1]
+            return {"xyz_le": last["xyz_le"], "chord": last["chord"], "twist": last["twist"], "airfoil": last["airfoil"], "eta": eta_val}
+
+        evaluated_stations = [interp_station(e) for e in unique_etas]
+
+        # Build Right and Left Wing cross sections with control deflections
+        xsecs_right: list[asb.WingXSec] = []
+        xsecs_left: list[asb.WingXSec] = []
+
+        has_antisymmetric = False
+
+        for st in evaluated_stations:
+            e = st["eta"]
+            base_af = st["airfoil"]
+            af_r = base_af
+            af_l = base_af
+            cs_objs_r: list[asb.ControlSurface] = []
+            cs_objs_l: list[asb.ControlSurface] = []
+
+            for cs in parsed_cs:
+                if cs["eta_start"] <= e <= cs["eta_end"] or math.isclose(e, cs["eta_start"], abs_tol=1e-4) or math.isclose(e, cs["eta_end"], abs_tol=1e-4):
+                    delta_r = cs["deflection"]
+                    delta_l = -cs["deflection"] if cs["symmetry_mode"] == "antisymmetric" else cs["deflection"]
+                    cf = cs["chord_fraction"]
+                    hinge_pt = 1.0 - cf
+
+                    if abs(delta_r) > 1e-4:
+                        af_r = base_af.add_control_surface(deflection=delta_r, hinge_point_x=hinge_pt)
+                    if abs(delta_l) > 1e-4:
+                        af_l = base_af.add_control_surface(deflection=delta_l, hinge_point_x=hinge_pt)
+
+                    if cs["symmetry_mode"] == "antisymmetric" and abs(cs["deflection"]) > 1e-4:
+                        has_antisymmetric = True
+
+                    cs_objs_r.append(asb.ControlSurface(name=cs["tag"], deflection=delta_r, hinge_point=hinge_pt, symmetric=(cs["symmetry_mode"] == "symmetric")))
+                    cs_objs_l.append(asb.ControlSurface(name=cs["tag"], deflection=delta_l, hinge_point=hinge_pt, symmetric=(cs["symmetry_mode"] == "symmetric")))
+
+            xyz = st["xyz_le"]
+            xsecs_right.append(
                 asb.WingXSec(
-                    xyz_le=[float(xyz_le[0]), float(xyz_le[1]), float(xyz_le[2])],
-                    chord=max(chord, 1e-4),
-                    twist=total_twist,
-                    airfoil=airfoil,
+                    xyz_le=[float(xyz[0]), float(xyz[1]), float(xyz[2])],
+                    chord=float(st["chord"]),
+                    twist=float(st["twist"]),
+                    airfoil=af_r,
+                    control_surfaces=cs_objs_r if cs_objs_r else None,
+                )
+            )
+            # Left side mirrored in Y
+            xsecs_left.append(
+                asb.WingXSec(
+                    xyz_le=[float(xyz[0]), -float(xyz[1]), float(xyz[2])],
+                    chord=float(st["chord"]),
+                    twist=float(st["twist"]),
+                    airfoil=af_l,
+                    control_surfaces=cs_objs_l if cs_objs_l else None,
                 )
             )
 
-        if len(xsecs) < 2:
-            return None
-
-        # Wing-Fuselage Root Junction Alignment:
-        # If symmetric and first xsec has a non-zero Y offset (starting at fuselage shoulder),
-        # ensure continuous aerodynamic spanwise load distribution by adding a root center xsec at Y=0.
-        if mirror and abs(xsecs[0].xyz_le[1]) > 1e-4:
-            root_ext = asb.WingXSec(
-                xyz_le=[float(xsecs[0].xyz_le[0]), 0.0, float(xsecs[0].xyz_le[2])],
-                chord=float(xsecs[0].chord),
-                twist=float(xsecs[0].twist),
-                airfoil=xsecs[0].airfoil,
-            )
-            xsecs.insert(0, root_ext)
-
         name = str(comp.get("name") or comp.get("id") or "Wing")
 
-        return asb.Wing(
-            name=name,
-            xsecs=xsecs,
-            symmetric=mirror,
-        )
+        # Symmetric Root Center Junction Alignment:
+        if mirror and abs(xsecs_right[0].xyz_le[1]) > 1e-4:
+            r_root = asb.WingXSec(
+                xyz_le=[float(xsecs_right[0].xyz_le[0]), 0.0, float(xsecs_right[0].xyz_le[2])],
+                chord=float(xsecs_right[0].chord),
+                twist=float(xsecs_right[0].twist),
+                airfoil=xsecs_right[0].airfoil,
+            )
+            xsecs_right.insert(0, r_root)
+            l_root = asb.WingXSec(
+                xyz_le=[float(xsecs_left[0].xyz_le[0]), 0.0, float(xsecs_left[0].xyz_le[2])],
+                chord=float(xsecs_left[0].chord),
+                twist=float(xsecs_left[0].twist),
+                airfoil=xsecs_left[0].airfoil,
+            )
+            xsecs_left.insert(0, l_root)
+
+        if mirror:
+            if has_antisymmetric:
+                # Left wing xsecs must be ordered from tip (-Y) to root (0) along increasing +Y
+                left_ordered = list(reversed(xsecs_left))
+                return [
+                    asb.Wing(name=f"{name}_Right", xsecs=xsecs_right, symmetric=False),
+                    asb.Wing(name=f"{name}_Left", xsecs=left_ordered, symmetric=False),
+                ]
+            return asb.Wing(name=name, xsecs=xsecs_right, symmetric=True)
+
+        return asb.Wing(name=name, xsecs=xsecs_right, symmetric=False)
 
     @staticmethod
     def _rotation_matrix_xyz(rx_deg: float, ry_deg: float, rz_deg: float) -> np.ndarray:
