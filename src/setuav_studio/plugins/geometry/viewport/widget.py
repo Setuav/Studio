@@ -442,6 +442,16 @@ class OpenGLViewer(QOpenGLWidget):
         self._elevation = max(-89.0, min(89.0, elevation))
         self.update()
 
+    def is_orthographic(self) -> bool:
+        return self._orthographic
+
+    def set_orthographic(self, enabled: bool) -> None:
+        enabled = bool(enabled)
+        if self._orthographic == enabled:
+            return
+        self._orthographic = enabled
+        self.update()
+
     def fit_view(self) -> None:
         points = list(self._geometry_data.points())
         if not points:

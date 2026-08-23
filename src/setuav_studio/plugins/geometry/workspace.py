@@ -130,6 +130,16 @@ class ViewerWorkspace(QWidget):
         self.grid_button.toggled.connect(self.viewer.set_show_grid)
         hud_layout.addWidget(self.grid_button)
 
+        self.projection_button = QToolButton(self.hud)
+        self.projection_button.setCheckable(True)
+        self.projection_button.setChecked(self.viewer.is_orthographic())
+        self.projection_button.setIcon(get_icon("fa6s.ruler-combined"))
+        self.projection_button.setFixedSize(24, 24)
+        self.projection_button.setAutoRaise(True)
+        self.projection_button.toggled.connect(self._on_projection_toggled)
+        hud_layout.addWidget(self.projection_button)
+        self._update_projection_tooltip()
+
         sep3 = QFrame(self.hud)
         sep3.setObjectName("hudSep")
         sep3.setFrameShape(QFrame.Shape.VLine)
@@ -226,6 +236,8 @@ class ViewerWorkspace(QWidget):
         self.mono_button.setIcon(get_icon("view_monochrome"))
         self.trans_button.setIcon(get_icon("view_transparent"))
         self.grid_button.setIcon(get_icon("view_grid"))
+        self.projection_button.setIcon(get_icon("fa6s.ruler-combined"))
+        self._update_projection_tooltip()
         self.palette_button.setIcon(get_icon("view_palette"))
         for btn, icon_name in self._cam_buttons:
             btn.setIcon(get_icon(icon_name))
@@ -267,6 +279,17 @@ class ViewerWorkspace(QWidget):
                 self.solid_button.setChecked(True)
         self.viewer.set_show_solid(self.solid_button.isChecked())
         self.viewer.set_show_wireframe(self.wire_button.isChecked())
+
+    def _on_projection_toggled(self, checked: bool) -> None:
+        self.viewer.set_orthographic(checked)
+        self._update_projection_tooltip()
+
+    def _update_projection_tooltip(self) -> None:
+        mode = "Orthographic" if self.projection_button.isChecked() else "Perspective"
+        next_mode = "Perspective" if self.projection_button.isChecked() else "Orthographic"
+        self.projection_button.setToolTip(
+            f"Projection: {mode} (click for {next_mode})"
+        )
 
     def _on_project_changed(self, project: ProjectDocument) -> None:
         self._refresh(project, fit=True)

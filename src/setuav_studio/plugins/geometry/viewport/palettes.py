@@ -36,7 +36,9 @@ _CS_COLORS: dict[str, tuple[float, float, float]] = {
     "studio": (0.92, 0.28, 0.25),    # safety crimson / coral red
 }
 
-DEFAULT_PALETTE = "titanium"
+# Carbon is the neutral technical default for the 3D viewer.  Users can still
+# switch to Titanium or Studio from the viewer HUD palette menu.
+DEFAULT_PALETTE = "carbon"
 _active_palette = DEFAULT_PALETTE
 
 
