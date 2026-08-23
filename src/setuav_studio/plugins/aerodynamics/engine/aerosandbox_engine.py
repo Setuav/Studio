@@ -7,13 +7,17 @@ from typing import Any
 
 from .base import (
     AeroEngine,
+    AeroForcesMoments,
     AeroResult,
+    AeroState,
     AnalysisMethod,
     AnalysisType,
     EngineCapabilities,
     FlightCondition,
+    MultiDimensionalSweepResult,
     PolarPoint,
     ReferenceValues,
+    SweepVariable,
 )
 from setuav_studio.plugins.geometry.engine.airfoil import (
     apply_airfoil_shaping,
@@ -97,6 +101,14 @@ class AeroSandboxEngine(AeroEngine):
         ref_area = area if area > 0 else 1.0
         total_steps = len(alphas)
 
+        rho = float(atmosphere.density())
+        mu = float(atmosphere.dynamic_viscosity())
+        speed_of_sound = float(atmosphere.speed_of_sound())
+        mach = condition.velocity / speed_of_sound if speed_of_sound > 0 else 0.0
+        q_inf = 0.5 * rho * (condition.velocity ** 2)
+        qs = q_inf * ref_area
+        reynolds = (rho * condition.velocity * mean_chord / mu) if mu > 0 else 0.0
+
         for idx, alpha in enumerate(alphas, start=1):
             if progress_callback:
                 progress_callback(idx, total_steps, f"α={alpha:.1f}°")
@@ -106,6 +118,9 @@ class AeroSandboxEngine(AeroEngine):
                 velocity=condition.velocity,
                 alpha=float(alpha),
                 beta=float(condition.beta),
+                p=float(condition.p),
+                q=float(condition.q),
+                r=float(condition.r),
             )
 
             if method == AnalysisMethod.VLM:
@@ -128,18 +143,95 @@ class AeroSandboxEngine(AeroEngine):
 
             cl = float(np.ravel(res["CL"])[0]) if "CL" in res else 0.0
             cd = float(np.ravel(res["CD"])[0]) if "CD" in res else 0.0
+            cy_wind = float(np.ravel(res.get("CY", 0.0))[0]) if "CY" in res else 0.0
+            cl_roll = float(np.ravel(res.get("Cl", 0.0))[0]) if "Cl" in res else 0.0
             cm = float(np.ravel(res.get("Cm", 0.0))[0]) if "Cm" in res else 0.0
+            cn = float(np.ravel(res.get("Cn", 0.0))[0]) if "Cn" in res else 0.0
+
+            # Dimensional wind forces
+            lift = float(np.ravel(res["L"])[0]) if "L" in res else (qs * cl)
+            drag = float(np.ravel(res["D"])[0]) if "D" in res else (qs * cd)
+            sideforce = float(np.ravel(res["Y"])[0]) if "Y" in res else (qs * cy_wind)
+
+            # Dimensional body forces & moments
+            if "F_b" in res and res["F_b"] is not None:
+                fb = res["F_b"]
+                fx_b = float(np.ravel(fb[0])[0])
+                fy_b = float(np.ravel(fb[1])[0])
+                fz_b = float(np.ravel(fb[2])[0])
+            else:
+                a_rad = math.radians(float(alpha))
+                b_rad = math.radians(float(condition.beta))
+                ca, sa = math.cos(a_rad), math.sin(a_rad)
+                cb, sb = math.cos(b_rad), math.sin(b_rad)
+                fx_b = -drag * ca * cb + lift * sa - sideforce * ca * sb
+                fy_b = sideforce * cb - drag * sb
+                fz_b = -lift * ca - drag * sa * cb - sideforce * sa * sb
+
+            if "M_b" in res and res["M_b"] is not None:
+                mb = res["M_b"]
+                mx_b = float(np.ravel(mb[0])[0])
+                my_b = float(np.ravel(mb[1])[0])
+                mz_b = float(np.ravel(mb[2])[0])
+            else:
+                mx_b = qs * span * cl_roll
+                my_b = qs * mean_chord * cm
+                mz_b = qs * span * cn
+
+            if "M_w" in res and res["M_w"] is not None:
+                mw = res["M_w"]
+                mx_w = float(np.ravel(mw[0])[0])
+                my_w = float(np.ravel(mw[1])[0])
+                mz_w = float(np.ravel(mw[2])[0])
+            else:
+                mx_w, my_w, mz_w = mx_b, my_b, mz_b
+
+            # Body force coefficients
+            cx = (fx_b / qs) if qs > 0 else 0.0
+            cy = (fy_b / qs) if qs > 0 else cy_wind
+            cz = (fz_b / qs) if qs > 0 else 0.0
 
             cd_ind = 0.0
             cd_pro = 0.0
-            qs = 0.5 * atmosphere.density() * (condition.velocity ** 2) * ref_area
+            cd_wave = 0.0
             if qs > 0:
                 if "D_induced" in res:
                     cd_ind = float(np.ravel(res["D_induced"])[0]) / qs
                 if "D_profile" in res:
                     cd_pro = float(np.ravel(res["D_profile"])[0]) / qs
+                if "D_wave" in res:
+                    cd_wave = float(np.ravel(res["D_wave"])[0]) / qs
 
             ld = cl / cd if abs(cd) > 1e-7 else 0.0
+
+            forces_moments = AeroForcesMoments(
+                fx_b=fx_b,
+                fy_b=fy_b,
+                fz_b=fz_b,
+                lift=lift,
+                drag=drag,
+                sideforce=sideforce,
+                mx_b=mx_b,
+                my_b=my_b,
+                mz_b=mz_b,
+                mx_w=mx_w,
+                my_w=my_w,
+                mz_w=mz_w,
+            )
+
+            state = AeroState(
+                alpha=float(alpha),
+                beta=float(condition.beta),
+                p=float(condition.p),
+                q=float(condition.q),
+                r=float(condition.r),
+                velocity=float(condition.velocity),
+                altitude=float(condition.altitude),
+                mach=mach,
+                reynolds=reynolds,
+                dynamic_pressure=q_inf,
+                control_deflections=dict(condition.control_deflections),
+            )
 
             polar_points.append(
                 PolarPoint(
@@ -150,6 +242,25 @@ class AeroSandboxEngine(AeroEngine):
                     cd_induced=cd_ind,
                     cd_profile=cd_pro,
                     cl_over_cd=ld,
+                    cx=cx,
+                    cy=cy,
+                    cz=cz,
+                    cl_roll=cl_roll,
+                    cn=cn,
+                    cd_wave=cd_wave,
+                    beta=float(condition.beta),
+                    p=float(condition.p),
+                    q=float(condition.q),
+                    r=float(condition.r),
+                    forces_moments=forces_moments,
+                    state=state,
+                    velocity=float(condition.velocity),
+                    altitude=float(condition.altitude),
+                    mach=mach,
+                    reynolds=reynolds,
+                    dynamic_pressure=q_inf,
+                    control_deflections=dict(condition.control_deflections),
+                    converged=True,
                 )
             )
 
@@ -167,10 +278,15 @@ class AeroSandboxEngine(AeroEngine):
         ld_max = max(ld_values) if ld_values else 0.0
         ld_max_alpha = polar_points[ld_values.index(ld_max)].alpha if ld_values else 0.0
 
-        rho = float(atmosphere.density())
-        mu = float(atmosphere.dynamic_viscosity())
-        reynolds = (rho * condition.velocity * mean_chord / mu) if mu > 0 else 0.0
         oswald = float(sum(oswald_list) / len(oswald_list)) if oswald_list else None
+
+        sweep_result: MultiDimensionalSweepResult | None = None
+        if len(alphas) > 1:
+            sweep_result = MultiDimensionalSweepResult(
+                variables=[SweepVariable(name="alpha", values=alphas, unit="deg")],
+                points=list(polar_points),
+                grid_shape=(len(alphas),),
+            )
 
         return AeroResult(
             method=method,
@@ -183,7 +299,11 @@ class AeroSandboxEngine(AeroEngine):
             ld_max_alpha=ld_max_alpha,
             reference=ref,
             reynolds=reynolds,
+            mach=mach,
+            dynamic_pressure=q_inf,
             oswald_efficiency=oswald,
+            sweep_result=sweep_result,
+            condition=condition,
             raw={"airplane": airplane, "velocity": condition.velocity},
         )
 

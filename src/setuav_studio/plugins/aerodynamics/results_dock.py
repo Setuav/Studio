@@ -113,6 +113,11 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
             "CD_prof",
             "Cm",
             "L/D",
+            "CX",
+            "CY",
+            "CZ",
+            "Cl",
+            "Cn",
         ]
         table = ContentFitTableWidget(0, len(headers))
         table.setHorizontalHeaderLabels(headers)
@@ -180,6 +185,11 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
             self.detail_table.setItem(row, 4, QTableWidgetItem(f"{pt.cd_profile:.5f}"))
             self.detail_table.setItem(row, 5, QTableWidgetItem(f"{pt.cm:+.4f}"))
             self.detail_table.setItem(row, 6, QTableWidgetItem(f"{pt.cl_over_cd:.2f}"))
+            self.detail_table.setItem(row, 7, QTableWidgetItem(f"{pt.cx:+.4f}"))
+            self.detail_table.setItem(row, 8, QTableWidgetItem(f"{pt.cy:+.4f}"))
+            self.detail_table.setItem(row, 9, QTableWidgetItem(f"{pt.cz:+.4f}"))
+            self.detail_table.setItem(row, 10, QTableWidgetItem(f"{pt.cl_roll:+.5f}"))
+            self.detail_table.setItem(row, 11, QTableWidgetItem(f"{pt.cn:+.5f}"))
 
         self.detail_table.fit_columns_to_viewport()
         self.btn_export_csv.setEnabled(len(points) > 0)
@@ -215,24 +225,57 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
                 else:
                     headers = [
                         "AoA_deg",
+                        "Beta_deg",
                         "CL",
                         "CD",
                         "CD_ind",
                         "CD_prof",
+                        "CD_wave",
                         "Cm",
                         "L_over_D",
+                        "CX",
+                        "CY",
+                        "CZ",
+                        "Cl_roll",
+                        "Cn_yaw",
+                        "Lift_N",
+                        "Drag_N",
+                        "Sideforce_N",
+                        "Fx_b_N",
+                        "Fy_b_N",
+                        "Fz_b_N",
+                        "Mx_b_Nm",
+                        "My_b_Nm",
+                        "Mz_b_Nm",
                     ]
                     writer.writerow(headers)
 
                     for pt in self._current_result.polar_points:
+                        fm = pt.forces_moments
                         writer.writerow([
                             f"{pt.alpha:.4f}",
+                            f"{pt.beta:.4f}",
                             f"{pt.cl:.6f}",
                             f"{pt.cd:.6f}",
                             f"{pt.cd_induced:.6f}",
                             f"{pt.cd_profile:.6f}",
+                            f"{pt.cd_wave:.6f}",
                             f"{pt.cm:.6f}",
                             f"{pt.cl_over_cd:.4f}",
+                            f"{pt.cx:.6f}",
+                            f"{pt.cy:.6f}",
+                            f"{pt.cz:.6f}",
+                            f"{pt.cl_roll:.6f}",
+                            f"{pt.cn:.6f}",
+                            f"{pt.lift:.4f}",
+                            f"{pt.drag:.4f}",
+                            f"{pt.sideforce:.4f}",
+                            f"{fm.fx_b:.4f}" if fm else "",
+                            f"{fm.fy_b:.4f}" if fm else "",
+                            f"{fm.fz_b:.4f}" if fm else "",
+                            f"{fm.mx_b:.4f}" if fm else "",
+                            f"{fm.my_b:.4f}" if fm else "",
+                            f"{fm.mz_b:.4f}" if fm else "",
                         ])
 
             self._api.show_status(f"Exported {default_name} to {path}", "success")
