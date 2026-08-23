@@ -709,11 +709,16 @@ class MainWindow(QMainWindow):
         self._update_recent_menu()
 
     def _open_settings(self) -> None:
-        dialog = SettingsDialog(StudioSettings.load(), self)
+        dialog = SettingsDialog(
+            StudioSettings.load(),
+            self,
+            pages=self._api.settings_pages(),
+        )
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         values = dialog.values()
         values.save()
+        dialog.apply_plugin_pages()
         self._switch_theme(values.theme_mode)
         self._trim_recent_projects(values.recent_project_limit)
         self._update_recent_menu()

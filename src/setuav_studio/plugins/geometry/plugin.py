@@ -1,8 +1,10 @@
 from setuav_studio.plugin_system import (
     PanelContribution,
+    SettingsPageContribution,
     StudioAPI,
     WorkspaceContribution,
 )
+from PySide6.QtWidgets import QWidget
 from .editors.control_surface import ControlSurfaceEditor
 from .editors.fuselage import FuselageEditor
 from .editors.lifting_surface import LiftingSurfaceEditor
@@ -10,6 +12,12 @@ from .engine.fuselage_geometry import build_fuselage_geometry
 from .engine.lifting_surface_geometry import build_lifting_surface_geometry
 from .creation import GeometryCreationController
 from .workspace import ViewerWorkspace
+from .settings import (
+    apply_editor_settings,
+    apply_viewer_settings,
+    create_editor_settings_page,
+    create_viewer_settings_page,
+)
 
 
 class GeometryPlugin:
@@ -36,6 +44,26 @@ class GeometryPlugin:
                 factory=lambda: ViewerWorkspace(api),
                 workspace_id="studio.workspace.design",
                 icon="viewer_3d",
+            )
+        )
+        api.add_settings_page(
+            SettingsPageContribution(
+                id="geometry.settings.viewer",
+                title="3D Viewer",
+                factory=create_viewer_settings_page,
+                apply=lambda page: self._apply_viewer_settings(api, page),
+                group="Geometry Engine",
+                order=10,
+            )
+        )
+        api.add_settings_page(
+            SettingsPageContribution(
+                id="geometry.settings.editor",
+                title="Geometry Editor",
+                factory=create_editor_settings_page,
+                apply=apply_editor_settings,
+                group="Geometry Engine",
+                order=20,
             )
         )
 
@@ -92,3 +120,10 @@ class GeometryPlugin:
         api.remove_component_editor("org.setuav.core:control-surface")
         api.remove_panel("studio.viewer.opengl")
         api.remove_workspace("studio.workspace.design")
+        api.remove_settings_page("geometry.settings.viewer")
+        api.remove_settings_page("geometry.settings.editor")
+
+    @staticmethod
+    def _apply_viewer_settings(api: StudioAPI, page: QWidget) -> None:
+        apply_viewer_settings(page)
+        api.publish("geometry.viewer.settings.changed")

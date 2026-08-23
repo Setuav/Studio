@@ -46,6 +46,7 @@ from PySide6.QtWidgets import (
 from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.buttons import set_button_role, set_native_button
 from setuav_studio.plugin_system import StudioAPI
+from ..settings import _EDITOR_AUTO_FIT_KEY, _EDITOR_GRID_KEY, _as_bool, editor_setting
 from setuav_studio.ui.numeric_spinbox import (
     NoWheelComboBox,
     set_table_spinbox,
@@ -889,6 +890,10 @@ class FuselageSectionDialog(QDialog):
         self._segment_index = segment_index
         self._section_index = section_index
         self._loading = False
+        self._auto_fit_sections = _as_bool(
+            editor_setting(_EDITOR_AUTO_FIT_KEY, True),
+            True,
+        )
 
         # Dedicated QUndoStack for interactive 2D editing
         self.undo_stack = QUndoStack(self)
@@ -1051,7 +1056,9 @@ class FuselageSectionDialog(QDialog):
         disp_layout.addWidget(self.cb_cg)
 
         self.cb_grid = QCheckBox("Show Grid & Coordinate Axes")
-        self.cb_grid.setChecked(True)
+        self.cb_grid.setChecked(
+            _as_bool(editor_setting(_EDITOR_GRID_KEY, True), True)
+        )
         self.cb_grid.toggled.connect(self._on_display_option_toggled)
         disp_layout.addWidget(self.cb_grid)
 
@@ -1187,7 +1194,7 @@ class FuselageSectionDialog(QDialog):
         main_layout.addWidget(btn_bar)
 
         self._populate_segments()
-        self._load_section(auto_fit=True)
+        self._load_section(auto_fit=self._auto_fit_sections)
 
     # -------------------------------------------------------------------------
     # Population & Section Loading
@@ -1615,7 +1622,7 @@ class FuselageSectionDialog(QDialog):
             return
         self._segment_index = index
         self._section_index = 0
-        self._load_section(auto_fit=True)
+        self._load_section(auto_fit=self._auto_fit_sections)
 
     def _on_prev_section(self) -> None:
         if self._section_index > 0:

@@ -1,6 +1,6 @@
 import logging
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QSettings, Qt, QTimer
 from PySide6.QtGui import QAction, QActionGroup
 from PySide6.QtWidgets import (
     QButtonGroup,
@@ -21,6 +21,14 @@ from .viewport.palettes import (
     set_active_palette,
 )
 from .viewport.widget import OpenGLViewer
+from .settings import (
+    _VIEWER_GRID_KEY,
+    _VIEWER_PALETTE_KEY,
+    _VIEWER_PROJECTION_KEY,
+    _VIEWER_SOLID_KEY,
+    _VIEWER_WIRE_KEY,
+    viewer_setting,
+)
 from .viewport.mesh import (
     FACE_COLORED,
     FACE_MONOCHROME,
@@ -29,15 +37,28 @@ from .viewport.mesh import (
 logger = logging.getLogger(__name__)
 
 
+def _as_bool(value: object, default: bool) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    return str(value).lower() in {"1", "true", "yes", "on"}
+
+
 class ViewerWorkspace(QWidget):
     def __init__(self, api: StudioAPI) -> None:
         super().__init__()
         self._api = api
+        self._api.subscribe(
+            "geometry.viewer.settings.changed",
+            self._on_viewer_settings_changed,
+        )
         layout = QGridLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
         self.viewer = OpenGLViewer(self)
+        self._load_viewer_defaults()
         layout.setRowStretch(0, 1)
         layout.setRowMinimumHeight(1, 12)
         layout.addWidget(self.viewer, 0, 0, 2, 1)
@@ -56,7 +77,7 @@ class ViewerWorkspace(QWidget):
         # Display Toggles (Solid & Wireframe active/passive toggles)
         self.solid_button = QToolButton(self.hud)
         self.solid_button.setCheckable(True)
-        self.solid_button.setChecked(True)
+        self.solid_button.setChecked(self._default_show_solid)
         self.solid_button.setIcon(get_icon("view_solid"))
         self.solid_button.setToolTip("Toggle Solid Surface")
         self.solid_button.setFixedSize(24, 24)
@@ -66,7 +87,7 @@ class ViewerWorkspace(QWidget):
 
         self.wire_button = QToolButton(self.hud)
         self.wire_button.setCheckable(True)
-        self.wire_button.setChecked(True)
+        self.wire_button.setChecked(self._default_show_wire)
         self.wire_button.setIcon(get_icon("view_wireframe"))
         self.wire_button.setToolTip("Toggle Wireframe Mesh")
         self.wire_button.setFixedSize(24, 24)
@@ -122,17 +143,17 @@ class ViewerWorkspace(QWidget):
 
         self.grid_button = QToolButton(self.hud)
         self.grid_button.setCheckable(True)
-        self.grid_button.setChecked(True)
+        self.grid_button.setChecked(self._default_show_grid)
         self.grid_button.setIcon(get_icon("view_grid"))
         self.grid_button.setToolTip("Toggle Reference Grid")
         self.grid_button.setFixedSize(24, 24)
         self.grid_button.setAutoRaise(True)
-        self.grid_button.toggled.connect(self.viewer.set_show_grid)
+        self.grid_button.toggled.connect(self._on_grid_toggled)
         hud_layout.addWidget(self.grid_button)
 
         self.projection_button = QToolButton(self.hud)
         self.projection_button.setCheckable(True)
-        self.projection_button.setChecked(self.viewer.is_orthographic())
+        self.projection_button.setChecked(self._default_orthographic)
         self.projection_button.setIcon(get_icon("fa6s.ruler-combined"))
         self.projection_button.setFixedSize(24, 24)
         self.projection_button.setAutoRaise(True)
@@ -265,6 +286,7 @@ class ViewerWorkspace(QWidget):
             set_active_palette(name)
         except ValueError:
             return
+        QSettings().setValue(_VIEWER_PALETTE_KEY, name)
         self._build_palette_menu()
         project = self._api.current_project
         if project is not None:
@@ -279,9 +301,20 @@ class ViewerWorkspace(QWidget):
                 self.solid_button.setChecked(True)
         self.viewer.set_show_solid(self.solid_button.isChecked())
         self.viewer.set_show_wireframe(self.wire_button.isChecked())
+        settings = QSettings()
+        settings.setValue(_VIEWER_SOLID_KEY, self.solid_button.isChecked())
+        settings.setValue(_VIEWER_WIRE_KEY, self.wire_button.isChecked())
+
+    def _on_grid_toggled(self, checked: bool) -> None:
+        self.viewer.set_show_grid(checked)
+        QSettings().setValue(_VIEWER_GRID_KEY, checked)
 
     def _on_projection_toggled(self, checked: bool) -> None:
         self.viewer.set_orthographic(checked)
+        QSettings().setValue(
+            _VIEWER_PROJECTION_KEY,
+            "orthographic" if checked else "perspective",
+        )
         self._update_projection_tooltip()
 
     def _update_projection_tooltip(self) -> None:
@@ -290,6 +323,54 @@ class ViewerWorkspace(QWidget):
         self.projection_button.setToolTip(
             f"Projection: {mode} (click for {next_mode})"
         )
+
+    def _load_viewer_defaults(self) -> None:
+        projection = str(
+            viewer_setting(_VIEWER_PROJECTION_KEY, "orthographic")
+        ).lower()
+        self._default_orthographic = projection != "perspective"
+
+        palette = str(
+            viewer_setting(_VIEWER_PALETTE_KEY, active_palette())
+        ).lower()
+        try:
+            set_active_palette(palette)
+        except ValueError:
+            pass
+
+        self._default_show_grid = _as_bool(
+            viewer_setting(_VIEWER_GRID_KEY, True),
+            True,
+        )
+        self._default_show_solid = _as_bool(
+            viewer_setting(_VIEWER_SOLID_KEY, True),
+            True,
+        )
+        self._default_show_wire = _as_bool(
+            viewer_setting(_VIEWER_WIRE_KEY, True),
+            True,
+        )
+        self.viewer.set_orthographic(self._default_orthographic)
+
+    def _on_viewer_settings_changed(self, _payload: object = None) -> None:
+        self._load_viewer_defaults()
+        for button, checked in (
+            (self.solid_button, self._default_show_solid),
+            (self.wire_button, self._default_show_wire),
+            (self.grid_button, self._default_show_grid),
+            (self.projection_button, self._default_orthographic),
+        ):
+            button.blockSignals(True)
+            button.setChecked(checked)
+            button.blockSignals(False)
+        self.viewer.set_show_solid(self._default_show_solid)
+        self.viewer.set_show_wireframe(self._default_show_wire)
+        self.viewer.set_show_grid(self._default_show_grid)
+        self._build_palette_menu()
+        self._update_projection_tooltip()
+        project = self._api.current_project
+        if project is not None:
+            self._refresh(project, fit=False)
 
     def _on_project_changed(self, project: ProjectDocument) -> None:
         self._refresh(project, fit=True)
@@ -362,6 +443,10 @@ class ViewerWorkspace(QWidget):
             logger.exception("Could not build viewer geometry")
 
     def _detach(self, *_args: object) -> None:
+        self._api.unsubscribe(
+            "geometry.viewer.settings.changed",
+            self._on_viewer_settings_changed,
+        )
         self._api.remove_project_listener(self._on_project_changed)
         self._api.remove_project_content_listener(self._on_project_content_changed)
         self._api.remove_selection_listener(self._on_selection_changed)

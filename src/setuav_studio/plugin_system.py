@@ -21,6 +21,7 @@ __all__ = [
     "ComponentTreeNodeContribution",
     "ParameterField",
     "PanelContribution",
+    "SettingsPageContribution",
     "MassPropertiesProvider",
     "StudioAPI",
     "ToolbarContribution",
@@ -74,6 +75,27 @@ class PanelContribution:
         if isinstance(self.workspace_id, (list, tuple, set)):
             return current_workspace_id in self.workspace_id
         return self.workspace_id == current_workspace_id
+
+
+@dataclass(frozen=True)
+class SettingsPageContribution:
+    """A settings category contributed by a plugin.
+
+    ``factory`` creates the page widget when the Settings dialog opens.  The
+    optional ``apply`` callback is called with that widget after the user
+    presses OK, allowing the plugin to persist its values (usually through
+    ``QSettings``) without coupling the core dialog to plugin state.
+    Pages with the same ``group`` are shown beneath one expandable heading.
+    """
+
+    id: str
+    title: str
+    factory: Callable[[], QWidget]
+    icon: str | Path | QIcon | None = None
+    order: int = 0
+    apply: Callable[[QWidget], None] | None = None
+    group: str | None = None
+    group_icon: str | Path | QIcon | None = None
 
 
 @dataclass(frozen=True)
@@ -222,6 +244,7 @@ class StudioAPI:
         self._add_action: Callable[[ActionContribution], None] | None = None
         self._remove_action: Callable[[str, str], None] | None = None
         self._pending_actions: list[ActionContribution] = []
+        self._settings_pages: dict[str, SettingsPageContribution] = {}
         self._status_handler: (
             Callable[[str, str, int], None] | None
         ) = None
@@ -429,6 +452,30 @@ class StudioAPI:
     def remove_action(self, menu: str, title: str) -> None:
         if self._remove_action is not None:
             self._remove_action(menu, title)
+
+    def add_settings_page(self, contribution: SettingsPageContribution) -> None:
+        """Add a category to the application Settings dialog.
+
+        Plugins may register pages during ``activate`` and remove them during
+        ``deactivate``.  Pages are created lazily when the dialog is opened.
+        """
+        if contribution.id in self._settings_pages:
+            raise ValueError(
+                f"A settings page is already registered for: {contribution.id}"
+            )
+        self._settings_pages[contribution.id] = contribution
+
+    def remove_settings_page(self, page_id: str) -> None:
+        self._settings_pages.pop(page_id, None)
+
+    def settings_pages(self) -> tuple[SettingsPageContribution, ...]:
+        """Return registered plugin settings pages in display order."""
+        return tuple(
+            sorted(
+                self._settings_pages.values(),
+                key=lambda page: (page.order, page.title.casefold(), page.id),
+            )
+        )
 
     def register_tool(self, contribution: ToolContribution) -> None:
         menu_path = f"Tools/{contribution.group}" if contribution.group else "Tools"

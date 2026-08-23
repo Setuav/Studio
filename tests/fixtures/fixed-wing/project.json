@@ -30,7 +30,7 @@
       "parent": null,
       "transform": {},
       "parameters": {
-        "mass": 400,
+        "mass": 450.0,
         "geometry": {
           "segments": [
             {
@@ -207,6 +207,25 @@
               ]
             }
           ]
+        }
+      },
+      "mass": 450.0,
+      "extensions": {
+        "org.setuav.weight-balance": {
+          "mass_source": "declared",
+          "local_cg_mm": {
+            "x": 330.0,
+            "y": 0.0,
+            "z": 16.5
+          },
+          "inertia_kg_m2": {
+            "ixx": 0.0,
+            "iyy": 0.0,
+            "izz": 0.0,
+            "ixy": 0.0,
+            "ixz": 0.0,
+            "iyz": 0.0
+          }
         }
       }
     },
@@ -768,7 +787,7 @@
               "position": {
                 "x": 15.0,
                 "y": 747.6190476190476,
-                "z": 0.0
+                "z": 13.04973901776267
               },
               "chord": 180.0,
               "rotation": {
@@ -1317,7 +1336,8 @@
             "le_curvature": -1.0,
             "te_curvature": 2.0
           },
-          "sweep_curvature": 0.0
+          "sweep_curvature": 0.0,
+          "section_align": "normal"
         }
       }
     },
@@ -1336,7 +1356,7 @@
           "span_start": 301.2,
           "span_end": 662.8,
           "chord": 64.3,
-          "deflection": 20.0,
+          "deflection": 0.0,
           "hinge_sweep": -2.0,
           "chord_fraction": 0.268,
           "eta_start": 0.4029,
@@ -1419,7 +1439,7 @@
           "span_start": 20.0,
           "span_end": 160.0,
           "chord": 50.0,
-          "deflection": 5.0,
+          "deflection": 0.0,
           "hinge_sweep": 1.0,
           "chord_fraction": 0.303
         }
@@ -1433,12 +1453,14 @@
       "parent": null,
       "transform": {
         "position": {
-          "x": 830,
-          "y": 0,
-          "z": 0
+          "x": 850.0,
+          "y": 0.0,
+          "z": 27.5
         },
         "rotation": {
-          "yaw": 180
+          "roll": 0.0,
+          "pitch": 0.0,
+          "yaw": 180.0
         }
       },
       "parameters": {
@@ -1489,6 +1511,18 @@
         "max_voltage": 25.2,
         "resistance": 0.004,
         "mass": 55
+      },
+      "transform": {
+        "position": {
+          "x": 650.0,
+          "y": 0.0,
+          "z": 20.0
+        },
+        "rotation": {
+          "roll": 0.0,
+          "pitch": 0.0,
+          "yaw": 0.0
+        }
       }
     },
     {
@@ -1499,14 +1533,19 @@
       "parent": null,
       "transform": {
         "position": {
-          "x": 165,
-          "y": 0,
-          "z": 0
+          "x": 140.0,
+          "y": 0.0,
+          "z": 15.0
+        },
+        "rotation": {
+          "roll": 0.0,
+          "pitch": 0.0,
+          "yaw": 0.0
         }
       },
       "parameters": {
         "cell_count": 3,
-        "capacity": 6000.0,
+        "capacity": 4500.0,
         "nominal_voltage": 11.100000000000001,
         "max_discharge": 35.0,
         "mass": 430.0,
@@ -1515,7 +1554,7 @@
         "cell_max_voltage": 4.2,
         "cell_min_voltage": 3.0,
         "cell_mass": 130.0,
-        "cell_capacity": 6000.0,
+        "cell_capacity": 4500.0,
         "cell_resistance": 0.0025,
         "burst_discharge": 70.0,
         "internal_resistance": 0.0075
@@ -1542,7 +1581,7 @@
           "chord_fraction": 0.32,
           "chord": 76.8,
           "hinge_sweep": -1.0,
-          "deflection": 10.0,
+          "deflection": 0.0,
           "symmetry_mode": "auto"
         }
       },

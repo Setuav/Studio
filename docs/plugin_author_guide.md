@@ -44,6 +44,7 @@ Karşılaştırma kuralları:
 | Katkı | API | Ne zaman |
 |---|---|---|
 | Panel (dock) | `api.add_panel(PanelContribution(...))` | Bir dock widget'ı eklemek için |
+| Settings page | `api.add_settings_page(SettingsPageContribution(...))` | Settings penceresine plugin ayar kategorisi eklemek için |
 | Workspace | `api.add_workspace(WorkspaceContribution(...))` | Yeni çalışma alanı için |
 | Tool (Tools menüsü) | `api.register_tool(ToolContribution(...))` | Menü aksiyonu için |
 | Action (herhangi menü) | `api.add_action(ActionContribution(...))` | `Tools` dışı bir menüye aksiyon için |
@@ -78,6 +79,46 @@ Karşılaştırma kuralları:
 
 **Diğer:**
 - `api.switch_workspace(workspace_id)`
+
+### Plugin ayar sayfası
+
+Pluginler Settings penceresine kendi kategorilerini ekleyebilir. Sayfa widget'ı
+pencere açıldığında oluşturulur; `apply` callback'i yalnızca kullanıcı **OK**
+butonuna bastığında çağrılır. Plugin ayarlarını `QSettings` ile saklamak için:
+
+`group` değeri aynı olan sayfalar sol navigasyonda tek bir başlık altında
+toplanır. Örneğin `Geometry Engine` grubu altında `3D Viewer` ve
+`Geometry Editor` sayfaları ayrı ayrı tanımlanabilir.
+
+```python
+from PySide6.QtCore import QSettings
+from PySide6.QtWidgets import QFormLayout, QLabel, QLineEdit, QWidget
+from setuav_studio.plugin_system import SettingsPageContribution
+
+def make_page() -> QWidget:
+    page = QWidget()
+    form = QFormLayout(page)
+    edit = QLineEdit(QSettings().value("myplugin/server_url", "", type=str))
+    edit.setObjectName("serverUrl")
+    form.addRow("Server URL:", edit)
+    return page
+
+def apply_page(page: QWidget) -> None:
+    edit = page.findChild(QLineEdit, "serverUrl")
+    if edit is not None:
+        QSettings().setValue("myplugin/server_url", edit.text().strip())
+
+api.add_settings_page(
+    SettingsPageContribution(
+        id="com.example.myplugin.settings",
+        title="My Plugin",
+        factory=make_page,
+        apply=apply_page,
+        group="My Plugin",
+        order=100,
+    )
+)
+```
 
 ## Notlar ve Kurallar
 
