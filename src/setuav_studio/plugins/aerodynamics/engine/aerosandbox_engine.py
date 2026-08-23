@@ -13,6 +13,7 @@ from .base import (
     AeroState,
     AnalysisMethod,
     AnalysisType,
+    ControlSurfaceType,
     EngineCapabilities,
     FlightCondition,
     MultiDimensionalSweepResult,
@@ -24,6 +25,8 @@ from .base import (
 )
 from .airfoil_engine import AirfoilAnalysisEngine
 from .airfoil_models import AirfoilPolar
+from .stability_engine import StabilityAnalysisEngine
+from .stability_models import StabilityDerivatives
 from setuav_studio.plugins.geometry.engine.airfoil import (
     apply_airfoil_shaping,
     sample_airfoil_points,
@@ -580,6 +583,20 @@ class AeroSandboxEngine(AeroEngine):
         # Filter out empty solver curve lists
         clean_solvers = {k: v for k, v in solver_points_map.items() if v}
 
+        # Compute 6-DoF linear stability derivatives, static margins, and trim
+        stab_engine = StabilityAnalysisEngine()
+        try:
+            stab_derivatives = stab_engine.compute_stability(
+                airplane=base_airplane,
+                condition=condition,
+                ref=ref,
+                components=components,
+                builder_fn=self._build_airplane,
+            )
+        except Exception as err:
+            logger.warning("Stability derivatives computation failed: %s", err)
+            stab_derivatives = None
+
         return AeroResult(
             method=method,
             engine_name=self.name,
@@ -595,6 +612,7 @@ class AeroSandboxEngine(AeroEngine):
             mach=ref_mach,
             dynamic_pressure=0.5 * ref_rho * (condition.velocity ** 2),
             oswald_efficiency=oswald,
+            stability_derivatives=stab_derivatives,
             sweep_result=sweep_result,
             condition=condition,
             propulsion_points=propulsion_points,
@@ -872,36 +890,71 @@ class AeroSandboxEngine(AeroEngine):
                         cs_copy.setdefault("id", other.get("id"))
                         cs_list.append(cs_copy)
 
-        # Check if the lifting surface itself has control tags (e.g. tags: ["elevator"], tags: ["rudder"])
+        # Check if the lifting surface itself has control tags (e.g. tags: ["elevator"], tags: ["rudder"], tags: ["ruddervator"])
         comp_tags = [str(t).lower() for t in comp.get("parameters", {}).get("tags", [])] if isinstance(comp.get("parameters"), dict) else []
         comp_name_lower = str(comp.get("name") or "").lower()
         if not cs_list:
-            for tag_candidate in ("elevator", "rudder", "aileron", "flap", "elevon"):
+            for tag_candidate in ("elevator", "rudder", "aileron", "flap", "elevon", "ruddervator", "vtail", "v-tail"):
                 if tag_candidate in comp_tags or tag_candidate in comp_name_lower:
+                    is_rv_comp = tag_candidate in ("ruddervator", "vtail", "v-tail")
                     cs_list.append({
-                        "tag": tag_candidate,
-                        "type": tag_candidate,
+                        "tag": "ruddervator" if is_rv_comp else tag_candidate,
+                        "type": "ruddervator" if is_rv_comp else tag_candidate,
                         "eta_start": 0.0,
                         "eta_end": 1.0,
                         "chord_fraction": 0.35,
-                        "symmetry_mode": "antisymmetric" if tag_candidate in ("aileron", "elevon") else "symmetric",
+                        "symmetry_mode": "symmetric" if not (tag_candidate in ("aileron", "elevon")) else "antisymmetric",
                     })
 
         # Parse control surface definitions
         parsed_cs: list[dict[str, Any]] = []
         for cs in cs_list:
-            cs_type = str(cs.get("type") or "flap").lower()
-            tag = str(cs.get("tag") or cs.get("name") or cs.get("id") or cs_type)
+            cs_type_enum = ControlSurfaceType.from_str(cs.get("type")) or ControlSurfaceType.FLAP
+            tag = str(cs.get("tag") or cs.get("name") or cs.get("id") or cs_type_enum.value)
             cs_id = str(cs.get("id") or tag)
 
-            # Deflection angle resolution (checking condition override first)
+            # Base deflection from UI definition
             deflection = float(cs.get("deflection", 0.0))
+
+            # Channel inputs from flight condition
+            d_elevator = 0.0
+            d_rudder = 0.0
+            d_aileron = 0.0
+            d_direct = 0.0
+
             if condition and condition.control_deflections:
                 for k, v in condition.control_deflections.items():
                     k_clean = k.strip().lower()
-                    if k_clean in (tag.lower(), cs_type, cs_id.lower()):
-                        deflection = float(v)
-                        break
+                    if k_clean == "elevator":
+                        d_elevator = float(v)
+                    elif k_clean == "rudder":
+                        d_rudder = float(v)
+                    elif k_clean == "aileron":
+                        d_aileron = float(v)
+                    elif k_clean in (tag.lower(), cs_type_enum.value, cs_id.lower()):
+                        d_direct = float(v)
+
+            # Apply aerodynamic channel kinematic mixing based on ControlSurfaceType
+            delta_r = deflection + d_direct
+            delta_l = deflection + d_direct
+
+            if cs_type_enum == ControlSurfaceType.ELEVATOR:
+                delta_r += d_elevator
+                delta_l += d_elevator
+            elif cs_type_enum == ControlSurfaceType.RUDDER:
+                delta_r += d_rudder
+                delta_l -= d_rudder
+            elif cs_type_enum == ControlSurfaceType.AILERON:
+                delta_r += d_aileron
+                delta_l -= d_aileron
+            elif cs_type_enum == ControlSurfaceType.ELEVON:
+                delta_r += (d_elevator + d_aileron)
+                delta_l += (d_elevator - d_aileron)
+            elif cs_type_enum == ControlSurfaceType.RUDDERVATOR:
+                delta_r += (d_elevator + d_rudder)
+                delta_l += (d_elevator - d_rudder)
+            elif cs_type_enum == ControlSurfaceType.FLAP:
+                pass
 
             # Span range [eta_start, eta_end]
             if "eta_start" in cs and "eta_end" in cs:
@@ -930,18 +983,14 @@ class AeroSandboxEngine(AeroEngine):
                 chord_frac = c_val / max(float(station_raw[0]["chord"]), 0.01)
             chord_frac = float(np.clip(chord_frac, 0.05, 0.95))
 
-            sym_mode = str(cs.get("symmetry_mode") or "auto").lower()
-            if sym_mode == "auto":
-                sym_mode = "antisymmetric" if cs_type in ("aileron", "elevon") else "symmetric"
-
             parsed_cs.append({
                 "tag": tag,
-                "type": cs_type,
+                "type": cs_type_enum.value,
                 "eta_start": eta_s,
                 "eta_end": eta_e,
                 "chord_fraction": chord_frac,
-                "deflection": deflection,
-                "symmetry_mode": sym_mode,
+                "delta_r": delta_r,
+                "delta_l": delta_l,
             })
 
         # Discretize spanwise breakpoints
@@ -985,8 +1034,8 @@ class AeroSandboxEngine(AeroEngine):
 
             for cs in parsed_cs:
                 if cs["eta_start"] <= e <= cs["eta_end"] or math.isclose(e, cs["eta_start"], abs_tol=1e-4) or math.isclose(e, cs["eta_end"], abs_tol=1e-4):
-                    delta_r = cs["deflection"]
-                    delta_l = -cs["deflection"] if cs["symmetry_mode"] == "antisymmetric" else cs["deflection"]
+                    delta_r = cs["delta_r"]
+                    delta_l = cs["delta_l"]
                     cf = cs["chord_fraction"]
                     hinge_pt = 1.0 - cf
 
@@ -995,11 +1044,11 @@ class AeroSandboxEngine(AeroEngine):
                     if abs(delta_l) > 1e-4:
                         af_l = base_af.add_control_surface(deflection=delta_l, hinge_point_x=hinge_pt)
 
-                    if cs["symmetry_mode"] == "antisymmetric" and abs(cs["deflection"]) > 1e-4:
+                    if abs(delta_r - delta_l) > 1e-4:
                         has_antisymmetric = True
 
-                    cs_objs_r.append(asb.ControlSurface(name=cs["tag"], deflection=delta_r, hinge_point=hinge_pt, symmetric=(cs["symmetry_mode"] == "symmetric")))
-                    cs_objs_l.append(asb.ControlSurface(name=cs["tag"], deflection=delta_l, hinge_point=hinge_pt, symmetric=(cs["symmetry_mode"] == "symmetric")))
+                    cs_objs_r.append(asb.ControlSurface(name=cs["tag"], deflection=delta_r, hinge_point=hinge_pt, symmetric=math.isclose(delta_r, delta_l, abs_tol=1e-4)))
+                    cs_objs_l.append(asb.ControlSurface(name=cs["tag"], deflection=delta_l, hinge_point=hinge_pt, symmetric=math.isclose(delta_r, delta_l, abs_tol=1e-4)))
 
             xyz = st["xyz_le"]
             xsecs_right.append(

@@ -37,6 +37,26 @@ class SweepType(enum.Enum):
     MULTI_GRID = "multi_grid"                    # 2D Parametric grid sweep
 
 
+class ControlSurfaceType(enum.Enum):
+    """Types of aerodynamic control surfaces supported across Setuav Studio."""
+    AILERON = "aileron"
+    FLAP = "flap"
+    ELEVATOR = "elevator"
+    RUDDER = "rudder"
+    ELEVON = "elevon"
+    RUDDERVATOR = "ruddervator"
+
+    @classmethod
+    def from_str(cls, value: str | None) -> ControlSurfaceType | None:
+        if not value:
+            return None
+        val_clean = str(value).strip().lower()
+        for member in cls:
+            if member.value == val_clean:
+                return member
+        return None
+
+
 @dataclass(frozen=True)
 class FlightCondition:
     """Operating conditions and sweep parameters for aerodynamic analysis."""
@@ -637,7 +657,7 @@ class AeroResult:
     dynamic_pressure: float = 0.0
     oswald_efficiency: float | None = None
     # Stability derivatives (longitudinal & lateral-directional)
-    stability_derivatives: dict[str, float] = field(default_factory=dict)
+    stability_derivatives: Any | None = None
     # Multi-dimensional sweep dataset (if sweep performed)
     sweep_result: MultiDimensionalSweepResult | None = None
     # Flight condition specified for this analysis
@@ -658,6 +678,12 @@ class AeroResult:
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize result to a dictionary for persistent storage or JSON output."""
+        stab_dict = None
+        if hasattr(self.stability_derivatives, "to_dict"):
+            stab_dict = self.stability_derivatives.to_dict()
+        elif isinstance(self.stability_derivatives, dict):
+            stab_dict = dict(self.stability_derivatives)
+
         return {
             "method": self.method.value,
             "engine_name": self.engine_name,
@@ -676,7 +702,7 @@ class AeroResult:
             "mach": self.mach,
             "dynamic_pressure": self.dynamic_pressure,
             "oswald_efficiency": self.oswald_efficiency,
-            "stability_derivatives": dict(self.stability_derivatives),
+            "stability_derivatives": stab_dict,
             "sweep_result": self.sweep_result.to_dict() if self.sweep_result is not None else None,
             "propulsion_points": [p.to_dict() for p in self.propulsion_points],
             "condition": self.condition.to_dict(),
@@ -712,6 +738,15 @@ class AeroResult:
         sweep_data = data.get("sweep_result")
         sweep = MultiDimensionalSweepResult.from_dict(sweep_data) if isinstance(sweep_data, dict) else None
 
+        stab_raw = data.get("stability_derivatives")
+        stab_res = None
+        if isinstance(stab_raw, dict):
+            try:
+                from .stability_models import StabilityDerivatives
+                stab_res = StabilityDerivatives.from_dict(stab_raw)
+            except Exception:
+                stab_res = stab_raw
+
         return cls(
             method=method,
             engine_name=str(data.get("engine_name", "")),
@@ -727,7 +762,7 @@ class AeroResult:
             mach=float(data.get("mach", 0.0)),
             dynamic_pressure=float(data.get("dynamic_pressure", 0.0)),
             oswald_efficiency=data.get("oswald_efficiency"),
-            stability_derivatives=dict(data.get("stability_derivatives") or {}),
+            stability_derivatives=stab_res,
             sweep_result=sweep,
             condition=cond,
             propulsion_points=prop_pts,

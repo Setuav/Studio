@@ -10,6 +10,8 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QPushButton,
+    QScrollArea,
+    QSizePolicy,
     QTabWidget,
     QTableWidget,
     QTableWidgetItem,
@@ -55,7 +57,8 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
         # Tab 1: Summary Key Performance Indicators
         self.summary_tab = QWidget()
         sum_layout = QVBoxLayout(self.summary_tab)
-        sum_layout.setContentsMargins(6, 6, 6, 6)
+        sum_layout.setContentsMargins(4, 4, 4, 4)
+        sum_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         sum_layout.setSpacing(6)
 
         self.summary_table = self._property_table([
@@ -78,23 +81,70 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
             ("oswald_e", "Oswald Efficiency (e)"),
         ])
         sum_layout.addWidget(self.summary_table)
-        self.tab_widget.addTab(self.summary_tab, "Summary")
+        sum_layout.addStretch(1)
 
-        # Tab 2: Detailed Polar Table
+        sum_scroll = QScrollArea()
+        sum_scroll.setWidgetResizable(True)
+        sum_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        sum_scroll.setWidget(self.summary_tab)
+        self.tab_widget.addTab(sum_scroll, "Summary")
+
+        # Tab 2: Stability & Trim Metrics
+        self.stability_tab = QWidget()
+        stab_layout = QVBoxLayout(self.stability_tab)
+        stab_layout.setContentsMargins(4, 4, 4, 4)
+        stab_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        stab_layout.setSpacing(6)
+
+        self.stability_table = self._property_table([
+            ("cla", "Lift Slope (CL_α)"),
+            ("cma", "Pitch Stiffness (Cm_α)"),
+            ("cmq", "Pitch Damping (Cm_q)"),
+            ("pitch_status", "Longitudinal Status"),
+            ("np_x", "Neutral Point (X_np)"),
+            ("static_margin", "Static Margin (SM)"),
+            ("clb", "Dihedral Effect (Cl_β)"),
+            ("cnb", "Directional Stability (Cn_β)"),
+            ("cyb", "Sideforce Slope (CY_β)"),
+            ("clp", "Roll Damping (Cl_p)"),
+            ("cnr", "Yaw Damping (Cn_r)"),
+            ("lat_dir_status", "Lateral-Directional Status"),
+            ("elevator_trim", "Elevator Trim (δ_e @ Cruise)"),
+            ("alpha_trim_neutral", "Trim AoA (α @ δ_e=0)"),
+            ("cm_de", "Elevator Control Power (Cm_δe)"),
+            ("cl_da", "Aileron Control Power (Cl_δa)"),
+            ("cn_dr", "Rudder Control Power (Cn_δr)"),
+        ])
+        stab_layout.addWidget(self.stability_table)
+        stab_layout.addStretch(1)
+
+        stab_scroll = QScrollArea()
+        stab_scroll.setWidgetResizable(True)
+        stab_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        stab_scroll.setWidget(self.stability_tab)
+        self.tab_widget.addTab(stab_scroll, "Stability & Trim")
+
+        # Tab 3: Detailed Polar Table
         self.detail_tab = QWidget()
         det_layout = QVBoxLayout(self.detail_tab)
-        det_layout.setContentsMargins(6, 6, 6, 6)
-        det_layout.setSpacing(6)
+        det_layout.setContentsMargins(0, 0, 0, 0)
+        det_layout.setSpacing(0)
 
         self.detail_table = self._create_detail_table()
+        self.detail_table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         det_layout.addWidget(self.detail_table)
 
-        # Export CSV Button
+        # Export CSV Button Container with slight margin
+        btn_container = QWidget()
+        btn_layout = QHBoxLayout(btn_container)
+        btn_layout.setContentsMargins(6, 4, 6, 6)
+        btn_layout.setSpacing(0)
         self.btn_export_csv = QPushButton(" Export Polar Data (CSV)")
         set_native_button(self.btn_export_csv, "fa6s.file-csv")
         self.btn_export_csv.clicked.connect(self._export_csv)
         self.btn_export_csv.setEnabled(False)
-        det_layout.addWidget(self.btn_export_csv)
+        btn_layout.addWidget(self.btn_export_csv)
+        det_layout.addWidget(btn_container)
 
         self.tab_widget.addTab(self.detail_tab, "Polar Table")
 
@@ -144,6 +194,14 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
             "mach", "dynamic_pressure", "reynolds", "oswald_e",
         ):
             self._set_property_value(self.summary_table, key, "-")
+
+        for key in (
+            "cla", "cma", "cmq", "pitch_status", "np_x", "static_margin",
+            "clb", "cnb", "cyb", "clp", "cnr", "lat_dir_status",
+            "elevator_trim", "alpha_trim_neutral", "cm_de", "cl_da", "cn_dr",
+        ):
+            self._set_property_value(self.stability_table, key, "-")
+
         self.detail_table.setRowCount(0)
         self.btn_export_csv.setEnabled(False)
 
@@ -188,6 +246,54 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
         }
         for key, val in metrics.items():
             self._set_property_value(self.summary_table, key, val)
+
+        # Populate Stability & Trim tab
+        sd = result.stability_derivatives
+        if sd is not None:
+            cla_val = f"{sd.c_L_alpha_rad:.3f} /rad ({sd.c_L_alpha_deg:.4f} /deg)" if hasattr(sd, "c_L_alpha_rad") else "-"
+            cma_val = f"{sd.c_m_alpha_rad:.3f} /rad ({sd.c_m_alpha_deg:.4f} /deg)" if hasattr(sd, "c_m_alpha_rad") else "-"
+            cmq_val = f"{sd.c_m_q:.3f}" if hasattr(sd, "c_m_q") else "-"
+            p_stat = ("STABLE (Damped)" if getattr(sd, "is_pitch_stable", False) and getattr(sd, "is_pitch_damped", False) else
+                      ("STABLE" if getattr(sd, "is_pitch_stable", False) else "UNSTABLE"))
+            npx_val = f"{sd.x_np * 1000.0:.1f} mm ({sd.x_np:.4f} m)" if hasattr(sd, "x_np") else "-"
+            sm_val = f"{sd.static_margin:+.2f} % MAC" if hasattr(sd, "static_margin") else "-"
+            clb_val = f"{sd.c_l_beta_rad:.3f} /rad ({sd.c_l_beta_deg:.4f} /deg)" if hasattr(sd, "c_l_beta_rad") else "-"
+            cnb_val = f"{sd.c_n_beta_rad:.3f} /rad ({sd.c_n_beta_deg:.4f} /deg)" if hasattr(sd, "c_n_beta_rad") else "-"
+            cyb_val = f"{sd.c_Y_beta_rad:.3f} /rad ({sd.c_Y_beta_deg:.4f} /deg)" if hasattr(sd, "c_Y_beta_rad") else "-"
+            clp_val = f"{sd.c_l_p:.3f}" if hasattr(sd, "c_l_p") else "-"
+            cnr_val = f"{sd.c_n_r:.3f}" if hasattr(sd, "c_n_r") else "-"
+            lat_stat = f"{'Roll-Stable' if getattr(sd, 'is_roll_stable', True) else 'Roll-Unstable'} | {'Yaw-Stable' if getattr(sd, 'is_yaw_stable', True) else 'Yaw-Unstable'}"
+
+            trim_obj = getattr(sd, "elevator_trim", None)
+            de_trim_str = f"{trim_obj.delta_e_trim:+.2f}° (CL={trim_obj.cl_trim:.3f})" if trim_obj else "N/A"
+            a_trim_str = f"{trim_obj.alpha_trim_neutral:+.2f}°" if trim_obj else "N/A"
+
+            ctrls = getattr(sd, "controls", {}) or {}
+            cm_de_str = f"{ctrls['elevator'].c_m_delta:+.4f} /deg" if "elevator" in ctrls else "N/A"
+            cl_da_str = f"{ctrls['aileron'].c_l_delta:+.4f} /deg" if "aileron" in ctrls else "N/A"
+            cn_dr_str = f"{ctrls['rudder'].c_n_delta:+.4f} /deg" if "rudder" in ctrls else "N/A"
+
+            stab_metrics = {
+                "cla": cla_val,
+                "cma": cma_val,
+                "cmq": cmq_val,
+                "pitch_status": p_stat,
+                "np_x": npx_val,
+                "static_margin": sm_val,
+                "clb": clb_val,
+                "cnb": cnb_val,
+                "cyb": cyb_val,
+                "clp": clp_val,
+                "cnr": cnr_val,
+                "lat_dir_status": lat_stat,
+                "elevator_trim": de_trim_str,
+                "alpha_trim_neutral": a_trim_str,
+                "cm_de": cm_de_str,
+                "cl_da": cl_da_str,
+                "cn_dr": cn_dr_str,
+            }
+            for k, v in stab_metrics.items():
+                self._set_property_value(self.stability_table, k, v)
 
         # Set dynamic column 0 header based on sweep variable
         if sweep_type == SweepType.BETA:
