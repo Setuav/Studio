@@ -18,8 +18,10 @@ from setuav_studio.project import ProjectDocument
 
 __all__ = [
     "BaseComponentEditor",
+    "ComponentTreeNodeContribution",
     "ParameterField",
     "PanelContribution",
+    "MassPropertiesProvider",
     "StudioAPI",
     "ToolbarContribution",
     "ToolbarMenuItemContribution",
@@ -31,6 +33,30 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 GeometryProvider = Callable[[dict[str, Any]], Any]
+ComponentTreeProvider = Callable[
+    [dict[str, Any]],
+    tuple["ComponentTreeNodeContribution", ...],
+]
+
+
+class MassPropertiesProvider(Protocol):
+    """Project-level mass-properties service contributed by a plugin."""
+
+    def evaluate(
+        self,
+        project: ProjectDocument,
+    ) -> Any: ...
+
+
+@dataclass(frozen=True)
+class ComponentTreeNodeContribution:
+    """A virtual child displayed beneath a project component."""
+
+    id: str
+    title: str
+    selection: dict[str, Any]
+    icon: str | Path | QIcon | None = None
+    tooltip: str | None = None
 
 
 @dataclass(frozen=True)
@@ -220,6 +246,8 @@ class StudioAPI:
         self._component_icons: dict[str, str | Path | QIcon] = {}
         self._kind_icons: dict[str, str | Path | QIcon] = {}
         self._geometry_providers: dict[str, GeometryProvider] = {}
+        self._component_tree_providers: dict[str, ComponentTreeProvider] = {}
+        self._mass_properties_providers: dict[str, MassPropertiesProvider] = {}
         self._project_requirement_checker: (
             Callable[[dict[str, Any]], list[str]] | None
         ) = None
@@ -756,6 +784,55 @@ class StudioAPI:
 
     def remove_geometry_provider(self, component_type: str) -> None:
         self._geometry_providers.pop(component_type, None)
+
+    def register_component_tree_provider(
+        self,
+        provider_id: str,
+        provider: ComponentTreeProvider,
+    ) -> None:
+        if provider_id in self._component_tree_providers:
+            raise ValueError(
+                f"A component tree provider is already registered for: {provider_id}"
+            )
+        self._component_tree_providers[provider_id] = provider
+
+    def remove_component_tree_provider(self, provider_id: str) -> None:
+        self._component_tree_providers.pop(provider_id, None)
+
+    def component_tree_nodes(
+        self,
+        component: dict[str, Any],
+    ) -> tuple[ComponentTreeNodeContribution, ...]:
+        nodes: list[ComponentTreeNodeContribution] = []
+        for provider in self._component_tree_providers.values():
+            nodes.extend(provider(component))
+        return tuple(nodes)
+
+    def register_mass_properties_provider(
+        self,
+        provider_id: str,
+        provider: MassPropertiesProvider,
+    ) -> None:
+        """Register a synchronous mass/CG/inertia provider."""
+        if provider_id in self._mass_properties_providers:
+            raise ValueError(
+                f"A mass properties provider is already registered for: {provider_id}"
+            )
+        self._mass_properties_providers[provider_id] = provider
+
+    def remove_mass_properties_provider(self, provider_id: str) -> None:
+        self._mass_properties_providers.pop(provider_id, None)
+
+    def get_mass_properties_provider(
+        self,
+        provider_id: str | None = None,
+    ) -> MassPropertiesProvider | None:
+        """Resolve a provider by id, or the sole registered provider."""
+        if provider_id is not None:
+            return self._mass_properties_providers.get(provider_id)
+        if len(self._mass_properties_providers) == 1:
+            return next(iter(self._mass_properties_providers.values()))
+        return None
 
     def register_schema(self, schema_id: str, schema_dict: dict[str, Any]) -> None:
         """Register a custom JSON schema dynamically (for 3rd-party plugins)."""

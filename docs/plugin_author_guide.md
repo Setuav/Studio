@@ -52,6 +52,8 @@ Karşılaştırma kuralları:
 | Component icon | `api.register_component_icon(type_id, icon)` | Bileşen ikonu için |
 | Kind icon | `api.register_kind_icon(kind, icon)` | Kind fallback ikonu için |
 | Geometry provider | `api.register_geometry_provider(type_id, fn)` | 3D görüntüleme için geometri üretimi |
+| Component tree provider | `api.register_component_tree_provider(id, fn)` | Bileşen altında seçilebilir sanal düğümler göstermek için |
+| Mass-properties provider | `api.register_mass_properties_provider(id, provider)` | Kütle, CG ve atalet hesabı sağlamak için |
 | Requirement checker | `api.set_project_requirement_checker(fn)` | Proje uyumluluk kontrolü |
 
 ## StudioAPI Temel Yüzeyi

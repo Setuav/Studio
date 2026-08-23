@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from copy import deepcopy
 from typing import Any
 
@@ -11,6 +12,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QProxyStyle,
     QStyle,
+    QToolButton,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -128,12 +130,46 @@ class ProjectExplorerPanel(QWidget):
             QLineEdit.ActionPosition.LeadingPosition,
         )
         s_layout.addWidget(self.search_edit)
+        self.expand_all_button = self._tree_action_button(
+            "fa6s.square-plus",
+            "Expand All",
+            self._expand_all,
+        )
+        s_layout.addWidget(self.expand_all_button)
+        self.collapse_all_button = self._tree_action_button(
+            "fa6s.square-minus",
+            "Collapse All",
+            self._collapse_all,
+        )
+        s_layout.addWidget(self.collapse_all_button)
         layout.addWidget(search_box)
 
         self.explorer = ProjectExplorer(api)
         layout.addWidget(self.explorer, 1)
 
         self.search_edit.textChanged.connect(self.explorer.filter_items)
+
+    def _expand_all(self) -> None:
+        self.explorer.expandAll()
+
+    def _collapse_all(self) -> None:
+        self.explorer.collapseAll()
+
+    @staticmethod
+    def _tree_action_button(
+        icon_name: str,
+        tooltip: str,
+        callback: Callable[[], None],
+    ) -> QToolButton:
+        button = QToolButton()
+        button.setIcon(get_icon(icon_name))
+        button.setToolTip(tooltip)
+        button.setStatusTip(tooltip)
+        button.setAccessibleName(tooltip)
+        button.setAutoRaise(True)
+        button.setFixedSize(26, 26)
+        button.clicked.connect(callback)
+        return button
 
     def update_theme_style(self) -> None:
         self.explorer.refresh_project()
@@ -170,6 +206,7 @@ class ProjectExplorer(QTreeWidget):
         self._element_map: dict[QTreeWidgetItem, dict[str, Any]] = {}
         self._project_root_item: QTreeWidgetItem | None = None
         self._geometry_group_item: QTreeWidgetItem | None = None
+        self._virtual_items: set[QTreeWidgetItem] = set()
         self._saved_components: dict[str, dict[str, Any]] = {}
         self._saved_assemblies: dict[str, dict[str, Any]] = {}
 
@@ -199,6 +236,7 @@ class ProjectExplorer(QTreeWidget):
             self._element_map.clear()
             self._project_root_item = None
             self._geometry_group_item = None
+            self._virtual_items.clear()
 
             project_name = str(
                 project.data.get("name")
@@ -288,6 +326,27 @@ class ProjectExplorer(QTreeWidget):
                 )
                 self._item_map[cid] = tree_item
                 self._element_map[tree_item] = comp
+
+                for contribution in self._api.component_tree_nodes(comp):
+                    child = QTreeWidgetItem([contribution.title])
+                    child.setFlags(
+                        child.flags() & ~Qt.ItemFlag.ItemIsEditable
+                    )
+                    if contribution.icon is not None:
+                        child.setIcon(0, get_icon(contribution.icon))
+                    child.setToolTip(
+                        0,
+                        contribution.tooltip or contribution.title,
+                    )
+                    child.setData(
+                        0,
+                        Qt.ItemDataRole.UserRole,
+                        contribution.id,
+                    )
+                    self._item_map[contribution.id] = child
+                    self._element_map[child] = contribution.selection
+                    self._virtual_items.add(child)
+                    tree_item.addChild(child)
 
             # 3. Attach Component Tree Items to Parents / Assemblies / Top-Level
             for comp in raw_components:
@@ -538,7 +597,11 @@ class ProjectExplorer(QTreeWidget):
 
     def _open_context_menu(self, position: QPoint) -> None:
         item = self.itemAt(position)
-        if item is None or item is self._geometry_group_item:
+        if (
+            item is None
+            or item is self._geometry_group_item
+            or item in self._virtual_items
+        ):
             return
 
         self.setCurrentItem(item)
@@ -606,6 +669,8 @@ class ProjectExplorer(QTreeWidget):
 
     def _delete_item(self, item: QTreeWidgetItem | None) -> None:
         if item is None:
+            return
+        if item in self._virtual_items:
             return
         if item is self._project_root_item:
             self._api.show_status("The project root cannot be deleted", "warning", 3000)

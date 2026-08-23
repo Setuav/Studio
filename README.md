@@ -7,7 +7,7 @@ Plugin-based desktop application for parametric UAV design and analysis.
 - StudioAPI ve Şema nihaileştirme
 - testler
 - aerodinamik plugin
-- ağırlık ve denge plugin
+- ağırlık ve denge plugin (MVP tamamlandı)
 - uçuş mekaniği plugin
 - ci-cd
 - dökümantasyon

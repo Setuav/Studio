@@ -1148,6 +1148,38 @@ class MainWindow(QMainWindow):
             if docks:
                 self.resizeDocks(docks, [200, 260, 560, 260][:len(docks)], Qt.Orientation.Horizontal)
 
+        elif workspace_id == "studio.workspace.weight_balance":
+            wb_view = self.findChild(QDockWidget, "weight_balance.view_dock")
+            wb_results = self.findChild(QDockWidget, "weight_balance.results_dock")
+
+            if viewer:
+                viewer.hide()
+            if explorer and props:
+                self.splitDockWidget(explorer, props, Qt.Orientation.Vertical)
+            if explorer and wb_view:
+                self.splitDockWidget(explorer, wb_view, Qt.Orientation.Horizontal)
+            if wb_view and wb_results:
+                self.splitDockWidget(wb_view, wb_results, Qt.Orientation.Horizontal)
+
+            if wb_results and props:
+                self.splitDockWidget(wb_results, props, Qt.Orientation.Vertical)
+
+            for dock in (explorer, props, wb_view, wb_results):
+                if dock:
+                    dock.show()
+
+            docks = [
+                dock
+                for dock in (explorer, wb_view, wb_results)
+                if dock is not None and not dock.isHidden()
+            ]
+            if docks:
+                self.resizeDocks(
+                    docks,
+                    [220, 600, 340][:len(docks)],
+                    Qt.Orientation.Horizontal,
+                )
+
         else:
             for cid, (panel_contrib, dock) in self._panels.items():
                 if panel_contrib.is_in_workspace(workspace_id):

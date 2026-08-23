@@ -1,6 +1,7 @@
 from PySide6.QtCore import Qt
 
 from setuav_studio.plugin_system import (
+    ComponentTreeNodeContribution,
     PanelContribution,
     StudioAPI,
     ToolbarContribution,
@@ -8,6 +9,8 @@ from setuav_studio.plugin_system import (
 from setuav_studio.plugins.core.instance import InstanceEditor
 from setuav_studio.plugins.core.properties import PropertiesPanel
 from setuav_studio.plugins.core.ui.project_explorer import ProjectExplorerPanel
+from setuav_studio.plugins.core.envelope import EnvelopeEditor
+from setuav_studio.plugins.core.transform import TransformEditor
 
 
 class CorePlugin:
@@ -72,6 +75,18 @@ class CorePlugin:
             "instance",
             lambda instance: InstanceEditor(api, instance),
         )
+        api.register_kind_editor(
+            "transform",
+            lambda selection: TransformEditor(api, selection),
+        )
+        api.register_kind_editor(
+            "physical-envelope",
+            lambda selection: EnvelopeEditor(api, selection),
+        )
+        api.register_component_tree_provider(
+            "org.setuav.studio.core.transform",
+            self._transform_tree_nodes,
+        )
         api.add_panel(
             PanelContribution(
                 id="project.explorer",
@@ -79,6 +94,7 @@ class CorePlugin:
                 factory=lambda: ProjectExplorerPanel(api),
                 workspace_id=[
                     "studio.workspace.design",
+                    "studio.workspace.weight_balance",
                     "studio.workspace.propulsion",
                     "studio.workspace.aerodynamics",
                 ],
@@ -93,6 +109,7 @@ class CorePlugin:
                 area=Qt.DockWidgetArea.RightDockWidgetArea,
                 workspace_id=[
                     "studio.workspace.design",
+                    "studio.workspace.weight_balance",
                     "studio.workspace.propulsion",
                     "studio.workspace.aerodynamics",
                 ],
@@ -104,5 +121,44 @@ class CorePlugin:
         for contribution in self._TOOLBAR_ITEMS:
             api.remove_toolbar_item(contribution.id)
         api.remove_kind_editor("instance")
+        api.remove_kind_editor("transform")
+        api.remove_kind_editor("physical-envelope")
+        api.remove_component_tree_provider("org.setuav.studio.core.transform")
         api.remove_panel("project.explorer")
         api.remove_panel("studio.properties")
+
+    @staticmethod
+    def _transform_tree_nodes(
+        component: dict,
+    ) -> tuple[ComponentTreeNodeContribution, ...]:
+        component_id = str(component.get("id") or "")
+        if not component_id:
+            return ()
+        transform_node_id = f"{component_id}:transform"
+        envelope_node_id = f"{component_id}:physical-envelope"
+        return (
+            ComponentTreeNodeContribution(
+                id=transform_node_id,
+                title="Transform",
+                selection={
+                    "id": transform_node_id,
+                    "name": "Transform",
+                    "kind": "transform",
+                    "component_id": component_id,
+                },
+                icon="mdi6.axis-arrow",
+                tooltip="Position and rotation relative to the parent frame",
+            ),
+            ComponentTreeNodeContribution(
+                id=envelope_node_id,
+                title="Physical Envelope",
+                selection={
+                    "id": envelope_node_id,
+                    "name": "Physical Envelope",
+                    "kind": "physical-envelope",
+                    "component_id": component_id,
+                },
+                icon="fa6s.ruler-combined",
+                tooltip="Local dimensions, offset and occupied volume",
+            ),
+        )

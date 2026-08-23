@@ -11,7 +11,9 @@ from setuav_studio.plugin_system import (
     _candidate_sort_key,
 )
 from setuav_studio.plugins.core import CorePlugin
+from setuav_studio.plugins.core.envelope import EnvelopeEditor, PHYSICAL_EXTENSION_ID
 from setuav_studio.plugins.core.project import ProjectExplorer
+from setuav_studio.plugins.core.transform import TransformEditor
 from setuav_studio.plugins.geometry import GeometryPlugin
 from setuav_studio.plugins.geometry.fuselage import FuselageEditor
 from setuav_studio.plugins.geometry.mesh import build_loft_wire_vertices
@@ -22,6 +24,10 @@ from tests._common import get_qapp
 
 
 class PluginTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls._app = get_qapp()
+
     def setUp(self) -> None:
         self.api = StudioAPI()
         self.panels: list[PanelContribution] = []
@@ -93,6 +99,50 @@ class PluginTests(unittest.TestCase):
             [panel.id for panel in self.panels],
             ["project.explorer", "studio.properties"],
         )
+
+    def test_core_plugin_contributes_transform_tree_node_and_editor(self) -> None:
+        self.manager.activate(CorePlugin())
+        component = {
+            "id": "motor",
+            "name": "Motor",
+            "transform": {
+                "position": {"x": 100, "y": 20, "z": 5},
+                "rotation": {"roll": 1, "pitch": 2, "yaw": 3},
+            },
+        }
+        project = ProjectDocument(
+            Path("project.json"),
+            "json",
+            {"components": [component]},
+        )
+        self.api.set_project(project)
+
+        contribution = self.api.component_tree_nodes(component)[0]
+        self.assertEqual(contribution.id, "motor:transform")
+        self.assertEqual(contribution.icon, "mdi6.axis-arrow")
+        envelope_contribution = self.api.component_tree_nodes(component)[1]
+        self.assertEqual(envelope_contribution.id, "motor:physical-envelope")
+        self.assertEqual(envelope_contribution.icon, "fa6s.ruler-combined")
+        editor = self.api.create_component_editor(contribution.selection)
+        self.assertIsInstance(editor, TransformEditor)
+        self.assertEqual(editor.position_spins["x"].value(), 100.0)
+        self.assertEqual(editor.rotation_spins["yaw"].value(), 3.0)
+
+        editor.position_spins["x"].setValue(250)
+        self.assertEqual(component["transform"]["position"]["x"], 250.0)
+        self.api.undo()
+        self.assertEqual(component["transform"]["position"]["x"], 100)
+
+        envelope_editor = self.api.create_component_editor(
+            envelope_contribution.selection
+        )
+        self.assertIsInstance(envelope_editor, EnvelopeEditor)
+        envelope_editor.dimension_spins["x"].setValue(60)
+        envelope_editor.dimension_spins["y"].setValue(30)
+        envelope_editor.dimension_spins["z"].setValue(15)
+        envelope = component["extensions"][PHYSICAL_EXTENSION_ID]["envelope"]
+        self.assertEqual(envelope["size_mm"], {"x": 60.0, "y": 30.0, "z": 15.0})
+        self.assertAlmostEqual(envelope_editor.volume_value(), 27_000.0)
 
     def test_project_explorer_describes_instance_source_by_name(self) -> None:
         components = [
