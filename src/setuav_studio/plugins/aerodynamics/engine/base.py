@@ -10,10 +10,11 @@ from typing import Any, Sequence
 
 class AnalysisMethod(enum.Enum):
     """Available solver methods."""
+    COMPREHENSIVE = "comprehensive"  # Multi-solver collaborative ensemble (VLM + AeroBuildup + LLT)
     VLM = "vlm"
     AERO_BUILDUP = "aero_buildup"
-    PANEL = "panel"
     LIFTING_LINE = "lifting_line"
+    PANEL = "panel"
     NONLINEAR_LIFTING_LINE = "nonlinear_lifting_line"
 
 
@@ -445,9 +446,21 @@ class MultiDimensionalSweepResult:
                 result.append(pt)
         return result
 
-    def find_point(self, tolerance: float = 1e-4, **conditions: float) -> PolarPoint | None:
-        """Find a specific point in the sweep dataset matching condition values."""
-        matches = self.get_slice(conditions, tolerance=tolerance)
+    def find_point(
+        self,
+        conditions_dict: dict[str, float] | None = None,
+        tolerance: float = 1e-4,
+        **conditions: float,
+    ) -> PolarPoint | None:
+        """Find a specific point in the sweep dataset matching condition values.
+
+        Can be called with keyword arguments or a condition dictionary:
+            pt = sweep.find_point(alpha=2.0, beta=0.0)
+            pt = sweep.find_point({"alpha": 2.0, "beta": 0.0})
+        """
+        conds = dict(conditions_dict or {})
+        conds.update(conditions)
+        matches = self.get_slice(conds, tolerance=tolerance)
         return matches[0] if matches else None
 
     def to_dict(self) -> dict[str, Any]:
@@ -539,6 +552,8 @@ class AeroResult:
     sweep_result: MultiDimensionalSweepResult | None = None
     # Flight condition specified for this analysis
     condition: FlightCondition = field(default_factory=FlightCondition)
+    # Individual solver curves for comparison (e.g. 'vlm', 'aero_buildup', 'lifting_line')
+    solver_results: dict[str, list[PolarPoint]] = field(default_factory=dict)
     # Propulsion attachment points and thrust lines identified in project
     propulsion_points: list[PropulsionPoint] = field(default_factory=list)
     # Raw engine specific payload (for custom downstream rendering or debugging)
@@ -557,6 +572,10 @@ class AeroResult:
             "method": self.method.value,
             "engine_name": self.engine_name,
             "polar_points": [p.to_dict() for p in self.polar_points],
+            "solver_results": {
+                name: [p.to_dict() for p in pts]
+                for name, pts in self.solver_results.items()
+            },
             "cl_max": self.cl_max,
             "cl_max_alpha": self.cl_max_alpha,
             "cd_min": self.cd_min,
@@ -578,13 +597,20 @@ class AeroResult:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> AeroResult:
         """Construct an AeroResult instance from a serialized dictionary."""
-        method_str = data.get("method", "aero_buildup")
+        method_str = data.get("method", "comprehensive")
         try:
             method = AnalysisMethod(method_str)
         except ValueError:
-            method = AnalysisMethod.AERO_BUILDUP
+            method = AnalysisMethod.COMPREHENSIVE
 
         points = [PolarPoint.from_dict(p) for p in data.get("polar_points", []) if isinstance(p, dict)]
+        solv_res_data = data.get("solver_results", {})
+        solv_res: dict[str, list[PolarPoint]] = {}
+        if isinstance(solv_res_data, dict):
+            for k, pts_list in solv_res_data.items():
+                if isinstance(pts_list, list):
+                    solv_res[k] = [PolarPoint.from_dict(p) for p in pts_list if isinstance(p, dict)]
+
         ref = ReferenceValues.from_dict(data.get("reference") or {})
         cond = FlightCondition.from_dict(data.get("condition") or {})
         prop_pts = [
@@ -600,6 +626,7 @@ class AeroResult:
             method=method,
             engine_name=str(data.get("engine_name", "")),
             polar_points=points,
+            solver_results=solv_res,
             cl_max=float(data.get("cl_max", 0.0)),
             cl_max_alpha=float(data.get("cl_max_alpha", 0.0)),
             cd_min=float(data.get("cd_min", 0.0)),

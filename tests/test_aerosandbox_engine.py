@@ -367,6 +367,71 @@ class AeroSandboxEngineTests(unittest.TestCase):
         self.assertEqual(prop.motor_kv, 920.0)
         self.assertAlmostEqual(prop.thrust_vector[0], math.cos(math.radians(-2.0)), places=3)
 
+    @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
+    def test_comprehensive_multi_solver_ensemble(self) -> None:
+        """Verify unified comprehensive solver executes multiple engines and decomposes drag."""
+        engine = AeroSandboxEngine()
+        components = _sample_components()
+        cond = FlightCondition(
+            velocity=25.0,
+            altitude=500.0,
+            alpha_min=-2.0,
+            alpha_max=8.0,
+            alpha_steps=3,
+        )
+
+        settings = {
+            "spanwise_resolution": 10,
+            "chordwise_resolution": 6,
+            "spanwise_spacing": "cosine",
+            "include_wave_drag": True,
+            "compressibility_correction": True,
+        }
+
+        result = engine.analyze(
+            components,
+            cond,
+            method=AnalysisMethod.COMPREHENSIVE,
+            settings=settings,
+        )
+
+        self.assertEqual(result.method, AnalysisMethod.COMPREHENSIVE)
+        self.assertEqual(len(result.polar_points), 3)
+
+        # Check solver curves map
+        self.assertIn("vlm", result.solver_results)
+        self.assertIn("aero_buildup", result.solver_results)
+        self.assertEqual(len(result.solver_results["vlm"]), 3)
+        self.assertEqual(len(result.solver_results["aero_buildup"]), 3)
+
+        # Check drag breakdown
+        for pt in result.polar_points:
+            self.assertGreater(pt.cd, 0.0)
+            self.assertGreater(pt.cd_induced, 0.0)
+            self.assertGreater(pt.cd_profile, 0.0)
+            self.assertAlmostEqual(pt.cd, pt.cd_induced + pt.cd_profile + pt.cd_wave, places=4)
+
+        # Check serialization round-trip with solver results
+        d = result.to_dict()
+        restored = AeroResult.from_dict(d)
+        self.assertEqual(restored.method, AnalysisMethod.COMPREHENSIVE)
+        self.assertIn("vlm", restored.solver_results)
+        self.assertIn("aero_buildup", restored.solver_results)
+
+    @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
+    def test_lifting_line_direct_method(self) -> None:
+        """Verify direct LiftingLine analysis execution."""
+        engine = AeroSandboxEngine()
+        components = _sample_components()
+        cond = FlightCondition(velocity=25.0, alpha=4.0, alpha_steps=1)
+
+        result = engine.analyze(components, cond, method=AnalysisMethod.LIFTING_LINE)
+        self.assertEqual(result.method, AnalysisMethod.LIFTING_LINE)
+        self.assertEqual(len(result.polar_points), 1)
+        pt = result.polar_points[0]
+        self.assertGreater(pt.cl, 0.0)
+        self.assertGreater(pt.cd, 0.0)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -64,10 +64,15 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
             ("cd_min", "Min Drag Coefficient (CD_min)"),
             ("ld_max", "Max L/D"),
             ("ld_max_alpha", "AoA @ Max L/D"),
+            ("cd_ind_cruise", "Induced Drag (CD_i @ Max L/D)"),
+            ("cd_prof_cruise", "Profile Drag (CD_p @ Max L/D)"),
+            ("drag_ratio", "Drag Breakdown (Ind / Prof)"),
             ("ref_span", "Ref. Wingspan (b)"),
             ("ref_area", "Ref. Wing Area (S)"),
             ("ref_ar", "Aspect Ratio (AR)"),
             ("ref_mac", "Mean Aero Chord (MAC)"),
+            ("mach", "Mach Number (M)"),
+            ("dynamic_pressure", "Dynamic Pressure (q_inf)"),
             ("reynolds", "Reynolds Number (Re)"),
             ("oswald_e", "Oswald Efficiency (e)"),
         ])
@@ -143,8 +148,9 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
         self._current_result = None
         for key in (
             "solver_engine", "cl_max", "cl_max_alpha", "cd_min",
-            "ld_max", "ld_max_alpha", "ref_span", "ref_area",
-            "ref_ar", "ref_mac", "reynolds", "oswald_e",
+            "ld_max", "ld_max_alpha", "cd_ind_cruise", "cd_prof_cruise",
+            "drag_ratio", "ref_span", "ref_area", "ref_ar", "ref_mac",
+            "mach", "dynamic_pressure", "reynolds", "oswald_e",
         ):
             self._set_property_value(self.summary_table, key, "-")
         self.detail_table.setRowCount(0)
@@ -153,9 +159,19 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
     def display_results(self, result: AeroResult) -> None:
         self._current_result = result
         ref = result.reference
+        points = result.polar_points
 
         ar = (ref.b_ref ** 2 / ref.s_ref) if ref.s_ref > 0 else 0.0
         oswald_str = f"{result.oswald_efficiency:.3f}" if result.oswald_efficiency is not None else "N/A"
+
+        best_pt = max(points, key=lambda p: p.cl_over_cd) if points else None
+        cd_i_str = f"{best_pt.cd_induced:.5f}" if best_pt else "-"
+        cd_p_str = f"{best_pt.cd_profile:.5f}" if best_pt else "-"
+        if best_pt and best_pt.cd_profile > 1e-6:
+            tot_d = max(best_pt.cd, 1e-6)
+            ratio_str = f"{best_pt.cd_induced / best_pt.cd_profile:.2f} ({best_pt.cd_induced / tot_d * 100:.0f}% Ind / {best_pt.cd_profile / tot_d * 100:.0f}% Prof)"
+        else:
+            ratio_str = "N/A"
 
         metrics = {
             "solver_engine": f"{result.engine_name} ({result.method.value.upper()})",
@@ -164,10 +180,15 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
             "cd_min": f"{result.cd_min:.5f}",
             "ld_max": f"{result.ld_max:.2f}",
             "ld_max_alpha": f"{result.ld_max_alpha:.2f}°",
+            "cd_ind_cruise": cd_i_str,
+            "cd_prof_cruise": cd_p_str,
+            "drag_ratio": ratio_str,
             "ref_span": f"{ref.b_ref * 1000.0:.1f} mm ({ref.b_ref:.3f} m)",
             "ref_area": f"{ref.s_ref * 1e4:.1f} cm² ({ref.s_ref:.4f} m²)",
             "ref_ar": f"{ar:.2f}",
             "ref_mac": f"{ref.c_ref * 1000.0:.1f} mm",
+            "mach": f"{result.mach:.3f}",
+            "dynamic_pressure": f"{result.dynamic_pressure:.1f} Pa",
             "reynolds": f"{result.reynolds:,.0f}" if result.reynolds > 0 else "N/A",
             "oswald_e": oswald_str,
         }

@@ -150,13 +150,12 @@ class SingleChartWidget(QWidget):
 
     def plot_multi(
         self,
-        x_vals: Sequence[float],
-        curves: list[tuple[Sequence[float], str, str]],
+        curves: list[tuple[Sequence[float], Sequence[float], str, str]],
         x_title: str = "",
         y_title: str = "",
     ) -> None:
         self.clear()
-        if not x_vals or not curves:
+        if not curves:
             return
 
         self.update_theme_style()
@@ -167,15 +166,19 @@ class SingleChartWidget(QWidget):
         self.chart.addAxis(axis_x, Qt.AlignmentFlag.AlignBottom)
         self.chart.addAxis(axis_y, Qt.AlignmentFlag.AlignLeft)
 
+        all_x: list[float] = []
         all_y: list[float] = []
 
-        for y_vals, name, color_role in curves:
+        from setuav_studio.ui.theme import chart_color
+
+        for x_vals, y_vals, name, color_role in curves:
+            if not x_vals or not y_vals:
+                continue
             series = QLineSeries()
             series.setName(name)
             series.setProperty("themeColorRole", color_role)
-            from setuav_studio.ui.theme import chart_color
 
-            pen = QPen(QColor(chart_color(color_role)), 2.5)
+            pen = QPen(QColor(chart_color(color_role)), 2.2)
             series.setPen(pen)
 
             for x, y in zip(x_vals, y_vals):
@@ -184,10 +187,19 @@ class SingleChartWidget(QWidget):
             self.chart.addSeries(series)
             series.attachAxis(axis_x)
             series.attachAxis(axis_y)
+            all_x.extend(x_vals)
             all_y.extend(y_vals)
 
-        pad_x = max((max(x_vals) - min(x_vals)) * 0.05, 0.005)
-        axis_x.setRange(max(0.0, min(x_vals) - pad_x), max(x_vals) + pad_x)
+        if len(curves) > 1:
+            self.chart.legend().setVisible(True)
+            self.chart.legend().setAlignment(Qt.AlignmentFlag.AlignTop)
+            self.chart.legend().setFont(QFont("Inter", 7.5))
+        else:
+            self.chart.legend().setVisible(False)
+
+        if all_x:
+            pad_x = max((max(all_x) - min(all_x)) * 0.05, 0.005)
+            axis_x.setRange(min(all_x) - pad_x, max(all_x) + pad_x)
 
         if all_y:
             pad_y = max((max(all_y) - min(all_y)) * 0.05, 0.05)
@@ -277,45 +289,70 @@ class AeroChartsDock(QWidget):
         alphas = [p.alpha for p in points]
         cls = [p.cl for p in points]
         cds = [p.cd for p in points]
+        cd_inds = [p.cd_induced for p in points]
+        cd_profs = [p.cd_profile for p in points]
         cms = [p.cm for p in points]
         lds = [p.cl_over_cd for p in points]
 
-        # 1. Lift Curve
-        self.chart_lift.plot_single(
-            x_vals=alphas,
-            y_vals=cls,
-            name="CL",
-            color_role="blue",
+        solvers = result.solver_results
+
+        # 1. Lift Curves (Unified, VLM, Buildup, LLT)
+        lift_curves = [(alphas, cls, "Total CL", "blue")]
+        if "vlm" in solvers:
+            v_pts = solvers["vlm"]
+            lift_curves.append(([p.alpha for p in v_pts], [p.cl for p in v_pts], "VLM (Inviscid)", "cyan"))
+        if "aero_buildup" in solvers:
+            ab_pts = solvers["aero_buildup"]
+            lift_curves.append(([p.alpha for p in ab_pts], [p.cl for p in ab_pts], "Buildup (Viscous)", "orange"))
+        if "lifting_line" in solvers:
+            ll_pts = solvers["lifting_line"]
+            lift_curves.append(([p.alpha for p in ll_pts], [p.cl for p in ll_pts], "LiftingLine", "purple"))
+
+        self.chart_lift.plot_multi(
+            curves=lift_curves,
             x_title="α (°)",
             y_title="CL",
         )
 
-        # 2. Drag Polar
+        # 2. Drag Polar (Total Drag, Induced Drag CDi, Profile Drag CDp)
+        polar_curves = [(cds, cls, "Total CD", "green")]
+        if any(abs(cdi) > 1e-6 for cdi in cd_inds):
+            polar_curves.append((cd_inds, cls, "Induced CDi", "blue"))
+        if any(abs(cdp) > 1e-6 for cdp in cd_profs):
+            polar_curves.append((cd_profs, cls, "Profile CDp", "orange"))
+
         self.chart_polar.plot_multi(
-            x_vals=cds,
-            curves=[
-                (cls, "CL", "green"),
-            ],
+            curves=polar_curves,
             x_title="CD",
             y_title="CL",
         )
 
-        # 3. Moment Curve
-        self.chart_moment.plot_single(
-            x_vals=alphas,
-            y_vals=cms,
-            name="Cm",
-            color_role="orange",
+        # 3. Moment Curves
+        moment_curves = [(alphas, cms, "Total Cm", "orange")]
+        if "vlm" in solvers:
+            v_pts = solvers["vlm"]
+            moment_curves.append(([p.alpha for p in v_pts], [p.cm for p in v_pts], "VLM Cm", "cyan"))
+        if "aero_buildup" in solvers:
+            ab_pts = solvers["aero_buildup"]
+            moment_curves.append(([p.alpha for p in ab_pts], [p.cm for p in ab_pts], "Buildup Cm", "magenta"))
+
+        self.chart_moment.plot_multi(
+            curves=moment_curves,
             x_title="α (°)",
             y_title="Cm",
         )
 
-        # 4. L/D Curve
-        self.chart_ld.plot_single(
-            x_vals=alphas,
-            y_vals=lds,
-            name="L/D",
-            color_role="magenta",
+        # 4. L/D Curves
+        ld_curves = [(alphas, lds, "Total L/D", "magenta")]
+        if "vlm" in solvers:
+            v_pts = solvers["vlm"]
+            ld_curves.append(([p.alpha for p in v_pts], [p.cl_over_cd for p in v_pts], "VLM L/D", "cyan"))
+        if "aero_buildup" in solvers:
+            ab_pts = solvers["aero_buildup"]
+            ld_curves.append(([p.alpha for p in ab_pts], [p.cl_over_cd for p in ab_pts], "Buildup L/D", "orange"))
+
+        self.chart_ld.plot_multi(
+            curves=ld_curves,
             x_title="α (°)",
             y_title="L/D",
         )

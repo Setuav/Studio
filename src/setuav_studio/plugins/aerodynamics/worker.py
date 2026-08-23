@@ -26,7 +26,7 @@ class AnalysisWorker(QRunnable):
         engine: AeroEngine,
         components: list[dict[str, Any]],
         condition: FlightCondition,
-        method: AnalysisMethod = AnalysisMethod.AERO_BUILDUP,
+        method: AnalysisMethod = AnalysisMethod.COMPREHENSIVE,
         settings: dict[str, Any] | None = None,
     ) -> None:
         super().__init__()
