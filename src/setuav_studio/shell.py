@@ -3,7 +3,7 @@ from typing import Any
 import logging
 
 import shiboken6
-from PySide6.QtCore import QSettings, Qt, QTimer
+from PySide6.QtCore import QEvent, QSettings, Qt, QTimer
 from PySide6.QtGui import QAction, QActionGroup, QCloseEvent, QKeySequence, QPalette
 from PySide6.QtWidgets import (
     QApplication,
@@ -116,6 +116,7 @@ class MainWindow(QMainWindow):
         self._workspace_states: dict[str, Any] = {}
         self._restoring_workspace_layout = False
         self._layout_save_scheduled = False
+        self._layout_persistence_enabled = False
         self.setDockNestingEnabled(True)
 
         central_anchor = QWidget(self)
@@ -779,6 +780,7 @@ class MainWindow(QMainWindow):
         dock.dockLocationChanged.connect(self._schedule_workspace_layout_save)
         dock.topLevelChanged.connect(self._schedule_workspace_layout_save)
         dock.visibilityChanged.connect(self._schedule_workspace_layout_save)
+        dock.installEventFilter(self)
         self._panel_actions[contribution.id] = action
         self._update_panel_action_icon(contribution.id)
 
@@ -1068,7 +1070,11 @@ class MainWindow(QMainWindow):
         self._update_view_menu(workspace_id)
 
     def _schedule_workspace_layout_save(self, *_args) -> None:
-        if self._restoring_workspace_layout or self._current_workspace_id is None:
+        if (
+            not self._layout_persistence_enabled
+            or self._restoring_workspace_layout
+            or self._current_workspace_id is None
+        ):
             return
         if self._layout_save_scheduled:
             return
@@ -1087,6 +1093,22 @@ class MainWindow(QMainWindow):
     def resizeEvent(self, event) -> None:  # noqa: N802 - Qt API
         super().resizeEvent(event)
         self._schedule_workspace_layout_save()
+
+    def showEvent(self, event) -> None:  # noqa: N802 - Qt API
+        super().showEvent(event)
+        if not self._layout_persistence_enabled:
+            QTimer.singleShot(0, self._enable_layout_persistence)
+
+    def _enable_layout_persistence(self) -> None:
+        self._layout_persistence_enabled = True
+
+    def eventFilter(self, watched, event) -> bool:  # noqa: N802 - Qt API
+        if isinstance(watched, QDockWidget) and event.type() in (
+            QEvent.Type.Resize,
+            QEvent.Type.Move,
+        ):
+            self._schedule_workspace_layout_save()
+        return super().eventFilter(watched, event)
 
     def _apply_default_workspace_layout(self, workspace_id: str) -> None:
         explorer = self.findChild(QDockWidget, "project.explorer")

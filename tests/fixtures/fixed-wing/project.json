@@ -1428,12 +1428,12 @@
     {
       "kind": "component",
       "id": "motor-cruise",
-      "name": "SunnySky X2814 KV900 3-4S",
+      "name": "SunnySky X2814",
       "type": "org.setuav.core:motor",
       "parent": null,
       "transform": {
         "position": {
-          "x": 0,
+          "x": 830,
           "y": 0,
           "z": 0
         },
@@ -1459,7 +1459,13 @@
       "name": "APC 12x6E",
       "type": "org.setuav.core:propeller",
       "attach_to": "motor-cruise",
-      "transform": {},
+      "transform": {
+        "position": {
+          "x": -35,
+          "y": 0,
+          "z": 0
+        }
+      },
       "parameters": {
         "diameter": 304.8,
         "pitch": 152.4,
@@ -1493,7 +1499,7 @@
       "parent": null,
       "transform": {
         "position": {
-          "x": 360,
+          "x": 165,
           "y": 0,
           "z": 0
         }

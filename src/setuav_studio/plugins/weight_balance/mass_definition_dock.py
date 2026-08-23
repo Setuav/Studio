@@ -297,7 +297,8 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
                     source.get("mass", source_parameters.get("mass", 0.0)),
                 ),
             )
-            if mass is None or mass == 0.0:
+            is_control_surface = component.get("type") == "org.setuav.core:control-surface"
+            if (mass is None or mass == 0.0) and not is_control_surface:
                 project_data = getattr(self._api.current_project, "data", {})
                 project_components = project_data.get("components", []) if isinstance(project_data, dict) else []
                 by_id = {

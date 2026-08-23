@@ -22,6 +22,7 @@ from .base import WeightBalanceEngine, WeightBalanceError
 from .spatial import Matrix3, TransformError, resolve_world_transforms
 
 EXTENSION_ID = "org.setuav.weight-balance"
+PHYSICAL_EXTENSION_ID = "org.setuav.core.physical"
 
 
 class WeightBalanceSolver(WeightBalanceEngine):
@@ -55,11 +56,17 @@ class WeightBalanceSolver(WeightBalanceEngine):
         derived = derive_project_component_geometry(list(by_id.values()))
         for component_id, component in by_id.items():
             effective = self._effective_component(component, by_id)
+            if effective.get("type") == "org.setuav.core:control-surface":
+                # Control surfaces are part of the parent lifting surface's
+                # single mass item. Their geometry remains available to the
+                # 2D/3D views, but they do not become separate WB masses.
+                continue
             item = self._component_properties(
                 component_id,
                 effective,
                 transforms[component_id].point_mm_to_m,
                 derived.get(component_id),
+                mirrored_frame=_mirrored_frame(effective, by_id),
             )
             if item is None:
                 warnings.append(f"{component_id}: mass is missing; component excluded")
@@ -134,6 +141,8 @@ class WeightBalanceSolver(WeightBalanceEngine):
         component: dict[str, Any],
         transform_point_mm: Any,
         derived: DerivedComponentGeometry | None = None,
+        *,
+        mirrored_frame: bool = False,
     ) -> ComponentMassProperties | None:
         parameters = component.get("parameters")
         parameters = parameters if isinstance(parameters, dict) else {}
@@ -141,6 +150,10 @@ class WeightBalanceSolver(WeightBalanceEngine):
         extensions = extensions if isinstance(extensions, dict) else {}
         wb_extension = extensions.get(EXTENSION_ID)
         wb_extension = wb_extension if isinstance(wb_extension, dict) else {}
+        physical_extension = extensions.get(PHYSICAL_EXTENSION_ID)
+        physical_extension = physical_extension if isinstance(physical_extension, dict) else {}
+        physical_envelope = physical_extension.get("envelope")
+        physical_envelope = physical_envelope if isinstance(physical_envelope, dict) else None
 
         component_warnings: list[str] = []
         root_mass = _optional_number(component.get("mass"))
@@ -152,7 +165,7 @@ class WeightBalanceSolver(WeightBalanceEngine):
 
         mass_g = root_mass if root_mass is not None else parameter_mass
         requested_source = str(wb_extension.get("mass_source") or "")
-        if derived is not None and (mass_g is None or requested_source == "derived"):
+        if derived is not None and (mass_g is None or mass_g <= 0.0 or requested_source == "derived"):
             mass_g = derived.mass_g
             source = "derived"
         else:
@@ -160,7 +173,11 @@ class WeightBalanceSolver(WeightBalanceEngine):
         if mass_g is None or mass_g <= 0.0:
             return None
 
-        cg_value = wb_extension.get("local_cg_mm")
+        # A derived mass source also owns the default CG/inertia.  This is
+        # important for control surfaces created with a placeholder
+        # ``local_cg_mm: {0, 0, 0}``; that placeholder must not mask the
+        # geometry-derived hinge-bay centre.
+        cg_value = None if source == "derived" else wb_extension.get("local_cg_mm")
         has_declared_cg = isinstance(cg_value, dict)
         if not has_declared_cg and derived is not None:
             # Use the envelope centre for structural geometry.  A control
@@ -175,32 +192,54 @@ class WeightBalanceSolver(WeightBalanceEngine):
                 derived_position = derived.transform.get("position")
                 if isinstance(derived_position, dict) and any(_optional_number(derived_position.get(axis)) for axis in ("x", "y", "z")):
                     cg_value = derived_position
-                else:
+                elif _envelope_has_size(derived.envelope):
                     envelope_offset = derived.envelope.get("offset_mm")
                     cg_value = envelope_offset if isinstance(envelope_offset, dict) else None
+        if not has_declared_cg and cg_value is None and physical_envelope is not None:
+            envelope_offset = physical_envelope.get("offset_mm")
+            cg_value = envelope_offset if isinstance(envelope_offset, dict) else None
         cg_local_mm = _vector(cg_value)
         cg_body = transform_point_mm(cg_local_mm)
 
         geometry = parameters.get("geometry")
         geometry = geometry if isinstance(geometry, dict) else {}
         symmetry_mode = str(wb_extension.get("symmetry_mode") or "pair")
-        if geometry.get("mirror") is True and symmetry_mode == "pair":
-            # A mirrored lifting-surface component represents the complete pair.
+        if symmetry_mode == "pair" and (geometry.get("mirror") is True or mirrored_frame):
+            # A mirrored lifting surface, and its attached control surfaces,
+            # represent the complete left/right pair.  Their aggregate CG is
+            # therefore on the aircraft centre plane even when the parent
+            # component has a local attachment offset on Y.
             cg_body = (cg_body[0], 0.0, cg_body[2])
 
-        inertia_value = wb_extension.get("inertia_kg_m2")
-        if inertia_value is None:
+        inertia_value = None if source == "derived" else wb_extension.get("inertia_kg_m2")
+        if inertia_value is None and source != "derived":
             inertia_value = parameters.get("inertia")
         inertia, has_declared_inertia = _inertia(inertia_value)
-        if not has_declared_cg and source != "derived":
-            component_warnings.append("local CG not declared; transform origin used")
+        envelope = (
+            derived.envelope
+            if derived is not None and _envelope_has_size(derived.envelope)
+            else physical_envelope
+        )
         if not has_declared_inertia:
+            inertia, has_derived_inertia = _inertia_from_envelope(envelope, mass_g / 1000.0)
+        else:
+            has_derived_inertia = False
+
+        # Transform-origin and point-mass fallbacks are intentional for the
+        # built-in component types.  Keep the diagnostic for untyped/custom
+        # components, where silently accepting an omitted mass model is more
+        # likely to hide an incomplete definition.
+        fallback_warning = not _is_builtin_component(component)
+        if not has_declared_cg and source != "derived" and fallback_warning and cg_value is None:
+            component_warnings.append("local CG not declared; transform origin used")
+        if not has_declared_inertia and not has_derived_inertia and fallback_warning:
             component_warnings.append("intrinsic inertia not declared; treated as a point mass")
 
         quality = "declared" if has_declared_cg and has_declared_inertia else "approximate"
         return ComponentMassProperties(
             component_id=component_id,
             component_name=str(component.get("name") or component_id),
+            component_type=str(component.get("type") or ""),
             mass_kg=mass_g / 1000.0,
             cg_local_m=tuple(value / 1000.0 for value in cg_local_mm),  # type: ignore[arg-type]
             cg_body_m=cg_body,
@@ -233,6 +272,55 @@ def _inertia(value: object) -> tuple[InertiaTensor, bool]:
         for key in ("ixx", "iyy", "izz", "ixy", "ixz", "iyz")
     }
     return InertiaTensor(**values), True
+
+
+def _inertia_from_envelope(value: object, mass_kg: float) -> tuple[InertiaTensor, bool]:
+    """Estimate a solid-box inertia from a local physical envelope.
+
+    The envelope is deliberately only an approximation.  It is still a more
+    useful default than a zero tensor for payloads and equipment, and avoids
+    requiring every component plugin to duplicate basic rigid-body math.
+    """
+    if not isinstance(value, dict):
+        return InertiaTensor(), False
+    size = value.get("size_mm")
+    if not isinstance(size, dict):
+        return InertiaTensor(), False
+    dimensions = tuple(_optional_number(size.get(axis)) or 0.0 for axis in ("x", "y", "z"))
+    if mass_kg <= 0.0 or any(dimension <= 0.0 for dimension in dimensions):
+        return InertiaTensor(), False
+    x_m, y_m, z_m = (dimension / 1000.0 for dimension in dimensions)
+    return InertiaTensor(
+        ixx=mass_kg * (y_m * y_m + z_m * z_m) / 12.0,
+        iyy=mass_kg * (x_m * x_m + z_m * z_m) / 12.0,
+        izz=mass_kg * (x_m * x_m + y_m * y_m) / 12.0,
+    ), True
+
+
+def _envelope_has_size(value: object) -> bool:
+    if not isinstance(value, dict) or not isinstance(value.get("size_mm"), dict):
+        return False
+    return all((_optional_number(value["size_mm"].get(axis)) or 0.0) > 0.0 for axis in ("x", "y", "z"))
+
+
+def _is_builtin_component(component: dict[str, Any]) -> bool:
+    component_type = component.get("type")
+    return isinstance(component_type, str) and component_type.startswith("org.setuav.core:")
+
+
+def _mirrored_frame(component: dict[str, Any], by_id: dict[str, dict[str, Any]]) -> bool:
+    """Return whether a component is evaluated as a symmetric pair."""
+    parameters = component.get("parameters")
+    geometry = parameters.get("geometry") if isinstance(parameters, dict) else None
+    if isinstance(geometry, dict) and geometry.get("mirror") is True:
+        return True
+    parent_id = component.get("attach_to") or component.get("parent")
+    parent = by_id.get(str(parent_id)) if isinstance(parent_id, str) else None
+    if not isinstance(parent, dict):
+        return False
+    parent_parameters = parent.get("parameters")
+    parent_geometry = parent_parameters.get("geometry") if isinstance(parent_parameters, dict) else None
+    return isinstance(parent_geometry, dict) and parent_geometry.get("mirror") is True
 
 
 def _deep_merge(target: dict[str, Any], source: dict[str, Any]) -> None:

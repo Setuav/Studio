@@ -30,7 +30,7 @@ class WeightBalanceSolverTests(unittest.TestCase):
     def setUp(self) -> None:
         self.solver = WeightBalanceSolver()
 
-    def test_geometry_derived_control_surface_properties_and_parent_mass_deduction(self) -> None:
+    def test_geometry_derived_control_surface_properties_without_mass_deduction(self) -> None:
         wing = {
             "id": "wing",
             "type": "org.setuav.core:lifting-surface",
@@ -51,7 +51,7 @@ class WeightBalanceSolverTests(unittest.TestCase):
         derived = derive_project_component_geometry([wing, aileron])
         self.assertGreater(derived["aileron"].mass_g or 0, 0)
         self.assertEqual(derived["aileron"].envelope["size_mm"]["y"], 500.0)
-        self.assertLess(derived["wing"].mass_g or 0, 1000)
+        self.assertAlmostEqual(derived["wing"].mass_g or 0, 77.76, places=2)
 
     def test_two_point_masses_have_expected_cg_and_parallel_axis_inertia(self) -> None:
         project = _project({
@@ -265,7 +265,7 @@ class WeightBalancePluginTests(unittest.TestCase):
         self.assertEqual(results.summary_table.rowCount(), 2)
         self.assertEqual(results.cg_table.columnCount(), 3)
         self.assertEqual(results.inertia_table.rowCount(), 2)
-        self.assertEqual(results.component_table.horizontalHeaderItem(2).text(), "Body CG X (mm)")
+        self.assertEqual(results.component_table.horizontalHeaderItem(2).text(), "CG-X (mm)")
         self.assertEqual(results.component_table.horizontalHeaderItem(7).text(), "Notes")
         self.assertRegex(results.warning_label.text(), r"^\d+ warning\(s\)$")
         self.assertFalse(results.warning_icon.pixmap().isNull())

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QTableWidgetItem
+from shiboken6 import isValid
 
 from ..engine.lifting_surface_geometry import compute_winglet_projected_dimensions
 
@@ -28,6 +29,10 @@ class TipCapsMixin:
     # -------------------------------------------------------------------------
 
     def _load_tip_caps(self) -> None:
+        # The metrics cell widget is recreated whenever the tip type changes.
+        # Clear stale references before Qt deletes the old table widgets.
+        self.metric_height_val = None
+        self.metric_span_val = None
         geom = self._geometry()
         tip_treatment = geom.get("tip_treatment")
         tip_treatment = tip_treatment if isinstance(tip_treatment, dict) else {}
@@ -370,7 +375,14 @@ class TipCapsMixin:
             self._loading = was_loading
 
     def _update_winglet_projected_display(self, tip_treatment: dict) -> None:
-        if not hasattr(self, "metric_height_val") or not hasattr(self, "metric_span_val"):
+        height_label = getattr(self, "metric_height_val", None)
+        span_label = getattr(self, "metric_span_val", None)
+        if (
+            height_label is None
+            or span_label is None
+            or not isValid(height_label)
+            or not isValid(span_label)
+        ):
             return
         winglet_height = float(tip_treatment.get("winglet_height", 130.0))
         cant_tip_default = float(tip_treatment.get("cant_angle", 80.0))
@@ -378,8 +390,8 @@ class TipCapsMixin:
         cant_tip = float(tip_treatment.get("cant_tip", cant_tip_default))
         blend_radius = float(tip_treatment.get("blend_radius", 45.0 if "blend_radius" in tip_treatment else 0.0))
         h_proj, s_proj = compute_winglet_projected_dimensions(winglet_height, cant_root, cant_tip, blend_radius)
-        self.metric_height_val.setText(f"{h_proj:.1f} mm")
-        self.metric_span_val.setText(f"{s_proj:.1f} mm")
+        height_label.setText(f"{h_proj:.1f} mm")
+        span_label.setText(f"{s_proj:.1f} mm")
 
     def _on_tip_cap_type_changed(self, new_type: str) -> None:
         if self._loading:

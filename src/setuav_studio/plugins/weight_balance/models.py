@@ -59,6 +59,7 @@ class ComponentMassProperties:
     source: str
     quality: str
     warnings: tuple[str, ...] = ()
+    component_type: str = ""
 
 
 @dataclass(slots=True)

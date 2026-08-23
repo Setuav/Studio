@@ -156,6 +156,10 @@ class OpenGLViewer(QOpenGLWidget):
         self._mode = SOLID_WIRE
         self._face_style = FACE_COLORED
         self._transparent = False
+        # Aircraft inspection benefits from a distortion-free technical
+        # view: parallel edges stay parallel and front/rear dimensions remain
+        # visually comparable while orbiting the model.
+        self._orthographic = True
         self._geometry_data = GeometryData()
         self._selected_component_id: str | None = None
         self._hovered_component_id: str | None = None
@@ -738,7 +742,23 @@ class OpenGLViewer(QOpenGLWidget):
 
     def _projection(self) -> QMatrix4x4:
         matrix = QMatrix4x4()
-        matrix.perspective(45.0, self.width() / max(1, self.height()), 1.0, 100_000.0)
+        aspect = self.width() / max(1, self.height())
+        if self._orthographic:
+            half_height = max(
+                self._distance * math.tan(math.radians(45.0) * 0.5),
+                1.0,
+            )
+            half_width = half_height * aspect
+            matrix.ortho(
+                -half_width,
+                half_width,
+                -half_height,
+                half_height,
+                -100_000.0,
+                100_000.0,
+            )
+        else:
+            matrix.perspective(45.0, aspect, 1.0, 100_000.0)
         return matrix
 
     def _release_resources(self) -> None:

@@ -34,9 +34,10 @@ def derive_project_component_geometry(
 ) -> dict[str, DerivedComponentGeometry]:
     """Derive local transform, envelope and mass for all geometric components.
 
-    Control-surface masses are computed first.  A parent lifting surface then
-    receives the remaining structural mass, so ailerons/flaps/elevators are
-    never counted twice in the main surface mass.
+    Control-surface geometry is still derived for envelopes and view data, but
+    its mass is not folded into the weight-balance result.  A lifting surface
+    is treated as one mass item; this avoids making hinge-bay approximations
+    visible as separate aircraft mass components.
     """
     by_id = {
         str(item.get("id")): item
@@ -47,35 +48,6 @@ def derive_project_component_geometry(
     for component_id, component in by_id.items():
         result[component_id] = derive_component_geometry(component, by_id)
 
-    for component_id, component in by_id.items():
-        if component.get("type") != "org.setuav.core:lifting-surface":
-            continue
-        declared = _declared_mass(component)
-        if declared is not None:
-            continue
-        children = [
-            child_id
-            for child_id, child in by_id.items()
-            if child.get("type") == "org.setuav.core:control-surface"
-            and _frame_parent(child) == component_id
-        ]
-        deduction = 0.0
-        for child_id in children:
-            child = by_id[child_id]
-            child_extensions = child.get("extensions") if isinstance(child.get("extensions"), dict) else {}
-            wb = child_extensions.get("org.setuav.weight-balance") if isinstance(child_extensions, dict) else {}
-            declared = _declared_mass(child)
-            if declared is not None and not (isinstance(wb, dict) and wb.get("mass_source") == "derived"):
-                deduction += declared
-            else:
-                deduction += result[child_id].mass_g or 0.0
-        current = result[component_id]
-        result[component_id] = DerivedComponentGeometry(
-            transform=current.transform,
-            envelope=current.envelope,
-            mass_g=max(0.0, (current.mass_g or 0.0) - deduction),
-            volume_mm3=current.volume_mm3,
-        )
     return result
 
 

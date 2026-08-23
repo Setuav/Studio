@@ -39,6 +39,7 @@ class View2DCanvas(QWidget):
         x_label: str = "X",
         y_label: str = "Y",
         units: str = "mm",
+        invert_vertical: bool = False,
         geometry_source: View2DGeometrySource | None = None,
         parent: QWidget | None = None,
     ) -> None:
@@ -49,6 +50,7 @@ class View2DCanvas(QWidget):
         self._x_label = x_label
         self._y_label = y_label
         self._units = units
+        self._invert_vertical = bool(invert_vertical)
         self._geometry_source = geometry_source or (
             View2DGeometrySource(api) if api is not None else None
         )
@@ -128,8 +130,22 @@ class View2DCanvas(QWidget):
 
         if self._show_geometry and self._geometry_source is not None:
             geometry_data = self._geometry_source.current()
-            self._scene.add_geometry(geometry_data, axes=self._axes)
+            self._scene.add_geometry(
+                geometry_data,
+                axes=self._axes,
+                color=self._geometry_color(),
+                width=self._geometry_style()[0],
+                fill_alpha=self._geometry_style()[1],
+            )
         self.update()
+
+    def _geometry_color(self) -> ColorValue | None:
+        """Return an optional projection-wide geometry colour override."""
+        return None
+
+    def _geometry_style(self) -> tuple[float, int]:
+        """Return geometry outline width and fill opacity for this canvas."""
+        return 1.1, 42
 
     def paintEvent(self, _event) -> None:  # noqa: N802 - Qt API
         painter = QPainter(self)
@@ -158,7 +174,7 @@ class View2DCanvas(QWidget):
 
         for path in self._scene.paths:
             self._draw_path(painter, path, plot, bounds)
-        for marker in self._scene.markers:
+        for marker in sorted(self._scene.markers, key=self._marker_layer_order):
             self._draw_marker(painter, marker, plot, bounds)
 
     def _plot_rect(
@@ -266,7 +282,7 @@ class View2DCanvas(QWidget):
             value_x = min_x + (max_x - min_x) * ratio
             value_y = min_y + (max_y - min_y) * ratio
             x = plot.left() + plot.width() * ratio
-            y = plot.bottom() - plot.height() * ratio
+            y = self._map_y(value_y, plot, min_y, max_y)
             painter.drawLine(QPointF(x, plot.top()), QPointF(x, plot.bottom()))
             painter.drawLine(QPointF(plot.left(), y), QPointF(plot.right(), y))
             painter.setPen(self.palette().text().color())
@@ -289,7 +305,7 @@ class View2DCanvas(QWidget):
             x = plot.left() + (-min_x) / (max_x - min_x) * plot.width()
             painter.drawLine(QPointF(x, plot.top()), QPointF(x, plot.bottom()))
         if min_y <= 0.0 <= max_y:
-            y = plot.bottom() - (-min_y) / (max_y - min_y) * plot.height()
+            y = self._map_y(0.0, plot, min_y, max_y)
             painter.drawLine(QPointF(plot.left(), y), QPointF(plot.right(), y))
 
         painter.setPen(self.palette().text().color())
@@ -340,6 +356,15 @@ class View2DCanvas(QWidget):
         point = self._map_point(marker.position, plot, bounds)
         color = self._color(marker.color)
         radius = marker.radius + (1.5 if marker.id == self._hovered_id else 0.0)
+        if marker.symbol == "crosshair":
+            painter.setPen(QPen(color, 1.5, Qt.PenStyle.DashLine))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawLine(QPointF(plot.left(), point.y()), QPointF(plot.right(), point.y()))
+            painter.drawLine(QPointF(point.x(), plot.top()), QPointF(point.x(), plot.bottom()))
+            if marker.label and (self._show_labels or marker.id == self._hovered_id):
+                painter.setPen(self.palette().text().color())
+                painter.drawText(QPointF(point.x() + 6.0, point.y() - 6.0), marker.label)
+            return
         painter.setPen(QPen(color, 2.0))
         painter.setBrush(color if marker.symbol == "dot" else Qt.BrushStyle.NoBrush)
         if marker.symbol == "cross":
@@ -356,8 +381,8 @@ class View2DCanvas(QWidget):
             painter.setPen(self.palette().text().color())
             painter.drawText(QPointF(point.x() + radius + 4.0, point.y() - 3.0), marker.label)
 
-    @staticmethod
     def _map_point(
+        self,
         point: tuple[float, float],
         plot: QRectF,
         bounds: tuple[float, float, float, float],
@@ -365,8 +390,20 @@ class View2DCanvas(QWidget):
         min_x, max_x, min_y, max_y = bounds
         return QPointF(
             plot.left() + (point[0] - min_x) / (max_x - min_x) * plot.width(),
-            plot.bottom() - (point[1] - min_y) / (max_y - min_y) * plot.height(),
+            self._map_y(point[1], plot, min_y, max_y),
         )
+
+    def _map_y(
+        self,
+        value: float,
+        plot: QRectF,
+        minimum: float,
+        maximum: float,
+    ) -> float:
+        ratio = (value - minimum) / (maximum - minimum)
+        if self._invert_vertical:
+            return plot.top() + ratio * plot.height()
+        return plot.bottom() - ratio * plot.height()
 
     def _marker_at(self, position) -> View2DMarker | None:
         bounds = self._bounds()
@@ -375,11 +412,19 @@ class View2DCanvas(QWidget):
         plot = self._plot_rect(bounds)
         px = position.x()
         py = position.y()
-        for marker in reversed(self._scene.markers):
+        for marker in sorted(self._scene.markers, key=self._marker_layer_order, reverse=True):
             mapped = self._map_point(marker.position, plot, bounds)
             if hypot(mapped.x() - px, mapped.y() - py) <= max(10.0, marker.radius + 4.0):
                 return marker
         return None
+
+    @staticmethod
+    def _marker_layer_order(marker: View2DMarker) -> tuple[int, str]:
+        # Aircraft CG guides must remain behind component rings.  Geometry is
+        # rendered as paths before all markers, so it naturally stays below
+        # both layers.
+        order = {"cg": 0, "component": 1}
+        return order.get(marker.layer, 2), marker.id
 
     def mouseMoveEvent(self, event) -> None:  # noqa: N802 - Qt API
         marker = self._marker_at(event.position())

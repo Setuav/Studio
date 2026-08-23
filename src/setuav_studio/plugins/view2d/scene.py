@@ -117,6 +117,8 @@ class View2DScene:
         *,
         axes: tuple[int, int] = (0, 1),
         color: ColorValue | None = None,
+        width: float = 1.1,
+        fill_alpha: int = 42,
         layer: str = "geometry",
     ) -> int:
         """Project the shared ``GeometryData`` into this scene.
@@ -151,9 +153,9 @@ class View2DScene:
                     f"{component_id}:envelope",
                     outline,
                     color=path_color,
-                    width=1.1,
+                    width=width,
                     closed=len(outline) >= 3,
-                    fill_alpha=42,
+                    fill_alpha=fill_alpha,
                     layer=layer,
                     tooltip=component_id,
                 )
