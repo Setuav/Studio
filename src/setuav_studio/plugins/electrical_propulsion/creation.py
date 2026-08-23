@@ -17,15 +17,15 @@ _ASSEMBLY_TYPE = "org.setuav.core:electric-propulsion-system"
 _WORKSPACE = "studio.workspace.propulsion"
 
 _COMPONENT_SPECS: dict[str, tuple[str, str, str]] = {
-    "battery": ("org.setuav.core:battery", "Battery", "component_battery"),
-    "esc": ("org.setuav.core:esc", "ESC", "component_esc"),
-    "motor": ("org.setuav.core:motor", "Motor", "component_motor"),
+    "battery": ("org.setuav.core:battery", "Battery", "component"),
+    "esc": ("org.setuav.core:esc", "ESC", "component"),
+    "motor": ("org.setuav.core:motor", "Motor", "component"),
     "propeller": (
         "org.setuav.core:propeller",
         "Propeller",
-        "component_propeller",
+        "component",
     ),
-    "rotor": ("org.setuav.core:rotor", "Rotor", "component_rotor"),
+    "rotor": ("org.setuav.core:rotor", "Rotor", "component"),
 }
 
 

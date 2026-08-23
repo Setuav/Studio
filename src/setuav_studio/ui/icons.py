@@ -55,11 +55,6 @@ _ICON_MAP = {
     "component_fuselage": "fa6s.shuttle-space",
     "component_lifting_surface": "fa6s.plane",
     "component_control_surface": "fa6s.sliders",
-    "component_motor": "mdi6.engine",
-    "component_propeller": "fa6s.fan",
-    "component_rotor": "fa6s.arrows-spin",
-    "component_esc": "fa6s.microchip",
-    "component_battery": "fa6s.battery-full",
     "component_propulsion_system": "fa6s.bolt",
 }
 

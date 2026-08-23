@@ -28,7 +28,6 @@ _GEOMETRY_COMPONENT_ICONS = {
     "org.setuav.core:control-surface": "geometry_add_control_surface",
 }
 
-
 class _ProjectExplorerBranchStyle(QProxyStyle):
     """Draw classic dotted tree branches with square expand controls."""
 
@@ -277,8 +276,9 @@ class ProjectExplorer(QTreeWidget):
                         tree_item.flags() | Qt.ItemFlag.ItemIsEditable
                     )
                 icon_source = self._geometry_icon_source(comp, raw_components)
-                if icon_source is not None:
-                    tree_item.setIcon(0, get_icon(icon_source))
+                if icon_source is None:
+                    icon_source = "component"
+                tree_item.setIcon(0, get_icon(icon_source))
                 tree_item.setToolTip(0, f"{cname} ({ctype})")
                 tree_item.setData(0, Qt.ItemDataRole.UserRole, cid)
                 self._apply_modified_color(

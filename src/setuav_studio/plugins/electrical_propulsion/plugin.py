@@ -59,11 +59,11 @@ class ElectricalPropulsionPlugin:
         )
 
         # Register Component & Assembly Icons
-        api.register_component_icon("org.setuav.core:motor", "component_motor")
-        api.register_component_icon("org.setuav.core:propeller", "component_propeller")
-        api.register_component_icon("org.setuav.core:rotor", "component_rotor")
-        api.register_component_icon("org.setuav.core:esc", "component_esc")
-        api.register_component_icon("org.setuav.core:battery", "component_battery")
+        api.register_component_icon("org.setuav.core:motor", "component")
+        api.register_component_icon("org.setuav.core:propeller", "component")
+        api.register_component_icon("org.setuav.core:rotor", "component")
+        api.register_component_icon("org.setuav.core:esc", "component")
+        api.register_component_icon("org.setuav.core:battery", "component")
         api.register_component_icon(
             "org.setuav.core:electric-propulsion-system",
             "component_propulsion_system",
