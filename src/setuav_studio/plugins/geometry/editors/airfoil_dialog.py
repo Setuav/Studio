@@ -37,7 +37,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.ui.buttons import set_button_role
+from setuav_studio.ui.buttons import set_button_role, set_native_button
 from setuav_studio.ui.theme import tokens
 from ..engine.airfoil import (
     PRESET_AIRFOILS,
@@ -255,7 +255,7 @@ class AirfoilDialog(QDialog):
         file_layout.setSpacing(8)
 
         browse_btn = QPushButton("Browse .DAT File...")
-        set_button_role(browse_btn, "secondary", "fa6s.folder-open", variant="icon")
+        set_native_button(browse_btn, "fa6s.folder-open")
         browse_btn.clicked.connect(self._browse_dat_file)
         file_layout.addWidget(browse_btn)
 
@@ -312,7 +312,7 @@ class AirfoilDialog(QDialog):
         btn_layout.setSpacing(8)
 
         self.apply_all_btn = QPushButton("Apply to All Stations")
-        set_button_role(self.apply_all_btn, "secondary", "fa6s.check-double")
+        set_native_button(self.apply_all_btn, "fa6s.check-double")
         self.apply_all_btn.clicked.connect(self._on_apply_all)
         btn_layout.addWidget(self.apply_all_btn)
 
@@ -323,7 +323,7 @@ class AirfoilDialog(QDialog):
         btn_layout.addWidget(cancel_btn)
 
         self.apply_btn = QPushButton("Apply to Section")
-        set_button_role(self.apply_btn, "success", "fa6s.check")
+        set_button_role(self.apply_btn, "primary", "fa6s.check")
         self.apply_btn.setDefault(True)
         self.apply_btn.clicked.connect(self._on_apply)
         btn_layout.addWidget(self.apply_btn)

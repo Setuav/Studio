@@ -348,7 +348,7 @@ class ComponentCatalogDialog(QDialog):
         btn_layout.addStretch()
 
         self.apply_btn = QPushButton("Apply to Component", self)
-        set_button_role(self.apply_btn, "success", "fa6s.check")
+        set_button_role(self.apply_btn, "primary", "fa6s.check")
         self.apply_btn.setEnabled(False)
         self.apply_btn.clicked.connect(self.accept)
         btn_layout.addWidget(self.apply_btn)

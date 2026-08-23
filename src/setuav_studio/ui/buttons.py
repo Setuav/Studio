@@ -20,13 +20,26 @@ def set_button_role(
     *,
     variant: str = "filled",
 ) -> None:
-    """Assign a semantic, theme-aware role to a native Qt button.
+    """Assign a theme-aware role to a Qt button.
 
-    ``filled`` colors the native button surface and its contents. ``icon``
-    keeps both the native neutral surface and the theme's standard icon color.
+    Only a ``primary`` button with the ``filled`` variant receives an accent
+    surface.  Every other role keeps the native Qt surface and the theme's
+    standard icon color.
     """
     button.setProperty(_ROLE_PROPERTY, role)
     button.setProperty(_VARIANT_PROPERTY, variant)
+    if icon_source:
+        button.setProperty(_ICON_PROPERTY, icon_source)
+    refresh_button_role(button)
+
+
+def set_native_button(
+    button: QAbstractButton,
+    icon_source: str | None = None,
+) -> None:
+    """Keep a button fully native while retaining a theme-aware icon."""
+    button.setProperty(_ROLE_PROPERTY, "native")
+    button.setProperty(_VARIANT_PROPERTY, "native")
     if icon_source:
         button.setProperty(_ICON_PROPERTY, icon_source)
     refresh_button_role(button)
@@ -42,18 +55,18 @@ def refresh_button_role(button: QAbstractButton) -> None:
     if not isinstance(app, QApplication):
         return
 
-    from setuav_studio.ui.theme import semantic_color
-
     variant = button.property(_VARIANT_PROPERTY)
-    variant = variant if variant in {"filled", "icon"} else "filled"
-    role_color = QColor(semantic_color(role))
+    variant = variant if variant in {"filled", "icon", "native"} else "filled"
     app_palette = app.palette()
     disabled_text = app_palette.color(
         QPalette.ColorGroup.Disabled,
         QPalette.ColorRole.ButtonText,
     )
 
-    if variant == "filled":
+    if role == "primary" and variant == "filled":
+        from setuav_studio.ui.theme import semantic_color
+
+        role_color = QColor(semantic_color(role))
         foreground = _contrasting_foreground(role_color)
         palette = QPalette(app_palette)
         for group in (QPalette.ColorGroup.Active, QPalette.ColorGroup.Inactive):

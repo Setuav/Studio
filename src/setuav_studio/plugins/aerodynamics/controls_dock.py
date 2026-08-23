@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
 
 from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.ui.icons import set_label_icon
-from setuav_studio.ui.buttons import refresh_button_role, set_button_role
+from setuav_studio.ui.buttons import refresh_button_role, set_button_role, set_native_button
 from setuav_studio.ui.numeric_spinbox import NumericSpinBox
 from setuav_studio.ui.property_tables import PropertyTableMixin
 from setuav_studio.ui.theme import tokens
@@ -255,7 +255,7 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         btn_layout.addWidget(self.btn_run)
 
         self.btn_save_config = QPushButton(" Save Configuration")
-        set_button_role(self.btn_save_config, "secondary", "fa6s.floppy-disk")
+        set_native_button(self.btn_save_config, "fa6s.floppy-disk")
         self.btn_save_config.clicked.connect(self._save_configuration)
         btn_layout.addWidget(self.btn_save_config)
 

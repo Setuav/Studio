@@ -44,7 +44,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.ui.icons import get_icon
-from setuav_studio.ui.buttons import set_button_role
+from setuav_studio.ui.buttons import set_button_role, set_native_button
 from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.ui.numeric_spinbox import (
     NoWheelComboBox,
@@ -992,11 +992,11 @@ class FuselageSectionDialog(QDialog):
 
         v_actions = QHBoxLayout()
         self.add_v_btn = QToolButton()
-        set_button_role(self.add_v_btn, "success", "add", variant="icon")
+        set_native_button(self.add_v_btn, "add")
         self.add_v_btn.setToolTip("Add Vertex")
         self.add_v_btn.clicked.connect(self._add_polygon_vertex)
         self.del_v_btn = QToolButton()
-        set_button_role(self.del_v_btn, "danger", "remove", variant="icon")
+        set_native_button(self.del_v_btn, "remove")
         self.del_v_btn.setToolTip("Delete Vertex (Delete key)")
         self.del_v_btn.clicked.connect(self._delete_polygon_vertex)
         v_actions.addWidget(self.add_v_btn)
@@ -1171,7 +1171,7 @@ class FuselageSectionDialog(QDialog):
         btn_layout.addStretch()
 
         self.apply_btn = QPushButton("Apply")
-        set_button_role(self.apply_btn, "success", "fa6s.check")
+        set_native_button(self.apply_btn, "fa6s.check")
         self.apply_btn.clicked.connect(self._on_apply_clicked)
         btn_layout.addWidget(self.apply_btn)
 

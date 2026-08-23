@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.ui.icons import set_label_icon
-from setuav_studio.ui.buttons import set_button_role
+from setuav_studio.ui.buttons import set_native_button
 from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.ui.numeric_spinbox import (
     NoWheelComboBox,
@@ -153,14 +153,7 @@ class LiftingSurfaceEditor(
         callback: Callable[[], None],
     ) -> QToolButton:
         button = QToolButton()
-        role = (
-            "success"
-            if icon_name == "add"
-            else "danger"
-            if icon_name == "remove"
-            else "neutral"
-        )
-        set_button_role(button, role, icon_name, variant="icon")
+        set_native_button(button, icon_name)
         button.setToolTip(tooltip)
         button.setFixedSize(24, 24)
         button.setAutoRaise(True)

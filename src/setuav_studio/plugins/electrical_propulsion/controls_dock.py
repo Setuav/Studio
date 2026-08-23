@@ -26,7 +26,7 @@ from pythrust.propulsion.models.propeller import PropellerSpec
 from .database import get_propeller_database
 from .engine.solver import PropulsionSolverEngine
 from setuav_studio.ui.icons import get_icon, set_label_icon
-from setuav_studio.ui.buttons import refresh_button_role, set_button_role
+from setuav_studio.ui.buttons import refresh_button_role, set_button_role, set_native_button
 from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.ui.property_tables import PropertyTableMixin
 
@@ -200,7 +200,7 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
         actions_layout.addWidget(self.run_button, 2)
 
         self.reset_button = QPushButton("Reset", self)
-        set_button_role(self.reset_button, "warning", "fa6s.arrow-rotate-left")
+        set_native_button(self.reset_button, "fa6s.arrow-rotate-left")
         self.reset_button.setFixedHeight(28)
         self.reset_button.clicked.connect(self._reset_defaults)
         actions_layout.addWidget(self.reset_button, 1)

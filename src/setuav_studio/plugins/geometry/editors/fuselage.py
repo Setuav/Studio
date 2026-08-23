@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.ui.icons import set_label_icon
-from setuav_studio.ui.buttons import set_button_role
+from setuav_studio.ui.buttons import set_native_button
 from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.ui.numeric_spinbox import (
     NoWheelComboBox,
@@ -148,12 +148,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         self.inspect_section_button = self._action_button(
             "mdi6.eye-outline", "Inspect & Edit 2D Cross-Section...", self._inspect_section
         )
-        set_button_role(
-            self.inspect_section_button,
-            "secondary",
-            "mdi6.eye-outline",
-            variant="icon",
-        )
+        set_native_button(self.inspect_section_button, "mdi6.eye-outline")
         self.add_section_button = self._action_button(
             "add", "Add section", self._add_section
         )
@@ -223,12 +218,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         properties_layout = self._create_section("Section Properties", "fa6s.sliders")
 
         self.inspect_2d_button = QPushButton("Inspect & Edit 2D Section...")
-        set_button_role(
-            self.inspect_2d_button,
-            "secondary",
-            "mdi6.vector-polygon",
-            variant="icon",
-        )
+        set_native_button(self.inspect_2d_button, "mdi6.vector-polygon")
         self.inspect_2d_button.setToolTip("Open interactive 2D cross-section inspector & metrics")
         self.inspect_2d_button.clicked.connect(self._inspect_section)
         properties_layout.addWidget(self.inspect_2d_button)
@@ -278,14 +268,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         callback: Callable[[], None],
     ) -> QToolButton:
         button = QToolButton()
-        role = (
-            "success"
-            if icon_name == "add"
-            else "danger"
-            if icon_name == "remove"
-            else "neutral"
-        )
-        set_button_role(button, role, icon_name, variant="icon")
+        set_native_button(button, icon_name)
         button.setToolTip(tooltip)
         button.setFixedSize(24, 24)
         button.setAutoRaise(True)

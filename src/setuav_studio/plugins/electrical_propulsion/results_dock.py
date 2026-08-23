@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.ui.theme import tokens
-from setuav_studio.ui.buttons import refresh_button_role, set_button_role
+from setuav_studio.ui.buttons import refresh_button_role, set_native_button
 from setuav_studio.ui.icons import get_icon
 from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.ui.property_tables import ContentFitTableWidget, PropertyTableMixin
@@ -89,7 +89,7 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
         bottom_bar.addStretch(1)
 
         self.btn_export_csv = QPushButton(" Export CSV", self)
-        set_button_role(self.btn_export_csv, "secondary", "export_csv")
+        set_native_button(self.btn_export_csv, "export_csv")
         self.btn_export_csv.setToolTip("Export propulsion summary and detailed sweep table to CSV")
         self.btn_export_csv.clicked.connect(self._export_csv)
         self.btn_export_csv.setEnabled(False)
