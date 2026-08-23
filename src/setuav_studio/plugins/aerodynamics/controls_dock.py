@@ -120,30 +120,13 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         return layout
 
     def _create_engine_section(self) -> None:
-        layout = self._create_section("Solver Configuration", "fa6s.gears")
+        layout = self._create_section("Mesh & Discretization", "fa6s.gears")
 
         self.engine_table = self._property_table([
-            ("engine", "Engine"),
-            ("method", "Solver Pipeline"),
             ("span_res", "Spanwise Panels"),
             ("chord_res", "Chordwise Panels"),
             ("spacing", "Panel Spacing"),
         ])
-
-        # Engine Combo
-        self.combo_engine = QComboBox()
-        for name in self._engines:
-            self.combo_engine.addItem(name)
-        self.combo_engine.currentIndexChanged.connect(self._on_engine_changed)
-
-        # Method Combo
-        self.combo_method = QComboBox()
-        self.combo_method.addItem("Comprehensive (VLM + Buildup + LLT)", AnalysisMethod.COMPREHENSIVE)
-        self.combo_method.addItem("Vortex Lattice Method (VLM)", AnalysisMethod.VLM)
-        self.combo_method.addItem("AeroBuildup (Viscous + Empirical)", AnalysisMethod.AERO_BUILDUP)
-        self.combo_method.addItem("Lifting Line Theory (LLT)", AnalysisMethod.LIFTING_LINE)
-        self.combo_method.setCurrentIndex(0)
-        self.combo_method.currentIndexChanged.connect(self._on_method_changed)
 
         self.spin_span_res = NumericSpinBox()
         self.spin_span_res.setDecimals(0)
@@ -159,45 +142,11 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         self.combo_spacing.addItem("Cosine (Tip Clustered)", "cosine")
         self.combo_spacing.addItem("Uniform (Equispaced)", "uniform")
 
-        self.engine_table.setCellWidget(0, 1, self.combo_engine)
-        self.engine_table.setCellWidget(1, 1, self.combo_method)
-        self.engine_table.setCellWidget(2, 1, self.spin_span_res)
-        self.engine_table.setCellWidget(3, 1, self.spin_chord_res)
-        self.engine_table.setCellWidget(4, 1, self.combo_spacing)
+        self.engine_table.setCellWidget(0, 1, self.spin_span_res)
+        self.engine_table.setCellWidget(1, 1, self.spin_chord_res)
+        self.engine_table.setCellWidget(2, 1, self.combo_spacing)
 
         layout.addWidget(self.engine_table)
-
-        # Single-sentence note
-        self.lbl_solver_note = QLabel()
-        self.lbl_solver_note.setWordWrap(True)
-        layout.addWidget(self.lbl_solver_note)
-
-        self._on_engine_changed()
-        self._on_method_changed()
-
-    def _on_engine_changed(self) -> None:
-        pass
-
-    def _on_method_changed(self) -> None:
-        method = self.combo_method.currentData()
-        if method == AnalysisMethod.COMPREHENSIVE:
-            self.lbl_solver_note.setText(
-                "Unified multi-solver ensemble: VLM (3D induced flow) + AeroBuildup (viscous drag & stall) + LLT."
-            )
-        elif method == AnalysisMethod.AERO_BUILDUP:
-            self.lbl_solver_note.setText(
-                "Includes viscous profile drag, stall separation (CL,max), and wave drag."
-            )
-        elif method == AnalysisMethod.VLM:
-            self.lbl_solver_note.setText(
-                "Inviscid 3D potential flow (linear lift slope, exact vortex circulation, no stall modeling)."
-            )
-        elif method == AnalysisMethod.LIFTING_LINE:
-            self.lbl_solver_note.setText(
-                "Non-linear lifting line theory with 2D section stall."
-            )
-        else:
-            self.lbl_solver_note.setText("")
 
     def _create_conditions_section(self) -> None:
         layout = self._create_section("Flight Conditions", "fa6s.wind")
@@ -347,7 +296,7 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
             alpha_steps=int(self.spin_alpha_steps.value()) if is_sweep else 1,
         )
 
-        method = self.combo_method.currentData() or AnalysisMethod.COMPREHENSIVE
+        method = AnalysisMethod.COMPREHENSIVE
 
         settings = {
             "spanwise_resolution": int(self.spin_span_res.value()),

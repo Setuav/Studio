@@ -289,70 +289,45 @@ class AeroChartsDock(QWidget):
         alphas = [p.alpha for p in points]
         cls = [p.cl for p in points]
         cds = [p.cd for p in points]
-        cd_inds = [p.cd_induced for p in points]
-        cd_profs = [p.cd_profile for p in points]
         cms = [p.cm for p in points]
         lds = [p.cl_over_cd for p in points]
 
-        solvers = result.solver_results
-
-        # 1. Lift Curves (Unified, VLM, Buildup, LLT)
-        lift_curves = [(alphas, cls, "Total CL", "blue")]
-        if "vlm" in solvers:
-            v_pts = solvers["vlm"]
-            lift_curves.append(([p.alpha for p in v_pts], [p.cl for p in v_pts], "VLM (Inviscid)", "cyan"))
-        if "aero_buildup" in solvers:
-            ab_pts = solvers["aero_buildup"]
-            lift_curves.append(([p.alpha for p in ab_pts], [p.cl for p in ab_pts], "Buildup (Viscous)", "orange"))
-        if "lifting_line" in solvers:
-            ll_pts = solvers["lifting_line"]
-            lift_curves.append(([p.alpha for p in ll_pts], [p.cl for p in ll_pts], "LiftingLine", "purple"))
-
-        self.chart_lift.plot_multi(
-            curves=lift_curves,
+        # 1. Lift Curve (CL vs α) - Final Result
+        self.chart_lift.plot_single(
+            x_vals=alphas,
+            y_vals=cls,
+            name="CL",
+            color_role="blue",
             x_title="α (°)",
             y_title="CL",
         )
 
-        # 2. Drag Polar (Total Drag, Induced Drag CDi, Profile Drag CDp)
-        polar_curves = [(cds, cls, "Total CD", "green")]
-        if any(abs(cdi) > 1e-6 for cdi in cd_inds):
-            polar_curves.append((cd_inds, cls, "Induced CDi", "blue"))
-        if any(abs(cdp) > 1e-6 for cdp in cd_profs):
-            polar_curves.append((cd_profs, cls, "Profile CDp", "orange"))
-
-        self.chart_polar.plot_multi(
-            curves=polar_curves,
+        # 2. Drag Polar (CL vs CD) - Final Result
+        self.chart_polar.plot_single(
+            x_vals=cds,
+            y_vals=cls,
+            name="Polar",
+            color_role="green",
             x_title="CD",
             y_title="CL",
         )
 
-        # 3. Moment Curves
-        moment_curves = [(alphas, cms, "Total Cm", "orange")]
-        if "vlm" in solvers:
-            v_pts = solvers["vlm"]
-            moment_curves.append(([p.alpha for p in v_pts], [p.cm for p in v_pts], "VLM Cm", "cyan"))
-        if "aero_buildup" in solvers:
-            ab_pts = solvers["aero_buildup"]
-            moment_curves.append(([p.alpha for p in ab_pts], [p.cm for p in ab_pts], "Buildup Cm", "magenta"))
-
-        self.chart_moment.plot_multi(
-            curves=moment_curves,
+        # 3. Pitching Moment (Cm vs α) - Final Result
+        self.chart_moment.plot_single(
+            x_vals=alphas,
+            y_vals=cms,
+            name="Cm",
+            color_role="orange",
             x_title="α (°)",
             y_title="Cm",
         )
 
-        # 4. L/D Curves
-        ld_curves = [(alphas, lds, "Total L/D", "magenta")]
-        if "vlm" in solvers:
-            v_pts = solvers["vlm"]
-            ld_curves.append(([p.alpha for p in v_pts], [p.cl_over_cd for p in v_pts], "VLM L/D", "cyan"))
-        if "aero_buildup" in solvers:
-            ab_pts = solvers["aero_buildup"]
-            ld_curves.append(([p.alpha for p in ab_pts], [p.cl_over_cd for p in ab_pts], "Buildup L/D", "orange"))
-
-        self.chart_ld.plot_multi(
-            curves=ld_curves,
+        # 4. Aerodynamic Efficiency (L/D vs α) - Final Result
+        self.chart_ld.plot_single(
+            x_vals=alphas,
+            y_vals=lds,
+            name="L/D",
+            color_role="magenta",
             x_title="α (°)",
             y_title="L/D",
         )

@@ -174,7 +174,7 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
             ratio_str = "N/A"
 
         metrics = {
-            "solver_engine": f"{result.engine_name} ({result.method.value.upper()})",
+            "solver_engine": f"{result.engine_name}",
             "cl_max": f"{result.cl_max:.4f}",
             "cl_max_alpha": f"{result.cl_max_alpha:.2f}°",
             "cd_min": f"{result.cd_min:.5f}",
