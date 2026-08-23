@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.plugin_system import StudioAPI
+from .derived_geometry import derive_component_geometry
 from setuav_studio.ui.icons import set_label_icon
 from setuav_studio.ui.numeric_spinbox import NumericSpinBox, set_table_spinbox
 from setuav_studio.ui.property_tables import PropertyTableMixin
@@ -215,6 +216,15 @@ class TransformEditor(PropertyTableMixin, QWidget):
 
             transform = component.get("transform")
             transform = transform if isinstance(transform, dict) else {}
+            if not transform and component.get("type") == "org.setuav.core:control-surface":
+                project_data = getattr(self._api.current_project, "data", {})
+                project_components = project_data.get("components", []) if isinstance(project_data, dict) else []
+                by_id = {
+                    str(item.get("id")): item for item in project_components
+                    if isinstance(item, dict) and isinstance(item.get("id"), str)
+                }
+                by_id.setdefault(str(component.get("id") or ""), component)
+                transform = derive_component_geometry(component, by_id).transform
             position = transform.get("position")
             position = position if isinstance(position, dict) else {}
             rotation = transform.get("rotation")

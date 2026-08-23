@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QBrush, QColor, QFont
+from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPalette
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QHeaderView,
@@ -22,6 +22,68 @@ from setuav_studio.ui.property_tables import ContentFitTableWidget, PropertyTabl
 from setuav_studio.ui.theme import status_color
 
 from .models import WeightBalanceResult
+
+
+class _ComponentHeaderView(QHeaderView):
+    """Two-level header with a compact Body CG group over X/Y/Z."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(Qt.Orientation.Horizontal, parent)
+        self.setFixedHeight(40)
+
+    def paintEvent(self, event) -> None:  # noqa: N802 - Qt API
+        painter = QPainter(self.viewport())
+        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+        palette = self.palette()
+        background = palette.color(QPalette.ColorRole.Button)
+        border = palette.color(QPalette.ColorRole.Mid)
+        text = palette.color(QPalette.ColorRole.ButtonText)
+        painter.fillRect(event.rect(), background)
+
+        group_left = self.sectionViewportPosition(2)
+        group_right = self.sectionViewportPosition(4) + self.sectionSize(4)
+        if group_right > group_left:
+            group_rect = QRectF(float(group_left), 0.0, float(group_right - group_left), 19.0)
+            group_background = QColor(background)
+            group_background = group_background.lighter(112)
+            painter.fillRect(group_rect, group_background)
+            painter.setPen(border)
+            painter.drawRect(group_rect.adjusted(0.0, 0.0, -1.0, 0.0))
+
+        for logical in range(self.count()):
+            if self.isSectionHidden(logical):
+                continue
+            left = self.sectionViewportPosition(logical)
+            width = self.sectionSize(logical)
+            if left + width < 0 or left > self.width():
+                continue
+            rect = QRectF(float(left), 0.0, float(width), float(self.height()))
+            painter.setPen(border)
+            if logical in (2, 3, 4):
+                painter.drawLine(QPointF(rect.right(), 19.0), rect.bottomRight())
+            else:
+                painter.drawLine(rect.topRight(), rect.bottomRight())
+            label = self.model().headerData(
+                logical,
+                Qt.Orientation.Horizontal,
+                Qt.ItemDataRole.DisplayRole,
+            )
+            if logical in (2, 3, 4):
+                label = ("X", "Y", "Z")[logical - 2]
+                lower = rect.adjusted(0.0, 19.0, 0.0, 0.0)
+                painter.setPen(text)
+                painter.drawText(lower, Qt.AlignmentFlag.AlignCenter, str(label))
+            else:
+                painter.setPen(text)
+                painter.drawText(rect.adjusted(6.0, 0.0, -6.0, 0.0), Qt.AlignmentFlag.AlignVCenter, str(label or ""))
+
+        if group_right > group_left:
+            group_rect = QRectF(float(group_left), 0.0, float(group_right - group_left), 19.0)
+            painter.setPen(text)
+            font = painter.font()
+            font.setBold(True)
+            painter.setFont(font)
+            painter.drawText(group_rect, Qt.AlignmentFlag.AlignCenter, "Body CG (mm)")
 
 
 class WeightBalanceResultsDock(PropertyTableMixin, QWidget):
@@ -149,6 +211,7 @@ class WeightBalanceResultsDock(PropertyTableMixin, QWidget):
             "Notes",
         ]
         table.setHorizontalHeaderLabels(headers)
+        table.setHorizontalHeader(_ComponentHeaderView(table))
         header_tooltips = [
             "Component name",
             "Component mass",

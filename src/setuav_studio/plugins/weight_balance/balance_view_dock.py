@@ -1,259 +1,143 @@
-"""Interactive centre-of-gravity projections for the Weight-Balance plugin."""
+"""Weight-Balance CG projections backed by the shared 2D view engine."""
 
 from __future__ import annotations
 
-from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QColor, QFontMetrics, QPainter, QPen
-from PySide6.QtWidgets import QDockWidget, QMainWindow, QWidget
+from math import sqrt
+
+from PySide6.QtCore import QSettings, QTimer, Qt
+from PySide6.QtGui import QCloseEvent
+from PySide6.QtWidgets import QDockWidget, QHBoxLayout, QLabel, QMainWindow, QStatusBar, QWidget
 
 from setuav_studio.plugin_system import StudioAPI
+from setuav_studio.plugins.view2d import View2DCanvas, View2DGeometrySource, View2DScene
+from setuav_studio.ui.theme import chart_color, tokens
 
 from .models import WeightBalanceResult
 
 
-class _ProjectionCanvas(QWidget):
-    """Paint one labelled, scaled projection of the body-frame CG points."""
-
-    _COMPONENT_COLOR = QColor("#4c9aff")
-    _TOTAL_COLOR = QColor("#ff5c5c")
+class _BalanceProjectionCanvas(View2DCanvas):
+    """Adapt Weight-Balance markers to the generic projection scene."""
 
     def __init__(
         self,
+        api: StudioAPI,
         *,
-        x_axis: int,
-        y_axis: int,
+        axes: tuple[int, int],
+        title: str,
         x_label: str,
         y_label: str,
-        title: str,
+        geometry_source: View2DGeometrySource,
         parent: QWidget | None = None,
     ) -> None:
-        super().__init__(parent)
-        self._x_axis = x_axis
-        self._y_axis = y_axis
-        self._x_label = x_label
-        self._y_label = y_label
-        self._title = title
-        self.result: WeightBalanceResult | None = None
-        self.setMinimumSize(280, 190)
-        self.setToolTip(
-            f"{title} projection in the body frame. Coordinates are shown in mm."
+        super().__init__(
+            api=api,
+            axes=axes,
+            title=title,
+            x_label=x_label,
+            y_label=y_label,
+            units="mm",
+            geometry_source=geometry_source,
+            parent=parent,
         )
+        self.set_show_legend(False)
+        self.result: WeightBalanceResult | None = None
 
     def set_result(self, result: WeightBalanceResult) -> None:
         self.result = result
-        self.update()
-
-    def paintEvent(self, _event) -> None:  # noqa: N802 - Qt API
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.fillRect(self.rect(), self.palette().base())
-        painter.setPen(self.palette().text().color())
-
-        if self.result is None or not self.result.components:
-            painter.drawText(
-                self.rect(),
-                Qt.AlignmentFlag.AlignCenter,
-                "Run Weight-Balance to display CG",
+        scene = View2DScene(
+            # The enclosing QDockWidget already supplies the view title.
+            title="",
+            x_label=self._x_label,
+            y_label=self._y_label,
+            units="mm",
+        )
+        component_color = chart_color("blue")
+        total_color = chart_color("red")
+        max_mass = max((item.mass_kg for item in result.components), default=1.0)
+        for item in result.components:
+            point = (
+                item.cg_body_m[self._axes[0]] * 1000.0,
+                item.cg_body_m[self._axes[1]] * 1000.0,
             )
-            return
-
-        points_mm = [
-            (
-                item.cg_body_m[self._x_axis] * 1000.0,
-                item.cg_body_m[self._y_axis] * 1000.0,
+            # Keep markers readable while still communicating relative mass.
+            radius = 3.5 + 4.0 * sqrt(max(item.mass_kg, 0.0) / max_mass)
+            scene.add_marker(
+                item.component_id,
+                point,
+                label=item.component_name,
+                tooltip=self._component_tooltip(item),
+                color=component_color,
+                radius=radius,
             )
-            for item in self.result.components
-        ]
-        total = self.result.total.cg_body_m
-        total_mm = (
-            total[self._x_axis] * 1000.0,
-            total[self._y_axis] * 1000.0,
+
+        total = result.total.cg_body_m
+        total_point = (
+            total[self._axes[0]] * 1000.0,
+            total[self._axes[1]] * 1000.0,
+        )
+        scene.add_marker(
+            "aircraft-cg",
+            total_point,
+            label="Aircraft CG",
+            tooltip=self._total_tooltip(result),
+            color=total_color,
+            radius=7.0,
+            symbol="cross",
+        )
+        self.set_scene(scene)
+
+    def _component_tooltip(self, item) -> str:
+        x, y, z = (value * 1000.0 for value in item.cg_body_m)
+        return (
+            f"<b>{item.component_name}</b><br>"
+            f"Mass: {item.mass_kg * 1000.0:.1f} g<br>"
+            f"Body CG: X {x:+.2f} · Y {y:+.2f} · Z {z:+.2f} mm"
         )
 
-        plot = QRectF(58.0, 40.0, self.width() - 78.0, self.height() - 84.0)
-        if plot.width() <= 40.0 or plot.height() <= 40.0:
-            return
-
-        xs = [point[0] for point in points_mm] + [total_mm[0], 0.0]
-        ys = [point[1] for point in points_mm] + [total_mm[1], 0.0]
-        min_x, max_x = self._bounds(min(xs), max(xs))
-        min_y, max_y = self._bounds(min(ys), max(ys))
-
-        self._draw_title_and_legend(painter)
-        self._draw_grid(painter, plot, min_x, max_x, min_y, max_y)
-
-        def map_point(point: tuple[float, float]) -> QPointF:
-            px = plot.left() + (point[0] - min_x) / (max_x - min_x) * plot.width()
-            py = plot.bottom() - (point[1] - min_y) / (max_y - min_y) * plot.height()
-            return QPointF(px, py)
-
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(self._COMPONENT_COLOR)
-        for point in points_mm:
-            painter.drawEllipse(map_point(point), 4.0, 4.0)
-
-        cg = map_point(total_mm)
-        painter.setPen(QPen(self._TOTAL_COLOR, 2.0))
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawLine(QPointF(cg.x() - 9.0, cg.y()), QPointF(cg.x() + 9.0, cg.y()))
-        painter.drawLine(QPointF(cg.x(), cg.y() - 9.0), QPointF(cg.x(), cg.y() + 9.0))
-        painter.drawEllipse(cg, 6.0, 6.0)
-
-    @staticmethod
-    def _bounds(minimum: float, maximum: float) -> tuple[float, float]:
-        span = max(maximum - minimum, 1.0)
-        padding = max(span * 0.12, 1.0)
-        return minimum - padding, maximum + padding
-
-    def _draw_title_and_legend(self, painter: QPainter) -> None:
-        painter.setPen(self.palette().text().color())
-        title_font = painter.font()
-        title_font.setBold(True)
-        painter.setFont(title_font)
-        title_text = f"{self._title} projection"
-        painter.drawText(QPointF(58.0, 17.0), title_text)
-
-        normal_font = painter.font()
-        normal_font.setBold(False)
-        painter.setFont(normal_font)
-        metrics = QFontMetrics(normal_font)
-        component_text = "Components"
-        total_text = "Aircraft CG"
-        legend_width = (
-            7.0
-            + metrics.horizontalAdvance(component_text)
-            + 18.0
-            + 12.0
-            + metrics.horizontalAdvance(total_text)
+    def _total_tooltip(self, result: WeightBalanceResult) -> str:
+        x, y, z = (value * 1000.0 for value in result.total.cg_body_m)
+        return (
+            "<b>Aircraft CG</b><br>"
+            f"Mass: {result.total.mass_kg * 1000.0:.1f} g<br>"
+            f"Body CG: X {x:+.2f} · Y {y:+.2f} · Z {z:+.2f} mm"
         )
-        legend_x = max(58.0, self.width() - legend_width - 8.0)
-        legend_y = 14.0
-        # On a narrow dock, keep the legend on a second header line instead
-        # of letting it collide with the projection title.
-        if legend_x < 58.0 + metrics.horizontalAdvance(title_text) + 12.0:
-            legend_x = 58.0
-            legend_y = 34.0
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(self._COMPONENT_COLOR)
-        painter.drawEllipse(QPointF(legend_x, legend_y), 3.5, 3.5)
-        painter.setPen(self.palette().text().color())
-        painter.drawText(QPointF(legend_x + 9.0, legend_y + 4.0), component_text)
-        legend_x += 9.0 + metrics.horizontalAdvance(component_text) + 14.0
-        painter.setPen(QPen(self._TOTAL_COLOR, 1.6))
-        painter.drawLine(
-            QPointF(legend_x - 4.0, legend_y),
-            QPointF(legend_x + 4.0, legend_y),
-        )
-        painter.drawLine(
-            QPointF(legend_x, legend_y - 4.0),
-            QPointF(legend_x, legend_y + 4.0),
-        )
-        painter.setPen(self.palette().text().color())
-        painter.drawText(QPointF(legend_x + 9.0, legend_y + 4.0), total_text)
-
-    def _draw_grid(
-        self,
-        painter: QPainter,
-        plot: QRectF,
-        min_x: float,
-        max_x: float,
-        min_y: float,
-        max_y: float,
-    ) -> None:
-        mid = self.palette().mid().color()
-        grid = QColor(mid)
-        grid.setAlpha(105)
-        painter.setPen(QPen(grid, 1.0))
-
-        metrics = QFontMetrics(painter.font())
-        for index in range(5):
-            ratio = index / 4.0
-            value_x = min_x + (max_x - min_x) * ratio
-            value_y = min_y + (max_y - min_y) * ratio
-            x = plot.left() + plot.width() * ratio
-            y = plot.bottom() - plot.height() * ratio
-            painter.drawLine(QPointF(x, plot.top()), QPointF(x, plot.bottom()))
-            painter.drawLine(QPointF(plot.left(), y), QPointF(plot.right(), y))
-
-            painter.setPen(self.palette().text().color())
-            painter.drawText(
-                QRectF(x - 34.0, plot.bottom() + 5.0, 68.0, 16.0),
-                Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop,
-                self._format_axis(value_x),
-            )
-            painter.drawText(
-                QRectF(0.0, y - metrics.height() / 2.0, 53.0, metrics.height()),
-                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
-                self._format_axis(value_y),
-            )
-            painter.setPen(QPen(grid, 1.0))
-
-        border = self.palette().mid().color()
-        painter.setPen(QPen(border, 1.0))
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawRect(plot)
-
-        # Draw the body-frame origin when it falls inside the current scale.
-        if min_x <= 0.0 <= max_x:
-            x = plot.left() + (-min_x) / (max_x - min_x) * plot.width()
-            painter.drawLine(QPointF(x, plot.top()), QPointF(x, plot.bottom()))
-        if min_y <= 0.0 <= max_y:
-            y = plot.bottom() - (-min_y) / (max_y - min_y) * plot.height()
-            painter.drawLine(QPointF(plot.left(), y), QPointF(plot.right(), y))
-
-        painter.setPen(self.palette().text().color())
-        painter.drawText(
-            QRectF(plot.left(), self.height() - 24.0, plot.width(), 18.0),
-            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop,
-            f"{self._x_label} (mm)",
-        )
-        painter.drawText(
-            QRectF(4.0, plot.top() - 20.0, 50.0, 18.0),
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
-            f"{self._y_label} (mm)",
-        )
-
-    @staticmethod
-    def _format_axis(value: float) -> str:
-        if abs(value) >= 100.0:
-            return f"{value:.0f}"
-        if abs(value) >= 10.0:
-            return f"{value:.1f}"
-        return f"{value:.2f}"
 
 
 class WeightBalanceViewDock(QMainWindow):
-    """Container with two persistent, rearrangeable CG projection docks.
+    """Container with two persistent, rearrangeable CG projection docks."""
 
-    The two inner docks intentionally are not registered as shell panels. This
-    keeps them out of the global View menu while still allowing users to dock,
-    float, resize, tabify, or stack them inside the CG View panel.
-    """
+    _LAYOUT_VERSION = 1
+    _LAYOUT_KEY = "weight_balance/cg_view_dock_state"
 
     def __init__(self, api: StudioAPI, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("weight_balance.view_widget")
+        self._restoring_layout = True
+        self._layout_save_scheduled = False
         self.setDockNestingEnabled(True)
         self.setDockOptions(
             QMainWindow.DockOption.AllowNestedDocks
             | QMainWindow.DockOption.AllowTabbedDocks
             | QMainWindow.DockOption.AnimatedDocks
         )
+        geometry_source = View2DGeometrySource(api)
 
-        self.top_canvas = _ProjectionCanvas(
-            x_axis=0,
-            y_axis=1,
+        self.top_canvas = _BalanceProjectionCanvas(
+            api,
+            axes=(0, 1),
             x_label="X",
             y_label="Y",
-            title="Top (X / Y)",
+            title="",
+            geometry_source=geometry_source,
             parent=self,
         )
-        self.side_canvas = _ProjectionCanvas(
-            x_axis=0,
-            y_axis=2,
+        self.side_canvas = _BalanceProjectionCanvas(
+            api,
+            axes=(0, 2),
             x_label="X",
             y_label="Z",
-            title="Side (X / Z)",
+            title="",
+            geometry_source=geometry_source,
             parent=self,
         )
         # Compatibility alias for integrations that used the original canvas.
@@ -277,7 +161,89 @@ class WeightBalanceViewDock(QMainWindow):
             Qt.Orientation.Horizontal,
         )
 
+        self._legend_bar = self._create_legend_bar()
+        self.setStatusBar(self._legend_bar)
+
+        for dock in (self.top_dock, self.side_dock):
+            dock.dockLocationChanged.connect(self._schedule_layout_save)
+            dock.topLevelChanged.connect(self._schedule_layout_save)
+            dock.visibilityChanged.connect(self._schedule_layout_save)
+        self._restore_internal_layout()
+        self._restoring_layout = False
+
         api.subscribe("weight_balance.analysis_completed", self._set_result)
+
+    def _restore_internal_layout(self) -> None:
+        state = QSettings().value(self._LAYOUT_KEY)
+        if state is None:
+            return
+        try:
+            self.restoreState(state, self._LAYOUT_VERSION)
+        except (TypeError, ValueError):
+            # Ignore an old/corrupt preference and retain the deterministic
+            # two-column default layout.
+            return
+
+    def _schedule_layout_save(self, *_args) -> None:
+        if self._restoring_layout or self._layout_save_scheduled:
+            return
+        self._layout_save_scheduled = True
+        QTimer.singleShot(0, self.save_layout)
+
+    def save_layout(self) -> None:
+        self._layout_save_scheduled = False
+        if self._restoring_layout:
+            return
+        QSettings().setValue(
+            self._LAYOUT_KEY,
+            self.saveState(self._LAYOUT_VERSION),
+        )
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 - Qt API
+        super().resizeEvent(event)
+        self._schedule_layout_save()
+
+    def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802 - Qt API
+        self.save_layout()
+        super().closeEvent(event)
+
+    def _create_legend_bar(self) -> QStatusBar:
+        bar = QStatusBar(self)
+        bar.setObjectName("weight_balance.cg_legend_bar")
+        bar.setSizeGripEnabled(False)
+        bar.setFixedHeight(24)
+        content = QWidget(bar)
+        layout = QHBoxLayout(content)
+        layout.setContentsMargins(8, 0, 8, 0)
+        layout.setSpacing(18)
+        self._legend_labels: list[tuple[QLabel, str, str]] = []
+        for text, role in (
+            ("Components (size = mass)", "blue"),
+            ("Aircraft CG", "red"),
+            ("Aircraft geometry", "geometry"),
+        ):
+            label = QLabel(content)
+            self._legend_labels.append((label, role, text))
+            layout.addWidget(label)
+        layout.addStretch(1)
+        bar.addWidget(content)
+        self._refresh_legend_bar()
+        return bar
+
+    def _refresh_legend_bar(self) -> None:
+        colors = {
+            "blue": chart_color("blue"),
+            "red": chart_color("red"),
+            "geometry": tokens()["viewer_fuselage_edge"],
+        }
+        for label, role, text in getattr(self, "_legend_labels", ()):
+            color = colors[role]
+            label.setText(f'<span style="color:{color}">●</span> {text}')
+
+    def update_theme_style(self) -> None:
+        self._refresh_legend_bar()
+        self.top_canvas.update()
+        self.side_canvas.update()
 
     @staticmethod
     def _projection_dock(title: str, object_name: str, widget: QWidget) -> QDockWidget:

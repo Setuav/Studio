@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QTimer, Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QHeaderView,
@@ -19,10 +20,10 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.plugin_system import StudioAPI
-from setuav_studio.ui.buttons import refresh_button_role, set_button_role
-from setuav_studio.ui.icons import set_label_icon
+from setuav_studio.ui.icons import get_icon, set_label_icon
 from setuav_studio.ui.numeric_spinbox import NumericSpinBox, set_table_spinbox
 from setuav_studio.ui.property_tables import PropertyTableMixin
+from setuav_studio.plugins.core.derived_geometry import derive_component_geometry
 
 from .engine.solver import EXTENSION_ID
 
@@ -49,6 +50,8 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
             else None
         )
         self._loading = False
+        self._pending_before: dict[str, Any] | None = None
+        self._commit_scheduled = False
         self._section_icons: list[tuple[QLabel, str]] = []
 
         root_layout = QVBoxLayout(self)
@@ -69,11 +72,14 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
         self._create_mass_section(component_id)
         self._create_cg_section()
         self._create_inertia_section()
-        self._create_actions()
         self._content_layout.addStretch(1)
 
-        self.apply_button.setEnabled(self._component is not None)
-        self.apply_button.clicked.connect(self._apply)
+        # Compatibility handle for callers of the old explicit-Apply editor.
+        # It is intentionally not visible; edits are committed automatically.
+        self.apply_button = QPushButton(self)
+        self.apply_button.setIcon(get_icon("fa6s.check"))
+        self.apply_button.setVisible(False)
+        self.apply_button.clicked.connect(self._commit_pending)
 
         if self._component is not None:
             self._load_component(self._component)
@@ -81,7 +87,6 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
     def update_theme_style(self) -> None:
         for label, icon_name in self._section_icons:
             set_label_icon(label, icon_name)
-        refresh_button_role(self.apply_button)
 
     def _create_section(self, title: str, icon_name: str) -> QVBoxLayout:
         section = QWidget(self)
@@ -139,6 +144,7 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
             step=1.0,
             decimals=3,
             suffix="g",
+            on_changed=self._on_field_changed,
         )
         layout.addWidget(self.mass_table)
 
@@ -183,6 +189,7 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
                 step=1.0,
                 decimals=3,
                 suffix="mm",
+                on_changed=self._on_field_changed,
             )
             for column, axis in enumerate(("x", "y", "z"))
         }
@@ -217,6 +224,7 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
                         step=0.000001,
                         decimals=8,
                         suffix="kg·m²",
+                        on_changed=self._on_field_changed,
                     )
                     for column, key in enumerate(keys)
                 }
@@ -243,21 +251,6 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
         table.setFixedHeight(48)
         return table
 
-    def _create_actions(self) -> None:
-        container = QWidget(self)
-        container.setSizePolicy(
-            QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.Maximum,
-        )
-        layout = QHBoxLayout(container)
-        layout.setContentsMargins(0, 8, 0, 2)
-
-        self.apply_button = QPushButton("Apply Mass Properties", container)
-        self.apply_button.setFixedHeight(28)
-        set_button_role(self.apply_button, "primary", "fa6s.check")
-        layout.addWidget(self.apply_button)
-        self._content_layout.addWidget(container)
-
     def _set_numeric_cell(
         self,
         table: QTableWidget,
@@ -268,6 +261,7 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
         step: float,
         decimals: int,
         suffix: str,
+        on_changed: Any | None = None,
     ) -> NumericSpinBox:
         for row in range(table.rowCount()):
             if self._property_key(table, row) == key:
@@ -281,6 +275,7 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
                     step=step,
                     decimals=decimals,
                     suffix=suffix,
+                    on_changed=on_changed,
                 )
         raise KeyError(f"Unknown mass-properties field: {key}")
 
@@ -288,6 +283,7 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
         self._loading = True
         try:
             source = self._source_component(component)
+            by_id: dict[str, dict[str, Any]] = {}
             parameters = component.get("parameters")
             parameters = parameters if isinstance(parameters, dict) else {}
             source_parameters = source.get("parameters")
@@ -301,6 +297,16 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
                     source.get("mass", source_parameters.get("mass", 0.0)),
                 ),
             )
+            if mass is None or mass == 0.0:
+                project_data = getattr(self._api.current_project, "data", {})
+                project_components = project_data.get("components", []) if isinstance(project_data, dict) else []
+                by_id = {
+                    str(item.get("id")): item for item in project_components
+                    if isinstance(item, dict) and isinstance(item.get("id"), str)
+                }
+                derived = derive_component_geometry(component, by_id)
+                if derived.mass_g is not None:
+                    mass = derived.mass_g
             self.mass_g.setValue(_number(mass))
 
             source_extensions = source.get("extensions")
@@ -320,6 +326,12 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
             definition = dict(source_definition)
             definition.update(own_definition)
             cg = definition.get("local_cg_mm")
+            if not isinstance(cg, dict):
+                derived = derive_component_geometry(component, by_id)
+                candidate = derived.transform.get("position")
+                if not isinstance(candidate, dict) or not any(_number(candidate.get(axis)) for axis in ("x", "y", "z")):
+                    candidate = derived.envelope.get("offset_mm")
+                cg = candidate if isinstance(candidate, dict) else {}
             cg = cg if isinstance(cg, dict) else {}
             for axis, spin in self.cg_spins.items():
                 spin.setValue(_number(cg.get(axis)))
@@ -334,10 +346,12 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
         finally:
             self._loading = False
 
-    def _apply(self) -> None:
+    def _on_field_changed(self, _value: float) -> None:
         component = self._component
         if self._loading or component is None:
             return
+        if self._pending_before is None:
+            self._pending_before = deepcopy(component)
         mass_g = self.mass_g.value()
         cg = {axis: spin.value() for axis, spin in self.cg_spins.items()}
         inertia = {key: spin.value() for key, spin in self.inertia_spins.items()}
@@ -363,7 +377,26 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
                 }
             )
 
-        self._api.edit_component(component, "Edit component mass definition", change)
+        change()
+        if not self._commit_scheduled:
+            self._commit_scheduled = True
+            QTimer.singleShot(0, self._commit_pending)
+
+    def _commit_pending(self) -> None:
+        self._commit_scheduled = False
+        component = self._component
+        before = self._pending_before
+        if component is None or before is None:
+            return
+        after = deepcopy(component)
+        self._pending_before = None
+        component.clear()
+        component.update(before)
+        self._api.edit_component(
+            component,
+            "Edit component mass definition",
+            lambda: component.update(deepcopy(after)),
+        )
 
     def _source_component(self, component: dict[str, Any]) -> dict[str, Any]:
         if component.get("kind") != "instance" or self._api.current_project is None:

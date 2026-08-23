@@ -14,6 +14,7 @@ from setuav_studio.plugins.core.ui.project_explorer import (
 from setuav_studio.plugins.weight_balance import WeightBalancePlugin
 from setuav_studio.plugins.weight_balance.engine.base import WeightBalanceError
 from setuav_studio.plugins.weight_balance.engine.solver import EXTENSION_ID, WeightBalanceSolver
+from setuav_studio.plugins.core.derived_geometry import derive_project_component_geometry
 from setuav_studio.plugins.weight_balance.mass_definition_dock import MassPropertiesEditor
 from setuav_studio.project import ProjectDocument, open_project
 from setuav_studio.schema_validation import get_catalog
@@ -28,6 +29,29 @@ def _project(data: dict) -> ProjectDocument:
 class WeightBalanceSolverTests(unittest.TestCase):
     def setUp(self) -> None:
         self.solver = WeightBalanceSolver()
+
+    def test_geometry_derived_control_surface_properties_and_parent_mass_deduction(self) -> None:
+        wing = {
+            "id": "wing",
+            "type": "org.setuav.core:lifting-surface",
+            "parameters": {"geometry": {"mirror": True, "profiles": [
+                {"position": {"x": 0, "y": 0, "z": 0}, "chord": 100, "airfoil": "0012"},
+                {"position": {"x": 0, "y": 500, "z": 0}, "chord": 80, "airfoil": "0012"},
+            ]}},
+        }
+        aileron = {
+            "id": "aileron",
+            "type": "org.setuav.core:control-surface",
+            "parent": "wing",
+            "attach_to": "wing",
+            "parameters": {"geometry": {"type": "aileron", "span_mode": "ratio",
+                                          "eta_start": 0.5, "eta_end": 1.0,
+                                          "chord_fraction": 0.25}},
+        }
+        derived = derive_project_component_geometry([wing, aileron])
+        self.assertGreater(derived["aileron"].mass_g or 0, 0)
+        self.assertEqual(derived["aileron"].envelope["size_mm"]["y"], 500.0)
+        self.assertLess(derived["wing"].mass_g or 0, 1000)
 
     def test_two_point_masses_have_expected_cg_and_parallel_axis_inertia(self) -> None:
         project = _project({

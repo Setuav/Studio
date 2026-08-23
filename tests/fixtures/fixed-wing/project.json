@@ -13,11 +13,11 @@
       "unit": "m/s"
     },
     "wing_area": {
-      "value": 30.00000000000001,
+      "value": 35.0,
       "unit": "mm^2"
     },
     "wing_aspect_ratio": {
-      "value": 6.999999999999999,
+      "value": 7.733738257207644,
       "unit": "1"
     }
   },
@@ -218,7 +218,7 @@
       "attach_to": "fuselage",
       "transform": {
         "position": {
-          "x": 305.0,
+          "x": 280.0,
           "y": 75.0,
           "z": 40.0
         },
@@ -239,7 +239,7 @@
                 "y": 0.0,
                 "z": 0.0
               },
-              "chord": 239.1835186581984,
+              "chord": 240.0,
               "rotation": {
                 "x": 0.0,
                 "y": 0.0,
@@ -766,11 +766,11 @@
             },
             {
               "position": {
-                "x": 29.277030129948525,
-                "y": 649.568837309472,
+                "x": 15.0,
+                "y": 747.6190476190476,
                 "z": 0.0
               },
-              "chord": 167.42846306073886,
+              "chord": 180.0,
               "rotation": {
                 "x": 0.0,
                 "y": 3.0,
@@ -1333,9 +1333,9 @@
         "geometry": {
           "tag": "Aileron",
           "type": "aileron",
-          "span_start": 261.7,
-          "span_end": 575.8,
-          "chord": 64.1,
+          "span_start": 301.2,
+          "span_end": 662.8,
+          "chord": 64.3,
           "deflection": 20.0,
           "hinge_sweep": -2.0,
           "chord_fraction": 0.268,
@@ -1528,16 +1528,35 @@
           "tag": "flap",
           "type": "flap",
           "span_mode": "ratio",
-          "span_start": 16.2,
-          "span_end": 246.8,
+          "span_start": 18.7,
+          "span_end": 284.1,
           "eta_start": 0.025,
           "eta_end": 0.38,
           "chord_mode": "ratio",
           "chord_fraction": 0.32,
-          "chord": 76.5,
+          "chord": 76.8,
           "hinge_sweep": -1.0,
           "deflection": 10.0,
           "symmetry_mode": "auto"
+        }
+      },
+      "mass": 0.0,
+      "extensions": {
+        "org.setuav.weight-balance": {
+          "mass_source": "declared",
+          "local_cg_mm": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "inertia_kg_m2": {
+            "ixx": 0.0,
+            "iyy": 0.0,
+            "izz": 0.0,
+            "ixy": 0.0,
+            "ixz": 0.0,
+            "iyz": 0.0
+          }
         }
       }
     }

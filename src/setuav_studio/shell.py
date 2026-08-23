@@ -114,6 +114,8 @@ class MainWindow(QMainWindow):
         self._panel_actions: dict[str, QAction] = {}
         self._current_workspace_id: str | None = None
         self._workspace_states: dict[str, Any] = {}
+        self._restoring_workspace_layout = False
+        self._layout_save_scheduled = False
         self.setDockNestingEnabled(True)
 
         central_anchor = QWidget(self)
@@ -468,11 +470,7 @@ class MainWindow(QMainWindow):
         settings = QSettings()
         settings.setValue("main_window/geometry", self.saveGeometry())
         if self._current_workspace_id is not None:
-            state = self.saveState(self._LAYOUT_VERSION)
-            settings.setValue(
-                f"workspace_perspective/{self._current_workspace_id}",
-                state,
-            )
+            self._save_current_workspace_layout()
             settings.setValue("active_workspace", self._current_workspace_id)
 
         # Explicitly close all child dock widgets / plugin panels
@@ -778,6 +776,9 @@ class MainWindow(QMainWindow):
         dock.visibilityChanged.connect(
             lambda _visible=False, pid=contribution.id: self._sync_panel_action(pid)
         )
+        dock.dockLocationChanged.connect(self._schedule_workspace_layout_save)
+        dock.topLevelChanged.connect(self._schedule_workspace_layout_save)
+        dock.visibilityChanged.connect(self._schedule_workspace_layout_save)
         self._panel_actions[contribution.id] = action
         self._update_panel_action_icon(contribution.id)
 
@@ -1050,17 +1051,42 @@ class MainWindow(QMainWindow):
         saved_state = self._workspace_states.get(workspace_id) or settings.value(
             f"workspace_perspective/{workspace_id}"
         )
-        if saved_state is not None:
-            self.restoreState(saved_state, self._LAYOUT_VERSION)
-            # Ensure any dock not belonging to this workspace is hidden
-            for cid, (panel_contrib, dock) in self._panels.items():
-                if not panel_contrib.is_in_workspace(workspace_id):
-                    dock.hide()
-        else:
-            self._apply_default_workspace_layout(workspace_id)
+        self._restoring_workspace_layout = True
+        try:
+            if saved_state is not None:
+                self.restoreState(saved_state, self._LAYOUT_VERSION)
+                # Ensure any dock not belonging to this workspace is hidden
+                for cid, (panel_contrib, dock) in self._panels.items():
+                    if not panel_contrib.is_in_workspace(workspace_id):
+                        dock.hide()
+            else:
+                self._apply_default_workspace_layout(workspace_id)
+        finally:
+            self._restoring_workspace_layout = False
 
         # 3. Update View menu actions for the active workspace only
         self._update_view_menu(workspace_id)
+
+    def _schedule_workspace_layout_save(self, *_args) -> None:
+        if self._restoring_workspace_layout or self._current_workspace_id is None:
+            return
+        if self._layout_save_scheduled:
+            return
+        self._layout_save_scheduled = True
+        QTimer.singleShot(0, self._save_current_workspace_layout)
+
+    def _save_current_workspace_layout(self) -> None:
+        self._layout_save_scheduled = False
+        workspace_id = self._current_workspace_id
+        if workspace_id is None or self._restoring_workspace_layout:
+            return
+        state = self.saveState(self._LAYOUT_VERSION)
+        self._workspace_states[workspace_id] = state
+        QSettings().setValue(f"workspace_perspective/{workspace_id}", state)
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 - Qt API
+        super().resizeEvent(event)
+        self._schedule_workspace_layout_save()
 
     def _apply_default_workspace_layout(self, workspace_id: str) -> None:
         explorer = self.findChild(QDockWidget, "project.explorer")

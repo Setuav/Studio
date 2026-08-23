@@ -6,6 +6,10 @@ from copy import deepcopy
 from typing import Any
 
 from setuav_studio.project import ProjectDocument
+from setuav_studio.plugins.core.derived_geometry import (
+    DerivedComponentGeometry,
+    derive_project_component_geometry,
+)
 
 from ..models import (
     ComponentMassProperties,
@@ -48,12 +52,14 @@ class WeightBalanceSolver(WeightBalanceEngine):
 
         result_components: list[ComponentMassProperties] = []
         warnings: list[str] = []
+        derived = derive_project_component_geometry(list(by_id.values()))
         for component_id, component in by_id.items():
             effective = self._effective_component(component, by_id)
             item = self._component_properties(
                 component_id,
                 effective,
                 transforms[component_id].point_mm_to_m,
+                derived.get(component_id),
             )
             if item is None:
                 warnings.append(f"{component_id}: mass is missing; component excluded")
@@ -127,6 +133,7 @@ class WeightBalanceSolver(WeightBalanceEngine):
         component_id: str,
         component: dict[str, Any],
         transform_point_mm: Any,
+        derived: DerivedComponentGeometry | None = None,
     ) -> ComponentMassProperties | None:
         parameters = component.get("parameters")
         parameters = parameters if isinstance(parameters, dict) else {}
@@ -144,13 +151,34 @@ class WeightBalanceSolver(WeightBalanceEngine):
             )
 
         mass_g = root_mass if root_mass is not None else parameter_mass
-        source = str(wb_extension.get("mass_source") or ("declared" if mass_g is not None else "missing"))
+        requested_source = str(wb_extension.get("mass_source") or "")
+        if derived is not None and (mass_g is None or requested_source == "derived"):
+            mass_g = derived.mass_g
+            source = "derived"
+        else:
+            source = requested_source or ("declared" if mass_g is not None else "missing")
         if mass_g is None or mass_g <= 0.0:
             return None
 
         cg_value = wb_extension.get("local_cg_mm")
-        cg_local_mm = _vector(cg_value)
         has_declared_cg = isinstance(cg_value, dict)
+        if not has_declared_cg and derived is not None:
+            # Use the envelope centre for structural geometry.  A control
+            # surface has its centre represented by a derived local transform
+            # when its transform is implicit.
+            if component.get("type") == "org.setuav.core:control-surface":
+                transform_value = component.get("transform")
+                has_transform_position = isinstance(transform_value, dict) and isinstance(transform_value.get("position"), dict)
+            else:
+                has_transform_position = False
+            if not has_transform_position:
+                derived_position = derived.transform.get("position")
+                if isinstance(derived_position, dict) and any(_optional_number(derived_position.get(axis)) for axis in ("x", "y", "z")):
+                    cg_value = derived_position
+                else:
+                    envelope_offset = derived.envelope.get("offset_mm")
+                    cg_value = envelope_offset if isinstance(envelope_offset, dict) else None
+        cg_local_mm = _vector(cg_value)
         cg_body = transform_point_mm(cg_local_mm)
 
         geometry = parameters.get("geometry")
@@ -164,7 +192,7 @@ class WeightBalanceSolver(WeightBalanceEngine):
         if inertia_value is None:
             inertia_value = parameters.get("inertia")
         inertia, has_declared_inertia = _inertia(inertia_value)
-        if not has_declared_cg:
+        if not has_declared_cg and source != "derived":
             component_warnings.append("local CG not declared; transform origin used")
         if not has_declared_inertia:
             component_warnings.append("intrinsic inertia not declared; treated as a point mass")

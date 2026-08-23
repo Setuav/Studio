@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.plugin_system import StudioAPI
+from .derived_geometry import derive_component_geometry
 from setuav_studio.ui.icons import set_label_icon
 from setuav_studio.ui.numeric_spinbox import NumericSpinBox, set_table_spinbox
 from setuav_studio.ui.property_tables import PropertyTableMixin
@@ -193,6 +194,16 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
                 editable=False,
             )
             envelope = self._envelope(component)
+            if not envelope:
+                project_data = getattr(self._api.current_project, "data", {})
+                project_components = project_data.get("components", []) if isinstance(project_data, dict) else []
+                by_id = {
+                    str(item.get("id")): item for item in project_components
+                    if isinstance(item, dict) and isinstance(item.get("id"), str)
+                }
+                by_id.setdefault(str(component.get("id") or ""), component)
+                derived = derive_component_geometry(component, by_id)
+                envelope = derived.envelope
             shape = str(envelope.get("shape") or "box")
             if self.shape_combo is not None:
                 index = max(self.shape_combo.findData(shape), 0)
