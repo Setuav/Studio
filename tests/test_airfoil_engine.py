@@ -91,6 +91,17 @@ class TestAirfoilEngine(unittest.TestCase):
     def setUp(self) -> None:
         self.engine = AirfoilAnalysisEngine()
 
+    def test_custom_airfoil_cache_identifier_uses_coordinates(self) -> None:
+        af_a, ident_a = self.engine._resolve_airfoil(
+            [(1.0, 0.0), (0.5, 0.1), (0.0, 0.0)]
+        )
+        af_b, ident_b = self.engine._resolve_airfoil(
+            [(1.0, 0.0), (0.5, 0.2), (0.0, 0.0)]
+        )
+        self.assertNotEqual(ident_a, ident_b)
+        self.assertEqual(af_a.name, "custom_airfoil")
+        self.assertEqual(af_b.name, "custom_airfoil")
+
     def test_neuralfoil_cambered_airfoil(self) -> None:
         """Verify NeuralFoil analysis on NACA 2412."""
         alphas = [-4.0, 0.0, 4.0, 8.0, 12.0, 16.0]
@@ -110,6 +121,8 @@ class TestAirfoilEngine(unittest.TestCase):
         # Cambered airfoil has negative zero-lift pitching moment and negative alpha_0L
         self.assertLess(polar.cm_zero_lift, 0.0)
         self.assertLess(polar.alpha_zero_lift, 0.0)
+        self.assertIsNotNone(polar.points[0].top_transition)
+        self.assertIsNotNone(polar.points[0].bottom_transition)
 
     def test_neuralfoil_symmetric_airfoil(self) -> None:
         """Verify NeuralFoil analysis on symmetric NACA 0012."""
@@ -141,30 +154,18 @@ class TestAirfoilEngine(unittest.TestCase):
         self.assertIsNotNone(polar)
         self.assertIn("foil", polar.backend_used.lower())
 
-    def test_3d_engine_section_polars_extraction(self) -> None:
-        """Verify 3D AeroSandboxEngine populates section_polars from 2D analysis."""
-        engine_3d = AeroSandboxEngine()
-        components = [
-            {
-                "id": "wing-1",
-                "name": "Main Wing",
-                "type": "org.setuav.core:lifting-surface",
-                "parameters": {
-                    "geometry": {
-                        "mirror": True,
-                        "profiles": [
-                            {"position": {"x": 0, "y": 0, "z": 0}, "chord": 200, "twist": 0, "airfoil": "naca2412"},
-                            {"position": {"x": 30, "y": 500, "z": 0}, "chord": 120, "twist": 0, "airfoil": "naca2412"},
-                        ]
-                    }
-                },
-            }
-        ]
-        cond = FlightCondition(velocity=25.0, alpha=4.0, alpha_steps=1)
-        res = engine_3d.analyze(components, cond, method=AnalysisMethod.COMPREHENSIVE)
-
-        self.assertIn("section_polars", res.raw)
-        self.assertGreater(len(res.raw["section_polars"]), 0)
+    def test_2d_airfoil_analysis_on_surface_profile(self) -> None:
+        """Verify AirfoilAnalysisEngine analyzes section airfoils on request."""
+        engine_2d = AirfoilAnalysisEngine()
+        polar = engine_2d.analyze_airfoil(
+            airfoil="naca2412",
+            reynolds=200_000,
+            alphas=[-4.0, 0.0, 4.0, 8.0, 12.0],
+            mach=0.07,
+        )
+        self.assertIsNotNone(polar)
+        self.assertEqual(len(polar.points), 5)
+        self.assertGreater(polar.cl_max, 0.8)
 
 
 if __name__ == "__main__":

@@ -13,7 +13,7 @@ try:
 except ImportError:
     HAS_AEROSANDBOX = False
 
-from .base import FlightCondition, ReferenceValues
+from .base import AnalysisMethod, FlightCondition, ReferenceValues
 from .stability_models import ControlEffectiveness, ElevatorTrim, StabilityDerivatives
 
 logger = logging.getLogger(__name__)
@@ -29,6 +29,7 @@ class StabilityAnalysisEngine:
         ref: ReferenceValues,
         components: list[dict[str, Any]] | None = None,
         builder_fn: Any | None = None,
+        method: AnalysisMethod = AnalysisMethod.VLM,
     ) -> StabilityDerivatives:
         """Compute full 6-DoF linear stability derivatives and trim equilibrium.
 
@@ -54,7 +55,6 @@ class StabilityAnalysisEngine:
         c_ref = max(float(ref.c_ref), 1e-4)
         b_ref = max(float(ref.b_ref), 1e-4)
         x_cg = float(ref.x_cg)
-
         # Baseline operating point
         op_base = asb.OperatingPoint(
             atmosphere=atmosphere,
@@ -62,82 +62,63 @@ class StabilityAnalysisEngine:
             alpha=ref_a,
             beta=ref_b,
         )
-        vlm_base = asb.VortexLatticeMethod(airplane=airplane, op_point=op_base).run()
-        cl_0 = float(np.ravel(vlm_base["CL"])[0])
-        cd_0 = float(np.ravel(vlm_base["CD"])[0])
-        cm_0 = float(np.ravel(vlm_base.get("Cm", 0.0))[0])
 
-        # 1. Longitudinal Angle of Attack Derivatives (d/dalpha)
-        da_deg = 0.5
-        da_rad = math.radians(da_deg)
-        op_a_p = asb.OperatingPoint(atmosphere=atmosphere, velocity=vel, alpha=ref_a + da_deg, beta=ref_b)
-        op_a_m = asb.OperatingPoint(atmosphere=atmosphere, velocity=vel, alpha=ref_a - da_deg, beta=ref_b)
-        res_a_p = asb.VortexLatticeMethod(airplane=airplane, op_point=op_a_p).run()
-        res_a_m = asb.VortexLatticeMethod(airplane=airplane, op_point=op_a_m).run()
+        # Native AeroSandbox stability derivatives run
+        solver_cls = {
+            AnalysisMethod.VLM: asb.VortexLatticeMethod,
+            AnalysisMethod.LIFTING_LINE: asb.LiftingLine,
+            AnalysisMethod.AERO_BUILDUP: asb.AeroBuildup,
+        }.get(method, asb.AeroBuildup)
+        analysis = solver_cls(airplane=airplane, op_point=op_base)
+        try:
+            res = analysis.run_with_stability_derivatives()
+        except Exception as err:
+            raise RuntimeError(
+                f"{method.value} native stability derivatives failed: {err}"
+            ) from err
 
-        cla_rad = float(np.ravel(res_a_p["CL"] - res_a_m["CL"])[0]) / (2.0 * da_rad)
-        cda_rad = float(np.ravel(res_a_p["CD"] - res_a_m["CD"])[0]) / (2.0 * da_rad)
-        cma_rad = float(np.ravel(res_a_p.get("Cm", 0.0) - res_a_m.get("Cm", 0.0))[0]) / (2.0 * da_rad)
+        def scalar(key: str) -> float:
+            if key not in res or res[key] is None:
+                raise RuntimeError(f"{method.value} did not return native stability field '{key}'")
+            value = float(np.ravel(res[key])[0])
+            if not math.isfinite(value):
+                raise RuntimeError(f"{method.value} returned non-finite stability field '{key}'")
+            return value
 
+        cl_0 = scalar("CL")
+        cd_0 = scalar("CD")
+        cm_0 = scalar("Cm")
+
+        cla_rad = scalar("CLa")
+        cda_rad = scalar("CDa")
+        cma_rad = scalar("Cma")
         cla_deg = cla_rad * (math.pi / 180.0)
         cma_deg = cma_rad * (math.pi / 180.0)
 
-        # 2. Pitch Damping Derivatives (d/dq_hat, where q_hat = q * c / (2 * V))
-        q_hat_pert = 0.05
-        q_pert_val = q_hat_pert * 2.0 * vel / c_ref
-        op_q_p = asb.OperatingPoint(atmosphere=atmosphere, velocity=vel, alpha=ref_a, beta=ref_b, q=q_pert_val)
-        op_q_m = asb.OperatingPoint(atmosphere=atmosphere, velocity=vel, alpha=ref_a, beta=ref_b, q=-q_pert_val)
-        res_q_p = asb.VortexLatticeMethod(airplane=airplane, op_point=op_q_p).run()
-        res_q_m = asb.VortexLatticeMethod(airplane=airplane, op_point=op_q_m).run()
+        cl_q = scalar("CLq")
+        cm_q = scalar("Cmq")
 
-        cl_q = float(np.ravel(res_q_p["CL"] - res_q_m["CL"])[0]) / (2.0 * q_hat_pert)
-        cm_q = float(np.ravel(res_q_p.get("Cm", 0.0) - res_q_m.get("Cm", 0.0))[0]) / (2.0 * q_hat_pert)
-
-        # 3. Lateral-Directional Sideslip Derivatives (d/dbeta)
-        db_deg = 0.5
-        db_rad = math.radians(db_deg)
-        op_b_p = asb.OperatingPoint(atmosphere=atmosphere, velocity=vel, alpha=ref_a, beta=ref_b + db_deg)
-        op_b_m = asb.OperatingPoint(atmosphere=atmosphere, velocity=vel, alpha=ref_a, beta=ref_b - db_deg)
-        res_b_p = asb.VortexLatticeMethod(airplane=airplane, op_point=op_b_p).run()
-        res_b_m = asb.VortexLatticeMethod(airplane=airplane, op_point=op_b_m).run()
-
-        cyb_rad = float(np.ravel(res_b_p.get("CY", 0.0) - res_b_m.get("CY", 0.0))[0]) / (2.0 * db_rad)
-        clb_rad = float(np.ravel(res_b_p.get("Cl", 0.0) - res_b_m.get("Cl", 0.0))[0]) / (2.0 * db_rad)
-        cnb_rad = float(np.ravel(res_b_p.get("Cn", 0.0) - res_b_m.get("Cn", 0.0))[0]) / (2.0 * db_rad)
-
+        cyb_rad = scalar("CYb")
+        clb_rad = scalar("Clb")
+        cnb_rad = scalar("Cnb")
         cyb_deg = cyb_rad * (math.pi / 180.0)
         clb_deg = clb_rad * (math.pi / 180.0)
         cnb_deg = cnb_rad * (math.pi / 180.0)
 
-        # 4. Roll Rate Damping Derivatives (d/dp_hat, where p_hat = p * b / (2 * V))
-        p_hat_pert = 0.05
-        p_pert_val = p_hat_pert * 2.0 * vel / b_ref
-        op_p_p = asb.OperatingPoint(atmosphere=atmosphere, velocity=vel, alpha=ref_a, beta=ref_b, p=p_pert_val)
-        op_p_m = asb.OperatingPoint(atmosphere=atmosphere, velocity=vel, alpha=ref_a, beta=ref_b, p=-p_pert_val)
-        res_p_p = asb.VortexLatticeMethod(airplane=airplane, op_point=op_p_p).run()
-        res_p_m = asb.VortexLatticeMethod(airplane=airplane, op_point=op_p_m).run()
+        cl_p = scalar("Clp")
+        cn_p = scalar("Cnp")
+        cl_r = scalar("Clr")
+        cn_r = scalar("Cnr")
 
-        cl_p = float(np.ravel(res_p_p.get("Cl", 0.0) - res_p_m.get("Cl", 0.0))[0]) / (2.0 * p_hat_pert)
-        cn_p = float(np.ravel(res_p_p.get("Cn", 0.0) - res_p_m.get("Cn", 0.0))[0]) / (2.0 * p_hat_pert)
-
-        # 5. Yaw Rate Damping Derivatives (d/dr_hat, where r_hat = r * b / (2 * V))
-        r_hat_pert = 0.05
-        r_pert_val = r_hat_pert * 2.0 * vel / b_ref
-        op_r_p = asb.OperatingPoint(atmosphere=atmosphere, velocity=vel, alpha=ref_a, beta=ref_b, r=r_pert_val)
-        op_r_m = asb.OperatingPoint(atmosphere=atmosphere, velocity=vel, alpha=ref_a, beta=ref_b, r=-r_pert_val)
-        res_r_p = asb.VortexLatticeMethod(airplane=airplane, op_point=op_r_p).run()
-        res_r_m = asb.VortexLatticeMethod(airplane=airplane, op_point=op_r_m).run()
-
-        cl_r = float(np.ravel(res_r_p.get("Cl", 0.0) - res_r_m.get("Cl", 0.0))[0]) / (2.0 * r_hat_pert)
-        cn_r = float(np.ravel(res_r_p.get("Cn", 0.0) - res_r_m.get("Cn", 0.0))[0]) / (2.0 * r_hat_pert)
-
-        # 6. Neutral Point & Static Margin
-        if abs(cla_rad) > 1e-4:
+        # Neutral Point & Static Margin
+        if "x_np" in res and res["x_np"] is not None and not np.isnan(np.ravel(res["x_np"])[0]):
+            x_np = float(np.ravel(res["x_np"])[0])
+            static_margin_pct = ((x_np - x_cg) / c_ref) * 100.0
+        elif abs(cla_rad) > 1e-4:
             sm = -float(cma_rad / cla_rad)
             x_np = x_cg + sm * c_ref
             static_margin_pct = sm * 100.0
         else:
-            sm = 0.0
             x_np = x_cg
             static_margin_pct = 0.0
 
@@ -166,15 +147,23 @@ class StabilityAnalysisEngine:
                 try:
                     plane_p = builder_fn(components, cond_p)
                     plane_m = builder_fn(components, cond_m)
-                    res_c_p = asb.VortexLatticeMethod(airplane=plane_p, op_point=op_base).run()
-                    res_c_m = asb.VortexLatticeMethod(airplane=plane_m, op_point=op_base).run()
+                    res_c_p = solver_cls(airplane=plane_p, op_point=op_base).run()
+                    res_c_m = solver_cls(airplane=plane_m, op_point=op_base).run()
 
-                    cl_delta = float(np.ravel(res_c_p.get("Cl", 0.0) - res_c_m.get("Cl", 0.0))[0]) / (2.0 * d_delta)
-                    cm_delta = float(np.ravel(res_c_p.get("Cm", 0.0) - res_c_m.get("Cm", 0.0))[0]) / (2.0 * d_delta)
-                    cn_delta = float(np.ravel(res_c_p.get("Cn", 0.0) - res_c_m.get("Cn", 0.0))[0]) / (2.0 * d_delta)
-                    cy_delta = float(np.ravel(res_c_p.get("CY", 0.0) - res_c_m.get("CY", 0.0))[0]) / (2.0 * d_delta)
-                    cL_delta = float(np.ravel(res_c_p["CL"] - res_c_m["CL"])[0]) / (2.0 * d_delta)
-                    cD_delta = float(np.ravel(res_c_p["CD"] - res_c_m["CD"])[0]) / (2.0 * d_delta)
+                    def delta(key: str) -> float:
+                        if key not in res_c_p or key not in res_c_m:
+                            raise RuntimeError(f"control perturbation did not return native field '{key}'")
+                        value = float(np.ravel(res_c_p[key] - res_c_m[key])[0]) / (2.0 * d_delta)
+                        if not math.isfinite(value):
+                            raise RuntimeError(f"control perturbation returned non-finite field '{key}'")
+                        return value
+
+                    cl_delta = delta("Cl")
+                    cm_delta = delta("Cm")
+                    cn_delta = delta("Cn")
+                    cy_delta = delta("CY")
+                    cL_delta = delta("CL")
+                    cD_delta = delta("CD")
 
                     # Only register if the control channel produces a non-zero response
                     if any(abs(v) > 1e-5 for v in (cl_delta, cm_delta, cn_delta, cy_delta, cL_delta)):
@@ -186,6 +175,8 @@ class StabilityAnalysisEngine:
                             c_y_delta=cy_delta,
                             c_L_delta=cL_delta,
                             c_D_delta=cD_delta,
+                            derivative_method="finite_difference",
+                            perturbation_deg=d_delta,
                         )
 
                         if ctrl_tag == "elevator" and abs(cm_delta) > 1e-4:
@@ -211,6 +202,7 @@ class StabilityAnalysisEngine:
             c_L_alpha_rad=cla_rad,
             c_L_alpha_deg=cla_deg,
             c_D_alpha_rad=cda_rad,
+            c_D_alpha_deg=cda_rad * (math.pi / 180.0),
             c_m_alpha_rad=cma_rad,
             c_m_alpha_deg=cma_deg,
             c_L_q=cl_q,
@@ -236,4 +228,6 @@ class StabilityAnalysisEngine:
             is_yaw_damped=(cn_r < 0),
             controls=controls_map,
             elevator_trim=elevator_trim,
+            solver_method=method.value,
+            rate_derivative_convention="normalized_body_rates",
         )

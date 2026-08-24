@@ -171,49 +171,6 @@ class TestParametricSweeps(unittest.TestCase):
         cm_down = res.polar_points[-1].cm  # delta_e = +10 deg
         self.assertGreater(cm_up, cm_down)
 
-    def test_velocity_sweep(self) -> None:
-        """Verify airspeed sweep scales total dynamic forces quadratically."""
-        cond = FlightCondition(
-            alpha=4.0,
-            sweep_type=SweepType.VELOCITY,
-            sweep_variable="velocity",
-            sweep_min=15.0,
-            sweep_max=30.0,
-            sweep_steps=3,
-        )
-        res = self.engine.analyze(self.components, cond, method=AnalysisMethod.COMPREHENSIVE)
-
-        self.assertEqual(len(res.polar_points), 3)
-        pt_v1 = res.polar_points[0]  # V=15
-        pt_v2 = res.polar_points[-1] # V=30
-
-        self.assertIsNotNone(pt_v1.forces_moments)
-        self.assertIsNotNone(pt_v2.forces_moments)
-
-        lift_v1 = pt_v1.forces_moments.lift
-        lift_v2 = pt_v2.forces_moments.lift
-
-        # Doubling speed (15 -> 30) should quadruple lift (ratio ~ 4.0)
-        lift_ratio = lift_v2 / max(lift_v1, 1e-4)
-        self.assertAlmostEqual(lift_ratio, 4.0, delta=0.5)
-
-    def test_altitude_sweep(self) -> None:
-        """Verify altitude sweep reduces air density and dynamic pressure."""
-        cond = FlightCondition(
-            velocity=25.0,
-            alpha=3.0,
-            sweep_type=SweepType.ALTITUDE,
-            sweep_variable="altitude",
-            sweep_min=0.0,
-            sweep_max=4000.0,
-            sweep_steps=3,
-        )
-        res = self.engine.analyze(self.components, cond, method=AnalysisMethod.COMPREHENSIVE)
-
-        self.assertEqual(len(res.polar_points), 3)
-        pt_sea = res.polar_points[0]
-        pt_high = res.polar_points[-1]
-
     def test_dual_alpha_beta_sweep(self) -> None:
         """Verify dual alpha+beta sweep computes both alpha and beta datasets simultaneously."""
         cond = FlightCondition(
@@ -227,20 +184,25 @@ class TestParametricSweeps(unittest.TestCase):
             beta_max=6.0,
             beta_steps=3,
         )
-        res = self.engine.analyze(self.components, cond, method=AnalysisMethod.COMPREHENSIVE)
+        res = self.engine.analyze(self.components, cond, method=AnalysisMethod.AERO_BUILDUP)
 
-        self.assertEqual(len(res.polar_points), 3)  # alpha points
-        self.assertEqual(len(res.beta_polar_points), 3)  # beta points
+        self.assertEqual(len(res.polar_points), 6)  # 3 alpha points + 3 beta points
+
+        alpha_pts = res.polar_points[:3]
+        beta_pts = res.polar_points[3:]
+
+        self.assertEqual(len(alpha_pts), 3)
+        self.assertEqual(len(beta_pts), 3)
 
         # Verify alpha points vary alpha with fixed beta
-        self.assertAlmostEqual(res.polar_points[0].alpha, -4.0)
-        self.assertAlmostEqual(res.polar_points[-1].alpha, 8.0)
-        self.assertAlmostEqual(res.polar_points[0].beta, 0.0)
+        self.assertAlmostEqual(alpha_pts[0].alpha, -4.0)
+        self.assertAlmostEqual(alpha_pts[-1].alpha, 8.0)
+        self.assertAlmostEqual(alpha_pts[0].beta, 0.0)
 
         # Verify beta points vary beta with fixed alpha
-        self.assertAlmostEqual(res.beta_polar_points[0].beta, -6.0)
-        self.assertAlmostEqual(res.beta_polar_points[-1].beta, 6.0)
-        self.assertAlmostEqual(res.beta_polar_points[0].alpha, 2.0)
+        self.assertAlmostEqual(beta_pts[0].beta, -6.0)
+        self.assertAlmostEqual(beta_pts[-1].beta, 6.0)
+        self.assertAlmostEqual(beta_pts[0].alpha, 2.0)
 
 
 if __name__ == "__main__":

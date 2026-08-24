@@ -1,20 +1,26 @@
-"""Aerodynamic Analysis Results dock widget."""
+"""Aerodynamic analysis history and selected-result tables."""
 from __future__ import annotations
 
 import csv
+
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QCloseEvent, QFont, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QFileDialog,
     QHBoxLayout,
     QHeaderView,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QSplitter,
     QTabWidget,
     QTableWidget,
     QTableWidgetItem,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -23,164 +29,169 @@ from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.ui.buttons import refresh_button_role, set_native_button
 from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.property_tables import ContentFitTableWidget, PropertyTableMixin
-from setuav_studio.ui.theme import tokens
+
 from .engine.base import AeroResult, SweepType
 
 
+SUMMARY_ROWS = [
+    ("solver_engine", "Analysis Pipeline"),
+    ("analysis_method", "Analysis Method"),
+    ("sweep", "Sweep"),
+    ("points", "Result Points"),
+    ("convergence", "Convergence"),
+    ("cl_max", "Max Lift (CL_max)"),
+    ("cl_max_alpha", "α at Sweep CL_max"),
+    ("cd_min", "Min Drag (CD_min)"),
+    ("ld_max", "Max Efficiency (L/D_max)"),
+    ("ld_max_alpha", "Best Glide AoA (α_L/D)"),
+    ("cd_ind_cruise", "Induced Drag (CD_i @ L/D)"),
+    ("cd_prof_cruise", "Profile Drag (CD_p @ L/D)"),
+    ("drag_ratio", "Drag Ratio (CD_i / CD_p)"),
+    ("velocity", "Airspeed"),
+    ("altitude", "Altitude (MSL)"),
+    ("mach", "Mach Number (M)"),
+    ("dynamic_pressure", "Dynamic Pressure (q)"),
+    ("reynolds", "Reynolds Number (Re)"),
+    ("ref_span", "Ref Wingspan (b)"),
+    ("ref_area", "Ref Wing Area (S)"),
+    ("ref_ar", "Aspect Ratio (AR)"),
+    ("ref_mac", "Mean Aerodynamic Chord (MAC)"),
+    ("ref_cg", "Reference CG"),
+    ("oswald_e", "Oswald Efficiency (e)"),
+    ("stability_method", "Stability Solver"),
+    ("cla", "Lift Slope (CL_α)"),
+    ("cma", "Pitch Stiffness (Cm_α)"),
+    ("cmq", "Pitch Damping (Cm_q)"),
+    ("pitch_status", "Longitudinal Status"),
+    ("np_x", "Neutral Point (X_np)"),
+    ("static_margin", "Static Margin (SM)"),
+    ("clb", "Dihedral Effect (Cl_β)"),
+    ("cnb", "Directional Stability (Cn_β)"),
+    ("cyb", "Sideforce Slope (CY_β)"),
+    ("clp", "Roll Damping (Cl_p)"),
+    ("cnr", "Yaw Damping (Cn_r)"),
+    ("lat_dir_status", "Lateral-Directional Status"),
+    ("elevator_trim", "Elevator Trim (δ_e)"),
+    ("alpha_trim_neutral", "Trim AoA (α @ δ_e=0)"),
+    ("cm_de", "Elevator Control Power (Cm_δe)"),
+    ("cl_da", "Aileron Control Power (Cl_δa)"),
+    ("cn_dr", "Rudder Control Power (Cn_δr)"),
+]
+
+
 class AeroResultsDock(PropertyTableMixin, QWidget):
-    """Aerodynamic analysis results dock displaying summary metrics and polar table."""
+    """Keep analysis results and expose one selected result to the workspace."""
 
     table_headers = ("Metric", "Value")
     table_edit_triggers = QAbstractItemView.EditTrigger.NoEditTriggers
     table_value_placeholder = "-"
     table_value_editable_default = False
+    table_max_visible_rows = None
+    table_scroll_policy_off = True
 
     def __init__(self, api: StudioAPI, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("aerodynamics.results_widget")
         self._api = api
-        self._tokens = tokens()
+        self._results: list[AeroResult] = []
         self._current_result: AeroResult | None = None
         self._init_ui()
 
-        if self._api is not None:
-            self._api.subscribe("aerodynamics.analysis_completed", self.display_results)
+        self._api.subscribe("aerodynamics.analysis_completed", self.display_results)
+        self._api.on_project_changed(self._on_project_changed)
+
+    @property
+    def current_result(self) -> AeroResult | None:
+        return self._current_result
 
     def _init_ui(self) -> None:
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # Tab widget for Summary vs Detailed Data Table
-        self.tab_widget = QTabWidget()
+        splitter = QSplitter(Qt.Orientation.Vertical, self)
+        splitter.setChildrenCollapsible(False)
+        splitter.setHandleWidth(4)
 
-        # Tab 1: Summary Key Performance Indicators
-        self.summary_tab = QWidget()
-        sum_layout = QVBoxLayout(self.summary_tab)
-        sum_layout.setContentsMargins(4, 4, 4, 4)
-        sum_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        sum_layout.setSpacing(6)
+        list_panel = QWidget(splitter)
+        list_layout = QVBoxLayout(list_panel)
+        list_layout.setContentsMargins(4, 4, 4, 2)
+        list_layout.setSpacing(3)
+        list_header = QHBoxLayout()
+        list_header.setContentsMargins(0, 0, 0, 0)
+        list_header.addWidget(QLabel("Analysis Results", list_panel))
+        list_header.addStretch(1)
+        self.delete_result_button = QToolButton(list_panel)
+        self.delete_result_button.setAutoRaise(True)
+        self.delete_result_button.setIcon(get_icon("fa6s.trash"))
+        self.delete_result_button.setToolTip("Delete selected analysis result")
+        self.delete_result_button.setEnabled(False)
+        self.delete_result_button.clicked.connect(self._delete_selected_result)
+        list_header.addWidget(self.delete_result_button)
+        list_layout.addLayout(list_header)
 
-        self.summary_table = self._property_table([
-            ("solver_engine", "Analysis Pipeline"),
-            ("cl_max", "Max Lift (CL_max)"),
-            ("cl_max_alpha", "Stall Angle (α_stall)"),
-            ("cd_min", "Min Drag (CD_min)"),
-            ("ld_max", "Max Efficiency (L/D_max)"),
-            ("ld_max_alpha", "Best Glide AoA (α_L/D)"),
-            ("cd_ind_cruise", "Induced Drag (CD_i @ L/D)"),
-            ("cd_prof_cruise", "Profile Drag (CD_p @ L/D)"),
-            ("drag_ratio", "Drag Ratio (CD_i / CD_p)"),
-            ("ref_span", "Ref Wingspan (b)"),
-            ("ref_area", "Ref Wing Area (S)"),
-            ("ref_ar", "Aspect Ratio (AR)"),
-            ("ref_mac", "Mean Aerodyn Chord (MAC)"),
-            ("mach", "Mach Number (M)"),
-            ("dynamic_pressure", "Dynamic Pressure (q)"),
-            ("reynolds", "Reynolds Number (Re)"),
-            ("oswald_e", "Oswald Efficiency (e)"),
-        ])
-        sum_layout.addWidget(self.summary_table)
-        sum_layout.addStretch(1)
+        self.results_list = QListWidget(list_panel)
+        self.results_list.setObjectName("aerodynamics.analysis_results_list")
+        self.results_list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.results_list.setAlternatingRowColors(True)
+        self.results_list.currentRowChanged.connect(self._on_result_selected)
+        list_layout.addWidget(self.results_list)
+        self.delete_result_shortcut = QShortcut(QKeySequence.StandardKey.Delete, self.results_list)
+        self.delete_result_shortcut.activated.connect(self._delete_selected_result)
+        splitter.addWidget(list_panel)
 
-        sum_scroll = QScrollArea()
-        sum_scroll.setWidgetResizable(True)
-        sum_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        sum_scroll.setWidget(self.summary_tab)
-        self.tab_widget.addTab(sum_scroll, "Summary")
+        self.tab_widget = QTabWidget(splitter)
 
-        # Tab 2: Stability & Trim Metrics
-        self.stability_tab = QWidget()
-        stab_layout = QVBoxLayout(self.stability_tab)
-        stab_layout.setContentsMargins(4, 4, 4, 4)
-        stab_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        stab_layout.setSpacing(6)
+        summary_page = QWidget(self.tab_widget)
+        summary_layout = QVBoxLayout(summary_page)
+        summary_layout.setContentsMargins(4, 4, 4, 4)
+        summary_layout.setSpacing(0)
+        self.summary_table = self._property_table(SUMMARY_ROWS)
+        summary_layout.addWidget(self.summary_table)
+        summary_layout.addStretch(1)
 
-        self.stability_table = self._property_table([
-            ("cla", "Lift Slope (CL_α)"),
-            ("cma", "Pitch Stiffness (Cm_α)"),
-            ("cmq", "Pitch Damping (Cm_q)"),
-            ("pitch_status", "Longitudinal Status"),
-            ("np_x", "Neutral Point (X_np)"),
-            ("static_margin", "Static Margin (SM)"),
-            ("clb", "Dihedral Effect (Cl_β)"),
-            ("cnb", "Directional Stability (Cn_β)"),
-            ("cyb", "Sideforce Slope (CY_β)"),
-            ("clp", "Roll Damping (Cl_p)"),
-            ("cnr", "Yaw Damping (Cn_r)"),
-            ("lat_dir_status", "Lateral-Directional Status"),
-            ("elevator_trim", "Elevator Trim (δ_e @ Cruise)"),
-            ("alpha_trim_neutral", "Trim AoA (α @ δ_e=0)"),
-            ("cm_de", "Elevator Control Power (Cm_δe)"),
-            ("cl_da", "Aileron Control Power (Cl_δa)"),
-            ("cn_dr", "Rudder Control Power (Cn_δr)"),
-        ])
-        stab_layout.addWidget(self.stability_table)
-        stab_layout.addStretch(1)
+        summary_scroll = QScrollArea(self.tab_widget)
+        summary_scroll.setWidgetResizable(True)
+        summary_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        summary_scroll.setWidget(summary_page)
+        self.tab_widget.addTab(summary_scroll, "Summary")
 
-        stab_scroll = QScrollArea()
-        stab_scroll.setWidgetResizable(True)
-        stab_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        stab_scroll.setWidget(self.stability_tab)
-        self.tab_widget.addTab(stab_scroll, "Stability & Trim")
-
-        # Tab 3: Diagnostics & Data Quality
-        self.diag_tab = QWidget()
-        diag_layout = QVBoxLayout(self.diag_tab)
-        diag_layout.setContentsMargins(4, 4, 4, 4)
-        diag_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        diag_layout.setSpacing(6)
-
-        self.diag_table = self._property_table([
-            ("diag_solver", "Solver Pipeline"),
-            ("diag_convergence", "Convergence Rate"),
-            ("diag_points_ok", "Valid Points"),
-            ("diag_points_fail", "Flagged Points"),
-            ("diag_mach_regime", "Mach Regime"),
-            ("diag_viscous_model", "Viscous Model"),
-            ("diag_inviscid_model", "Potential Flow Model"),
-            ("diag_reynolds_range", "Reynolds Range"),
-            ("diag_q_range", "Dynamic Pressure (q)"),
-            ("diag_cg", "Reference CG"),
-        ])
-        diag_layout.addWidget(self.diag_table)
-        diag_layout.addStretch(1)
-
-        diag_scroll = QScrollArea()
-        diag_scroll.setWidgetResizable(True)
-        diag_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        diag_scroll.setWidget(self.diag_tab)
-        self.tab_widget.addTab(diag_scroll, "Diagnostics")
-
-        # Tab 4: Detailed Polar Table
-        self.detail_tab = QWidget()
-        det_layout = QVBoxLayout(self.detail_tab)
-        det_layout.setContentsMargins(0, 0, 0, 0)
-        det_layout.setSpacing(0)
-
+        detail_page = QWidget(self.tab_widget)
+        detail_layout = QVBoxLayout(detail_page)
+        detail_layout.setContentsMargins(0, 0, 0, 0)
+        detail_layout.setSpacing(0)
         self.detail_table = self._create_detail_table()
-        self.detail_table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        det_layout.addWidget(self.detail_table)
+        self.detail_table.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
+        )
+        detail_layout.addWidget(self.detail_table)
 
-        # Export CSV Button Container with slight margin
-        btn_container = QWidget()
-        btn_layout = QHBoxLayout(btn_container)
-        btn_layout.setContentsMargins(6, 4, 6, 6)
-        btn_layout.setSpacing(0)
-        self.btn_export_csv = QPushButton(" Export Polar Data (CSV)")
+        button_panel = QWidget(detail_page)
+        button_layout = QHBoxLayout(button_panel)
+        button_layout.setContentsMargins(6, 4, 6, 6)
+        self.btn_export_csv = QPushButton(" Export CSV", button_panel)
         set_native_button(self.btn_export_csv, "fa6s.file-csv")
         self.btn_export_csv.clicked.connect(self._export_csv)
         self.btn_export_csv.setEnabled(False)
-        btn_layout.addWidget(self.btn_export_csv)
-        det_layout.addWidget(btn_container)
+        button_layout.addWidget(self.btn_export_csv)
+        detail_layout.addWidget(button_panel)
 
-        self.tab_widget.addTab(self.detail_tab, "Polar Table")
+        self.tab_widget.addTab(detail_page, "Detailed")
+        splitter.addWidget(self.tab_widget)
+        splitter.setStretchFactor(0, 0)
+        splitter.setStretchFactor(1, 1)
+        splitter.setSizes([130, 520])
+        main_layout.addWidget(splitter)
 
-        main_layout.addWidget(self.tab_widget)
+        self._clear_tables()
 
-    def _create_detail_table(self) -> ContentFitTableWidget:
+    @staticmethod
+    def _create_detail_table() -> ContentFitTableWidget:
         headers = [
             "α (deg)",
+            "β (deg)",
+            "Controls",
             "CL",
             "CD",
             "CD_ind",
@@ -192,6 +203,9 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
             "CZ",
             "Cl",
             "Cn",
+            "Lift (N)",
+            "Drag (N)",
+            "Status",
         ]
         table = ContentFitTableWidget(0, len(headers))
         table.setHorizontalHeaderLabels(headers)
@@ -199,9 +213,8 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
         table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         table.setAlternatingRowColors(True)
-        header = table.horizontalHeader()
-        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        header.setStretchLastSection(False)
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        table.horizontalHeader().setStretchLastSection(False)
         table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         table.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         table.setTextElideMode(Qt.TextElideMode.ElideNone)
@@ -213,236 +226,281 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
         table.setFont(font)
         return table
 
-    def clear_results(self) -> None:
-        self._current_result = None
-        for key in (
-            "solver_engine", "cl_max", "cl_max_alpha", "cd_min",
-            "ld_max", "ld_max_alpha", "cd_ind_cruise", "cd_prof_cruise",
-            "drag_ratio", "ref_span", "ref_area", "ref_ar", "ref_mac",
-            "mach", "dynamic_pressure", "reynolds", "oswald_e",
-        ):
-            self._set_property_value(self.summary_table, key, "-")
+    @staticmethod
+    def _sweep_label(result: AeroResult) -> str:
+        cond = result.condition
+        sweep_type = cond.sweep_type
+        if sweep_type == SweepType.DUAL_ALPHA_BETA:
+            return "Alpha + Beta Sweep"
+        if sweep_type == SweepType.BETA:
+            return "Beta Sweep"
+        if sweep_type == SweepType.CONTROL_DEFLECTION:
+            return f"{cond.sweep_variable.replace('_', ' ').title()} Sweep"
+        if len(result.polar_points) <= 1:
+            return "Single Point"
+        return "Alpha Sweep"
 
-        for key in (
-            "cla", "cma", "cmq", "pitch_status", "np_x", "static_margin",
-            "clb", "cnb", "cyb", "clp", "cnr", "lat_dir_status",
-            "elevator_trim", "alpha_trim_neutral", "cm_de", "cl_da", "cn_dr",
-        ):
-            self._set_property_value(self.stability_table, key, "-")
-
-        for key in (
-            "diag_solver", "diag_convergence", "diag_points_ok", "diag_points_fail",
-            "diag_mach_regime", "diag_viscous_model", "diag_inviscid_model",
-            "diag_reynolds_range", "diag_q_range", "diag_cg",
-        ):
-            self._set_property_value(self.diag_table, key, "-")
-
-        self.detail_table.setRowCount(0)
-        self.btn_export_csv.setEnabled(False)
+    @classmethod
+    def _result_label(cls, result: AeroResult, number: int) -> str:
+        custom_name = result.raw.get("analysis_name") if isinstance(result.raw, dict) else None
+        name = str(custom_name).strip() if custom_name else cls._sweep_label(result)
+        method = result.method.value.replace("_", " ").upper()
+        return f"{number:02d}  {name} · {method} · {len(result.polar_points)} pts"
 
     def display_results(self, result: AeroResult) -> None:
-        self._current_result = result
-        ref = result.reference
-        points = result.polar_points
-        cond = result.condition
-        sweep_type = cond.sweep_type if cond else SweepType.ALPHA
-        sweep_var = cond.sweep_variable if cond else "alpha"
+        """Append a completed analysis and make it the active result."""
+        if not isinstance(result, AeroResult):
+            return
+        result_index = len(self._results)
+        self._results.append(result)
 
-        ar = (ref.b_ref ** 2 / ref.s_ref) if ref.s_ref > 0 else 0.0
-        oswald_str = f"{result.oswald_efficiency:.3f}" if result.oswald_efficiency is not None else "N/A"
+        item = QListWidgetItem(self._result_label(result, result_index + 1))
+        item.setData(Qt.ItemDataRole.UserRole, result_index)
+        item.setToolTip(
+            f"{result.engine_name} / {result.method.value}\n"
+            f"{self._sweep_label(result)}\n"
+            f"{len(result.polar_points)} result point(s)"
+        )
+        self.results_list.addItem(item)
+        self.results_list.setCurrentItem(item)
+        if self._current_result is not result:
+            self._select_result(result_index)
 
-        best_pt = max(points, key=lambda p: p.cl_over_cd) if points else None
-        cd_i_str = f"{best_pt.cd_induced:.5f}" if best_pt else "-"
-        cd_p_str = f"{best_pt.cd_profile:.5f}" if best_pt else "-"
-        if best_pt and best_pt.cd_profile > 1e-6:
-            tot_d = max(best_pt.cd, 1e-6)
-            ratio_str = f"{best_pt.cd_induced / best_pt.cd_profile:.2f} ({best_pt.cd_induced / tot_d * 100:.0f}% Ind / {best_pt.cd_profile / tot_d * 100:.0f}% Prof)"
+    def _on_result_selected(self, row: int) -> None:
+        self.delete_result_button.setEnabled(row >= 0)
+        if row < 0:
+            self._current_result = None
+            self._clear_tables()
+            self._api.publish("aerodynamics.result_selected", None)
+            return
+        item = self.results_list.item(row)
+        result_index = int(item.data(Qt.ItemDataRole.UserRole)) if item is not None else row
+        self._select_result(result_index)
+
+    def _delete_selected_result(self) -> None:
+        row = self.results_list.currentRow()
+        if not 0 <= row < len(self._results):
+            return
+
+        self.results_list.blockSignals(True)
+        try:
+            self.results_list.takeItem(row)
+            del self._results[row]
+            for item_row in range(row, self.results_list.count()):
+                item = self.results_list.item(item_row)
+                item.setData(Qt.ItemDataRole.UserRole, item_row)
+                item.setText(self._result_label(self._results[item_row], item_row + 1))
+        finally:
+            self.results_list.blockSignals(False)
+
+        if self._results:
+            next_row = min(row, len(self._results) - 1)
+            self.results_list.blockSignals(True)
+            try:
+                self.results_list.setCurrentRow(next_row)
+            finally:
+                self.results_list.blockSignals(False)
+            self.delete_result_button.setEnabled(True)
+            self._select_result(next_row)
         else:
-            ratio_str = "N/A"
+            self._current_result = None
+            self._clear_tables()
+            self.delete_result_button.setEnabled(False)
+            self._api.publish("aerodynamics.result_selected", None)
+
+    def _select_result(self, result_index: int) -> None:
+        if not 0 <= result_index < len(self._results):
+            return
+        result = self._results[result_index]
+        self._current_result = result
+        self._populate_summary(result)
+        self._populate_details(result)
+        self.btn_export_csv.setEnabled(bool(result.polar_points))
+        self._api.publish("aerodynamics.result_selected", result)
+
+    def _populate_summary(self, result: AeroResult) -> None:
+        ref = result.reference
+        cond = result.condition
+        points = result.polar_points
+        valid_points = [point for point in points if point.converged]
+        best_point = max(valid_points, key=lambda point: point.cl_over_cd) if valid_points else None
+        total_points = len(points)
+        valid_count = len(valid_points)
+        aspect_ratio = ref.b_ref**2 / ref.s_ref if ref.s_ref > 0 else 0.0
+
+        cd_i = best_point.cd_induced if best_point is not None else None
+        cd_p = best_point.cd_profile if best_point is not None else None
+        if cd_i is not None and cd_p is not None and cd_p > 1e-6 and best_point is not None:
+            total_drag = max(best_point.cd, 1e-6)
+            drag_ratio = (
+                f"{cd_i / cd_p:.2f} "
+                f"({cd_i / total_drag * 100:.0f}% Ind / {cd_p / total_drag * 100:.0f}% Prof)"
+            )
+        else:
+            drag_ratio = "N/A"
+
+        if cond.sweep_type == SweepType.DUAL_ALPHA_BETA:
+            sweep_range = (
+                f"α {cond.alpha_min:+g}…{cond.alpha_max:+g}° ({cond.alpha_steps}); "
+                f"β {cond.beta_min:+g}…{cond.beta_max:+g}° ({cond.beta_steps})"
+            )
+        elif len(points) <= 1:
+            sweep_range = f"α {cond.alpha:+g}°, β {cond.beta:+g}°"
+        else:
+            sweep_range = (
+                f"{self._sweep_label(result)}: "
+                f"{cond.sweep_min:+g}…{cond.sweep_max:+g}° ({cond.sweep_steps})"
+            )
 
         metrics = {
-            "solver_engine": f"{result.engine_name}",
+            "solver_engine": result.engine_name,
+            "analysis_method": result.method.value.replace("_", " ").title(),
+            "sweep": sweep_range,
+            "points": str(total_points),
+            "convergence": f"{valid_count}/{total_points} ({valid_count / total_points * 100:.1f}%)" if total_points else "N/A",
             "cl_max": f"{result.cl_max:.4f}",
             "cl_max_alpha": f"{result.cl_max_alpha:.2f}°",
             "cd_min": f"{result.cd_min:.5f}",
             "ld_max": f"{result.ld_max:.2f}",
             "ld_max_alpha": f"{result.ld_max_alpha:.2f}°",
-            "cd_ind_cruise": cd_i_str,
-            "cd_prof_cruise": cd_p_str,
-            "drag_ratio": ratio_str,
-            "ref_span": f"{ref.b_ref * 1000.0:.1f} mm ({ref.b_ref:.3f} m)",
-            "ref_area": f"{ref.s_ref * 1e4:.1f} cm² ({ref.s_ref:.4f} m²)",
-            "ref_ar": f"{ar:.2f}",
-            "ref_mac": f"{ref.c_ref * 1000.0:.1f} mm",
+            "cd_ind_cruise": f"{cd_i:.5f}" if cd_i is not None else "N/A",
+            "cd_prof_cruise": f"{cd_p:.5f}" if cd_p is not None else "N/A",
+            "drag_ratio": drag_ratio,
+            "velocity": f"{cond.velocity:.2f} m/s",
+            "altitude": f"{cond.altitude:.1f} m",
             "mach": f"{result.mach:.3f}",
             "dynamic_pressure": f"{result.dynamic_pressure:.1f} Pa",
             "reynolds": f"{result.reynolds:,.0f}" if result.reynolds > 0 else "N/A",
-            "oswald_e": oswald_str,
+            "ref_span": f"{ref.b_ref * 1000.0:.1f} mm ({ref.b_ref:.3f} m)",
+            "ref_area": f"{ref.s_ref * 1e4:.1f} cm² ({ref.s_ref:.4f} m²)",
+            "ref_ar": f"{aspect_ratio:.2f}",
+            "ref_mac": f"{ref.c_ref * 1000.0:.1f} mm",
+            "ref_cg": f"[{ref.xyz_ref[0] * 1000.0:.1f}, {ref.xyz_ref[1] * 1000.0:.1f}, {ref.xyz_ref[2] * 1000.0:.1f}] mm",
+            "oswald_e": f"{result.oswald_efficiency:.3f}" if result.oswald_efficiency is not None else "N/A",
         }
-        for key, val in metrics.items():
-            self._set_property_value(self.summary_table, key, val)
 
-        # Populate Stability & Trim tab
+        metrics.update(self._stability_metrics(result))
+        for key, _label in SUMMARY_ROWS:
+            self._set_property_value(self.summary_table, key, metrics.get(key, "-"))
+
+    @staticmethod
+    def _stability_metrics(result: AeroResult) -> dict[str, str]:
         sd = result.stability_derivatives
-        if sd is not None:
-            cla_val = f"{sd.c_L_alpha_rad:.3f} /rad ({sd.c_L_alpha_deg:.4f} /deg)" if hasattr(sd, "c_L_alpha_rad") else "-"
-            cma_val = f"{sd.c_m_alpha_rad:.3f} /rad ({sd.c_m_alpha_deg:.4f} /deg)" if hasattr(sd, "c_m_alpha_rad") else "-"
-            cmq_val = f"{sd.c_m_q:.3f}" if hasattr(sd, "c_m_q") else "-"
-            p_stat = ("STABLE (Damped)" if getattr(sd, "is_pitch_stable", False) and getattr(sd, "is_pitch_damped", False) else
-                      ("STABLE" if getattr(sd, "is_pitch_stable", False) else "UNSTABLE"))
-            npx_val = f"{sd.x_np * 1000.0:.1f} mm ({sd.x_np:.4f} m)" if hasattr(sd, "x_np") else "-"
-            sm_val = f"{sd.static_margin:+.2f} % MAC" if hasattr(sd, "static_margin") else "-"
-            clb_val = f"{sd.c_l_beta_rad:.3f} /rad ({sd.c_l_beta_deg:.4f} /deg)" if hasattr(sd, "c_l_beta_rad") else "-"
-            cnb_val = f"{sd.c_n_beta_rad:.3f} /rad ({sd.c_n_beta_deg:.4f} /deg)" if hasattr(sd, "c_n_beta_rad") else "-"
-            cyb_val = f"{sd.c_Y_beta_rad:.3f} /rad ({sd.c_Y_beta_deg:.4f} /deg)" if hasattr(sd, "c_Y_beta_rad") else "-"
-            clp_val = f"{sd.c_l_p:.3f}" if hasattr(sd, "c_l_p") else "-"
-            cnr_val = f"{sd.c_n_r:.3f}" if hasattr(sd, "c_n_r") else "-"
-            lat_stat = f"{'Roll-Stable' if getattr(sd, 'is_roll_stable', True) else 'Roll-Unstable'} | {'Yaw-Stable' if getattr(sd, 'is_yaw_stable', True) else 'Yaw-Unstable'}"
+        if sd is None:
+            return {}
 
-            trim_obj = getattr(sd, "elevator_trim", None)
-            de_trim_str = f"{trim_obj.delta_e_trim:+.2f}° (CL={trim_obj.cl_trim:.3f})" if trim_obj else "N/A"
-            a_trim_str = f"{trim_obj.alpha_trim_neutral:+.2f}°" if trim_obj else "N/A"
+        def derivative(rad_name: str, deg_name: str) -> str:
+            if not hasattr(sd, rad_name):
+                return "-"
+            return f"{getattr(sd, rad_name):.3f} /rad ({getattr(sd, deg_name):.4f} /deg)"
 
-            ctrls = getattr(sd, "controls", {}) or {}
-            cm_de_str = f"{ctrls['elevator'].c_m_delta:+.4f} /deg" if "elevator" in ctrls else "N/A"
-            cl_da_str = f"{ctrls['aileron'].c_l_delta:+.4f} /deg" if "aileron" in ctrls else "N/A"
-            cn_dr_str = f"{ctrls['rudder'].c_n_delta:+.4f} /deg" if "rudder" in ctrls else "N/A"
+        def control_metric(tag: str, attribute: str) -> str:
+            control = (getattr(sd, "controls", {}) or {}).get(tag)
+            if control is None:
+                return "N/A"
+            value = getattr(control, attribute)
+            method = getattr(control, "derivative_method", "finite_difference")
+            step = getattr(control, "perturbation_deg", 2.0)
+            if method == "finite_difference":
+                return f"{value:+.4f} /deg (FD ±{step:g}°)"
+            return f"{value:+.4f} /deg ({method})"
 
-            stab_metrics = {
-                "cla": cla_val,
-                "cma": cma_val,
-                "cmq": cmq_val,
-                "pitch_status": p_stat,
-                "np_x": npx_val,
-                "static_margin": sm_val,
-                "clb": clb_val,
-                "cnb": cnb_val,
-                "cyb": cyb_val,
-                "clp": clp_val,
-                "cnr": cnr_val,
-                "lat_dir_status": lat_stat,
-                "elevator_trim": de_trim_str,
-                "alpha_trim_neutral": a_trim_str,
-                "cm_de": cm_de_str,
-                "cl_da": cl_da_str,
-                "cn_dr": cn_dr_str,
-            }
-            for k, v in stab_metrics.items():
-                self._set_property_value(self.stability_table, k, v)
-
-        # Populate Diagnostics & Quality tab
-        total_pts = len(points)
-        ok_pts = sum(1 for p in points if p.converged)
-        fail_pts = total_pts - ok_pts
-        conv_rate = (ok_pts / total_pts * 100.0) if total_pts > 0 else 100.0
-
-        min_re = min(p.reynolds for p in points) if points else 0.0
-        max_re = max(p.reynolds for p in points) if points else 0.0
-        re_range_str = f"{min_re:,.0f} - {max_re:,.0f}" if abs(max_re - min_re) > 1e3 else f"{min_re:,.0f}"
-
-        min_q = min(p.dynamic_pressure for p in points) if points else 0.0
-        max_q = max(p.dynamic_pressure for p in points) if points else 0.0
-        q_range_str = f"{min_q:.1f} - {max_q:.1f} Pa" if abs(max_q - min_q) > 1.0 else f"{min_q:.1f} Pa"
-
-        mach_val = points[0].mach if points else 0.0
-        if mach_val < 0.3:
-            mach_regime = f"Subsonic (M={mach_val:.3f}, Incompressible)"
-        elif mach_val < 0.8:
-            mach_regime = f"Subsonic Compressible (M={mach_val:.3f}, Prandtl-Glauert)"
-        elif mach_val < 1.2:
-            mach_regime = f"Transonic (M={mach_val:.3f})"
-        else:
-            mach_regime = f"Supersonic (M={mach_val:.3f})"
-
-        diag_metrics = {
-            "diag_solver": f"{result.engine_name}",
-            "diag_convergence": f"{conv_rate:.1f}% ({ok_pts}/{total_pts} points)",
-            "diag_points_ok": f"{ok_pts} converged",
-            "diag_points_fail": f"{fail_pts} flagged",
-            "diag_mach_regime": mach_regime,
-            "diag_viscous_model": "NeuralFoil 2D Neural Surrogate (XFoil Physics)",
-            "diag_inviscid_model": "3D Vortex Lattice Method (Horseshoe / Vortex Ring)",
-            "diag_reynolds_range": re_range_str,
-            "diag_q_range": q_range_str,
-            "diag_cg": f"[{ref.xyz_ref[0]*1000.0:.1f}, {ref.xyz_ref[1]*1000.0:.1f}, {ref.xyz_ref[2]*1000.0:.1f}] mm",
+        pitch_stable = bool(getattr(sd, "is_pitch_stable", False))
+        pitch_damped = bool(getattr(sd, "is_pitch_damped", False))
+        pitch_status = "STABLE (Damped)" if pitch_stable and pitch_damped else ("STABLE" if pitch_stable else "UNSTABLE")
+        trim = getattr(sd, "elevator_trim", None)
+        return {
+            "stability_method": f"{getattr(sd, 'solver_method', 'unknown')} / {getattr(sd, 'rate_derivative_convention', 'normalized_body_rates')}",
+            "cla": derivative("c_L_alpha_rad", "c_L_alpha_deg"),
+            "cma": derivative("c_m_alpha_rad", "c_m_alpha_deg"),
+            "cmq": f"{getattr(sd, 'c_m_q'):.3f}" if hasattr(sd, "c_m_q") else "-",
+            "pitch_status": pitch_status,
+            "np_x": f"{getattr(sd, 'x_np') * 1000.0:.1f} mm ({getattr(sd, 'x_np'):.4f} m)" if hasattr(sd, "x_np") else "-",
+            "static_margin": f"{getattr(sd, 'static_margin'):+.2f} % MAC" if hasattr(sd, "static_margin") else "-",
+            "clb": derivative("c_l_beta_rad", "c_l_beta_deg"),
+            "cnb": derivative("c_n_beta_rad", "c_n_beta_deg"),
+            "cyb": derivative("c_Y_beta_rad", "c_Y_beta_deg"),
+            "clp": f"{getattr(sd, 'c_l_p'):.3f}" if hasattr(sd, "c_l_p") else "-",
+            "cnr": f"{getattr(sd, 'c_n_r'):.3f}" if hasattr(sd, "c_n_r") else "-",
+            "lat_dir_status": (
+                f"{'Roll-Stable' if getattr(sd, 'is_roll_stable', True) else 'Roll-Unstable'} | "
+                f"{'Yaw-Stable' if getattr(sd, 'is_yaw_stable', True) else 'Yaw-Unstable'}"
+            ),
+            "elevator_trim": f"{trim.delta_e_trim:+.2f}° (CL={trim.cl_trim:.3f})" if trim else "N/A",
+            "alpha_trim_neutral": f"{trim.alpha_trim_neutral:+.2f}°" if trim else "N/A",
+            "cm_de": control_metric("elevator", "c_m_delta"),
+            "cl_da": control_metric("aileron", "c_l_delta"),
+            "cn_dr": control_metric("rudder", "c_n_delta"),
         }
-        for k, v in diag_metrics.items():
-            self._set_property_value(self.diag_table, k, v)
 
-        # Set dynamic column 0 header based on sweep variable
-        if sweep_type == SweepType.BETA:
-            col0_header = "β (deg)"
-        elif sweep_type == SweepType.CONTROL_DEFLECTION:
-            col0_header = f"δ_{sweep_var} (deg)"
-        elif sweep_type == SweepType.VELOCITY:
-            col0_header = "V (m/s)"
-        elif sweep_type == SweepType.ALTITUDE:
-            col0_header = "h (m)"
-        else:
-            col0_header = "α (deg)"
-
-        headers = [
-            col0_header,
-            "CL",
-            "CD",
-            "CD_ind",
-            "CD_prof",
-            "Cm",
-            "L/D",
-            "CX",
-            "CY",
-            "CZ",
-            "Cl",
-            "Cn",
-        ]
+    def _populate_details(self, result: AeroResult) -> None:
+        points = result.polar_points
         self.detail_table.setUpdatesEnabled(False)
         self.detail_table.blockSignals(True)
         try:
             self.detail_table.setRowCount(len(points))
-
-            for row, pt in enumerate(points):
-                if sweep_type == SweepType.BETA:
-                    v0_str = f"{pt.beta:+.2f}"
-                elif sweep_type == SweepType.CONTROL_DEFLECTION:
-                    v0_str = f"{pt.control_deflections.get(sweep_var, 0.0):+.2f}"
-                elif sweep_type == SweepType.VELOCITY:
-                    v0_str = f"{pt.velocity:.2f}"
-                elif sweep_type == SweepType.ALTITUDE:
-                    v0_str = f"{pt.altitude:.0f}"
-                else:
-                    v0_str = f"{pt.alpha:+.2f}"
-
-                self.detail_table.setItem(row, 0, QTableWidgetItem(v0_str))
-                self.detail_table.setItem(row, 1, QTableWidgetItem(f"{pt.cl:.4f}"))
-                self.detail_table.setItem(row, 2, QTableWidgetItem(f"{pt.cd:.5f}"))
-                self.detail_table.setItem(row, 3, QTableWidgetItem(f"{pt.cd_induced:.5f}"))
-                self.detail_table.setItem(row, 4, QTableWidgetItem(f"{pt.cd_profile:.5f}"))
-                self.detail_table.setItem(row, 5, QTableWidgetItem(f"{pt.cm:+.4f}"))
-                self.detail_table.setItem(row, 6, QTableWidgetItem(f"{pt.cl_over_cd:.2f}"))
-                self.detail_table.setItem(row, 7, QTableWidgetItem(f"{pt.cx:+.4f}"))
-                self.detail_table.setItem(row, 8, QTableWidgetItem(f"{pt.cy:+.4f}"))
-                self.detail_table.setItem(row, 9, QTableWidgetItem(f"{pt.cz:+.4f}"))
-                self.detail_table.setItem(row, 10, QTableWidgetItem(f"{pt.cl_roll:+.5f}"))
-                self.detail_table.setItem(row, 11, QTableWidgetItem(f"{pt.cn:+.5f}"))
-
+            for row, point in enumerate(points):
+                control_text = ", ".join(
+                    f"{name} {value:+.1f}°"
+                    for name, value in sorted(point.control_deflections.items())
+                ) or "—"
+                values = [
+                    f"{point.alpha:+.2f}",
+                    f"{point.beta:+.2f}",
+                    control_text,
+                    f"{point.cl:.4f}",
+                    f"{point.cd:.5f}",
+                    f"{point.cd_induced:.5f}" if point.cd_induced is not None else "—",
+                    f"{point.cd_profile:.5f}" if point.cd_profile is not None else "—",
+                    f"{point.cm:+.4f}",
+                    f"{point.cl_over_cd:.2f}",
+                    f"{point.cx:+.4f}",
+                    f"{point.cy:+.4f}",
+                    f"{point.cz:+.4f}",
+                    f"{point.cl_roll:+.5f}",
+                    f"{point.cn:+.5f}",
+                    f"{point.lift:.3f}",
+                    f"{point.drag:.3f}",
+                    "OK" if point.converged else f"FAILED: {point.notes}",
+                ]
+                for column, value in enumerate(values):
+                    self.detail_table.setItem(row, column, QTableWidgetItem(value))
             self.detail_table.fit_columns_to_viewport()
         finally:
             self.detail_table.blockSignals(False)
             self.detail_table.setUpdatesEnabled(True)
 
-        self.btn_export_csv.setEnabled(len(points) > 0)
+    def _clear_tables(self) -> None:
+        for key, _label in SUMMARY_ROWS:
+            self._set_property_value(self.summary_table, key, "-")
+        self.detail_table.setRowCount(0)
+        self.btn_export_csv.setEnabled(False)
+
+    def clear_results(self) -> None:
+        self.results_list.blockSignals(True)
+        try:
+            self.results_list.clear()
+        finally:
+            self.results_list.blockSignals(False)
+        self._results.clear()
+        self._current_result = None
+        self._clear_tables()
+        self._api.publish("aerodynamics.result_selected", None)
+
+    def _on_project_changed(self, _project: object) -> None:
+        self.clear_results()
 
     def _export_csv(self) -> None:
-        if not self._current_result:
+        if self._current_result is None:
             return
-
-        is_summary = (self.tabs.currentIndex() == 0)
-        default_name = "aerodynamic_summary.csv" if is_summary else "aerodynamic_polar.csv"
-        dialog_title = "Export Aerodynamic Summary to CSV" if is_summary else "Export Aerodynamic Polar Table to CSV"
-
-        path, _ = QFileDialog.getSaveFileName(
+        summary_selected = self.tab_widget.currentIndex() == 0
+        table: QTableWidget = self.summary_table if summary_selected else self.detail_table
+        suffix = "summary" if summary_selected else "detailed"
+        current_row = max(self.results_list.currentRow() + 1, 1)
+        default_name = f"aerodynamic_analysis_{current_row:02d}_{suffix}.csv"
+        path, _selected_filter = QFileDialog.getSaveFileName(
             self,
-            dialog_title,
+            "Export Aerodynamic Results",
             default_name,
             "CSV Files (*.csv);;All Files (*)",
         )
@@ -450,78 +508,28 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
             return
 
         try:
-            with open(path, "w", newline="", encoding="utf-8") as f:
-                writer = csv.writer(f)
-
-                if is_summary:
-                    writer.writerow(["Metric", "Value"])
-                    for row in range(self.summary_table.rowCount()):
-                        k_item = self.summary_table.item(row, 0)
-                        v_item = self.summary_table.item(row, 1)
-                        if k_item and v_item:
-                            writer.writerow([k_item.text(), v_item.text()])
-                else:
-                    headers = [
-                        "AoA_deg",
-                        "Beta_deg",
-                        "CL",
-                        "CD",
-                        "CD_ind",
-                        "CD_prof",
-                        "CD_wave",
-                        "Cm",
-                        "L_over_D",
-                        "CX",
-                        "CY",
-                        "CZ",
-                        "Cl_roll",
-                        "Cn_yaw",
-                        "Lift_N",
-                        "Drag_N",
-                        "Sideforce_N",
-                        "Fx_b_N",
-                        "Fy_b_N",
-                        "Fz_b_N",
-                        "Mx_b_Nm",
-                        "My_b_Nm",
-                        "Mz_b_Nm",
-                    ]
-                    writer.writerow(headers)
-
-                    for pt in self._current_result.polar_points:
-                        fm = pt.forces_moments
-                        writer.writerow([
-                            f"{pt.alpha:.4f}",
-                            f"{pt.beta:.4f}",
-                            f"{pt.cl:.6f}",
-                            f"{pt.cd:.6f}",
-                            f"{pt.cd_induced:.6f}",
-                            f"{pt.cd_profile:.6f}",
-                            f"{pt.cd_wave:.6f}",
-                            f"{pt.cm:.6f}",
-                            f"{pt.cl_over_cd:.4f}",
-                            f"{pt.cx:.6f}",
-                            f"{pt.cy:.6f}",
-                            f"{pt.cz:.6f}",
-                            f"{pt.cl_roll:.6f}",
-                            f"{pt.cn:.6f}",
-                            f"{pt.lift:.4f}",
-                            f"{pt.drag:.4f}",
-                            f"{pt.sideforce:.4f}",
-                            f"{fm.fx_b:.4f}" if fm else "",
-                            f"{fm.fy_b:.4f}" if fm else "",
-                            f"{fm.fz_b:.4f}" if fm else "",
-                            f"{fm.mx_b:.4f}" if fm else "",
-                            f"{fm.my_b:.4f}" if fm else "",
-                            f"{fm.mz_b:.4f}" if fm else "",
-                        ])
-
+            with open(path, "w", newline="", encoding="utf-8") as stream:
+                writer = csv.writer(stream)
+                writer.writerow([
+                    table.horizontalHeaderItem(column).text()
+                    for column in range(table.columnCount())
+                ])
+                for row in range(table.rowCount()):
+                    writer.writerow([
+                        table.item(row, column).text() if table.item(row, column) is not None else ""
+                        for column in range(table.columnCount())
+                    ])
             self._api.show_status(f"Exported {default_name} to {path}", "success")
-        except Exception as err:
-            self._api.show_status(f"CSV Export failed: {err}", "error")
+        except Exception as error:
+            self._api.show_status(f"CSV Export failed: {error}", "error")
 
     def update_theme_style(self) -> None:
-        self.tabs.setTabIcon(0, get_icon("fa6s.chart-simple"))
-        self.tabs.setTabIcon(1, get_icon("fa6s.table"))
-        if hasattr(self, "btn_export_csv"):
-            refresh_button_role(self.btn_export_csv)
+        self.tab_widget.setTabIcon(0, get_icon("fa6s.chart-simple"))
+        self.tab_widget.setTabIcon(1, get_icon("fa6s.table"))
+        self.delete_result_button.setIcon(get_icon("fa6s.trash"))
+        refresh_button_role(self.btn_export_csv)
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        self._api.unsubscribe("aerodynamics.analysis_completed", self.display_results)
+        self._api.remove_project_listener(self._on_project_changed)
+        super().closeEvent(event)

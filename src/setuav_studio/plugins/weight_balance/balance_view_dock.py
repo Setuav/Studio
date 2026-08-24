@@ -140,6 +140,7 @@ class WeightBalanceViewDock(QMainWindow):
     def __init__(self, api: StudioAPI, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("weight_balance.view_widget")
+        self._api = api
         self._restoring_layout = True
         self._layout_save_scheduled = False
         self._layout_persistence_enabled = False
@@ -173,6 +174,8 @@ class WeightBalanceViewDock(QMainWindow):
             geometry_source=geometry_source,
             parent=self,
         )
+        self.top_canvas.itemClicked.connect(self._on_marker_clicked)
+        self.side_canvas.itemClicked.connect(self._on_marker_clicked)
         # Compatibility alias for integrations that used the original canvas.
         self.canvas = self.top_canvas
 
@@ -316,3 +319,14 @@ class WeightBalanceViewDock(QMainWindow):
     def _set_result(self, result: WeightBalanceResult) -> None:
         self.top_canvas.set_result(result)
         self.side_canvas.set_result(result)
+
+    def _on_marker_clicked(self, marker_id: str) -> None:
+        if not marker_id or marker_id == "aircraft-cg":
+            return
+        selection = {
+            "id": f"{marker_id}:mass-properties",
+            "name": "Mass Properties",
+            "kind": "mass-properties",
+            "component_id": marker_id,
+        }
+        self._api.set_selection(selection)

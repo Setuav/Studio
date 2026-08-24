@@ -26,7 +26,7 @@ class AnalysisWorker(QRunnable):
         engine: AeroEngine,
         components: list[dict[str, Any]],
         condition: FlightCondition,
-        method: AnalysisMethod = AnalysisMethod.COMPREHENSIVE,
+        method: AnalysisMethod = AnalysisMethod.AERO_BUILDUP,
         settings: dict[str, Any] | None = None,
     ) -> None:
         super().__init__()
@@ -44,7 +44,7 @@ class AnalysisWorker(QRunnable):
             def on_step(curr: int, total: int, msg: str) -> None:
                 self.signals.progress.emit(curr, total, msg)
 
-            self.signals.progress.emit(0, 100, "Starting solver...")
+            self.signals.progress.emit(0, 100, "Starting...")
             result = self._engine.analyze(
                 components=self._components,
                 condition=self._condition,
@@ -52,7 +52,7 @@ class AnalysisWorker(QRunnable):
                 settings=self._settings,
                 progress_callback=on_step,
             )
-            self.signals.progress.emit(100, 100, "Complete")
+            self.signals.progress.emit(100, 100, "Done")
             self.signals.finished.emit(result)
         except Exception as exc:
             logger.exception("Aerodynamic analysis failed: %s", exc)

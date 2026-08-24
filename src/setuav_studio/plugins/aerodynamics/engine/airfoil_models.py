@@ -13,12 +13,25 @@ class AirfoilPolarPoint:
     cl: float  # Section lift coefficient
     cd: float  # Section total drag coefficient
     cm: float  # Section quarter-chord pitching moment coefficient
-    cd_profile: float = 0.0  # Section pressure/form drag
-    cd_friction: float = 0.0  # Section skin friction drag
-    top_separation: float = 0.0  # Boundary layer separation location (0=leading edge, 1=trailing edge)
-    bottom_separation: float = 0.0
+    cd_profile: float | None = None  # Only when the backend exposes the decomposition
+    cd_friction: float | None = None
+    top_transition: float | None = None  # X/c transition location, when exposed
+    bottom_transition: float | None = None
+    analysis_confidence: float | None = None  # NeuralFoil confidence, when exposed
+    mach_crit: float | None = None
+    mach_dd: float | None = None
     cl_over_cd: float = 0.0
     converged: bool = True
+
+    @property
+    def top_separation(self) -> float | None:
+        """Backward-compatible alias; this field is transition X/c, not separation."""
+        return self.top_transition
+
+    @property
+    def bottom_separation(self) -> float | None:
+        """Backward-compatible alias; this field is transition X/c, not separation."""
+        return self.bottom_transition
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -28,8 +41,11 @@ class AirfoilPolarPoint:
             "cm": self.cm,
             "cd_profile": self.cd_profile,
             "cd_friction": self.cd_friction,
-            "top_separation": self.top_separation,
-            "bottom_separation": self.bottom_separation,
+            "top_transition": self.top_transition,
+            "bottom_transition": self.bottom_transition,
+            "analysis_confidence": self.analysis_confidence,
+            "mach_crit": self.mach_crit,
+            "mach_dd": self.mach_dd,
             "cl_over_cd": self.cl_over_cd,
             "converged": self.converged,
         }
@@ -41,10 +57,13 @@ class AirfoilPolarPoint:
             cl=float(data.get("cl", 0.0)),
             cd=float(data.get("cd", 0.0)),
             cm=float(data.get("cm", 0.0)),
-            cd_profile=float(data.get("cd_profile", 0.0)),
-            cd_friction=float(data.get("cd_friction", 0.0)),
-            top_separation=float(data.get("top_separation", 0.0)),
-            bottom_separation=float(data.get("bottom_separation", 0.0)),
+            cd_profile=(float(data["cd_profile"]) if data.get("cd_profile") is not None else None),
+            cd_friction=(float(data["cd_friction"]) if data.get("cd_friction") is not None else None),
+            top_transition=(float(data["top_transition"]) if data.get("top_transition") is not None else (float(data["top_separation"]) if data.get("top_separation") is not None else None)),
+            bottom_transition=(float(data["bottom_transition"]) if data.get("bottom_transition") is not None else (float(data["bottom_separation"]) if data.get("bottom_separation") is not None else None)),
+            analysis_confidence=(float(data["analysis_confidence"]) if data.get("analysis_confidence") is not None else None),
+            mach_crit=(float(data["mach_crit"]) if data.get("mach_crit") is not None else None),
+            mach_dd=(float(data["mach_dd"]) if data.get("mach_dd") is not None else None),
             cl_over_cd=float(data.get("cl_over_cd", 0.0)),
             converged=bool(data.get("converged", True)),
         )

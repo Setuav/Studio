@@ -61,7 +61,12 @@ class AerodynamicsPluginTests(unittest.TestCase):
         self.assertIn("aerodynamics.controls_dock", panel_ids)
         self.assertIn("aerodynamics.results_dock", panel_ids)
         self.assertIn("aerodynamics.charts_dock", panel_ids)
-        self.assertIn("aerodynamics.aero_3d", panel_ids)
+        self.assertNotIn("aerodynamics.aero_3d", panel_ids)
+        self.assertTrue(any(
+            action.menu == "Tools/Aerodynamics"
+            and action.title == "AeroSandbox 3D Snapshot…"
+            for action in self.actions
+        ))
 
     def test_panel_factories_create_widgets_and_handle_results(self) -> None:
         self.plugin.activate(self.api)
@@ -70,22 +75,32 @@ class AerodynamicsPluginTests(unittest.TestCase):
         controls_widget = panels_by_id["aerodynamics.controls_dock"].factory()
         results_widget = panels_by_id["aerodynamics.results_dock"].factory()
         charts_widget = panels_by_id["aerodynamics.charts_dock"].factory()
-        aero_3d_widget = panels_by_id["aerodynamics.aero_3d"].factory()
 
         self.assertIsNotNone(controls_widget)
         self.assertIsNotNone(results_widget)
         self.assertIsNotNone(charts_widget)
-        self.assertIsNotNone(aero_3d_widget)
+        sweep_modes = {
+            controls_widget.combo_mode.itemText(index)
+            for index in range(controls_widget.combo_mode.count())
+        }
+        self.assertNotIn("Airspeed Sweep", sweep_modes)
+        self.assertNotIn("Altitude Sweep", sweep_modes)
 
-        # Create dummy result and dispatch
+        cond = FlightCondition(
+            sweep_type=SweepType.DUAL_ALPHA_BETA,
+            alpha=2.0,
+            beta=0.0,
+            alpha_steps=2,
+            beta_steps=2,
+        )
         dummy_result = AeroResult(
             method=AnalysisMethod.AERO_BUILDUP,
             engine_name="AeroSandbox",
             polar_points=[
-                PolarPoint(alpha=-4.0, cl=-0.1, cd=0.012, cm=0.01, cl_over_cd=-8.3),
-                PolarPoint(alpha=0.0, cl=0.3, cd=0.015, cm=-0.03, cl_over_cd=20.0),
-                PolarPoint(alpha=4.0, cl=0.7, cd=0.028, cm=-0.06, cl_over_cd=25.0),
-                PolarPoint(alpha=8.0, cl=1.1, cd=0.055, cm=-0.09, cl_over_cd=20.0),
+                PolarPoint(alpha=-4.0, cl=-0.1, cd=0.012, cm=0.01, cy=0.0, cl_roll=0.0, cn=0.0, cl_over_cd=-8.3, raw={"_sweep_group": "alpha"}),
+                PolarPoint(alpha=8.0, cl=1.1, cd=0.055, cm=-0.09, cy=0.0, cl_roll=0.0, cn=0.0, cl_over_cd=20.0, raw={"_sweep_group": "alpha"}),
+                PolarPoint(alpha=2.0, beta=-6.0, cl=0.5, cd=0.02, cm=-0.04, cy=-0.15, cl_roll=-0.02, cn=0.03, cl_over_cd=25.0, raw={"_sweep_group": "beta"}),
+                PolarPoint(alpha=2.0, beta=6.0, cl=0.5, cd=0.02, cm=-0.04, cy=0.15, cl_roll=0.02, cn=-0.03, cl_over_cd=25.0, raw={"_sweep_group": "beta"}),
             ],
             cl_max=1.1,
             cl_max_alpha=8.0,
@@ -95,13 +110,16 @@ class AerodynamicsPluginTests(unittest.TestCase):
             reference=ReferenceValues(s_ref=0.6, b_ref=1.8, c_ref=0.33),
             reynolds=450000.0,
             oswald_efficiency=0.85,
+            condition=cond,
         )
 
         self.plugin._handle_analysis_result(dummy_result)
 
         # Verify results dock populated
+        self.assertEqual(results_widget.results_list.count(), 1)
+        self.assertIs(results_widget.current_result, dummy_result)
         self.assertEqual(results_widget.detail_table.rowCount(), 4)
-        self.assertEqual(results_widget.tab_widget.count(), 4)
+        self.assertEqual(results_widget.tab_widget.count(), 2)
 
         # Verify charts populated
         self.assertGreater(len(charts_widget.chart_lift.chart.series()), 0)
@@ -109,15 +127,51 @@ class AerodynamicsPluginTests(unittest.TestCase):
         self.assertGreater(len(charts_widget.chart_moment.chart.series()), 0)
         self.assertGreater(len(charts_widget.chart_ld.chart.series()), 0)
 
-        # Verify Dual Alpha+Beta chart mode switching
+        # Verify Dynamic Chart mode switching
         charts_widget.combo_view_mode.setCurrentIndex(1)  # Longitudinal Stability
         self.assertIn("Pitching Moment", charts_widget.chart_lift.chart.title())
         charts_widget.combo_view_mode.setCurrentIndex(2)  # Lateral-Directional
         self.assertIn("Sideforce", charts_widget.chart_lift.chart.title())
-        charts_widget.combo_view_mode.setCurrentIndex(3)  # Drag Breakdown
-        self.assertIn("Induced", charts_widget.chart_lift.chart.title())
-        charts_widget.combo_view_mode.setCurrentIndex(4)  # Forces & Moments
+        charts_widget.combo_view_mode.setCurrentIndex(3)  # Forces & Moments
         self.assertIn("Lift Force", charts_widget.chart_lift.chart.title())
+
+        # A second result is appended and becomes active. Selecting the first
+        # history entry restores both tables and charts to that result.
+        second_result = AeroResult(
+            method=AnalysisMethod.VLM,
+            engine_name="AeroSandbox",
+            polar_points=[
+                PolarPoint(alpha=3.0, cl=0.4, cd=0.02, cm=-0.02, cl_over_cd=20.0),
+            ],
+            cl_max=0.4,
+            cl_max_alpha=3.0,
+            cd_min=0.02,
+            ld_max=20.0,
+            ld_max_alpha=3.0,
+            reference=ReferenceValues(s_ref=0.6, b_ref=1.8, c_ref=0.33),
+            condition=FlightCondition(alpha=3.0, alpha_steps=1, sweep_steps=1),
+        )
+        self.plugin._handle_analysis_result(second_result)
+        self.assertEqual(results_widget.results_list.count(), 2)
+        self.assertIs(results_widget.current_result, second_result)
+        self.assertEqual(results_widget.detail_table.rowCount(), 1)
+
+        results_widget.results_list.setCurrentRow(0)
+        self.assertIs(results_widget.current_result, dummy_result)
+        self.assertEqual(results_widget.detail_table.rowCount(), 4)
+        self.assertEqual(charts_widget.chart_lift.chart.series()[0].count(), 2)
+
+        results_widget.delete_result_button.click()
+        self.assertEqual(results_widget.results_list.count(), 1)
+        self.assertIs(results_widget.current_result, second_result)
+        self.assertEqual(results_widget.detail_table.rowCount(), 1)
+        self.assertEqual(charts_widget.chart_lift.chart.series()[0].count(), 1)
+
+        results_widget.delete_result_button.click()
+        self.assertEqual(results_widget.results_list.count(), 0)
+        self.assertIsNone(results_widget.current_result)
+        self.assertEqual(results_widget.detail_table.rowCount(), 0)
+        self.assertEqual(charts_widget.combo_view_mode.count(), 0)
 
     def test_deactivation_cleans_up(self) -> None:
         self.plugin.activate(self.api)
@@ -126,5 +180,9 @@ class AerodynamicsPluginTests(unittest.TestCase):
         self.assertIn("aerodynamics.controls_dock", self.removed_panels)
         self.assertIn("aerodynamics.results_dock", self.removed_panels)
         self.assertIn("aerodynamics.charts_dock", self.removed_panels)
-        self.assertIn("aerodynamics.aero_3d", self.removed_panels)
+        self.assertNotIn("aerodynamics.aero_3d", self.removed_panels)
+        self.assertIn(
+            ("Tools/Aerodynamics", "AeroSandbox 3D Snapshot…"),
+            self.removed_actions,
+        )
         self.assertIn("studio.workspace.aerodynamics", self.removed_workspaces)

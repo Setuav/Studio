@@ -8,14 +8,73 @@ import math
 from typing import Any, Sequence
 
 
+class _Unserializable:
+    pass
+
+
+_UNSERIALIZABLE = _Unserializable()
+
+
+def _json_safe(value: Any) -> Any:
+    """Convert native solver values into JSON-compatible Python values."""
+    if value is None or isinstance(value, (str, int, bool)):
+        return value
+    if isinstance(value, float):
+        # Strict JSON has no NaN/Infinity literals.  Native solvers can emit
+        # either for an ill-conditioned point, so preserve the unavailability
+        # rather than writing a non-standard JSON number.
+        return value if math.isfinite(value) else None
+    if isinstance(value, dict):
+        result: dict[str, Any] = {}
+        for key, item in value.items():
+            safe = _json_safe(item)
+            if safe is not _UNSERIALIZABLE:
+                result[str(key)] = safe
+        return result
+    if isinstance(value, (list, tuple)):
+        result_list: list[Any] = []
+        for item in value:
+            safe = _json_safe(item)
+            if safe is _UNSERIALIZABLE:
+                return _UNSERIALIZABLE
+            result_list.append(safe)
+        return result_list
+    tolist = getattr(value, "tolist", None)
+    if callable(tolist):
+        try:
+            return _json_safe(tolist())
+        except Exception:
+            return _UNSERIALIZABLE
+    item = getattr(value, "item", None)
+    if callable(item):
+        try:
+            return _json_safe(item())
+        except Exception:
+            return _UNSERIALIZABLE
+    return _UNSERIALIZABLE
+
+
 class AnalysisMethod(enum.Enum):
     """Available solver methods."""
-    COMPREHENSIVE = "comprehensive"  # Multi-solver collaborative ensemble (VLM + AeroBuildup + LLT)
+    COMPREHENSIVE = "comprehensive"  # Deprecated persisted alias for AeroBuildup.
     VLM = "vlm"
     AERO_BUILDUP = "aero_buildup"
     LIFTING_LINE = "lifting_line"
     PANEL = "panel"
     NONLINEAR_LIFTING_LINE = "nonlinear_lifting_line"
+
+    @classmethod
+    def from_value(cls, value: Any) -> "AnalysisMethod":
+        """Normalize persisted/legacy method values to a supported solver."""
+        if isinstance(value, cls):
+            return value
+        normalized = str(value or "").strip().lower()
+        if normalized in {"comprehensive", "aero_buildup", "aerobuildup", "aero-buildup"}:
+            return cls.AERO_BUILDUP
+        try:
+            return cls(normalized)
+        except ValueError:
+            return cls.AERO_BUILDUP
 
 
 class AnalysisType(enum.Enum):
@@ -34,8 +93,6 @@ class SweepType(enum.Enum):
     DUAL_ALPHA_BETA = "dual_alpha_beta"          # Simultaneous 1D Alpha + 1D Beta sweep (both populated)
     MULTI_GRID = "multi_grid"                    # 2D Parametric grid sweep (α × β flight envelope)
     CONTROL_DEFLECTION = "control_deflection"    # Control surface deflection sweep (δ)
-    VELOCITY = "velocity"                        # Airspeed sweep (V)
-    ALTITUDE = "altitude"                        # Altitude MSL sweep (h)
 
 
 class ControlSurfaceType(enum.Enum):
@@ -71,7 +128,7 @@ class FlightCondition:
     control_deflections: dict[str, float] = field(default_factory=dict)  # deg per control surface
     # Sweep configuration
     sweep_type: SweepType = SweepType.ALPHA
-    sweep_variable: str = "alpha"     # Primary variable name ('alpha', 'beta', 'velocity', 'altitude', 'elevator', etc.)
+    sweep_variable: str = "alpha"     # Primary variable name ('alpha', 'beta', or a control channel)
     sweep_min: float = -10.0          # Range start
     sweep_max: float = 18.0           # Range end
     sweep_steps: int = 29             # Number of evaluation points
@@ -113,10 +170,6 @@ class FlightCondition:
             if steps <= 1:
                 if self.sweep_type == SweepType.BETA:
                     return [float(self.beta)]
-                elif self.sweep_type == SweepType.VELOCITY:
-                    return [float(self.velocity)]
-                elif self.sweep_type == SweepType.ALTITUDE:
-                    return [float(self.altitude)]
                 return [float(self.sweep_min)]
             return [float(v) for v in _np.linspace(self.sweep_min, self.sweep_max, steps)]
 
@@ -242,6 +295,10 @@ class AeroForcesMoments:
     lift: float = 0.0         # perpendicular to freestream (positive up)
     drag: float = 0.0         # parallel to freestream (positive aft)
     sideforce: float = 0.0    # perpendicular to lift & drag (positive right)
+    # Geometry-frame forces (N)
+    fx_g: float = 0.0
+    fy_g: float = 0.0
+    fz_g: float = 0.0
     # Body-frame moments (N·m) about CG/reference point
     mx_b: float = 0.0         # Roll moment (L_b) about body X
     my_b: float = 0.0         # Pitch moment (M_b) about body Y
@@ -250,6 +307,12 @@ class AeroForcesMoments:
     mx_w: float = 0.0
     my_w: float = 0.0
     mz_w: float = 0.0
+    # Geometry-frame moments (N·m)
+    mx_g: float = 0.0
+    my_g: float = 0.0
+    mz_g: float = 0.0
+    # Native solver output dictionary
+    raw: dict[str, Any] = field(default_factory=dict)
 
     @property
     def m_roll(self) -> float:
@@ -286,6 +349,16 @@ class AeroForcesMoments:
         """Wind moment vector in Newton-meters."""
         return (self.mx_w, self.my_w, self.mz_w)
 
+    @property
+    def force_geometry(self) -> tuple[float, float, float]:
+        """Geometry force vector in Newtons."""
+        return (self.fx_g, self.fy_g, self.fz_g)
+
+    @property
+    def moment_geometry(self) -> tuple[float, float, float]:
+        """Geometry moment vector in Newton-meters."""
+        return (self.mx_g, self.my_g, self.mz_g)
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "fx_b": self.fx_b,
@@ -294,12 +367,19 @@ class AeroForcesMoments:
             "lift": self.lift,
             "drag": self.drag,
             "sideforce": self.sideforce,
+            "fx_g": self.fx_g,
+            "fy_g": self.fy_g,
+            "fz_g": self.fz_g,
             "mx_b": self.mx_b,
             "my_b": self.my_b,
             "mz_b": self.mz_b,
             "mx_w": self.mx_w,
             "my_w": self.my_w,
             "mz_w": self.mz_w,
+            "mx_g": self.mx_g,
+            "my_g": self.my_g,
+            "mz_g": self.mz_g,
+            "raw": _json_safe(self.raw),
         }
 
     @classmethod
@@ -311,12 +391,19 @@ class AeroForcesMoments:
             lift=float(data.get("lift", 0.0)),
             drag=float(data.get("drag", 0.0)),
             sideforce=float(data.get("sideforce", 0.0)),
+            fx_g=float(data.get("fx_g", 0.0)),
+            fy_g=float(data.get("fy_g", 0.0)),
+            fz_g=float(data.get("fz_g", 0.0)),
             mx_b=float(data.get("mx_b", 0.0)),
             my_b=float(data.get("my_b", 0.0)),
             mz_b=float(data.get("mz_b", 0.0)),
             mx_w=float(data.get("mx_w", 0.0)),
             my_w=float(data.get("my_w", 0.0)),
             mz_w=float(data.get("mz_w", 0.0)),
+            mx_g=float(data.get("mx_g", 0.0)),
+            my_g=float(data.get("my_g", 0.0)),
+            mz_g=float(data.get("mz_g", 0.0)),
+            raw=dict(data.get("raw")) if isinstance(data.get("raw"), dict) else {},
         )
 
 
@@ -375,8 +462,8 @@ class PolarPoint:
     cl: float
     cd: float
     cm: float = 0.0               # Pitching moment coefficient (C_m about Y body)
-    cd_induced: float = 0.0       # Induced drag coefficient
-    cd_profile: float = 0.0       # Profile / parasite drag coefficient
+    cd_induced: float | None = None       # Native induced drag coefficient, when available
+    cd_profile: float | None = None       # Native profile drag coefficient, when available
     cl_over_cd: float = 0.0       # Lift-to-drag ratio (L/D)
     # 6-DoF Non-dimensional body/wind coefficients
     cx: float = 0.0               # Body X force coefficient (C_X)
@@ -384,7 +471,7 @@ class PolarPoint:
     cz: float = 0.0               # Body Z force coefficient (C_Z)
     cl_roll: float = 0.0          # Rolling moment coefficient (C_l about X body)
     cn: float = 0.0               # Yawing moment coefficient (C_n about Z body)
-    cd_wave: float = 0.0          # Compressibility / wave drag coefficient
+    cd_wave: float | None = None          # Native wave drag coefficient, when available
     # Operating state
     beta: float = 0.0             # deg (sideslip angle)
     p: float = 0.0                # rad/s (roll rate)
@@ -403,6 +490,8 @@ class PolarPoint:
     # Execution & solver status
     converged: bool = True
     notes: str = ""
+    # Native solver raw dictionary for this evaluation point
+    raw: dict[str, Any] = field(default_factory=dict)
 
     # Convenient dimensional properties
     @property
@@ -463,6 +552,7 @@ class PolarPoint:
             "control_deflections": dict(self.control_deflections),
             "converged": self.converged,
             "notes": self.notes,
+            "raw": _json_safe(self.raw),
         }
 
     @classmethod
@@ -477,15 +567,15 @@ class PolarPoint:
             cl=float(data["cl"]),
             cd=float(data["cd"]),
             cm=float(data.get("cm", 0.0)),
-            cd_induced=float(data.get("cd_induced", 0.0)),
-            cd_profile=float(data.get("cd_profile", 0.0)),
+            cd_induced=(float(data["cd_induced"]) if data.get("cd_induced") is not None else None),
+            cd_profile=(float(data["cd_profile"]) if data.get("cd_profile") is not None else None),
             cl_over_cd=float(data.get("cl_over_cd", 0.0)),
             cx=float(data.get("cx", 0.0)),
             cy=float(data.get("cy", 0.0)),
             cz=float(data.get("cz", 0.0)),
             cl_roll=float(data.get("cl_roll", 0.0)),
             cn=float(data.get("cn", 0.0)),
-            cd_wave=float(data.get("cd_wave", 0.0)),
+            cd_wave=(float(data["cd_wave"]) if data.get("cd_wave") is not None else None),
             beta=float(data.get("beta", 0.0)),
             p=float(data.get("p", 0.0)),
             q=float(data.get("q", 0.0)),
@@ -500,6 +590,7 @@ class PolarPoint:
             control_deflections=dict(data.get("control_deflections") or {}),
             converged=bool(data.get("converged", True)),
             notes=str(data.get("notes", "")),
+            raw=dict(data.get("raw")) if isinstance(data.get("raw"), dict) else {},
         )
 
 
@@ -510,9 +601,9 @@ AeroPointResult = PolarPoint
 @dataclass(frozen=True)
 class SweepVariable:
     """A parameter varied during multi-dimensional aerodynamic sweeps."""
-    name: str                   # Parameter name: 'alpha', 'beta', 'velocity', 'altitude', or control name
+    name: str                   # Parameter name: 'alpha', 'beta', or control channel name
     values: list[float]         # Evaluated grid values
-    unit: str = ""              # Unit for display (e.g. 'deg', 'm/s', 'm')
+    unit: str = ""              # Unit for display (normally 'deg')
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -728,17 +819,13 @@ class AeroResult:
             "propulsion_points": [p.to_dict() for p in self.propulsion_points],
             "condition": self.condition.to_dict(),
             # Don't serialize non-JSON raw object instances in to_dict
-            "raw": {k: v for k, v in self.raw.items() if isinstance(v, (int, float, str, bool, list, dict))},
+            "raw": _json_safe(self.raw),
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> AeroResult:
         """Construct an AeroResult instance from a serialized dictionary."""
-        method_str = data.get("method", "comprehensive")
-        try:
-            method = AnalysisMethod(method_str)
-        except ValueError:
-            method = AnalysisMethod.COMPREHENSIVE
+        method = AnalysisMethod.from_value(data.get("method", "aero_buildup"))
 
         points = [PolarPoint.from_dict(p) for p in data.get("polar_points", []) if isinstance(p, dict)]
         solv_res_data = data.get("solver_results", {})
@@ -787,7 +874,7 @@ class AeroResult:
             sweep_result=sweep,
             condition=cond,
             propulsion_points=prop_pts,
-            raw=dict(data.get("raw") or {}),
+            raw=dict(data.get("raw")) if isinstance(data.get("raw"), dict) else {},
         )
 
 

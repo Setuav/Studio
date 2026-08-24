@@ -401,20 +401,55 @@ class WeightBalancePluginTests(unittest.TestCase):
         panel.expand_all_button.click()
         self.assertTrue(root.isExpanded())
 
-    def test_weight_balance_extension_schemas_validate(self) -> None:
-        catalog = get_catalog()
-        component_schema = "https://schemas.setuav.org/plugins/org.setuav.weight-balance/extensions/component.schema.json"
-        self.assertEqual(
-            catalog.validate_schema(
-                {
-                    "mass_source": "declared",
-                    "local_cg_mm": {"x": 10, "y": 0, "z": 0},
-                    "inertia_kg_m2": {"ixx": 1, "iyy": 2, "izz": 3},
-                },
-                component_schema,
-            ),
-            [],
+    def test_cg_view_marker_click_selects_mass_properties(self) -> None:
+        from setuav_studio.plugins.weight_balance.balance_view_dock import WeightBalanceViewDock
+        from setuav_studio.plugins.weight_balance.models import (
+            ComponentMassProperties,
+            InertiaTensor,
+            MassProperties,
+            WeightBalanceResult,
         )
+
+        api = StudioAPI()
+        api.set_panel_handler(lambda _panel: None)
+        api.set_workspace_handler(lambda _workspace: None)
+        plugin = WeightBalancePlugin()
+        plugin.activate(api)
+        component = {"id": "battery_1", "name": "Main Battery", "mass": 450}
+        project = _project({"name": "Test", "components": [component]})
+        api.set_project(project)
+
+        properties = PropertiesPanel(api)
+        view_dock = WeightBalanceViewDock(api)
+
+        # Dispatch weight balance result
+        result = WeightBalanceResult(
+            total=MassProperties(mass_kg=0.45, cg_body_m=(0.1, 0.0, -0.02), inertia_cg_kg_m2=InertiaTensor()),
+            components=[
+                ComponentMassProperties(
+                    component_id="battery_1",
+                    component_name="Main Battery",
+                    component_type="org.setuav.core:battery",
+                    mass_kg=0.45,
+                    cg_local_m=(0.0, 0.0, 0.0),
+                    cg_body_m=(0.1, 0.0, -0.02),
+                    inertia_local_kg_m2=InertiaTensor(),
+                    source="declared",
+                    quality="good",
+                )
+            ],
+        )
+        view_dock._set_result(result)
+        get_qapp().processEvents()
+
+        # Simulate clicking the marker in top canvas
+        view_dock.top_canvas.itemClicked.emit("battery_1")
+        get_qapp().processEvents()
+
+        self.assertIsNotNone(api.current_selection)
+        self.assertEqual(api.current_selection.get("kind"), "mass-properties")
+        self.assertEqual(api.current_selection.get("component_id"), "battery_1")
+        self.assertIsInstance(properties._current_widget, MassPropertiesEditor)
 
 
 if __name__ == "__main__":

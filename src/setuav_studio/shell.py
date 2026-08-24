@@ -302,7 +302,8 @@ class MainWindow(QMainWindow):
 
         self._progress_bar = QProgressBar(self)
         self._progress_bar.setObjectName("studioStatusProgress")
-        self._progress_bar.setFixedWidth(200)
+        self._progress_bar.setFixedWidth(260)
+        self._progress_bar.setFixedHeight(18)
         self._progress_bar.setTextVisible(True)
         self._progress_bar.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._progress_bar.hide()
@@ -1174,7 +1175,6 @@ class MainWindow(QMainWindow):
         elif workspace_id == "studio.workspace.aerodynamics":
             aero_controls = self.findChild(QDockWidget, "aerodynamics.controls_dock")
             aero_charts = self.findChild(QDockWidget, "aerodynamics.charts_dock")
-            aero_3d = self.findChild(QDockWidget, "aerodynamics.aero_3d")
             aero_results = self.findChild(QDockWidget, "aerodynamics.results_dock")
 
             if viewer:
@@ -1185,15 +1185,12 @@ class MainWindow(QMainWindow):
                 self.splitDockWidget(explorer, aero_controls, Qt.Orientation.Horizontal)
             if aero_controls and aero_charts:
                 self.splitDockWidget(aero_controls, aero_charts, Qt.Orientation.Horizontal)
-            if aero_charts and aero_3d:
-                self.tabifyDockWidget(aero_charts, aero_3d)
-                aero_charts.raise_()
             if aero_charts and aero_results:
                 self.splitDockWidget(aero_charts, aero_results, Qt.Orientation.Horizontal)
             elif aero_controls and aero_results:
                 self.splitDockWidget(aero_controls, aero_results, Qt.Orientation.Horizontal)
 
-            for d in (explorer, props, aero_controls, aero_charts, aero_3d, aero_results):
+            for d in (explorer, props, aero_controls, aero_charts, aero_results):
                 if d:
                     d.show()
 

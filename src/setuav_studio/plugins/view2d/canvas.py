@@ -432,6 +432,10 @@ class View2DCanvas(QWidget):
         if marker_id != self._hovered_id:
             self._hovered_id = marker_id
             self.itemHovered.emit(marker_id)
+            if marker_id and marker_id != "aircraft-cg":
+                self.setCursor(Qt.CursorShape.PointingHandCursor)
+            else:
+                self.unsetCursor()
             self.update()
         if marker is not None and marker.tooltip:
             QToolTip.showText(event.globalPosition().toPoint(), marker.tooltip, self)
@@ -441,6 +445,7 @@ class View2DCanvas(QWidget):
 
     def leaveEvent(self, event) -> None:  # noqa: N802 - Qt API
         self._hovered_id = ""
+        self.unsetCursor()
         QToolTip.hideText()
         self.itemHovered.emit("")
         self.update()

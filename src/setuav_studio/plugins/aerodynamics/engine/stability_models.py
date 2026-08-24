@@ -16,6 +16,9 @@ class ControlEffectiveness:
     c_y_delta: float = 0.0    # ∂CY/∂δ per deg (sideforce)
     c_L_delta: float = 0.0    # ∂CL/∂δ per deg (lift response)
     c_D_delta: float = 0.0    # ∂CD/∂δ per deg (control drag penalty)
+    # Metadata for derivatives estimated by perturbing the selected solver.
+    derivative_method: str = "finite_difference"
+    perturbation_deg: float = 2.0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -26,6 +29,8 @@ class ControlEffectiveness:
             "c_y_delta": self.c_y_delta,
             "c_L_delta": self.c_L_delta,
             "c_D_delta": self.c_D_delta,
+            "derivative_method": self.derivative_method,
+            "perturbation_deg": self.perturbation_deg,
         }
 
     @classmethod
@@ -38,6 +43,8 @@ class ControlEffectiveness:
             c_y_delta=float(data.get("c_y_delta", 0.0)),
             c_L_delta=float(data.get("c_L_delta", 0.0)),
             c_D_delta=float(data.get("c_D_delta", 0.0)),
+            derivative_method=str(data.get("derivative_method", "finite_difference")),
+            perturbation_deg=float(data.get("perturbation_deg", 2.0)),
         )
 
 
@@ -84,6 +91,7 @@ class StabilityDerivatives:
     c_L_alpha_rad: float = 0.0     # ∂CL/∂α per radian
     c_L_alpha_deg: float = 0.0     # ∂CL/∂α per degree
     c_D_alpha_rad: float = 0.0     # ∂CD/∂α per radian
+    c_D_alpha_deg: float = 0.0     # ∂CD/∂α per degree
     c_m_alpha_rad: float = 0.0     # ∂Cm/∂α per radian (pitch stiffness)
     c_m_alpha_deg: float = 0.0     # ∂Cm/∂α per degree
     c_L_q: float = 0.0             # ∂CL/∂q̂ (pitch rate lift derivative)
@@ -120,11 +128,16 @@ class StabilityDerivatives:
     # Longitudinal trim state
     elevator_trim: ElevatorTrim | None = None
 
+    # Provenance/convention for native and finite-difference values.
+    solver_method: str = "unknown"
+    rate_derivative_convention: str = "normalized_body_rates"
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "c_L_alpha_rad": self.c_L_alpha_rad,
             "c_L_alpha_deg": self.c_L_alpha_deg,
             "c_D_alpha_rad": self.c_D_alpha_rad,
+            "c_D_alpha_deg": self.c_D_alpha_deg,
             "c_m_alpha_rad": self.c_m_alpha_rad,
             "c_m_alpha_deg": self.c_m_alpha_deg,
             "c_L_q": self.c_L_q,
@@ -150,6 +163,8 @@ class StabilityDerivatives:
             "is_yaw_damped": self.is_yaw_damped,
             "controls": {k: v.to_dict() for k, v in self.controls.items()},
             "elevator_trim": self.elevator_trim.to_dict() if self.elevator_trim else None,
+            "solver_method": self.solver_method,
+            "rate_derivative_convention": self.rate_derivative_convention,
         }
 
     @classmethod
@@ -168,6 +183,7 @@ class StabilityDerivatives:
             c_L_alpha_rad=float(data.get("c_L_alpha_rad", 0.0)),
             c_L_alpha_deg=float(data.get("c_L_alpha_deg", 0.0)),
             c_D_alpha_rad=float(data.get("c_D_alpha_rad", 0.0)),
+            c_D_alpha_deg=float(data.get("c_D_alpha_deg", 0.0)),
             c_m_alpha_rad=float(data.get("c_m_alpha_rad", 0.0)),
             c_m_alpha_deg=float(data.get("c_m_alpha_deg", 0.0)),
             c_L_q=float(data.get("c_L_q", 0.0)),
@@ -193,4 +209,6 @@ class StabilityDerivatives:
             is_yaw_damped=bool(data.get("is_yaw_damped", True)),
             controls=ctrls,
             elevator_trim=trim_obj,
+            solver_method=str(data.get("solver_method", "unknown")),
+            rate_derivative_convention=str(data.get("rate_derivative_convention", "normalized_body_rates")),
         )

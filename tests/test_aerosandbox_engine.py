@@ -104,7 +104,9 @@ class AeroSandboxEngineTests(unittest.TestCase):
         self.assertAlmostEqual(root.xyz_le[1], 0.0, places=3)
         self.assertAlmostEqual(root.xyz_le[2], 0.05, places=3) # 50 mm base_z
         self.assertAlmostEqual(root.chord, 0.2, places=3)      # 200 mm chord
-        self.assertEqual(root.twist, 2.0)
+        # rotation.x is the source geometry's dihedral axis, not aerodynamic
+        # twist.  AeroSandbox WingXSec currently receives explicit twist only.
+        self.assertEqual(root.twist, 0.0)
 
         tip = wing.xsecs[1]
         self.assertAlmostEqual(tip.xyz_le[0], 0.25, places=3) # 200 + 50 mm
@@ -223,6 +225,32 @@ class AeroSandboxEngineTests(unittest.TestCase):
         self.assertGreater(result_vlm.cl_max, 0.5)
 
     @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
+    def test_fixed_wing_fixture_geometry_contract(self) -> None:
+        """Keep the project-to-AeroSandbox geometry contract explicit."""
+        fixture_path = Path(__file__).parent / "fixtures" / "fixed-wing" / "project.json"
+        components = json.loads(fixture_path.read_text(encoding="utf-8"))["components"]
+        airplane = AeroSandboxEngine()._build_airplane(components)
+
+        self.assertEqual([wing.name for wing in airplane.wings], ["Main Wing", "V-Tail"])
+        self.assertTrue(airplane.wings[0].symmetric)
+        self.assertTrue(airplane.wings[1].symmetric)
+        self.assertEqual(len(airplane.fuselages), 1)
+        self.assertGreater(airplane.wings[0].area(), 0.1)
+        self.assertGreater(airplane.fuselages[0].xsecs[-1].xyz_c[0], airplane.fuselages[0].xsecs[0].xyz_c[0])
+
+        # Attachment offsets are part of the component frame and must survive
+        # the mirrored conversion; they are not forced onto the centerline.
+        self.assertAlmostEqual(float(airplane.wings[0].xsecs[0].xyz_le[1]), 0.075, places=6)
+        self.assertAlmostEqual(float(airplane.wings[0].xsecs[-1].xyz_le[1]), 0.822619, places=5)
+        self.assertAlmostEqual(float(airplane.wings[1].xsecs[0].xyz_le[1]), 0.038, places=6)
+
+        # The fixture uses rounded rectangular body sections.  Native
+        # FuselageXSec cannot encode the exact arc/line outline, but the
+        # rounded superellipse approximation and section normal are retained.
+        self.assertGreater(float(airplane.fuselages[0].xsecs[0].shape), 2.0)
+        self.assertAlmostEqual(float(airplane.fuselages[0].xsecs[0].xyz_normal[0]), 1.0, places=6)
+
+    @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_control_surface_aileron_roll_moment(self) -> None:
         """Verify that aileron deflection generates aerodynamic roll moment in VLM."""
         engine = AeroSandboxEngine()
@@ -258,6 +286,14 @@ class AeroSandboxEngineTests(unittest.TestCase):
         cond_neutral = FlightCondition(velocity=25.0, alpha=2.0, alpha_steps=1, control_deflections={"aileron": 0.0})
         res_neutral = engine.analyze(components, cond_neutral, method=AnalysisMethod.VLM)
         self.assertAlmostEqual(res_neutral.polar_points[0].cl_roll, 0.0, places=3)
+        native_controls = [
+            surface
+            for wing in res_neutral.raw["airplane"].wings
+            for xsec in wing.xsecs
+            for surface in xsec.control_surfaces
+        ]
+        self.assertTrue(any(surface.name == "aileron" for surface in native_controls))
+        self.assertTrue(any(math.isclose(float(surface.hinge_point), 0.75) for surface in native_controls))
 
         # 2. Deflected aileron (10 deg) -> significant roll moment
         cond_deflected = FlightCondition(velocity=25.0, alpha=2.0, alpha_steps=1, control_deflections={"aileron": 10.0})
@@ -368,8 +404,8 @@ class AeroSandboxEngineTests(unittest.TestCase):
         self.assertAlmostEqual(prop.thrust_vector[0], math.cos(math.radians(-2.0)), places=3)
 
     @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
-    def test_comprehensive_multi_solver_ensemble(self) -> None:
-        """Verify unified comprehensive solver executes multiple engines and decomposes drag."""
+    def test_aero_buildup_primary_solver(self) -> None:
+        """Verify native AeroBuildup primary solver executes cleanly and computes 3D aerodynamics."""
         engine = AeroSandboxEngine()
         components = _sample_components()
         cond = FlightCondition(
@@ -391,32 +427,45 @@ class AeroSandboxEngineTests(unittest.TestCase):
         result = engine.analyze(
             components,
             cond,
-            method=AnalysisMethod.COMPREHENSIVE,
+            method=AnalysisMethod.AERO_BUILDUP,
             settings=settings,
         )
 
-        self.assertEqual(result.method, AnalysisMethod.COMPREHENSIVE)
+        self.assertEqual(result.method, AnalysisMethod.AERO_BUILDUP)
         self.assertEqual(len(result.polar_points), 3)
 
-        # Check solver curves map
-        self.assertIn("vlm", result.solver_results)
-        self.assertIn("aero_buildup", result.solver_results)
-        self.assertEqual(len(result.solver_results["vlm"]), 3)
-        self.assertEqual(len(result.solver_results["aero_buildup"]), 3)
-
-        # Check drag breakdown
+        # Check native polar points and coefficients
         for pt in result.polar_points:
             self.assertGreater(pt.cd, 0.0)
-            self.assertGreater(pt.cd_induced, 0.0)
-            self.assertGreater(pt.cd_profile, 0.0)
-            self.assertAlmostEqual(pt.cd, pt.cd_induced + pt.cd_profile + pt.cd_wave, places=4)
+            self.assertIsNotNone(pt.forces_moments)
+            self.assertTrue(pt.converged)
 
-        # Check serialization round-trip with solver results
+        # Check serialization round-trip
         d = result.to_dict()
+        json.dumps(d, allow_nan=False)
         restored = AeroResult.from_dict(d)
-        self.assertEqual(restored.method, AnalysisMethod.COMPREHENSIVE)
-        self.assertIn("vlm", restored.solver_results)
-        self.assertIn("aero_buildup", restored.solver_results)
+        self.assertEqual(restored.method, AnalysisMethod.AERO_BUILDUP)
+        self.assertEqual(len(restored.polar_points), 3)
+
+    def test_weight_balance_cg_is_used_as_reference(self) -> None:
+        components = _sample_components()
+        components[0]["mass"] = 1000.0
+        components[0]["extensions"] = {
+            "org.setuav.weight-balance": {
+                "local_cg_mm": {"x": 0.0, "y": 0.0, "z": 0.0},
+            }
+        }
+        components[1]["mass"] = 3000.0
+        components[1]["extensions"] = {
+            "org.setuav.weight-balance": {
+                "local_cg_mm": {"x": 0.0, "y": 0.0, "z": 0.0},
+            }
+        }
+        cg, source = AeroSandboxEngine._resolve_mass_cg(components)
+        self.assertEqual(source, "weight_balance")
+        self.assertIsNotNone(cg)
+        assert cg is not None
+        self.assertAlmostEqual(cg[0], 0.15, places=6)
 
     @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_lifting_line_direct_method(self) -> None:
@@ -435,4 +484,3 @@ class AeroSandboxEngineTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

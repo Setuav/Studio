@@ -82,10 +82,13 @@ class AirfoilAnalysisEngine:
 
         return polar
 
-    def _resolve_airfoil(self, airfoil: Any) -> tuple[Any, str]:
+    def _resolve_airfoil(self, airfoil: Any) -> tuple[Any, str | Sequence[Sequence[float]]]:
         """Convert input to an asb.Airfoil instance and a hashable identifier string."""
         if hasattr(airfoil, "get_aero_from_neuralfoil"):
             name = getattr(airfoil, "name", "custom_airfoil")
+            coordinates = getattr(airfoil, "coordinates", None)
+            if coordinates is not None:
+                return airfoil, tuple(tuple(float(v) for v in point) for point in np.asarray(coordinates).tolist())
             return airfoil, str(name)
 
         if isinstance(airfoil, str):
@@ -95,7 +98,8 @@ class AirfoilAnalysisEngine:
         if isinstance(airfoil, (list, tuple, np.ndarray)):
             coords = np.asarray(airfoil, dtype=float)
             af = asb.Airfoil(name="custom_airfoil", coordinates=coords)
-            return af, "custom_airfoil_coords"
+            ident = tuple(tuple(float(v) for v in point) for point in coords.tolist())
+            return af, ident
 
         return asb.Airfoil("naca0012"), "naca0012"
 
@@ -121,8 +125,15 @@ class AirfoilAnalysisEngine:
         cds = np.ravel(raw["CD"])
         cms = np.ravel(raw["CM"])
 
-        top_sep = np.ravel(raw.get("upper_bl_theta_0", np.zeros_like(cls)))
-        bot_sep = np.ravel(raw.get("lower_bl_theta_0", np.zeros_like(cls)))
+        def native_value(key: str, index: int) -> float | None:
+            values = raw.get(key)
+            if values is None:
+                return None
+            try:
+                value = float(np.ravel(values)[index])
+                return value if math.isfinite(value) else None
+            except (IndexError, TypeError, ValueError):
+                return None
 
         points: list[AirfoilPolarPoint] = []
         for i, a in enumerate(alphas):
@@ -136,11 +147,12 @@ class AirfoilAnalysisEngine:
                 cl=cl_i,
                 cd=cd_i,
                 cm=cm_i,
-                cd_profile=cd_i * 0.6,
-                cd_friction=cd_i * 0.4,
-                top_separation=float(top_sep[i]) if i < len(top_sep) else 0.0,
-                bottom_separation=float(bot_sep[i]) if i < len(bot_sep) else 0.0,
                 cl_over_cd=ld_i,
+                top_transition=native_value("Top_Xtr", i),
+                bottom_transition=native_value("Bot_Xtr", i),
+                analysis_confidence=native_value("analysis_confidence", i),
+                mach_crit=native_value("mach_crit", i),
+                mach_dd=native_value("mach_dd", i),
                 converged=True,
             )
             points.append(pt)
@@ -186,17 +198,18 @@ class AirfoilAnalysisEngine:
 
         points: list[AirfoilPolarPoint] = []
         for a in alphas:
+            res: dict[str, Any] = {}
             try:
                 res = xf.alpha(float(a))
                 cl_val = float(res["CL"]) if "CL" in res else 0.0
-                cd_val = float(res["CD"]) if "CD" in res else 0.02
+                cd_val = float(res["CD"]) if "CD" in res else 0.0
                 cm_val = float(res["CM"]) if "CM" in res else 0.0
                 conv = bool(res.get("converged", True))
             except Exception:
-                cl_val, cd_val, cm_val, conv = 0.0, 0.05, 0.0, False
+                cl_val, cd_val, cm_val, conv = 0.0, 0.0, 0.0, False
 
-            cd_val = max(cd_val, 1e-5)
-            ld_val = cl_val / cd_val if abs(cd_val) > 1e-7 else 0.0
+            cd_val = max(cd_val, 0.0)
+            ld_val = cl_val / cd_val if conv and abs(cd_val) > 1e-7 else 0.0
 
             points.append(
                 AirfoilPolarPoint(
@@ -204,8 +217,9 @@ class AirfoilAnalysisEngine:
                     cl=cl_val,
                     cd=cd_val,
                     cm=cm_val,
-                    cd_profile=cd_val * 0.6,
-                    cd_friction=cd_val * 0.4,
+                    cd_profile=(float(res["CDp"]) if "CDp" in res else None),
+                    top_transition=(float(res["Top_Xtr"]) if "Top_Xtr" in res else None),
+                    bottom_transition=(float(res["Bot_Xtr"]) if "Bot_Xtr" in res else None),
                     cl_over_cd=ld_val,
                     converged=conv,
                 )
@@ -243,11 +257,21 @@ class AirfoilAnalysisEngine:
                 "cl_alpha_slope": 0.1, "alpha_zero_lift": 0.0, "cm_zero_lift": 0.0,
             }
 
-        alphas = np.array([p.alpha for p in points])
-        cls = np.array([p.cl for p in points])
-        cds = np.array([p.cd for p in points])
-        cms = np.array([p.cm for p in points])
-        lds = np.array([p.cl_over_cd for p in points])
+        valid_points = [p for p in points if p.converged]
+        if not valid_points:
+            return {
+                "cl_max": 0.0, "cl_max_alpha": 0.0,
+                "cl_min": 0.0, "cl_min_alpha": 0.0,
+                "cd_min": 0.0, "cl_at_cd_min": 0.0,
+                "ld_max": 0.0, "ld_max_alpha": 0.0,
+                "cl_alpha_slope": 0.0, "alpha_zero_lift": 0.0, "cm_zero_lift": 0.0,
+            }
+
+        alphas = np.array([p.alpha for p in valid_points])
+        cls = np.array([p.cl for p in valid_points])
+        cds = np.array([p.cd for p in valid_points])
+        cms = np.array([p.cm for p in valid_points])
+        lds = np.array([p.cl_over_cd for p in valid_points])
 
         cl_max_idx = int(np.argmax(cls))
         cl_min_idx = int(np.argmin(cls))

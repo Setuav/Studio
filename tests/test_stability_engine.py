@@ -153,6 +153,18 @@ class TestStabilityAnalysisEngine(unittest.TestCase):
                 },
             },
         ]
+        # Give the stability fixture an explicit forward CG so the native
+        # static-margin sign is tested independently of geometry-only mass
+        # derivation.
+        self.components[0]["mass"] = 100000.0
+        self.components[1]["mass"] = 100.0
+        self.components[2]["mass"] = 100.0
+        for component in self.components:
+            component["extensions"] = {
+                "org.setuav.weight-balance": {
+                    "local_cg_mm": {"x": 0.0, "y": 0.0, "z": 0.0},
+                }
+            }
 
     def test_stability_derivatives_computation(self) -> None:
         """Verify longitudinal and lateral-directional stability derivatives."""

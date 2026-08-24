@@ -83,17 +83,18 @@ class ThemeTests(unittest.TestCase):
         from setuav_studio.ui.theme import apply_theme, tokens
 
         app = get_qapp()
-        icon = get_icon("save")
 
         apply_theme(app, "dark")
-        dark_icon = icon.pixmap(24, 24).toImage().pixelColor(12, 12)
+        icon_dark = get_icon("fa6s.floppy-disk")
+        dark_icon = icon_dark.pixmap(24, 24).toImage().pixelColor(12, 12)
         self.assertEqual(
             app.palette().color(QPalette.ColorRole.Window).name(),
             tokens()["window"],
         )
 
         apply_theme(app, "light")
-        light_icon = icon.pixmap(24, 24).toImage().pixelColor(12, 12)
+        icon_light = get_icon("fa6s.floppy-disk")
+        light_icon = icon_light.pixmap(24, 24).toImage().pixelColor(12, 12)
         self.assertEqual(
             app.palette().color(QPalette.ColorRole.Window).name(),
             tokens()["window"],

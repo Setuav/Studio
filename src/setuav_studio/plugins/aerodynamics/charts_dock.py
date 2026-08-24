@@ -4,7 +4,7 @@ from __future__ import annotations
 import math
 from typing import Sequence
 from PySide6.QtCore import QPointF, QSettings, Qt
-from PySide6.QtGui import QColor, QFont, QPainter, QPen
+from PySide6.QtGui import QCloseEvent, QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import (
     QSplitter,
     QVBoxLayout,
@@ -217,17 +217,26 @@ from PySide6.QtWidgets import (
 )
 
 
+CHART_SET_DEFINITIONS: list[tuple[str, str]] = [
+    ("flight_performance", "Flight Performance"),
+    ("longitudinal_stability", "Longitudinal Stability"),
+    ("lateral_directional", "Lateral-Directional"),
+    ("forces_moments", "Forces & Moments"),
+]
+
+
 class AeroChartsDock(QWidget):
-    """Unified dock hosting all 4 aerodynamic charts in a 2x2 grid with multi-mode curve selectors."""
+    """Unified dock hosting all 4 aerodynamic charts in a 2x2 grid with dynamic chart set selectors."""
 
     def __init__(self, api: StudioAPI | None = None, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("aerodynamics.charts_widget")
         self._api = api
-        self._current_result: AeroResult | None = None
+        self._cached_results: dict[str, AeroResult] = {}
+        self._cached_points: dict[str, list[PolarPoint]] = {}
 
         if self._api is not None:
-            self._api.subscribe("aerodynamics.analysis_completed", self.plot_results)
+            self._api.subscribe("aerodynamics.result_selected", self.plot_results)
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(1, 1, 1, 1)
@@ -244,13 +253,8 @@ class AeroChartsDock(QWidget):
         tb_layout.addWidget(lbl_mode)
 
         self.combo_view_mode = QComboBox(toolbar)
-        self.combo_view_mode.addItems([
-            "Flight Performance",
-            "Longitudinal Stability",
-            "Lateral-Directional",
-            "Drag Breakdown",
-            "Forces & Moments",
-        ])
+        self.combo_view_mode.setMinimumWidth(180)
+        self.combo_view_mode.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         self.combo_view_mode.currentIndexChanged.connect(self._on_view_mode_changed)
         tb_layout.addWidget(self.combo_view_mode)
         tb_layout.addStretch(1)
@@ -310,62 +314,183 @@ class AeroChartsDock(QWidget):
             self.bottom_splitter.restoreState(bs)
 
     def _on_view_mode_changed(self, _index: int) -> None:
-        if self._current_result is not None:
-            self._update_plots(self._current_result)
+        active_key = self.combo_view_mode.currentData()
+        if active_key:
+            self._render_chart_set(active_key)
 
     def clear_charts(self) -> None:
+        self._cached_results.clear()
+        self._cached_points.clear()
+        self.combo_view_mode.blockSignals(True)
+        self.combo_view_mode.clear()
+        self.combo_view_mode.blockSignals(False)
         self.chart_lift.clear()
         self.chart_polar.clear()
         self.chart_moment.clear()
         self.chart_ld.clear()
 
-    def plot_results(self, result: AeroResult) -> None:
-        self._current_result = result
-        self._update_plots(result)
+    def plot_results(self, result: AeroResult | None) -> None:
+        if result is None:
+            self.clear_charts()
+            return
 
-    def _update_plots(self, result: AeroResult) -> None:
-        self.setUpdatesEnabled(False)
-        try:
-            self._do_update_plots(result)
-        finally:
-            self.setUpdatesEnabled(True)
-
-    def _do_update_plots(self, result: AeroResult) -> None:
-        points = [p for p in result.polar_points if p.converged]
-        beta_points = [p for p in result.beta_polar_points if p.converged]
-        if not points and not beta_points:
+        # A chart set belongs to exactly one selected analysis. Do not retain
+        # categories from the previously selected result.
+        self._cached_results.clear()
+        self._cached_points.clear()
+        all_points = [p for p in result.polar_points if p.converged]
+        if not all_points:
             self.clear_charts()
             return
 
         cond = result.condition
         sweep_type = cond.sweep_type if cond else SweepType.ALPHA
-        view_mode = self.combo_view_mode.currentIndex()
+        preferred_set = "flight_performance"
 
-        # Determine primary X-axis values and label
-        if sweep_type == SweepType.BETA:
-            x_vals = [p.beta for p in points]
-            x_label = "β (°)"
+        if sweep_type == SweepType.DUAL_ALPHA_BETA:
+            # 1. Alpha group
+            alpha_group = [p for p in all_points if p.raw.get("_sweep_group") == "alpha"]
+            if not alpha_group and cond:
+                alpha_group = all_points[:int(cond.alpha_steps)]
+            alpha_pts = sorted(alpha_group if alpha_group else all_points, key=lambda p: p.alpha)
+
+            # 2. Beta group
+            beta_group = [p for p in all_points if p.raw.get("_sweep_group") == "beta"]
+            if not beta_group and cond:
+                beta_group = all_points[int(cond.alpha_steps):]
+            beta_pts = sorted(beta_group if beta_group else all_points, key=lambda p: p.beta)
+
+            if alpha_pts:
+                self._cached_results["flight_performance"] = result
+                self._cached_points["flight_performance"] = alpha_pts
+                self._cached_results["longitudinal_stability"] = result
+                self._cached_points["longitudinal_stability"] = alpha_pts
+                self._cached_results["forces_moments"] = result
+                self._cached_points["forces_moments"] = alpha_pts
+
+            if beta_pts:
+                self._cached_results["lateral_directional"] = result
+                self._cached_points["lateral_directional"] = beta_pts
+
+            preferred_set = "flight_performance"
+
+        elif sweep_type == SweepType.BETA:
+            beta_pts = sorted(all_points, key=lambda p: p.beta)
+            self._cached_results["lateral_directional"] = result
+            self._cached_points["lateral_directional"] = beta_pts
+            self._cached_results["forces_moments"] = result
+            self._cached_points["forces_moments"] = beta_pts
+            preferred_set = "lateral_directional"
+
         elif sweep_type == SweepType.CONTROL_DEFLECTION:
-            x_vals = [p.control_deflections.get(cond.sweep_variable, 0.0) if cond else 0.0 for p in points]
-            x_label = f"{cond.sweep_variable.capitalize() if cond else 'Control'} δ (°)"
-        elif sweep_type == SweepType.VELOCITY:
-            x_vals = [p.velocity for p in points]
-            x_label = "Airspeed V (m/s)"
-        elif sweep_type == SweepType.ALTITUDE:
-            x_vals = [p.altitude for p in points]
-            x_label = "Altitude h (m MSL)"
+            ctrl_k = cond.sweep_variable if cond else ""
+            ctrl_pts = sorted(all_points, key=lambda p: p.control_deflections.get(ctrl_k, 0.0))
+            self._cached_results["flight_performance"] = result
+            self._cached_points["flight_performance"] = ctrl_pts
+            self._cached_results["forces_moments"] = result
+            self._cached_points["forces_moments"] = ctrl_pts
+
+            if ctrl_k in ("aileron", "rudder"):
+                self._cached_results["lateral_directional"] = result
+                self._cached_points["lateral_directional"] = ctrl_pts
+                preferred_set = "lateral_directional"
+            elif ctrl_k in ("elevator", "flap"):
+                self._cached_results["longitudinal_stability"] = result
+                self._cached_points["longitudinal_stability"] = ctrl_pts
+                preferred_set = "longitudinal_stability"
+            else:
+                preferred_set = "flight_performance"
+
         else:
-            x_vals = [p.alpha for p in points]
-            x_label = "α (°)"
+            # ALPHA sweep
+            alpha_pts = sorted(all_points, key=lambda p: p.alpha)
+            self._cached_results["flight_performance"] = result
+            self._cached_points["flight_performance"] = alpha_pts
+            self._cached_results["longitudinal_stability"] = result
+            self._cached_points["longitudinal_stability"] = alpha_pts
+            self._cached_results["forces_moments"] = result
+            self._cached_points["forces_moments"] = alpha_pts
+            preferred_set = "flight_performance"
 
-        # For Dual Alpha+Beta, lateral-directional charts use the beta points dataset
-        lat_pts = beta_points if (sweep_type == SweepType.DUAL_ALPHA_BETA and beta_points) else points
-        lat_x_vals = [p.beta for p in lat_pts] if (sweep_type == SweepType.DUAL_ALPHA_BETA and beta_points) else x_vals
-        lat_x_label = "β (°)" if (sweep_type == SweepType.DUAL_ALPHA_BETA and beta_points) else x_label
+        self._refresh_combobox_and_render(preferred_set=preferred_set)
 
+    def _refresh_combobox_and_render(self, preferred_set: str | None = None) -> None:
+        curr_key = self.combo_view_mode.currentData()
+        target_key = preferred_set if (preferred_set and preferred_set in self._cached_results) else curr_key
+
+        self.combo_view_mode.blockSignals(True)
+        self.combo_view_mode.clear()
+
+        for key, label in CHART_SET_DEFINITIONS:
+            points = self._cached_points.get(key) or []
+            if key == "drag_breakdown" and not all(
+                point.cd_induced is not None and point.cd_profile is not None
+                for point in points
+            ):
+                continue
+            if key in self._cached_results and points:
+                self.combo_view_mode.addItem(label, key)
+
+        if self.combo_view_mode.count() == 0:
+            self.combo_view_mode.blockSignals(False)
+            self.clear_charts()
+            return
+
+        idx = self.combo_view_mode.findData(target_key)
+        if idx < 0:
+            idx = 0
+        self.combo_view_mode.setCurrentIndex(idx)
+        self.combo_view_mode.blockSignals(False)
+
+        active_key = self.combo_view_mode.currentData()
+        if active_key:
+            self._render_chart_set(active_key)
+
+    def _render_chart_set(self, key: str) -> None:
+        if key not in self._cached_results or key not in self._cached_points:
+            self.clear_charts()
+            return
+
+        result = self._cached_results[key]
+        points = self._cached_points[key]
+        if not points:
+            self.clear_charts()
+            return
+
+        cond = result.condition
+        sweep_type = cond.sweep_type if cond else SweepType.ALPHA
+
+        # Determine X axis values & label for this specific dataset
+        if key == "lateral_directional":
+            if any(not math.isclose(p.beta, points[0].beta, abs_tol=1e-2) for p in points):
+                x_vals = [p.beta for p in points]
+                x_label = "β (°)"
+            elif sweep_type == SweepType.CONTROL_DEFLECTION:
+                ctrl_k = cond.sweep_variable if cond else "Control"
+                x_vals = [p.control_deflections.get(ctrl_k, 0.0) for p in points]
+                x_label = f"{ctrl_k.capitalize()} δ (°)"
+            else:
+                x_vals = [p.beta for p in points]
+                x_label = "β (°)"
+        else:
+            if sweep_type == SweepType.BETA:
+                x_vals = [p.beta for p in points]
+                x_label = "β (°)"
+            elif sweep_type == SweepType.CONTROL_DEFLECTION:
+                ctrl_k = cond.sweep_variable if cond else "Control"
+                x_vals = [p.control_deflections.get(ctrl_k, 0.0) for p in points]
+                x_label = f"{ctrl_k.capitalize()} δ (°)"
+            else:
+                x_vals = [p.alpha for p in points]
+                x_label = "α (°)"
+
+        self.setUpdatesEnabled(False)
         try:
-            if view_mode == 1:
-                # Mode 1: Longitudinal Stability
+            # Dynamic pressure is constant for the supported fixed-speed,
+            # fixed-altitude sweeps, so it carries no information as a curve.
+            self.chart_ld.setVisible(key != "forces_moments")
+
+            if key == "longitudinal_stability":
                 self.chart_lift.setTitle(f"Pitching Moment (Cm vs {x_label})")
                 self.chart_lift.plot_single(x_vals, [p.cm for p in points], "Cm", "orange", x_label, "Cm")
 
@@ -383,23 +508,21 @@ class AeroChartsDock(QWidget):
                 self.chart_ld.setTitle(f"Dimensional Pitch Moment (My vs {x_label})")
                 self.chart_ld.plot_single(x_vals, my_vals, "My (N·m)", "red", x_label, "My (N·m)")
 
-            elif view_mode == 2:
-                # Mode 2: Lateral-Directional
-                self.chart_lift.setTitle(f"Sideforce Coefficient (CY vs {lat_x_label})")
-                self.chart_lift.plot_single(lat_x_vals, [p.cy for p in lat_pts], "CY", "blue", lat_x_label, "CY")
+            elif key == "lateral_directional":
+                self.chart_lift.setTitle(f"Sideforce Coefficient (CY vs {x_label})")
+                self.chart_lift.plot_single(x_vals, [p.cy for p in points], "CY", "blue", x_label, "CY")
 
-                self.chart_polar.setTitle(f"Roll Moment (Cl vs {lat_x_label})")
-                self.chart_polar.plot_single(lat_x_vals, [p.cl_roll for p in lat_pts], "Cl", "green", lat_x_label, "Cl (Roll)")
+                self.chart_polar.setTitle(f"Roll Moment (Cl vs {x_label})")
+                self.chart_polar.plot_single(x_vals, [p.cl_roll for p in points], "Cl", "green", x_label, "Cl (Roll)")
 
-                self.chart_moment.setTitle(f"Yaw Moment (Cn vs {lat_x_label})")
-                self.chart_moment.plot_single(lat_x_vals, [p.cn for p in lat_pts], "Cn", "orange", lat_x_label, "Cn (Yaw)")
+                self.chart_moment.setTitle(f"Yaw Moment (Cn vs {x_label})")
+                self.chart_moment.plot_single(x_vals, [p.cn for p in points], "Cn", "orange", x_label, "Cn (Yaw)")
 
-                cy_over_cl = [p.cy / max(abs(p.cl), 1e-4) for p in lat_pts]
-                self.chart_ld.setTitle(f"Lateral Coupling Ratio (CY / CL vs {lat_x_label})")
-                self.chart_ld.plot_single(lat_x_vals, cy_over_cl, "CY/CL", "magenta", lat_x_label, "CY/CL")
+                cy_over_cl = [p.cy / max(abs(p.cl), 1e-4) for p in points]
+                self.chart_ld.setTitle(f"Lateral Coupling Ratio (CY / CL vs {x_label})")
+                self.chart_ld.plot_single(x_vals, cy_over_cl, "CY/CL", "magenta", x_label, "CY/CL")
 
-            elif view_mode == 3:
-                # Mode 3: Drag Breakdown
+            elif key == "drag_breakdown":
                 self.chart_lift.setTitle(f"Induced Drag Polar (CD_i vs {x_label})")
                 self.chart_lift.plot_single(x_vals, [p.cd_induced for p in points], "CD_i", "blue", x_label, "CD_i")
 
@@ -413,27 +536,24 @@ class AeroChartsDock(QWidget):
                 self.chart_ld.setTitle("Induced Drag Share (% of Total Drag)")
                 self.chart_ld.plot_single(x_vals, ratios, "% Induced", "magenta", x_label, "% Induced")
 
-            elif view_mode == 4:
-                # Mode 4: Forces & Moments
+            elif key == "forces_moments":
                 self.chart_lift.setTitle(f"Total Lift Force (L vs {x_label})")
                 self.chart_lift.plot_single(x_vals, [p.forces_moments.lift if p.forces_moments else 0.0 for p in points], "Lift (N)", "blue", x_label, "Lift (N)")
 
                 self.chart_polar.setTitle(f"Total Drag Force (D vs {x_label})")
                 self.chart_polar.plot_single(x_vals, [p.forces_moments.drag if p.forces_moments else 0.0 for p in points], "Drag (N)", "red", x_label, "Drag (N)")
 
-                self.chart_moment.setTitle(f"Pitching Moment (My vs {x_label})")
                 my_vals = [
                     p.forces_moments.my_b if (p.forces_moments and hasattr(p.forces_moments, "my_b"))
                     else (p.cm * p.dynamic_pressure * result.reference.s_ref * result.reference.c_ref)
                     for p in points
                 ]
+                self.chart_moment.setTitle(f"Pitching Moment (My vs {x_label})")
                 self.chart_moment.plot_single(x_vals, my_vals, "My (N·m)", "orange", x_label, "My (N·m)")
 
-                self.chart_ld.setTitle(f"Dynamic Pressure (q vs {x_label})")
-                self.chart_ld.plot_single(x_vals, [p.dynamic_pressure for p in points], "q (Pa)", "magenta", x_label, "q (Pa)")
+                self.chart_ld.clear()
 
-            else:
-                # Mode 0: Flight Performance Polars
+            else:  # flight_performance
                 self.chart_lift.setTitle(f"Lift Curve (CL vs {x_label})")
                 self.chart_lift.plot_single(x_vals, [p.cl for p in points], "CL", "blue", x_label, "CL")
 
@@ -450,12 +570,23 @@ class AeroChartsDock(QWidget):
                 loiter_factor = [(max(p.cl, 0.0) ** 1.5) / max(p.cd, 1e-4) for p in points]
                 self.chart_ld.setTitle(f"Endurance Factor (CL^1.5 / CD vs {x_label})")
                 self.chart_ld.plot_single(x_vals, loiter_factor, "CL^1.5/CD", "orange", x_label, "CL^1.5 / CD")
+
         except Exception as err:
             import logging
             logging.getLogger(__name__).error("Failed to update aerodynamic charts: %s", err, exc_info=True)
+        finally:
+            self.setUpdatesEnabled(True)
 
     def update_theme_style(self) -> None:
         self.chart_lift.update_theme_style()
         self.chart_polar.update_theme_style()
         self.chart_moment.update_theme_style()
         self.chart_ld.update_theme_style()
+        active_key = self.combo_view_mode.currentData()
+        if active_key:
+            self._render_chart_set(active_key)
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        if self._api is not None:
+            self._api.unsubscribe("aerodynamics.result_selected", self.plot_results)
+        super().closeEvent(event)

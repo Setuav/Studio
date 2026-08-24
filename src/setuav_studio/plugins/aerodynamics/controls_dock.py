@@ -121,13 +121,19 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         return layout
 
     def _create_engine_section(self) -> None:
-        layout = self._create_section("Mesh & Discretization", "fa6s.gears")
+        layout = self._create_section("Solver & Mesh", "fa6s.gears")
 
         self.engine_table = self._property_table([
+            ("solver", "Solver Engine"),
             ("span_res", "Spanwise Panels"),
             ("chord_res", "Chordwise Panels"),
             ("spacing", "Panel Spacing"),
         ])
+
+        self.combo_solver = QComboBox()
+        self.combo_solver.addItem("AeroBuildup (Default)", AnalysisMethod.AERO_BUILDUP)
+        self.combo_solver.addItem("Vortex Lattice Method (VLM)", AnalysisMethod.VLM)
+        self.combo_solver.addItem("Lifting Line Theory (LLT)", AnalysisMethod.LIFTING_LINE)
 
         self.spin_span_res = NumericSpinBox()
         self.spin_span_res.setDecimals(0)
@@ -143,9 +149,10 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         self.combo_spacing.addItem("Cosine (Tip Clustered)", "cosine")
         self.combo_spacing.addItem("Uniform (Equispaced)", "uniform")
 
-        self.engine_table.setCellWidget(0, 1, self.spin_span_res)
-        self.engine_table.setCellWidget(1, 1, self.spin_chord_res)
-        self.engine_table.setCellWidget(2, 1, self.combo_spacing)
+        self.engine_table.setCellWidget(0, 1, self.combo_solver)
+        self.engine_table.setCellWidget(1, 1, self.spin_span_res)
+        self.engine_table.setCellWidget(2, 1, self.spin_chord_res)
+        self.engine_table.setCellWidget(3, 1, self.combo_spacing)
 
         layout.addWidget(self.engine_table)
 
@@ -205,8 +212,6 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         self.combo_mode.addItem("Alpha Sweep", SweepType.ALPHA)
         self.combo_mode.addItem("Beta Sweep", SweepType.BETA)
         self.combo_mode.addItem("Control Deflection Sweep", SweepType.CONTROL_DEFLECTION)
-        self.combo_mode.addItem("Airspeed Sweep", SweepType.VELOCITY)
-        self.combo_mode.addItem("Altitude Sweep", SweepType.ALTITUDE)
         self.combo_mode.addItem("Single Point", None)
         self.combo_mode.currentIndexChanged.connect(self._on_mode_changed)
 
@@ -217,12 +222,12 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         self.combo_ctrl.addItem("Flap", "flap")
 
         self.spin_sweep_min = NumericSpinBox()
-        self.spin_sweep_min.setRange(-100.0, 20000.0)
+        self.spin_sweep_min.setRange(-100.0, 100.0)
         self.spin_sweep_min.setValue(-10.0)
         self.spin_sweep_min.setSuffix(" °")
 
         self.spin_sweep_max = NumericSpinBox()
-        self.spin_sweep_max.setRange(-100.0, 20000.0)
+        self.spin_sweep_max.setRange(-100.0, 100.0)
         self.spin_sweep_max.setValue(18.0)
         self.spin_sweep_max.setSuffix(" °")
 
@@ -348,32 +353,6 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
             self.spin_sweep_max.setValue(20.0)
             self.spin_sweep_steps.setValue(21)
 
-        elif sweep_data == SweepType.VELOCITY:
-            if item_p_min:
-                item_p_min.setText("Velocity Start")
-            if item_p_max:
-                item_p_max.setText("Velocity End")
-            if item_p_steps:
-                item_p_steps.setText("Velocity Steps")
-            self.spin_sweep_min.setSuffix(" m/s")
-            self.spin_sweep_max.setSuffix(" m/s")
-            self.spin_sweep_min.setValue(10.0)
-            self.spin_sweep_max.setValue(45.0)
-            self.spin_sweep_steps.setValue(15)
-
-        elif sweep_data == SweepType.ALTITUDE:
-            if item_p_min:
-                item_p_min.setText("Altitude Start")
-            if item_p_max:
-                item_p_max.setText("Altitude End")
-            if item_p_steps:
-                item_p_steps.setText("Altitude Steps")
-            self.spin_sweep_min.setSuffix(" m")
-            self.spin_sweep_max.setSuffix(" m")
-            self.spin_sweep_min.setValue(0.0)
-            self.spin_sweep_max.setValue(4000.0)
-            self.spin_sweep_steps.setValue(9)
-
     def _create_actions_section(self) -> None:
         layout = self._create_section("Actions", "fa6s.play")
 
@@ -449,14 +428,6 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
             sweep_type = SweepType.CONTROL_DEFLECTION
             sweep_var = str(self.combo_ctrl.currentData() or "elevator")
             secondary_var = None
-        elif sweep_data == SweepType.VELOCITY:
-            sweep_type = SweepType.VELOCITY
-            sweep_var = "velocity"
-            secondary_var = None
-        elif sweep_data == SweepType.ALTITUDE:
-            sweep_type = SweepType.ALTITUDE
-            sweep_var = "altitude"
-            secondary_var = None
         else:
             sweep_type = SweepType.ALPHA
             sweep_var = "alpha"
@@ -492,7 +463,7 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
             beta_steps=sec_steps if sweep_type == SweepType.DUAL_ALPHA_BETA else (s_steps if sweep_type == SweepType.BETA else 1),
         )
 
-        method = AnalysisMethod.COMPREHENSIVE
+        method = self.combo_solver.currentData() or AnalysisMethod.AERO_BUILDUP
 
         settings = {
             "spanwise_resolution": int(self.spin_span_res.value()),
@@ -500,7 +471,6 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
             "spanwise_spacing": str(self.combo_spacing.currentData() or "cosine"),
             "chordwise_spacing": str(self.combo_spacing.currentData() or "cosine"),
             "include_wave_drag": True,
-            "compressibility_correction": True,
         }
 
         self._is_running = True
@@ -522,8 +492,7 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         QThreadPool.globalInstance().start(worker)
 
     def _on_analysis_progress(self, current: int, total: int, msg: str) -> None:
-        label = f"Aerodynamics ({msg})" if msg else "Aerodynamics"
-        self._api.report_progress(current, total, label)
+        self._api.report_progress(current, total, msg or "Solving")
 
     def _on_analysis_finished(self, result: AeroResult) -> None:
         self._is_running = False
@@ -573,7 +542,7 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
                 "velocity": {"value": float(self.spin_velocity.value()), "unit": "m/s"},
                 "altitude": {"value": float(self.spin_altitude.value()), "unit": "m"},
                 "angle_of_attack": {"value": float(self.spin_ref_alpha.value()), "unit": "deg"},
-                "method": "comprehensive",
+                "method": "aero_buildup",
             },
         }
 
