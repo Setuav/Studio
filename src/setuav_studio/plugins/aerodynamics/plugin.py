@@ -27,9 +27,9 @@ from .analysis_store import (
     rename_analysis_entry,
     short_result_name,
 )
-
 if TYPE_CHECKING:
     from .aero_3d_tool import Aero3DToolWindow
+    from .airfoil_analysis_tool import AirfoilAnalysisToolWindow
 
 
 class AerodynamicsPlugin:
@@ -41,7 +41,9 @@ class AerodynamicsPlugin:
     def __init__(self) -> None:
         self._api: StudioAPI | None = None
         self._latest_result: AeroResult | None = None
-        self._tool_windows: set[Aero3DToolWindow] = set()
+        self._tool_windows: set[
+            Aero3DToolWindow | AirfoilAnalysisToolWindow
+        ] = set()
 
     def activate(self, api: StudioAPI) -> None:
         self._api = api
@@ -76,6 +78,14 @@ class AerodynamicsPlugin:
                 icon="fa6s.cube",
             )
         )
+        api.register_tool(
+            ToolContribution(
+                group="Aerodynamics",
+                title="Airfoil Analysis…",
+                callback=self._open_airfoil_analysis_tool,
+                icon="fa6s.chart-area",
+            )
+        )
 
         # 3. Register Performance Charts Dock (Right)
         api.add_panel(
@@ -107,6 +117,7 @@ class AerodynamicsPlugin:
         api.remove_panel("aerodynamics.results_dock")
         api.remove_panel("aerodynamics.charts_dock")
         api.remove_action("Tools/Aerodynamics", "AeroSandbox 3D Snapshot…")
+        api.remove_action("Tools/Aerodynamics", "Airfoil Analysis…")
         api.remove_workspace("studio.workspace.aerodynamics")
         for window in list(self._tool_windows):
             window.close()
@@ -197,6 +208,22 @@ class AerodynamicsPlugin:
         self._tool_windows.add(window)
         window.destroyed.connect(
             lambda _object=None, tool_window=window: self._tool_windows.discard(tool_window)
+        )
+        window.show()
+        window.raise_()
+        window.activateWindow()
+
+    def _open_airfoil_analysis_tool(self) -> None:
+        if self._api is None:
+            return
+        from .airfoil_analysis_tool import AirfoilAnalysisToolWindow
+
+        window = AirfoilAnalysisToolWindow(self._api)
+        self._tool_windows.add(window)
+        window.destroyed.connect(
+            lambda _object=None, tool_window=window: self._tool_windows.discard(
+                tool_window
+            )
         )
         window.show()
         window.raise_()

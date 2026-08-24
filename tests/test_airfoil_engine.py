@@ -1,4 +1,4 @@
-"""Unit tests for 2D Airfoil analysis engine, caching, and NeuralFoil / XFoil integration."""
+"""Unit tests for 2D airfoil analysis, caching, and NeuralFoil integration."""
 from __future__ import annotations
 
 import math
@@ -140,19 +140,6 @@ class TestAirfoilEngine(unittest.TestCase):
         pt_0 = polar.get_point(0.0)
         self.assertIsNotNone(pt_0)
         self.assertAlmostEqual(pt_0.cl, 0.0, places=1)
-
-    def test_xfoil_fallback_mechanism(self) -> None:
-        """Verify fallback to NeuralFoil when XFoil is requested but unavailable."""
-        alphas = [0.0, 4.0]
-        polar = self.engine.analyze_airfoil(
-            airfoil="naca2412",
-            reynolds=200000.0,
-            alphas=alphas,
-            backend="xfoil",
-            use_cache=False,
-        )
-        self.assertIsNotNone(polar)
-        self.assertIn("foil", polar.backend_used.lower())
 
     def test_2d_airfoil_analysis_on_surface_profile(self) -> None:
         """Verify AirfoilAnalysisEngine analyzes section airfoils on request."""

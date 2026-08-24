@@ -16,6 +16,9 @@ from setuav_studio.plugins.aerodynamics.analysis_store import (
     analysis_entries,
     load_analysis_result,
 )
+from setuav_studio.plugins.aerodynamics.airfoil_analysis_tool import (
+    AirfoilAnalysisToolWindow,
+)
 from setuav_studio.plugins.core.ui.project_explorer import ProjectExplorer
 from setuav_studio.plugins.aerodynamics.engine.base import (
     AeroResult,
@@ -76,6 +79,33 @@ class AerodynamicsPluginTests(unittest.TestCase):
             and action.title == "AeroSandbox 3D Snapshot…"
             for action in self.actions
         ))
+        self.assertTrue(any(
+            action.menu == "Tools/Aerodynamics"
+            and action.title == "Airfoil Analysis…"
+            for action in self.actions
+        ))
+
+    def test_airfoil_analysis_tool_is_standalone(self) -> None:
+        tool = AirfoilAnalysisToolWindow(self.api)
+        self.assertEqual(tool.airfoil_combo.currentText(), "NACA 2412")
+        self.assertEqual(tool.model_combo.currentData(), "large")
+        self.assertEqual(tool.results_table.columnCount(), 7)
+        self.assertIsNone(self.api.current_project)
+
+        tool._populate_results([
+            {
+                "alpha": 2.0,
+                "cl": 0.5,
+                "cd": 0.025,
+                "cm": -0.04,
+                "ld": 20.0,
+                "top_xtr": 0.4,
+                "bot_xtr": 0.6,
+            }
+        ])
+        self.assertEqual(tool.results_table.rowCount(), 1)
+        self.assertEqual(tool.results_table.item(0, 0).text(), "2")
+        tool.close()
 
     def test_panel_factories_create_widgets_and_handle_results(self) -> None:
         self.plugin.activate(self.api)
@@ -238,6 +268,14 @@ class AerodynamicsPluginTests(unittest.TestCase):
         self.assertIn(
             ("Tools/Aerodynamics", "AeroSandbox 3D Snapshot…"),
             self.removed_actions,
+        )
+        self.assertIn(
+            ("Tools/Aerodynamics", "Airfoil Analysis…"),
+            self.removed_actions,
+        )
+        self.assertNotIn(
+            "aerodynamics.settings.airfoil_analysis",
+            {page.id for page in self.api.settings_pages()},
         )
         self.assertIn("studio.workspace.aerodynamics", self.removed_workspaces)
 

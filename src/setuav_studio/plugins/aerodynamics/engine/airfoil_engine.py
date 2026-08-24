@@ -1,7 +1,6 @@
-"""2D Airfoil Analysis Engine integrating NeuralFoil and XFoil with automated caching."""
+"""2D NeuralFoil analysis engine with automated caching."""
 from __future__ import annotations
 
-import logging
 import math
 from typing import Any, Sequence
 
@@ -16,11 +15,8 @@ except ImportError:
 from .airfoil_cache import AirfoilPolarCache, global_airfoil_cache
 from .airfoil_models import AirfoilPolar, AirfoilPolarPoint
 
-logger = logging.getLogger(__name__)
-
-
 class AirfoilAnalysisEngine:
-    """Computes high-fidelity 2D airfoil aerodynamic characteristics using NeuralFoil and XFoil."""
+    """Computes 2D airfoil aerodynamic characteristics using NeuralFoil."""
 
     def __init__(self, cache: AirfoilPolarCache | None = None) -> None:
         self.cache = cache or global_airfoil_cache
@@ -31,7 +27,6 @@ class AirfoilAnalysisEngine:
         reynolds: float,
         alphas: Sequence[float] | np.ndarray,
         mach: float = 0.0,
-        backend: str = "neuralfoil",
         use_cache: bool = True,
     ) -> AirfoilPolar:
         """Run 2D aerodynamic analysis on an airfoil across an angle of attack range.
@@ -41,7 +36,6 @@ class AirfoilAnalysisEngine:
             reynolds: Reynolds number based on section chord.
             alphas: Angles of attack in degrees.
             mach: Flight Mach number (default 0.0).
-            backend: 'neuralfoil' (default fast surrogate), 'xfoil' (panel method), or 'auto'.
             use_cache: Whether to query and populate the polar cache.
 
         Returns:
@@ -63,19 +57,12 @@ class AirfoilAnalysisEngine:
             if cached is not None:
                 return cached
 
-        backend_lower = backend.strip().lower()
-        polar: AirfoilPolar | None = None
-
-        if backend_lower in ("xfoil", "xfoil_preferred"):
-            try:
-                polar = self._analyze_xfoil(asb_airfoil, reynolds, alphas_list, mach)
-            except Exception as exc:
-                logger.warning("XFoil analysis failed (%s), falling back to NeuralFoil.", exc)
-                polar = self._analyze_neuralfoil(asb_airfoil, reynolds, alphas_list, mach)
-                polar.backend_used = "neuralfoil (xfoil_fallback)"
-        else:
-            # Default NeuralFoil
-            polar = self._analyze_neuralfoil(asb_airfoil, reynolds, alphas_list, mach)
+        polar = self._analyze_neuralfoil(
+            asb_airfoil,
+            reynolds,
+            alphas_list,
+            mach,
+        )
 
         if use_cache and polar is not None:
             self.cache.put(polar, alphas_list, airfoil_identifier=ident)
@@ -176,74 +163,6 @@ class AirfoilAnalysisEngine:
             alpha_zero_lift=metrics["alpha_zero_lift"],
             cm_zero_lift=metrics["cm_zero_lift"],
             backend_used="neuralfoil",
-        )
-
-    def _analyze_xfoil(
-        self,
-        airfoil: Any,
-        reynolds: float,
-        alphas: list[float],
-        mach: float,
-    ) -> AirfoilPolar:
-        """Run viscous panel analysis with XFoil."""
-        re_val = max(float(reynolds), 1000.0)
-        mach_val = max(float(mach), 0.0)
-
-        xf = asb.XFoil(
-            airfoil=airfoil,
-            Re=re_val,
-            mach=mach_val,
-            max_iter=50,
-        )
-
-        points: list[AirfoilPolarPoint] = []
-        for a in alphas:
-            res: dict[str, Any] = {}
-            try:
-                res = xf.alpha(float(a))
-                cl_val = float(res["CL"]) if "CL" in res else 0.0
-                cd_val = float(res["CD"]) if "CD" in res else 0.0
-                cm_val = float(res["CM"]) if "CM" in res else 0.0
-                conv = bool(res.get("converged", True))
-            except Exception:
-                cl_val, cd_val, cm_val, conv = 0.0, 0.0, 0.0, False
-
-            cd_val = max(cd_val, 0.0)
-            ld_val = cl_val / cd_val if conv and abs(cd_val) > 1e-7 else 0.0
-
-            points.append(
-                AirfoilPolarPoint(
-                    alpha=float(a),
-                    cl=cl_val,
-                    cd=cd_val,
-                    cm=cm_val,
-                    cd_profile=(float(res["CDp"]) if "CDp" in res else None),
-                    top_transition=(float(res["Top_Xtr"]) if "Top_Xtr" in res else None),
-                    bottom_transition=(float(res["Bot_Xtr"]) if "Bot_Xtr" in res else None),
-                    cl_over_cd=ld_val,
-                    converged=conv,
-                )
-            )
-
-        metrics = self._compute_summary_metrics(points)
-
-        return AirfoilPolar(
-            airfoil_name=str(airfoil.name),
-            reynolds=re_val,
-            mach=mach_val,
-            points=points,
-            cl_max=metrics["cl_max"],
-            cl_max_alpha=metrics["cl_max_alpha"],
-            cl_min=metrics["cl_min"],
-            cl_min_alpha=metrics["cl_min_alpha"],
-            cd_min=metrics["cd_min"],
-            cl_at_cd_min=metrics["cl_at_cd_min"],
-            ld_max=metrics["ld_max"],
-            ld_max_alpha=metrics["ld_max_alpha"],
-            cl_alpha_slope=metrics["cl_alpha_slope"],
-            alpha_zero_lift=metrics["alpha_zero_lift"],
-            cm_zero_lift=metrics["cm_zero_lift"],
-            backend_used="xfoil",
         )
 
     def _compute_summary_metrics(self, points: list[AirfoilPolarPoint]) -> dict[str, float]:
