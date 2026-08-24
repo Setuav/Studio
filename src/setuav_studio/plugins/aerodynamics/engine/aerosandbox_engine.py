@@ -100,12 +100,14 @@ class AeroSandboxEngine(AeroEngine):
 
         orig_method = method
         effective_method = AnalysisMethod.AERO_BUILDUP if method == AnalysisMethod.COMPREHENSIVE else method
+        control_encoding = "airfoil" if effective_method == AnalysisMethod.VLM else "native"
 
         mass_cg, mass_cg_source = self._resolve_mass_cg(components)
         base_airplane = self._build_airplane(
             components,
             condition=condition,
             xyz_ref=mass_cg,
+            control_encoding=control_encoding,
         )
         if not base_airplane.wings:
             raise ValueError("No valid lifting surfaces found in project for aerodynamic analysis.")
@@ -234,6 +236,7 @@ class AeroSandboxEngine(AeroEngine):
                     components,
                     condition=cur_cond,
                     xyz_ref=mass_cg,
+                    control_encoding=control_encoding,
                 )
             else:
                 cur_airplane = base_airplane
@@ -490,6 +493,11 @@ class AeroSandboxEngine(AeroEngine):
                     comps,
                     condition=cond,
                     xyz_ref=mass_cg,
+                    control_encoding=(
+                        "airfoil"
+                        if stability_method == AnalysisMethod.VLM
+                        else "native"
+                    ),
                 ),
                 method=stability_method,
             )
@@ -558,6 +566,7 @@ class AeroSandboxEngine(AeroEngine):
         components: list[dict[str, Any]],
         condition: FlightCondition | None = None,
         xyz_ref: tuple[float, float, float] | None = None,
+        control_encoding: str = "native",
     ) -> asb.Airplane:
         """Convert Setuav Studio components list to AeroSandbox Airplane object with attachment hierarchy and control surfaces."""
         wings: list[asb.Wing] = []
@@ -574,7 +583,12 @@ class AeroSandboxEngine(AeroEngine):
                 continue
             comp_type = comp.get("type", "")
             if comp_type == "org.setuav.core:lifting-surface":
-                wing_res = self._convert_lifting_surface(comp, comp_by_id=comp_by_id, condition=condition)
+                wing_res = self._convert_lifting_surface(
+                    comp,
+                    comp_by_id=comp_by_id,
+                    condition=condition,
+                    control_encoding=control_encoding,
+                )
                 if isinstance(wing_res, list):
                     wings.extend(wing_res)
                 elif wing_res is not None:
@@ -736,6 +750,7 @@ class AeroSandboxEngine(AeroEngine):
         comp: dict[str, Any],
         comp_by_id: dict[str, dict[str, Any]] | None = None,
         condition: FlightCondition | None = None,
+        control_encoding: str = "native",
     ) -> list[asb.Wing] | asb.Wing | None:
         """Convert a single lifting surface and its control surfaces into AeroSandbox Wing(s)."""
         comp_id = str(comp.get("id") or "")
@@ -872,7 +887,6 @@ class AeroSandboxEngine(AeroEngine):
             d_rudder = 0.0
             d_aileron = 0.0
             d_direct = 0.0
-            is_child_component = bool(cs.get("_child_component", False))
 
             if condition and condition.control_deflections:
                 for k, v in condition.control_deflections.items():
@@ -886,31 +900,49 @@ class AeroSandboxEngine(AeroEngine):
                     elif k_clean in (tag.lower(), cs_type_enum.value, cs_id.lower()):
                         d_direct = float(v)
 
-            # Apply aerodynamic channel kinematic mixing based on ControlSurfaceType
-            delta_r = deflection + d_direct
-            delta_l = deflection + d_direct
+            symmetry_mode = str(cs.get("symmetry_mode") or "auto").lower()
+
+            def mirrored_command(value: float, *, auto_antisymmetric: bool) -> float:
+                """Map one right-side command to the mirrored surface."""
+                if symmetry_mode == "symmetric":
+                    return value
+                if symmetry_mode in ("antisymmetric", "anti-symmetric"):
+                    return -value
+                if symmetry_mode == "none":
+                    return 0.0
+                return -value if auto_antisymmetric else value
+
+            # Base/direct deflection follows the surface type in Auto mode.
+            # Channel contributions retain their own symmetric/differential
+            # meaning for mixed surfaces such as elevons and ruddervators.
+            direct_command = deflection + d_direct
+            direct_is_differential = cs_type_enum in (
+                ControlSurfaceType.AILERON,
+                ControlSurfaceType.ELEVON,
+            )
+            delta_r = direct_command
+            delta_l = mirrored_command(
+                direct_command,
+                auto_antisymmetric=direct_is_differential,
+            )
 
             if cs_type_enum == ControlSurfaceType.ELEVATOR:
-                # Explicit child surfaces are expressed in their local
-                # attachment frame; embedded lifting-surface tags already use
-                # AeroSandbox's down-positive convention.
-                elevator_delta = -d_elevator if is_child_component else d_elevator
-                delta_r += elevator_delta
-                delta_l += elevator_delta
+                delta_r += d_elevator
+                delta_l += mirrored_command(d_elevator, auto_antisymmetric=False)
             elif cs_type_enum == ControlSurfaceType.RUDDER:
                 delta_r += d_rudder
-                delta_l -= d_rudder
+                delta_l += mirrored_command(d_rudder, auto_antisymmetric=True)
             elif cs_type_enum == ControlSurfaceType.AILERON:
                 delta_r += d_aileron
-                delta_l -= d_aileron
+                delta_l += mirrored_command(d_aileron, auto_antisymmetric=True)
             elif cs_type_enum == ControlSurfaceType.ELEVON:
-                elevator_delta = -d_elevator if is_child_component else d_elevator
-                delta_r += (elevator_delta + d_aileron)
-                delta_l += (elevator_delta - d_aileron)
+                delta_r += d_elevator + d_aileron
+                delta_l += mirrored_command(d_elevator, auto_antisymmetric=False)
+                delta_l += mirrored_command(d_aileron, auto_antisymmetric=True)
             elif cs_type_enum == ControlSurfaceType.RUDDERVATOR:
-                elevator_delta = -d_elevator if is_child_component else d_elevator
-                delta_r += (elevator_delta + d_rudder)
-                delta_l += (elevator_delta - d_rudder)
+                delta_r += d_elevator + d_rudder
+                delta_l += mirrored_command(d_elevator, auto_antisymmetric=False)
+                delta_l += mirrored_command(d_rudder, auto_antisymmetric=True)
             elif cs_type_enum == ControlSurfaceType.FLAP:
                 pass
 
@@ -959,16 +991,6 @@ class AeroSandboxEngine(AeroEngine):
                 chord_frac = c_val / max(chord_at_mid, 0.01)
             chord_frac = float(np.clip(chord_frac, 0.05, 0.95))
 
-            symmetry_mode = str(cs.get("symmetry_mode") or "auto").lower()
-            # Let an explicit geometry declaration override the type's
-            # default left/right convention.  This keeps the aerodynamic
-            # conversion aligned with the geometry viewport for custom
-            # elevons/flaps while retaining the standard auto behaviour.
-            if symmetry_mode == "symmetric":
-                delta_l = delta_r
-            elif symmetry_mode in ("antisymmetric", "anti-symmetric"):
-                delta_l = -delta_r
-
             parsed_cs.append({
                 "tag": tag,
                 "type": cs_type_enum.value,
@@ -978,6 +1000,7 @@ class AeroSandboxEngine(AeroEngine):
                 "chord_fraction": chord_frac,
                 "delta_r": delta_r,
                 "delta_l": delta_l,
+                "include_left": symmetry_mode != "none",
             })
 
         # Discretize spanwise breakpoints
@@ -1007,86 +1030,102 @@ class AeroSandboxEngine(AeroEngine):
         evaluated_stations = [interp_station(e, "right") for e in unique_etas]
         evaluated_stations_left = [interp_station(e, "left") for e in unique_etas]
 
-        # Build Right and Left Wing cross sections with control deflections
-        xsecs_right: list[asb.WingXSec] = []
-        xsecs_left: list[asb.WingXSec] = []
-
-        has_antisymmetric = False
-
-        for st, st_left in zip(evaluated_stations, evaluated_stations_left):
-            e = st["eta"]
-            base_af = st["airfoil"]
-            af_r = base_af
-            af_l = base_af
-            cs_objs_r: list[asb.ControlSurface] = []
-            cs_objs_l: list[asb.ControlSurface] = []
-
+        # Native AeroSandbox control surfaces belong to the span section that
+        # starts at each WingXSec. Using that contract avoids deflection
+        # bleeding beyond a surface boundary and preserves overlapping
+        # flap/aileron regions as two distinct controls.
+        def controls_for_interval(
+            eta_a: float,
+            eta_b: float,
+            side: str,
+        ) -> list[asb.ControlSurface]:
+            eta_mid = 0.5 * (eta_a + eta_b)
+            controls: list[asb.ControlSurface] = []
             for cs in parsed_cs:
-                if cs["eta_start"] <= e <= cs["eta_end"] or math.isclose(e, cs["eta_start"], abs_tol=1e-4) or math.isclose(e, cs["eta_end"], abs_tol=1e-4):
-                    delta_r = cs["delta_r"]
-                    delta_l = cs["delta_l"]
-                    cf = cs["chord_fraction"]
-                    hinge_pt = 1.0 - cf
+                if not (cs["eta_start"] <= eta_mid <= cs["eta_end"]):
+                    continue
+                if side == "left" and not cs["include_left"]:
+                    continue
 
-                    if abs(delta_r) > 1e-4:
-                        af_r = af_r.add_control_surface(deflection=delta_r, hinge_point_x=hinge_pt)
-                    if abs(delta_l) > 1e-4:
-                        af_l = af_l.add_control_surface(deflection=delta_l, hinge_point_x=hinge_pt)
+                symmetry_mode = cs["symmetry_mode"]
+                if symmetry_mode == "symmetric":
+                    is_symmetric = True
+                elif symmetry_mode in ("antisymmetric", "anti-symmetric"):
+                    is_symmetric = False
+                else:
+                    is_symmetric = cs["type"] not in ("aileron", "elevon")
 
-                    if abs(delta_r - delta_l) > 1e-4:
-                        has_antisymmetric = True
-
-                    # Keep the native AeroSandbox control-surface metadata on
-                    # each controlled span section. Deflection remains encoded
-                    # in the airfoil camber above (as required by VLM); the
-                    # zero-deflection metadata supplies the semantic name and
-                    # hinge location without double-counting it in AeroBuildup.
-                    starts_controlled_section = (
-                        (cs["eta_start"] <= e or math.isclose(e, cs["eta_start"], abs_tol=1e-4))
-                        and e < cs["eta_end"]
-                        and not math.isclose(e, cs["eta_end"], abs_tol=1e-4)
+                controls.append(
+                    asb.ControlSurface(
+                        name=cs["tag"],
+                        symmetric=is_symmetric,
+                        deflection=(
+                            0.0
+                            if control_encoding == "airfoil"
+                            else float(cs["delta_l"] if side == "left" else cs["delta_r"])
+                        ),
+                        hinge_point=1.0 - float(cs["chord_fraction"]),
                     )
-                    if starts_controlled_section:
-                        is_symmetric = abs(delta_r - delta_l) <= 1e-4
-                        cs_objs_r.append(
-                            asb.ControlSurface(
-                                name=cs["tag"],
-                                symmetric=is_symmetric,
-                                deflection=0.0,
-                                hinge_point=hinge_pt,
-                            )
-                        )
-                        cs_objs_l.append(
-                            asb.ControlSurface(
-                                name=cs["tag"],
-                                symmetric=is_symmetric,
-                                deflection=0.0,
-                                hinge_point=hinge_pt,
-                            )
-                        )
+                )
+            return controls
 
-            xyz = st["xyz_le"]
-            xsecs_right.append(
-                asb.WingXSec(
-                    xyz_le=[float(xyz[0]), float(xyz[1]), float(xyz[2])],
-                    chord=float(st["chord"]),
-                    twist=float(st["twist"]),
-                    airfoil=af_r,
-                    control_surfaces=cs_objs_r,
+        def airfoil_for_station(
+            station: dict[str, Any],
+            side: str,
+        ) -> asb.Airfoil:
+            airfoil = station["airfoil"]
+            if control_encoding != "airfoil":
+                return airfoil
+
+            eta = float(station["eta"])
+            for cs in parsed_cs:
+                if not (cs["eta_start"] <= eta <= cs["eta_end"]):
+                    continue
+                if side == "left" and not cs["include_left"]:
+                    continue
+                deflection = float(cs["delta_l"] if side == "left" else cs["delta_r"])
+                if abs(deflection) > 1e-4:
+                    airfoil = airfoil.add_control_surface(
+                        deflection=deflection,
+                        hinge_point_x=1.0 - float(cs["chord_fraction"]),
+                    )
+            return airfoil
+
+        def build_xsecs(
+            stations: list[dict[str, Any]],
+            side: str,
+            reverse: bool = False,
+        ) -> list[asb.WingXSec]:
+            ordered = list(reversed(stations)) if reverse else list(stations)
+            result: list[asb.WingXSec] = []
+            for index, station in enumerate(ordered):
+                controls = []
+                if index + 1 < len(ordered):
+                    controls = controls_for_interval(
+                        float(station["eta"]),
+                        float(ordered[index + 1]["eta"]),
+                        side,
+                    )
+                xyz = station["xyz_le"]
+                result.append(
+                    asb.WingXSec(
+                        xyz_le=[float(xyz[0]), float(xyz[1]), float(xyz[2])],
+                        chord=float(station["chord"]),
+                        twist=float(station["twist"]),
+                        airfoil=airfoil_for_station(station, side),
+                        control_surfaces=controls,
+                    )
                 )
-            )
-            # Left side uses the fully transformed mirrored station.  For a
-            # symmetric wing this is used as a regression/reference geometry;
-            # AeroSandbox mirrors the right half at mesh/analysis time.
-            xsecs_left.append(
-                asb.WingXSec(
-                    xyz_le=[float(st_left["xyz_le"][0]), float(st_left["xyz_le"][1]), float(st_left["xyz_le"][2])],
-                    chord=float(st_left["chord"]),
-                    twist=float(st_left["twist"]),
-                    airfoil=af_l,
-                    control_surfaces=cs_objs_l,
-                )
-            )
+            return result
+
+        xsecs_right = build_xsecs(evaluated_stations, "right")
+        # A standalone left wing follows AeroSandbox's tip-to-root ordering,
+        # so its section metadata must be generated in that same order.
+        xsecs_left = build_xsecs(evaluated_stations_left, "left", reverse=True)
+        has_asymmetric_controls = any(
+            not cs["include_left"] or abs(float(cs["delta_r"]) - float(cs["delta_l"])) > 1e-4
+            for cs in parsed_cs
+        )
 
         name = str(comp.get("name") or comp.get("id") or "Wing")
 
@@ -1102,17 +1141,14 @@ class AeroSandboxEngine(AeroEngine):
                     [right.xyz_le[0], -right.xyz_le[1], right.xyz_le[2]],
                     atol=1e-9,
                 )
-                for right, left in zip(xsecs_right, xsecs_left)
+                for right, left in zip(xsecs_right, reversed(xsecs_left))
             )
-            if not has_antisymmetric and global_reflection_matches:
+            if not has_asymmetric_controls and global_reflection_matches:
                 return asb.Wing(name=name, xsecs=xsecs_right, symmetric=True)
 
-            # Left wing xsecs are ordered from tip toward the root, matching
-            # AeroSandbox's conventional left-side orientation.
-            left_ordered = list(reversed(xsecs_left))
             return [
                 asb.Wing(name=f"{name}_Right", xsecs=xsecs_right, symmetric=False),
-                asb.Wing(name=f"{name}_Left", xsecs=left_ordered, symmetric=False),
+                asb.Wing(name=f"{name}_Left", xsecs=xsecs_left, symmetric=False),
             ]
 
         return asb.Wing(name=name, xsecs=xsecs_right, symmetric=False)

@@ -530,6 +530,20 @@ class AeroSandboxEngineTests(unittest.TestCase):
         engine = AeroSandboxEngine()
         components = [
             {
+                "id": "wing-1",
+                "name": "Main Wing",
+                "type": "org.setuav.core:lifting-surface",
+                "parameters": {
+                    "geometry": {
+                        "mirror": True,
+                        "profiles": [
+                            {"position": {"x": 0, "y": 0, "z": 0}, "chord": 250, "twist": 0, "airfoil": "naca0012"},
+                            {"position": {"x": 30, "y": 700, "z": 0}, "chord": 150, "twist": 0, "airfoil": "naca0012"},
+                        ],
+                    }
+                },
+            },
+            {
                 "id": "htail-1",
                 "name": "Horizontal Tail",
                 "type": "org.setuav.core:lifting-surface",
@@ -556,7 +570,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
                         "eta_start": 0.0,
                         "eta_end": 1.0,
                         "chord_fraction": 0.35,
-                        "deflection": 5.0,
+                        "deflection": 0.0,
                         "symmetry_mode": "symmetric",
                     }
                 },
@@ -574,6 +588,188 @@ class AeroSandboxEngineTests(unittest.TestCase):
         cm_down = res_down.polar_points[0].cm
         cm_up = res_up.polar_points[0].cm
         self.assertLess(cm_down, cm_up)
+
+    @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
+    def test_control_surface_overlap_preserves_exact_span_intervals(self) -> None:
+        """Flap/aileron overlap must remain two controls without spanwise bleeding."""
+        components = [
+            {
+                "id": "wing-1",
+                "name": "Main Wing",
+                "type": "org.setuav.core:lifting-surface",
+                "parameters": {
+                    "geometry": {
+                        "mirror": True,
+                        "profiles": [
+                            {"position": {"x": 0, "y": 0, "z": 0}, "chord": 200, "airfoil": "naca0012"},
+                            {"position": {"x": 30, "y": 1000, "z": 0}, "chord": 100, "airfoil": "naca0012"},
+                        ],
+                        "control_surfaces": [
+                            {
+                                "tag": "flap",
+                                "type": "flap",
+                                "eta_start": 0.10,
+                                "eta_end": 0.65,
+                                "chord_fraction": 0.30,
+                                "symmetry_mode": "auto",
+                            },
+                            {
+                                "tag": "aileron",
+                                "type": "aileron",
+                                "eta_start": 0.45,
+                                "eta_end": 0.90,
+                                "chord_fraction": 0.25,
+                                "symmetry_mode": "auto",
+                            },
+                        ],
+                    }
+                },
+            }
+        ]
+        airplane = AeroSandboxEngine()._build_airplane(
+            components,
+            condition=FlightCondition(control_deflections={"flap": 8.0, "aileron": 5.0}),
+            control_encoding="native",
+        )
+
+        self.assertEqual([wing.name for wing in airplane.wings], ["Main Wing_Right", "Main Wing_Left"])
+
+        def section_controls(wing: object) -> list[list[tuple[str, float]]]:
+            return [
+                [(surface.name, float(surface.deflection)) for surface in xsec.control_surfaces]
+                for xsec in wing.xsecs[:-1]
+            ]
+
+        self.assertEqual(
+            section_controls(airplane.wings[0]),
+            [[], [("flap", 8.0)], [("flap", 8.0), ("aileron", 5.0)], [("aileron", 5.0)], [],],
+        )
+        self.assertEqual(
+            section_controls(airplane.wings[1]),
+            [[], [("aileron", -5.0)], [("flap", 8.0), ("aileron", -5.0)], [("flap", 8.0)], [],],
+        )
+
+    @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
+    def test_control_surface_right_left_symmetry_modes(self) -> None:
+        """Auto, explicit symmetric/antisymmetric and one-sided modes are deterministic."""
+
+        def converted_deflections(surface_type: str, symmetry_mode: str) -> tuple[float, float | None]:
+            components = [
+                {
+                    "id": "wing-1",
+                    "name": "Wing",
+                    "type": "org.setuav.core:lifting-surface",
+                    "parameters": {
+                        "geometry": {
+                            "mirror": True,
+                            "profiles": [
+                                {"position": {"x": 0, "y": 0, "z": 0}, "chord": 200, "airfoil": "naca0012"},
+                                {"position": {"x": 0, "y": 500, "z": 0}, "chord": 120, "airfoil": "naca0012"},
+                            ],
+                            "control_surfaces": [
+                                {
+                                    "tag": surface_type,
+                                    "type": surface_type,
+                                    "eta_start": 0.2,
+                                    "eta_end": 0.9,
+                                    "chord_fraction": 0.3,
+                                    "symmetry_mode": symmetry_mode,
+                                }
+                            ],
+                        }
+                    },
+                }
+            ]
+            airplane = AeroSandboxEngine()._build_airplane(
+                components,
+                condition=FlightCondition(control_deflections={surface_type: 6.0}),
+                control_encoding="native",
+            )
+            right = next(
+                float(surface.deflection)
+                for xsec in airplane.wings[0].xsecs
+                for surface in xsec.control_surfaces
+            )
+            left_controls = [
+                float(surface.deflection)
+                for xsec in airplane.wings[-1].xsecs
+                for surface in xsec.control_surfaces
+            ]
+            return right, left_controls[0] if left_controls else None
+
+        cases = [
+            ("elevator", "auto", (6.0, 6.0)),
+            ("aileron", "auto", (6.0, -6.0)),
+            ("aileron", "symmetric", (6.0, 6.0)),
+            ("elevator", "antisymmetric", (6.0, -6.0)),
+            ("flap", "none", (6.0, None)),
+        ]
+        for surface_type, symmetry_mode, expected in cases:
+            with self.subTest(surface_type=surface_type, symmetry_mode=symmetry_mode):
+                self.assertEqual(converted_deflections(surface_type, symmetry_mode), expected)
+
+    @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
+    def test_composite_elevon_and_ruddervator_channel_mixing(self) -> None:
+        """Composite controls mix symmetric pitch with differential lateral channels."""
+
+        def lifting_surface(component_id: str, name: str, surface_type: str, roll: float) -> dict:
+            return {
+                "id": component_id,
+                "name": name,
+                "type": "org.setuav.core:lifting-surface",
+                "transform": {"rotation": {"roll": roll}},
+                "parameters": {
+                    "geometry": {
+                        "mirror": True,
+                        "profiles": [
+                            {"position": {"x": 0, "y": 0, "z": 0}, "chord": 200, "airfoil": "naca0012"},
+                            {"position": {"x": 0, "y": 500, "z": 0}, "chord": 120, "airfoil": "naca0012"},
+                        ],
+                        "control_surfaces": [
+                            {
+                                "tag": surface_type,
+                                "type": surface_type,
+                                "eta_start": 0.2,
+                                "eta_end": 0.9,
+                                "chord_fraction": 0.3,
+                                "symmetry_mode": "auto",
+                            }
+                        ],
+                    }
+                },
+            }
+
+        airplane = AeroSandboxEngine()._build_airplane(
+            [
+                lifting_surface("elevon-1", "Elevon Wing", "elevon", 0.0),
+                lifting_surface("vtail-1", "V-Tail", "ruddervator", 35.0),
+            ],
+            condition=FlightCondition(
+                control_deflections={"elevator": 4.0, "aileron": 3.0, "rudder": 2.0}
+            ),
+            control_encoding="native",
+        )
+
+        def deflections(wing_name: str) -> list[float]:
+            wing = next(wing for wing in airplane.wings if wing.name == wing_name)
+            return [
+                float(surface.deflection)
+                for xsec in wing.xsecs
+                for surface in xsec.control_surfaces
+            ]
+
+        self.assertEqual(deflections("Elevon Wing_Right"), [7.0])
+        self.assertEqual(deflections("Elevon Wing_Left"), [1.0])
+        self.assertEqual(deflections("V-Tail_Right"), [6.0])
+        self.assertEqual(deflections("V-Tail_Left"), [2.0])
+
+        # The rolled V-tail remains a real left/right pair, not a global-XZ
+        # AeroSandbox mirror that would lose its attachment frame.
+        right_tip = airplane.wings[2].xsecs[-1].xyz_le
+        left_tip = airplane.wings[3].xsecs[0].xyz_le
+        self.assertGreater(float(right_tip[2]), 0.0)
+        self.assertAlmostEqual(float(right_tip[1]), -float(left_tip[1]), places=6)
+        self.assertAlmostEqual(float(right_tip[2]), float(left_tip[2]), places=6)
 
     @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_propulsion_points_extraction(self) -> None:

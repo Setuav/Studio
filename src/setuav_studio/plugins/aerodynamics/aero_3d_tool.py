@@ -233,6 +233,7 @@ def render_native_snapshot(payload_path: str | Path) -> None:
         components,
         condition=condition,
         xyz_ref=mass_cg,
+        control_encoding="airfoil",
     )
     if not airplane.wings:
         raise ValueError("No valid lifting surface was converted to AeroSandbox.")
