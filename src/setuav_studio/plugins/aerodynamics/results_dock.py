@@ -37,6 +37,9 @@ SUMMARY_ROWS = [
     ("solver_engine", "Analysis Pipeline"),
     ("analysis_method", "Analysis Method"),
     ("sweep", "Sweep"),
+    ("control_channel", "Control Channel"),
+    ("control_effectiveness", "Channel Effectiveness"),
+    ("control_linearity", "Channel Linearity"),
     ("points", "Result Points"),
     ("convergence", "Convergence"),
     ("cl_max", "Max Lift (CL_max)"),
@@ -235,7 +238,7 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
         if sweep_type == SweepType.BETA:
             return "Beta Sweep"
         if sweep_type == SweepType.CONTROL_DEFLECTION:
-            return f"{cond.sweep_variable.replace('_', ' ').title()} Sweep"
+            return f"{cond.sweep_variable.replace('_', ' ').title()} Channel Analysis"
         if len(result.polar_points) <= 1:
             return "Single Point"
         return "Alpha Sweep"
@@ -379,9 +382,39 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
             "oswald_e": f"{result.oswald_efficiency:.3f}" if result.oswald_efficiency is not None else "N/A",
         }
 
+        metrics.update(self._control_analysis_metrics(result))
         metrics.update(self._stability_metrics(result))
         for key, _label in SUMMARY_ROWS:
             self._set_property_value(self.summary_table, key, metrics.get(key, "-"))
+
+    @staticmethod
+    def _control_analysis_metrics(result: AeroResult) -> dict[str, str]:
+        analysis = result.control_analysis
+        if analysis is None:
+            return {}
+        derivatives = analysis.derivatives_per_deg
+        primary_coefficient = {
+            "elevator": "Cm",
+            "aileron": "Cl",
+            "rudder": "Cn",
+            "flap": "CL",
+        }.get(analysis.channel, "Cm")
+        derivative_text = " | ".join(
+            f"d{name}/dδ={derivatives.get(name, 0.0):+.5f}/deg"
+            for name in ("CL", "CD", "Cm", "CY", "Cl", "Cn")
+        )
+        return {
+            "control_channel": (
+                f"{analysis.channel.title()} · "
+                f"{analysis.deflection_min_deg:+g}…{analysis.deflection_max_deg:+g}° · "
+                f"{analysis.sample_count} points"
+            ),
+            "control_effectiveness": derivative_text,
+            "control_linearity": (
+                f"{primary_coefficient} R²="
+                f"{analysis.linearity_r2.get(primary_coefficient, 0.0):.4f}"
+            ),
+        }
 
     @staticmethod
     def _stability_metrics(result: AeroResult) -> dict[str, str]:

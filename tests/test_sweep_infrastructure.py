@@ -11,6 +11,7 @@ from setuav_studio.plugins.aerodynamics.engine.base import (
     PolarPoint,
     SweepType,
     SweepVariable,
+    control_channels_for_components,
 )
 from setuav_studio.plugins.aerodynamics.engine.aerosandbox_engine import (
     HAS_AEROSANDBOX,
@@ -67,6 +68,22 @@ class TestSweepConfiguration(unittest.TestCase):
         self.assertEqual(restored.sweep_type, SweepType.CONTROL_DEFLECTION)
         self.assertEqual(restored.sweep_variable, "elevator")
         self.assertAlmostEqual(restored.sweep_min, -15.0)
+
+    def test_composite_surfaces_expose_canonical_control_channels(self) -> None:
+        components = [
+            {
+                "type": "org.setuav.core:control-surface",
+                "parameters": {"geometry": {"type": "elevon", "tag": "left-elevon"}},
+            },
+            {
+                "type": "org.setuav.core:control-surface",
+                "parameters": {"geometry": {"type": "ruddervator", "tag": "right-ruddervator"}},
+            },
+        ]
+        self.assertEqual(
+            control_channels_for_components(components),
+            ("elevator", "aileron", "rudder"),
+        )
 
 
 @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
@@ -165,11 +182,33 @@ class TestParametricSweeps(unittest.TestCase):
         res = self.engine.analyze(self.components, cond, method=AnalysisMethod.COMPREHENSIVE)
 
         self.assertEqual(len(res.polar_points), 5)
+        self.assertIsNotNone(res.control_analysis)
+        self.assertEqual(res.control_analysis.channel, "elevator")
+        self.assertEqual(res.control_analysis.sample_count, 5)
+        self.assertLess(res.control_analysis.derivatives_per_deg["Cm"], 0.0)
+        self.assertGreater(res.control_analysis.linearity_r2["Cm"], 0.9)
         # Elevator deflection down (+10 deg) causes nose-down pitch (negative Cm)
         # Elevator deflection up (-10 deg) causes nose-up pitch (positive Cm)
         cm_up = res.polar_points[0].cm    # delta_e = -10 deg
         cm_down = res.polar_points[-1].cm  # delta_e = +10 deg
         self.assertGreater(cm_up, cm_down)
+
+    def test_surface_name_cannot_be_used_as_control_analysis_channel(self) -> None:
+        cond = FlightCondition(
+            velocity=20.0,
+            alpha=2.0,
+            sweep_type=SweepType.CONTROL_DEFLECTION,
+            sweep_variable="left-elevator",
+            sweep_min=-10.0,
+            sweep_max=10.0,
+            sweep_steps=3,
+        )
+        with self.assertRaisesRegex(ValueError, "surface name"):
+            self.engine.analyze(
+                self.components,
+                cond,
+                method=AnalysisMethod.AERO_BUILDUP,
+            )
 
     def test_dual_alpha_beta_sweep(self) -> None:
         """Verify dual alpha+beta sweep computes both alpha and beta datasets simultaneously."""

@@ -10,6 +10,7 @@ from setuav_studio.plugins.aerodynamics.engine.base import (
     AeroState,
     AnalysisMethod,
     AnalysisType,
+    ControlChannelAnalysis,
     EngineCapabilities,
     FlightCondition,
     MultiDimensionalSweepResult,
@@ -320,6 +321,25 @@ class AeroEngineBaseTests(unittest.TestCase):
         restored = MultiDimensionalSweepResult.from_dict(data)
         self.assertEqual(len(restored.points), 4)
         self.assertEqual(restored.grid_shape, (2, 2))
+
+    def test_control_channel_analysis_serialization(self) -> None:
+        analysis = ControlChannelAnalysis(
+            channel="elevator",
+            sample_count=5,
+            deflection_min_deg=-10.0,
+            deflection_max_deg=10.0,
+            derivatives_per_deg={"CL": 0.01, "Cm": -0.02},
+            linearity_r2={"CL": 0.99, "Cm": 0.995},
+        )
+        result = AeroResult(
+            method=AnalysisMethod.VLM,
+            engine_name="AeroSandbox",
+            control_analysis=analysis,
+        )
+        restored = AeroResult.from_dict(result.to_dict())
+        self.assertIsNotNone(restored.control_analysis)
+        self.assertEqual(restored.control_analysis.channel, "elevator")
+        self.assertAlmostEqual(restored.control_analysis.derivatives_per_deg["Cm"], -0.02)
 
     def test_dummy_engine_and_aero_result_serialization(self) -> None:
         engine = DummyEngine()

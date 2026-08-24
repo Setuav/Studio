@@ -1,7 +1,9 @@
 """Unit and integration tests for the Aerodynamics Plugin."""
 from __future__ import annotations
 
+from pathlib import Path
 import unittest
+from setuav_studio.project import ProjectDocument
 from setuav_studio.plugin_system import (
     ActionContribution,
     PanelContribution,
@@ -12,6 +14,7 @@ from setuav_studio.plugins.aerodynamics.plugin import AerodynamicsPlugin
 from setuav_studio.plugins.aerodynamics.engine.base import (
     AeroResult,
     AnalysisMethod,
+    ControlChannelAnalysis,
     FlightCondition,
     PolarPoint,
     ReferenceValues,
@@ -85,6 +88,8 @@ class AerodynamicsPluginTests(unittest.TestCase):
         }
         self.assertNotIn("Airspeed Sweep", sweep_modes)
         self.assertNotIn("Altitude Sweep", sweep_modes)
+        self.assertIn("Control Channel Analysis", sweep_modes)
+        self.assertNotIn("Control Deflection Sweep", sweep_modes)
 
         cond = FlightCondition(
             sweep_type=SweepType.DUAL_ALPHA_BETA,
@@ -186,3 +191,96 @@ class AerodynamicsPluginTests(unittest.TestCase):
             self.removed_actions,
         )
         self.assertIn("studio.workspace.aerodynamics", self.removed_workspaces)
+
+    def test_controls_offer_aircraft_channels_not_surface_names(self) -> None:
+        self.plugin.activate(self.api)
+        controls = next(
+            panel.factory()
+            for panel in self.panels
+            if panel.id == "aerodynamics.controls_dock"
+        )
+        self.api.set_project(
+            ProjectDocument(
+                path=Path("controls.json"),
+                kind="json",
+                data={
+                    "components": [
+                        {
+                            "type": "org.setuav.core:control-surface",
+                            "parameters": {
+                                "geometry": {
+                                    "type": "elevon",
+                                    "tag": "left-elevon",
+                                }
+                            },
+                        },
+                        {
+                            "type": "org.setuav.core:control-surface",
+                            "parameters": {
+                                "geometry": {
+                                    "type": "ruddervator",
+                                    "tag": "right-ruddervator",
+                                }
+                            },
+                        },
+                    ]
+                },
+            )
+        )
+        channels = tuple(
+            controls.combo_ctrl.itemData(index)
+            for index in range(controls.combo_ctrl.count())
+        )
+        self.assertEqual(channels, ("elevator", "aileron", "rudder"))
+        self.assertNotIn("left-elevon", channels)
+        self.assertNotIn("right-ruddervator", channels)
+
+    def test_control_analysis_uses_dedicated_results_and_charts(self) -> None:
+        self.plugin.activate(self.api)
+        panels = {panel.id: panel.factory() for panel in self.panels}
+        result = AeroResult(
+            method=AnalysisMethod.VLM,
+            engine_name="AeroSandbox",
+            polar_points=[
+                PolarPoint(
+                    alpha=2.0,
+                    cl=0.4 + deflection * 0.01,
+                    cd=0.02 + abs(deflection) * 0.0002,
+                    cm=-deflection * 0.015,
+                    control_deflections={"elevator": deflection},
+                )
+                for deflection in (-10.0, 0.0, 10.0)
+            ],
+            condition=FlightCondition(
+                alpha=2.0,
+                sweep_type=SweepType.CONTROL_DEFLECTION,
+                sweep_variable="elevator",
+                sweep_min=-10.0,
+                sweep_max=10.0,
+                sweep_steps=3,
+            ),
+            control_analysis=ControlChannelAnalysis(
+                channel="elevator",
+                sample_count=3,
+                deflection_min_deg=-10.0,
+                deflection_max_deg=10.0,
+                derivatives_per_deg={
+                    "CL": 0.01,
+                    "CD": 0.0,
+                    "Cm": -0.015,
+                    "CY": 0.0,
+                    "Cl": 0.0,
+                    "Cn": 0.0,
+                },
+                linearity_r2={"Cm": 1.0},
+            ),
+        )
+        panels["aerodynamics.results_dock"].display_results(result)
+        charts = panels["aerodynamics.charts_dock"]
+        charts.plot_results(result)
+
+        self.assertEqual(charts.combo_view_mode.count(), 1)
+        self.assertEqual(charts.combo_view_mode.currentData(), "control_effectiveness")
+        self.assertIn("Elevator Effectiveness", charts.chart_lift.chart.title())
+        metrics = panels["aerodynamics.results_dock"]._control_analysis_metrics(result)
+        self.assertIn("dCm/dδ=-0.01500/deg", metrics["control_effectiveness"])

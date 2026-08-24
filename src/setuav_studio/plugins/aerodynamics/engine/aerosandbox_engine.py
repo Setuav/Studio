@@ -15,6 +15,8 @@ from .base import (
     AeroState,
     AnalysisMethod,
     AnalysisType,
+    CONTROL_CHANNELS,
+    ControlChannelAnalysis,
     ControlSurfaceType,
     EngineCapabilities,
     FlightCondition,
@@ -24,6 +26,7 @@ from .base import (
     ReferenceValues,
     SweepType,
     SweepVariable,
+    control_channels_for_components,
 )
 from .stability_engine import StabilityAnalysisEngine
 from setuav_studio.plugins.geometry.engine.airfoil import (
@@ -68,6 +71,7 @@ class AeroSandboxEngine(AeroEngine):
                 AnalysisType.BETA_SWEEP,
                 AnalysisType.MULTI_SWEEP,
                 AnalysisType.STABILITY_DERIVATIVES,
+                AnalysisType.CONTROL_CHANNEL,
             }),
             supports_fuselage=True,
             supports_control_surfaces=True,
@@ -136,6 +140,18 @@ class AeroSandboxEngine(AeroEngine):
         primary_vals = condition.get_primary_sweep_values()
         sec_vals = condition.get_secondary_sweep_values() if condition.secondary_variable else [None]
         sweep_type = condition.sweep_type
+
+        if sweep_type == SweepType.CONTROL_DEFLECTION:
+            channel = str(condition.sweep_variable).strip().lower()
+            if channel not in CONTROL_CHANNELS:
+                raise ValueError(
+                    f"'{condition.sweep_variable}' is a surface name, not a supported control channel"
+                )
+            available_channels = control_channels_for_components(components)
+            if channel not in available_channels:
+                raise ValueError(
+                    f"Control channel '{channel}' is not provided by the aircraft geometry"
+                )
 
         eval_states: list[dict[str, Any]] = []
 
@@ -473,6 +489,13 @@ class AeroSandboxEngine(AeroEngine):
                 grid_shape=grid_shp,
             )
 
+        control_analysis = None
+        if sweep_type == SweepType.CONTROL_DEFLECTION:
+            control_analysis = self._fit_control_channel_analysis(
+                polar_points,
+                str(condition.sweep_variable).strip().lower(),
+            )
+
         # Compute 6-DoF linear stability derivatives, static margins, and trim
         if progress_callback:
             progress_callback(len(eval_states), total_steps, "Stability")
@@ -532,6 +555,7 @@ class AeroSandboxEngine(AeroEngine):
             oswald_efficiency=oswald,
             stability_derivatives=stab_derivatives,
             sweep_result=sweep_result,
+            control_analysis=control_analysis,
             condition=condition,
             propulsion_points=propulsion_points,
             raw={
@@ -541,6 +565,62 @@ class AeroSandboxEngine(AeroEngine):
                 "reference_xyz_m": list(reference_xyz),
                 "velocity": float(condition.velocity),
             },
+        )
+
+    @staticmethod
+    def _fit_control_channel_analysis(
+        points: list[PolarPoint],
+        channel: str,
+    ) -> ControlChannelAnalysis | None:
+        """Fit coefficient-per-degree effectiveness from converged channel-sweep points."""
+        samples = [
+            point
+            for point in points
+            if point.converged and channel in point.control_deflections
+        ]
+        if len(samples) < 2:
+            return None
+
+        x_values = [float(point.control_deflections[channel]) for point in samples]
+        x_mean = sum(x_values) / len(x_values)
+        denominator = sum((value - x_mean) ** 2 for value in x_values)
+        if denominator <= 1e-12:
+            return None
+
+        coefficient_values = {
+            "CL": [float(point.cl) for point in samples],
+            "CD": [float(point.cd) for point in samples],
+            "Cm": [float(point.cm) for point in samples],
+            "CY": [float(point.cy) for point in samples],
+            "Cl": [float(point.cl_roll) for point in samples],
+            "Cn": [float(point.cn) for point in samples],
+        }
+        derivatives: dict[str, float] = {}
+        linearity: dict[str, float] = {}
+        for coefficient, y_values in coefficient_values.items():
+            y_mean = sum(y_values) / len(y_values)
+            slope = sum(
+                (x_value - x_mean) * (y_value - y_mean)
+                for x_value, y_value in zip(x_values, y_values)
+            ) / denominator
+            intercept = y_mean - slope * x_mean
+            residual = sum(
+                (y_value - (intercept + slope * x_value)) ** 2
+                for x_value, y_value in zip(x_values, y_values)
+            )
+            total = sum((y_value - y_mean) ** 2 for y_value in y_values)
+            derivatives[coefficient] = float(slope)
+            linearity[coefficient] = float(
+                1.0 if total <= 1e-12 and residual <= 1e-12 else 1.0 - residual / max(total, 1e-12)
+            )
+
+        return ControlChannelAnalysis(
+            channel=channel,
+            sample_count=len(samples),
+            deflection_min_deg=min(x_values),
+            deflection_max_deg=max(x_values),
+            derivatives_per_deg=derivatives,
+            linearity_r2=linearity,
         )
 
     @staticmethod

@@ -84,6 +84,7 @@ class AnalysisType(enum.Enum):
     BETA_SWEEP = "beta_sweep"
     MULTI_SWEEP = "multi_sweep"
     STABILITY_DERIVATIVES = "stability_derivatives"
+    CONTROL_CHANNEL = "control_channel"
 
 
 class SweepType(enum.Enum):
@@ -92,7 +93,7 @@ class SweepType(enum.Enum):
     BETA = "beta"                                # Sideslip angle sweep (Sideslip β)
     DUAL_ALPHA_BETA = "dual_alpha_beta"          # Simultaneous 1D Alpha + 1D Beta sweep (both populated)
     MULTI_GRID = "multi_grid"                    # 2D Parametric grid sweep (α × β flight envelope)
-    CONTROL_DEFLECTION = "control_deflection"    # Control surface deflection sweep (δ)
+    CONTROL_DEFLECTION = "control_deflection"    # Persisted name for a control-channel analysis (δ)
 
 
 class ControlSurfaceType(enum.Enum):
@@ -113,6 +114,55 @@ class ControlSurfaceType(enum.Enum):
             if member.value == val_clean:
                 return member
         return None
+
+
+CONTROL_CHANNELS: tuple[str, ...] = ("elevator", "aileron", "rudder", "flap")
+_CONTROL_TYPE_CHANNELS: dict[str, tuple[str, ...]] = {
+    "elevator": ("elevator",),
+    "aileron": ("aileron",),
+    "rudder": ("rudder",),
+    "flap": ("flap",),
+    "elevon": ("elevator", "aileron"),
+    "ruddervator": ("elevator", "rudder"),
+    "vtail": ("elevator", "rudder"),
+    "v-tail": ("elevator", "rudder"),
+}
+
+
+def control_channels_for_components(
+    components: Sequence[dict[str, Any]],
+) -> tuple[str, ...]:
+    """Return canonical pilot-control channels provided by the component geometry."""
+    discovered: set[str] = set()
+
+    def add_surface(value: object) -> None:
+        normalized = str(value or "").strip().lower()
+        discovered.update(_CONTROL_TYPE_CHANNELS.get(normalized, ()))
+
+    for component in components:
+        if not isinstance(component, dict):
+            continue
+        parameters = component.get("parameters")
+        parameters = parameters if isinstance(parameters, dict) else {}
+        geometry = parameters.get("geometry")
+        geometry = geometry if isinstance(geometry, dict) else {}
+
+        control_surfaces = geometry.get("control_surfaces")
+        if isinstance(control_surfaces, list):
+            for surface in control_surfaces:
+                if not isinstance(surface, dict):
+                    continue
+                add_surface(surface.get("type") or surface.get("tag"))
+
+        if component.get("type") == "org.setuav.core:control-surface":
+            add_surface(geometry.get("type") or geometry.get("tag"))
+
+        tags = parameters.get("tags")
+        if isinstance(tags, list):
+            for tag in tags:
+                add_surface(tag)
+
+    return tuple(channel for channel in CONTROL_CHANNELS if channel in discovered)
 
 
 @dataclass(frozen=True)
@@ -713,6 +763,47 @@ class MultiDimensionalSweepResult:
 
 
 @dataclass(frozen=True)
+class ControlChannelAnalysis:
+    """Control-channel effectiveness fitted from a deflection response sweep."""
+    channel: str
+    sample_count: int
+    deflection_min_deg: float
+    deflection_max_deg: float
+    derivatives_per_deg: dict[str, float] = field(default_factory=dict)
+    linearity_r2: dict[str, float] = field(default_factory=dict)
+    method: str = "least_squares"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "channel": self.channel,
+            "sample_count": self.sample_count,
+            "deflection_min_deg": self.deflection_min_deg,
+            "deflection_max_deg": self.deflection_max_deg,
+            "derivatives_per_deg": dict(self.derivatives_per_deg),
+            "linearity_r2": dict(self.linearity_r2),
+            "method": self.method,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ControlChannelAnalysis:
+        return cls(
+            channel=str(data.get("channel", "")),
+            sample_count=int(data.get("sample_count", 0)),
+            deflection_min_deg=float(data.get("deflection_min_deg", 0.0)),
+            deflection_max_deg=float(data.get("deflection_max_deg", 0.0)),
+            derivatives_per_deg={
+                str(key): float(value)
+                for key, value in (data.get("derivatives_per_deg") or {}).items()
+            },
+            linearity_r2={
+                str(key): float(value)
+                for key, value in (data.get("linearity_r2") or {}).items()
+            },
+            method=str(data.get("method", "least_squares")),
+        )
+
+
+@dataclass(frozen=True)
 class PropulsionPoint:
     """Propulsion installation / attachment point and thrust line definition."""
     id: str
@@ -782,6 +873,8 @@ class AeroResult:
     stability_derivatives: Any | None = None
     # Multi-dimensional sweep dataset (if sweep performed)
     sweep_result: MultiDimensionalSweepResult | None = None
+    # Control-channel effectiveness fitted from a control response analysis.
+    control_analysis: ControlChannelAnalysis | None = None
     # Flight condition specified for this analysis
     condition: FlightCondition = field(default_factory=FlightCondition)
     # Individual solver curves for comparison (e.g. 'vlm', 'aero_buildup', 'lifting_line')
@@ -826,6 +919,7 @@ class AeroResult:
             "oswald_efficiency": self.oswald_efficiency,
             "stability_derivatives": stab_dict,
             "sweep_result": self.sweep_result.to_dict() if self.sweep_result is not None else None,
+            "control_analysis": self.control_analysis.to_dict() if self.control_analysis is not None else None,
             "propulsion_points": [p.to_dict() for p in self.propulsion_points],
             "condition": self.condition.to_dict(),
             # Don't serialize non-JSON raw object instances in to_dict
@@ -855,6 +949,12 @@ class AeroResult:
 
         sweep_data = data.get("sweep_result")
         sweep = MultiDimensionalSweepResult.from_dict(sweep_data) if isinstance(sweep_data, dict) else None
+        control_data = data.get("control_analysis")
+        control_analysis = (
+            ControlChannelAnalysis.from_dict(control_data)
+            if isinstance(control_data, dict)
+            else None
+        )
 
         stab_raw = data.get("stability_derivatives")
         stab_res = None
@@ -882,6 +982,7 @@ class AeroResult:
             oswald_efficiency=data.get("oswald_efficiency"),
             stability_derivatives=stab_res,
             sweep_result=sweep,
+            control_analysis=control_analysis,
             condition=cond,
             propulsion_points=prop_pts,
             raw=dict(data.get("raw")) if isinstance(data.get("raw"), dict) else {},

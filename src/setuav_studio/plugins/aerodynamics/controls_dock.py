@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Callable
 
 from PySide6.QtCore import Qt, QThreadPool
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QCloseEvent, QFont
 from PySide6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
@@ -33,6 +33,7 @@ from .engine.base import (
     AnalysisMethod,
     FlightCondition,
     SweepType,
+    control_channels_for_components,
 )
 from .engine.aerosandbox_engine import AeroSandboxEngine
 from .worker import AnalysisWorker
@@ -81,6 +82,9 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         self._create_actions_section()
 
         self._content_layout.addStretch(1)
+        self._api.on_project_changed(self._on_project_changed)
+        self._api.on_project_content_changed(self._on_project_changed)
+        self._refresh_control_channels()
 
     def set_result_callback(self, callback: Callable[[AeroResult], None]) -> None:
         self._on_result_callback = callback
@@ -194,11 +198,11 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         layout.addWidget(self.conditions_table)
 
     def _create_sweep_section(self) -> None:
-        layout = self._create_section("Parametric Sweep Range", "fa6s.arrows-left-right")
+        layout = self._create_section("Parametric Analysis", "fa6s.arrows-left-right")
 
         self.sweep_table = self._property_table([
             ("mode", "Sweep Mode"),
-            ("ctrl_surface", "Control Surface"),
+            ("ctrl_surface", "Control Channel"),
             ("sweep_min", "Primary Start"),
             ("sweep_max", "Primary End"),
             ("sweep_steps", "Primary Steps"),
@@ -211,15 +215,12 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         self.combo_mode.addItem("Dual Alpha + Beta", SweepType.DUAL_ALPHA_BETA)
         self.combo_mode.addItem("Alpha Sweep", SweepType.ALPHA)
         self.combo_mode.addItem("Beta Sweep", SweepType.BETA)
-        self.combo_mode.addItem("Control Deflection Sweep", SweepType.CONTROL_DEFLECTION)
+        self.combo_mode.addItem("Control Channel Analysis", SweepType.CONTROL_DEFLECTION)
         self.combo_mode.addItem("Single Point", None)
         self.combo_mode.currentIndexChanged.connect(self._on_mode_changed)
 
         self.combo_ctrl = QComboBox()
-        self.combo_ctrl.addItem("Elevator", "elevator")
-        self.combo_ctrl.addItem("Aileron", "aileron")
-        self.combo_ctrl.addItem("Rudder", "rudder")
-        self.combo_ctrl.addItem("Flap", "flap")
+        self._available_control_channels: tuple[str, ...] = ()
 
         self.spin_sweep_min = NumericSpinBox()
         self.spin_sweep_min.setRange(-100.0, 100.0)
@@ -272,7 +273,7 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         self.spin_sweep_steps.setEnabled(is_sweep)
 
         is_ctrl = sweep_data == SweepType.CONTROL_DEFLECTION
-        self.combo_ctrl.setEnabled(is_ctrl)
+        self.combo_ctrl.setEnabled(is_ctrl and bool(self._available_control_channels))
         self.sweep_table.setRowHidden(1, not is_ctrl)
 
         is_dual = sweep_data == SweepType.DUAL_ALPHA_BETA
@@ -353,6 +354,39 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
             self.spin_sweep_max.setValue(20.0)
             self.spin_sweep_steps.setValue(21)
 
+    def _on_project_changed(self, _project: object) -> None:
+        self._refresh_control_channels()
+
+    def _refresh_control_channels(self) -> None:
+        project = self._api.current_project
+        components = (
+            project.data.get("components", [])
+            if project is not None and isinstance(project.data, dict)
+            else []
+        )
+        channels = control_channels_for_components(components)
+        current = self.combo_ctrl.currentData()
+        labels = {
+            "elevator": "Elevator",
+            "aileron": "Aileron",
+            "rudder": "Rudder",
+            "flap": "Flap",
+        }
+        self.combo_ctrl.blockSignals(True)
+        self.combo_ctrl.clear()
+        for channel in channels:
+            self.combo_ctrl.addItem(labels[channel], channel)
+        if not channels:
+            self.combo_ctrl.addItem("No control channels", None)
+        elif current in channels:
+            self.combo_ctrl.setCurrentIndex(self.combo_ctrl.findData(current))
+        self.combo_ctrl.blockSignals(False)
+        self._available_control_channels = channels
+        self.combo_ctrl.setEnabled(
+            self.combo_mode.currentData() == SweepType.CONTROL_DEFLECTION
+            and bool(channels)
+        )
+
     def _create_actions_section(self) -> None:
         layout = self._create_section("Actions", "fa6s.play")
 
@@ -425,8 +459,16 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
             sweep_var = "beta"
             secondary_var = None
         elif sweep_data == SweepType.CONTROL_DEFLECTION:
+            self._refresh_control_channels()
+            if not self._available_control_channels:
+                QMessageBox.warning(
+                    self,
+                    "Missing Control Channel",
+                    "The aircraft geometry does not provide an elevator, aileron, rudder, or flap channel.",
+                )
+                return
             sweep_type = SweepType.CONTROL_DEFLECTION
-            sweep_var = str(self.combo_ctrl.currentData() or "elevator")
+            sweep_var = str(self.combo_ctrl.currentData())
             secondary_var = None
         else:
             sweep_type = SweepType.ALPHA
@@ -558,3 +600,8 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
             json.dump(config_data, f, indent=2)
 
         self._api.show_status(f"Saved analysis configuration to {target_file}", "success")
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        self._api.remove_project_listener(self._on_project_changed)
+        self._api.remove_project_content_listener(self._on_project_changed)
+        super().closeEvent(event)

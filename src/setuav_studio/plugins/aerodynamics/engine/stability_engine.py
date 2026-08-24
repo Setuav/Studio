@@ -13,7 +13,12 @@ try:
 except ImportError:
     HAS_AEROSANDBOX = False
 
-from .base import AnalysisMethod, FlightCondition, ReferenceValues
+from .base import (
+    AnalysisMethod,
+    FlightCondition,
+    ReferenceValues,
+    control_channels_for_components,
+)
 from .stability_models import ControlEffectiveness, ElevatorTrim, StabilityDerivatives
 
 logger = logging.getLogger(__name__)
@@ -134,18 +139,9 @@ class StabilityAnalysisEngine:
         trim_invalid_reasons: tuple[str, ...] = ()
 
         if components and builder_fn:
-            # Evaluate 3-axis flight control channels plus any discrete surface tags
-            control_candidates = ["elevator", "aileron", "rudder", "flap"]
-            for c in components:
-                if not isinstance(c, dict):
-                    continue
-                geom = c.get("parameters", {}).get("geometry", {}) if isinstance(c.get("parameters"), dict) else {}
-                for cs in geom.get("control_surfaces", []):
-                    if isinstance(cs, dict) and cs.get("tag"):
-                        control_candidates.append(str(cs["tag"]).lower())
-
-            unique_candidates = list(dict.fromkeys(control_candidates))
-            for ctrl_tag in unique_candidates:
+            # Analyze canonical pilot channels. Individual surface tags are
+            # geometry details and must not become separate control analyses.
+            for ctrl_tag in control_channels_for_components(components):
                 d_delta = 2.0  # deg
                 controls_p = dict(condition.control_deflections)
                 controls_m = dict(condition.control_deflections)

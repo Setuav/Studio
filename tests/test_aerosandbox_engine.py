@@ -82,6 +82,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
         self.assertIn(AnalysisMethod.AERO_BUILDUP, caps.methods)
         self.assertIn(AnalysisType.SINGLE_POINT, caps.analysis_types)
         self.assertIn(AnalysisType.ALPHA_SWEEP, caps.analysis_types)
+        self.assertIn(AnalysisType.CONTROL_CHANNEL, caps.analysis_types)
         self.assertTrue(caps.supports_fuselage)
 
     @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")

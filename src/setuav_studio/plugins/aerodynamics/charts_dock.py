@@ -218,6 +218,7 @@ from PySide6.QtWidgets import (
 
 
 CHART_SET_DEFINITIONS: list[tuple[str, str]] = [
+    ("control_effectiveness", "Control Effectiveness"),
     ("flight_performance", "Flight Performance"),
     ("longitudinal_stability", "Longitudinal Stability"),
     ("lateral_directional", "Lateral-Directional"),
@@ -385,21 +386,9 @@ class AeroChartsDock(QWidget):
         elif sweep_type == SweepType.CONTROL_DEFLECTION:
             ctrl_k = cond.sweep_variable if cond else ""
             ctrl_pts = sorted(all_points, key=lambda p: p.control_deflections.get(ctrl_k, 0.0))
-            self._cached_results["flight_performance"] = result
-            self._cached_points["flight_performance"] = ctrl_pts
-            self._cached_results["forces_moments"] = result
-            self._cached_points["forces_moments"] = ctrl_pts
-
-            if ctrl_k in ("aileron", "rudder"):
-                self._cached_results["lateral_directional"] = result
-                self._cached_points["lateral_directional"] = ctrl_pts
-                preferred_set = "lateral_directional"
-            elif ctrl_k in ("elevator", "flap"):
-                self._cached_results["longitudinal_stability"] = result
-                self._cached_points["longitudinal_stability"] = ctrl_pts
-                preferred_set = "longitudinal_stability"
-            else:
-                preferred_set = "flight_performance"
+            self._cached_results["control_effectiveness"] = result
+            self._cached_points["control_effectiveness"] = ctrl_pts
+            preferred_set = "control_effectiveness"
 
         else:
             # ALPHA sweep
@@ -490,7 +479,51 @@ class AeroChartsDock(QWidget):
             # fixed-altitude sweeps, so it carries no information as a curve.
             self.chart_ld.setVisible(key != "forces_moments")
 
-            if key == "longitudinal_stability":
+            if key == "control_effectiveness":
+                channel = cond.sweep_variable if cond else "control"
+                response_sets = {
+                    "elevator": (
+                        ("Cm", [p.cm for p in points], "orange"),
+                        ("CL", [p.cl for p in points], "blue"),
+                        ("CD", [p.cd for p in points], "green"),
+                        ("L/D", [p.cl_over_cd for p in points], "magenta"),
+                    ),
+                    "aileron": (
+                        ("Cl", [p.cl_roll for p in points], "green"),
+                        ("Cn", [p.cn for p in points], "orange"),
+                        ("CY", [p.cy for p in points], "blue"),
+                        ("CD", [p.cd for p in points], "magenta"),
+                    ),
+                    "rudder": (
+                        ("Cn", [p.cn for p in points], "orange"),
+                        ("CY", [p.cy for p in points], "blue"),
+                        ("Cl", [p.cl_roll for p in points], "green"),
+                        ("CD", [p.cd for p in points], "magenta"),
+                    ),
+                    "flap": (
+                        ("CL", [p.cl for p in points], "blue"),
+                        ("CD", [p.cd for p in points], "green"),
+                        ("Cm", [p.cm for p in points], "orange"),
+                        ("L/D", [p.cl_over_cd for p in points], "magenta"),
+                    ),
+                }
+                responses = response_sets.get(channel, response_sets["elevator"])
+                for chart, (coefficient, values, color) in zip(
+                    (self.chart_lift, self.chart_polar, self.chart_moment, self.chart_ld),
+                    responses,
+                ):
+                    chart.setVisible(True)
+                    chart.setTitle(f"{channel.title()} Effectiveness ({coefficient} vs {x_label})")
+                    chart.plot_single(
+                        x_vals,
+                        values,
+                        coefficient,
+                        color,
+                        x_label,
+                        coefficient,
+                    )
+
+            elif key == "longitudinal_stability":
                 self.chart_lift.setTitle(f"Pitching Moment (Cm vs {x_label})")
                 self.chart_lift.plot_single(x_vals, [p.cm for p in points], "Cm", "orange", x_label, "Cm")
 
