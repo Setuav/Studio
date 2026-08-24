@@ -138,6 +138,10 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         self.combo_solver.addItem("AeroBuildup (Default)", AnalysisMethod.AERO_BUILDUP)
         self.combo_solver.addItem("Vortex Lattice Method (VLM)", AnalysisMethod.VLM)
         self.combo_solver.addItem("Lifting Line Theory (LLT)", AnalysisMethod.LIFTING_LINE)
+        self.combo_solver.addItem(
+            "Nonlinear Lifting Line (NLL)",
+            AnalysisMethod.NONLINEAR_LIFTING_LINE,
+        )
 
         self.spin_span_res = NumericSpinBox()
         self.spin_span_res.setDecimals(0)

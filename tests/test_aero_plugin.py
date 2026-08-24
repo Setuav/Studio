@@ -132,6 +132,11 @@ class AerodynamicsPluginTests(unittest.TestCase):
         self.assertNotIn("Altitude Sweep", sweep_modes)
         self.assertIn("Control Channel Analysis", sweep_modes)
         self.assertNotIn("Control Deflection Sweep", sweep_modes)
+        solver_methods = {
+            controls_widget.combo_solver.itemData(index)
+            for index in range(controls_widget.combo_solver.count())
+        }
+        self.assertIn(AnalysisMethod.NONLINEAR_LIFTING_LINE, solver_methods)
 
         cond = FlightCondition(
             sweep_type=SweepType.DUAL_ALPHA_BETA,

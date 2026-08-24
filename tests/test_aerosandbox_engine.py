@@ -80,6 +80,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
         caps = engine.capabilities()
         self.assertIn(AnalysisMethod.VLM, caps.methods)
         self.assertIn(AnalysisMethod.AERO_BUILDUP, caps.methods)
+        self.assertIn(AnalysisMethod.NONLINEAR_LIFTING_LINE, caps.methods)
         self.assertIn(AnalysisType.SINGLE_POINT, caps.analysis_types)
         self.assertIn(AnalysisType.ALPHA_SWEEP, caps.analysis_types)
         self.assertIn(AnalysisType.CONTROL_CHANNEL, caps.analysis_types)
@@ -899,6 +900,28 @@ class AeroSandboxEngineTests(unittest.TestCase):
         pt = result.polar_points[0]
         self.assertGreater(pt.cl, 0.0)
         self.assertGreater(pt.cd, 0.0)
+
+    @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
+    def test_nonlinear_lifting_line_direct_method(self) -> None:
+        """Verify native NonlinearLiftingLine execution and drag breakdown."""
+        engine = AeroSandboxEngine()
+        components = _sample_components()
+        cond = FlightCondition(velocity=25.0, alpha=4.0, alpha_steps=1)
+
+        result = engine.analyze(
+            components,
+            cond,
+            method=AnalysisMethod.NONLINEAR_LIFTING_LINE,
+            settings={"spanwise_resolution": 4},
+        )
+        self.assertEqual(result.method, AnalysisMethod.NONLINEAR_LIFTING_LINE)
+        self.assertEqual(len(result.polar_points), 1)
+        point = result.polar_points[0]
+        self.assertTrue(point.converged, point.notes)
+        self.assertGreater(point.cl, 0.0)
+        self.assertGreater(point.cd, 0.0)
+        self.assertIsNotNone(point.cd_induced)
+        self.assertIsNotNone(point.cd_profile)
 
 
 if __name__ == "__main__":

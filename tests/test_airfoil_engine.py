@@ -83,6 +83,21 @@ class TestAirfoilCache(unittest.TestCase):
         stats = cache.stats()
         self.assertEqual(stats["size"], 2)
 
+    def test_cache_key_includes_neuralfoil_configuration(self) -> None:
+        base = _compute_cache_key("naca2412", 300_000, 0.05, [0.0, 4.0])
+        float_equivalent = _compute_cache_key(
+            "naca2412", 300_000.0, 0.05, [0.0, 4.0]
+        )
+        different_ncrit = _compute_cache_key(
+            "naca2412", 300_000, 0.05, [0.0, 4.0], n_crit=7.0
+        )
+        different_model = _compute_cache_key(
+            "naca2412", 300_000, 0.05, [0.0, 4.0], model_size="xlarge"
+        )
+        self.assertEqual(base, float_equivalent)
+        self.assertNotEqual(base, different_ncrit)
+        self.assertNotEqual(base, different_model)
+
 
 @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
 class TestAirfoilEngine(unittest.TestCase):
@@ -123,6 +138,21 @@ class TestAirfoilEngine(unittest.TestCase):
         self.assertLess(polar.alpha_zero_lift, 0.0)
         self.assertIsNotNone(polar.points[0].top_transition)
         self.assertIsNotNone(polar.points[0].bottom_transition)
+        self.assertEqual(polar.model_size, "large")
+
+    def test_neuralfoil_configuration_is_preserved(self) -> None:
+        polar = self.engine.analyze_airfoil(
+            airfoil="naca2412",
+            reynolds=350_000.0,
+            alphas=[0.0, 4.0],
+            mach=0.05,
+            n_crit=7.0,
+            model_size="medium",
+            use_cache=False,
+        )
+        self.assertEqual(polar.n_crit, 7.0)
+        self.assertEqual(polar.model_size, "medium")
+        self.assertEqual(polar.backend_used, "neuralfoil (medium)")
 
     def test_neuralfoil_symmetric_airfoil(self) -> None:
         """Verify NeuralFoil analysis on symmetric NACA 0012."""

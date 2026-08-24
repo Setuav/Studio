@@ -49,7 +49,7 @@ except ImportError:
 
 
 class AeroSandboxEngine(AeroEngine):
-    """AeroSandbox aerodynamic engine supporting VLM and AeroBuildup methods."""
+    """AeroSandbox engine for buildup, vortex, and lifting-line analyses."""
 
     @property
     def name(self) -> str:
@@ -64,6 +64,7 @@ class AeroSandboxEngine(AeroEngine):
                 AnalysisMethod.AERO_BUILDUP,
                 AnalysisMethod.VLM,
                 AnalysisMethod.LIFTING_LINE,
+                AnalysisMethod.NONLINEAR_LIFTING_LINE,
             }),
             analysis_types=frozenset({
                 AnalysisType.SINGLE_POINT,
@@ -322,6 +323,14 @@ class AeroSandboxEngine(AeroEngine):
                         spanwise_spacing_function=span_spacing_fn,
                     )
                     res = solver.run()
+                elif effective_method == AnalysisMethod.NONLINEAR_LIFTING_LINE:
+                    solver = asb.NonlinearLiftingLine(
+                        airplane=cur_airplane,
+                        op_point=op,
+                        spanwise_resolution=span_res,
+                        spanwise_spacing_function=span_spacing_fn,
+                    )
+                    res = solver.run()
                 else:  # AERO_BUILDUP (Default)
                     solver = asb.AeroBuildup(
                         airplane=cur_airplane,
@@ -391,8 +400,16 @@ class AeroSandboxEngine(AeroEngine):
                 d_prof = float(np.ravel(res["D_profile"])[0]) if "D_profile" in res else None
                 d_wave = float(np.ravel(res["D_wave"])[0]) if "D_wave" in res else None
 
-                cd_ind = d_ind / cur_qs if d_ind is not None and cur_qs > 0 else None
-                cd_prof = d_prof / cur_qs if d_prof is not None and cur_qs > 0 else None
+                cd_ind = (
+                    float(np.ravel(res["CDi"])[0])
+                    if "CDi" in res
+                    else (d_ind / cur_qs if d_ind is not None and cur_qs > 0 else None)
+                )
+                cd_prof = (
+                    float(np.ravel(res["CDp"])[0])
+                    if "CDp" in res
+                    else (d_prof / cur_qs if d_prof is not None and cur_qs > 0 else None)
+                )
                 cd_wave = d_wave / cur_qs if d_wave is not None and cur_qs > 0 else None
 
                 pt = PolarPoint(

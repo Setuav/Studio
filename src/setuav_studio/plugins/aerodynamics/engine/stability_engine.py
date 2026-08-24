@@ -73,6 +73,11 @@ class StabilityAnalysisEngine:
             beta=ref_b,
         )
 
+        if method == AnalysisMethod.NONLINEAR_LIFTING_LINE:
+            raise RuntimeError(
+                "nonlinear_lifting_line does not provide native stability derivatives"
+            )
+
         # Native AeroSandbox stability derivatives run
         solver_cls = {
             AnalysisMethod.VLM: asb.VortexLatticeMethod,

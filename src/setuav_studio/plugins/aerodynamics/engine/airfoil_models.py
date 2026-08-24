@@ -76,6 +76,7 @@ class AirfoilPolar:
     reynolds: float
     mach: float = 0.0
     n_crit: float = 9.0
+    model_size: str = "large"
     points: list[AirfoilPolarPoint] = field(default_factory=list)
     # Summary metrics
     cl_max: float = 0.0
@@ -127,6 +128,7 @@ class AirfoilPolar:
             "reynolds": self.reynolds,
             "mach": self.mach,
             "n_crit": self.n_crit,
+            "model_size": self.model_size,
             "points": [p.to_dict() for p in self.points],
             "cl_max": self.cl_max,
             "cl_max_alpha": self.cl_max_alpha,
@@ -150,6 +152,7 @@ class AirfoilPolar:
             reynolds=float(data.get("reynolds", 0.0)),
             mach=float(data.get("mach", 0.0)),
             n_crit=float(data.get("n_crit", 9.0)),
+            model_size=str(data.get("model_size", "large")),
             points=pts,
             cl_max=float(data.get("cl_max", 0.0)),
             cl_max_alpha=float(data.get("cl_max_alpha", 0.0)),

@@ -41,6 +41,7 @@ from setuav_studio.ui.numeric_spinbox import NumericSpinBox
 
 from .charts_dock import SingleChartWidget
 from .engine.aerosandbox_engine import AeroSandboxEngine, HAS_AEROSANDBOX
+from .engine.airfoil_engine import AirfoilAnalysisEngine
 @dataclass(frozen=True)
 class AirfoilAnalysisRequest:
     airfoil_spec: object
@@ -83,45 +84,25 @@ class AirfoilAnalysisWorker(QObject):
         )
         airfoil = AeroSandboxEngine()._resolve_airfoil(request.airfoil_spec)
 
-        raw = airfoil.get_aero_from_neuralfoil(
-            alpha=alphas,
-            Re=request.reynolds,
+        engine = AirfoilAnalysisEngine()
+        cache_hits_before = engine.cache.stats()["hits"]
+        polar = engine.analyze_airfoil(
+            airfoil=airfoil,
+            reynolds=request.reynolds,
+            alphas=alphas,
             mach=request.mach,
             n_crit=request.n_crit,
             model_size=request.model_size,
         )
-        raw = dict(raw)
-        raw["alpha"] = alphas
-        engine_name = f"NeuralFoil ({request.model_size})"
-
-        def vector(key: str, default: float = math.nan) -> list[float]:
-            value = raw.get(key)
-            if value is None:
-                return [default] * len(alphas)
-            array = native_np.asarray(value, dtype=float).reshape(-1)
-            if len(array) == 1 and len(alphas) > 1:
-                array = native_np.repeat(array, len(alphas))
-            return [float(item) for item in array]
-
-        alpha_values = vector("alpha")
-        cl_values = vector("CL")
-        cd_values = vector("CD")
-        cm_values = vector("CM")
-        top_xtr = vector("Top_Xtr")
-        bot_xtr = vector("Bot_Xtr")
-        count = min(
-            len(alpha_values),
-            len(cl_values),
-            len(cd_values),
-            len(cm_values),
-        )
+        cache_hit = engine.cache.stats()["hits"] > cache_hits_before
+        engine_name = f"NeuralFoil ({polar.model_size})"
 
         rows: list[dict[str, float]] = []
-        for index in range(count):
-            alpha = alpha_values[index]
-            cl = cl_values[index]
-            cd = cd_values[index]
-            cm = cm_values[index]
+        for point in polar.points:
+            alpha = point.alpha
+            cl = point.cl
+            cd = point.cd
+            cm = point.cm
             if not all(math.isfinite(value) for value in (alpha, cl, cd)):
                 continue
             rows.append(
@@ -131,8 +112,12 @@ class AirfoilAnalysisWorker(QObject):
                     "cd": cd,
                     "cm": cm,
                     "ld": cl / cd if abs(cd) > 1e-12 else math.nan,
-                    "top_xtr": top_xtr[index] if index < len(top_xtr) else math.nan,
-                    "bot_xtr": bot_xtr[index] if index < len(bot_xtr) else math.nan,
+                    "top_xtr": point.top_transition
+                    if point.top_transition is not None
+                    else math.nan,
+                    "bot_xtr": point.bottom_transition
+                    if point.bottom_transition is not None
+                    else math.nan,
                 }
             )
 
@@ -142,6 +127,7 @@ class AirfoilAnalysisWorker(QObject):
         return {
             "engine": engine_name,
             "airfoil": str(getattr(airfoil, "name", "Airfoil")),
+            "cache_hit": cache_hit,
             "rows": rows,
         }
 
@@ -399,7 +385,8 @@ class AirfoilAnalysisToolWindow(QDialog):
         self._populate_results(rows)
         self.status_label.setText(
             f"{result.get('airfoil', 'Airfoil')} · {result.get('engine', '')} · "
-            f"{len(rows)} converged point(s)"
+            f"{len(rows)} point(s)"
+            f"{' · cached' if result.get('cache_hit') else ''}"
         )
         self._api.show_status("Airfoil analysis complete", "success", 3000)
 

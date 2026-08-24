@@ -27,6 +27,8 @@ class AirfoilAnalysisEngine:
         reynolds: float,
         alphas: Sequence[float] | np.ndarray,
         mach: float = 0.0,
+        n_crit: float = 9.0,
+        model_size: str = "large",
         use_cache: bool = True,
     ) -> AirfoilPolar:
         """Run 2D aerodynamic analysis on an airfoil across an angle of attack range.
@@ -36,6 +38,8 @@ class AirfoilAnalysisEngine:
             reynolds: Reynolds number based on section chord.
             alphas: Angles of attack in degrees.
             mach: Flight Mach number (default 0.0).
+            n_crit: NeuralFoil boundary-layer amplification factor.
+            model_size: NeuralFoil model size.
             use_cache: Whether to query and populate the polar cache.
 
         Returns:
@@ -50,10 +54,21 @@ class AirfoilAnalysisEngine:
         alphas_list = [float(a) for a in alphas]
         if not alphas_list:
             alphas_list = [0.0]
+        n_crit = float(n_crit)
+        model_size = str(model_size).strip().lower()
+        if model_size not in {"small", "medium", "large", "xlarge"}:
+            raise ValueError(f"Unsupported NeuralFoil model size: {model_size}")
 
         # Check cache
         if use_cache:
-            cached = self.cache.get(ident, reynolds, mach, alphas_list)
+            cached = self.cache.get(
+                ident,
+                reynolds,
+                mach,
+                alphas_list,
+                n_crit,
+                model_size,
+            )
             if cached is not None:
                 return cached
 
@@ -62,10 +77,17 @@ class AirfoilAnalysisEngine:
             reynolds,
             alphas_list,
             mach,
+            n_crit,
+            model_size,
         )
 
         if use_cache and polar is not None:
-            self.cache.put(polar, alphas_list, airfoil_identifier=ident)
+            self.cache.put(
+                polar,
+                alphas_list,
+                airfoil_identifier=ident,
+                model_size=model_size,
+            )
 
         return polar
 
@@ -96,6 +118,8 @@ class AirfoilAnalysisEngine:
         reynolds: float,
         alphas: list[float],
         mach: float,
+        n_crit: float,
+        model_size: str,
     ) -> AirfoilPolar:
         """Evaluate 2D section polar using the NeuralFoil deep-learning surrogate model."""
         alpha_arr = np.array(alphas, dtype=float)
@@ -106,6 +130,8 @@ class AirfoilAnalysisEngine:
             alpha=alpha_arr,
             Re=re_val,
             mach=mach_val,
+            n_crit=n_crit,
+            model_size=model_size,
         )
 
         cls = np.ravel(raw["CL"])
@@ -150,6 +176,8 @@ class AirfoilAnalysisEngine:
             airfoil_name=str(airfoil.name),
             reynolds=re_val,
             mach=mach_val,
+            n_crit=n_crit,
+            model_size=model_size,
             points=points,
             cl_max=metrics["cl_max"],
             cl_max_alpha=metrics["cl_max_alpha"],
@@ -162,7 +190,7 @@ class AirfoilAnalysisEngine:
             cl_alpha_slope=metrics["cl_alpha_slope"],
             alpha_zero_lift=metrics["alpha_zero_lift"],
             cm_zero_lift=metrics["cm_zero_lift"],
-            backend_used="neuralfoil",
+            backend_used=f"neuralfoil ({model_size})",
         )
 
     def _compute_summary_metrics(self, points: list[AirfoilPolarPoint]) -> dict[str, float]:

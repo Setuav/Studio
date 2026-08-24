@@ -1,4 +1,4 @@
-"""Thread-safe in-memory and disk cache for 2D airfoil polar data."""
+"""Thread-safe in-memory cache for 2D airfoil polar data."""
 from __future__ import annotations
 
 import hashlib
@@ -19,6 +19,8 @@ def _compute_cache_key(
     reynolds: float,
     mach: float,
     alphas: Sequence[float],
+    n_crit: float = 9.0,
+    model_size: str = "large",
 ) -> str:
     """Generate a deterministic hash key for an airfoil analysis condition."""
     if isinstance(airfoil_identifier, str):
@@ -36,9 +38,15 @@ def _compute_cache_key(
         re_quant = 0.0
 
     mach_quant = round(mach, 3)
+    n_crit_quant = round(n_crit, 2)
+    model = model_size.strip().lower()
     alphas_quant = ",".join(f"{round(float(a), 2):.2f}" for a in sorted(alphas))
 
-    raw_key = f"{ident_str}|Re={re_quant}|M={mach_quant}|alphas=[{alphas_quant}]"
+    raw_key = (
+        f"{ident_str}|Re={float(re_quant):.12g}|M={float(mach_quant):.12g}"
+        f"|Ncrit={float(n_crit_quant):.12g}"
+        f"|model={model}|alphas=[{alphas_quant}]"
+    )
     return hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
 
 
@@ -58,9 +66,18 @@ class AirfoilPolarCache:
         reynolds: float,
         mach: float,
         alphas: Sequence[float],
+        n_crit: float = 9.0,
+        model_size: str = "large",
     ) -> AirfoilPolar | None:
         """Lookup cached airfoil polar. Returns None on cache miss."""
-        key = _compute_cache_key(airfoil_identifier, reynolds, mach, alphas)
+        key = _compute_cache_key(
+            airfoil_identifier,
+            reynolds,
+            mach,
+            alphas,
+            n_crit,
+            model_size,
+        )
         with self._lock:
             if key in self._cache:
                 self._hits += 1
@@ -74,10 +91,18 @@ class AirfoilPolarCache:
         polar: AirfoilPolar,
         alphas: Sequence[float],
         airfoil_identifier: str | Sequence[Sequence[float]] | None = None,
+        model_size: str | None = None,
     ) -> None:
         """Store an airfoil polar in the cache."""
         ident = airfoil_identifier if airfoil_identifier is not None else polar.airfoil_name
-        key = _compute_cache_key(ident, polar.reynolds, polar.mach, alphas)
+        key = _compute_cache_key(
+            ident,
+            polar.reynolds,
+            polar.mach,
+            alphas,
+            polar.n_crit,
+            model_size or polar.model_size,
+        )
         with self._lock:
             if key in self._cache:
                 self._cache.move_to_end(key)
