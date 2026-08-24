@@ -1,6 +1,8 @@
 """Aerodynamics Analysis Plugin for Setuav Studio."""
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from PySide6.QtCore import Qt
 
 from setuav_studio.plugin_system import (
@@ -9,11 +11,13 @@ from setuav_studio.plugin_system import (
     ToolContribution,
     WorkspaceContribution,
 )
-from .aero_3d_tool import Aero3DToolWindow
 from .charts_dock import AeroChartsDock
 from .controls_dock import AeroControlsDock
 from .results_dock import AeroResultsDock
 from .engine.base import AeroResult
+
+if TYPE_CHECKING:
+    from .aero_3d_tool import Aero3DToolWindow
 
 
 class AerodynamicsPlugin:
@@ -104,6 +108,11 @@ class AerodynamicsPlugin:
     def _open_aero_3d_tool(self) -> None:
         if self._api is None:
             return
+        # Keep the module unloaded until the UI tool is requested. The
+        # detached renderer executes this module with ``python -m``; importing
+        # it during package initialization makes runpy execute it a second time.
+        from .aero_3d_tool import Aero3DToolWindow
+
         window = Aero3DToolWindow(self._api, defaults=self._latest_result)
         self._tool_windows.add(window)
         window.destroyed.connect(

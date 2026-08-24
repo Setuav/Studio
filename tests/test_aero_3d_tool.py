@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from setuav_studio.plugin_system import StudioAPI
@@ -48,6 +50,23 @@ class Aero3DToolTests(unittest.TestCase):
         self.assertEqual(payload["condition"]["beta"], 2.0)
         self.assertEqual(payload["condition"]["control_deflections"]["elevator"], -3.0)
         window.close()
+
+    def test_module_entrypoint_is_not_preloaded_by_package_import(self) -> None:
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "setuav_studio.plugins.aerodynamics.aero_3d_tool",
+                "--help",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+
+        self.assertEqual(completed.returncode, 0, msg=completed.stderr)
+        self.assertNotIn("found in sys.modules", completed.stderr)
 
     def test_native_snapshot_uses_public_pypi_draw_api(self) -> None:
         project = json.loads((TEST_PROJECT_PATH / "project.json").read_text(encoding="utf-8"))
