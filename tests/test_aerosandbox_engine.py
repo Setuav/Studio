@@ -196,7 +196,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
         self.assertNotEqual(pt.cz, 0.0)
 
     @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
-    def test_fixed_wing_fixture_matches_solver_references(self) -> None:
+    def test_fixed_wing_fixture_matches_regression_snapshot(self) -> None:
         """Detect aerodynamic regressions against the pinned fixed-wing baseline."""
         fixture_dir = Path(__file__).parent / "fixtures" / "fixed-wing"
         proj_data = json.loads((fixture_dir / "project.json").read_text(encoding="utf-8"))
@@ -295,6 +295,95 @@ class AeroSandboxEngineTests(unittest.TestCase):
                                 f"expected {expected_value:.12g}, got {actual_value:.12g}"
                             ),
                         )
+
+    @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
+    def test_fixed_wing_fixture_matches_independent_native_model(self) -> None:
+        """Compare Setuav results with a direct AeroSandbox model of the aircraft."""
+        import aerosandbox as asb
+        import aerosandbox.numpy as asb_np
+
+        from tests._aerosandbox_reference import build_fixed_wing_reference
+
+        fixture_dir = Path(__file__).parent / "fixtures" / "fixed-wing"
+        project = json.loads((fixture_dir / "project.json").read_text(encoding="utf-8"))
+        components = project["components"]
+        main_wing = next(component for component in components if component["id"] == "main-wing")
+        clark_y_coordinates = main_wing["parameters"]["geometry"]["profiles"][0]["airfoil"]["points"]
+
+        native_airplane = build_fixed_wing_reference(clark_y_coordinates)
+        condition = FlightCondition(
+            velocity=25.0,
+            altitude=1000.0,
+            alpha=4.0,
+            beta=0.0,
+            alpha_min=-2.0,
+            alpha_max=10.0,
+            alpha_steps=3,
+        )
+        settings = {
+            "spanwise_resolution": 12,
+            "chordwise_resolution": 8,
+            "spanwise_spacing": "cosine",
+            "chordwise_spacing": "cosine",
+            "include_wave_drag": True,
+        }
+        atmosphere = asb.Atmosphere(altitude=condition.altitude)
+        coefficient_map = {
+            "cl": "CL",
+            "cd": "CD",
+            "cm": "Cm",
+            "cy": "CY",
+            "cl_roll": "Cl",
+            "cn": "Cn",
+        }
+
+        for method in (AnalysisMethod.AERO_BUILDUP, AnalysisMethod.VLM):
+            studio_result = AeroSandboxEngine().analyze(
+                components,
+                condition,
+                method=method,
+                settings=settings,
+            )
+
+            for studio_point in studio_result.polar_points:
+                op_point = asb.OperatingPoint(
+                    atmosphere=atmosphere,
+                    velocity=condition.velocity,
+                    alpha=studio_point.alpha,
+                    beta=condition.beta,
+                )
+                if method == AnalysisMethod.AERO_BUILDUP:
+                    native_result = asb.AeroBuildup(
+                        airplane=native_airplane,
+                        op_point=op_point,
+                        include_wave_drag=True,
+                    ).run()
+                else:
+                    native_result = asb.VortexLatticeMethod(
+                        airplane=native_airplane,
+                        op_point=op_point,
+                        spanwise_resolution=12,
+                        chordwise_resolution=8,
+                        spanwise_spacing_function=asb_np.cosspace,
+                        chordwise_spacing_function=asb_np.cosspace,
+                    ).run()
+
+                for studio_field, native_field in coefficient_map.items():
+                    actual_value = float(getattr(studio_point, studio_field))
+                    expected_value = float(asb_np.ravel(native_result[native_field])[0])
+                    self.assertTrue(
+                        math.isclose(
+                            actual_value,
+                            expected_value,
+                            rel_tol=0.005,
+                            abs_tol=0.00005,
+                        ),
+                        msg=(
+                            f"{method.value} {studio_field} at alpha={studio_point.alpha:g} "
+                            f"differs from native AeroSandbox: expected "
+                            f"{expected_value:.12g}, got {actual_value:.12g}"
+                        ),
+                    )
 
     @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_fixed_wing_fixture_geometry_contract(self) -> None:

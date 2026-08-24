@@ -5,6 +5,7 @@ import logging
 import math
 from copy import deepcopy
 from pathlib import Path
+import re
 from typing import Any
 
 from .base import (
@@ -1315,6 +1316,30 @@ class AeroSandboxEngine(AeroEngine):
         shaping: dict[str, Any] | None = None,
     ) -> asb.Airfoil:
         """Resolve any airfoil specification to a fully-populated asb.Airfoil with standard Selig coordinates."""
+        # Preserve AeroSandbox's native NACA representation when no geometric
+        # shaping is requested. Re-sampling it through Studio's display mesh
+        # used to corrupt the lower trailing-edge endpoint and measurably
+        # changed pitching moment relative to a direct AeroSandbox model.
+        shaping_is_active = isinstance(shaping, dict) and (
+            abs(float(shaping.get("te_thickness", 0.0))) >= 1e-6
+            or abs(float(shaping.get("thickness_scale", 1.0)) - 1.0) >= 1e-6
+            or abs(float(shaping.get("camber_scale", 1.0)) - 1.0) >= 1e-6
+        )
+        naca_code: str | None = None
+        if isinstance(spec, str):
+            match = re.fullmatch(r"\s*(?:naca[\s_-]*)?(\d{4,5})\s*", spec, re.IGNORECASE)
+            if match:
+                naca_code = match.group(1)
+        elif isinstance(spec, dict):
+            spec_type = str(spec.get("type") or "").strip().lower()
+            code_value = str(spec.get("code") or spec.get("name") or "")
+            match = re.fullmatch(r"\s*(?:naca[\s_-]*)?(\d{4,5})\s*", code_value, re.IGNORECASE)
+            if spec_type == "naca" and match:
+                naca_code = match.group(1)
+
+        if naca_code and not shaping_is_active:
+            return asb.Airfoil(f"naca{naca_code}")
+
         # 1. Extract name label
         name = "airfoil"
         if isinstance(spec, str):
