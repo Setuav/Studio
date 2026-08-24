@@ -1,6 +1,7 @@
 """Unified Aerodynamic Performance Charts Dock hosting all 4 curves simultaneously."""
 from __future__ import annotations
 
+import math
 from typing import Sequence
 from PySide6.QtCore import QPointF, QSettings, Qt
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
@@ -34,6 +35,7 @@ class SingleChartWidget(QWidget):
         self.chart.setTitleFont(QFont("Inter", 9, QFont.Weight.Bold))
         self.chart.setPlotAreaBackgroundVisible(True)
         self.chart.legend().setVisible(False)
+        self.chart.setAnimationOptions(QChart.AnimationOption.NoAnimation)
         self.chart.layout().setContentsMargins(0, 0, 0, 0)
         self.chart.setMargins(QChart.margins(self.chart))
 
@@ -123,8 +125,6 @@ class SingleChartWidget(QWidget):
         if not x_vals or not y_vals:
             return
 
-        self.update_theme_style()
-
         series = QLineSeries()
         series.setName(name)
         series.setProperty("themeColorRole", color_role)
@@ -160,8 +160,6 @@ class SingleChartWidget(QWidget):
         self.clear()
         if not curves:
             return
-
-        self.update_theme_style()
 
         axis_x = self._create_axis(x_title)
         axis_y = self._create_axis(y_title)
@@ -209,13 +207,24 @@ class SingleChartWidget(QWidget):
             axis_y.setRange(min(all_y) - pad_y, max(all_y) + pad_y)
 
 
+from PySide6.QtWidgets import (
+    QComboBox,
+    QHBoxLayout,
+    QLabel,
+    QSplitter,
+    QVBoxLayout,
+    QWidget,
+)
+
+
 class AeroChartsDock(QWidget):
-    """Unified dock hosting all 4 aerodynamic charts in a 2x2 grid with persistent resizable splitters."""
+    """Unified dock hosting all 4 aerodynamic charts in a 2x2 grid with multi-mode curve selectors."""
 
     def __init__(self, api: StudioAPI | None = None, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("aerodynamics.charts_widget")
         self._api = api
+        self._current_result: AeroResult | None = None
 
         if self._api is not None:
             self._api.subscribe("aerodynamics.analysis_completed", self.plot_results)
@@ -223,6 +232,29 @@ class AeroChartsDock(QWidget):
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(1, 1, 1, 1)
         main_layout.setSpacing(2)
+
+        # Top Control Toolbar
+        toolbar = QWidget(self)
+        tb_layout = QHBoxLayout(toolbar)
+        tb_layout.setContentsMargins(4, 2, 4, 2)
+        tb_layout.setSpacing(6)
+
+        lbl_mode = QLabel("Chart Set:", toolbar)
+        lbl_mode.setStyleSheet("font-weight: 600; font-size: 11px;")
+        tb_layout.addWidget(lbl_mode)
+
+        self.combo_view_mode = QComboBox(toolbar)
+        self.combo_view_mode.addItems([
+            "Flight Performance",
+            "Longitudinal Stability",
+            "Lateral-Directional",
+            "Drag Breakdown",
+            "Forces & Moments",
+        ])
+        self.combo_view_mode.currentIndexChanged.connect(self._on_view_mode_changed)
+        tb_layout.addWidget(self.combo_view_mode)
+        tb_layout.addStretch(1)
+        main_layout.addWidget(toolbar)
 
         # 4 Sub-charts with descriptive compact headers
         self.chart_lift = SingleChartWidget("Lift Curve (CL vs α)", self)
@@ -277,6 +309,10 @@ class AeroChartsDock(QWidget):
         if bs:
             self.bottom_splitter.restoreState(bs)
 
+    def _on_view_mode_changed(self, _index: int) -> None:
+        if self._current_result is not None:
+            self._update_plots(self._current_result)
+
     def clear_charts(self) -> None:
         self.chart_lift.clear()
         self.chart_polar.clear()
@@ -284,121 +320,139 @@ class AeroChartsDock(QWidget):
         self.chart_ld.clear()
 
     def plot_results(self, result: AeroResult) -> None:
+        self._current_result = result
+        self._update_plots(result)
+
+    def _update_plots(self, result: AeroResult) -> None:
+        self.setUpdatesEnabled(False)
+        try:
+            self._do_update_plots(result)
+        finally:
+            self.setUpdatesEnabled(True)
+
+    def _do_update_plots(self, result: AeroResult) -> None:
         points = [p for p in result.polar_points if p.converged]
-        if not points:
+        beta_points = [p for p in result.beta_polar_points if p.converged]
+        if not points and not beta_points:
             self.clear_charts()
             return
 
         cond = result.condition
         sweep_type = cond.sweep_type if cond else SweepType.ALPHA
-        sweep_var = (cond.sweep_variable or "alpha").lower() if cond else "alpha"
+        view_mode = self.combo_view_mode.currentIndex()
 
+        # Determine primary X-axis values and label
         if sweep_type == SweepType.BETA:
             x_vals = [p.beta for p in points]
             x_label = "β (°)"
-
-            self.chart_lift.setTitle("Sideforce Coefficient (CY vs β)")
-            self.chart_lift.plot_single(x_vals, [p.cy for p in points], "CY", "blue", x_label, "CY")
-
-            self.chart_polar.setTitle("Roll Moment (Cl vs β) [Dihedral Effect]")
-            self.chart_polar.plot_single(x_vals, [p.cl_roll for p in points], "Cl", "green", x_label, "Cl (Roll)")
-
-            self.chart_moment.setTitle("Yaw Moment (Cn vs β) [Directional Stability]")
-            self.chart_moment.plot_single(x_vals, [p.cn for p in points], "Cn", "orange", x_label, "Cn (Yaw)")
-
-            self.chart_ld.setTitle("Drag Coefficient (CD vs β)")
-            self.chart_ld.plot_single(x_vals, [p.cd for p in points], "CD", "magenta", x_label, "CD")
-
         elif sweep_type == SweepType.CONTROL_DEFLECTION:
             x_vals = [p.control_deflections.get(cond.sweep_variable, 0.0) if cond else 0.0 for p in points]
             x_label = f"{cond.sweep_variable.capitalize() if cond else 'Control'} δ (°)"
-
-            if "aileron" in sweep_var:
-                self.chart_lift.setTitle("Roll Control Power (Cl vs δa)")
-                self.chart_lift.plot_single(x_vals, [p.cl_roll for p in points], "Cl", "blue", x_label, "Cl (Roll)")
-
-                self.chart_polar.setTitle("Adverse Yaw Coupling (Cn vs δa)")
-                self.chart_polar.plot_single(x_vals, [p.cn for p in points], "Cn", "green", x_label, "Cn (Yaw)")
-
-                self.chart_moment.setTitle("Sideforce Coupling (CY vs δa)")
-                self.chart_moment.plot_single(x_vals, [p.cy for p in points], "CY", "orange", x_label, "CY")
-
-                self.chart_ld.setTitle("Control Drag (CD vs δa)")
-                self.chart_ld.plot_single(x_vals, [p.cd for p in points], "CD", "magenta", x_label, "CD")
-
-            elif "rudder" in sweep_var:
-                self.chart_lift.setTitle("Yaw Control Power (Cn vs δr)")
-                self.chart_lift.plot_single(x_vals, [p.cn for p in points], "Cn", "blue", x_label, "Cn (Yaw)")
-
-                self.chart_polar.setTitle("Rudder Sideforce (CY vs δr)")
-                self.chart_polar.plot_single(x_vals, [p.cy for p in points], "CY", "green", x_label, "CY")
-
-                self.chart_moment.setTitle("Roll Coupling (Cl vs δr)")
-                self.chart_moment.plot_single(x_vals, [p.cl_roll for p in points], "Cl", "orange", x_label, "Cl (Roll)")
-
-                self.chart_ld.setTitle("Rudder Drag (CD vs δr)")
-                self.chart_ld.plot_single(x_vals, [p.cd for p in points], "CD", "magenta", x_label, "CD")
-
-            else:
-                # Elevator / general longitudinal control
-                self.chart_lift.setTitle("Pitch Control Power (Cm vs δe)")
-                self.chart_lift.plot_single(x_vals, [p.cm for p in points], "Cm", "orange", x_label, "Cm")
-
-                self.chart_polar.setTitle("Lift Response (CL vs δe)")
-                self.chart_polar.plot_single(x_vals, [p.cl for p in points], "CL", "blue", x_label, "CL")
-
-                self.chart_moment.setTitle("Trim Drag (CD vs δe)")
-                self.chart_moment.plot_single(x_vals, [p.cd for p in points], "CD", "green", x_label, "CD")
-
-                self.chart_ld.setTitle("Efficiency (L/D vs δe)")
-                self.chart_ld.plot_single(x_vals, [p.cl_over_cd for p in points], "L/D", "magenta", x_label, "L/D")
-
         elif sweep_type == SweepType.VELOCITY:
             x_vals = [p.velocity for p in points]
             x_label = "Airspeed V (m/s)"
-
-            self.chart_lift.setTitle("Lift Force (L vs V)")
-            self.chart_lift.plot_single(x_vals, [p.forces_moments.lift if p.forces_moments else 0.0 for p in points], "Lift (N)", "blue", x_label, "Lift (N)")
-
-            self.chart_polar.setTitle("Drag Force (D vs V)")
-            self.chart_polar.plot_single(x_vals, [p.forces_moments.drag if p.forces_moments else 0.0 for p in points], "Drag (N)", "red", x_label, "Drag (N)")
-
-            self.chart_moment.setTitle("Lift Coefficient (CL vs V)")
-            self.chart_moment.plot_single(x_vals, [p.cl for p in points], "CL", "green", x_label, "CL")
-
-            self.chart_ld.setTitle("Aerodynamic Efficiency (L/D vs V)")
-            self.chart_ld.plot_single(x_vals, [p.cl_over_cd for p in points], "L/D", "magenta", x_label, "L/D")
-
         elif sweep_type == SweepType.ALTITUDE:
             x_vals = [p.altitude for p in points]
             x_label = "Altitude h (m MSL)"
-
-            self.chart_lift.setTitle("Dynamic Pressure (q vs h)")
-            self.chart_lift.plot_single(x_vals, [p.dynamic_pressure for p in points], "q (Pa)", "blue", x_label, "q (Pa)")
-
-            self.chart_polar.setTitle("Reynolds Number (Re vs h)")
-            self.chart_polar.plot_single(x_vals, [p.reynolds / 1e5 for p in points], "Re × 10⁵", "green", x_label, "Re (× 10⁵)")
-
-            self.chart_moment.setTitle("Available Lift (L vs h)")
-            self.chart_moment.plot_single(x_vals, [p.forces_moments.lift if p.forces_moments else 0.0 for p in points], "Lift (N)", "orange", x_label, "Lift (N)")
-
-            self.chart_ld.setTitle("Aerodynamic Efficiency (L/D vs h)")
-            self.chart_ld.plot_single(x_vals, [p.cl_over_cd for p in points], "L/D", "magenta", x_label, "L/D")
-
         else:
-            # Default Alpha sweep
             x_vals = [p.alpha for p in points]
-            self.chart_lift.setTitle("Lift Curve (CL vs α)")
-            self.chart_lift.plot_single(x_vals, [p.cl for p in points], "CL", "blue", "α (°)", "CL")
+            x_label = "α (°)"
 
-            self.chart_polar.setTitle("Drag Polar (CL vs CD)")
-            self.chart_polar.plot_single([p.cd for p in points], [p.cl for p in points], "Polar", "green", "CD", "CL")
+        # For Dual Alpha+Beta, lateral-directional charts use the beta points dataset
+        lat_pts = beta_points if (sweep_type == SweepType.DUAL_ALPHA_BETA and beta_points) else points
+        lat_x_vals = [p.beta for p in lat_pts] if (sweep_type == SweepType.DUAL_ALPHA_BETA and beta_points) else x_vals
+        lat_x_label = "β (°)" if (sweep_type == SweepType.DUAL_ALPHA_BETA and beta_points) else x_label
 
-            self.chart_moment.setTitle("Pitching Moment (Cm vs α)")
-            self.chart_moment.plot_single(x_vals, [p.cm for p in points], "Cm", "orange", "α (°)", "Cm")
+        try:
+            if view_mode == 1:
+                # Mode 1: Longitudinal Stability
+                self.chart_lift.setTitle(f"Pitching Moment (Cm vs {x_label})")
+                self.chart_lift.plot_single(x_vals, [p.cm for p in points], "Cm", "orange", x_label, "Cm")
 
-            self.chart_ld.setTitle("Aerodynamic Efficiency (L/D vs α)")
-            self.chart_ld.plot_single(x_vals, [p.cl_over_cd for p in points], "L/D", "magenta", "α (°)", "L/D")
+                self.chart_polar.setTitle("Moment-Lift Polar (Cm vs CL) [Slope = -SM]")
+                self.chart_polar.plot_single([p.cl for p in points], [p.cm for p in points], "Cm-CL", "blue", "CL", "Cm")
+
+                self.chart_moment.setTitle(f"Normal Force Coefficient (CZ vs {x_label})")
+                self.chart_moment.plot_single(x_vals, [p.cz for p in points], "CZ", "magenta", x_label, "CZ")
+
+                my_vals = [
+                    p.forces_moments.my_b if (p.forces_moments and hasattr(p.forces_moments, "my_b"))
+                    else (p.cm * p.dynamic_pressure * result.reference.s_ref * result.reference.c_ref)
+                    for p in points
+                ]
+                self.chart_ld.setTitle(f"Dimensional Pitch Moment (My vs {x_label})")
+                self.chart_ld.plot_single(x_vals, my_vals, "My (N·m)", "red", x_label, "My (N·m)")
+
+            elif view_mode == 2:
+                # Mode 2: Lateral-Directional
+                self.chart_lift.setTitle(f"Sideforce Coefficient (CY vs {lat_x_label})")
+                self.chart_lift.plot_single(lat_x_vals, [p.cy for p in lat_pts], "CY", "blue", lat_x_label, "CY")
+
+                self.chart_polar.setTitle(f"Roll Moment (Cl vs {lat_x_label})")
+                self.chart_polar.plot_single(lat_x_vals, [p.cl_roll for p in lat_pts], "Cl", "green", lat_x_label, "Cl (Roll)")
+
+                self.chart_moment.setTitle(f"Yaw Moment (Cn vs {lat_x_label})")
+                self.chart_moment.plot_single(lat_x_vals, [p.cn for p in lat_pts], "Cn", "orange", lat_x_label, "Cn (Yaw)")
+
+                cy_over_cl = [p.cy / max(abs(p.cl), 1e-4) for p in lat_pts]
+                self.chart_ld.setTitle(f"Lateral Coupling Ratio (CY / CL vs {lat_x_label})")
+                self.chart_ld.plot_single(lat_x_vals, cy_over_cl, "CY/CL", "magenta", lat_x_label, "CY/CL")
+
+            elif view_mode == 3:
+                # Mode 3: Drag Breakdown
+                self.chart_lift.setTitle(f"Induced Drag Polar (CD_i vs {x_label})")
+                self.chart_lift.plot_single(x_vals, [p.cd_induced for p in points], "CD_i", "blue", x_label, "CD_i")
+
+                self.chart_polar.setTitle(f"Profile Drag Polar (CD_p vs {x_label})")
+                self.chart_polar.plot_single(x_vals, [p.cd_profile for p in points], "CD_p", "green", x_label, "CD_p")
+
+                self.chart_moment.setTitle(f"Total Drag Polar (CD vs {x_label})")
+                self.chart_moment.plot_single(x_vals, [p.cd for p in points], "CD", "orange", x_label, "CD")
+
+                ratios = [p.cd_induced / max(p.cd, 1e-6) * 100.0 for p in points]
+                self.chart_ld.setTitle("Induced Drag Share (% of Total Drag)")
+                self.chart_ld.plot_single(x_vals, ratios, "% Induced", "magenta", x_label, "% Induced")
+
+            elif view_mode == 4:
+                # Mode 4: Forces & Moments
+                self.chart_lift.setTitle(f"Total Lift Force (L vs {x_label})")
+                self.chart_lift.plot_single(x_vals, [p.forces_moments.lift if p.forces_moments else 0.0 for p in points], "Lift (N)", "blue", x_label, "Lift (N)")
+
+                self.chart_polar.setTitle(f"Total Drag Force (D vs {x_label})")
+                self.chart_polar.plot_single(x_vals, [p.forces_moments.drag if p.forces_moments else 0.0 for p in points], "Drag (N)", "red", x_label, "Drag (N)")
+
+                self.chart_moment.setTitle(f"Pitching Moment (My vs {x_label})")
+                my_vals = [
+                    p.forces_moments.my_b if (p.forces_moments and hasattr(p.forces_moments, "my_b"))
+                    else (p.cm * p.dynamic_pressure * result.reference.s_ref * result.reference.c_ref)
+                    for p in points
+                ]
+                self.chart_moment.plot_single(x_vals, my_vals, "My (N·m)", "orange", x_label, "My (N·m)")
+
+                self.chart_ld.setTitle(f"Dynamic Pressure (q vs {x_label})")
+                self.chart_ld.plot_single(x_vals, [p.dynamic_pressure for p in points], "q (Pa)", "magenta", x_label, "q (Pa)")
+
+            else:
+                # Mode 0: Flight Performance Polars
+                self.chart_lift.setTitle(f"Lift Curve (CL vs {x_label})")
+                self.chart_lift.plot_single(x_vals, [p.cl for p in points], "CL", "blue", x_label, "CL")
+
+                if sweep_type in (SweepType.ALPHA, SweepType.DUAL_ALPHA_BETA):
+                    self.chart_polar.setTitle("Drag Polar (CL vs CD)")
+                    self.chart_polar.plot_single([p.cd for p in points], [p.cl for p in points], "Polar", "green", "CD", "CL")
+                else:
+                    self.chart_polar.setTitle(f"Drag Curve (CD vs {x_label})")
+                    self.chart_polar.plot_single(x_vals, [p.cd for p in points], "CD", "green", x_label, "CD")
+
+                self.chart_moment.setTitle(f"Aerodynamic Efficiency (L/D vs {x_label})")
+                self.chart_moment.plot_single(x_vals, [p.cl_over_cd for p in points], "L/D", "magenta", x_label, "L/D")
+
+                loiter_factor = [(max(p.cl, 0.0) ** 1.5) / max(p.cd, 1e-4) for p in points]
+                self.chart_ld.setTitle(f"Endurance Factor (CL^1.5 / CD vs {x_label})")
+                self.chart_ld.plot_single(x_vals, loiter_factor, "CL^1.5/CD", "orange", x_label, "CL^1.5 / CD")
+        except Exception as err:
+            import logging
+            logging.getLogger(__name__).error("Failed to update aerodynamic charts: %s", err, exc_info=True)
 
     def update_theme_style(self) -> None:
         self.chart_lift.update_theme_style()

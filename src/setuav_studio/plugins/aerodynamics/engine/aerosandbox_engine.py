@@ -159,54 +159,89 @@ class AeroSandboxEngine(AeroEngine):
         sweep_type = condition.sweep_type
 
         eval_states: list[dict[str, Any]] = []
-        for s_val in sec_vals:
-            for p_val in primary_vals:
-                st_dict: dict[str, Any] = {
-                    "alpha": float(condition.alpha),
+
+        if sweep_type == SweepType.DUAL_ALPHA_BETA:
+            # 1. Alpha sweep group (primary AoA polar)
+            a_steps = max(int(condition.alpha_steps), 2)
+            alpha_array = [float(v) for v in np.linspace(condition.alpha_min, condition.alpha_max, a_steps)]
+            for a_val in alpha_array:
+                eval_states.append({
+                    "alpha": float(a_val),
                     "beta": float(condition.beta),
                     "velocity": float(condition.velocity),
                     "altitude": float(condition.altitude),
                     "controls": dict(condition.control_deflections),
-                    "p_val": float(p_val),
-                    "s_val": float(s_val) if s_val is not None else None,
-                }
+                    "p_val": float(a_val),
+                    "s_val": float(condition.beta),
+                    "_sweep_group": "alpha",
+                })
 
-                # Primary variable mapping
-                if sweep_type == SweepType.ALPHA or condition.sweep_variable == "alpha":
-                    st_dict["alpha"] = float(p_val)
-                elif sweep_type == SweepType.BETA or condition.sweep_variable == "beta":
-                    st_dict["beta"] = float(p_val)
-                elif sweep_type == SweepType.VELOCITY or condition.sweep_variable in ("velocity", "v", "speed"):
-                    st_dict["velocity"] = float(p_val)
-                elif sweep_type == SweepType.ALTITUDE or condition.sweep_variable in ("altitude", "alt", "h"):
-                    st_dict["altitude"] = float(p_val)
-                else:
-                    st_dict["controls"][condition.sweep_variable] = float(p_val)
+            # 2. Beta sweep group (sideslip response)
+            b_steps = max(int(condition.beta_steps), 2)
+            beta_array = [float(v) for v in np.linspace(condition.beta_min, condition.beta_max, b_steps)]
+            for b_val in beta_array:
+                eval_states.append({
+                    "alpha": float(condition.alpha),
+                    "beta": float(b_val),
+                    "velocity": float(condition.velocity),
+                    "altitude": float(condition.altitude),
+                    "controls": dict(condition.control_deflections),
+                    "p_val": float(b_val),
+                    "s_val": float(condition.alpha),
+                    "_sweep_group": "beta",
+                })
 
-                # Secondary variable mapping
-                if s_val is not None and condition.secondary_variable:
-                    s_var = condition.secondary_variable
-                    if s_var == "alpha":
-                        st_dict["alpha"] = float(s_val)
-                    elif s_var == "beta":
-                        st_dict["beta"] = float(s_val)
-                    elif s_var in ("velocity", "v", "speed"):
-                        st_dict["velocity"] = float(s_val)
-                    elif s_var in ("altitude", "alt", "h"):
-                        st_dict["altitude"] = float(s_val)
+        else:
+            for s_val in sec_vals:
+                for p_val in primary_vals:
+                    st_dict: dict[str, Any] = {
+                        "alpha": float(condition.alpha),
+                        "beta": float(condition.beta),
+                        "velocity": float(condition.velocity),
+                        "altitude": float(condition.altitude),
+                        "controls": dict(condition.control_deflections),
+                        "p_val": float(p_val),
+                        "s_val": float(s_val) if s_val is not None else None,
+                        "_sweep_group": "primary",
+                    }
+
+                    # Primary variable mapping
+                    if sweep_type == SweepType.ALPHA or condition.sweep_variable == "alpha":
+                        st_dict["alpha"] = float(p_val)
+                    elif sweep_type == SweepType.BETA or condition.sweep_variable == "beta":
+                        st_dict["beta"] = float(p_val)
+                    elif sweep_type == SweepType.VELOCITY or condition.sweep_variable in ("velocity", "v", "speed"):
+                        st_dict["velocity"] = float(p_val)
+                    elif sweep_type == SweepType.ALTITUDE or condition.sweep_variable in ("altitude", "alt", "h"):
+                        st_dict["altitude"] = float(p_val)
                     else:
-                        st_dict["controls"][s_var] = float(s_val)
+                        st_dict["controls"][condition.sweep_variable] = float(p_val)
 
-                eval_states.append(st_dict)
+                    # Secondary variable mapping
+                    if s_val is not None and condition.secondary_variable:
+                        s_var = condition.secondary_variable
+                        if s_var == "alpha":
+                            st_dict["alpha"] = float(s_val)
+                        elif s_var == "beta":
+                            st_dict["beta"] = float(s_val)
+                        elif s_var in ("velocity", "v", "speed"):
+                            st_dict["velocity"] = float(s_val)
+                        elif s_var in ("altitude", "alt", "h"):
+                            st_dict["altitude"] = float(s_val)
+                        else:
+                            st_dict["controls"][s_var] = float(s_val)
+
+                    eval_states.append(st_dict)
 
         polar_points: list[PolarPoint] = []
+        beta_polar_points: list[PolarPoint] = []
         solver_points_map: dict[str, list[PolarPoint]] = {
             "vlm": [],
             "aero_buildup": [],
             "lifting_line": [],
         }
         oswald_list: list[float] = []
-        total_steps = len(eval_states)
+        total_steps = len(eval_states) + 1
 
         for idx, st_dict in enumerate(eval_states, start=1):
             cur_alpha = float(st_dict["alpha"])
@@ -453,13 +488,38 @@ class AeroSandboxEngine(AeroEngine):
                 else:
                     tot_cl = vlm_cl
 
+            def add_pt(pt: PolarPoint, solver_key: str | None = None) -> None:
+                if st_dict.get("_sweep_group") == "beta":
+                    beta_polar_points.append(pt)
+                else:
+                    polar_points.append(pt)
+                if solver_key:
+                    solver_points_map[solver_key].append(pt)
+
+            if method == AnalysisMethod.COMPREHENSIVE:
+                # 4. Synthesize Unified Result:
+                tot_cd_ind = vlm_cd
+                tot_cd_prof = ab_cd_prof
+                tot_cd_wave = ab_cd_wave
+                tot_cd = max(tot_cd_ind + tot_cd_prof + tot_cd_wave, 1e-4)
+
+                # Dynamic stall transition
+                if abs(vlm_cl) >= (est_stall_cl * 0.88) or abs(cur_alpha) > 12.0:
+                    stall_excess = max(abs(vlm_cl) - est_stall_cl * 0.88, 0.0) / max(est_stall_cl * 0.25, 0.1)
+                    alpha_excess = max(abs(cur_alpha) - 12.0, 0.0) / 4.0
+                    blend = min(max(stall_excess, alpha_excess), 1.0)
+                    tot_cl = (1.0 - blend) * vlm_cl + blend * ab_cl
+                    tot_cd = tot_cd + blend * max(ab_cd - tot_cd, 0.0)
+                else:
+                    tot_cl = vlm_cl
+
                 tot_cm = vlm_cm
                 tot_cy = vlm_cy
                 tot_clr = vlm_clr
                 tot_cn = vlm_cn
 
                 pt_unified = build_pt(tot_cl, tot_cd, tot_cm, tot_cd_ind, tot_cd_prof, tot_cd_wave, tot_cy, tot_clr, tot_cn)
-                polar_points.append(pt_unified)
+                add_pt(pt_unified)
 
             elif method == AnalysisMethod.VLM:
                 solver = asb.VortexLatticeMethod(
@@ -480,8 +540,7 @@ class AeroSandboxEngine(AeroEngine):
                 cn = float(np.ravel(res.get("Cn", 0.0))[0])
 
                 pt = build_pt(cl, cd, cm, cd, 0.0, 0.0, cy, clr, cn)
-                polar_points.append(pt)
-                solver_points_map["vlm"].append(pt)
+                add_pt(pt, "vlm")
 
             elif method == AnalysisMethod.LIFTING_LINE:
                 solver = asb.LiftingLine(
@@ -500,8 +559,7 @@ class AeroSandboxEngine(AeroEngine):
                 cn = float(np.ravel(res.get("Cn", 0.0))[0])
 
                 pt = build_pt(cl, cd, cm, cd, 0.0, 0.0, cy, clr, cn)
-                polar_points.append(pt)
-                solver_points_map["lifting_line"].append(pt)
+                add_pt(pt, "lifting_line")
 
             else:  # AERO_BUILDUP
                 solver = asb.AeroBuildup(
@@ -528,8 +586,7 @@ class AeroSandboxEngine(AeroEngine):
                 cd_w = (d_wave / cur_qs) if cur_qs > 0 else 0.0
 
                 pt = build_pt(cl, cd, cm, cd_i, cd_p, cd_w, cy, clr, cn)
-                polar_points.append(pt)
-                solver_points_map["aero_buildup"].append(pt)
+                add_pt(pt, "aero_buildup")
 
                 wing_comps = res.get("wing_aero_components", [])
                 if wing_comps:
@@ -584,6 +641,9 @@ class AeroSandboxEngine(AeroEngine):
         clean_solvers = {k: v for k, v in solver_points_map.items() if v}
 
         # Compute 6-DoF linear stability derivatives, static margins, and trim
+        if progress_callback:
+            progress_callback(len(eval_states), total_steps, "Stability & Trim")
+
         stab_engine = StabilityAnalysisEngine()
         try:
             stab_derivatives = stab_engine.compute_stability(
@@ -597,10 +657,14 @@ class AeroSandboxEngine(AeroEngine):
             logger.warning("Stability derivatives computation failed: %s", err)
             stab_derivatives = None
 
+        if progress_callback:
+            progress_callback(total_steps, total_steps, "Complete")
+
         return AeroResult(
             method=method,
             engine_name=self.name,
             polar_points=polar_points,
+            beta_polar_points=beta_polar_points,
             solver_results=clean_solvers,
             cl_max=cl_max,
             cl_max_alpha=cl_max_alpha,

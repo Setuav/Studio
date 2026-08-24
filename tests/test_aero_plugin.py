@@ -12,8 +12,10 @@ from setuav_studio.plugins.aerodynamics.plugin import AerodynamicsPlugin
 from setuav_studio.plugins.aerodynamics.engine.base import (
     AeroResult,
     AnalysisMethod,
+    FlightCondition,
     PolarPoint,
     ReferenceValues,
+    SweepType,
 )
 from tests._common import get_qapp
 
@@ -99,12 +101,23 @@ class AerodynamicsPluginTests(unittest.TestCase):
 
         # Verify results dock populated
         self.assertEqual(results_widget.detail_table.rowCount(), 4)
+        self.assertEqual(results_widget.tab_widget.count(), 4)
 
         # Verify charts populated
         self.assertGreater(len(charts_widget.chart_lift.chart.series()), 0)
         self.assertGreater(len(charts_widget.chart_polar.chart.series()), 0)
         self.assertGreater(len(charts_widget.chart_moment.chart.series()), 0)
         self.assertGreater(len(charts_widget.chart_ld.chart.series()), 0)
+
+        # Verify Dual Alpha+Beta chart mode switching
+        charts_widget.combo_view_mode.setCurrentIndex(1)  # Longitudinal Stability
+        self.assertIn("Pitching Moment", charts_widget.chart_lift.chart.title())
+        charts_widget.combo_view_mode.setCurrentIndex(2)  # Lateral-Directional
+        self.assertIn("Sideforce", charts_widget.chart_lift.chart.title())
+        charts_widget.combo_view_mode.setCurrentIndex(3)  # Drag Breakdown
+        self.assertIn("Induced", charts_widget.chart_lift.chart.title())
+        charts_widget.combo_view_mode.setCurrentIndex(4)  # Forces & Moments
+        self.assertIn("Lift Force", charts_widget.chart_lift.chart.title())
 
     def test_deactivation_cleans_up(self) -> None:
         self.plugin.activate(self.api)

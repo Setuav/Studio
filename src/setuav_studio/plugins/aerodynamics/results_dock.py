@@ -124,7 +124,35 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
         stab_scroll.setWidget(self.stability_tab)
         self.tab_widget.addTab(stab_scroll, "Stability & Trim")
 
-        # Tab 3: Detailed Polar Table
+        # Tab 3: Diagnostics & Data Quality
+        self.diag_tab = QWidget()
+        diag_layout = QVBoxLayout(self.diag_tab)
+        diag_layout.setContentsMargins(4, 4, 4, 4)
+        diag_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        diag_layout.setSpacing(6)
+
+        self.diag_table = self._property_table([
+            ("diag_solver", "Solver Pipeline"),
+            ("diag_convergence", "Convergence Rate"),
+            ("diag_points_ok", "Valid Points"),
+            ("diag_points_fail", "Flagged Points"),
+            ("diag_mach_regime", "Mach Regime"),
+            ("diag_viscous_model", "Viscous Model"),
+            ("diag_inviscid_model", "Potential Flow Model"),
+            ("diag_reynolds_range", "Reynolds Range"),
+            ("diag_q_range", "Dynamic Pressure (q)"),
+            ("diag_cg", "Reference CG"),
+        ])
+        diag_layout.addWidget(self.diag_table)
+        diag_layout.addStretch(1)
+
+        diag_scroll = QScrollArea()
+        diag_scroll.setWidgetResizable(True)
+        diag_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        diag_scroll.setWidget(self.diag_tab)
+        self.tab_widget.addTab(diag_scroll, "Diagnostics")
+
+        # Tab 4: Detailed Polar Table
         self.detail_tab = QWidget()
         det_layout = QVBoxLayout(self.detail_tab)
         det_layout.setContentsMargins(0, 0, 0, 0)
@@ -201,6 +229,13 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
             "elevator_trim", "alpha_trim_neutral", "cm_de", "cl_da", "cn_dr",
         ):
             self._set_property_value(self.stability_table, key, "-")
+
+        for key in (
+            "diag_solver", "diag_convergence", "diag_points_ok", "diag_points_fail",
+            "diag_mach_regime", "diag_viscous_model", "diag_inviscid_model",
+            "diag_reynolds_range", "diag_q_range", "diag_cg",
+        ):
+            self._set_property_value(self.diag_table, key, "-")
 
         self.detail_table.setRowCount(0)
         self.btn_export_csv.setEnabled(False)
@@ -295,6 +330,45 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
             for k, v in stab_metrics.items():
                 self._set_property_value(self.stability_table, k, v)
 
+        # Populate Diagnostics & Quality tab
+        total_pts = len(points)
+        ok_pts = sum(1 for p in points if p.converged)
+        fail_pts = total_pts - ok_pts
+        conv_rate = (ok_pts / total_pts * 100.0) if total_pts > 0 else 100.0
+
+        min_re = min(p.reynolds for p in points) if points else 0.0
+        max_re = max(p.reynolds for p in points) if points else 0.0
+        re_range_str = f"{min_re:,.0f} - {max_re:,.0f}" if abs(max_re - min_re) > 1e3 else f"{min_re:,.0f}"
+
+        min_q = min(p.dynamic_pressure for p in points) if points else 0.0
+        max_q = max(p.dynamic_pressure for p in points) if points else 0.0
+        q_range_str = f"{min_q:.1f} - {max_q:.1f} Pa" if abs(max_q - min_q) > 1.0 else f"{min_q:.1f} Pa"
+
+        mach_val = points[0].mach if points else 0.0
+        if mach_val < 0.3:
+            mach_regime = f"Subsonic (M={mach_val:.3f}, Incompressible)"
+        elif mach_val < 0.8:
+            mach_regime = f"Subsonic Compressible (M={mach_val:.3f}, Prandtl-Glauert)"
+        elif mach_val < 1.2:
+            mach_regime = f"Transonic (M={mach_val:.3f})"
+        else:
+            mach_regime = f"Supersonic (M={mach_val:.3f})"
+
+        diag_metrics = {
+            "diag_solver": f"{result.engine_name}",
+            "diag_convergence": f"{conv_rate:.1f}% ({ok_pts}/{total_pts} points)",
+            "diag_points_ok": f"{ok_pts} converged",
+            "diag_points_fail": f"{fail_pts} flagged",
+            "diag_mach_regime": mach_regime,
+            "diag_viscous_model": "NeuralFoil 2D Neural Surrogate (XFoil Physics)",
+            "diag_inviscid_model": "3D Vortex Lattice Method (Horseshoe / Vortex Ring)",
+            "diag_reynolds_range": re_range_str,
+            "diag_q_range": q_range_str,
+            "diag_cg": f"[{ref.xyz_ref[0]*1000.0:.1f}, {ref.xyz_ref[1]*1000.0:.1f}, {ref.xyz_ref[2]*1000.0:.1f}] mm",
+        }
+        for k, v in diag_metrics.items():
+            self._set_property_value(self.diag_table, k, v)
+
         # Set dynamic column 0 header based on sweep variable
         if sweep_type == SweepType.BETA:
             col0_header = "β (deg)"
@@ -321,35 +395,41 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
             "Cl",
             "Cn",
         ]
-        self.detail_table.setHorizontalHeaderLabels(headers)
-        self.detail_table.setRowCount(len(points))
+        self.detail_table.setUpdatesEnabled(False)
+        self.detail_table.blockSignals(True)
+        try:
+            self.detail_table.setRowCount(len(points))
 
-        for row, pt in enumerate(points):
-            if sweep_type == SweepType.BETA:
-                v0_str = f"{pt.beta:+.2f}"
-            elif sweep_type == SweepType.CONTROL_DEFLECTION:
-                v0_str = f"{pt.control_deflections.get(sweep_var, 0.0):+.2f}"
-            elif sweep_type == SweepType.VELOCITY:
-                v0_str = f"{pt.velocity:.2f}"
-            elif sweep_type == SweepType.ALTITUDE:
-                v0_str = f"{pt.altitude:.0f}"
-            else:
-                v0_str = f"{pt.alpha:+.2f}"
+            for row, pt in enumerate(points):
+                if sweep_type == SweepType.BETA:
+                    v0_str = f"{pt.beta:+.2f}"
+                elif sweep_type == SweepType.CONTROL_DEFLECTION:
+                    v0_str = f"{pt.control_deflections.get(sweep_var, 0.0):+.2f}"
+                elif sweep_type == SweepType.VELOCITY:
+                    v0_str = f"{pt.velocity:.2f}"
+                elif sweep_type == SweepType.ALTITUDE:
+                    v0_str = f"{pt.altitude:.0f}"
+                else:
+                    v0_str = f"{pt.alpha:+.2f}"
 
-            self.detail_table.setItem(row, 0, QTableWidgetItem(v0_str))
-            self.detail_table.setItem(row, 1, QTableWidgetItem(f"{pt.cl:.4f}"))
-            self.detail_table.setItem(row, 2, QTableWidgetItem(f"{pt.cd:.5f}"))
-            self.detail_table.setItem(row, 3, QTableWidgetItem(f"{pt.cd_induced:.5f}"))
-            self.detail_table.setItem(row, 4, QTableWidgetItem(f"{pt.cd_profile:.5f}"))
-            self.detail_table.setItem(row, 5, QTableWidgetItem(f"{pt.cm:+.4f}"))
-            self.detail_table.setItem(row, 6, QTableWidgetItem(f"{pt.cl_over_cd:.2f}"))
-            self.detail_table.setItem(row, 7, QTableWidgetItem(f"{pt.cx:+.4f}"))
-            self.detail_table.setItem(row, 8, QTableWidgetItem(f"{pt.cy:+.4f}"))
-            self.detail_table.setItem(row, 9, QTableWidgetItem(f"{pt.cz:+.4f}"))
-            self.detail_table.setItem(row, 10, QTableWidgetItem(f"{pt.cl_roll:+.5f}"))
-            self.detail_table.setItem(row, 11, QTableWidgetItem(f"{pt.cn:+.5f}"))
+                self.detail_table.setItem(row, 0, QTableWidgetItem(v0_str))
+                self.detail_table.setItem(row, 1, QTableWidgetItem(f"{pt.cl:.4f}"))
+                self.detail_table.setItem(row, 2, QTableWidgetItem(f"{pt.cd:.5f}"))
+                self.detail_table.setItem(row, 3, QTableWidgetItem(f"{pt.cd_induced:.5f}"))
+                self.detail_table.setItem(row, 4, QTableWidgetItem(f"{pt.cd_profile:.5f}"))
+                self.detail_table.setItem(row, 5, QTableWidgetItem(f"{pt.cm:+.4f}"))
+                self.detail_table.setItem(row, 6, QTableWidgetItem(f"{pt.cl_over_cd:.2f}"))
+                self.detail_table.setItem(row, 7, QTableWidgetItem(f"{pt.cx:+.4f}"))
+                self.detail_table.setItem(row, 8, QTableWidgetItem(f"{pt.cy:+.4f}"))
+                self.detail_table.setItem(row, 9, QTableWidgetItem(f"{pt.cz:+.4f}"))
+                self.detail_table.setItem(row, 10, QTableWidgetItem(f"{pt.cl_roll:+.5f}"))
+                self.detail_table.setItem(row, 11, QTableWidgetItem(f"{pt.cn:+.5f}"))
 
-        self.detail_table.fit_columns_to_viewport()
+            self.detail_table.fit_columns_to_viewport()
+        finally:
+            self.detail_table.blockSignals(False)
+            self.detail_table.setUpdatesEnabled(True)
+
         self.btn_export_csv.setEnabled(len(points) > 0)
 
     def _export_csv(self) -> None:

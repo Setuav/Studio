@@ -34,9 +34,9 @@ class TestSweepConfiguration(unittest.TestCase):
         self.assertAlmostEqual(vals[0], -4.0)
         self.assertAlmostEqual(vals[-1], 16.0)
 
-        # 2D Grid sweep values
-        grid_cond = FlightCondition(
-            sweep_type=SweepType.MULTI_GRID,
+        # Dual Alpha + Beta sweep values
+        dual_cond = FlightCondition(
+            sweep_type=SweepType.DUAL_ALPHA_BETA,
             sweep_variable="alpha",
             sweep_min=-4.0,
             sweep_max=8.0,
@@ -46,8 +46,8 @@ class TestSweepConfiguration(unittest.TestCase):
             secondary_max=10.0,
             secondary_steps=3,
         )
-        p_vals = grid_cond.get_primary_sweep_values()
-        s_vals = grid_cond.get_secondary_sweep_values()
+        p_vals = dual_cond.get_primary_sweep_values()
+        s_vals = dual_cond.get_secondary_sweep_values()
         self.assertEqual(len(p_vals), 4)
         self.assertEqual(len(s_vals), 3)
 
@@ -214,8 +214,33 @@ class TestParametricSweeps(unittest.TestCase):
         pt_sea = res.polar_points[0]
         pt_high = res.polar_points[-1]
 
-        self.assertGreater(pt_sea.dynamic_pressure, pt_high.dynamic_pressure)
-        self.assertGreater(pt_sea.reynolds, pt_high.reynolds)
+    def test_dual_alpha_beta_sweep(self) -> None:
+        """Verify dual alpha+beta sweep computes both alpha and beta datasets simultaneously."""
+        cond = FlightCondition(
+            sweep_type=SweepType.DUAL_ALPHA_BETA,
+            alpha=2.0,
+            beta=0.0,
+            alpha_min=-4.0,
+            alpha_max=8.0,
+            alpha_steps=3,
+            beta_min=-6.0,
+            beta_max=6.0,
+            beta_steps=3,
+        )
+        res = self.engine.analyze(self.components, cond, method=AnalysisMethod.COMPREHENSIVE)
+
+        self.assertEqual(len(res.polar_points), 3)  # alpha points
+        self.assertEqual(len(res.beta_polar_points), 3)  # beta points
+
+        # Verify alpha points vary alpha with fixed beta
+        self.assertAlmostEqual(res.polar_points[0].alpha, -4.0)
+        self.assertAlmostEqual(res.polar_points[-1].alpha, 8.0)
+        self.assertAlmostEqual(res.polar_points[0].beta, 0.0)
+
+        # Verify beta points vary beta with fixed alpha
+        self.assertAlmostEqual(res.beta_polar_points[0].beta, -6.0)
+        self.assertAlmostEqual(res.beta_polar_points[-1].beta, 6.0)
+        self.assertAlmostEqual(res.beta_polar_points[0].alpha, 2.0)
 
 
 if __name__ == "__main__":

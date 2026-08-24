@@ -31,10 +31,11 @@ class SweepType(enum.Enum):
     """Types of parametric sweeps available."""
     ALPHA = "alpha"                              # Angle of attack sweep (AoA α)
     BETA = "beta"                                # Sideslip angle sweep (Sideslip β)
+    DUAL_ALPHA_BETA = "dual_alpha_beta"          # Simultaneous 1D Alpha + 1D Beta sweep (both populated)
+    MULTI_GRID = "multi_grid"                    # 2D Parametric grid sweep (α × β flight envelope)
     CONTROL_DEFLECTION = "control_deflection"    # Control surface deflection sweep (δ)
     VELOCITY = "velocity"                        # Airspeed sweep (V)
     ALTITUDE = "altitude"                        # Altitude MSL sweep (h)
-    MULTI_GRID = "multi_grid"                    # 2D Parametric grid sweep
 
 
 class ControlSurfaceType(enum.Enum):
@@ -204,6 +205,10 @@ class ReferenceValues:
     y_cg: float = 0.0     # m moment reference Y
     z_cg: float = 0.0     # m moment reference Z
 
+    @property
+    def xyz_ref(self) -> tuple[float, float, float]:
+        return (self.x_cg, self.y_cg, self.z_cg)
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "s_ref": self.s_ref,
@@ -245,6 +250,21 @@ class AeroForcesMoments:
     mx_w: float = 0.0
     my_w: float = 0.0
     mz_w: float = 0.0
+
+    @property
+    def m_roll(self) -> float:
+        """Roll moment (Mx) in Newton-meters."""
+        return self.mx_b
+
+    @property
+    def m_pitch(self) -> float:
+        """Pitch moment (My) in Newton-meters."""
+        return self.my_b
+
+    @property
+    def m_yaw(self) -> float:
+        """Yaw moment (Mz) in Newton-meters."""
+        return self.mz_b
 
     @property
     def force_body(self) -> tuple[float, float, float]:
@@ -644,6 +664,7 @@ class AeroResult:
     method: AnalysisMethod
     engine_name: str
     polar_points: list[PolarPoint] = field(default_factory=list)
+    beta_polar_points: list[PolarPoint] = field(default_factory=list)  # Sideslip polar points for dual alpha-beta sweep
     # Summary key metrics
     cl_max: float = 0.0
     cl_max_alpha: float = 0.0

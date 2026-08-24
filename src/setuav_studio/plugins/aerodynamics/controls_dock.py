@@ -192,24 +192,28 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         self.sweep_table = self._property_table([
             ("mode", "Sweep Mode"),
             ("ctrl_surface", "Control Surface"),
-            ("sweep_min", "Start Value (Min)"),
-            ("sweep_max", "End Value (Max)"),
-            ("sweep_steps", "Step Count (N)"),
+            ("sweep_min", "Primary Start"),
+            ("sweep_max", "Primary End"),
+            ("sweep_steps", "Primary Steps"),
+            ("sec_min", "Secondary Start"),
+            ("sec_max", "Secondary End"),
+            ("sec_steps", "Secondary Steps"),
         ])
 
         self.combo_mode = QComboBox()
-        self.combo_mode.addItem("Alpha Sweep (AoA α Polar)", SweepType.ALPHA)
-        self.combo_mode.addItem("Beta Sweep (Sideslip β Response)", SweepType.BETA)
-        self.combo_mode.addItem("Control Deflection Sweep (δ)", SweepType.CONTROL_DEFLECTION)
-        self.combo_mode.addItem("Airspeed Sweep (Velocity V)", SweepType.VELOCITY)
-        self.combo_mode.addItem("Altitude Sweep (MSL Altitude)", SweepType.ALTITUDE)
-        self.combo_mode.addItem("Single Point (Ref Condition)", None)
+        self.combo_mode.addItem("Dual Alpha + Beta", SweepType.DUAL_ALPHA_BETA)
+        self.combo_mode.addItem("Alpha Sweep", SweepType.ALPHA)
+        self.combo_mode.addItem("Beta Sweep", SweepType.BETA)
+        self.combo_mode.addItem("Control Deflection Sweep", SweepType.CONTROL_DEFLECTION)
+        self.combo_mode.addItem("Airspeed Sweep", SweepType.VELOCITY)
+        self.combo_mode.addItem("Altitude Sweep", SweepType.ALTITUDE)
+        self.combo_mode.addItem("Single Point", None)
         self.combo_mode.currentIndexChanged.connect(self._on_mode_changed)
 
         self.combo_ctrl = QComboBox()
-        self.combo_ctrl.addItem("Elevator (Pitch)", "elevator")
-        self.combo_ctrl.addItem("Aileron (Roll)", "aileron")
-        self.combo_ctrl.addItem("Rudder (Yaw)", "rudder")
+        self.combo_ctrl.addItem("Elevator", "elevator")
+        self.combo_ctrl.addItem("Aileron", "aileron")
+        self.combo_ctrl.addItem("Rudder", "rudder")
         self.combo_ctrl.addItem("Flap", "flap")
 
         self.spin_sweep_min = NumericSpinBox()
@@ -227,11 +231,29 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         self.spin_sweep_steps.setRange(2, 100)
         self.spin_sweep_steps.setValue(29)
 
+        self.spin_sec_min = NumericSpinBox()
+        self.spin_sec_min.setRange(-45.0, 45.0)
+        self.spin_sec_min.setValue(-12.0)
+        self.spin_sec_min.setSuffix(" °")
+
+        self.spin_sec_max = NumericSpinBox()
+        self.spin_sec_max.setRange(-45.0, 45.0)
+        self.spin_sec_max.setValue(12.0)
+        self.spin_sec_max.setSuffix(" °")
+
+        self.spin_sec_steps = NumericSpinBox()
+        self.spin_sec_steps.setDecimals(0)
+        self.spin_sec_steps.setRange(2, 50)
+        self.spin_sec_steps.setValue(13)
+
         self.sweep_table.setCellWidget(0, 1, self.combo_mode)
         self.sweep_table.setCellWidget(1, 1, self.combo_ctrl)
         self.sweep_table.setCellWidget(2, 1, self.spin_sweep_min)
         self.sweep_table.setCellWidget(3, 1, self.spin_sweep_max)
         self.sweep_table.setCellWidget(4, 1, self.spin_sweep_steps)
+        self.sweep_table.setCellWidget(5, 1, self.spin_sec_min)
+        self.sweep_table.setCellWidget(6, 1, self.spin_sec_max)
+        self.sweep_table.setCellWidget(7, 1, self.spin_sec_steps)
 
         layout.addWidget(self.sweep_table)
         self._on_mode_changed()
@@ -248,31 +270,104 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         self.combo_ctrl.setEnabled(is_ctrl)
         self.sweep_table.setRowHidden(1, not is_ctrl)
 
-        if sweep_data == SweepType.ALPHA:
+        is_dual = sweep_data == SweepType.DUAL_ALPHA_BETA
+        self.sweep_table.setRowHidden(5, not is_dual)
+        self.sweep_table.setRowHidden(6, not is_dual)
+        self.sweep_table.setRowHidden(7, not is_dual)
+
+        # Update labels dynamically
+        item_p_min = self.sweep_table.item(2, 0)
+        item_p_max = self.sweep_table.item(3, 0)
+        item_p_steps = self.sweep_table.item(4, 0)
+        item_s_min = self.sweep_table.item(5, 0)
+        item_s_max = self.sweep_table.item(6, 0)
+        item_s_steps = self.sweep_table.item(7, 0)
+
+        if is_dual:
+            if item_p_min:
+                item_p_min.setText("Alpha Start")
+            if item_p_max:
+                item_p_max.setText("Alpha End")
+            if item_p_steps:
+                item_p_steps.setText("Alpha Steps")
+            if item_s_min:
+                item_s_min.setText("Beta Start")
+            if item_s_max:
+                item_s_max.setText("Beta End")
+            if item_s_steps:
+                item_s_steps.setText("Beta Steps")
+
+            self.spin_sweep_min.setSuffix(" °")
+            self.spin_sweep_max.setSuffix(" °")
+            self.spin_sec_min.setSuffix(" °")
+            self.spin_sec_max.setSuffix(" °")
+
+            self.spin_sweep_min.setValue(-10.0)
+            self.spin_sweep_max.setValue(18.0)
+            self.spin_sweep_steps.setValue(29)
+            self.spin_sec_steps.setValue(13)
+            self.spin_sec_min.setValue(-12.0)
+            self.spin_sec_max.setValue(12.0)
+
+        elif sweep_data == SweepType.ALPHA:
+            if item_p_min:
+                item_p_min.setText("Alpha Start")
+            if item_p_max:
+                item_p_max.setText("Alpha End")
+            if item_p_steps:
+                item_p_steps.setText("Alpha Steps")
             self.spin_sweep_min.setSuffix(" °")
             self.spin_sweep_max.setSuffix(" °")
             self.spin_sweep_min.setValue(-10.0)
             self.spin_sweep_max.setValue(18.0)
             self.spin_sweep_steps.setValue(29)
+
         elif sweep_data == SweepType.BETA:
+            if item_p_min:
+                item_p_min.setText("Beta Start")
+            if item_p_max:
+                item_p_max.setText("Beta End")
+            if item_p_steps:
+                item_p_steps.setText("Beta Steps")
             self.spin_sweep_min.setSuffix(" °")
             self.spin_sweep_max.setSuffix(" °")
             self.spin_sweep_min.setValue(-15.0)
             self.spin_sweep_max.setValue(15.0)
             self.spin_sweep_steps.setValue(31)
+
         elif sweep_data == SweepType.CONTROL_DEFLECTION:
+            if item_p_min:
+                item_p_min.setText("Deflection Start")
+            if item_p_max:
+                item_p_max.setText("Deflection End")
+            if item_p_steps:
+                item_p_steps.setText("Deflection Steps")
             self.spin_sweep_min.setSuffix(" °")
             self.spin_sweep_max.setSuffix(" °")
             self.spin_sweep_min.setValue(-20.0)
             self.spin_sweep_max.setValue(20.0)
             self.spin_sweep_steps.setValue(21)
+
         elif sweep_data == SweepType.VELOCITY:
+            if item_p_min:
+                item_p_min.setText("Velocity Start")
+            if item_p_max:
+                item_p_max.setText("Velocity End")
+            if item_p_steps:
+                item_p_steps.setText("Velocity Steps")
             self.spin_sweep_min.setSuffix(" m/s")
             self.spin_sweep_max.setSuffix(" m/s")
             self.spin_sweep_min.setValue(10.0)
             self.spin_sweep_max.setValue(45.0)
             self.spin_sweep_steps.setValue(15)
+
         elif sweep_data == SweepType.ALTITUDE:
+            if item_p_min:
+                item_p_min.setText("Altitude Start")
+            if item_p_max:
+                item_p_max.setText("Altitude End")
+            if item_p_steps:
+                item_p_steps.setText("Altitude Steps")
             self.spin_sweep_min.setSuffix(" m")
             self.spin_sweep_max.setSuffix(" m")
             self.spin_sweep_min.setValue(0.0)
@@ -338,28 +433,42 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         sweep_data = self.combo_mode.currentData()
         is_sweep = sweep_data is not None
 
-        if sweep_data == SweepType.ALPHA:
+        if sweep_data == SweepType.DUAL_ALPHA_BETA:
+            sweep_type = SweepType.DUAL_ALPHA_BETA
+            sweep_var = "alpha"
+            secondary_var = "beta"
+        elif sweep_data == SweepType.ALPHA:
             sweep_type = SweepType.ALPHA
             sweep_var = "alpha"
+            secondary_var = None
         elif sweep_data == SweepType.BETA:
             sweep_type = SweepType.BETA
             sweep_var = "beta"
+            secondary_var = None
         elif sweep_data == SweepType.CONTROL_DEFLECTION:
             sweep_type = SweepType.CONTROL_DEFLECTION
             sweep_var = str(self.combo_ctrl.currentData() or "elevator")
+            secondary_var = None
         elif sweep_data == SweepType.VELOCITY:
             sweep_type = SweepType.VELOCITY
             sweep_var = "velocity"
+            secondary_var = None
         elif sweep_data == SweepType.ALTITUDE:
             sweep_type = SweepType.ALTITUDE
             sweep_var = "altitude"
+            secondary_var = None
         else:
             sweep_type = SweepType.ALPHA
             sweep_var = "alpha"
+            secondary_var = None
 
         s_min = float(self.spin_sweep_min.value())
         s_max = float(self.spin_sweep_max.value())
         s_steps = int(self.spin_sweep_steps.value()) if is_sweep else 1
+
+        sec_min = float(self.spin_sec_min.value())
+        sec_max = float(self.spin_sec_max.value())
+        sec_steps = int(self.spin_sec_steps.value())
 
         condition = FlightCondition(
             velocity=float(self.spin_velocity.value()),
@@ -371,9 +480,16 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
             sweep_min=s_min,
             sweep_max=s_max,
             sweep_steps=s_steps,
-            alpha_min=s_min if sweep_type == SweepType.ALPHA else -10.0,
-            alpha_max=s_max if sweep_type == SweepType.ALPHA else 18.0,
-            alpha_steps=s_steps if sweep_type == SweepType.ALPHA else 1,
+            secondary_variable=secondary_var,
+            secondary_min=sec_min,
+            secondary_max=sec_max,
+            secondary_steps=sec_steps,
+            alpha_min=s_min if sweep_type in (SweepType.ALPHA, SweepType.DUAL_ALPHA_BETA) else -10.0,
+            alpha_max=s_max if sweep_type in (SweepType.ALPHA, SweepType.DUAL_ALPHA_BETA) else 18.0,
+            alpha_steps=s_steps if sweep_type in (SweepType.ALPHA, SweepType.DUAL_ALPHA_BETA) else 1,
+            beta_min=sec_min if sweep_type == SweepType.DUAL_ALPHA_BETA else (s_min if sweep_type == SweepType.BETA else -15.0),
+            beta_max=sec_max if sweep_type == SweepType.DUAL_ALPHA_BETA else (s_max if sweep_type == SweepType.BETA else 15.0),
+            beta_steps=sec_steps if sweep_type == SweepType.DUAL_ALPHA_BETA else (s_steps if sweep_type == SweepType.BETA else 1),
         )
 
         method = AnalysisMethod.COMPREHENSIVE
