@@ -1,0 +1,168 @@
+{
+  "schema_version": 1,
+  "description": "Fixed-wing aerodynamic regression reference generated with AeroSandbox 4.2.10.",
+  "aerosandbox_version": "4.2.10",
+  "condition": {
+    "velocity": 25.0,
+    "altitude": 1000.0,
+    "alpha": 4.0,
+    "beta": 0.0,
+    "sweep_type": "alpha",
+    "sweep_variable": "alpha",
+    "sweep_min": -2.0,
+    "sweep_max": 10.0,
+    "sweep_steps": 5,
+    "alpha_min": -2.0,
+    "alpha_max": 10.0,
+    "alpha_steps": 5
+  },
+  "settings": {
+    "spanwise_resolution": 12,
+    "chordwise_resolution": 8,
+    "spanwise_spacing": "cosine",
+    "chordwise_spacing": "cosine",
+    "include_wave_drag": true
+  },
+  "tolerances": {
+    "coefficient_relative": 0.005,
+    "coefficient_absolute": 0.00005,
+    "near_zero_absolute": 0.000001,
+    "reference_absolute": 0.000001
+  },
+  "solvers": {
+    "aero_buildup": {
+      "reference": {
+        "s_ref": 0.350540319937,
+        "b_ref": 1.645238095238,
+        "c_ref": 0.213063580859,
+        "x_cg": 0.359388503086,
+        "y_cg": 0.0,
+        "z_cg": 0.022662440516
+      },
+      "summary": {
+        "cl_max": 1.321479673933,
+        "cl_max_alpha": 10.0,
+        "cd_min": 0.021634609677,
+        "ld_max": 17.694290351191,
+        "ld_max_alpha": 1.0,
+        "reynolds": 336398.3635058943,
+        "mach": 0.074280468157,
+        "dynamic_pressure": 347.131369976957
+      },
+      "points": [
+        {
+          "alpha": -2.0,
+          "cl": 0.336318125965,
+          "cd": 0.021634609677,
+          "cm": -0.0470845496,
+          "cy": 0.0,
+          "cl_roll": 0.0,
+          "cn": 0.0
+        },
+        {
+          "alpha": 1.0,
+          "cl": 0.61057089028,
+          "cd": 0.03450666165,
+          "cm": -0.036092673451,
+          "cy": 0.0,
+          "cl_roll": 0.0,
+          "cn": 0.0
+        },
+        {
+          "alpha": 4.0,
+          "cl": 0.874041167495,
+          "cd": 0.055607255611,
+          "cm": -0.032030390796,
+          "cy": 0.0,
+          "cl_roll": 0.0,
+          "cn": 0.0
+        },
+        {
+          "alpha": 7.0,
+          "cl": 1.121027757659,
+          "cd": 0.083300728084,
+          "cm": -0.026362538113,
+          "cy": 0.0,
+          "cl_roll": 0.0,
+          "cn": 0.0
+        },
+        {
+          "alpha": 10.0,
+          "cl": 1.321479673933,
+          "cd": 0.113489853626,
+          "cm": -0.018507322935,
+          "cy": 0.0,
+          "cl_roll": 0.0,
+          "cn": 0.0
+        }
+      ]
+    },
+    "vlm": {
+      "reference": {
+        "s_ref": 0.350540319937,
+        "b_ref": 1.645238095238,
+        "c_ref": 0.213063580859,
+        "x_cg": 0.359388503086,
+        "y_cg": 0.0,
+        "z_cg": 0.022662440516
+      },
+      "summary": {
+        "cl_max": 0.962402045613,
+        "cl_max_alpha": 10.0,
+        "cd_min": 0.008720275446,
+        "ld_max": 24.897747313044,
+        "ld_max_alpha": 1.0,
+        "reynolds": 336398.3635058943,
+        "mach": 0.074280468157,
+        "dynamic_pressure": 347.131369976957
+      },
+      "points": [
+        {
+          "alpha": -2.0,
+          "cl": 0.168445576719,
+          "cd": 0.008720275446,
+          "cm": -0.058097465437,
+          "cy": 0.0,
+          "cl_roll": 0.0,
+          "cn": 0.0
+        },
+        {
+          "alpha": 1.0,
+          "cl": 0.37207441344,
+          "cd": 0.014944099511,
+          "cm": -0.046293911334,
+          "cy": 0.0,
+          "cl_roll": 0.0,
+          "cn": 0.0
+        },
+        {
+          "alpha": 4.0,
+          "cl": 0.573401252662,
+          "cd": 0.028596030231,
+          "cm": -0.036030263724,
+          "cy": 0.0,
+          "cl_roll": 0.0,
+          "cn": 0.0
+        },
+        {
+          "alpha": 7.0,
+          "cl": 0.770721637561,
+          "cd": 0.04934611683,
+          "cm": -0.027418973279,
+          "cy": 0.0,
+          "cl_roll": 0.0,
+          "cn": 0.0
+        },
+        {
+          "alpha": 10.0,
+          "cl": 0.962402045613,
+          "cd": 0.076668242855,
+          "cm": -0.020554387097,
+          "cy": 0.0,
+          "cl_roll": 0.0,
+          "cn": 0.0
+        }
+      ]
+    }
+  }
+}

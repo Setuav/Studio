@@ -196,33 +196,105 @@ class AeroSandboxEngineTests(unittest.TestCase):
         self.assertNotEqual(pt.cz, 0.0)
 
     @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
-    def test_analyze_fixed_wing_fixture(self) -> None:
-        fixture_path = Path(__file__).parent / "fixtures" / "fixed-wing" / "project.json"
-        with open(fixture_path, encoding="utf-8") as f:
-            proj_data = json.load(f)
+    def test_fixed_wing_fixture_matches_solver_references(self) -> None:
+        """Detect aerodynamic regressions against the pinned fixed-wing baseline."""
+        fixture_dir = Path(__file__).parent / "fixtures" / "fixed-wing"
+        proj_data = json.loads((fixture_dir / "project.json").read_text(encoding="utf-8"))
+        golden = json.loads(
+            (fixture_dir / "aerodynamics-reference.json").read_text(encoding="utf-8")
+        )
 
         components = proj_data.get("components", [])
         engine = AeroSandboxEngine()
-        cond = FlightCondition(
-            velocity=25.0,
-            altitude=1000.0,
-            alpha_min=-2.0,
-            alpha_max=10.0,
-            alpha_steps=5,
+        condition = FlightCondition.from_dict(golden["condition"])
+        settings = golden["settings"]
+        tolerances = golden["tolerances"]
+
+        coefficient_rel = float(tolerances["coefficient_relative"])
+        coefficient_abs = float(tolerances["coefficient_absolute"])
+        near_zero_abs = float(tolerances["near_zero_absolute"])
+        reference_abs = float(tolerances["reference_absolute"])
+
+        methods = (
+            AnalysisMethod.AERO_BUILDUP,
+            AnalysisMethod.VLM,
+        )
+        coefficient_fields = ("cl", "cd", "cm", "cy", "cl_roll", "cn")
+        summary_fields = (
+            "cl_max",
+            "cl_max_alpha",
+            "cd_min",
+            "ld_max",
+            "ld_max_alpha",
+            "reynolds",
+            "mach",
+            "dynamic_pressure",
         )
 
-        # 1. AeroBuildup with Clark-Y wing
-        result_ab = engine.analyze(components, cond, method=AnalysisMethod.AERO_BUILDUP)
-        self.assertEqual(result_ab.method, AnalysisMethod.AERO_BUILDUP)
-        self.assertEqual(len(result_ab.polar_points), 5)
-        self.assertGreater(result_ab.cl_max, 0.5)
-        self.assertGreater(result_ab.ld_max, 5.0)
+        for method in methods:
+            with self.subTest(solver=method.value):
+                expected = golden["solvers"][method.value]
+                result = engine.analyze(
+                    components,
+                    condition,
+                    method=method,
+                    settings=settings,
+                )
 
-        # 2. VLM with Clark-Y wing
-        result_vlm = engine.analyze(components, cond, method=AnalysisMethod.VLM)
-        self.assertEqual(result_vlm.method, AnalysisMethod.VLM)
-        self.assertEqual(len(result_vlm.polar_points), 5)
-        self.assertGreater(result_vlm.cl_max, 0.5)
+                self.assertEqual(result.method, method)
+                self.assertEqual(len(result.polar_points), len(expected["points"]))
+                self.assertTrue(all(point.converged for point in result.polar_points))
+
+                for field, expected_value in expected["reference"].items():
+                    self.assertAlmostEqual(
+                        float(getattr(result.reference, field)),
+                        float(expected_value),
+                        delta=reference_abs,
+                        msg=f"{method.value} reference {field} changed",
+                    )
+
+                for field in summary_fields:
+                    actual_value = float(getattr(result, field))
+                    expected_value = float(expected["summary"][field])
+                    self.assertTrue(
+                        math.isclose(
+                            actual_value,
+                            expected_value,
+                            rel_tol=coefficient_rel,
+                            abs_tol=coefficient_abs,
+                        ),
+                        msg=(
+                            f"{method.value} summary {field} changed: "
+                            f"expected {expected_value:.12g}, got {actual_value:.12g}"
+                        ),
+                    )
+
+                for point, expected_point in zip(result.polar_points, expected["points"]):
+                    self.assertAlmostEqual(
+                        point.alpha,
+                        float(expected_point["alpha"]),
+                        places=10,
+                    )
+                    for field in coefficient_fields:
+                        actual_value = float(getattr(point, field))
+                        expected_value = float(expected_point[field])
+                        absolute_tolerance = (
+                            near_zero_abs
+                            if abs(expected_value) < near_zero_abs
+                            else coefficient_abs
+                        )
+                        self.assertTrue(
+                            math.isclose(
+                                actual_value,
+                                expected_value,
+                                rel_tol=coefficient_rel,
+                                abs_tol=absolute_tolerance,
+                            ),
+                            msg=(
+                                f"{method.value} {field} at alpha={point.alpha:g} changed: "
+                                f"expected {expected_value:.12g}, got {actual_value:.12g}"
+                            ),
+                        )
 
     @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_fixed_wing_fixture_geometry_contract(self) -> None:
