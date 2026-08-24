@@ -19,6 +19,7 @@ from setuav_studio.project import ProjectDocument
 __all__ = [
     "BaseComponentEditor",
     "ComponentTreeNodeContribution",
+    "ProjectTreeNodeContribution",
     "ParameterField",
     "PanelContribution",
     "SettingsPageContribution",
@@ -37,6 +38,10 @@ GeometryProvider = Callable[[dict[str, Any]], Any]
 ComponentTreeProvider = Callable[
     [dict[str, Any]],
     tuple["ComponentTreeNodeContribution", ...],
+]
+ProjectTreeProvider = Callable[
+    [ProjectDocument],
+    tuple["ProjectTreeNodeContribution", ...],
 ]
 
 
@@ -58,6 +63,19 @@ class ComponentTreeNodeContribution:
     selection: dict[str, Any]
     icon: str | Path | QIcon | None = None
     tooltip: str | None = None
+
+
+@dataclass(frozen=True)
+class ProjectTreeNodeContribution:
+    """A plugin-owned node displayed directly beneath the project root."""
+
+    id: str
+    title: str
+    selection: dict[str, Any]
+    children: tuple["ProjectTreeNodeContribution", ...] = ()
+    icon: str | Path | QIcon | None = None
+    tooltip: str | None = None
+    rename: Callable[[str], None] | None = None
 
 
 @dataclass(frozen=True)
@@ -270,6 +288,7 @@ class StudioAPI:
         self._kind_icons: dict[str, str | Path | QIcon] = {}
         self._geometry_providers: dict[str, GeometryProvider] = {}
         self._component_tree_providers: dict[str, ComponentTreeProvider] = {}
+        self._project_tree_providers: dict[str, ProjectTreeProvider] = {}
         self._mass_properties_providers: dict[str, MassPropertiesProvider] = {}
         self._project_requirement_checker: (
             Callable[[dict[str, Any]], list[str]] | None
@@ -853,6 +872,33 @@ class StudioAPI:
         nodes: list[ComponentTreeNodeContribution] = []
         for provider in self._component_tree_providers.values():
             nodes.extend(provider(component))
+        return tuple(nodes)
+
+    def register_project_tree_provider(
+        self,
+        provider_id: str,
+        provider: ProjectTreeProvider,
+    ) -> None:
+        if provider_id in self._project_tree_providers:
+            raise ValueError(
+                f"A project tree provider is already registered for: {provider_id}"
+            )
+        self._project_tree_providers[provider_id] = provider
+        if self.current_project is not None:
+            self.notify_project_content_changed()
+
+    def remove_project_tree_provider(self, provider_id: str) -> None:
+        removed = self._project_tree_providers.pop(provider_id, None)
+        if removed is not None and self.current_project is not None:
+            self.notify_project_content_changed()
+
+    def project_tree_nodes(
+        self,
+        project: ProjectDocument,
+    ) -> tuple[ProjectTreeNodeContribution, ...]:
+        nodes: list[ProjectTreeNodeContribution] = []
+        for provider in self._project_tree_providers.values():
+            nodes.extend(provider(project))
         return tuple(nodes)
 
     def register_mass_properties_provider(

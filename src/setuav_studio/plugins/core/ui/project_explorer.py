@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.plugin_system import StudioAPI
+from setuav_studio.plugin_system import ProjectTreeNodeContribution, StudioAPI
 from setuav_studio.project import ProjectDocument
 from setuav_studio.ui.icons import get_icon
 
@@ -207,6 +207,10 @@ class ProjectExplorer(QTreeWidget):
         self._project_root_item: QTreeWidgetItem | None = None
         self._geometry_group_item: QTreeWidgetItem | None = None
         self._virtual_items: set[QTreeWidgetItem] = set()
+        self._project_contributions: dict[
+            QTreeWidgetItem,
+            ProjectTreeNodeContribution,
+        ] = {}
         self._saved_components: dict[str, dict[str, Any]] = {}
         self._saved_assemblies: dict[str, dict[str, Any]] = {}
 
@@ -237,6 +241,7 @@ class ProjectExplorer(QTreeWidget):
             self._project_root_item = None
             self._geometry_group_item = None
             self._virtual_items.clear()
+            self._project_contributions.clear()
 
             project_name = str(
                 project.data.get("name")
@@ -374,6 +379,12 @@ class ProjectExplorer(QTreeWidget):
                 else:
                     project_item.addChild(tree_item)
 
+            # 4. Add project-level nodes contributed by plugins. These nodes
+            # carry selection payloads but do not become part of the core
+            # component/assembly schema.
+            for contribution in self._api.project_tree_nodes(project):
+                self._append_project_contribution(project_item, contribution)
+
             self.expandAll()
             if project_is_selected:
                 self.setCurrentItem(project_item)
@@ -389,6 +400,28 @@ class ProjectExplorer(QTreeWidget):
 
         if current_sel_id and self._api.current_selection is not fresh_selection:
             self._api.set_selection(fresh_selection)
+
+    def _append_project_contribution(
+        self,
+        parent: QTreeWidgetItem,
+        contribution: ProjectTreeNodeContribution,
+    ) -> None:
+        item = QTreeWidgetItem([contribution.title])
+        if contribution.rename is not None and self._can_edit_project():
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
+        else:
+            item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+        if contribution.icon is not None:
+            item.setIcon(0, get_icon(contribution.icon))
+        item.setToolTip(0, contribution.tooltip or contribution.title)
+        item.setData(0, Qt.ItemDataRole.UserRole, contribution.id)
+        self._item_map[contribution.id] = item
+        self._element_map[item] = contribution.selection
+        self._virtual_items.add(item)
+        self._project_contributions[item] = contribution
+        parent.addChild(item)
+        for child in contribution.children:
+            self._append_project_contribution(item, child)
 
     def refresh_project(self, project: ProjectDocument | None = None) -> None:
         current_project = project or self._api.current_project
@@ -597,11 +630,19 @@ class ProjectExplorer(QTreeWidget):
 
     def _open_context_menu(self, position: QPoint) -> None:
         item = self.itemAt(position)
-        if (
-            item is None
-            or item is self._geometry_group_item
-            or item in self._virtual_items
-        ):
+        if item is None or item is self._geometry_group_item:
+            return
+
+        if item in self._virtual_items:
+            contribution = self._project_contributions.get(item)
+            if contribution is None or contribution.rename is None:
+                return
+            self.setCurrentItem(item)
+            menu = QMenu(self)
+            rename_action = menu.addAction(get_icon("edit"), "Rename")
+            rename_action.setEnabled(self._can_edit_project())
+            if menu.exec(self.viewport().mapToGlobal(position)) is rename_action:
+                self.editItem(item, 0)
             return
 
         self.setCurrentItem(item)
@@ -622,6 +663,26 @@ class ProjectExplorer(QTreeWidget):
 
     def _rename_item(self, item: QTreeWidgetItem, column: int) -> None:
         if column != 0:
+            return
+        contribution = self._project_contributions.get(item)
+        if contribution is not None:
+            old_name = contribution.title
+            new_name = item.text(0).strip()
+            if not self._can_edit_project() or contribution.rename is None:
+                self._restore_item_text(item, old_name)
+                return
+            if not new_name:
+                self._restore_item_text(item, old_name)
+                self._api.show_status("Name cannot be empty", "warning", 3000)
+                return
+            if new_name == old_name:
+                return
+            contribution.rename(new_name)
+            self._api.show_status(
+                f'Renamed "{old_name}" to "{new_name}"',
+                "success",
+                3000,
+            )
             return
         element = self._element_map.get(item)
         if element is None:

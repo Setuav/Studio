@@ -1,26 +1,21 @@
-"""Aerodynamic analysis history and selected-result tables."""
+"""Selected aerodynamic analysis summary and detail tables."""
 from __future__ import annotations
 
 import csv
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QCloseEvent, QFont, QKeySequence, QShortcut
+from PySide6.QtGui import QCloseEvent, QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QFileDialog,
     QHBoxLayout,
     QHeaderView,
-    QLabel,
-    QListWidget,
-    QListWidgetItem,
     QPushButton,
     QScrollArea,
     QSizePolicy,
-    QSplitter,
     QTabWidget,
     QTableWidget,
     QTableWidgetItem,
-    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -31,6 +26,12 @@ from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.property_tables import ContentFitTableWidget, PropertyTableMixin
 
 from .engine.base import AeroResult, SweepType
+from .analysis_store import (
+    EXTENSION_ID,
+    RESULT_SELECTION_KIND,
+    delete_analysis_entry,
+    load_analysis_result,
+)
 
 
 SUMMARY_ROWS = [
@@ -83,7 +84,7 @@ SUMMARY_ROWS = [
 
 
 class AeroResultsDock(PropertyTableMixin, QWidget):
-    """Keep analysis results and expose one selected result to the workspace."""
+    """Show the aerodynamic result selected in the project tree."""
 
     table_headers = ("Metric", "Value")
     table_edit_triggers = QAbstractItemView.EditTrigger.NoEditTriggers
@@ -96,12 +97,13 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
         super().__init__(parent)
         self.setObjectName("aerodynamics.results_widget")
         self._api = api
-        self._results: list[AeroResult] = []
         self._current_result: AeroResult | None = None
+        self._current_result_id: str | None = None
         self._init_ui()
 
         self._api.subscribe("aerodynamics.analysis_completed", self.display_results)
         self._api.on_project_changed(self._on_project_changed)
+        self._api.on_selection_changed(self._on_selection_changed)
 
     @property
     def current_result(self) -> AeroResult | None:
@@ -112,38 +114,7 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        splitter = QSplitter(Qt.Orientation.Vertical, self)
-        splitter.setChildrenCollapsible(False)
-        splitter.setHandleWidth(4)
-
-        list_panel = QWidget(splitter)
-        list_layout = QVBoxLayout(list_panel)
-        list_layout.setContentsMargins(4, 4, 4, 2)
-        list_layout.setSpacing(3)
-        list_header = QHBoxLayout()
-        list_header.setContentsMargins(0, 0, 0, 0)
-        list_header.addWidget(QLabel("Analysis Results", list_panel))
-        list_header.addStretch(1)
-        self.delete_result_button = QToolButton(list_panel)
-        self.delete_result_button.setAutoRaise(True)
-        self.delete_result_button.setIcon(get_icon("fa6s.trash"))
-        self.delete_result_button.setToolTip("Delete selected analysis result")
-        self.delete_result_button.setEnabled(False)
-        self.delete_result_button.clicked.connect(self._delete_selected_result)
-        list_header.addWidget(self.delete_result_button)
-        list_layout.addLayout(list_header)
-
-        self.results_list = QListWidget(list_panel)
-        self.results_list.setObjectName("aerodynamics.analysis_results_list")
-        self.results_list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        self.results_list.setAlternatingRowColors(True)
-        self.results_list.currentRowChanged.connect(self._on_result_selected)
-        list_layout.addWidget(self.results_list)
-        self.delete_result_shortcut = QShortcut(QKeySequence.StandardKey.Delete, self.results_list)
-        self.delete_result_shortcut.activated.connect(self._delete_selected_result)
-        splitter.addWidget(list_panel)
-
-        self.tab_widget = QTabWidget(splitter)
+        self.tab_widget = QTabWidget(self)
 
         summary_page = QWidget(self.tab_widget)
         summary_layout = QVBoxLayout(summary_page)
@@ -170,22 +141,27 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
         )
         detail_layout.addWidget(self.detail_table)
 
-        button_panel = QWidget(detail_page)
+        self.tab_widget.addTab(detail_page, "Detailed")
+        main_layout.addWidget(self.tab_widget, 1)
+
+        button_panel = QWidget(self)
         button_layout = QHBoxLayout(button_panel)
         button_layout.setContentsMargins(6, 4, 6, 6)
+        self.delete_result_button = QPushButton(" Delete Result", button_panel)
+        set_native_button(self.delete_result_button, "fa6s.trash")
+        self.delete_result_button.setToolTip(
+            "Delete the selected project analysis result"
+        )
+        self.delete_result_button.setEnabled(False)
+        self.delete_result_button.clicked.connect(self._delete_selected_result)
+        button_layout.addWidget(self.delete_result_button)
+        button_layout.addStretch(1)
         self.btn_export_csv = QPushButton(" Export CSV", button_panel)
         set_native_button(self.btn_export_csv, "fa6s.file-csv")
         self.btn_export_csv.clicked.connect(self._export_csv)
         self.btn_export_csv.setEnabled(False)
         button_layout.addWidget(self.btn_export_csv)
-        detail_layout.addWidget(button_panel)
-
-        self.tab_widget.addTab(detail_page, "Detailed")
-        splitter.addWidget(self.tab_widget)
-        splitter.setStretchFactor(0, 0)
-        splitter.setStretchFactor(1, 1)
-        splitter.setSizes([130, 520])
-        main_layout.addWidget(splitter)
+        main_layout.addWidget(button_panel)
 
         self._clear_tables()
 
@@ -243,82 +219,49 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
             return "Single Point"
         return "Alpha Sweep"
 
-    @classmethod
-    def _result_label(cls, result: AeroResult, number: int) -> str:
-        custom_name = result.raw.get("analysis_name") if isinstance(result.raw, dict) else None
-        name = str(custom_name).strip() if custom_name else cls._sweep_label(result)
-        method = result.method.value.replace("_", " ").upper()
-        return f"{number:02d}  {name} · {method} · {len(result.polar_points)} pts"
-
     def display_results(self, result: AeroResult) -> None:
-        """Append a completed analysis and make it the active result."""
+        """Display a newly completed (possibly not yet persisted) result."""
         if not isinstance(result, AeroResult):
             return
-        result_index = len(self._results)
-        self._results.append(result)
+        self._current_result_id = None
+        self._show_result(result)
 
-        item = QListWidgetItem(self._result_label(result, result_index + 1))
-        item.setData(Qt.ItemDataRole.UserRole, result_index)
-        item.setToolTip(
-            f"{result.engine_name} / {result.method.value}\n"
-            f"{self._sweep_label(result)}\n"
-            f"{len(result.polar_points)} result point(s)"
-        )
-        self.results_list.addItem(item)
-        self.results_list.setCurrentItem(item)
-        if self._current_result is not result:
-            self._select_result(result_index)
-
-    def _on_result_selected(self, row: int) -> None:
-        self.delete_result_button.setEnabled(row >= 0)
-        if row < 0:
-            self._current_result = None
-            self._clear_tables()
-            self._api.publish("aerodynamics.result_selected", None)
+    def _on_selection_changed(self, selection: object | None) -> None:
+        if not isinstance(selection, dict) or selection.get("kind") != RESULT_SELECTION_KIND:
+            self.clear_results()
             return
-        item = self.results_list.item(row)
-        result_index = int(item.data(Qt.ItemDataRole.UserRole)) if item is not None else row
-        self._select_result(result_index)
+        analysis_id = str(selection.get("analysis_id") or "")
+        result = load_analysis_result(self._api.current_project, analysis_id)
+        if result is None:
+            self.clear_results()
+            return
+        self._current_result_id = analysis_id
+        self._show_result(result)
 
     def _delete_selected_result(self) -> None:
-        row = self.results_list.currentRow()
-        if not 0 <= row < len(self._results):
+        analysis_id = self._current_result_id
+        project = self._api.current_project
+        if not analysis_id or project is None or project.read_only:
             return
+        self._api.edit_project_extension(
+            EXTENSION_ID,
+            "Delete aerodynamic analysis result",
+            lambda extension: delete_analysis_entry(extension, analysis_id),
+        )
+        self._api.set_selection(None)
+        self._api.show_status("Deleted aerodynamic analysis result", "success", 3000)
 
-        self.results_list.blockSignals(True)
-        try:
-            self.results_list.takeItem(row)
-            del self._results[row]
-            for item_row in range(row, self.results_list.count()):
-                item = self.results_list.item(item_row)
-                item.setData(Qt.ItemDataRole.UserRole, item_row)
-                item.setText(self._result_label(self._results[item_row], item_row + 1))
-        finally:
-            self.results_list.blockSignals(False)
-
-        if self._results:
-            next_row = min(row, len(self._results) - 1)
-            self.results_list.blockSignals(True)
-            try:
-                self.results_list.setCurrentRow(next_row)
-            finally:
-                self.results_list.blockSignals(False)
-            self.delete_result_button.setEnabled(True)
-            self._select_result(next_row)
-        else:
-            self._current_result = None
-            self._clear_tables()
-            self.delete_result_button.setEnabled(False)
-            self._api.publish("aerodynamics.result_selected", None)
-
-    def _select_result(self, result_index: int) -> None:
-        if not 0 <= result_index < len(self._results):
-            return
-        result = self._results[result_index]
+    def _show_result(self, result: AeroResult) -> None:
         self._current_result = result
         self._populate_summary(result)
         self._populate_details(result)
         self.btn_export_csv.setEnabled(bool(result.polar_points))
+        project = self._api.current_project
+        self.delete_result_button.setEnabled(
+            self._current_result_id is not None
+            and project is not None
+            and not project.read_only
+        )
         self._api.publish("aerodynamics.result_selected", result)
 
     def _populate_summary(self, result: AeroResult) -> None:
@@ -516,14 +459,12 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
         self.btn_export_csv.setEnabled(False)
 
     def clear_results(self) -> None:
-        self.results_list.blockSignals(True)
-        try:
-            self.results_list.clear()
-        finally:
-            self.results_list.blockSignals(False)
-        self._results.clear()
+        if self._current_result is None and self._current_result_id is None:
+            return
         self._current_result = None
+        self._current_result_id = None
         self._clear_tables()
+        self.delete_result_button.setEnabled(False)
         self._api.publish("aerodynamics.result_selected", None)
 
     def _on_project_changed(self, _project: object) -> None:
@@ -535,8 +476,8 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
         summary_selected = self.tab_widget.currentIndex() == 0
         table: QTableWidget = self.summary_table if summary_selected else self.detail_table
         suffix = "summary" if summary_selected else "detailed"
-        current_row = max(self.results_list.currentRow() + 1, 1)
-        default_name = f"aerodynamic_analysis_{current_row:02d}_{suffix}.csv"
+        analysis_tag = (self._current_result_id or "current")[:8]
+        default_name = f"aerodynamic_analysis_{analysis_tag}_{suffix}.csv"
         path, _selected_filter = QFileDialog.getSaveFileName(
             self,
             "Export Aerodynamic Results",
@@ -565,10 +506,11 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
     def update_theme_style(self) -> None:
         self.tab_widget.setTabIcon(0, get_icon("fa6s.chart-simple"))
         self.tab_widget.setTabIcon(1, get_icon("fa6s.table"))
-        self.delete_result_button.setIcon(get_icon("fa6s.trash"))
+        refresh_button_role(self.delete_result_button)
         refresh_button_role(self.btn_export_csv)
 
     def closeEvent(self, event: QCloseEvent) -> None:
         self._api.unsubscribe("aerodynamics.analysis_completed", self.display_results)
         self._api.remove_project_listener(self._on_project_changed)
+        self._api.remove_selection_listener(self._on_selection_changed)
         super().closeEvent(event)

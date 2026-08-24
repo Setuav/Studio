@@ -7,21 +7,33 @@ from PySide6.QtCore import Qt
 
 from setuav_studio.plugin_system import (
     PanelContribution,
+    ProjectTreeNodeContribution,
     StudioAPI,
     ToolContribution,
     WorkspaceContribution,
 )
+from setuav_studio.project import ProjectDocument
 from .charts_dock import AeroChartsDock
 from .controls_dock import AeroControlsDock
 from .results_dock import AeroResultsDock
 from .engine.base import AeroResult
+from .analysis_store import (
+    EXTENSION_ID,
+    RESULTS_GROUP_ID,
+    analysis_entries,
+    analysis_selection,
+    append_analysis_entry,
+    make_analysis_entry,
+    rename_analysis_entry,
+    short_result_name,
+)
 
 if TYPE_CHECKING:
     from .aero_3d_tool import Aero3DToolWindow
 
 
 class AerodynamicsPlugin:
-    """Plugin providing aerodynamic analysis, result history, and curves."""
+    """Plugin providing aerodynamic analysis, persisted results, and curves."""
 
     id = "org.setuav.studio.aerodynamics"
     priority = 20
@@ -33,6 +45,7 @@ class AerodynamicsPlugin:
 
     def activate(self, api: StudioAPI) -> None:
         self._api = api
+        api.register_project_tree_provider(self.id, self._project_tree_nodes)
 
         # 1. Register Aerodynamics Workspace
         api.add_workspace(
@@ -89,6 +102,7 @@ class AerodynamicsPlugin:
         )
 
     def deactivate(self, api: StudioAPI) -> None:
+        api.remove_project_tree_provider(self.id)
         api.remove_panel("aerodynamics.controls_dock")
         api.remove_panel("aerodynamics.results_dock")
         api.remove_panel("aerodynamics.charts_dock")
@@ -103,7 +117,73 @@ class AerodynamicsPlugin:
     def _handle_analysis_result(self, result: AeroResult) -> None:
         self._latest_result = result
         if self._api is not None:
+            entry = None
+            project = self._api.current_project
+            if project is not None and not project.read_only:
+                entry = make_analysis_entry(result)
+                self._api.edit_project_extension(
+                    EXTENSION_ID,
+                    f"Store aerodynamic analysis: {entry['name']}",
+                    lambda extension: append_analysis_entry(extension, entry),
+                )
             self._api.publish("aerodynamics.analysis_completed", result)
+            if entry is not None:
+                self._api.set_selection(analysis_selection(str(entry["id"])))
+
+    def _project_tree_nodes(
+        self,
+        project: ProjectDocument,
+    ) -> tuple[ProjectTreeNodeContribution, ...]:
+        children: list[ProjectTreeNodeContribution] = []
+        for entry in analysis_entries(project):
+            analysis_id = str(entry.get("id") or "")
+            payload = entry.get("result")
+            if not analysis_id or not isinstance(payload, dict):
+                continue
+            name = short_result_name(
+                str(entry.get("name") or "Aerodynamic Analysis")
+            )
+            method = str(payload.get("method") or "").replace("_", " ").upper()
+            points = payload.get("polar_points")
+            point_count = len(points) if isinstance(points, list) else 0
+            created_at = str(entry.get("created_at") or "")
+            children.append(
+                ProjectTreeNodeContribution(
+                    id=f"aerodynamics.analysis-result.{analysis_id}",
+                    title=name,
+                    selection=analysis_selection(analysis_id),
+                    icon="fa6s.chart-line",
+                    tooltip=(
+                        f"{name}\n{method} · {point_count} result point(s)"
+                        + (f"\n{created_at}" if created_at else "")
+                    ),
+                    rename=lambda new_name, result_id=analysis_id: self._rename_result(
+                        result_id,
+                        new_name,
+                    ),
+                )
+            )
+        if not children:
+            return ()
+        return (
+            ProjectTreeNodeContribution(
+                id=RESULTS_GROUP_ID,
+                title="Aero Analyses",
+                selection={"id": RESULTS_GROUP_ID, "kind": "aerodynamics-results"},
+                children=tuple(children),
+                icon="fa6s.wind",
+                tooltip="Saved aerodynamic analysis results",
+            ),
+        )
+
+    def _rename_result(self, analysis_id: str, name: str) -> None:
+        if self._api is None:
+            return
+        self._api.edit_project_extension(
+            EXTENSION_ID,
+            f"Rename aerodynamic analysis to {name}",
+            lambda extension: rename_analysis_entry(extension, analysis_id, name),
+        )
 
     def _open_aero_3d_tool(self) -> None:
         if self._api is None:

@@ -903,6 +903,7 @@ class AeroResult:
             "method": self.method.value,
             "engine_name": self.engine_name,
             "polar_points": [p.to_dict() for p in self.polar_points],
+            "beta_polar_points": [p.to_dict() for p in self.beta_polar_points],
             "solver_results": {
                 name: [p.to_dict() for p in pts]
                 for name, pts in self.solver_results.items()
@@ -932,6 +933,11 @@ class AeroResult:
         method = AnalysisMethod.from_value(data.get("method", "aero_buildup"))
 
         points = [PolarPoint.from_dict(p) for p in data.get("polar_points", []) if isinstance(p, dict)]
+        beta_points = [
+            PolarPoint.from_dict(p)
+            for p in data.get("beta_polar_points", [])
+            if isinstance(p, dict)
+        ]
         solv_res_data = data.get("solver_results", {})
         solv_res: dict[str, list[PolarPoint]] = {}
         if isinstance(solv_res_data, dict):
@@ -969,6 +975,7 @@ class AeroResult:
             method=method,
             engine_name=str(data.get("engine_name", "")),
             polar_points=points,
+            beta_polar_points=beta_points,
             solver_results=solv_res,
             cl_max=float(data.get("cl_max", 0.0)),
             cl_max_alpha=float(data.get("cl_max_alpha", 0.0)),

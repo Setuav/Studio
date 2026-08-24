@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 import unittest
 from setuav_studio.project import ProjectDocument
 from setuav_studio.plugin_system import (
@@ -11,6 +12,11 @@ from setuav_studio.plugin_system import (
     WorkspaceContribution,
 )
 from setuav_studio.plugins.aerodynamics.plugin import AerodynamicsPlugin
+from setuav_studio.plugins.aerodynamics.analysis_store import (
+    analysis_entries,
+    load_analysis_result,
+)
+from setuav_studio.plugins.core.ui.project_explorer import ProjectExplorer
 from setuav_studio.plugins.aerodynamics.engine.base import (
     AeroResult,
     AnalysisMethod,
@@ -82,6 +88,12 @@ class AerodynamicsPluginTests(unittest.TestCase):
         self.assertIsNotNone(controls_widget)
         self.assertIsNotNone(results_widget)
         self.assertIsNotNone(charts_widget)
+        project = ProjectDocument(
+            path=Path("aero-results.json"),
+            kind="json",
+            data={"name": "Aero Results", "components": []},
+        )
+        self.api.set_project(project)
         sweep_modes = {
             controls_widget.combo_mode.itemText(index)
             for index in range(controls_widget.combo_mode.count())
@@ -120,9 +132,26 @@ class AerodynamicsPluginTests(unittest.TestCase):
 
         self.plugin._handle_analysis_result(dummy_result)
 
-        # Verify results dock populated
-        self.assertEqual(results_widget.results_list.count(), 1)
-        self.assertIs(results_widget.current_result, dummy_result)
+        # The result is persisted in the project and selected through the
+        # plugin-owned Project Tree contribution.
+        self.assertEqual(len(analysis_entries(project)), 1)
+        self.assertEqual(len(self.api.project_tree_nodes(project)), 1)
+        result_group = self.api.project_tree_nodes(project)[0]
+        self.assertEqual(result_group.title, "Aero Analyses")
+        result_nodes = result_group.children
+        self.assertEqual(len(result_nodes), 1)
+        self.assertEqual(result_nodes[0].title, "α–β Sweep")
+        self.assertEqual(self.api.current_selection, result_nodes[0].selection)
+        explorer = ProjectExplorer(self.api)
+        self.assertIn("aerodynamics.analysis-results", explorer._item_map)
+        self.assertIn(result_nodes[0].id, explorer._item_map)
+        explorer._item_map[result_nodes[0].id].setText(0, "Cruise Envelope")
+        self.assertEqual(analysis_entries(project)[0]["name"], "Cruise Envelope")
+        self.assertEqual(
+            self.api.project_tree_nodes(project)[0].children[0].title,
+            "Cruise Envelope",
+        )
+        self.assertEqual(results_widget.current_result.cl_max, dummy_result.cl_max)
         self.assertEqual(results_widget.detail_table.rowCount(), 4)
         self.assertEqual(results_widget.tab_widget.count(), 2)
 
@@ -141,7 +170,7 @@ class AerodynamicsPluginTests(unittest.TestCase):
         self.assertIn("Lift Force", charts_widget.chart_lift.chart.title())
 
         # A second result is appended and becomes active. Selecting the first
-        # history entry restores both tables and charts to that result.
+        # Project Tree entry restores both tables and charts to that result.
         second_result = AeroResult(
             method=AnalysisMethod.VLM,
             engine_name="AeroSandbox",
@@ -157,26 +186,46 @@ class AerodynamicsPluginTests(unittest.TestCase):
             condition=FlightCondition(alpha=3.0, alpha_steps=1, sweep_steps=1),
         )
         self.plugin._handle_analysis_result(second_result)
-        self.assertEqual(results_widget.results_list.count(), 2)
-        self.assertIs(results_widget.current_result, second_result)
+        self.assertEqual(len(analysis_entries(project)), 2)
+        self.assertEqual(results_widget.current_result.cl_max, second_result.cl_max)
         self.assertEqual(results_widget.detail_table.rowCount(), 1)
 
-        results_widget.results_list.setCurrentRow(0)
-        self.assertIs(results_widget.current_result, dummy_result)
+        result_nodes = self.api.project_tree_nodes(project)[0].children
+        self.api.set_selection(result_nodes[0].selection)
+        self.assertEqual(results_widget.current_result.cl_max, dummy_result.cl_max)
         self.assertEqual(results_widget.detail_table.rowCount(), 4)
         self.assertEqual(charts_widget.chart_lift.chart.series()[0].count(), 2)
 
         results_widget.delete_result_button.click()
-        self.assertEqual(results_widget.results_list.count(), 1)
-        self.assertIs(results_widget.current_result, second_result)
+        self.assertEqual(len(analysis_entries(project)), 1)
+        self.assertIsNone(results_widget.current_result)
+
+        result_nodes = self.api.project_tree_nodes(project)[0].children
+        self.api.set_selection(result_nodes[0].selection)
+        self.assertEqual(results_widget.current_result.cl_max, second_result.cl_max)
         self.assertEqual(results_widget.detail_table.rowCount(), 1)
         self.assertEqual(charts_widget.chart_lift.chart.series()[0].count(), 1)
 
         results_widget.delete_result_button.click()
-        self.assertEqual(results_widget.results_list.count(), 0)
+        self.assertEqual(len(analysis_entries(project)), 0)
+        self.assertEqual(self.api.project_tree_nodes(project), ())
         self.assertIsNone(results_widget.current_result)
         self.assertEqual(results_widget.detail_table.rowCount(), 0)
         self.assertEqual(charts_widget.combo_view_mode.count(), 0)
+
+        # The stored representation remains JSON-safe and reconstructs the
+        # full result model after a project save/load boundary.
+        self.plugin._handle_analysis_result(dummy_result)
+        reloaded = ProjectDocument(
+            path=Path("reloaded.json"),
+            kind="json",
+            data=json.loads(json.dumps(project.data)),
+        )
+        stored_id = str(analysis_entries(reloaded)[0]["id"])
+        restored = load_analysis_result(reloaded, stored_id)
+        self.assertIsNotNone(restored)
+        self.assertEqual(len(restored.polar_points), 4)
+        self.assertEqual(restored.condition.sweep_type, SweepType.DUAL_ALPHA_BETA)
 
     def test_deactivation_cleans_up(self) -> None:
         self.plugin.activate(self.api)
