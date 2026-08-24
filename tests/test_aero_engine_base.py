@@ -184,6 +184,9 @@ class AeroEngineBaseTests(unittest.TestCase):
             fx_b=12.5,
             fy_b=-1.2,
             fz_b=-350.0,
+            fx_w=-15.0,
+            fy_w=-1.2,
+            fz_w=-350.0,
             lift=350.0,
             drag=15.0,
             sideforce=-1.2,
@@ -196,11 +199,14 @@ class AeroEngineBaseTests(unittest.TestCase):
         )
         self.assertEqual(fm.force_body, (12.5, -1.2, -350.0))
         self.assertEqual(fm.moment_body, (0.45, -4.2, 0.12))
-        self.assertEqual(fm.force_wind, (350.0, 15.0, -1.2))
+        self.assertEqual(fm.force_wind, (-15.0, -1.2, -350.0))
 
         data = fm.to_dict()
         restored = AeroForcesMoments.from_dict(data)
         self.assertEqual(fm, restored)
+
+        legacy = AeroForcesMoments.from_dict({"lift": 350.0, "drag": 15.0, "sideforce": -1.2})
+        self.assertEqual(legacy.force_wind, (-15.0, -1.2, -350.0))
 
     def test_aero_state_and_serialization(self) -> None:
         state = AeroState(

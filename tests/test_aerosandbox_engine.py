@@ -170,6 +170,10 @@ class AeroSandboxEngineTests(unittest.TestCase):
         self.assertEqual(len(restored.polar_points), 7)
         self.assertAlmostEqual(restored.polar_points[0].cl, result.polar_points[0].cl, places=5)
         self.assertAlmostEqual(restored.polar_points[0].cx, result.polar_points[0].cx, places=5)
+        self.assertEqual(
+            restored.polar_points[0].forces_moments.force_wind,
+            result.polar_points[0].forces_moments.force_wind,
+        )
 
     @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_analyze_vlm_single_point_with_6dof(self) -> None:
@@ -336,6 +340,19 @@ class AeroSandboxEngineTests(unittest.TestCase):
             "cl_roll": "Cl",
             "cn": "Cn",
         }
+        frame_vector_map = {
+            "force_body": "F_b",
+            "force_wind": "F_w",
+            "force_geometry": "F_g",
+            "moment_body": "M_b",
+            "moment_wind": "M_w",
+            "moment_geometry": "M_g",
+        }
+        aerodynamic_force_map = {
+            "lift": "L",
+            "drag": "D",
+            "sideforce": "Y",
+        }
 
         for method in (AnalysisMethod.AERO_BUILDUP, AnalysisMethod.VLM):
             studio_result = AeroSandboxEngine().analyze(
@@ -370,6 +387,50 @@ class AeroSandboxEngineTests(unittest.TestCase):
 
                 for studio_field, native_field in coefficient_map.items():
                     actual_value = float(getattr(studio_point, studio_field))
+                    expected_value = float(asb_np.ravel(native_result[native_field])[0])
+                    self.assertTrue(
+                        math.isclose(
+                            actual_value,
+                            expected_value,
+                            rel_tol=0.005,
+                            abs_tol=0.00005,
+                        ),
+                        msg=(
+                            f"{method.value} {studio_field} at alpha={studio_point.alpha:g} "
+                            f"differs from native AeroSandbox: expected "
+                                f"{expected_value:.12g}, got {actual_value:.12g}"
+                            ),
+                        )
+
+                forces_moments = studio_point.forces_moments
+                self.assertIsNotNone(forces_moments)
+                assert forces_moments is not None
+
+                for studio_field, native_field in frame_vector_map.items():
+                    actual_vector = getattr(forces_moments, studio_field)
+                    expected_vector = asb_np.ravel(native_result[native_field])
+                    self.assertEqual(len(actual_vector), 3)
+                    self.assertEqual(len(expected_vector), 3)
+                    for axis, (actual_value, expected_value) in enumerate(
+                        zip(actual_vector, expected_vector)
+                    ):
+                        self.assertTrue(
+                            math.isclose(
+                                float(actual_value),
+                                float(expected_value),
+                                rel_tol=0.005,
+                                abs_tol=0.00005,
+                            ),
+                            msg=(
+                                f"{method.value} {studio_field}[{axis}] at "
+                                f"alpha={studio_point.alpha:g} differs from native "
+                                f"AeroSandbox: expected {float(expected_value):.12g}, "
+                                f"got {float(actual_value):.12g}"
+                            ),
+                        )
+
+                for studio_field, native_field in aerodynamic_force_map.items():
+                    actual_value = float(getattr(forces_moments, studio_field))
                     expected_value = float(asb_np.ravel(native_result[native_field])[0])
                     self.assertTrue(
                         math.isclose(

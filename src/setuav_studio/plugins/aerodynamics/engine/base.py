@@ -291,7 +291,11 @@ class AeroForcesMoments:
     fx_b: float = 0.0
     fy_b: float = 0.0
     fz_b: float = 0.0
-    # Wind-frame forces (N)
+    # Wind-frame force vector (N): [-Drag, Sideforce, -Lift]
+    fx_w: float = 0.0
+    fy_w: float = 0.0
+    fz_w: float = 0.0
+    # Conventional aerodynamic force magnitudes (N)
     lift: float = 0.0         # perpendicular to freestream (positive up)
     drag: float = 0.0         # parallel to freestream (positive aft)
     sideforce: float = 0.0    # perpendicular to lift & drag (positive right)
@@ -341,8 +345,8 @@ class AeroForcesMoments:
 
     @property
     def force_wind(self) -> tuple[float, float, float]:
-        """Wind force vector (Lift, Drag, Sideforce) in Newtons."""
-        return (self.lift, self.drag, self.sideforce)
+        """Native wind-axis force vector (Fx, Fy, Fz) in Newtons."""
+        return (self.fx_w, self.fy_w, self.fz_w)
 
     @property
     def moment_wind(self) -> tuple[float, float, float]:
@@ -364,6 +368,9 @@ class AeroForcesMoments:
             "fx_b": self.fx_b,
             "fy_b": self.fy_b,
             "fz_b": self.fz_b,
+            "fx_w": self.fx_w,
+            "fy_w": self.fy_w,
+            "fz_w": self.fz_w,
             "lift": self.lift,
             "drag": self.drag,
             "sideforce": self.sideforce,
@@ -388,6 +395,9 @@ class AeroForcesMoments:
             fx_b=float(data.get("fx_b", 0.0)),
             fy_b=float(data.get("fy_b", 0.0)),
             fz_b=float(data.get("fz_b", 0.0)),
+            fx_w=float(data.get("fx_w", -float(data.get("drag", 0.0)))),
+            fy_w=float(data.get("fy_w", data.get("sideforce", 0.0))),
+            fz_w=float(data.get("fz_w", -float(data.get("lift", 0.0)))),
             lift=float(data.get("lift", 0.0)),
             drag=float(data.get("drag", 0.0)),
             sideforce=float(data.get("sideforce", 0.0)),
