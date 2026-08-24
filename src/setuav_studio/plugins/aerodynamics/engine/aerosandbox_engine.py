@@ -500,6 +500,7 @@ class AeroSandboxEngine(AeroEngine):
                     ),
                 ),
                 method=stability_method,
+                cg_source=mass_cg_source,
             )
         except Exception as err:
             logger.warning("Stability derivatives computation failed: %s", err)
@@ -556,7 +557,12 @@ class AeroSandboxEngine(AeroEngine):
                 data={"components": components},
             )
             result = WeightBalanceSolver().evaluate(project)
-            return tuple(float(value) for value in result.total.cg_body_m), "weight_balance"
+            has_missing_mass = any(
+                "mass is missing; component excluded" in warning
+                for warning in result.warnings
+            )
+            source = "weight_balance_incomplete" if has_missing_mass else "weight_balance"
+            return tuple(float(value) for value in result.total.cg_body_m), source
         except Exception as err:
             logger.info("Weight-Balance CG unavailable; using aerodynamic reference: %s", err)
             return None, "aerodynamic_reference"

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import math
 import unittest
+from unittest.mock import patch
 
 from setuav_studio.plugins.aerodynamics.engine.base import (
     AnalysisMethod,
@@ -80,6 +81,7 @@ class TestStabilityModels(unittest.TestCase):
                 "elevator": ControlEffectiveness(control_tag="elevator", c_m_delta=-0.015),
             },
             elevator_trim=ElevatorTrim(alpha_ref=2.0, delta_e_trim=0.5),
+            trim_valid=True,
         )
         d = sd.to_dict()
         self.assertAlmostEqual(d["static_margin"], 25.0)
@@ -90,6 +92,73 @@ class TestStabilityModels(unittest.TestCase):
         self.assertAlmostEqual(restored.c_m_alpha_rad, -1.2)
         self.assertAlmostEqual(restored.static_margin, 25.0)
         self.assertIsNotNone(restored.elevator_trim)
+        self.assertTrue(restored.trim_valid)
+
+    def test_invalid_trim_diagnostics_serialization(self) -> None:
+        sd = StabilityDerivatives(
+            trim_valid=False,
+            trim_invalid_reasons=(
+                "CG is unavailable from Weight-Balance",
+                "elevator control authority is unavailable",
+            ),
+        )
+        restored = StabilityDerivatives.from_dict(sd.to_dict())
+        self.assertFalse(restored.trim_valid)
+        self.assertIsNone(restored.elevator_trim)
+        self.assertEqual(restored.trim_invalid_reasons, sd.trim_invalid_reasons)
+
+    def test_trim_validation_rejects_bad_inputs_and_insufficient_authority(self) -> None:
+        trim, reasons = StabilityAnalysisEngine._validated_elevator_trim(
+            cg_source="aerodynamic_reference",
+            cg_xyz=(math.nan, 0.0, 0.0),
+            alpha_ref=2.0,
+            cl_ref=0.4,
+            cm_ref=0.05,
+            cm_alpha_per_deg=0.0,
+            elevator=ControlEffectiveness(control_tag="elevator", c_m_delta=0.0),
+        )
+        self.assertIsNone(trim)
+        self.assertTrue(any("Weight-Balance" in reason for reason in reasons))
+        self.assertTrue(any("non-finite" in reason for reason in reasons))
+        self.assertTrue(any("Cm_alpha" in reason for reason in reasons))
+        self.assertTrue(any("Cm_delta_e" in reason for reason in reasons))
+
+    def test_trim_validation_rejects_unreachable_deflection(self) -> None:
+        trim, reasons = StabilityAnalysisEngine._validated_elevator_trim(
+            cg_source="weight_balance",
+            cg_xyz=(0.1, 0.0, 0.0),
+            alpha_ref=2.0,
+            cl_ref=0.4,
+            cm_ref=0.2,
+            cm_alpha_per_deg=-0.02,
+            elevator=ControlEffectiveness(
+                control_tag="elevator",
+                c_m_delta=-0.002,
+                c_L_delta=0.01,
+            ),
+        )
+        self.assertIsNone(trim)
+        self.assertEqual(reasons, ("required elevator deflection exceeds ±45°",))
+
+    def test_trim_validation_rejects_incomplete_mass_model(self) -> None:
+        trim, reasons = StabilityAnalysisEngine._validated_elevator_trim(
+            cg_source="weight_balance_incomplete",
+            cg_xyz=(0.1, 0.0, 0.0),
+            alpha_ref=2.0,
+            cl_ref=0.4,
+            cm_ref=0.02,
+            cm_alpha_per_deg=-0.02,
+            elevator=ControlEffectiveness(
+                control_tag="elevator",
+                c_m_delta=-0.01,
+                c_L_delta=0.01,
+            ),
+        )
+        self.assertIsNone(trim)
+        self.assertEqual(
+            reasons,
+            ("Weight-Balance CG excludes components with missing mass",),
+        )
 
 
 @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
@@ -201,8 +270,29 @@ class TestStabilityAnalysisEngine(unittest.TestCase):
 
         # 5. Elevator trim
         self.assertIsNotNone(sd.elevator_trim)
+        self.assertTrue(sd.trim_valid)
+        self.assertEqual(sd.trim_invalid_reasons, ())
         self.assertTrue(math.isfinite(sd.elevator_trim.delta_e_trim))
         self.assertTrue(math.isfinite(sd.elevator_trim.alpha_trim_neutral))
+
+    def test_trim_is_suppressed_without_weight_balance_cg(self) -> None:
+        cond = FlightCondition(velocity=20.0, alpha=2.0, beta=0.0)
+        with patch.object(
+            self.engine,
+            "_resolve_mass_cg",
+            return_value=(None, "aerodynamic_reference"),
+        ):
+            result = self.engine.analyze(
+                self.components,
+                cond,
+                method=AnalysisMethod.COMPREHENSIVE,
+            )
+
+        sd = result.stability_derivatives
+        self.assertIsNotNone(sd)
+        self.assertIsNone(sd.elevator_trim)
+        self.assertFalse(sd.trim_valid)
+        self.assertTrue(any("Weight-Balance" in reason for reason in sd.trim_invalid_reasons))
 
 
 if __name__ == "__main__":

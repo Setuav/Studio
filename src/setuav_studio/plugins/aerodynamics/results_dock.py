@@ -409,6 +409,12 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
         pitch_damped = bool(getattr(sd, "is_pitch_damped", False))
         pitch_status = "STABLE (Damped)" if pitch_stable and pitch_damped else ("STABLE" if pitch_stable else "UNSTABLE")
         trim = getattr(sd, "elevator_trim", None)
+        trim_reasons = tuple(getattr(sd, "trim_invalid_reasons", ()) or ())
+        trim_value = (
+            f"{trim.delta_e_trim:+.2f}° (CL={trim.cl_trim:.3f})"
+            if trim
+            else "N/A" + (f" — {'; '.join(trim_reasons)}" if trim_reasons else "")
+        )
         return {
             "stability_method": f"{getattr(sd, 'solver_method', 'unknown')} / {getattr(sd, 'rate_derivative_convention', 'normalized_body_rates')}",
             "cla": derivative("c_L_alpha_rad", "c_L_alpha_deg"),
@@ -426,7 +432,7 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
                 f"{'Roll-Stable' if getattr(sd, 'is_roll_stable', True) else 'Roll-Unstable'} | "
                 f"{'Yaw-Stable' if getattr(sd, 'is_yaw_stable', True) else 'Yaw-Unstable'}"
             ),
-            "elevator_trim": f"{trim.delta_e_trim:+.2f}° (CL={trim.cl_trim:.3f})" if trim else "N/A",
+            "elevator_trim": trim_value,
             "alpha_trim_neutral": f"{trim.alpha_trim_neutral:+.2f}°" if trim else "N/A",
             "cm_de": control_metric("elevator", "c_m_delta"),
             "cl_da": control_metric("aileron", "c_l_delta"),

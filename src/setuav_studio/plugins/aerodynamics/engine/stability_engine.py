@@ -22,6 +22,10 @@ logger = logging.getLogger(__name__)
 class StabilityAnalysisEngine:
     """Computes longitudinal and lateral-directional stability derivatives, neutral point, and trim."""
 
+    _MIN_PITCH_DERIVATIVE_PER_DEG = 1e-4
+    _MIN_ELEVATOR_AUTHORITY_PER_DEG = 1e-4
+    _MAX_TRIM_DEFLECTION_DEG = 45.0
+
     def compute_stability(
         self,
         airplane: Any,
@@ -30,6 +34,7 @@ class StabilityAnalysisEngine:
         components: list[dict[str, Any]] | None = None,
         builder_fn: Any | None = None,
         method: AnalysisMethod = AnalysisMethod.VLM,
+        cg_source: str = "unknown",
     ) -> StabilityDerivatives:
         """Compute full 6-DoF linear stability derivatives and trim equilibrium.
 
@@ -126,6 +131,7 @@ class StabilityAnalysisEngine:
         # 7. 3-Axis Aerodynamic Control Effectiveness (Elevator, Aileron, Rudder)
         controls_map: dict[str, ControlEffectiveness] = {}
         elevator_trim: ElevatorTrim | None = None
+        trim_invalid_reasons: tuple[str, ...] = ()
 
         if components and builder_fn:
             # Evaluate 3-axis flight control channels plus any discrete surface tags
@@ -141,8 +147,25 @@ class StabilityAnalysisEngine:
             unique_candidates = list(dict.fromkeys(control_candidates))
             for ctrl_tag in unique_candidates:
                 d_delta = 2.0  # deg
-                cond_p = FlightCondition(velocity=vel, altitude=alt, alpha=ref_a, beta=ref_b, control_deflections={ctrl_tag: d_delta})
-                cond_m = FlightCondition(velocity=vel, altitude=alt, alpha=ref_a, beta=ref_b, control_deflections={ctrl_tag: -d_delta})
+                controls_p = dict(condition.control_deflections)
+                controls_m = dict(condition.control_deflections)
+                base_delta = float(condition.control_deflections.get(ctrl_tag, 0.0))
+                controls_p[ctrl_tag] = base_delta + d_delta
+                controls_m[ctrl_tag] = base_delta - d_delta
+                cond_p = FlightCondition(
+                    velocity=vel,
+                    altitude=alt,
+                    alpha=ref_a,
+                    beta=ref_b,
+                    control_deflections=controls_p,
+                )
+                cond_m = FlightCondition(
+                    velocity=vel,
+                    altitude=alt,
+                    alpha=ref_a,
+                    beta=ref_b,
+                    control_deflections=controls_m,
+                )
 
                 try:
                     plane_p = builder_fn(components, cond_p)
@@ -179,24 +202,18 @@ class StabilityAnalysisEngine:
                             perturbation_deg=d_delta,
                         )
 
-                        if ctrl_tag == "elevator" and abs(cm_delta) > 1e-4:
-                            # Solve for longitudinal trim equilibrium
-                            cm_zero_alpha = cm_0 - (cma_deg * ref_a)
-                            de_trim = -float(cm_0) / cm_delta
-                            a_trim = -float(cm_zero_alpha) / cma_deg if abs(cma_deg) > 1e-4 else 0.0
-                            cl_trim_val = cl_0 + cL_delta * de_trim
-
-                            elevator_trim = ElevatorTrim(
-                                alpha_ref=ref_a,
-                                cm_0=cm_zero_alpha,
-                                cm_alpha=cma_deg,
-                                cm_delta_e=cm_delta,
-                                delta_e_trim=de_trim,
-                                alpha_trim_neutral=a_trim,
-                                cl_trim=cl_trim_val,
-                            )
                 except Exception as err:
                     logger.debug("Control channel %s evaluation skipped: %s", ctrl_tag, err)
+
+        elevator_trim, trim_invalid_reasons = self._validated_elevator_trim(
+            cg_source=cg_source,
+            cg_xyz=(float(ref.x_cg), float(ref.y_cg), float(ref.z_cg)),
+            alpha_ref=ref_a,
+            cl_ref=cl_0,
+            cm_ref=cm_0,
+            cm_alpha_per_deg=cma_deg,
+            elevator=controls_map.get("elevator"),
+        )
 
         return StabilityDerivatives(
             c_L_alpha_rad=cla_rad,
@@ -228,6 +245,61 @@ class StabilityAnalysisEngine:
             is_yaw_damped=(cn_r < 0),
             controls=controls_map,
             elevator_trim=elevator_trim,
+            trim_valid=elevator_trim is not None,
+            trim_invalid_reasons=trim_invalid_reasons,
             solver_method=method.value,
             rate_derivative_convention="normalized_body_rates",
         )
+
+    @classmethod
+    def _validated_elevator_trim(
+        cls,
+        *,
+        cg_source: str,
+        cg_xyz: tuple[float, float, float],
+        alpha_ref: float,
+        cl_ref: float,
+        cm_ref: float,
+        cm_alpha_per_deg: float,
+        elevator: ControlEffectiveness | None,
+    ) -> tuple[ElevatorTrim | None, tuple[str, ...]]:
+        """Return a linear elevator trim only when its inputs and authority are usable."""
+        reasons: list[str] = []
+        if cg_source == "weight_balance_incomplete":
+            reasons.append("Weight-Balance CG excludes components with missing mass")
+        elif cg_source != "weight_balance":
+            reasons.append("CG is unavailable from Weight-Balance")
+        if not all(math.isfinite(value) for value in cg_xyz):
+            reasons.append("CG contains non-finite coordinates")
+        if not math.isfinite(cm_alpha_per_deg) or abs(cm_alpha_per_deg) < cls._MIN_PITCH_DERIVATIVE_PER_DEG:
+            reasons.append("pitch derivative Cm_alpha is unavailable or too small")
+        if elevator is None or not math.isfinite(elevator.c_m_delta):
+            reasons.append("elevator control authority is unavailable")
+        elif abs(elevator.c_m_delta) < cls._MIN_ELEVATOR_AUTHORITY_PER_DEG:
+            reasons.append("elevator pitch authority Cm_delta_e is too small")
+
+        if reasons:
+            return None, tuple(reasons)
+
+        assert elevator is not None
+        cm_zero_alpha = cm_ref - cm_alpha_per_deg * alpha_ref
+        delta_e_trim = -cm_ref / elevator.c_m_delta
+        alpha_trim_neutral = -cm_zero_alpha / cm_alpha_per_deg
+        cl_trim = cl_ref + elevator.c_L_delta * delta_e_trim
+        values = (cm_zero_alpha, delta_e_trim, alpha_trim_neutral, cl_trim)
+        if not all(math.isfinite(value) for value in values):
+            return None, ("trim solution contains non-finite values",)
+        if abs(delta_e_trim) > cls._MAX_TRIM_DEFLECTION_DEG:
+            return None, (
+                f"required elevator deflection exceeds ±{cls._MAX_TRIM_DEFLECTION_DEG:g}°",
+            )
+
+        return ElevatorTrim(
+            alpha_ref=alpha_ref,
+            cm_0=cm_zero_alpha,
+            cm_alpha=cm_alpha_per_deg,
+            cm_delta_e=elevator.c_m_delta,
+            delta_e_trim=delta_e_trim,
+            alpha_trim_neutral=alpha_trim_neutral,
+            cl_trim=cl_trim,
+        ), ()

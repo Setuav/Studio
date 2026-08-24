@@ -127,6 +127,8 @@ class StabilityDerivatives:
 
     # Longitudinal trim state
     elevator_trim: ElevatorTrim | None = None
+    trim_valid: bool = False
+    trim_invalid_reasons: tuple[str, ...] = field(default_factory=tuple)
 
     # Provenance/convention for native and finite-difference values.
     solver_method: str = "unknown"
@@ -163,6 +165,8 @@ class StabilityDerivatives:
             "is_yaw_damped": self.is_yaw_damped,
             "controls": {k: v.to_dict() for k, v in self.controls.items()},
             "elevator_trim": self.elevator_trim.to_dict() if self.elevator_trim else None,
+            "trim_valid": self.trim_valid,
+            "trim_invalid_reasons": list(self.trim_invalid_reasons),
             "solver_method": self.solver_method,
             "rate_derivative_convention": self.rate_derivative_convention,
         }
@@ -209,6 +213,11 @@ class StabilityDerivatives:
             is_yaw_damped=bool(data.get("is_yaw_damped", True)),
             controls=ctrls,
             elevator_trim=trim_obj,
+            trim_valid=bool(data.get("trim_valid", trim_obj is not None)),
+            trim_invalid_reasons=tuple(
+                str(reason)
+                for reason in (data.get("trim_invalid_reasons") or [])
+            ),
             solver_method=str(data.get("solver_method", "unknown")),
             rate_derivative_convention=str(data.get("rate_derivative_convention", "normalized_body_rates")),
         )
