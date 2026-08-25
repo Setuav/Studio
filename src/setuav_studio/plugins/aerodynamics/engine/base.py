@@ -61,7 +61,6 @@ class AnalysisMethod(enum.Enum):
     AERO_BUILDUP = "aero_buildup"
     LIFTING_LINE = "lifting_line"
     PANEL = "panel"
-    NONLINEAR_LIFTING_LINE = "nonlinear_lifting_line"
 
     @classmethod
     def from_value(cls, value: Any) -> "AnalysisMethod":

@@ -136,7 +136,18 @@ class AerodynamicsPluginTests(unittest.TestCase):
             controls_widget.combo_solver.itemData(index)
             for index in range(controls_widget.combo_solver.count())
         }
-        self.assertIn(AnalysisMethod.NONLINEAR_LIFTING_LINE, solver_methods)
+        self.assertEqual(
+            solver_methods,
+            {
+                AnalysisMethod.AERO_BUILDUP,
+                AnalysisMethod.VLM,
+                AnalysisMethod.LIFTING_LINE,
+            },
+        )
+        vlm_index = controls_widget.combo_solver.findData(AnalysisMethod.VLM)
+        controls_widget.combo_solver.setCurrentIndex(vlm_index)
+        self.assertTrue(controls_widget.combo_mode.isEnabled())
+        self.assertEqual(int(controls_widget.spin_span_res.maximum()), 50)
 
         cond = FlightCondition(
             sweep_type=SweepType.DUAL_ALPHA_BETA,

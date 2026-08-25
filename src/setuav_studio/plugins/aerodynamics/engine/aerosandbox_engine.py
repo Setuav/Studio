@@ -64,7 +64,6 @@ class AeroSandboxEngine(AeroEngine):
                 AnalysisMethod.AERO_BUILDUP,
                 AnalysisMethod.VLM,
                 AnalysisMethod.LIFTING_LINE,
-                AnalysisMethod.NONLINEAR_LIFTING_LINE,
             }),
             analysis_types=frozenset({
                 AnalysisType.SINGLE_POINT,
@@ -317,14 +316,6 @@ class AeroSandboxEngine(AeroEngine):
                     res = solver.run()
                 elif effective_method == AnalysisMethod.LIFTING_LINE:
                     solver = asb.LiftingLine(
-                        airplane=cur_airplane,
-                        op_point=op,
-                        spanwise_resolution=span_res,
-                        spanwise_spacing_function=span_spacing_fn,
-                    )
-                    res = solver.run()
-                elif effective_method == AnalysisMethod.NONLINEAR_LIFTING_LINE:
-                    solver = asb.NonlinearLiftingLine(
                         airplane=cur_airplane,
                         op_point=op,
                         spanwise_resolution=span_res,
