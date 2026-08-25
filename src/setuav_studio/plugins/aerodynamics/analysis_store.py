@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
@@ -94,7 +94,7 @@ def make_analysis_entry(result: AeroResult) -> dict[str, Any]:
     return {
         "id": uuid4().hex,
         "name": result_name(result),
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
         "result": result.to_dict(),
     }
 

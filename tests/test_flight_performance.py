@@ -393,7 +393,7 @@ class TestFlightPerformance(unittest.TestCase):
             ):
                 dock._export_csv()
             self.assertTrue(os.path.exists(temp_path))
-            with open(temp_path, "r", encoding="utf-8") as f:
+            with open(temp_path, encoding="utf-8") as f:
                 content = f.read()
                 self.assertIn("Setuav Studio Flight Performance Envelope Export", content)
                 self.assertIn("Velocity_mps", content)

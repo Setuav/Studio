@@ -5,8 +5,9 @@ from __future__ import annotations
 import enum
 import math
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Sequence
+from typing import Any
 
 
 class _Unserializable:
@@ -63,7 +64,7 @@ class AnalysisMethod(enum.Enum):
     LIFTING_LINE = "lifting_line"
 
     @classmethod
-    def from_value(cls, value: Any) -> "AnalysisMethod":
+    def from_value(cls, value: Any) -> AnalysisMethod:
         """Parse a supported solver method without silently changing it."""
         if isinstance(value, cls):
             return value

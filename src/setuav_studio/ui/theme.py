@@ -1,5 +1,5 @@
 import logging
-from functools import lru_cache
+from functools import cache
 from importlib import resources
 
 from PySide6.QtCore import QEvent, QObject
@@ -163,7 +163,7 @@ LIGHT_THEME_MODES = {"light", "github_light"}
 _current_mode: str = "blender"
 
 
-@lru_cache(maxsize=None)
+@cache
 def _load_qt_theme(mode: str):
     theme_name = QT_THEME_NAMES.get(mode)
     if theme_name is None:
@@ -179,7 +179,7 @@ def _load_qt_theme(mode: str):
     return get_theme(theme_name)
 
 
-@lru_cache(maxsize=None)
+@cache
 def _named_theme_tokens(mode: str) -> dict[str, str]:
     if mode == "blender":
         return BLENDER_TOKENS
@@ -225,7 +225,7 @@ def _named_theme_tokens(mode: str) -> dict[str, str]:
     }
 
 
-@lru_cache(maxsize=None)
+@cache
 def _named_theme_chart_colors(mode: str) -> dict[str, str]:
     theme = _load_qt_theme(mode)
     if theme is None:
@@ -239,7 +239,7 @@ def _named_theme_chart_colors(mode: str) -> dict[str, str]:
     }
 
 
-@lru_cache(maxsize=None)
+@cache
 def _named_theme_status_colors(mode: str) -> dict[str, str]:
     theme = _load_qt_theme(mode)
     if theme is None:

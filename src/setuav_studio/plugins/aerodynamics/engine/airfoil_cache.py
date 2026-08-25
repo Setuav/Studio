@@ -7,7 +7,7 @@ import logging
 import math
 import threading
 from collections import OrderedDict
-from typing import Sequence
+from collections.abc import Sequence
 
 from .airfoil_models import AirfoilPolar
 

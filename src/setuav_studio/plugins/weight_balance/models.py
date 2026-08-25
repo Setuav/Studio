@@ -30,7 +30,7 @@ class InertiaTensor:
     def from_matrix(
         cls,
         matrix: tuple[tuple[float, float, float], ...],
-    ) -> "InertiaTensor":
+    ) -> InertiaTensor:
         return cls(
             ixx=matrix[0][0],
             iyy=matrix[1][1],

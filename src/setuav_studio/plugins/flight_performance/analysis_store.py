@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
@@ -30,7 +30,7 @@ def make_analysis_entry(
     return {
         "id": uuid4().hex,
         "name": name,
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
         "result": result.to_dict(),
     }
 

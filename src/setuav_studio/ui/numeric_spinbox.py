@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtGui import QWheelEvent

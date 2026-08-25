@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from pythrust.propellers.database import PropellerDataPoint, PropellerEntry, PropellerMetadata
 from pythrust.propulsion.models.motor import MotorSpec
