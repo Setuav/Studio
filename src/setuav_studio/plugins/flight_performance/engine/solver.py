@@ -126,21 +126,50 @@ class FlightPerformanceSolver:
     def fit_parabolic_cd(
         cl_values: Sequence[float],
         cd_values: Sequence[float],
+        *,
+        alpha_values: Sequence[float] | None = None,
+        alpha_max: float | None = None,
     ) -> tuple[float | None, float | None]:
-        """Fit drag polar Cd = Cd0 + k * Cl^2 using least squares."""
+        """Fit the physical pre-stall drag polar ``CD = CD0 + k * CL²``.
+
+        If alpha values are supplied, points after the CLmax angle are
+        excluded so post-stall drag cannot bias the fit.  Invalid/negative CD
+        samples and non-physical fits are rejected instead of silently
+        coercing the induced-drag factor to a positive value.
+        """
         if len(cl_values) < 3 or len(cl_values) != len(cd_values):
             return None, None
+        if alpha_values is not None and len(alpha_values) != len(cl_values):
+            return None, None
+
         cl_arr = np.array(cl_values, dtype=float)
         cd_arr = np.array(cd_values, dtype=float)
+        valid = np.isfinite(cl_arr) & np.isfinite(cd_arr) & (cd_arr > 0.0)
+        if alpha_values is not None and alpha_max is not None:
+            alpha_arr = np.array(alpha_values, dtype=float)
+            valid &= np.isfinite(alpha_arr) & (alpha_arr <= float(alpha_max) + 1e-9)
+        cl_arr = cl_arr[valid]
+        cd_arr = cd_arr[valid]
+        if len(cl_arr) < 3:
+            return None, None
+
         x = cl_arr**2
         y = cd_arr
+        if float(np.ptp(x)) <= 1e-12:
+            return None, None
         a_mat = np.vstack([np.ones_like(x), x]).T
         try:
             coeffs, _, _, _ = np.linalg.lstsq(a_mat, y, rcond=None)
             cd0 = float(coeffs[0])
             k_ind = float(coeffs[1])
-            if k_ind < 0:
-                k_ind = abs(k_ind)
+            if not (math.isfinite(cd0) and math.isfinite(k_ind) and cd0 > 0.0 and k_ind > 0.0):
+                return None, None
+
+            fitted = a_mat @ coeffs
+            residual = float(np.sum((y - fitted) ** 2))
+            total = float(np.sum((y - float(np.mean(y))) ** 2))
+            if total > 1e-12 and 1.0 - residual / total < 0.80:
+                return None, None
             return cd0, k_ind
         except Exception as exc:
             logger.debug("Parabolic CD fit failed: %s", exc)
@@ -356,6 +385,7 @@ class FlightPerformanceSolver:
 
         polar_cl_list = context.get("polar_cl")
         polar_cd_list = context.get("polar_cd")
+        polar_alpha_list = context.get("polar_alpha")
         aero_summary: dict[str, Any] = {}
         aero_stall_confirmed: bool | None = None
         aero_stall_error: str | None = None
@@ -387,8 +417,10 @@ class FlightPerformanceSolver:
                 if aero_res.polar_points:
                     # Use the AeroBuildup polar for the performance model as
                     # well; this keeps the drag and stall limits consistent.
-                    polar_cl_list = [p.cl for p in aero_res.polar_points if p.converged]
-                    polar_cd_list = [p.cd for p in aero_res.polar_points if p.converged]
+                    valid_polar = [p for p in aero_res.polar_points if p.converged]
+                    polar_cl_list = [p.cl for p in valid_polar]
+                    polar_cd_list = [p.cd for p in valid_polar]
+                    polar_alpha_list = [p.alpha for p in valid_polar]
                     cl_max, cl_max_alpha, aero_stall_confirmed = cls._resolve_aerobuildup_clmax(
                         aero_res.polar_points
                     )
@@ -427,9 +459,21 @@ class FlightPerformanceSolver:
         polar_cl = np.array(polar_cl_list, dtype=float) if polar_cl_list else None
         polar_cd = np.array(polar_cd_list, dtype=float) if polar_cd_list else None
 
+        cd0 = k_induced = None
         if polar_cl is not None and polar_cd is not None and len(polar_cl) >= 3:
-            cd0, k_induced = cls.fit_parabolic_cd(polar_cl, polar_cd)
-        else:
+            fit_alpha_max = (
+                float(aero_summary["cl_max_alpha"])
+                if aero_summary.get("method") == "AeroBuildup"
+                else None
+            )
+            cd0, k_induced = cls.fit_parabolic_cd(
+                polar_cl,
+                polar_cd,
+                alpha_values=polar_alpha_list,
+                alpha_max=fit_alpha_max,
+            )
+
+        if cd0 is None or k_induced is None:
             cd0 = cd_min
             aspect_ratio = float(context.get("aspect_ratio", 8.0))
             oswald = float(context.get("oswald_efficiency", 0.8))

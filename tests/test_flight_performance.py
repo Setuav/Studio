@@ -127,6 +127,24 @@ class TestFlightPerformance(unittest.TestCase):
         self.assertAlmostEqual(cd0, 0.02, places=3)
         self.assertAlmostEqual(k_ind, 0.04, places=3)
 
+        # Post-stall points must not bias the pre-stall fit.
+        cd0_pre, k_pre = FlightPerformanceSolver.fit_parabolic_cd(
+            [0.0, 0.4, 0.8, 1.2, 1.3],
+            [0.02, 0.0264, 0.0456, 0.0776, 0.40],
+            alpha_values=[0.0, 4.0, 8.0, 12.0, 18.0],
+            alpha_max=12.0,
+        )
+        self.assertAlmostEqual(cd0_pre or 0.0, 0.02, places=3)
+        self.assertAlmostEqual(k_pre or 0.0, 0.04, places=3)
+
+        # Non-physical samples are rejected rather than corrected silently.
+        self.assertEqual(
+            FlightPerformanceSolver.fit_parabolic_cd(
+                [0.0, 0.4, 0.8], [0.02, -0.01, 0.03]
+            ),
+            (None, None),
+        )
+
     def test_aerobuildup_clmax_requires_post_peak_drop(self) -> None:
         points = [
             SimpleNamespace(alpha=-2.0, cl=0.30, converged=True),
