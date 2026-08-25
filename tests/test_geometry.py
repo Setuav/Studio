@@ -279,7 +279,10 @@ class GeometryTests(unittest.TestCase):
         self.assertEqual(api.current_section_selection, ("main-wing", 0, 0))
 
         # Check Attachment (Component Transform)
-        self.assertAlmostEqual(editor.attachment_table.cellWidget(0, 0).value(), 305.00)
+        self.assertAlmostEqual(
+            editor.attachment_table.cellWidget(0, 0).value(),
+            wing_comp["transform"]["position"]["x"],
+        )
         self.assertAlmostEqual(editor.attachment_table.cellWidget(0, 1).value(), 75.00)
         self.assertAlmostEqual(editor.attachment_table.cellWidget(0, 2).value(), 40.00)
 
@@ -1915,7 +1918,6 @@ def _build_fuselage_component() -> dict:
 
 if __name__ == "__main__":
     unittest.main()
-
 
 
 

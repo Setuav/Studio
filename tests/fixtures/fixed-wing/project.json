@@ -1645,6 +1645,48 @@
     },
     {
       "kind": "component",
+      "id": "avionics-point-mass",
+      "name": "Avionics Point Mass",
+      "type": "org.setuav.core:point-mass",
+      "transform": {
+        "position": {
+          "x": 360.0,
+          "y": 0.0,
+          "z": 20.0
+        }
+      },
+      "parameters": {
+        "mass": 0.001,
+        "inertia": {
+          "ixx": 0.0,
+          "iyy": 0.0,
+          "izz": 0.0,
+          "ixy": 0.0,
+          "ixz": 0.0,
+          "iyz": 0.0
+        }
+      },
+      "mass": 0.001
+    },
+    {
+      "kind": "component",
+      "id": "rotor-reference",
+      "name": "Rotor Reference",
+      "type": "org.setuav.core:rotor",
+      "parent": "motor-cruise",
+      "attach_to": "motor-cruise",
+      "parameters": {
+        "diameter": 304.8,
+        "pitch": 152.4,
+        "blade_count": 2,
+        "hub_diameter": 32.0,
+        "rotation_direction": "ccw",
+        "mass": 0.0
+      },
+      "mass": 0.0
+    },
+    {
+      "kind": "component",
       "id": "main-wing-flap",
       "name": "Flap",
       "type": "org.setuav.core:control-surface",

@@ -70,10 +70,18 @@ class TestElectricalPropulsion(unittest.TestCase):
 
         self.assertEqual(editor._property_text(editor.cell_table, 0), "LiPo")
 
-        # Change Series Count to 6S -> calculated mass becomes 6*130 + 40 = 820.0g
+        # Change Series Count to 6S; the editor derives mass from the fixture's
+        # cell mass, parallel count, and packaging mass values.
         editor.pack_table.item(0, 1).setText("6")
-        self.assertEqual(battery_comp["mass"], 820.0)
-        self.assertEqual(editor._property_text(editor.general_table, 2), "820.0")
+        params = battery_comp["parameters"]
+        expected_mass = (
+            6
+            * int(params.get("parallel_count", 1))
+            * float(params["cell_mass"])
+            + float(params.get("packaging_mass", 40.0))
+        )
+        self.assertEqual(battery_comp["mass"], expected_mass)
+        self.assertEqual(editor._property_text(editor.general_table, 2), f"{expected_mass:.1f}")
 
     def test_esc_editor(self) -> None:
         api = StudioAPI()
