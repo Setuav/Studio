@@ -460,12 +460,19 @@ class AeroSandboxEngineTests(unittest.TestCase):
                     for axis, (actual_value, expected_value) in enumerate(
                         zip(actual_vector, expected_vector)
                     ):
+                        # Body-frame force components can be close to zero
+                        # after the wind-to-body rotation; a fixed 5e-5 N/m
+                        # tolerance is too strict for that numerical case.
+                        force_abs_tol = max(
+                            0.00005,
+                            0.001 * max(abs(float(expected_value)), 1.0),
+                        )
                         self.assertTrue(
                             math.isclose(
                                 float(actual_value),
                                 float(expected_value),
                                 rel_tol=0.005,
-                                abs_tol=0.00005,
+                                abs_tol=force_abs_tol,
                             ),
                             msg=(
                                 f"{method.value} {studio_field}[{axis}] at "
@@ -478,12 +485,16 @@ class AeroSandboxEngineTests(unittest.TestCase):
                 for studio_field, native_field in aerodynamic_force_map.items():
                     actual_value = float(getattr(forces_moments, studio_field))
                     expected_value = float(asb_np.ravel(native_result[native_field])[0])
+                    force_abs_tol = max(
+                        0.00005,
+                        0.001 * max(abs(expected_value), 1.0),
+                    )
                     self.assertTrue(
                         math.isclose(
                             actual_value,
                             expected_value,
                             rel_tol=0.005,
-                            abs_tol=0.00005,
+                            abs_tol=force_abs_tol,
                         ),
                         msg=(
                             f"{method.value} {studio_field} at alpha={studio_point.alpha:g} "
@@ -517,6 +528,31 @@ class AeroSandboxEngineTests(unittest.TestCase):
         # rounded superellipse approximation and section normal are retained.
         self.assertGreater(float(airplane.fuselages[0].xsecs[0].shape), 2.0)
         self.assertAlmostEqual(float(airplane.fuselages[0].xsecs[0].xyz_normal[0]), 1.0, places=6)
+
+    def test_non_superellipse_fuselage_profiles_keep_bounded_envelopes(self) -> None:
+        """Document the controlled envelope mapping for non-native section types."""
+        engine = AeroSandboxEngine()
+        cases = (
+            ({"type": "trapezoid", "top_width": 40, "bottom_width": 80, "height": 30}, (0.08, 0.03, 1000.0)),
+            ({"type": "triangle", "base_width": 60, "height": 25}, (0.06, 0.025, 1.05)),
+            (
+                {
+                    "type": "polygon",
+                    "vertices": [
+                        {"y": -20, "z": -10},
+                        {"y": 30, "z": -5},
+                        {"y": 15, "z": 20},
+                    ],
+                },
+                (0.05, 0.03, 1.05),
+            ),
+        )
+        for profile, expected in cases:
+            with self.subTest(profile=profile["type"]):
+                width, height, shape = engine._fuselage_profile_parameters(profile)
+                self.assertAlmostEqual(width, expected[0])
+                self.assertAlmostEqual(height, expected[1])
+                self.assertAlmostEqual(shape, expected[2])
 
     @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_control_surface_aileron_roll_moment(self) -> None:

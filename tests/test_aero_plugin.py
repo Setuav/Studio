@@ -245,6 +245,9 @@ class AerodynamicsPluginTests(unittest.TestCase):
                 cl=0.1 * alpha + 0.01 * beta,
                 cd=0.02 + 0.001 * alpha**2,
                 cm=-0.02 * alpha,
+                cy=0.02 * beta,
+                cl_roll=0.01 * beta,
+                cn=-0.015 * beta,
                 cl_over_cd=10.0 + alpha,
             )
             for beta in beta_values
@@ -289,6 +292,19 @@ class AerodynamicsPluginTests(unittest.TestCase):
             self.assertEqual(chart.chart.series()[0].count(), 3)
         self.assertEqual(charts.chart_lift.chart.series()[0].name(), "β=-5°")
         self.assertEqual(charts.chart_lift.chart.series()[1].name(), "β=+5°")
+
+        lateral_index = charts.combo_view_mode.findData("alpha_beta_lateral")
+        self.assertGreaterEqual(lateral_index, 0)
+        charts.combo_view_mode.setCurrentIndex(lateral_index)
+        self.assertEqual(charts.chart_lift.chart.title(), "Sideforce (CY vs α)")
+        self.assertEqual(charts.chart_polar.chart.title(), "Roll Moment (Cl vs α)")
+        self.assertEqual(charts.chart_moment.chart.title(), "Yaw Moment (Cn vs α)")
+        for chart in (
+            charts.chart_lift,
+            charts.chart_polar,
+            charts.chart_moment,
+        ):
+            self.assertEqual(len(chart.chart.series()), 2)
 
         controls.close()
         charts.close()

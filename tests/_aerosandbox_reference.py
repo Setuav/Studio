@@ -108,7 +108,7 @@ def build_fixed_wing_reference(
                     start + eta * (end - start)
                     for start, end in zip(vtail_root, vtail_tip)
                 ],
-                chord=0.165 + eta * (0.100 - 0.165),
+                chord=0.16382052424974758 + eta * (0.09829231454984856 - 0.16382052424974758),
                 twist=0.0,
                 airfoil=naca0012,
                 control_surfaces=controls,

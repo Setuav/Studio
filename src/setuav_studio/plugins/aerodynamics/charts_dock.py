@@ -230,6 +230,7 @@ from PySide6.QtWidgets import (
 
 CHART_SET_DEFINITIONS: list[tuple[str, str]] = [
     ("alpha_beta_grid", "Alpha × Beta Sweep"),
+    ("alpha_beta_lateral", "Alpha × Beta — Lateral"),
     ("control_effectiveness", "Control Effectiveness"),
     ("flight_performance", "Flight Performance"),
     ("longitudinal_stability", "Longitudinal Stability"),
@@ -363,6 +364,8 @@ class AeroChartsDock(QWidget):
         if sweep_type == SweepType.MULTI_GRID:
             self._cached_results["alpha_beta_grid"] = result
             self._cached_points["alpha_beta_grid"] = all_points
+            self._cached_results["alpha_beta_lateral"] = result
+            self._cached_points["alpha_beta_lateral"] = all_points
             preferred_set = "alpha_beta_grid"
 
         elif sweep_type == SweepType.DUAL_ALPHA_BETA:
@@ -466,8 +469,15 @@ class AeroChartsDock(QWidget):
         cond = result.condition
         sweep_type = cond.sweep_type if cond else SweepType.ALPHA
 
-        if sweep_type == SweepType.MULTI_GRID and key == "alpha_beta_grid":
-            self._render_alpha_beta_grid(result, points)
+        if sweep_type == SweepType.MULTI_GRID and key in {
+            "alpha_beta_grid",
+            "alpha_beta_lateral",
+        }:
+            self._render_alpha_beta_grid(
+                result,
+                points,
+                lateral=(key == "alpha_beta_lateral"),
+            )
             return
 
         # Determine X axis values & label for this specific dataset
@@ -635,8 +645,16 @@ class AeroChartsDock(QWidget):
         self,
         result: AeroResult,
         points: list[PolarPoint],
+        *,
+        lateral: bool = False,
     ) -> None:
-        """Plot one conventional alpha curve per beta grid row."""
+        """Plot one alpha curve per beta grid row.
+
+        The longitudinal set is useful for lift/drag/pitch trends, while the
+        lateral set exposes the coefficients that actually respond to beta.
+        Keeping them as separate chart sets avoids compressing six different
+        coefficients into four plots.
+        """
         sweep = result.sweep_result
         beta_values: list[float] = []
         if sweep is not None:
@@ -676,23 +694,42 @@ class AeroChartsDock(QWidget):
 
         self.setUpdatesEnabled(False)
         try:
-            self.chart_ld.setVisible(True)
-            self.chart_lift.setTitle("Lift Curve (CL vs α)")
-            self.chart_lift.plot_multi(
-                curves_for(lambda point: point.cl), "α (°)", "CL"
-            )
-            self.chart_polar.setTitle("Drag Curve (CD vs α)")
-            self.chart_polar.plot_multi(
-                curves_for(lambda point: point.cd), "α (°)", "CD"
-            )
-            self.chart_moment.setTitle("Pitching Moment (Cm vs α)")
-            self.chart_moment.plot_multi(
-                curves_for(lambda point: point.cm), "α (°)", "Cm"
-            )
-            self.chart_ld.setTitle("Aerodynamic Efficiency (L/D vs α)")
-            self.chart_ld.plot_multi(
-                curves_for(lambda point: point.cl_over_cd), "α (°)", "L/D"
-            )
+            if lateral:
+                self.chart_ld.setVisible(True)
+                self.chart_lift.setTitle("Sideforce (CY vs α)")
+                self.chart_lift.plot_multi(
+                    curves_for(lambda point: point.cy), "α (°)", "CY"
+                )
+                self.chart_polar.setTitle("Roll Moment (Cl vs α)")
+                self.chart_polar.plot_multi(
+                    curves_for(lambda point: point.cl_roll), "α (°)", "Cl"
+                )
+                self.chart_moment.setTitle("Yaw Moment (Cn vs α)")
+                self.chart_moment.plot_multi(
+                    curves_for(lambda point: point.cn), "α (°)", "Cn"
+                )
+                self.chart_ld.setTitle("Drag (CD vs α)")
+                self.chart_ld.plot_multi(
+                    curves_for(lambda point: point.cd), "α (°)", "CD"
+                )
+            else:
+                self.chart_ld.setVisible(True)
+                self.chart_lift.setTitle("Lift Curve (CL vs α)")
+                self.chart_lift.plot_multi(
+                    curves_for(lambda point: point.cl), "α (°)", "CL"
+                )
+                self.chart_polar.setTitle("Drag Curve (CD vs α)")
+                self.chart_polar.plot_multi(
+                    curves_for(lambda point: point.cd), "α (°)", "CD"
+                )
+                self.chart_moment.setTitle("Pitching Moment (Cm vs α)")
+                self.chart_moment.plot_multi(
+                    curves_for(lambda point: point.cm), "α (°)", "Cm"
+                )
+                self.chart_ld.setTitle("Aerodynamic Efficiency (L/D vs α)")
+                self.chart_ld.plot_multi(
+                    curves_for(lambda point: point.cl_over_cd), "α (°)", "L/D"
+                )
         finally:
             self.setUpdatesEnabled(True)
 
