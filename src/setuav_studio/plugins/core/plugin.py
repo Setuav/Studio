@@ -97,6 +97,7 @@ class CorePlugin:
                     "studio.workspace.weight_balance",
                     "studio.workspace.propulsion",
                     "studio.workspace.aerodynamics",
+                    "studio.workspace.flight_performance",
                 ],
                 icon="project_explorer",
             )
@@ -112,6 +113,7 @@ class CorePlugin:
                     "studio.workspace.weight_balance",
                     "studio.workspace.propulsion",
                     "studio.workspace.aerodynamics",
+                    "studio.workspace.flight_performance",
                 ],
                 icon="properties",
             )

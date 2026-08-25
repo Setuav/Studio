@@ -1,0 +1,509 @@
+"""Flight performance envelope solver with automatic Aerodynamics, Propulsion, and Weight & Balance coupling."""
+from __future__ import annotations
+
+import logging
+import math
+from typing import Any, Callable, Sequence
+
+import numpy as np
+from scipy.optimize import root_scalar
+
+from pythrust.propellers.database import PropellerEntry
+from pythrust.propulsion.models.motor import MotorSpec
+from pythrust.propulsion.models.propeller import PropellerSpec
+from setuav_studio.plugins.aerodynamics.engine.aerosandbox_engine import (
+    AeroSandboxEngine,
+    AnalysisMethod,
+    FlightCondition,
+)
+from setuav_studio.plugins.electrical_propulsion.engine.solver import PropulsionSolverEngine
+from setuav_studio.plugins.weight_balance.engine.solver import WeightBalanceSolver
+from .models import (
+    CruisePerformance,
+    FlightCurves,
+    FlightEnvelopeResult,
+    OptimalSpeeds,
+    PerformanceMetrics,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class FlightPerformanceSolver:
+    """Analytical solver for fixed-wing flight performance envelopes."""
+
+    @staticmethod
+    def compute_stall_speed(
+        mass_kg: float,
+        area_m2: float,
+        cl_max: float,
+        rho: float = 1.225,
+    ) -> float:
+        """Compute stall speed in m/s: V_stall = sqrt(2 * W / (rho * S * CL_max))."""
+        if mass_kg <= 0 or area_m2 <= 0 or cl_max <= 0 or rho <= 0:
+            return 0.0
+        weight_n = mass_kg * 9.81
+        return float(math.sqrt(2.0 * weight_n / (rho * area_m2 * cl_max)))
+
+    @staticmethod
+    def fit_parabolic_cd(
+        cl_values: Sequence[float],
+        cd_values: Sequence[float],
+    ) -> tuple[float | None, float | None]:
+        """Fit drag polar Cd = Cd0 + k * Cl^2 using least squares."""
+        if len(cl_values) < 3 or len(cl_values) != len(cd_values):
+            return None, None
+        cl_arr = np.array(cl_values, dtype=float)
+        cd_arr = np.array(cd_values, dtype=float)
+        x = cl_arr**2
+        y = cd_arr
+        a_mat = np.vstack([np.ones_like(x), x]).T
+        try:
+            coeffs, _, _, _ = np.linalg.lstsq(a_mat, y, rcond=None)
+            cd0 = float(coeffs[0])
+            k_ind = float(coeffs[1])
+            if k_ind < 0:
+                k_ind = abs(k_ind)
+            return cd0, k_ind
+        except Exception as exc:
+            logger.debug("Parabolic CD fit failed: %s", exc)
+            return None, None
+
+    @classmethod
+    def compute_power_and_drag_required(
+        cls,
+        velocities: np.ndarray,
+        mass_kg: float,
+        area_m2: float,
+        rho: float,
+        polar_cl: np.ndarray | None = None,
+        polar_cd: np.ndarray | None = None,
+        cd0: float | None = None,
+        k_induced: float | None = None,
+        default_cd: float = 0.035,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Compute required CL, drag force (N), and aerodynamic power (W) across velocities."""
+        weight_n = mass_kg * 9.81
+        q_dyn = 0.5 * rho * (velocities**2) * area_m2
+        q_dyn_safe = np.maximum(q_dyn, 1e-4)
+        cl_required = weight_n / q_dyn_safe
+
+        if cd0 is not None and k_induced is not None:
+            cd_estimate = cd0 + k_induced * (cl_required**2)
+        elif polar_cl is not None and polar_cd is not None and len(polar_cl) >= 2:
+            sort_idx = np.argsort(polar_cl)
+            cd_estimate = np.interp(cl_required, polar_cl[sort_idx], polar_cd[sort_idx])
+        else:
+            cd_estimate = np.full_like(cl_required, default_cd)
+
+        drag_n = q_dyn * cd_estimate
+        power_w = drag_n * velocities
+        return power_w, drag_n, cl_required
+
+    @classmethod
+    def solve_propulsion_for_thrust(
+        cls,
+        *,
+        motor_spec: MotorSpec,
+        prop_spec: PropellerSpec,
+        prop_entry: PropellerEntry,
+        total_voltage: float,
+        rho: float,
+        v_mps: float,
+        thrust_req: float,
+    ) -> tuple[float, float, float, bool]:
+        """Find throttle and electrical power needed to match thrust_req at v_mps."""
+        pt_full = PropulsionSolverEngine.solve_point(
+            motor_spec=motor_spec,
+            prop_spec=prop_spec,
+            prop_entry=prop_entry,
+            total_voltage=total_voltage,
+            rho=rho,
+            v_mps=v_mps,
+            throttle_val=1.0,
+            x_val=v_mps,
+        )
+
+        if thrust_req <= 0.0:
+            return 0.0, 0.0, 0.0, True
+
+        if pt_full.thrust < thrust_req or not pt_full.feasible:
+            return 100.0, pt_full.power, pt_full.current, False
+
+        def f_thr(thr: float) -> float:
+            pt = PropulsionSolverEngine.solve_point(
+                motor_spec=motor_spec,
+                prop_spec=prop_spec,
+                prop_entry=prop_entry,
+                total_voltage=total_voltage,
+                rho=rho,
+                v_mps=v_mps,
+                throttle_val=thr,
+                x_val=v_mps,
+            )
+            return pt.thrust - thrust_req
+
+        try:
+            res_root = root_scalar(f_thr, bracket=[0.05, 1.0], method="brentq")
+            thr_solved = float(res_root.root)
+            pt_solved = PropulsionSolverEngine.solve_point(
+                motor_spec=motor_spec,
+                prop_spec=prop_spec,
+                prop_entry=prop_entry,
+                total_voltage=total_voltage,
+                rho=rho,
+                v_mps=v_mps,
+                throttle_val=thr_solved,
+                x_val=v_mps,
+            )
+            feasible = pt_solved.current <= motor_spec.current_max_a
+            return thr_solved * 100.0, pt_solved.power, pt_solved.current, feasible
+        except Exception as exc:
+            logger.debug("Throttle root solving failed at v=%.1f m/s (%s)", v_mps, exc)
+            return 100.0, pt_full.power, pt_full.current, pt_full.feasible
+
+    @classmethod
+    def run_analysis(
+        cls,
+        context: dict[str, Any],
+        progress_callback: Callable[[int, int, str], None] | None = None,
+    ) -> FlightEnvelopeResult:
+        """Run comprehensive flight performance envelope analysis with auto-solver coupling."""
+        # 1. Step 1: Resolve Mass Properties
+        project = context.get("project")
+        mass_kg = float(context.get("mass_kg", 0.0))
+        if mass_kg <= 0.0:
+            if project is not None:
+                try:
+                    wb_res = WeightBalanceSolver().evaluate(project)
+                    mass_kg = float(wb_res.total.mass_kg)
+                except Exception as exc:
+                    logger.debug("WeightBalance evaluate failed, fallback to component sum: %s", exc)
+                    comps = project.data.get("components", []) if project else []
+                    mass_kg = sum(float(c.get("parameters", {}).get("mass", 0.0)) for c in comps) / 1000.0
+            if mass_kg <= 0.0:
+                mass_kg = 2.0  # Fallback default
+
+        area_m2 = float(context.get("area_m2", 0.0))
+        rho = float(context.get("air_density", 1.225))
+        cl_max = float(context.get("cl_max", 0.0))
+        cd_min = float(context.get("cd_min", 0.0))
+        ld_max_aero = float(context.get("ld_max", 0.0))
+
+        v_min_cfg = float(context.get("v_min", 8.0))
+        v_max_cfg = float(context.get("v_max", 35.0))
+        v_step_cfg = float(context.get("v_step", 0.25))
+        stall_margin = float(context.get("stall_margin", 1.15))
+
+        battery_capacity_mah = context.get("battery_capacity_mah")
+        battery_capacity_ah = (
+            float(battery_capacity_mah) / 1000.0 if battery_capacity_mah is not None else None
+        )
+        battery_voltage = (
+            float(context["battery_voltage"]) if context.get("battery_voltage") is not None else None
+        )
+        usable_battery_ratio = float(context.get("usable_battery_ratio", 0.85))
+
+        motor_spec: MotorSpec | None = context.get("motor_spec")
+        prop_spec: PropellerSpec | None = context.get("prop_spec")
+        prop_entry: PropellerEntry | None = context.get("prop_entry")
+
+        polar_cl_list = context.get("polar_cl")
+        polar_cd_list = context.get("polar_cd")
+        aero_summary: dict[str, Any] = {}
+
+        # 2. Step 2: Auto-run Aerodynamic Solver if requested or missing
+        auto_run_aero = bool(context.get("auto_run_aero", False))
+        components = context.get("components")
+        if (auto_run_aero or not polar_cl_list) and components and AeroSandboxEngine().is_available():
+            if progress_callback:
+                progress_callback(10, 100, "Aero Polar")
+            try:
+                aero_eng = AeroSandboxEngine()
+                cond = FlightCondition(
+                    velocity=15.0,
+                    altitude=float(context.get("altitude", 0.0)),
+                    alpha_min=-8.0,
+                    alpha_max=18.0,
+                    alpha_steps=105,
+                    sweep_min=-8.0,
+                    sweep_max=18.0,
+                    sweep_steps=105,
+                )
+                aero_res = aero_eng.analyze(
+                    components=components,
+                    condition=cond,
+                    method=AnalysisMethod.AERO_BUILDUP,
+                )
+                if aero_res.polar_points:
+                    polar_cl_list = [p.cl for p in aero_res.polar_points if p.converged]
+                    polar_cd_list = [p.cd for p in aero_res.polar_points if p.converged]
+                    if aero_res.reference.s_ref > 0:
+                        area_m2 = float(aero_res.reference.s_ref)
+                    if aero_res.cl_max > 0:
+                        cl_max = float(aero_res.cl_max)
+                    if aero_res.cd_min > 0:
+                        cd_min = float(aero_res.cd_min)
+                    if aero_res.ld_max > 0:
+                        ld_max_aero = float(aero_res.ld_max)
+                    aero_summary = {
+                        "method": "AeroBuildup",
+                        "cl_max": cl_max,
+                        "cd_min": cd_min,
+                        "ld_max": ld_max_aero,
+                        "s_ref": area_m2,
+                        "points_count": len(polar_cl_list),
+                    }
+            except Exception as exc:
+                logger.warning("Auto AeroSandbox analysis failed: %s", exc)
+
+        if area_m2 <= 0.0:
+            area_m2 = 0.50
+        if cl_max <= 0.0:
+            cl_max = 1.20
+        if cd_min <= 0.0:
+            cd_min = 0.035
+        if ld_max_aero <= 0.0:
+            ld_max_aero = 12.0
+
+        polar_cl = np.array(polar_cl_list, dtype=float) if polar_cl_list else None
+        polar_cd = np.array(polar_cd_list, dtype=float) if polar_cd_list else None
+
+        if polar_cl is not None and polar_cd is not None and len(polar_cl) >= 3:
+            cd0, k_induced = cls.fit_parabolic_cd(polar_cl, polar_cd)
+        else:
+            cd0 = cd_min
+            aspect_ratio = float(context.get("aspect_ratio", 8.0))
+            oswald = float(context.get("oswald_efficiency", 0.8))
+            k_induced = 1.0 / (math.pi * aspect_ratio * oswald)
+
+        if progress_callback:
+            progress_callback(30, 100, "Grid")
+
+        # 3. Stall speed & safe sweep bounds
+        v_stall = cls.compute_stall_speed(mass_kg, area_m2, cl_max, rho)
+        v_start = max(v_stall * stall_margin, v_min_cfg)
+        v_end = max(v_start + 2.0, v_max_cfg)
+
+        velocities_list: list[float] = []
+        curr_v = v_start
+        while curr_v <= v_end + 1e-4:
+            velocities_list.append(curr_v)
+            curr_v += v_step_cfg
+
+        if len(velocities_list) < 5:
+            velocities_list = np.linspace(v_start, v_end, 25).tolist()
+
+        velocities = np.array(velocities_list, dtype=float)
+        n_points = len(velocities)
+
+        # 4. Aerodynamic power and drag required
+        power_req, drag_req, cl_req = cls.compute_power_and_drag_required(
+            velocities=velocities,
+            mass_kg=mass_kg,
+            area_m2=area_m2,
+            rho=rho,
+            polar_cl=polar_cl,
+            polar_cd=polar_cd,
+            cd0=cd0,
+            k_induced=k_induced,
+            default_cd=cd_min,
+        )
+
+        power_avail = np.zeros(n_points)
+        thrust_avail = np.zeros(n_points)
+        elec_power = np.zeros(n_points)
+        current_draw = np.zeros(n_points)
+        throttle_pct = np.zeros(n_points)
+        feasible_points = np.ones(n_points, dtype=bool)
+
+        has_propulsion = (
+            motor_spec is not None
+            and prop_spec is not None
+            and prop_entry is not None
+            and battery_voltage is not None
+            and battery_voltage > 0.0
+        )
+
+        propulsion_summary = {
+            "has_propulsion": has_propulsion,
+            "motor_kv": motor_spec.kv_rpm_per_v if motor_spec else None,
+            "motor_max_current": motor_spec.current_max_a if motor_spec else None,
+            "prop_diameter_in": (prop_spec.diameter_m / 0.0254) if prop_spec else None,
+            "prop_pitch_in": (prop_spec.pitch_m / 0.0254) if prop_spec else None,
+            "battery_voltage": battery_voltage,
+            "battery_capacity_ah": battery_capacity_ah,
+        }
+
+        # 5. Propulsion solving across velocities
+        for i, v_val in enumerate(velocities):
+            if progress_callback and n_points > 0:
+                prog = int(40 + 45 * (i / n_points))
+                progress_callback(prog, 100, f"{v_val:.1f} m/s")
+
+            if has_propulsion and motor_spec and prop_spec and prop_entry and battery_voltage:
+                # 100% throttle point for available thrust/power
+                pt_max = PropulsionSolverEngine.solve_point(
+                    motor_spec=motor_spec,
+                    prop_spec=prop_spec,
+                    prop_entry=prop_entry,
+                    total_voltage=battery_voltage,
+                    rho=rho,
+                    v_mps=float(v_val),
+                    throttle_val=1.0,
+                    x_val=float(v_val),
+                )
+                thrust_avail[i] = pt_max.thrust
+                power_avail[i] = pt_max.thrust * v_val
+
+                # Equilibrium throttle and electric power for level flight
+                thr_req, p_el, i_el, feas = cls.solve_propulsion_for_thrust(
+                    motor_spec=motor_spec,
+                    prop_spec=prop_spec,
+                    prop_entry=prop_entry,
+                    total_voltage=battery_voltage,
+                    rho=rho,
+                    v_mps=float(v_val),
+                    thrust_req=float(drag_req[i]),
+                )
+                throttle_pct[i] = thr_req
+                elec_power[i] = p_el
+                current_draw[i] = i_el
+                feasible_points[i] = feas and (thrust_avail[i] >= drag_req[i])
+            else:
+                # Purely aerodynamic fallback
+                power_avail[i] = power_req[i] * 1.5
+                thrust_avail[i] = drag_req[i] * 1.5
+                elec_power[i] = power_req[i] / 0.70
+                current_draw[i] = elec_power[i] / (battery_voltage or 14.8)
+                throttle_pct[i] = (power_req[i] / max(power_avail[i], 1.0)) * 100.0
+                feasible_points[i] = True
+
+        if progress_callback:
+            progress_callback(90, 100, "Speeds")
+
+        # 6. Rate of climb & climb angle
+        weight_n = mass_kg * 9.81
+        excess_power = np.maximum(0.0, power_avail - power_req)
+        roc = excess_power / weight_n
+        climb_ratio = np.clip(roc / np.maximum(velocities, 0.1), 0.0, 1.0)
+        climb_angle_deg = np.degrees(np.arcsin(climb_ratio))
+
+        # 7. Range & endurance curves
+        range_km = np.zeros(n_points)
+        endurance_hours = np.zeros(n_points)
+
+        if battery_capacity_ah is not None and battery_voltage is not None and battery_voltage > 0:
+            usable_energy_wh = battery_voltage * battery_capacity_ah * usable_battery_ratio
+            for i in range(n_points):
+                if elec_power[i] > 0 and feasible_points[i]:
+                    endurance_hours[i] = usable_energy_wh / elec_power[i]
+                    range_km[i] = velocities[i] * 3.6 * endurance_hours[i]
+
+        # 8. Optimal speeds identification
+        feasible_mask = feasible_points & (elec_power > 0)
+        if np.any(feasible_mask):
+            feas_indices = np.where(feasible_mask)[0]
+            idx_be = int(feas_indices[np.argmin(elec_power[feasible_mask])])
+            idx_br = int(feas_indices[np.argmax(range_km[feasible_mask])])
+            idx_vy = int(feas_indices[np.argmax(roc[feasible_mask])])
+            v_max = float(velocities[feas_indices[-1]])
+        else:
+            idx_be = int(np.argmin(power_req))
+            power_over_v = power_req / np.maximum(velocities, 0.1)
+            idx_br = int(np.argmin(power_over_v))
+            idx_vy = int(np.argmax(roc))
+            v_max = float(velocities[-1])
+
+        best_endurance_spd = float(velocities[idx_be])
+        best_range_spd = float(velocities[idx_br])
+        best_climb_spd = float(velocities[idx_vy])
+
+        # Best L/D estimation
+        if cd0 is not None and k_induced is not None and k_induced > 0:
+            cl_opt = math.sqrt(cd0 / k_induced)
+            v_ld = float(math.sqrt(2.0 * weight_n / (rho * area_m2 * max(cl_opt, 0.01))))
+            max_ld = float(1.0 / (2.0 * math.sqrt(cd0 * k_induced)))
+        else:
+            v_ld = best_range_spd
+            max_ld = ld_max_aero
+
+        max_roc = float(np.max(roc[feasible_points])) if np.any(feasible_points) else float(np.max(roc))
+        best_gamma = float(np.max(climb_angle_deg[feasible_points])) if np.any(feasible_points) else float(np.max(climb_angle_deg))
+        min_p_req = float(np.min(power_req))
+        max_range = float(np.max(range_km))
+        max_endurance = float(np.max(endurance_hours))
+
+        optimal_speeds = OptimalSpeeds(
+            best_endurance=best_endurance_spd,
+            best_range=best_range_spd,
+            best_climb=best_climb_spd,
+            best_ld=v_ld,
+        )
+
+        metrics = PerformanceMetrics(
+            stall_speed=v_stall,
+            max_speed=v_max,
+            max_ld_ratio=max_ld,
+            glide_ratio=max_ld,
+            best_climb_angle_deg=best_gamma,
+            min_power_required=min_p_req,
+            max_range_km=max_range,
+            max_endurance_hours=max_endurance,
+            max_rate_of_climb=max_roc,
+        )
+
+        idx_cruise = idx_br
+        cruise = CruisePerformance(
+            speed=best_range_spd,
+            power=float(elec_power[idx_cruise]),
+            current=float(current_draw[idx_cruise]),
+            throttle=float(throttle_pct[idx_cruise]),
+            endurance=float(endurance_hours[idx_cruise]),
+            range=float(range_km[idx_cruise]),
+            feasible=bool(feasible_points[idx_cruise]),
+        )
+
+        curves = FlightCurves(
+            velocities=velocities.tolist(),
+            power_required=power_req.tolist(),
+            power_available=power_avail.tolist(),
+            thrust_required=drag_req.tolist(),
+            thrust_available=thrust_avail.tolist(),
+            rate_of_climb=roc.tolist(),
+            climb_angle_deg=climb_angle_deg.tolist(),
+            range_km=range_km.tolist(),
+            endurance_hours=endurance_hours.tolist(),
+            electrical_power=elec_power.tolist(),
+            current_draw=current_draw.tolist(),
+            throttle_pct=throttle_pct.tolist(),
+            feasible=feasible_points.tolist(),
+        )
+
+        notes: list[str] = []
+        if not np.any(feasible_points):
+            notes.append("No feasible level flight operating points found within velocity sweep.")
+        if v_stall >= v_max:
+            notes.append("Stall speed exceeds maximum level flight speed (insufficient thrust/power).")
+
+        if progress_callback:
+            progress_callback(100, 100, "Done")
+
+        return FlightEnvelopeResult(
+            mass_kg=mass_kg,
+            area_m2=area_m2,
+            air_density=rho,
+            cl_max=cl_max,
+            cd0=cd0,
+            k_induced=k_induced,
+            battery_capacity_ah=battery_capacity_ah,
+            battery_voltage=battery_voltage,
+            optimal_speeds=optimal_speeds,
+            metrics=metrics,
+            cruise=cruise,
+            curves=curves,
+            feasible=bool(np.any(feasible_points)),
+            notes=notes,
+            aero_summary=aero_summary,
+            propulsion_summary=propulsion_summary,
+        )

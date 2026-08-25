@@ -448,15 +448,28 @@ class ProjectExplorer(QTreeWidget):
             else None
         )
         if analysis_id:
-            from setuav_studio.plugins.aerodynamics.analysis_store import (
-                analysis_entries,
-            )
+            current_entries: dict[str, dict[str, Any]] = {}
+            if self._api.current_project:
+                try:
+                    from setuav_studio.plugins.aerodynamics.analysis_store import (
+                        analysis_entries as aero_entries,
+                    )
+                    for entry in aero_entries(self._api.current_project):
+                        if isinstance(entry, dict) and (eid := str(entry.get("id") or "")):
+                            current_entries[eid] = entry
+                except Exception:
+                    pass
 
-            current_entries = {
-                str(entry.get("id") or ""): entry
-                for entry in analysis_entries(self._api.current_project)
-                if isinstance(entry, dict) and str(entry.get("id") or "")
-            }
+                try:
+                    from setuav_studio.plugins.flight_performance.analysis_store import (
+                        analysis_entries as perf_entries,
+                    )
+                    for entry in perf_entries(self._api.current_project):
+                        if isinstance(entry, dict) and (eid := str(entry.get("id") or "")):
+                            current_entries[eid] = entry
+                except Exception:
+                    pass
+
             current_entry = current_entries.get(analysis_id)
             saved_entry = self._saved_analysis_results.get(analysis_id)
             if saved_entry != current_entry:
@@ -485,15 +498,28 @@ class ProjectExplorer(QTreeWidget):
     def _snapshot_analysis_results(
         project: ProjectDocument,
     ) -> dict[str, dict[str, Any]]:
-        from setuav_studio.plugins.aerodynamics.analysis_store import (
-            analysis_entries,
-        )
+        results: dict[str, dict[str, Any]] = {}
+        try:
+            from setuav_studio.plugins.aerodynamics.analysis_store import (
+                analysis_entries as aero_entries,
+            )
+            for entry in aero_entries(project):
+                if isinstance(entry, dict) and (eid := str(entry.get("id") or "")):
+                    results[eid] = deepcopy(entry)
+        except Exception:
+            pass
 
-        return {
-            str(entry.get("id") or ""): deepcopy(entry)
-            for entry in analysis_entries(project)
-            if isinstance(entry, dict) and str(entry.get("id") or "")
-        }
+        try:
+            from setuav_studio.plugins.flight_performance.analysis_store import (
+                analysis_entries as perf_entries,
+            )
+            for entry in perf_entries(project):
+                if isinstance(entry, dict) and (eid := str(entry.get("id") or "")):
+                    results[eid] = deepcopy(entry)
+        except Exception:
+            pass
+
+        return results
 
     @staticmethod
     def _snapshot_collection(

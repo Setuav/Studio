@@ -604,18 +604,110 @@ class MainWindow(QMainWindow):
         self._update_window_title()
         return True
 
+    def _collect_unsaved_changes(self) -> list[str]:
+        if self._project is None:
+            return []
+
+        changes: list[str] = []
+        try:
+            disk_doc = None
+            if self._project.location and self._project.location.exists():
+                try:
+                    from setuav_studio.project import open_project
+                    disk_doc = open_project(self._project.location)
+                except Exception:
+                    pass
+
+            disk_data = disk_doc.data if disk_doc else {}
+            curr_data = self._project.data
+
+            # 1. Components
+            disk_comps = {c.get("id"): c for c in disk_data.get("components", []) if isinstance(c, dict)}
+            curr_comps = {c.get("id"): c for c in curr_data.get("components", []) if isinstance(c, dict)}
+
+            for cid, c in curr_comps.items():
+                name = c.get("name") or cid
+                if cid not in disk_comps:
+                    changes.append(f"New Component: {name}")
+                elif disk_comps[cid] != c:
+                    changes.append(f"Modified Component: {name}")
+
+            for cid, c in disk_comps.items():
+                if cid not in curr_comps:
+                    name = c.get("name") or cid
+                    changes.append(f"Deleted Component: {name}")
+
+            # 2. Assemblies
+            disk_asms = {a.get("id"): a for a in disk_data.get("assemblies", []) if isinstance(a, dict)}
+            curr_asms = {a.get("id"): a for a in curr_data.get("assemblies", []) if isinstance(a, dict)}
+
+            for aid, a in curr_asms.items():
+                name = a.get("name") or aid
+                if aid not in disk_asms:
+                    changes.append(f"New Assembly: {name}")
+                elif disk_asms[aid] != a:
+                    changes.append(f"Modified Assembly: {name}")
+
+            # 3. Aerodynamic Analyses
+            try:
+                from setuav_studio.plugins.aerodynamics.analysis_store import analysis_entries as aero_entries
+                disk_aero = {e.get("id"): e for e in aero_entries(disk_doc)} if disk_doc else {}
+                curr_aero = {e.get("id"): e for e in aero_entries(self._project)}
+                for eid, e in curr_aero.items():
+                    if eid not in disk_aero:
+                        name = e.get("name") or "Aerodynamic Analysis"
+                        changes.append(f"Unsaved Aerodynamic Analysis: {name}")
+            except Exception:
+                pass
+
+            # 4. Flight Performance Analyses
+            try:
+                from setuav_studio.plugins.flight_performance.analysis_store import analysis_entries as perf_entries
+                disk_perf = {e.get("id"): e for e in perf_entries(disk_doc)} if disk_doc else {}
+                curr_perf = {e.get("id"): e for e in perf_entries(self._project)}
+                for eid, e in curr_perf.items():
+                    if eid not in disk_perf:
+                        name = e.get("name") or "Flight Performance Envelope"
+                        changes.append(f"Unsaved Flight Performance Analysis: {name}")
+            except Exception:
+                pass
+
+        except Exception as exc:
+            logger.debug("Failed to collect detailed unsaved changes: %s", exc)
+
+        return changes
+
     def _confirm_project_close(self) -> bool:
         if self._project is None or not self._project.modified:
             return True
-        answer = QMessageBox.question(
-            self,
-            "Unsaved Changes",
-            "Save changes to the current project?",
+
+        unsaved_items = self._collect_unsaved_changes()
+        proj_name = str(self._project.data.get("name") or self._project.location.stem or "Current Project")
+
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Unsaved Changes")
+        msg_box.setIcon(QMessageBox.Icon.Question)
+
+        if unsaved_items:
+            bullet_list = "\n".join(f"  • {item}" for item in unsaved_items[:8])
+            if len(unsaved_items) > 8:
+                bullet_list += f"\n  • ... and {len(unsaved_items) - 8} more unsaved items"
+            msg_box.setText(
+                f"Project '{proj_name}' contains the following unsaved changes:\n\n"
+                f"{bullet_list}\n\n"
+                f"Do you want to save your changes before closing?"
+            )
+        else:
+            msg_box.setText(f"Save changes to project '{proj_name}' before closing?")
+
+        msg_box.setStandardButtons(
             QMessageBox.StandardButton.Save
             | QMessageBox.StandardButton.Discard
-            | QMessageBox.StandardButton.Cancel,
-            QMessageBox.StandardButton.Save,
+            | QMessageBox.StandardButton.Cancel
         )
+        msg_box.setDefaultButton(QMessageBox.StandardButton.Save)
+
+        answer = msg_box.exec()
         if answer == QMessageBox.StandardButton.Save:
             return self.save_project()
         return answer == QMessageBox.StandardButton.Discard
@@ -1195,6 +1287,32 @@ class MainWindow(QMainWindow):
                     d.show()
 
             docks = [d for d in [explorer, aero_controls, aero_charts, aero_results] if d is not None and not d.isHidden()]
+            if docks:
+                self.resizeDocks(docks, [200, 260, 560, 260][:len(docks)], Qt.Orientation.Horizontal)
+
+        elif workspace_id == "studio.workspace.flight_performance":
+            fp_controls = self.findChild(QDockWidget, "flight_performance.controls_dock")
+            fp_charts = self.findChild(QDockWidget, "flight_performance.charts_dock")
+            fp_results = self.findChild(QDockWidget, "flight_performance.results_dock")
+
+            if viewer:
+                viewer.hide()
+            if explorer and props:
+                self.splitDockWidget(explorer, props, Qt.Orientation.Vertical)
+            if explorer and fp_controls:
+                self.splitDockWidget(explorer, fp_controls, Qt.Orientation.Horizontal)
+            if fp_controls and fp_charts:
+                self.splitDockWidget(fp_controls, fp_charts, Qt.Orientation.Horizontal)
+            if fp_charts and fp_results:
+                self.splitDockWidget(fp_charts, fp_results, Qt.Orientation.Horizontal)
+            elif fp_controls and fp_results:
+                self.splitDockWidget(fp_controls, fp_results, Qt.Orientation.Horizontal)
+
+            for d in (explorer, props, fp_controls, fp_charts, fp_results):
+                if d:
+                    d.show()
+
+            docks = [d for d in [explorer, fp_controls, fp_charts, fp_results] if d is not None and not d.isHidden()]
             if docks:
                 self.resizeDocks(docks, [200, 260, 560, 260][:len(docks)], Qt.Orientation.Horizontal)
 

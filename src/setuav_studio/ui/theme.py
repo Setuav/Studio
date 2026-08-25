@@ -47,8 +47,10 @@ DARK_CHART_COLORS: dict[str, str] = {
     "green": "#6fce9c",
     "orange": "#e5b567",
     "magenta": "#c678dd",
+    "purple": "#c678dd",
     "red": "#e06c75",
     "cyan": "#56b6c2",
+    "teal": "#56b6c2",
 }
 
 LIGHT_CHART_COLORS: dict[str, str] = {
@@ -56,8 +58,10 @@ LIGHT_CHART_COLORS: dict[str, str] = {
     "green": "#1a7f37",
     "orange": "#bc4c00",
     "magenta": "#8250df",
+    "purple": "#8250df",
     "red": "#cf222e",
     "cyan": "#0a7f8c",
+    "teal": "#0a7f8c",
 }
 
 LIGHT_STATUS_COLORS: dict[str, str] = {
