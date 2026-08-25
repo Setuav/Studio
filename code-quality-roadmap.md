@@ -53,10 +53,10 @@ belirlendi.
 - [ ] Tip hatalarını küçük gruplar hâlinde düzelt.
 - [ ] UI katmanını kademeli olarak kapsama al.
 
-Pyright kapsamı, electrical propulsion ve flight performance solver'larının
-eklenmesiyle 17 saf model/engine dosyasına ulaştı ve `basic` modda sıfır hata
-ile geçiyor. Son iki grupta toplam 25 tip hatası giderildi; kalan engine
-dosyaları küçük gruplar hâlinde eklenecek.
+Pyright kapsamı, airfoil cache ve engine modüllerinin eklenmesiyle 19 saf
+model/engine dosyasına ulaştı ve `basic` modda sıfır hata ile geçiyor. Son üç
+grupta toplam 25 tip hatası giderildi; airfoil grubu ek düzeltme gerektirmedi.
+Kalan engine dosyaları küçük gruplar hâlinde eklenecek.
 
 ## 6. Test gruplarını ayır
 
