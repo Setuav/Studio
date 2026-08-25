@@ -346,6 +346,7 @@ class PerformanceChartsDock(QWidget):
         c = result.curves
         v_list = c.velocities
         feas_list = c.feasible
+        propulsion_available = result.propulsion_available
 
         # 1. Chart 1 (Top-Left): Power Required vs Available (Both in Watts -> shared axis)
         self.chart_power.plot_dual_curves(
@@ -354,7 +355,7 @@ class PerformanceChartsDock(QWidget):
             y1_label="Power Required (P_req)",
             y1_unit="W",
             y1_color_role="blue",
-            y2_vals=c.power_available,
+            y2_vals=c.power_available if propulsion_available else None,
             y2_label="Power Available (P_avail)",
             y2_unit="W",
             y2_color_role="orange",
@@ -366,11 +367,11 @@ class PerformanceChartsDock(QWidget):
         # 2. Chart 2 (Top-Right): Climb Performance (ROC & Climb Angle)
         self.chart_climb.plot_dual_curves(
             x_vals=v_list,
-            y1_vals=c.rate_of_climb,
+            y1_vals=c.rate_of_climb if propulsion_available else [],
             y1_label="Rate of Climb (ROC)",
             y1_unit="m/s",
             y1_color_role="green",
-            y2_vals=c.climb_angle_deg,
+            y2_vals=c.climb_angle_deg if propulsion_available else None,
             y2_label="Climb Angle (γ)",
             y2_unit="°",
             y2_color_role="teal",
@@ -382,11 +383,11 @@ class PerformanceChartsDock(QWidget):
         # 3. Chart 3 (Bottom-Left): Mission Range & Endurance
         self.chart_mission.plot_dual_curves(
             x_vals=v_list,
-            y1_vals=c.range_km,
+            y1_vals=c.range_km if propulsion_available else [],
             y1_label="Range",
             y1_unit="km",
             y1_color_role="blue",
-            y2_vals=c.endurance_hours,
+            y2_vals=c.endurance_hours if propulsion_available else None,
             y2_label="Endurance",
             y2_unit="h",
             y2_color_role="magenta",
@@ -398,11 +399,11 @@ class PerformanceChartsDock(QWidget):
         # 4. Chart 4 (Bottom-Right): Electrical Power & Throttle
         self.chart_electrical.plot_dual_curves(
             x_vals=v_list,
-            y1_vals=c.electrical_power,
+            y1_vals=c.electrical_power if propulsion_available else [],
             y1_label="Electrical Power (P_elec)",
             y1_unit="W",
             y1_color_role="red",
-            y2_vals=c.throttle_pct,
+            y2_vals=c.throttle_pct if propulsion_available else None,
             y2_label="Throttle",
             y2_unit="%",
             y2_color_role="orange",

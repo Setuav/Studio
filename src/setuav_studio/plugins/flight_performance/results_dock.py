@@ -74,6 +74,7 @@ class PerformanceResultsDock(PropertyTableMixin, QWidget):
             ("cruise_power", "Cruise Electrical Power"),
             ("cruise_current", "Cruise Current Draw"),
             ("cruise_throttle", "Cruise Throttle"),
+            ("propulsion_status", "Propulsion Status"),
         ])
         summary_layout.addWidget(self.summary_table)
         summary_layout.addStretch(1)
@@ -159,6 +160,7 @@ class PerformanceResultsDock(PropertyTableMixin, QWidget):
             "cruise_power",
             "cruise_current",
             "cruise_throttle",
+            "propulsion_status",
         ):
             self._set_property_value(self.summary_table, key, "-")
 
@@ -182,16 +184,24 @@ class PerformanceResultsDock(PropertyTableMixin, QWidget):
 
         # Format Summary Metrics
         self._set_property_value(self.summary_table, "stall_speed", f"{met.stall_speed:.1f} m/s ({met.stall_speed * 3.6:.1f} km/h)")
-        self._set_property_value(self.summary_table, "best_range_speed", f"{opt.best_range:.1f} m/s ({opt.best_range * 3.6:.1f} km/h)")
-        self._set_property_value(self.summary_table, "best_endurance_speed", f"{opt.best_endurance:.1f} m/s ({opt.best_endurance * 3.6:.1f} km/h)")
-        self._set_property_value(self.summary_table, "best_climb_speed", f"{opt.best_climb:.1f} m/s ({opt.best_climb * 3.6:.1f} km/h)")
-        self._set_property_value(self.summary_table, "max_level_speed", f"{met.max_speed:.1f} m/s ({met.max_speed * 3.6:.1f} km/h)")
+        if res.propulsion_available:
+            self._set_property_value(self.summary_table, "best_range_speed", f"{opt.best_range:.1f} m/s ({opt.best_range * 3.6:.1f} km/h)")
+            self._set_property_value(self.summary_table, "best_endurance_speed", f"{opt.best_endurance:.1f} m/s ({opt.best_endurance * 3.6:.1f} km/h)")
+            self._set_property_value(self.summary_table, "best_climb_speed", f"{opt.best_climb:.1f} m/s ({opt.best_climb * 3.6:.1f} km/h)")
+            self._set_property_value(self.summary_table, "max_level_speed", f"{met.max_speed:.1f} m/s ({met.max_speed * 3.6:.1f} km/h)")
+        else:
+            for key in ("best_range_speed", "best_endurance_speed", "best_climb_speed", "max_level_speed"):
+                self._set_property_value(self.summary_table, key, "N/A (no propulsion data)")
         self._set_property_value(self.summary_table, "max_ld", f"{met.max_ld_ratio:.2f}")
-        self._set_property_value(self.summary_table, "max_roc", f"{met.max_rate_of_climb:.2f} m/s ({met.max_rate_of_climb * 196.85:.0f} ft/min)")
-        self._set_property_value(self.summary_table, "best_climb_angle", f"{met.best_climb_angle_deg:.1f}°")
-        self._set_property_value(self.summary_table, "max_range", f"{met.max_range_km:.1f} km" if met.max_range_km > 0 else "N/A")
+        if res.propulsion_available:
+            self._set_property_value(self.summary_table, "max_roc", f"{met.max_rate_of_climb:.2f} m/s ({met.max_rate_of_climb * 196.85:.0f} ft/min)")
+            self._set_property_value(self.summary_table, "best_climb_angle", f"{met.best_climb_angle_deg:.1f}°")
+            self._set_property_value(self.summary_table, "max_range", f"{met.max_range_km:.1f} km" if met.max_range_km > 0 else "N/A")
+        else:
+            for key in ("max_roc", "best_climb_angle", "max_range"):
+                self._set_property_value(self.summary_table, key, "N/A (no propulsion data)")
 
-        if met.max_endurance_hours > 0:
+        if res.propulsion_available and met.max_endurance_hours > 0:
             total_mins = int(met.max_endurance_hours * 60)
             hours = total_mins // 60
             mins = total_mins % 60
@@ -200,9 +210,16 @@ class PerformanceResultsDock(PropertyTableMixin, QWidget):
             self._set_property_value(self.summary_table, "max_endurance", "N/A")
 
         self._set_property_value(self.summary_table, "min_power", f"{met.min_power_required:.1f} W")
-        self._set_property_value(self.summary_table, "cruise_power", f"{cru.power:.1f} W" if cru.power > 0 else "N/A")
-        self._set_property_value(self.summary_table, "cruise_current", f"{cru.current:.2f} A" if cru.current > 0 else "N/A")
-        self._set_property_value(self.summary_table, "cruise_throttle", f"{cru.throttle:.0f} %" if cru.throttle > 0 else "N/A")
+        self._set_property_value(self.summary_table, "cruise_power", f"{cru.power:.1f} W" if res.propulsion_available and cru.power > 0 else "N/A")
+        self._set_property_value(self.summary_table, "cruise_current", f"{cru.current:.2f} A" if res.propulsion_available and cru.current > 0 else "N/A")
+        self._set_property_value(self.summary_table, "cruise_throttle", f"{cru.throttle:.0f} %" if res.propulsion_available and cru.throttle > 0 else "N/A")
+        if not res.propulsion_available:
+            propulsion_status = "Unavailable — aerodynamic-only"
+        elif res.propulsion_feasible is False:
+            propulsion_status = "Available — no feasible operating point"
+        else:
+            propulsion_status = "Available"
+        self._set_property_value(self.summary_table, "propulsion_status", propulsion_status)
 
         # Populate Detailed Sweep Table
         c = res.curves
@@ -212,31 +229,31 @@ class PerformanceResultsDock(PropertyTableMixin, QWidget):
         for row in range(n_rows):
             v_val = c.velocities[row]
             p_req = c.power_required[row] if row < len(c.power_required) else 0.0
-            p_av = c.power_available[row] if row < len(c.power_available) else 0.0
+            p_av = c.power_available[row] if res.propulsion_available and row < len(c.power_available) else None
             t_req = c.thrust_required[row] if row < len(c.thrust_required) else 0.0
-            t_av = c.thrust_available[row] if row < len(c.thrust_available) else 0.0
-            roc_v = c.rate_of_climb[row] if row < len(c.rate_of_climb) else 0.0
-            gamma_v = c.climb_angle_deg[row] if row < len(c.climb_angle_deg) else 0.0
-            p_el = c.electrical_power[row] if row < len(c.electrical_power) else 0.0
-            i_el = c.current_draw[row] if row < len(c.current_draw) else 0.0
-            thr = c.throttle_pct[row] if row < len(c.throttle_pct) else 0.0
-            rng = c.range_km[row] if row < len(c.range_km) else 0.0
-            end = c.endurance_hours[row] if row < len(c.endurance_hours) else 0.0
+            t_av = c.thrust_available[row] if res.propulsion_available and row < len(c.thrust_available) else None
+            roc_v = c.rate_of_climb[row] if res.propulsion_available and row < len(c.rate_of_climb) else None
+            gamma_v = c.climb_angle_deg[row] if res.propulsion_available and row < len(c.climb_angle_deg) else None
+            p_el = c.electrical_power[row] if res.propulsion_available and row < len(c.electrical_power) else None
+            i_el = c.current_draw[row] if res.propulsion_available and row < len(c.current_draw) else None
+            thr = c.throttle_pct[row] if res.propulsion_available and row < len(c.throttle_pct) else None
+            rng = c.range_km[row] if res.propulsion_available and row < len(c.range_km) else None
+            end = c.endurance_hours[row] if res.propulsion_available and row < len(c.endurance_hours) else None
             feas = c.feasible[row] if row < len(c.feasible) else True
 
             vals = [
                 f"{v_val:.1f}",
                 f"{p_req:.1f}",
-                f"{p_av:.1f}",
+                f"{p_av:.1f}" if p_av is not None else "—",
                 f"{t_req:.2f}",
-                f"{t_av:.2f}",
-                f"{roc_v:.2f}",
-                f"{gamma_v:.1f}",
-                f"{p_el:.1f}",
-                f"{i_el:.2f}",
-                f"{thr:.0f}",
-                f"{rng:.1f}",
-                f"{end:.2f}",
+                f"{t_av:.2f}" if t_av is not None else "—",
+                f"{roc_v:.2f}" if roc_v is not None else "—",
+                f"{gamma_v:.1f}" if gamma_v is not None else "—",
+                f"{p_el:.1f}" if p_el is not None else "—",
+                f"{i_el:.2f}" if i_el is not None else "—",
+                f"{thr:.0f}" if thr is not None else "—",
+                f"{rng:.1f}" if rng is not None else "—",
+                f"{end:.2f}" if end is not None else "—",
             ]
 
             for col, val_str in enumerate(vals):
@@ -298,19 +315,20 @@ class PerformanceResultsDock(PropertyTableMixin, QWidget):
 
                 c = res.curves
                 for r in range(len(c.velocities)):
+                    propulsion_values = res.propulsion_available
                     writer.writerow([
                         f"{c.velocities[r]:.2f}",
-                        f"{c.power_required[r]:.2f}",
-                        f"{c.power_available[r]:.2f}",
-                        f"{c.thrust_required[r]:.3f}",
-                        f"{c.thrust_available[r]:.3f}",
-                        f"{c.rate_of_climb[r]:.3f}",
-                        f"{c.climb_angle_deg[r]:.2f}",
-                        f"{c.electrical_power[r]:.2f}",
-                        f"{c.current_draw[r]:.3f}",
-                        f"{c.throttle_pct[r]:.1f}",
-                        f"{c.range_km[r]:.2f}",
-                        f"{c.endurance_hours[r]:.3f}",
+                        f"{c.power_required[r]:.2f}" if r < len(c.power_required) else "",
+                        f"{c.power_available[r]:.2f}" if propulsion_values and r < len(c.power_available) else "",
+                        f"{c.thrust_required[r]:.3f}" if r < len(c.thrust_required) else "",
+                        f"{c.thrust_available[r]:.3f}" if propulsion_values and r < len(c.thrust_available) else "",
+                        f"{c.rate_of_climb[r]:.3f}" if propulsion_values and r < len(c.rate_of_climb) else "",
+                        f"{c.climb_angle_deg[r]:.2f}" if propulsion_values and r < len(c.climb_angle_deg) else "",
+                        f"{c.electrical_power[r]:.2f}" if propulsion_values and r < len(c.electrical_power) else "",
+                        f"{c.current_draw[r]:.3f}" if propulsion_values and r < len(c.current_draw) else "",
+                        f"{c.throttle_pct[r]:.1f}" if propulsion_values and r < len(c.throttle_pct) else "",
+                        f"{c.range_km[r]:.2f}" if propulsion_values and r < len(c.range_km) else "",
+                        f"{c.endurance_hours[r]:.3f}" if propulsion_values and r < len(c.endurance_hours) else "",
                         str(c.feasible[r]),
                     ])
 

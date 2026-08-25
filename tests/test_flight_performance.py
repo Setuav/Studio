@@ -160,6 +160,53 @@ class TestFlightPerformance(unittest.TestCase):
         self.assertGreater(result.metrics.max_rate_of_climb, 0.0)
         self.assertGreater(len(result.curves.velocities), 5)
 
+    def test_solver_limits_throttle_by_motor_current(self) -> None:
+        """A current-limited motor may still solve a lower-throttle thrust point."""
+        motor_spec = MotorSpec(
+            kv_rpm_per_v=900.0,
+            resistance_ohm=0.035,
+            no_load_current_a=1.2,
+            current_max_a=45.0,
+        )
+        prop_spec = PropellerSpec(diameter_m=0.3302, pitch_m=0.1651, blade_count=2)
+        prop_entry = PropulsionSolverEngine.fallback_propeller(13.0, 6.5, 2)
+
+        throttle, _power, current, feasible = FlightPerformanceSolver.solve_propulsion_for_thrust(
+            motor_spec=motor_spec,
+            prop_spec=prop_spec,
+            prop_entry=prop_entry,
+            total_voltage=22.2,
+            rho=1.225,
+            v_mps=10.0,
+            thrust_req=2.0,
+        )
+
+        self.assertTrue(feasible)
+        self.assertLess(throttle, 100.0)
+        self.assertLessEqual(current, motor_spec.current_max_a)
+
+    def test_solver_without_propulsion_does_not_fabricate_values(self) -> None:
+        result = FlightPerformanceSolver.run_analysis(
+            {
+                "mass_kg": 2.0,
+                "area_m2": 0.5,
+                "air_density": 1.225,
+                "cl_max": 1.2,
+                "cd_min": 0.035,
+                "v_min": 8.0,
+                "v_max": 20.0,
+                "v_step": 1.0,
+            }
+        )
+
+        self.assertTrue(result.feasible)
+        self.assertFalse(result.propulsion_available)
+        self.assertIsNone(result.propulsion_feasible)
+        self.assertEqual(result.curves.power_available, [])
+        self.assertEqual(result.curves.electrical_power, [])
+        self.assertEqual(result.metrics.max_range_km, 0.0)
+        self.assertTrue(any("Propulsion data unavailable" in note for note in result.notes))
+
     def test_flight_performance_worker_and_signals(self) -> None:
         motor_spec = MotorSpec(kv_rpm_per_v=900.0, resistance_ohm=0.035, no_load_current_a=1.2, current_max_a=45.0)
         prop_spec = PropellerSpec(diameter_m=0.3302, pitch_m=0.1651, blade_count=2)
@@ -237,7 +284,7 @@ class TestFlightPerformance(unittest.TestCase):
         self.assertIn("Performance complete", win._status_label.text())
 
         # Check project extension storage
-        stored = get_stored_performance_result(doc)
+        stored = get_stored_performance_result(api.current_project)
         self.assertIsNotNone(stored)
         self.assertTrue(stored.feasible)  # type: ignore
 
@@ -290,6 +337,8 @@ class TestFlightPerformance(unittest.TestCase):
 
     def test_project_tree_nodes(self) -> None:
         api = StudioAPI()
+        api.set_panel_handler(lambda _panel: None)
+        api.set_workspace_handler(lambda _workspace: None)
         plugin = FlightPerformancePlugin()
         plugin.activate(api)
 

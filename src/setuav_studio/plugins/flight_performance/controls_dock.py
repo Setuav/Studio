@@ -25,7 +25,7 @@ from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.plugins.electrical_propulsion.database import get_propeller_database
 from setuav_studio.plugins.electrical_propulsion.engine.solver import PropulsionSolverEngine
 from setuav_studio.plugins.weight_balance.engine.solver import WeightBalanceSolver
-from setuav_studio.ui.buttons import set_native_button
+from setuav_studio.ui.buttons import refresh_button_role, set_button_role, set_native_button
 from setuav_studio.ui.icons import get_icon, set_label_icon
 from setuav_studio.ui.numeric_spinbox import NumericSpinBox
 from setuav_studio.ui.property_tables import PropertyTableMixin
@@ -35,7 +35,6 @@ from .analysis_store import (
     get_stored_performance_result,
     make_analysis_entry,
     performance_selection,
-    store_performance_result,
 )
 from .engine.models import FlightEnvelopeResult
 from .worker import FlightPerformanceWorker
@@ -229,12 +228,17 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
         layout.setContentsMargins(4, 8, 4, 4)
 
         self.btn_run = QPushButton("Run Flight Performance Analysis", self)
-        set_native_button(self.btn_run, "run_analysis")
-        self.btn_run.setIcon(get_icon("fa6s.play"))
+        set_button_role(self.btn_run, "primary", "fa6s.play")
         self.btn_run.clicked.connect(self._on_run_analysis)
         layout.addWidget(self.btn_run)
 
         self._content_layout.addWidget(section)
+
+    def update_theme_style(self) -> None:
+        for lbl, name in self._section_icons:
+            set_label_icon(lbl, name)
+        if hasattr(self, "btn_run"):
+            refresh_button_role(self.btn_run)
 
     def _update_takeoff_mass(self) -> None:
         empty_g = self._empty_mass_kg * 1000.0
@@ -493,8 +497,6 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
                     f"Store flight performance analysis: {entry['name']}",
                     lambda ext: append_analysis_entry(ext, entry),
                 )
-            elif proj:
-                store_performance_result(proj, result)
 
             self._api.publish("flight_performance.analysis_completed", result)
             if entry is not None:

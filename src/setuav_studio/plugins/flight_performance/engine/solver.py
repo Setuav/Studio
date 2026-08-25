@@ -113,22 +113,36 @@ class FlightPerformanceSolver:
         thrust_req: float,
     ) -> tuple[float, float, float, bool]:
         """Find throttle and electrical power needed to match thrust_req at v_mps."""
-        pt_full = PropulsionSolverEngine.solve_point(
+        if thrust_req <= 0.0:
+            return 0.0, 0.0, 0.0, True
+
+        # Full throttle can exceed the motor current limit even when the
+        # requested thrust is achievable at a lower throttle. Find the
+        # highest current-safe throttle first and solve only inside that
+        # operating range.
+        safe_max_throttle = cls._safe_max_throttle(
             motor_spec=motor_spec,
             prop_spec=prop_spec,
             prop_entry=prop_entry,
             total_voltage=total_voltage,
             rho=rho,
             v_mps=v_mps,
-            throttle_val=1.0,
+        )
+        if safe_max_throttle <= 0.0:
+            return 0.0, 0.0, 0.0, False
+
+        pt_limit = PropulsionSolverEngine.solve_point(
+            motor_spec=motor_spec,
+            prop_spec=prop_spec,
+            prop_entry=prop_entry,
+            total_voltage=total_voltage,
+            rho=rho,
+            v_mps=v_mps,
+            throttle_val=safe_max_throttle,
             x_val=v_mps,
         )
-
-        if thrust_req <= 0.0:
-            return 0.0, 0.0, 0.0, True
-
-        if pt_full.thrust < thrust_req or not pt_full.feasible:
-            return 100.0, pt_full.power, pt_full.current, False
+        if pt_limit.thrust < thrust_req:
+            return safe_max_throttle * 100.0, pt_limit.power, pt_limit.current, False
 
         def f_thr(thr: float) -> float:
             pt = PropulsionSolverEngine.solve_point(
@@ -144,8 +158,17 @@ class FlightPerformanceSolver:
             return pt.thrust - thrust_req
 
         try:
-            res_root = root_scalar(f_thr, bracket=[0.05, 1.0], method="brentq")
-            thr_solved = float(res_root.root)
+            low_throttle = 0.0
+            low_thrust = f_thr(low_throttle)
+            if low_thrust >= 0.0:
+                thr_solved = low_throttle
+            else:
+                res_root = root_scalar(
+                    f_thr,
+                    bracket=[low_throttle, safe_max_throttle],
+                    method="brentq",
+                )
+                thr_solved = float(res_root.root)
             pt_solved = PropulsionSolverEngine.solve_point(
                 motor_spec=motor_spec,
                 prop_spec=prop_spec,
@@ -160,7 +183,53 @@ class FlightPerformanceSolver:
             return thr_solved * 100.0, pt_solved.power, pt_solved.current, feasible
         except Exception as exc:
             logger.debug("Throttle root solving failed at v=%.1f m/s (%s)", v_mps, exc)
-            return 100.0, pt_full.power, pt_full.current, pt_full.feasible
+            return safe_max_throttle * 100.0, pt_limit.power, pt_limit.current, False
+
+    @staticmethod
+    def _safe_max_throttle(
+        *,
+        motor_spec: MotorSpec,
+        prop_spec: PropellerSpec,
+        prop_entry: PropellerEntry,
+        total_voltage: float,
+        rho: float,
+        v_mps: float,
+    ) -> float:
+        """Return the highest throttle that stays within the motor limit."""
+        current_limit = float(motor_spec.current_max_a)
+        if current_limit <= 0.0 or total_voltage <= 0.0:
+            return 0.0
+
+        def point(throttle: float):
+            return PropulsionSolverEngine.solve_point(
+                motor_spec=motor_spec,
+                prop_spec=prop_spec,
+                prop_entry=prop_entry,
+                total_voltage=total_voltage,
+                rho=rho,
+                v_mps=v_mps,
+                throttle_val=throttle,
+                x_val=v_mps,
+            )
+
+        low_point = point(0.0)
+        if low_point.current > current_limit:
+            return 0.0
+
+        high_point = point(1.0)
+        if high_point.current <= current_limit:
+            return 1.0
+
+        # Current is monotonic with throttle for the motor model. A bounded
+        # bisection avoids relying on a second nested root solver here.
+        low, high = 0.0, 1.0
+        for _ in range(32):
+            mid = (low + high) * 0.5
+            if point(mid).current <= current_limit:
+                low = mid
+            else:
+                high = mid
+        return low
 
     @classmethod
     def run_analysis(
@@ -310,20 +379,26 @@ class FlightPerformanceSolver:
             default_cd=cd_min,
         )
 
-        power_avail = np.zeros(n_points)
-        thrust_avail = np.zeros(n_points)
-        elec_power = np.zeros(n_points)
-        current_draw = np.zeros(n_points)
-        throttle_pct = np.zeros(n_points)
-        feasible_points = np.ones(n_points, dtype=bool)
-
         has_propulsion = (
             motor_spec is not None
             and prop_spec is not None
             and prop_entry is not None
             and battery_voltage is not None
             and battery_voltage > 0.0
+            and motor_spec.kv_rpm_per_v > 0.0
+            and motor_spec.current_max_a > 0.0
+            and prop_spec.diameter_m > 0.0
+            and prop_spec.pitch_m > 0.0
         )
+
+        # Keep aerodynamic curves available even when propulsion inputs are
+        # missing, but do not manufacture propulsion/electrical values.
+        power_avail = np.zeros(n_points) if has_propulsion else np.array([])
+        thrust_avail = np.zeros(n_points) if has_propulsion else np.array([])
+        elec_power = np.zeros(n_points) if has_propulsion else np.array([])
+        current_draw = np.zeros(n_points) if has_propulsion else np.array([])
+        throttle_pct = np.zeros(n_points) if has_propulsion else np.array([])
+        feasible_points = np.ones(n_points, dtype=bool)
 
         propulsion_summary = {
             "has_propulsion": has_propulsion,
@@ -342,19 +417,29 @@ class FlightPerformanceSolver:
                 progress_callback(prog, 100, f"{v_val:.1f} m/s")
 
             if has_propulsion and motor_spec and prop_spec and prop_entry and battery_voltage:
-                # 100% throttle point for available thrust/power
-                pt_max = PropulsionSolverEngine.solve_point(
+                # Available thrust/power must use the current-safe throttle,
+                # not an over-current 100% throttle point.
+                safe_max_throttle = cls._safe_max_throttle(
                     motor_spec=motor_spec,
                     prop_spec=prop_spec,
                     prop_entry=prop_entry,
                     total_voltage=battery_voltage,
                     rho=rho,
                     v_mps=float(v_val),
-                    throttle_val=1.0,
-                    x_val=float(v_val),
                 )
-                thrust_avail[i] = pt_max.thrust
-                power_avail[i] = pt_max.thrust * v_val
+                if safe_max_throttle > 0.0:
+                    pt_max = PropulsionSolverEngine.solve_point(
+                        motor_spec=motor_spec,
+                        prop_spec=prop_spec,
+                        prop_entry=prop_entry,
+                        total_voltage=battery_voltage,
+                        rho=rho,
+                        v_mps=float(v_val),
+                        throttle_val=safe_max_throttle,
+                        x_val=float(v_val),
+                    )
+                    thrust_avail[i] = pt_max.thrust
+                    power_avail[i] = pt_max.thrust * v_val
 
                 # Equilibrium throttle and electric power for level flight
                 thr_req, p_el, i_el, feas = cls.solve_propulsion_for_thrust(
@@ -369,31 +454,31 @@ class FlightPerformanceSolver:
                 throttle_pct[i] = thr_req
                 elec_power[i] = p_el
                 current_draw[i] = i_el
-                feasible_points[i] = feas and (thrust_avail[i] >= drag_req[i])
-            else:
-                # Purely aerodynamic fallback
-                power_avail[i] = power_req[i] * 1.5
-                thrust_avail[i] = drag_req[i] * 1.5
-                elec_power[i] = power_req[i] / 0.70
-                current_draw[i] = elec_power[i] / (battery_voltage or 14.8)
-                throttle_pct[i] = (power_req[i] / max(power_avail[i], 1.0)) * 100.0
-                feasible_points[i] = True
+                feasible_points[i] = (
+                    safe_max_throttle > 0.0
+                    and feas
+                    and (thrust_avail[i] >= drag_req[i])
+                )
 
         if progress_callback:
             progress_callback(90, 100, "Speeds")
 
         # 6. Rate of climb & climb angle
         weight_n = mass_kg * 9.81
-        excess_power = np.maximum(0.0, power_avail - power_req)
-        roc = excess_power / weight_n
-        climb_ratio = np.clip(roc / np.maximum(velocities, 0.1), 0.0, 1.0)
-        climb_angle_deg = np.degrees(np.arcsin(climb_ratio))
+        if has_propulsion:
+            excess_power = np.maximum(0.0, power_avail - power_req)
+            roc = excess_power / weight_n
+            climb_ratio = np.clip(roc / np.maximum(velocities, 0.1), 0.0, 1.0)
+            climb_angle_deg = np.degrees(np.arcsin(climb_ratio))
+        else:
+            roc = np.array([])
+            climb_angle_deg = np.array([])
 
         # 7. Range & endurance curves
-        range_km = np.zeros(n_points)
-        endurance_hours = np.zeros(n_points)
+        range_km = np.zeros(n_points) if has_propulsion else np.array([])
+        endurance_hours = np.zeros(n_points) if has_propulsion else np.array([])
 
-        if battery_capacity_ah is not None and battery_voltage is not None and battery_voltage > 0:
+        if has_propulsion and battery_capacity_ah is not None and battery_voltage is not None and battery_voltage > 0:
             usable_energy_wh = battery_voltage * battery_capacity_ah * usable_battery_ratio
             for i in range(n_points):
                 if elec_power[i] > 0 and feasible_points[i]:
@@ -401,23 +486,30 @@ class FlightPerformanceSolver:
                     range_km[i] = velocities[i] * 3.6 * endurance_hours[i]
 
         # 8. Optimal speeds identification
-        feasible_mask = feasible_points & (elec_power > 0)
-        if np.any(feasible_mask):
+        feasible_mask = feasible_points & (elec_power > 0) if has_propulsion else np.zeros(n_points, dtype=bool)
+        if has_propulsion and np.any(feasible_mask):
             feas_indices = np.where(feasible_mask)[0]
             idx_be = int(feas_indices[np.argmin(elec_power[feasible_mask])])
             idx_br = int(feas_indices[np.argmax(range_km[feasible_mask])])
             idx_vy = int(feas_indices[np.argmax(roc[feasible_mask])])
             v_max = float(velocities[feas_indices[-1]])
-        else:
+            best_endurance_spd = float(velocities[idx_be])
+            best_range_spd = float(velocities[idx_br])
+            best_climb_spd = float(velocities[idx_vy])
+        elif has_propulsion:
             idx_be = int(np.argmin(power_req))
             power_over_v = power_req / np.maximum(velocities, 0.1)
             idx_br = int(np.argmin(power_over_v))
             idx_vy = int(np.argmax(roc))
             v_max = float(velocities[-1])
-
-        best_endurance_spd = float(velocities[idx_be])
-        best_range_spd = float(velocities[idx_br])
-        best_climb_spd = float(velocities[idx_vy])
+            best_endurance_spd = float(velocities[idx_be])
+            best_range_spd = float(velocities[idx_br])
+            best_climb_spd = float(velocities[idx_vy])
+        else:
+            v_max = 0.0
+            best_endurance_spd = 0.0
+            best_range_spd = 0.0
+            best_climb_spd = 0.0
 
         # Best L/D estimation
         if cd0 is not None and k_induced is not None and k_induced > 0:
@@ -425,14 +517,22 @@ class FlightPerformanceSolver:
             v_ld = float(math.sqrt(2.0 * weight_n / (rho * area_m2 * max(cl_opt, 0.01))))
             max_ld = float(1.0 / (2.0 * math.sqrt(cd0 * k_induced)))
         else:
-            v_ld = best_range_spd
+            v_ld = best_range_spd if has_propulsion else 0.0
             max_ld = ld_max_aero
 
-        max_roc = float(np.max(roc[feasible_points])) if np.any(feasible_points) else float(np.max(roc))
-        best_gamma = float(np.max(climb_angle_deg[feasible_points])) if np.any(feasible_points) else float(np.max(climb_angle_deg))
+        max_roc = (
+            float(np.max(roc[feasible_points]))
+            if has_propulsion and np.any(feasible_points)
+            else (float(np.max(roc)) if has_propulsion and len(roc) else 0.0)
+        )
+        best_gamma = (
+            float(np.max(climb_angle_deg[feasible_points]))
+            if has_propulsion and np.any(feasible_points)
+            else (float(np.max(climb_angle_deg)) if has_propulsion and len(climb_angle_deg) else 0.0)
+        )
         min_p_req = float(np.min(power_req))
-        max_range = float(np.max(range_km))
-        max_endurance = float(np.max(endurance_hours))
+        max_range = float(np.max(range_km)) if has_propulsion and len(range_km) else 0.0
+        max_endurance = float(np.max(endurance_hours)) if has_propulsion and len(endurance_hours) else 0.0
 
         optimal_speeds = OptimalSpeeds(
             best_endurance=best_endurance_spd,
@@ -453,16 +553,19 @@ class FlightPerformanceSolver:
             max_rate_of_climb=max_roc,
         )
 
-        idx_cruise = idx_br
-        cruise = CruisePerformance(
-            speed=best_range_spd,
-            power=float(elec_power[idx_cruise]),
-            current=float(current_draw[idx_cruise]),
-            throttle=float(throttle_pct[idx_cruise]),
-            endurance=float(endurance_hours[idx_cruise]),
-            range=float(range_km[idx_cruise]),
-            feasible=bool(feasible_points[idx_cruise]),
-        )
+        if has_propulsion:
+            idx_cruise = idx_br
+            cruise = CruisePerformance(
+                speed=best_range_spd,
+                power=float(elec_power[idx_cruise]),
+                current=float(current_draw[idx_cruise]),
+                throttle=float(throttle_pct[idx_cruise]),
+                endurance=float(endurance_hours[idx_cruise]),
+                range=float(range_km[idx_cruise]),
+                feasible=bool(feasible_points[idx_cruise]),
+            )
+        else:
+            cruise = CruisePerformance(feasible=False)
 
         curves = FlightCurves(
             velocities=velocities.tolist(),
@@ -481,9 +584,16 @@ class FlightPerformanceSolver:
         )
 
         notes: list[str] = []
-        if not np.any(feasible_points):
+        propulsion_feasible: bool | None = None
+        if not has_propulsion:
+            propulsion_feasible = None
+            notes.append("Propulsion data unavailable; aerodynamic-only analysis.")
+        elif not np.any(feasible_points):
+            propulsion_feasible = False
             notes.append("No feasible level flight operating points found within velocity sweep.")
-        if v_stall >= v_max:
+        else:
+            propulsion_feasible = True
+        if has_propulsion and v_stall >= v_max:
             notes.append("Stall speed exceeds maximum level flight speed (insufficient thrust/power).")
 
         if progress_callback:
@@ -502,7 +612,9 @@ class FlightPerformanceSolver:
             metrics=metrics,
             cruise=cruise,
             curves=curves,
-            feasible=bool(np.any(feasible_points)),
+            propulsion_available=has_propulsion,
+            propulsion_feasible=propulsion_feasible,
+            feasible=bool(not has_propulsion or np.any(feasible_points)),
             notes=notes,
             aero_summary=aero_summary,
             propulsion_summary=propulsion_summary,

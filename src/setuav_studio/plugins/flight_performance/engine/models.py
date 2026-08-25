@@ -102,9 +102,9 @@ class FlightCurves:
 
     velocities: list[float] = field(default_factory=list)
     power_required: list[float] = field(default_factory=list)     # W (aerodynamic)
-    power_available: list[float] = field(default_factory=list)    # W (propulsive at 100% throttle)
+    power_available: list[float] = field(default_factory=list)    # W (propulsive at current-safe max throttle)
     thrust_required: list[float] = field(default_factory=list)    # N (level flight drag)
-    thrust_available: list[float] = field(default_factory=list)   # N (at 100% throttle)
+    thrust_available: list[float] = field(default_factory=list)   # N (at current-safe max throttle)
     rate_of_climb: list[float] = field(default_factory=list)      # m/s
     climb_angle_deg: list[float] = field(default_factory=list)    # deg
     range_km: list[float] = field(default_factory=list)           # km
@@ -152,6 +152,11 @@ class FlightEnvelopeResult:
     metrics: PerformanceMetrics = field(default_factory=PerformanceMetrics)
     cruise: CruisePerformance = field(default_factory=CruisePerformance)
     curves: FlightCurves = field(default_factory=FlightCurves)
+    # ``feasible`` describes the completed analysis.  Propulsion feasibility
+    # is kept separate so an aerodynamic-only result is not mistaken for a
+    # coupled propulsion result.
+    propulsion_available: bool = False
+    propulsion_feasible: bool | None = None
     feasible: bool = True
     notes: list[str] = field(default_factory=list)
     aero_summary: dict[str, Any] = field(default_factory=dict)
@@ -171,6 +176,8 @@ class FlightEnvelopeResult:
             "metrics": self.metrics.to_dict(),
             "cruise": self.cruise.to_dict(),
             "curves": self.curves.to_dict(),
+            "propulsion_available": self.propulsion_available,
+            "propulsion_feasible": self.propulsion_feasible,
             "feasible": self.feasible,
             "notes": list(self.notes),
             "aero_summary": dict(self.aero_summary),
@@ -179,6 +186,12 @@ class FlightEnvelopeResult:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> FlightEnvelopeResult:
+        curves = FlightCurves.from_dict(data.get("curves", {}))
+        # Results written before the availability field was introduced had
+        # populated propulsion curves. Preserve their display behaviour.
+        propulsion_available = bool(
+            data.get("propulsion_available", bool(curves.power_available))
+        )
         return cls(
             mass_kg=_safe_float(data.get("mass_kg")),
             area_m2=_safe_float(data.get("area_m2")),
@@ -191,7 +204,13 @@ class FlightEnvelopeResult:
             optimal_speeds=OptimalSpeeds.from_dict(data.get("optimal_speeds", {})),
             metrics=PerformanceMetrics.from_dict(data.get("metrics", {})),
             cruise=CruisePerformance.from_dict(data.get("cruise", {})),
-            curves=FlightCurves.from_dict(data.get("curves", {})),
+            curves=curves,
+            propulsion_available=propulsion_available,
+            propulsion_feasible=(
+                bool(data["propulsion_feasible"])
+                if data.get("propulsion_feasible") is not None
+                else (True if propulsion_available else None)
+            ),
             feasible=bool(data.get("feasible", True)),
             notes=list(data.get("notes", [])),
             aero_summary=dict(data.get("aero_summary", {})),
