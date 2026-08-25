@@ -1,4 +1,5 @@
 import logging
+from contextlib import suppress
 
 from PySide6.QtCore import QSettings, Qt, QTimer
 from PySide6.QtGui import QAction, QActionGroup
@@ -318,10 +319,8 @@ class ViewerWorkspace(QWidget):
         self._default_orthographic = projection != "perspective"
 
         palette = str(viewer_setting(_VIEWER_PALETTE_KEY, active_palette())).lower()
-        try:
+        with suppress(ValueError):
             set_active_palette(palette)
-        except ValueError:
-            pass
 
         self._default_show_grid = _as_bool(
             viewer_setting(_VIEWER_GRID_KEY, True),

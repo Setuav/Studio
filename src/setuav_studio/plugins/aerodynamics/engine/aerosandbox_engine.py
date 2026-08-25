@@ -1194,7 +1194,7 @@ class AeroSandboxEngine(AeroEngine):
         for cs in parsed_cs:
             unique_etas.append(round(cs["eta_start"], 4))
             unique_etas.append(round(cs["eta_end"], 4))
-        unique_etas = sorted(list(set(unique_etas)))
+        unique_etas = sorted(set(unique_etas))
 
         # Interpolate station properties at each eta breakpoint
         def interp_station(eta_val: float, side: str = "right") -> dict[str, Any]:

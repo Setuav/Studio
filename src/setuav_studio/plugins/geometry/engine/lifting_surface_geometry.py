@@ -1043,10 +1043,7 @@ def _build_winglet_loft(
     else:
         te_s_root = le_s_root * 0.7
 
-    if te_sweep_tip_deg is not None:
-        te_s_tip = te_sweep_tip_deg
-    else:
-        te_s_tip = le_s_tip * 0.5
+    te_s_tip = te_sweep_tip_deg if te_sweep_tip_deg is not None else le_s_tip * 0.5
 
     # Curvature parameters
     le_curv_val = le_curvature + scimitar_offset

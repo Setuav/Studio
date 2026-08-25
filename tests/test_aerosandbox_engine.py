@@ -96,19 +96,21 @@ class AeroSandboxEngineTests(unittest.TestCase):
         engine = AeroSandboxEngine()
         condition = FlightCondition(alpha=2.0, alpha_steps=1, sweep_steps=1)
 
-        with patch(
-            "setuav_studio.plugins.aerodynamics.engine.aerosandbox_engine.asb.AeroBuildup.run",
-            side_effect=RuntimeError("solver exploded"),
-        ):
-            with self.assertRaisesRegex(
+        with (
+            patch(
+                "setuav_studio.plugins.aerodynamics.engine.aerosandbox_engine.asb.AeroBuildup.run",
+                side_effect=RuntimeError("solver exploded"),
+            ),
+            self.assertRaisesRegex(
                 AeroAnalysisError,
                 "failed at all 1 operating point.*solver exploded",
-            ):
-                engine.analyze(
-                    _sample_components(),
-                    condition,
-                    method=AnalysisMethod.AERO_BUILDUP,
-                )
+            ),
+        ):
+            engine.analyze(
+                _sample_components(),
+                condition,
+                method=AnalysisMethod.AERO_BUILDUP,
+            )
 
     @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_stability_failure_is_explicit_on_usable_result(self) -> None:

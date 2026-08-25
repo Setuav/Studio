@@ -352,25 +352,22 @@ class FlightPerformanceSolver:
         # 1. Step 1: Resolve Mass Properties
         project = context.get("project")
         mass_kg = float(context.get("mass_kg", 0.0))
-        if mass_kg <= 0.0:
-            if project is not None:
-                try:
-                    wb_res = WeightBalanceSolver().evaluate(project)
-                    mass_kg = float(wb_res.total.mass_kg)
-                except Exception as exc:
-                    logger.debug(
-                        "WeightBalance evaluate failed; trying component mass sum: %s", exc
+        if mass_kg <= 0.0 and project is not None:
+            try:
+                wb_res = WeightBalanceSolver().evaluate(project)
+                mass_kg = float(wb_res.total.mass_kg)
+            except Exception as exc:
+                logger.debug("WeightBalance evaluate failed; trying component mass sum: %s", exc)
+            if mass_kg <= 0.0:
+                comps = project.data.get("components", [])
+                mass_kg = (
+                    sum(
+                        float(c.get("parameters", {}).get("mass", 0.0))
+                        for c in comps
+                        if isinstance(c, dict)
                     )
-                if mass_kg <= 0.0:
-                    comps = project.data.get("components", [])
-                    mass_kg = (
-                        sum(
-                            float(c.get("parameters", {}).get("mass", 0.0))
-                            for c in comps
-                            if isinstance(c, dict)
-                        )
-                        / 1000.0
-                    )
+                    / 1000.0
+                )
         if mass_kg <= 0.0:
             raise ValueError(
                 "Mass properties are unavailable. Define component masses or run Weight Balance before analysis."

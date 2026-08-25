@@ -63,10 +63,13 @@ class NumericSpinBox(QDoubleSpinBox):
         return self.hasFocus() or (self.lineEdit() is not None and self.lineEdit().hasFocus())
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
-        if watched == self.lineEdit() and event.type() == QEvent.Type.Wheel:
-            if not self._is_active_focus():
-                event.ignore()
-                return False
+        if (
+            watched == self.lineEdit()
+            and event.type() == QEvent.Type.Wheel
+            and not self._is_active_focus()
+        ):
+            event.ignore()
+            return False
         return super().eventFilter(watched, event)
 
     def wheelEvent(self, event: QWheelEvent) -> None:

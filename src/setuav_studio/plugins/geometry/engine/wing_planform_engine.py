@@ -341,10 +341,7 @@ def compute_planform_metrics(
     # Compute dihedral angle
     z0 = float(pos_root.get("z", 0.0))
     zt = float(pos_tip.get("z", 0.0))
-    if dy > 1e-6:
-        dihedral_deg = math.degrees(math.atan2(zt - z0, dy))
-    else:
-        dihedral_deg = 0.0
+    dihedral_deg = math.degrees(math.atan2(zt - z0, dy)) if dy > 1e-6 else 0.0
 
     # Washout (tip pitch - root pitch)
     rot_root = (

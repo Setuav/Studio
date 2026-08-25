@@ -70,9 +70,12 @@ class MotorCatalogModel(QAbstractTableModel):
         orientation: Qt.Orientation,
         role: int = Qt.ItemDataRole.DisplayRole,
     ) -> Any:
-        if orientation == Qt.Orientation.Horizontal and role == Qt.ItemDataRole.DisplayRole:
-            if 0 <= section < len(self.HEADERS):
-                return self.HEADERS[section]
+        if (
+            orientation == Qt.Orientation.Horizontal
+            and role == Qt.ItemDataRole.DisplayRole
+            and 0 <= section < len(self.HEADERS)
+        ):
+            return self.HEADERS[section]
         return None
 
     def data(
@@ -200,9 +203,12 @@ class PropellerCatalogModel(QAbstractTableModel):
         orientation: Qt.Orientation,
         role: int = Qt.ItemDataRole.DisplayRole,
     ) -> Any:
-        if orientation == Qt.Orientation.Horizontal and role == Qt.ItemDataRole.DisplayRole:
-            if 0 <= section < len(self.HEADERS):
-                return self.HEADERS[section]
+        if (
+            orientation == Qt.Orientation.Horizontal
+            and role == Qt.ItemDataRole.DisplayRole
+            and 0 <= section < len(self.HEADERS)
+        ):
+            return self.HEADERS[section]
         return None
 
     def data(
@@ -489,7 +495,7 @@ class ComponentCatalogDialog(QDialog):
         ]
 
         # Populate manufacturers dropdown
-        manufacturers = sorted(list({m.manufacturer for m in valid_motors if m.manufacturer}))
+        manufacturers = sorted({m.manufacturer for m in valid_motors if m.manufacturer})
         self.motor_mfg_combo.blockSignals(True)
         self.motor_mfg_combo.clear()
         self.motor_mfg_combo.addItem("All Manufacturers", "")

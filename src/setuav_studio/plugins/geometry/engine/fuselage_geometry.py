@@ -199,9 +199,12 @@ def _radial_samples(outline: list[tuple[float, float]]) -> tuple[tuple[float, fl
                 continue
             distance = _cross2(start, segment) / denominator
             fraction = _cross2(start, direction) / denominator
-            if distance >= -1e-8 and -1e-8 <= fraction <= 1.0 + 1e-8:
-                if nearest is None or distance < nearest:
-                    nearest = max(0.0, distance)
+            if (
+                distance >= -1e-8
+                and -1e-8 <= fraction <= 1.0 + 1e-8
+                and (nearest is None or distance < nearest)
+            ):
+                nearest = max(0.0, distance)
         result.append((direction[0] * (nearest or 0.0), direction[1] * (nearest or 0.0)))
     return tuple(result)
 

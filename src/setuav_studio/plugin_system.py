@@ -1,6 +1,7 @@
 import logging
 import pkgutil
 from collections.abc import Callable
+from contextlib import suppress
 from copy import deepcopy
 from dataclasses import dataclass
 from importlib import import_module, metadata
@@ -370,10 +371,8 @@ class StudioAPI:
     def unsubscribe(self, event_name: str, handler: Callable[[Any], None]) -> None:
         """Unsubscribe a callback handler from a named studio event."""
         if event_name in self._event_subscribers:
-            try:
+            with suppress(ValueError):
                 self._event_subscribers[event_name].remove(handler)
-            except ValueError:
-                pass
 
     def publish(self, event_name: str, payload: Any = None) -> None:
         """Publish an event to all subscribed listeners."""
@@ -540,10 +539,8 @@ class StudioAPI:
 
     def on_modified_changed(self, listener: Callable[[bool], None]) -> None:
         self._modified_listeners.append(listener)
-        try:
+        with suppress(RuntimeError):
             listener(bool(self.current_project and self.current_project.modified))
-        except RuntimeError:
-            pass
 
     def remove_modified_listener(self, listener: Callable[[bool], None]) -> None:
         if listener in self._modified_listeners:
@@ -697,10 +694,8 @@ class StudioAPI:
 
     def on_selection_changed(self, listener: Callable[[Any | None], None]) -> None:
         self._selection_listeners.append(listener)
-        try:
+        with suppress(RuntimeError):
             listener(self.current_selection)
-        except RuntimeError:
-            pass
 
     def set_selection(self, selection: Any | None) -> None:
         self.current_selection = selection
@@ -719,10 +714,8 @@ class StudioAPI:
         listener: Callable[[tuple[str, int, int] | None], None],
     ) -> None:
         self._section_selection_listeners.append(listener)
-        try:
+        with suppress(RuntimeError):
             listener(self.current_section_selection)
-        except RuntimeError:
-            pass
 
     def remove_section_selection_listener(
         self,
