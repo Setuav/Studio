@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import tempfile
 import unittest
+from types import SimpleNamespace
 
 import numpy as np
 from PySide6.QtCore import QThreadPool
@@ -125,6 +126,22 @@ class TestFlightPerformance(unittest.TestCase):
         self.assertIsNotNone(k_ind)
         self.assertAlmostEqual(cd0, 0.02, places=3)
         self.assertAlmostEqual(k_ind, 0.04, places=3)
+
+    def test_aerobuildup_clmax_requires_post_peak_drop(self) -> None:
+        points = [
+            SimpleNamespace(alpha=-2.0, cl=0.30, converged=True),
+            SimpleNamespace(alpha=8.0, cl=1.20, converged=True),
+            SimpleNamespace(alpha=16.0, cl=1.50, converged=True),
+            SimpleNamespace(alpha=22.0, cl=1.42, converged=True),
+        ]
+        cl_max, alpha_max, confirmed = FlightPerformanceSolver._resolve_aerobuildup_clmax(points)
+        self.assertAlmostEqual(cl_max, 1.50)
+        self.assertAlmostEqual(alpha_max, 16.0)
+        self.assertTrue(confirmed)
+
+        unconfirmed = points[:3]
+        _, _, confirmed = FlightPerformanceSolver._resolve_aerobuildup_clmax(unconfirmed)
+        self.assertFalse(confirmed)
 
     def test_resolve_max_speed_interpolates_thrust_crossing(self) -> None:
         speed, bounded = FlightPerformanceSolver.resolve_max_speed(

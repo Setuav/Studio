@@ -33,6 +33,35 @@ class FlightPerformanceSolver:
     """Analytical solver for fixed-wing flight performance envelopes."""
 
     @staticmethod
+    def _resolve_aerobuildup_clmax(
+        polar_points: Sequence[Any],
+    ) -> tuple[float, float, bool]:
+        """Resolve CLmax from an AeroBuildup polar and verify stall evidence.
+
+        AeroBuildup is the only source used for the stall limit.  A peak is
+        considered confirmed only when the post-peak polar contains a
+        meaningful CL decrease; otherwise the sweep has not reached stall and
+        a stall speed must not be presented as a validated result.
+        """
+        points = [
+            point for point in polar_points
+            if getattr(point, "converged", False)
+            and math.isfinite(float(getattr(point, "cl", 0.0)))
+            and math.isfinite(float(getattr(point, "alpha", 0.0)))
+        ]
+        if not points:
+            return 0.0, 0.0, False
+
+        peak_index = max(range(len(points)), key=lambda index: float(points[index].cl))
+        peak = points[peak_index]
+        cl_max = float(peak.cl)
+        alpha_max = float(peak.alpha)
+        post_peak = [float(point.cl) for point in points[peak_index + 1:]]
+        drop_threshold = max(abs(cl_max) * 0.02, 0.01)
+        confirmed = bool(post_peak and min(post_peak) <= cl_max - drop_threshold)
+        return cl_max, alpha_max, confirmed
+
+    @staticmethod
     def compute_stall_speed(
         mass_kg: float,
         area_m2: float,
@@ -328,11 +357,14 @@ class FlightPerformanceSolver:
         polar_cl_list = context.get("polar_cl")
         polar_cd_list = context.get("polar_cd")
         aero_summary: dict[str, Any] = {}
+        aero_stall_confirmed: bool | None = None
+        aero_stall_error: str | None = None
 
-        # 2. Step 2: Auto-run Aerodynamic Solver if requested or missing
-        auto_run_aero = bool(context.get("auto_run_aero", False))
+        # 2. Step 2: Always use AeroBuildup for the nonlinear stall limit.
+        # LLT/VLM polar data may be supplied for other consumers, but they do
+        # not determine CLmax or Vstall in this solver.
         components = context.get("components")
-        if (auto_run_aero or not polar_cl_list) and components and AeroSandboxEngine().is_available():
+        if components and AeroSandboxEngine().is_available():
             if progress_callback:
                 progress_callback(10, 100, "Aero Polar")
             try:
@@ -341,11 +373,11 @@ class FlightPerformanceSolver:
                     velocity=15.0,
                     altitude=float(context.get("altitude", 0.0)),
                     alpha_min=-8.0,
-                    alpha_max=18.0,
-                    alpha_steps=105,
+                    alpha_max=25.0,
+                    alpha_steps=67,
                     sweep_min=-8.0,
-                    sweep_max=18.0,
-                    sweep_steps=105,
+                    sweep_max=25.0,
+                    sweep_steps=67,
                 )
                 aero_res = aero_eng.analyze(
                     components=components,
@@ -353,12 +385,15 @@ class FlightPerformanceSolver:
                     method=AnalysisMethod.AERO_BUILDUP,
                 )
                 if aero_res.polar_points:
+                    # Use the AeroBuildup polar for the performance model as
+                    # well; this keeps the drag and stall limits consistent.
                     polar_cl_list = [p.cl for p in aero_res.polar_points if p.converged]
                     polar_cd_list = [p.cd for p in aero_res.polar_points if p.converged]
+                    cl_max, cl_max_alpha, aero_stall_confirmed = cls._resolve_aerobuildup_clmax(
+                        aero_res.polar_points
+                    )
                     if aero_res.reference.s_ref > 0:
                         area_m2 = float(aero_res.reference.s_ref)
-                    if aero_res.cl_max > 0:
-                        cl_max = float(aero_res.cl_max)
                     if aero_res.cd_min > 0:
                         cd_min = float(aero_res.cd_min)
                     if aero_res.ld_max > 0:
@@ -366,17 +401,23 @@ class FlightPerformanceSolver:
                     aero_summary = {
                         "method": "AeroBuildup",
                         "cl_max": cl_max,
+                        "cl_max_alpha": cl_max_alpha,
+                        "cl_max_confirmed": aero_stall_confirmed,
                         "cd_min": cd_min,
                         "ld_max": ld_max_aero,
                         "s_ref": area_m2,
                         "points_count": len(polar_cl_list),
                     }
             except Exception as exc:
+                aero_stall_error = str(exc)
                 logger.warning("Auto AeroSandbox analysis failed: %s", exc)
+
+        elif components:
+            aero_stall_error = "AeroSandbox/AeroBuildup is unavailable."
 
         if area_m2 <= 0.0:
             area_m2 = 0.50
-        if cl_max <= 0.0:
+        if cl_max <= 0.0 and not components:
             cl_max = 1.20
         if cd_min <= 0.0:
             cd_min = 0.035
@@ -398,7 +439,13 @@ class FlightPerformanceSolver:
             progress_callback(30, 100, "Grid")
 
         # 3. Stall speed & safe sweep bounds
-        v_stall = cls.compute_stall_speed(mass_kg, area_m2, cl_max, rho)
+        # Do not report a validated stall speed unless AeroBuildup produced a
+        # post-peak CL decrease for a real project model.  Context-only unit
+        # calls (without geometry) retain their explicit CLmax input.
+        stall_cl_max = cl_max
+        if components and (aero_stall_confirmed is not True or cl_max <= 0.0):
+            stall_cl_max = 0.0
+        v_stall = cls.compute_stall_speed(mass_kg, area_m2, stall_cl_max, rho)
         v_start = max(v_stall * stall_margin, v_min_cfg)
         v_end = max(v_start + 2.0, v_max_cfg)
 
@@ -654,6 +701,10 @@ class FlightPerformanceSolver:
             notes.append("Maximum speed is above the sweep limit; increase V_max to bound it.")
         if has_propulsion and v_max > 0.0 and v_stall >= v_max:
             notes.append("Stall speed exceeds maximum level flight speed (insufficient thrust/power).")
+        if components and aero_stall_error:
+            notes.append(f"AeroBuildup CLmax unavailable; stall speed not calculated: {aero_stall_error}")
+        elif components and aero_stall_confirmed is not True:
+            notes.append("AeroBuildup CLmax is unconfirmed; extend the alpha sweep before using Vstall.")
 
         if progress_callback:
             progress_callback(100, 100, "Done")
