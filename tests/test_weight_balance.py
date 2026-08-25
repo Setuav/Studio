@@ -357,7 +357,7 @@ class WeightBalancePluginTests(unittest.TestCase):
 
         mass_item = explorer._item_map["payload:mass-properties"]
         self.assertEqual(mass_item.parent(), explorer._item_map["payload"])
-        self.assertEqual(mass_item.text(0), "Mass Properties")
+        self.assertEqual(mass_item.text(0), "Mass")
 
         explorer.setCurrentItem(mass_item)
         get_qapp().processEvents()

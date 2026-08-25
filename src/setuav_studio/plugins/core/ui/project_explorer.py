@@ -19,7 +19,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.plugin_system import ProjectTreeNodeContribution, StudioAPI
+from setuav_studio.plugin_system import (
+    ComponentTreeNodeContribution,
+    ProjectTreeNodeContribution,
+    StudioAPI,
+)
 from setuav_studio.project import ProjectDocument
 from setuav_studio.ui.icons import get_icon
 
@@ -211,6 +215,10 @@ class ProjectExplorer(QTreeWidget):
             QTreeWidgetItem,
             ProjectTreeNodeContribution,
         ] = {}
+        self._component_contributions: dict[
+            QTreeWidgetItem,
+            ComponentTreeNodeContribution,
+        ] = {}
         self._saved_components: dict[str, dict[str, Any]] = {}
         self._saved_assemblies: dict[str, dict[str, Any]] = {}
 
@@ -242,6 +250,7 @@ class ProjectExplorer(QTreeWidget):
             self._geometry_group_item = None
             self._virtual_items.clear()
             self._project_contributions.clear()
+            self._component_contributions.clear()
 
             project_name = str(
                 project.data.get("name")
@@ -334,9 +343,14 @@ class ProjectExplorer(QTreeWidget):
 
                 for contribution in self._api.component_tree_nodes(comp):
                     child = QTreeWidgetItem([contribution.title])
-                    child.setFlags(
-                        child.flags() & ~Qt.ItemFlag.ItemIsEditable
-                    )
+                    if contribution.rename is not None and self._can_edit_project():
+                        child.setFlags(
+                            child.flags() | Qt.ItemFlag.ItemIsEditable
+                        )
+                    else:
+                        child.setFlags(
+                            child.flags() & ~Qt.ItemFlag.ItemIsEditable
+                        )
                     if contribution.icon is not None:
                         child.setIcon(0, get_icon(contribution.icon))
                     child.setToolTip(
@@ -351,6 +365,7 @@ class ProjectExplorer(QTreeWidget):
                     self._item_map[contribution.id] = child
                     self._element_map[child] = contribution.selection
                     self._virtual_items.add(child)
+                    self._component_contributions[child] = contribution
                     tree_item.addChild(child)
 
             # 3. Attach Component Tree Items to Parents / Assemblies / Top-Level
@@ -620,7 +635,7 @@ class ProjectExplorer(QTreeWidget):
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
         if (
-            event.key() == Qt.Key.Key_Delete
+            event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace)
             and self.state() != QAbstractItemView.State.EditingState
         ):
             self._delete_item(self.currentItem())
@@ -634,15 +649,32 @@ class ProjectExplorer(QTreeWidget):
             return
 
         if item in self._virtual_items:
-            contribution = self._project_contributions.get(item)
-            if contribution is None or contribution.rename is None:
+            contribution = self._project_contributions.get(
+                item
+            ) or self._component_contributions.get(item)
+            if contribution is None:
+                return
+            can_rename = contribution.rename is not None
+            can_delete = contribution.delete is not None
+            if not can_rename and not can_delete:
                 return
             self.setCurrentItem(item)
+            can_edit = self._can_edit_project()
             menu = QMenu(self)
-            rename_action = menu.addAction(get_icon("edit"), "Rename")
-            rename_action.setEnabled(self._can_edit_project())
-            if menu.exec(self.viewport().mapToGlobal(position)) is rename_action:
+            rename_action = None
+            delete_action = None
+            if can_rename:
+                rename_action = menu.addAction(get_icon("edit"), "Rename")
+                rename_action.setEnabled(can_edit)
+            if can_delete:
+                delete_action = menu.addAction(get_icon("remove"), "Delete")
+                delete_action.setEnabled(can_edit)
+
+            chosen_action = menu.exec(self.viewport().mapToGlobal(position))
+            if rename_action is not None and chosen_action is rename_action:
                 self.editItem(item, 0)
+            elif delete_action is not None and chosen_action is delete_action:
+                self._delete_item(item)
             return
 
         self.setCurrentItem(item)
@@ -664,7 +696,9 @@ class ProjectExplorer(QTreeWidget):
     def _rename_item(self, item: QTreeWidgetItem, column: int) -> None:
         if column != 0:
             return
-        contribution = self._project_contributions.get(item)
+        contribution = self._project_contributions.get(
+            item
+        ) or self._component_contributions.get(item)
         if contribution is not None:
             old_name = contribution.title
             new_name = item.text(0).strip()
@@ -732,9 +766,29 @@ class ProjectExplorer(QTreeWidget):
         if item is None:
             return
         if item in self._virtual_items:
+            contribution = self._project_contributions.get(
+                item
+            ) or self._component_contributions.get(item)
+            if contribution is None or contribution.delete is None:
+                return
+            if not self._can_edit_project():
+                self._api.show_status("This project is read-only", "warning", 3000)
+                return
+            answer = QMessageBox.question(
+                self,
+                "Delete Project Item",
+                f'Delete "{contribution.title}"?\n\nThis action can be undone.',
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Cancel,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+            contribution.delete()
             return
         if item is self._project_root_item:
             self._api.show_status("The project root cannot be deleted", "warning", 3000)
+            return
+        if item is self._geometry_group_item:
             return
         if not self._can_edit_project():
             self._api.show_status("This project is read-only", "warning", 3000)

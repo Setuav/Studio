@@ -21,9 +21,11 @@ from .analysis_store import (
     EXTENSION_ID,
     RESULTS_VERSION,
     RESULTS_GROUP_ID,
+    RESULT_SELECTION_KIND,
     analysis_entries,
     analysis_selection,
     append_analysis_entry,
+    delete_analysis_entry,
     make_analysis_entry,
     migrate_analysis_extension,
     rename_analysis_entry,
@@ -201,6 +203,9 @@ class AerodynamicsPlugin:
                         result_id,
                         new_name,
                     ),
+                    delete=lambda result_id=analysis_id: self._delete_result(
+                        result_id
+                    ),
                 )
             )
         if not children:
@@ -213,6 +218,7 @@ class AerodynamicsPlugin:
                 children=tuple(children),
                 icon="fa6s.wind",
                 tooltip="Saved aerodynamic analysis results",
+                delete=self._delete_all_results,
             ),
         )
 
@@ -224,6 +230,45 @@ class AerodynamicsPlugin:
             f"Rename aerodynamic analysis to {name}",
             lambda extension: rename_analysis_entry(extension, analysis_id, name),
         )
+
+    def _delete_result(self, analysis_id: str) -> None:
+        if self._api is None:
+            return
+        project = self._api.current_project
+        if project is None or project.read_only:
+            return
+        self._api.edit_project_extension(
+            EXTENSION_ID,
+            "Delete aerodynamic analysis result",
+            lambda extension: delete_analysis_entry(extension, analysis_id),
+        )
+        if (
+            isinstance(self._api.current_selection, dict)
+            and self._api.current_selection.get("analysis_id") == analysis_id
+        ):
+            self._api.set_selection(None)
+        self._api.show_status("Deleted aerodynamic analysis result", "success", 3000)
+
+    def _delete_all_results(self) -> None:
+        if self._api is None:
+            return
+        project = self._api.current_project
+        if project is None or project.read_only:
+            return
+        self._api.edit_project_extension(
+            EXTENSION_ID,
+            "Delete all aerodynamic analysis results",
+            lambda extension: extension.pop("results", None),
+        )
+        if (
+            isinstance(self._api.current_selection, dict)
+            and (
+                self._api.current_selection.get("kind") == RESULT_SELECTION_KIND
+                or self._api.current_selection.get("id") == RESULTS_GROUP_ID
+            )
+        ):
+            self._api.set_selection(None)
+        self._api.show_status("Deleted all aerodynamic analysis results", "success", 3000)
 
     def _open_aero_3d_tool(self) -> None:
         if self._api is None:

@@ -229,8 +229,8 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         ])
 
         self.combo_mode = QComboBox()
-        self.combo_mode.addItem("Dual Alpha + Beta", SweepType.DUAL_ALPHA_BETA)
-        self.combo_mode.addItem("Alpha × Beta Grid", SweepType.MULTI_GRID)
+        self.combo_mode.addItem("Alpha + Beta (Dual)", SweepType.DUAL_ALPHA_BETA)
+        self.combo_mode.addItem("Alpha x Beta (Grid)", SweepType.MULTI_GRID)
         self.combo_mode.addItem("Alpha Sweep", SweepType.ALPHA)
         self.combo_mode.addItem("Beta Sweep", SweepType.BETA)
         self.combo_mode.addItem("Control Channel Analysis", SweepType.CONTROL_DEFLECTION)

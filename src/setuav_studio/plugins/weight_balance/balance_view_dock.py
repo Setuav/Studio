@@ -325,7 +325,7 @@ class WeightBalanceViewDock(QMainWindow):
             return
         selection = {
             "id": f"{marker_id}:mass-properties",
-            "name": "Mass Properties",
+            "name": "Mass",
             "kind": "mass-properties",
             "component_id": marker_id,
         }

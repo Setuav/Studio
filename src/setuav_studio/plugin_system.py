@@ -63,6 +63,8 @@ class ComponentTreeNodeContribution:
     selection: dict[str, Any]
     icon: str | Path | QIcon | None = None
     tooltip: str | None = None
+    rename: Callable[[str], None] | None = None
+    delete: Callable[[], None] | None = None
 
 
 @dataclass(frozen=True)
@@ -76,6 +78,7 @@ class ProjectTreeNodeContribution:
     icon: str | Path | QIcon | None = None
     tooltip: str | None = None
     rename: Callable[[str], None] | None = None
+    delete: Callable[[], None] | None = None
 
 
 @dataclass(frozen=True)

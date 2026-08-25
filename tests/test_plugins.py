@@ -128,6 +128,7 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(contribution.icon, "mdi6.axis-arrow")
         envelope_contribution = self.api.component_tree_nodes(component)[1]
         self.assertEqual(envelope_contribution.id, "motor:physical-envelope")
+        self.assertEqual(envelope_contribution.title, "Envelope")
         self.assertEqual(envelope_contribution.icon, "fa6s.ruler-combined")
         editor = self.api.create_component_editor(contribution.selection)
         self.assertIsInstance(editor, TransformEditor)

@@ -151,10 +151,10 @@ class CorePlugin:
             ),
             ComponentTreeNodeContribution(
                 id=envelope_node_id,
-                title="Physical Envelope",
+                title="Envelope",
                 selection={
                     "id": envelope_node_id,
-                    "name": "Physical Envelope",
+                    "name": "Envelope",
                     "kind": "physical-envelope",
                     "component_id": component_id,
                 },

@@ -87,10 +87,10 @@ class WeightBalancePlugin:
         return (
             ComponentTreeNodeContribution(
                 id=node_id,
-                title="Mass Properties",
+                title="Mass",
                 selection={
                     "id": node_id,
-                    "name": "Mass Properties",
+                    "name": "Mass",
                     "kind": "mass-properties",
                     "component_id": component_id,
                 },

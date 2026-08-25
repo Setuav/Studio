@@ -4,6 +4,10 @@ from __future__ import annotations
 from pathlib import Path
 import json
 import unittest
+from unittest.mock import patch
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QKeyEvent
+from PySide6.QtWidgets import QMenu, QMessageBox
 from setuav_studio.project import ProjectDocument
 from setuav_studio.plugin_system import (
     ActionContribution,
@@ -292,7 +296,7 @@ class AerodynamicsPluginTests(unittest.TestCase):
         }
         self.assertNotIn("Airspeed Sweep", sweep_modes)
         self.assertNotIn("Altitude Sweep", sweep_modes)
-        self.assertIn("Alpha × Beta Grid", sweep_modes)
+        self.assertIn("Alpha x Beta (Grid)", sweep_modes)
         self.assertIn("Control Channel Analysis", sweep_modes)
         self.assertNotIn("Control Deflection Sweep", sweep_modes)
         solver_methods = {
@@ -550,3 +554,121 @@ class AerodynamicsPluginTests(unittest.TestCase):
         self.assertIn("Elevator Effectiveness", charts.chart_lift.chart.title())
         metrics = panels["aerodynamics.results_dock"]._control_analysis_metrics(result)
         self.assertIn("dCm/dδ=-0.01500/deg", metrics["control_effectiveness"])
+
+    def test_project_tree_analysis_results_support_delete(self) -> None:
+        self.plugin.activate(self.api)
+        project = ProjectDocument(
+            path=Path("aero-results.json"),
+            kind="json",
+            data={"name": "Aero Results", "components": []},
+        )
+        self.api.set_project(project)
+        dummy_result = AeroResult(
+            method=AnalysisMethod.AERO_BUILDUP,
+            engine_name="AeroSandbox",
+            polar_points=[
+                PolarPoint(alpha=0.0, cl=0.2, cd=0.015, cm=0.0),
+            ],
+            reference=ReferenceValues(s_ref=0.6, b_ref=1.8, c_ref=0.33),
+            condition=FlightCondition(alpha=0.0, alpha_steps=1),
+        )
+        self.plugin._handle_analysis_result(dummy_result)
+        nodes = self.api.project_tree_nodes(project)
+        self.assertEqual(len(nodes), 1)
+        group_node = nodes[0]
+        self.assertIsNotNone(group_node.delete)
+        self.assertEqual(len(group_node.children), 1)
+        result_node = group_node.children[0]
+        self.assertIsNotNone(result_node.delete)
+
+        explorer = ProjectExplorer(self.api)
+        result_item = explorer._item_map[result_node.id]
+
+        # Test delete via Delete key press
+        explorer.setCurrentItem(result_item)
+        with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes):
+            event = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Delete, Qt.KeyboardModifier.NoModifier)
+            explorer.keyPressEvent(event)
+
+        self.assertEqual(len(analysis_entries(project)), 0)
+        self.assertEqual(self.api.project_tree_nodes(project), ())
+
+    def test_project_tree_delete_all_results_group(self) -> None:
+        self.plugin.activate(self.api)
+        project = ProjectDocument(
+            path=Path("aero-results.json"),
+            kind="json",
+            data={"name": "Aero Results", "components": []},
+        )
+        self.api.set_project(project)
+        dummy_result = AeroResult(
+            method=AnalysisMethod.AERO_BUILDUP,
+            engine_name="AeroSandbox",
+            polar_points=[
+                PolarPoint(alpha=0.0, cl=0.2, cd=0.015, cm=0.0),
+            ],
+            reference=ReferenceValues(s_ref=0.6, b_ref=1.8, c_ref=0.33),
+            condition=FlightCondition(alpha=0.0, alpha_steps=1),
+        )
+        self.plugin._handle_analysis_result(dummy_result)
+        explorer = ProjectExplorer(self.api)
+        group_item = explorer._item_map["aerodynamics.analysis-results"]
+
+        explorer.setCurrentItem(group_item)
+        with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes):
+            event = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Delete, Qt.KeyboardModifier.NoModifier)
+            explorer.keyPressEvent(event)
+
+        self.assertEqual(len(analysis_entries(project)), 0)
+        self.assertEqual(self.api.project_tree_nodes(project), ())
+
+    def test_project_tree_context_menu_has_delete_for_analysis_result(self) -> None:
+        self.plugin.activate(self.api)
+        project = ProjectDocument(
+            path=Path("aero-results.json"),
+            kind="json",
+            data={"name": "Aero Results", "components": []},
+        )
+        self.api.set_project(project)
+        dummy_result = AeroResult(
+            method=AnalysisMethod.AERO_BUILDUP,
+            engine_name="AeroSandbox",
+            polar_points=[
+                PolarPoint(alpha=0.0, cl=0.2, cd=0.015, cm=0.0),
+            ],
+            reference=ReferenceValues(s_ref=0.6, b_ref=1.8, c_ref=0.33),
+            condition=FlightCondition(alpha=0.0, alpha_steps=1),
+        )
+        self.plugin._handle_analysis_result(dummy_result)
+        explorer = ProjectExplorer(self.api)
+        result_node = self.api.project_tree_nodes(project)[0].children[0]
+        result_item = explorer._item_map[result_node.id]
+
+        menu_actions: list[str] = []
+        def capture_menu(menu_self, *args, **kwargs):
+            menu_actions.extend([action.text() for action in menu_self.actions()])
+            return None
+
+        with patch.object(QMenu, "exec", capture_menu):
+            explorer._open_context_menu(explorer.visualItemRect(result_item).center())
+
+        self.assertIn("Rename", menu_actions)
+        self.assertIn("Delete", menu_actions)
+
+    def test_project_tree_delete_key_deletes_component(self) -> None:
+        component = {"id": "wing_main", "name": "Main Wing", "type": "org.setuav.core:lifting-surface"}
+        project = ProjectDocument(
+            path=Path("test_comp.json"),
+            kind="json",
+            data={"name": "Test Project", "components": [component]},
+        )
+        self.api.set_project(project)
+        explorer = ProjectExplorer(self.api)
+        wing_item = explorer._item_map["wing_main"]
+        explorer.setCurrentItem(wing_item)
+
+        with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes):
+            event = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Delete, Qt.KeyboardModifier.NoModifier)
+            explorer.keyPressEvent(event)
+
+        self.assertEqual(len(project.data["components"]), 0)
