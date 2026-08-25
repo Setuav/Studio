@@ -1,6 +1,7 @@
 """Persistent aerodynamic analysis results stored in the project document."""
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
@@ -13,6 +14,49 @@ from .engine.base import AeroResult, SweepType
 EXTENSION_ID = "org.setuav.studio.aerodynamics"
 RESULT_SELECTION_KIND = "aerodynamics-analysis-result"
 RESULTS_GROUP_ID = "aerodynamics.analysis-results"
+RESULTS_VERSION = 2
+
+
+def _migrate_result_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Convert persisted v1 result data into the current result schema."""
+    migrated = deepcopy(payload)
+    method = str(migrated.get("method") or "").strip().lower()
+    if method in {"comprehensive", "aerobuildup", "aero-buildup"}:
+        migrated["method"] = "aero_buildup"
+
+    points = migrated.get("polar_points")
+    if not isinstance(points, list):
+        points = []
+        migrated["polar_points"] = points
+    legacy_beta_points = migrated.pop("beta_polar_points", None)
+    if isinstance(legacy_beta_points, list):
+        for point in legacy_beta_points:
+            if isinstance(point, dict) and point not in points:
+                points.append(point)
+
+    migrated.pop("solver_results", None)
+    return migrated
+
+
+def migrate_analysis_extension(extension: dict[str, Any]) -> bool:
+    """Migrate stored aerodynamic results in place; return whether data changed."""
+    changed = extension.get("results_version") != RESULTS_VERSION
+    results = extension.get("results")
+    if isinstance(results, list):
+        for index, entry in enumerate(results):
+            if not isinstance(entry, dict):
+                continue
+            payload = entry.get("result")
+            if not isinstance(payload, dict):
+                continue
+            migrated = _migrate_result_payload(payload)
+            if migrated != payload:
+                updated_entry = dict(entry)
+                updated_entry["result"] = migrated
+                results[index] = updated_entry
+                changed = True
+    extension["results_version"] = RESULTS_VERSION
+    return changed
 
 
 def result_name(result: AeroResult) -> str:
@@ -54,7 +98,7 @@ def make_analysis_entry(result: AeroResult) -> dict[str, Any]:
 
 
 def append_analysis_entry(extension: dict[str, Any], entry: dict[str, Any]) -> None:
-    extension["results_version"] = 1
+    migrate_analysis_extension(extension)
     results = extension.setdefault("results", [])
     if not isinstance(results, list):
         results = []
@@ -71,7 +115,19 @@ def analysis_entries(project: ProjectDocument | None) -> tuple[dict[str, Any], .
     results = extension.get("results")
     if not isinstance(results, list):
         return ()
-    return tuple(entry for entry in results if isinstance(entry, dict))
+    if extension.get("results_version") == RESULTS_VERSION:
+        return tuple(entry for entry in results if isinstance(entry, dict))
+
+    migrated_entries: list[dict[str, Any]] = []
+    for entry in results:
+        if not isinstance(entry, dict):
+            continue
+        migrated_entry = dict(entry)
+        payload = migrated_entry.get("result")
+        if isinstance(payload, dict):
+            migrated_entry["result"] = _migrate_result_payload(payload)
+        migrated_entries.append(migrated_entry)
+    return tuple(migrated_entries)
 
 
 def load_analysis_result(

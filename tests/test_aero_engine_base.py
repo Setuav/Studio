@@ -146,9 +146,12 @@ class DummyEngine(AeroEngine):
 
 
 class AeroEngineBaseTests(unittest.TestCase):
-    def test_analysis_method_legacy_alias_migrates_to_aero_buildup(self) -> None:
-        self.assertIs(AnalysisMethod.from_value("comprehensive"), AnalysisMethod.AERO_BUILDUP)
+    def test_analysis_method_only_accepts_supported_values(self) -> None:
         self.assertIs(AnalysisMethod.from_value("aero_buildup"), AnalysisMethod.AERO_BUILDUP)
+        with self.assertRaises(ValueError):
+            AnalysisMethod.from_value("comprehensive")
+        with self.assertRaises(ValueError):
+            AnalysisMethod.from_value("panel")
 
     def test_flight_condition_defaults_and_serialization(self) -> None:
         fc = FlightCondition()

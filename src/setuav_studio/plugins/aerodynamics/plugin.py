@@ -19,11 +19,13 @@ from .results_dock import AeroResultsDock
 from .engine.base import AeroResult
 from .analysis_store import (
     EXTENSION_ID,
+    RESULTS_VERSION,
     RESULTS_GROUP_ID,
     analysis_entries,
     analysis_selection,
     append_analysis_entry,
     make_analysis_entry,
+    migrate_analysis_extension,
     rename_analysis_entry,
     short_result_name,
 )
@@ -48,6 +50,9 @@ class AerodynamicsPlugin:
     def activate(self, api: StudioAPI) -> None:
         self._api = api
         api.register_project_tree_provider(self.id, self._project_tree_nodes)
+        api.on_project_changed(self._migrate_project_results)
+        if api.current_project is not None:
+            self._migrate_project_results(api.current_project)
 
         # 1. Register Aerodynamics Workspace
         api.add_workspace(
@@ -112,6 +117,7 @@ class AerodynamicsPlugin:
         )
 
     def deactivate(self, api: StudioAPI) -> None:
+        api.remove_project_listener(self._migrate_project_results)
         api.remove_project_tree_provider(self.id)
         api.remove_panel("aerodynamics.controls_dock")
         api.remove_panel("aerodynamics.results_dock")
@@ -125,7 +131,30 @@ class AerodynamicsPlugin:
         self._latest_result = None
         self._api = None
 
+    def _migrate_project_results(self, project: ProjectDocument) -> None:
+        if self._api is None or project.read_only:
+            return
+        extension = project.get_extension(EXTENSION_ID)
+        if not isinstance(extension, dict) or not isinstance(
+            extension.get("results"), list
+        ):
+            return
+        if extension.get("results_version") == RESULTS_VERSION:
+            return
+        self._api.edit_project_extension(
+            EXTENSION_ID,
+            "Migrate aerodynamic analysis results",
+            migrate_analysis_extension,
+        )
+
     def _handle_analysis_result(self, result: AeroResult) -> None:
+        if not result.polar_points or result.converged_point_count == 0:
+            if self._api is not None:
+                self._api.show_status(
+                    "Aerodynamic result was discarded: no converged operating points",
+                    "error",
+                )
+            return
         self._latest_result = result
         if self._api is not None:
             entry = None

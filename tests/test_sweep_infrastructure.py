@@ -151,7 +151,7 @@ class TestParametricSweeps(unittest.TestCase):
             sweep_max=10.0,
             sweep_steps=5,
         )
-        res = self.engine.analyze(self.components, cond, method=AnalysisMethod.COMPREHENSIVE)
+        res = self.engine.analyze(self.components, cond, method=AnalysisMethod.AERO_BUILDUP)
 
         self.assertEqual(len(res.polar_points), 5)
         self.assertIsNotNone(res.sweep_result)
@@ -179,7 +179,7 @@ class TestParametricSweeps(unittest.TestCase):
             sweep_max=10.0,
             sweep_steps=5,
         )
-        res = self.engine.analyze(self.components, cond, method=AnalysisMethod.COMPREHENSIVE)
+        res = self.engine.analyze(self.components, cond, method=AnalysisMethod.AERO_BUILDUP)
 
         self.assertEqual(len(res.polar_points), 5)
         self.assertIsNotNone(res.control_analysis)

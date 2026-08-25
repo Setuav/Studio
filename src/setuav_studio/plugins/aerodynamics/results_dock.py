@@ -363,7 +363,10 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
     def _stability_metrics(result: AeroResult) -> dict[str, str]:
         sd = result.stability_derivatives
         if sd is None:
-            return {}
+            error = result.raw.get("stability_error")
+            return {
+                "stability_method": f"FAILED — {error}" if error else "N/A",
+            }
 
         def derivative(rad_name: str, deg_name: str) -> str:
             if not hasattr(sd, rad_name):

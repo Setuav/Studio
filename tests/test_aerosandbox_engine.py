@@ -5,8 +5,10 @@ import json
 import math
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 from setuav_studio.plugins.aerodynamics.engine.base import (
+    AeroAnalysisError,
     AeroResult,
     AnalysisMethod,
     AnalysisType,
@@ -15,6 +17,9 @@ from setuav_studio.plugins.aerodynamics.engine.base import (
 from setuav_studio.plugins.aerodynamics.engine.aerosandbox_engine import (
     HAS_AEROSANDBOX,
     AeroSandboxEngine,
+)
+from setuav_studio.plugins.aerodynamics.engine.stability_engine import (
+    StabilityAnalysisEngine,
 )
 
 
@@ -84,6 +89,46 @@ class AeroSandboxEngineTests(unittest.TestCase):
         self.assertIn(AnalysisType.ALPHA_SWEEP, caps.analysis_types)
         self.assertIn(AnalysisType.CONTROL_CHANNEL, caps.analysis_types)
         self.assertTrue(caps.supports_fuselage)
+
+    @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
+    def test_all_operating_point_failures_raise_analysis_error(self) -> None:
+        engine = AeroSandboxEngine()
+        condition = FlightCondition(alpha=2.0, alpha_steps=1, sweep_steps=1)
+
+        with patch(
+            "setuav_studio.plugins.aerodynamics.engine.aerosandbox_engine.asb.AeroBuildup.run",
+            side_effect=RuntimeError("solver exploded"),
+        ):
+            with self.assertRaisesRegex(
+                AeroAnalysisError,
+                "failed at all 1 operating point.*solver exploded",
+            ):
+                engine.analyze(
+                    _sample_components(),
+                    condition,
+                    method=AnalysisMethod.AERO_BUILDUP,
+                )
+
+    @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
+    def test_stability_failure_is_explicit_on_usable_result(self) -> None:
+        engine = AeroSandboxEngine()
+        condition = FlightCondition(alpha=2.0, alpha_steps=1, sweep_steps=1)
+
+        with patch.object(
+            StabilityAnalysisEngine,
+            "compute_stability",
+            side_effect=RuntimeError("stability exploded"),
+        ):
+            result = engine.analyze(
+                _sample_components(),
+                condition,
+                method=AnalysisMethod.AERO_BUILDUP,
+            )
+
+        self.assertEqual(result.converged_point_count, 1)
+        self.assertIsNone(result.stability_derivatives)
+        self.assertEqual(result.raw["stability_status"], "failed")
+        self.assertEqual(result.raw["stability_error"], "stability exploded")
 
     @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_geometry_conversion_to_airplane(self) -> None:

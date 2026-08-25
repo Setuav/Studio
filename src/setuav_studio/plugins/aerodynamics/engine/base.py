@@ -56,24 +56,20 @@ def _json_safe(value: Any) -> Any:
 
 class AnalysisMethod(enum.Enum):
     """Available solver methods."""
-    COMPREHENSIVE = "comprehensive"  # Deprecated persisted alias for AeroBuildup.
     VLM = "vlm"
     AERO_BUILDUP = "aero_buildup"
     LIFTING_LINE = "lifting_line"
-    PANEL = "panel"
 
     @classmethod
     def from_value(cls, value: Any) -> "AnalysisMethod":
-        """Normalize persisted/legacy method values to a supported solver."""
+        """Parse a supported solver method without silently changing it."""
         if isinstance(value, cls):
             return value
-        normalized = str(value or "").strip().lower()
-        if normalized in {"comprehensive", "aero_buildup", "aerobuildup", "aero-buildup"}:
-            return cls.AERO_BUILDUP
-        try:
-            return cls(normalized)
-        except ValueError:
-            return cls.AERO_BUILDUP
+        return cls(str(value or "").strip().lower())
+
+
+class AeroAnalysisError(RuntimeError):
+    """Raised when an aerodynamic solver cannot produce a usable result."""
 
 
 class AnalysisType(enum.Enum):
@@ -855,7 +851,6 @@ class AeroResult:
     method: AnalysisMethod
     engine_name: str
     polar_points: list[PolarPoint] = field(default_factory=list)
-    beta_polar_points: list[PolarPoint] = field(default_factory=list)  # Sideslip polar points for dual alpha-beta sweep
     # Summary key metrics
     cl_max: float = 0.0
     cl_max_alpha: float = 0.0
@@ -876,8 +871,6 @@ class AeroResult:
     control_analysis: ControlChannelAnalysis | None = None
     # Flight condition specified for this analysis
     condition: FlightCondition = field(default_factory=FlightCondition)
-    # Individual solver curves for comparison (e.g. 'vlm', 'aero_buildup', 'lifting_line')
-    solver_results: dict[str, list[PolarPoint]] = field(default_factory=dict)
     # Propulsion attachment points and thrust lines identified in project
     propulsion_points: list[PropulsionPoint] = field(default_factory=list)
     # Raw engine specific payload (for custom downstream rendering or debugging)
@@ -889,6 +882,18 @@ class AeroResult:
             if math.isclose(pt.alpha, alpha, abs_tol=tolerance) and math.isclose(pt.beta, beta, abs_tol=tolerance):
                 return pt
         return None
+
+    @property
+    def converged_point_count(self) -> int:
+        return sum(point.converged for point in self.polar_points)
+
+    @property
+    def failed_point_count(self) -> int:
+        return len(self.polar_points) - self.converged_point_count
+
+    @property
+    def is_complete(self) -> bool:
+        return bool(self.polar_points) and self.failed_point_count == 0
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize result to a dictionary for persistent storage or JSON output."""
@@ -902,11 +907,6 @@ class AeroResult:
             "method": self.method.value,
             "engine_name": self.engine_name,
             "polar_points": [p.to_dict() for p in self.polar_points],
-            "beta_polar_points": [p.to_dict() for p in self.beta_polar_points],
-            "solver_results": {
-                name: [p.to_dict() for p in pts]
-                for name, pts in self.solver_results.items()
-            },
             "cl_max": self.cl_max,
             "cl_max_alpha": self.cl_max_alpha,
             "cd_min": self.cd_min,
@@ -932,17 +932,6 @@ class AeroResult:
         method = AnalysisMethod.from_value(data.get("method", "aero_buildup"))
 
         points = [PolarPoint.from_dict(p) for p in data.get("polar_points", []) if isinstance(p, dict)]
-        beta_points = [
-            PolarPoint.from_dict(p)
-            for p in data.get("beta_polar_points", [])
-            if isinstance(p, dict)
-        ]
-        solv_res_data = data.get("solver_results", {})
-        solv_res: dict[str, list[PolarPoint]] = {}
-        if isinstance(solv_res_data, dict):
-            for k, pts_list in solv_res_data.items():
-                if isinstance(pts_list, list):
-                    solv_res[k] = [PolarPoint.from_dict(p) for p in pts_list if isinstance(p, dict)]
 
         ref = ReferenceValues.from_dict(data.get("reference") or {})
         cond = FlightCondition.from_dict(data.get("condition") or {})
@@ -974,8 +963,6 @@ class AeroResult:
             method=method,
             engine_name=str(data.get("engine_name", "")),
             polar_points=points,
-            beta_polar_points=beta_points,
-            solver_results=solv_res,
             cl_max=float(data.get("cl_max", 0.0)),
             cl_max_alpha=float(data.get("cl_max_alpha", 0.0)),
             cd_min=float(data.get("cd_min", 0.0)),

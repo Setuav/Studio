@@ -9,6 +9,7 @@ import re
 from typing import Any
 
 from .base import (
+    AeroAnalysisError,
     AeroEngine,
     AeroForcesMoments,
     AeroResult,
@@ -102,9 +103,7 @@ class AeroSandboxEngine(AeroEngine):
         chord_spacing_fn = np.cosspace if "cos" in chord_spacing_name else np.linspace
         include_wave = bool(settings.get("include_wave_drag", True))
 
-        orig_method = method
-        effective_method = AnalysisMethod.AERO_BUILDUP if method == AnalysisMethod.COMPREHENSIVE else method
-        control_encoding = "airfoil" if effective_method == AnalysisMethod.VLM else "native"
+        control_encoding = "airfoil" if method == AnalysisMethod.VLM else "native"
 
         mass_cg, mass_cg_source = self._resolve_mass_cg(components)
         base_airplane = self._build_airplane(
@@ -304,7 +303,7 @@ class AeroSandboxEngine(AeroEngine):
 
             # Native AeroSandbox Solver Execution
             try:
-                if effective_method == AnalysisMethod.VLM:
+                if method == AnalysisMethod.VLM:
                     solver = asb.VortexLatticeMethod(
                         airplane=cur_airplane,
                         op_point=op,
@@ -314,7 +313,7 @@ class AeroSandboxEngine(AeroEngine):
                         chordwise_spacing_function=chord_spacing_fn,
                     )
                     res = solver.run()
-                elif effective_method == AnalysisMethod.LIFTING_LINE:
+                elif method == AnalysisMethod.LIFTING_LINE:
                     solver = asb.LiftingLine(
                         airplane=cur_airplane,
                         op_point=op,
@@ -460,6 +459,20 @@ class AeroSandboxEngine(AeroEngine):
             polar_points.append(pt)
 
         converged_points = [p for p in polar_points if p.converged]
+        if not converged_points:
+            failure_messages = list(dict.fromkeys(
+                point.notes.strip()
+                for point in polar_points
+                if point.notes.strip()
+            ))
+            details = "; ".join(failure_messages[:3])
+            message = (
+                f"{method.value} failed at all {len(polar_points)} operating point(s)"
+            )
+            if details:
+                message += f": {details}"
+            raise AeroAnalysisError(message)
+
         best_lift = max(converged_points, key=lambda p: p.cl, default=None)
         best_drag = min(converged_points, key=lambda p: p.cd, default=None)
         best_efficiency = max(converged_points, key=lambda p: p.cl_over_cd, default=None)
@@ -509,12 +522,9 @@ class AeroSandboxEngine(AeroEngine):
             progress_callback(len(eval_states), total_steps, "Stability")
 
         stab_engine = StabilityAnalysisEngine()
+        stability_error: str | None = None
         try:
-            stability_method = (
-                AnalysisMethod.VLM
-                if orig_method == AnalysisMethod.COMPREHENSIVE
-                else effective_method
-            )
+            stability_method = method
             stab_derivatives = stab_engine.compute_stability(
                 airplane=base_airplane,
                 condition=condition,
@@ -536,6 +546,7 @@ class AeroSandboxEngine(AeroEngine):
         except Exception as err:
             logger.warning("Stability derivatives computation failed: %s", err)
             stab_derivatives = None
+            stability_error = str(err)
 
         if progress_callback:
             progress_callback(total_steps, total_steps, "Done")
@@ -548,7 +559,7 @@ class AeroSandboxEngine(AeroEngine):
         reference_reynolds = polar_points[0].reynolds if polar_points else 0.0
 
         return AeroResult(
-            method=orig_method,
+            method=method,
             engine_name=self.name,
             polar_points=polar_points,
             cl_max=cl_max,
@@ -568,10 +579,20 @@ class AeroSandboxEngine(AeroEngine):
             propulsion_points=propulsion_points,
             raw={
                 "airplane": base_airplane,
-                "method": effective_method.value,
+                "method": method.value,
                 "reference_cg_source": mass_cg_source,
                 "reference_xyz_m": list(reference_xyz),
                 "velocity": float(condition.velocity),
+                "solver_status": {
+                    "total_points": len(polar_points),
+                    "converged_points": len(converged_points),
+                    "failed_points": len(polar_points) - len(converged_points),
+                    "complete": len(converged_points) == len(polar_points),
+                },
+                "stability_status": (
+                    "available" if stab_derivatives is not None else "failed"
+                ),
+                "stability_error": stability_error,
             },
         )
 

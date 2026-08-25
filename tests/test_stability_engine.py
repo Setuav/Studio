@@ -238,7 +238,7 @@ class TestStabilityAnalysisEngine(unittest.TestCase):
     def test_stability_derivatives_computation(self) -> None:
         """Verify longitudinal and lateral-directional stability derivatives."""
         cond = FlightCondition(velocity=20.0, alpha=2.0, beta=0.0)
-        res = self.engine.analyze(self.components, cond, method=AnalysisMethod.COMPREHENSIVE)
+        res = self.engine.analyze(self.components, cond, method=AnalysisMethod.AERO_BUILDUP)
 
         self.assertIsNotNone(res.stability_derivatives)
         sd = res.stability_derivatives
@@ -285,7 +285,7 @@ class TestStabilityAnalysisEngine(unittest.TestCase):
             result = self.engine.analyze(
                 self.components,
                 cond,
-                method=AnalysisMethod.COMPREHENSIVE,
+                method=AnalysisMethod.AERO_BUILDUP,
             )
 
         sd = result.stability_derivatives

@@ -557,11 +557,25 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         self._is_running = False
         self.btn_run.setEnabled(True)
         self._api.clear_progress()
-        self._api.show_status(
-            f"Aerodynamic analysis complete: CL_max={result.cl_max:.2f} @ {result.cl_max_alpha:.1f}°, "
-            f"L/D_max={result.ld_max:.1f}",
-            "success",
-        )
+        stability_error = result.raw.get("stability_error")
+        if result.failed_point_count or stability_error:
+            issues: list[str] = []
+            if result.failed_point_count:
+                issues.append(
+                    f"{result.failed_point_count}/{len(result.polar_points)} point(s) failed"
+                )
+            if stability_error:
+                issues.append("stability calculation failed")
+            self._api.show_status(
+                f"Aerodynamic analysis completed with warnings: {', '.join(issues)}",
+                "warning",
+            )
+        else:
+            self._api.show_status(
+                f"Aerodynamic analysis complete: CL_max={result.cl_max:.2f} @ {result.cl_max_alpha:.1f}°, "
+                f"L/D_max={result.ld_max:.1f}",
+                "success",
+            )
 
         if self._on_result_callback:
             self._on_result_callback(result)

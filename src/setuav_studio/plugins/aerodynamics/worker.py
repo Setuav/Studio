@@ -6,7 +6,7 @@ from typing import Any
 
 from PySide6.QtCore import QObject, QRunnable, Signal, Slot
 
-from .engine.base import AeroEngine, AnalysisMethod, FlightCondition
+from .engine.base import AeroAnalysisError, AeroEngine, AnalysisMethod, FlightCondition
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +52,10 @@ class AnalysisWorker(QRunnable):
                 settings=self._settings,
                 progress_callback=on_step,
             )
+            if not result.polar_points or result.converged_point_count == 0:
+                raise AeroAnalysisError(
+                    "Aerodynamic solver returned no converged operating points"
+                )
             self.signals.progress.emit(100, 100, "Done")
             self.signals.finished.emit(result)
         except Exception as exc:

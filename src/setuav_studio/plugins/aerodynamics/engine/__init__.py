@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from .base import (
+    AeroAnalysisError,
     AeroEngine,
     AeroResult,
     AnalysisMethod,
@@ -14,6 +15,7 @@ from .base import (
 from .aerosandbox_engine import AeroSandboxEngine
 
 __all__ = [
+    "AeroAnalysisError",
     "AeroEngine",
     "AeroResult",
     "AnalysisMethod",

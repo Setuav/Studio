@@ -13,8 +13,10 @@ from setuav_studio.plugin_system import (
 )
 from setuav_studio.plugins.aerodynamics.plugin import AerodynamicsPlugin
 from setuav_studio.plugins.aerodynamics.analysis_store import (
+    RESULTS_VERSION,
     analysis_entries,
     load_analysis_result,
+    migrate_analysis_extension,
 )
 from setuav_studio.plugins.aerodynamics.airfoil_analysis_tool import (
     AirfoilAnalysisToolWindow,
@@ -84,6 +86,97 @@ class AerodynamicsPluginTests(unittest.TestCase):
             and action.title == "Airfoil Analysis…"
             for action in self.actions
         ))
+
+    def test_legacy_result_schema_migrates_to_current_model(self) -> None:
+        legacy_point = PolarPoint(
+            alpha=2.0,
+            beta=3.0,
+            cl=0.4,
+            cd=0.03,
+            converged=True,
+        ).to_dict()
+        extension = {
+            "results_version": 1,
+            "results": [{
+                "id": "legacy",
+                "result": {
+                    "method": "comprehensive",
+                    "engine_name": "AeroSandbox",
+                    "polar_points": [],
+                    "beta_polar_points": [legacy_point],
+                    "solver_results": {"vlm": [legacy_point]},
+                },
+            }],
+        }
+
+        self.assertTrue(migrate_analysis_extension(extension))
+        self.assertEqual(extension["results_version"], RESULTS_VERSION)
+        payload = extension["results"][0]["result"]
+        self.assertEqual(payload["method"], "aero_buildup")
+        self.assertEqual(len(payload["polar_points"]), 1)
+        self.assertNotIn("beta_polar_points", payload)
+        self.assertNotIn("solver_results", payload)
+        restored = AeroResult.from_dict(payload)
+        self.assertEqual(restored.method, AnalysisMethod.AERO_BUILDUP)
+        self.assertEqual(restored.polar_points[0].beta, 3.0)
+
+        self.plugin.activate(self.api)
+        project = ProjectDocument(
+            path=Path("legacy-aero.json"),
+            kind="json",
+            data={
+                "extensions": {
+                    "org.setuav.studio.aerodynamics": {
+                        "results_version": 1,
+                        "results": [{
+                            "id": "legacy",
+                            "result": {
+                                "method": "comprehensive",
+                                "polar_points": [],
+                                "beta_polar_points": [legacy_point],
+                                "solver_results": {},
+                            },
+                        }],
+                    }
+                }
+            },
+        )
+        self.api.set_project(project)
+        persisted = project.get_extension("org.setuav.studio.aerodynamics")
+        self.assertEqual(persisted["results_version"], RESULTS_VERSION)
+        self.assertEqual(persisted["results"][0]["result"]["method"], "aero_buildup")
+
+    def test_result_without_converged_points_is_not_persisted(self) -> None:
+        statuses: list[tuple[str, str, int]] = []
+        self.api.set_status_handler(
+            lambda message, level, timeout: statuses.append((message, level, timeout))
+        )
+        self.plugin.activate(self.api)
+        project = ProjectDocument(
+            path=Path("failed-aero.json"),
+            kind="json",
+            data={"name": "Failed Aero", "components": []},
+        )
+        self.api.set_project(project)
+        failed_result = AeroResult(
+            method=AnalysisMethod.AERO_BUILDUP,
+            engine_name="AeroSandbox",
+            polar_points=[
+                PolarPoint(
+                    alpha=2.0,
+                    cl=0.0,
+                    cd=0.0,
+                    converged=False,
+                    notes="solver exploded",
+                )
+            ],
+        )
+
+        self.plugin._handle_analysis_result(failed_result)
+
+        self.assertEqual(analysis_entries(project), ())
+        self.assertIsNone(self.plugin._latest_result)
+        self.assertEqual(statuses[-1][1], "error")
 
     def test_airfoil_analysis_tool_is_standalone(self) -> None:
         tool = AirfoilAnalysisToolWindow(self.api)

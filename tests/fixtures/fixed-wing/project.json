@@ -1708,7 +1708,7 @@
   "configurations": [],
   "extensions": {
     "org.setuav.studio.aerodynamics": {
-      "results_version": 1,
+      "results_version": 2,
       "results": [
         {
           "id": "5a9bdb6b1b614c6cb169a92d294d9435",
@@ -9993,8 +9993,6 @@
                 }
               }
             ],
-            "beta_polar_points": [],
-            "solver_results": {},
             "cl_max": 1.4949104167905185,
             "cl_max_alpha": 16.0,
             "cd_min": 0.018911435601709586,
