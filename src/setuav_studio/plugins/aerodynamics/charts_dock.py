@@ -116,6 +116,30 @@ class SingleChartWidget(QWidget):
         axis.setLinePenColor(dim_col)
         return axis
 
+    @staticmethod
+    def _padded_range(values: Sequence[float]) -> tuple[float, float]:
+        """Return a readable range without distorting small coefficient axes.
+
+        A fixed padding (for example 0.5) is excessive for aerodynamic
+        coefficients and makes an entirely positive drag curve appear to have
+        negative CD values.  Use a relative margin instead and keep a
+        positive-only/negative-only range anchored at zero when appropriate.
+        """
+        lo = float(min(values))
+        hi = float(max(values))
+        span = hi - lo
+        pad = max(span * 0.05, 1e-6)
+        if span <= 1e-12:
+            pad = max(abs(lo) * 0.05, 1e-3)
+
+        lower = lo - pad
+        upper = hi + pad
+        if lo >= 0.0:
+            lower = max(0.0, lower)
+        elif hi <= 0.0:
+            upper = min(0.0, upper)
+        return lower, upper
+
     def plot_single(
         self,
         x_vals: Sequence[float],
@@ -144,12 +168,10 @@ class SingleChartWidget(QWidget):
         self.chart.addSeries(series)
 
         axis_x = self._create_axis(x_title)
-        pad_x = max((max(x_vals) - min(x_vals)) * 0.05, 0.5)
-        axis_x.setRange(min(x_vals) - pad_x, max(x_vals) + pad_x)
+        axis_x.setRange(*self._padded_range(x_vals))
 
         axis_y = self._create_axis(y_title)
-        pad_y = max((max(y_vals) - min(y_vals)) * 0.05, 0.05)
-        axis_y.setRange(min(y_vals) - pad_y, max(y_vals) + pad_y)
+        axis_y.setRange(*self._padded_range(y_vals))
 
         self.chart.addAxis(axis_x, Qt.AlignmentFlag.AlignBottom)
         self.chart.addAxis(axis_y, Qt.AlignmentFlag.AlignLeft)
@@ -210,12 +232,10 @@ class SingleChartWidget(QWidget):
             self.chart.legend().setVisible(False)
 
         if all_x:
-            pad_x = max((max(all_x) - min(all_x)) * 0.05, 0.005)
-            axis_x.setRange(min(all_x) - pad_x, max(all_x) + pad_x)
+            axis_x.setRange(*self._padded_range(all_x))
 
         if all_y:
-            pad_y = max((max(all_y) - min(all_y)) * 0.05, 0.05)
-            axis_y.setRange(min(all_y) - pad_y, max(all_y) + pad_y)
+            axis_y.setRange(*self._padded_range(all_y))
 
 
 from PySide6.QtWidgets import (
