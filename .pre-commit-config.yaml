@@ -22,3 +22,12 @@ repos:
       - id: ruff-check
         args: ["--fix"]
       - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: pyright
+        name: pyright (typed core)
+        entry: uv run --locked pyright
+        language: system
+        pass_filenames: false
+        types: [python]

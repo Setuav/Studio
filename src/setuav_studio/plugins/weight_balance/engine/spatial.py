@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from math import cos, radians, sin
-from typing import Any
+from typing import Any, cast
 
 from ..models import Vector3
 
@@ -22,7 +22,10 @@ class WorldTransform:
 
     @property
     def rotation(self) -> Matrix3:
-        return tuple(tuple(self.matrix[row][column] for column in range(3)) for row in range(3))
+        return cast(
+            Matrix3,
+            tuple(tuple(self.matrix[row][column] for column in range(3)) for row in range(3)),
+        )
 
     def point_mm_to_m(self, point_mm: Vector3) -> Vector3:
         point = transform_point(self.matrix, point_mm)
@@ -39,12 +42,15 @@ def identity_matrix() -> Matrix4:
 
 
 def multiply_matrix(left: Matrix4, right: Matrix4) -> Matrix4:
-    return tuple(
+    return cast(
+        Matrix4,
         tuple(
-            sum(left[row][index] * right[index][column] for index in range(4))
-            for column in range(4)
-        )
-        for row in range(4)
+            tuple(
+                sum(left[row][index] * right[index][column] for index in range(4))
+                for column in range(4)
+            )
+            for row in range(4)
+        ),
     )
 
 
@@ -79,7 +85,7 @@ def derivation_matrix(value: object) -> Matrix4:
     rows = [list(row) for row in identity_matrix()]
     rows[axis][axis] = -1.0
     rows[axis][3] = 2.0 * _number(derivation.get("offset"))
-    return tuple(tuple(row) for row in rows)
+    return cast(Matrix4, tuple(tuple(row) for row in rows))
 
 
 def transform_point(matrix: Matrix4, point: Vector3) -> Vector3:
@@ -144,7 +150,7 @@ def resolve_world_transforms(
     return cache
 
 
-def _number(value: object) -> float:
+def _number(value: Any) -> float:
     try:
         return float(value or 0.0)
     except (TypeError, ValueError):

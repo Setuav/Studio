@@ -47,11 +47,14 @@ belirlendi.
 
 ## 5. Statik tip kontrolü ekle
 
-- [ ] Pyright veya mypy aracını seç.
-- [ ] Temel yapılandırmayı ekle.
+- [x] Pyright veya mypy aracını seç.
+- [x] Temel yapılandırmayı ekle.
 - [ ] Önce model ve engine katmanlarını kapsa.
 - [ ] Tip hatalarını küçük gruplar hâlinde düzelt.
 - [ ] UI katmanını kademeli olarak kapsama al.
+
+İlk Pyright kapsamı dokuz saf model/engine dosyasını içeriyor ve `basic` modda
+sıfır hata ile geçiyor. Kalan engine dosyaları küçük gruplar hâlinde eklenecek.
 
 ## 6. Test gruplarını ayır
 

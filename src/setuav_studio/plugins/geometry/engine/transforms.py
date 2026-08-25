@@ -1,4 +1,5 @@
 from math import cos, radians, sin
+from typing import Any, cast
 
 from .data import Point3D
 
@@ -15,9 +16,12 @@ def identity_matrix() -> Matrix4:
 
 
 def multiply_matrix(left: Matrix4, right: Matrix4) -> Matrix4:
-    return tuple(
-        tuple(sum(left[row][k] * right[k][column] for k in range(4)) for column in range(4))
-        for row in range(4)
+    return cast(
+        Matrix4,
+        tuple(
+            tuple(sum(left[row][k] * right[k][column] for k in range(4)) for column in range(4))
+            for row in range(4)
+        ),
     )
 
 
@@ -49,14 +53,14 @@ def derivation_matrix(value: object) -> Matrix4:
     if derivation.get("type") != "mirror":
         return identity_matrix()
     offset = _number(derivation.get("offset"))
-    plane = derivation.get("plane")
+    plane = str(derivation.get("plane", ""))
     axis = {"YZ": 0, "XZ": 1, "XY": 2}.get(plane)
     if axis is None:
         return identity_matrix()
     rows = [list(row) for row in identity_matrix()]
     rows[axis][axis] = -1.0
     rows[axis][3] = 2.0 * offset
-    return tuple(tuple(row) for row in rows)
+    return cast(Matrix4, tuple(tuple(row) for row in rows))
 
 
 def transform_point(matrix: Matrix4, point: Point3D) -> Point3D:
@@ -110,7 +114,7 @@ def section_transform(
     )
 
 
-def _number(value: object) -> float:
+def _number(value: Any) -> float:
     try:
         return float(value or 0.0)
     except (TypeError, ValueError):

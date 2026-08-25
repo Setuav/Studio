@@ -29,6 +29,7 @@ setuav-studio = "setuav_studio.__main__:main"
 dev = [
     "coverage[toml]>=7.6,<8",
     "pre-commit>=4.6,<5",
+    "pyright>=1.1.411,<2",
     "ruff>=0.14,<1",
 ]
 
@@ -61,3 +62,20 @@ skip_covered = true
 [tool.coverage.html]
 directory = "htmlcov"
 title = "Setuav Studio Coverage"
+
+[tool.pyright]
+include = [
+    "src/setuav_studio/plugins/aerodynamics/engine/base.py",
+    "src/setuav_studio/plugins/aerodynamics/engine/airfoil_models.py",
+    "src/setuav_studio/plugins/aerodynamics/engine/stability_models.py",
+    "src/setuav_studio/plugins/electrical_propulsion/engine/base.py",
+    "src/setuav_studio/plugins/flight_performance/engine/models.py",
+    "src/setuav_studio/plugins/geometry/engine/data.py",
+    "src/setuav_studio/plugins/geometry/engine/transforms.py",
+    "src/setuav_studio/plugins/weight_balance/engine/base.py",
+    "src/setuav_studio/plugins/weight_balance/engine/spatial.py",
+]
+pythonVersion = "3.11"
+typeCheckingMode = "basic"
+venv = ".venv"
+venvPath = "."

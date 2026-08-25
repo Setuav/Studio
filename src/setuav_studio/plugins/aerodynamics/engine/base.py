@@ -17,6 +17,24 @@ class _Unserializable:
 _UNSERIALIZABLE = _Unserializable()
 
 
+def _string_keyed_dict(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        return {}
+    return {str(key): item for key, item in value.items()}
+
+
+def _float_vector3(
+    value: Any,
+    default: tuple[float, float, float],
+) -> tuple[float, float, float]:
+    if not isinstance(value, (list, tuple)) or len(value) != 3:
+        return default
+    try:
+        return (float(value[0]), float(value[1]), float(value[2]))
+    except (TypeError, ValueError):
+        return default
+
+
 def _json_safe(value: Any) -> Any:
     """Convert native solver values into JSON-compatible Python values."""
     if value is None or isinstance(value, (str, int, bool)):
@@ -469,7 +487,7 @@ class AeroForcesMoments:
             mx_g=float(data.get("mx_g", 0.0)),
             my_g=float(data.get("my_g", 0.0)),
             mz_g=float(data.get("mz_g", 0.0)),
-            raw=dict(data.get("raw")) if isinstance(data.get("raw"), dict) else {},
+            raw=_string_keyed_dict(data.get("raw")),
         )
 
 
@@ -660,7 +678,7 @@ class PolarPoint:
             control_deflections=dict(data.get("control_deflections") or {}),
             converged=bool(data.get("converged", True)),
             notes=str(data.get("notes", "")),
-            raw=dict(data.get("raw")) if isinstance(data.get("raw"), dict) else {},
+            raw=_string_keyed_dict(data.get("raw")),
         )
 
 
@@ -887,8 +905,8 @@ class PropulsionPoint:
             id=str(data.get("id", "")),
             name=str(data.get("name", "")),
             component_type=str(data.get("component_type", "")),
-            position=tuple(data.get("position", (0.0, 0.0, 0.0))),
-            thrust_vector=tuple(data.get("thrust_vector", (1.0, 0.0, 0.0))),
+            position=_float_vector3(data.get("position"), (0.0, 0.0, 0.0)),
+            thrust_vector=_float_vector3(data.get("thrust_vector"), (1.0, 0.0, 0.0)),
             diameter=float(data.get("diameter", 0.0)),
             pitch=float(data.get("pitch", 0.0)),
             rotation_direction=str(data.get("rotation_direction", "CW")),
@@ -956,10 +974,11 @@ class AeroResult:
     def to_dict(self) -> dict[str, Any]:
         """Serialize result to a dictionary for persistent storage or JSON output."""
         stab_dict = None
-        if hasattr(self.stability_derivatives, "to_dict"):
-            stab_dict = self.stability_derivatives.to_dict()
-        elif isinstance(self.stability_derivatives, dict):
-            stab_dict = dict(self.stability_derivatives)
+        stability_derivatives = self.stability_derivatives
+        if stability_derivatives is not None and hasattr(stability_derivatives, "to_dict"):
+            stab_dict = stability_derivatives.to_dict()
+        elif isinstance(stability_derivatives, dict):
+            stab_dict = dict(stability_derivatives)
 
         return {
             "method": self.method.value,
@@ -1045,7 +1064,7 @@ class AeroResult:
             control_analysis=control_analysis,
             condition=cond,
             propulsion_points=prop_pts,
-            raw=dict(data.get("raw")) if isinstance(data.get("raw"), dict) else {},
+            raw=_string_keyed_dict(data.get("raw")),
         )
 
 
