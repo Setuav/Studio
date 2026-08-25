@@ -576,6 +576,8 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
             idx = combo.findData(value)
             if idx >= 0:
                 combo.setCurrentIndex(idx)
-            combo.currentIndexChanged.connect(lambda _i: on_changed(str(combo.currentData())))
+            combo.currentIndexChanged.connect(
+                lambda _i, combo=combo: on_changed(str(combo.currentData()))
+            )
             table.setCellWidget(row, 1, combo)
             return

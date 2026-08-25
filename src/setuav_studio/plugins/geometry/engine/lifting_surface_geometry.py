@@ -1140,7 +1140,21 @@ def _build_winglet_loft(
 
         x_pivot = x_le_u + 0.25 * chord_wl
 
-        def _calc_pt(x_rel: float, z_rel: float) -> Point3D:
+        def _calc_pt(
+            x_rel: float,
+            z_rel: float,
+            *,
+            x_le_u: float = x_le_u,
+            chord_wl: float = chord_wl,
+            t_scale: float = t_scale,
+            x_pivot: float = x_pivot,
+            cos_toe: float = cos_toe,
+            sin_toe: float = sin_toe,
+            sin_cant: float = sin_cant,
+            cos_cant: float = cos_cant,
+            ds_y: float = ds_y,
+            ds_z: float = ds_z,
+        ) -> Point3D:
             x_local = x_le_u + x_rel * chord_wl
             z_local = z_rel * chord_wl * t_scale
             dx_p = x_local - x_pivot

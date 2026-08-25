@@ -415,19 +415,17 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
             "stability_method": f"{getattr(sd, 'solver_method', 'unknown')} / {getattr(sd, 'rate_derivative_convention', 'normalized_body_rates')}",
             "cla": derivative("c_L_alpha_rad", "c_L_alpha_deg"),
             "cma": derivative("c_m_alpha_rad", "c_m_alpha_deg"),
-            "cmq": f"{getattr(sd, 'c_m_q'):.3f}" if hasattr(sd, "c_m_q") else "-",
+            "cmq": f"{sd.c_m_q:.3f}" if hasattr(sd, "c_m_q") else "-",
             "pitch_status": pitch_status,
-            "np_x": f"{getattr(sd, 'x_np') * 1000.0:.1f} mm ({getattr(sd, 'x_np'):.4f} m)"
-            if hasattr(sd, "x_np")
-            else "-",
-            "static_margin": f"{getattr(sd, 'static_margin'):+.2f} % MAC"
+            "np_x": f"{sd.x_np * 1000.0:.1f} mm ({sd.x_np:.4f} m)" if hasattr(sd, "x_np") else "-",
+            "static_margin": f"{sd.static_margin:+.2f} % MAC"
             if hasattr(sd, "static_margin")
             else "-",
             "clb": derivative("c_l_beta_rad", "c_l_beta_deg"),
             "cnb": derivative("c_n_beta_rad", "c_n_beta_deg"),
             "cyb": derivative("c_Y_beta_rad", "c_Y_beta_deg"),
-            "clp": f"{getattr(sd, 'c_l_p'):.3f}" if hasattr(sd, "c_l_p") else "-",
-            "cnr": f"{getattr(sd, 'c_n_r'):.3f}" if hasattr(sd, "c_n_r") else "-",
+            "clp": f"{sd.c_l_p:.3f}" if hasattr(sd, "c_l_p") else "-",
+            "cnr": f"{sd.c_n_r:.3f}" if hasattr(sd, "c_n_r") else "-",
             "lat_dir_status": (
                 f"{'Roll-Stable' if getattr(sd, 'is_roll_stable', True) else 'Roll-Unstable'} | "
                 f"{'Yaw-Stable' if getattr(sd, 'is_yaw_stable', True) else 'Yaw-Unstable'}"

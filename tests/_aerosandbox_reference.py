@@ -65,7 +65,10 @@ def build_fixed_wing_reference(
 
         main_xsecs.append(
             asb.WingXSec(
-                xyz_le=[start + eta * (end - start) for start, end in zip(main_root, main_tip)],
+                xyz_le=[
+                    start + eta * (end - start)
+                    for start, end in zip(main_root, main_tip, strict=True)
+                ],
                 chord=0.240 + eta * (0.180 - 0.240),
                 twist=3.0 * eta,
                 airfoil=clark_y,
@@ -98,7 +101,10 @@ def build_fixed_wing_reference(
 
         vtail_xsecs.append(
             asb.WingXSec(
-                xyz_le=[start + eta * (end - start) for start, end in zip(vtail_root, vtail_tip)],
+                xyz_le=[
+                    start + eta * (end - start)
+                    for start, end in zip(vtail_root, vtail_tip, strict=True)
+                ],
                 chord=0.16382052424974758 + eta * (0.09829231454984856 - 0.16382052424974758),
                 twist=0.0,
                 airfoil=naca0012,

@@ -260,7 +260,7 @@ def _interpolate_profile(
         return values[0]
     if y >= values[-1][1]:
         return values[-1]
-    for left, right in zip(values, values[1:]):
+    for left, right in zip(values, values[1:], strict=False):
         if left[1] <= y <= right[1]:
             t = (y - left[1]) / max(right[1] - left[1], 1e-9)
             rotation = tuple(

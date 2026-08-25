@@ -341,7 +341,7 @@ class View2DCanvas(QWidget):
             outline.closeSubpath()
             painter.drawPath(outline)
         else:
-            for first, second in zip(points, points[1:]):
+            for first, second in zip(points, points[1:], strict=False):
                 painter.drawLine(first, second)
 
     def _draw_marker(

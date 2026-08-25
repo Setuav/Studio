@@ -168,7 +168,7 @@ class SingleChartWidget(QWidget):
         pen = QPen(QColor(chart_color(color_role)), 2.5)
         series.setPen(pen)
 
-        for x, y in zip(x_vals, y_vals):
+        for x, y in zip(x_vals, y_vals, strict=True):
             series.append(QPointF(x, y))
 
         self.chart.addSeries(series)
@@ -221,7 +221,7 @@ class SingleChartWidget(QWidget):
             if hasattr(series, "setPointsVisible"):
                 series.setPointsVisible(False)
 
-            for x, y in zip(x_vals, y_vals):
+            for x, y in zip(x_vals, y_vals, strict=True):
                 series.append(QPointF(x, y))
 
             self.chart.addSeries(series)
@@ -559,6 +559,7 @@ class AeroChartsDock(QWidget):
                 for chart, (coefficient, values, color) in zip(
                     (self.chart_lift, self.chart_polar, self.chart_moment, self.chart_ld),
                     responses,
+                    strict=True,
                 ):
                     chart.setVisible(True)
                     chart.setTitle(f"{channel.title()} Effectiveness ({coefficient} vs {x_label})")

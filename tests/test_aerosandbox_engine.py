@@ -320,7 +320,9 @@ class AeroSandboxEngineTests(unittest.TestCase):
                         ),
                     )
 
-                for point, expected_point in zip(result.polar_points, expected["points"]):
+                for point, expected_point in zip(
+                    result.polar_points, expected["points"], strict=True
+                ):
                     self.assertAlmostEqual(
                         point.alpha,
                         float(expected_point["alpha"]),
@@ -461,7 +463,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
                     self.assertEqual(len(actual_vector), 3)
                     self.assertEqual(len(expected_vector), 3)
                     for axis, (actual_value, expected_value) in enumerate(
-                        zip(actual_vector, expected_vector)
+                        zip(actual_vector, expected_vector, strict=True)
                     ):
                         # Body-frame force components can be close to zero
                         # after the wind-to-body rotation; a fixed 5e-5 N/m

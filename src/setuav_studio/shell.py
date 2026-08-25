@@ -1158,7 +1158,7 @@ class MainWindow(QMainWindow):
             if saved_state is not None:
                 self.restoreState(saved_state, self._LAYOUT_VERSION)
                 # Ensure any dock not belonging to this workspace is hidden
-                for cid, (panel_contrib, dock) in self._panels.items():
+                for _cid, (panel_contrib, dock) in self._panels.items():
                     if not panel_contrib.is_in_workspace(workspace_id):
                         dock.hide()
             else:
@@ -1218,7 +1218,7 @@ class MainWindow(QMainWindow):
         results = self.findChild(QDockWidget, "propulsion.results_dock")
 
         # Hide any panels that do not belong to this workspace
-        for cid, (panel_contrib, dock) in self._panels.items():
+        for _cid, (panel_contrib, dock) in self._panels.items():
             if not panel_contrib.is_in_workspace(workspace_id):
                 dock.hide()
 
@@ -1369,7 +1369,7 @@ class MainWindow(QMainWindow):
                 )
 
         else:
-            for cid, (panel_contrib, dock) in self._panels.items():
+            for _cid, (panel_contrib, dock) in self._panels.items():
                 if panel_contrib.is_in_workspace(workspace_id):
                     dock.show()
                 else:

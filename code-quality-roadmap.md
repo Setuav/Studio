@@ -39,7 +39,7 @@ belirlendi.
 
 ## 4. Ruff kurallarını genişlet
 
-- [ ] Bug riski taşıyan `B` kurallarını değerlendir.
+- [x] Bug riski taşıyan `B` kurallarını değerlendir.
 - [ ] Python modernizasyonu için `UP` kurallarını değerlendir.
 - [ ] Sadeleştirme için `SIM` ve `C4` kurallarını değerlendir.
 - [ ] Ruff'a özgü `RUF` kurallarını değerlendir.

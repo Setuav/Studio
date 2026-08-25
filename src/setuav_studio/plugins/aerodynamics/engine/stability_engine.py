@@ -173,7 +173,12 @@ class StabilityAnalysisEngine:
                     res_c_p = solver_cls(airplane=plane_p, op_point=op_base).run()
                     res_c_m = solver_cls(airplane=plane_m, op_point=op_base).run()
 
-                    def delta(key: str) -> float:
+                    def delta(
+                        key: str,
+                        res_c_p: dict = res_c_p,
+                        res_c_m: dict = res_c_m,
+                        d_delta: float = d_delta,
+                    ) -> float:
                         if key not in res_c_p or key not in res_c_m:
                             raise RuntimeError(
                                 f"control perturbation did not return native field '{key}'"

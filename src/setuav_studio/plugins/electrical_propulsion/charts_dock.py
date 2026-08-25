@@ -138,7 +138,7 @@ class ThrustPowerChartDock(SinglePropulsionChartWidget):
         series_power.setProperty("themeColorRole", "orange")
         series_power.setPen(QPen(QColor(chart_color("orange")), 2.5))
 
-        for x, t, p in zip(x_values, thrust_n, power_w):
+        for x, t, p in zip(x_values, thrust_n, power_w, strict=True):
             series_thrust.append(QPointF(x, t))
             series_power.append(QPointF(x, p))
 
@@ -225,7 +225,7 @@ class ElectricalChartDock(SinglePropulsionChartWidget):
         series_rpm.setProperty("themeColorRole", "green")
         series_rpm.setPen(QPen(QColor(chart_color("green")), 2.5))
 
-        for x, i_val, r_val in zip(x_values, current_a, rpm):
+        for x, i_val, r_val in zip(x_values, current_a, rpm, strict=True):
             series_current.append(QPointF(x, i_val))
             series_rpm.append(QPointF(x, r_val))
 
@@ -318,7 +318,7 @@ class EfficiencyChartDock(SinglePropulsionChartWidget):
         series_eta_mot.setProperty("themeColorRole", "magenta")
         series_eta_mot.setPen(QPen(QColor(chart_color("magenta")), 2.0, Qt.PenStyle.DashLine))
 
-        for x, et, ep, em in zip(x_values, eta_total, eta_prop, eta_motor):
+        for x, et, ep, em in zip(x_values, eta_total, eta_prop, eta_motor, strict=True):
             series_eta_tot.append(QPointF(x, et * 100.0))
             series_eta_prop.append(QPointF(x, ep * 100.0))
             series_eta_mot.append(QPointF(x, em * 100.0))
@@ -393,7 +393,7 @@ class PowerLoadingChartDock(SinglePropulsionChartWidget):
         series_pl.setPen(QPen(QColor(chart_color("orange")), 2.5))
 
         pl_values: list[float] = []
-        for x, t, p in zip(x_values, thrust_n, power_w):
+        for x, t, p in zip(x_values, thrust_n, power_w, strict=True):
             val = (t * 1000.0 / 9.80665) / max(p, 0.001)
             series_pl.append(QPointF(x, val))
             pl_values.append(val)

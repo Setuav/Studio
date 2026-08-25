@@ -651,14 +651,14 @@ class AeroSandboxEngine(AeroEngine):
             slope = (
                 sum(
                     (x_value - x_mean) * (y_value - y_mean)
-                    for x_value, y_value in zip(x_values, y_values)
+                    for x_value, y_value in zip(x_values, y_values, strict=True)
                 )
                 / denominator
             )
             intercept = y_mean - slope * x_mean
             residual = sum(
                 (y_value - (intercept + slope * x_value)) ** 2
-                for x_value, y_value in zip(x_values, y_values)
+                for x_value, y_value in zip(x_values, y_values, strict=True)
             )
             total = sum((y_value - y_mean) ** 2 for y_value in y_values)
             derivatives[coefficient] = float(slope)
@@ -1079,7 +1079,12 @@ class AeroSandboxEngine(AeroEngine):
 
             symmetry_mode = str(cs.get("symmetry_mode") or "auto").lower()
 
-            def mirrored_command(value: float, *, auto_antisymmetric: bool) -> float:
+            def mirrored_command(
+                value: float,
+                *,
+                auto_antisymmetric: bool,
+                symmetry_mode: str = symmetry_mode,
+            ) -> float:
                 """Map one right-side command to the mirrored surface."""
                 if symmetry_mode == "symmetric":
                     return value
@@ -1156,7 +1161,7 @@ class AeroSandboxEngine(AeroEngine):
                     c_val /= 1000.0
                 eta_mid = 0.5 * (eta_s + eta_e)
                 chord_at_mid = float(station_raw[0]["chord"])
-                for s0, s1 in zip(station_raw[:-1], station_raw[1:]):
+                for s0, s1 in zip(station_raw[:-1], station_raw[1:], strict=False):
                     if s0["eta"] <= eta_mid <= s1["eta"]:
                         t_mid = float(
                             np.clip(
@@ -1338,7 +1343,7 @@ class AeroSandboxEngine(AeroEngine):
                     [right.xyz_le[0], -right.xyz_le[1], right.xyz_le[2]],
                     atol=1e-9,
                 )
-                for right, left in zip(xsecs_right, reversed(xsecs_left))
+                for right, left in zip(xsecs_right, reversed(xsecs_left), strict=True)
             )
             if not has_asymmetric_controls and global_reflection_matches:
                 return asb.Wing(name=name, xsecs=xsecs_right, symmetric=True)

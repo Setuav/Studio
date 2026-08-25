@@ -1413,7 +1413,7 @@ class FuselageSectionDialog(QDialog):
         if not isinstance(raw_v, list):
             return
 
-        for r, v in enumerate(raw_v):
+        for _r, v in enumerate(raw_v):
             if not isinstance(v, dict):
                 continue
             row = self.vertices_table.rowCount()

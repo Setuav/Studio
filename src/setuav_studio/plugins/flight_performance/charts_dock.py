@@ -189,7 +189,7 @@ class SinglePerformanceChartWidget(QWidget):
             infeasible_spans: list[tuple[float, float]] = []
             span_start: float | None = None
 
-            for x, is_feas in zip(x_vals, feasible_mask):
+            for x, is_feas in zip(x_vals, feasible_mask, strict=True):
                 if not is_feas and span_start is None:
                     span_start = float(x)
                 elif is_feas and span_start is not None:
@@ -224,7 +224,7 @@ class SinglePerformanceChartWidget(QWidget):
         s1.setProperty("themeColorRole", y1_color_role)
         pen1 = QPen(QColor(chart_color(y1_color_role)), 2.2)
         s1.setPen(pen1)
-        for x, y in zip(x_vals, y1_vals):
+        for x, y in zip(x_vals, y1_vals, strict=True):
             if y is not None:
                 s1.append(QPointF(float(x), float(y)))
 
@@ -239,7 +239,7 @@ class SinglePerformanceChartWidget(QWidget):
             s2.setProperty("themeColorRole", y2_color_role)
             pen2 = QPen(QColor(chart_color(y2_color_role)), 2.0)
             s2.setPen(pen2)
-            for x, y in zip(x_vals, y2_vals):
+            for x, y in zip(x_vals, y2_vals, strict=True):
                 if y is not None:
                     s2.append(QPointF(float(x), float(y)))
 

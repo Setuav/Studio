@@ -105,7 +105,7 @@ def _append_loft_wire(vertices: list[float], loops, color: Point3D) -> None:
     point_count = len(loops[0])
     for i in range(_LONGITUDINAL_LINES):
         point_index = int(i * point_count / _LONGITUDINAL_LINES)
-        for current, following in zip(loops, loops[1:]):
+        for current, following in zip(loops, loops[1:], strict=False):
             _add_line(vertices, current[point_index], following[point_index], color)
 
 
@@ -284,7 +284,7 @@ def build_loft_solid_vertices(
             if not is_sel and not is_hov:
                 color = tuple(channel * _DIM_FACTOR for channel in color)
 
-        for current, following in zip(loops, loops[1:]):
+        for current, following in zip(loops, loops[1:], strict=False):
             _add_quad_strip(vertices, current, following, color)
         if loft.closed_ends:
             _cap_loop(vertices, loops[0], color, flip=True)
@@ -319,7 +319,7 @@ def _tessellated_loops(loft: LoftGeometry) -> list[tuple[Point3D, ...]]:
                 result.append(
                     tuple(
                         _lerp(start, end, fraction)
-                        for start, end in zip(sections[gap], sections[gap + 1])
+                        for start, end in zip(sections[gap], sections[gap + 1], strict=True)
                     )
                 )
             else:
@@ -348,7 +348,7 @@ def _section_parameters(sections: list[tuple[Point3D, ...]]) -> list[float]:
         tuple(sum(point[axis] for point in section) / len(section) for axis in range(3))
         for section in sections
     ]
-    distances = [math.dist(start, end) for start, end in zip(centres, centres[1:])]
+    distances = [math.dist(start, end) for start, end in zip(centres, centres[1:], strict=False)]
     if any(distance < 1e-6 for distance in distances):
         return [float(index) for index in range(len(sections))]
     values = [0.0]
@@ -470,7 +470,7 @@ def hit_test_loft(
         loops = _tessellated_loops(loft)
         if not loops:
             continue
-        for current, following in zip(loops, loops[1:]):
+        for current, following in zip(loops, loops[1:], strict=False):
             for index in range(len(current)):
                 next_index = (index + 1) % len(current)
                 first, second = current[index], current[next_index]

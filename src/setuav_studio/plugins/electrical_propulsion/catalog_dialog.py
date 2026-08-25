@@ -34,6 +34,8 @@ from setuav_studio.plugins.electrical_propulsion.database import (
 from setuav_studio.ui.buttons import set_button_role
 from setuav_studio.ui.icons import get_icon
 
+_INVALID_MODEL_INDEX = QModelIndex()
+
 
 class MotorCatalogModel(QAbstractTableModel):
     """Virtualized table model for motor database entries."""
@@ -54,10 +56,12 @@ class MotorCatalogModel(QAbstractTableModel):
         self._sort_col: int = -1
         self._sort_order: Qt.SortOrder = Qt.SortOrder.AscendingOrder
 
-    def rowCount(self, parent: QModelIndex | QPersistentModelIndex = QModelIndex()) -> int:
+    def rowCount(self, parent: QModelIndex | QPersistentModelIndex = _INVALID_MODEL_INDEX) -> int:
         return len(self._entries)
 
-    def columnCount(self, parent: QModelIndex | QPersistentModelIndex = QModelIndex()) -> int:
+    def columnCount(
+        self, parent: QModelIndex | QPersistentModelIndex = _INVALID_MODEL_INDEX
+    ) -> int:
         return len(self.HEADERS)
 
     def headerData(
@@ -182,10 +186,12 @@ class PropellerCatalogModel(QAbstractTableModel):
         self._sort_col: int = -1
         self._sort_order: Qt.SortOrder = Qt.SortOrder.AscendingOrder
 
-    def rowCount(self, parent: QModelIndex | QPersistentModelIndex = QModelIndex()) -> int:
+    def rowCount(self, parent: QModelIndex | QPersistentModelIndex = _INVALID_MODEL_INDEX) -> int:
         return len(self._entries)
 
-    def columnCount(self, parent: QModelIndex | QPersistentModelIndex = QModelIndex()) -> int:
+    def columnCount(
+        self, parent: QModelIndex | QPersistentModelIndex = _INVALID_MODEL_INDEX
+    ) -> int:
         return len(self.HEADERS)
 
     def headerData(

@@ -724,7 +724,7 @@ class MultiDimensionalSweepResult:
         if len(indices) != len(self.grid_shape):
             raise IndexError("One index is required for each sweep variable")
         flat_index = 0
-        for index, size in zip(indices, self.grid_shape):
+        for index, size in zip(indices, self.grid_shape, strict=True):
             if index < 0 or index >= size:
                 raise IndexError("Sweep grid index out of range")
             flat_index = flat_index * size + index

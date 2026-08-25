@@ -192,7 +192,7 @@ def _radial_samples(outline: list[tuple[float, float]]) -> tuple[tuple[float, fl
         angle = 2.0 * math.pi * index / SECTION_SAMPLES
         direction = (math.cos(angle), math.sin(angle))
         nearest: float | None = None
-        for start, end in zip(outline, outline[1:] + outline[:1]):
+        for start, end in zip(outline, outline[1:] + outline[:1], strict=True):
             segment = (end[0] - start[0], end[1] - start[1])
             denominator = _cross2(direction, segment)
             if abs(denominator) < 1e-10:
@@ -209,7 +209,7 @@ def _radial_samples(outline: list[tuple[float, float]]) -> tuple[tuple[float, fl
 def _signed_area(vertices: list[tuple[float, float, float]]) -> float:
     return 0.5 * sum(
         start[0] * end[1] - end[0] * start[1]
-        for start, end in zip(vertices, vertices[1:] + vertices[:1])
+        for start, end in zip(vertices, vertices[1:] + vertices[:1], strict=True)
     )
 
 
