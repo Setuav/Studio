@@ -31,11 +31,11 @@ belirlendi.
 
 ## 3. Pre-commit kontrollerini ekle
 
-- [ ] `.pre-commit-config.yaml` oluştur.
-- [ ] Ruff lint düzeltmesini ekle.
-- [ ] Ruff format kontrolünü ekle.
-- [ ] Yapılandırma dosyaları için temel kontroller ekle.
-- [ ] Hook'ları tüm dosyalarda çalıştırıp doğrula.
+- [x] `.pre-commit-config.yaml` oluştur.
+- [x] Ruff lint düzeltmesini ekle.
+- [x] Ruff format kontrolünü ekle.
+- [x] Yapılandırma dosyaları için temel kontroller ekle.
+- [x] Hook'ları tüm dosyalarda çalıştırıp doğrula.
 
 ## 4. Ruff kurallarını genişlet
 
