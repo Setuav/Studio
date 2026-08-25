@@ -3,7 +3,7 @@
 Plugin-based desktop application for parametric UAV design and analysis.
 
 # to-do
-- uçuş mekaniği plugin
+- uçuş analizi plugin
 - ci-cd
 - dökümantasyon
 

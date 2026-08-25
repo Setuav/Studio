@@ -5,12 +5,13 @@ from __future__ import annotations
 import logging
 import math
 from typing import Any
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QThreadPool
 from PySide6.QtGui import QFont, QPalette
 from PySide6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -25,6 +26,7 @@ from pythrust.propulsion.models.propeller import PropellerSpec
 
 from .database import get_propeller_database
 from .engine.solver import PropulsionSolverEngine
+from .worker import PropulsionWorker
 from setuav_studio.ui.icons import get_icon, set_label_icon
 from setuav_studio.ui.buttons import refresh_button_role, set_button_role, set_native_button
 from setuav_studio.plugin_system import StudioAPI
@@ -42,6 +44,7 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
         super().__init__(parent)
         self._api = api
         self._loading = False
+        self._is_running = False
         self._current_mode = "airspeed_sweep"
         self._alert_severity = "success"
 
@@ -444,6 +447,9 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
         }
 
     def _on_run_analysis(self) -> None:
+        if self._is_running:
+            return
+
         context = self._build_analysis_context()
         if context is None:
             return
@@ -454,24 +460,41 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
             "throttle_sweep": "throttle sweep",
             "operating_point": "operating point",
         }.get(mode, mode)
-        self._api.show_status(f"Running {mode_label}…", "info", 0)
 
-        try:
-            if mode == "airspeed_sweep":
-                res = self.run_sweep(context)
-            elif mode == "throttle_sweep":
-                res = self.run_throttle(context)
-            elif mode == "operating_point":
-                res = self.run_operating_point(context)
-        except Exception as exc:
-            logger.exception("Propulsion analysis failed")
-            self._api.clear_progress()
-            self._api.show_status(f"Analysis failed: {exc}", "error", 8000)
-            return
+        self._is_running = True
+        self.run_button.setEnabled(False)
+        self._api.show_status(f"Running {mode_label} in background…", "info", 0)
+        self._api.report_progress(0, 100, "Propulsion")
 
+        self._worker = PropulsionWorker(context)
+        self._worker.signals.progress.connect(self._on_analysis_progress)
+        self._worker.signals.finished.connect(lambda res, ctx=context: self._on_analysis_finished(ctx, res))
+        self._worker.signals.error.connect(self._on_analysis_error)
+
+        QThreadPool.globalInstance().start(self._worker)
+
+    def _on_analysis_progress(self, current: int, total: int, msg: str) -> None:
+        self._api.report_progress(current, total, msg or "Solving")
+
+    def _on_analysis_finished(self, context: dict[str, Any], res: dict[str, Any]) -> None:
+        self._is_running = False
+        self._worker = None
+        self.run_button.setEnabled(True)
         self._api.clear_progress()
-        if res is not None:
-            self._show_feasibility_alert(context, res)
+        self._render_results(res)
+        self._show_feasibility_alert(context, res)
+
+    def _on_analysis_error(self, err_msg: str) -> None:
+        self._is_running = False
+        self._worker = None
+        self.run_button.setEnabled(True)
+        self._api.clear_progress()
+        self._api.show_status(f"Propulsion analysis failed: {err_msg}", "error", 8000)
+        QMessageBox.critical(
+            self,
+            "Analysis Error",
+            f"Propulsion analysis encountered an error:\n\n{err_msg}",
+        )
 
     @staticmethod
     def _arange(start: float, end: float, step: float) -> list[float]:
@@ -611,278 +634,48 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
             "feasible": pt.feasible,
         }
 
-    def _render_results(
-        self,
-        context: dict[str, Any],
-        *,
-        x_label: str,
-        x_vals: list[float],
-        thrusts: list[float],
-        powers: list[float],
-        currents: list[float],
-        rpms: list[float],
-        eta_tots: list[float],
-        eta_props: list[float],
-        eta_mots: list[float],
-        res: dict[str, Any],
-        clear_charts: bool = False,
-    ) -> None:
+    def _render_results(self, res: dict[str, Any]) -> None:
         # Decoupled event emission via StudioAPI Event Bus
         self._api.publish("propulsion.results_updated", res)
         self._api.publish(
             "propulsion.plot_sweep",
             {
-                "x_label": x_label,
-                "x_values": x_vals,
-                "thrust_n": thrusts,
-                "power_w": powers,
-                "current_a": currents,
-                "rpm": rpms,
-                "eta_total": eta_tots,
-                "eta_prop": eta_props,
-                "eta_motor": eta_mots,
-                "clear_charts": clear_charts,
+                "x_label": res.get("x_label", ""),
+                "x_values": res.get("x_values", []),
+                "thrust_n": res.get("thrust_n", []),
+                "power_w": res.get("power_w", []),
+                "current_a": res.get("current_a", []),
+                "rpm": res.get("rpm", []),
+                "eta_total": res.get("eta_total", []),
+                "eta_prop": res.get("eta_prop", []),
+                "eta_motor": res.get("eta_motor", []),
+                "clear_charts": res.get("clear_charts", False),
             },
         )
         self._api.clear_progress()
 
     def run_sweep(self, context: dict[str, Any]) -> dict[str, Any]:
-        params = context["params"]
-        motor_spec = context["motor_spec"]
-        prop_spec = context["prop_spec"]
-        total_voltage = context["total_voltage"]
-        capacity_mah = context["capacity_mah"]
-
-        throttle_pct = float(params.get("throttle", 100.0))
-        v_min = float(params.get("v_min", 0.0))
-        v_max = float(params.get("v_max", 35.0))
-        v_step = max(float(params.get("v_step", 1.0)), 0.1)
-
-        x_vals: list[float] = []
-        thrusts: list[float] = []
-        powers: list[float] = []
-        currents: list[float] = []
-        rpms: list[float] = []
-        eta_tots: list[float] = []
-        eta_props: list[float] = []
-        eta_mots: list[float] = []
-        sweep_rows: list[dict[str, Any]] = []
-
-        throttle_norm = max(min(throttle_pct / 100.0, 1.0), 0.01)
-        v_vals = self._arange(v_min, v_max, v_step)
-        total_points = len(v_vals)
-        for index, curr_v in enumerate(v_vals, start=1):
-            self._api.report_progress(
-                index,
-                total_points,
-                f"Airspeed {curr_v:.0f} m/s",
-            )
-            pt = self._solve_point(context, curr_v, throttle_norm)
-            x_vals.append(curr_v)
-            thrusts.append(pt["thrust"])
-            powers.append(pt["power"])
-            currents.append(pt["current"])
-            rpms.append(pt["rpm"])
-            eta_tots.append(pt["eta_sys"])
-            eta_props.append(pt["eta_p"])
-            eta_mots.append(pt["eta_m"])
-            sweep_rows.append({
-                "x_val": curr_v,
-                "x_label": "Airspeed (m/s)",
-                "rpm": pt["rpm"],
-                "thrust": pt["thrust"],
-                "power": pt["power"],
-                "current": pt["current"],
-                "eta_sys": pt["eta_sys"],
-                "eta_p": pt["eta_p"],
-                "eta_m": pt["eta_m"],
-                "j": pt["j"],
-                "feasible": pt["feasible"],
-            })
-
-        # Operating point at cruise (~18 m/s or mid)
-        cruise_idx = min(len(x_vals) - 1, max(0, int(len(x_vals) * 0.5)))
-        cruise_power = max(powers[cruise_idx], 1e-3)
-        batt_wh = (total_voltage * capacity_mah / 1000.0)
-        endurance_min = (batt_wh * 0.8 / cruise_power) * 60.0
-
-        res = {
-            "static_thrust": thrusts[0] if thrusts else 0.0,
-            "peak_power": max(powers) if powers else 0.0,
-            "peak_current": max(currents) if currents else 0.0,
-            "max_rpm": max(rpms) if rpms else 0.0,
-            "cruise_thrust": thrusts[cruise_idx] if thrusts else 0.0,
-            "cruise_efficiency": eta_tots[cruise_idx] if eta_tots else 0.0,
-            "endurance_min": endurance_min,
-            "advance_ratio": (x_vals[cruise_idx] / max((rpms[cruise_idx]/60.0) * prop_spec.diameter_m, 1e-3)),
-            "prop_efficiency": eta_props[cruise_idx],
-            "motor_efficiency": eta_mots[cruise_idx],
-            "voltage_loaded": total_voltage - currents[cruise_idx] * 0.02,
-            "sweep_table": sweep_rows,
-            "motor_max_current": motor_spec.current_max_a,
-        }
-
-        self._render_results(
+        res = PropulsionSolverEngine.run_airspeed_sweep(
             context,
-            x_label="Airspeed (m/s)",
-            x_vals=x_vals,
-            thrusts=thrusts,
-            powers=powers,
-            currents=currents,
-            rpms=rpms,
-            eta_tots=eta_tots,
-            eta_props=eta_props,
-            eta_mots=eta_mots,
-            res=res,
+            progress_callback=self._api.report_progress,
         )
+        self._render_results(res)
         return res
 
     def run_throttle(self, context: dict[str, Any]) -> dict[str, Any]:
-        params = context["params"]
-        motor_spec = context["motor_spec"]
-        prop_spec = context["prop_spec"]
-        total_voltage = context["total_voltage"]
-        capacity_mah = context["capacity_mah"]
-
-        v_fixed = float(params.get("airspeed", 15.0))
-        t_min = float(params.get("t_min", 10.0))
-        t_max = float(params.get("t_max", 100.0))
-        t_step = max(float(params.get("t_step", 5.0)), 1.0)
-
-        x_vals = []
-        thrusts = []
-        powers = []
-        currents = []
-        rpms = []
-        eta_tots = []
-        eta_props = []
-        eta_mots = []
-        sweep_rows = []
-
-        t_vals = self._arange(t_min, t_max, t_step)
-        total_points = len(t_vals)
-        for index, curr_t in enumerate(t_vals, start=1):
-            self._api.report_progress(
-                index,
-                total_points,
-                f"Throttle {curr_t:.0f}%",
-            )
-            pt = self._solve_point(context, v_fixed, curr_t / 100.0)
-            x_vals.append(curr_t)
-            thrusts.append(pt["thrust"])
-            powers.append(pt["power"])
-            currents.append(pt["current"])
-            rpms.append(pt["rpm"])
-            eta_tots.append(pt["eta_sys"])
-            eta_props.append(pt["eta_p"])
-            eta_mots.append(pt["eta_m"])
-            sweep_rows.append({
-                "x_val": curr_t,
-                "x_label": "Throttle (%)",
-                "rpm": pt["rpm"],
-                "thrust": pt["thrust"],
-                "power": pt["power"],
-                "current": pt["current"],
-                "eta_sys": pt["eta_sys"],
-                "eta_p": pt["eta_p"],
-                "eta_m": pt["eta_m"],
-                "j": pt["j"],
-                "feasible": pt["feasible"],
-            })
-
-        cruise_idx = len(x_vals) - 1
-        cruise_power = max(powers[cruise_idx], 1e-3)
-        batt_wh = (total_voltage * capacity_mah / 1000.0)
-        endurance_min = (batt_wh * 0.8 / cruise_power) * 60.0
-
-        res = {
-            "static_thrust": thrusts[-1] if thrusts else 0.0,
-            "peak_power": max(powers) if powers else 0.0,
-            "peak_current": max(currents) if currents else 0.0,
-            "max_rpm": max(rpms) if rpms else 0.0,
-            "cruise_thrust": thrusts[cruise_idx] if thrusts else 0.0,
-            "cruise_efficiency": eta_tots[cruise_idx] if eta_tots else 0.0,
-            "endurance_min": endurance_min,
-            "advance_ratio": (v_fixed / max((rpms[cruise_idx]/60.0) * prop_spec.diameter_m, 1e-3)),
-            "prop_efficiency": eta_props[cruise_idx],
-            "motor_efficiency": eta_mots[cruise_idx],
-            "voltage_loaded": total_voltage - currents[cruise_idx] * 0.02,
-            "sweep_table": sweep_rows,
-            "motor_max_current": motor_spec.current_max_a,
-        }
-
-        self._render_results(
+        res = PropulsionSolverEngine.run_throttle_sweep(
             context,
-            x_label="Throttle (%)",
-            x_vals=x_vals,
-            thrusts=thrusts,
-            powers=powers,
-            currents=currents,
-            rpms=rpms,
-            eta_tots=eta_tots,
-            eta_props=eta_props,
-            eta_mots=eta_mots,
-            res=res,
+            progress_callback=self._api.report_progress,
         )
+        self._render_results(res)
         return res
 
     def run_operating_point(self, context: dict[str, Any]) -> dict[str, Any]:
-        params = context["params"]
-        motor_spec = context["motor_spec"]
-        total_voltage = context["total_voltage"]
-        capacity_mah = context["capacity_mah"]
-
-        v_val = float(params.get("airspeed", 18.0))
-        t_val = float(params.get("throttle", 75.0))
-        pt = self._solve_point(context, v_val, t_val / 100.0)
-
-        cruise_power = max(pt["power"], 1e-3)
-        batt_wh = (total_voltage * capacity_mah / 1000.0)
-        endurance_min = (batt_wh * 0.8 / cruise_power) * 60.0
-
-        sweep_rows = [{
-            "x_val": v_val,
-            "x_label": "Airspeed (m/s)",
-            "rpm": pt["rpm"],
-            "thrust": pt["thrust"],
-            "power": pt["power"],
-            "current": pt["current"],
-            "eta_sys": pt["eta_sys"],
-            "eta_p": pt["eta_p"],
-            "eta_m": pt["eta_m"],
-            "j": pt["j"],
-            "feasible": pt["feasible"],
-        }]
-
-        res = {
-            "static_thrust": pt["thrust"],
-            "peak_power": pt["power"],
-            "peak_current": pt["current"],
-            "max_rpm": pt["rpm"],
-            "cruise_thrust": pt["thrust"],
-            "cruise_efficiency": pt["eta_sys"],
-            "endurance_min": endurance_min,
-            "advance_ratio": pt["j"],
-            "prop_efficiency": pt["eta_p"],
-            "motor_efficiency": pt["eta_m"],
-            "voltage_loaded": total_voltage - pt["current"] * 0.02,
-            "sweep_table": sweep_rows,
-            "motor_max_current": motor_spec.current_max_a,
-        }
-        self._render_results(
+        res = PropulsionSolverEngine.run_operating_point(
             context,
-            x_label="Airspeed (m/s)",
-            x_vals=[v_val],
-            thrusts=[pt["thrust"]],
-            powers=[pt["power"]],
-            currents=[pt["current"]],
-            rpms=[pt["rpm"]],
-            eta_tots=[pt["eta_sys"]],
-            eta_props=[pt["eta_p"]],
-            eta_mots=[pt["eta_m"]],
-            res=res,
-            clear_charts=True,
+            progress_callback=self._api.report_progress,
         )
+        self._render_results(res)
         return res
 
     def _show_feasibility_alert(self, context: dict[str, Any], res: dict[str, Any]) -> None:

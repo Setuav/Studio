@@ -553,24 +553,25 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         self._api.report_progress(1, 100, "Aerodynamics")
         self._api.show_status("Running aerodynamic analysis in background...", "info")
 
-        worker = AnalysisWorker(
+        self._worker = AnalysisWorker(
             engine=engine,
             components=components,
             condition=condition,
             method=method,
             settings=settings,
         )
-        worker.signals.finished.connect(self._on_analysis_finished)
-        worker.signals.error.connect(self._on_analysis_error)
-        worker.signals.progress.connect(self._on_analysis_progress)
+        self._worker.signals.finished.connect(self._on_analysis_finished)
+        self._worker.signals.error.connect(self._on_analysis_error)
+        self._worker.signals.progress.connect(self._on_analysis_progress)
 
-        QThreadPool.globalInstance().start(worker)
+        QThreadPool.globalInstance().start(self._worker)
 
     def _on_analysis_progress(self, current: int, total: int, msg: str) -> None:
         self._api.report_progress(current, total, msg or "Solving")
 
     def _on_analysis_finished(self, result: AeroResult) -> None:
         self._is_running = False
+        self._worker = None
         self.btn_run.setEnabled(True)
         self._api.clear_progress()
         stability_error = result.raw.get("stability_error")
@@ -598,6 +599,7 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
 
     def _on_analysis_error(self, err_msg: str) -> None:
         self._is_running = False
+        self._worker = None
         self.btn_run.setEnabled(True)
         self._api.clear_progress()
         self._api.show_status(f"Aerodynamic analysis failed: {err_msg}", "error")

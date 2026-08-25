@@ -138,6 +138,7 @@ class TestElectricalPropulsion(unittest.TestCase):
 
 
     def test_propulsion_controls_and_analysis_run(self) -> None:
+        from PySide6.QtCore import QThreadPool
         from setuav_studio.shell import MainWindow
         from setuav_studio.plugins.core import CorePlugin
         from setuav_studio.plugins.electrical_propulsion.plugin import ElectricalPropulsionPlugin
@@ -158,8 +159,9 @@ class TestElectricalPropulsion(unittest.TestCase):
         results = self._dock_content(win._panels["propulsion.results_dock"][1])
         charts = self._dock_content(win._panels["propulsion.charts_dock"][1])
 
-        # Run analysis
+        # Run analysis (background worker via QThreadPool)
         controls.run_button.click()
+        self._drain_events()
 
         # Verify summary results are populated
         static_thrust_str = results.summary_table.item(0, 1).text()
@@ -190,13 +192,73 @@ class TestElectricalPropulsion(unittest.TestCase):
 
         controls = self._dock_content(win._panels["propulsion.controls_dock"][1])
         controls.run_button.click()
+        self._drain_events()
         self.assertIn("Analysis complete", win._status_label.text())
 
         for comp in api.current_project.data["components"]:
             if comp["id"] == "motor-cruise":
                 comp["parameters"]["max_current"] = 0.001
         controls.run_button.click()
+        self._drain_events()
         self.assertIn("Current limit exceeded", win._status_label.text())
+
+    def test_propulsion_worker_and_solver_modes(self) -> None:
+        from PySide6.QtCore import QThreadPool
+        from pythrust.propulsion.models.motor import MotorSpec
+        from pythrust.propulsion.models.propeller import PropellerSpec
+        from setuav_studio.plugins.electrical_propulsion.engine import PropulsionSolverEngine
+        from setuav_studio.plugins.electrical_propulsion.worker import PropulsionWorker
+
+        motor_spec = MotorSpec(kv_rpm_per_v=900.0, resistance_ohm=0.035, no_load_current_a=1.2, current_max_a=45.0)
+        prop_spec = PropellerSpec(diameter_m=0.3302, pitch_m=0.1651, blade_count=2)
+        prop_entry = PropulsionSolverEngine.fallback_propeller(13.0, 6.5, 2)
+
+        context = {
+            "mode": "airspeed_sweep",
+            "params": {"throttle": 100.0, "v_min": 0.0, "v_max": 20.0, "v_step": 5.0},
+            "motor_spec": motor_spec,
+            "motor_params": {"max_power": 1000.0},
+            "prop_spec": prop_spec,
+            "prop_entry": prop_entry,
+            "total_voltage": 22.2,
+            "capacity_mah": 5000.0,
+            "rho": 1.225,
+            "diameter_in": 13.0,
+            "pitch_in": 6.5,
+        }
+
+        # Test solver engine directly
+        res_sweep = PropulsionSolverEngine.run_airspeed_sweep(context)
+        self.assertEqual(res_sweep["mode"], "airspeed_sweep")
+        self.assertGreater(len(res_sweep["x_values"]), 3)
+
+        context["mode"] = "throttle_sweep"
+        context["params"] = {"airspeed": 15.0, "t_min": 20.0, "t_max": 100.0, "t_step": 20.0}
+        res_throttle = PropulsionSolverEngine.run_throttle_sweep(context)
+        self.assertEqual(res_throttle["mode"], "throttle_sweep")
+        self.assertGreater(len(res_throttle["x_values"]), 3)
+
+        context["mode"] = "operating_point"
+        context["params"] = {"airspeed": 18.0, "throttle": 80.0}
+        res_point = PropulsionSolverEngine.run_operating_point(context)
+        self.assertEqual(res_point["mode"], "operating_point")
+        self.assertEqual(len(res_point["x_values"]), 1)
+
+        # Test PropulsionWorker execution in QThreadPool
+        received_results = []
+        progress_steps = []
+
+        worker = PropulsionWorker(context)
+        worker.signals.finished.connect(received_results.append)
+        worker.signals.progress.connect(lambda c, t, m: progress_steps.append((c, t, m)))
+
+        QThreadPool.globalInstance().start(worker)
+        QThreadPool.globalInstance().waitForDone()
+        self.app.processEvents()
+
+        self.assertEqual(len(received_results), 1)
+        self.assertIn("static_thrust", received_results[0])
+        self.assertGreater(len(progress_steps), 0)
 
     def test_pythrust_data_dir_resolution(self) -> None:
         """5.17: hardcoded path is gone; resolution prefers env var, then QSettings, then relatives."""
@@ -277,6 +339,12 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertGreater(pt.power, 0.0)
         self.assertGreater(pt.current, 0.0)
         self.assertTrue(0.0 <= pt.eta_sys <= 1.0)
+
+    def _drain_events(self, iterations: int = 15) -> None:
+        from PySide6.QtCore import QThreadPool
+        QThreadPool.globalInstance().waitForDone()
+        for _ in range(iterations):
+            self.app.processEvents()
 
     @staticmethod
     def _dock_content(dock) -> object:
