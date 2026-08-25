@@ -221,6 +221,7 @@ class ProjectExplorer(QTreeWidget):
         ] = {}
         self._saved_components: dict[str, dict[str, Any]] = {}
         self._saved_assemblies: dict[str, dict[str, Any]] = {}
+        self._saved_analysis_results: dict[str, dict[str, Any]] = {}
 
         api.on_project_changed(self.set_project)
         api.on_project_content_changed(self.refresh_project)
@@ -277,6 +278,7 @@ class ProjectExplorer(QTreeWidget):
                 for component in raw_components
             ):
                 geometry_group = QTreeWidgetItem(["Geometry"])
+                geometry_group.setIcon(0, get_icon("fa6s.shapes"))
                 geometry_group.setToolTip(0, "Geometry components")
                 self._geometry_group_item = geometry_group
                 project_item.addChild(geometry_group)
@@ -305,6 +307,7 @@ class ProjectExplorer(QTreeWidget):
                     tree_item.setFlags(
                         tree_item.flags() | Qt.ItemFlag.ItemIsEditable
                     )
+                tree_item.setIcon(0, self._assembly_icon(asm))
                 tree_item.setToolTip(0, f"{aname} ({atype})")
                 tree_item.setData(0, Qt.ItemDataRole.UserRole, aid)
                 self._apply_modified_color(
@@ -434,6 +437,32 @@ class ProjectExplorer(QTreeWidget):
         self._element_map[item] = contribution.selection
         self._virtual_items.add(item)
         self._project_contributions[item] = contribution
+
+        analysis_id = (
+            contribution.selection.get("analysis_id")
+            if isinstance(contribution.selection, dict)
+            else None
+        )
+        if analysis_id:
+            from setuav_studio.plugins.aerodynamics.analysis_store import (
+                analysis_entries,
+            )
+
+            current_entries = {
+                str(entry.get("id") or ""): entry
+                for entry in analysis_entries(self._api.current_project)
+                if isinstance(entry, dict) and str(entry.get("id") or "")
+            }
+            current_entry = current_entries.get(analysis_id)
+            saved_entry = self._saved_analysis_results.get(analysis_id)
+            if saved_entry != current_entry:
+                from setuav_studio.ui.theme import status_color
+
+                item.setForeground(
+                    0,
+                    QBrush(QColor(status_color("warning"))),
+                )
+
         parent.addChild(item)
         for child in contribution.children:
             self._append_project_contribution(item, child)
@@ -446,6 +475,21 @@ class ProjectExplorer(QTreeWidget):
     def _capture_saved_state(self, project: ProjectDocument) -> None:
         self._saved_components = self._snapshot_collection(project, "components")
         self._saved_assemblies = self._snapshot_collection(project, "assemblies")
+        self._saved_analysis_results = self._snapshot_analysis_results(project)
+
+    @staticmethod
+    def _snapshot_analysis_results(
+        project: ProjectDocument,
+    ) -> dict[str, dict[str, Any]]:
+        from setuav_studio.plugins.aerodynamics.analysis_store import (
+            analysis_entries,
+        )
+
+        return {
+            str(entry.get("id") or ""): deepcopy(entry)
+            for entry in analysis_entries(project)
+            if isinstance(entry, dict) and str(entry.get("id") or "")
+        }
 
     @staticmethod
     def _snapshot_collection(
@@ -529,6 +573,14 @@ class ProjectExplorer(QTreeWidget):
         if atype == "org.setuav.core:electric-propulsion-system":
             return "Electric Propulsion System"
         return atype
+
+    def _assembly_icon(self, assembly: dict[str, object]) -> Any:
+        atype = str(assembly.get("type") or "")
+        if atype == "org.setuav.core:electric-propulsion-system":
+            return get_icon("component_propulsion_system")
+        if atype in self._api._component_icons:
+            return get_icon(self._api._component_icons[atype])
+        return get_icon("assembly_generic")
 
     @staticmethod
     def _component_type_text(

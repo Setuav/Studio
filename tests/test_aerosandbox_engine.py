@@ -509,7 +509,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
         # Attachment offsets are part of the component frame and must survive
         # the mirrored conversion; they are not forced onto the centerline.
         self.assertAlmostEqual(float(airplane.wings[0].xsecs[0].xyz_le[1]), 0.075, places=6)
-        self.assertAlmostEqual(float(airplane.wings[0].xsecs[-1].xyz_le[1]), 0.822619, places=5)
+        self.assertAlmostEqual(float(airplane.wings[0].xsecs[-1].xyz_le[1]), 0.751190, places=5)
         self.assertAlmostEqual(float(airplane.wings[1].xsecs[0].xyz_le[1]), 0.038, places=6)
 
         # The fixture uses rounded rectangular body sections.  Native

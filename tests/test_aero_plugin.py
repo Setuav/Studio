@@ -25,6 +25,7 @@ from setuav_studio.plugins.aerodynamics.analysis_store import (
 from setuav_studio.plugins.aerodynamics.airfoil_analysis_tool import (
     AirfoilAnalysisToolWindow,
 )
+from setuav_studio.plugins.aerodynamics.results_dock import AeroResultsDock
 from setuav_studio.plugins.core.ui.project_explorer import ProjectExplorer
 from setuav_studio.plugins.aerodynamics.engine.base import (
     AeroResult,
@@ -36,6 +37,9 @@ from setuav_studio.plugins.aerodynamics.engine.base import (
     ReferenceValues,
     SweepType,
     SweepVariable,
+)
+from setuav_studio.plugins.aerodynamics.engine.stability_models import (
+    StabilityDerivatives,
 )
 from tests._common import get_qapp
 
@@ -183,6 +187,22 @@ class AerodynamicsPluginTests(unittest.TestCase):
         self.assertEqual(analysis_entries(project), ())
         self.assertIsNone(self.plugin._latest_result)
         self.assertEqual(statuses[-1][1], "error")
+
+    def test_pitch_status_marks_two_percent_margin_as_marginal(self) -> None:
+        result = AeroResult(
+            method=AnalysisMethod.AERO_BUILDUP,
+            engine_name="AeroSandbox",
+            stability_derivatives=StabilityDerivatives(
+                c_m_alpha_rad=-0.4,
+                c_m_alpha_deg=-0.007,
+                c_m_q=-1.0,
+                static_margin=1.5,
+                is_pitch_stable=True,
+                is_pitch_damped=True,
+            ),
+        )
+        metrics = AeroResultsDock._stability_metrics(result)
+        self.assertEqual(metrics["pitch_status"], "MARGINAL")
 
     def test_airfoil_analysis_tool_is_standalone(self) -> None:
         tool = AirfoilAnalysisToolWindow(self.api)
@@ -641,15 +661,21 @@ class AerodynamicsPluginTests(unittest.TestCase):
         )
         self.plugin._handle_analysis_result(dummy_result)
         explorer = ProjectExplorer(self.api)
+        explorer.resize(400, 600)
         result_node = self.api.project_tree_nodes(project)[0].children[0]
         result_item = explorer._item_map[result_node.id]
 
         menu_actions: list[str] = []
-        def capture_menu(menu_self, *args, **kwargs):
-            menu_actions.extend([action.text() for action in menu_self.actions()])
-            return None
+        real_qmenu = QMenu
+        class MockMenu(real_qmenu):
+            def addAction(self, *args, **kwargs):
+                action = super().addAction(*args, **kwargs)
+                menu_actions.append(action.text())
+                return action
+            def exec(self, *args, **kwargs):
+                return None
 
-        with patch.object(QMenu, "exec", capture_menu):
+        with patch("setuav_studio.plugins.core.ui.project_explorer.QMenu", MockMenu):
             explorer._open_context_menu(explorer.visualItemRect(result_item).center())
 
         self.assertIn("Rename", menu_actions)
@@ -672,3 +698,43 @@ class AerodynamicsPluginTests(unittest.TestCase):
             explorer.keyPressEvent(event)
 
         self.assertEqual(len(project.data["components"]), 0)
+
+    def test_unsaved_analysis_result_is_marked_dirty_yellow(self) -> None:
+        from setuav_studio.ui.theme import status_color
+
+        self.plugin.activate(self.api)
+        project = ProjectDocument(
+            path=Path("aero-results.json"),
+            kind="json",
+            data={"name": "Aero Results", "components": []},
+        )
+        self.api.set_project(project)
+        explorer = ProjectExplorer(self.api)
+
+        # Run analysis (creates an unsaved result)
+        dummy_result = AeroResult(
+            method=AnalysisMethod.AERO_BUILDUP,
+            engine_name="AeroSandbox",
+            polar_points=[
+                PolarPoint(alpha=0.0, cl=0.2, cd=0.015, cm=0.0),
+            ],
+            reference=ReferenceValues(s_ref=0.6, b_ref=1.8, c_ref=0.33),
+            condition=FlightCondition(alpha=0.0, alpha_steps=1),
+        )
+        self.plugin._handle_analysis_result(dummy_result)
+        result_node = self.api.project_tree_nodes(project)[0].children[0]
+        result_item = explorer._item_map[result_node.id]
+
+        # Should be colored warning (yellow)
+        self.assertEqual(
+            result_item.foreground(0).color().name().lower(),
+            status_color("warning").lower(),
+        )
+
+        # After mark_project_saved / clean, dirty color is cleared
+        self.api.mark_project_saved()
+        result_item = explorer._item_map[result_node.id]
+        self.assertNotEqual(
+            result_item.foreground(0).color().name().lower(),
+            status_color("warning").lower(),
+        )

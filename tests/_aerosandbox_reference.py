@@ -41,13 +41,13 @@ def build_fixed_wing_reference(
     naca0012 = asb.Airfoil("naca0012")
 
     main_root = (0.280, 0.075, 0.040)
-    main_tip = (0.295, 0.8226190476190476, 0.05304973901776267)
-    main_etas = (0.0, 0.025, 0.38, 0.4029, 0.8865, 1.0)
+    main_tip = (0.3209766178455207, 0.7511904761904761, 0.05180294866574713)
+    main_etas = (0.0, 0.08, 0.425, 0.45, 0.95, 1.0)
 
     main_xsecs: list[asb.WingXSec] = []
     for eta in main_etas:
         controls: list[asb.ControlSurface] = []
-        if eta == 0.025:
+        if eta == 0.08:
             controls.append(
                 asb.ControlSurface(
                     name="flap",
@@ -56,7 +56,7 @@ def build_fixed_wing_reference(
                     hinge_point=0.68,
                 )
             )
-        if eta == 0.4029:
+        if eta == 0.45:
             controls.append(
                 asb.ControlSurface(
                     name="Aileron",
@@ -86,13 +86,13 @@ def build_fixed_wing_reference(
     )
 
     vtail_root = (0.645, 0.038, 0.058)
-    vtail_tip = (0.6966141694365855, 0.17588799976141603, 0.17370176974357707)
-    vtail_etas = (0.0, 0.1111, 0.8889, 1.0)
+    vtail_tip = (0.7039964122553721, 0.1915802670214772, 0.186869146057733)
+    vtail_etas = (0.0, 0.1107, 0.8855, 1.0)
 
     vtail_xsecs: list[asb.WingXSec] = []
     for eta in vtail_etas:
         controls = []
-        if eta == 0.1111:
+        if eta == 0.1107:
             controls.append(
                 asb.ControlSurface(
                     name="Ruddervator",
@@ -153,8 +153,10 @@ def build_fixed_wing_reference(
         name="Fixed-Wing Native Reference",
         wings=[main_wing, vtail],
         fuselages=[fuselage],
-        s_ref=0.314047831005787,
-        b_ref=1.6452380952380952,
-        c_ref=0.1908829074130688,
-        xyz_ref=[0.35938850308641973, 0.0, 0.022662440516117616],
+        s_ref=0.28404326116446976,
+        b_ref=1.5023809523809522,
+        c_ref=0.18906207557698465,
+        # Keep the independent model's moment reference aligned with the
+        # fixture's current Weight-Balance CG.
+        xyz_ref=[0.36659149902660615, 0.0, 0.023860642439974045],
     )

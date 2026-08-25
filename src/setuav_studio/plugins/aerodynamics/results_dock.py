@@ -26,6 +26,7 @@ from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.property_tables import ContentFitTableWidget, PropertyTableMixin
 
 from .engine.base import AeroResult, SweepType
+from .engine.stability_models import MARGINAL_STATIC_MARGIN_PERCENT
 from .analysis_store import (
     EXTENSION_ID,
     RESULT_SELECTION_KIND,
@@ -392,9 +393,17 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
                 return f"{value:+.4f} /deg (FD ±{step:g}°)"
             return f"{value:+.4f} /deg ({method})"
 
-        pitch_stable = bool(getattr(sd, "is_pitch_stable", False))
+        static_margin = float(getattr(sd, "static_margin", 0.0))
+        pitch_stable = bool(getattr(sd, "is_pitch_stable", False)) and static_margin > 0.0
         pitch_damped = bool(getattr(sd, "is_pitch_damped", False))
-        pitch_status = "STABLE (Damped)" if pitch_stable and pitch_damped else ("STABLE" if pitch_stable else "UNSTABLE")
+        if not pitch_stable:
+            pitch_status = "UNSTABLE"
+        elif static_margin < MARGINAL_STATIC_MARGIN_PERCENT:
+            pitch_status = "MARGINAL"
+        elif pitch_damped:
+            pitch_status = "STABLE (Damped)"
+        else:
+            pitch_status = "STABLE"
         trim = getattr(sd, "elevator_trim", None)
         trim_reasons = tuple(getattr(sd, "trim_invalid_reasons", ()) or ())
         trim_value = (

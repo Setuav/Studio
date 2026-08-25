@@ -6,6 +6,9 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
+MARGINAL_STATIC_MARGIN_PERCENT = 2.0
+
+
 @dataclass(frozen=True)
 class ControlEffectiveness:
     """Aerodynamic control derivative response for a specific control surface."""
@@ -113,7 +116,7 @@ class StabilityDerivatives:
     x_cg: float = 0.0              # m center of gravity X position
     x_np: float = 0.0              # m aerodynamic neutral point X position
     static_margin: float = 0.0     # % MAC static margin ((x_np - x_cg)/c_ref * 100)
-    is_pitch_stable: bool = True   # True if Cm_alpha < 0 (static pitch stability)
+    is_pitch_stable: bool = True   # True if Cm_alpha < 0 and static margin > 0
     is_pitch_damped: bool = True   # True if Cm_q < 0 (pitch damping)
 
     # Lateral-directional balance

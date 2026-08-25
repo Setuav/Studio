@@ -177,26 +177,21 @@ class SingleChartWidget(QWidget):
 
         from setuav_studio.ui.theme import chart_color
 
-        line_styles = (
-            Qt.PenStyle.SolidLine,
-            Qt.PenStyle.DashLine,
-            Qt.PenStyle.DotLine,
-            Qt.PenStyle.DashDotLine,
-            Qt.PenStyle.DashDotDotLine,
-        )
-
-        for index, (x_vals, y_vals, name, color_role) in enumerate(curves):
+        for x_vals, y_vals, name, color_role in curves:
             if not x_vals or not y_vals:
                 continue
             series = QLineSeries()
             series.setName(name)
             series.setProperty("themeColorRole", color_role)
 
-            pen = QPen(QColor(chart_color(color_role)), 2.6)
-            pen.setStyle(line_styles[index % len(line_styles)])
+            # Multi-series plots use a restrained dashed style.  The previous
+            # mixed styles (especially DotLine) and visible point markers made
+            # dense dual/grid sweeps look like a row of dots rather than curves.
+            pen = QPen(QColor(chart_color(color_role)), 1.4)
+            pen.setStyle(Qt.PenStyle.DashLine)
             series.setPen(pen)
             if hasattr(series, "setPointsVisible"):
-                series.setPointsVisible(True)
+                series.setPointsVisible(False)
 
             for x, y in zip(x_vals, y_vals):
                 series.append(QPointF(x, y))

@@ -19,7 +19,11 @@ from .base import (
     ReferenceValues,
     control_channels_for_components,
 )
-from .stability_models import ControlEffectiveness, ElevatorTrim, StabilityDerivatives
+from .stability_models import (
+    ControlEffectiveness,
+    ElevatorTrim,
+    StabilityDerivatives,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -233,7 +237,7 @@ class StabilityAnalysisEngine:
             x_cg=x_cg,
             x_np=x_np,
             static_margin=static_margin_pct,
-            is_pitch_stable=(cma_rad < 0),
+            is_pitch_stable=(cma_rad < 0 and static_margin_pct > 0.0),
             is_pitch_damped=(cm_q < 0),
             is_roll_stable=(clb_rad < 0),
             is_roll_damped=(cl_p < 0),

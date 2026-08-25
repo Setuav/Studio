@@ -13,11 +13,11 @@
       "unit": "m/s"
     },
     "wing_area": {
-      "value": 35.0,
+      "value": 32.0,
       "unit": "mm^2"
     },
     "wing_aspect_ratio": {
-      "value": 7.733738257207644,
+      "value": 7.053589143990929,
       "unit": "1"
     }
   },
@@ -202,6 +202,11 @@
                     "width": 55.0,
                     "height": 55.0,
                     "corner_radius": 25.0
+                  },
+                  "rotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
                   }
                 }
               ]
@@ -785,9 +790,9 @@
             },
             {
               "position": {
-                "x": 15.0,
-                "y": 747.6190476190476,
-                "z": 13.04973901776267
+                "x": 40.97661784552069,
+                "y": 676.1904761904761,
+                "z": 11.80294866574713
               },
               "chord": 180.0,
               "rotation": {
@@ -1372,14 +1377,14 @@
         "geometry": {
           "tag": "Aileron",
           "type": "aileron",
-          "span_start": 301.2,
-          "span_end": 662.8,
+          "span_start": 304.3,
+          "span_end": 642.4,
           "chord": 64.3,
           "deflection": 0.0,
           "hinge_sweep": -2.0,
           "chord_fraction": 0.268,
-          "eta_start": 0.4029,
-          "eta_end": 0.8865
+          "eta_start": 0.45,
+          "eta_end": 0.95
         }
       }
     },
@@ -1412,7 +1417,7 @@
                 "y": 0.0,
                 "z": 0.0
               },
-              "chord": 165.0,
+              "chord": 163.8205242497476,
               "rotation": {
                 "x": 0.0,
                 "y": 0.0,
@@ -1422,11 +1427,11 @@
             },
             {
               "position": {
-                "x": 51.61416943658543,
-                "y": 180.0,
+                "x": 58.996412255372086,
+                "y": 200.4848003542364,
                 "z": 0.0
               },
-              "chord": 100.0,
+              "chord": 98.29231454984856,
               "rotation": {
                 "x": 0.0,
                 "y": 0.0,
@@ -1439,7 +1444,8 @@
             "type": "round",
             "length": 20.0,
             "offset_x": 0.0
-          }
+          },
+          "sweep_curvature": 0.0
         }
       },
       "mass": 85.0,
@@ -1474,12 +1480,14 @@
         "geometry": {
           "tag": "Ruddervator",
           "type": "ruddervator",
-          "span_start": 20.0,
-          "span_end": 160.0,
-          "chord": 50.0,
+          "span_start": 22.2,
+          "span_end": 177.5,
+          "chord": 49.6,
           "deflection": 0.0,
           "hinge_sweep": 1.0,
-          "chord_fraction": 0.303
+          "chord_fraction": 0.303,
+          "eta_start": 0.1107,
+          "eta_end": 0.8855
         }
       }
     },
@@ -1548,11 +1556,11 @@
         "continuous_current": 50,
         "max_voltage": 25.2,
         "resistance": 0.004,
-        "mass": 55
+        "mass": 40.0
       },
       "transform": {
         "position": {
-          "x": 650.0,
+          "x": 550.0,
           "y": 0.0,
           "z": 20.0
         },
@@ -1560,6 +1568,25 @@
           "roll": 0.0,
           "pitch": 0.0,
           "yaw": 0.0
+        }
+      },
+      "mass": 40.0,
+      "extensions": {
+        "org.setuav.weight-balance": {
+          "mass_source": "declared",
+          "local_cg_mm": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "inertia_kg_m2": {
+            "ixx": 0.0,
+            "iyy": 0.0,
+            "izz": 0.0,
+            "ixy": 0.0,
+            "ixz": 0.0,
+            "iyz": 0.0
+          }
         }
       }
     },
@@ -1571,7 +1598,7 @@
       "parent": null,
       "transform": {
         "position": {
-          "x": 140.0,
+          "x": 200.0,
           "y": 0.0,
           "z": 15.0
         },
@@ -1583,21 +1610,38 @@
       },
       "parameters": {
         "cell_count": 3,
-        "capacity": 4500.0,
+        "capacity": 6000.0,
         "nominal_voltage": 11.100000000000001,
         "max_discharge": 35.0,
-        "mass": 430.0,
+        "mass": 580.0,
         "chemistry": "LiPo",
         "cell_nominal_voltage": 3.7,
         "cell_max_voltage": 4.2,
         "cell_min_voltage": 3.0,
-        "cell_mass": 130.0,
-        "cell_capacity": 4500.0,
+        "cell_mass": 180.0,
+        "cell_capacity": 6000.0,
         "cell_resistance": 0.0025,
         "burst_discharge": 70.0,
         "internal_resistance": 0.0075
       },
-      "mass": 430.0
+      "mass": 580.0,
+      "extensions": {
+        "org.setuav.core.physical": {
+          "envelope": {
+            "shape": "box",
+            "size_mm": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "offset_mm": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            }
+          }
+        }
+      }
     },
     {
       "kind": "component",
@@ -1608,13 +1652,13 @@
       "attach_to": "main-wing",
       "parameters": {
         "geometry": {
-          "tag": "flap",
+          "tag": "Flap",
           "type": "flap",
           "span_mode": "ratio",
-          "span_start": 18.7,
-          "span_end": 284.1,
-          "eta_start": 0.025,
-          "eta_end": 0.38,
+          "span_start": 54.1,
+          "span_end": 287.4,
+          "eta_start": 0.08,
+          "eta_end": 0.425,
           "chord_mode": "ratio",
           "chord_fraction": 0.32,
           "chord": 76.8,
