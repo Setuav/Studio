@@ -102,7 +102,9 @@ class FlightPerformancePlugin:
         )
 
     def deactivate(self, api: StudioAPI) -> None:
+        api.remove_selection_listener(self._on_selection_changed)
         api.remove_project_tree_provider(self.id)
+        api.remove_action("Tools/Flight Performance", "Flight Performance Envelope…")
         api.remove_panel("flight_performance.controls_dock")
         api.remove_panel("flight_performance.charts_dock")
         api.remove_panel("flight_performance.results_dock")

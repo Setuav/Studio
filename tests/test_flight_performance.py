@@ -423,6 +423,56 @@ class TestFlightPerformance(unittest.TestCase):
         self.assertIn("V_stall: 9.0 m/s", run_node.tooltip or "")
         self.assertEqual(len(run_node.children), 0)
 
+    def test_plugin_deactivate_removes_tool_and_selection_listener(self) -> None:
+        api = StudioAPI()
+        actions: list[object] = []
+        removed_actions: list[tuple[str, str]] = []
+        panels: list[object] = []
+        removed_panels: list[str] = []
+        workspaces: list[object] = []
+        removed_workspaces: list[str] = []
+        api.set_action_handler(
+            actions.append,
+            lambda menu, title: removed_actions.append((menu, title)),
+        )
+        api.set_panel_handler(panels.append, removed_panels.append)
+        api.set_workspace_handler(
+            workspaces.append,
+            remove_handler=removed_workspaces.append,
+        )
+
+        plugin = FlightPerformancePlugin()
+        plugin.activate(api)
+
+        self.assertEqual(len(actions), 1)
+        self.assertIn(plugin._on_selection_changed, api._selection_listeners)
+
+        plugin.deactivate(api)
+
+        self.assertNotIn(plugin._on_selection_changed, api._selection_listeners)
+        self.assertEqual(
+            removed_actions,
+            [("Tools/Flight Performance", "Flight Performance Envelope…")],
+        )
+        self.assertEqual(
+            removed_panels,
+            [
+                "flight_performance.controls_dock",
+                "flight_performance.charts_dock",
+                "flight_performance.results_dock",
+            ],
+        )
+        self.assertEqual(removed_workspaces, ["studio.workspace.flight_performance"])
+
+        plugin.activate(api)
+        self.assertEqual(len(actions), 2)
+        self.assertEqual(len(panels), 6)
+        self.assertEqual(len(workspaces), 2)
+        self.assertEqual(
+            sum(listener == plugin._on_selection_changed for listener in api._selection_listeners),
+            1,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
