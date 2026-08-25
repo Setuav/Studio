@@ -1,4 +1,5 @@
 """Aerodynamic Analysis Controls dock widget."""
+
 from __future__ import annotations
 
 import json
@@ -128,12 +129,14 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
     def _create_engine_section(self) -> None:
         layout = self._create_section("Solver & Mesh", "fa6s.gears")
 
-        self.engine_table = self._property_table([
-            ("solver", "Solver Engine"),
-            ("span_res", "Spanwise Panels"),
-            ("chord_res", "Chordwise Panels"),
-            ("spacing", "Panel Spacing"),
-        ])
+        self.engine_table = self._property_table(
+            [
+                ("solver", "Solver Engine"),
+                ("span_res", "Spanwise Panels"),
+                ("chord_res", "Chordwise Panels"),
+                ("spacing", "Panel Spacing"),
+            ]
+        )
 
         self.combo_solver = QComboBox()
         self.combo_solver.addItem("AeroBuildup (Default)", AnalysisMethod.AERO_BUILDUP)
@@ -180,12 +183,14 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
     def _create_conditions_section(self) -> None:
         layout = self._create_section("Flight Conditions", "fa6s.wind")
 
-        self.conditions_table = self._property_table([
-            ("velocity", "Airspeed (V)"),
-            ("altitude", "Altitude (MSL)"),
-            ("ref_alpha", "Reference AoA (α)"),
-            ("ref_beta", "Sideslip Angle (β)"),
-        ])
+        self.conditions_table = self._property_table(
+            [
+                ("velocity", "Airspeed (V)"),
+                ("altitude", "Altitude (MSL)"),
+                ("ref_alpha", "Reference AoA (α)"),
+                ("ref_beta", "Sideslip Angle (β)"),
+            ]
+        )
 
         self.spin_velocity = NumericSpinBox()
         self.spin_velocity.setRange(1.0, 300.0)
@@ -217,16 +222,18 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
     def _create_sweep_section(self) -> None:
         layout = self._create_section("Parametric Analysis", "fa6s.arrows-left-right")
 
-        self.sweep_table = self._property_table([
-            ("mode", "Sweep Mode"),
-            ("ctrl_surface", "Control Channel"),
-            ("sweep_min", "Primary Start"),
-            ("sweep_max", "Primary End"),
-            ("sweep_steps", "Primary Steps"),
-            ("sec_min", "Secondary Start"),
-            ("sec_max", "Secondary End"),
-            ("sec_steps", "Secondary Steps"),
-        ])
+        self.sweep_table = self._property_table(
+            [
+                ("mode", "Sweep Mode"),
+                ("ctrl_surface", "Control Channel"),
+                ("sweep_min", "Primary Start"),
+                ("sweep_max", "Primary End"),
+                ("sweep_steps", "Primary Steps"),
+                ("sec_min", "Secondary Start"),
+                ("sec_max", "Secondary End"),
+                ("sec_steps", "Secondary Steps"),
+            ]
+        )
 
         self.combo_mode = QComboBox()
         self.combo_mode.addItem("Alpha + Beta (Dual)", SweepType.DUAL_ALPHA_BETA)
@@ -412,8 +419,7 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         self.combo_ctrl.blockSignals(False)
         self._available_control_channels = channels
         self.combo_ctrl.setEnabled(
-            self.combo_mode.currentData() == SweepType.CONTROL_DEFLECTION
-            and bool(channels)
+            self.combo_mode.currentData() == SweepType.CONTROL_DEFLECTION and bool(channels)
         )
 
     def _create_actions_section(self) -> None:
@@ -530,12 +536,24 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
             secondary_min=sec_min,
             secondary_max=sec_max,
             secondary_steps=sec_steps,
-            alpha_min=s_min if sweep_type in (SweepType.ALPHA, SweepType.DUAL_ALPHA_BETA, SweepType.MULTI_GRID) else -10.0,
-            alpha_max=s_max if sweep_type in (SweepType.ALPHA, SweepType.DUAL_ALPHA_BETA, SweepType.MULTI_GRID) else 18.0,
-            alpha_steps=s_steps if sweep_type in (SweepType.ALPHA, SweepType.DUAL_ALPHA_BETA, SweepType.MULTI_GRID) else 1,
-            beta_min=sec_min if sweep_type in (SweepType.DUAL_ALPHA_BETA, SweepType.MULTI_GRID) else (s_min if sweep_type == SweepType.BETA else -15.0),
-            beta_max=sec_max if sweep_type in (SweepType.DUAL_ALPHA_BETA, SweepType.MULTI_GRID) else (s_max if sweep_type == SweepType.BETA else 15.0),
-            beta_steps=sec_steps if sweep_type in (SweepType.DUAL_ALPHA_BETA, SweepType.MULTI_GRID) else (s_steps if sweep_type == SweepType.BETA else 1),
+            alpha_min=s_min
+            if sweep_type in (SweepType.ALPHA, SweepType.DUAL_ALPHA_BETA, SweepType.MULTI_GRID)
+            else -10.0,
+            alpha_max=s_max
+            if sweep_type in (SweepType.ALPHA, SweepType.DUAL_ALPHA_BETA, SweepType.MULTI_GRID)
+            else 18.0,
+            alpha_steps=s_steps
+            if sweep_type in (SweepType.ALPHA, SweepType.DUAL_ALPHA_BETA, SweepType.MULTI_GRID)
+            else 1,
+            beta_min=sec_min
+            if sweep_type in (SweepType.DUAL_ALPHA_BETA, SweepType.MULTI_GRID)
+            else (s_min if sweep_type == SweepType.BETA else -15.0),
+            beta_max=sec_max
+            if sweep_type in (SweepType.DUAL_ALPHA_BETA, SweepType.MULTI_GRID)
+            else (s_max if sweep_type == SweepType.BETA else 15.0),
+            beta_steps=sec_steps
+            if sweep_type in (SweepType.DUAL_ALPHA_BETA, SweepType.MULTI_GRID)
+            else (s_steps if sweep_type == SweepType.BETA else 1),
         )
 
         method = self.combo_solver.currentData() or AnalysisMethod.AERO_BUILDUP

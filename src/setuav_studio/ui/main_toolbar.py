@@ -36,9 +36,7 @@ class WorkspaceToolBar(QToolBar):
         self.workspace_combo.setSizeAdjustPolicy(
             QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
         )
-        self.workspace_combo.currentIndexChanged.connect(
-            self._emit_workspace_selection
-        )
+        self.workspace_combo.currentIndexChanged.connect(self._emit_workspace_selection)
 
         self.addWidget(self.workspace_combo)
 

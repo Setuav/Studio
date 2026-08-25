@@ -155,16 +155,18 @@ class CorePlugin:
         # A point mass has no physical volume; its only geometric property is
         # the transform origin.  Do not expose a meaningless Envelope node.
         if component.get("type") != "org.setuav.core:point-mass":
-            nodes.append(ComponentTreeNodeContribution(
-                id=envelope_node_id,
-                title="Envelope",
-                selection={
-                    "id": envelope_node_id,
-                    "name": "Envelope",
-                    "kind": "physical-envelope",
-                    "component_id": component_id,
-                },
-                icon="fa6s.ruler-combined",
-                tooltip="Local dimensions, offset and occupied volume",
-            ))
+            nodes.append(
+                ComponentTreeNodeContribution(
+                    id=envelope_node_id,
+                    title="Envelope",
+                    selection={
+                        "id": envelope_node_id,
+                        "name": "Envelope",
+                        "kind": "physical-envelope",
+                        "component_id": component_id,
+                    },
+                    icon="fa6s.ruler-combined",
+                    tooltip="Local dimensions, offset and occupied volume",
+                )
+            )
         return tuple(nodes)

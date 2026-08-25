@@ -1,4 +1,5 @@
 """2D NeuralFoil analysis engine with automated caching."""
+
 from __future__ import annotations
 
 import math
@@ -8,6 +9,7 @@ import numpy as np
 
 try:
     import aerosandbox as asb
+
     HAS_AEROSANDBOX = True
 except ImportError:
     HAS_AEROSANDBOX = False
@@ -98,7 +100,9 @@ class AirfoilAnalysisEngine:
             name = getattr(airfoil, "name", "custom_airfoil")
             coordinates = getattr(airfoil, "coordinates", None)
             if coordinates is not None:
-                return airfoil, tuple(tuple(float(v) for v in point) for point in np.asarray(coordinates).tolist())
+                return airfoil, tuple(
+                    tuple(float(v) for v in point) for point in np.asarray(coordinates).tolist()
+                )
             return airfoil, str(name)
 
         if isinstance(airfoil, str):
@@ -198,21 +202,33 @@ class AirfoilAnalysisEngine:
         """Compute key aerodynamic coefficients and stability derivatives from polar points."""
         if not points:
             return {
-                "cl_max": 0.0, "cl_max_alpha": 0.0,
-                "cl_min": 0.0, "cl_min_alpha": 0.0,
-                "cd_min": 0.0, "cl_at_cd_min": 0.0,
-                "ld_max": 0.0, "ld_max_alpha": 0.0,
-                "cl_alpha_slope": 0.1, "alpha_zero_lift": 0.0, "cm_zero_lift": 0.0,
+                "cl_max": 0.0,
+                "cl_max_alpha": 0.0,
+                "cl_min": 0.0,
+                "cl_min_alpha": 0.0,
+                "cd_min": 0.0,
+                "cl_at_cd_min": 0.0,
+                "ld_max": 0.0,
+                "ld_max_alpha": 0.0,
+                "cl_alpha_slope": 0.1,
+                "alpha_zero_lift": 0.0,
+                "cm_zero_lift": 0.0,
             }
 
         valid_points = [p for p in points if p.converged]
         if not valid_points:
             return {
-                "cl_max": 0.0, "cl_max_alpha": 0.0,
-                "cl_min": 0.0, "cl_min_alpha": 0.0,
-                "cd_min": 0.0, "cl_at_cd_min": 0.0,
-                "ld_max": 0.0, "ld_max_alpha": 0.0,
-                "cl_alpha_slope": 0.0, "alpha_zero_lift": 0.0, "cm_zero_lift": 0.0,
+                "cl_max": 0.0,
+                "cl_max_alpha": 0.0,
+                "cl_min": 0.0,
+                "cl_min_alpha": 0.0,
+                "cd_min": 0.0,
+                "cl_at_cd_min": 0.0,
+                "ld_max": 0.0,
+                "ld_max_alpha": 0.0,
+                "cl_alpha_slope": 0.0,
+                "alpha_zero_lift": 0.0,
+                "cm_zero_lift": 0.0,
             }
 
         alphas = np.array([p.alpha for p in valid_points])
@@ -233,7 +249,9 @@ class AirfoilAnalysisEngine:
             cla_slope = float(poly[0])
             a0l = float(-poly[1] / poly[0]) if abs(poly[0]) > 1e-4 else 0.0
         else:
-            cla_slope = float((cls[-1] - cls[0]) / (alphas[-1] - alphas[0])) if len(alphas) > 1 else 0.1
+            cla_slope = (
+                float((cls[-1] - cls[0]) / (alphas[-1] - alphas[0])) if len(alphas) > 1 else 0.1
+            )
             a0l = 0.0
 
         # Pitching moment at zero lift (interpolate Cm at alpha_zero_lift)

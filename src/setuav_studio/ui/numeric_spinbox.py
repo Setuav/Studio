@@ -80,7 +80,11 @@ class NumericSpinBox(QDoubleSpinBox):
             return
 
         direction = 1.0 if delta > 0 else -1.0
-        mult = 0.1 if event.modifiers() & Qt.KeyboardModifier.ShiftModifier else (5.0 if event.modifiers() & Qt.KeyboardModifier.ControlModifier else 1.0)
+        mult = (
+            0.1
+            if event.modifiers() & Qt.KeyboardModifier.ShiftModifier
+            else (5.0 if event.modifiers() & Qt.KeyboardModifier.ControlModifier else 1.0)
+        )
         self.setValue(self.value() + direction * self.singleStep() * mult)
         event.accept()
 

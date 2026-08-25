@@ -560,7 +560,9 @@ class ComponentCatalogDialog(QDialog):
 
         self.prop_model.set_entries([t[0] for t in self._indexed_props])
         if self.component_type in {"propeller", "rotor"}:
-            self.status_label.setText(f"Loaded {len(valid_props):,} propellers from PyThrust catalog")
+            self.status_label.setText(
+                f"Loaded {len(valid_props):,} propellers from PyThrust catalog"
+            )
 
     def _on_prop_search_changed(self) -> None:
         self._do_filter_propellers()

@@ -125,9 +125,7 @@ class WeightBalancePlugin:
             return
 
         existing_ids = {
-            str(item.get("id"))
-            for item in components
-            if isinstance(item, dict) and item.get("id")
+            str(item.get("id")) for item in components if isinstance(item, dict) and item.get("id")
         }
         existing_names = {
             str(item.get("name"))

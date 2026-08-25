@@ -1,4 +1,5 @@
 """AeroSandbox engine implementation for Setuav Studio."""
+
 from __future__ import annotations
 
 import logging
@@ -62,19 +63,23 @@ class AeroSandboxEngine(AeroEngine):
 
     def capabilities(self) -> EngineCapabilities:
         return EngineCapabilities(
-            methods=frozenset({
-                AnalysisMethod.AERO_BUILDUP,
-                AnalysisMethod.VLM,
-                AnalysisMethod.LIFTING_LINE,
-            }),
-            analysis_types=frozenset({
-                AnalysisType.SINGLE_POINT,
-                AnalysisType.ALPHA_SWEEP,
-                AnalysisType.BETA_SWEEP,
-                AnalysisType.MULTI_SWEEP,
-                AnalysisType.STABILITY_DERIVATIVES,
-                AnalysisType.CONTROL_CHANNEL,
-            }),
+            methods=frozenset(
+                {
+                    AnalysisMethod.AERO_BUILDUP,
+                    AnalysisMethod.VLM,
+                    AnalysisMethod.LIFTING_LINE,
+                }
+            ),
+            analysis_types=frozenset(
+                {
+                    AnalysisType.SINGLE_POINT,
+                    AnalysisType.ALPHA_SWEEP,
+                    AnalysisType.BETA_SWEEP,
+                    AnalysisType.MULTI_SWEEP,
+                    AnalysisType.STABILITY_DERIVATIVES,
+                    AnalysisType.CONTROL_CHANNEL,
+                }
+            ),
             supports_fuselage=True,
             supports_control_surfaces=True,
         )
@@ -138,7 +143,9 @@ class AeroSandboxEngine(AeroEngine):
 
         # Generate primary and secondary sweep evaluation points
         primary_vals = condition.get_primary_sweep_values()
-        sec_vals = condition.get_secondary_sweep_values() if condition.secondary_variable else [None]
+        sec_vals = (
+            condition.get_secondary_sweep_values() if condition.secondary_variable else [None]
+        )
         sweep_type = condition.sweep_type
 
         if sweep_type == SweepType.CONTROL_DEFLECTION:
@@ -158,33 +165,41 @@ class AeroSandboxEngine(AeroEngine):
         if sweep_type == SweepType.DUAL_ALPHA_BETA:
             # 1. Alpha sweep group (primary AoA polar)
             a_steps = max(int(condition.alpha_steps), 2)
-            alpha_array = [float(v) for v in np.linspace(condition.alpha_min, condition.alpha_max, a_steps)]
+            alpha_array = [
+                float(v) for v in np.linspace(condition.alpha_min, condition.alpha_max, a_steps)
+            ]
             for a_val in alpha_array:
-                eval_states.append({
-                    "alpha": float(a_val),
-                    "beta": float(condition.beta),
-                    "velocity": float(condition.velocity),
-                    "altitude": float(condition.altitude),
-                    "controls": dict(condition.control_deflections),
-                    "p_val": float(a_val),
-                    "s_val": float(condition.beta),
-                    "_sweep_group": "alpha",
-                })
+                eval_states.append(
+                    {
+                        "alpha": float(a_val),
+                        "beta": float(condition.beta),
+                        "velocity": float(condition.velocity),
+                        "altitude": float(condition.altitude),
+                        "controls": dict(condition.control_deflections),
+                        "p_val": float(a_val),
+                        "s_val": float(condition.beta),
+                        "_sweep_group": "alpha",
+                    }
+                )
 
             # 2. Beta sweep group (sideslip response)
             b_steps = max(int(condition.beta_steps), 2)
-            beta_array = [float(v) for v in np.linspace(condition.beta_min, condition.beta_max, b_steps)]
+            beta_array = [
+                float(v) for v in np.linspace(condition.beta_min, condition.beta_max, b_steps)
+            ]
             for b_val in beta_array:
-                eval_states.append({
-                    "alpha": float(condition.alpha),
-                    "beta": float(b_val),
-                    "velocity": float(condition.velocity),
-                    "altitude": float(condition.altitude),
-                    "controls": dict(condition.control_deflections),
-                    "p_val": float(b_val),
-                    "s_val": float(condition.alpha),
-                    "_sweep_group": "beta",
-                })
+                eval_states.append(
+                    {
+                        "alpha": float(condition.alpha),
+                        "beta": float(b_val),
+                        "velocity": float(condition.velocity),
+                        "altitude": float(condition.altitude),
+                        "controls": dict(condition.control_deflections),
+                        "p_val": float(b_val),
+                        "s_val": float(condition.alpha),
+                        "_sweep_group": "beta",
+                    }
+                )
 
         else:
             for s_val in sec_vals:
@@ -262,7 +277,7 @@ class AeroSandboxEngine(AeroEngine):
             cur_mu = float(cur_atmosphere.dynamic_viscosity())
             cur_sos = float(cur_atmosphere.speed_of_sound())
             cur_mach = cur_vel / cur_sos if cur_sos > 0 else 0.0
-            cur_q_inf = 0.5 * cur_rho * (cur_vel ** 2)
+            cur_q_inf = 0.5 * cur_rho * (cur_vel**2)
             cur_qs = cur_q_inf * ref_area
             cur_reynolds = (cur_rho * cur_vel * mean_chord / cur_mu) if cur_mu > 0 else 0.0
 
@@ -439,7 +454,13 @@ class AeroSandboxEngine(AeroEngine):
                     oswald_list.append(float(wing_comps[0].oswalds_efficiency))
 
             except Exception as err:
-                logger.warning("Solver %s failed for point alpha=%.1f, beta=%.1f: %s", method.value, cur_alpha, cur_beta, err)
+                logger.warning(
+                    "Solver %s failed for point alpha=%.1f, beta=%.1f: %s",
+                    method.value,
+                    cur_alpha,
+                    cur_beta,
+                    err,
+                )
                 pt = PolarPoint(
                     alpha=cur_alpha,
                     cl=0.0,
@@ -461,15 +482,11 @@ class AeroSandboxEngine(AeroEngine):
 
         converged_points = [p for p in polar_points if p.converged]
         if not converged_points:
-            failure_messages = list(dict.fromkeys(
-                point.notes.strip()
-                for point in polar_points
-                if point.notes.strip()
-            ))
-            details = "; ".join(failure_messages[:3])
-            message = (
-                f"{method.value} failed at all {len(polar_points)} operating point(s)"
+            failure_messages = list(
+                dict.fromkeys(point.notes.strip() for point in polar_points if point.notes.strip())
             )
+            details = "; ".join(failure_messages[:3])
+            message = f"{method.value} failed at all {len(polar_points)} operating point(s)"
             if details:
                 message += f": {details}"
             raise AeroAnalysisError(message)
@@ -495,13 +512,21 @@ class AeroSandboxEngine(AeroEngine):
                 sec_unit = "deg"
 
                 sweep_vars = [
-                    SweepVariable(name=str(condition.secondary_variable), values=[float(v) for v in sec_vals], unit=sec_unit),
-                    SweepVariable(name=str(condition.sweep_variable), values=primary_vals, unit=var_unit),
+                    SweepVariable(
+                        name=str(condition.secondary_variable),
+                        values=[float(v) for v in sec_vals],
+                        unit=sec_unit,
+                    ),
+                    SweepVariable(
+                        name=str(condition.sweep_variable), values=primary_vals, unit=var_unit
+                    ),
                 ]
                 grid_shp = (len(sec_vals), len(primary_vals))
             else:
                 sweep_vars = [
-                    SweepVariable(name=str(condition.sweep_variable), values=primary_vals, unit=var_unit)
+                    SweepVariable(
+                        name=str(condition.sweep_variable), values=primary_vals, unit=var_unit
+                    )
                 ]
                 grid_shp = (len(primary_vals),)
 
@@ -536,9 +561,7 @@ class AeroSandboxEngine(AeroEngine):
                     condition=cond,
                     xyz_ref=mass_cg,
                     control_encoding=(
-                        "airfoil"
-                        if stability_method == AnalysisMethod.VLM
-                        else "native"
+                        "airfoil" if stability_method == AnalysisMethod.VLM else "native"
                     ),
                 ),
                 method=stability_method,
@@ -590,9 +613,7 @@ class AeroSandboxEngine(AeroEngine):
                     "failed_points": len(polar_points) - len(converged_points),
                     "complete": len(converged_points) == len(polar_points),
                 },
-                "stability_status": (
-                    "available" if stab_derivatives is not None else "failed"
-                ),
+                "stability_status": ("available" if stab_derivatives is not None else "failed"),
                 "stability_error": stability_error,
             },
         )
@@ -604,9 +625,7 @@ class AeroSandboxEngine(AeroEngine):
     ) -> ControlChannelAnalysis | None:
         """Fit coefficient-per-degree effectiveness from converged channel-sweep points."""
         samples = [
-            point
-            for point in points
-            if point.converged and channel in point.control_deflections
+            point for point in points if point.converged and channel in point.control_deflections
         ]
         if len(samples) < 2:
             return None
@@ -629,10 +648,13 @@ class AeroSandboxEngine(AeroEngine):
         linearity: dict[str, float] = {}
         for coefficient, y_values in coefficient_values.items():
             y_mean = sum(y_values) / len(y_values)
-            slope = sum(
-                (x_value - x_mean) * (y_value - y_mean)
-                for x_value, y_value in zip(x_values, y_values)
-            ) / denominator
+            slope = (
+                sum(
+                    (x_value - x_mean) * (y_value - y_mean)
+                    for x_value, y_value in zip(x_values, y_values)
+                )
+                / denominator
+            )
             intercept = y_mean - slope * x_mean
             residual = sum(
                 (y_value - (intercept + slope * x_value)) ** 2
@@ -668,8 +690,7 @@ class AeroSandboxEngine(AeroEngine):
             )
             result = WeightBalanceSolver().evaluate(project)
             has_missing_mass = any(
-                "mass is missing; component excluded" in warning
-                for warning in result.warnings
+                "mass is missing; component excluded" in warning for warning in result.warnings
             )
             source = "weight_balance_incomplete" if has_missing_mass else "weight_balance"
             return tuple(float(value) for value in result.total.cg_body_m), source
@@ -774,12 +795,19 @@ class AeroSandboxEngine(AeroEngine):
             params = comp.get("parameters") if isinstance(comp.get("parameters"), dict) else {}
 
             # Extract diameter in meters
-            diameter_val = float(params.get("diameter") or params.get("propeller_diameter") or params.get("rotor_diameter") or 0.0)
+            diameter_val = float(
+                params.get("diameter")
+                or params.get("propeller_diameter")
+                or params.get("rotor_diameter")
+                or 0.0
+            )
             if diameter_val > 5.0:  # Value given in mm
                 diameter_val /= 1000.0
 
             pitch_val = float(params.get("pitch") or params.get("propeller_pitch") or 0.0)
-            rot_dir = str(params.get("rotation_direction") or params.get("direction") or "CW").upper()
+            rot_dir = str(
+                params.get("rotation_direction") or params.get("direction") or "CW"
+            ).upper()
             max_thrust = float(params.get("max_thrust") or params.get("thrust") or 0.0)
             kv = float(params.get("kv") or params.get("motor_kv") or 0.0)
 
@@ -838,11 +866,13 @@ class AeroSandboxEngine(AeroEngine):
         rot = transform.get("rotation")
         rot = rot if isinstance(rot, dict) else {}
 
-        local_pos = np.array([
-            float(pos.get("x", 0.0)) / 1000.0,
-            float(pos.get("y", 0.0)) / 1000.0,
-            float(pos.get("z", 0.0)) / 1000.0,
-        ])
+        local_pos = np.array(
+            [
+                float(pos.get("x", 0.0)) / 1000.0,
+                float(pos.get("y", 0.0)) / 1000.0,
+                float(pos.get("z", 0.0)) / 1000.0,
+            ]
+        )
         roll_deg = float(rot.get("roll") if "roll" in rot else rot.get("x", 0.0))
         pitch_deg = float(rot.get("pitch") if "pitch" in rot else rot.get("y", 0.0))
         yaw_deg = float(rot.get("yaw") if "yaw" in rot else rot.get("z", 0.0))
@@ -900,11 +930,13 @@ class AeroSandboxEngine(AeroEngine):
             prof_pos = profile.get("position") if isinstance(profile.get("position"), dict) else {}
             prof_rot = profile.get("rotation") if isinstance(profile.get("rotation"), dict) else {}
 
-            raw_xyz = np.array([
-                float(prof_pos.get("x", 0.0)) / 1000.0,
-                float(prof_pos.get("y", 0.0)) / 1000.0,
-                float(prof_pos.get("z", 0.0)) / 1000.0,
-            ])
+            raw_xyz = np.array(
+                [
+                    float(prof_pos.get("x", 0.0)) / 1000.0,
+                    float(prof_pos.get("y", 0.0)) / 1000.0,
+                    float(prof_pos.get("z", 0.0)) / 1000.0,
+                ]
+            )
             xyz_le = attach_rot @ raw_xyz + attach_pos
             xyz_le_left = left_attach_rot @ raw_xyz + left_attach_pos
             chord = float(profile.get("chord", 100.0)) / 1000.0
@@ -923,14 +955,16 @@ class AeroSandboxEngine(AeroEngine):
             airfoil_spec = profile.get("airfoil")
             airfoil = self._resolve_airfoil(airfoil_spec, shaping=geometry.get("airfoil_shaping"))
 
-            station_raw.append({
-                "local_y": float(prof_pos.get("y", 0.0)),
-                "xyz_le": xyz_le,
-                "xyz_le_left": xyz_le_left,
-                "chord": max(chord, 1e-4),
-                "twist": total_twist,
-                "airfoil": airfoil,
-            })
+            station_raw.append(
+                {
+                    "local_y": float(prof_pos.get("y", 0.0)),
+                    "xyz_le": xyz_le,
+                    "xyz_le_left": xyz_le_left,
+                    "chord": max(chord, 1e-4),
+                    "twist": total_twist,
+                    "airfoil": airfoil,
+                }
+            )
 
         if len(station_raw) < 2:
             return None
@@ -962,11 +996,21 @@ class AeroSandboxEngine(AeroEngine):
                 if not isinstance(other, dict):
                     continue
                 if other.get("type") == "org.setuav.core:control-surface":
-                    parent_id = other.get("parent") or other.get("attach_to") or (
-                        other.get("transform", {}).get("parent") if isinstance(other.get("transform"), dict) else None
+                    parent_id = (
+                        other.get("parent")
+                        or other.get("attach_to")
+                        or (
+                            other.get("transform", {}).get("parent")
+                            if isinstance(other.get("transform"), dict)
+                            else None
+                        )
                     )
                     if str(parent_id) == comp_id:
-                        other_geom = other.get("parameters", {}).get("geometry", {}) if isinstance(other.get("parameters"), dict) else {}
+                        other_geom = (
+                            other.get("parameters", {}).get("geometry", {})
+                            if isinstance(other.get("parameters"), dict)
+                            else {}
+                        )
                         cs_copy = deepcopy(other_geom)
                         cs_copy.setdefault("tag", other.get("name") or other.get("id"))
                         cs_copy.setdefault("id", other.get("id"))
@@ -974,19 +1018,36 @@ class AeroSandboxEngine(AeroEngine):
                         cs_list.append(cs_copy)
 
         # Check if the lifting surface itself has control tags (e.g. tags: ["elevator"], tags: ["rudder"], tags: ["ruddervator"])
-        comp_tags = [str(t).lower() for t in comp.get("parameters", {}).get("tags", [])] if isinstance(comp.get("parameters"), dict) else []
+        comp_tags = (
+            [str(t).lower() for t in comp.get("parameters", {}).get("tags", [])]
+            if isinstance(comp.get("parameters"), dict)
+            else []
+        )
         if not cs_list:
-            for tag_candidate in ("elevator", "rudder", "aileron", "flap", "elevon", "ruddervator", "vtail", "v-tail"):
+            for tag_candidate in (
+                "elevator",
+                "rudder",
+                "aileron",
+                "flap",
+                "elevon",
+                "ruddervator",
+                "vtail",
+                "v-tail",
+            ):
                 if tag_candidate in comp_tags:
                     is_rv_comp = tag_candidate in ("ruddervator", "vtail", "v-tail")
-                    cs_list.append({
-                        "tag": "ruddervator" if is_rv_comp else tag_candidate,
-                        "type": "ruddervator" if is_rv_comp else tag_candidate,
-                        "eta_start": 0.0,
-                        "eta_end": 1.0,
-                        "chord_fraction": 0.35,
-                        "symmetry_mode": "symmetric" if tag_candidate not in ("aileron", "elevon") else "antisymmetric",
-                    })
+                    cs_list.append(
+                        {
+                            "tag": "ruddervator" if is_rv_comp else tag_candidate,
+                            "type": "ruddervator" if is_rv_comp else tag_candidate,
+                            "eta_start": 0.0,
+                            "eta_end": 1.0,
+                            "chord_fraction": 0.35,
+                            "symmetry_mode": "symmetric"
+                            if tag_candidate not in ("aileron", "elevon")
+                            else "antisymmetric",
+                        }
+                    )
 
         # Parse control surface definitions
         parsed_cs: list[dict[str, Any]] = []
@@ -1097,27 +1158,31 @@ class AeroSandboxEngine(AeroEngine):
                 chord_at_mid = float(station_raw[0]["chord"])
                 for s0, s1 in zip(station_raw[:-1], station_raw[1:]):
                     if s0["eta"] <= eta_mid <= s1["eta"]:
-                        t_mid = float(np.clip(
-                            (eta_mid - s0["eta"]) / max(s1["eta"] - s0["eta"], 1e-9),
-                            0.0,
-                            1.0,
-                        ))
+                        t_mid = float(
+                            np.clip(
+                                (eta_mid - s0["eta"]) / max(s1["eta"] - s0["eta"], 1e-9),
+                                0.0,
+                                1.0,
+                            )
+                        )
                         chord_at_mid = (1.0 - t_mid) * s0["chord"] + t_mid * s1["chord"]
                         break
                 chord_frac = c_val / max(chord_at_mid, 0.01)
             chord_frac = float(np.clip(chord_frac, 0.05, 0.95))
 
-            parsed_cs.append({
-                "tag": tag,
-                "type": cs_type_enum.value,
-                "symmetry_mode": symmetry_mode,
-                "eta_start": eta_s,
-                "eta_end": eta_e,
-                "chord_fraction": chord_frac,
-                "delta_r": delta_r,
-                "delta_l": delta_l,
-                "include_left": symmetry_mode != "none",
-            })
+            parsed_cs.append(
+                {
+                    "tag": tag,
+                    "type": cs_type_enum.value,
+                    "symmetry_mode": symmetry_mode,
+                    "eta_start": eta_s,
+                    "eta_end": eta_e,
+                    "chord_fraction": chord_frac,
+                    "delta_r": delta_r,
+                    "delta_l": delta_l,
+                    "include_left": symmetry_mode != "none",
+                }
+            )
 
         # Discretize spanwise breakpoints
         unique_etas = sorted({round(s["eta"], 4) for s in station_raw})
@@ -1132,16 +1197,32 @@ class AeroSandboxEngine(AeroEngine):
             for idx in range(len(station_raw) - 1):
                 s0 = station_raw[idx]
                 s1 = station_raw[idx + 1]
-                if s0["eta"] <= eta_val <= s1["eta"] or math.isclose(eta_val, s0["eta"], abs_tol=1e-4) or math.isclose(eta_val, s1["eta"], abs_tol=1e-4):
+                if (
+                    s0["eta"] <= eta_val <= s1["eta"]
+                    or math.isclose(eta_val, s0["eta"], abs_tol=1e-4)
+                    or math.isclose(eta_val, s1["eta"], abs_tol=1e-4)
+                ):
                     d_eta = max(s1["eta"] - s0["eta"], 1e-6)
                     t = float(np.clip((eta_val - s0["eta"]) / d_eta, 0.0, 1.0))
                     xyz = (1.0 - t) * s0[xyz_key] + t * s1[xyz_key]
                     chord_v = (1.0 - t) * s0["chord"] + t * s1["chord"]
                     twist_v = (1.0 - t) * s0["twist"] + t * s1["twist"]
                     af = s0["airfoil"] if t < 0.5 else s1["airfoil"]
-                    return {"xyz_le": xyz, "chord": chord_v, "twist": twist_v, "airfoil": af, "eta": eta_val}
+                    return {
+                        "xyz_le": xyz,
+                        "chord": chord_v,
+                        "twist": twist_v,
+                        "airfoil": af,
+                        "eta": eta_val,
+                    }
             last = station_raw[-1]
-            return {"xyz_le": last[xyz_key], "chord": last["chord"], "twist": last["twist"], "airfoil": last["airfoil"], "eta": eta_val}
+            return {
+                "xyz_le": last[xyz_key],
+                "chord": last["chord"],
+                "twist": last["twist"],
+                "airfoil": last["airfoil"],
+                "eta": eta_val,
+            }
 
         evaluated_stations = [interp_station(e, "right") for e in unique_etas]
         evaluated_stations_left = [interp_station(e, "left") for e in unique_etas]
@@ -1353,11 +1434,13 @@ class AeroSandboxEngine(AeroEngine):
                 sec_prof = sec.get("profile")
                 sec_prof = sec_prof if isinstance(sec_prof, dict) else {}
 
-                raw_xyz = np.array([
-                    float(sec_pos.get("x", 0.0)) / 1000.0,
-                    float(sec_pos.get("y", 0.0)) / 1000.0,
-                    float(sec_pos.get("z", 0.0)) / 1000.0,
-                ])
+                raw_xyz = np.array(
+                    [
+                        float(sec_pos.get("x", 0.0)) / 1000.0,
+                        float(sec_pos.get("y", 0.0)) / 1000.0,
+                        float(sec_pos.get("z", 0.0)) / 1000.0,
+                    ]
+                )
                 xyz_c = base_rot @ raw_xyz + base_pos
 
                 p_type = str(sec_prof.get("type", "circle")).lower()
@@ -1365,9 +1448,19 @@ class AeroSandboxEngine(AeroEngine):
 
                 sec_rot_data = sec.get("rotation")
                 sec_rot_data = sec_rot_data if isinstance(sec_rot_data, dict) else {}
-                sec_roll = float(sec_rot_data.get("roll") if "roll" in sec_rot_data else sec_rot_data.get("x", 0.0))
-                sec_pitch = float(sec_rot_data.get("pitch") if "pitch" in sec_rot_data else sec_rot_data.get("y", 0.0))
-                sec_yaw = float(sec_rot_data.get("yaw") if "yaw" in sec_rot_data else sec_rot_data.get("z", 0.0))
+                sec_roll = float(
+                    sec_rot_data.get("roll")
+                    if "roll" in sec_rot_data
+                    else sec_rot_data.get("x", 0.0)
+                )
+                sec_pitch = float(
+                    sec_rot_data.get("pitch")
+                    if "pitch" in sec_rot_data
+                    else sec_rot_data.get("y", 0.0)
+                )
+                sec_yaw = float(
+                    sec_rot_data.get("yaw") if "yaw" in sec_rot_data else sec_rot_data.get("z", 0.0)
+                )
                 sec_rot = self._rotation_matrix_xyz(sec_roll, sec_pitch, sec_yaw)
                 xyz_normal = base_rot @ sec_rot @ np.array([1.0, 0.0, 0.0])
                 normal_norm = float(np.linalg.norm(xyz_normal))
@@ -1380,7 +1473,11 @@ class AeroSandboxEngine(AeroEngine):
                         width=max(w, 1e-4),
                         height=max(h, 1e-4),
                         shape=float(shape),
-                        xyz_normal=[float(xyz_normal[0]), float(xyz_normal[1]), float(xyz_normal[2])],
+                        xyz_normal=[
+                            float(xyz_normal[0]),
+                            float(xyz_normal[1]),
+                            float(xyz_normal[2]),
+                        ],
                         analysis_specific_options={
                             "setuav": {
                                 "profile_type": p_type,
@@ -1446,7 +1543,11 @@ class AeroSandboxEngine(AeroEngine):
                 ys = [float(v.get("y", 0.0)) for v in vertices if isinstance(v, dict)]
                 zs = [float(v.get("z", 0.0)) for v in vertices if isinstance(v, dict)]
                 if ys and zs:
-                    return max((max(ys) - min(ys)) / 1000.0, 1e-4), max((max(zs) - min(zs)) / 1000.0, 1e-4), 1.05
+                    return (
+                        max((max(ys) - min(ys)) / 1000.0, 1e-4),
+                        max((max(zs) - min(zs)) / 1000.0, 1e-4),
+                        1.05,
+                    )
 
         width = float(profile.get("width", 100.0)) / 1000.0
         height = float(profile.get("height", 100.0)) / 1000.0
@@ -1525,7 +1626,9 @@ class AeroSandboxEngine(AeroEngine):
         try:
             return asb.Airfoil(name=name, coordinates=coords_arr)
         except Exception as exc:
-            logger.warning("Could not construct custom coordinate asb.Airfoil for '%s': %s", name, exc)
+            logger.warning(
+                "Could not construct custom coordinate asb.Airfoil for '%s': %s", name, exc
+            )
             return asb.Airfoil("naca0012")
 
     @staticmethod

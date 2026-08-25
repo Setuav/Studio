@@ -1,4 +1,5 @@
 """Analytical solver for electric propulsion system equilibrium and performance sweeps."""
+
 from __future__ import annotations
 
 import logging
@@ -198,19 +199,21 @@ class PropulsionSolverEngine:
             eta_tots.append(pt.eta_sys)
             eta_props.append(pt.eta_p)
             eta_mots.append(pt.eta_m)
-            sweep_rows.append({
-                "x_val": curr_v,
-                "x_label": "Airspeed (m/s)",
-                "rpm": pt.rpm,
-                "thrust": pt.thrust,
-                "power": pt.power,
-                "current": pt.current,
-                "eta_sys": pt.eta_sys,
-                "eta_p": pt.eta_p,
-                "eta_m": pt.eta_m,
-                "j": pt.j,
-                "feasible": pt.feasible,
-            })
+            sweep_rows.append(
+                {
+                    "x_val": curr_v,
+                    "x_label": "Airspeed (m/s)",
+                    "rpm": pt.rpm,
+                    "thrust": pt.thrust,
+                    "power": pt.power,
+                    "current": pt.current,
+                    "eta_sys": pt.eta_sys,
+                    "eta_p": pt.eta_p,
+                    "eta_m": pt.eta_m,
+                    "j": pt.j,
+                    "feasible": pt.feasible,
+                }
+            )
 
         cruise_idx = min(len(x_vals) - 1, max(0, int(len(x_vals) * 0.5)))
         cruise_power = max(powers[cruise_idx], 1e-3)
@@ -235,7 +238,9 @@ class PropulsionSolverEngine:
             "cruise_thrust": thrusts[cruise_idx] if thrusts else 0.0,
             "cruise_efficiency": eta_tots[cruise_idx] if eta_tots else 0.0,
             "endurance_min": endurance_min,
-            "advance_ratio": (x_vals[cruise_idx] / max((rpms[cruise_idx] / 60.0) * prop_spec.diameter_m, 1e-3)),
+            "advance_ratio": (
+                x_vals[cruise_idx] / max((rpms[cruise_idx] / 60.0) * prop_spec.diameter_m, 1e-3)
+            ),
             "prop_efficiency": eta_props[cruise_idx],
             "motor_efficiency": eta_mots[cruise_idx],
             "voltage_loaded": total_voltage - currents[cruise_idx] * 0.02,
@@ -297,19 +302,21 @@ class PropulsionSolverEngine:
             eta_tots.append(pt.eta_sys)
             eta_props.append(pt.eta_p)
             eta_mots.append(pt.eta_m)
-            sweep_rows.append({
-                "x_val": curr_t,
-                "x_label": "Throttle (%)",
-                "rpm": pt.rpm,
-                "thrust": pt.thrust,
-                "power": pt.power,
-                "current": pt.current,
-                "eta_sys": pt.eta_sys,
-                "eta_p": pt.eta_p,
-                "eta_m": pt.eta_m,
-                "j": pt.j,
-                "feasible": pt.feasible,
-            })
+            sweep_rows.append(
+                {
+                    "x_val": curr_t,
+                    "x_label": "Throttle (%)",
+                    "rpm": pt.rpm,
+                    "thrust": pt.thrust,
+                    "power": pt.power,
+                    "current": pt.current,
+                    "eta_sys": pt.eta_sys,
+                    "eta_p": pt.eta_p,
+                    "eta_m": pt.eta_m,
+                    "j": pt.j,
+                    "feasible": pt.feasible,
+                }
+            )
 
         cruise_idx = len(x_vals) - 1
         cruise_power = max(powers[cruise_idx], 1e-3)
@@ -334,7 +341,9 @@ class PropulsionSolverEngine:
             "cruise_thrust": thrusts[cruise_idx] if thrusts else 0.0,
             "cruise_efficiency": eta_tots[cruise_idx] if eta_tots else 0.0,
             "endurance_min": endurance_min,
-            "advance_ratio": (v_fixed / max((rpms[cruise_idx] / 60.0) * prop_spec.diameter_m, 1e-3)),
+            "advance_ratio": (
+                v_fixed / max((rpms[cruise_idx] / 60.0) * prop_spec.diameter_m, 1e-3)
+            ),
             "prop_efficiency": eta_props[cruise_idx],
             "motor_efficiency": eta_mots[cruise_idx],
             "voltage_loaded": total_voltage - currents[cruise_idx] * 0.02,
@@ -378,19 +387,21 @@ class PropulsionSolverEngine:
         batt_wh = total_voltage * capacity_mah / 1000.0
         endurance_min = (batt_wh * 0.8 / cruise_power) * 60.0
 
-        sweep_rows = [{
-            "x_val": v_val,
-            "x_label": "Airspeed (m/s)",
-            "rpm": pt.rpm,
-            "thrust": pt.thrust,
-            "power": pt.power,
-            "current": pt.current,
-            "eta_sys": pt.eta_sys,
-            "eta_p": pt.eta_p,
-            "eta_m": pt.eta_m,
-            "j": pt.j,
-            "feasible": pt.feasible,
-        }]
+        sweep_rows = [
+            {
+                "x_val": v_val,
+                "x_label": "Airspeed (m/s)",
+                "rpm": pt.rpm,
+                "thrust": pt.thrust,
+                "power": pt.power,
+                "current": pt.current,
+                "eta_sys": pt.eta_sys,
+                "eta_p": pt.eta_p,
+                "eta_m": pt.eta_m,
+                "j": pt.j,
+                "feasible": pt.feasible,
+            }
+        ]
 
         return {
             "mode": "operating_point",

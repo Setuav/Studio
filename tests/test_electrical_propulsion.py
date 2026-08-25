@@ -45,7 +45,9 @@ class TestElectricalPropulsion(unittest.TestCase):
         doc = open_project(TEST_PROJECT_PATH)
         api.set_project(doc)
 
-        motor_comp = next(c for c in doc.data["components"] if c.get("type") == "org.setuav.core:motor")
+        motor_comp = next(
+            c for c in doc.data["components"] if c.get("type") == "org.setuav.core:motor"
+        )
         editor = MotorEditor(api, motor_comp)
 
         self.assertEqual(editor._property_text(editor.general_table, 0), motor_comp.get("name"))
@@ -64,7 +66,9 @@ class TestElectricalPropulsion(unittest.TestCase):
         doc = open_project(TEST_PROJECT_PATH)
         api.set_project(doc)
 
-        battery_comp = next(c for c in doc.data["components"] if c.get("type") == "org.setuav.core:battery")
+        battery_comp = next(
+            c for c in doc.data["components"] if c.get("type") == "org.setuav.core:battery"
+        )
         editor = BatteryEditor(api, battery_comp)
 
         self.assertEqual(editor._property_text(editor.cell_table, 0), "LiPo")
@@ -73,12 +77,9 @@ class TestElectricalPropulsion(unittest.TestCase):
         # cell mass, parallel count, and packaging mass values.
         editor.pack_table.item(0, 1).setText("6")
         params = battery_comp["parameters"]
-        expected_mass = (
-            6
-            * int(params.get("parallel_count", 1))
-            * float(params["cell_mass"])
-            + float(params.get("packaging_mass", 40.0))
-        )
+        expected_mass = 6 * int(params.get("parallel_count", 1)) * float(
+            params["cell_mass"]
+        ) + float(params.get("packaging_mass", 40.0))
         self.assertEqual(battery_comp["mass"], expected_mass)
         self.assertEqual(editor._property_text(editor.general_table, 2), f"{expected_mass:.1f}")
 
@@ -97,7 +98,9 @@ class TestElectricalPropulsion(unittest.TestCase):
         doc = open_project(TEST_PROJECT_PATH)
         api.set_project(doc)
 
-        prop_comp = next(c for c in doc.data["components"] if c.get("type") == "org.setuav.core:propeller")
+        prop_comp = next(
+            c for c in doc.data["components"] if c.get("type") == "org.setuav.core:propeller"
+        )
         editor = PropellerEditor(api, prop_comp)
 
         dia = str(prop_comp["parameters"]["diameter"])
@@ -138,8 +141,6 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertIsNotNone(dialog)
         dialog.motor_search.setText("Tiger")
         self.assertLessEqual(dialog.motor_table.rowCount(), 400)
-
-
 
     def test_propulsion_controls_and_analysis_run(self) -> None:
         from setuav_studio.plugins.core import CorePlugin
@@ -213,7 +214,9 @@ class TestElectricalPropulsion(unittest.TestCase):
         from setuav_studio.plugins.electrical_propulsion.engine import PropulsionSolverEngine
         from setuav_studio.plugins.electrical_propulsion.worker import PropulsionWorker
 
-        motor_spec = MotorSpec(kv_rpm_per_v=900.0, resistance_ohm=0.035, no_load_current_a=1.2, current_max_a=45.0)
+        motor_spec = MotorSpec(
+            kv_rpm_per_v=900.0, resistance_ohm=0.035, no_load_current_a=1.2, current_max_a=45.0
+        )
         prop_spec = PropellerSpec(diameter_m=0.3302, pitch_m=0.1651, blade_count=2)
         prop_entry = PropulsionSolverEngine.fallback_propeller(13.0, 6.5, 2)
 
@@ -323,7 +326,9 @@ class TestElectricalPropulsion(unittest.TestCase):
             PropulsionSolverEngine,
         )
 
-        motor_spec = MotorSpec(kv_rpm_per_v=900.0, resistance_ohm=0.035, no_load_current_a=1.2, current_max_a=45.0)
+        motor_spec = MotorSpec(
+            kv_rpm_per_v=900.0, resistance_ohm=0.035, no_load_current_a=1.2, current_max_a=45.0
+        )
         prop_spec = PropellerSpec(diameter_m=0.3302, pitch_m=0.1651, blade_count=2)
         prop_entry = PropulsionSolverEngine.fallback_propeller(13.0, 6.5, 2)
 
@@ -347,6 +352,7 @@ class TestElectricalPropulsion(unittest.TestCase):
 
     def _drain_events(self, iterations: int = 15) -> None:
         from PySide6.QtCore import QThreadPool
+
         QThreadPool.globalInstance().waitForDone()
         for _ in range(iterations):
             self.app.processEvents()

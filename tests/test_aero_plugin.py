@@ -1,4 +1,5 @@
 """Unit and integration tests for the Aerodynamics Plugin."""
+
 from __future__ import annotations
 
 import json
@@ -88,16 +89,18 @@ class AerodynamicsPluginTests(unittest.TestCase):
         self.assertIn("aerodynamics.results_dock", panel_ids)
         self.assertIn("aerodynamics.charts_dock", panel_ids)
         self.assertNotIn("aerodynamics.aero_3d", panel_ids)
-        self.assertTrue(any(
-            action.menu == "Tools/Aerodynamics"
-            and action.title == "AeroSandbox 3D Snapshot…"
-            for action in self.actions
-        ))
-        self.assertTrue(any(
-            action.menu == "Tools/Aerodynamics"
-            and action.title == "Airfoil Analysis…"
-            for action in self.actions
-        ))
+        self.assertTrue(
+            any(
+                action.menu == "Tools/Aerodynamics" and action.title == "AeroSandbox 3D Snapshot…"
+                for action in self.actions
+            )
+        )
+        self.assertTrue(
+            any(
+                action.menu == "Tools/Aerodynamics" and action.title == "Airfoil Analysis…"
+                for action in self.actions
+            )
+        )
 
     def test_legacy_result_schema_migrates_to_current_model(self) -> None:
         legacy_point = PolarPoint(
@@ -109,16 +112,18 @@ class AerodynamicsPluginTests(unittest.TestCase):
         ).to_dict()
         extension = {
             "results_version": 1,
-            "results": [{
-                "id": "legacy",
-                "result": {
-                    "method": "comprehensive",
-                    "engine_name": "AeroSandbox",
-                    "polar_points": [],
-                    "beta_polar_points": [legacy_point],
-                    "solver_results": {"vlm": [legacy_point]},
-                },
-            }],
+            "results": [
+                {
+                    "id": "legacy",
+                    "result": {
+                        "method": "comprehensive",
+                        "engine_name": "AeroSandbox",
+                        "polar_points": [],
+                        "beta_polar_points": [legacy_point],
+                        "solver_results": {"vlm": [legacy_point]},
+                    },
+                }
+            ],
         }
 
         self.assertTrue(migrate_analysis_extension(extension))
@@ -140,15 +145,17 @@ class AerodynamicsPluginTests(unittest.TestCase):
                 "extensions": {
                     "org.setuav.studio.aerodynamics": {
                         "results_version": 1,
-                        "results": [{
-                            "id": "legacy",
-                            "result": {
-                                "method": "comprehensive",
-                                "polar_points": [],
-                                "beta_polar_points": [legacy_point],
-                                "solver_results": {},
-                            },
-                        }],
+                        "results": [
+                            {
+                                "id": "legacy",
+                                "result": {
+                                    "method": "comprehensive",
+                                    "polar_points": [],
+                                    "beta_polar_points": [legacy_point],
+                                    "solver_results": {},
+                                },
+                            }
+                        ],
                     }
                 }
             },
@@ -213,17 +220,19 @@ class AerodynamicsPluginTests(unittest.TestCase):
         self.assertEqual(tool.results_table.columnCount(), 7)
         self.assertIsNone(self.api.current_project)
 
-        tool._populate_results([
-            {
-                "alpha": 2.0,
-                "cl": 0.5,
-                "cd": 0.025,
-                "cm": -0.04,
-                "ld": 20.0,
-                "top_xtr": 0.4,
-                "bot_xtr": 0.6,
-            }
-        ])
+        tool._populate_results(
+            [
+                {
+                    "alpha": 2.0,
+                    "cl": 0.5,
+                    "cd": 0.025,
+                    "cm": -0.04,
+                    "ld": 20.0,
+                    "top_xtr": 0.4,
+                    "bot_xtr": 0.6,
+                }
+            ]
+        )
         self.assertEqual(tool.results_table.rowCount(), 1)
         self.assertEqual(tool.results_table.item(0, 0).text(), "2")
         tool.close()
@@ -365,10 +374,52 @@ class AerodynamicsPluginTests(unittest.TestCase):
             method=AnalysisMethod.AERO_BUILDUP,
             engine_name="AeroSandbox",
             polar_points=[
-                PolarPoint(alpha=-4.0, cl=-0.1, cd=0.012, cm=0.01, cy=0.0, cl_roll=0.0, cn=0.0, cl_over_cd=-8.3, raw={"_sweep_group": "alpha"}),
-                PolarPoint(alpha=8.0, cl=1.1, cd=0.055, cm=-0.09, cy=0.0, cl_roll=0.0, cn=0.0, cl_over_cd=20.0, raw={"_sweep_group": "alpha"}),
-                PolarPoint(alpha=2.0, beta=-6.0, cl=0.5, cd=0.02, cm=-0.04, cy=-0.15, cl_roll=-0.02, cn=0.03, cl_over_cd=25.0, raw={"_sweep_group": "beta"}),
-                PolarPoint(alpha=2.0, beta=6.0, cl=0.5, cd=0.02, cm=-0.04, cy=0.15, cl_roll=0.02, cn=-0.03, cl_over_cd=25.0, raw={"_sweep_group": "beta"}),
+                PolarPoint(
+                    alpha=-4.0,
+                    cl=-0.1,
+                    cd=0.012,
+                    cm=0.01,
+                    cy=0.0,
+                    cl_roll=0.0,
+                    cn=0.0,
+                    cl_over_cd=-8.3,
+                    raw={"_sweep_group": "alpha"},
+                ),
+                PolarPoint(
+                    alpha=8.0,
+                    cl=1.1,
+                    cd=0.055,
+                    cm=-0.09,
+                    cy=0.0,
+                    cl_roll=0.0,
+                    cn=0.0,
+                    cl_over_cd=20.0,
+                    raw={"_sweep_group": "alpha"},
+                ),
+                PolarPoint(
+                    alpha=2.0,
+                    beta=-6.0,
+                    cl=0.5,
+                    cd=0.02,
+                    cm=-0.04,
+                    cy=-0.15,
+                    cl_roll=-0.02,
+                    cn=0.03,
+                    cl_over_cd=25.0,
+                    raw={"_sweep_group": "beta"},
+                ),
+                PolarPoint(
+                    alpha=2.0,
+                    beta=6.0,
+                    cl=0.5,
+                    cd=0.02,
+                    cm=-0.04,
+                    cy=0.15,
+                    cl_roll=0.02,
+                    cn=-0.03,
+                    cl_over_cd=25.0,
+                    raw={"_sweep_group": "beta"},
+                ),
             ],
             cl_max=1.1,
             cl_max_alpha=8.0,
@@ -503,9 +554,7 @@ class AerodynamicsPluginTests(unittest.TestCase):
     def test_controls_offer_aircraft_channels_not_surface_names(self) -> None:
         self.plugin.activate(self.api)
         controls = next(
-            panel.factory()
-            for panel in self.panels
-            if panel.id == "aerodynamics.controls_dock"
+            panel.factory() for panel in self.panels if panel.id == "aerodynamics.controls_dock"
         )
         self.api.set_project(
             ProjectDocument(
@@ -536,8 +585,7 @@ class AerodynamicsPluginTests(unittest.TestCase):
             )
         )
         channels = tuple(
-            controls.combo_ctrl.itemData(index)
-            for index in range(controls.combo_ctrl.count())
+            controls.combo_ctrl.itemData(index) for index in range(controls.combo_ctrl.count())
         )
         self.assertEqual(channels, ("elevator", "aileron", "rudder"))
         self.assertNotIn("left-elevon", channels)
@@ -625,7 +673,9 @@ class AerodynamicsPluginTests(unittest.TestCase):
         # Test delete via Delete key press
         explorer.setCurrentItem(result_item)
         with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes):
-            event = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Delete, Qt.KeyboardModifier.NoModifier)
+            event = QKeyEvent(
+                QKeyEvent.Type.KeyPress, Qt.Key.Key_Delete, Qt.KeyboardModifier.NoModifier
+            )
             explorer.keyPressEvent(event)
 
         self.assertEqual(len(analysis_entries(project)), 0)
@@ -654,7 +704,9 @@ class AerodynamicsPluginTests(unittest.TestCase):
 
         explorer.setCurrentItem(group_item)
         with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes):
-            event = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Delete, Qt.KeyboardModifier.NoModifier)
+            event = QKeyEvent(
+                QKeyEvent.Type.KeyPress, Qt.Key.Key_Delete, Qt.KeyboardModifier.NoModifier
+            )
             explorer.keyPressEvent(event)
 
         self.assertEqual(len(analysis_entries(project)), 0)
@@ -685,11 +737,13 @@ class AerodynamicsPluginTests(unittest.TestCase):
 
         menu_actions: list[str] = []
         real_qmenu = QMenu
+
         class MockMenu(real_qmenu):
             def addAction(self, *args, **kwargs):
                 action = super().addAction(*args, **kwargs)
                 menu_actions.append(action.text())
                 return action
+
             def exec(self, *args, **kwargs):
                 return None
 
@@ -700,7 +754,11 @@ class AerodynamicsPluginTests(unittest.TestCase):
         self.assertIn("Delete", menu_actions)
 
     def test_project_tree_delete_key_deletes_component(self) -> None:
-        component = {"id": "wing_main", "name": "Main Wing", "type": "org.setuav.core:lifting-surface"}
+        component = {
+            "id": "wing_main",
+            "name": "Main Wing",
+            "type": "org.setuav.core:lifting-surface",
+        }
         project = ProjectDocument(
             path=Path("test_comp.json"),
             kind="json",
@@ -712,7 +770,9 @@ class AerodynamicsPluginTests(unittest.TestCase):
         explorer.setCurrentItem(wing_item)
 
         with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes):
-            event = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Delete, Qt.KeyboardModifier.NoModifier)
+            event = QKeyEvent(
+                QKeyEvent.Type.KeyPress, Qt.Key.Key_Delete, Qt.KeyboardModifier.NoModifier
+            )
             explorer.keyPressEvent(event)
 
         self.assertEqual(len(project.data["components"]), 0)

@@ -37,7 +37,9 @@ class AttachmentMixin:
         )
         self.attachment_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.attachment_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.attachment_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.attachment_table.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Stretch
+        )
         self.attachment_table.horizontalHeader().setFixedHeight(23)
         self.attachment_table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
         self.attachment_table.verticalHeader().setDefaultSectionSize(23)
@@ -52,9 +54,11 @@ class AttachmentMixin:
         self.attachment_table.cellChanged.connect(self._update_attachment_transform)
         layout.addWidget(self.attachment_table)
 
-        self.attachment_options_table = self._property_table([
-            ("mirror", "Symmetry / Mirror"),
-        ])
+        self.attachment_options_table = self._property_table(
+            [
+                ("mirror", "Symmetry / Mirror"),
+            ]
+        )
         layout.addWidget(self.attachment_options_table)
 
     # -------------------------------------------------------------------------

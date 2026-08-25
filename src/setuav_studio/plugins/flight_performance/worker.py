@@ -1,4 +1,5 @@
 """Background analysis worker utilizing QRunnable and QThreadPool for flight performance."""
+
 from __future__ import annotations
 
 import logging
@@ -35,6 +36,7 @@ class FlightPerformanceWorker(QRunnable):
     @Slot()
     def run(self) -> None:
         try:
+
             def on_progress(curr: int, total: int, msg: str) -> None:
                 self.signals.progress.emit(curr, total, msg)
 

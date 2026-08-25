@@ -202,11 +202,9 @@ class View2DCanvas(QWidget):
         )
 
     def _bounds(self) -> tuple[float, float, float, float] | None:
-        values = [
-            point
-            for path in self._scene.paths
-            for point in path.points
-        ] + [marker.position for marker in self._scene.markers]
+        values = [point for path in self._scene.paths for point in path.points] + [
+            marker.position for marker in self._scene.markers
+        ]
         if not values:
             return None
         xs = [point[0] for point in values] + [0.0]
@@ -368,8 +366,12 @@ class View2DCanvas(QWidget):
         painter.setPen(QPen(color, 2.0))
         painter.setBrush(color if marker.symbol == "dot" else Qt.BrushStyle.NoBrush)
         if marker.symbol == "cross":
-            painter.drawLine(QPointF(point.x() - radius, point.y()), QPointF(point.x() + radius, point.y()))
-            painter.drawLine(QPointF(point.x(), point.y() - radius), QPointF(point.x(), point.y() + radius))
+            painter.drawLine(
+                QPointF(point.x() - radius, point.y()), QPointF(point.x() + radius, point.y())
+            )
+            painter.drawLine(
+                QPointF(point.x(), point.y() - radius), QPointF(point.x(), point.y() + radius)
+            )
             painter.drawEllipse(point, radius, radius)
         elif marker.symbol == "ring":
             painter.drawEllipse(point, radius, radius)

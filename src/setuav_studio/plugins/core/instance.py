@@ -33,9 +33,7 @@ class InstanceEditor(QWidget):
 
         layout.addWidget(self._header("Instance", "instance"))
         self.properties_table = self._table(["Property", "Value"])
-        self.properties_table.setSelectionBehavior(
-            QAbstractItemView.SelectionBehavior.SelectItems
-        )
+        self.properties_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
         self.properties_table.setEditTriggers(
             QAbstractItemView.EditTrigger.DoubleClicked
             | QAbstractItemView.EditTrigger.EditKeyPressed
@@ -47,16 +45,10 @@ class InstanceEditor(QWidget):
         layout.addWidget(self._header("Transform", "mdi6.axis-arrow"))
         self.transform_table = QTableWidget(2, 3)
         self.transform_table.setHorizontalHeaderLabels(["X", "Y", "Z"])
-        self.transform_table.setVerticalHeaderLabels(
-            ["Position (mm)", "Rotation (°)"]
-        )
-        self.transform_table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.Stretch
-        )
+        self.transform_table.setVerticalHeaderLabels(["Position (mm)", "Rotation (°)"])
+        self.transform_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.transform_table.horizontalHeader().setFixedHeight(23)
-        self.transform_table.verticalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.Fixed
-        )
+        self.transform_table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
         self.transform_table.verticalHeader().setDefaultSectionSize(23)
         self.transform_table.verticalHeader().setMinimumWidth(82)
         self.transform_table.setAlternatingRowColors(True)
@@ -121,9 +113,7 @@ class InstanceEditor(QWidget):
 
             value_item = QTableWidgetItem(self._property_value(key, derivation))
             if not editable:
-                value_item.setFlags(
-                    value_item.flags() & ~Qt.ItemFlag.ItemIsEditable
-                )
+                value_item.setFlags(value_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             self.properties_table.setItem(row, 1, value_item)
 
         self._set_combo(
@@ -191,9 +181,7 @@ class InstanceEditor(QWidget):
                 return
             self._edit(
                 "Edit mirror offset",
-                lambda: self._object(self._instance, "derivation").__setitem__(
-                    "offset", offset
-                ),
+                lambda: self._object(self._instance, "derivation").__setitem__("offset", offset),
             )
 
     def _change_derivation(self, value: str) -> None:
@@ -214,9 +202,7 @@ class InstanceEditor(QWidget):
             return
         self._edit(
             "Change mirror plane",
-            lambda: self._object(self._instance, "derivation").__setitem__(
-                "plane", value
-            ),
+            lambda: self._object(self._instance, "derivation").__setitem__("plane", value),
         )
 
     def _set_transform_values(self) -> None:
@@ -246,10 +232,7 @@ class InstanceEditor(QWidget):
         try:
             for row in range(2):
                 values.append(
-                    [
-                        float(self.transform_table.item(row, column).text())
-                        for column in range(3)
-                    ]
+                    [float(self.transform_table.item(row, column).text()) for column in range(3)]
                 )
         except (AttributeError, ValueError):
             self._refresh()
@@ -258,9 +241,7 @@ class InstanceEditor(QWidget):
         def change() -> None:
             self._instance["transform"] = {
                 "position": dict(zip(("x", "y", "z"), values[0], strict=True)),
-                "rotation": dict(
-                    zip(("roll", "pitch", "yaw"), values[1], strict=True)
-                ),
+                "rotation": dict(zip(("roll", "pitch", "yaw"), values[1], strict=True)),
             }
 
         self._edit("Edit instance transform", change)

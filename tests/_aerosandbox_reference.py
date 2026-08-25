@@ -4,6 +4,7 @@ This module deliberately does not import or call the Setuav aerodynamic engine.
 Its geometry is an explicit AeroSandbox representation of the fixed-wing test
 aircraft, so it can expose regressions in Setuav's project-to-AeroSandbox adapter.
 """
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -17,16 +18,12 @@ def build_fixed_wing_reference(
     """Build the fixed-wing fixture directly with native AeroSandbox objects."""
     # The project schema treats coordinate profiles as normalized airfoil
     # shapes, regardless of the source DAT file's exact x-origin/chord.
-    source_coordinates = [
-        (float(point[0]), float(point[1]))
-        for point in clark_y_coordinates
-    ]
+    source_coordinates = [(float(point[0]), float(point[1])) for point in clark_y_coordinates]
     min_x = min(point[0] for point in source_coordinates)
     max_x = max(point[0] for point in source_coordinates)
     source_chord = max(max_x - min_x, 1e-12)
     normalized_coordinates = [
-        ((x - min_x) / source_chord, y / source_chord)
-        for x, y in source_coordinates
+        ((x - min_x) / source_chord, y / source_chord) for x, y in source_coordinates
     ]
     leading_edge_index = min(
         range(len(normalized_coordinates)),
@@ -68,10 +65,7 @@ def build_fixed_wing_reference(
 
         main_xsecs.append(
             asb.WingXSec(
-                xyz_le=[
-                    start + eta * (end - start)
-                    for start, end in zip(main_root, main_tip)
-                ],
+                xyz_le=[start + eta * (end - start) for start, end in zip(main_root, main_tip)],
                 chord=0.240 + eta * (0.180 - 0.240),
                 twist=3.0 * eta,
                 airfoil=clark_y,
@@ -104,10 +98,7 @@ def build_fixed_wing_reference(
 
         vtail_xsecs.append(
             asb.WingXSec(
-                xyz_le=[
-                    start + eta * (end - start)
-                    for start, end in zip(vtail_root, vtail_tip)
-                ],
+                xyz_le=[start + eta * (end - start) for start, end in zip(vtail_root, vtail_tip)],
                 chord=0.16382052424974758 + eta * (0.09829231454984856 - 0.16382052424974758),
                 twist=0.0,
                 airfoil=naca0012,

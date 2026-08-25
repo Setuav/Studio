@@ -1,4 +1,5 @@
 """Standalone NeuralFoil analysis tool."""
+
 from __future__ import annotations
 
 import math
@@ -78,6 +79,7 @@ class AirfoilAnalysisWorker(QObject):
             )
 
         import numpy as native_np
+
         request = self._request
         alphas = native_np.linspace(
             request.alpha_min,
@@ -305,9 +307,7 @@ class AirfoilAnalysisToolWindow(QDialog):
             return
         path = Path(file_path)
         try:
-            name, points = parse_airfoil_dat(
-                path.read_text(encoding="utf-8", errors="replace")
-            )
+            name, points = parse_airfoil_dat(path.read_text(encoding="utf-8", errors="replace"))
         except (OSError, ValueError) as error:
             QMessageBox.critical(self, "Airfoil Import", str(error))
             return

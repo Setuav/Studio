@@ -107,6 +107,7 @@ def refresh_all_button_roles(app: QApplication) -> None:
 
 def _contrasting_foreground(background: QColor) -> QColor:
     """Choose a readable near-black or near-white foreground."""
+
     def linear(channel: float) -> float:
         if channel <= 0.04045:
             return channel / 12.92

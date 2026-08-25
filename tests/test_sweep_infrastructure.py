@@ -1,4 +1,5 @@
 """Unit tests for parametric sweep infrastructure (Alpha, Beta, Control Deflections, Velocity, Altitude, and Multi-grids)."""
+
 from __future__ import annotations
 
 import unittest
@@ -112,9 +113,19 @@ class TestParametricSweeps(unittest.TestCase):
                     "geometry": {
                         "mirror": True,
                         "profiles": [
-                            {"position": {"x": 0, "y": 0, "z": 0}, "chord": 200, "twist": 0, "airfoil": "naca2412"},
-                            {"position": {"x": 30, "y": 500, "z": 0}, "chord": 140, "twist": 0, "airfoil": "naca2412"},
-                        ]
+                            {
+                                "position": {"x": 0, "y": 0, "z": 0},
+                                "chord": 200,
+                                "twist": 0,
+                                "airfoil": "naca2412",
+                            },
+                            {
+                                "position": {"x": 30, "y": 500, "z": 0},
+                                "chord": 140,
+                                "twist": 0,
+                                "airfoil": "naca2412",
+                            },
+                        ],
                     }
                 },
             },
@@ -127,10 +138,20 @@ class TestParametricSweeps(unittest.TestCase):
                     "geometry": {
                         "mirror": True,
                         "profiles": [
-                            {"position": {"x": 500, "y": 0, "z": 50}, "chord": 100, "twist": 0, "airfoil": "naca0012"},
-                            {"position": {"x": 520, "y": 180, "z": 50}, "chord": 80, "twist": 0, "airfoil": "naca0012"},
-                        ]
-                    }
+                            {
+                                "position": {"x": 500, "y": 0, "z": 50},
+                                "chord": 100,
+                                "twist": 0,
+                                "airfoil": "naca0012",
+                            },
+                            {
+                                "position": {"x": 520, "y": 180, "z": 50},
+                                "chord": 80,
+                                "twist": 0,
+                                "airfoil": "naca0012",
+                            },
+                        ],
+                    },
                 },
             },
             {
@@ -142,10 +163,20 @@ class TestParametricSweeps(unittest.TestCase):
                     "geometry": {
                         "mirror": False,
                         "profiles": [
-                            {"position": {"x": 480, "y": 0, "z": 0}, "chord": 120, "twist": 0, "airfoil": "naca0012"},
-                            {"position": {"x": 510, "y": 0, "z": 150}, "chord": 80, "twist": 0, "airfoil": "naca0012"},
-                        ]
-                    }
+                            {
+                                "position": {"x": 480, "y": 0, "z": 0},
+                                "chord": 120,
+                                "twist": 0,
+                                "airfoil": "naca0012",
+                            },
+                            {
+                                "position": {"x": 510, "y": 0, "z": 150},
+                                "chord": 80,
+                                "twist": 0,
+                                "airfoil": "naca0012",
+                            },
+                        ],
+                    },
                 },
             },
         ]
@@ -199,7 +230,7 @@ class TestParametricSweeps(unittest.TestCase):
         self.assertGreater(res.control_analysis.linearity_r2["Cm"], 0.9)
         # Elevator deflection down (+10 deg) causes nose-down pitch (negative Cm)
         # Elevator deflection up (-10 deg) causes nose-up pitch (positive Cm)
-        cm_up = res.polar_points[0].cm    # delta_e = -10 deg
+        cm_up = res.polar_points[0].cm  # delta_e = -10 deg
         cm_down = res.polar_points[-1].cm  # delta_e = +10 deg
         self.assertGreater(cm_up, cm_down)
 

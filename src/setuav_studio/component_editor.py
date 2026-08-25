@@ -184,7 +184,9 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
                         )
                     else:
                         if field.field_type is float:
-                            str_val = f"{float(val):.{field.decimals}f}" if val is not None else "0.0"
+                            str_val = (
+                                f"{float(val):.{field.decimals}f}" if val is not None else "0.0"
+                            )
                         else:
                             str_val = str(val if val is not None else "")
                         self._set_property_value(self.parameters_table, field.key, str_val)

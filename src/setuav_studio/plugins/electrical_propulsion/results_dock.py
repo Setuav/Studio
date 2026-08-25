@@ -57,15 +57,17 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
         summary_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         summary_layout.setSpacing(6)
 
-        self.summary_table = self._property_table([
-            ("static_thrust", "Static Thrust"),
-            ("peak_power", "Peak Electrical Power"),
-            ("peak_current", "Peak Current"),
-            ("max_rpm", "Max Motor Speed"),
-            ("cruise_thrust", "Cruise Thrust"),
-            ("cruise_efficiency", "Cruise Efficiency"),
-            ("endurance", "Est. Flight Endurance"),
-        ])
+        self.summary_table = self._property_table(
+            [
+                ("static_thrust", "Static Thrust"),
+                ("peak_power", "Peak Electrical Power"),
+                ("peak_current", "Peak Current"),
+                ("max_rpm", "Max Motor Speed"),
+                ("cruise_thrust", "Cruise Thrust"),
+                ("cruise_efficiency", "Cruise Efficiency"),
+                ("endurance", "Est. Flight Endurance"),
+            ]
+        )
         summary_layout.addWidget(self.summary_table)
         summary_layout.addStretch(1)
 
@@ -135,19 +137,31 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
     def set_results(self, data: dict[str, Any]) -> None:
         # 1. Update Summary Table
         if "static_thrust" in data:
-            self._set_property_value(self.summary_table, "static_thrust", f"{data['static_thrust']:.2f} N")
+            self._set_property_value(
+                self.summary_table, "static_thrust", f"{data['static_thrust']:.2f} N"
+            )
         if "peak_power" in data:
-            self._set_property_value(self.summary_table, "peak_power", f"{data['peak_power']:.1f} W")
+            self._set_property_value(
+                self.summary_table, "peak_power", f"{data['peak_power']:.1f} W"
+            )
         if "peak_current" in data:
-            self._set_property_value(self.summary_table, "peak_current", f"{data['peak_current']:.1f} A")
+            self._set_property_value(
+                self.summary_table, "peak_current", f"{data['peak_current']:.1f} A"
+            )
         if "max_rpm" in data:
             self._set_property_value(self.summary_table, "max_rpm", f"{data['max_rpm']:.0f} RPM")
         if "cruise_thrust" in data:
-            self._set_property_value(self.summary_table, "cruise_thrust", f"{data['cruise_thrust']:.2f} N")
+            self._set_property_value(
+                self.summary_table, "cruise_thrust", f"{data['cruise_thrust']:.2f} N"
+            )
         if "cruise_efficiency" in data:
-            self._set_property_value(self.summary_table, "cruise_efficiency", f"{data['cruise_efficiency'] * 100:.1f} %")
+            self._set_property_value(
+                self.summary_table, "cruise_efficiency", f"{data['cruise_efficiency'] * 100:.1f} %"
+            )
         if "endurance_min" in data:
-            self._set_property_value(self.summary_table, "endurance", f"{data['endurance_min']:.1f} min")
+            self._set_property_value(
+                self.summary_table, "endurance", f"{data['endurance_min']:.1f} min"
+            )
 
         # 2. Update Detailed Table
         sweep_rows: list[dict[str, Any]] = data.get("sweep_table", [])
@@ -180,7 +194,7 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
             j_val = float(row.get("j", 0.0))
             feasible = bool(row.get("feasible", True))
 
-            is_best_row = (r_idx == best_eff_idx)
+            is_best_row = r_idx == best_eff_idx
             is_overcurrent = curr > max_curr_limit or not feasible
 
             # Col 0: Operating Point
@@ -261,7 +275,15 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
 
     def clear_results(self) -> None:
         self._last_data = None
-        for key in ["static_thrust", "peak_power", "peak_current", "max_rpm", "cruise_thrust", "cruise_efficiency", "endurance"]:
+        for key in [
+            "static_thrust",
+            "peak_power",
+            "peak_current",
+            "max_rpm",
+            "cruise_thrust",
+            "cruise_efficiency",
+            "endurance",
+        ]:
             self._set_property_value(self.summary_table, key, "-", editable=False)
         if hasattr(self, "detail_table"):
             self.detail_table.setRowCount(0)
@@ -272,9 +294,13 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
         if not self._last_data:
             return
 
-        is_summary = (self.tabs.currentIndex() == 0)
+        is_summary = self.tabs.currentIndex() == 0
         default_name = "propulsion_summary.csv" if is_summary else "propulsion_sweep.csv"
-        dialog_title = "Export Propulsion Summary to CSV" if is_summary else "Export Propulsion Sweep Table to CSV"
+        dialog_title = (
+            "Export Propulsion Summary to CSV"
+            if is_summary
+            else "Export Propulsion Sweep Table to CSV"
+        )
 
         file_path, _ = QFileDialog.getSaveFileName(
             self,
@@ -316,18 +342,20 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
                         x_lbl = row.get("x_label", "")
                         unit = "%" if "Throttle" in x_lbl else "m/s"
                         op_text = f"{x_val:.1f} {unit}" if unit == "m/s" else f"{x_val:.0f}%"
-                        writer.writerow([
-                            op_text,
-                            row.get("rpm", ""),
-                            f"{row.get('thrust', 0.0):.4f}",
-                            f"{row.get('power', 0.0):.2f}",
-                            f"{row.get('current', 0.0):.3f}",
-                            f"{row.get('eta_sys', 0.0):.4f}",
-                            f"{row.get('eta_p', 0.0):.4f}",
-                            f"{row.get('eta_m', 0.0):.4f}",
-                            f"{row.get('j', 0.0):.4f}",
-                            "Safe" if row.get("feasible", True) else "Overload",
-                        ])
+                        writer.writerow(
+                            [
+                                op_text,
+                                row.get("rpm", ""),
+                                f"{row.get('thrust', 0.0):.4f}",
+                                f"{row.get('power', 0.0):.2f}",
+                                f"{row.get('current', 0.0):.3f}",
+                                f"{row.get('eta_sys', 0.0):.4f}",
+                                f"{row.get('eta_p', 0.0):.4f}",
+                                f"{row.get('eta_m', 0.0):.4f}",
+                                f"{row.get('j', 0.0):.4f}",
+                                "Safe" if row.get("feasible", True) else "Overload",
+                            ]
+                        )
 
             self._api.show_status(f"Exported {default_name} to {file_path}", "success")
         except Exception as err:

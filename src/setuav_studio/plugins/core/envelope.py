@@ -113,11 +113,13 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
 
     def _create_definition_section(self) -> None:
         layout = self._create_section("Envelope", "fa6s.ruler-combined")
-        self.definition_table = self._property_table([
-            ("component", "Component"),
-            ("shape", "Shape"),
-            ("volume", "Volume"),
-        ])
+        self.definition_table = self._property_table(
+            [
+                ("component", "Component"),
+                ("shape", "Shape"),
+                ("volume", "Volume"),
+            ]
+        )
         layout.addWidget(self.definition_table)
         self._set_property_combo(
             self.definition_table,
@@ -196,9 +198,12 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
             envelope = self._envelope(component)
             if not envelope:
                 project_data = getattr(self._api.current_project, "data", {})
-                project_components = project_data.get("components", []) if isinstance(project_data, dict) else []
+                project_components = (
+                    project_data.get("components", []) if isinstance(project_data, dict) else []
+                )
                 by_id = {
-                    str(item.get("id")): item for item in project_components
+                    str(item.get("id")): item
+                    for item in project_components
                     if isinstance(item, dict) and isinstance(item.get("id"), str)
                 }
                 by_id.setdefault(str(component.get("id") or ""), component)
@@ -248,8 +253,7 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
     def _update_volume_display(self) -> None:
         volume_mm3 = self.volume_value()
         value = (
-            f"{volume_mm3 / 1_000_000_000.0:.6f} m³ "
-            f"({volume_mm3 / 1_000_000.0:.3f} L)"
+            f"{volume_mm3 / 1_000_000_000.0:.6f} m³ ({volume_mm3 / 1_000_000.0:.3f} L)"
             if volume_mm3 > 0.0
             else "—"
         )
@@ -272,9 +276,7 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
         extensions = component.get("extensions")
         extensions = extensions if isinstance(extensions, dict) else {}
         envelope_extension = extensions.get(PHYSICAL_EXTENSION_ID)
-        envelope_extension = (
-            envelope_extension if isinstance(envelope_extension, dict) else {}
-        )
+        envelope_extension = envelope_extension if isinstance(envelope_extension, dict) else {}
         envelope = envelope_extension.get("envelope")
         return envelope if isinstance(envelope, dict) else {}
 

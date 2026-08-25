@@ -55,7 +55,11 @@ def calc_tan_sweep_at(
         return sweep_deg
     taper_clamped = max(taper_ratio, 0.0)
     tan_base = math.tan(math.radians(sweep_deg))
-    factor = (4.0 / (aspect_ratio * (1.0 + taper_clamped))) * (loc_target - loc_base) * (1.0 - taper_clamped)
+    factor = (
+        (4.0 / (aspect_ratio * (1.0 + taper_clamped)))
+        * (loc_target - loc_base)
+        * (1.0 - taper_clamped)
+    )
     tan_target = tan_base - factor
     return math.degrees(math.atan(tan_target))
 
@@ -148,25 +152,22 @@ def solve_wing_planform(
 
     # 2. Extract baseline profile station geometry
     y_vals = [
-        float(p.get("position", {}).get("y", 0.0))
-        if isinstance(p.get("position"), dict) else 0.0
+        float(p.get("position", {}).get("y", 0.0)) if isinstance(p.get("position"), dict) else 0.0
         for p in current_profiles
     ]
     z_vals = [
-        float(p.get("position", {}).get("z", 0.0))
-        if isinstance(p.get("position"), dict) else 0.0
+        float(p.get("position", {}).get("z", 0.0)) if isinstance(p.get("position"), dict) else 0.0
         for p in current_profiles
     ]
-    chords_old = [
-        max(float(p.get("chord", 0.0)), 1e-6)
-        for p in current_profiles
-    ]
+    chords_old = [max(float(p.get("chord", 0.0)), 1e-6) for p in current_profiles]
 
     y_root_old = min(y_vals) if y_vals else 0.0
     y_tip_old = max(y_vals) if y_vals else 0.0
     old_panel_span = max(y_tip_old - y_root_old, 1e-6)
     z_root_old = z_vals[0] if z_vals else 0.0
-    root_x0 = float(current_profiles[0].get("position", {}).get("x", 0.0)) if current_profiles else 0.0
+    root_x0 = (
+        float(current_profiles[0].get("position", {}).get("x", 0.0)) if current_profiles else 0.0
+    )
 
     c_root_old = chords_old[0] if chords_old else 1.0
     c_tip_old = chords_old[-1] if chords_old else 1.0
@@ -289,8 +290,7 @@ def compute_planform_metrics(
         mac_num += s_i * c_mac_i
 
     y_vals = [
-        float(p.get("position", {}).get("y", 0.0))
-        if isinstance(p.get("position"), dict) else 0.0
+        float(p.get("position", {}).get("y", 0.0)) if isinstance(p.get("position"), dict) else 0.0
         for p in profiles
     ]
     y_root = min(y_vals)
@@ -321,8 +321,12 @@ def compute_planform_metrics(
     ar = (b_total**2) / max(s_total, 1e-6) if s_total > 0 else 0.0
 
     # Compute sweep angle at sweep_loc
-    pos_root = profiles[0].get("position", {}) if isinstance(profiles[0].get("position"), dict) else {}
-    pos_tip = profiles[-1].get("position", {}) if isinstance(profiles[-1].get("position"), dict) else {}
+    pos_root = (
+        profiles[0].get("position", {}) if isinstance(profiles[0].get("position"), dict) else {}
+    )
+    pos_tip = (
+        profiles[-1].get("position", {}) if isinstance(profiles[-1].get("position"), dict) else {}
+    )
     x0 = float(pos_root.get("x", 0.0))
     y0 = float(pos_root.get("y", 0.0))
     xt = float(pos_tip.get("x", 0.0))
@@ -343,8 +347,12 @@ def compute_planform_metrics(
         dihedral_deg = 0.0
 
     # Washout (tip pitch - root pitch)
-    rot_root = profiles[0].get("rotation", {}) if isinstance(profiles[0].get("rotation"), dict) else {}
-    rot_tip = profiles[-1].get("rotation", {}) if isinstance(profiles[-1].get("rotation"), dict) else {}
+    rot_root = (
+        profiles[0].get("rotation", {}) if isinstance(profiles[0].get("rotation"), dict) else {}
+    )
+    rot_tip = (
+        profiles[-1].get("rotation", {}) if isinstance(profiles[-1].get("rotation"), dict) else {}
+    )
     root_pitch = float(rot_root.get("y", rot_root.get("pitch", 0.0)))
     tip_pitch = float(rot_tip.get("y", rot_tip.get("pitch", 0.0)))
     washout_deg = tip_pitch - root_pitch
@@ -388,7 +396,7 @@ def set_wing_global_sweep(
         dy = abs(y_i - y0)
         eta = dy / b_panel
         # Base linear sweep + progressive quadratic curvature (eta^2)
-        dx_ref = dy * tan_sw + sweep_curvature * (eta ** 2)
+        dx_ref = dy * tan_sw + sweep_curvature * (eta**2)
         pos["x"] = x0 + dx_ref - sweep_loc * (c_i - c0)
 
     return new_profs
@@ -440,4 +448,3 @@ def set_wing_global_twist(
         rot["y"] = root_pitch + eta * washout_deg
 
     return new_profs
-

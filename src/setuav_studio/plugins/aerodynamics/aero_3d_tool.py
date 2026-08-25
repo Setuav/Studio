@@ -1,4 +1,5 @@
 """Launch a native AeroSandbox VLM snapshot in a separate process/window."""
+
 from __future__ import annotations
 
 import argparse
@@ -134,7 +135,9 @@ class Aero3DToolWindow(QDialog):
     def _launch_viewer(self) -> None:
         project = self._api.current_project
         if project is None:
-            QMessageBox.warning(self, "No Project", "Open a project before launching AeroSandbox 3D.")
+            QMessageBox.warning(
+                self, "No Project", "Open a project before launching AeroSandbox 3D."
+            )
             return
         if not HAS_AEROSANDBOX:
             QMessageBox.warning(

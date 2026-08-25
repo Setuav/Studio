@@ -33,6 +33,7 @@ _GEOMETRY_COMPONENT_ICONS = {
     "org.setuav.core:control-surface": "geometry_add_control_surface",
 }
 
+
 class _ProjectExplorerBranchStyle(QProxyStyle):
     """Draw classic dotted tree branches with square expand controls."""
 
@@ -72,9 +73,7 @@ class _ProjectExplorerBranchStyle(QProxyStyle):
             painter.setPen(branch_pen)
 
             if has_sibling:
-                painter.drawLine(
-                    QLine(center_x, rect.top(), center_x, rect.bottom())
-                )
+                painter.drawLine(QLine(center_x, rect.top(), center_x, rect.bottom()))
             elif has_item:
                 painter.drawLine(QLine(center_x, rect.top(), center_x, center_y))
 
@@ -99,13 +98,9 @@ class _ProjectExplorerBranchStyle(QProxyStyle):
                 control_pen.setCosmetic(True)
                 painter.setPen(control_pen)
                 painter.drawRect(box.adjusted(0, 0, -1, -1))
-                painter.drawLine(
-                    QLine(box.left() + 2, center_y, box.right() - 2, center_y)
-                )
+                painter.drawLine(QLine(box.left() + 2, center_y, box.right() - 2, center_y))
                 if not is_open:
-                    painter.drawLine(
-                        QLine(center_x, box.top() + 2, center_x, box.bottom() - 2)
-                    )
+                    painter.drawLine(QLine(center_x, box.top() + 2, center_x, box.bottom() - 2))
         finally:
             painter.restore()
 
@@ -253,15 +248,11 @@ class ProjectExplorer(QTreeWidget):
             self._component_contributions.clear()
 
             project_name = str(
-                project.data.get("name")
-                or project.location.name
-                or "Unnamed Project"
+                project.data.get("name") or project.location.name or "Unnamed Project"
             )
             project_item = QTreeWidgetItem([project_name])
             if not project.read_only:
-                project_item.setFlags(
-                    project_item.flags() | Qt.ItemFlag.ItemIsEditable
-                )
+                project_item.setFlags(project_item.flags() | Qt.ItemFlag.ItemIsEditable)
             project_item.setToolTip(0, f"Project: {project_name}")
             self._element_map[project_item] = project.data
             self._project_root_item = project_item
@@ -303,9 +294,7 @@ class ProjectExplorer(QTreeWidget):
 
                 tree_item = QTreeWidgetItem([aname])
                 if not project.read_only:
-                    tree_item.setFlags(
-                        tree_item.flags() | Qt.ItemFlag.ItemIsEditable
-                    )
+                    tree_item.setFlags(tree_item.flags() | Qt.ItemFlag.ItemIsEditable)
                 tree_item.setIcon(0, self._assembly_icon(asm))
                 tree_item.setToolTip(0, f"{aname} ({atype})")
                 tree_item.setData(0, Qt.ItemDataRole.UserRole, aid)
@@ -326,9 +315,7 @@ class ProjectExplorer(QTreeWidget):
 
                 tree_item = QTreeWidgetItem([cname])
                 if not project.read_only:
-                    tree_item.setFlags(
-                        tree_item.flags() | Qt.ItemFlag.ItemIsEditable
-                    )
+                    tree_item.setFlags(tree_item.flags() | Qt.ItemFlag.ItemIsEditable)
                 icon_source = self._geometry_icon_source(comp, raw_components)
                 if icon_source is None:
                     # Non-geometry component icons are contributed by their
@@ -350,13 +337,9 @@ class ProjectExplorer(QTreeWidget):
                 for contribution in self._api.component_tree_nodes(comp):
                     child = QTreeWidgetItem([contribution.title])
                     if contribution.rename is not None and self._can_edit_project():
-                        child.setFlags(
-                            child.flags() | Qt.ItemFlag.ItemIsEditable
-                        )
+                        child.setFlags(child.flags() | Qt.ItemFlag.ItemIsEditable)
                     else:
-                        child.setFlags(
-                            child.flags() & ~Qt.ItemFlag.ItemIsEditable
-                        )
+                        child.setFlags(child.flags() & ~Qt.ItemFlag.ItemIsEditable)
                     if contribution.icon is not None:
                         child.setIcon(0, get_icon(contribution.icon))
                     child.setToolTip(
@@ -453,6 +436,7 @@ class ProjectExplorer(QTreeWidget):
                     from setuav_studio.plugins.aerodynamics.analysis_store import (
                         analysis_entries as aero_entries,
                     )
+
                     for entry in aero_entries(self._api.current_project):
                         if isinstance(entry, dict) and (eid := str(entry.get("id") or "")):
                             current_entries[eid] = entry
@@ -463,6 +447,7 @@ class ProjectExplorer(QTreeWidget):
                     from setuav_studio.plugins.flight_performance.analysis_store import (
                         analysis_entries as perf_entries,
                     )
+
                     for entry in perf_entries(self._api.current_project):
                         if isinstance(entry, dict) and (eid := str(entry.get("id") or "")):
                             current_entries[eid] = entry
@@ -502,6 +487,7 @@ class ProjectExplorer(QTreeWidget):
             from setuav_studio.plugins.aerodynamics.analysis_store import (
                 analysis_entries as aero_entries,
             )
+
             for entry in aero_entries(project):
                 if isinstance(entry, dict) and (eid := str(entry.get("id") or "")):
                     results[eid] = deepcopy(entry)
@@ -512,6 +498,7 @@ class ProjectExplorer(QTreeWidget):
             from setuav_studio.plugins.flight_performance.analysis_store import (
                 analysis_entries as perf_entries,
             )
+
             for entry in perf_entries(project):
                 if isinstance(entry, dict) and (eid := str(entry.get("id") or "")):
                     results[eid] = deepcopy(entry)
@@ -531,8 +518,7 @@ class ProjectExplorer(QTreeWidget):
         return {
             element_id: deepcopy(element)
             for element in collection
-            if isinstance(element, dict)
-            and (element_id := str(element.get("id") or ""))
+            if isinstance(element, dict) and (element_id := str(element.get("id") or ""))
         }
 
     @staticmethod
@@ -586,7 +572,9 @@ class ProjectExplorer(QTreeWidget):
     @staticmethod
     def _component_name_text(component: dict[str, object]) -> str:
         ctype = str(component.get("type") or component.get("kind") or "")
-        params = component.get("parameters") if isinstance(component.get("parameters"), dict) else {}
+        params = (
+            component.get("parameters") if isinstance(component.get("parameters"), dict) else {}
+        )
         geom = params.get("geometry") if isinstance(params.get("geometry"), dict) else {}
 
         if ctype == "org.setuav.core:control-surface":
@@ -626,7 +614,9 @@ class ProjectExplorer(QTreeWidget):
             return f"Instance of {source_name}" if source_name else "Instance"
 
         ctype = str(component.get("type") or component.get("kind") or "")
-        params = component.get("parameters") if isinstance(component.get("parameters"), dict) else {}
+        params = (
+            component.get("parameters") if isinstance(component.get("parameters"), dict) else {}
+        )
         geom = params.get("geometry") if isinstance(params.get("geometry"), dict) else {}
 
         if ctype == "org.setuav.core:control-surface":
@@ -664,21 +654,13 @@ class ProjectExplorer(QTreeWidget):
 
         source_id = component.get("source")
         source = next(
-            (
-                candidate
-                for candidate in components
-                if candidate.get("id") == source_id
-            ),
+            (candidate for candidate in components if candidate.get("id") == source_id),
             None,
         )
         if source is None:
             return None
         source_type = source.get("type")
-        return (
-            _GEOMETRY_COMPONENT_ICONS.get(source_type)
-            if isinstance(source_type, str)
-            else None
-        )
+        return _GEOMETRY_COMPONENT_ICONS.get(source_type) if isinstance(source_type, str) else None
 
     def _publish_selection(
         self,
@@ -777,9 +759,9 @@ class ProjectExplorer(QTreeWidget):
     def _rename_item(self, item: QTreeWidgetItem, column: int) -> None:
         if column != 0:
             return
-        contribution = self._project_contributions.get(
+        contribution = self._project_contributions.get(item) or self._component_contributions.get(
             item
-        ) or self._component_contributions.get(item)
+        )
         if contribution is not None:
             old_name = contribution.title
             new_name = item.text(0).strip()
@@ -804,11 +786,7 @@ class ProjectExplorer(QTreeWidget):
             return
 
         element_id = str(element.get("id") or "")
-        kind = (
-            "project"
-            if item is self._project_root_item
-            else self._element_kind(element_id)
-        )
+        kind = "project" if item is self._project_root_item else self._element_kind(element_id)
         old_name = str(element.get("name") or "").strip()
         old_label = (
             str(element.get("name") or element_id or "Unnamed Project")
@@ -898,15 +876,13 @@ class ProjectExplorer(QTreeWidget):
         details: list[str] = []
         if kind == "assembly" and component_ids:
             details.append(
-                f"All {len(component_ids)} member and dependent component(s) "
-                "will also be deleted."
+                f"All {len(component_ids)} member and dependent component(s) will also be deleted."
             )
         elif kind != "assembly":
             dependent_count = max(0, len(component_ids) - 1)
             if dependent_count:
                 details.append(
-                    f"{dependent_count} structurally dependent item(s) will also "
-                    "be deleted."
+                    f"{dependent_count} structurally dependent item(s) will also be deleted."
                 )
         additional_assemblies = assembly_ids - {element_id}
         if additional_assemblies:
@@ -954,8 +930,7 @@ class ProjectExplorer(QTreeWidget):
                     assembly
                     for assembly in assemblies
                     if not (
-                        isinstance(assembly, dict)
-                        and str(assembly.get("id") or "") in assembly_ids
+                        isinstance(assembly, dict) and str(assembly.get("id") or "") in assembly_ids
                     )
                 ]
                 self._remove_assembly_member_references(assemblies, component_ids)
@@ -974,10 +949,7 @@ class ProjectExplorer(QTreeWidget):
             assemblies = project.data.get("assemblies")
             if isinstance(assemblies, list):
                 for assembly in assemblies:
-                    if (
-                        isinstance(assembly, dict)
-                        and str(assembly.get("id") or "") == element_id
-                    ):
+                    if isinstance(assembly, dict) and str(assembly.get("id") or "") == element_id:
                         return "assembly"
         return "component"
 
@@ -999,8 +971,7 @@ class ProjectExplorer(QTreeWidget):
             (
                 element
                 for element in collection
-                if isinstance(element, dict)
-                and str(element.get("id") or "") == element_id
+                if isinstance(element, dict) and str(element.get("id") or "") == element_id
             ),
             None,
         )
@@ -1041,9 +1012,7 @@ class ProjectExplorer(QTreeWidget):
             if isinstance(member, str) and member:
                 member_ids.add(member)
             elif isinstance(member, list):
-                member_ids.update(
-                    value for value in member if isinstance(value, str) and value
-                )
+                member_ids.update(value for value in member if isinstance(value, str) and value)
         return member_ids
 
     def _assemblies_invalidated_by(self, component_ids: set[str]) -> set[str]:
@@ -1088,9 +1057,7 @@ class ProjectExplorer(QTreeWidget):
                 if isinstance(member, str) and member in component_ids:
                     members.pop(role)
                 elif isinstance(member, list):
-                    members[role] = [
-                        value for value in member if value not in component_ids
-                    ]
+                    members[role] = [value for value in member if value not in component_ids]
 
     def _restore_item_text(self, item: QTreeWidgetItem, text: str) -> None:
         previous = self.blockSignals(True)

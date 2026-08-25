@@ -1,4 +1,5 @@
 """Aerodynamics Analysis Plugin for Setuav Studio."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -47,9 +48,7 @@ class AerodynamicsPlugin:
     def __init__(self) -> None:
         self._api: StudioAPI | None = None
         self._latest_result: AeroResult | None = None
-        self._tool_windows: set[
-            Aero3DToolWindow | AirfoilAnalysisToolWindow
-        ] = set()
+        self._tool_windows: set[Aero3DToolWindow | AirfoilAnalysisToolWindow] = set()
 
     def activate(self, api: StudioAPI) -> None:
         self._api = api
@@ -72,7 +71,9 @@ class AerodynamicsPlugin:
             PanelContribution(
                 id="aerodynamics.controls_dock",
                 title="Aero Controls",
-                factory=lambda: AeroControlsDock(api, on_result_callback=self._handle_analysis_result),
+                factory=lambda: AeroControlsDock(
+                    api, on_result_callback=self._handle_analysis_result
+                ),
                 workspace_id="studio.workspace.aerodynamics",
                 area=Qt.DockWidgetArea.LeftDockWidgetArea,
                 icon="fa6s.wind",
@@ -139,9 +140,7 @@ class AerodynamicsPlugin:
         if self._api is None or project.read_only:
             return
         extension = project.get_extension(EXTENSION_ID)
-        if not isinstance(extension, dict) or not isinstance(
-            extension.get("results"), list
-        ):
+        if not isinstance(extension, dict) or not isinstance(extension.get("results"), list):
             return
         if extension.get("results_version") == RESULTS_VERSION:
             return
@@ -184,9 +183,7 @@ class AerodynamicsPlugin:
             payload = entry.get("result")
             if not analysis_id or not isinstance(payload, dict):
                 continue
-            name = short_result_name(
-                str(entry.get("name") or "Aerodynamic Analysis")
-            )
+            name = short_result_name(str(entry.get("name") or "Aerodynamic Analysis"))
             method = str(payload.get("method") or "").replace("_", " ").upper()
             points = payload.get("polar_points")
             point_count = len(points) if isinstance(points, list) else 0
@@ -205,9 +202,7 @@ class AerodynamicsPlugin:
                         result_id,
                         new_name,
                     ),
-                    delete=lambda result_id=analysis_id: self._delete_result(
-                        result_id
-                    ),
+                    delete=lambda result_id=analysis_id: self._delete_result(result_id),
                 )
             )
         if not children:
@@ -262,12 +257,9 @@ class AerodynamicsPlugin:
             "Delete all aerodynamic analysis results",
             lambda extension: extension.pop("results", None),
         )
-        if (
-            isinstance(self._api.current_selection, dict)
-            and (
-                self._api.current_selection.get("kind") == RESULT_SELECTION_KIND
-                or self._api.current_selection.get("id") == RESULTS_GROUP_ID
-            )
+        if isinstance(self._api.current_selection, dict) and (
+            self._api.current_selection.get("kind") == RESULT_SELECTION_KIND
+            or self._api.current_selection.get("id") == RESULTS_GROUP_ID
         ):
             self._api.set_selection(None)
         self._api.show_status("Deleted all aerodynamic analysis results", "success", 3000)
@@ -297,9 +289,7 @@ class AerodynamicsPlugin:
         window = AirfoilAnalysisToolWindow(self._api)
         self._tool_windows.add(window)
         window.destroyed.connect(
-            lambda _object=None, tool_window=window: self._tool_windows.discard(
-                tool_window
-            )
+            lambda _object=None, tool_window=window: self._tool_windows.discard(tool_window)
         )
         window.show()
         window.raise_()

@@ -42,23 +42,23 @@ class SectionsMixin:
         """Section panel list table and panel action buttons."""
         layout = self._create_section("Wing Sections", "mdi6.vector-polygon")
 
-        self.sections_table = self._table([
-            "#",
-            "Span (mm)",
-            "Root C (mm)",
-            "Tip C (mm)",
-            "Sweep (°)",
-            "Dihedral (°)",
-            "Twist (°)",
-        ])
+        self.sections_table = self._table(
+            [
+                "#",
+                "Span (mm)",
+                "Root C (mm)",
+                "Tip C (mm)",
+                "Sweep (°)",
+                "Dihedral (°)",
+                "Twist (°)",
+            ]
+        )
         self.sections_table.setEditTriggers(
             QAbstractItemView.EditTrigger.DoubleClicked
             | QAbstractItemView.EditTrigger.EditKeyPressed
             | QAbstractItemView.EditTrigger.SelectedClicked
         )
-        self.sections_table.horizontalHeader().setSectionResizeMode(
-            0, QHeaderView.ResizeMode.Fixed
-        )
+        self.sections_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         self.sections_table.setColumnWidth(0, 30)
         self.sections_table.currentCellChanged.connect(self._on_section_selected)
         self.sections_table.itemSelectionChanged.connect(self._on_sections_selection_changed)
@@ -100,17 +100,23 @@ class SectionsMixin:
 
         # 2. Section Properties (Sweep, Sweep Location, Dihedral, Twist, Root Airfoil, Tip Airfoil)
         props_layout = self._create_section("Section Properties", "fa6s.sliders")
-        self.section_properties_table = self._property_table([
-            ("sweep", "Sweep Angle (°)"),
-            ("sweep_loc", "Sweep Location"),
-            ("dihedral", "Dihedral Angle (°)"),
-            ("twist", "Twist Angle (°)"),
-            ("root_airfoil", "Root Airfoil"),
-            ("tip_airfoil", "Tip Airfoil"),
-        ])
+        self.section_properties_table = self._property_table(
+            [
+                ("sweep", "Sweep Angle (°)"),
+                ("sweep_loc", "Sweep Location"),
+                ("dihedral", "Dihedral Angle (°)"),
+                ("twist", "Twist Angle (°)"),
+                ("root_airfoil", "Root Airfoil"),
+                ("tip_airfoil", "Tip Airfoil"),
+            ]
+        )
         self.section_properties_table.cellClicked.connect(self._on_section_property_cell_clicked)
-        self.section_properties_table.currentCellChanged.connect(self._on_section_property_cell_changed)
-        self.section_properties_table.itemSelectionChanged.connect(self._on_section_property_selection_changed)
+        self.section_properties_table.currentCellChanged.connect(
+            self._on_section_property_cell_changed
+        )
+        self.section_properties_table.itemSelectionChanged.connect(
+            self._on_section_property_selection_changed
+        )
         props_layout.addWidget(self.section_properties_table)
 
         # Backward compatibility aliases
@@ -121,12 +127,14 @@ class SectionsMixin:
         """Airfoil Shaping: TE blunting, thickness/camber scalers, and dihedral section alignment."""
         layout = self._create_section("Airfoil Shaping", "fa6s.pen-ruler")
 
-        self.airfoil_shaping_table = self._property_table([
-            ("section_align", "Section Alignment"),
-            ("te_thickness", "TE Thickness (t/c)"),
-            ("thickness_scale", "Thickness Scale"),
-            ("camber_scale", "Camber Scale"),
-        ])
+        self.airfoil_shaping_table = self._property_table(
+            [
+                ("section_align", "Section Alignment"),
+                ("te_thickness", "TE Thickness (t/c)"),
+                ("thickness_scale", "Thickness Scale"),
+                ("camber_scale", "Camber Scale"),
+            ]
+        )
         layout.addWidget(self.airfoil_shaping_table)
 
     # -------------------------------------------------------------------------
@@ -152,30 +160,42 @@ class SectionsMixin:
                 self.sections_table.setItem(r, 0, num_item)
 
                 span_item = QTableWidgetItem(f"{sec['span']:.1f}")
-                span_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                span_item.setTextAlignment(
+                    Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+                )
                 self.sections_table.setItem(r, 1, span_item)
 
                 rc_item = QTableWidgetItem(f"{sec['root_chord']:.1f}")
-                rc_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                rc_item.setTextAlignment(
+                    Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+                )
                 if r > 0:
                     rc_item.setFlags(rc_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                     rc_item.setToolTip("Shared with preceding section tip chord")
                 self.sections_table.setItem(r, 2, rc_item)
 
                 tc_item = QTableWidgetItem(f"{sec['tip_chord']:.1f}")
-                tc_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                tc_item.setTextAlignment(
+                    Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+                )
                 self.sections_table.setItem(r, 3, tc_item)
 
                 sw_item = QTableWidgetItem(f"{sec['sweep']:.1f}")
-                sw_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                sw_item.setTextAlignment(
+                    Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+                )
                 self.sections_table.setItem(r, 4, sw_item)
 
                 dih_item = QTableWidgetItem(f"{sec['dihedral']:.1f}")
-                dih_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                dih_item.setTextAlignment(
+                    Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+                )
                 self.sections_table.setItem(r, 5, dih_item)
 
                 tw_item = QTableWidgetItem(f"{sec['twist']:.1f}")
-                tw_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                tw_item.setTextAlignment(
+                    Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+                )
                 self.sections_table.setItem(r, 6, tw_item)
 
             self._fit_table_height(self.sections_table, len(sections))
@@ -191,7 +211,9 @@ class SectionsMixin:
         if row >= 0:
             self._on_section_selected(row, 0)
 
-    def _on_section_selected(self, row: int, col: int, prev_row: int = -1, prev_col: int = -1) -> None:
+    def _on_section_selected(
+        self, row: int, col: int, prev_row: int = -1, prev_col: int = -1
+    ) -> None:
         if row < 0:
             return
         self._section_index = row
@@ -211,7 +233,9 @@ class SectionsMixin:
         if row >= 0:
             self._handle_section_property_selection(row)
 
-    def _on_section_property_cell_changed(self, row: int, _col: int, _prev_row: int = -1, _prev_col: int = -1) -> None:
+    def _on_section_property_cell_changed(
+        self, row: int, _col: int, _prev_row: int = -1, _prev_col: int = -1
+    ) -> None:
         if self._loading or row < 0:
             return
         self._handle_section_property_selection(row)
@@ -309,7 +333,11 @@ class SectionsMixin:
         layout.setContentsMargins(4, 1, 4, 1)
         layout.setSpacing(6)
 
-        label_str = self._format_airfoil_label(airfoil_data) if hasattr(self, "_format_airfoil_label") else str(airfoil_data)
+        label_str = (
+            self._format_airfoil_label(airfoil_data)
+            if hasattr(self, "_format_airfoil_label")
+            else str(airfoil_data)
+        )
         lbl = QLabel(label_str)
         lbl.setToolTip(f"{'Root' if is_root else 'Tip'} Airfoil: {label_str}")
 
@@ -340,7 +368,9 @@ class SectionsMixin:
 
     def _load_airfoil_shaping(self) -> None:
         geom = self._geometry()
-        shaping = geom.get("airfoil_shaping") if isinstance(geom.get("airfoil_shaping"), dict) else {}
+        shaping = (
+            geom.get("airfoil_shaping") if isinstance(geom.get("airfoil_shaping"), dict) else {}
+        )
 
         self._set_property_combo(
             self.airfoil_shaping_table,

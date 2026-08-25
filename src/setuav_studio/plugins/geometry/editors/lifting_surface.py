@@ -111,11 +111,13 @@ class LiftingSurfaceEditor(
 
     def _create_general_section(self) -> None:
         layout = self._create_section("General", "fa6s.circle-info")
-        self.general_table = self._property_table([
-            ("name", "Name"),
-            ("type", "Type"),
-            ("attach_to", "Attach to"),
-        ])
+        self.general_table = self._property_table(
+            [
+                ("name", "Name"),
+                ("type", "Type"),
+                ("attach_to", "Attach to"),
+            ]
+        )
         self.general_table.cellChanged.connect(self._update_general)
         layout.addWidget(self.general_table)
 
@@ -170,17 +172,21 @@ class LiftingSurfaceEditor(
 
         # General
         self._set_property_value(self.general_table, "name", str(self._component.get("name") or ""))
-        self._set_property_value(self.general_table, "type", str(self._component.get("type") or ""), editable=False)
+        self._set_property_value(
+            self.general_table, "type", str(self._component.get("type") or ""), editable=False
+        )
 
         # Parent Selection Combo (Only fuselage and lifting surfaces)
-        current_attach = str(self._component.get("attach_to") or self._component.get("parent") or "")
+        current_attach = str(
+            self._component.get("attach_to") or self._component.get("parent") or ""
+        )
         parent_options = [("", "(None)")]
         project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
         if project and isinstance(project.data.get("components"), list):
             for comp in project.data["components"]:
-                if (
-                    isinstance(comp, dict)
-                    and comp.get("type") in ("org.setuav.core:fuselage", "org.setuav.core:lifting-surface")
+                if isinstance(comp, dict) and comp.get("type") in (
+                    "org.setuav.core:fuselage",
+                    "org.setuav.core:lifting-surface",
                 ):
                     cid = str(comp.get("id") or "")
                     if cid and cid != self._component.get("id"):
@@ -247,9 +253,15 @@ class LiftingSurfaceEditor(
     # Helpers & Edit Component Transaction
     # -------------------------------------------------------------------------
 
-    def _edit_control_surface_item(self, cs: dict[str, Any], description: str, change_fn: Callable[[], None]) -> None:
+    def _edit_control_surface_item(
+        self, cs: dict[str, Any], description: str, change_fn: Callable[[], None]
+    ) -> None:
         project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
-        if project and isinstance(project.data.get("components"), list) and cs in project.data["components"]:
+        if (
+            project
+            and isinstance(project.data.get("components"), list)
+            and cs in project.data["components"]
+        ):
             if hasattr(self._api, "edit_component"):
                 self._api.edit_component(cs, description, change_fn)
             elif hasattr(self._api, "edit_project"):

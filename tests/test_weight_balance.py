@@ -39,19 +39,30 @@ class WeightBalanceSolverTests(unittest.TestCase):
         wing = {
             "id": "wing",
             "type": "org.setuav.core:lifting-surface",
-            "parameters": {"geometry": {"mirror": True, "profiles": [
-                {"position": {"x": 0, "y": 0, "z": 0}, "chord": 100, "airfoil": "0012"},
-                {"position": {"x": 0, "y": 500, "z": 0}, "chord": 80, "airfoil": "0012"},
-            ]}},
+            "parameters": {
+                "geometry": {
+                    "mirror": True,
+                    "profiles": [
+                        {"position": {"x": 0, "y": 0, "z": 0}, "chord": 100, "airfoil": "0012"},
+                        {"position": {"x": 0, "y": 500, "z": 0}, "chord": 80, "airfoil": "0012"},
+                    ],
+                }
+            },
         }
         aileron = {
             "id": "aileron",
             "type": "org.setuav.core:control-surface",
             "parent": "wing",
             "attach_to": "wing",
-            "parameters": {"geometry": {"type": "aileron", "span_mode": "ratio",
-                                          "eta_start": 0.5, "eta_end": 1.0,
-                                          "chord_fraction": 0.25}},
+            "parameters": {
+                "geometry": {
+                    "type": "aileron",
+                    "span_mode": "ratio",
+                    "eta_start": 0.5,
+                    "eta_end": 1.0,
+                    "chord_fraction": 0.25,
+                }
+            },
         }
         derived = derive_project_component_geometry([wing, aileron])
         self.assertGreater(derived["aileron"].mass_g or 0, 0)
@@ -59,22 +70,24 @@ class WeightBalanceSolverTests(unittest.TestCase):
         self.assertAlmostEqual(derived["wing"].mass_g or 0, 77.76, places=2)
 
     def test_two_point_masses_have_expected_cg_and_parallel_axis_inertia(self) -> None:
-        project = _project({
-            "components": [
-                {
-                    "id": "front",
-                    "name": "Front",
-                    "mass": 1000,
-                    "transform": {"position": {"x": 0, "y": 0, "z": 0}},
-                },
-                {
-                    "id": "rear",
-                    "name": "Rear",
-                    "mass": 3000,
-                    "transform": {"position": {"x": 1000, "y": 0, "z": 0}},
-                },
-            ]
-        })
+        project = _project(
+            {
+                "components": [
+                    {
+                        "id": "front",
+                        "name": "Front",
+                        "mass": 1000,
+                        "transform": {"position": {"x": 0, "y": 0, "z": 0}},
+                    },
+                    {
+                        "id": "rear",
+                        "name": "Rear",
+                        "mass": 3000,
+                        "transform": {"position": {"x": 1000, "y": 0, "z": 0}},
+                    },
+                ]
+            }
+        )
 
         result = self.solver.evaluate(project)
 
@@ -85,26 +98,26 @@ class WeightBalanceSolverTests(unittest.TestCase):
         self.assertAlmostEqual(result.total.inertia_cg_kg_m2.izz, 0.75)
 
     def test_parent_transform_and_local_cg_are_composed(self) -> None:
-        project = _project({
-            "components": [
-                {
-                    "id": "body",
-                    "name": "Body",
-                    "mass": 1000,
-                    "transform": {"position": {"x": 100, "y": 20, "z": 30}},
-                },
-                {
-                    "id": "payload",
-                    "name": "Payload",
-                    "mass": 1000,
-                    "attach_to": "body",
-                    "transform": {"position": {"x": 200, "y": 0, "z": 0}},
-                    "extensions": {
-                        EXTENSION_ID: {"local_cg_mm": {"x": 50, "y": 0, "z": 0}}
+        project = _project(
+            {
+                "components": [
+                    {
+                        "id": "body",
+                        "name": "Body",
+                        "mass": 1000,
+                        "transform": {"position": {"x": 100, "y": 20, "z": 30}},
                     },
-                },
-            ]
-        })
+                    {
+                        "id": "payload",
+                        "name": "Payload",
+                        "mass": 1000,
+                        "attach_to": "body",
+                        "transform": {"position": {"x": 200, "y": 0, "z": 0}},
+                        "extensions": {EXTENSION_ID: {"local_cg_mm": {"x": 50, "y": 0, "z": 0}}},
+                    },
+                ]
+            }
+        )
 
         result = self.solver.evaluate(project)
         payload = next(item for item in result.components if item.component_id == "payload")
@@ -115,22 +128,24 @@ class WeightBalanceSolverTests(unittest.TestCase):
         self.assertAlmostEqual(result.total.cg_body_m[2], 0.03)
 
     def test_declared_inertia_is_rotated_to_body_axes(self) -> None:
-        project = _project({
-            "components": [
-                {
-                    "id": "box",
-                    "name": "Box",
-                    "mass": 1000,
-                    "transform": {"rotation": {"yaw": 90}},
-                    "extensions": {
-                        EXTENSION_ID: {
-                            "local_cg_mm": {"x": 0, "y": 0, "z": 0},
-                            "inertia_kg_m2": {"ixx": 1, "iyy": 2, "izz": 3}
-                        }
-                    },
-                }
-            ]
-        })
+        project = _project(
+            {
+                "components": [
+                    {
+                        "id": "box",
+                        "name": "Box",
+                        "mass": 1000,
+                        "transform": {"rotation": {"yaw": 90}},
+                        "extensions": {
+                            EXTENSION_ID: {
+                                "local_cg_mm": {"x": 0, "y": 0, "z": 0},
+                                "inertia_kg_m2": {"ixx": 1, "iyy": 2, "izz": 3},
+                            }
+                        },
+                    }
+                ]
+            }
+        )
 
         inertia = self.solver.evaluate(project).total.inertia_cg_kg_m2
 
@@ -139,17 +154,19 @@ class WeightBalanceSolverTests(unittest.TestCase):
         self.assertAlmostEqual(inertia.izz, 3.0)
 
     def test_root_mass_wins_over_parameter_mass_with_warning(self) -> None:
-        project = _project({
-            "components": [
-                {
-                    "id": "battery",
-                    "name": "Battery",
-                    "mass": 800,
-                    "parameters": {"mass": 750},
-                    "transform": {},
-                }
-            ]
-        })
+        project = _project(
+            {
+                "components": [
+                    {
+                        "id": "battery",
+                        "name": "Battery",
+                        "mass": 800,
+                        "parameters": {"mass": 750},
+                        "transform": {},
+                    }
+                ]
+            }
+        )
 
         result = self.solver.evaluate(project)
 
@@ -157,17 +174,19 @@ class WeightBalanceSolverTests(unittest.TestCase):
         self.assertTrue(any("overrides parameters.mass" in warning for warning in result.warnings))
 
     def test_mirrored_surface_defaults_to_body_symmetry_plane(self) -> None:
-        project = _project({
-            "components": [
-                {
-                    "id": "wing",
-                    "name": "Wing",
-                    "mass": 1000,
-                    "transform": {"position": {"y": 120}},
-                    "parameters": {"geometry": {"mirror": True}},
-                }
-            ]
-        })
+        project = _project(
+            {
+                "components": [
+                    {
+                        "id": "wing",
+                        "name": "Wing",
+                        "mass": 1000,
+                        "transform": {"position": {"y": 120}},
+                        "parameters": {"geometry": {"mirror": True}},
+                    }
+                ]
+            }
+        )
 
         result = self.solver.evaluate(project)
 
@@ -201,16 +220,16 @@ class WeightBalancePluginTests(unittest.TestCase):
 
         manager.activate(WeightBalancePlugin())
 
-        self.assertEqual([workspace.id for workspace in workspaces], ["studio.workspace.weight_balance"])
+        self.assertEqual(
+            [workspace.id for workspace in workspaces], ["studio.workspace.weight_balance"]
+        )
         self.assertEqual(workspaces[0].title, "Weight-Balance")
         self.assertIsNone(workspaces[0].icon)
         self.assertEqual(len(panels), 2)
         self.assertEqual(len(toolbar), 1)
         self.assertEqual(toolbar[0].id, "weight_balance.add_point_mass")
         self.assertEqual(toolbar[0].icon, "fa6s.weight-scale")
-        self.assertFalse(
-            api.get_component_icon({"type": "org.setuav.core:point-mass"}).isNull()
-        )
+        self.assertFalse(api.get_component_icon({"type": "org.setuav.core:point-mass"}).isNull())
         self.assertIsNotNone(api.get_mass_properties_provider(EXTENSION_ID))
 
         manager.deactivate("org.setuav.studio.weight_balance")
@@ -288,17 +307,21 @@ class WeightBalancePluginTests(unittest.TestCase):
         api.set_workspace_handler(lambda _workspace: None)
         plugin = WeightBalancePlugin()
         plugin.activate(api)
-        api.set_project(_project({
-            "components": [
-                {"id": "airframe", "name": "Airframe", "mass": 1000, "transform": {}},
+        api.set_project(
+            _project(
                 {
-                    "id": "payload",
-                    "name": "Payload",
-                    "mass": 500,
-                    "transform": {"position": {"x": 200}},
-                },
-            ]
-        }))
+                    "components": [
+                        {"id": "airframe", "name": "Airframe", "mass": 1000, "transform": {}},
+                        {
+                            "id": "payload",
+                            "name": "Payload",
+                            "mass": 500,
+                            "transform": {"position": {"x": 200}},
+                        },
+                    ]
+                }
+            )
+        )
         by_id = {panel.id: panel for panel in panels}
         view = by_id["weight_balance.view_dock"].factory()
         results = by_id["weight_balance.results_dock"].factory()
@@ -308,16 +331,13 @@ class WeightBalancePluginTests(unittest.TestCase):
         self.assertEqual(view.side_dock.windowTitle(), "Side View · X / Z")
         for projection_dock in (view.top_dock, view.side_dock):
             self.assertTrue(
-                projection_dock.features()
-                & QDockWidget.DockWidgetFeature.DockWidgetMovable
+                projection_dock.features() & QDockWidget.DockWidgetFeature.DockWidgetMovable
             )
             self.assertTrue(
-                projection_dock.features()
-                & QDockWidget.DockWidgetFeature.DockWidgetFloatable
+                projection_dock.features() & QDockWidget.DockWidgetFeature.DockWidgetFloatable
             )
             self.assertFalse(
-                projection_dock.features()
-                & QDockWidget.DockWidgetFeature.DockWidgetClosable
+                projection_dock.features() & QDockWidget.DockWidgetFeature.DockWidgetClosable
             )
 
         plugin.run_analysis()
@@ -486,7 +506,9 @@ class WeightBalancePluginTests(unittest.TestCase):
 
         # Dispatch weight balance result
         result = WeightBalanceResult(
-            total=MassProperties(mass_kg=0.45, cg_body_m=(0.1, 0.0, -0.02), inertia_cg_kg_m2=InertiaTensor()),
+            total=MassProperties(
+                mass_kg=0.45, cg_body_m=(0.1, 0.0, -0.02), inertia_cg_kg_m2=InertiaTensor()
+            ),
             components=[
                 ComponentMassProperties(
                     component_id="battery_1",

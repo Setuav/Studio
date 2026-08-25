@@ -153,26 +153,14 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
         self.cg_table = QTableWidget(1, 3, self)
         self.cg_table.setHorizontalHeaderLabels(["X", "Y", "Z"])
         self.cg_table.setVerticalHeaderLabels(["Position (mm)"])
-        self.cg_table.setSelectionMode(
-            QAbstractItemView.SelectionMode.SingleSelection
-        )
-        self.cg_table.setSelectionBehavior(
-            QAbstractItemView.SelectionBehavior.SelectItems
-        )
+        self.cg_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.cg_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
         self.cg_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.cg_table.setVerticalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-        )
-        self.cg_table.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-        )
-        self.cg_table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.Stretch
-        )
+        self.cg_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.cg_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.cg_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.cg_table.horizontalHeader().setFixedHeight(23)
-        self.cg_table.verticalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.Fixed
-        )
+        self.cg_table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
         self.cg_table.verticalHeader().setDefaultSectionSize(23)
         self.cg_table.verticalHeader().setMinimumWidth(82)
         self.cg_table.setAlternatingRowColors(True)
@@ -287,9 +275,7 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
             parameters = component.get("parameters")
             parameters = parameters if isinstance(parameters, dict) else {}
             source_parameters = source.get("parameters")
-            source_parameters = (
-                source_parameters if isinstance(source_parameters, dict) else {}
-            )
+            source_parameters = source_parameters if isinstance(source_parameters, dict) else {}
             mass = component.get(
                 "mass",
                 parameters.get(
@@ -300,9 +286,12 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
             is_control_surface = component.get("type") == "org.setuav.core:control-surface"
             if (mass is None or mass == 0.0) and not is_control_surface:
                 project_data = getattr(self._api.current_project, "data", {})
-                project_components = project_data.get("components", []) if isinstance(project_data, dict) else []
+                project_components = (
+                    project_data.get("components", []) if isinstance(project_data, dict) else []
+                )
                 by_id = {
-                    str(item.get("id")): item for item in project_components
+                    str(item.get("id")): item
+                    for item in project_components
                     if isinstance(item, dict) and isinstance(item.get("id"), str)
                 }
                 derived = derive_component_geometry(component, by_id)
@@ -311,26 +300,22 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
             self.mass_g.setValue(_number(mass))
 
             source_extensions = source.get("extensions")
-            source_extensions = (
-                source_extensions if isinstance(source_extensions, dict) else {}
-            )
+            source_extensions = source_extensions if isinstance(source_extensions, dict) else {}
             source_definition = source_extensions.get(EXTENSION_ID)
-            source_definition = (
-                source_definition if isinstance(source_definition, dict) else {}
-            )
+            source_definition = source_definition if isinstance(source_definition, dict) else {}
             extensions = component.get("extensions")
             extensions = extensions if isinstance(extensions, dict) else {}
             own_definition = extensions.get(EXTENSION_ID)
-            own_definition = (
-                own_definition if isinstance(own_definition, dict) else {}
-            )
+            own_definition = own_definition if isinstance(own_definition, dict) else {}
             definition = dict(source_definition)
             definition.update(own_definition)
             cg = definition.get("local_cg_mm")
             if not isinstance(cg, dict):
                 derived = derive_component_geometry(component, by_id)
                 candidate = derived.transform.get("position")
-                if not isinstance(candidate, dict) or not any(_number(candidate.get(axis)) for axis in ("x", "y", "z")):
+                if not isinstance(candidate, dict) or not any(
+                    _number(candidate.get(axis)) for axis in ("x", "y", "z")
+                ):
                     candidate = derived.envelope.get("offset_mm")
                 cg = candidate if isinstance(candidate, dict) else {}
             cg = cg if isinstance(cg, dict) else {}

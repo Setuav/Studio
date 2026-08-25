@@ -58,24 +58,16 @@ class StudioSettings:
         from PySide6.QtCore import QSettings
 
         settings = QSettings()
-        strictness = str(
-            settings.value("general/validation_strictness", "strict")
-        )
+        strictness = str(settings.value("general/validation_strictness", "strict"))
         if strictness not in VALIDATION_STRICTNESS_LEVELS:
             strictness = "strict"
         theme = str(settings.value("appearance/theme_mode", "blender")).lower()
         if theme not in THEME_MODES:
             theme = "blender"
         return cls(
-            reopen_last_project=_as_bool(
-                settings.value("general/reopen_last_project", False)
-            ),
-            recent_project_limit=int(
-                settings.value("general/recent_project_limit", 10)
-            ),
-            pythrust_data_dir=str(
-                settings.value("propulsion/pythrust_data_dir", "")
-            ),
+            reopen_last_project=_as_bool(settings.value("general/reopen_last_project", False)),
+            recent_project_limit=int(settings.value("general/recent_project_limit", 10)),
+            pythrust_data_dir=str(settings.value("propulsion/pythrust_data_dir", "")),
             validation_strictness=strictness,
             theme_mode=theme,
         )
@@ -128,9 +120,7 @@ class SettingsDialog(QDialog):
             "QTreeWidget#settingsCategories { font-size: 13px; }"
             "QTreeWidget#settingsCategories::item { min-height: 30px; padding: 5px 8px; }"
         )
-        self.category_tree.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-        )
+        self.category_tree.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         content.addWidget(self.category_tree)
         # Compatibility alias for callers that only need to inspect the
         # navigation widget.
@@ -155,8 +145,7 @@ class SettingsDialog(QDialog):
             self.category_tree.setCurrentItem(self._first_page_item)
 
         buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok
-            | QDialogButtonBox.StandardButton.Cancel
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
@@ -187,9 +176,7 @@ class SettingsDialog(QDialog):
             if group_item is None:
                 group_item = QTreeWidgetItem([group_name])
                 group_item.setFirstColumnSpanned(True)
-                group_item.setFlags(
-                    group_item.flags() & ~Qt.ItemFlag.ItemIsSelectable
-                )
+                group_item.setFlags(group_item.flags() & ~Qt.ItemFlag.ItemIsSelectable)
                 font = group_item.font(0)
                 font.setBold(True)
                 group_item.setFont(0, font)
@@ -234,9 +221,7 @@ class SettingsDialog(QDialog):
         form.addRow(self.reopen_check)
 
         self.recent_limit_spin = QSpinBox()
-        self.recent_limit_spin.setButtonSymbols(
-            QAbstractSpinBox.ButtonSymbols.NoButtons
-        )
+        self.recent_limit_spin.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
         self.recent_limit_spin.setRange(1, 20)
         self.recent_limit_spin.setValue(values.recent_project_limit)
         form.addRow("Recent projects:", self.recent_limit_spin)
@@ -323,9 +308,7 @@ class SettingsDialog(QDialog):
             reopen_last_project=self.reopen_check.isChecked(),
             recent_project_limit=self.recent_limit_spin.value(),
             pythrust_data_dir=self.pythrust_dir_edit.text().strip(),
-            validation_strictness=str(
-                self.validation_strictness_combo.currentData()
-            ),
+            validation_strictness=str(self.validation_strictness_combo.currentData()),
             theme_mode=str(self.theme_combo.currentData()),
         )
 

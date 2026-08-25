@@ -1,4 +1,5 @@
 """Geometry Engine package for parametric aerodynamics and lofting math."""
+
 from .airfoil import (
     AIRFOIL_SAMPLES,
     AIRFOILS_DATA_DIR,

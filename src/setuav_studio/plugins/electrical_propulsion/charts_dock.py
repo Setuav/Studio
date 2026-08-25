@@ -1,4 +1,5 @@
 """Unified Propulsion Performance Charts Dock hosting all curves simultaneously."""
+
 from __future__ import annotations
 
 from typing import Any, Sequence
@@ -103,11 +104,18 @@ class SinglePropulsionChartWidget(QWidget):
 
 class ThrustPowerChartDock(SinglePropulsionChartWidget):
     """Dock widget for Thrust & Electrical Power."""
+
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__("Thrust & Electrical Power", parent)
         self.setObjectName("propulsion.chart_thrust_widget")
 
-    def plot_data(self, x_label: str, x_values: Sequence[float], thrust_n: Sequence[float], power_w: Sequence[float]) -> None:
+    def plot_data(
+        self,
+        x_label: str,
+        x_values: Sequence[float],
+        thrust_n: Sequence[float],
+        power_w: Sequence[float],
+    ) -> None:
         self.clear()
         if not x_values:
             return
@@ -183,11 +191,18 @@ class ThrustPowerChartDock(SinglePropulsionChartWidget):
 
 class ElectricalChartDock(SinglePropulsionChartWidget):
     """Dock widget for Current & Motor Speed."""
+
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__("Current & Motor Speed", parent)
         self.setObjectName("propulsion.chart_electrical_widget")
 
-    def plot_data(self, x_label: str, x_values: Sequence[float], current_a: Sequence[float], rpm: Sequence[float]) -> None:
+    def plot_data(
+        self,
+        x_label: str,
+        x_values: Sequence[float],
+        current_a: Sequence[float],
+        rpm: Sequence[float],
+    ) -> None:
         self.clear()
         if not x_values:
             return
@@ -263,11 +278,19 @@ class ElectricalChartDock(SinglePropulsionChartWidget):
 
 class EfficiencyChartDock(SinglePropulsionChartWidget):
     """Dock widget for Efficiency Breakdown."""
+
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__("Efficiency Breakdown (η)", parent)
         self.setObjectName("propulsion.chart_efficiency_widget")
 
-    def plot_data(self, x_label: str, x_values: Sequence[float], eta_total: Sequence[float], eta_prop: Sequence[float], eta_motor: Sequence[float]) -> None:
+    def plot_data(
+        self,
+        x_label: str,
+        x_values: Sequence[float],
+        eta_total: Sequence[float],
+        eta_prop: Sequence[float],
+        eta_motor: Sequence[float],
+    ) -> None:
         self.clear()
         if not x_values:
             return
@@ -339,12 +362,19 @@ class EfficiencyChartDock(SinglePropulsionChartWidget):
 
 class PowerLoadingChartDock(SinglePropulsionChartWidget):
     """Dock widget for Power Loading (g/W)."""
+
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__("Power Loading — g/W", parent)
         self.setObjectName("propulsion.chart_power_loading_widget")
         self.chart.legend().setVisible(False)
 
-    def plot_data(self, x_label: str, x_values: Sequence[float], thrust_n: Sequence[float], power_w: Sequence[float]) -> None:
+    def plot_data(
+        self,
+        x_label: str,
+        x_values: Sequence[float],
+        thrust_n: Sequence[float],
+        power_w: Sequence[float],
+    ) -> None:
         self.clear()
         if not x_values:
             return

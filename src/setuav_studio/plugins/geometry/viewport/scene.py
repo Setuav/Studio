@@ -94,12 +94,21 @@ def build_project_geometry(
             if isinstance(derivation, dict) and derivation.get("type") == "mirror":
                 plane = derivation.get("plane", "XZ")
                 if plane in ("XZ", "1", None):
-                    params = source.get("parameters") if isinstance(source.get("parameters"), dict) else {}
-                    geom = params.get("geometry") if isinstance(params.get("geometry"), dict) else {}
+                    params = (
+                        source.get("parameters")
+                        if isinstance(source.get("parameters"), dict)
+                        else {}
+                    )
+                    geom = (
+                        params.get("geometry") if isinstance(params.get("geometry"), dict) else {}
+                    )
                     cs_list = geom.get("control_surfaces")
                     if isinstance(cs_list, list):
                         for cs in cs_list:
-                            if isinstance(cs, dict) and str(cs.get("type", "aileron")).lower() in ("aileron", "elevon"):
+                            if isinstance(cs, dict) and str(cs.get("type", "aileron")).lower() in (
+                                "aileron",
+                                "elevon",
+                            ):
                                 cs["deflection"] = -float(cs.get("deflection", 0.0))
 
         component_type = source.get("type")
@@ -112,8 +121,14 @@ def build_project_geometry(
                     and child.get("type") == "org.setuav.core:control-surface"
                     and (_frame_parent(child) or "") == item_id
                 ):
-                    child_params = child.get("parameters") if isinstance(child.get("parameters"), dict) else {}
-                    child_geom = deepcopy(child_params.get("geometry", {})) if isinstance(child_params.get("geometry"), dict) else {}
+                    child_params = (
+                        child.get("parameters") if isinstance(child.get("parameters"), dict) else {}
+                    )
+                    child_geom = (
+                        deepcopy(child_params.get("geometry", {}))
+                        if isinstance(child_params.get("geometry"), dict)
+                        else {}
+                    )
                     child_geom.setdefault("tag", child.get("name") or child.get("id"))
                     child_cs.append(child_geom)
             if child_cs:
@@ -133,19 +148,36 @@ def build_project_geometry(
             lofts.append(_transform_loft(loft, matrix, item_id))
 
         # Check if bilateral mirror is enabled on lifting surface
-        if component_type == "org.setuav.core:lifting-surface" and (geom.get("mirror") is True or source.get("mirror") is True):
-            parent_mat = world_matrix(parent_id) if isinstance(parent_id, str) else identity_matrix()
+        if component_type == "org.setuav.core:lifting-surface" and (
+            geom.get("mirror") is True or source.get("mirror") is True
+        ):
+            parent_mat = (
+                world_matrix(parent_id) if isinstance(parent_id, str) else identity_matrix()
+            )
             local_mat = transform_matrix(item.get("transform"))
             mirror_deriv = derivation_matrix({"type": "mirror", "plane": "XZ"})
-            mirrored_world_mat = multiply_matrix(parent_mat, multiply_matrix(mirror_deriv, local_mat))
+            mirrored_world_mat = multiply_matrix(
+                parent_mat, multiply_matrix(mirror_deriv, local_mat)
+            )
 
             source_mirror = deepcopy(source)
-            mirror_params = source_mirror.get("parameters") if isinstance(source_mirror.get("parameters"), dict) else {}
-            mirror_geom = mirror_params.get("geometry") if isinstance(mirror_params.get("geometry"), dict) else {}
+            mirror_params = (
+                source_mirror.get("parameters")
+                if isinstance(source_mirror.get("parameters"), dict)
+                else {}
+            )
+            mirror_geom = (
+                mirror_params.get("geometry")
+                if isinstance(mirror_params.get("geometry"), dict)
+                else {}
+            )
             cs_list = mirror_geom.get("control_surfaces")
             if isinstance(cs_list, list):
                 for cs in cs_list:
-                    if isinstance(cs, dict) and str(cs.get("type", "aileron")).lower() in ("aileron", "elevon"):
+                    if isinstance(cs, dict) and str(cs.get("type", "aileron")).lower() in (
+                        "aileron",
+                        "elevon",
+                    ):
                         cs["deflection"] = -float(cs.get("deflection", 0.0))
 
             for loft in provider(source_mirror):
@@ -192,7 +224,8 @@ def _build_wing_root_stubs(
 ) -> list[LoftGeometry]:
     stubs: list[LoftGeometry] = []
     fuselage_items = [
-        item for item in items.values()
+        item
+        for item in items.values()
         if isinstance(item, dict) and item.get("type") == "org.setuav.core:fuselage"
     ]
     if not fuselage_items:
@@ -247,7 +280,11 @@ def _build_wing_root_stubs(
             p1 = transform_point(mat, (0.0, -1.0, 0.0))
             d_vec = (p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2])
             l_len = math.sqrt(d_vec[0] ** 2 + d_vec[1] ** 2 + d_vec[2] ** 2)
-            d_in = (d_vec[0] / max(l_len, 1e-6), d_vec[1] / max(l_len, 1e-6), d_vec[2] / max(l_len, 1e-6))
+            d_in = (
+                d_vec[0] / max(l_len, 1e-6),
+                d_vec[1] / max(l_len, 1e-6),
+                d_vec[2] / max(l_len, 1e-6),
+            )
 
             # Build matching inner points at the fuselage outer skin
             inner_points: list[tuple[float, float, float]] = []
@@ -277,14 +314,22 @@ def _build_wing_root_stubs(
                 parent_mat = world_matrix_fn(fuse_id)
                 local_mat = transform_matrix(item.get("transform"))
                 mirror_deriv = derivation_matrix({"type": "mirror", "plane": "XZ"})
-                mirrored_world_mat = multiply_matrix(parent_mat, multiply_matrix(mirror_deriv, local_mat))
-                mirror_outer_points = tuple(transform_point(mirrored_world_mat, pt) for pt in root_sec_local.points)
+                mirrored_world_mat = multiply_matrix(
+                    parent_mat, multiply_matrix(mirror_deriv, local_mat)
+                )
+                mirror_outer_points = tuple(
+                    transform_point(mirrored_world_mat, pt) for pt in root_sec_local.points
+                )
 
                 p0_m = transform_point(mirrored_world_mat, (0.0, 0.0, 0.0))
                 p1_m = transform_point(mirrored_world_mat, (0.0, -1.0, 0.0))
                 d_vec_m = (p1_m[0] - p0_m[0], p1_m[1] - p0_m[1], p1_m[2] - p0_m[2])
                 l_len_m = math.sqrt(d_vec_m[0] ** 2 + d_vec_m[1] ** 2 + d_vec_m[2] ** 2)
-                d_in_m = (d_vec_m[0] / max(l_len_m, 1e-6), d_vec_m[1] / max(l_len_m, 1e-6), d_vec_m[2] / max(l_len_m, 1e-6))
+                d_in_m = (
+                    d_vec_m[0] / max(l_len_m, 1e-6),
+                    d_vec_m[1] / max(l_len_m, 1e-6),
+                    d_vec_m[2] / max(l_len_m, 1e-6),
+                )
 
                 mirror_inner_points: list[tuple[float, float, float]] = []
                 mirror_has_gap = False
@@ -298,7 +343,10 @@ def _build_wing_root_stubs(
                     stubs.append(
                         LoftGeometry(
                             component_id=fuse_id,
-                            sections=(Section(tuple(mirror_inner_points)), Section(mirror_outer_points)),
+                            sections=(
+                                Section(tuple(mirror_inner_points)),
+                                Section(mirror_outer_points),
+                            ),
                             color=fuse_color,
                             interpolation="linear",
                             station_spacing=10.0,
@@ -357,7 +405,13 @@ def _get_fuselage_cross_section_at_x(
                 x0, y0, z0, a0, b0, p0 = sections[i]
                 x1, y1, z1, a1, b1, p1 = sections[i + 1]
                 t = (x_target - x0) / max(x1 - x0, 1e-6)
-                return y0 + t * (y1 - y0), z0 + t * (z1 - z0), a0 + t * (a1 - a0), b0 + t * (b1 - b0), p0
+                return (
+                    y0 + t * (y1 - y0),
+                    z0 + t * (z1 - z0),
+                    a0 + t * (a1 - a0),
+                    b0 + t * (b1 - b0),
+                    p0,
+                )
 
     return 0.0, 0.0, 50.0, 50.0, "circle"
 
@@ -401,6 +455,3 @@ def _project_point_to_fuselage(
 
     p_in = (gx + t * dx, gy + t * dy, gz + t * dz)
     return p_in, True
-
-
-

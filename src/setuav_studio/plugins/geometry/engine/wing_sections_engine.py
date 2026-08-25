@@ -69,21 +69,23 @@ def profiles_to_sections(
         ar = (4.0 * dy) / (c0 + c1) if (c0 + c1) > 1e-4 else 8.0
         taper = c1 / c0
 
-        sections.append({
-            "index": i,
-            "span": dy,
-            "root_chord": c0,
-            "tip_chord": c1,
-            "area": area_sym,
-            "aspect_ratio": ar,
-            "taper_ratio": taper,
-            "sweep": sweep_deg,
-            "dihedral": dihedral_deg,
-            "twist": twist_deg,
-            "root_airfoil": deepcopy(p0.get("airfoil", "2412")),
-            "tip_airfoil": deepcopy(p1.get("airfoil", "2412")),
-            "driver_mode": "span_root_tip",
-        })
+        sections.append(
+            {
+                "index": i,
+                "span": dy,
+                "root_chord": c0,
+                "tip_chord": c1,
+                "area": area_sym,
+                "aspect_ratio": ar,
+                "taper_ratio": taper,
+                "sweep": sweep_deg,
+                "dihedral": dihedral_deg,
+                "twist": twist_deg,
+                "root_airfoil": deepcopy(p0.get("airfoil", "2412")),
+                "tip_airfoil": deepcopy(p1.get("airfoil", "2412")),
+                "driver_mode": "span_root_tip",
+            }
+        )
 
     return sections
 
@@ -267,7 +269,7 @@ def split_section(
         "tip_airfoil": deepcopy(sec["tip_airfoil"]),
     }
 
-    new_sections = sections[:section_index] + [sec1, sec2] + sections[section_index + 1:]
+    new_sections = sections[:section_index] + [sec1, sec2] + sections[section_index + 1 :]
     return sections_to_profiles(new_sections, profiles[0], sweep_loc)
 
 
@@ -277,16 +279,20 @@ def insert_section(
 ) -> list[dict[str, Any]]:
     """Append a new connected section at the wing tip."""
     sections = profiles_to_sections(profiles, sweep_loc)
-    last_sec = sections[-1] if sections else {
-        "span": 300.0,
-        "root_chord": 200.0,
-        "tip_chord": 100.0,
-        "sweep": 0.0,
-        "dihedral": 0.0,
-        "twist": 0.0,
-        "root_airfoil": "2412",
-        "tip_airfoil": "2412",
-    }
+    last_sec = (
+        sections[-1]
+        if sections
+        else {
+            "span": 300.0,
+            "root_chord": 200.0,
+            "tip_chord": 100.0,
+            "sweep": 0.0,
+            "dihedral": 0.0,
+            "twist": 0.0,
+            "root_airfoil": "2412",
+            "tip_airfoil": "2412",
+        }
+    )
 
     new_sec = {
         "span": max(float(last_sec.get("span", 300.0)) * 0.8, 50.0),
@@ -316,8 +322,16 @@ def delete_section(
     new_sections = [s for j, s in enumerate(sections) if j != section_index]
 
     if section_index < len(new_sections):
-        prev_tip_c = sections[section_index - 1]["tip_chord"] if section_index > 0 else deleted_sec["root_chord"]
-        prev_tip_af = sections[section_index - 1]["tip_airfoil"] if section_index > 0 else deleted_sec["root_airfoil"]
+        prev_tip_c = (
+            sections[section_index - 1]["tip_chord"]
+            if section_index > 0
+            else deleted_sec["root_chord"]
+        )
+        prev_tip_af = (
+            sections[section_index - 1]["tip_airfoil"]
+            if section_index > 0
+            else deleted_sec["root_airfoil"]
+        )
         new_sections[section_index]["root_chord"] = prev_tip_c
         new_sections[section_index]["root_airfoil"] = deepcopy(prev_tip_af)
 

@@ -41,7 +41,9 @@ class DriverPlanformTable(QTableWidget):
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(8, 3, parent)
-        self._active_drivers: list[str] = list(default_drivers or ["span", "root_chord", "tip_chord"])
+        self._active_drivers: list[str] = list(
+            default_drivers or ["span", "root_chord", "tip_chord"]
+        )
         self._on_values_changed = on_values_changed
         self._current_values: dict[str, float] = {
             "area": 200000.0,
@@ -216,7 +218,11 @@ class DriverPlanformTable(QTableWidget):
                     )
                 else:
                     self.removeCellWidget(row, 2)
-                    dec = 2 if key == "area" else (3 if key == "taper_ratio" else (2 if key == "aspect_ratio" else 1))
+                    dec = (
+                        2
+                        if key == "area"
+                        else (3 if key == "taper_ratio" else (2 if key == "aspect_ratio" else 1))
+                    )
                     val_str = f"{val:.{dec}f}"
                     if unit:
                         val_str += f" {unit}"
@@ -226,7 +232,9 @@ class DriverPlanformTable(QTableWidget):
                         self.setItem(row, 2, val_item)
                     else:
                         val_item.setText(val_str)
-                    val_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                    val_item.setTextAlignment(
+                        Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+                    )
         finally:
             self._updating = was
 

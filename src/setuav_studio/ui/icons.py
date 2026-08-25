@@ -123,14 +123,20 @@ class _ThemeIconEngine(QIconEngine):
         state: QIcon.State,
     ) -> QPixmap:
         palette = QApplication.palette()
-        normal = self._color or palette.color(
-            QPalette.ColorGroup.Active,
-            QPalette.ColorRole.ButtonText,
-        ).name()
-        disabled = self._color_disabled or palette.color(
-            QPalette.ColorGroup.Disabled,
-            QPalette.ColorRole.ButtonText,
-        ).name()
+        normal = (
+            self._color
+            or palette.color(
+                QPalette.ColorGroup.Active,
+                QPalette.ColorRole.ButtonText,
+            ).name()
+        )
+        disabled = (
+            self._color_disabled
+            or palette.color(
+                QPalette.ColorGroup.Disabled,
+                QPalette.ColorRole.ButtonText,
+            ).name()
+        )
         selected = palette.color(
             QPalette.ColorGroup.Active,
             QPalette.ColorRole.HighlightedText,

@@ -1,4 +1,5 @@
 """Data models for 2D Airfoil aerodynamic analysis results."""
+
 from __future__ import annotations
 
 import math
@@ -9,6 +10,7 @@ from typing import Any
 @dataclass(frozen=True)
 class AirfoilPolarPoint:
     """Individual aerodynamic point for a 2D airfoil at a specific angle of attack."""
+
     alpha: float  # Angle of attack in degrees
     cl: float  # Section lift coefficient
     cd: float  # Section total drag coefficient
@@ -58,10 +60,32 @@ class AirfoilPolarPoint:
             cd=float(data.get("cd", 0.0)),
             cm=float(data.get("cm", 0.0)),
             cd_profile=(float(data["cd_profile"]) if data.get("cd_profile") is not None else None),
-            cd_friction=(float(data["cd_friction"]) if data.get("cd_friction") is not None else None),
-            top_transition=(float(data["top_transition"]) if data.get("top_transition") is not None else (float(data["top_separation"]) if data.get("top_separation") is not None else None)),
-            bottom_transition=(float(data["bottom_transition"]) if data.get("bottom_transition") is not None else (float(data["bottom_separation"]) if data.get("bottom_separation") is not None else None)),
-            analysis_confidence=(float(data["analysis_confidence"]) if data.get("analysis_confidence") is not None else None),
+            cd_friction=(
+                float(data["cd_friction"]) if data.get("cd_friction") is not None else None
+            ),
+            top_transition=(
+                float(data["top_transition"])
+                if data.get("top_transition") is not None
+                else (
+                    float(data["top_separation"])
+                    if data.get("top_separation") is not None
+                    else None
+                )
+            ),
+            bottom_transition=(
+                float(data["bottom_transition"])
+                if data.get("bottom_transition") is not None
+                else (
+                    float(data["bottom_separation"])
+                    if data.get("bottom_separation") is not None
+                    else None
+                )
+            ),
+            analysis_confidence=(
+                float(data["analysis_confidence"])
+                if data.get("analysis_confidence") is not None
+                else None
+            ),
             mach_crit=(float(data["mach_crit"]) if data.get("mach_crit") is not None else None),
             mach_dd=(float(data["mach_dd"]) if data.get("mach_dd") is not None else None),
             cl_over_cd=float(data.get("cl_over_cd", 0.0)),
@@ -72,6 +96,7 @@ class AirfoilPolarPoint:
 @dataclass
 class AirfoilPolar:
     """Complete 2D airfoil polar dataset across an angle of attack range."""
+
     airfoil_name: str
     reynolds: float
     mach: float = 0.0
@@ -146,7 +171,9 @@ class AirfoilPolar:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> AirfoilPolar:
-        pts = [AirfoilPolarPoint.from_dict(p) for p in data.get("points", []) if isinstance(p, dict)]
+        pts = [
+            AirfoilPolarPoint.from_dict(p) for p in data.get("points", []) if isinstance(p, dict)
+        ]
         return cls(
             airfoil_name=str(data.get("airfoil_name", "")),
             reynolds=float(data.get("reynolds", 0.0)),

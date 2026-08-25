@@ -202,13 +202,15 @@ class AirfoilDialog(QDialog):
         cat_layout = QHBoxLayout()
         cat_layout.addWidget(QLabel("Category:"))
         self.cat_combo = QComboBox()
-        self.cat_combo.addItems([
-            "All Categories",
-            "General Aviation",
-            "High Lift UAV",
-            "Tailless & Flying Wing",
-            "Symmetric & Tail",
-        ])
+        self.cat_combo.addItems(
+            [
+                "All Categories",
+                "General Aviation",
+                "High Lift UAV",
+                "Tailless & Flying Wing",
+                "Symmetric & Tail",
+            ]
+        )
         self.cat_combo.currentTextChanged.connect(self._filter_presets)
         cat_layout.addWidget(self.cat_combo)
         lib_layout.addLayout(cat_layout)
@@ -296,7 +298,12 @@ class AirfoilDialog(QDialog):
         self.te_gap_label = QLabel("Trailing Edge Gap: 0.0%")
         self.pts_count_label = QLabel("Points: 128")
 
-        for lbl in (self.max_thick_label, self.max_camber_label, self.te_gap_label, self.pts_count_label):
+        for lbl in (
+            self.max_thick_label,
+            self.max_camber_label,
+            self.te_gap_label,
+            self.pts_count_label,
+        ):
             m_layout.addWidget(lbl)
 
         right_layout.addWidget(metrics_box)
@@ -360,7 +367,10 @@ class AirfoilDialog(QDialog):
         for i in range(self.preset_list.count()):
             item = self.preset_list.item(i)
             preset_name = str(item.data(Qt.ItemDataRole.UserRole))
-            if preset_name.lower() == name_str.lower() or preset_name.replace(" ", "").lower() == name_str.replace(" ", "").lower():
+            if (
+                preset_name.lower() == name_str.lower()
+                or preset_name.replace(" ", "").lower() == name_str.replace(" ", "").lower()
+            ):
                 self.preset_list.setCurrentRow(i)
                 return
 
@@ -415,12 +425,15 @@ class AirfoilDialog(QDialog):
                 self._update_metrics_display(pts)
                 self._selected_airfoil_data = code
                 self.naca_desc_label.setText(
-                    f"NACA 4-digit: {code[0]}% camber at {int(code[1])*10}% chord, {code[2:4]}% thickness."
+                    f"NACA 4-digit: {code[0]}% camber at {int(code[1]) * 10}% chord, {code[2:4]}% thickness."
                 )
 
     def _browse_dat_file(self) -> None:
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "Select Airfoil Coordinates (.dat / .txt)", "", "Airfoil Files (*.dat *.txt *.cor *.af);;All Files (*)"
+            self,
+            "Select Airfoil Coordinates (.dat / .txt)",
+            "",
+            "Airfoil Files (*.dat *.txt *.cor *.af);;All Files (*)",
         )
         if not file_path:
             return

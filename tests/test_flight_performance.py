@@ -1,4 +1,5 @@
 """Unit tests for the Flight Performance Envelope plugin and solver."""
+
 from __future__ import annotations
 
 import os
@@ -139,9 +140,7 @@ class TestFlightPerformance(unittest.TestCase):
 
         # Non-physical samples are rejected rather than corrected silently.
         self.assertEqual(
-            FlightPerformanceSolver.fit_parabolic_cd(
-                [0.0, 0.4, 0.8], [0.02, -0.01, 0.03]
-            ),
+            FlightPerformanceSolver.fit_parabolic_cd([0.0, 0.4, 0.8], [0.02, -0.01, 0.03]),
             (None, None),
         )
 
@@ -172,7 +171,9 @@ class TestFlightPerformance(unittest.TestCase):
         self.assertAlmostEqual(speed, 16.67, places=2)
 
     def test_solver_full_analysis(self) -> None:
-        motor_spec = MotorSpec(kv_rpm_per_v=900.0, resistance_ohm=0.035, no_load_current_a=1.2, current_max_a=45.0)
+        motor_spec = MotorSpec(
+            kv_rpm_per_v=900.0, resistance_ohm=0.035, no_load_current_a=1.2, current_max_a=45.0
+        )
         prop_spec = PropellerSpec(diameter_m=0.3302, pitch_m=0.1651, blade_count=2)
         prop_entry = PropulsionSolverEngine.fallback_propeller(13.0, 6.5, 2)
 
@@ -268,7 +269,9 @@ class TestFlightPerformance(unittest.TestCase):
             )
 
     def test_flight_performance_worker_and_signals(self) -> None:
-        motor_spec = MotorSpec(kv_rpm_per_v=900.0, resistance_ohm=0.035, no_load_current_a=1.2, current_max_a=45.0)
+        motor_spec = MotorSpec(
+            kv_rpm_per_v=900.0, resistance_ohm=0.035, no_load_current_a=1.2, current_max_a=45.0
+        )
         prop_spec = PropellerSpec(diameter_m=0.3302, pitch_m=0.1651, blade_count=2)
         prop_entry = PropulsionSolverEngine.fallback_propeller(13.0, 6.5, 2)
 
@@ -384,7 +387,10 @@ class TestFlightPerformance(unittest.TestCase):
             temp_path = tf.name
 
         try:
-            with patch("PySide6.QtWidgets.QFileDialog.getSaveFileName", return_value=(temp_path, "CSV Files (*.csv)")):
+            with patch(
+                "PySide6.QtWidgets.QFileDialog.getSaveFileName",
+                return_value=(temp_path, "CSV Files (*.csv)"),
+            ):
                 dock._export_csv()
             self.assertTrue(os.path.exists(temp_path))
             with open(temp_path, "r", encoding="utf-8") as f:
@@ -408,7 +414,9 @@ class TestFlightPerformance(unittest.TestCase):
             area_m2=0.5,
             air_density=1.225,
             cl_max=1.2,
-            metrics=PerformanceMetrics(stall_speed=9.0, max_speed=28.0, max_range_km=35.0, max_rate_of_climb=3.5),
+            metrics=PerformanceMetrics(
+                stall_speed=9.0, max_speed=28.0, max_range_km=35.0, max_rate_of_climb=3.5
+            ),
             optimal_speeds=OptimalSpeeds(best_range=15.0, best_endurance=12.0),
         )
         store_performance_result(doc, res, "Test Performance Run")

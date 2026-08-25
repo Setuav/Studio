@@ -45,10 +45,12 @@ class WeightBalanceResultsDock(PropertyTableMixin, QWidget):
         summary_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         summary_layout.setSpacing(6)
 
-        self.summary_table = self._property_table([
-            ("mass", "Total Mass"),
-            ("components", "Components Included"),
-        ])
+        self.summary_table = self._property_table(
+            [
+                ("mass", "Total Mass"),
+                ("components", "Components Included"),
+            ]
+        )
         summary_layout.addWidget(self.summary_table)
 
         summary_layout.addWidget(self._section_label("Center of Gravity", "fa6s.crosshairs"))
@@ -229,11 +231,7 @@ class WeightBalanceResultsDock(PropertyTableMixin, QWidget):
                 f"{item.cg_body_m[2] * 1000.0:+.2f}",
                 item.source,
                 item.quality,
-                (
-                    f"{len(item.warnings)} warning(s)"
-                    if item.warnings
-                    else "—"
-                ),
+                (f"{len(item.warnings)} warning(s)" if item.warnings else "—"),
             )
             for column, value in enumerate(values):
                 cell = QTableWidgetItem(value)
@@ -254,6 +252,4 @@ class WeightBalanceResultsDock(PropertyTableMixin, QWidget):
     def _warning_tooltip(warnings: list[str] | tuple[str, ...]) -> str:
         if not warnings:
             return ""
-        return "<b>Warnings</b><br>" + "<br>".join(
-            f"• {warning}" for warning in warnings
-        )
+        return "<b>Warnings</b><br>" + "<br>".join(f"• {warning}" for warning in warnings)

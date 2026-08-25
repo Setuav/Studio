@@ -1,4 +1,5 @@
 """Persistent aerodynamic analysis results stored in the project document."""
+
 from __future__ import annotations
 
 from copy import deepcopy
@@ -156,10 +157,7 @@ def delete_analysis_entry(extension: dict[str, Any], analysis_id: str) -> bool:
     results[:] = [
         entry
         for entry in results
-        if not (
-            isinstance(entry, dict)
-            and str(entry.get("id") or "") == analysis_id
-        )
+        if not (isinstance(entry, dict) and str(entry.get("id") or "") == analysis_id)
     ]
     return len(results) != old_size
 
@@ -176,10 +174,7 @@ def rename_analysis_entry(
     if not isinstance(results, list):
         return False
     for entry in results:
-        if (
-            isinstance(entry, dict)
-            and str(entry.get("id") or "") == analysis_id
-        ):
+        if isinstance(entry, dict) and str(entry.get("id") or "") == analysis_id:
             entry["name"] = clean_name
             return True
     return False

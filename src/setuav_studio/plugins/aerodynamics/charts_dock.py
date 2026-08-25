@@ -1,4 +1,5 @@
 """Unified Aerodynamic Performance Charts Dock hosting all 4 curves simultaneously."""
+
 from __future__ import annotations
 
 import math
@@ -242,6 +243,7 @@ class SingleChartWidget(QWidget):
         if all_y:
             axis_y.setRange(*self._padded_range(all_y))
 
+
 CHART_SET_DEFINITIONS: list[tuple[str, str]] = [
     ("alpha_beta_grid", "Alpha × Beta Sweep"),
     ("alpha_beta_lateral", "Alpha × Beta — Lateral"),
@@ -386,13 +388,13 @@ class AeroChartsDock(QWidget):
             # 1. Alpha group
             alpha_group = [p for p in all_points if p.raw.get("_sweep_group") == "alpha"]
             if not alpha_group and cond:
-                alpha_group = all_points[:int(cond.alpha_steps)]
+                alpha_group = all_points[: int(cond.alpha_steps)]
             alpha_pts = sorted(alpha_group if alpha_group else all_points, key=lambda p: p.alpha)
 
             # 2. Beta group
             beta_group = [p for p in all_points if p.raw.get("_sweep_group") == "beta"]
             if not beta_group and cond:
-                beta_group = all_points[int(cond.alpha_steps):]
+                beta_group = all_points[int(cond.alpha_steps) :]
             beta_pts = sorted(beta_group if beta_group else all_points, key=lambda p: p.beta)
 
             if alpha_pts:
@@ -439,7 +441,9 @@ class AeroChartsDock(QWidget):
 
     def _refresh_combobox_and_render(self, preferred_set: str | None = None) -> None:
         curr_key = self.combo_view_mode.currentData()
-        target_key = preferred_set if (preferred_set and preferred_set in self._cached_results) else curr_key
+        target_key = (
+            preferred_set if (preferred_set and preferred_set in self._cached_results) else curr_key
+        )
 
         self.combo_view_mode.blockSignals(True)
         self.combo_view_mode.clear()
@@ -447,8 +451,7 @@ class AeroChartsDock(QWidget):
         for key, label in CHART_SET_DEFINITIONS:
             points = self._cached_points.get(key) or []
             if key == "drag_breakdown" and not all(
-                point.cd_induced is not None and point.cd_profile is not None
-                for point in points
+                point.cd_induced is not None and point.cd_profile is not None for point in points
             ):
                 continue
             if key in self._cached_results and points:
@@ -570,17 +573,26 @@ class AeroChartsDock(QWidget):
 
             elif key == "longitudinal_stability":
                 self.chart_lift.setTitle(f"Pitching Moment (Cm vs {x_label})")
-                self.chart_lift.plot_single(x_vals, [p.cm for p in points], "Cm", "orange", x_label, "Cm")
+                self.chart_lift.plot_single(
+                    x_vals, [p.cm for p in points], "Cm", "orange", x_label, "Cm"
+                )
 
                 self.chart_polar.setTitle("Moment-Lift Polar (Cm vs CL) [Slope = -SM]")
-                self.chart_polar.plot_single([p.cl for p in points], [p.cm for p in points], "Cm-CL", "blue", "CL", "Cm")
+                self.chart_polar.plot_single(
+                    [p.cl for p in points], [p.cm for p in points], "Cm-CL", "blue", "CL", "Cm"
+                )
 
                 self.chart_moment.setTitle(f"Normal Force Coefficient (CZ vs {x_label})")
-                self.chart_moment.plot_single(x_vals, [p.cz for p in points], "CZ", "magenta", x_label, "CZ")
+                self.chart_moment.plot_single(
+                    x_vals, [p.cz for p in points], "CZ", "magenta", x_label, "CZ"
+                )
 
                 my_vals = [
-                    p.forces_moments.my_b if (p.forces_moments and hasattr(p.forces_moments, "my_b"))
-                    else (p.cm * p.dynamic_pressure * result.reference.s_ref * result.reference.c_ref)
+                    p.forces_moments.my_b
+                    if (p.forces_moments and hasattr(p.forces_moments, "my_b"))
+                    else (
+                        p.cm * p.dynamic_pressure * result.reference.s_ref * result.reference.c_ref
+                    )
                     for p in points
                 ]
                 self.chart_ld.setTitle(f"Dimensional Pitch Moment (My vs {x_label})")
@@ -588,13 +600,19 @@ class AeroChartsDock(QWidget):
 
             elif key == "lateral_directional":
                 self.chart_lift.setTitle(f"Sideforce Coefficient (CY vs {x_label})")
-                self.chart_lift.plot_single(x_vals, [p.cy for p in points], "CY", "blue", x_label, "CY")
+                self.chart_lift.plot_single(
+                    x_vals, [p.cy for p in points], "CY", "blue", x_label, "CY"
+                )
 
                 self.chart_polar.setTitle(f"Roll Moment (Cl vs {x_label})")
-                self.chart_polar.plot_single(x_vals, [p.cl_roll for p in points], "Cl", "green", x_label, "Cl (Roll)")
+                self.chart_polar.plot_single(
+                    x_vals, [p.cl_roll for p in points], "Cl", "green", x_label, "Cl (Roll)"
+                )
 
                 self.chart_moment.setTitle(f"Yaw Moment (Cn vs {x_label})")
-                self.chart_moment.plot_single(x_vals, [p.cn for p in points], "Cn", "orange", x_label, "Cn (Yaw)")
+                self.chart_moment.plot_single(
+                    x_vals, [p.cn for p in points], "Cn", "orange", x_label, "Cn (Yaw)"
+                )
 
                 cy_over_cl = [p.cy / max(abs(p.cl), 1e-4) for p in points]
                 self.chart_ld.setTitle(f"Lateral Coupling Ratio (CY / CL vs {x_label})")
@@ -602,56 +620,96 @@ class AeroChartsDock(QWidget):
 
             elif key == "drag_breakdown":
                 self.chart_lift.setTitle(f"Induced Drag Polar (CD_i vs {x_label})")
-                self.chart_lift.plot_single(x_vals, [p.cd_induced for p in points], "CD_i", "blue", x_label, "CD_i")
+                self.chart_lift.plot_single(
+                    x_vals, [p.cd_induced for p in points], "CD_i", "blue", x_label, "CD_i"
+                )
 
                 self.chart_polar.setTitle(f"Profile Drag Polar (CD_p vs {x_label})")
-                self.chart_polar.plot_single(x_vals, [p.cd_profile for p in points], "CD_p", "green", x_label, "CD_p")
+                self.chart_polar.plot_single(
+                    x_vals, [p.cd_profile for p in points], "CD_p", "green", x_label, "CD_p"
+                )
 
                 self.chart_moment.setTitle(f"Total Drag Polar (CD vs {x_label})")
-                self.chart_moment.plot_single(x_vals, [p.cd for p in points], "CD", "orange", x_label, "CD")
+                self.chart_moment.plot_single(
+                    x_vals, [p.cd for p in points], "CD", "orange", x_label, "CD"
+                )
 
                 ratios = [p.cd_induced / max(p.cd, 1e-6) * 100.0 for p in points]
                 self.chart_ld.setTitle("Induced Drag Share (% of Total Drag)")
-                self.chart_ld.plot_single(x_vals, ratios, "% Induced", "magenta", x_label, "% Induced")
+                self.chart_ld.plot_single(
+                    x_vals, ratios, "% Induced", "magenta", x_label, "% Induced"
+                )
 
             elif key == "forces_moments":
                 self.chart_lift.setTitle(f"Total Lift Force (L vs {x_label})")
-                self.chart_lift.plot_single(x_vals, [p.forces_moments.lift if p.forces_moments else 0.0 for p in points], "Lift (N)", "blue", x_label, "Lift (N)")
+                self.chart_lift.plot_single(
+                    x_vals,
+                    [p.forces_moments.lift if p.forces_moments else 0.0 for p in points],
+                    "Lift (N)",
+                    "blue",
+                    x_label,
+                    "Lift (N)",
+                )
 
                 self.chart_polar.setTitle(f"Total Drag Force (D vs {x_label})")
-                self.chart_polar.plot_single(x_vals, [p.forces_moments.drag if p.forces_moments else 0.0 for p in points], "Drag (N)", "red", x_label, "Drag (N)")
+                self.chart_polar.plot_single(
+                    x_vals,
+                    [p.forces_moments.drag if p.forces_moments else 0.0 for p in points],
+                    "Drag (N)",
+                    "red",
+                    x_label,
+                    "Drag (N)",
+                )
 
                 my_vals = [
-                    p.forces_moments.my_b if (p.forces_moments and hasattr(p.forces_moments, "my_b"))
-                    else (p.cm * p.dynamic_pressure * result.reference.s_ref * result.reference.c_ref)
+                    p.forces_moments.my_b
+                    if (p.forces_moments and hasattr(p.forces_moments, "my_b"))
+                    else (
+                        p.cm * p.dynamic_pressure * result.reference.s_ref * result.reference.c_ref
+                    )
                     for p in points
                 ]
                 self.chart_moment.setTitle(f"Pitching Moment (My vs {x_label})")
-                self.chart_moment.plot_single(x_vals, my_vals, "My (N·m)", "orange", x_label, "My (N·m)")
+                self.chart_moment.plot_single(
+                    x_vals, my_vals, "My (N·m)", "orange", x_label, "My (N·m)"
+                )
 
                 self.chart_ld.clear()
 
             else:  # flight_performance
                 self.chart_lift.setTitle(f"Lift Curve (CL vs {x_label})")
-                self.chart_lift.plot_single(x_vals, [p.cl for p in points], "CL", "blue", x_label, "CL")
+                self.chart_lift.plot_single(
+                    x_vals, [p.cl for p in points], "CL", "blue", x_label, "CL"
+                )
 
                 if sweep_type in (SweepType.ALPHA, SweepType.DUAL_ALPHA_BETA):
                     self.chart_polar.setTitle("Drag Polar (CL vs CD)")
-                    self.chart_polar.plot_single([p.cd for p in points], [p.cl for p in points], "Polar", "green", "CD", "CL")
+                    self.chart_polar.plot_single(
+                        [p.cd for p in points], [p.cl for p in points], "Polar", "green", "CD", "CL"
+                    )
                 else:
                     self.chart_polar.setTitle(f"Drag Curve (CD vs {x_label})")
-                    self.chart_polar.plot_single(x_vals, [p.cd for p in points], "CD", "green", x_label, "CD")
+                    self.chart_polar.plot_single(
+                        x_vals, [p.cd for p in points], "CD", "green", x_label, "CD"
+                    )
 
                 self.chart_moment.setTitle(f"Aerodynamic Efficiency (L/D vs {x_label})")
-                self.chart_moment.plot_single(x_vals, [p.cl_over_cd for p in points], "L/D", "magenta", x_label, "L/D")
+                self.chart_moment.plot_single(
+                    x_vals, [p.cl_over_cd for p in points], "L/D", "magenta", x_label, "L/D"
+                )
 
                 loiter_factor = [(max(p.cl, 0.0) ** 1.5) / max(p.cd, 1e-4) for p in points]
                 self.chart_ld.setTitle(f"Endurance Factor (CL^1.5 / CD vs {x_label})")
-                self.chart_ld.plot_single(x_vals, loiter_factor, "CL^1.5/CD", "orange", x_label, "CL^1.5 / CD")
+                self.chart_ld.plot_single(
+                    x_vals, loiter_factor, "CL^1.5/CD", "orange", x_label, "CL^1.5 / CD"
+                )
 
         except Exception as err:
             import logging
-            logging.getLogger(__name__).error("Failed to update aerodynamic charts: %s", err, exc_info=True)
+
+            logging.getLogger(__name__).error(
+                "Failed to update aerodynamic charts: %s", err, exc_info=True
+            )
         finally:
             self.setUpdatesEnabled(True)
 
@@ -685,11 +743,7 @@ class AeroChartsDock(QWidget):
         grouped_points: list[tuple[float, list[PolarPoint]]] = []
         for beta in beta_values:
             beta_points = sorted(
-                (
-                    point
-                    for point in points
-                    if math.isclose(point.beta, beta, abs_tol=1e-6)
-                ),
+                (point for point in points if math.isclose(point.beta, beta, abs_tol=1e-6)),
                 key=lambda point: point.alpha,
             )
             if beta_points:
@@ -698,12 +752,14 @@ class AeroChartsDock(QWidget):
         def curves_for(value_getter) -> list[tuple[list[float], list[float], str, str]]:
             curves = []
             for index, (beta, beta_points) in enumerate(grouped_points):
-                curves.append((
-                    [point.alpha for point in beta_points],
-                    [float(value_getter(point)) for point in beta_points],
-                    f"β={beta:+g}°",
-                    color_roles[index % len(color_roles)],
-                ))
+                curves.append(
+                    (
+                        [point.alpha for point in beta_points],
+                        [float(value_getter(point)) for point in beta_points],
+                        f"β={beta:+g}°",
+                        color_roles[index % len(color_roles)],
+                    )
+                )
             return curves
 
         self.setUpdatesEnabled(False)
@@ -711,39 +767,23 @@ class AeroChartsDock(QWidget):
             if lateral:
                 self.chart_ld.setVisible(True)
                 self.chart_lift.setTitle("Sideforce (CY vs α)")
-                self.chart_lift.plot_multi(
-                    curves_for(lambda point: point.cy), "α (°)", "CY"
-                )
+                self.chart_lift.plot_multi(curves_for(lambda point: point.cy), "α (°)", "CY")
                 self.chart_polar.setTitle("Roll Moment (Cl vs α)")
-                self.chart_polar.plot_multi(
-                    curves_for(lambda point: point.cl_roll), "α (°)", "Cl"
-                )
+                self.chart_polar.plot_multi(curves_for(lambda point: point.cl_roll), "α (°)", "Cl")
                 self.chart_moment.setTitle("Yaw Moment (Cn vs α)")
-                self.chart_moment.plot_multi(
-                    curves_for(lambda point: point.cn), "α (°)", "Cn"
-                )
+                self.chart_moment.plot_multi(curves_for(lambda point: point.cn), "α (°)", "Cn")
                 self.chart_ld.setTitle("Drag (CD vs α)")
-                self.chart_ld.plot_multi(
-                    curves_for(lambda point: point.cd), "α (°)", "CD"
-                )
+                self.chart_ld.plot_multi(curves_for(lambda point: point.cd), "α (°)", "CD")
             else:
                 self.chart_ld.setVisible(True)
                 self.chart_lift.setTitle("Lift Curve (CL vs α)")
-                self.chart_lift.plot_multi(
-                    curves_for(lambda point: point.cl), "α (°)", "CL"
-                )
+                self.chart_lift.plot_multi(curves_for(lambda point: point.cl), "α (°)", "CL")
                 self.chart_polar.setTitle("Drag Curve (CD vs α)")
-                self.chart_polar.plot_multi(
-                    curves_for(lambda point: point.cd), "α (°)", "CD"
-                )
+                self.chart_polar.plot_multi(curves_for(lambda point: point.cd), "α (°)", "CD")
                 self.chart_moment.setTitle("Pitching Moment (Cm vs α)")
-                self.chart_moment.plot_multi(
-                    curves_for(lambda point: point.cm), "α (°)", "Cm"
-                )
+                self.chart_moment.plot_multi(curves_for(lambda point: point.cm), "α (°)", "Cm")
                 self.chart_ld.setTitle("Aerodynamic Efficiency (L/D vs α)")
-                self.chart_ld.plot_multi(
-                    curves_for(lambda point: point.cl_over_cd), "α (°)", "L/D"
-                )
+                self.chart_ld.plot_multi(curves_for(lambda point: point.cl_over_cd), "α (°)", "L/D")
         finally:
             self.setUpdatesEnabled(True)
 

@@ -46,7 +46,9 @@ class TestComponentEditor(unittest.TestCase):
 
         fields = [
             ParameterField(key="kv", label="KV Rating", unit="RPM/V", default=400.0),
-            ParameterField(key="resistance", label="Resistance", unit="Ω", decimals=4, default=0.05),
+            ParameterField(
+                key="resistance", label="Resistance", unit="Ω", decimals=4, default=0.05
+            ),
         ]
 
         editor = BaseComponentEditor(api, comp, parameter_fields=fields)

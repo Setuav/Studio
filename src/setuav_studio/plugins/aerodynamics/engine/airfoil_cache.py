@@ -1,4 +1,5 @@
 """Thread-safe in-memory cache for 2D airfoil polar data."""
+
 from __future__ import annotations
 
 import hashlib
@@ -26,7 +27,9 @@ def _compute_cache_key(
         ident_str = airfoil_identifier.strip().lower()
     else:
         # Array of (x, y) coordinates
-        coords_str = "_".join(f"{round(pt[0], 4):.4f},{round(pt[1], 4):.4f}" for pt in airfoil_identifier)
+        coords_str = "_".join(
+            f"{round(pt[0], 4):.4f},{round(pt[1], 4):.4f}" for pt in airfoil_identifier
+        )
         ident_str = hashlib.sha256(coords_str.encode("utf-8")).hexdigest()[:16]
 
     # Quantize Reynolds to 4 significant digits

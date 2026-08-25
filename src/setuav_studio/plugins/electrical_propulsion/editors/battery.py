@@ -22,11 +22,56 @@ class BatteryEditor(PropertyTableMixin, QWidget):
     """Property editor separating battery cell specifications from pack configuration."""
 
     CHEMISTRY_DEFAULTS = {
-        "LiPo": {"nominal_v": 3.7, "max_v": 4.2, "min_v": 3.0, "c_rate": 35.0, "burst_c": 70.0, "cell_mass": 130.0, "cell_cap": 6000.0, "cell_r": 0.0025},
-        "Li-Ion (18650/21700)": {"nominal_v": 3.6, "max_v": 4.2, "min_v": 2.5, "c_rate": 10.0, "burst_c": 20.0, "cell_mass": 70.0, "cell_cap": 4500.0, "cell_r": 0.015},
-        "LiFePO4": {"nominal_v": 3.2, "max_v": 3.65, "min_v": 2.5, "c_rate": 25.0, "burst_c": 50.0, "cell_mass": 140.0, "cell_cap": 5000.0, "cell_r": 0.004},
-        "Solid-State": {"nominal_v": 3.8, "max_v": 4.35, "min_v": 3.0, "c_rate": 15.0, "burst_c": 30.0, "cell_mass": 100.0, "cell_cap": 6500.0, "cell_r": 0.002},
-        "NiMH": {"nominal_v": 1.2, "max_v": 1.45, "min_v": 1.0, "c_rate": 5.0, "burst_c": 10.0, "cell_mass": 55.0, "cell_cap": 2500.0, "cell_r": 0.02},
+        "LiPo": {
+            "nominal_v": 3.7,
+            "max_v": 4.2,
+            "min_v": 3.0,
+            "c_rate": 35.0,
+            "burst_c": 70.0,
+            "cell_mass": 130.0,
+            "cell_cap": 6000.0,
+            "cell_r": 0.0025,
+        },
+        "Li-Ion (18650/21700)": {
+            "nominal_v": 3.6,
+            "max_v": 4.2,
+            "min_v": 2.5,
+            "c_rate": 10.0,
+            "burst_c": 20.0,
+            "cell_mass": 70.0,
+            "cell_cap": 4500.0,
+            "cell_r": 0.015,
+        },
+        "LiFePO4": {
+            "nominal_v": 3.2,
+            "max_v": 3.65,
+            "min_v": 2.5,
+            "c_rate": 25.0,
+            "burst_c": 50.0,
+            "cell_mass": 140.0,
+            "cell_cap": 5000.0,
+            "cell_r": 0.004,
+        },
+        "Solid-State": {
+            "nominal_v": 3.8,
+            "max_v": 4.35,
+            "min_v": 3.0,
+            "c_rate": 15.0,
+            "burst_c": 30.0,
+            "cell_mass": 100.0,
+            "cell_cap": 6500.0,
+            "cell_r": 0.002,
+        },
+        "NiMH": {
+            "nominal_v": 1.2,
+            "max_v": 1.45,
+            "min_v": 1.0,
+            "c_rate": 5.0,
+            "burst_c": 10.0,
+            "cell_mass": 55.0,
+            "cell_cap": 2500.0,
+            "cell_r": 0.02,
+        },
     }
 
     def __init__(
@@ -149,7 +194,9 @@ class BatteryEditor(PropertyTableMixin, QWidget):
             chem = str(params.get("chemistry", "LiPo"))
             defaults = self.CHEMISTRY_DEFAULTS.get(chem, self.CHEMISTRY_DEFAULTS["LiPo"])
 
-            cell_cap = float(params.get("cell_capacity", params.get("capacity", 6000.0) / max(1, p)))
+            cell_cap = float(
+                params.get("cell_capacity", params.get("capacity", 6000.0) / max(1, p))
+            )
             cell_v_nom = float(params.get("cell_nominal_voltage", defaults["nominal_v"]))
             cell_v_max = float(params.get("cell_max_voltage", defaults["max_v"]))
             cell_v_min = float(params.get("cell_min_voltage", defaults["min_v"]))
@@ -171,11 +218,21 @@ class BatteryEditor(PropertyTableMixin, QWidget):
             params["mass"] = total_mass
 
             # General
-            self._set_property_value(self.general_table, "name", str(self._component.get("name") or ""))
-            self._set_property_value(self.general_table, "type", str(self._component.get("type") or ""), editable=False)
-            self._set_property_value(self.general_table, "mass", f"{total_mass:.1f}", editable=False)
-            self._set_property_value(self.general_table, "manufacturer", str(self._component.get("manufacturer") or ""))
-            self._set_property_value(self.general_table, "model", str(self._component.get("model") or ""))
+            self._set_property_value(
+                self.general_table, "name", str(self._component.get("name") or "")
+            )
+            self._set_property_value(
+                self.general_table, "type", str(self._component.get("type") or ""), editable=False
+            )
+            self._set_property_value(
+                self.general_table, "mass", f"{total_mass:.1f}", editable=False
+            )
+            self._set_property_value(
+                self.general_table, "manufacturer", str(self._component.get("manufacturer") or "")
+            )
+            self._set_property_value(
+                self.general_table, "model", str(self._component.get("model") or "")
+            )
 
             # Pack table
             self._set_property_value(self.pack_table, "cell_count", str(s))

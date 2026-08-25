@@ -95,6 +95,7 @@ from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QFormLayout, QLabel, QLineEdit, QWidget
 from setuav_studio.plugin_system import SettingsPageContribution
 
+
 def make_page() -> QWidget:
     page = QWidget()
     form = QFormLayout(page)
@@ -103,10 +104,12 @@ def make_page() -> QWidget:
     form.addRow("Server URL:", edit)
     return page
 
+
 def apply_page(page: QWidget) -> None:
     edit = page.findChild(QLineEdit, "serverUrl")
     if edit is not None:
         QSettings().setValue("myplugin/server_url", edit.text().strip())
+
 
 api.add_settings_page(
     SettingsPageContribution(
@@ -134,6 +137,7 @@ api.add_settings_page(
 from PySide6.QtCore import Qt
 from setuav_studio.plugin_system import PanelContribution, WorkspaceContribution
 
+
 class MyPlugin:
     id = "com.example.myplugin"
 
@@ -157,12 +161,14 @@ class MyPlugin:
 ```python
 from setuav_studio.component_editor import BaseComponentEditor, ParameterField
 
+
 class MotorEditor(BaseComponentEditor):
     def __init__(self, api, component):
         super().__init__(api, component)
         self.add_parameter_field(
             ParameterField(key="kv", label="KV", kind="number", unit="rpm/V", default=900.0)
         )
+
 
 class MyPlugin:
     id = "com.example.myplugin"

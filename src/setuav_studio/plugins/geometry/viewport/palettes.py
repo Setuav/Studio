@@ -26,14 +26,14 @@ _COLORS: dict[str, tuple[tuple[float, float, float], ...]] = {
 
 _WING_COLORS: dict[str, tuple[float, float, float]] = {
     "titanium": (0.86, 0.89, 0.93),  # composite aero white-grey
-    "carbon": (0.82, 0.85, 0.88),    # matte aero grey
-    "studio": (0.88, 0.88, 0.90),    # pearl white / studio off-white
+    "carbon": (0.82, 0.85, 0.88),  # matte aero grey
+    "studio": (0.88, 0.88, 0.90),  # pearl white / studio off-white
 }
 
 _CS_COLORS: dict[str, tuple[float, float, float]] = {
     "titanium": (0.95, 0.52, 0.12),  # aerospace amber / signal orange
-    "carbon": (0.15, 0.65, 0.92),    # electric cyan / neon blue
-    "studio": (0.92, 0.28, 0.25),    # safety crimson / coral red
+    "carbon": (0.15, 0.65, 0.92),  # electric cyan / neon blue
+    "studio": (0.92, 0.28, 0.25),  # safety crimson / coral red
 }
 
 # Carbon is the neutral technical default for the 3D viewer.  Users can still

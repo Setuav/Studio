@@ -236,4 +236,6 @@ def solve_8_parameter_driver(
             c_root = v.get("root_chord", cur["root_chord"])
             c_tip = v.get("tip_chord", cur["tip_chord"])
 
-    return compute_all_8_parameters(span, c_root, c_tip, is_symmetric=is_symmetric, y_offset=y_offset)
+    return compute_all_8_parameters(
+        span, c_root, c_tip, is_symmetric=is_symmetric, y_offset=y_offset
+    )

@@ -1,4 +1,5 @@
 """Background analysis worker utilizing QRunnable and QThreadPool."""
+
 from __future__ import annotations
 
 import logging
@@ -13,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 class WorkerSignals(QObject):
     """Signals emitted by AnalysisWorker during computation."""
+
     finished = Signal(object)  # AeroResult
     error = Signal(str)
     progress = Signal(int, int, str)  # completed, total, message
@@ -41,6 +43,7 @@ class AnalysisWorker(QRunnable):
     @Slot()
     def run(self) -> None:
         try:
+
             def on_step(curr: int, total: int, msg: str) -> None:
                 self.signals.progress.emit(curr, total, msg)
 
@@ -53,9 +56,7 @@ class AnalysisWorker(QRunnable):
                 progress_callback=on_step,
             )
             if not result.polar_points or result.converged_point_count == 0:
-                raise AeroAnalysisError(
-                    "Aerodynamic solver returned no converged operating points"
-                )
+                raise AeroAnalysisError("Aerodynamic solver returned no converged operating points")
             self.signals.progress.emit(100, 100, "Done")
             self.signals.finished.emit(result)
         except Exception as exc:

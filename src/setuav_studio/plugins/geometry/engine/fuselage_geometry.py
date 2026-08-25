@@ -27,9 +27,7 @@ def build_fuselage_geometry(component: dict[str, Any]) -> tuple[LoftGeometry, ..
         if not isinstance(values, list):
             continue
         sections = tuple(
-            section
-            for value in values
-            if (section := _build_section(value)) is not None
+            section for value in values if (section := _build_section(value)) is not None
         )
         if len(sections) < 2:
             continue
@@ -56,9 +54,7 @@ def _build_section(value: object) -> Section | None:
         return None
     points_2d = sample_profile(profile)
     matrix = section_transform(section)
-    return Section(
-        tuple(transform_point(matrix, (0.0, y, z)) for y, z in points_2d)
-    )
+    return Section(tuple(transform_point(matrix, (0.0, y, z)) for y, z in points_2d))
 
 
 def sample_profile(profile: dict[str, Any]) -> tuple[tuple[float, float], ...]:
@@ -206,9 +202,7 @@ def _radial_samples(outline: list[tuple[float, float]]) -> tuple[tuple[float, fl
             if distance >= -1e-8 and -1e-8 <= fraction <= 1.0 + 1e-8:
                 if nearest is None or distance < nearest:
                     nearest = max(0.0, distance)
-        result.append(
-            (direction[0] * (nearest or 0.0), direction[1] * (nearest or 0.0))
-        )
+        result.append((direction[0] * (nearest or 0.0), direction[1] * (nearest or 0.0)))
     return tuple(result)
 
 
@@ -282,9 +276,7 @@ def get_default_profile(profile_type: str) -> dict[str, Any]:
     """Return a deepcopy of the default profile configuration dictionary."""
     template = DEFAULT_PROFILES.get(profile_type, DEFAULT_PROFILES["circle"])
     return {
-        key: [v.copy() if isinstance(v, dict) else v for v in val]
-        if isinstance(val, list)
-        else val
+        key: [v.copy() if isinstance(v, dict) else v for v in val] if isinstance(val, list) else val
         for key, val in template.items()
     }
 
@@ -318,15 +310,15 @@ def format_profile_size(profile: dict[str, Any]) -> str:
     """Format human-readable profile dimensions."""
     profile_type = profile.get("type")
     if profile_type == "circle":
-        return f'D {profile.get("diameter", 0)}'
+        return f"D {profile.get('diameter', 0)}"
     if profile_type in {"ellipse", "rectangle"}:
-        return f'{profile.get("width", 0)} × {profile.get("height", 0)}'
+        return f"{profile.get('width', 0)} × {profile.get('height', 0)}"
     if profile_type == "trapezoid":
-        return f'{profile.get("top_width", 0)} / {profile.get("bottom_width", 0)}'
+        return f"{profile.get('top_width', 0)} / {profile.get('bottom_width', 0)}"
     if profile_type == "triangle":
-        return f'{profile.get("base_width", 0)} × {profile.get("height", 0)}'
+        return f"{profile.get('base_width', 0)} × {profile.get('height', 0)}"
     if profile_type == "polygon":
-        return f'{len(profile.get("vertices") or [])} vertices'
+        return f"{len(profile.get('vertices') or [])} vertices"
     return ""
 
 

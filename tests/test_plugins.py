@@ -139,9 +139,7 @@ class PluginTests(unittest.TestCase):
         self.api.undo()
         self.assertEqual(component["transform"]["position"]["x"], 100)
 
-        envelope_editor = self.api.create_component_editor(
-            envelope_contribution.selection
-        )
+        envelope_editor = self.api.create_component_editor(envelope_contribution.selection)
         self.assertIsInstance(envelope_editor, EnvelopeEditor)
         envelope_editor.dimension_spins["x"].setValue(60)
         envelope_editor.dimension_spins["y"].setValue(30)
@@ -225,9 +223,7 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(FuselageEditor._new_section_x(sections, 2), 400)
 
     def test_new_fuselage_segment_has_valid_defaults_and_unique_tag(self) -> None:
-        segment = FuselageEditor._new_segment(
-            [{"tag": "segment"}, {"tag": "segment-2"}]
-        )
+        segment = FuselageEditor._new_segment([{"tag": "segment"}, {"tag": "segment-2"}])
 
         self.assertEqual(segment["tag"], "segment-3")
         self.assertEqual(len(segment["sections"]), 2)
@@ -276,9 +272,7 @@ class PluginTests(unittest.TestCase):
     def test_view2d_geometry_source_is_shared_and_invalidated(self) -> None:
         calls: list[object | None] = []
         geometry = GeometryData()
-        self.api.build_geometry_data = (
-            lambda project=None: calls.append(project) or geometry
-        )
+        self.api.build_geometry_data = lambda project=None: calls.append(project) or geometry
         source = View2DGeometrySource(self.api)
 
         self.assertIs(source.current(), geometry)
@@ -453,9 +447,7 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(self.api._pending_status, [("queued", "warning", 0)])
 
         self.api.set_status_handler(
-            lambda message, level, timeout_ms: received.append(
-                (message, level, timeout_ms)
-            )
+            lambda message, level, timeout_ms: received.append((message, level, timeout_ms))
         )
         self.assertEqual(received, [("queued", "warning", 0)])
         self.assertEqual(self.api._pending_status, [])

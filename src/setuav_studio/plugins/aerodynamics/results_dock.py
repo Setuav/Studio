@@ -1,4 +1,5 @@
 """Selected aerodynamic analysis summary and detail tables."""
+
 from __future__ import annotations
 
 import csv
@@ -149,9 +150,7 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
         button_layout.setContentsMargins(6, 4, 6, 6)
         self.delete_result_button = QPushButton(" Delete Result", button_panel)
         set_native_button(self.delete_result_button, "fa6s.trash")
-        self.delete_result_button.setToolTip(
-            "Delete the selected project analysis result"
-        )
+        self.delete_result_button.setToolTip("Delete the selected project analysis result")
         self.delete_result_button.setEnabled(False)
         self.delete_result_button.clicked.connect(self._delete_selected_result)
         button_layout.addWidget(self.delete_result_button)
@@ -260,9 +259,7 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
         self.btn_export_csv.setEnabled(bool(result.polar_points))
         project = self._api.current_project
         self.delete_result_button.setEnabled(
-            self._current_result_id is not None
-            and project is not None
-            and not project.read_only
+            self._current_result_id is not None and project is not None and not project.read_only
         )
         self._api.publish("aerodynamics.result_selected", result)
 
@@ -311,7 +308,9 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
             "analysis_method": result.method.value.replace("_", " ").title(),
             "sweep": sweep_range,
             "points": str(total_points),
-            "convergence": f"{valid_count}/{total_points} ({valid_count / total_points * 100:.1f}%)" if total_points else "N/A",
+            "convergence": f"{valid_count}/{total_points} ({valid_count / total_points * 100:.1f}%)"
+            if total_points
+            else "N/A",
             "cl_max": f"{result.cl_max:.4f}",
             "cl_max_alpha": f"{result.cl_max_alpha:.2f}°",
             "cd_min": f"{result.cd_min:.5f}",
@@ -330,7 +329,9 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
             "ref_ar": f"{aspect_ratio:.2f}",
             "ref_mac": f"{ref.c_ref * 1000.0:.1f} mm",
             "ref_cg": f"[{ref.xyz_ref[0] * 1000.0:.1f}, {ref.xyz_ref[1] * 1000.0:.1f}, {ref.xyz_ref[2] * 1000.0:.1f}] mm",
-            "oswald_e": f"{result.oswald_efficiency:.3f}" if result.oswald_efficiency is not None else "N/A",
+            "oswald_e": f"{result.oswald_efficiency:.3f}"
+            if result.oswald_efficiency is not None
+            else "N/A",
         }
 
         metrics.update(self._control_analysis_metrics(result))
@@ -416,8 +417,12 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
             "cma": derivative("c_m_alpha_rad", "c_m_alpha_deg"),
             "cmq": f"{getattr(sd, 'c_m_q'):.3f}" if hasattr(sd, "c_m_q") else "-",
             "pitch_status": pitch_status,
-            "np_x": f"{getattr(sd, 'x_np') * 1000.0:.1f} mm ({getattr(sd, 'x_np'):.4f} m)" if hasattr(sd, "x_np") else "-",
-            "static_margin": f"{getattr(sd, 'static_margin'):+.2f} % MAC" if hasattr(sd, "static_margin") else "-",
+            "np_x": f"{getattr(sd, 'x_np') * 1000.0:.1f} mm ({getattr(sd, 'x_np'):.4f} m)"
+            if hasattr(sd, "x_np")
+            else "-",
+            "static_margin": f"{getattr(sd, 'static_margin'):+.2f} % MAC"
+            if hasattr(sd, "static_margin")
+            else "-",
             "clb": derivative("c_l_beta_rad", "c_l_beta_deg"),
             "cnb": derivative("c_n_beta_rad", "c_n_beta_deg"),
             "cyb": derivative("c_Y_beta_rad", "c_Y_beta_deg"),
@@ -441,10 +446,13 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
         try:
             self.detail_table.setRowCount(len(points))
             for row, point in enumerate(points):
-                control_text = ", ".join(
-                    f"{name} {value:+.1f}°"
-                    for name, value in sorted(point.control_deflections.items())
-                ) or "—"
+                control_text = (
+                    ", ".join(
+                        f"{name} {value:+.1f}°"
+                        for name, value in sorted(point.control_deflections.items())
+                    )
+                    or "—"
+                )
                 values = [
                     f"{point.alpha:+.2f}",
                     f"{point.beta:+.2f}",
@@ -509,15 +517,21 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
         try:
             with open(path, "w", newline="", encoding="utf-8") as stream:
                 writer = csv.writer(stream)
-                writer.writerow([
-                    table.horizontalHeaderItem(column).text()
-                    for column in range(table.columnCount())
-                ])
-                for row in range(table.rowCount()):
-                    writer.writerow([
-                        table.item(row, column).text() if table.item(row, column) is not None else ""
+                writer.writerow(
+                    [
+                        table.horizontalHeaderItem(column).text()
                         for column in range(table.columnCount())
-                    ])
+                    ]
+                )
+                for row in range(table.rowCount()):
+                    writer.writerow(
+                        [
+                            table.item(row, column).text()
+                            if table.item(row, column) is not None
+                            else ""
+                            for column in range(table.columnCount())
+                        ]
+                    )
             self._api.show_status(f"Exported {default_name} to {path}", "success")
         except Exception as error:
             self._api.show_status(f"CSV Export failed: {error}", "error")

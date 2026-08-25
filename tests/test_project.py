@@ -55,7 +55,6 @@ class ProjectTests(unittest.TestCase):
         with self.assertRaises(ProjectSaveError):
             save_project(project)
 
-
     def test_rejects_folder_without_project_json(self) -> None:
         with self.assertRaises(ProjectOpenError):
             open_project(self.root)
@@ -116,13 +115,17 @@ class ProjectTests(unittest.TestCase):
 
         # 2. Modify extensions via helpers
         project.set_extension("com.thirdparty.mission", {"waypoint_count": 24})
-        project.set_component_extension("wing_1", "com.thirdparty.solar", {"cell_count": 48, "efficiency": 0.24})
+        project.set_component_extension(
+            "wing_1", "com.thirdparty.solar", {"cell_count": 48, "efficiency": 0.24}
+        )
         save_project(project)
 
         # 3. Reload from disk and verify lossless preservation
         reloaded = open_project(project_file)
         self.assertEqual(reloaded.get_extension("com.thirdparty.mission")["waypoint_count"], 24)
-        self.assertEqual(reloaded.get_component_extension("wing_1", "com.thirdparty.solar")["cell_count"], 48)
+        self.assertEqual(
+            reloaded.get_component_extension("wing_1", "com.thirdparty.solar")["cell_count"], 48
+        )
 
     def test_undo_redo_extension_edits_via_studio_api(self) -> None:
         """Verify StudioAPI.edit_project_extension and edit_component_extension support Undo/Redo."""

@@ -174,9 +174,7 @@ class ViewerWorkspace(QWidget):
         self.palette_button.setToolTip("Color Palette")
         self.palette_button.setFixedSize(24, 24)
         self.palette_button.setAutoRaise(True)
-        self.palette_button.setPopupMode(
-            QToolButton.ToolButtonPopupMode.InstantPopup
-        )
+        self.palette_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self._palette_menu = QMenu(self.palette_button)
         self.palette_button.setMenu(self._palette_menu)
         self._build_palette_menu()
@@ -204,9 +202,7 @@ class ViewerWorkspace(QWidget):
             button.setFixedSize(24, 24)
             button.setAutoRaise(True)
             button.clicked.connect(
-                lambda _checked=False, az=azimuth, el=elevation: self.viewer.set_view(
-                    az, el
-                )
+                lambda _checked=False, az=azimuth, el=elevation: self.viewer.set_view(az, el)
             )
             self._cam_buttons.append((button, icon))
             hud_layout.addWidget(button)
@@ -220,12 +216,8 @@ class ViewerWorkspace(QWidget):
         self.fit_button.clicked.connect(self.viewer.fit_view)
         hud_layout.addWidget(self.fit_button)
 
-        self.colored_button.clicked.connect(
-            lambda: self.viewer.set_face_style(FACE_COLORED)
-        )
-        self.mono_button.clicked.connect(
-            lambda: self.viewer.set_face_style(FACE_MONOCHROME)
-        )
+        self.colored_button.clicked.connect(lambda: self.viewer.set_face_style(FACE_COLORED))
+        self.mono_button.clicked.connect(lambda: self.viewer.set_face_style(FACE_MONOCHROME))
 
         api.on_project_changed(self._on_project_changed)
         api.on_project_content_changed(self._on_project_content_changed)
@@ -275,9 +267,7 @@ class ViewerWorkspace(QWidget):
             action.setCheckable(True)
             action.setChecked(name == active_palette())
             action.triggered.connect(
-                lambda _checked=False, palette_name=name: self._on_palette_selected(
-                    palette_name
-                )
+                lambda _checked=False, palette_name=name: self._on_palette_selected(palette_name)
             )
             group.addAction(action)
             self._palette_menu.addAction(action)
@@ -321,19 +311,13 @@ class ViewerWorkspace(QWidget):
     def _update_projection_tooltip(self) -> None:
         mode = "Orthographic" if self.projection_button.isChecked() else "Perspective"
         next_mode = "Perspective" if self.projection_button.isChecked() else "Orthographic"
-        self.projection_button.setToolTip(
-            f"Projection: {mode} (click for {next_mode})"
-        )
+        self.projection_button.setToolTip(f"Projection: {mode} (click for {next_mode})")
 
     def _load_viewer_defaults(self) -> None:
-        projection = str(
-            viewer_setting(_VIEWER_PROJECTION_KEY, "orthographic")
-        ).lower()
+        projection = str(viewer_setting(_VIEWER_PROJECTION_KEY, "orthographic")).lower()
         self._default_orthographic = projection != "perspective"
 
-        palette = str(
-            viewer_setting(_VIEWER_PALETTE_KEY, active_palette())
-        ).lower()
+        palette = str(viewer_setting(_VIEWER_PALETTE_KEY, active_palette())).lower()
         try:
             set_active_palette(palette)
         except ValueError:
@@ -381,9 +365,7 @@ class ViewerWorkspace(QWidget):
 
     def _on_selection_changed(self, selection: object | None) -> None:
         component_id = selection.get("id") if isinstance(selection, dict) else None
-        self.viewer.set_selected_component(
-            component_id if isinstance(component_id, str) else None
-        )
+        self.viewer.set_selected_component(component_id if isinstance(component_id, str) else None)
         current = self._api.current_section_selection
         if current is not None and current[0] != component_id:
             self._api.set_section_selection(None)
@@ -423,7 +405,9 @@ class ViewerWorkspace(QWidget):
         sub_tag = parts[-1]
         for component in raw_components:
             cid = str(component.get("id") or "")
-            params = component.get("parameters") if isinstance(component.get("parameters"), dict) else {}
+            params = (
+                component.get("parameters") if isinstance(component.get("parameters"), dict) else {}
+            )
             geom = params.get("geometry") if isinstance(params.get("geometry"), dict) else {}
             tag = str(geom.get("tag") or component.get("name") or cid)
             if cid == sub_tag or tag == sub_tag:

@@ -1,4 +1,5 @@
 """Flight Performance Envelope Charts Dock hosting 4 performance curves in a 2x2 grid with infeasible region shading."""
+
 from __future__ import annotations
 
 from typing import Any, Sequence
@@ -146,6 +147,7 @@ class SinglePerformanceChartWidget(QWidget):
             return
 
         from setuav_studio.ui.theme import chart_color
+
         grid_col, dim_col = self._get_theme_colors()
 
         x_min, x_max = float(min(x_vals)), float(max(x_vals))
@@ -170,7 +172,11 @@ class SinglePerformanceChartWidget(QWidget):
         if y1_min == y1_max:
             y1_max += 1.0
 
-        title_y1 = f"{y1_label} ({y1_unit})" if y1_unit and not same_axis else (f"Power ({y1_unit})" if same_axis and y1_unit else y1_label)
+        title_y1 = (
+            f"{y1_label} ({y1_unit})"
+            if y1_unit and not same_axis
+            else (f"Power ({y1_unit})" if same_axis and y1_unit else y1_label)
+        )
         axis_y1 = self._create_axis(title_y1, dim_col, grid_col, show_grid=True)
         pad_y1 = max((y1_max - y1_min) * 0.05, 0.05)
         y1_min_bound = max(0.0, y1_min - pad_y1)
@@ -279,7 +285,9 @@ class PerformanceChartsDock(QWidget):
 
         # 4 Sub-charts
         self.chart_power = SinglePerformanceChartWidget("Power Required vs Available", self)
-        self.chart_climb = SinglePerformanceChartWidget("Climb Performance (ROC & Climb Angle)", self)
+        self.chart_climb = SinglePerformanceChartWidget(
+            "Climb Performance (ROC & Climb Angle)", self
+        )
         self.chart_mission = SinglePerformanceChartWidget("Mission Range & Endurance", self)
         self.chart_electrical = SinglePerformanceChartWidget("Electrical Power & Throttle", self)
 

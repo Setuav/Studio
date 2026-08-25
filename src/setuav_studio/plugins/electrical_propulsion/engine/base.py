@@ -1,4 +1,5 @@
 """Data structures and types for Electrical Propulsion Solver Engine."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

@@ -1,4 +1,5 @@
 """Aerodynamic engine implementations and registry."""
+
 from __future__ import annotations
 
 from .aerosandbox_engine import AeroSandboxEngine

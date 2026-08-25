@@ -71,10 +71,7 @@ def apply_runtime_validation(
         project.read_only = True
         return "read_only"
 
-    message = "\n".join(
-        f"• {issue.path}: {issue.message}"
-        for issue in issues[:10]
-    )
+    message = "\n".join(f"• {issue.path}: {issue.message}" for issue in issues[:10])
     if len(issues) > 10:
         message += f"\n…and {len(issues) - 10} more."
 
@@ -124,9 +121,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central_anchor)
 
         self._workspace_toolbar = WorkspaceToolBar(self)
-        self._workspace_toolbar.workspace_activated.connect(
-            self._api.switch_workspace
-        )
+        self._workspace_toolbar.workspace_activated.connect(self._api.switch_workspace)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self._workspace_toolbar)
 
         self._api.set_panel_handler(self._add_panel, self._remove_panel)
@@ -149,10 +144,14 @@ class MainWindow(QMainWindow):
         self._file_menu = self.menuBar().addMenu("&File")
         self._menus["file"] = self._file_menu
 
-        self._open_file_action = self._file_menu.addAction(get_icon("file_open"), "Open Project File…")
+        self._open_file_action = self._file_menu.addAction(
+            get_icon("file_open"), "Open Project File…"
+        )
         self._open_file_action.triggered.connect(self._open_project_file)
 
-        self._open_folder_action = self._file_menu.addAction(get_icon("folder_open"), "Open Project Folder…")
+        self._open_folder_action = self._file_menu.addAction(
+            get_icon("folder_open"), "Open Project Folder…"
+        )
         self._open_folder_action.triggered.connect(self._open_project_folder)
 
         self._recent_menu = QMenu("Open Recent", self._file_menu)
@@ -229,17 +228,13 @@ class MainWindow(QMainWindow):
         self._blender_theme_action = QAction("Blender Theme", self)
         self._blender_theme_action.setCheckable(True)
         self._blender_theme_action.setChecked(cur_mode == "blender")
-        self._blender_theme_action.triggered.connect(
-            lambda: self._switch_theme("blender")
-        )
+        self._blender_theme_action.triggered.connect(lambda: self._switch_theme("blender"))
         self._theme_action_group.addAction(self._blender_theme_action)
 
         self._github_dark_theme_action = QAction("GitHub Dark", self)
         self._github_dark_theme_action.setCheckable(True)
         self._github_dark_theme_action.setChecked(cur_mode == "github_dark")
-        self._github_dark_theme_action.triggered.connect(
-            lambda: self._switch_theme("github_dark")
-        )
+        self._github_dark_theme_action.triggered.connect(lambda: self._switch_theme("github_dark"))
         self._theme_action_group.addAction(self._github_dark_theme_action)
 
         self._github_light_theme_action = QAction("GitHub Light", self)
@@ -253,17 +248,13 @@ class MainWindow(QMainWindow):
         self._monokai_theme_action = QAction("Monokai", self)
         self._monokai_theme_action.setCheckable(True)
         self._monokai_theme_action.setChecked(cur_mode == "monokai")
-        self._monokai_theme_action.triggered.connect(
-            lambda: self._switch_theme("monokai")
-        )
+        self._monokai_theme_action.triggered.connect(lambda: self._switch_theme("monokai"))
         self._theme_action_group.addAction(self._monokai_theme_action)
 
         self._nord_theme_action = QAction("Nord", self)
         self._nord_theme_action.setCheckable(True)
         self._nord_theme_action.setChecked(cur_mode == "nord")
-        self._nord_theme_action.triggered.connect(
-            lambda: self._switch_theme("nord")
-        )
+        self._nord_theme_action.triggered.connect(lambda: self._switch_theme("nord"))
         self._theme_action_group.addAction(self._nord_theme_action)
         self._populate_view_menu()
 
@@ -382,7 +373,9 @@ class MainWindow(QMainWindow):
             self._refresh_status_color()
             for widget in app.allWidgets():
                 try:
-                    if hasattr(widget, "update_theme_style") and callable(widget.update_theme_style):
+                    if hasattr(widget, "update_theme_style") and callable(
+                        widget.update_theme_style
+                    ):
                         widget.update_theme_style()
                 except Exception:
                     pass
@@ -540,9 +533,7 @@ class MainWindow(QMainWindow):
                 "warning",
                 8000,
             )
-        project_name = str(
-            project.data.get("name") or project.location.name or project.path.name
-        )
+        project_name = str(project.data.get("name") or project.location.name or project.path.name)
         if project.degraded:
             self._degraded_badge.setToolTip("\n".join(project.plugin_issues))
             self._degraded_badge.show()
@@ -614,6 +605,7 @@ class MainWindow(QMainWindow):
             if self._project.location and self._project.location.exists():
                 try:
                     from setuav_studio.project import open_project
+
                     disk_doc = open_project(self._project.location)
                 except Exception:
                     pass
@@ -622,8 +614,12 @@ class MainWindow(QMainWindow):
             curr_data = self._project.data
 
             # 1. Components
-            disk_comps = {c.get("id"): c for c in disk_data.get("components", []) if isinstance(c, dict)}
-            curr_comps = {c.get("id"): c for c in curr_data.get("components", []) if isinstance(c, dict)}
+            disk_comps = {
+                c.get("id"): c for c in disk_data.get("components", []) if isinstance(c, dict)
+            }
+            curr_comps = {
+                c.get("id"): c for c in curr_data.get("components", []) if isinstance(c, dict)
+            }
 
             for cid, c in curr_comps.items():
                 name = c.get("name") or cid
@@ -638,8 +634,12 @@ class MainWindow(QMainWindow):
                     changes.append(f"Deleted Component: {name}")
 
             # 2. Assemblies
-            disk_asms = {a.get("id"): a for a in disk_data.get("assemblies", []) if isinstance(a, dict)}
-            curr_asms = {a.get("id"): a for a in curr_data.get("assemblies", []) if isinstance(a, dict)}
+            disk_asms = {
+                a.get("id"): a for a in disk_data.get("assemblies", []) if isinstance(a, dict)
+            }
+            curr_asms = {
+                a.get("id"): a for a in curr_data.get("assemblies", []) if isinstance(a, dict)
+            }
 
             for aid, a in curr_asms.items():
                 name = a.get("name") or aid
@@ -653,6 +653,7 @@ class MainWindow(QMainWindow):
                 from setuav_studio.plugins.aerodynamics.analysis_store import (
                     analysis_entries as aero_entries,
                 )
+
                 disk_aero = {e.get("id"): e for e in aero_entries(disk_doc)} if disk_doc else {}
                 curr_aero = {e.get("id"): e for e in aero_entries(self._project)}
                 for eid, e in curr_aero.items():
@@ -667,6 +668,7 @@ class MainWindow(QMainWindow):
                 from setuav_studio.plugins.flight_performance.analysis_store import (
                     analysis_entries as perf_entries,
                 )
+
                 disk_perf = {e.get("id"): e for e in perf_entries(disk_doc)} if disk_doc else {}
                 curr_perf = {e.get("id"): e for e in perf_entries(self._project)}
                 for eid, e in curr_perf.items():
@@ -686,7 +688,9 @@ class MainWindow(QMainWindow):
             return True
 
         unsaved_items = self._collect_unsaved_changes()
-        proj_name = str(self._project.data.get("name") or self._project.location.stem or "Current Project")
+        proj_name = str(
+            self._project.data.get("name") or self._project.location.stem or "Current Project"
+        )
 
         msg_box = QMessageBox(self)
         msg_box.setWindowTitle("Unsaved Changes")
@@ -986,9 +990,7 @@ class MainWindow(QMainWindow):
                 action.setIcon(get_icon(contribution.icon))
             if contribution.menu_items:
                 menu = QMenu(contribution.title, self)
-                menu_actions: list[
-                    tuple[ToolbarMenuItemContribution, QAction]
-                ] = []
+                menu_actions: list[tuple[ToolbarMenuItemContribution, QAction]] = []
                 for menu_item in contribution.menu_items:
                     if menu_item.icon:
                         menu_action = menu.addAction(
@@ -1080,8 +1082,7 @@ class MainWindow(QMainWindow):
                 grouped_actions[contribution.group].append(action)
 
         registered_groups = {
-            contribution.group
-            for contribution in self._toolbar_contributions.values()
+            contribution.group for contribution in self._toolbar_contributions.values()
         }
         for group, toolbar in list(self._toolset_bars.items()):
             if group not in registered_groups:
@@ -1135,10 +1136,7 @@ class MainWindow(QMainWindow):
             return
 
         # 1. Save previous workspace perspective
-        if (
-            self._current_workspace_id is not None
-            and self._current_workspace_id != workspace_id
-        ):
+        if self._current_workspace_id is not None and self._current_workspace_id != workspace_id:
             prev_state = self.saveState(self._LAYOUT_VERSION)
             self._workspace_states[self._current_workspace_id] = prev_state
             QSettings().setValue(
@@ -1243,7 +1241,7 @@ class MainWindow(QMainWindow):
 
             docks = [d for d in [explorer, viewer, props] if d is not None and not d.isHidden()]
             if docks:
-                self.resizeDocks(docks, [260, 680, 260][:len(docks)], Qt.Orientation.Horizontal)
+                self.resizeDocks(docks, [260, 680, 260][: len(docks)], Qt.Orientation.Horizontal)
 
         elif workspace_id == "studio.workspace.propulsion":
             charts = self.findChild(QDockWidget, "propulsion.charts_dock")
@@ -1264,9 +1262,15 @@ class MainWindow(QMainWindow):
                 if d:
                     d.show()
 
-            docks = [d for d in [explorer, controls, charts, results] if d is not None and not d.isHidden()]
+            docks = [
+                d
+                for d in [explorer, controls, charts, results]
+                if d is not None and not d.isHidden()
+            ]
             if docks:
-                self.resizeDocks(docks, [220, 280, 480, 260][:len(docks)], Qt.Orientation.Horizontal)
+                self.resizeDocks(
+                    docks, [220, 280, 480, 260][: len(docks)], Qt.Orientation.Horizontal
+                )
 
         elif workspace_id == "studio.workspace.aerodynamics":
             aero_controls = self.findChild(QDockWidget, "aerodynamics.controls_dock")
@@ -1290,9 +1294,15 @@ class MainWindow(QMainWindow):
                 if d:
                     d.show()
 
-            docks = [d for d in [explorer, aero_controls, aero_charts, aero_results] if d is not None and not d.isHidden()]
+            docks = [
+                d
+                for d in [explorer, aero_controls, aero_charts, aero_results]
+                if d is not None and not d.isHidden()
+            ]
             if docks:
-                self.resizeDocks(docks, [200, 260, 560, 260][:len(docks)], Qt.Orientation.Horizontal)
+                self.resizeDocks(
+                    docks, [200, 260, 560, 260][: len(docks)], Qt.Orientation.Horizontal
+                )
 
         elif workspace_id == "studio.workspace.flight_performance":
             fp_controls = self.findChild(QDockWidget, "flight_performance.controls_dock")
@@ -1316,9 +1326,15 @@ class MainWindow(QMainWindow):
                 if d:
                     d.show()
 
-            docks = [d for d in [explorer, fp_controls, fp_charts, fp_results] if d is not None and not d.isHidden()]
+            docks = [
+                d
+                for d in [explorer, fp_controls, fp_charts, fp_results]
+                if d is not None and not d.isHidden()
+            ]
             if docks:
-                self.resizeDocks(docks, [200, 260, 560, 260][:len(docks)], Qt.Orientation.Horizontal)
+                self.resizeDocks(
+                    docks, [200, 260, 560, 260][: len(docks)], Qt.Orientation.Horizontal
+                )
 
         elif workspace_id == "studio.workspace.weight_balance":
             wb_view = self.findChild(QDockWidget, "weight_balance.view_dock")
@@ -1348,7 +1364,7 @@ class MainWindow(QMainWindow):
             if docks:
                 self.resizeDocks(
                     docks,
-                    [220, 600, 340][:len(docks)],
+                    [220, 600, 340][: len(docks)],
                     Qt.Orientation.Horizontal,
                 )
 

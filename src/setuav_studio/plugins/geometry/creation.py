@@ -70,8 +70,8 @@ class GeometryCreationController:
                 menu_items=tuple(
                     ToolbarMenuItemContribution(
                         title=title,
-                        callback=lambda surface_type=surface_type: (
-                            self.add_control_surface(surface_type)
+                        callback=lambda surface_type=surface_type: self.add_control_surface(
+                            surface_type
                         ),
                         icon="geometry_add_control_surface",
                     )

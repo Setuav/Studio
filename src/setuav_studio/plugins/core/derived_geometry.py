@@ -136,6 +136,7 @@ def _control_surface(
             section_transform,
             transform_point,
         )
+
         twist_location = _number(parent_geom.get("twist_location", 0.25))
         matrix = section_transform(
             _profile_dict(profile),
@@ -153,9 +154,13 @@ def _control_surface(
             "position": {"x": center[0], "y": center[1], "z": center[2]},
             "rotation": {"roll": rotation[0], "pitch": rotation[1], "yaw": rotation[2]},
         },
-        {"shape": "box", "size_mm": {"x": chord, "y": width, "z": thickness},
-         "offset_mm": {"x": 0.0, "y": 0.0, "z": 0.0}},
-        _mass(volume, density), volume
+        {
+            "shape": "box",
+            "size_mm": {"x": chord, "y": width, "z": thickness},
+            "offset_mm": {"x": 0.0, "y": 0.0, "z": 0.0},
+        },
+        _mass(volume, density),
+        volume,
     )
 
 
@@ -169,8 +174,15 @@ def _fuselage(component: dict[str, Any], density: float) -> DerivedComponentGeom
                 continue
             pos = section.get("position") if isinstance(section.get("position"), dict) else {}
             profile = section.get("profile") if isinstance(section.get("profile"), dict) else {}
-            points.append((_number(pos.get("x")), _number(pos.get("y")), _number(pos.get("z")),
-                           _number(profile.get("width")), _number(profile.get("height"))))
+            points.append(
+                (
+                    _number(pos.get("x")),
+                    _number(pos.get("y")),
+                    _number(pos.get("z")),
+                    _number(profile.get("width")),
+                    _number(profile.get("height")),
+                )
+            )
     if not points:
         return DerivedComponentGeometry(_zero_transform(), _empty_envelope(), None, 0.0)
     xs = [p[0] for p in points]
@@ -178,10 +190,11 @@ def _fuselage(component: dict[str, Any], density: float) -> DerivedComponentGeom
     max_y = max(y + w * 0.5 for _, y, _, w, _ in points)
     min_z = min(z - h * 0.5 for _, _, z, _, h in points)
     max_z = max(z + h * 0.5 for _, _, z, _, h in points)
-    bounds = [min(xs), min_y, min_z,
-              max(xs) - min(xs), max_y - min_y, max_z - min_z]
+    bounds = [min(xs), min_y, min_z, max(xs) - min(xs), max_y - min_y, max_z - min_z]
     volume = bounds[3] * bounds[4] * bounds[5] * 0.35
-    return DerivedComponentGeometry(_zero_transform(), _box_from_bounds(bounds), _mass(volume, density), volume)
+    return DerivedComponentGeometry(
+        _zero_transform(), _box_from_bounds(bounds), _mass(volume, density), volume
+    )
 
 
 def _surface_bounds(profiles: list[Any]) -> tuple[list[float], float, float]:
@@ -203,16 +216,39 @@ def _surface_bounds(profiles: list[Any]) -> tuple[list[float], float, float]:
         thicknesses.append(thickness)
     bounds[3] = max(v[0] + v[3] for v in values)
     bounds[4] = max(v[1] for v in values)
-    return [bounds[0], bounds[1], bounds[2], bounds[3] - bounds[0], bounds[4] - bounds[1], bounds[5] - bounds[2]], area, max(thicknesses or [0.12])
+    return (
+        [
+            bounds[0],
+            bounds[1],
+            bounds[2],
+            bounds[3] - bounds[0],
+            bounds[4] - bounds[1],
+            bounds[5] - bounds[2],
+        ],
+        area,
+        max(thicknesses or [0.12]),
+    )
 
 
-def _profile_values(profile: Any) -> tuple[float, float, float, float, float, tuple[float, float, float]]:
+def _profile_values(
+    profile: Any,
+) -> tuple[float, float, float, float, float, tuple[float, float, float]]:
     profile = profile if isinstance(profile, dict) else {}
     pos = profile.get("position") if isinstance(profile.get("position"), dict) else {}
     chord = max(_number(profile.get("chord")), 0.0)
     rotation = profile.get("rotation") if isinstance(profile.get("rotation"), dict) else {}
-    return (_number(pos.get("x")), _number(pos.get("y")), _number(pos.get("z")), chord, _airfoil_thickness(profile.get("airfoil")),
-            (_number(rotation.get("x", rotation.get("roll"))), _number(rotation.get("y", rotation.get("pitch"))), _number(rotation.get("z", rotation.get("yaw")))))
+    return (
+        _number(pos.get("x")),
+        _number(pos.get("y")),
+        _number(pos.get("z")),
+        chord,
+        _airfoil_thickness(profile.get("airfoil")),
+        (
+            _number(rotation.get("x", rotation.get("roll"))),
+            _number(rotation.get("y", rotation.get("pitch"))),
+            _number(rotation.get("z", rotation.get("yaw"))),
+        ),
+    )
 
 
 def _interpolate_profile(
@@ -228,13 +264,11 @@ def _interpolate_profile(
         if left[1] <= y <= right[1]:
             t = (y - left[1]) / max(right[1] - left[1], 1e-9)
             rotation = tuple(
-                left[5][axis] + t * (right[5][axis] - left[5][axis])
-                for axis in range(3)
+                left[5][axis] + t * (right[5][axis] - left[5][axis]) for axis in range(3)
             )
-            return tuple(
-                left[index] + t * (right[index] - left[index])
-                for index in range(5)
-            ) + (rotation,)  # type: ignore[return-value]
+            return tuple(left[index] + t * (right[index] - left[index]) for index in range(5)) + (
+                rotation,
+            )  # type: ignore[return-value]
     return values[0]
 
 
@@ -310,15 +344,26 @@ def _airfoil_thickness(value: object) -> float:
             except ValueError:
                 pass
     if isinstance(points, list):
-        z_values = [_number(item[1]) for item in points if isinstance(item, (list, tuple)) and len(item) >= 2]
+        z_values = [
+            _number(item[1])
+            for item in points
+            if isinstance(item, (list, tuple)) and len(item) >= 2
+        ]
         if z_values:
             return max(max(z_values) - min(z_values), 0.01)
     return 0.12
 
 
 def _box_from_bounds(bounds: list[float]) -> dict[str, Any]:
-    return {"shape": "box", "size_mm": {"x": bounds[3], "y": bounds[4], "z": bounds[5]},
-            "offset_mm": {"x": bounds[0] + bounds[3] * 0.5, "y": bounds[1] + bounds[4] * 0.5, "z": bounds[2] + bounds[5] * 0.5}}
+    return {
+        "shape": "box",
+        "size_mm": {"x": bounds[3], "y": bounds[4], "z": bounds[5]},
+        "offset_mm": {
+            "x": bounds[0] + bounds[3] * 0.5,
+            "y": bounds[1] + bounds[4] * 0.5,
+            "z": bounds[2] + bounds[5] * 0.5,
+        },
+    }
 
 
 def _mass(volume_mm3: float, density_kg_m3: float) -> float:
@@ -326,7 +371,15 @@ def _mass(volume_mm3: float, density_kg_m3: float) -> float:
 
 
 def _density(parameters: dict[str, Any]) -> float:
-    return max(_number(parameters.get("material_density_kg_m3", parameters.get("geometry_density_kg_m3", DEFAULT_DENSITY_KG_M3))), 1.0)
+    return max(
+        _number(
+            parameters.get(
+                "material_density_kg_m3",
+                parameters.get("geometry_density_kg_m3", DEFAULT_DENSITY_KG_M3),
+            )
+        ),
+        1.0,
+    )
 
 
 def _declared_mass(component: dict[str, Any]) -> float | None:
@@ -347,11 +400,18 @@ def _frame_parent(component: dict[str, Any]) -> str | None:
 
 
 def _zero_transform() -> dict[str, Any]:
-    return {"position": {"x": 0.0, "y": 0.0, "z": 0.0}, "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0}}
+    return {
+        "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+        "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
+    }
 
 
 def _empty_envelope() -> dict[str, Any]:
-    return {"shape": "box", "size_mm": {"x": 0.0, "y": 0.0, "z": 0.0}, "offset_mm": {"x": 0.0, "y": 0.0, "z": 0.0}}
+    return {
+        "shape": "box",
+        "size_mm": {"x": 0.0, "y": 0.0, "z": 0.0},
+        "offset_mm": {"x": 0.0, "y": 0.0, "z": 0.0},
+    }
 
 
 def _number(value: object) -> float:

@@ -270,7 +270,11 @@ class OpenGLViewer(QOpenGLWidget):
         self._functions.glClear(_GL_COLOR_BUFFER_BIT | _GL_DEPTH_BUFFER_BIT)
         mvp = self._projection() * self._view()
 
-        lines_overlay = (self._show_wireframe and self._wire_count > 0) or self._highlight_count > 0 or self._section_ring_count > 0
+        lines_overlay = (
+            (self._show_wireframe and self._wire_count > 0)
+            or self._highlight_count > 0
+            or self._section_ring_count > 0
+        )
         if self._show_solid and self._solid_program is not None:
             eye_direction = self._eye_position() - self._target
             eye_direction.normalize()
@@ -468,9 +472,7 @@ class OpenGLViewer(QOpenGLWidget):
             math.sin(elevation),
         )
         right = _cross(eye_direction, (0.0, 0.0, 1.0))
-        right_length = math.sqrt(
-            right[0] * right[0] + right[1] * right[1] + right[2] * right[2]
-        )
+        right_length = math.sqrt(right[0] * right[0] + right[1] * right[1] + right[2] * right[2])
         if right_length < 1e-6:
             right = (1.0, 0.0, 0.0)
         else:
@@ -489,15 +491,27 @@ class OpenGLViewer(QOpenGLWidget):
                 point[1] - centre[1],
                 point[2] - centre[2],
             )
-            width = max(width, abs(offset[0] * right[0] + offset[1] * right[1] + offset[2] * right[2]))
+            width = max(
+                width, abs(offset[0] * right[0] + offset[1] * right[1] + offset[2] * right[2])
+            )
             height = max(height, abs(offset[0] * up[0] + offset[1] * up[1] + offset[2] * up[2]))
-            depth = max(depth, abs(offset[0] * eye_direction[0] + offset[1] * eye_direction[1] + offset[2] * eye_direction[2]))
+            depth = max(
+                depth,
+                abs(
+                    offset[0] * eye_direction[0]
+                    + offset[1] * eye_direction[1]
+                    + offset[2] * eye_direction[2]
+                ),
+            )
         fov = math.radians(45.0)
         aspect = self.width() / max(1, self.height())
-        distance = max(
-            width / (math.tan(fov * 0.5) * aspect),
-            height / math.tan(fov * 0.5),
-        ) + depth
+        distance = (
+            max(
+                width / (math.tan(fov * 0.5) * aspect),
+                height / math.tan(fov * 0.5),
+            )
+            + depth
+        )
         self._target = QVector3D(*centre)
         self._distance = max(100.0, distance * 1.35)
         self.update()
@@ -509,7 +523,10 @@ class OpenGLViewer(QOpenGLWidget):
         super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event) -> None:
-        if event.button() == Qt.MouseButton.LeftButton and self._press_button == Qt.MouseButton.LeftButton:
+        if (
+            event.button() == Qt.MouseButton.LeftButton
+            and self._press_button == Qt.MouseButton.LeftButton
+        ):
             delta = event.position().toPoint() - self._press_position
             if delta.manhattanLength() <= 4:
                 self._pick(self._press_position)
@@ -665,7 +682,9 @@ class OpenGLViewer(QOpenGLWidget):
         program = QOpenGLShaderProgram(self)
         if not program.addShaderFromSourceCode(QOpenGLShader.ShaderTypeBit.Vertex, vertex_source):
             raise RuntimeError(f"Vertex shader failed: {program.log()}")
-        if not program.addShaderFromSourceCode(QOpenGLShader.ShaderTypeBit.Fragment, fragment_source):
+        if not program.addShaderFromSourceCode(
+            QOpenGLShader.ShaderTypeBit.Fragment, fragment_source
+        ):
             raise RuntimeError(f"Fragment shader failed: {program.log()}")
         if not program.link():
             raise RuntimeError(f"OpenGL shader link failed: {program.log()}")

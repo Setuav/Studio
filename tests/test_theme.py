@@ -28,14 +28,10 @@ class ThemeTests(unittest.TestCase):
         self.assertEqual(settings.theme_mode, "blender")
 
     def test_inter_font_files_are_bundled(self) -> None:
-        font_root = resources.files("setuav_studio").joinpath(
-            "assets", "fonts", "Inter"
-        )
+        font_root = resources.files("setuav_studio").joinpath("assets", "fonts", "Inter")
 
         self.assertTrue(font_root.joinpath("Inter-VariableFont_opsz,wght.ttf").is_file())
-        self.assertTrue(
-            font_root.joinpath("Inter-Italic-VariableFont_opsz,wght.ttf").is_file()
-        )
+        self.assertTrue(font_root.joinpath("Inter-Italic-VariableFont_opsz,wght.ttf").is_file())
         self.assertTrue(font_root.joinpath("OFL.txt").is_file())
 
     def test_theme_mode_switching_and_tokens(self) -> None:

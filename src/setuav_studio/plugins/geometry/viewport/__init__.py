@@ -1,4 +1,5 @@
 """3D OpenGL Geometry Viewport and Rendering package."""
+
 from .mesh import (
     FACE_COLORED,
     FACE_MONOCHROME,

@@ -24,7 +24,11 @@ class PropertiesPanel(QWidget):
             return
 
         new_id = str(selection.get("id") or "")
-        if self._current_selection_id is not None and new_id == self._current_selection_id and self._current_widget is not None:
+        if (
+            self._current_selection_id is not None
+            and new_id == self._current_selection_id
+            and self._current_widget is not None
+        ):
             # Same component is already selected; keep current editor widget intact
             return
 
@@ -57,7 +61,9 @@ class PropertiesPanel(QWidget):
 
     def update_theme_style(self) -> None:
         if self._current_widget is not None:
-            if hasattr(self._current_widget, "update_theme_style") and callable(self._current_widget.update_theme_style):
+            if hasattr(self._current_widget, "update_theme_style") and callable(
+                self._current_widget.update_theme_style
+            ):
                 self._current_widget.update_theme_style()
             for child in self._current_widget.findChildren(QWidget):
                 if hasattr(child, "update_theme_style") and callable(child.update_theme_style):

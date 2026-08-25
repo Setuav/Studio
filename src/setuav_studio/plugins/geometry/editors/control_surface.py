@@ -119,31 +119,35 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
 
     def _create_general_section(self) -> None:
         layout = self._create_section("General", "fa6s.circle-info")
-        self.general_table = self._property_table([
-            ("name", "Name"),
-            ("type", "Type"),
-            ("parent", "Parent Wing"),
-        ])
+        self.general_table = self._property_table(
+            [
+                ("name", "Name"),
+                ("type", "Type"),
+                ("parent", "Parent Wing"),
+            ]
+        )
         self.general_table.cellChanged.connect(self._update_general)
         layout.addWidget(self.general_table)
 
     def _create_properties_section(self) -> None:
         layout = self._create_section("Control Surface Geometry", "fa6s.sliders")
-        self.properties_table = self._property_table([
-            ("tag", "Tag / Label"),
-            ("type", "Type"),
-            ("span_mode", "Span Sizing"),
-            ("span_start", "Span Start (mm)"),
-            ("span_end", "Span End (mm)"),
-            ("eta_start", "Eta Start (0 - 1)"),
-            ("eta_end", "Eta End (0 - 1)"),
-            ("chord_mode", "Chord Sizing"),
-            ("chord_fraction", "Chord Fraction (c_f / c)"),
-            ("chord", "Control Chord (mm)"),
-            ("hinge_sweep", "Hinge Sweep (°)"),
-            ("deflection", "Deflection Angle (°)"),
-            ("symmetry_mode", "Symmetry Mode"),
-        ])
+        self.properties_table = self._property_table(
+            [
+                ("tag", "Tag / Label"),
+                ("type", "Type"),
+                ("span_mode", "Span Sizing"),
+                ("span_start", "Span Start (mm)"),
+                ("span_end", "Span End (mm)"),
+                ("eta_start", "Eta Start (0 - 1)"),
+                ("eta_end", "Eta End (0 - 1)"),
+                ("chord_mode", "Chord Sizing"),
+                ("chord_fraction", "Chord Fraction (c_f / c)"),
+                ("chord", "Control Chord (mm)"),
+                ("hinge_sweep", "Hinge Sweep (°)"),
+                ("deflection", "Deflection Angle (°)"),
+                ("symmetry_mode", "Symmetry Mode"),
+            ]
+        )
         self.properties_table.cellChanged.connect(self._update_property_cell)
         layout.addWidget(self.properties_table)
 
@@ -160,7 +164,8 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
                     if isinstance(profs, list) and profs:
                         span_values = [
                             float(p.get("position", {}).get("y", 0.0))
-                            for p in profs if isinstance(p.get("position"), dict)
+                            for p in profs
+                            if isinstance(p.get("position"), dict)
                         ]
                         y0 = span_values[0] if span_values else 0.0
                         y1 = span_values[-1] if span_values else 0.0
@@ -200,7 +205,9 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
         semi_span, root_chord = self._parent_wing_info()
         self._cs_spinboxes = {}
 
-        tag_val = str(geom.get("tag") or self._component.get("name") or self._component.get("id") or "")
+        tag_val = str(
+            geom.get("tag") or self._component.get("name") or self._component.get("id") or ""
+        )
         cs_type = str(geom.get("type") or "aileron").lower()
         span_mode = str(geom.get("span_mode", "ratio")).lower()
         chord_mode = str(geom.get("chord_mode", "ratio")).lower()
@@ -493,17 +500,21 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
         key = self._property_key(self.general_table, row)
         val_str = self._property_text(self.general_table, row).strip()
         if key == "name":
+
             def change() -> None:
                 self._component["name"] = val_str
                 self._geometry()["tag"] = val_str
+
             self._edit_component("Rename control surface", change)
 
     def _update_parent(self, new_parent: str | None) -> None:
         if self._loading:
             return
+
         def change() -> None:
             self._component["parent"] = new_parent if new_parent else None
             self._component["attach_to"] = new_parent if new_parent else None
+
         self._edit_component("Change control surface parent wing", change)
 
     def _edit_component(self, action_name: str, mutation: Callable[[], None]) -> None:

@@ -14,8 +14,7 @@ class WeightBalanceEngine(ABC):
     def evaluate(
         self,
         project: ProjectDocument,
-    ) -> WeightBalanceResult:
-        ...
+    ) -> WeightBalanceResult: ...
 
 
 class WeightBalanceError(ValueError):

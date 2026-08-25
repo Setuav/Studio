@@ -40,14 +40,16 @@ class PlanformMixin:
         """Global Wing Sweep, Dihedral, Twist/Washout, and Reference Axes table section."""
         layout = self._create_section("Wing Angles", "fa6s.arrows-spin")
 
-        self.wing_angles_table = self._property_table([
-            ("sweep", "Sweep Angle (°)"),
-            ("sweep_loc", "Sweep Location"),
-            ("sweep_curvature", "Sweep Curvature (mm)"),
-            ("dihedral", "Dihedral Angle (°)"),
-            ("twist", "Twist / Washout (°)"),
-            ("twist_axis", "Twist Axis Location"),
-        ])
+        self.wing_angles_table = self._property_table(
+            [
+                ("sweep", "Sweep Angle (°)"),
+                ("sweep_loc", "Sweep Location"),
+                ("sweep_curvature", "Sweep Curvature (mm)"),
+                ("dihedral", "Dihedral Angle (°)"),
+                ("twist", "Twist / Washout (°)"),
+                ("twist_axis", "Twist Axis Location"),
+            ]
+        )
         layout.addWidget(self.wing_angles_table)
 
     # -------------------------------------------------------------------------
@@ -206,8 +208,12 @@ class PlanformMixin:
 
         if key in ("sweep", "sweep_curvature"):
             sweep_val = float(value if key == "sweep" else metrics.get("sweep", 0.0))
-            curv_val = float(value if key == "sweep_curvature" else geom.get("sweep_curvature", 0.0))
-            new_profiles = set_wing_global_sweep(profiles, sweep_val, sw_loc, sweep_curvature=curv_val)
+            curv_val = float(
+                value if key == "sweep_curvature" else geom.get("sweep_curvature", 0.0)
+            )
+            new_profiles = set_wing_global_sweep(
+                profiles, sweep_val, sw_loc, sweep_curvature=curv_val
+            )
             geom["sweep_curvature"] = curv_val
         elif key == "dihedral":
             new_profiles = set_wing_global_dihedral(profiles, value)
@@ -289,16 +295,28 @@ class PlanformMixin:
         if is_main_wing:
             if "wing_area" in params and isinstance(params["wing_area"], dict) and "area" in inputs:
                 params["wing_area"]["value"] = float(inputs["area"])
-            if "wing_aspect_ratio" in params and isinstance(params["wing_aspect_ratio"], dict) and "aspect_ratio" in inputs:
+            if (
+                "wing_aspect_ratio" in params
+                and isinstance(params["wing_aspect_ratio"], dict)
+                and "aspect_ratio" in inputs
+            ):
                 params["wing_aspect_ratio"]["value"] = float(inputs["aspect_ratio"])
             if "wingspan" in params and isinstance(params["wingspan"], dict) and "span" in inputs:
                 params["wingspan"]["value"] = float(inputs["span"])
         else:
             comp_area_key = f"{comp_id}_area"
-            if comp_area_key in params and isinstance(params[comp_area_key], dict) and "area" in inputs:
+            if (
+                comp_area_key in params
+                and isinstance(params[comp_area_key], dict)
+                and "area" in inputs
+            ):
                 params[comp_area_key]["value"] = float(inputs["area"])
             comp_span_key = f"{comp_id}_span"
-            if comp_span_key in params and isinstance(params[comp_span_key], dict) and "span" in inputs:
+            if (
+                comp_span_key in params
+                and isinstance(params[comp_span_key], dict)
+                and "span" in inputs
+            ):
                 params[comp_span_key]["value"] = float(inputs["span"])
 
     def _update_profiles_table_interactivity(self) -> None:

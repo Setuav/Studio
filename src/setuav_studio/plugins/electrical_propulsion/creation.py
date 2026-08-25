@@ -58,8 +58,8 @@ class PropulsionCreationController:
                 menu_items=tuple(
                     ToolbarMenuItemContribution(
                         title=f"Add {label}",
-                        callback=lambda component_kind=component_kind: (
-                            self.add_component(component_kind)
+                        callback=lambda component_kind=component_kind: self.add_component(
+                            component_kind
                         ),
                         icon=icon,
                         enabled_when=self._can_add_component,
@@ -292,10 +292,7 @@ class PropulsionCreationController:
         if len(assemblies) == 1:
             return assemblies[0]
 
-        labels = [
-            f"{item.get('name') or item.get('id')} ({item.get('id')})"
-            for item in assemblies
-        ]
+        labels = [f"{item.get('name') or item.get('id')} ({item.get('id')})" for item in assemblies]
         selected_label, accepted = QInputDialog.getItem(
             QApplication.activeWindow(),
             "Select Propulsion Assembly",
@@ -355,16 +352,8 @@ class PropulsionCreationController:
         raw_assemblies = assemblies if isinstance(assemblies, list) else []
         identity_items = raw_components + raw_assemblies
         name_items = raw_assemblies if include_assemblies else raw_components
-        ids = {
-            str(item.get("id") or "")
-            for item in identity_items
-            if isinstance(item, dict)
-        }
-        names = {
-            str(item.get("name") or "")
-            for item in name_items
-            if isinstance(item, dict)
-        }
+        ids = {str(item.get("id") or "") for item in identity_items if isinstance(item, dict)}
+        names = {str(item.get("name") or "") for item in name_items if isinstance(item, dict)}
         if base_id not in ids and base_name not in names:
             return base_id, base_name
         suffix = 2
@@ -429,8 +418,7 @@ class PropulsionCreationController:
             (
                 component
                 for component in components
-                if isinstance(component, dict)
-                and str(component.get("id") or "") == component_id
+                if isinstance(component, dict) and str(component.get("id") or "") == component_id
             ),
             None,
         )

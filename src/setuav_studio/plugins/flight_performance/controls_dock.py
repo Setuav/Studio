@@ -1,4 +1,5 @@
 """Controls Dock Widget for Flight Performance Analysis using Property Tables."""
+
 from __future__ import annotations
 
 import math
@@ -115,10 +116,12 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
     def _create_propulsion_section(self) -> None:
         layout = self._create_section("Propulsion System", "fa6s.bolt")
 
-        self.propulsion_table = self._property_table([
-            ("assembly", "Assembly"),
-            ("soc", "Battery State (SOC)"),
-        ])
+        self.propulsion_table = self._property_table(
+            [
+                ("assembly", "Assembly"),
+                ("soc", "Battery State (SOC)"),
+            ]
+        )
 
         self.combo_assembly = QComboBox()
         self.combo_soc = QComboBox()
@@ -134,11 +137,13 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
     def _create_mass_section(self) -> None:
         layout = self._create_section("Aircraft Mass & Payload", "fa6s.scale-balanced")
 
-        self.mass_table = self._property_table([
-            ("empty_mass", "Empty Mass"),
-            ("payload", "Payload"),
-            ("tow", "Takeoff Weight (TOW)"),
-        ])
+        self.mass_table = self._property_table(
+            [
+                ("empty_mass", "Empty Mass"),
+                ("payload", "Payload"),
+                ("tow", "Takeoff Weight (TOW)"),
+            ]
+        )
 
         self.spin_payload = NumericSpinBox()
         self.spin_payload.setRange(0.0, 100000.0)
@@ -157,11 +162,13 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
     def _create_atmosphere_section(self) -> None:
         layout = self._create_section("Atmosphere & Environment", "fa6s.cloud-sun")
 
-        self.atmosphere_table = self._property_table([
-            ("altitude", "Altitude (MSL)"),
-            ("temperature", "Temperature"),
-            ("density", "Air Density (ρ)"),
-        ])
+        self.atmosphere_table = self._property_table(
+            [
+                ("altitude", "Altitude (MSL)"),
+                ("temperature", "Temperature"),
+                ("density", "Air Density (ρ)"),
+            ]
+        )
 
         self.spin_alt = NumericSpinBox()
         self.spin_alt.setRange(-500.0, 15000.0)
@@ -184,12 +191,14 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
     def _create_sweep_section(self) -> None:
         layout = self._create_section("Velocity Sweep Envelope", "fa6s.arrows-left-right")
 
-        self.sweep_table = self._property_table([
-            ("v_min", "Min Speed (V_min)"),
-            ("v_max", "Max Speed (V_max)"),
-            ("v_step", "Speed Step (V_step)"),
-            ("stall_margin", "Stall Margin"),
-        ])
+        self.sweep_table = self._property_table(
+            [
+                ("v_min", "Min Speed (V_min)"),
+                ("v_max", "Max Speed (V_max)"),
+                ("v_step", "Speed Step (V_step)"),
+                ("stall_margin", "Stall Margin"),
+            ]
+        )
 
         self.spin_vmin = NumericSpinBox()
         self.spin_vmin.setRange(1.0, 100.0)
@@ -258,7 +267,9 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
 
         rho_calc = p_alt / (287.058 * t_k)
         self._current_density = max(0.1, min(rho_calc, 2.0))
-        self._set_property_value(self.atmosphere_table, "density", f"{self._current_density:.4f} kg/m³")
+        self._set_property_value(
+            self.atmosphere_table, "density", f"{self._current_density:.4f} kg/m³"
+        )
 
     def _on_project_changed(self, project: Any) -> None:
         self._refresh_sources()
@@ -288,10 +299,14 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
         if proj:
             assemblies = proj.data.get("assemblies", [])
             for a in assemblies:
-                if a.get("type") in {
-                    "org.setuav.core:electric-propulsion-system",
-                    "org.setuav.core:propulsion-system",
-                } or "propulsion" in str(a.get("type", "")).lower():
+                if (
+                    a.get("type")
+                    in {
+                        "org.setuav.core:electric-propulsion-system",
+                        "org.setuav.core:propulsion-system",
+                    }
+                    or "propulsion" in str(a.get("type", "")).lower()
+                ):
                     self.combo_assembly.addItem(a.get("name", a.get("id")), a.get("id"))
 
         if self.combo_assembly.count() == 0:
@@ -321,9 +336,7 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
 
         comps = proj.data.get("components", [])
         total_g = sum(
-            float(c.get("parameters", {}).get("mass", 0.0))
-            for c in comps
-            if isinstance(c, dict)
+            float(c.get("parameters", {}).get("mass", 0.0)) for c in comps if isinstance(c, dict)
         )
         self._empty_mass_kg = total_g / 1000.0 if total_g > 0 else 0.0
         empty_g = self._empty_mass_kg * 1000.0
@@ -402,7 +415,9 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
             r_motor = float(m_params.get("resistance") or m_params.get("resistance_ohm") or 0.035)
             i0 = float(m_params.get("no_load_current") or m_params.get("no_load_current_a") or 1.2)
             i_max = float(m_params.get("max_current") or m_params.get("current_max_a") or 45.0)
-            motor_spec = MotorSpec(kv_rpm_per_v=kv, resistance_ohm=r_motor, no_load_current_a=i0, current_max_a=i_max)
+            motor_spec = MotorSpec(
+                kv_rpm_per_v=kv, resistance_ohm=r_motor, no_load_current_a=i0, current_max_a=i_max
+            )
 
         prop_spec: PropellerSpec | None = None
         prop_entry = None
@@ -429,7 +444,9 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
                     or prop_db.find_by_size(diameter_in, pitch_in)
                 )
             if prop_entry is None:
-                prop_entry = PropulsionSolverEngine.fallback_propeller(diameter_in, pitch_in, blades)
+                prop_entry = PropulsionSolverEngine.fallback_propeller(
+                    diameter_in, pitch_in, blades
+                )
 
         bat_capacity_mah: float | None = None
         bat_voltage: float | None = None

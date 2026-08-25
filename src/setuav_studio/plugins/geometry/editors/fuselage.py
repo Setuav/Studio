@@ -77,26 +77,20 @@ class FuselageEditor(PropertyTableMixin, QWidget):
 
     def _create_general_section(self) -> None:
         layout = self._create_section("General", "fa6s.circle-info")
-        self.general_table = self._property_table(
-            [("name", "Name"), ("type", "Type")]
-        )
+        self.general_table = self._property_table([("name", "Name"), ("type", "Type")])
         self.general_table.cellChanged.connect(self._update_general)
         layout.addWidget(self.general_table)
 
     def _create_segments_section(self) -> None:
         layout = self._create_section("Segments", "fa6s.layer-group")
 
-        self.segments_table = self._table(
-            ["Tag", "Sections", "Method", "Parameterization"]
-        )
+        self.segments_table = self._table(["Tag", "Sections", "Method", "Parameterization"])
         self.segments_table.setEditTriggers(
             QAbstractItemView.EditTrigger.DoubleClicked
             | QAbstractItemView.EditTrigger.EditKeyPressed
             | QAbstractItemView.EditTrigger.SelectedClicked
         )
-        self.segments_table.horizontalHeader().setSectionResizeMode(
-            1, QHeaderView.ResizeMode.Fixed
-        )
+        self.segments_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
         self.segments_table.setColumnWidth(1, 58)
         self.segments_table.currentCellChanged.connect(self._on_segment_selected)
         self.segments_table.cellChanged.connect(self._update_segment_cell)
@@ -105,9 +99,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         segment_actions = QHBoxLayout()
         segment_actions.setContentsMargins(0, 2, 0, 2)
         segment_actions.setSpacing(2)
-        self.add_segment_button = self._action_button(
-            "add", "Add segment", self._add_segment
-        )
+        self.add_segment_button = self._action_button("add", "Add segment", self._add_segment)
         self.duplicate_segment_button = self._action_button(
             "instance", "Duplicate segment", self._duplicate_segment
         )
@@ -135,9 +127,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         layout = self._create_section("Sections", "mdi6.vector-polygon")
 
         self.sections_table = self._table(["#", "Profile", "X", "Size"])
-        self.sections_table.horizontalHeader().setSectionResizeMode(
-            0, QHeaderView.ResizeMode.Fixed
-        )
+        self.sections_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         self.sections_table.setColumnWidth(0, 32)
         self.sections_table.currentCellChanged.connect(self._on_section_selected)
         self.sections_table.doubleClicked.connect(self._on_section_double_clicked)
@@ -150,9 +140,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
             "mdi6.eye-outline", "Inspect & Edit 2D Cross-Section...", self._inspect_section
         )
         set_native_button(self.inspect_section_button, "mdi6.eye-outline")
-        self.add_section_button = self._action_button(
-            "add", "Add section", self._add_section
-        )
+        self.add_section_button = self._action_button("add", "Add section", self._add_section)
         self.duplicate_section_button = self._action_button(
             "instance", "Duplicate section", self._duplicate_section
         )
@@ -181,30 +169,18 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         self.transform_table = QTableWidget(2, 3)
         self.transform_table.setHorizontalHeaderLabels(["X", "Y", "Z"])
         self.transform_table.setVerticalHeaderLabels(["Position (mm)", "Rotation (°)"])
-        self.transform_table.setSelectionMode(
-            QAbstractItemView.SelectionMode.SingleSelection
-        )
-        self.transform_table.setSelectionBehavior(
-            QAbstractItemView.SelectionBehavior.SelectItems
-        )
+        self.transform_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.transform_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
         self.transform_table.setEditTriggers(
             QAbstractItemView.EditTrigger.DoubleClicked
             | QAbstractItemView.EditTrigger.EditKeyPressed
             | QAbstractItemView.EditTrigger.SelectedClicked
         )
-        self.transform_table.setVerticalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-        )
-        self.transform_table.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-        )
-        self.transform_table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.Stretch
-        )
+        self.transform_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.transform_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.transform_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.transform_table.horizontalHeader().setFixedHeight(23)
-        self.transform_table.verticalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.Fixed
-        )
+        self.transform_table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
         self.transform_table.verticalHeader().setDefaultSectionSize(23)
         self.transform_table.verticalHeader().setMinimumWidth(82)
         self.transform_table.setFixedHeight(71)
@@ -225,9 +201,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         properties_layout.addWidget(self.inspect_2d_button)
 
         self.section_properties_table = self._property_table([])
-        self.section_properties_table.cellChanged.connect(
-            self._update_section_property
-        )
+        self.section_properties_table.cellChanged.connect(self._update_section_property)
         properties_layout.addWidget(self.section_properties_table)
 
         self.vertices_table = self._table(["Y", "Z", "Radius"])
@@ -278,9 +252,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
 
     def _load_component(self) -> None:
         self._loading = True
-        self._set_property_value(
-            self.general_table, "name", str(self._component.get("name") or "")
-        )
+        self._set_property_value(self.general_table, "name", str(self._component.get("name") or ""))
         self._set_property_value(
             self.general_table,
             "type",
@@ -426,9 +398,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
     def _add_segment(self) -> None:
         segments = self._segments()
         insert_at = (
-            self._segment_index + 1
-            if 0 <= self._segment_index < len(segments)
-            else len(segments)
+            self._segment_index + 1 if 0 <= self._segment_index < len(segments) else len(segments)
         )
         new_segment = self._new_segment(segments)
         self._api.edit_component(
@@ -517,9 +487,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         self.add_segment_button.setEnabled(True)
         self.duplicate_segment_button.setEnabled(has_segment)
         self.move_segment_up_button.setEnabled(has_segment and index > 0)
-        self.move_segment_down_button.setEnabled(
-            has_segment and index < len(segments) - 1
-        )
+        self.move_segment_down_button.setEnabled(has_segment and index < len(segments) - 1)
         self.delete_segment_button.setEnabled(has_segment and len(segments) > 1)
 
     def _on_section_selected(self, row: int, _column: int, *_previous: int) -> None:
@@ -534,11 +502,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
 
     def _publish_section_selection(self) -> None:
         component_id = self._component.get("id")
-        if (
-            isinstance(component_id, str)
-            and self._segment_index >= 0
-            and self._section_index >= 0
-        ):
+        if isinstance(component_id, str) and self._segment_index >= 0 and self._section_index >= 0:
             self._api.set_section_selection(
                 (component_id, self._segment_index, self._section_index)
             )
@@ -550,9 +514,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         if self._current_segment() is None:
             return
         insert_at = (
-            self._section_index + 1
-            if 0 <= self._section_index < len(sections)
-            else len(sections)
+            self._section_index + 1 if 0 <= self._section_index < len(sections) else len(sections)
         )
         new_section = self._new_section(sections, insert_at)
         self._api.edit_component(
@@ -637,9 +599,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         self.add_section_button.setEnabled(has_segment)
         self.duplicate_section_button.setEnabled(has_section)
         self.move_section_up_button.setEnabled(has_section and index > 0)
-        self.move_section_down_button.setEnabled(
-            has_section and index < len(sections) - 1
-        )
+        self.move_section_down_button.setEnabled(has_section and index < len(sections) - 1)
         self.delete_section_button.setEnabled(has_section and len(sections) > 2)
 
     def _on_section_double_clicked(self, _index: Any = None) -> None:
@@ -770,11 +730,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
             "method": {"auto", "smooth", "ruled"},
             "parameterization": {"uniform", "chord_length", "centripetal"},
         }
-        if (
-            self._loading
-            or not 0 <= index < len(segments)
-            or value not in allowed.get(key, set())
-        ):
+        if self._loading or not 0 <= index < len(segments) or value not in allowed.get(key, set()):
             return
         segment = segments[index]
 

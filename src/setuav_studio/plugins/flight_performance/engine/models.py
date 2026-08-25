@@ -1,4 +1,5 @@
 """Flight performance analysis data models."""
+
 from __future__ import annotations
 
 import math
@@ -19,9 +20,9 @@ class OptimalSpeeds:
     """Characteristic optimal speeds for flight envelope."""
 
     best_endurance: float = 0.0  # m/s (min power required / electrical draw)
-    best_range: float = 0.0      # m/s (max L/D in cruise or max range)
-    best_climb: float = 0.0      # m/s (max excess power / Vy)
-    best_ld: float = 0.0         # m/s (speed at maximum L/D)
+    best_range: float = 0.0  # m/s (max L/D in cruise or max range)
+    best_climb: float = 0.0  # m/s (max excess power / Vy)
+    best_ld: float = 0.0  # m/s (speed at maximum L/D)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -40,15 +41,15 @@ class OptimalSpeeds:
 class PerformanceMetrics:
     """Scalar performance envelope summary metrics."""
 
-    stall_speed: float = 0.0          # m/s
-    max_speed: float = 0.0            # m/s (max level flight speed)
-    max_ld_ratio: float = 0.0         # (L/D)_max
-    glide_ratio: float = 0.0          # Unpowered glide ratio
-    best_climb_angle_deg: float = 0.0 # deg (gamma_max)
-    min_power_required: float = 0.0   # W (aerodynamic power)
-    max_range_km: float = 0.0         # km
+    stall_speed: float = 0.0  # m/s
+    max_speed: float = 0.0  # m/s (max level flight speed)
+    max_ld_ratio: float = 0.0  # (L/D)_max
+    glide_ratio: float = 0.0  # Unpowered glide ratio
+    best_climb_angle_deg: float = 0.0  # deg (gamma_max)
+    min_power_required: float = 0.0  # W (aerodynamic power)
+    max_range_km: float = 0.0  # km
     max_endurance_hours: float = 0.0  # hours
-    max_rate_of_climb: float = 0.0    # m/s (ROC_max)
+    max_rate_of_climb: float = 0.0  # m/s (ROC_max)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -72,12 +73,12 @@ class PerformanceMetrics:
 class CruisePerformance:
     """Operating state at cruise speed."""
 
-    speed: float = 0.0      # m/s
-    power: float = 0.0      # W (electrical power)
-    current: float = 0.0    # A
-    throttle: float = 0.0   # % (0-100)
+    speed: float = 0.0  # m/s
+    power: float = 0.0  # W (electrical power)
+    current: float = 0.0  # A
+    throttle: float = 0.0  # % (0-100)
     endurance: float = 0.0  # hours
-    range: float = 0.0      # km
+    range: float = 0.0  # km
     feasible: bool = True
 
     def to_dict(self) -> dict[str, Any]:
@@ -101,17 +102,19 @@ class FlightCurves:
     """Vector curves across velocity sweep."""
 
     velocities: list[float] = field(default_factory=list)
-    power_required: list[float] = field(default_factory=list)     # W (aerodynamic)
-    power_available: list[float] = field(default_factory=list)    # W (propulsive at current-safe max throttle)
-    thrust_required: list[float] = field(default_factory=list)    # N (level flight drag)
-    thrust_available: list[float] = field(default_factory=list)   # N (at current-safe max throttle)
-    rate_of_climb: list[float] = field(default_factory=list)      # m/s
-    climb_angle_deg: list[float] = field(default_factory=list)    # deg
-    range_km: list[float] = field(default_factory=list)           # km
-    endurance_hours: list[float] = field(default_factory=list)    # hours
-    electrical_power: list[float] = field(default_factory=list)   # W (level flight battery draw)
-    current_draw: list[float] = field(default_factory=list)       # A (level flight battery current)
-    throttle_pct: list[float] = field(default_factory=list)       # %
+    power_required: list[float] = field(default_factory=list)  # W (aerodynamic)
+    power_available: list[float] = field(
+        default_factory=list
+    )  # W (propulsive at current-safe max throttle)
+    thrust_required: list[float] = field(default_factory=list)  # N (level flight drag)
+    thrust_available: list[float] = field(default_factory=list)  # N (at current-safe max throttle)
+    rate_of_climb: list[float] = field(default_factory=list)  # m/s
+    climb_angle_deg: list[float] = field(default_factory=list)  # deg
+    range_km: list[float] = field(default_factory=list)  # km
+    endurance_hours: list[float] = field(default_factory=list)  # hours
+    electrical_power: list[float] = field(default_factory=list)  # W (level flight battery draw)
+    current_draw: list[float] = field(default_factory=list)  # A (level flight battery current)
+    throttle_pct: list[float] = field(default_factory=list)  # %
     feasible: list[bool] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -189,18 +192,22 @@ class FlightEnvelopeResult:
         curves = FlightCurves.from_dict(data.get("curves", {}))
         # Results written before the availability field was introduced had
         # populated propulsion curves. Preserve their display behaviour.
-        propulsion_available = bool(
-            data.get("propulsion_available", bool(curves.power_available))
-        )
+        propulsion_available = bool(data.get("propulsion_available", bool(curves.power_available)))
         return cls(
             mass_kg=_safe_float(data.get("mass_kg")),
             area_m2=_safe_float(data.get("area_m2")),
             air_density=_safe_float(data.get("air_density", 1.225)),
             cl_max=_safe_float(data.get("cl_max", 1.2)),
             cd0=_safe_float(data.get("cd0")) if data.get("cd0") is not None else None,
-            k_induced=_safe_float(data.get("k_induced")) if data.get("k_induced") is not None else None,
-            battery_capacity_ah=_safe_float(data.get("battery_capacity_ah")) if data.get("battery_capacity_ah") is not None else None,
-            battery_voltage=_safe_float(data.get("battery_voltage")) if data.get("battery_voltage") is not None else None,
+            k_induced=_safe_float(data.get("k_induced"))
+            if data.get("k_induced") is not None
+            else None,
+            battery_capacity_ah=_safe_float(data.get("battery_capacity_ah"))
+            if data.get("battery_capacity_ah") is not None
+            else None,
+            battery_voltage=_safe_float(data.get("battery_voltage"))
+            if data.get("battery_voltage") is not None
+            else None,
             optimal_speeds=OptimalSpeeds.from_dict(data.get("optimal_speeds", {})),
             metrics=PerformanceMetrics.from_dict(data.get("metrics", {})),
             cruise=CruisePerformance.from_dict(data.get("cruise", {})),

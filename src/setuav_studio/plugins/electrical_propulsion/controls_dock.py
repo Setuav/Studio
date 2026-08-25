@@ -124,19 +124,23 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
 
     def _create_system_section(self) -> None:
         layout = self._create_section("Target System", "fa6s.bolt")
-        self.system_table = self._property_table([
-            ("assembly", "Assembly"),
-            ("motor_info", "Motor"),
-            ("propeller_info", "Propeller"),
-            ("battery_info", "Battery"),
-        ])
+        self.system_table = self._property_table(
+            [
+                ("assembly", "Assembly"),
+                ("motor_info", "Motor"),
+                ("propeller_info", "Propeller"),
+                ("battery_info", "Battery"),
+            ]
+        )
         layout.addWidget(self.system_table)
 
     def _create_mode_section(self) -> None:
         layout = self._create_section("Analysis Mode", "fa6s.sliders")
-        self.mode_table = self._property_table([
-            ("mode", "Mode"),
-        ])
+        self.mode_table = self._property_table(
+            [
+                ("mode", "Mode"),
+            ]
+        )
         mode_options = [
             ("airspeed_sweep", "Airspeed Sweep"),
             ("throttle_sweep", "Throttle Sweep"),
@@ -160,11 +164,13 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
 
     def _create_atmosphere_section(self) -> None:
         layout = self._create_section("Atmosphere", "fa6s.cloud")
-        self.atmosphere_table = self._property_table([
-            ("altitude", "Altitude (m)"),
-            ("temperature", "Temperature (°C)"),
-            ("density", "Air Density (kg/m³)"),
-        ])
+        self.atmosphere_table = self._property_table(
+            [
+                ("altitude", "Altitude (m)"),
+                ("temperature", "Temperature (°C)"),
+                ("density", "Air Density (kg/m³)"),
+            ]
+        )
         self.atmosphere_table.cellChanged.connect(self._on_atmosphere_cell_changed)
         self._set_property_value(self.atmosphere_table, "altitude", "0.0")
         self._set_property_value(self.atmosphere_table, "temperature", "15.0")
@@ -173,9 +179,11 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
 
     def _create_battery_state_section(self) -> None:
         layout = self._create_section("Battery State", "fa6s.battery-half")
-        self.battery_state_table = self._property_table([
-            ("soc", "State of Charge"),
-        ])
+        self.battery_state_table = self._property_table(
+            [
+                ("soc", "State of Charge"),
+            ]
+        )
         soc_options = [
             ("full", "Full (4.20 V / cell)"),
             ("nominal", "Nominal (3.70 V / cell)"),
@@ -251,7 +259,9 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
         self._alert_severity = severity
         if severity in ("warning", "danger", "error"):
             color = status_color("error")
-            self.alert_icon.setPixmap(get_icon("fa6s.triangle-exclamation", color=color).pixmap(16, 16))
+            self.alert_icon.setPixmap(
+                get_icon("fa6s.triangle-exclamation", color=color).pixmap(16, 16)
+            )
         else:
             color = status_color("success")
             self.alert_icon.setPixmap(get_icon("fa6s.circle-check", color=color).pixmap(16, 16))
@@ -337,9 +347,7 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
 
         density = pressure / (r_air * max(t_kelvin, 1.0))
         self._loading = True
-        self._set_property_value(
-            self.atmosphere_table, "density", f"{density:.3f}", editable=False
-        )
+        self._set_property_value(self.atmosphere_table, "density", f"{density:.3f}", editable=False)
         self._loading = False
 
     def _reset_defaults(self) -> None:
@@ -365,8 +373,7 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
 
         assemblies = proj.data.get("assemblies", [])
         prop_assemblies = [
-            a for a in assemblies
-            if a.get("type") == "org.setuav.core:electric-propulsion-system"
+            a for a in assemblies if a.get("type") == "org.setuav.core:electric-propulsion-system"
         ]
 
         if not prop_assemblies:
@@ -377,10 +384,7 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
             self.run_button.setEnabled(False)
             return
 
-        options = [
-            (str(a.get("id")), str(a.get("name") or a.get("id")))
-            for a in prop_assemblies
-        ]
+        options = [(str(a.get("id")), str(a.get("name") or a.get("id"))) for a in prop_assemblies]
         self._set_property_combo(
             self.system_table,
             "assembly",
@@ -408,7 +412,9 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
         # Motor Info
         motor_ids = members.get("motors", [])
         motor = comp_map.get(motor_ids[0]) if motor_ids else None
-        motor_text = f"{motor.get('name') or motor.get('model') or motor.get('id')}" if motor else "-"
+        motor_text = (
+            f"{motor.get('name') or motor.get('model') or motor.get('id')}" if motor else "-"
+        )
         self._set_property_value(self.system_table, "motor_info", motor_text, editable=False)
 
         # Propeller Info
@@ -424,7 +430,11 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
             params = battery.get("parameters", {})
             pack = params.get("pack", {})
             cell = params.get("cell", {})
-            s = pack.get("series_count") or params.get("cell_count") or params.get("series_count", 1)
+            s = (
+                pack.get("series_count")
+                or params.get("cell_count")
+                or params.get("series_count", 1)
+            )
             cap = pack.get("capacity") or params.get("capacity", 0)
             chem = cell.get("chemistry") or params.get("chemistry", "LiPo")
             bat_text = f"{int(s)}S {chem} ({float(cap):.0f} mAh)"
@@ -439,10 +449,14 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
             "mode": self._current_mode,
             "soc": self._get_table_combo_value(self.battery_state_table, "soc"),
             "altitude": float(self._property_value(self.atmosphere_table, "altitude") or 0.0),
-            "temperature": float(self._property_value(self.atmosphere_table, "temperature") or 15.0),
+            "temperature": float(
+                self._property_value(self.atmosphere_table, "temperature") or 15.0
+            ),
             "density": float(self._property_value(self.atmosphere_table, "density") or 1.225),
             "parameters": {
-                self._property_key(self.parameters_table, row): self._property_value_by_row(self.parameters_table, row)
+                self._property_key(self.parameters_table, row): self._property_value_by_row(
+                    self.parameters_table, row
+                )
                 for row in range(self.parameters_table.rowCount())
             },
         }
@@ -469,7 +483,9 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
 
         self._worker = PropulsionWorker(context)
         self._worker.signals.progress.connect(self._on_analysis_progress)
-        self._worker.signals.finished.connect(lambda res, ctx=context: self._on_analysis_finished(ctx, res))
+        self._worker.signals.finished.connect(
+            lambda res, ctx=context: self._on_analysis_finished(ctx, res)
+        )
         self._worker.signals.error.connect(self._on_analysis_error)
 
         QThreadPool.globalInstance().start(self._worker)
@@ -526,10 +542,16 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
 
         motor_params = motor_comp.get("parameters", {}) if motor_comp else {}
         kv = float(motor_params.get("kv") or motor_params.get("kv_rpm_per_v") or 900.0)
-        r_motor = float(motor_params.get("resistance") or motor_params.get("resistance_ohm") or 0.035)
-        i0 = float(motor_params.get("no_load_current") or motor_params.get("no_load_current_a") or 1.2)
+        r_motor = float(
+            motor_params.get("resistance") or motor_params.get("resistance_ohm") or 0.035
+        )
+        i0 = float(
+            motor_params.get("no_load_current") or motor_params.get("no_load_current_a") or 1.2
+        )
         i_max = float(motor_params.get("max_current") or motor_params.get("current_max_a") or 45.0)
-        motor_spec = MotorSpec(kv_rpm_per_v=kv, resistance_ohm=r_motor, no_load_current_a=i0, current_max_a=i_max)
+        motor_spec = MotorSpec(
+            kv_rpm_per_v=kv, resistance_ohm=r_motor, no_load_current_a=i0, current_max_a=i_max
+        )
 
         # Extract propeller
         prop_comp = None
@@ -613,7 +635,9 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
             throttle_val=throttle_val,
         )
 
-    def _solve_point(self, context: dict[str, Any], v_mps: float, throttle_val: float) -> dict[str, Any]:
+    def _solve_point(
+        self, context: dict[str, Any], v_mps: float, throttle_val: float
+    ) -> dict[str, Any]:
         pt = PropulsionSolverEngine.solve_point(
             motor_spec=context["motor_spec"],
             prop_spec=context["prop_spec"],
@@ -732,7 +756,7 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
                 severity="success",
                 title="Operating Point Feasible",
                 message=f"PyThrust: All operating points are within safe motor limits (Peak: {peak_curr:.1f} A / Max: {max_curr_limit:.1f} A).",
-            )    # Helper Table Methods
+            )  # Helper Table Methods
 
     @staticmethod
     def _set_table_combo_selection(table: QTableWidget, key: str, value: str) -> None:
@@ -755,7 +779,6 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
                 item = table.item(row, 1)
                 return item.text() if item else ""
         return ""
-
 
     @staticmethod
     def _property_value(table: QTableWidget, key: str) -> str:

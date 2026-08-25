@@ -1,4 +1,5 @@
 """Unit tests for AeroSandbox aerodynamic engine implementation."""
+
 from __future__ import annotations
 
 import json
@@ -148,16 +149,16 @@ class AeroSandboxEngineTests(unittest.TestCase):
         root = wing.xsecs[0]
         self.assertAlmostEqual(root.xyz_le[0], 0.2, places=3)  # 200 mm base_x
         self.assertAlmostEqual(root.xyz_le[1], 0.0, places=3)
-        self.assertAlmostEqual(root.xyz_le[2], 0.05, places=3) # 50 mm base_z
-        self.assertAlmostEqual(root.chord, 0.2, places=3)      # 200 mm chord
+        self.assertAlmostEqual(root.xyz_le[2], 0.05, places=3)  # 50 mm base_z
+        self.assertAlmostEqual(root.chord, 0.2, places=3)  # 200 mm chord
         # rotation.x is the source geometry's dihedral axis, not aerodynamic
         # twist.  AeroSandbox WingXSec currently receives explicit twist only.
         self.assertEqual(root.twist, 0.0)
 
         tip = wing.xsecs[1]
-        self.assertAlmostEqual(tip.xyz_le[0], 0.25, places=3) # 200 + 50 mm
-        self.assertAlmostEqual(tip.xyz_le[1], 0.75, places=3) # 750 mm
-        self.assertAlmostEqual(tip.chord, 0.12, places=3)     # 120 mm chord
+        self.assertAlmostEqual(tip.xyz_le[0], 0.25, places=3)  # 200 + 50 mm
+        self.assertAlmostEqual(tip.xyz_le[1], 0.75, places=3)  # 750 mm
+        self.assertAlmostEqual(tip.chord, 0.12, places=3)  # 120 mm chord
 
         span, area = engine._compute_reference_geometry(airplane)
         self.assertGreater(span, 1.4)  # symmetric 750mm half-span -> ~1.5m total
@@ -358,7 +359,9 @@ class AeroSandboxEngineTests(unittest.TestCase):
         project = json.loads((fixture_dir / "project.json").read_text(encoding="utf-8"))
         components = project["components"]
         main_wing = next(component for component in components if component["id"] == "main-wing")
-        clark_y_coordinates = main_wing["parameters"]["geometry"]["profiles"][0]["airfoil"]["points"]
+        clark_y_coordinates = main_wing["parameters"]["geometry"]["profiles"][0]["airfoil"][
+            "points"
+        ]
 
         native_airplane = build_fixed_wing_reference(clark_y_coordinates)
         condition = FlightCondition(
@@ -444,9 +447,9 @@ class AeroSandboxEngineTests(unittest.TestCase):
                         msg=(
                             f"{method.value} {studio_field} at alpha={studio_point.alpha:g} "
                             f"differs from native AeroSandbox: expected "
-                                f"{expected_value:.12g}, got {actual_value:.12g}"
-                            ),
-                        )
+                            f"{expected_value:.12g}, got {actual_value:.12g}"
+                        ),
+                    )
 
                 forces_moments = studio_point.forces_moments
                 self.assertIsNotNone(forces_moments)
@@ -515,7 +518,9 @@ class AeroSandboxEngineTests(unittest.TestCase):
         self.assertTrue(airplane.wings[1].symmetric)
         self.assertEqual(len(airplane.fuselages), 1)
         self.assertGreater(airplane.wings[0].area(), 0.1)
-        self.assertGreater(airplane.fuselages[0].xsecs[-1].xyz_c[0], airplane.fuselages[0].xsecs[0].xyz_c[0])
+        self.assertGreater(
+            airplane.fuselages[0].xsecs[-1].xyz_c[0], airplane.fuselages[0].xsecs[0].xyz_c[0]
+        )
 
         # Attachment offsets are part of the component frame and must survive
         # the mirrored conversion; they are not forced onto the centerline.
@@ -533,7 +538,10 @@ class AeroSandboxEngineTests(unittest.TestCase):
         """Document the controlled envelope mapping for non-native section types."""
         engine = AeroSandboxEngine()
         cases = (
-            ({"type": "trapezoid", "top_width": 40, "bottom_width": 80, "height": 30}, (0.08, 0.03, 1000.0)),
+            (
+                {"type": "trapezoid", "top_width": 40, "bottom_width": 80, "height": 30},
+                (0.08, 0.03, 1000.0),
+            ),
             ({"type": "triangle", "base_width": 60, "height": 25}, (0.06, 0.025, 1.05)),
             (
                 {
@@ -567,8 +575,18 @@ class AeroSandboxEngineTests(unittest.TestCase):
                     "geometry": {
                         "mirror": True,
                         "profiles": [
-                            {"position": {"x": 0, "y": 0, "z": 0}, "chord": 200, "twist": 0, "airfoil": "naca2412"},
-                            {"position": {"x": 50, "y": 800, "z": 0}, "chord": 120, "twist": 0, "airfoil": "naca2412"},
+                            {
+                                "position": {"x": 0, "y": 0, "z": 0},
+                                "chord": 200,
+                                "twist": 0,
+                                "airfoil": "naca2412",
+                            },
+                            {
+                                "position": {"x": 50, "y": 800, "z": 0},
+                                "chord": 120,
+                                "twist": 0,
+                                "airfoil": "naca2412",
+                            },
                         ],
                         "control_surfaces": [
                             {
@@ -587,7 +605,9 @@ class AeroSandboxEngineTests(unittest.TestCase):
         ]
 
         # 1. Neutral aileron (0 deg) -> zero roll moment
-        cond_neutral = FlightCondition(velocity=25.0, alpha=2.0, alpha_steps=1, control_deflections={"aileron": 0.0})
+        cond_neutral = FlightCondition(
+            velocity=25.0, alpha=2.0, alpha_steps=1, control_deflections={"aileron": 0.0}
+        )
         res_neutral = engine.analyze(components, cond_neutral, method=AnalysisMethod.VLM)
         self.assertAlmostEqual(res_neutral.polar_points[0].cl_roll, 0.0, places=3)
         native_controls = [
@@ -597,14 +617,20 @@ class AeroSandboxEngineTests(unittest.TestCase):
             for surface in xsec.control_surfaces
         ]
         self.assertTrue(any(surface.name == "aileron" for surface in native_controls))
-        self.assertTrue(any(math.isclose(float(surface.hinge_point), 0.75) for surface in native_controls))
+        self.assertTrue(
+            any(math.isclose(float(surface.hinge_point), 0.75) for surface in native_controls)
+        )
 
         # 2. Deflected aileron (10 deg) -> significant roll moment
-        cond_deflected = FlightCondition(velocity=25.0, alpha=2.0, alpha_steps=1, control_deflections={"aileron": 10.0})
+        cond_deflected = FlightCondition(
+            velocity=25.0, alpha=2.0, alpha_steps=1, control_deflections={"aileron": 10.0}
+        )
         res_deflected = engine.analyze(components, cond_deflected, method=AnalysisMethod.VLM)
         cl_roll = res_deflected.polar_points[0].cl_roll
         self.assertNotAlmostEqual(cl_roll, 0.0, places=2)
-        self.assertLess(cl_roll, -0.01)  # Right down (+10) -> left up (-10) -> roll to left (negative Cl)
+        self.assertLess(
+            cl_roll, -0.01
+        )  # Right down (+10) -> left up (-10) -> roll to left (negative Cl)
 
     @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_control_surface_child_component_and_elevator_pitch(self) -> None:
@@ -619,8 +645,18 @@ class AeroSandboxEngineTests(unittest.TestCase):
                     "geometry": {
                         "mirror": True,
                         "profiles": [
-                            {"position": {"x": 0, "y": 0, "z": 0}, "chord": 250, "twist": 0, "airfoil": "naca0012"},
-                            {"position": {"x": 30, "y": 700, "z": 0}, "chord": 150, "twist": 0, "airfoil": "naca0012"},
+                            {
+                                "position": {"x": 0, "y": 0, "z": 0},
+                                "chord": 250,
+                                "twist": 0,
+                                "airfoil": "naca0012",
+                            },
+                            {
+                                "position": {"x": 30, "y": 700, "z": 0},
+                                "chord": 150,
+                                "twist": 0,
+                                "airfoil": "naca0012",
+                            },
                         ],
                     }
                 },
@@ -634,8 +670,18 @@ class AeroSandboxEngineTests(unittest.TestCase):
                     "geometry": {
                         "mirror": True,
                         "profiles": [
-                            {"position": {"x": 0, "y": 0, "z": 0}, "chord": 150, "twist": 0, "airfoil": "naca0012"},
-                            {"position": {"x": 0, "y": 300, "z": 0}, "chord": 100, "twist": 0, "airfoil": "naca0012"},
+                            {
+                                "position": {"x": 0, "y": 0, "z": 0},
+                                "chord": 150,
+                                "twist": 0,
+                                "airfoil": "naca0012",
+                            },
+                            {
+                                "position": {"x": 0, "y": 300, "z": 0},
+                                "chord": 100,
+                                "twist": 0,
+                                "airfoil": "naca0012",
+                            },
                         ],
                     }
                 },
@@ -660,11 +706,15 @@ class AeroSandboxEngineTests(unittest.TestCase):
         ]
 
         # 1. Deflect down (+10 deg) -> increases tail lift, pitching nose down (more negative Cm)
-        cond_down = FlightCondition(velocity=25.0, alpha=0.0, alpha_steps=1, control_deflections={"elevator": 10.0})
+        cond_down = FlightCondition(
+            velocity=25.0, alpha=0.0, alpha_steps=1, control_deflections={"elevator": 10.0}
+        )
         res_down = engine.analyze(components, cond_down, method=AnalysisMethod.VLM)
 
         # 2. Deflect up (-10 deg) -> decreases tail lift, pitching nose up (more positive Cm)
-        cond_up = FlightCondition(velocity=25.0, alpha=0.0, alpha_steps=1, control_deflections={"elevator": -10.0})
+        cond_up = FlightCondition(
+            velocity=25.0, alpha=0.0, alpha_steps=1, control_deflections={"elevator": -10.0}
+        )
         res_up = engine.analyze(components, cond_up, method=AnalysisMethod.VLM)
 
         cm_down = res_down.polar_points[0].cm
@@ -683,8 +733,16 @@ class AeroSandboxEngineTests(unittest.TestCase):
                     "geometry": {
                         "mirror": True,
                         "profiles": [
-                            {"position": {"x": 0, "y": 0, "z": 0}, "chord": 200, "airfoil": "naca0012"},
-                            {"position": {"x": 30, "y": 1000, "z": 0}, "chord": 100, "airfoil": "naca0012"},
+                            {
+                                "position": {"x": 0, "y": 0, "z": 0},
+                                "chord": 200,
+                                "airfoil": "naca0012",
+                            },
+                            {
+                                "position": {"x": 30, "y": 1000, "z": 0},
+                                "chord": 100,
+                                "airfoil": "naca0012",
+                            },
                         ],
                         "control_surfaces": [
                             {
@@ -714,7 +772,9 @@ class AeroSandboxEngineTests(unittest.TestCase):
             control_encoding="native",
         )
 
-        self.assertEqual([wing.name for wing in airplane.wings], ["Main Wing_Right", "Main Wing_Left"])
+        self.assertEqual(
+            [wing.name for wing in airplane.wings], ["Main Wing_Right", "Main Wing_Left"]
+        )
 
         def section_controls(wing: object) -> list[list[tuple[str, float]]]:
             return [
@@ -724,18 +784,32 @@ class AeroSandboxEngineTests(unittest.TestCase):
 
         self.assertEqual(
             section_controls(airplane.wings[0]),
-            [[], [("flap", 8.0)], [("flap", 8.0), ("aileron", 5.0)], [("aileron", 5.0)], [],],
+            [
+                [],
+                [("flap", 8.0)],
+                [("flap", 8.0), ("aileron", 5.0)],
+                [("aileron", 5.0)],
+                [],
+            ],
         )
         self.assertEqual(
             section_controls(airplane.wings[1]),
-            [[], [("aileron", -5.0)], [("flap", 8.0), ("aileron", -5.0)], [("flap", 8.0)], [],],
+            [
+                [],
+                [("aileron", -5.0)],
+                [("flap", 8.0), ("aileron", -5.0)],
+                [("flap", 8.0)],
+                [],
+            ],
         )
 
     @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_control_surface_right_left_symmetry_modes(self) -> None:
         """Auto, explicit symmetric/antisymmetric and one-sided modes are deterministic."""
 
-        def converted_deflections(surface_type: str, symmetry_mode: str) -> tuple[float, float | None]:
+        def converted_deflections(
+            surface_type: str, symmetry_mode: str
+        ) -> tuple[float, float | None]:
             components = [
                 {
                     "id": "wing-1",
@@ -745,8 +819,16 @@ class AeroSandboxEngineTests(unittest.TestCase):
                         "geometry": {
                             "mirror": True,
                             "profiles": [
-                                {"position": {"x": 0, "y": 0, "z": 0}, "chord": 200, "airfoil": "naca0012"},
-                                {"position": {"x": 0, "y": 500, "z": 0}, "chord": 120, "airfoil": "naca0012"},
+                                {
+                                    "position": {"x": 0, "y": 0, "z": 0},
+                                    "chord": 200,
+                                    "airfoil": "naca0012",
+                                },
+                                {
+                                    "position": {"x": 0, "y": 500, "z": 0},
+                                    "chord": 120,
+                                    "airfoil": "naca0012",
+                                },
                             ],
                             "control_surfaces": [
                                 {
@@ -804,8 +886,16 @@ class AeroSandboxEngineTests(unittest.TestCase):
                     "geometry": {
                         "mirror": True,
                         "profiles": [
-                            {"position": {"x": 0, "y": 0, "z": 0}, "chord": 200, "airfoil": "naca0012"},
-                            {"position": {"x": 0, "y": 500, "z": 0}, "chord": 120, "airfoil": "naca0012"},
+                            {
+                                "position": {"x": 0, "y": 0, "z": 0},
+                                "chord": 200,
+                                "airfoil": "naca0012",
+                            },
+                            {
+                                "position": {"x": 0, "y": 500, "z": 0},
+                                "chord": 120,
+                                "airfoil": "naca0012",
+                            },
                         ],
                         "control_surfaces": [
                             {
@@ -866,9 +956,19 @@ class AeroSandboxEngineTests(unittest.TestCase):
                     "geometry": {
                         "mirror": True,
                         "profiles": [
-                            {"position": {"x": 0, "y": 0, "z": 0}, "chord": 200, "twist": 0, "airfoil": "naca2412"},
-                            {"position": {"x": 50, "y": 500, "z": 0}, "chord": 150, "twist": 0, "airfoil": "naca2412"},
-                        ]
+                            {
+                                "position": {"x": 0, "y": 0, "z": 0},
+                                "chord": 200,
+                                "twist": 0,
+                                "airfoil": "naca2412",
+                            },
+                            {
+                                "position": {"x": 50, "y": 500, "z": 0},
+                                "chord": 150,
+                                "twist": 0,
+                                "airfoil": "naca2412",
+                            },
+                        ],
                     }
                 },
             },
@@ -980,6 +1080,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
         pt = result.polar_points[0]
         self.assertGreater(pt.cl, 0.0)
         self.assertGreater(pt.cd, 0.0)
+
 
 if __name__ == "__main__":
     unittest.main()

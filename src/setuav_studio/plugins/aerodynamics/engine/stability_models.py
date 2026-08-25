@@ -1,4 +1,5 @@
 """Data models for linear stability derivatives, control effectiveness, and elevator trim."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -10,13 +11,14 @@ MARGINAL_STATIC_MARGIN_PERCENT = 2.0
 @dataclass(frozen=True)
 class ControlEffectiveness:
     """Aerodynamic control derivative response for a specific control surface."""
+
     control_tag: str
-    c_l_delta: float = 0.0    # ∂Cl/∂δ per deg (roll control power)
-    c_m_delta: float = 0.0    # ∂Cm/∂δ per deg (pitch control power)
-    c_n_delta: float = 0.0    # ∂Cn/∂δ per deg (yaw control power)
-    c_y_delta: float = 0.0    # ∂CY/∂δ per deg (sideforce)
-    c_L_delta: float = 0.0    # ∂CL/∂δ per deg (lift response)
-    c_D_delta: float = 0.0    # ∂CD/∂δ per deg (control drag penalty)
+    c_l_delta: float = 0.0  # ∂Cl/∂δ per deg (roll control power)
+    c_m_delta: float = 0.0  # ∂Cm/∂δ per deg (pitch control power)
+    c_n_delta: float = 0.0  # ∂Cn/∂δ per deg (yaw control power)
+    c_y_delta: float = 0.0  # ∂CY/∂δ per deg (sideforce)
+    c_L_delta: float = 0.0  # ∂CL/∂δ per deg (lift response)
+    c_D_delta: float = 0.0  # ∂CD/∂δ per deg (control drag penalty)
     # Metadata for derivatives estimated by perturbing the selected solver.
     derivative_method: str = "finite_difference"
     perturbation_deg: float = 2.0
@@ -52,13 +54,14 @@ class ControlEffectiveness:
 @dataclass(frozen=True)
 class ElevatorTrim:
     """Elevator trim equilibrium results for longitudinal flight."""
-    alpha_ref: float = 0.0              # deg reference angle of attack
-    cm_0: float = 0.0                   # Cm at alpha=0, delta_e=0
-    cm_alpha: float = 0.0               # dCm/dalpha per deg
-    cm_delta_e: float = 0.0             # dCm/ddelta_e per deg
-    delta_e_trim: float = 0.0           # deg required elevator deflection for Cm=0
-    alpha_trim_neutral: float = 0.0     # deg trimmed AoA at delta_e=0
-    cl_trim: float = 0.0                # Lift coefficient at trimmed condition
+
+    alpha_ref: float = 0.0  # deg reference angle of attack
+    cm_0: float = 0.0  # Cm at alpha=0, delta_e=0
+    cm_alpha: float = 0.0  # dCm/dalpha per deg
+    cm_delta_e: float = 0.0  # dCm/ddelta_e per deg
+    delta_e_trim: float = 0.0  # deg required elevator deflection for Cm=0
+    alpha_trim_neutral: float = 0.0  # deg trimmed AoA at delta_e=0
+    cl_trim: float = 0.0  # Lift coefficient at trimmed condition
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -89,39 +92,39 @@ class StabilityDerivatives:
     """Complete 6-DoF linear stability derivatives, static margins, and trim states."""
 
     # Longitudinal derivatives
-    c_L_alpha_rad: float = 0.0     # ∂CL/∂α per radian
-    c_L_alpha_deg: float = 0.0     # ∂CL/∂α per degree
-    c_D_alpha_rad: float = 0.0     # ∂CD/∂α per radian
-    c_D_alpha_deg: float = 0.0     # ∂CD/∂α per degree
-    c_m_alpha_rad: float = 0.0     # ∂Cm/∂α per radian (pitch stiffness)
-    c_m_alpha_deg: float = 0.0     # ∂Cm/∂α per degree
-    c_L_q: float = 0.0             # ∂CL/∂q̂ (pitch rate lift derivative)
-    c_m_q: float = 0.0             # ∂Cm/∂q̂ (pitch damping derivative)
+    c_L_alpha_rad: float = 0.0  # ∂CL/∂α per radian
+    c_L_alpha_deg: float = 0.0  # ∂CL/∂α per degree
+    c_D_alpha_rad: float = 0.0  # ∂CD/∂α per radian
+    c_D_alpha_deg: float = 0.0  # ∂CD/∂α per degree
+    c_m_alpha_rad: float = 0.0  # ∂Cm/∂α per radian (pitch stiffness)
+    c_m_alpha_deg: float = 0.0  # ∂Cm/∂α per degree
+    c_L_q: float = 0.0  # ∂CL/∂q̂ (pitch rate lift derivative)
+    c_m_q: float = 0.0  # ∂Cm/∂q̂ (pitch damping derivative)
 
     # Lateral-Directional derivatives
-    c_Y_beta_rad: float = 0.0      # ∂CY/∂β per radian
-    c_Y_beta_deg: float = 0.0      # ∂CY/∂β per degree
-    c_l_beta_rad: float = 0.0      # ∂Cl/∂β per radian (dihedral roll stability)
-    c_l_beta_deg: float = 0.0      # ∂Cl/∂β per degree
-    c_n_beta_rad: float = 0.0      # ∂Cn/∂β per radian (weathercock yaw stability)
-    c_n_beta_deg: float = 0.0      # ∂Cn/∂β per degree
-    c_l_p: float = 0.0             # ∂Cl/∂p̂ (roll damping)
-    c_n_p: float = 0.0             # ∂Cn/∂p̂ (roll-yaw cross coupling)
-    c_l_r: float = 0.0             # ∂Cl/∂r̂ (yaw-roll cross coupling)
-    c_n_r: float = 0.0             # ∂Cn/∂r̂ (yaw damping)
+    c_Y_beta_rad: float = 0.0  # ∂CY/∂β per radian
+    c_Y_beta_deg: float = 0.0  # ∂CY/∂β per degree
+    c_l_beta_rad: float = 0.0  # ∂Cl/∂β per radian (dihedral roll stability)
+    c_l_beta_deg: float = 0.0  # ∂Cl/∂β per degree
+    c_n_beta_rad: float = 0.0  # ∂Cn/∂β per radian (weathercock yaw stability)
+    c_n_beta_deg: float = 0.0  # ∂Cn/∂β per degree
+    c_l_p: float = 0.0  # ∂Cl/∂p̂ (roll damping)
+    c_n_p: float = 0.0  # ∂Cn/∂p̂ (roll-yaw cross coupling)
+    c_l_r: float = 0.0  # ∂Cl/∂r̂ (yaw-roll cross coupling)
+    c_n_r: float = 0.0  # ∂Cn/∂r̂ (yaw damping)
 
     # Longitudinal balance and static stability
-    x_cg: float = 0.0              # m center of gravity X position
-    x_np: float = 0.0              # m aerodynamic neutral point X position
-    static_margin: float = 0.0     # % MAC static margin ((x_np - x_cg)/c_ref * 100)
-    is_pitch_stable: bool = True   # True if Cm_alpha < 0 and static margin > 0
-    is_pitch_damped: bool = True   # True if Cm_q < 0 (pitch damping)
+    x_cg: float = 0.0  # m center of gravity X position
+    x_np: float = 0.0  # m aerodynamic neutral point X position
+    static_margin: float = 0.0  # % MAC static margin ((x_np - x_cg)/c_ref * 100)
+    is_pitch_stable: bool = True  # True if Cm_alpha < 0 and static margin > 0
+    is_pitch_damped: bool = True  # True if Cm_q < 0 (pitch damping)
 
     # Lateral-directional balance
-    is_roll_stable: bool = True    # True if Cl_beta < 0 (dihedral effect)
-    is_roll_damped: bool = True    # True if Cl_p < 0 (roll damping)
-    is_yaw_stable: bool = True     # True if Cn_beta > 0 (weathercock directional stability)
-    is_yaw_damped: bool = True     # True if Cn_r < 0 (yaw damping)
+    is_roll_stable: bool = True  # True if Cl_beta < 0 (dihedral effect)
+    is_roll_damped: bool = True  # True if Cl_p < 0 (roll damping)
+    is_yaw_stable: bool = True  # True if Cn_beta > 0 (weathercock directional stability)
+    is_yaw_damped: bool = True  # True if Cn_r < 0 (yaw damping)
 
     # Control effectiveness per control surface
     controls: dict[str, ControlEffectiveness] = field(default_factory=dict)
@@ -216,9 +219,10 @@ class StabilityDerivatives:
             elevator_trim=trim_obj,
             trim_valid=bool(data.get("trim_valid", trim_obj is not None)),
             trim_invalid_reasons=tuple(
-                str(reason)
-                for reason in (data.get("trim_invalid_reasons") or [])
+                str(reason) for reason in (data.get("trim_invalid_reasons") or [])
             ),
             solver_method=str(data.get("solver_method", "unknown")),
-            rate_derivative_convention=str(data.get("rate_derivative_convention", "normalized_body_rates")),
+            rate_derivative_convention=str(
+                data.get("rate_derivative_convention", "normalized_body_rates")
+            ),
         )

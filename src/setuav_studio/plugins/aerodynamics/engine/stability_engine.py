@@ -1,4 +1,5 @@
 """Linear stability and trim analysis engine for 6-DoF flight dynamics."""
+
 from __future__ import annotations
 
 import logging
@@ -9,6 +10,7 @@ import numpy as np
 
 try:
     import aerosandbox as asb
+
     HAS_AEROSANDBOX = True
 except ImportError:
     HAS_AEROSANDBOX = False
@@ -173,10 +175,14 @@ class StabilityAnalysisEngine:
 
                     def delta(key: str) -> float:
                         if key not in res_c_p or key not in res_c_m:
-                            raise RuntimeError(f"control perturbation did not return native field '{key}'")
+                            raise RuntimeError(
+                                f"control perturbation did not return native field '{key}'"
+                            )
                         value = float(np.ravel(res_c_p[key] - res_c_m[key])[0]) / (2.0 * d_delta)
                         if not math.isfinite(value):
-                            raise RuntimeError(f"control perturbation returned non-finite field '{key}'")
+                            raise RuntimeError(
+                                f"control perturbation returned non-finite field '{key}'"
+                            )
                         return value
 
                     cl_delta = delta("Cl")
@@ -187,7 +193,9 @@ class StabilityAnalysisEngine:
                     cD_delta = delta("CD")
 
                     # Only register if the control channel produces a non-zero response
-                    if any(abs(v) > 1e-5 for v in (cl_delta, cm_delta, cn_delta, cy_delta, cL_delta)):
+                    if any(
+                        abs(v) > 1e-5 for v in (cl_delta, cm_delta, cn_delta, cy_delta, cL_delta)
+                    ):
                         controls_map[ctrl_tag] = ControlEffectiveness(
                             control_tag=ctrl_tag,
                             c_l_delta=cl_delta,
@@ -269,7 +277,10 @@ class StabilityAnalysisEngine:
             reasons.append("CG is unavailable from Weight-Balance")
         if not all(math.isfinite(value) for value in cg_xyz):
             reasons.append("CG contains non-finite coordinates")
-        if not math.isfinite(cm_alpha_per_deg) or abs(cm_alpha_per_deg) < cls._MIN_PITCH_DERIVATIVE_PER_DEG:
+        if (
+            not math.isfinite(cm_alpha_per_deg)
+            or abs(cm_alpha_per_deg) < cls._MIN_PITCH_DERIVATIVE_PER_DEG
+        ):
             reasons.append("pitch derivative Cm_alpha is unavailable or too small")
         if elevator is None or not math.isfinite(elevator.c_m_delta):
             reasons.append("elevator control authority is unavailable")

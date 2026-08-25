@@ -68,7 +68,9 @@ class FuselageCanvasWidget(QWidget):
 
     vertexSelected = Signal(int)  # 0-based index or -1 if deselected
     vertexMoved = Signal(int, float, float)  # index, live y, live z
-    vertexDragFinished = Signal(int, float, float, float, float)  # index, old_y, old_z, new_y, new_z
+    vertexDragFinished = Signal(
+        int, float, float, float, float
+    )  # index, old_y, old_z, new_y, new_z
     vertexInserted = Signal(int, float, float)  # insert_index, y, z
     vertexDeleteRequested = Signal(int)  # delete_index
     undoRequested = Signal()
@@ -91,7 +93,9 @@ class FuselageCanvasWidget(QWidget):
         # Interactive Polygon State
         self.selected_vertex_index: int | None = None
         self._hovered_vertex_index: int | None = None
-        self._hovered_edge: tuple[int, QPointF, tuple[float, float]] | None = None  # (insert_after_idx, screen_pt, world_pt)
+        self._hovered_edge: tuple[int, QPointF, tuple[float, float]] | None = (
+            None  # (insert_after_idx, screen_pt, world_pt)
+        )
         self._is_dragging_vertex: bool = False
         self._drag_start_world: tuple[float, float] | None = None
 
@@ -264,7 +268,13 @@ class FuselageCanvasWidget(QWidget):
             if seg_len_sq < 1e-4:
                 continue
 
-            t = max(0.0, min(1.0, ((screen_pos.x() - p0.x()) * dx + (screen_pos.y() - p0.y()) * dy) / seg_len_sq))
+            t = max(
+                0.0,
+                min(
+                    1.0,
+                    ((screen_pos.x() - p0.x()) * dx + (screen_pos.y() - p0.y()) * dy) / seg_len_sq,
+                ),
+            )
             # Don't hit too close to endpoints
             if t < 0.1 or t > 0.9:
                 continue
@@ -291,7 +301,10 @@ class FuselageCanvasWidget(QWidget):
                 self.selected_vertex_index = v_idx
                 self._is_dragging_vertex = True
                 verts = self._profile.get("vertices", [])
-                self._drag_start_world = (float(verts[v_idx].get("y", 0.0)), float(verts[v_idx].get("z", 0.0)))
+                self._drag_start_world = (
+                    float(verts[v_idx].get("y", 0.0)),
+                    float(verts[v_idx].get("z", 0.0)),
+                )
                 self.vertexSelected.emit(v_idx)
                 self.setCursor(Qt.CursorShape.ClosedHandCursor)
                 self.update()
@@ -384,7 +397,9 @@ class FuselageCanvasWidget(QWidget):
                     cur_z = float(verts[self.selected_vertex_index].get("z", 0.0))
                     old_y, old_z = self._drag_start_world
                     if abs(cur_y - old_y) > 1e-4 or abs(cur_z - old_z) > 1e-4:
-                        self.vertexDragFinished.emit(self.selected_vertex_index, old_y, old_z, cur_y, cur_z)
+                        self.vertexDragFinished.emit(
+                            self.selected_vertex_index, old_y, old_z, cur_y, cur_z
+                        )
             self._drag_start_world = None
 
         if event.button() in (Qt.MouseButton.LeftButton, Qt.MouseButton.MiddleButton):
@@ -427,7 +442,9 @@ class FuselageCanvasWidget(QWidget):
         elif event.matches(QKeySequence.StandardKey.Redo):
             self.redoRequested.emit()
             return
-        elif event.key() == Qt.Key.Key_F or (event.key() == Qt.Key.Key_0 and event.modifiers() & Qt.KeyboardModifier.ControlModifier):
+        elif event.key() == Qt.Key.Key_F or (
+            event.key() == Qt.Key.Key_0 and event.modifiers() & Qt.KeyboardModifier.ControlModifier
+        ):
             self.fit_view()
             return
         super().keyPressEvent(event)
@@ -513,7 +530,9 @@ class FuselageCanvasWidget(QWidget):
                 painter.drawEllipse(screen_pt, 6.0, 6.0)
                 painter.setPen(QColor("#2ecc71"))
                 painter.setFont(QFont("sans-serif", 8, QFont.Weight.Bold))
-                painter.drawText(int(screen_pt.x()) + 8, int(screen_pt.y()) - 4, f"+ Add ({wy:.1f}, {wz:.1f})")
+                painter.drawText(
+                    int(screen_pt.x()) + 8, int(screen_pt.y()) - 4, f"+ Add ({wy:.1f}, {wz:.1f})"
+                )
 
             # Interactive Polygon Handles
             if self._profile.get("type") == "polygon":
@@ -533,7 +552,9 @@ class FuselageCanvasWidget(QWidget):
 
             painter.setFont(QFont("sans-serif", 7))
             painter.setPen(QColor("#f39c12"))
-            painter.drawText(int(cg_pt.x()) + 7, int(cg_pt.y()) + 11, f"CG ({cg_y:.1f}, {cg_z:.1f})")
+            painter.drawText(
+                int(cg_pt.x()) + 7, int(cg_pt.y()) + 11, f"CG ({cg_y:.1f}, {cg_z:.1f})"
+            )
 
         if self.show_dimensions and self._active_points:
             self._draw_dimension_lines(painter, self._active_points, world_to_screen)
@@ -573,7 +594,7 @@ class FuselageCanvasWidget(QWidget):
                 painter.drawEllipse(pt, 6.5, 6.5)
 
                 # Coordinate badge for selected vertex
-                badge_text = f"P{idx+1}: ({vy:.1f}, {vz:.1f}) r={vr:.1f}"
+                badge_text = f"P{idx + 1}: ({vy:.1f}, {vz:.1f}) r={vr:.1f}"
                 painter.setPen(text_color)
                 painter.setBrush(surface_color)
                 text_rect = QRectF(pt.x() + 8, pt.y() - 18, len(badge_text) * 6.5 + 8, 16)
@@ -586,13 +607,13 @@ class FuselageCanvasWidget(QWidget):
                 painter.setBrush(QColor("#e67e22"))
                 painter.drawEllipse(pt, 5.5, 5.5)
                 painter.setPen(text_color)
-                painter.drawText(int(pt.x()) + 8, int(pt.y()) - 4, f"P{idx+1}")
+                painter.drawText(int(pt.x()) + 8, int(pt.y()) - 4, f"P{idx + 1}")
             else:
                 painter.setPen(QPen(border_color, 1.2))
                 painter.setBrush(QColor("#f39c12"))
                 painter.drawEllipse(pt, 4.0, 4.0)
                 painter.setPen(text_color)
-                painter.drawText(int(pt.x()) + 6, int(pt.y()) - 4, f"P{idx+1}")
+                painter.drawText(int(pt.x()) + 6, int(pt.y()) - 4, f"P{idx + 1}")
 
     def _draw_profile_outline(
         self,
@@ -738,7 +759,9 @@ class FuselageCanvasWidget(QWidget):
         painter.drawLine(int(dim_x - 4), int(p_bot.y()), int(dim_x + 4), int(p_bot.y()))
         painter.drawLine(int(dim_x - 4), int(p_top.y()), int(dim_x + 4), int(p_top.y()))
         painter.drawLine(int(dim_x), int(p_bot.y()), int(dim_x), int(p_top.y()))
-        painter.drawText(int(dim_x + 6), int((p_bot.y() + p_top.y()) / 2.0 + 4), f"H = {h_mm:.1f} mm")
+        painter.drawText(
+            int(dim_x + 6), int((p_bot.y() + p_top.y()) / 2.0 + 4), f"H = {h_mm:.1f} mm"
+        )
 
     def _draw_hud(self, painter: QPainter, width: int, _height: int) -> None:
         from setuav_studio.ui.theme import chart_color, tokens
@@ -782,7 +805,7 @@ class MoveVertexCommand(QUndoCommand):
         old_pos: tuple[float, float],
         new_pos: tuple[float, float],
     ) -> None:
-        super().__init__(f"Move Vertex P{vertex_idx+1}")
+        super().__init__(f"Move Vertex P{vertex_idx + 1}")
         self.dialog = dialog
         self.vertex_idx = vertex_idx
         self.old_pos = old_pos
@@ -802,7 +825,7 @@ class AddVertexCommand(QUndoCommand):
         insert_idx: int,
         vertex_data: dict[str, float],
     ) -> None:
-        super().__init__(f"Add Vertex P{insert_idx+1}")
+        super().__init__(f"Add Vertex P{insert_idx + 1}")
         self.dialog = dialog
         self.insert_idx = insert_idx
         self.vertex_data = copy.deepcopy(vertex_data)
@@ -821,7 +844,7 @@ class DeleteVertexCommand(QUndoCommand):
         delete_idx: int,
         vertex_data: dict[str, float],
     ) -> None:
-        super().__init__(f"Delete Vertex P{delete_idx+1}")
+        super().__init__(f"Delete Vertex P{delete_idx + 1}")
         self.dialog = dialog
         self.delete_idx = delete_idx
         self.vertex_data = copy.deepcopy(vertex_data)
@@ -962,14 +985,16 @@ class FuselageSectionDialog(QDialog):
         type_layout = QHBoxLayout()
         type_layout.addWidget(QLabel("Profile Type:"))
         self.profile_type_combo = NoWheelComboBox()
-        self.profile_type_combo.addItems([
-            "circle",
-            "ellipse",
-            "rectangle",
-            "trapezoid",
-            "triangle",
-            "polygon",
-        ])
+        self.profile_type_combo.addItems(
+            [
+                "circle",
+                "ellipse",
+                "rectangle",
+                "trapezoid",
+                "triangle",
+                "polygon",
+            ]
+        )
         self.profile_type_combo.currentTextChanged.connect(self._on_profile_type_changed)
         type_layout.addWidget(self.profile_type_combo)
         prof_layout.addLayout(type_layout)
@@ -1057,9 +1082,7 @@ class FuselageSectionDialog(QDialog):
         disp_layout.addWidget(self.cb_cg)
 
         self.cb_grid = QCheckBox("Show Grid & Coordinate Axes")
-        self.cb_grid.setChecked(
-            _as_bool(editor_setting(_EDITOR_GRID_KEY, True), True)
-        )
+        self.cb_grid.setChecked(_as_bool(editor_setting(_EDITOR_GRID_KEY, True), True))
         self.cb_grid.toggled.connect(self._on_display_option_toggled)
         disp_layout.addWidget(self.cb_grid)
 
@@ -1240,8 +1263,8 @@ class FuselageSectionDialog(QDialog):
         self.segment_combo.clear()
         segs = self._segments()
         for idx, seg in enumerate(segs):
-            tag = str(seg.get("tag") or f"Segment {idx+1}")
-            self.segment_combo.addItem(f"{idx+1}: {tag}")
+            tag = str(seg.get("tag") or f"Segment {idx + 1}")
+            self.segment_combo.addItem(f"{idx + 1}: {tag}")
         if 0 <= self._segment_index < len(segs):
             self.segment_combo.setCurrentIndex(self._segment_index)
         self._loading = False
@@ -1263,7 +1286,9 @@ class FuselageSectionDialog(QDialog):
 
         pos = sec.get("position", {}) if isinstance(sec.get("position"), dict) else {}
         x_val = float(pos.get("x", 0.0))
-        self.section_label.setText(f"Section {self._section_index + 1} of {num_secs} (X = {x_val:.1f} mm)")
+        self.section_label.setText(
+            f"Section {self._section_index + 1} of {num_secs} (X = {x_val:.1f} mm)"
+        )
 
         self.prev_btn.setEnabled(self._section_index > 0)
         self.next_btn.setEnabled(self._section_index < num_secs - 1)
@@ -1278,11 +1303,19 @@ class FuselageSectionDialog(QDialog):
         self._populate_props_table(prof)
         self._populate_transform_table(sec)
 
-        prev_prof = secs[self._section_index - 1].get("profile") if self._section_index > 0 else None
-        next_prof = secs[self._section_index + 1].get("profile") if self._section_index < num_secs - 1 else None
+        prev_prof = (
+            secs[self._section_index - 1].get("profile") if self._section_index > 0 else None
+        )
+        next_prof = (
+            secs[self._section_index + 1].get("profile")
+            if self._section_index < num_secs - 1
+            else None
+        )
 
         title_str = f"Sec {self._section_index + 1} / {num_secs}"
-        self.canvas.set_section_data(prof, prev_prof, next_prof, title_info=title_str, auto_fit=auto_fit)
+        self.canvas.set_section_data(
+            prof, prev_prof, next_prof, title_info=title_str, auto_fit=auto_fit
+        )
         self._update_metrics_labels()
         self._loading = False
 
@@ -1302,16 +1335,24 @@ class FuselageSectionDialog(QDialog):
         elif prof_type == "rectangle":
             self._add_prop_row("Width (mm)", profile.get("width", 120.0), "width")
             self._add_prop_row("Height (mm)", profile.get("height", 80.0), "height")
-            self._add_prop_row("Corner Radius (mm)", profile.get("corner_radius", 10.0), "corner_radius")
+            self._add_prop_row(
+                "Corner Radius (mm)", profile.get("corner_radius", 10.0), "corner_radius"
+            )
         elif prof_type == "trapezoid":
             self._add_prop_row("Top Width (mm)", profile.get("top_width", 80.0), "top_width")
-            self._add_prop_row("Bottom Width (mm)", profile.get("bottom_width", 120.0), "bottom_width")
+            self._add_prop_row(
+                "Bottom Width (mm)", profile.get("bottom_width", 120.0), "bottom_width"
+            )
             self._add_prop_row("Height (mm)", profile.get("height", 80.0), "height")
-            self._add_prop_row("Corner Radius (mm)", profile.get("corner_radius", 5.0), "corner_radius")
+            self._add_prop_row(
+                "Corner Radius (mm)", profile.get("corner_radius", 5.0), "corner_radius"
+            )
         elif prof_type == "triangle":
             self._add_prop_row("Base Width (mm)", profile.get("base_width", 100.0), "base_width")
             self._add_prop_row("Height (mm)", profile.get("height", 80.0), "height")
-            self._add_prop_row("Corner Radius (mm)", profile.get("corner_radius", 5.0), "corner_radius")
+            self._add_prop_row(
+                "Corner Radius (mm)", profile.get("corner_radius", 5.0), "corner_radius"
+            )
             self._add_prop_row("Orientation", profile.get("orientation", "up"), "orientation")
         elif prof_type == "polygon":
             self._populate_vertices_table(profile)
@@ -1336,7 +1377,9 @@ class FuselageSectionDialog(QDialog):
                 num_val = float(value)
             except (ValueError, TypeError):
                 num_val = 0.0
-            step_val = 5.0 if any(sub in key for sub in ("width", "height", "diameter", "radius")) else 1.0
+            step_val = (
+                5.0 if any(sub in key for sub in ("width", "height", "diameter", "radius")) else 1.0
+            )
             set_table_spinbox(
                 self.props_table,
                 row,
@@ -1384,7 +1427,9 @@ class FuselageSectionDialog(QDialog):
                 step=1.0,
                 decimals=2,
                 suffix="mm",
-                on_changed=lambda val, row_idx=row: self._on_vertex_cell_spin_changed(row_idx, "y", val),
+                on_changed=lambda val, row_idx=row: self._on_vertex_cell_spin_changed(
+                    row_idx, "y", val
+                ),
             )
             set_table_spinbox(
                 self.vertices_table,
@@ -1394,7 +1439,9 @@ class FuselageSectionDialog(QDialog):
                 step=1.0,
                 decimals=2,
                 suffix="mm",
-                on_changed=lambda val, row_idx=row: self._on_vertex_cell_spin_changed(row_idx, "z", val),
+                on_changed=lambda val, row_idx=row: self._on_vertex_cell_spin_changed(
+                    row_idx, "z", val
+                ),
             )
             set_table_spinbox(
                 self.vertices_table,
@@ -1405,11 +1452,16 @@ class FuselageSectionDialog(QDialog):
                 step=0.5,
                 decimals=2,
                 suffix="mm",
-                on_changed=lambda val, row_idx=row: self._on_vertex_cell_spin_changed(row_idx, "radius", val),
+                on_changed=lambda val, row_idx=row: self._on_vertex_cell_spin_changed(
+                    row_idx, "radius", val
+                ),
             )
 
         # Restore row selection if any
-        if self.canvas.selected_vertex_index is not None and 0 <= self.canvas.selected_vertex_index < len(raw_v):
+        if (
+            self.canvas.selected_vertex_index is not None
+            and 0 <= self.canvas.selected_vertex_index < len(raw_v)
+        ):
             self.vertices_table.selectRow(self.canvas.selected_vertex_index)
 
     def _on_vertex_cell_spin_changed(self, row: int, key: str, value: float) -> None:
@@ -1601,7 +1653,9 @@ class FuselageSectionDialog(QDialog):
             self._loading = False
             self._update_metrics_labels()
 
-    def _on_canvas_vertex_drag_finished(self, index: int, old_y: float, old_z: float, new_y: float, new_z: float) -> None:
+    def _on_canvas_vertex_drag_finished(
+        self, index: int, old_y: float, old_z: float, new_y: float, new_z: float
+    ) -> None:
         cmd = MoveVertexCommand(self, index, (old_y, old_z), (new_y, new_z))
         self.undo_stack.push(cmd)
 
@@ -1647,7 +1701,9 @@ class FuselageSectionDialog(QDialog):
 
         if new_type == "circle" and "diameter" not in new_prof:
             new_prof["diameter"] = 100.0
-        elif new_type in ("ellipse", "rectangle") and ("width" not in new_prof or "height" not in new_prof):
+        elif new_type in ("ellipse", "rectangle") and (
+            "width" not in new_prof or "height" not in new_prof
+        ):
             new_prof["width"] = 120.0
             new_prof["height"] = 80.0
             if new_type == "rectangle":
@@ -1837,11 +1893,19 @@ class FuselageSectionDialog(QDialog):
             return
         prof = sec.get("profile", {}) if isinstance(sec.get("profile"), dict) else {}
         secs = self._sections()
-        prev_prof = secs[self._section_index - 1].get("profile") if self._section_index > 0 else None
-        next_prof = secs[self._section_index + 1].get("profile") if self._section_index < len(secs) - 1 else None
+        prev_prof = (
+            secs[self._section_index - 1].get("profile") if self._section_index > 0 else None
+        )
+        next_prof = (
+            secs[self._section_index + 1].get("profile")
+            if self._section_index < len(secs) - 1
+            else None
+        )
 
         title_str = f"Sec {self._section_index + 1} / {len(secs)}"
-        self.canvas.set_section_data(prof, prev_prof, next_prof, title_info=title_str, auto_fit=False)
+        self.canvas.set_section_data(
+            prof, prev_prof, next_prof, title_info=title_str, auto_fit=False
+        )
         self._update_metrics_labels()
 
     def _on_apply_clicked(self) -> None:

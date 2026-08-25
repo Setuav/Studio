@@ -56,7 +56,11 @@ class LogWindow(QDialog):
         message_item = QTableWidgetItem(message)
 
         level = entry.level.lower()
-        color = status_color(level) if level in {"info", "success", "warning", "error"} else tokens()["text"]
+        color = (
+            status_color(level)
+            if level in {"info", "success", "warning", "error"}
+            else tokens()["text"]
+        )
         brush = QBrush(QColor(color))
         time_item.setForeground(brush)
         level_item.setForeground(brush)
@@ -75,7 +79,11 @@ class LogWindow(QDialog):
             if level_item is None:
                 continue
             level = level_item.text().lower()
-            color = status_color(level) if level in {"info", "success", "warning", "error"} else tokens()["text"]
+            color = (
+                status_color(level)
+                if level in {"info", "success", "warning", "error"}
+                else tokens()["text"]
+            )
             brush = QBrush(QColor(color))
             for column in range(self._table.columnCount()):
                 item = self._table.item(row, column)

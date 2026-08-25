@@ -109,9 +109,7 @@ class SchemaCatalog:
                 assembly_types=asm_types,
             )
 
-    def validate_schema(
-        self, instance: dict[str, Any], schema_id: str
-    ) -> list[Issue]:
+    def validate_schema(self, instance: dict[str, Any], schema_id: str) -> list[Issue]:
         schema = self.schemas.get(schema_id)
         if schema is None:
             return [Issue("error", f"Schema '{schema_id}' not found in catalog", "$")]
@@ -228,7 +226,11 @@ def validate_project(
                     )
                 elif link == cid:
                     issues.append(
-                        Issue("error", f"Component '{cid}' cannot be its own {field}", f"$.components[{idx}].{field}")
+                        Issue(
+                            "error",
+                            f"Component '{cid}' cannot be its own {field}",
+                            f"$.components[{idx}].{field}",
+                        )
                     )
             link_map[cid] = link
         return link_map

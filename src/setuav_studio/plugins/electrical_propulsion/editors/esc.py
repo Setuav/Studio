@@ -59,5 +59,7 @@ class EscEditor(BaseComponentEditor):
         ),
     )
 
-    def __init__(self, api: StudioAPI, component: dict[str, Any], parent: QWidget | None = None) -> None:
+    def __init__(
+        self, api: StudioAPI, component: dict[str, Any], parent: QWidget | None = None
+    ) -> None:
         super().__init__(api, component, parameter_fields=self.FIELDS, parent=parent)

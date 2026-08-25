@@ -50,14 +50,16 @@ class ControlSurfacesMixin:
     def _create_control_surfaces_section(self) -> None:
         layout = self._create_section("Control Surfaces", "fa6s.sliders")
 
-        self.control_surfaces_table = self._table([
-            "Tag",
-            "Type",
-            "Span (mm)",
-            "Eta",
-            "Chord",
-            "Defl (°)",
-        ])
+        self.control_surfaces_table = self._table(
+            [
+                "Tag",
+                "Type",
+                "Span (mm)",
+                "Eta",
+                "Chord",
+                "Defl (°)",
+            ]
+        )
         self.control_surfaces_table.setEditTriggers(
             QAbstractItemView.EditTrigger.DoubleClicked
             | QAbstractItemView.EditTrigger.EditKeyPressed
@@ -97,21 +99,23 @@ class ControlSurfacesMixin:
         cs_actions.addStretch()
         layout.addLayout(cs_actions)
 
-        self.cs_properties_table = self._property_table([
-            ("tag", "Tag / Label"),
-            ("type", "Type"),
-            ("span_mode", "Span Sizing"),
-            ("span_start", "Span Start (mm)"),
-            ("span_end", "Span End (mm)"),
-            ("eta_start", "Eta Start (0 - 1)"),
-            ("eta_end", "Eta End (0 - 1)"),
-            ("chord_mode", "Chord Sizing"),
-            ("chord_fraction", "Chord Fraction (c_f / c)"),
-            ("chord", "Control Chord (mm)"),
-            ("hinge_sweep", "Hinge Sweep (°)"),
-            ("deflection", "Deflection Angle (°)"),
-            ("symmetry_mode", "Symmetry Mode"),
-        ])
+        self.cs_properties_table = self._property_table(
+            [
+                ("tag", "Tag / Label"),
+                ("type", "Type"),
+                ("span_mode", "Span Sizing"),
+                ("span_start", "Span Start (mm)"),
+                ("span_end", "Span End (mm)"),
+                ("eta_start", "Eta Start (0 - 1)"),
+                ("eta_end", "Eta End (0 - 1)"),
+                ("chord_mode", "Chord Sizing"),
+                ("chord_fraction", "Chord Fraction (c_f / c)"),
+                ("chord", "Control Chord (mm)"),
+                ("hinge_sweep", "Hinge Sweep (°)"),
+                ("deflection", "Deflection Angle (°)"),
+                ("symmetry_mode", "Symmetry Mode"),
+            ]
+        )
         self.cs_properties_table.cellChanged.connect(self._update_cs_property)
         layout.addWidget(self.cs_properties_table)
 
@@ -121,7 +125,8 @@ class ControlSurfacesMixin:
         if profiles:
             span_values = [
                 float(p.get("position", {}).get("y", 0.0))
-                for p in profiles if isinstance(p.get("position"), dict)
+                for p in profiles
+                if isinstance(p.get("position"), dict)
             ]
             y0 = span_values[0] if span_values else 0.0
             y1 = span_values[-1] if span_values else 0.0
@@ -207,7 +212,9 @@ class ControlSurfacesMixin:
                 chord = float(geom.get("chord", 40.0))
                 chord_frac = float(geom.get("chord_fraction", round(chord / root_chord, 2)))
                 defl = float(geom.get("deflection", 0.0))
-                tag_label = str(geom.get("tag") or cs.get("name") or cs.get("id") or f"CS_{row + 1}")
+                tag_label = str(
+                    geom.get("tag") or cs.get("name") or cs.get("id") or f"CS_{row + 1}"
+                )
                 cs_type = str(geom.get("type") or "aileron").capitalize()
 
                 values = (
@@ -228,7 +235,9 @@ class ControlSurfacesMixin:
                         item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     self.control_surfaces_table.setItem(row, column, item)
 
-            self._fit_table_height(self.control_surfaces_table, len(cs_list), maximum_visible_rows=5)
+            self._fit_table_height(
+                self.control_surfaces_table, len(cs_list), maximum_visible_rows=5
+            )
             self._update_cs_actions()
         finally:
             self._loading = was_loading
@@ -523,7 +532,9 @@ class ControlSurfacesMixin:
             if row >= 0:
                 self._load_control_surface(row)
 
-    def _on_control_surface_selected(self, row: int, _col: int, _prev_row: int = -1, _prev_col: int = -1) -> None:
+    def _on_control_surface_selected(
+        self, row: int, _col: int, _prev_row: int = -1, _prev_col: int = -1
+    ) -> None:
         if not self._loading and row >= 0:
             self._load_control_surface(row)
 
@@ -668,7 +679,11 @@ class ControlSurfacesMixin:
         project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
 
         def change() -> None:
-            if project and isinstance(project.data.get("components"), list) and cs_list[idx] in project.data["components"]:
+            if (
+                project
+                and isinstance(project.data.get("components"), list)
+                and cs_list[idx] in project.data["components"]
+            ):
                 comps = project.data["components"]
                 i1 = comps.index(cs_list[idx])
                 i2 = comps.index(cs_list[target])
@@ -677,7 +692,12 @@ class ControlSurfacesMixin:
                 cs_arr = self._geometry()["control_surfaces"]
                 cs_arr.insert(target, cs_arr.pop(idx))
 
-        if project and isinstance(project.data.get("components"), list) and cs_list[idx] in project.data["components"] and hasattr(self._api, "edit_project"):
+        if (
+            project
+            and isinstance(project.data.get("components"), list)
+            and cs_list[idx] in project.data["components"]
+            and hasattr(self._api, "edit_project")
+        ):
             self._api.edit_project("Move control surface up", change)
         else:
             self._edit_component("Move control surface up", change)
@@ -695,7 +715,11 @@ class ControlSurfacesMixin:
         project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
 
         def change() -> None:
-            if project and isinstance(project.data.get("components"), list) and cs_list[idx] in project.data["components"]:
+            if (
+                project
+                and isinstance(project.data.get("components"), list)
+                and cs_list[idx] in project.data["components"]
+            ):
                 comps = project.data["components"]
                 i1 = comps.index(cs_list[idx])
                 i2 = comps.index(cs_list[target])
@@ -704,7 +728,12 @@ class ControlSurfacesMixin:
                 cs_arr = self._geometry()["control_surfaces"]
                 cs_arr.insert(target, cs_arr.pop(idx))
 
-        if project and isinstance(project.data.get("components"), list) and cs_list[idx] in project.data["components"] and hasattr(self._api, "edit_project"):
+        if (
+            project
+            and isinstance(project.data.get("components"), list)
+            and cs_list[idx] in project.data["components"]
+            and hasattr(self._api, "edit_project")
+        ):
             self._api.edit_project("Move control surface down", change)
         else:
             self._edit_component("Move control surface down", change)
@@ -723,7 +752,11 @@ class ControlSurfacesMixin:
         project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
 
         def change() -> None:
-            if project and isinstance(project.data.get("components"), list) and target_item in project.data["components"]:
+            if (
+                project
+                and isinstance(project.data.get("components"), list)
+                and target_item in project.data["components"]
+            ):
                 project.data["components"].remove(target_item)
             elif "control_surfaces" in self._geometry():
                 cs_arr = self._geometry()["control_surfaces"]
@@ -732,7 +765,12 @@ class ControlSurfacesMixin:
                 elif 0 <= idx < len(cs_arr):
                     cs_arr.pop(idx)
 
-        if project and isinstance(project.data.get("components"), list) and target_item in project.data["components"] and hasattr(self._api, "edit_project"):
+        if (
+            project
+            and isinstance(project.data.get("components"), list)
+            and target_item in project.data["components"]
+            and hasattr(self._api, "edit_project")
+        ):
             self._api.edit_project("Delete control surface", change)
         else:
             self._edit_component("Delete control surface", change)
@@ -773,18 +811,26 @@ class ControlSurfacesMixin:
         self._loading = True
         try:
             if self.control_surfaces_table.item(row, 0):
-                tag_label = str(geom.get("tag") or cs.get("name") or cs.get("id") or f"CS_{row + 1}")
+                tag_label = str(
+                    geom.get("tag") or cs.get("name") or cs.get("id") or f"CS_{row + 1}"
+                )
                 self.control_surfaces_table.item(row, 0).setText(tag_label)
             if self.control_surfaces_table.item(row, 1):
-                self.control_surfaces_table.item(row, 1).setText(str(geom.get("type") or "aileron").capitalize())
+                self.control_surfaces_table.item(row, 1).setText(
+                    str(geom.get("type") or "aileron").capitalize()
+                )
             if self.control_surfaces_table.item(row, 2):
                 self.control_surfaces_table.item(row, 2).setText(f"{s_start:.1f} - {s_end:.1f}")
             if self.control_surfaces_table.item(row, 3):
                 self.control_surfaces_table.item(row, 3).setText(f"{eta_start:.2f} - {eta_end:.2f}")
             if self.control_surfaces_table.item(row, 4):
-                self.control_surfaces_table.item(row, 4).setText(f"{chord_frac * 100:.0f}% ({chord:.1f} mm)")
+                self.control_surfaces_table.item(row, 4).setText(
+                    f"{chord_frac * 100:.0f}% ({chord:.1f} mm)"
+                )
             if self.control_surfaces_table.item(row, 5):
-                self.control_surfaces_table.item(row, 5).setText(f"{defl:+.1f}°" if defl != 0.0 else "0.0°")
+                self.control_surfaces_table.item(row, 5).setText(
+                    f"{defl:+.1f}°" if defl != 0.0 else "0.0°"
+                )
         finally:
             self._loading = was_loading
 

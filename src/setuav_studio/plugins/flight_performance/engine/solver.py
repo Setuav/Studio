@@ -1,4 +1,5 @@
 """Flight performance envelope solver with automatic Aerodynamics, Propulsion, and Weight & Balance coupling."""
+
 from __future__ import annotations
 
 import logging
@@ -45,7 +46,8 @@ class FlightPerformanceSolver:
         a stall speed must not be presented as a validated result.
         """
         points = [
-            point for point in polar_points
+            point
+            for point in polar_points
             if getattr(point, "converged", False)
             and math.isfinite(float(getattr(point, "cl", 0.0)))
             and math.isfinite(float(getattr(point, "alpha", 0.0)))
@@ -57,7 +59,7 @@ class FlightPerformanceSolver:
         peak = points[peak_index]
         cl_max = float(peak.cl)
         alpha_max = float(peak.alpha)
-        post_peak = [float(point.cl) for point in points[peak_index + 1:]]
+        post_peak = [float(point.cl) for point in points[peak_index + 1 :]]
         drop_threshold = max(abs(cl_max) * 0.02, 0.01)
         confirmed = bool(post_peak and min(post_peak) <= cl_max - drop_threshold)
         return cl_max, alpha_max, confirmed
@@ -91,7 +93,9 @@ class FlightPerformanceSolver:
         """
         if not (
             len(velocities)
-            and len(velocities) == len(thrust_available) == len(thrust_required)
+            and len(velocities)
+            == len(thrust_available)
+            == len(thrust_required)
             == len(feasible_points)
         ):
             return 0.0, False
@@ -118,8 +122,7 @@ class FlightPerformanceSolver:
             return float(velocities[last_valid]), True
         fraction = max(0.0, min(1.0, m0 / denominator))
         speed = float(
-            velocities[last_valid]
-            + fraction * (velocities[next_index] - velocities[last_valid])
+            velocities[last_valid] + fraction * (velocities[next_index] - velocities[last_valid])
         )
         return speed, True
 
@@ -354,14 +357,19 @@ class FlightPerformanceSolver:
                     wb_res = WeightBalanceSolver().evaluate(project)
                     mass_kg = float(wb_res.total.mass_kg)
                 except Exception as exc:
-                    logger.debug("WeightBalance evaluate failed; trying component mass sum: %s", exc)
+                    logger.debug(
+                        "WeightBalance evaluate failed; trying component mass sum: %s", exc
+                    )
                 if mass_kg <= 0.0:
                     comps = project.data.get("components", [])
-                    mass_kg = sum(
-                        float(c.get("parameters", {}).get("mass", 0.0))
-                        for c in comps
-                        if isinstance(c, dict)
-                    ) / 1000.0
+                    mass_kg = (
+                        sum(
+                            float(c.get("parameters", {}).get("mass", 0.0))
+                            for c in comps
+                            if isinstance(c, dict)
+                        )
+                        / 1000.0
+                    )
         if mass_kg <= 0.0:
             raise ValueError(
                 "Mass properties are unavailable. Define component masses or run Weight Balance before analysis."
@@ -383,7 +391,9 @@ class FlightPerformanceSolver:
             float(battery_capacity_mah) / 1000.0 if battery_capacity_mah is not None else None
         )
         battery_voltage = (
-            float(context["battery_voltage"]) if context.get("battery_voltage") is not None else None
+            float(context["battery_voltage"])
+            if context.get("battery_voltage") is not None
+            else None
         )
         usable_battery_ratio = float(context.get("usable_battery_ratio", 0.85))
 
@@ -602,9 +612,7 @@ class FlightPerformanceSolver:
                 elec_power[i] = p_el
                 current_draw[i] = i_el
                 feasible_points[i] = (
-                    safe_max_throttle > 0.0
-                    and feas
-                    and (thrust_avail[i] >= drag_req[i])
+                    safe_max_throttle > 0.0 and feas and (thrust_avail[i] >= drag_req[i])
                 )
 
         if progress_callback:
@@ -625,7 +633,12 @@ class FlightPerformanceSolver:
         range_km = np.zeros(n_points) if has_propulsion else np.array([])
         endurance_hours = np.zeros(n_points) if has_propulsion else np.array([])
 
-        if has_propulsion and battery_capacity_ah is not None and battery_voltage is not None and battery_voltage > 0:
+        if (
+            has_propulsion
+            and battery_capacity_ah is not None
+            and battery_voltage is not None
+            and battery_voltage > 0
+        ):
             usable_energy_wh = battery_voltage * battery_capacity_ah * usable_battery_ratio
             for i in range(n_points):
                 if elec_power[i] > 0 and feasible_points[i]:
@@ -633,7 +646,9 @@ class FlightPerformanceSolver:
                     range_km[i] = velocities[i] * 3.6 * endurance_hours[i]
 
         # 8. Optimal speeds identification
-        feasible_mask = feasible_points & (elec_power > 0) if has_propulsion else np.zeros(n_points, dtype=bool)
+        feasible_mask = (
+            feasible_points & (elec_power > 0) if has_propulsion else np.zeros(n_points, dtype=bool)
+        )
         if has_propulsion and np.any(feasible_mask):
             feas_indices = np.where(feasible_mask)[0]
             idx_be = int(feas_indices[np.argmin(elec_power[feasible_mask])])
@@ -682,11 +697,15 @@ class FlightPerformanceSolver:
         best_gamma = (
             float(np.max(climb_angle_deg[feasible_points]))
             if has_propulsion and np.any(feasible_points)
-            else (float(np.max(climb_angle_deg)) if has_propulsion and len(climb_angle_deg) else 0.0)
+            else (
+                float(np.max(climb_angle_deg)) if has_propulsion and len(climb_angle_deg) else 0.0
+            )
         )
         min_p_req = float(np.min(power_req))
         max_range = float(np.max(range_km)) if has_propulsion and len(range_km) else 0.0
-        max_endurance = float(np.max(endurance_hours)) if has_propulsion and len(endurance_hours) else 0.0
+        max_endurance = (
+            float(np.max(endurance_hours)) if has_propulsion and len(endurance_hours) else 0.0
+        )
 
         optimal_speeds = OptimalSpeeds(
             best_endurance=best_endurance_spd,
@@ -752,11 +771,17 @@ class FlightPerformanceSolver:
         elif has_propulsion and not max_speed_bounded:
             notes.append("Maximum speed is above the sweep limit; increase V_max to bound it.")
         if has_propulsion and v_max > 0.0 and v_stall >= v_max:
-            notes.append("Stall speed exceeds maximum level flight speed (insufficient thrust/power).")
+            notes.append(
+                "Stall speed exceeds maximum level flight speed (insufficient thrust/power)."
+            )
         if components and aero_stall_error:
-            notes.append(f"AeroBuildup CLmax unavailable; stall speed not calculated: {aero_stall_error}")
+            notes.append(
+                f"AeroBuildup CLmax unavailable; stall speed not calculated: {aero_stall_error}"
+            )
         elif components and aero_stall_confirmed is not True:
-            notes.append("AeroBuildup CLmax is unconfirmed; extend the alpha sweep before using Vstall.")
+            notes.append(
+                "AeroBuildup CLmax is unconfirmed; extend the alpha sweep before using Vstall."
+            )
 
         if progress_callback:
             progress_callback(100, 100, "Done")

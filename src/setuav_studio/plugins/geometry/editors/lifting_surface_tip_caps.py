@@ -46,13 +46,21 @@ class TipCapsMixin:
         cant_tip_default = float(tip_treatment.get("cant_angle", 80.0))
         cant_root = float(tip_treatment.get("cant_root", 0.0))
         cant_tip = float(tip_treatment.get("cant_tip", cant_tip_default))
-        blend_radius = float(tip_treatment.get("blend_radius", 45.0 if "blend_radius" in tip_treatment else 0.0))
+        blend_radius = float(
+            tip_treatment.get("blend_radius", 45.0 if "blend_radius" in tip_treatment else 0.0)
+        )
 
         # LE Sweep & Curvature
         sweep_default = float(tip_treatment.get("winglet_sweep", 20.0))
-        le_sweep_root = float(tip_treatment.get("le_sweep_root", tip_treatment.get("sweep_root", sweep_default)))
-        le_sweep_tip = float(tip_treatment.get("le_sweep_tip", tip_treatment.get("sweep_tip", 48.0)))
-        le_curvature = float(tip_treatment.get("le_curvature", tip_treatment.get("scimitar_offset", 0.0)))
+        le_sweep_root = float(
+            tip_treatment.get("le_sweep_root", tip_treatment.get("sweep_root", sweep_default))
+        )
+        le_sweep_tip = float(
+            tip_treatment.get("le_sweep_tip", tip_treatment.get("sweep_tip", 48.0))
+        )
+        le_curvature = float(
+            tip_treatment.get("le_curvature", tip_treatment.get("scimitar_offset", 0.0))
+        )
 
         # TE Sweep & Curvature
         te_sweep_root = float(tip_treatment.get("te_sweep_root", 15.0))
@@ -62,7 +70,9 @@ class TipCapsMixin:
         # Toe
         toe_default = float(tip_treatment.get("toe_angle", 0.0))
         toe_root = float(tip_treatment.get("toe_root", toe_default))
-        toe_tip = float(tip_treatment.get("toe_tip", -1.5 if "toe_tip" not in tip_treatment else toe_default))
+        toe_tip = float(
+            tip_treatment.get("toe_tip", -1.5 if "toe_tip" not in tip_treatment else toe_default)
+        )
 
         # Chords, Thickness & Taper
         root_chord_scale = float(tip_treatment.get("root_chord_scale", 1.0))
@@ -299,7 +309,9 @@ class TipCapsMixin:
                     step=0.05,
                     decimals=2,
                     suffix="x",
-                    on_changed=lambda val: self._on_tip_cap_spinbox_changed("root_chord_scale", val),
+                    on_changed=lambda val: self._on_tip_cap_spinbox_changed(
+                        "root_chord_scale", val
+                    ),
                 )
                 self._set_property_spinbox(
                     self.tip_caps_table,
@@ -321,7 +333,9 @@ class TipCapsMixin:
                     step=0.05,
                     decimals=2,
                     suffix="x",
-                    on_changed=lambda val: self._on_tip_cap_spinbox_changed("tip_thickness_scale", val),
+                    on_changed=lambda val: self._on_tip_cap_spinbox_changed(
+                        "tip_thickness_scale", val
+                    ),
                 )
                 self._set_property_spinbox(
                     self.tip_caps_table,
@@ -350,16 +364,24 @@ class TipCapsMixin:
                     m_layout.setSpacing(4)
 
                     self.lbl_metric_h_tag = QLabel("Height:")
-                    self.lbl_metric_h_tag.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                    self.lbl_metric_h_tag.setAlignment(
+                        Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+                    )
 
                     self.metric_height_val = QLabel("0.0 mm")
-                    self.metric_height_val.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+                    self.metric_height_val.setAlignment(
+                        Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+                    )
 
                     self.lbl_metric_span_tag = QLabel("Span:")
-                    self.lbl_metric_span_tag.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                    self.lbl_metric_span_tag.setAlignment(
+                        Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+                    )
 
                     self.metric_span_val = QLabel("0.0 mm")
-                    self.metric_span_val.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+                    self.metric_span_val.setAlignment(
+                        Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+                    )
 
                     m_layout.addWidget(self.lbl_metric_h_tag)
                     m_layout.addWidget(self.metric_height_val)
@@ -388,8 +410,12 @@ class TipCapsMixin:
         cant_tip_default = float(tip_treatment.get("cant_angle", 80.0))
         cant_root = float(tip_treatment.get("cant_root", 0.0))
         cant_tip = float(tip_treatment.get("cant_tip", cant_tip_default))
-        blend_radius = float(tip_treatment.get("blend_radius", 45.0 if "blend_radius" in tip_treatment else 0.0))
-        h_proj, s_proj = compute_winglet_projected_dimensions(winglet_height, cant_root, cant_tip, blend_radius)
+        blend_radius = float(
+            tip_treatment.get("blend_radius", 45.0 if "blend_radius" in tip_treatment else 0.0)
+        )
+        h_proj, s_proj = compute_winglet_projected_dimensions(
+            winglet_height, cant_root, cant_tip, blend_radius
+        )
         height_label.setText(f"{h_proj:.1f} mm")
         span_label.setText(f"{s_proj:.1f} mm")
 
@@ -423,7 +449,9 @@ class TipCapsMixin:
             return
         geom = self._geometry()
         tip_treatment = geom.setdefault("tip_treatment", {})
-        dict_key = "length" if key == "tip_length" else ("offset_x" if key == "tip_offset_x" else key)
+        dict_key = (
+            "length" if key == "tip_length" else ("offset_x" if key == "tip_offset_x" else key)
+        )
 
         def change() -> None:
             tip_treatment[dict_key] = value

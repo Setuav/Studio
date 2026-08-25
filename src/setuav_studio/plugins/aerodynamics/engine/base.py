@@ -1,4 +1,5 @@
 """Abstract aerodynamic engine interface and shared data models."""
+
 from __future__ import annotations
 
 import enum
@@ -56,6 +57,7 @@ def _json_safe(value: Any) -> Any:
 
 class AnalysisMethod(enum.Enum):
     """Available solver methods."""
+
     VLM = "vlm"
     AERO_BUILDUP = "aero_buildup"
     LIFTING_LINE = "lifting_line"
@@ -74,6 +76,7 @@ class AeroAnalysisError(RuntimeError):
 
 class AnalysisType(enum.Enum):
     """Types of analysis an engine can perform."""
+
     SINGLE_POINT = "single_point"
     ALPHA_SWEEP = "alpha_sweep"
     BETA_SWEEP = "beta_sweep"
@@ -84,15 +87,17 @@ class AnalysisType(enum.Enum):
 
 class SweepType(enum.Enum):
     """Types of parametric sweeps available."""
-    ALPHA = "alpha"                              # Angle of attack sweep (AoA α)
-    BETA = "beta"                                # Sideslip angle sweep (Sideslip β)
-    DUAL_ALPHA_BETA = "dual_alpha_beta"          # Simultaneous 1D Alpha + 1D Beta sweep (both populated)
-    MULTI_GRID = "multi_grid"                    # 2D Parametric grid sweep (α × β flight envelope)
-    CONTROL_DEFLECTION = "control_deflection"    # Persisted name for a control-channel analysis (δ)
+
+    ALPHA = "alpha"  # Angle of attack sweep (AoA α)
+    BETA = "beta"  # Sideslip angle sweep (Sideslip β)
+    DUAL_ALPHA_BETA = "dual_alpha_beta"  # Simultaneous 1D Alpha + 1D Beta sweep (both populated)
+    MULTI_GRID = "multi_grid"  # 2D Parametric grid sweep (α × β flight envelope)
+    CONTROL_DEFLECTION = "control_deflection"  # Persisted name for a control-channel analysis (δ)
 
 
 class ControlSurfaceType(enum.Enum):
     """Types of aerodynamic control surfaces supported across Setuav Studio."""
+
     AILERON = "aileron"
     FLAP = "flap"
     ELEVATOR = "elevator"
@@ -163,28 +168,29 @@ def control_channels_for_components(
 @dataclass(frozen=True)
 class FlightCondition:
     """Operating conditions and sweep parameters for aerodynamic analysis."""
-    velocity: float = 25.0            # m/s (true airspeed)
-    alpha: float = 2.0                # deg (single point or reference AoA)
-    beta: float = 0.0                 # deg (sideslip angle)
-    altitude: float = 0.0             # m MSL
-    p: float = 0.0                    # rad/s (body roll rate)
-    q: float = 0.0                    # rad/s (body pitch rate)
-    r: float = 0.0                    # rad/s (body yaw rate)
+
+    velocity: float = 25.0  # m/s (true airspeed)
+    alpha: float = 2.0  # deg (single point or reference AoA)
+    beta: float = 0.0  # deg (sideslip angle)
+    altitude: float = 0.0  # m MSL
+    p: float = 0.0  # rad/s (body roll rate)
+    q: float = 0.0  # rad/s (body pitch rate)
+    r: float = 0.0  # rad/s (body yaw rate)
     control_deflections: dict[str, float] = field(default_factory=dict)  # deg per control surface
     # Sweep configuration
     sweep_type: SweepType = SweepType.ALPHA
-    sweep_variable: str = "alpha"     # Primary variable name ('alpha', 'beta', or a control channel)
-    sweep_min: float = -10.0          # Range start
-    sweep_max: float = 18.0           # Range end
-    sweep_steps: int = 29             # Number of evaluation points
+    sweep_variable: str = "alpha"  # Primary variable name ('alpha', 'beta', or a control channel)
+    sweep_min: float = -10.0  # Range start
+    sweep_max: float = 18.0  # Range end
+    sweep_steps: int = 29  # Number of evaluation points
     # Secondary sweep configuration (for 2D grid sweeps)
     secondary_variable: str | None = None
     secondary_min: float = 0.0
     secondary_max: float = 0.0
     secondary_steps: int = 1
     # Backward compatibility fields
-    alpha_min: float = -10.0          # deg
-    alpha_max: float = 18.0           # deg
+    alpha_min: float = -10.0  # deg
+    alpha_max: float = 18.0  # deg
     alpha_steps: int = 29
     beta_min: float = 0.0
     beta_max: float = 0.0
@@ -193,6 +199,7 @@ class FlightCondition:
     def get_primary_sweep_values(self) -> list[float]:
         """Compute the array of evaluated values for the primary sweep parameter."""
         import numpy as _np
+
         if self.sweep_type == SweepType.ALPHA:
             if self.alpha_steps != 29:
                 steps = self.alpha_steps
@@ -224,6 +231,7 @@ class FlightCondition:
         if steps <= 1 or not self.secondary_variable:
             return [float(self.secondary_min)]
         import numpy as _np
+
         return [float(v) for v in _np.linspace(self.secondary_min, self.secondary_max, steps)]
 
     def to_dict(self) -> dict[str, Any]:
@@ -296,12 +304,13 @@ class FlightCondition:
 @dataclass(frozen=True)
 class ReferenceValues:
     """Aerodynamic reference geometry."""
-    s_ref: float = 0.0    # m² reference area (S)
-    b_ref: float = 0.0    # m reference span (b)
-    c_ref: float = 0.0    # m mean aerodynamic chord (MAC, c)
-    x_cg: float = 0.0     # m moment reference X
-    y_cg: float = 0.0     # m moment reference Y
-    z_cg: float = 0.0     # m moment reference Z
+
+    s_ref: float = 0.0  # m² reference area (S)
+    b_ref: float = 0.0  # m reference span (b)
+    c_ref: float = 0.0  # m mean aerodynamic chord (MAC, c)
+    x_cg: float = 0.0  # m moment reference X
+    y_cg: float = 0.0  # m moment reference Y
+    z_cg: float = 0.0  # m moment reference Z
 
     @property
     def xyz_ref(self) -> tuple[float, float, float]:
@@ -332,6 +341,7 @@ class ReferenceValues:
 @dataclass(frozen=True)
 class AeroForcesMoments:
     """Dimensional forces and moments in SI units (Newtons and Newton-meters)."""
+
     # Body-frame forces (N): +X forward, +Y right, +Z down
     fx_b: float = 0.0
     fy_b: float = 0.0
@@ -341,17 +351,17 @@ class AeroForcesMoments:
     fy_w: float = 0.0
     fz_w: float = 0.0
     # Conventional aerodynamic force magnitudes (N)
-    lift: float = 0.0         # perpendicular to freestream (positive up)
-    drag: float = 0.0         # parallel to freestream (positive aft)
-    sideforce: float = 0.0    # perpendicular to lift & drag (positive right)
+    lift: float = 0.0  # perpendicular to freestream (positive up)
+    drag: float = 0.0  # parallel to freestream (positive aft)
+    sideforce: float = 0.0  # perpendicular to lift & drag (positive right)
     # Geometry-frame forces (N)
     fx_g: float = 0.0
     fy_g: float = 0.0
     fz_g: float = 0.0
     # Body-frame moments (N·m) about CG/reference point
-    mx_b: float = 0.0         # Roll moment (L_b) about body X
-    my_b: float = 0.0         # Pitch moment (M_b) about body Y
-    mz_b: float = 0.0         # Yaw moment (N_b) about body Z
+    mx_b: float = 0.0  # Roll moment (L_b) about body X
+    my_b: float = 0.0  # Pitch moment (M_b) about body Y
+    mz_b: float = 0.0  # Yaw moment (N_b) about body Z
     # Wind-frame moments (N·m)
     mx_w: float = 0.0
     my_w: float = 0.0
@@ -465,16 +475,17 @@ class AeroForcesMoments:
 @dataclass(frozen=True)
 class AeroState:
     """Operating flight and flow state at an evaluation point."""
-    alpha: float = 0.0                 # deg (angle of attack)
-    beta: float = 0.0                  # deg (sideslip angle)
-    p: float = 0.0                     # rad/s (roll rate)
-    q: float = 0.0                     # rad/s (pitch rate)
-    r: float = 0.0                     # rad/s (yaw rate)
-    velocity: float = 0.0              # m/s (true airspeed)
-    altitude: float = 0.0              # m MSL
+
+    alpha: float = 0.0  # deg (angle of attack)
+    beta: float = 0.0  # deg (sideslip angle)
+    p: float = 0.0  # rad/s (roll rate)
+    q: float = 0.0  # rad/s (pitch rate)
+    r: float = 0.0  # rad/s (yaw rate)
+    velocity: float = 0.0  # m/s (true airspeed)
+    altitude: float = 0.0  # m MSL
     mach: float = 0.0
     reynolds: float = 0.0
-    dynamic_pressure: float = 0.0      # Pa (q_inf = 0.5 * rho * V^2)
+    dynamic_pressure: float = 0.0  # Pa (q_inf = 0.5 * rho * V^2)
     control_deflections: dict[str, float] = field(default_factory=dict)  # surface name -> deg
 
     def to_dict(self) -> dict[str, Any]:
@@ -512,35 +523,36 @@ class AeroState:
 @dataclass(frozen=True)
 class PolarPoint:
     """Aerodynamic coefficients, 6-DoF values, dimensional forces and moments at an operating point."""
+
     # Wind/Stability frame coefficients (standard polar)
     alpha: float
     cl: float
     cd: float
-    cm: float = 0.0               # Pitching moment coefficient (C_m about Y body)
-    cd_induced: float | None = None       # Native induced drag coefficient, when available
-    cd_profile: float | None = None       # Native profile drag coefficient, when available
-    cl_over_cd: float = 0.0       # Lift-to-drag ratio (L/D)
+    cm: float = 0.0  # Pitching moment coefficient (C_m about Y body)
+    cd_induced: float | None = None  # Native induced drag coefficient, when available
+    cd_profile: float | None = None  # Native profile drag coefficient, when available
+    cl_over_cd: float = 0.0  # Lift-to-drag ratio (L/D)
     # 6-DoF Non-dimensional body/wind coefficients
-    cx: float = 0.0               # Body X force coefficient (C_X)
-    cy: float = 0.0               # Side force coefficient (C_Y)
-    cz: float = 0.0               # Body Z force coefficient (C_Z)
-    cl_roll: float = 0.0          # Rolling moment coefficient (C_l about X body)
-    cn: float = 0.0               # Yawing moment coefficient (C_n about Z body)
-    cd_wave: float | None = None          # Native wave drag coefficient, when available
+    cx: float = 0.0  # Body X force coefficient (C_X)
+    cy: float = 0.0  # Side force coefficient (C_Y)
+    cz: float = 0.0  # Body Z force coefficient (C_Z)
+    cl_roll: float = 0.0  # Rolling moment coefficient (C_l about X body)
+    cn: float = 0.0  # Yawing moment coefficient (C_n about Z body)
+    cd_wave: float | None = None  # Native wave drag coefficient, when available
     # Operating state
-    beta: float = 0.0             # deg (sideslip angle)
-    p: float = 0.0                # rad/s (roll rate)
-    q: float = 0.0                # rad/s (pitch rate)
-    r: float = 0.0                # rad/s (yaw rate)
+    beta: float = 0.0  # deg (sideslip angle)
+    p: float = 0.0  # rad/s (roll rate)
+    q: float = 0.0  # rad/s (pitch rate)
+    r: float = 0.0  # rad/s (yaw rate)
     # Full forces, moments and state containers
     forces_moments: AeroForcesMoments | None = None
     state: AeroState | None = None
     # Quick flow parameters
-    velocity: float = 0.0         # m/s
-    altitude: float = 0.0         # m
+    velocity: float = 0.0  # m/s
+    altitude: float = 0.0  # m
     mach: float = 0.0
     reynolds: float = 0.0
-    dynamic_pressure: float = 0.0 # Pa
+    dynamic_pressure: float = 0.0  # Pa
     control_deflections: dict[str, float] = field(default_factory=dict)
     # Execution & solver status
     converged: bool = True
@@ -597,7 +609,9 @@ class PolarPoint:
             "p": self.p,
             "q": self.q,
             "r": self.r,
-            "forces_moments": self.forces_moments.to_dict() if self.forces_moments is not None else None,
+            "forces_moments": self.forces_moments.to_dict()
+            if self.forces_moments is not None
+            else None,
             "state": self.state.to_dict() if self.state is not None else None,
             "velocity": self.velocity,
             "altitude": self.altitude,
@@ -656,9 +670,10 @@ AeroPointResult = PolarPoint
 @dataclass(frozen=True)
 class SweepVariable:
     """A parameter varied during multi-dimensional aerodynamic sweeps."""
-    name: str                   # Parameter name: 'alpha', 'beta', or control channel name
-    values: list[float]         # Evaluated grid values
-    unit: str = ""              # Unit for display (normally 'deg')
+
+    name: str  # Parameter name: 'alpha', 'beta', or control channel name
+    values: list[float]  # Evaluated grid values
+    unit: str = ""  # Unit for display (normally 'deg')
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -679,6 +694,7 @@ class SweepVariable:
 @dataclass
 class MultiDimensionalSweepResult:
     """Structured sweep data in row-major, last-variable-fastest order."""
+
     variables: list[SweepVariable] = field(default_factory=list)
     points: list[PolarPoint] = field(default_factory=list)
     grid_shape: tuple[int, ...] = ()
@@ -691,8 +707,7 @@ class MultiDimensionalSweepResult:
         expected_shape = tuple(len(variable.values) for variable in self.variables)
         if self.grid_shape != expected_shape:
             raise ValueError(
-                f"grid_shape {self.grid_shape!r} does not match variable sizes "
-                f"{expected_shape!r}"
+                f"grid_shape {self.grid_shape!r} does not match variable sizes {expected_shape!r}"
             )
         expected_points = math.prod(self.grid_shape)
         if len(self.points) != expected_points:
@@ -792,6 +807,7 @@ class MultiDimensionalSweepResult:
 @dataclass(frozen=True)
 class ControlChannelAnalysis:
     """Control-channel effectiveness fitted from a deflection response sweep."""
+
     channel: str
     sample_count: int
     deflection_min_deg: float
@@ -823,8 +839,7 @@ class ControlChannelAnalysis:
                 for key, value in (data.get("derivatives_per_deg") or {}).items()
             },
             linearity_r2={
-                str(key): float(value)
-                for key, value in (data.get("linearity_r2") or {}).items()
+                str(key): float(value) for key, value in (data.get("linearity_r2") or {}).items()
             },
             method=str(data.get("method", "least_squares")),
         )
@@ -833,16 +848,21 @@ class ControlChannelAnalysis:
 @dataclass(frozen=True)
 class PropulsionPoint:
     """Propulsion installation / attachment point and thrust line definition."""
+
     id: str
     name: str
     component_type: str
     position: tuple[float, float, float]  # (x, y, z) in meters in geometry/body frame
-    thrust_vector: tuple[float, float, float] = (1.0, 0.0, 0.0)  # Normalized thrust direction vector
-    diameter: float = 0.0                 # Propeller/rotor diameter in meters
-    pitch: float = 0.0                    # Propeller pitch in meters or inches
-    rotation_direction: str = "CW"        # "CW" or "CCW"
-    max_thrust: float = 0.0               # Max static thrust in Newtons (if known)
-    motor_kv: float = 0.0                 # Motor KV (RPM/V)
+    thrust_vector: tuple[float, float, float] = (
+        1.0,
+        0.0,
+        0.0,
+    )  # Normalized thrust direction vector
+    diameter: float = 0.0  # Propeller/rotor diameter in meters
+    pitch: float = 0.0  # Propeller pitch in meters or inches
+    rotation_direction: str = "CW"  # "CW" or "CCW"
+    max_thrust: float = 0.0  # Max static thrust in Newtons (if known)
+    motor_kv: float = 0.0  # Motor KV (RPM/V)
     properties: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -880,6 +900,7 @@ class PropulsionPoint:
 @dataclass
 class AeroResult:
     """Complete analysis result returned by an aerodynamic engine."""
+
     method: AnalysisMethod
     engine_name: str
     polar_points: list[PolarPoint] = field(default_factory=list)
@@ -908,10 +929,14 @@ class AeroResult:
     # Raw engine specific payload (for custom downstream rendering or debugging)
     raw: dict[str, Any] = field(default_factory=dict)
 
-    def get_point(self, alpha: float, beta: float = 0.0, tolerance: float = 1e-4) -> PolarPoint | None:
+    def get_point(
+        self, alpha: float, beta: float = 0.0, tolerance: float = 1e-4
+    ) -> PolarPoint | None:
         """Find a polar point by alpha and beta."""
         for pt in self.polar_points:
-            if math.isclose(pt.alpha, alpha, abs_tol=tolerance) and math.isclose(pt.beta, beta, abs_tol=tolerance):
+            if math.isclose(pt.alpha, alpha, abs_tol=tolerance) and math.isclose(
+                pt.beta, beta, abs_tol=tolerance
+            ):
                 return pt
         return None
 
@@ -951,7 +976,9 @@ class AeroResult:
             "oswald_efficiency": self.oswald_efficiency,
             "stability_derivatives": stab_dict,
             "sweep_result": self.sweep_result.to_dict() if self.sweep_result is not None else None,
-            "control_analysis": self.control_analysis.to_dict() if self.control_analysis is not None else None,
+            "control_analysis": self.control_analysis.to_dict()
+            if self.control_analysis is not None
+            else None,
             "propulsion_points": [p.to_dict() for p in self.propulsion_points],
             "condition": self.condition.to_dict(),
             # Don't serialize non-JSON raw object instances in to_dict
@@ -963,7 +990,9 @@ class AeroResult:
         """Construct an AeroResult instance from a serialized dictionary."""
         method = AnalysisMethod.from_value(data.get("method", "aero_buildup"))
 
-        points = [PolarPoint.from_dict(p) for p in data.get("polar_points", []) if isinstance(p, dict)]
+        points = [
+            PolarPoint.from_dict(p) for p in data.get("polar_points", []) if isinstance(p, dict)
+        ]
 
         ref = ReferenceValues.from_dict(data.get("reference") or {})
         cond = FlightCondition.from_dict(data.get("condition") or {})
@@ -974,7 +1003,11 @@ class AeroResult:
         ]
 
         sweep_data = data.get("sweep_result")
-        sweep = MultiDimensionalSweepResult.from_dict(sweep_data) if isinstance(sweep_data, dict) else None
+        sweep = (
+            MultiDimensionalSweepResult.from_dict(sweep_data)
+            if isinstance(sweep_data, dict)
+            else None
+        )
         control_data = data.get("control_analysis")
         control_analysis = (
             ControlChannelAnalysis.from_dict(control_data)
@@ -987,6 +1020,7 @@ class AeroResult:
         if isinstance(stab_raw, dict):
             try:
                 from .stability_models import StabilityDerivatives
+
                 stab_res = StabilityDerivatives.from_dict(stab_raw)
             except Exception:
                 stab_res = stab_raw
@@ -1017,6 +1051,7 @@ class AeroResult:
 @dataclass(frozen=True)
 class EngineCapabilities:
     """Capabilities supported by a particular engine."""
+
     methods: frozenset[AnalysisMethod] = field(default_factory=frozenset)
     analysis_types: frozenset[AnalysisType] = field(default_factory=frozenset)
     supports_fuselage: bool = False

@@ -32,8 +32,20 @@ class GeometryTests(unittest.TestCase):
             {"type": "circle", "diameter": 100},
             {"type": "ellipse", "width": 120, "height": 80},
             {"type": "rectangle", "width": 120, "height": 80, "corner_radius": 10},
-            {"type": "trapezoid", "top_width": 80, "bottom_width": 120, "height": 90, "corner_radius": 5},
-            {"type": "triangle", "base_width": 100, "height": 90, "orientation": "down", "corner_radius": 4},
+            {
+                "type": "trapezoid",
+                "top_width": 80,
+                "bottom_width": 120,
+                "height": 90,
+                "corner_radius": 5,
+            },
+            {
+                "type": "triangle",
+                "base_width": 100,
+                "height": 90,
+                "orientation": "down",
+                "corner_radius": 4,
+            },
             {
                 "type": "polygon",
                 "vertices": [
@@ -60,9 +72,18 @@ class GeometryTests(unittest.TestCase):
                             "tag": "main",
                             "loft": {"method": "smooth"},
                             "sections": [
-                                {"position": {"x": 0}, "profile": {"type": "circle", "diameter": 0}},
-                                {"position": {"x": 500}, "profile": {"type": "ellipse", "width": 200, "height": 150}},
-                                {"position": {"x": 1000}, "profile": {"type": "circle", "diameter": 0}},
+                                {
+                                    "position": {"x": 0},
+                                    "profile": {"type": "circle", "diameter": 0},
+                                },
+                                {
+                                    "position": {"x": 500},
+                                    "profile": {"type": "ellipse", "width": 200, "height": 150},
+                                },
+                                {
+                                    "position": {"x": 1000},
+                                    "profile": {"type": "circle", "diameter": 0},
+                                },
                             ],
                         }
                     ]
@@ -103,7 +124,11 @@ class GeometryTests(unittest.TestCase):
                 "geometry": {
                     "profiles": [
                         {"position": {"x": 0, "y": 0}, "chord": 250, "airfoil": "naca4412"},
-                        {"position": {"x": 40, "y": -700}, "chord": 130, "airfoil": {"type": "naca", "code": "0012"}},
+                        {
+                            "position": {"x": 40, "y": -700},
+                            "chord": 130,
+                            "airfoil": {"type": "naca", "code": "0012"},
+                        },
                     ]
                 }
             },
@@ -206,7 +231,9 @@ class GeometryTests(unittest.TestCase):
         # Test Wing Angles table
         self.assertEqual(editor.wing_angles_table.rowCount(), 6)
         editor._on_wing_angle_changed("dihedral", 3.0)
-        self.assertGreater(float(wing_comp["parameters"]["geometry"]["profiles"][-1]["position"]["z"]), 0.0)
+        self.assertGreater(
+            float(wing_comp["parameters"]["geometry"]["profiles"][-1]["position"]["z"]), 0.0
+        )
         editor._on_wing_angle_changed("sweep_curvature", 25.0)
         self.assertEqual(wing_comp["parameters"]["geometry"].get("sweep_curvature"), 25.0)
 
@@ -243,6 +270,7 @@ class GeometryTests(unittest.TestCase):
         self.assertEqual(editor.control_surfaces_table.rowCount(), init_cs + 1)
         # Edit control surface via cs_properties_table
         cs_idx = editor._control_surface_index
+
         def _get_cs_spin(k: str):
             for r in range(editor.cs_properties_table.rowCount()):
                 if editor._property_key(editor.cs_properties_table, r) == k:
@@ -272,7 +300,9 @@ class GeometryTests(unittest.TestCase):
 
         # Edit tag inline via control_surfaces_table
         editor.control_surfaces_table.item(cs_idx, 0).setText("aileron_custom")
-        self.assertEqual(editor._cs_geom(editor._control_surfaces()[cs_idx])["tag"], "aileron_custom")
+        self.assertEqual(
+            editor._cs_geom(editor._control_surfaces()[cs_idx])["tag"], "aileron_custom"
+        )
         self.assertEqual(editor.cs_properties_table.item(0, 1).text(), "aileron_custom")
 
         # Section Selection in 3D Viewport
@@ -398,8 +428,18 @@ class GeometryTests(unittest.TestCase):
         )
 
         profiles = [
-            {"position": {"x": 0.0, "y": 0.0, "z": 0.0}, "chord": 240.0, "rotation": {"x": 0.0, "y": 0.0, "z": 0.0}, "airfoil": "2412"},
-            {"position": {"x": 50.0, "y": 500.0, "z": 20.0}, "chord": 120.0, "rotation": {"x": 0.0, "y": -2.0, "z": 0.0}, "airfoil": "0012"},
+            {
+                "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+                "chord": 240.0,
+                "rotation": {"x": 0.0, "y": 0.0, "z": 0.0},
+                "airfoil": "2412",
+            },
+            {
+                "position": {"x": 50.0, "y": 500.0, "z": 20.0},
+                "chord": 120.0,
+                "rotation": {"x": 0.0, "y": -2.0, "z": 0.0},
+                "airfoil": "0012",
+            },
         ]
 
         # 1. Convert to section
@@ -499,8 +539,16 @@ class GeometryTests(unittest.TestCase):
             "parameters": {
                 "geometry": {
                     "profiles": [
-                        {"position": {"x": 0.0, "y": 0.0, "z": 0.0}, "chord": 200.0, "airfoil": "2412"},
-                        {"position": {"x": 20.0, "y": 500.0, "z": 0.0}, "chord": 150.0, "airfoil": "2412"},
+                        {
+                            "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+                            "chord": 200.0,
+                            "airfoil": "2412",
+                        },
+                        {
+                            "position": {"x": 20.0, "y": 500.0, "z": 0.0},
+                            "chord": 150.0,
+                            "airfoil": "2412",
+                        },
                     ],
                     "control_surfaces": [
                         {
@@ -541,7 +589,10 @@ class GeometryTests(unittest.TestCase):
         cs_neutral = next(loft for loft in lofts_neutral if "aileron_1" in loft.component_id)
 
         # Find trailing edge index (maximum X)
-        te_idx = max(range(len(cs_neutral.sections[0].points)), key=lambda i: cs_neutral.sections[0].points[i][0])
+        te_idx = max(
+            range(len(cs_neutral.sections[0].points)),
+            key=lambda i: cs_neutral.sections[0].points[i][0],
+        )
         te_neutral_z = cs_neutral.sections[0].points[te_idx][2]
         te_deflected_z = cs_loft.sections[0].points[te_idx][2]
         self.assertLess(te_deflected_z, te_neutral_z - 5.0)
@@ -566,9 +617,7 @@ class GeometryTests(unittest.TestCase):
             loft for loft in scene_geom.lofts if loft.component_id == "test-wing:aileron_1"
         )
         cs_mirror = next(
-            loft
-            for loft in scene_geom.lofts
-            if loft.component_id == "test-wing-mirrored:aileron_1"
+            loft for loft in scene_geom.lofts if loft.component_id == "test-wing-mirrored:aileron_1"
         )
 
         te_src_z = max(cs_source.sections[0].points, key=lambda p: p[0])[2]
@@ -586,8 +635,16 @@ class GeometryTests(unittest.TestCase):
             "parameters": {
                 "geometry": {
                     "profiles": [
-                        {"position": {"x": 0.0, "y": 0.0, "z": 0.0}, "chord": 165.0, "airfoil": "0012"},
-                        {"position": {"x": 50.0, "y": -180.0, "z": 0.0}, "chord": 100.0, "airfoil": "0012"},
+                        {
+                            "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+                            "chord": 165.0,
+                            "airfoil": "0012",
+                        },
+                        {
+                            "position": {"x": 50.0, "y": -180.0, "z": 0.0},
+                            "chord": 100.0,
+                            "airfoil": "0012",
+                        },
                     ],
                     "control_surfaces": [
                         {
@@ -620,8 +677,16 @@ class GeometryTests(unittest.TestCase):
             "parameters": {
                 "geometry": {
                     "profiles": [
-                        {"position": {"x": 0.0, "y": 0.0, "z": 0.0}, "chord": 200.0, "airfoil": "0012"},
-                        {"position": {"x": 50.0, "y": 500.0, "z": 0.0}, "chord": 100.0, "airfoil": "0012"},
+                        {
+                            "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+                            "chord": 200.0,
+                            "airfoil": "0012",
+                        },
+                        {
+                            "position": {"x": 50.0, "y": 500.0, "z": 0.0},
+                            "chord": 100.0,
+                            "airfoil": "0012",
+                        },
                     ],
                     "control_surfaces": [
                         {
@@ -662,8 +727,14 @@ class GeometryTests(unittest.TestCase):
                             "segments": [
                                 {
                                     "sections": [
-                                        {"position": {"x": 0.0, "y": 0.0, "z": 0.0}, "profile": {"type": "circle", "diameter": 100.0}},
-                                        {"position": {"x": 500.0, "y": 0.0, "z": 0.0}, "profile": {"type": "circle", "diameter": 100.0}},
+                                        {
+                                            "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+                                            "profile": {"type": "circle", "diameter": 100.0},
+                                        },
+                                        {
+                                            "position": {"x": 500.0, "y": 0.0, "z": 0.0},
+                                            "profile": {"type": "circle", "diameter": 100.0},
+                                        },
                                     ]
                                 }
                             ]
@@ -681,8 +752,16 @@ class GeometryTests(unittest.TestCase):
                     "parameters": {
                         "geometry": {
                             "profiles": [
-                                {"position": {"x": 0.0, "y": 0.0, "z": 0.0}, "chord": 150.0, "airfoil": "0012"},
-                                {"position": {"x": 0.0, "y": 300.0, "z": 0.0}, "chord": 100.0, "airfoil": "0012"},
+                                {
+                                    "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+                                    "chord": 150.0,
+                                    "airfoil": "0012",
+                                },
+                                {
+                                    "position": {"x": 0.0, "y": 300.0, "z": 0.0},
+                                    "chord": 100.0,
+                                    "airfoil": "0012",
+                                },
                             ]
                         }
                     },
@@ -705,6 +784,7 @@ class GeometryTests(unittest.TestCase):
             build_loft_solid_vertices,
             build_loft_wire_vertices,
         )
+
         solid_verts = build_loft_solid_vertices(scene_geom)
         wire_verts = build_loft_wire_vertices(scene_geom)
         self.assertGreater(len(solid_verts), 0)
@@ -733,8 +813,8 @@ class GeometryTests(unittest.TestCase):
                     "chord": 70.0,
                     "deflection": 20.0,
                     "hinge_sweep": -1.0,
-                }
-            }
+                },
+            },
         }
 
         editor = ControlSurfaceEditor(api, cs_comp)
@@ -799,9 +879,9 @@ class GeometryTests(unittest.TestCase):
                             "chord": 45.0,
                             "chord_fraction": 0.225,
                         },
-                    ]
+                    ],
                 }
-            }
+            },
         }
         doc = ProjectDocument(Path("/tmp/test.json"), "json", {"components": [wing_comp]})
         api = StudioAPI()
@@ -813,7 +893,7 @@ class GeometryTests(unittest.TestCase):
         editor._on_cs_prop_spinbox_changed("eta_start", 0.6)
         geom0 = editor._geometry()["control_surfaces"][0]
         self.assertAlmostEqual(geom0["eta_start"], 0.6)
-        self.assertAlmostEqual(geom0["span_start"], 600.0) # 0.6 * 1000.0
+        self.assertAlmostEqual(geom0["span_start"], 600.0)  # 0.6 * 1000.0
 
         # 2. Scale the wing span from 1000 to 2000 mm
         wing_comp["parameters"]["geometry"]["profiles"][1]["position"]["y"] = 2000.0
@@ -821,7 +901,7 @@ class GeometryTests(unittest.TestCase):
 
         # Ratio aileron should scale its span_start from 600mm to 1200mm (0.6 * 2000)
         self.assertAlmostEqual(geom0["span_start"], 1200.0)
-        self.assertAlmostEqual(geom0["span_end"], 1800.0) # 0.9 * 2000
+        self.assertAlmostEqual(geom0["span_end"], 1800.0)  # 0.9 * 2000
 
         # Dimension flap should keep its fixed 100-400mm span, but eta updates to 0.05 - 0.20
         geom1 = editor._geometry()["control_surfaces"][1]
@@ -857,11 +937,19 @@ class GeometryTests(unittest.TestCase):
                         "geometry": {
                             "mirror": True,
                             "profiles": [
-                                {"position": {"x": 0.0, "y": 0.0, "z": 0.0}, "chord": 200.0, "airfoil": "2412"},
-                                {"position": {"x": 50.0, "y": 500.0, "z": 0.0}, "chord": 100.0, "airfoil": "2412"},
-                            ]
+                                {
+                                    "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+                                    "chord": 200.0,
+                                    "airfoil": "2412",
+                                },
+                                {
+                                    "position": {"x": 50.0, "y": 500.0, "z": 0.0},
+                                    "chord": 100.0,
+                                    "airfoil": "2412",
+                                },
+                            ],
                         }
-                    }
+                    },
                 },
                 {
                     "kind": "component",
@@ -878,10 +966,10 @@ class GeometryTests(unittest.TestCase):
                             "span_end": 450.0,
                             "chord": 40.0,
                             "hinge_sweep": 0.0,
-                            "deflection": 0.0
+                            "deflection": 0.0,
                         }
-                    }
-                }
+                    },
+                },
             ]
         }
 
@@ -953,7 +1041,10 @@ class GeometryTests(unittest.TestCase):
         pos = {"x": 100.0, "y": 200.0, "z": 50.0}
         chord = 200.0
         sec_0 = {"position": pos, "rotation": {"x": 0.0, "y": 0.0, "z": 0.0}}
-        sec_w = {"position": pos, "rotation": {"x": 0.0, "y": -5.0, "z": 0.0}}  # -5 deg pitch (washout)
+        sec_w = {
+            "position": pos,
+            "rotation": {"x": 0.0, "y": -5.0, "z": 0.0},
+        }  # -5 deg pitch (washout)
 
         # 1. Test Quarter-Chord pivot (0.25)
         mat0_qc = section_transform(sec_0, chord=chord, twist_location=0.25)
@@ -990,9 +1081,21 @@ class GeometryTests(unittest.TestCase):
         )
 
         profiles = [
-            {"position": {"x": 0.0, "y": 0.0, "z": 0.0}, "chord": 200.0, "rotation": {"x": 0.0, "y": 0.0, "z": 0.0}},
-            {"position": {"x": 0.0, "y": 250.0, "z": 0.0}, "chord": 150.0, "rotation": {"x": 0.0, "y": 0.0, "z": 0.0}},
-            {"position": {"x": 0.0, "y": 500.0, "z": 0.0}, "chord": 100.0, "rotation": {"x": 0.0, "y": 0.0, "z": 0.0}},
+            {
+                "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+                "chord": 200.0,
+                "rotation": {"x": 0.0, "y": 0.0, "z": 0.0},
+            },
+            {
+                "position": {"x": 0.0, "y": 250.0, "z": 0.0},
+                "chord": 150.0,
+                "rotation": {"x": 0.0, "y": 0.0, "z": 0.0},
+            },
+            {
+                "position": {"x": 0.0, "y": 500.0, "z": 0.0},
+                "chord": 100.0,
+                "rotation": {"x": 0.0, "y": 0.0, "z": 0.0},
+            },
         ]
         inputs = {
             "span": 1000.0,
@@ -1019,11 +1122,19 @@ class GeometryTests(unittest.TestCase):
             "parameters": {
                 "geometry": {
                     "profiles": [
-                        {"position": {"x": 0.0, "y": 0.0, "z": 0.0}, "chord": 200.0, "airfoil": "0012"},
-                        {"position": {"x": 0.0, "y": 500.0, "z": 0.0}, "chord": 100.0, "airfoil": "0012"},
+                        {
+                            "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+                            "chord": 200.0,
+                            "airfoil": "0012",
+                        },
+                        {
+                            "position": {"x": 0.0, "y": 500.0, "z": 0.0},
+                            "chord": 100.0,
+                            "airfoil": "0012",
+                        },
                     ]
                 }
-            }
+            },
         }
 
         # 1. Default (flat) tip cap: exactly 1 loft with 2 sections
@@ -1079,11 +1190,19 @@ class GeometryTests(unittest.TestCase):
             "parameters": {
                 "geometry": {
                     "profiles": [
-                        {"position": {"x": 0.0, "y": 0.0, "z": 0.0}, "chord": 200.0, "airfoil": "0012"},
-                        {"position": {"x": 0.0, "y": 500.0, "z": 0.0}, "chord": 100.0, "airfoil": "0012"},
+                        {
+                            "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+                            "chord": 200.0,
+                            "airfoil": "0012",
+                        },
+                        {
+                            "position": {"x": 0.0, "y": 500.0, "z": 0.0},
+                            "chord": 100.0,
+                            "airfoil": "0012",
+                        },
                     ]
                 }
-            }
+            },
         }
         mock_doc = type("Doc", (), {"data": {"components": [wing_comp]}})()
         api.current_project = mock_doc
@@ -1091,7 +1210,9 @@ class GeometryTests(unittest.TestCase):
         editor = LiftingSurfaceEditor(api, wing_comp)
         # Default tip cap is flat — table has 1 row: tip_type
         self.assertEqual(editor.tip_caps_table.rowCount(), 1)
-        self.assertEqual(wing_comp["parameters"]["geometry"].get("tip_treatment", {}).get("type", "flat"), "flat")
+        self.assertEqual(
+            wing_comp["parameters"]["geometry"].get("tip_treatment", {}).get("type", "flat"), "flat"
+        )
 
         # Change tip cap type to round via UI (expands to 3 rows)
         editor._on_tip_cap_type_changed("round")
@@ -1174,9 +1295,7 @@ class GeometryTests(unittest.TestCase):
         self.assertGreater(max(tip_zs), max(root_zs))
 
         # Zero winglet_height → None
-        none_loft = _build_winglet_loft(
-            comp_id="wing", tip_profile=tip_profile, winglet_height=0.0
-        )
+        none_loft = _build_winglet_loft(comp_id="wing", tip_profile=tip_profile, winglet_height=0.0)
         self.assertIsNone(none_loft)
 
         # Curved scimitar winglet with independent LE/TE curves and thickness taper
@@ -1211,7 +1330,9 @@ class GeometryTests(unittest.TestCase):
         self.assertGreater(mid_z, max(root_zs))
 
         # Thickness check at root section (in Z since cant_root=0 is horizontal)
-        root_thickness_z = max(p[2] for p in scimitar_loft.sections[0].points) - min(p[2] for p in scimitar_loft.sections[0].points)
+        root_thickness_z = max(p[2] for p in scimitar_loft.sections[0].points) - min(
+            p[2] for p in scimitar_loft.sections[0].points
+        )
         self.assertGreater(root_thickness_z, 5.0)
 
     def test_fuselage_section_dialog_and_metrics(self) -> None:
@@ -1233,7 +1354,9 @@ class GeometryTests(unittest.TestCase):
         self.assertAlmostEqual(m_circ["width"], 100.0, places=1)
         self.assertAlmostEqual(m_circ["height"], 100.0, places=1)
 
-        rect_pts = sample_profile({"type": "rectangle", "width": 120.0, "height": 80.0, "corner_radius": 10.0})
+        rect_pts = sample_profile(
+            {"type": "rectangle", "width": 120.0, "height": 80.0, "corner_radius": 10.0}
+        )
         m_rect = compute_section_metrics(rect_pts)
         self.assertGreater(m_rect["area"], 9000.0)
         self.assertAlmostEqual(m_rect["width"], 120.0, places=1)
@@ -1275,9 +1398,21 @@ class GeometryTests(unittest.TestCase):
                             "id": "seg_1",
                             "name": "Nose to Tail",
                             "sections": [
-                                {"position": {"x": 0.0, "y": 0.0, "z": 0.0}, "rotation": {"x": 0.0, "y": 0.0, "z": 0.0}, "profile": {"type": "circle", "diameter": 80.0}},
-                                {"position": {"x": 300.0, "y": 0.0, "z": 0.0}, "rotation": {"x": 0.0, "y": 0.0, "z": 0.0}, "profile": {"type": "circle", "diameter": 120.0}},
-                                {"position": {"x": 700.0, "y": 0.0, "z": 0.0}, "rotation": {"x": 0.0, "y": 0.0, "z": 0.0}, "profile": {"type": "circle", "diameter": 60.0}},
+                                {
+                                    "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+                                    "rotation": {"x": 0.0, "y": 0.0, "z": 0.0},
+                                    "profile": {"type": "circle", "diameter": 80.0},
+                                },
+                                {
+                                    "position": {"x": 300.0, "y": 0.0, "z": 0.0},
+                                    "rotation": {"x": 0.0, "y": 0.0, "z": 0.0},
+                                    "profile": {"type": "circle", "diameter": 120.0},
+                                },
+                                {
+                                    "position": {"x": 700.0, "y": 0.0, "z": 0.0},
+                                    "rotation": {"x": 0.0, "y": 0.0, "z": 0.0},
+                                    "profile": {"type": "circle", "diameter": 60.0},
+                                },
                             ],
                         }
                     ]
@@ -1405,6 +1540,7 @@ class GeometryTests(unittest.TestCase):
         spinbox.show()
         spinbox.setFocus()
         from PySide6.QtWidgets import QApplication
+
         QApplication.processEvents()
         if not spinbox._is_active_focus():
             spinbox.lineEdit().setFocus()
@@ -1566,12 +1702,7 @@ class GeometryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             dat_path = Path(tmp) / "custom.dat"
             dat_path.write_text(
-                "My Custom Foil\n"
-                "1.0   0.001\n"
-                "0.5   0.05\n"
-                "0.0   0.0\n"
-                "0.5  -0.05\n"
-                "1.0  -0.001\n",
+                "My Custom Foil\n1.0   0.001\n0.5   0.05\n0.0   0.0\n0.5  -0.05\n1.0  -0.001\n",
                 encoding="utf-8",
             )
             dialog = AirfoilDialog("2412")
@@ -1777,7 +1908,9 @@ class GeometryTests(unittest.TestCase):
         editor.segments_table.selectRow(1)
         self.assertEqual(editor._segment_index, 1)
         editor.sections_table.selectRow(1)  # triangle section
-        self.assertEqual(editor.section_properties_table.rowCount(), 5)  # type, base_width, height, orientation, corner_radius
+        self.assertEqual(
+            editor.section_properties_table.rowCount(), 5
+        )  # type, base_width, height, orientation, corner_radius
         editor._update_section_choice("orientation", "down")
         tri_profile = comp["parameters"]["geometry"]["segments"][1]["sections"][1]["profile"]
         self.assertEqual(tri_profile["orientation"], "down")
@@ -1788,7 +1921,9 @@ class GeometryTests(unittest.TestCase):
         self.assertAlmostEqual(editor.vertices_table.cellWidget(0, 0).value(), -50.0)
         editor._on_vertex_spin_changed(0, 0, 60.0)
         self.assertAlmostEqual(
-            comp["parameters"]["geometry"]["segments"][1]["sections"][0]["profile"]["vertices"][0]["y"],
+            comp["parameters"]["geometry"]["segments"][1]["sections"][0]["profile"]["vertices"][0][
+                "y"
+            ],
             60.0,
         )
 
@@ -1911,7 +2046,7 @@ def _build_fuselage_component() -> dict:
                         ],
                     },
                 ]
-            }
+            },
         },
     }
 
@@ -1950,10 +2085,10 @@ def _build_fuselage_component() -> dict:
 
         # 3. Formatter
         self.assertEqual(format_profile_size({"type": "circle", "diameter": 80.0}), "D 80.0")
-        self.assertEqual(format_profile_size({"type": "ellipse", "width": 120.0, "height": 60.0}), "120.0 × 60.0")
+        self.assertEqual(
+            format_profile_size({"type": "ellipse", "width": 120.0, "height": 60.0}), "120.0 × 60.0"
+        )
 
 
 if __name__ == "__main__":
     unittest.main()
-
-

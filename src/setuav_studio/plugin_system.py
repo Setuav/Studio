@@ -155,9 +155,7 @@ class ToolbarContribution:
 
     def __post_init__(self) -> None:
         if self.callback is not None and self.command is not None:
-            raise ValueError(
-                "Toolbar contributions cannot define both callback and command"
-            )
+            raise ValueError("Toolbar contributions cannot define both callback and command")
         if self.callback is None and self.command is None and not self.menu_items:
             raise ValueError("Toolbar contributions require an action or menu")
 
@@ -266,9 +264,7 @@ class StudioAPI:
         self._remove_action: Callable[[str, str], None] | None = None
         self._pending_actions: list[ActionContribution] = []
         self._settings_pages: dict[str, SettingsPageContribution] = {}
-        self._status_handler: (
-            Callable[[str, str, int], None] | None
-        ) = None
+        self._status_handler: Callable[[str, str, int], None] | None = None
         self._pending_status: list[tuple[str, str, int]] = []
         self._progress_handler: Callable[[int, int, str], None] | None = None
         self._project_listeners: list[Callable[[ProjectDocument], None]] = []
@@ -276,9 +272,7 @@ class StudioAPI:
         self._modified_listeners: list[Callable[[bool], None]] = []
         self._workspace_listeners: list[Callable[[str], None]] = []
         self._selection_listeners: list[Callable[[Any | None], None]] = []
-        self._section_selection_listeners: list[
-            Callable[[tuple[str, int, int] | None], None]
-        ] = []
+        self._section_selection_listeners: list[Callable[[tuple[str, int, int] | None], None]] = []
         self._component_editors: dict[
             str,
             Callable[[dict[str, Any]], QWidget],
@@ -293,9 +287,7 @@ class StudioAPI:
         self._component_tree_providers: dict[str, ComponentTreeProvider] = {}
         self._project_tree_providers: dict[str, ProjectTreeProvider] = {}
         self._mass_properties_providers: dict[str, MassPropertiesProvider] = {}
-        self._project_requirement_checker: (
-            Callable[[dict[str, Any]], list[str]] | None
-        ) = None
+        self._project_requirement_checker: Callable[[dict[str, Any]], list[str]] | None = None
         self._event_subscribers: dict[str, list[Callable[[Any], None]]] = {}
         self.undo_stack = QUndoStack()
         self.undo_stack.cleanChanged.connect(self._on_clean_changed)
@@ -390,7 +382,9 @@ class StudioAPI:
             try:
                 handler(payload)
             except Exception as exc:
-                logger.error("Error executing subscriber for event '%s': %s", event_name, exc, exc_info=True)
+                logger.error(
+                    "Error executing subscriber for event '%s': %s", event_name, exc, exc_info=True
+                )
 
     def set_workspace_handler(
         self,
@@ -482,9 +476,7 @@ class StudioAPI:
         ``deactivate``.  Pages are created lazily when the dialog is opened.
         """
         if contribution.id in self._settings_pages:
-            raise ValueError(
-                f"A settings page is already registered for: {contribution.id}"
-            )
+            raise ValueError(f"A settings page is already registered for: {contribution.id}")
         self._settings_pages[contribution.id] = contribution
 
     def remove_settings_page(self, page_id: str) -> None:
@@ -760,9 +752,7 @@ class StudioAPI:
         factory: Callable[[dict[str, Any]], QWidget],
     ) -> None:
         if component_type in self._component_editors:
-            raise ValueError(
-                f"A component editor is already registered for: {component_type}"
-            )
+            raise ValueError(f"A component editor is already registered for: {component_type}")
         self._component_editors[component_type] = factory
 
     def remove_component_editor(self, component_type: str) -> None:
@@ -788,9 +778,7 @@ class StudioAPI:
     ) -> QWidget | None:
         component_type = component.get("type")
         factory = (
-            self._component_editors.get(component_type)
-            if isinstance(component_type, str)
-            else None
+            self._component_editors.get(component_type) if isinstance(component_type, str) else None
         )
         if factory is None:
             component_kind = component.get("kind")
@@ -806,9 +794,7 @@ class StudioAPI:
         icon: str | Path | QIcon,
     ) -> None:
         if component_type in self._component_icons:
-            raise ValueError(
-                f"An icon is already registered for component type: {component_type}"
-            )
+            raise ValueError(f"An icon is already registered for component type: {component_type}")
         self._component_icons[component_type] = icon
 
     def remove_component_icon(self, component_type: str) -> None:
@@ -820,9 +806,7 @@ class StudioAPI:
         icon: str | Path | QIcon,
     ) -> None:
         if component_kind in self._kind_icons:
-            raise ValueError(
-                f"An icon is already registered for component kind: {component_kind}"
-            )
+            raise ValueError(f"An icon is already registered for component kind: {component_kind}")
         self._kind_icons[component_kind] = icon
 
     def remove_kind_icon(self, component_kind: str) -> None:
@@ -860,9 +844,7 @@ class StudioAPI:
         provider: ComponentTreeProvider,
     ) -> None:
         if provider_id in self._component_tree_providers:
-            raise ValueError(
-                f"A component tree provider is already registered for: {provider_id}"
-            )
+            raise ValueError(f"A component tree provider is already registered for: {provider_id}")
         self._component_tree_providers[provider_id] = provider
 
     def remove_component_tree_provider(self, provider_id: str) -> None:
@@ -883,9 +865,7 @@ class StudioAPI:
         provider: ProjectTreeProvider,
     ) -> None:
         if provider_id in self._project_tree_providers:
-            raise ValueError(
-                f"A project tree provider is already registered for: {provider_id}"
-            )
+            raise ValueError(f"A project tree provider is already registered for: {provider_id}")
         self._project_tree_providers[provider_id] = provider
         if self.current_project is not None:
             self.notify_project_content_changed()
@@ -911,9 +891,7 @@ class StudioAPI:
     ) -> None:
         """Register a synchronous mass/CG/inertia provider."""
         if provider_id in self._mass_properties_providers:
-            raise ValueError(
-                f"A mass properties provider is already registered for: {provider_id}"
-            )
+            raise ValueError(f"A mass properties provider is already registered for: {provider_id}")
         self._mass_properties_providers[provider_id] = provider
 
     def remove_mass_properties_provider(self, provider_id: str) -> None:
@@ -945,7 +923,9 @@ class StudioAPI:
         """Register a custom component type schema dynamically under a plugin."""
         from setuav_studio.schema_validation import get_catalog
 
-        get_catalog().register_component_type_schema(component_type, schema_dict, plugin_id=plugin_id)
+        get_catalog().register_component_type_schema(
+            component_type, schema_dict, plugin_id=plugin_id
+        )
 
     def build_geometry_data(
         self,
@@ -954,8 +934,10 @@ class StudioAPI:
         document = project or self.current_project
         if document is None:
             from setuav_studio.plugins.geometry.engine.data import GeometryData
+
             return GeometryData()
         from setuav_studio.plugins.geometry.viewport.scene import build_project_geometry
+
         return build_project_geometry(document, self._geometry_providers)
 
     def remove_project_listener(

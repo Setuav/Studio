@@ -1,4 +1,5 @@
 """Unit tests for Aerodynamic Engine Base abstractions and expanded data models."""
+
 from __future__ import annotations
 
 import unittest
@@ -31,7 +32,9 @@ class DummyEngine(AeroEngine):
     def capabilities(self) -> EngineCapabilities:
         return EngineCapabilities(
             methods=frozenset({AnalysisMethod.VLM, AnalysisMethod.AERO_BUILDUP}),
-            analysis_types=frozenset({AnalysisType.SINGLE_POINT, AnalysisType.ALPHA_SWEEP, AnalysisType.MULTI_SWEEP}),
+            analysis_types=frozenset(
+                {AnalysisType.SINGLE_POINT, AnalysisType.ALPHA_SWEEP, AnalysisType.MULTI_SWEEP}
+            ),
             supports_fuselage=True,
             supports_control_surfaces=True,
         )
@@ -286,10 +289,18 @@ class AeroEngineBaseTests(unittest.TestCase):
         self.assertEqual(pt.forces_moments.fx_b, restored.forces_moments.fx_b)
 
     def test_multi_dimensional_sweep_dataset(self) -> None:
-        p1 = PolarPoint(alpha=0.0, cl=0.2, cd=0.015, beta=0.0, control_deflections={"elevator": 0.0})
-        p2 = PolarPoint(alpha=5.0, cl=0.7, cd=0.035, beta=0.0, control_deflections={"elevator": 0.0})
-        p3 = PolarPoint(alpha=0.0, cl=0.35, cd=0.018, beta=0.0, control_deflections={"elevator": -5.0})
-        p4 = PolarPoint(alpha=5.0, cl=0.85, cd=0.040, beta=0.0, control_deflections={"elevator": -5.0})
+        p1 = PolarPoint(
+            alpha=0.0, cl=0.2, cd=0.015, beta=0.0, control_deflections={"elevator": 0.0}
+        )
+        p2 = PolarPoint(
+            alpha=5.0, cl=0.7, cd=0.035, beta=0.0, control_deflections={"elevator": 0.0}
+        )
+        p3 = PolarPoint(
+            alpha=0.0, cl=0.35, cd=0.018, beta=0.0, control_deflections={"elevator": -5.0}
+        )
+        p4 = PolarPoint(
+            alpha=5.0, cl=0.85, cd=0.040, beta=0.0, control_deflections={"elevator": -5.0}
+        )
 
         sweep = MultiDimensionalSweepResult(
             variables=[

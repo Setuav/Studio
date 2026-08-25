@@ -1,4 +1,5 @@
 """Background analysis worker utilizing QRunnable and QThreadPool for electrical propulsion."""
+
 from __future__ import annotations
 
 import logging
@@ -34,6 +35,7 @@ class PropulsionWorker(QRunnable):
     @Slot()
     def run(self) -> None:
         try:
+
             def on_progress(curr: int, total: int, msg: str) -> None:
                 self.signals.progress.emit(curr, total, msg)
 

@@ -1,4 +1,5 @@
 """Persistent flight performance analysis results stored in the project document."""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone

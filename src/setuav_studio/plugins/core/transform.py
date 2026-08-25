@@ -109,41 +109,27 @@ class TransformEditor(PropertyTableMixin, QWidget):
 
     def _create_reference_section(self) -> None:
         layout = self._create_section("Reference Frame", "mdi6.axis-arrow")
-        self.reference_table = self._property_table([
-            ("component", "Component"),
-            ("parent", "Parent Frame"),
-        ])
+        self.reference_table = self._property_table(
+            [
+                ("component", "Component"),
+                ("parent", "Parent Frame"),
+            ]
+        )
         layout.addWidget(self.reference_table)
 
     def _create_transform_section(self) -> None:
         layout = self._create_section("Transform", "mdi6.axis-arrow")
         self.transform_table = QTableWidget(2, 3, self)
         self.transform_table.setHorizontalHeaderLabels(["X", "Y", "Z"])
-        self.transform_table.setVerticalHeaderLabels(
-            ["Position (mm)", "Rotation (°)"]
-        )
-        self.transform_table.setSelectionMode(
-            QAbstractItemView.SelectionMode.SingleSelection
-        )
-        self.transform_table.setSelectionBehavior(
-            QAbstractItemView.SelectionBehavior.SelectItems
-        )
-        self.transform_table.setEditTriggers(
-            QAbstractItemView.EditTrigger.NoEditTriggers
-        )
-        self.transform_table.setVerticalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-        )
-        self.transform_table.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-        )
-        self.transform_table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.Stretch
-        )
+        self.transform_table.setVerticalHeaderLabels(["Position (mm)", "Rotation (°)"])
+        self.transform_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.transform_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
+        self.transform_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.transform_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.transform_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.transform_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.transform_table.horizontalHeader().setFixedHeight(23)
-        self.transform_table.verticalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.Fixed
-        )
+        self.transform_table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
         self.transform_table.verticalHeader().setDefaultSectionSize(23)
         self.transform_table.verticalHeader().setMinimumWidth(96)
         self.transform_table.setAlternatingRowColors(True)
@@ -219,9 +205,12 @@ class TransformEditor(PropertyTableMixin, QWidget):
             transform = transform if isinstance(transform, dict) else {}
             if not transform and component.get("type") == "org.setuav.core:control-surface":
                 project_data = getattr(self._api.current_project, "data", {})
-                project_components = project_data.get("components", []) if isinstance(project_data, dict) else []
+                project_components = (
+                    project_data.get("components", []) if isinstance(project_data, dict) else []
+                )
                 by_id = {
-                    str(item.get("id")): item for item in project_components
+                    str(item.get("id")): item
+                    for item in project_components
                     if isinstance(item, dict) and isinstance(item.get("id"), str)
                 }
                 by_id.setdefault(str(component.get("id") or ""), component)
@@ -240,12 +229,8 @@ class TransformEditor(PropertyTableMixin, QWidget):
     def _update_transform(self) -> None:
         if self._loading or self._component is None:
             return
-        position = {
-            axis: spin.value() for axis, spin in self.position_spins.items()
-        }
-        rotation = {
-            axis: spin.value() for axis, spin in self.rotation_spins.items()
-        }
+        position = {axis: spin.value() for axis, spin in self.position_spins.items()}
+        rotation = {axis: spin.value() for axis, spin in self.rotation_spins.items()}
 
         def change() -> None:
             self._component["transform"] = {

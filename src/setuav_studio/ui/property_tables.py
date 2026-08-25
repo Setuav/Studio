@@ -67,17 +67,12 @@ class ContentFitTableWidget(QTableWidget):
             # Reset expanded columns to their real header/data requirements.
             self.resizeColumnsToContents()
             visible_columns = [
-                column
-                for column in range(self.columnCount())
-                if not self.isColumnHidden(column)
+                column for column in range(self.columnCount()) if not self.isColumnHidden(column)
             ]
             if not visible_columns:
                 return
 
-            natural_widths = {
-                column: self.columnWidth(column)
-                for column in visible_columns
-            }
+            natural_widths = {column: self.columnWidth(column) for column in visible_columns}
             spare_width = self.viewport().width() - sum(natural_widths.values())
             if spare_width <= 0:
                 return
@@ -201,9 +196,7 @@ class PropertyTableMixin:
         else:
             combo.setCurrentIndex(max(combo.findData(value), 0))
         combo.currentIndexChanged.connect(
-            lambda _index, editor=combo, callback=on_changed: callback(
-                str(editor.currentData())
-            )
+            lambda _index, editor=combo, callback=on_changed: callback(str(editor.currentData()))
         )
         table.setCellWidget(row, column, combo)
 

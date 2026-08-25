@@ -37,7 +37,11 @@ class WeightBalanceSolver(WeightBalanceEngine):
         project: ProjectDocument,
     ) -> WeightBalanceResult:
         raw_components = project.data.get("components")
-        components = [item for item in raw_components if isinstance(item, dict)] if isinstance(raw_components, list) else []
+        components = (
+            [item for item in raw_components if isinstance(item, dict)]
+            if isinstance(raw_components, list)
+            else []
+        )
         by_id = {
             str(component["id"]): component
             for component in components
@@ -158,14 +162,20 @@ class WeightBalanceSolver(WeightBalanceEngine):
         component_warnings: list[str] = []
         root_mass = _optional_number(component.get("mass"))
         parameter_mass = _optional_number(parameters.get("mass"))
-        if root_mass is not None and parameter_mass is not None and abs(root_mass - parameter_mass) > 1e-6:
+        if (
+            root_mass is not None
+            and parameter_mass is not None
+            and abs(root_mass - parameter_mass) > 1e-6
+        ):
             component_warnings.append(
                 f"component.mass ({root_mass:g} g) overrides parameters.mass ({parameter_mass:g} g)"
             )
 
         mass_g = root_mass if root_mass is not None else parameter_mass
         requested_source = str(wb_extension.get("mass_source") or "")
-        if derived is not None and (mass_g is None or mass_g <= 0.0 or requested_source == "derived"):
+        if derived is not None and (
+            mass_g is None or mass_g <= 0.0 or requested_source == "derived"
+        ):
             mass_g = derived.mass_g
             source = "derived"
         else:
@@ -185,12 +195,16 @@ class WeightBalanceSolver(WeightBalanceEngine):
             # when its transform is implicit.
             if component.get("type") == "org.setuav.core:control-surface":
                 transform_value = component.get("transform")
-                has_transform_position = isinstance(transform_value, dict) and isinstance(transform_value.get("position"), dict)
+                has_transform_position = isinstance(transform_value, dict) and isinstance(
+                    transform_value.get("position"), dict
+                )
             else:
                 has_transform_position = False
             if not has_transform_position:
                 derived_position = derived.transform.get("position")
-                if isinstance(derived_position, dict) and any(_optional_number(derived_position.get(axis)) for axis in ("x", "y", "z")):
+                if isinstance(derived_position, dict) and any(
+                    _optional_number(derived_position.get(axis)) for axis in ("x", "y", "z")
+                ):
                     cg_value = derived_position
                 elif _envelope_has_size(derived.envelope):
                     envelope_offset = derived.envelope.get("offset_mm")
@@ -300,7 +314,9 @@ def _inertia_from_envelope(value: object, mass_kg: float) -> tuple[InertiaTensor
 def _envelope_has_size(value: object) -> bool:
     if not isinstance(value, dict) or not isinstance(value.get("size_mm"), dict):
         return False
-    return all((_optional_number(value["size_mm"].get(axis)) or 0.0) > 0.0 for axis in ("x", "y", "z"))
+    return all(
+        (_optional_number(value["size_mm"].get(axis)) or 0.0) > 0.0 for axis in ("x", "y", "z")
+    )
 
 
 def _is_builtin_component(component: dict[str, Any]) -> bool:
@@ -319,7 +335,9 @@ def _mirrored_frame(component: dict[str, Any], by_id: dict[str, dict[str, Any]])
     if not isinstance(parent, dict):
         return False
     parent_parameters = parent.get("parameters")
-    parent_geometry = parent_parameters.get("geometry") if isinstance(parent_parameters, dict) else None
+    parent_geometry = (
+        parent_parameters.get("geometry") if isinstance(parent_parameters, dict) else None
+    )
     return isinstance(parent_geometry, dict) and parent_geometry.get("mirror") is True
 
 
@@ -341,13 +359,18 @@ def _transpose(matrix: Matrix3) -> Matrix3:
 
 def _matmul(left: Matrix3, right: Matrix3) -> Matrix3:
     return tuple(
-        tuple(sum(left[row][index] * right[index][column] for index in range(3)) for column in range(3))
+        tuple(
+            sum(left[row][index] * right[index][column] for index in range(3))
+            for column in range(3)
+        )
         for row in range(3)
     )
 
 
 def _add_matrix(left: Matrix3, right: Matrix3) -> Matrix3:
-    return tuple(tuple(left[row][column] + right[row][column] for column in range(3)) for row in range(3))
+    return tuple(
+        tuple(left[row][column] + right[row][column] for column in range(3)) for row in range(3)
+    )
 
 
 def _parallel_axis(mass_kg: float, offset_m: Vector3) -> Matrix3:

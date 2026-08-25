@@ -1,4 +1,5 @@
 """Unit tests for linear stability, control effectiveness, and elevator trim engine."""
+
 from __future__ import annotations
 
 import math
@@ -175,12 +176,28 @@ class TestStabilityAnalysisEngine(unittest.TestCase):
                     "geometry": {
                         "mirror": True,
                         "control_surfaces": [
-                            {"tag": "aileron", "type": "aileron", "eta_start": 0.6, "eta_end": 1.0, "chord_fraction": 0.25}
+                            {
+                                "tag": "aileron",
+                                "type": "aileron",
+                                "eta_start": 0.6,
+                                "eta_end": 1.0,
+                                "chord_fraction": 0.25,
+                            }
                         ],
                         "profiles": [
-                            {"position": {"x": 0, "y": 0, "z": 0}, "chord": 200, "twist": 0, "airfoil": "naca2412"},
-                            {"position": {"x": 30, "y": 500, "z": 0}, "chord": 140, "twist": 0, "airfoil": "naca2412"},
-                        ]
+                            {
+                                "position": {"x": 0, "y": 0, "z": 0},
+                                "chord": 200,
+                                "twist": 0,
+                                "airfoil": "naca2412",
+                            },
+                            {
+                                "position": {"x": 30, "y": 500, "z": 0},
+                                "chord": 140,
+                                "twist": 0,
+                                "airfoil": "naca2412",
+                            },
+                        ],
                     }
                 },
             },
@@ -193,13 +210,29 @@ class TestStabilityAnalysisEngine(unittest.TestCase):
                     "geometry": {
                         "mirror": True,
                         "control_surfaces": [
-                            {"tag": "elevator", "type": "elevator", "eta_start": 0.0, "eta_end": 1.0, "chord_fraction": 0.35}
+                            {
+                                "tag": "elevator",
+                                "type": "elevator",
+                                "eta_start": 0.0,
+                                "eta_end": 1.0,
+                                "chord_fraction": 0.35,
+                            }
                         ],
                         "profiles": [
-                            {"position": {"x": 500, "y": 0, "z": 50}, "chord": 100, "twist": 0, "airfoil": "naca0012"},
-                            {"position": {"x": 520, "y": 180, "z": 50}, "chord": 80, "twist": 0, "airfoil": "naca0012"},
-                        ]
-                    }
+                            {
+                                "position": {"x": 500, "y": 0, "z": 50},
+                                "chord": 100,
+                                "twist": 0,
+                                "airfoil": "naca0012",
+                            },
+                            {
+                                "position": {"x": 520, "y": 180, "z": 50},
+                                "chord": 80,
+                                "twist": 0,
+                                "airfoil": "naca0012",
+                            },
+                        ],
+                    },
                 },
             },
             {
@@ -211,13 +244,29 @@ class TestStabilityAnalysisEngine(unittest.TestCase):
                     "geometry": {
                         "mirror": False,
                         "control_surfaces": [
-                            {"tag": "rudder", "type": "rudder", "eta_start": 0.0, "eta_end": 1.0, "chord_fraction": 0.35}
+                            {
+                                "tag": "rudder",
+                                "type": "rudder",
+                                "eta_start": 0.0,
+                                "eta_end": 1.0,
+                                "chord_fraction": 0.35,
+                            }
                         ],
                         "profiles": [
-                            {"position": {"x": 480, "y": 0, "z": 0}, "chord": 120, "twist": 0, "airfoil": "naca0012"},
-                            {"position": {"x": 510, "y": 0, "z": 150}, "chord": 80, "twist": 0, "airfoil": "naca0012"},
-                        ]
-                    }
+                            {
+                                "position": {"x": 480, "y": 0, "z": 0},
+                                "chord": 120,
+                                "twist": 0,
+                                "airfoil": "naca0012",
+                            },
+                            {
+                                "position": {"x": 510, "y": 0, "z": 150},
+                                "chord": 80,
+                                "twist": 0,
+                                "airfoil": "naca0012",
+                            },
+                        ],
+                    },
                 },
             },
         ]
@@ -244,20 +293,20 @@ class TestStabilityAnalysisEngine(unittest.TestCase):
         self.assertIsInstance(sd, StabilityDerivatives)
 
         # 1. Longitudinal derivatives
-        self.assertGreater(sd.c_L_alpha_rad, 3.0)      # Realistic lift slope CLa ~ 4-5 /rad
-        self.assertLess(sd.c_m_alpha_rad, 0.0)         # Pitch stable (Cma < 0)
-        self.assertLess(sd.c_m_q, 0.0)                 # Pitch damped (Cmq < 0)
+        self.assertGreater(sd.c_L_alpha_rad, 3.0)  # Realistic lift slope CLa ~ 4-5 /rad
+        self.assertLess(sd.c_m_alpha_rad, 0.0)  # Pitch stable (Cma < 0)
+        self.assertLess(sd.c_m_q, 0.0)  # Pitch damped (Cmq < 0)
         self.assertTrue(sd.is_pitch_stable)
         self.assertTrue(sd.is_pitch_damped)
 
         # 2. Static Margin and Neutral point
-        self.assertGreater(sd.x_np, sd.x_cg)           # Neutral point aft of CG
-        self.assertGreater(sd.static_margin, 5.0)      # Positive static margin > 5%
+        self.assertGreater(sd.x_np, sd.x_cg)  # Neutral point aft of CG
+        self.assertGreater(sd.static_margin, 5.0)  # Positive static margin > 5%
 
         # 3. Lateral-Directional derivatives
-        self.assertGreater(sd.c_n_beta_rad, 0.0)       # Directionally stable with vertical fin (Cnb > 0)
-        self.assertLess(sd.c_l_p, 0.0)                 # Roll damped (Clp < 0)
-        self.assertLess(sd.c_n_r, 0.0)                 # Yaw damped (Cnr < 0)
+        self.assertGreater(sd.c_n_beta_rad, 0.0)  # Directionally stable with vertical fin (Cnb > 0)
+        self.assertLess(sd.c_l_p, 0.0)  # Roll damped (Clp < 0)
+        self.assertLess(sd.c_n_r, 0.0)  # Yaw damped (Cnr < 0)
         self.assertTrue(sd.is_yaw_stable)
         self.assertTrue(sd.is_roll_damped)
         self.assertTrue(sd.is_yaw_damped)
@@ -265,7 +314,9 @@ class TestStabilityAnalysisEngine(unittest.TestCase):
         # 4. Control effectiveness
         self.assertIn("elevator", sd.controls)
         elev_eff = sd.controls["elevator"]
-        self.assertLess(elev_eff.c_m_delta, 0.0)       # Downward deflection produces negative pitch moment
+        self.assertLess(
+            elev_eff.c_m_delta, 0.0
+        )  # Downward deflection produces negative pitch moment
 
         # 5. Elevator trim
         self.assertIsNotNone(sd.elevator_trim)

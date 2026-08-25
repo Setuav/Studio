@@ -28,12 +28,16 @@ def naca4(code: str, samples: int = AIRFOIL_SAMPLES) -> tuple[tuple[float, float
     lower: list[tuple[float, float]] = []
     for index in range(samples + 1):
         x = 0.5 * (1.0 - math.cos(math.pi * index / samples))
-        yt = 5.0 * thickness * (
-            0.2969 * math.sqrt(max(x, 1e-9))
-            - 0.1260 * x
-            - 0.3516 * x**2
-            + 0.2843 * x**3
-            - 0.1015 * x**4
+        yt = (
+            5.0
+            * thickness
+            * (
+                0.2969 * math.sqrt(max(x, 1e-9))
+                - 0.1260 * x
+                - 0.3516 * x**2
+                + 0.2843 * x**3
+                - 0.1015 * x**4
+            )
         )
         yc = 0.0
         slope = 0.0
@@ -43,8 +47,10 @@ def naca4(code: str, samples: int = AIRFOIL_SAMPLES) -> tuple[tuple[float, float
                 slope = 2 * camber / camber_position**2 * (camber_position - x)
             else:
                 remaining = 1.0 - camber_position
-                yc = camber / remaining**2 * (
-                    1 - 2 * camber_position + 2 * camber_position * x - x**2
+                yc = (
+                    camber
+                    / remaining**2
+                    * (1 - 2 * camber_position + 2 * camber_position * x - x**2)
                 )
                 slope = 2 * camber / remaining**2 * (camber_position - x)
         angle = math.atan(slope)
@@ -77,12 +83,16 @@ def naca5(code: str, samples: int = AIRFOIL_SAMPLES) -> tuple[tuple[float, float
     lower: list[tuple[float, float]] = []
     for i in range(samples + 1):
         x = 0.5 * (1.0 - math.cos(math.pi * i / samples))
-        yt = 5.0 * thickness * (
-            0.2969 * math.sqrt(max(x, 1e-9))
-            - 0.1260 * x
-            - 0.3516 * x**2
-            + 0.2843 * x**3
-            - 0.1015 * x**4
+        yt = (
+            5.0
+            * thickness
+            * (
+                0.2969 * math.sqrt(max(x, 1e-9))
+                - 0.1260 * x
+                - 0.3516 * x**2
+                + 0.2843 * x**3
+                - 0.1015 * x**4
+            )
         )
         if x < m:
             yc = (k1 / 6.0) * (x**3 - 3 * m * x**2 + m**2 * (3 - m) * x)
@@ -97,7 +107,9 @@ def naca5(code: str, samples: int = AIRFOIL_SAMPLES) -> tuple[tuple[float, float
     return tuple(upper + list(reversed(lower)))
 
 
-def biconvex(thickness: float = 0.10, samples: int = AIRFOIL_SAMPLES) -> tuple[tuple[float, float], ...]:
+def biconvex(
+    thickness: float = 0.10, samples: int = AIRFOIL_SAMPLES
+) -> tuple[tuple[float, float], ...]:
     """Generate symmetric parabolic biconvex airfoil."""
     upper: list[tuple[float, float]] = []
     lower: list[tuple[float, float]] = []
@@ -110,7 +122,9 @@ def biconvex(thickness: float = 0.10, samples: int = AIRFOIL_SAMPLES) -> tuple[t
     return tuple(upper + list(reversed(lower)))
 
 
-def parse_airfoil_dat(content: str, samples: int = AIRFOIL_SAMPLES * 2) -> tuple[str, tuple[tuple[float, float], ...]]:
+def parse_airfoil_dat(
+    content: str, samples: int = AIRFOIL_SAMPLES * 2
+) -> tuple[str, tuple[tuple[float, float], ...]]:
     """Parse standard Selig/UIUC or Lednicer .dat coordinate format and normalize to [0, 1]."""
     raw_lines = [line.strip() for line in content.splitlines()]
     non_empty = [line for line in raw_lines if line]
@@ -162,7 +176,7 @@ def parse_airfoil_dat(content: str, samples: int = AIRFOIL_SAMPLES * 2) -> tuple
         if len(loop) < 3:
             return name, naca4("0012", samples // 2)
         le_idx = min(range(len(loop)), key=lambda i: loop[i][0])
-        upper = list(reversed(loop[:le_idx + 1]))  # LE -> TE
+        upper = list(reversed(loop[: le_idx + 1]))  # LE -> TE
         lower = loop[le_idx:]  # LE -> TE
 
     if not upper or not lower:
@@ -190,10 +204,18 @@ def parse_airfoil_dat(content: str, samples: int = AIRFOIL_SAMPLES * 2) -> tuple
     return name, loop_clean
 
 
-def compute_airfoil_metrics(points: tuple[tuple[float, float], ...] | list[tuple[float, float]]) -> dict[str, float]:
+def compute_airfoil_metrics(
+    points: tuple[tuple[float, float], ...] | list[tuple[float, float]],
+) -> dict[str, float]:
     """Compute geometric properties: max thickness, max camber, TE gap."""
     if len(points) < 4:
-        return {"max_thickness": 0.12, "max_camber": 0.0, "te_gap": 0.0, "thickness_x": 0.3, "camber_x": 0.4}
+        return {
+            "max_thickness": 0.12,
+            "max_camber": 0.0,
+            "te_gap": 0.0,
+            "thickness_x": 0.3,
+            "camber_x": 0.4,
+        }
 
     min_x_idx = min(range(len(points)), key=lambda i: points[i][0])
     max_x_idx = max(range(len(points)), key=lambda i: points[i][0])
@@ -258,7 +280,11 @@ def apply_airfoil_shaping(
     """
     if not coords:
         return coords
-    if abs(te_thickness) < 1e-6 and abs(thickness_scale - 1.0) < 1e-6 and abs(camber_scale - 1.0) < 1e-6:
+    if (
+        abs(te_thickness) < 1e-6
+        and abs(thickness_scale - 1.0) < 1e-6
+        and abs(camber_scale - 1.0) < 1e-6
+    ):
         return coords
 
     # Split into upper / lower branches from LE to TE
@@ -267,7 +293,7 @@ def apply_airfoil_shaping(
     # Build upper (LE->TE going up) and lower (LE->TE going down)
     ordered = [coords[(le_idx + i) % n] for i in range(n)]
     te_idx = max(range(len(ordered)), key=lambda i: ordered[i][0])
-    upper = ordered[:te_idx + 1]          # LE -> TE (upper side)
+    upper = ordered[: te_idx + 1]  # LE -> TE (upper side)
     lower = [ordered[0]] + list(reversed(ordered[te_idx:]))  # LE -> TE (lower side)
 
     avg_u = sum(p[1] for p in upper) / max(len(upper), 1)
@@ -300,7 +326,9 @@ def apply_airfoil_shaping(
     return tuple(loop)
 
 
-def _interpolate_z_at_x(points: tuple[tuple[float, float], ...] | list[tuple[float, float]], x_target: float) -> float:
+def _interpolate_z_at_x(
+    points: tuple[tuple[float, float], ...] | list[tuple[float, float]], x_target: float
+) -> float:
     if not points:
         return 0.0
     best_dist = 1e9
@@ -369,7 +397,6 @@ PRESET_AIRFOILS: dict[str, dict[str, Any]] = {
         "file": "clarky.dat",
         "generator": lambda: _load_uiuc_file("clarky.dat"),
     },
-
     # High Lift & UAV
     "Selig S1223": {
         "category": "High Lift UAV",
@@ -413,7 +440,6 @@ PRESET_AIRFOILS: dict[str, dict[str, Any]] = {
         "file": "ag24.dat",
         "generator": lambda: _load_uiuc_file("ag24.dat"),
     },
-
     # Tailless & Flying Wing (Reflexed)
     "MH 45": {
         "category": "Tailless & Flying Wing",
@@ -436,7 +462,6 @@ PRESET_AIRFOILS: dict[str, dict[str, Any]] = {
         "code": "23012",
         "generator": lambda: naca5("23012"),
     },
-
     # Symmetric & Empennage (Tail & Aerobatic)
     "NACA 0012": {
         "category": "Symmetric & Tail",
@@ -512,7 +537,10 @@ def sample_airfoil_points(value: object) -> tuple[tuple[float, float], ...]:
         val_str = value.strip()
         # 1. Preset dictionary
         for name, preset in PRESET_AIRFOILS.items():
-            if name.lower() == val_str.lower() or name.replace(" ", "").lower() == val_str.replace(" ", "").lower():
+            if (
+                name.lower() == val_str.lower()
+                or name.replace(" ", "").lower() == val_str.replace(" ", "").lower()
+            ):
                 return preset["generator"]()
         # 2. NACA digits
         match5 = re.search(r"(?:naca\s*)?(\d{5})", val_str, re.IGNORECASE)

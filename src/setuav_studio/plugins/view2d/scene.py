@@ -181,9 +181,8 @@ def _convex_hull(points: list[Point2D]) -> list[Point2D]:
         return unique
 
     def cross(origin: Point2D, first: Point2D, second: Point2D) -> float:
-        return (
-            (first[0] - origin[0]) * (second[1] - origin[1])
-            - (first[1] - origin[1]) * (second[0] - origin[0])
+        return (first[0] - origin[0]) * (second[1] - origin[1]) - (first[1] - origin[1]) * (
+            second[0] - origin[0]
         )
 
     lower: list[Point2D] = []

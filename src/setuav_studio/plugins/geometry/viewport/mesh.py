@@ -43,7 +43,11 @@ def _is_matching_component(loft_component_id: str, target_component_id: str | No
 
     # 2. If target is the main component (e.g. "main-wing"), matches base wing body and its mirror, but not control surface lofts
     if parts_lower[0] == target_lower:
-        subparts = [p for p in parts_lower if p not in (target_lower, "mirror", "stations", "tip-cap", "winglet")]
+        subparts = [
+            p
+            for p in parts_lower
+            if p not in (target_lower, "mirror", "stations", "tip-cap", "winglet")
+        ]
         if not subparts:
             return True
 
@@ -60,15 +64,15 @@ def build_loft_wire_vertices(
     for loft in data.lofts:
         if ":stations" in loft.component_id:
             continue
-        if _is_matching_component(loft.component_id, selected_component_id) or _is_matching_component(loft.component_id, hovered_component_id):
+        if _is_matching_component(
+            loft.component_id, selected_component_id
+        ) or _is_matching_component(loft.component_id, hovered_component_id):
             continue
         loops = _tessellated_loops(loft)
         if not loops:
             continue
         color = (
-            _wire_tint(loft.color)
-            if face_style in (FACE_COLORED, FACE_TRANSPARENT)
-            else _WIRE_GREY
+            _wire_tint(loft.color) if face_style in (FACE_COLORED, FACE_TRANSPARENT) else _WIRE_GREY
         )
         _append_loft_wire(vertices, loops, color)
     return vertices
@@ -129,7 +133,11 @@ def build_section_ring_vertices(
             if not _is_matching_component(loft.component_id, component_id):
                 continue
             parts = loft.component_id.split(":")
-            subtags = [p for p in parts if p not in (component_id, "mirror", "stations", "tip-cap", "winglet")]
+            subtags = [
+                p
+                for p in parts
+                if p not in (component_id, "mirror", "stations", "tip-cap", "winglet")
+            ]
             if subtags:
                 cs_lofts.append(loft)
                 for st in subtags:
@@ -154,10 +162,15 @@ def build_section_ring_vertices(
     if segment_index == 2:
         for is_mirror in (False, True):
             matched_lofts = [
-                loft for loft in data.lofts
+                loft
+                for loft in data.lofts
                 if _is_matching_component(loft.component_id, component_id)
                 and ((":mirror" in loft.component_id) == is_mirror)
-                and not (":cs-" in loft.component_id or ":hinge-" in loft.component_id or ":tip-cap" in loft.component_id)
+                and not (
+                    ":cs-" in loft.component_id
+                    or ":hinge-" in loft.component_id
+                    or ":tip-cap" in loft.component_id
+                )
             ]
             if not matched_lofts:
                 continue
@@ -188,10 +201,15 @@ def build_section_ring_vertices(
     # 2. Wing Section (Panel) Selection (segment_index == 0 or None)
     for is_mirror in (False, True):
         matched_lofts = [
-            loft for loft in data.lofts
+            loft
+            for loft in data.lofts
             if _is_matching_component(loft.component_id, component_id)
             and ((":mirror" in loft.component_id) == is_mirror)
-            and not (":cs-" in loft.component_id or ":hinge-" in loft.component_id or ":tip-cap" in loft.component_id)
+            and not (
+                ":cs-" in loft.component_id
+                or ":hinge-" in loft.component_id
+                or ":tip-cap" in loft.component_id
+            )
         ]
         if not matched_lofts:
             continue
@@ -345,7 +363,9 @@ def _build_splines(sections, parameters):
     y = [[section[index][1] for section in sections] for index in range(point_count)]
     z = [[section[index][2] for section in sections] for index in range(point_count)]
     return (
-        x, y, z,
+        x,
+        y,
+        z,
         [_spline_sigma(parameters, values) for values in x],
         [_spline_sigma(parameters, values) for values in y],
         [_spline_sigma(parameters, values) for values in z],
@@ -355,10 +375,7 @@ def _build_splines(sections, parameters):
 def _spline_sigma(parameters: list[float], values: list[float]) -> list[float]:
     count = len(parameters)
     intervals = [parameters[index + 1] - parameters[index] for index in range(count - 1)]
-    slopes = [
-        (values[index + 1] - values[index]) / intervals[index]
-        for index in range(count - 1)
-    ]
+    slopes = [(values[index + 1] - values[index]) / intervals[index] for index in range(count - 1)]
     diagonal = [0.0] * count
     right = [0.0] * count
     sigma = [0.0] * count
@@ -366,8 +383,14 @@ def _spline_sigma(parameters: list[float], values: list[float]) -> list[float]:
         diagonal[1] = 2.0 * (intervals[0] + intervals[1])
         right[1] = 6.0 * (slopes[1] - slopes[0])
         for index in range(2, count - 1):
-            diagonal[index] = 2.0 * (intervals[index - 1] + intervals[index]) - intervals[index - 1] ** 2 / diagonal[index - 1]
-            right[index] = 6.0 * (slopes[index] - slopes[index - 1]) - intervals[index - 1] * right[index - 1] / diagonal[index - 1]
+            diagonal[index] = (
+                2.0 * (intervals[index - 1] + intervals[index])
+                - intervals[index - 1] ** 2 / diagonal[index - 1]
+            )
+            right[index] = (
+                6.0 * (slopes[index] - slopes[index - 1])
+                - intervals[index - 1] * right[index - 1] / diagonal[index - 1]
+            )
         for index in range(count - 2, 0, -1):
             sigma[index] = (right[index] - intervals[index] * sigma[index + 1]) / diagonal[index]
     return sigma
@@ -384,9 +407,11 @@ def _spline_eval(parameters, values, sigma, position) -> float:
     interval = parameters[low + 1] - parameters[low]
     start = (parameters[low + 1] - position) / interval
     end = (position - parameters[low]) / interval
-    return start * values[low] + end * values[low + 1] + (
-        (start**3 - start) * sigma[low] + (end**3 - end) * sigma[low + 1]
-    ) * interval**2 / 6.0
+    return (
+        start * values[low]
+        + end * values[low + 1]
+        + ((start**3 - start) * sigma[low] + (end**3 - end) * sigma[low + 1]) * interval**2 / 6.0
+    )
 
 
 def _add_quad_strip(vertices, first, second, color) -> None:
@@ -452,20 +477,22 @@ def hit_test_loft(
                 third, fourth = following[index], following[next_index]
                 for triangle in ((first, second, third), (second, fourth, third)):
                     distance = _ray_triangle_intersection(origin, direction, triangle)
-                    if distance is None or (best_distance is not None and distance >= best_distance):
+                    if distance is None or (
+                        best_distance is not None and distance >= best_distance
+                    ):
                         continue
                     best_distance = distance
                     best_id = loft.component_id
         if loft.closed_ends:
             for loop, flip in ((loops[0], True), (loops[-1], False)):
-                centre = tuple(
-                    sum(point[axis] for point in loop) / len(loop) for axis in range(3)
-                )
+                centre = tuple(sum(point[axis] for point in loop) / len(loop) for axis in range(3))
                 for index, point in enumerate(loop):
                     following = loop[(index + 1) % len(loop)]
                     triangle = (centre, following, point) if flip else (centre, point, following)
                     distance = _ray_triangle_intersection(origin, direction, triangle)
-                    if distance is None or (best_distance is not None and distance >= best_distance):
+                    if distance is None or (
+                        best_distance is not None and distance >= best_distance
+                    ):
                         continue
                     best_distance = distance
                     best_id = loft.component_id

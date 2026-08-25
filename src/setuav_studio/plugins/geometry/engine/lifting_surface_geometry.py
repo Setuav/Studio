@@ -34,7 +34,7 @@ def build_lifting_surface_geometry(
     # Airfoil Shaping parameters
     shaping = geometry.get("airfoil_shaping")
     shaping = shaping if isinstance(shaping, dict) else {}
-    te_thickness = float(shaping.get("te_thickness", 0.0))      # fraction of chord, e.g. 0.004
+    te_thickness = float(shaping.get("te_thickness", 0.0))  # fraction of chord, e.g. 0.004
     thickness_scale = float(shaping.get("thickness_scale", 1.0))
     camber_scale = float(shaping.get("camber_scale", 1.0))
     # Section alignment: "xz" (default) | "normal" (perpendicular to span)
@@ -51,14 +51,17 @@ def build_lifting_surface_geometry(
         sections = tuple(
             section
             for value in profiles
-            if (section := _build_profile_section(
-                value,
-                twist_location=twist_location,
-                te_thickness=te_thickness,
-                thickness_scale=thickness_scale,
-                camber_scale=camber_scale,
-                section_align=section_align,
-            )) is not None
+            if (
+                section := _build_profile_section(
+                    value,
+                    twist_location=twist_location,
+                    te_thickness=te_thickness,
+                    thickness_scale=thickness_scale,
+                    camber_scale=camber_scale,
+                    section_align=section_align,
+                )
+            )
+            is not None
         )
         if len(sections) < 2:
             return ()
@@ -90,8 +93,16 @@ def build_lifting_surface_geometry(
 
     # Attach dedicated G1-continuous aerodynamic tip cap mesh if round or sharp
     if tip_type in ("round", "sharp") and tip_length > 0.0:
-        y0 = float(profiles[0].get("position", {}).get("y", 0.0)) if isinstance(profiles[0].get("position"), dict) else 0.0
-        y1 = float(profiles[-1].get("position", {}).get("y", 0.0)) if isinstance(profiles[-1].get("position"), dict) else 0.0
+        y0 = (
+            float(profiles[0].get("position", {}).get("y", 0.0))
+            if isinstance(profiles[0].get("position"), dict)
+            else 0.0
+        )
+        y1 = (
+            float(profiles[-1].get("position", {}).get("y", 0.0))
+            if isinstance(profiles[-1].get("position"), dict)
+            else 0.0
+        )
         span_dir = 1.0 if y1 >= y0 else -1.0
 
         # Compute LE and TE sweep slopes from the last two profiles
@@ -103,8 +114,9 @@ def build_lifting_surface_geometry(
         dy = float(tip_pos.get("y", 0.0)) - float(prev_pos.get("y", 0.0))
         if abs(dy) > 1e-4:
             dx_le = float(tip_pos.get("x", 0.0)) - float(prev_pos.get("x", 0.0))
-            dx_te = (float(tip_pos.get("x", 0.0)) + _number(p_tip.get("chord"))) - \
-                    (float(prev_pos.get("x", 0.0)) + _number(p_prev.get("chord")))
+            dx_te = (float(tip_pos.get("x", 0.0)) + _number(p_tip.get("chord"))) - (
+                float(prev_pos.get("x", 0.0)) + _number(p_prev.get("chord"))
+            )
             le_sweep_slope = dx_le / dy
             te_sweep_slope = dx_te / dy
         else:
@@ -128,8 +140,16 @@ def build_lifting_surface_geometry(
 
     elif tip_type == "winglet":
         # Winglet: a separate swept/canted surface growing from the tip
-        y0 = float(profiles[0].get("position", {}).get("y", 0.0)) if isinstance(profiles[0].get("position"), dict) else 0.0
-        y1 = float(profiles[-1].get("position", {}).get("y", 0.0)) if isinstance(profiles[-1].get("position"), dict) else 0.0
+        y0 = (
+            float(profiles[0].get("position", {}).get("y", 0.0))
+            if isinstance(profiles[0].get("position"), dict)
+            else 0.0
+        )
+        y1 = (
+            float(profiles[-1].get("position", {}).get("y", 0.0))
+            if isinstance(profiles[-1].get("position"), dict)
+            else 0.0
+        )
         span_dir = 1.0 if y1 >= y0 else -1.0
 
         p_prev = profiles[-2] if len(profiles) >= 2 else profiles[-1]
@@ -139,8 +159,9 @@ def build_lifting_surface_geometry(
         dy = float(tip_pos.get("y", 0.0)) - float(prev_pos.get("y", 0.0))
         if abs(dy) > 1e-4:
             dx_le = float(tip_pos.get("x", 0.0)) - float(prev_pos.get("x", 0.0))
-            dx_te = (float(tip_pos.get("x", 0.0)) + _number(p_tip.get("chord"))) - \
-                    (float(prev_pos.get("x", 0.0)) + _number(p_prev.get("chord")))
+            dx_te = (float(tip_pos.get("x", 0.0)) + _number(p_tip.get("chord"))) - (
+                float(prev_pos.get("x", 0.0)) + _number(p_prev.get("chord"))
+            )
             incoming_le_sweep_deg = math.degrees(math.atan2(dx_le, abs(dy)))
             incoming_te_sweep_deg = math.degrees(math.atan2(dx_te, abs(dy)))
         else:
@@ -152,13 +173,17 @@ def build_lifting_surface_geometry(
         cant_angle = float(tip_treatment.get("cant_angle", 80.0))
         cant_root = float(tip_treatment.get("cant_root", 0.0))
         cant_tip = tip_treatment.get("cant_tip")
-        blend_radius = float(tip_treatment.get("blend_radius", 45.0 if "blend_radius" in tip_treatment else 0.0))
+        blend_radius = float(
+            tip_treatment.get("blend_radius", 45.0 if "blend_radius" in tip_treatment else 0.0)
+        )
 
         # Sweep & Curvatures
         sweep_default = float(tip_treatment.get("winglet_sweep", 20.0))
         le_sweep_root = tip_treatment.get("le_sweep_root", tip_treatment.get("sweep_root"))
         le_sweep_tip = tip_treatment.get("le_sweep_tip", tip_treatment.get("sweep_tip", 48.0))
-        le_curvature = float(tip_treatment.get("le_curvature", tip_treatment.get("scimitar_offset", 0.0)))
+        le_curvature = float(
+            tip_treatment.get("le_curvature", tip_treatment.get("scimitar_offset", 0.0))
+        )
 
         te_sweep_root = tip_treatment.get("te_sweep_root")
         te_sweep_tip = tip_treatment.get("te_sweep_tip")
@@ -217,7 +242,12 @@ def _apply_shaping(
     camber_scale: float,
 ) -> tuple[tuple[float, float], ...]:
     """Apply airfoil shaping transforms (TE blunting, t/c scale, camber scale)."""
-    return apply_airfoil_shaping(coords, te_thickness=te_thickness, thickness_scale=thickness_scale, camber_scale=camber_scale)
+    return apply_airfoil_shaping(
+        coords,
+        te_thickness=te_thickness,
+        thickness_scale=thickness_scale,
+        camber_scale=camber_scale,
+    )
 
 
 def _section_with_align(
@@ -245,12 +275,10 @@ def _section_with_align(
             # After dihedral rotation: new y_local = -z*sin_d, new z_local = z*cos_d
             corrected.append((x * chord, -z * chord * sin_d, z * chord * cos_d))
         from .transforms import transform_point as _tp
+
         return Section(tuple(_tp(matrix, p) for p in corrected), is_station=is_station)
     return Section(
-        tuple(
-            transform_point(matrix, (x * chord, 0.0, z * chord))
-            for x, z in main_2d
-        ),
+        tuple(transform_point(matrix, (x * chord, 0.0, z * chord)) for x, z in main_2d),
         is_station=is_station,
     )
 
@@ -349,32 +377,39 @@ def _build_lifting_surface_with_control_surfaces(
                 except (ValueError, TypeError):
                     chord_frac = None
 
-        valid_cs.append({
-            "tag": str(cs.get("tag") or f"CS_{idx + 1}"),
-            "type": str(cs.get("type") or "aileron"),
-            "y_min": y_min_seg,
-            "y_max": y_max_seg,
-            "s_start": min(s_start, s_end),
-            "s_end": max(s_start, s_end),
-            "eta_start": round(min(s_start, s_end) / semi_span, 4),
-            "eta_end": round(max(s_start, s_end) / semi_span, 4),
-            "chord_fraction": chord_frac,
-            "chord": max(float(cs.get("chord", 40.0)), 1.0),
-            "hinge_sweep": float(cs.get("hinge_sweep")) if cs.get("hinge_sweep") is not None else None,
-            "deflection": float(cs.get("deflection", 0.0)),
-        })
+        valid_cs.append(
+            {
+                "tag": str(cs.get("tag") or f"CS_{idx + 1}"),
+                "type": str(cs.get("type") or "aileron"),
+                "y_min": y_min_seg,
+                "y_max": y_max_seg,
+                "s_start": min(s_start, s_end),
+                "s_end": max(s_start, s_end),
+                "eta_start": round(min(s_start, s_end) / semi_span, 4),
+                "eta_end": round(max(s_start, s_end) / semi_span, 4),
+                "chord_fraction": chord_frac,
+                "chord": max(float(cs.get("chord", 40.0)), 1.0),
+                "hinge_sweep": float(cs.get("hinge_sweep"))
+                if cs.get("hinge_sweep") is not None
+                else None,
+                "deflection": float(cs.get("deflection", 0.0)),
+            }
+        )
 
     if not valid_cs:
         sections = tuple(
             section
             for value in profiles
-            if (section := _build_profile_section(
-                value,
-                te_thickness=te_thickness,
-                thickness_scale=thickness_scale,
-                camber_scale=camber_scale,
-                section_align=section_align,
-            )) is not None
+            if (
+                section := _build_profile_section(
+                    value,
+                    te_thickness=te_thickness,
+                    thickness_scale=thickness_scale,
+                    camber_scale=camber_scale,
+                    section_align=section_align,
+                )
+            )
+            is not None
         )
         return (
             LoftGeometry(
@@ -427,7 +462,16 @@ def _build_lifting_surface_with_control_surfaces(
                 matrix = section_transform(prof, chord=chord, twist_location=twist_location)
                 main_2d, _ = _sample_structured_airfoil_round(coords, x_h=1.0, is_flap=False)
                 is_orig_station = any(abs(y_s - y_p) < 1e-3 for y_p in span_values)
-                seg_sections.append(_section_with_align(matrix, chord, main_2d, dihedral_rad, section_align, is_station=is_orig_station))
+                seg_sections.append(
+                    _section_with_align(
+                        matrix,
+                        chord,
+                        main_2d,
+                        dihedral_rad,
+                        section_align,
+                        is_station=is_orig_station,
+                    )
+                )
 
             lofts.append(
                 LoftGeometry(
@@ -450,7 +494,11 @@ def _build_lifting_surface_with_control_surfaces(
             # Interpolate reference station properties at s_0
             y_s0 = y_root + span_dir * s_0
             chord_0, prof_0, _ = _interpolate_station_props(y_s0, profiles)
-            x_le_0 = float(prof_0.get("position", {}).get("x", 0.0)) if isinstance(prof_0.get("position"), dict) else 0.0
+            x_le_0 = (
+                float(prof_0.get("position", {}).get("x", 0.0))
+                if isinstance(prof_0.get("position"), dict)
+                else 0.0
+            )
             X_h0 = (x_le_0 + chord_0) - cs_chord
 
             main_sections: list[Section] = []
@@ -484,9 +532,24 @@ def _build_lifting_surface_with_control_surfaces(
                 flap_2d, _ = _sample_structured_airfoil_round(coords, x_h=x_h, is_flap=True)
 
                 is_orig_station = any(abs(y_s - y_p) < 1e-3 for y_p in span_values)
-                main_sections.append(_section_with_align(matrix, chord, main_2d, dihedral_rad, section_align, is_station=is_orig_station))
-                flap_sections.append(_section_with_align(matrix, chord, flap_2d, dihedral_rad, section_align, is_station=False))
-                hinge_pts_3d.append(transform_point(matrix, (h_pt[0] * chord, 0.0, h_pt[1] * chord)))
+                main_sections.append(
+                    _section_with_align(
+                        matrix,
+                        chord,
+                        main_2d,
+                        dihedral_rad,
+                        section_align,
+                        is_station=is_orig_station,
+                    )
+                )
+                flap_sections.append(
+                    _section_with_align(
+                        matrix, chord, flap_2d, dihedral_rad, section_align, is_station=False
+                    )
+                )
+                hinge_pts_3d.append(
+                    transform_point(matrix, (h_pt[0] * chord, 0.0, h_pt[1] * chord))
+                )
 
             # Main wing bay
             lofts.append(
@@ -511,7 +574,9 @@ def _build_lifting_surface_with_control_surfaces(
                 )
                 rotated_sections: list[Section] = []
                 for sec in flap_sections:
-                    rotated_sections.append(_rotate_section_around_axis(sec, axis_p0, axis_dir, deflection_deg))
+                    rotated_sections.append(
+                        _rotate_section_around_axis(sec, axis_p0, axis_dir, deflection_deg)
+                    )
                 flap_sections = rotated_sections
 
             lofts.append(
@@ -535,12 +600,14 @@ def _interpolate_station_props(
     """Interpolate chord, section dict (for transform), and airfoil coords at span y."""
     sorted_profs = sorted(
         profiles,
-        key=lambda p: float(p.get("position", {}).get("y", 0.0))
-        if isinstance(p.get("position"), dict) else 0.0,
+        key=lambda p: (
+            float(p.get("position", {}).get("y", 0.0))
+            if isinstance(p.get("position"), dict)
+            else 0.0
+        ),
     )
     y_coords = [
-        float(p.get("position", {}).get("y", 0.0))
-        if isinstance(p.get("position"), dict) else 0.0
+        float(p.get("position", {}).get("y", 0.0)) if isinstance(p.get("position"), dict) else 0.0
         for p in sorted_profs
     ]
 
@@ -573,14 +640,19 @@ def _interpolate_station_props(
     rot1 = p1.get("rotation", {}) if isinstance(p1.get("rotation"), dict) else {}
 
     pos_interp = {
-        "x": float(pos0.get("x", 0.0)) + (float(pos1.get("x", 0.0)) - float(pos0.get("x", 0.0))) * t,
+        "x": float(pos0.get("x", 0.0))
+        + (float(pos1.get("x", 0.0)) - float(pos0.get("x", 0.0))) * t,
         "y": y,
-        "z": float(pos0.get("z", 0.0)) + (float(pos1.get("z", 0.0)) - float(pos0.get("z", 0.0))) * t,
+        "z": float(pos0.get("z", 0.0))
+        + (float(pos1.get("z", 0.0)) - float(pos0.get("z", 0.0))) * t,
     }
     rot_interp = {
-        "x": float(rot0.get("x", 0.0)) + (float(rot1.get("x", 0.0)) - float(rot0.get("x", 0.0))) * t,
-        "y": float(rot0.get("y", 0.0)) + (float(rot1.get("y", 0.0)) - float(rot0.get("y", 0.0))) * t,
-        "z": float(rot0.get("z", 0.0)) + (float(rot1.get("z", 0.0)) - float(rot0.get("z", 0.0))) * t,
+        "x": float(rot0.get("x", 0.0))
+        + (float(rot1.get("x", 0.0)) - float(rot0.get("x", 0.0))) * t,
+        "y": float(rot0.get("y", 0.0))
+        + (float(rot1.get("y", 0.0)) - float(rot0.get("y", 0.0))) * t,
+        "z": float(rot0.get("z", 0.0))
+        + (float(rot1.get("z", 0.0)) - float(rot0.get("z", 0.0))) * t,
     }
 
     af = p0.get("airfoil") if t < 0.5 else p1.get("airfoil")
@@ -604,7 +676,7 @@ def _split_airfoil_upper_lower(
     ordered = [coords[(le_idx + i) % n] for i in range(n)]
     te_idx = max(range(len(ordered)), key=lambda i: ordered[i][0])
 
-    path1 = ordered[:te_idx + 1]
+    path1 = ordered[: te_idx + 1]
     path2 = [ordered[0]] + list(reversed(ordered[te_idx:]))
 
     avg_z1 = sum(p[1] for p in path1) / max(len(path1), 1)
@@ -722,7 +794,7 @@ def _rotate_section_around_axis(
     angle_deg: float,
 ) -> Section:
     """Rotate all points of a 3D section around an arbitrary 3D hinge axis by angle_deg."""
-    length = math.sqrt(axis_dir[0]**2 + axis_dir[1]**2 + axis_dir[2]**2)
+    length = math.sqrt(axis_dir[0] ** 2 + axis_dir[1] ** 2 + axis_dir[2] ** 2)
     if length < 1e-6:
         return section
     kx, ky, kz = axis_dir[0] / length, axis_dir[1] / length, axis_dir[2] / length
@@ -788,7 +860,9 @@ def _build_tip_cap_loft(
 
     num_x = 33
     x_stations = [0.5 * (1.0 - math.cos(math.pi * i / (num_x - 1))) for i in range(num_x)]
-    max_h = max((_interp_branch_z(upper_b, x) - _interp_branch_z(lower_b, x)) * 0.5 for x in x_stations)
+    max_h = max(
+        (_interp_branch_z(upper_b, x) - _interp_branch_z(lower_b, x)) * 0.5 for x in x_stations
+    )
     if max_h < 1e-6:
         return None
 
@@ -849,10 +923,7 @@ def compute_winglet_projected_dimensions(
     c_root = cant_root_deg
     c_tip = cant_tip_deg
 
-    u_vals = [
-        0.5 * (1.0 - math.cos(math.pi * i / (n_pts - 1)))
-        for i in range(n_pts)
-    ]
+    u_vals = [0.5 * (1.0 - math.cos(math.pi * i / (n_pts - 1))) for i in range(n_pts)]
     cant_angles_rad: list[float] = []
     for u in u_vals:
         if blend_radius > 0.0:
@@ -987,10 +1058,7 @@ def _build_winglet_loft(
 
     # Cosine-spaced stations along height u in [0, 1]
     n_pts = max(n_stations, 20)
-    u_vals = [
-        0.5 * (1.0 - math.cos(math.pi * i / (n_pts - 1)))
-        for i in range(n_pts)
-    ]
+    u_vals = [0.5 * (1.0 - math.cos(math.pi * i / (n_pts - 1))) for i in range(n_pts)]
 
     # Pre-calculate cant angle Gamma(u) at each station
     u_blend = min(1.0, max(0.01, blend_radius / winglet_height)) if blend_radius > 0.0 else 0.0
@@ -1045,7 +1113,7 @@ def _build_winglet_loft(
         h01 = -2.0 * u**3 + 3.0 * u**2
         h11 = u**3 - u**2
         # C2 bow bell curve with zero derivatives at endpoints
-        bow = 16.0 * (u**2) * ((1.0 - u)**2)
+        bow = 16.0 * (u**2) * ((1.0 - u) ** 2)
 
         # Leading edge X position
         x_le_u = x_le_tip * h01 + m0_le * h10 + m1_le * h11 + le_curv_val * bow

@@ -1,4 +1,5 @@
 """Unit tests for 2D airfoil analysis, caching, and NeuralFoil integration."""
+
 from __future__ import annotations
 
 import unittest
@@ -77,12 +78,8 @@ class TestAirfoilCache(unittest.TestCase):
 
     def test_cache_key_includes_neuralfoil_configuration(self) -> None:
         base = _compute_cache_key("naca2412", 300_000, 0.05, [0.0, 4.0])
-        float_equivalent = _compute_cache_key(
-            "naca2412", 300_000.0, 0.05, [0.0, 4.0]
-        )
-        different_ncrit = _compute_cache_key(
-            "naca2412", 300_000, 0.05, [0.0, 4.0], n_crit=7.0
-        )
+        float_equivalent = _compute_cache_key("naca2412", 300_000.0, 0.05, [0.0, 4.0])
+        different_ncrit = _compute_cache_key("naca2412", 300_000, 0.05, [0.0, 4.0], n_crit=7.0)
         different_model = _compute_cache_key(
             "naca2412", 300_000, 0.05, [0.0, 4.0], model_size="xlarge"
         )
@@ -99,12 +96,8 @@ class TestAirfoilEngine(unittest.TestCase):
         self.engine = AirfoilAnalysisEngine()
 
     def test_custom_airfoil_cache_identifier_uses_coordinates(self) -> None:
-        af_a, ident_a = self.engine._resolve_airfoil(
-            [(1.0, 0.0), (0.5, 0.1), (0.0, 0.0)]
-        )
-        af_b, ident_b = self.engine._resolve_airfoil(
-            [(1.0, 0.0), (0.5, 0.2), (0.0, 0.0)]
-        )
+        af_a, ident_a = self.engine._resolve_airfoil([(1.0, 0.0), (0.5, 0.1), (0.0, 0.0)])
+        af_b, ident_b = self.engine._resolve_airfoil([(1.0, 0.0), (0.5, 0.2), (0.0, 0.0)])
         self.assertNotEqual(ident_a, ident_b)
         self.assertEqual(af_a.name, "custom_airfoil")
         self.assertEqual(af_b.name, "custom_airfoil")
