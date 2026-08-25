@@ -253,6 +253,20 @@ class TestFlightPerformance(unittest.TestCase):
         self.assertEqual(result.metrics.max_range_km, 0.0)
         self.assertTrue(any("Propulsion data unavailable" in note for note in result.notes))
 
+    def test_solver_requires_mass_instead_of_using_default(self) -> None:
+        with self.assertRaisesRegex(ValueError, "Mass properties are unavailable"):
+            FlightPerformanceSolver.run_analysis(
+                {
+                    "area_m2": 0.5,
+                    "air_density": 1.225,
+                    "cl_max": 1.2,
+                    "cd_min": 0.035,
+                    "v_min": 8.0,
+                    "v_max": 20.0,
+                    "v_step": 1.0,
+                }
+            )
+
     def test_flight_performance_worker_and_signals(self) -> None:
         motor_spec = MotorSpec(kv_rpm_per_v=900.0, resistance_ohm=0.035, no_load_current_a=1.2, current_max_a=45.0)
         prop_spec = PropellerSpec(diameter_m=0.3302, pitch_m=0.1651, blade_count=2)

@@ -49,7 +49,7 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
         self._api = api
         self._is_running = False
         self._worker: FlightPerformanceWorker | None = None
-        self._empty_mass_kg = 2.0
+        self._empty_mass_kg = 0.0
         self._current_density = 1.225
         self._section_icons: list[tuple[QLabel, str]] = []
 
@@ -302,6 +302,7 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
     def _refresh_mass(self) -> None:
         proj = self._api.current_project if self._api else None
         if not proj:
+            self._empty_mass_kg = 0.0
             self._set_property_value(self.mass_table, "empty_mass", "0.0 g")
             self._update_takeoff_mass()
             return
@@ -319,8 +320,12 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
             pass
 
         comps = proj.data.get("components", [])
-        total_g = sum(float(c.get("parameters", {}).get("mass", 0.0)) for c in comps)
-        self._empty_mass_kg = total_g / 1000.0 if total_g > 0 else 2.0
+        total_g = sum(
+            float(c.get("parameters", {}).get("mass", 0.0))
+            for c in comps
+            if isinstance(c, dict)
+        )
+        self._empty_mass_kg = total_g / 1000.0 if total_g > 0 else 0.0
         empty_g = self._empty_mass_kg * 1000.0
         self._set_property_value(self.mass_table, "empty_mass", f"{empty_g:.1f} g")
         self._update_takeoff_mass()
@@ -332,10 +337,16 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
             return None
 
         # Takeoff Mass in kg = (Empty Mass (g) + Payload (g)) / 1000.0
+        if self._empty_mass_kg <= 0.0:
+            QMessageBox.warning(
+                self,
+                "Mass Properties Required",
+                "Flight performance analysis requires a valid aircraft mass. "
+                "Define component masses or run Weight Balance first.",
+            )
+            return None
         mass_g = (self._empty_mass_kg * 1000.0) + self.spin_payload.value()
-        mass_kg = mass_g / 1000.0 if mass_g > 0.0 else 2.0
-        if mass_kg <= 0.0:
-            mass_kg = 2.0
+        mass_kg = mass_g / 1000.0
 
         rho = self._current_density
         altitude = self.spin_alt.value()

@@ -353,11 +353,18 @@ class FlightPerformanceSolver:
                     wb_res = WeightBalanceSolver().evaluate(project)
                     mass_kg = float(wb_res.total.mass_kg)
                 except Exception as exc:
-                    logger.debug("WeightBalance evaluate failed, fallback to component sum: %s", exc)
-                    comps = project.data.get("components", []) if project else []
-                    mass_kg = sum(float(c.get("parameters", {}).get("mass", 0.0)) for c in comps) / 1000.0
-            if mass_kg <= 0.0:
-                mass_kg = 2.0  # Fallback default
+                    logger.debug("WeightBalance evaluate failed; trying component mass sum: %s", exc)
+                if mass_kg <= 0.0:
+                    comps = project.data.get("components", [])
+                    mass_kg = sum(
+                        float(c.get("parameters", {}).get("mass", 0.0))
+                        for c in comps
+                        if isinstance(c, dict)
+                    ) / 1000.0
+        if mass_kg <= 0.0:
+            raise ValueError(
+                "Mass properties are unavailable. Define component masses or run Weight Balance before analysis."
+            )
 
         area_m2 = float(context.get("area_m2", 0.0))
         rho = float(context.get("air_density", 1.225))
