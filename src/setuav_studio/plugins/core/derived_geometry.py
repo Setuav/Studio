@@ -13,7 +13,6 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
-
 # A conservative average density for foam/composite model aircraft structure.
 # Projects can override it with parameters.geometry_density_kg_m3 or
 # parameters.material_density_kg_m3.
@@ -133,7 +132,10 @@ def _control_surface(
     # Match the geometry engine's section frame, including sweep, twist and
     # dihedral. The control component's origin is the centre of the flap bay.
     try:
-        from setuav_studio.plugins.geometry.engine.transforms import section_transform, transform_point
+        from setuav_studio.plugins.geometry.engine.transforms import (
+            section_transform,
+            transform_point,
+        )
         twist_location = _number(parent_geom.get("twist_location", 0.25))
         matrix = section_transform(
             _profile_dict(profile),
@@ -172,8 +174,6 @@ def _fuselage(component: dict[str, Any], density: float) -> DerivedComponentGeom
     if not points:
         return DerivedComponentGeometry(_zero_transform(), _empty_envelope(), None, 0.0)
     xs = [p[0] for p in points]
-    ys = [p[1] for p in points]
-    zs = [p[2] for p in points]
     min_y = min(y - w * 0.5 for _, y, _, w, _ in points)
     max_y = max(y + w * 0.5 for _, y, _, w, _ in points)
     min_z = min(z - h * 0.5 for _, _, z, _, h in points)

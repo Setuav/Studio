@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import logging
 import math
-from pathlib import Path
 import re
+from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -112,8 +112,8 @@ def biconvex(thickness: float = 0.10, samples: int = AIRFOIL_SAMPLES) -> tuple[t
 
 def parse_airfoil_dat(content: str, samples: int = AIRFOIL_SAMPLES * 2) -> tuple[str, tuple[tuple[float, float], ...]]:
     """Parse standard Selig/UIUC or Lednicer .dat coordinate format and normalize to [0, 1]."""
-    raw_lines = [l.strip() for l in content.splitlines()]
-    non_empty = [l for l in raw_lines if l]
+    raw_lines = [line.strip() for line in content.splitlines()]
+    non_empty = [line for line in raw_lines if line]
     if not non_empty:
         return "Custom", naca4("0012", samples // 2)
 

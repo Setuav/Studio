@@ -10,12 +10,12 @@ from pathlib import Path
 from unittest.mock import patch
 
 from setuav_studio.plugin_system import StudioAPI
-from setuav_studio.project import open_project
 from setuav_studio.plugins.aerodynamics.aero_3d_tool import (
     Aero3DToolWindow,
     render_native_snapshot,
 )
 from setuav_studio.plugins.aerodynamics.engine.aerosandbox_engine import HAS_AEROSANDBOX
+from setuav_studio.project import open_project
 from tests._common import TEST_PROJECT_PATH, get_qapp
 
 

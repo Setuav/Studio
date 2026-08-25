@@ -17,9 +17,8 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.ui.buttons import set_native_button
-from .airfoil_dialog import AirfoilDialog
+
 from ..engine.wing_driver_solver import compute_all_8_parameters
-from .wing_driver_table import DriverPlanformTable
 from ..engine.wing_planform_engine import SWEEP_LOCATIONS
 from ..engine.wing_sections_engine import (
     delete_section,
@@ -28,6 +27,8 @@ from ..engine.wing_sections_engine import (
     sections_to_profiles,
     split_section,
 )
+from .airfoil_dialog import AirfoilDialog
+from .wing_driver_table import DriverPlanformTable
 
 
 class SectionsMixin:

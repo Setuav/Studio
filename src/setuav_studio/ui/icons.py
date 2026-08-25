@@ -1,8 +1,8 @@
-from functools import lru_cache
 import logging
+import tomllib
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
-import tomllib
 
 import qtawesome as qta
 from PySide6.QtCore import QRect, QSize

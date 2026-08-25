@@ -9,12 +9,11 @@ from PySide6.QtGui import QBrush, QColor, QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QFileDialog,
-    QHeaderView,
     QHBoxLayout,
+    QHeaderView,
     QPushButton,
-    QTabWidget,
-    QTableWidget,
     QTableWidgetItem,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -24,6 +23,7 @@ from setuav_studio.ui.buttons import set_native_button
 from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.property_tables import ContentFitTableWidget, PropertyTableMixin
 from setuav_studio.ui.theme import status_color, tokens
+
 from .engine.models import FlightEnvelopeResult
 
 

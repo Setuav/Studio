@@ -1,6 +1,6 @@
+import logging
 from pathlib import Path
 from typing import Any
-import logging
 
 import shiboken6
 from PySide6.QtCore import QEvent, QSettings, Qt, QTimer
@@ -20,9 +20,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.ui.icons import get_icon
-from setuav_studio.ui.log_buffer import install_log_buffer
-from setuav_studio.ui.main_toolbar import ToolSetBar, WorkspaceToolBar
 from setuav_studio.plugin_system import (
     ActionContribution,
     PanelContribution,
@@ -32,8 +29,6 @@ from setuav_studio.plugin_system import (
     WorkspaceContribution,
 )
 from setuav_studio.plugins.core.settings import SettingsDialog, StudioSettings
-from setuav_studio.schema_validation import validate_project
-from setuav_studio.ui.theme import status_color
 from setuav_studio.project import (
     ProjectDocument,
     ProjectOpenError,
@@ -41,6 +36,11 @@ from setuav_studio.project import (
     open_project,
     save_project,
 )
+from setuav_studio.schema_validation import validate_project
+from setuav_studio.ui.icons import get_icon
+from setuav_studio.ui.log_buffer import install_log_buffer
+from setuav_studio.ui.main_toolbar import ToolSetBar, WorkspaceToolBar
+from setuav_studio.ui.theme import status_color
 
 logger = logging.getLogger(__name__)
 
@@ -650,7 +650,9 @@ class MainWindow(QMainWindow):
 
             # 3. Aerodynamic Analyses
             try:
-                from setuav_studio.plugins.aerodynamics.analysis_store import analysis_entries as aero_entries
+                from setuav_studio.plugins.aerodynamics.analysis_store import (
+                    analysis_entries as aero_entries,
+                )
                 disk_aero = {e.get("id"): e for e in aero_entries(disk_doc)} if disk_doc else {}
                 curr_aero = {e.get("id"): e for e in aero_entries(self._project)}
                 for eid, e in curr_aero.items():
@@ -662,7 +664,9 @@ class MainWindow(QMainWindow):
 
             # 4. Flight Performance Analyses
             try:
-                from setuav_studio.plugins.flight_performance.analysis_store import analysis_entries as perf_entries
+                from setuav_studio.plugins.flight_performance.analysis_store import (
+                    analysis_entries as perf_entries,
+                )
                 disk_perf = {e.get("id"): e for e in perf_entries(disk_doc)} if disk_doc else {}
                 curr_perf = {e.get("id"): e for e in perf_entries(self._project)}
                 for eid, e in curr_perf.items():

@@ -14,7 +14,6 @@ from setuav_studio.plugins.electrical_propulsion.editors import (
     PropellerEditor,
 )
 from setuav_studio.project import open_project
-
 from tests._common import TEST_PROJECT_PATH, get_qapp
 
 
@@ -121,8 +120,13 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertEqual(editor._property_text(editor.members_table, 3), "propeller-cruise")
 
     def test_catalog_database_and_dialog(self) -> None:
-        from setuav_studio.plugins.electrical_propulsion.database import get_motor_database, get_propeller_database
-        from setuav_studio.plugins.electrical_propulsion.catalog_dialog import ComponentCatalogDialog
+        from setuav_studio.plugins.electrical_propulsion.catalog_dialog import (
+            ComponentCatalogDialog,
+        )
+        from setuav_studio.plugins.electrical_propulsion.database import (
+            get_motor_database,
+            get_propeller_database,
+        )
 
         mot_db = get_motor_database()
         self.assertGreater(mot_db.motor_count, 100)
@@ -138,10 +142,9 @@ class TestElectricalPropulsion(unittest.TestCase):
 
 
     def test_propulsion_controls_and_analysis_run(self) -> None:
-        from PySide6.QtCore import QThreadPool
-        from setuav_studio.shell import MainWindow
         from setuav_studio.plugins.core import CorePlugin
         from setuav_studio.plugins.electrical_propulsion.plugin import ElectricalPropulsionPlugin
+        from setuav_studio.shell import MainWindow
 
         api = StudioAPI()
         win = MainWindow(api)
@@ -174,9 +177,9 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertGreater(len(charts.chart_efficiency.series()), 0)
 
     def test_analysis_posts_status_messages(self) -> None:
-        from setuav_studio.shell import MainWindow
         from setuav_studio.plugins.core import CorePlugin
         from setuav_studio.plugins.electrical_propulsion.plugin import ElectricalPropulsionPlugin
+        from setuav_studio.shell import MainWindow
 
         api = StudioAPI()
         win = MainWindow(api)
@@ -206,6 +209,7 @@ class TestElectricalPropulsion(unittest.TestCase):
         from PySide6.QtCore import QThreadPool
         from pythrust.propulsion.models.motor import MotorSpec
         from pythrust.propulsion.models.propeller import PropellerSpec
+
         from setuav_studio.plugins.electrical_propulsion.engine import PropulsionSolverEngine
         from setuav_studio.plugins.electrical_propulsion.worker import PropulsionWorker
 
@@ -268,8 +272,8 @@ class TestElectricalPropulsion(unittest.TestCase):
 
         from PySide6.QtCore import QSettings
 
-        from setuav_studio.plugins.electrical_propulsion import database as db_module
         from setuav_studio.plugins.core.settings import StudioSettings
+        from setuav_studio.plugins.electrical_propulsion import database as db_module
 
         # 1. Hardcoded user-home absolute path is gone.
         source = Path(db_module.__file__).read_text(encoding="utf-8")
@@ -313,9 +317,10 @@ class TestElectricalPropulsion(unittest.TestCase):
     def test_propulsion_solver_engine_calculation(self) -> None:
         from pythrust.propulsion.models.motor import MotorSpec
         from pythrust.propulsion.models.propeller import PropellerSpec
+
         from setuav_studio.plugins.electrical_propulsion.engine import (
-            PropulsionSolverEngine,
             PropulsionPoint,
+            PropulsionSolverEngine,
         )
 
         motor_spec = MotorSpec(kv_rpm_per_v=900.0, resistance_ohm=0.035, no_load_current_a=1.2, current_max_a=45.0)

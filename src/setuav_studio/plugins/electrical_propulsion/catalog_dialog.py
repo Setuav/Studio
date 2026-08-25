@@ -7,6 +7,7 @@ with debounced search and pre-indexed search tokens.
 from __future__ import annotations
 
 from typing import Any
+
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, QPersistentModelIndex, Qt, QTimer
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -18,20 +19,20 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
-    QTabWidget,
     QTableView,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
-
 from pythrust.motors.database import MotorEntry
 from pythrust.propellers.database import PropellerEntry
-from setuav_studio.ui.icons import get_icon
-from setuav_studio.ui.buttons import set_button_role
+
 from setuav_studio.plugins.electrical_propulsion.database import (
     get_motor_database,
     get_propeller_database,
 )
+from setuav_studio.ui.buttons import set_button_role
+from setuav_studio.ui.icons import get_icon
 
 
 class MotorCatalogModel(QAbstractTableModel):

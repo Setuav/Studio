@@ -9,8 +9,8 @@ from setuav_studio.plugin_system import (
     ToolbarContribution,
     ToolbarMenuItemContribution,
 )
-from .engine.fuselage_geometry import create_default_section
 
+from .engine.fuselage_geometry import create_default_section
 
 _FUSELAGE_TYPE = "org.setuav.core:fuselage"
 _LIFTING_SURFACE_TYPE = "org.setuav.core:lifting-surface"

@@ -4,7 +4,6 @@ from copy import deepcopy
 from typing import Any
 
 from ..engine.data import GeometryData, LoftGeometry, Section
-from .palettes import segment_colors
 from ..engine.transforms import (
     Matrix4,
     derivation_matrix,
@@ -13,6 +12,7 @@ from ..engine.transforms import (
     transform_matrix,
     transform_point,
 )
+from .palettes import segment_colors
 
 GeometryProvider = Callable[[dict[str, Any]], tuple[LoftGeometry, ...]]
 

@@ -12,7 +12,6 @@ import unittest
 from copy import deepcopy
 
 from setuav_studio.schema_validation import get_catalog, validate_project
-
 from tests._common import TEST_PROJECT_PATH
 
 

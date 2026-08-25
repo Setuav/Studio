@@ -44,7 +44,7 @@ class ProjectTests(unittest.TestCase):
 
     def test_save_rejects_read_only_project(self) -> None:
         """4.13: read-only projects (opened under a failing validation) refuse to save."""
-        from setuav_studio.project import ProjectSaveError, ProjectDocument
+        from setuav_studio.project import ProjectDocument, ProjectSaveError
 
         project = ProjectDocument(
             path=Path("/tmp/ro.json"),

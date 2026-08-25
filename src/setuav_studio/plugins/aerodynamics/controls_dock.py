@@ -21,12 +21,13 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.plugin_system import StudioAPI
-from setuav_studio.ui.icons import set_label_icon
 from setuav_studio.ui.buttons import refresh_button_role, set_button_role, set_native_button
+from setuav_studio.ui.icons import set_label_icon
 from setuav_studio.ui.numeric_spinbox import NumericSpinBox
 from setuav_studio.ui.property_tables import PropertyTableMixin
 from setuav_studio.ui.theme import tokens
 
+from .engine.aerosandbox_engine import AeroSandboxEngine
 from .engine.base import (
     AeroEngine,
     AeroResult,
@@ -35,7 +36,6 @@ from .engine.base import (
     SweepType,
     control_channels_for_components,
 )
-from .engine.aerosandbox_engine import AeroSandboxEngine
 from .worker import AnalysisWorker
 
 

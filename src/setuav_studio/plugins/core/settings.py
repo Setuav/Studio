@@ -1,6 +1,6 @@
-from dataclasses import dataclass
 import logging
 from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
 
 from PySide6.QtCore import QSize, Qt
@@ -27,7 +27,6 @@ from PySide6.QtWidgets import (
 
 from setuav_studio.plugin_system import SettingsPageContribution
 from setuav_studio.ui.buttons import set_button_role
-
 
 logger = logging.getLogger(__name__)
 

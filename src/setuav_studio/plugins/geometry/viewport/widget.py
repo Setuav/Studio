@@ -1,5 +1,6 @@
-from array import array
+import logging
 import math
+from array import array
 
 from PySide6.QtCore import QPoint, Qt, QTimer, Signal
 from PySide6.QtGui import QMatrix4x4, QPainter, QPalette, QSurfaceFormat, QVector3D, QVector4D
@@ -23,9 +24,6 @@ from .mesh import (
     build_section_ring_vertices,
     hit_test_loft,
 )
-
-import logging
-
 
 logger = logging.getLogger(__name__)
 
@@ -601,6 +599,7 @@ class OpenGLViewer(QOpenGLWidget):
 
     def _upload_meshes(self) -> None:
         from PySide6.QtGui import QColor
+
         from setuav_studio.ui.theme import chart_color, tokens
 
         def rgb(color: str) -> tuple[float, float, float]:

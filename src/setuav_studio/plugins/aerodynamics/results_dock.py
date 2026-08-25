@@ -13,9 +13,9 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
-    QTabWidget,
     QTableWidget,
     QTableWidgetItem,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -25,15 +25,14 @@ from setuav_studio.ui.buttons import refresh_button_role, set_native_button
 from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.property_tables import ContentFitTableWidget, PropertyTableMixin
 
-from .engine.base import AeroResult, SweepType
-from .engine.stability_models import MARGINAL_STATIC_MARGIN_PERCENT
 from .analysis_store import (
     EXTENSION_ID,
     RESULT_SELECTION_KIND,
     delete_analysis_entry,
     load_analysis_result,
 )
-
+from .engine.base import AeroResult, SweepType
+from .engine.stability_models import MARGINAL_STATIC_MARGIN_PERCENT
 
 SUMMARY_ROWS = [
     ("solver_engine", "Analysis Pipeline"),

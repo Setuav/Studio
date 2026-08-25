@@ -11,10 +11,9 @@ Includes Section-Level Driver Groups and Global OpenVSP Total Scaling (fract).
 
 from __future__ import annotations
 
-from copy import deepcopy
 import math
+from copy import deepcopy
 from typing import Any
-
 
 SECTION_DRIVER_MODES: list[tuple[str, str]] = [
     ("span_root_tip", "Span, Root & Tip Chord"),

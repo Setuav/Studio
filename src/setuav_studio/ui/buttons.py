@@ -7,7 +7,6 @@ from PySide6.QtWidgets import QAbstractButton, QApplication
 
 from setuav_studio.ui.icons import get_icon
 
-
 _ROLE_PROPERTY = "setuavButtonRole"
 _VARIANT_PROPERTY = "setuavButtonVariant"
 _ICON_PROPERTY = "setuavButtonIconSource"

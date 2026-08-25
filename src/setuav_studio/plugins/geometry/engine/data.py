@@ -2,7 +2,6 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Literal
 
-
 Point3D = tuple[float, float, float]
 ColorRGB = tuple[float, float, float]
 

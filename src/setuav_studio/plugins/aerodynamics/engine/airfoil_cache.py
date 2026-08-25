@@ -2,12 +2,11 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import logging
 import math
 import threading
 from collections import OrderedDict
-from typing import Any, Sequence
+from typing import Sequence
 
 from .airfoil_models import AirfoilPolar
 

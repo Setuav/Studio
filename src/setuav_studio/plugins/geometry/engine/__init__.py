@@ -1,5 +1,4 @@
 """Geometry Engine package for parametric aerodynamics and lofting math."""
-from .data import GeometryData, LoftGeometry, Point3D, Section
 from .airfoil import (
     AIRFOIL_SAMPLES,
     AIRFOILS_DATA_DIR,
@@ -12,6 +11,7 @@ from .airfoil import (
     parse_airfoil_dat,
     sample_airfoil_points,
 )
+from .data import GeometryData, LoftGeometry, Point3D, Section
 from .fuselage_geometry import (
     DEFAULT_PROFILES,
     FUSELAGE_PROFILE_TYPES,

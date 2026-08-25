@@ -6,8 +6,8 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
     QComboBox,
-    QHeaderView,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QSizePolicy,
     QTableWidget,
@@ -16,8 +16,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.ui.icons import set_label_icon
 from setuav_studio.plugin_system import StudioAPI
+from setuav_studio.ui.icons import set_label_icon
 
 
 class InstanceEditor(QWidget):

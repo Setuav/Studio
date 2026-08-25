@@ -40,8 +40,8 @@ class ThemeTests(unittest.TestCase):
 
     def test_theme_mode_switching_and_tokens(self) -> None:
         from setuav_studio.ui.theme import (
-            DARK_TOKENS,
             BLENDER_TOKENS,
+            DARK_TOKENS,
             LIGHT_TOKENS,
             accent_color,
             current_theme_mode,

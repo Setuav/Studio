@@ -10,16 +10,17 @@ from setuav_studio.plugin_system import (
     ToolContribution,
     WorkspaceContribution,
 )
-from .creation import PropulsionCreationController
+
 from .catalog_dialog import ComponentCatalogDialog
 from .charts_dock import PropulsionChartsDock
 from .controls_dock import PropulsionControlsDock
-from .results_dock import PropulsionResultsDock
+from .creation import PropulsionCreationController
 from .editors.assembly import ElectricPropulsionSystemEditor
 from .editors.battery import BatteryEditor
 from .editors.esc import EscEditor
 from .editors.motor import MotorEditor
 from .editors.propeller import PropellerEditor
+from .results_dock import PropulsionResultsDock
 
 
 class ElectricalPropulsionPlugin:

@@ -11,8 +11,8 @@ from PySide6.QtWidgets import QToolTip, QWidget
 
 from setuav_studio.ui.theme import is_light_theme
 
-from .scene import ColorValue, View2DMarker, View2DPath, View2DScene
 from .geometry import View2DGeometrySource
+from .scene import ColorValue, View2DMarker, View2DPath, View2DScene
 
 
 class View2DCanvas(QWidget):

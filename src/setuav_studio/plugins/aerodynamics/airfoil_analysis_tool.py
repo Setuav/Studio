@@ -1,13 +1,13 @@
 """Standalone NeuralFoil analysis tool."""
 from __future__ import annotations
 
+import math
 from copy import deepcopy
 from dataclasses import dataclass
-import math
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QObject, QThread, Qt, Signal, Slot
+from PySide6.QtCore import QObject, Qt, QThread, Signal, Slot
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QComboBox,
@@ -24,9 +24,9 @@ from PySide6.QtWidgets import (
     QPushButton,
     QSpinBox,
     QSplitter,
-    QTabWidget,
     QTableWidget,
     QTableWidgetItem,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -40,8 +40,10 @@ from setuav_studio.ui.buttons import set_button_role, set_native_button
 from setuav_studio.ui.numeric_spinbox import NumericSpinBox
 
 from .charts_dock import SingleChartWidget
-from .engine.aerosandbox_engine import AeroSandboxEngine, HAS_AEROSANDBOX
+from .engine.aerosandbox_engine import HAS_AEROSANDBOX, AeroSandboxEngine
 from .engine.airfoil_engine import AirfoilAnalysisEngine
+
+
 @dataclass(frozen=True)
 class AirfoilAnalysisRequest:
     airfoil_spec: object

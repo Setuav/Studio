@@ -13,6 +13,7 @@ from setuav_studio.plugin_system import (
     WorkspaceContribution,
 )
 from setuav_studio.project import ProjectDocument
+
 from .analysis_store import (
     EXTENSION_ID,
     RESULT_SELECTION_KIND,

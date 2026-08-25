@@ -3,20 +3,20 @@ from __future__ import annotations
 
 import json
 import math
-from pathlib import Path
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
+from setuav_studio.plugins.aerodynamics.engine.aerosandbox_engine import (
+    HAS_AEROSANDBOX,
+    AeroSandboxEngine,
+)
 from setuav_studio.plugins.aerodynamics.engine.base import (
     AeroAnalysisError,
     AeroResult,
     AnalysisMethod,
     AnalysisType,
     FlightCondition,
-)
-from setuav_studio.plugins.aerodynamics.engine.aerosandbox_engine import (
-    HAS_AEROSANDBOX,
-    AeroSandboxEngine,
 )
 from setuav_studio.plugins.aerodynamics.engine.stability_engine import (
     StabilityAnalysisEngine,

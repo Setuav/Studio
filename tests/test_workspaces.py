@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+
 from PySide6.QtWidgets import QLabel
 
 from setuav_studio.plugin_system import (
@@ -12,7 +13,6 @@ from setuav_studio.plugin_system import (
     WorkspaceContribution,
 )
 from setuav_studio.shell import MainWindow
-
 from tests._common import get_qapp
 
 
@@ -67,6 +67,7 @@ class TestWorkspacesAndTools(unittest.TestCase):
     def test_status_bar_shows_colored_messages_and_auto_clears(self) -> None:
         from PySide6.QtCore import QTimer
         from PySide6.QtGui import QPalette
+
         from setuav_studio.ui.theme import status_color
 
         api = StudioAPI()

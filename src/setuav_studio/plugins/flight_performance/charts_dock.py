@@ -3,13 +3,6 @@ from __future__ import annotations
 
 from typing import Any, Sequence
 
-from PySide6.QtCore import QPointF, QSettings, Qt
-from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen
-from PySide6.QtWidgets import (
-    QSplitter,
-    QVBoxLayout,
-    QWidget,
-)
 from PySide6.QtCharts import (
     QAreaSeries,
     QChart,
@@ -17,8 +10,16 @@ from PySide6.QtCharts import (
     QLineSeries,
     QValueAxis,
 )
+from PySide6.QtCore import QPointF, QSettings, Qt
+from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen
+from PySide6.QtWidgets import (
+    QSplitter,
+    QVBoxLayout,
+    QWidget,
+)
 
 from setuav_studio.plugin_system import StudioAPI
+
 from .engine.models import FlightEnvelopeResult
 
 

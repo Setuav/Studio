@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import math
 from typing import Any
+
 from PySide6.QtCore import Qt, QThreadPool
 from PySide6.QtGui import QFont, QPalette
 from PySide6.QtWidgets import (
@@ -19,18 +20,18 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-
 from pythrust.propellers.database import PropellerEntry
 from pythrust.propulsion.models.motor import MotorSpec
 from pythrust.propulsion.models.propeller import PropellerSpec
 
+from setuav_studio.plugin_system import StudioAPI
+from setuav_studio.ui.buttons import refresh_button_role, set_button_role, set_native_button
+from setuav_studio.ui.icons import get_icon, set_label_icon
+from setuav_studio.ui.property_tables import PropertyTableMixin
+
 from .database import get_propeller_database
 from .engine.solver import PropulsionSolverEngine
 from .worker import PropulsionWorker
-from setuav_studio.ui.icons import get_icon, set_label_icon
-from setuav_studio.ui.buttons import refresh_button_role, set_button_role, set_native_button
-from setuav_studio.plugin_system import StudioAPI
-from setuav_studio.ui.property_tables import PropertyTableMixin
 
 logger = logging.getLogger(__name__)
 

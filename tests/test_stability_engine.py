@@ -5,21 +5,20 @@ import math
 import unittest
 from unittest.mock import patch
 
+from setuav_studio.plugins.aerodynamics.engine.aerosandbox_engine import AeroSandboxEngine
 from setuav_studio.plugins.aerodynamics.engine.base import (
     AnalysisMethod,
     FlightCondition,
-    ReferenceValues,
+)
+from setuav_studio.plugins.aerodynamics.engine.stability_engine import (
+    HAS_AEROSANDBOX,
+    StabilityAnalysisEngine,
 )
 from setuav_studio.plugins.aerodynamics.engine.stability_models import (
     ControlEffectiveness,
     ElevatorTrim,
     StabilityDerivatives,
 )
-from setuav_studio.plugins.aerodynamics.engine.stability_engine import (
-    HAS_AEROSANDBOX,
-    StabilityAnalysisEngine,
-)
-from setuav_studio.plugins.aerodynamics.engine.aerosandbox_engine import AeroSandboxEngine
 
 
 class TestStabilityModels(unittest.TestCase):

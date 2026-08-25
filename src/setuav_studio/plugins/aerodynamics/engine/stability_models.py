@@ -1,10 +1,8 @@
 """Data models for linear stability derivatives, control effectiveness, and elevator trim."""
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass, field
 from typing import Any
-
 
 MARGINAL_STATIC_MARGIN_PERCENT = 2.0
 

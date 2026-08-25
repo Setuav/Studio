@@ -1,11 +1,10 @@
-from importlib import resources
-from functools import lru_cache
 import logging
+from functools import lru_cache
+from importlib import resources
 
 from PySide6.QtCore import QEvent, QObject
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QPalette
 from PySide6.QtWidgets import QApplication, QComboBox, QLabel
-
 
 logger = logging.getLogger(__name__)
 

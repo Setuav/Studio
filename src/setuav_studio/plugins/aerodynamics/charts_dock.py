@@ -3,21 +3,26 @@ from __future__ import annotations
 
 import math
 from typing import Sequence
-from PySide6.QtCore import QPointF, QSettings, Qt
-from PySide6.QtGui import QCloseEvent, QColor, QFont, QPainter, QPen
-from PySide6.QtWidgets import (
-    QSplitter,
-    QVBoxLayout,
-    QWidget,
-)
+
 from PySide6.QtCharts import (
     QChart,
     QChartView,
     QLineSeries,
     QValueAxis,
 )
+from PySide6.QtCore import QPointF, QSettings, Qt
+from PySide6.QtGui import QCloseEvent, QColor, QFont, QPainter, QPen
+from PySide6.QtWidgets import (
+    QComboBox,
+    QHBoxLayout,
+    QLabel,
+    QSplitter,
+    QVBoxLayout,
+    QWidget,
+)
 
 from setuav_studio.plugin_system import StudioAPI
+
 from .engine.base import AeroResult, PolarPoint, SweepType
 
 
@@ -236,17 +241,6 @@ class SingleChartWidget(QWidget):
 
         if all_y:
             axis_y.setRange(*self._padded_range(all_y))
-
-
-from PySide6.QtWidgets import (
-    QComboBox,
-    QHBoxLayout,
-    QLabel,
-    QSplitter,
-    QVBoxLayout,
-    QWidget,
-)
-
 
 CHART_SET_DEFINITIONS: list[tuple[str, str]] = [
     ("alpha_beta_grid", "Alpha × Beta Sweep"),

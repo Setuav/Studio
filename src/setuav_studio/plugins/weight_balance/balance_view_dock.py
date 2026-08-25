@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from math import sqrt
 
-from PySide6.QtCore import QEvent, QSettings, QTimer, Qt
+from PySide6.QtCore import QEvent, QSettings, Qt, QTimer
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QDockWidget, QHBoxLayout, QLabel, QMainWindow, QStatusBar, QWidget
 

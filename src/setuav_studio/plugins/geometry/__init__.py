@@ -1,8 +1,9 @@
 """Geometry Plugin package."""
 import sys
+
+from . import editors, engine, viewport
 from .plugin import GeometryPlugin
 from .workspace import ViewerWorkspace
-from . import engine, editors, viewport
 
 # Alias sub-modules for backwards-compatible imports
 sys.modules["setuav_studio.plugins.geometry.data"] = engine.data

@@ -12,7 +12,6 @@ from setuav_studio.plugin_system import (
     ToolbarMenuItemContribution,
 )
 
-
 _ASSEMBLY_TYPE = "org.setuav.core:electric-propulsion-system"
 _WORKSPACE = "studio.workspace.propulsion"
 

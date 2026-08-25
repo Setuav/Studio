@@ -15,6 +15,7 @@ except ImportError:
 from .airfoil_cache import AirfoilPolarCache, global_airfoil_cache
 from .airfoil_models import AirfoilPolar, AirfoilPolarPoint
 
+
 class AirfoilAnalysisEngine:
     """Computes 2D airfoil aerodynamic characteristics using NeuralFoil."""
 

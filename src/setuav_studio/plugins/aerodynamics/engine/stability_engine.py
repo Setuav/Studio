@@ -67,7 +67,6 @@ class StabilityAnalysisEngine:
 
         atmosphere = asb.Atmosphere(altitude=alt)
         c_ref = max(float(ref.c_ref), 1e-4)
-        b_ref = max(float(ref.b_ref), 1e-4)
         x_cg = float(ref.x_cg)
         # Baseline operating point
         op_base = asb.OperatingPoint(
@@ -100,7 +99,6 @@ class StabilityAnalysisEngine:
             return value
 
         cl_0 = scalar("CL")
-        cd_0 = scalar("CD")
         cm_0 = scalar("Cm")
 
         cla_rad = scalar("CLa")

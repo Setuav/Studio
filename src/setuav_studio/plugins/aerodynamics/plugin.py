@@ -13,15 +13,12 @@ from setuav_studio.plugin_system import (
     WorkspaceContribution,
 )
 from setuav_studio.project import ProjectDocument
-from .charts_dock import AeroChartsDock
-from .controls_dock import AeroControlsDock
-from .results_dock import AeroResultsDock
-from .engine.base import AeroResult
+
 from .analysis_store import (
     EXTENSION_ID,
-    RESULTS_VERSION,
-    RESULTS_GROUP_ID,
     RESULT_SELECTION_KIND,
+    RESULTS_GROUP_ID,
+    RESULTS_VERSION,
     analysis_entries,
     analysis_selection,
     append_analysis_entry,
@@ -31,6 +28,11 @@ from .analysis_store import (
     rename_analysis_entry,
     short_result_name,
 )
+from .charts_dock import AeroChartsDock
+from .controls_dock import AeroControlsDock
+from .engine.base import AeroResult
+from .results_dock import AeroResultsDock
+
 if TYPE_CHECKING:
     from .aero_3d_tool import Aero3DToolWindow
     from .airfoil_analysis_tool import AirfoilAnalysisToolWindow

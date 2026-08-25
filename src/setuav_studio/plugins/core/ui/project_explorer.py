@@ -27,7 +27,6 @@ from setuav_studio.plugin_system import (
 from setuav_studio.project import ProjectDocument
 from setuav_studio.ui.icons import get_icon
 
-
 _GEOMETRY_COMPONENT_ICONS = {
     "org.setuav.core:fuselage": "geometry_add_fuselage",
     "org.setuav.core:lifting-surface": "geometry_add_lifting_surface",

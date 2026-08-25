@@ -8,10 +8,9 @@ Inspired by OpenVSP's non-destructive hierarchical driver architecture:
 
 from __future__ import annotations
 
-from copy import deepcopy
 import math
+from copy import deepcopy
 from typing import Any
-
 
 DRIVER_MODES = [
     ("area_ar_taper", "Area, Aspect Ratio & Taper (S, AR, λ)"),

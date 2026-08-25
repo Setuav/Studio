@@ -1,32 +1,30 @@
 """Unit and integration tests for the Aerodynamics Plugin."""
 from __future__ import annotations
 
-from pathlib import Path
 import json
 import unittest
+from pathlib import Path
 from unittest.mock import patch
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import QMenu, QMessageBox
-from setuav_studio.project import ProjectDocument
+
 from setuav_studio.plugin_system import (
     ActionContribution,
     PanelContribution,
     StudioAPI,
     WorkspaceContribution,
 )
-from setuav_studio.plugins.aerodynamics.plugin import AerodynamicsPlugin
+from setuav_studio.plugins.aerodynamics.airfoil_analysis_tool import (
+    AirfoilAnalysisToolWindow,
+)
 from setuav_studio.plugins.aerodynamics.analysis_store import (
     RESULTS_VERSION,
     analysis_entries,
     load_analysis_result,
     migrate_analysis_extension,
 )
-from setuav_studio.plugins.aerodynamics.airfoil_analysis_tool import (
-    AirfoilAnalysisToolWindow,
-)
-from setuav_studio.plugins.aerodynamics.results_dock import AeroResultsDock
-from setuav_studio.plugins.core.ui.project_explorer import ProjectExplorer
 from setuav_studio.plugins.aerodynamics.engine.base import (
     AeroResult,
     AnalysisMethod,
@@ -41,6 +39,10 @@ from setuav_studio.plugins.aerodynamics.engine.base import (
 from setuav_studio.plugins.aerodynamics.engine.stability_models import (
     StabilityDerivatives,
 )
+from setuav_studio.plugins.aerodynamics.plugin import AerodynamicsPlugin
+from setuav_studio.plugins.aerodynamics.results_dock import AeroResultsDock
+from setuav_studio.plugins.core.ui.project_explorer import ProjectExplorer
+from setuav_studio.project import ProjectDocument
 from tests._common import get_qapp
 
 

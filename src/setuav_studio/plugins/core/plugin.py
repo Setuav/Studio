@@ -6,11 +6,11 @@ from setuav_studio.plugin_system import (
     StudioAPI,
     ToolbarContribution,
 )
+from setuav_studio.plugins.core.envelope import EnvelopeEditor
 from setuav_studio.plugins.core.instance import InstanceEditor
 from setuav_studio.plugins.core.properties import PropertiesPanel
-from setuav_studio.plugins.core.ui.project_explorer import ProjectExplorerPanel
-from setuav_studio.plugins.core.envelope import EnvelopeEditor
 from setuav_studio.plugins.core.transform import TransformEditor
+from setuav_studio.plugins.core.ui.project_explorer import ProjectExplorerPanel
 
 
 class CorePlugin:

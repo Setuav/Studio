@@ -5,7 +5,6 @@ from PySide6.QtWidgets import QDockWidget, QWidget
 from setuav_studio.__main__ import _parse_arguments
 from setuav_studio.plugin_system import PanelContribution, StudioAPI, WorkspaceContribution
 from setuav_studio.shell import MainWindow
-
 from tests._common import TEST_PROJECT_PATH, get_qapp
 
 _app = get_qapp()
@@ -69,11 +68,11 @@ class MainTests(unittest.TestCase):
         self.assertEqual(window._view_menu.actions()[0].text(), "Theme")
         self.assertIn(view_action, window._view_menu.actions())
         """4.13: validation_strictness drives open/read_only/cancel outcomes."""
-        from types import SimpleNamespace
         from pathlib import Path
+        from types import SimpleNamespace
 
-        from setuav_studio.shell import apply_runtime_validation
         from setuav_studio.project import ProjectDocument
+        from setuav_studio.shell import apply_runtime_validation
 
         valid = ProjectDocument(path=Path("/tmp/x.json"), kind="json", data={})
         issues = [

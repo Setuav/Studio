@@ -43,16 +43,17 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.ui.icons import get_icon
-from setuav_studio.ui.buttons import set_button_role, set_native_button
 from setuav_studio.plugin_system import StudioAPI
-from ..settings import _EDITOR_AUTO_FIT_KEY, _EDITOR_GRID_KEY, _as_bool, editor_setting
+from setuav_studio.ui.buttons import set_button_role, set_native_button
+from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.numeric_spinbox import (
     NoWheelComboBox,
     set_table_spinbox,
 )
 from setuav_studio.ui.theme import accent_color, tokens
+
 from ..engine.fuselage_geometry import compute_section_metrics, sample_profile
+from ..settings import _EDITOR_AUTO_FIT_KEY, _EDITOR_GRID_KEY, _as_bool, editor_setting
 
 
 class FuselageCanvasWidget(QWidget):

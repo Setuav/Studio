@@ -1,21 +1,17 @@
 """Unit tests for parametric sweep infrastructure (Alpha, Beta, Control Deflections, Velocity, Altitude, and Multi-grids)."""
 from __future__ import annotations
 
-import math
 import unittest
 
-from setuav_studio.plugins.aerodynamics.engine.base import (
-    AnalysisMethod,
-    FlightCondition,
-    MultiDimensionalSweepResult,
-    PolarPoint,
-    SweepType,
-    SweepVariable,
-    control_channels_for_components,
-)
 from setuav_studio.plugins.aerodynamics.engine.aerosandbox_engine import (
     HAS_AEROSANDBOX,
     AeroSandboxEngine,
+)
+from setuav_studio.plugins.aerodynamics.engine.base import (
+    AnalysisMethod,
+    FlightCondition,
+    SweepType,
+    control_channels_for_components,
 )
 
 

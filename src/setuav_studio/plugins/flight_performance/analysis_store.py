@@ -1,12 +1,12 @@
 """Persistent flight performance analysis results stored in the project document."""
 from __future__ import annotations
 
-from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
 from setuav_studio.project import ProjectDocument
+
 from .engine.models import FlightEnvelopeResult
 
 EXTENSION_ID = "org.setuav.studio.flight_performance"

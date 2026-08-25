@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import unittest
+from pathlib import Path
 
 from setuav_studio.plugin_system import (
     BaseComponentEditor,
@@ -11,7 +11,6 @@ from setuav_studio.plugin_system import (
     StudioAPI,
 )
 from setuav_studio.project import ProjectDocument
-
 from tests._common import get_qapp
 
 

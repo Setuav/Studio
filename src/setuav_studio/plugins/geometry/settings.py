@@ -5,7 +5,6 @@ from PySide6.QtWidgets import QCheckBox, QComboBox, QFormLayout, QWidget
 
 from .viewport.palettes import DEFAULT_PALETTE, palette_names, set_active_palette
 
-
 _VIEWER_PROJECTION_KEY = "geometry/viewer/default_projection"
 _VIEWER_PALETTE_KEY = "geometry/viewer/default_palette"
 _VIEWER_GRID_KEY = "geometry/viewer/show_grid"

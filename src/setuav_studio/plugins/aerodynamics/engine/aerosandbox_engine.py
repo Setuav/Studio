@@ -3,12 +3,19 @@ from __future__ import annotations
 
 import logging
 import math
+import re
 from copy import deepcopy
 from pathlib import Path
-import re
 from typing import Any
 
+from setuav_studio.plugins.geometry.engine.airfoil import (
+    apply_airfoil_shaping,
+    sample_airfoil_points,
+)
+from setuav_studio.project import ProjectDocument
+
 from .base import (
+    CONTROL_CHANNELS,
     AeroAnalysisError,
     AeroEngine,
     AeroForcesMoments,
@@ -16,7 +23,6 @@ from .base import (
     AeroState,
     AnalysisMethod,
     AnalysisType,
-    CONTROL_CHANNELS,
     ControlChannelAnalysis,
     ControlSurfaceType,
     EngineCapabilities,
@@ -30,11 +36,6 @@ from .base import (
     control_channels_for_components,
 )
 from .stability_engine import StabilityAnalysisEngine
-from setuav_studio.plugins.geometry.engine.airfoil import (
-    apply_airfoil_shaping,
-    sample_airfoil_points,
-)
-from setuav_studio.project import ProjectDocument
 
 logger = logging.getLogger(__name__)
 
@@ -984,7 +985,7 @@ class AeroSandboxEngine(AeroEngine):
                         "eta_start": 0.0,
                         "eta_end": 1.0,
                         "chord_fraction": 0.35,
-                        "symmetry_mode": "symmetric" if not (tag_candidate in ("aileron", "elevon")) else "antisymmetric",
+                        "symmetry_mode": "symmetric" if tag_candidate not in ("aileron", "elevon") else "antisymmetric",
                     })
 
         # Parse control surface definitions

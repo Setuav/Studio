@@ -1,23 +1,25 @@
+from PySide6.QtWidgets import QWidget
+
 from setuav_studio.plugin_system import (
     PanelContribution,
     SettingsPageContribution,
     StudioAPI,
     WorkspaceContribution,
 )
-from PySide6.QtWidgets import QWidget
+
+from .creation import GeometryCreationController
 from .editors.control_surface import ControlSurfaceEditor
 from .editors.fuselage import FuselageEditor
 from .editors.lifting_surface import LiftingSurfaceEditor
 from .engine.fuselage_geometry import build_fuselage_geometry
 from .engine.lifting_surface_geometry import build_lifting_surface_geometry
-from .creation import GeometryCreationController
-from .workspace import ViewerWorkspace
 from .settings import (
     apply_editor_settings,
     apply_viewer_settings,
     create_editor_settings_page,
     create_viewer_settings_page,
 )
+from .workspace import ViewerWorkspace
 
 
 class GeometryPlugin:

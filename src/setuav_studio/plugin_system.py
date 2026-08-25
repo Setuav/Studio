@@ -1,10 +1,10 @@
+import logging
+import pkgutil
 from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import dataclass
 from importlib import import_module, metadata
 from pathlib import Path
-import logging
-import pkgutil
 from typing import Any, Protocol
 
 from packaging.version import InvalidVersion, Version
@@ -12,9 +12,9 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon, QUndoCommand, QUndoStack
 from PySide6.QtWidgets import QWidget
 
-from setuav_studio.ui.icons import get_icon
 from setuav_studio.component_editor import BaseComponentEditor, ParameterField
 from setuav_studio.project import ProjectDocument
+from setuav_studio.ui.icons import get_icon
 
 __all__ = [
     "BaseComponentEditor",

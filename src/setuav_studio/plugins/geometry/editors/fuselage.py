@@ -6,8 +6,8 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDoubleSpinBox,
-    QHeaderView,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QPushButton,
     QScrollArea,
@@ -19,16 +19,16 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.ui.icons import set_label_icon
-from setuav_studio.ui.buttons import set_native_button
 from setuav_studio.plugin_system import StudioAPI
+from setuav_studio.ui.buttons import set_native_button
+from setuav_studio.ui.icons import set_label_icon
 from setuav_studio.ui.numeric_spinbox import (
     NoWheelComboBox,
     NumericSpinBox,
     set_table_spinbox,
 )
 from setuav_studio.ui.property_tables import PropertyTableMixin
-from .fuselage_section_dialog import FuselageSectionDialog
+
 from ..engine.fuselage_geometry import (
     FUSELAGE_PROFILE_TYPES,
     create_default_section,
@@ -36,6 +36,7 @@ from ..engine.fuselage_geometry import (
     format_profile_size,
     get_default_profile,
 )
+from .fuselage_section_dialog import FuselageSectionDialog
 
 
 class FuselageEditor(PropertyTableMixin, QWidget):

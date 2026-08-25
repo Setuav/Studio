@@ -1,10 +1,9 @@
 import math
 from typing import Any
 
+from ..viewport.palettes import segment_colors
 from .data import LoftGeometry, Section
 from .transforms import section_transform, transform_point
-from ..viewport.palettes import segment_colors
-
 
 SECTION_SAMPLES = 128
 

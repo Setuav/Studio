@@ -5,8 +5,8 @@ from __future__ import annotations
 from copy import deepcopy
 
 from PySide6.QtCore import Qt
+
 from ..engine.wing_driver_solver import compute_all_8_parameters
-from .wing_driver_table import DriverPlanformTable
 from ..engine.wing_planform_engine import (
     SWEEP_LOCATIONS,
     TWIST_LOCATIONS,
@@ -16,6 +16,7 @@ from ..engine.wing_planform_engine import (
     set_wing_global_twist,
     solve_wing_planform,
 )
+from .wing_driver_table import DriverPlanformTable
 
 
 class PlanformMixin:

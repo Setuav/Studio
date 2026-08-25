@@ -1,7 +1,6 @@
 """Unit tests for 2D airfoil analysis, caching, and NeuralFoil integration."""
 from __future__ import annotations
 
-import math
 import unittest
 
 from setuav_studio.plugins.aerodynamics.engine.airfoil_cache import (
@@ -15,13 +14,6 @@ from setuav_studio.plugins.aerodynamics.engine.airfoil_engine import (
 from setuav_studio.plugins.aerodynamics.engine.airfoil_models import (
     AirfoilPolar,
     AirfoilPolarPoint,
-)
-from setuav_studio.plugins.aerodynamics.engine.base import (
-    AnalysisMethod,
-    FlightCondition,
-)
-from setuav_studio.plugins.aerodynamics.engine.aerosandbox_engine import (
-    AeroSandboxEngine,
 )
 
 

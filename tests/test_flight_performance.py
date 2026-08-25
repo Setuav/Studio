@@ -8,9 +8,9 @@ from types import SimpleNamespace
 
 import numpy as np
 from PySide6.QtCore import QThreadPool
-
 from pythrust.propulsion.models.motor import MotorSpec
 from pythrust.propulsion.models.propeller import PropellerSpec
+
 from setuav_studio.plugin_system import PluginManager, StudioAPI
 from setuav_studio.plugins.core import CorePlugin
 from setuav_studio.plugins.electrical_propulsion.engine.solver import PropulsionSolverEngine

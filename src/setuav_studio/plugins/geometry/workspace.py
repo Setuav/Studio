@@ -12,15 +12,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.ui.icons import get_icon
 from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.project import ProjectDocument
-from .viewport.palettes import (
-    active_palette,
-    palette_names,
-    set_active_palette,
-)
-from .viewport.widget import OpenGLViewer
+from setuav_studio.ui.icons import get_icon
+
 from .settings import (
     _VIEWER_GRID_KEY,
     _VIEWER_PALETTE_KEY,
@@ -33,6 +28,12 @@ from .viewport.mesh import (
     FACE_COLORED,
     FACE_MONOCHROME,
 )
+from .viewport.palettes import (
+    active_palette,
+    palette_names,
+    set_active_palette,
+)
+from .viewport.widget import OpenGLViewer
 
 logger = logging.getLogger(__name__)
 

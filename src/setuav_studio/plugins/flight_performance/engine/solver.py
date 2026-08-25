@@ -6,11 +6,11 @@ import math
 from typing import Any, Callable, Sequence
 
 import numpy as np
-from scipy.optimize import root_scalar
-
 from pythrust.propellers.database import PropellerEntry
 from pythrust.propulsion.models.motor import MotorSpec
 from pythrust.propulsion.models.propeller import PropellerSpec
+from scipy.optimize import root_scalar
+
 from setuav_studio.plugins.aerodynamics.engine.aerosandbox_engine import (
     AeroSandboxEngine,
     AnalysisMethod,
@@ -18,6 +18,7 @@ from setuav_studio.plugins.aerodynamics.engine.aerosandbox_engine import (
 )
 from setuav_studio.plugins.electrical_propulsion.engine.solver import PropulsionSolverEngine
 from setuav_studio.plugins.weight_balance.engine.solver import WeightBalanceSolver
+
 from .models import (
     CruisePerformance,
     FlightCurves,

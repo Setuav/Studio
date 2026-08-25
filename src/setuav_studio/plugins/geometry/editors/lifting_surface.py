@@ -18,15 +18,16 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.ui.icons import set_label_icon
-from setuav_studio.ui.buttons import set_native_button
 from setuav_studio.plugin_system import StudioAPI
+from setuav_studio.ui.buttons import set_native_button
+from setuav_studio.ui.icons import set_label_icon
 from setuav_studio.ui.numeric_spinbox import (
     NoWheelComboBox,
     NumericSpinBox,
     set_table_spinbox,
 )
 from setuav_studio.ui.property_tables import PropertyTableMixin
+
 from ..engine.airfoil import PRESET_AIRFOILS
 from .lifting_surface_attachment import AttachmentMixin
 from .lifting_surface_control_surfaces import ControlSurfacesMixin

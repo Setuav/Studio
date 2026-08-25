@@ -2,7 +2,6 @@ import math
 
 from ..engine.data import GeometryData, LoftGeometry, Point3D, Section
 
-
 SELECTED_WIRE = (0.95, 0.58, 0.28)
 HOVERED_WIRE = (1.0, 1.0, 1.0)
 SECTION_RING = (1.0, 0.85, 0.20)

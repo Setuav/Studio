@@ -5,11 +5,11 @@ import logging
 import math
 from typing import Any, Callable
 
-from scipy.optimize import root_scalar
-
 from pythrust.propellers.database import PropellerDataPoint, PropellerEntry, PropellerMetadata
 from pythrust.propulsion.models.motor import MotorSpec
 from pythrust.propulsion.models.propeller import PropellerSpec
+from scipy.optimize import root_scalar
+
 from .base import PropulsionPoint
 
 logger = logging.getLogger(__name__)

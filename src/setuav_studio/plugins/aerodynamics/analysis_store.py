@@ -10,7 +10,6 @@ from setuav_studio.project import ProjectDocument
 
 from .engine.base import AeroResult, SweepType
 
-
 EXTENSION_ID = "org.setuav.studio.aerodynamics"
 RESULT_SELECTION_KIND = "aerodynamics-analysis-result"
 RESULTS_GROUP_ID = "aerodynamics.analysis-results"

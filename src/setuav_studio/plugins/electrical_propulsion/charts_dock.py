@@ -2,18 +2,19 @@
 from __future__ import annotations
 
 from typing import Any, Sequence
+
+from PySide6.QtCharts import (
+    QChart,
+    QChartView,
+    QLineSeries,
+    QValueAxis,
+)
 from PySide6.QtCore import QPointF, QSettings, Qt
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import (
     QSplitter,
     QVBoxLayout,
     QWidget,
-)
-from PySide6.QtCharts import (
-    QChart,
-    QChartView,
-    QLineSeries,
-    QValueAxis,
 )
 
 from setuav_studio.plugin_system import StudioAPI

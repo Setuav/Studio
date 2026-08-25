@@ -4,9 +4,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
-from pathlib import Path
 import sys
 import tempfile
+from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import QProcess, Qt
@@ -27,7 +27,7 @@ from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.ui.buttons import set_native_button
 from setuav_studio.ui.numeric_spinbox import NumericSpinBox
 
-from .engine.aerosandbox_engine import AeroSandboxEngine, HAS_AEROSANDBOX
+from .engine.aerosandbox_engine import HAS_AEROSANDBOX, AeroSandboxEngine
 from .engine.base import AeroResult, FlightCondition, SweepType
 
 

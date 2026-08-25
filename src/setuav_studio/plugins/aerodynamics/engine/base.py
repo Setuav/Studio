@@ -1,10 +1,10 @@
 """Abstract aerodynamic engine interface and shared data models."""
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
 import enum
 import math
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from typing import Any, Sequence
 
 

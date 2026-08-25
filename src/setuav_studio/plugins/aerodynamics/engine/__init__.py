@@ -1,6 +1,7 @@
 """Aerodynamic engine implementations and registry."""
 from __future__ import annotations
 
+from .aerosandbox_engine import AeroSandboxEngine
 from .base import (
     AeroAnalysisError,
     AeroEngine,
@@ -12,7 +13,6 @@ from .base import (
     PolarPoint,
     ReferenceValues,
 )
-from .aerosandbox_engine import AeroSandboxEngine
 
 __all__ = [
     "AeroAnalysisError",

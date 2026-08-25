@@ -1,7 +1,7 @@
 """Movable native toolbars used by the main application window."""
 
-from collections.abc import Iterable
 import re
+from collections.abc import Iterable
 
 from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QAction
