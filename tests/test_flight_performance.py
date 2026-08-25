@@ -5,6 +5,7 @@ import os
 import tempfile
 import unittest
 
+import numpy as np
 from PySide6.QtCore import QThreadPool
 
 from pythrust.propulsion.models.motor import MotorSpec
@@ -124,6 +125,16 @@ class TestFlightPerformance(unittest.TestCase):
         self.assertIsNotNone(k_ind)
         self.assertAlmostEqual(cd0, 0.02, places=3)
         self.assertAlmostEqual(k_ind, 0.04, places=3)
+
+    def test_resolve_max_speed_interpolates_thrust_crossing(self) -> None:
+        speed, bounded = FlightPerformanceSolver.resolve_max_speed(
+            velocities=np.array([10.0, 15.0, 20.0]),
+            thrust_available=np.array([10.0, 8.0, 4.0]),
+            thrust_required=np.array([5.0, 7.0, 6.0]),
+            feasible_points=np.array([True, True, False]),
+        )
+        self.assertTrue(bounded)
+        self.assertAlmostEqual(speed, 16.67, places=2)
 
     def test_solver_full_analysis(self) -> None:
         motor_spec = MotorSpec(kv_rpm_per_v=900.0, resistance_ohm=0.035, no_load_current_a=1.2, current_max_a=45.0)
@@ -355,7 +366,7 @@ class TestFlightPerformance(unittest.TestCase):
 
         nodes = plugin._project_tree_nodes(doc)
         self.assertGreaterEqual(len(nodes), 1)
-        self.assertEqual(nodes[0].title, "Flight Performance Analyses")
+        self.assertEqual(nodes[0].title, "Performance Analyses")
         self.assertGreaterEqual(len(nodes[0].children), 1)
 
         run_node = nodes[0].children[0]

@@ -24,7 +24,7 @@ def performance_selection(analysis_id: str) -> dict[str, Any]:
 
 def make_analysis_entry(
     result: FlightEnvelopeResult,
-    name: str = "Flight Performance Envelope",
+    name: str = "Flight Envelope",
 ) -> dict[str, Any]:
     return {
         "id": uuid4().hex,

@@ -164,7 +164,7 @@ class FlightPerformancePlugin:
             if not analysis_id or not isinstance(payload, dict):
                 continue
 
-            name = str(entry.get("name") or "Flight Performance Envelope")
+            name = str(entry.get("name") or "Flight Envelope")
             met = payload.get("metrics", {})
             opt = payload.get("optimal_speeds", {})
 
@@ -203,7 +203,7 @@ class FlightPerformancePlugin:
         return (
             ProjectTreeNodeContribution(
                 id=RESULTS_GROUP_ID,
-                title="Flight Performance Analyses",
+                title="Performance Analyses",
                 selection={"id": RESULTS_GROUP_ID, "kind": "flight-performance-results"},
                 children=tuple(analysis_nodes),
                 icon="fa6s.gauge-high",

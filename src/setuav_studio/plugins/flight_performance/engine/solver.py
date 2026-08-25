@@ -46,6 +46,54 @@ class FlightPerformanceSolver:
         return float(math.sqrt(2.0 * weight_n / (rho * area_m2 * cl_max)))
 
     @staticmethod
+    def resolve_max_speed(
+        velocities: np.ndarray,
+        thrust_available: np.ndarray,
+        thrust_required: np.ndarray,
+        feasible_points: np.ndarray,
+    ) -> tuple[float, bool]:
+        """Find the thrust-balance speed and whether it is sweep-bounded.
+
+        The maximum level-flight speed is where available thrust falls below
+        required thrust. Linear interpolation between adjacent sweep points
+        gives a better estimate than returning the last sampled velocity.
+        The boolean is false when the requested sweep ends before a crossing.
+        """
+        if not (
+            len(velocities)
+            and len(velocities) == len(thrust_available) == len(thrust_required)
+            == len(feasible_points)
+        ):
+            return 0.0, False
+
+        margin = thrust_available - thrust_required
+        valid = np.asarray(feasible_points, dtype=bool) & (margin >= 0.0)
+        valid_indices = np.flatnonzero(valid)
+        if not len(valid_indices):
+            return 0.0, False
+
+        last_valid = int(valid_indices[-1])
+        if last_valid >= len(velocities) - 1:
+            return float(velocities[last_valid]), False
+
+        # Interpolate the first available-to-required thrust crossing after
+        # the last valid operating point.
+        next_index = last_valid + 1
+        m0 = float(margin[last_valid])
+        m1 = float(margin[next_index])
+        if m1 >= 0.0:
+            return float(velocities[last_valid]), False
+        denominator = m0 - m1
+        if denominator <= 0.0:
+            return float(velocities[last_valid]), True
+        fraction = max(0.0, min(1.0, m0 / denominator))
+        speed = float(
+            velocities[last_valid]
+            + fraction * (velocities[next_index] - velocities[last_valid])
+        )
+        return speed, True
+
+    @staticmethod
     def fit_parabolic_cd(
         cl_values: Sequence[float],
         cd_values: Sequence[float],
@@ -492,7 +540,6 @@ class FlightPerformanceSolver:
             idx_be = int(feas_indices[np.argmin(elec_power[feasible_mask])])
             idx_br = int(feas_indices[np.argmax(range_km[feasible_mask])])
             idx_vy = int(feas_indices[np.argmax(roc[feasible_mask])])
-            v_max = float(velocities[feas_indices[-1]])
             best_endurance_spd = float(velocities[idx_be])
             best_range_spd = float(velocities[idx_br])
             best_climb_spd = float(velocities[idx_vy])
@@ -501,15 +548,23 @@ class FlightPerformanceSolver:
             power_over_v = power_req / np.maximum(velocities, 0.1)
             idx_br = int(np.argmin(power_over_v))
             idx_vy = int(np.argmax(roc))
-            v_max = float(velocities[-1])
             best_endurance_spd = float(velocities[idx_be])
             best_range_spd = float(velocities[idx_br])
             best_climb_spd = float(velocities[idx_vy])
         else:
-            v_max = 0.0
             best_endurance_spd = 0.0
             best_range_spd = 0.0
             best_climb_spd = 0.0
+
+        if has_propulsion:
+            v_max, max_speed_bounded = cls.resolve_max_speed(
+                velocities,
+                thrust_avail,
+                drag_req,
+                feasible_points,
+            )
+        else:
+            v_max, max_speed_bounded = 0.0, False
 
         # Best L/D estimation
         if cd0 is not None and k_induced is not None and k_induced > 0:
@@ -593,7 +648,11 @@ class FlightPerformanceSolver:
             notes.append("No feasible level flight operating points found within velocity sweep.")
         else:
             propulsion_feasible = True
-        if has_propulsion and v_stall >= v_max:
+        if has_propulsion and v_max <= 0.0:
+            notes.append("No feasible level-flight speed found within the sweep.")
+        elif has_propulsion and not max_speed_bounded:
+            notes.append("Maximum speed is above the sweep limit; increase V_max to bound it.")
+        if has_propulsion and v_max > 0.0 and v_stall >= v_max:
             notes.append("Stall speed exceeds maximum level flight speed (insufficient thrust/power).")
 
         if progress_callback:
