@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from PySide6.QtCore import Qt
 
 from setuav_studio.plugin_system import (
@@ -25,7 +27,7 @@ POINT_MASS_ICON = "fa6s.weight-scale"
 class WeightBalancePlugin:
     id = "org.setuav.studio.weight_balance"
     priority = 25
-    provides = {EXTENSION_ID: "1.0.0"}
+    provides: ClassVar[dict[str, str]] = {EXTENSION_ID: "1.0.0"}
 
     def __init__(self) -> None:
         self._api: StudioAPI | None = None

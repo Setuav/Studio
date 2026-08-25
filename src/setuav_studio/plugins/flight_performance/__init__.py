@@ -4,4 +4,4 @@ from .plugin import FlightPerformancePlugin
 
 PLUGIN = FlightPerformancePlugin
 
-__all__ = ["FlightPerformancePlugin", "PLUGIN"]
+__all__ = ["PLUGIN", "FlightPerformancePlugin"]

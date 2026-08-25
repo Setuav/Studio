@@ -42,8 +42,8 @@ belirlendi.
 - [x] Bug riski taşıyan `B` kurallarını değerlendir.
 - [x] Python modernizasyonu için `UP` kurallarını değerlendir.
 - [x] Sadeleştirme için `SIM` ve `C4` kurallarını değerlendir.
-- [ ] Ruff'a özgü `RUF` kurallarını değerlendir.
-- [ ] Kuralları küçük gruplar hâlinde aç ve ihlalleri ayrı commitlerle düzelt.
+- [x] Ruff'a özgü `RUF` kurallarını değerlendir.
+- [x] Kuralları küçük gruplar hâlinde aç ve ihlalleri ayrı commitlerle düzelt.
 
 ## 5. Statik tip kontrolü ekle
 

@@ -1190,11 +1190,11 @@ class MainWindow(QMainWindow):
         self._workspace_states[workspace_id] = state
         QSettings().setValue(f"workspace_perspective/{workspace_id}", state)
 
-    def resizeEvent(self, event) -> None:  # noqa: N802 - Qt API
+    def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         self._schedule_workspace_layout_save()
 
-    def showEvent(self, event) -> None:  # noqa: N802 - Qt API
+    def showEvent(self, event) -> None:
         super().showEvent(event)
         if not self._layout_persistence_enabled:
             QTimer.singleShot(0, self._enable_layout_persistence)
@@ -1202,7 +1202,7 @@ class MainWindow(QMainWindow):
     def _enable_layout_persistence(self) -> None:
         self._layout_persistence_enabled = True
 
-    def eventFilter(self, watched, event) -> bool:  # noqa: N802 - Qt API
+    def eventFilter(self, watched, event) -> bool:
         if isinstance(watched, QDockWidget) and event.type() in (
             QEvent.Type.Resize,
             QEvent.Type.Move,

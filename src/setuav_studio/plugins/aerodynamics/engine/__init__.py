@@ -19,11 +19,11 @@ __all__ = [
     "AeroAnalysisError",
     "AeroEngine",
     "AeroResult",
+    "AeroSandboxEngine",
     "AnalysisMethod",
     "AnalysisType",
     "EngineCapabilities",
     "FlightCondition",
     "PolarPoint",
     "ReferenceValues",
-    "AeroSandboxEngine",
 ]

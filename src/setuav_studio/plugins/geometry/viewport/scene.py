@@ -403,7 +403,7 @@ def _get_fuselage_cross_section_at_x(
         for i in range(len(sections) - 1):
             if sections[i][0] <= x_target <= sections[i + 1][0]:
                 x0, y0, z0, a0, b0, p0 = sections[i]
-                x1, y1, z1, a1, b1, p1 = sections[i + 1]
+                x1, y1, z1, a1, b1, _p1 = sections[i + 1]
                 t = (x_target - x0) / max(x1 - x0, 1e-6)
                 return (
                     y0 + t * (y1 - y0),

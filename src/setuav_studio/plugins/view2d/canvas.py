@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from itertools import pairwise
 from math import hypot
 from typing import Any
 
@@ -147,7 +148,7 @@ class View2DCanvas(QWidget):
         """Return geometry outline width and fill opacity for this canvas."""
         return 1.1, 42
 
-    def paintEvent(self, _event) -> None:  # noqa: N802 - Qt API
+    def paintEvent(self, _event) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.fillRect(self.rect(), self.palette().base())
@@ -341,7 +342,7 @@ class View2DCanvas(QWidget):
             outline.closeSubpath()
             painter.drawPath(outline)
         else:
-            for first, second in zip(points, points[1:], strict=False):
+            for first, second in pairwise(points):
                 painter.drawLine(first, second)
 
     def _draw_marker(
@@ -428,7 +429,7 @@ class View2DCanvas(QWidget):
         order = {"cg": 0, "component": 1}
         return order.get(marker.layer, 2), marker.id
 
-    def mouseMoveEvent(self, event) -> None:  # noqa: N802 - Qt API
+    def mouseMoveEvent(self, event) -> None:
         marker = self._marker_at(event.position())
         marker_id = marker.id if marker is not None else ""
         if marker_id != self._hovered_id:
@@ -445,7 +446,7 @@ class View2DCanvas(QWidget):
             QToolTip.hideText()
         super().mouseMoveEvent(event)
 
-    def leaveEvent(self, event) -> None:  # noqa: N802 - Qt API
+    def leaveEvent(self, event) -> None:
         self._hovered_id = ""
         self.unsetCursor()
         QToolTip.hideText()
@@ -453,7 +454,7 @@ class View2DCanvas(QWidget):
         self.update()
         super().leaveEvent(event)
 
-    def mousePressEvent(self, event) -> None:  # noqa: N802 - Qt API
+    def mousePressEvent(self, event) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
             marker = self._marker_at(event.position())
             if marker is not None:

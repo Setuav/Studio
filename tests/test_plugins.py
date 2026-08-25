@@ -1,5 +1,6 @@
 import unittest
 from pathlib import Path
+from typing import ClassVar
 
 from PySide6.QtWidgets import QWidget
 from setuav_studio.plugins.geometry.data import GeometryData, LoftGeometry, Section
@@ -364,7 +365,7 @@ class PluginTests(unittest.TestCase):
 
         class ReversiblePlugin:
             id = "com.example.reversible"
-            provides = {"org.example.dep": "1.0.0"}
+            provides: ClassVar[dict[str, str]] = {"org.example.dep": "1.0.0"}
 
             def activate(self, api: StudioAPI) -> None:
                 activated.append(self.id)

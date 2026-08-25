@@ -17,31 +17,31 @@ from setuav_studio.ui.numeric_spinbox import NumericSpinBox
 class ControlSurfacesMixin:
     """Control surface listing, properties, and mutation handling."""
 
-    CONTROL_SURFACE_TYPES = [
+    CONTROL_SURFACE_TYPES = (
         ("aileron", "Aileron"),
         ("flap", "Flap"),
         ("elevator", "Elevator"),
         ("rudder", "Rudder"),
         ("elevon", "Elevon"),
         ("ruddervator", "Ruddervator"),
-    ]
+    )
 
-    SPAN_SIZING_MODES = [
+    SPAN_SIZING_MODES = (
         ("ratio", "Preserve Ratio (Eta)"),
         ("dimension", "Preserve Length (mm)"),
-    ]
+    )
 
-    CHORD_SIZING_MODES = [
+    CHORD_SIZING_MODES = (
         ("ratio", "Preserve Ratio (% Chord)"),
         ("dimension", "Preserve Depth (mm)"),
-    ]
+    )
 
-    SYMMETRY_MODES = [
+    SYMMETRY_MODES = (
         ("auto", "Auto (By Type)"),
         ("antisymmetric", "Antisymmetric (Differential)"),
         ("symmetric", "Symmetric"),
         ("none", "None (Single)"),
-    ]
+    )
 
     # -------------------------------------------------------------------------
     # UI Sections Creation

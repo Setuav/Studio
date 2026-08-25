@@ -6,6 +6,7 @@ import logging
 import math
 import re
 from copy import deepcopy
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
@@ -1161,7 +1162,7 @@ class AeroSandboxEngine(AeroEngine):
                     c_val /= 1000.0
                 eta_mid = 0.5 * (eta_s + eta_e)
                 chord_at_mid = float(station_raw[0]["chord"])
-                for s0, s1 in zip(station_raw[:-1], station_raw[1:], strict=False):
+                for s0, s1 in pairwise(station_raw):
                     if s0["eta"] <= eta_mid <= s1["eta"]:
                         t_mid = float(
                             np.clip(

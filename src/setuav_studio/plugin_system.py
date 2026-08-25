@@ -20,17 +20,17 @@ from setuav_studio.ui.icons import get_icon
 __all__ = [
     "BaseComponentEditor",
     "ComponentTreeNodeContribution",
-    "ProjectTreeNodeContribution",
-    "ParameterField",
-    "PanelContribution",
-    "SettingsPageContribution",
     "MassPropertiesProvider",
+    "PanelContribution",
+    "ParameterField",
+    "PluginManager",
+    "ProjectTreeNodeContribution",
+    "SettingsPageContribution",
     "StudioAPI",
+    "ToolContribution",
     "ToolbarContribution",
     "ToolbarMenuItemContribution",
-    "ToolContribution",
     "WorkspaceContribution",
-    "PluginManager",
 ]
 
 logger = logging.getLogger(__name__)
@@ -1086,7 +1086,7 @@ def _version_satisfies(installed: str, requirement: str) -> bool:
         minimum = _parse_version(requirement[1:])
         if minimum is None or installed_version < minimum:
             return False
-        major, minor, patch = (list(minimum.release) + [0, 0, 0])[:3]
+        major, minor, patch = [*minimum.release, 0, 0, 0][:3]
         if major > 0:
             maximum = f"{major + 1}.0.0"
         elif minor > 0:

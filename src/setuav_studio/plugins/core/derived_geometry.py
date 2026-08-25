@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from itertools import pairwise
 from typing import Any
 
 # A conservative average density for foam/composite model aircraft structure.
@@ -260,15 +261,16 @@ def _interpolate_profile(
         return values[0]
     if y >= values[-1][1]:
         return values[-1]
-    for left, right in zip(values, values[1:], strict=False):
+    for left, right in pairwise(values):
         if left[1] <= y <= right[1]:
             t = (y - left[1]) / max(right[1] - left[1], 1e-9)
             rotation = tuple(
                 left[5][axis] + t * (right[5][axis] - left[5][axis]) for axis in range(3)
             )
-            return tuple(left[index] + t * (right[index] - left[index]) for index in range(5)) + (
-                rotation,
-            )  # type: ignore[return-value]
+            interpolated = tuple(
+                left[index] + t * (right[index] - left[index]) for index in range(5)
+            )
+            return (*interpolated, rotation)  # type: ignore[return-value]
     return values[0]
 
 

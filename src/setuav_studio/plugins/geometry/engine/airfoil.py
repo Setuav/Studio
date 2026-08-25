@@ -294,7 +294,7 @@ def apply_airfoil_shaping(
     ordered = [coords[(le_idx + i) % n] for i in range(n)]
     te_idx = max(range(len(ordered)), key=lambda i: ordered[i][0])
     upper = ordered[: te_idx + 1]  # LE -> TE (upper side)
-    lower = [ordered[0]] + list(reversed(ordered[te_idx:]))  # LE -> TE (lower side)
+    lower = [ordered[0], *reversed(ordered[te_idx:])]  # LE -> TE (lower side)
 
     avg_u = sum(p[1] for p in upper) / max(len(upper), 1)
     avg_l = sum(p[1] for p in lower) / max(len(lower), 1)

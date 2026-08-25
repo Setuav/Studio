@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 from PySide6.QtWidgets import QWidget
 
 from setuav_studio.plugin_system import (
@@ -24,7 +26,7 @@ from .workspace import ViewerWorkspace
 
 class GeometryPlugin:
     id = "org.setuav.studio.geometry"
-    provides = {"org.setuav.core": "1.0.0"}
+    provides: ClassVar[dict[str, str]] = {"org.setuav.core": "1.0.0"}
 
     def activate(self, api: StudioAPI) -> None:
         self._creation_controller = GeometryCreationController(api)

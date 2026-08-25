@@ -387,7 +387,7 @@ class GeometryTests(unittest.TestCase):
             {"position": {"x": 0, "y": 0, "z": 0}, "chord": 300.0},
             {"position": {"x": 0, "y": 500, "z": 0}, "chord": 150.0},
         ]
-        new_p_2s, m_2s = solve_wing_planform(
+        _new_p_2s, m_2s = solve_wing_planform(
             "span_root_tip",
             {"span": 1400.0, "root_chord": 300.0, "tip_chord": 150.0, "sweep": 0.0},
             profiles_2s,
@@ -1746,7 +1746,7 @@ class GeometryTests(unittest.TestCase):
 
         # Apply semantics
         dialog._on_apply()
-        data, apply_all = dialog.get_selected_airfoil()
+        _data, apply_all = dialog.get_selected_airfoil()
         self.assertFalse(apply_all)
         dialog._on_apply_all()
         _, apply_all = dialog.get_selected_airfoil()

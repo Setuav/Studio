@@ -6,4 +6,4 @@ from .plugin import AerodynamicsPlugin
 
 PLUGIN = AerodynamicsPlugin()
 
-__all__ = ["AerodynamicsPlugin", "PLUGIN"]
+__all__ = ["PLUGIN", "AerodynamicsPlugin"]

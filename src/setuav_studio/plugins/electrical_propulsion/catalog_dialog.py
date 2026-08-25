@@ -40,7 +40,7 @@ _INVALID_MODEL_INDEX = QModelIndex()
 class MotorCatalogModel(QAbstractTableModel):
     """Virtualized table model for motor database entries."""
 
-    HEADERS = [
+    HEADERS = (
         "Manufacturer",
         "Model / Name",
         "KV (RPM/V)",
@@ -48,7 +48,7 @@ class MotorCatalogModel(QAbstractTableModel):
         "Max Power (W)",
         "Mass (g)",
         "Rm (Ω)",
-    ]
+    )
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -174,14 +174,14 @@ class MotorCatalogModel(QAbstractTableModel):
 class PropellerCatalogModel(QAbstractTableModel):
     """Virtualized table model for propeller database entries."""
 
-    HEADERS = [
+    HEADERS = (
         "Manufacturer",
         "Model",
         "Diameter (in)",
         "Diameter (mm)",
         "Pitch (in)",
         "Blades",
-    ]
+    )
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)

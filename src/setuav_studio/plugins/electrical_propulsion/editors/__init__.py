@@ -7,9 +7,9 @@ from .motor import MotorEditor
 from .propeller import PropellerEditor
 
 __all__ = [
-    "MotorEditor",
-    "PropellerEditor",
-    "EscEditor",
     "BatteryEditor",
     "ElectricPropulsionSystemEditor",
+    "EscEditor",
+    "MotorEditor",
+    "PropellerEditor",
 ]

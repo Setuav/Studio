@@ -677,7 +677,7 @@ def _split_airfoil_upper_lower(
     te_idx = max(range(len(ordered)), key=lambda i: ordered[i][0])
 
     path1 = ordered[: te_idx + 1]
-    path2 = [ordered[0]] + list(reversed(ordered[te_idx:]))
+    path2 = [ordered[0], *reversed(ordered[te_idx:])]
 
     avg_z1 = sum(p[1] for p in path1) / max(len(path1), 1)
     avg_z2 = sum(p[1] for p in path2) / max(len(path2), 1)
@@ -758,7 +758,7 @@ def _sample_structured_airfoil_round(
                 frac = i / n_wall
                 socket_pts.append((1.0, z_te_l + frac * (z_te_u - z_te_l)))
 
-        return tuple(upper_pts + [le_pt] + lower_pts + socket_pts), (x_h, z_h)
+        return (*upper_pts, le_pt, *lower_pts, *socket_pts), (x_h, z_h)
     else:
         # Flap Section (64 pts):
         # 28 upper flap points (1.0 down to x_h)

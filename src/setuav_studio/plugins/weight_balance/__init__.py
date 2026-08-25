@@ -4,4 +4,4 @@ from .plugin import WeightBalancePlugin
 
 PLUGIN = WeightBalancePlugin
 
-__all__ = ["WeightBalancePlugin", "PLUGIN"]
+__all__ = ["PLUGIN", "WeightBalancePlugin"]

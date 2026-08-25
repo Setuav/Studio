@@ -118,7 +118,7 @@ class SchemaCatalog:
         issues = []
         for err in validator.iter_errors(instance):
             path_str = "$" + "".join(
-                f"[{repr(p)}]" if isinstance(p, str) else f"[{p}]" for p in err.path
+                f"[{p!r}]" if isinstance(p, str) else f"[{p}]" for p in err.path
             )
             issues.append(Issue("error", err.message, path_str))
         return issues
@@ -189,9 +189,7 @@ def validate_project(
     cls = validator_for(root_schema)
     validator = cls(root_schema, registry=catalog.registry, format_checker=FormatChecker())
     for err in sorted(validator.iter_errors(project), key=lambda e: str(e.path)):
-        path_str = "$" + "".join(
-            f"[{repr(p)}]" if isinstance(p, str) else f"[{p}]" for p in err.path
-        )
+        path_str = "$" + "".join(f"[{p!r}]" if isinstance(p, str) else f"[{p}]" for p in err.path)
         issues.append(Issue("error", err.message, path_str))
 
     components = project.get("components", [])
@@ -267,9 +265,7 @@ def validate_project(
             c_schema, registry=catalog.registry, format_checker=FormatChecker()
         )
         for err in c_validator.iter_errors(params):
-            param_path = "".join(
-                f"[{repr(p)}]" if isinstance(p, str) else f"[{p}]" for p in err.path
-            )
+            param_path = "".join(f"[{p!r}]" if isinstance(p, str) else f"[{p}]" for p in err.path)
             issues.append(
                 Issue("error", err.message, f"$.components[{idx}].parameters{param_path}")
             )

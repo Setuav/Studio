@@ -269,7 +269,7 @@ def split_section(
         "tip_airfoil": deepcopy(sec["tip_airfoil"]),
     }
 
-    new_sections = sections[:section_index] + [sec1, sec2] + sections[section_index + 1 :]
+    new_sections = [*sections[:section_index], sec1, sec2, *sections[section_index + 1 :]]
     return sections_to_profiles(new_sections, profiles[0], sweep_loc)
 
 
@@ -304,7 +304,7 @@ def insert_section(
         "root_airfoil": deepcopy(last_sec.get("tip_airfoil", "2412")),
         "tip_airfoil": deepcopy(last_sec.get("tip_airfoil", "2412")),
     }
-    new_sections = sections + [new_sec]
+    new_sections = [*sections, new_sec]
     return sections_to_profiles(new_sections, profiles[0] if profiles else None, sweep_loc)
 
 

@@ -35,8 +35,8 @@ sys.modules["setuav_studio.plugins.geometry.wing_driver_table"] = editors.wing_d
 PLUGIN = GeometryPlugin()
 
 __all__ = [
-    "GeometryPlugin",
     "PLUGIN",
+    "GeometryPlugin",
     "ViewerWorkspace",
     "editors",
     "engine",

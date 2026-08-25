@@ -522,7 +522,7 @@ class FlightPerformanceSolver:
         n_points = len(velocities)
 
         # 4. Aerodynamic power and drag required
-        power_req, drag_req, cl_req = cls.compute_power_and_drag_required(
+        power_req, drag_req, _cl_req = cls.compute_power_and_drag_required(
             velocities=velocities,
             mass_kg=mass_kg,
             area_m2=area_m2,

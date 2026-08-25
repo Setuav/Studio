@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -21,7 +21,7 @@ from setuav_studio.ui.property_tables import PropertyTableMixin
 class BatteryEditor(PropertyTableMixin, QWidget):
     """Property editor separating battery cell specifications from pack configuration."""
 
-    CHEMISTRY_DEFAULTS = {
+    CHEMISTRY_DEFAULTS: ClassVar[dict[str, dict[str, float]]] = {
         "LiPo": {
             "nominal_v": 3.7,
             "max_v": 4.2,
