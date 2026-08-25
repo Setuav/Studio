@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import math
-from typing import Any
+from typing import Any, Literal
 
 from ..viewport.palettes import control_surface_color, wing_color
 from .airfoil import apply_airfoil_shaping, sample_airfoil_points
 from .data import LoftGeometry, Point3D, Section
-from .transforms import section_transform, transform_point
+from .transforms import Matrix4, section_transform, transform_point
 
 sample_airfoil = sample_airfoil_points
 
@@ -251,7 +251,7 @@ def _apply_shaping(
 
 
 def _section_with_align(
-    matrix: object,
+    matrix: Matrix4,
     chord: float,
     main_2d: tuple[tuple[float, float], ...],
     dihedral_rad: float,
@@ -274,9 +274,7 @@ def _section_with_align(
         for x, z in main_2d:
             # After dihedral rotation: new y_local = -z*sin_d, new z_local = z*cos_d
             corrected.append((x * chord, -z * chord * sin_d, z * chord * cos_d))
-        from .transforms import transform_point as _tp
-
-        return Section(tuple(_tp(matrix, p) for p in corrected), is_station=is_station)
+        return Section(tuple(transform_point(matrix, p) for p in corrected), is_station=is_station)
     return Section(
         tuple(transform_point(matrix, (x * chord, 0.0, z * chord)) for x, z in main_2d),
         is_station=is_station,
@@ -299,7 +297,7 @@ def _build_profile_section(
         return None
     coords = sample_airfoil_points(profile.get("airfoil"))
     coords = _apply_shaping(coords, te_thickness, thickness_scale, camber_scale)
-    rot = profile.get("rotation") if isinstance(profile.get("rotation"), dict) else {}
+    rot = _mapping(profile.get("rotation"))
     dihedral_rad = math.radians(_number(rot.get("x", rot.get("roll", 0.0))))
     matrix = section_transform(profile, chord=chord, twist_location=twist_location)
     main_2d, _ = _sample_structured_airfoil_round(coords, x_h=1.0, is_flap=False)
@@ -310,7 +308,7 @@ def _build_lifting_surface_with_control_surfaces(
     comp_id: str,
     profiles: list[dict[str, Any]],
     control_surfaces: list[dict[str, Any]],
-    interpolation: str,
+    interpolation: Literal["linear", "smooth"],
     twist_location: float = 0.25,
     te_thickness: float = 0.0,
     thickness_scale: float = 1.0,
@@ -321,8 +319,8 @@ def _build_lifting_surface_with_control_surfaces(
     # 1. Collect all span Y coordinates
     span_values: list[float] = []
     for p in profiles:
-        pos = p.get("position") if isinstance(p.get("position"), dict) else {}
-        span_values.append(float(pos.get("y", 0.0)))
+        pos = _mapping(p.get("position"))
+        span_values.append(_number(pos.get("y")))
 
     min_span = min(span_values)
     max_span = max(span_values)
@@ -388,11 +386,11 @@ def _build_lifting_surface_with_control_surfaces(
                 "eta_start": round(min(s_start, s_end) / semi_span, 4),
                 "eta_end": round(max(s_start, s_end) / semi_span, 4),
                 "chord_fraction": chord_frac,
-                "chord": max(float(cs.get("chord", 40.0)), 1.0),
-                "hinge_sweep": float(cs.get("hinge_sweep"))
+                "chord": max(_number(cs.get("chord", 40.0)), 1.0),
+                "hinge_sweep": _number(cs.get("hinge_sweep"))
                 if cs.get("hinge_sweep") is not None
                 else None,
-                "deflection": float(cs.get("deflection", 0.0)),
+                "deflection": _number(cs.get("deflection", 0.0)),
             }
         )
 
@@ -457,7 +455,7 @@ def _build_lifting_surface_with_control_surfaces(
             for y_s in interval_stations:
                 chord, prof, coords = _interpolate_station_props(y_s, profiles)
                 coords = _apply_shaping(coords, te_thickness, thickness_scale, camber_scale)
-                rot = prof.get("rotation") if isinstance(prof.get("rotation"), dict) else {}
+                rot = _mapping(prof.get("rotation"))
                 dihedral_rad = math.radians(_number(rot.get("x", rot.get("roll", 0.0))))
                 matrix = section_transform(prof, chord=chord, twist_location=twist_location)
                 main_2d, _ = _sample_structured_airfoil_round(coords, x_h=1.0, is_flap=False)
@@ -508,11 +506,11 @@ def _build_lifting_surface_with_control_surfaces(
             for y_s in interval_stations:
                 chord, prof, coords = _interpolate_station_props(y_s, profiles)
                 coords = _apply_shaping(coords, te_thickness, thickness_scale, camber_scale)
-                rot = prof.get("rotation") if isinstance(prof.get("rotation"), dict) else {}
+                rot = _mapping(prof.get("rotation"))
                 dihedral_rad = math.radians(_number(rot.get("x", rot.get("roll", 0.0))))
                 matrix = section_transform(prof, chord=chord, twist_location=twist_location)
-                pos = prof.get("position") if isinstance(prof.get("position"), dict) else {}
-                x_le_s = float(pos.get("x", 0.0))
+                pos = _mapping(prof.get("position"))
+                x_le_s = _number(pos.get("x"))
 
                 s_curr = abs(y_s - y_root)
                 chord_frac = covering_cs.get("chord_fraction")
@@ -822,7 +820,11 @@ def _rotate_section_around_axis(
     return Section(tuple(new_points))
 
 
-def _number(value: object) -> float:
+def _mapping(value: object) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _number(value: Any) -> float:
     try:
         return float(value or 0.0)
     except (TypeError, ValueError):

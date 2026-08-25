@@ -225,7 +225,7 @@ def _cross2(left: tuple[float, float], right: tuple[float, float]) -> float:
     return left[0] * right[1] - left[1] * right[0]
 
 
-def _number(value: object) -> float:
+def _number(value: Any) -> float:
     try:
         return float(value or 0.0)
     except (TypeError, ValueError):
