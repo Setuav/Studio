@@ -332,8 +332,12 @@ class ProjectExplorer(QTreeWidget):
                     )
                 icon_source = self._geometry_icon_source(comp, raw_components)
                 if icon_source is None:
-                    icon_source = "component"
-                tree_item.setIcon(0, get_icon(icon_source))
+                    # Non-geometry component icons are contributed by their
+                    # owning plugin (for example, Weight-Balance's point
+                    # mass). Keep the tree independent from those plugins.
+                    tree_item.setIcon(0, self._api.get_component_icon(comp))
+                else:
+                    tree_item.setIcon(0, get_icon(icon_source))
                 tree_item.setToolTip(0, f"{cname} ({ctype})")
                 tree_item.setData(0, Qt.ItemDataRole.UserRole, cid)
                 self._apply_modified_color(

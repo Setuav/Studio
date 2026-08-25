@@ -136,7 +136,7 @@ class CorePlugin:
             return ()
         transform_node_id = f"{component_id}:transform"
         envelope_node_id = f"{component_id}:physical-envelope"
-        return (
+        nodes = [
             ComponentTreeNodeContribution(
                 id=transform_node_id,
                 title="Transform",
@@ -149,7 +149,11 @@ class CorePlugin:
                 icon="mdi6.axis-arrow",
                 tooltip="Position and rotation relative to the parent frame",
             ),
-            ComponentTreeNodeContribution(
+        ]
+        # A point mass has no physical volume; its only geometric property is
+        # the transform origin.  Do not expose a meaningless Envelope node.
+        if component.get("type") != "org.setuav.core:point-mass":
+            nodes.append(ComponentTreeNodeContribution(
                 id=envelope_node_id,
                 title="Envelope",
                 selection={
@@ -160,5 +164,5 @@ class CorePlugin:
                 },
                 icon="fa6s.ruler-combined",
                 tooltip="Local dimensions, offset and occupied volume",
-            ),
-        )
+            ))
+        return tuple(nodes)

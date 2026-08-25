@@ -158,5 +158,5 @@ def build_fixed_wing_reference(
         c_ref=0.18906207557698465,
         # Keep the independent model's moment reference aligned with the
         # fixture's current Weight-Balance CG.
-        xyz_ref=[0.36659149902660615, 0.0, 0.023860642439974045],
+        xyz_ref=[0.3655632761679479, 0.0, 0.023518184506209343],
     )

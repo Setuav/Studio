@@ -8,6 +8,7 @@ from setuav_studio.plugin_system import (
     ComponentTreeNodeContribution,
     PanelContribution,
     StudioAPI,
+    ToolbarContribution,
     WorkspaceContribution,
 )
 
@@ -15,7 +16,11 @@ from .balance_view_dock import WeightBalanceViewDock
 from .engine.base import WeightBalanceError
 from .engine.solver import EXTENSION_ID, WeightBalanceSolver
 from .mass_definition_dock import MassPropertiesEditor
+from .point_mass_editor import PointMassEditor
 from .results_dock import WeightBalanceResultsDock
+
+
+POINT_MASS_ICON = "fa6s.weight-scale"
 
 
 class WeightBalancePlugin:
@@ -29,11 +34,31 @@ class WeightBalancePlugin:
 
     def activate(self, api: StudioAPI) -> None:
         self._api = api
+        api.add_toolbar_item(
+            ToolbarContribution(
+                id="weight_balance.add_point_mass",
+                title="Add Point Mass",
+                callback=self._add_point_mass,
+                icon=POINT_MASS_ICON,
+                enabled_when=self._can_edit_project,
+                group="weight-balance",
+                order=100,
+                workspace_id="studio.workspace.weight_balance",
+            )
+        )
+        api.register_component_icon(
+            "org.setuav.core:point-mass",
+            POINT_MASS_ICON,
+        )
         api.register_mass_properties_provider(EXTENSION_ID, self._solver)
         api.register_component_tree_provider(EXTENSION_ID, self._mass_property_nodes)
         api.register_kind_editor(
             "mass-properties",
             lambda selection: MassPropertiesEditor(api, selection),
+        )
+        api.register_component_editor(
+            "org.setuav.core:point-mass",
+            lambda component: PointMassEditor(api, component),
         )
         api.add_workspace(
             WorkspaceContribution(
@@ -66,15 +91,90 @@ class WeightBalancePlugin:
         api.on_project_content_changed(self._project_changed)
 
     def deactivate(self, api: StudioAPI) -> None:
+        api.remove_toolbar_item("weight_balance.add_point_mass")
         api.remove_panel("weight_balance.view_dock")
         api.remove_panel("weight_balance.results_dock")
         api.remove_workspace("studio.workspace.weight_balance")
         api.remove_project_listener(self._project_changed)
         api.remove_project_content_listener(self._project_changed)
         api.remove_kind_editor("mass-properties")
+        api.remove_component_editor("org.setuav.core:point-mass")
+        api.remove_component_icon("org.setuav.core:point-mass")
         api.remove_component_tree_provider(EXTENSION_ID)
         api.remove_mass_properties_provider(EXTENSION_ID)
         self._api = None
+
+    def _can_edit_project(self) -> bool:
+        project = self._api.current_project if self._api is not None else None
+        return project is not None and not project.read_only
+
+    def _add_point_mass(self) -> None:
+        """Create a starter point mass in the active project."""
+        api = self._api
+        project = api.current_project if api is not None else None
+        if api is None or project is None:
+            if api is not None:
+                api.show_status("Open a project before adding a point mass", "warning")
+            return
+        if project.read_only:
+            api.show_status("The project is read-only", "warning")
+            return
+
+        components = project.data.get("components")
+        if not isinstance(components, list):
+            api.show_status("Project components are invalid", "error")
+            return
+
+        existing_ids = {
+            str(item.get("id"))
+            for item in components
+            if isinstance(item, dict) and item.get("id")
+        }
+        existing_names = {
+            str(item.get("name"))
+            for item in components
+            if isinstance(item, dict) and item.get("name")
+        }
+        base_id = "point-mass"
+        base_name = "Point Mass"
+        suffix = 1
+        component_id = base_id
+        component_name = base_name
+        while component_id in existing_ids or component_name in existing_names:
+            suffix += 1
+            component_id = f"{base_id}-{suffix}"
+            component_name = f"{base_name} {suffix}"
+
+        component = {
+            "kind": "component",
+            "id": component_id,
+            "name": component_name,
+            "type": "org.setuav.core:point-mass",
+            "parent": None,
+            "transform": {
+                "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+                "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
+            },
+            "parameters": {
+                "mass": 100.0,
+                "inertia": {
+                    "ixx": 0.0,
+                    "iyy": 0.0,
+                    "izz": 0.0,
+                    "ixy": 0.0,
+                    "ixz": 0.0,
+                    "iyz": 0.0,
+                },
+            },
+            "mass": 100.0,
+        }
+
+        def change() -> None:
+            components.append(component)
+
+        api.edit_project("Add point mass", change)
+        api.set_selection(component)
+        api.show_status(f"Created {component_name}", "success", 3000)
 
     @staticmethod
     def _mass_property_nodes(

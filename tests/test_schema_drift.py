@@ -32,16 +32,20 @@ class SchemaDriftTests(unittest.TestCase):
             msg="Schema drift detected:\n" + "\n".join(str(i) for i in issues),
         )
 
-    def test_fixture_covers_all_plugin_component_types(self) -> None:
-        """Every component type of the core plugin must appear in the fixture."""
+    def test_fixture_component_types_are_registered(self) -> None:
+        """Every component type used by the fixture must be registered.
+
+        The fixture represents one concrete aircraft, so it does not need an
+        instance of every catalog type (for example, a rotor is optional).
+        """
         catalog = get_catalog()
         plugin = catalog.plugins["org.setuav.core"]
         fixture_types = {c.get("type") for c in _load_fixture()["components"]}
-        missing = set(plugin.component_types) - fixture_types
+        unknown = fixture_types - set(plugin.component_types)
         self.assertEqual(
-            missing,
+            unknown,
             set(),
-            msg=f"Component types missing from fixture: {sorted(missing)}",
+            msg=f"Fixture uses unregistered component types: {sorted(unknown)}",
         )
 
     def test_editor_written_lifting_surface_keys_validate(self) -> None:

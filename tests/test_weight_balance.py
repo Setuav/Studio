@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QDockWidget, QMainWindow
 
 from setuav_studio.plugin_system import PanelContribution, PluginManager, StudioAPI, WorkspaceContribution
 from setuav_studio.plugins.core.properties import PropertiesPanel
+from setuav_studio.plugins.core import CorePlugin
 from setuav_studio.plugins.core.ui.project_explorer import (
     ProjectExplorer,
     ProjectExplorerPanel,
@@ -16,6 +17,7 @@ from setuav_studio.plugins.weight_balance.engine.base import WeightBalanceError
 from setuav_studio.plugins.weight_balance.engine.solver import EXTENSION_ID, WeightBalanceSolver
 from setuav_studio.plugins.core.derived_geometry import derive_project_component_geometry
 from setuav_studio.plugins.weight_balance.mass_definition_dock import MassPropertiesEditor
+from setuav_studio.plugins.weight_balance.point_mass_editor import PointMassEditor
 from setuav_studio.project import ProjectDocument, open_project
 from setuav_studio.schema_validation import get_catalog
 
@@ -188,8 +190,10 @@ class WeightBalancePluginTests(unittest.TestCase):
         api = StudioAPI()
         panels: list[PanelContribution] = []
         workspaces: list[WorkspaceContribution] = []
+        toolbar = []
         api.set_panel_handler(panels.append)
         api.set_workspace_handler(workspaces.append)
+        api.set_toolbar_handler(toolbar.append)
         manager = PluginManager(api)
 
         manager.activate(WeightBalancePlugin())
@@ -198,11 +202,66 @@ class WeightBalancePluginTests(unittest.TestCase):
         self.assertEqual(workspaces[0].title, "Weight-Balance")
         self.assertIsNone(workspaces[0].icon)
         self.assertEqual(len(panels), 2)
+        self.assertEqual(len(toolbar), 1)
+        self.assertEqual(toolbar[0].id, "weight_balance.add_point_mass")
+        self.assertEqual(toolbar[0].icon, "fa6s.weight-scale")
+        self.assertFalse(
+            api.get_component_icon({"type": "org.setuav.core:point-mass"}).isNull()
+        )
         self.assertIsNotNone(api.get_mass_properties_provider(EXTENSION_ID))
 
         manager.deactivate("org.setuav.studio.weight_balance")
         self.assertIsNone(api.get_mass_properties_provider(EXTENSION_ID))
         self.assertEqual(api.component_tree_nodes({"id": "item"}), ())
+
+    def test_point_mass_toolbar_adds_project_component(self) -> None:
+        api = StudioAPI()
+        toolbar = []
+        api.set_toolbar_handler(toolbar.append)
+        api.set_panel_handler(lambda _panel: None)
+        api.set_workspace_handler(lambda _workspace: None)
+        api.set_project(_project({"components": []}))
+        plugin = WeightBalancePlugin()
+        plugin.activate(api)
+
+        toolbar[0].callback()
+
+        component = api.current_project.data["components"][0]
+        self.assertEqual(component["type"], "org.setuav.core:point-mass")
+        self.assertEqual(component["name"], "Point Mass")
+        self.assertEqual(component["mass"], 100.0)
+        self.assertEqual(api.current_selection, component)
+
+    def test_point_mass_has_mass_transform_and_no_envelope(self) -> None:
+        api = StudioAPI()
+        api.set_panel_handler(lambda _panel: None)
+        api.set_workspace_handler(lambda _workspace: None)
+        manager = PluginManager(api)
+        manager.activate(CorePlugin())
+        manager.activate(WeightBalancePlugin())
+        component = {
+            "id": "payload-mass",
+            "name": "Payload Mass",
+            "type": "org.setuav.core:point-mass",
+            "mass": 125.0,
+            "parameters": {"mass": 125.0},
+            "transform": {},
+        }
+        api.set_project(_project({"components": [component]}))
+
+        nodes = api.component_tree_nodes(component)
+        self.assertEqual(
+            [node.id for node in nodes],
+            ["payload-mass:transform", "payload-mass:mass-properties"],
+        )
+        editor = api.create_component_editor(component)
+        self.assertIsInstance(editor, PointMassEditor)
+        self.assertEqual(editor.mass_table.rowCount(), 1)
+        self.assertEqual(editor.transform_table.rowCount(), 2)
+        editor.position_spins["x"].setValue(240.0)
+        self.assertEqual(component["transform"]["position"]["x"], 240.0)
+        editor.mass_table.item(0, 1).setText("250")
+        self.assertEqual(component["mass"], 250.0)
 
     def test_plugin_publishes_analysis_result(self) -> None:
         api = StudioAPI()
