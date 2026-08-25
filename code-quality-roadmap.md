@@ -53,10 +53,11 @@ belirlendi.
 - [ ] Tip hatalarını küçük gruplar hâlinde düzelt.
 - [ ] UI katmanını kademeli olarak kapsama al.
 
-Pyright kapsamı, airfoil cache ve engine modüllerinin eklenmesiyle 19 saf
-model/engine dosyasına ulaştı ve `basic` modda sıfır hata ile geçiyor. Son üç
-grupta toplam 25 tip hatası giderildi; airfoil grubu ek düzeltme gerektirmedi.
-Kalan engine dosyaları küçük gruplar hâlinde eklenecek.
+Pyright kapsamı, AeroSandbox ve stability engine modüllerinin eklenmesiyle 21
+saf model/engine dosyasına ulaştı ve `basic` modda sıfır hata ile geçiyor. Bu
+gruptaki 202 teşhis; dinamik AeroSandbox/CasADi sınırı açıkça işaretlenerek ve
+proje verileri kesin tiplere daraltılarak giderildi. Kalan engine dosyaları
+küçük gruplar hâlinde eklenecek.
 
 ## 6. Test gruplarını ayır
 

@@ -8,7 +8,7 @@ import re
 from copy import deepcopy
 from itertools import pairwise
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from setuav_studio.plugins.geometry.engine.airfoil import (
     apply_airfoil_shaping,
@@ -41,15 +41,20 @@ from .stability_engine import StabilityAnalysisEngine
 
 logger = logging.getLogger(__name__)
 
-try:
-    import aerosandbox as asb
-    import aerosandbox.numpy as np
-
+if TYPE_CHECKING:
+    asb: Any = None
+    np: Any = None
     HAS_AEROSANDBOX = True
-except ImportError:
-    HAS_AEROSANDBOX = False
-    asb = None
-    np = None
+else:
+    try:
+        import aerosandbox as asb
+        import aerosandbox.numpy as np
+
+        HAS_AEROSANDBOX = True
+    except ImportError:
+        HAS_AEROSANDBOX = False
+        asb = None
+        np = None
 
 
 class AeroSandboxEngine(AeroEngine):
@@ -511,11 +516,12 @@ class AeroSandboxEngine(AeroEngine):
 
             if condition.secondary_variable and len(sec_vals) > 1:
                 sec_unit = "deg"
+                secondary_values = [float(value) for value in sec_vals if value is not None]
 
                 sweep_vars = [
                     SweepVariable(
                         name=str(condition.secondary_variable),
-                        values=[float(v) for v in sec_vals],
+                        values=secondary_values,
                         unit=sec_unit,
                     ),
                     SweepVariable(
@@ -694,7 +700,8 @@ class AeroSandboxEngine(AeroEngine):
                 "mass is missing; component excluded" in warning for warning in result.warnings
             )
             source = "weight_balance_incomplete" if has_missing_mass else "weight_balance"
-            return tuple(float(value) for value in result.total.cg_body_m), source
+            cg_x, cg_y, cg_z = result.total.cg_body_m
+            return (float(cg_x), float(cg_y), float(cg_z)), source
         except Exception as err:
             logger.info("Weight-Balance CG unavailable; using aerodynamic reference: %s", err)
             return None, "aerodynamic_reference"
@@ -705,10 +712,10 @@ class AeroSandboxEngine(AeroEngine):
         condition: FlightCondition | None = None,
         xyz_ref: tuple[float, float, float] | None = None,
         control_encoding: str = "native",
-    ) -> asb.Airplane:
+    ) -> Any:
         """Convert Setuav Studio components list to AeroSandbox Airplane object with attachment hierarchy and control surfaces."""
-        wings: list[asb.Wing] = []
-        fuselages: list[asb.Fuselage] = []
+        wings: list[Any] = []
+        fuselages: list[Any] = []
 
         comp_by_id = {
             str(comp.get("id")): comp
@@ -793,7 +800,8 @@ class AeroSandboxEngine(AeroEngine):
             norm = float(np.linalg.norm(thrust_vec))
             t_dir = tuple((thrust_vec / norm).tolist()) if norm > 1e-6 else (1.0, 0.0, 0.0)
 
-            params = comp.get("parameters") if isinstance(comp.get("parameters"), dict) else {}
+            parameters = comp.get("parameters")
+            params = parameters if isinstance(parameters, dict) else {}
 
             # Extract diameter in meters
             diameter_val = float(
@@ -834,7 +842,7 @@ class AeroSandboxEngine(AeroEngine):
         comp: dict[str, Any],
         comp_by_id: dict[str, dict[str, Any]],
         visited: set[str] | None = None,
-    ) -> tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[Any, Any]:
         """Compute accumulated world translation (meters) and 3x3 rotation matrix for a component."""
         if visited is None:
             visited = set()
@@ -858,7 +866,7 @@ class AeroSandboxEngine(AeroEngine):
 
         return local_pos, local_rot
 
-    def _local_transform(self, comp: dict[str, Any]) -> tuple[np.ndarray, np.ndarray]:
+    def _local_transform(self, comp: dict[str, Any]) -> tuple[Any, Any]:
         """Read a component transform in metres and return its local rotation matrix."""
         transform = comp.get("transform")
         transform = transform if isinstance(transform, dict) else {}
@@ -874,16 +882,16 @@ class AeroSandboxEngine(AeroEngine):
                 float(pos.get("z", 0.0)) / 1000.0,
             ]
         )
-        roll_deg = float(rot.get("roll") if "roll" in rot else rot.get("x", 0.0))
-        pitch_deg = float(rot.get("pitch") if "pitch" in rot else rot.get("y", 0.0))
-        yaw_deg = float(rot.get("yaw") if "yaw" in rot else rot.get("z", 0.0))
+        roll_deg = float((rot.get("roll") if "roll" in rot else rot.get("x")) or 0.0)
+        pitch_deg = float((rot.get("pitch") if "pitch" in rot else rot.get("y")) or 0.0)
+        yaw_deg = float((rot.get("yaw") if "yaw" in rot else rot.get("z")) or 0.0)
         return local_pos, self._rotation_matrix_xyz(roll_deg, pitch_deg, yaw_deg)
 
     def _resolve_parent_transform(
         self,
         comp: dict[str, Any],
         comp_by_id: dict[str, dict[str, Any]],
-    ) -> tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[Any, Any]:
         """Return the world frame of a component's parent (or the aircraft frame)."""
         transform = comp.get("transform")
         transform = transform if isinstance(transform, dict) else {}
@@ -898,11 +906,13 @@ class AeroSandboxEngine(AeroEngine):
         comp_by_id: dict[str, dict[str, Any]] | None = None,
         condition: FlightCondition | None = None,
         control_encoding: str = "native",
-    ) -> list[asb.Wing] | asb.Wing | None:
+    ) -> Any:
         """Convert a single lifting surface and its control surfaces into AeroSandbox Wing(s)."""
         comp_id = str(comp.get("id") or "")
-        params = comp.get("parameters") if isinstance(comp.get("parameters"), dict) else {}
-        geometry = params.get("geometry") if isinstance(params.get("geometry"), dict) else {}
+        parameters = comp.get("parameters")
+        params = parameters if isinstance(parameters, dict) else {}
+        geometry_value = params.get("geometry")
+        geometry = geometry_value if isinstance(geometry_value, dict) else {}
         profiles = geometry.get("profiles")
 
         if not isinstance(profiles, list) or len(profiles) < 2:
@@ -928,8 +938,10 @@ class AeroSandboxEngine(AeroEngine):
         for profile in profiles:
             if not isinstance(profile, dict):
                 continue
-            prof_pos = profile.get("position") if isinstance(profile.get("position"), dict) else {}
-            prof_rot = profile.get("rotation") if isinstance(profile.get("rotation"), dict) else {}
+            position = profile.get("position")
+            prof_pos = position if isinstance(position, dict) else {}
+            rotation = profile.get("rotation")
+            prof_rot = rotation if isinstance(rotation, dict) else {}
 
             raw_xyz = np.array(
                 [
@@ -946,9 +958,13 @@ class AeroSandboxEngine(AeroEngine):
             # geometry schema's rotation.x is dihedral, not twist; treating it
             # as twist was producing incorrect section incidence.
             prof_pitch = float(
-                profile.get("twist")
+                (profile.get("twist") or 0.0)
                 if "twist" in profile
-                else (prof_rot.get("pitch") if "pitch" in prof_rot else prof_rot.get("y", 0.0))
+                else (
+                    (prof_rot.get("pitch") or 0.0)
+                    if "pitch" in prof_rot
+                    else (prof_rot.get("y") or 0.0)
+                )
             )
             pitch_angle_deg = np.degrees(np.arcsin(-np.clip(attach_rot[2, 0], -1.0, 1.0)))
             total_twist = prof_pitch + pitch_angle_deg
@@ -1241,9 +1257,9 @@ class AeroSandboxEngine(AeroEngine):
             eta_a: float,
             eta_b: float,
             side: str,
-        ) -> list[asb.ControlSurface]:
+        ) -> list[Any]:
             eta_mid = 0.5 * (eta_a + eta_b)
-            controls: list[asb.ControlSurface] = []
+            controls: list[Any] = []
             for cs in parsed_cs:
                 if not (cs["eta_start"] <= eta_mid <= cs["eta_end"]):
                     continue
@@ -1275,7 +1291,7 @@ class AeroSandboxEngine(AeroEngine):
         def airfoil_for_station(
             station: dict[str, Any],
             side: str,
-        ) -> asb.Airfoil:
+        ) -> Any:
             airfoil = station["airfoil"]
             if control_encoding != "airfoil":
                 return airfoil
@@ -1298,9 +1314,9 @@ class AeroSandboxEngine(AeroEngine):
             stations: list[dict[str, Any]],
             side: str,
             reverse: bool = False,
-        ) -> list[asb.WingXSec]:
+        ) -> list[Any]:
             ordered = list(reversed(stations)) if reverse else list(stations)
-            result: list[asb.WingXSec] = []
+            result: list[Any] = []
             for index, station in enumerate(ordered):
                 controls = []
                 if index + 1 < len(ordered):
@@ -1357,7 +1373,7 @@ class AeroSandboxEngine(AeroEngine):
         return asb.Wing(name=name, xsecs=xsecs_right, symmetric=False)
 
     @staticmethod
-    def _rotation_matrix_xyz(rx_deg: float, ry_deg: float, rz_deg: float) -> np.ndarray:
+    def _rotation_matrix_xyz(rx_deg: float, ry_deg: float, rz_deg: float) -> Any:
         """Standard 3D Tait-Bryan XYZ rotation matrix."""
         rx = np.radians(rx_deg)
         ry = np.radians(ry_deg)
@@ -1373,7 +1389,7 @@ class AeroSandboxEngine(AeroEngine):
 
         return rz_m @ ry_m @ rx_m
 
-    def _compute_wing_area(self, wing: asb.Wing) -> float:
+    def _compute_wing_area(self, wing: Any) -> float:
         area = 0.0
         for i in range(len(wing.xsecs) - 1):
             x1 = wing.xsecs[i]
@@ -1384,7 +1400,7 @@ class AeroSandboxEngine(AeroEngine):
             area += 0.5 * (x1.chord + x2.chord) * span_seg
         return area * (2.0 if wing.symmetric else 1.0)
 
-    def _compute_wing_span_and_area(self, wing: asb.Wing) -> tuple[float, float]:
+    def _compute_wing_span_and_area(self, wing: Any) -> tuple[float, float]:
         span = 0.0
         area = 0.0
         for i in range(len(wing.xsecs) - 1):
@@ -1404,7 +1420,7 @@ class AeroSandboxEngine(AeroEngine):
         self,
         comp: dict[str, Any],
         comp_by_id: dict[str, dict[str, Any]] | None = None,
-    ) -> list[asb.Fuselage] | asb.Fuselage | None:
+    ) -> Any:
         """Convert fuselage sections while preserving segment order and section orientation.
 
         AeroSandbox represents fuselage sections as superellipses, so arbitrary Setuav
@@ -1426,12 +1442,12 @@ class AeroSandboxEngine(AeroEngine):
             local_pos, local_rot = self._local_transform(comp)
             base_pos, base_rot = local_pos, local_rot
 
-        fuselages: list[asb.Fuselage] = []
+        fuselages: list[Any] = []
         for segment_index, seg in enumerate(segments):
             if not isinstance(seg, dict):
                 continue
             sections = seg.get("sections", [])
-            xsecs: list[asb.FuselageXSec] = []
+            xsecs: list[Any] = []
             for sec in sections:
                 if not isinstance(sec, dict):
                     continue
@@ -1455,17 +1471,19 @@ class AeroSandboxEngine(AeroEngine):
                 sec_rot_data = sec.get("rotation")
                 sec_rot_data = sec_rot_data if isinstance(sec_rot_data, dict) else {}
                 sec_roll = float(
-                    sec_rot_data.get("roll")
+                    (sec_rot_data.get("roll") or 0.0)
                     if "roll" in sec_rot_data
-                    else sec_rot_data.get("x", 0.0)
+                    else (sec_rot_data.get("x") or 0.0)
                 )
                 sec_pitch = float(
-                    sec_rot_data.get("pitch")
+                    (sec_rot_data.get("pitch") or 0.0)
                     if "pitch" in sec_rot_data
-                    else sec_rot_data.get("y", 0.0)
+                    else (sec_rot_data.get("y") or 0.0)
                 )
                 sec_yaw = float(
-                    sec_rot_data.get("yaw") if "yaw" in sec_rot_data else sec_rot_data.get("z", 0.0)
+                    (sec_rot_data.get("yaw") or 0.0)
+                    if "yaw" in sec_rot_data
+                    else (sec_rot_data.get("z") or 0.0)
                 )
                 sec_rot = self._rotation_matrix_xyz(sec_roll, sec_pitch, sec_yaw)
                 xyz_normal = base_rot @ sec_rot @ np.array([1.0, 0.0, 0.0])
@@ -1576,7 +1594,7 @@ class AeroSandboxEngine(AeroEngine):
         self,
         spec: Any,
         shaping: dict[str, Any] | None = None,
-    ) -> asb.Airfoil:
+    ) -> Any:
         """Resolve any airfoil specification to a fully-populated asb.Airfoil with standard Selig coordinates."""
         # Preserve AeroSandbox's native NACA representation when no geometric
         # shaping is requested. Re-sampling it through Studio's display mesh
@@ -1638,7 +1656,7 @@ class AeroSandboxEngine(AeroEngine):
             return asb.Airfoil("naca0012")
 
     @staticmethod
-    def _to_selig_format(coords: np.ndarray) -> np.ndarray:
+    def _to_selig_format(coords: Any) -> Any:
         """Ensure airfoil coordinates are in standard Selig format: Upper TE -> LE -> Lower TE."""
         if len(coords) < 3:
             return coords
@@ -1663,7 +1681,7 @@ class AeroSandboxEngine(AeroEngine):
 
         return coords
 
-    def _compute_reference_geometry(self, airplane: asb.Airplane) -> tuple[float, float]:
+    def _compute_reference_geometry(self, airplane: Any) -> tuple[float, float]:
         """Compute reference span (m) and area (m²)."""
         total_span = 0.0
         total_area = 0.0

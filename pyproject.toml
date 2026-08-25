@@ -66,9 +66,11 @@ title = "Setuav Studio Coverage"
 [tool.pyright]
 include = [
     "src/setuav_studio/plugins/aerodynamics/engine/base.py",
+    "src/setuav_studio/plugins/aerodynamics/engine/aerosandbox_engine.py",
     "src/setuav_studio/plugins/aerodynamics/engine/airfoil_cache.py",
     "src/setuav_studio/plugins/aerodynamics/engine/airfoil_engine.py",
     "src/setuav_studio/plugins/aerodynamics/engine/airfoil_models.py",
+    "src/setuav_studio/plugins/aerodynamics/engine/stability_engine.py",
     "src/setuav_studio/plugins/aerodynamics/engine/stability_models.py",
     "src/setuav_studio/plugins/electrical_propulsion/engine/base.py",
     "src/setuav_studio/plugins/electrical_propulsion/engine/solver.py",
