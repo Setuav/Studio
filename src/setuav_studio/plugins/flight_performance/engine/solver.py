@@ -483,8 +483,8 @@ class FlightPerformanceSolver:
                 else None
             )
             cd0, k_induced = cls.fit_parabolic_cd(
-                polar_cl,
-                polar_cd,
+                polar_cl.tolist(),
+                polar_cd.tolist(),
                 alpha_values=polar_alpha_list,
                 alpha_max=fit_alpha_max,
             )
@@ -534,6 +534,7 @@ class FlightPerformanceSolver:
             default_cd=cd_min,
         )
 
+        prop_pitch_m = prop_spec.pitch_m if prop_spec else None
         has_propulsion = (
             motor_spec is not None
             and prop_spec is not None
@@ -543,7 +544,8 @@ class FlightPerformanceSolver:
             and motor_spec.kv_rpm_per_v > 0.0
             and motor_spec.current_max_a > 0.0
             and prop_spec.diameter_m > 0.0
-            and prop_spec.pitch_m > 0.0
+            and prop_pitch_m is not None
+            and prop_pitch_m > 0.0
         )
 
         # Keep aerodynamic curves available even when propulsion inputs are
@@ -560,7 +562,7 @@ class FlightPerformanceSolver:
             "motor_kv": motor_spec.kv_rpm_per_v if motor_spec else None,
             "motor_max_current": motor_spec.current_max_a if motor_spec else None,
             "prop_diameter_in": (prop_spec.diameter_m / 0.0254) if prop_spec else None,
-            "prop_pitch_in": (prop_spec.pitch_m / 0.0254) if prop_spec else None,
+            "prop_pitch_in": (prop_pitch_m / 0.0254) if prop_pitch_m is not None else None,
             "battery_voltage": battery_voltage,
             "battery_capacity_ah": battery_capacity_ah,
         }

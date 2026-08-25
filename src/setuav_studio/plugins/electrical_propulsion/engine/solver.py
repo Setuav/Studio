@@ -32,7 +32,7 @@ class PropulsionSolverEngine:
             blade_count=blades,
             data_csv="",
         )
-        prop_data: dict[int, list[PropellerDataPoint]] = {}
+        prop_data: dict[float, list[PropellerDataPoint]] = {}
         p_d = pitch_in / max(diameter_in, 1e-3)
         j_max = p_d * 1.15
         for r in [2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 12000, 15000]:
