@@ -49,15 +49,14 @@ belirlendi.
 
 - [x] Pyright veya mypy aracını seç.
 - [x] Temel yapılandırmayı ekle.
-- [ ] Önce model ve engine katmanlarını kapsa.
-- [ ] Tip hatalarını küçük gruplar hâlinde düzelt.
+- [x] Önce model ve engine katmanlarını kapsa.
+- [x] Tip hatalarını küçük gruplar hâlinde düzelt.
 - [ ] UI katmanını kademeli olarak kapsama al.
 
-Pyright kapsamı, AeroSandbox ve stability engine modüllerinin eklenmesiyle 21
-saf model/engine dosyasına ulaştı ve `basic` modda sıfır hata ile geçiyor. Bu
-gruptaki 202 teşhis; dinamik AeroSandbox/CasADi sınırı açıkça işaretlenerek ve
-proje verileri kesin tiplere daraltılarak giderildi. Kalan engine dosyaları
-küçük gruplar hâlinde eklenecek.
+Pyright kapsamı, Weight & Balance solver'ın eklenmesiyle 22 saf model/engine
+dosyasına ulaştı ve `basic` modda sıfır hata ile geçiyor. Son gruptaki 5 tip
+hatası açık `Vector3` ve `Matrix3` dönüşümleriyle giderildi. Model ve engine
+katmanlarının kademeli tip kontrolü tamamlandı.
 
 ## 6. Test gruplarını ayır
 

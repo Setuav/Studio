@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Any
+from typing import Any, cast
 
 from setuav_studio.plugins.core.derived_geometry import (
     DerivedComponentGeometry,
@@ -85,17 +85,23 @@ class WeightBalanceSolver(WeightBalanceEngine):
         if total_mass <= 0.0:
             raise WeightBalanceError("Total aircraft mass must be greater than zero")
 
-        cg: Vector3 = tuple(
-            sum(item.mass_kg * item.cg_body_m[axis] for item in result_components) / total_mass
-            for axis in range(3)
-        )  # type: ignore[assignment]
+        cg = cast(
+            Vector3,
+            tuple(
+                sum(item.mass_kg * item.cg_body_m[axis] for item in result_components) / total_mass
+                for axis in range(3)
+            ),
+        )
 
         inertia = _zero_matrix()
         for item in result_components:
             rotation = transforms[item.component_id].rotation
             local_matrix = item.inertia_local_kg_m2.as_matrix()
             body_matrix = _matmul(_matmul(rotation, local_matrix), _transpose(rotation))
-            offset = tuple(item.cg_body_m[index] - cg[index] for index in range(3))
+            offset = cast(
+                Vector3,
+                tuple(item.cg_body_m[index] - cg[index] for index in range(3)),
+            )
             inertia = _add_matrix(
                 inertia,
                 _add_matrix(body_matrix, _parallel_axis(item.mass_kg, offset)),
@@ -255,7 +261,7 @@ class WeightBalanceSolver(WeightBalanceEngine):
             component_name=str(component.get("name") or component_id),
             component_type=str(component.get("type") or ""),
             mass_kg=mass_g / 1000.0,
-            cg_local_m=tuple(value / 1000.0 for value in cg_local_mm),  # type: ignore[arg-type]
+            cg_local_m=cast(Vector3, tuple(value / 1000.0 for value in cg_local_mm)),
             cg_body_m=cg_body,
             inertia_local_kg_m2=inertia,
             source=source,
@@ -264,7 +270,7 @@ class WeightBalanceSolver(WeightBalanceEngine):
         )
 
 
-def _optional_number(value: object) -> float | None:
+def _optional_number(value: Any) -> float | None:
     if isinstance(value, bool) or value is None:
         return None
     try:
@@ -275,7 +281,10 @@ def _optional_number(value: object) -> float | None:
 
 def _vector(value: object) -> Vector3:
     data = value if isinstance(value, dict) else {}
-    return tuple(_optional_number(data.get(axis)) or 0.0 for axis in ("x", "y", "z"))  # type: ignore[return-value]
+    return cast(
+        Vector3,
+        tuple(_optional_number(data.get(axis)) or 0.0 for axis in ("x", "y", "z")),
+    )
 
 
 def _inertia(value: object) -> tuple[InertiaTensor, bool]:
@@ -354,22 +363,31 @@ def _zero_matrix() -> Matrix3:
 
 
 def _transpose(matrix: Matrix3) -> Matrix3:
-    return tuple(tuple(matrix[column][row] for column in range(3)) for row in range(3))
+    return cast(
+        Matrix3,
+        tuple(tuple(matrix[column][row] for column in range(3)) for row in range(3)),
+    )
 
 
 def _matmul(left: Matrix3, right: Matrix3) -> Matrix3:
-    return tuple(
+    return cast(
+        Matrix3,
         tuple(
-            sum(left[row][index] * right[index][column] for index in range(3))
-            for column in range(3)
-        )
-        for row in range(3)
+            tuple(
+                sum(left[row][index] * right[index][column] for index in range(3))
+                for column in range(3)
+            )
+            for row in range(3)
+        ),
     )
 
 
 def _add_matrix(left: Matrix3, right: Matrix3) -> Matrix3:
-    return tuple(
-        tuple(left[row][column] + right[row][column] for column in range(3)) for row in range(3)
+    return cast(
+        Matrix3,
+        tuple(
+            tuple(left[row][column] + right[row][column] for column in range(3)) for row in range(3)
+        ),
     )
 
 

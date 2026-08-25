@@ -85,6 +85,7 @@ include = [
     "src/setuav_studio/plugins/geometry/engine/wing_planform_engine.py",
     "src/setuav_studio/plugins/geometry/engine/wing_sections_engine.py",
     "src/setuav_studio/plugins/weight_balance/engine/base.py",
+    "src/setuav_studio/plugins/weight_balance/engine/solver.py",
     "src/setuav_studio/plugins/weight_balance/engine/spatial.py",
 ]
 pythonVersion = "3.11"
