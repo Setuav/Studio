@@ -209,6 +209,8 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
     def _sweep_label(result: AeroResult) -> str:
         cond = result.condition
         sweep_type = cond.sweep_type
+        if sweep_type == SweepType.MULTI_GRID:
+            return "Alpha × Beta Grid"
         if sweep_type == SweepType.DUAL_ALPHA_BETA:
             return "Alpha + Beta Sweep"
         if sweep_type == SweepType.BETA:
@@ -285,7 +287,13 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
         else:
             drag_ratio = "N/A"
 
-        if cond.sweep_type == SweepType.DUAL_ALPHA_BETA:
+        if cond.sweep_type == SweepType.MULTI_GRID:
+            sweep_range = (
+                f"α {cond.sweep_min:+g}…{cond.sweep_max:+g}° ({cond.sweep_steps}); "
+                f"β {cond.secondary_min:+g}…{cond.secondary_max:+g}° "
+                f"({cond.secondary_steps})"
+            )
+        elif cond.sweep_type == SweepType.DUAL_ALPHA_BETA:
             sweep_range = (
                 f"α {cond.alpha_min:+g}…{cond.alpha_max:+g}° ({cond.alpha_steps}); "
                 f"β {cond.beta_min:+g}…{cond.beta_max:+g}° ({cond.beta_steps})"

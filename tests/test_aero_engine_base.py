@@ -293,14 +293,16 @@ class AeroEngineBaseTests(unittest.TestCase):
 
         sweep = MultiDimensionalSweepResult(
             variables=[
-                SweepVariable(name="alpha", values=[0.0, 5.0], unit="deg"),
                 SweepVariable(name="elevator", values=[0.0, -5.0], unit="deg"),
+                SweepVariable(name="alpha", values=[0.0, 5.0], unit="deg"),
             ],
             points=[p1, p2, p3, p4],
             grid_shape=(2, 2),
         )
 
-        self.assertEqual(sweep.variable_names, ["alpha", "elevator"])
+        self.assertEqual(sweep.variable_names, ["elevator", "alpha"])
+        self.assertIs(sweep.point_at_indices(0, 1), p2)
+        self.assertIs(sweep.point_at_indices(1, 0), p3)
 
         # Slice for elevator == -5.0
         elev_slice = sweep.get_slice({"elevator": -5.0})
@@ -324,6 +326,15 @@ class AeroEngineBaseTests(unittest.TestCase):
         restored = MultiDimensionalSweepResult.from_dict(data)
         self.assertEqual(len(restored.points), 4)
         self.assertEqual(restored.grid_shape, (2, 2))
+        self.assertEqual(data["point_order"], "last_variable_fastest")
+
+    def test_multi_dimensional_sweep_rejects_invalid_shape(self) -> None:
+        with self.assertRaisesRegex(ValueError, "grid_shape"):
+            MultiDimensionalSweepResult(
+                variables=[SweepVariable(name="alpha", values=[0.0, 5.0])],
+                points=[PolarPoint(alpha=0.0, cl=0.0, cd=0.0)],
+                grid_shape=(1,),
+            )
 
     def test_control_channel_analysis_serialization(self) -> None:
         analysis = ControlChannelAnalysis(

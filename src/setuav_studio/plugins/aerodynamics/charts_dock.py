@@ -18,7 +18,7 @@ from PySide6.QtCharts import (
 )
 
 from setuav_studio.plugin_system import StudioAPI
-from .engine.base import AeroResult, SweepType
+from .engine.base import AeroResult, PolarPoint, SweepType
 
 
 class SingleChartWidget(QWidget):
@@ -65,6 +65,9 @@ class SingleChartWidget(QWidget):
         self.chart.setBackgroundPen(QPen(border_col))
         self.chart.setPlotAreaBackgroundBrush(plot_bg_col)
         self.chart.setDropShadowEnabled(False)
+        legend = self.chart.legend()
+        if hasattr(legend, "setLabelColor"):
+            legend.setLabelColor(text_col)
 
         for axis in list(self.chart.axes()):
             if isinstance(axis, QValueAxis):
@@ -83,6 +86,7 @@ class SingleChartWidget(QWidget):
 
     def clear(self) -> None:
         self.chart.removeAllSeries()
+        self.chart.legend().setVisible(False)
         for axis in list(self.chart.axes()):
             self.chart.removeAxis(axis)
 
@@ -124,6 +128,7 @@ class SingleChartWidget(QWidget):
         self.clear()
         if not x_vals or not y_vals:
             return
+        self.chart.legend().setVisible(False)
 
         series = QLineSeries()
         series.setName(name)
@@ -172,15 +177,26 @@ class SingleChartWidget(QWidget):
 
         from setuav_studio.ui.theme import chart_color
 
-        for x_vals, y_vals, name, color_role in curves:
+        line_styles = (
+            Qt.PenStyle.SolidLine,
+            Qt.PenStyle.DashLine,
+            Qt.PenStyle.DotLine,
+            Qt.PenStyle.DashDotLine,
+            Qt.PenStyle.DashDotDotLine,
+        )
+
+        for index, (x_vals, y_vals, name, color_role) in enumerate(curves):
             if not x_vals or not y_vals:
                 continue
             series = QLineSeries()
             series.setName(name)
             series.setProperty("themeColorRole", color_role)
 
-            pen = QPen(QColor(chart_color(color_role)), 2.2)
+            pen = QPen(QColor(chart_color(color_role)), 2.6)
+            pen.setStyle(line_styles[index % len(line_styles)])
             series.setPen(pen)
+            if hasattr(series, "setPointsVisible"):
+                series.setPointsVisible(True)
 
             for x, y in zip(x_vals, y_vals):
                 series.append(QPointF(x, y))
@@ -194,7 +210,7 @@ class SingleChartWidget(QWidget):
         if len(curves) > 1:
             self.chart.legend().setVisible(True)
             self.chart.legend().setAlignment(Qt.AlignmentFlag.AlignTop)
-            self.chart.legend().setFont(QFont("Inter", 7.5))
+            self.chart.legend().setFont(QFont("Inter", 8.5))
         else:
             self.chart.legend().setVisible(False)
 
@@ -218,6 +234,7 @@ from PySide6.QtWidgets import (
 
 
 CHART_SET_DEFINITIONS: list[tuple[str, str]] = [
+    ("alpha_beta_grid", "Alpha × Beta Sweep"),
     ("control_effectiveness", "Control Effectiveness"),
     ("flight_performance", "Flight Performance"),
     ("longitudinal_stability", "Longitudinal Stability"),
@@ -348,7 +365,12 @@ class AeroChartsDock(QWidget):
         sweep_type = cond.sweep_type if cond else SweepType.ALPHA
         preferred_set = "flight_performance"
 
-        if sweep_type == SweepType.DUAL_ALPHA_BETA:
+        if sweep_type == SweepType.MULTI_GRID:
+            self._cached_results["alpha_beta_grid"] = result
+            self._cached_points["alpha_beta_grid"] = all_points
+            preferred_set = "alpha_beta_grid"
+
+        elif sweep_type == SweepType.DUAL_ALPHA_BETA:
             # 1. Alpha group
             alpha_group = [p for p in all_points if p.raw.get("_sweep_group") == "alpha"]
             if not alpha_group and cond:
@@ -448,6 +470,10 @@ class AeroChartsDock(QWidget):
 
         cond = result.condition
         sweep_type = cond.sweep_type if cond else SweepType.ALPHA
+
+        if sweep_type == SweepType.MULTI_GRID and key == "alpha_beta_grid":
+            self._render_alpha_beta_grid(result, points)
+            return
 
         # Determine X axis values & label for this specific dataset
         if key == "lateral_directional":
@@ -607,6 +633,71 @@ class AeroChartsDock(QWidget):
         except Exception as err:
             import logging
             logging.getLogger(__name__).error("Failed to update aerodynamic charts: %s", err, exc_info=True)
+        finally:
+            self.setUpdatesEnabled(True)
+
+    def _render_alpha_beta_grid(
+        self,
+        result: AeroResult,
+        points: list[PolarPoint],
+    ) -> None:
+        """Plot one conventional alpha curve per beta grid row."""
+        sweep = result.sweep_result
+        beta_values: list[float] = []
+        if sweep is not None:
+            beta_variable = next(
+                (variable for variable in sweep.variables if variable.name == "beta"),
+                None,
+            )
+            if beta_variable is not None:
+                beta_values = list(beta_variable.values)
+        if not beta_values:
+            beta_values = sorted({float(point.beta) for point in points})
+
+        color_roles = ("blue", "green", "orange", "magenta", "red", "cyan")
+        grouped_points: list[tuple[float, list[PolarPoint]]] = []
+        for beta in beta_values:
+            beta_points = sorted(
+                (
+                    point
+                    for point in points
+                    if math.isclose(point.beta, beta, abs_tol=1e-6)
+                ),
+                key=lambda point: point.alpha,
+            )
+            if beta_points:
+                grouped_points.append((beta, beta_points))
+
+        def curves_for(value_getter) -> list[tuple[list[float], list[float], str, str]]:
+            curves = []
+            for index, (beta, beta_points) in enumerate(grouped_points):
+                curves.append((
+                    [point.alpha for point in beta_points],
+                    [float(value_getter(point)) for point in beta_points],
+                    f"β={beta:+g}°",
+                    color_roles[index % len(color_roles)],
+                ))
+            return curves
+
+        self.setUpdatesEnabled(False)
+        try:
+            self.chart_ld.setVisible(True)
+            self.chart_lift.setTitle("Lift Curve (CL vs α)")
+            self.chart_lift.plot_multi(
+                curves_for(lambda point: point.cl), "α (°)", "CL"
+            )
+            self.chart_polar.setTitle("Drag Curve (CD vs α)")
+            self.chart_polar.plot_multi(
+                curves_for(lambda point: point.cd), "α (°)", "CD"
+            )
+            self.chart_moment.setTitle("Pitching Moment (Cm vs α)")
+            self.chart_moment.plot_multi(
+                curves_for(lambda point: point.cm), "α (°)", "Cm"
+            )
+            self.chart_ld.setTitle("Aerodynamic Efficiency (L/D vs α)")
+            self.chart_ld.plot_multi(
+                curves_for(lambda point: point.cl_over_cd), "α (°)", "L/D"
+            )
         finally:
             self.setUpdatesEnabled(True)
 

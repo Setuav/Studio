@@ -678,14 +678,42 @@ class SweepVariable:
 
 @dataclass
 class MultiDimensionalSweepResult:
-    """Multi-dimensional dataset containing structured sweep results."""
+    """Structured sweep data in row-major, last-variable-fastest order."""
     variables: list[SweepVariable] = field(default_factory=list)
     points: list[PolarPoint] = field(default_factory=list)
     grid_shape: tuple[int, ...] = ()
 
+    def __post_init__(self) -> None:
+        if not self.variables and not self.grid_shape and not self.points:
+            return
+        if len(self.variables) != len(self.grid_shape):
+            raise ValueError("Sweep variables and grid_shape dimensions must match")
+        expected_shape = tuple(len(variable.values) for variable in self.variables)
+        if self.grid_shape != expected_shape:
+            raise ValueError(
+                f"grid_shape {self.grid_shape!r} does not match variable sizes "
+                f"{expected_shape!r}"
+            )
+        expected_points = math.prod(self.grid_shape)
+        if len(self.points) != expected_points:
+            raise ValueError(
+                f"Sweep contains {len(self.points)} point(s), expected {expected_points}"
+            )
+
     @property
     def variable_names(self) -> list[str]:
         return [v.name for v in self.variables]
+
+    def point_at_indices(self, *indices: int) -> PolarPoint:
+        """Return a grid point; the last variable is the fastest-changing axis."""
+        if len(indices) != len(self.grid_shape):
+            raise IndexError("One index is required for each sweep variable")
+        flat_index = 0
+        for index, size in zip(indices, self.grid_shape):
+            if index < 0 or index >= size:
+                raise IndexError("Sweep grid index out of range")
+            flat_index = flat_index * size + index
+        return self.points[flat_index]
 
     def get_slice(
         self,
@@ -744,10 +772,14 @@ class MultiDimensionalSweepResult:
             "variables": [v.to_dict() for v in self.variables],
             "points": [p.to_dict() for p in self.points],
             "grid_shape": list(self.grid_shape),
+            "point_order": "last_variable_fastest",
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> MultiDimensionalSweepResult:
+        point_order = data.get("point_order", "last_variable_fastest")
+        if point_order != "last_variable_fastest":
+            raise ValueError(f"Unsupported sweep point order: {point_order}")
         vars_data = data.get("variables", [])
         pts_data = data.get("points", [])
         return cls(

@@ -27,9 +27,11 @@ from setuav_studio.plugins.aerodynamics.engine.base import (
     AnalysisMethod,
     ControlChannelAnalysis,
     FlightCondition,
+    MultiDimensionalSweepResult,
     PolarPoint,
     ReferenceValues,
     SweepType,
+    SweepVariable,
 )
 from tests._common import get_qapp
 
@@ -200,6 +202,73 @@ class AerodynamicsPluginTests(unittest.TestCase):
         self.assertEqual(tool.results_table.item(0, 0).text(), "2")
         tool.close()
 
+    def test_alpha_beta_grid_uses_one_chart_series_per_beta(self) -> None:
+        self.plugin.activate(self.api)
+        panels_by_id = {panel.id: panel for panel in self.panels}
+        controls = panels_by_id["aerodynamics.controls_dock"].factory()
+        charts = panels_by_id["aerodynamics.charts_dock"].factory()
+        self.assertGreaterEqual(
+            controls.combo_mode.findData(SweepType.MULTI_GRID),
+            0,
+        )
+
+        alpha_values = [-4.0, 0.0, 4.0]
+        beta_values = [-5.0, 5.0]
+        points = [
+            PolarPoint(
+                alpha=alpha,
+                beta=beta,
+                cl=0.1 * alpha + 0.01 * beta,
+                cd=0.02 + 0.001 * alpha**2,
+                cm=-0.02 * alpha,
+                cl_over_cd=10.0 + alpha,
+            )
+            for beta in beta_values
+            for alpha in alpha_values
+        ]
+        condition = FlightCondition(
+            sweep_type=SweepType.MULTI_GRID,
+            sweep_variable="alpha",
+            sweep_min=-4.0,
+            sweep_max=4.0,
+            sweep_steps=3,
+            secondary_variable="beta",
+            secondary_min=-5.0,
+            secondary_max=5.0,
+            secondary_steps=2,
+        )
+        result = AeroResult(
+            method=AnalysisMethod.AERO_BUILDUP,
+            engine_name="AeroSandbox",
+            polar_points=points,
+            condition=condition,
+            sweep_result=MultiDimensionalSweepResult(
+                variables=[
+                    SweepVariable("beta", beta_values, "deg"),
+                    SweepVariable("alpha", alpha_values, "deg"),
+                ],
+                points=points,
+                grid_shape=(2, 3),
+            ),
+        )
+
+        charts.plot_results(result)
+
+        self.assertEqual(charts.combo_view_mode.currentData(), "alpha_beta_grid")
+        for chart in (
+            charts.chart_lift,
+            charts.chart_polar,
+            charts.chart_moment,
+            charts.chart_ld,
+        ):
+            self.assertEqual(len(chart.chart.series()), 2)
+            self.assertEqual(chart.chart.series()[0].count(), 3)
+        self.assertEqual(charts.chart_lift.chart.series()[0].name(), "β=-5°")
+        self.assertEqual(charts.chart_lift.chart.series()[1].name(), "β=+5°")
+
+        controls.close()
+        charts.close()
+
     def test_panel_factories_create_widgets_and_handle_results(self) -> None:
         self.plugin.activate(self.api)
 
@@ -223,6 +292,7 @@ class AerodynamicsPluginTests(unittest.TestCase):
         }
         self.assertNotIn("Airspeed Sweep", sweep_modes)
         self.assertNotIn("Altitude Sweep", sweep_modes)
+        self.assertIn("Alpha × Beta Grid", sweep_modes)
         self.assertIn("Control Channel Analysis", sweep_modes)
         self.assertNotIn("Control Deflection Sweep", sweep_modes)
         solver_methods = {

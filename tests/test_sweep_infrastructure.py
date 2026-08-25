@@ -52,6 +52,20 @@ class TestSweepConfiguration(unittest.TestCase):
         self.assertEqual(len(p_vals), 4)
         self.assertEqual(len(s_vals), 3)
 
+        grid_cond = FlightCondition(
+            sweep_type=SweepType.MULTI_GRID,
+            sweep_variable="alpha",
+            sweep_min=-4.0,
+            sweep_max=8.0,
+            sweep_steps=4,
+            secondary_variable="beta",
+            secondary_min=-10.0,
+            secondary_max=10.0,
+            secondary_steps=3,
+        )
+        self.assertEqual(len(grid_cond.get_primary_sweep_values()), 4)
+        self.assertEqual(len(grid_cond.get_secondary_sweep_values()), 3)
+
     def test_sweep_serialization(self) -> None:
         cond = FlightCondition(
             sweep_type=SweepType.CONTROL_DEFLECTION,
@@ -242,6 +256,37 @@ class TestParametricSweeps(unittest.TestCase):
         self.assertAlmostEqual(beta_pts[0].beta, -6.0)
         self.assertAlmostEqual(beta_pts[-1].beta, 6.0)
         self.assertAlmostEqual(beta_pts[0].alpha, 2.0)
+
+    def test_alpha_beta_grid_contract(self) -> None:
+        condition = FlightCondition(
+            velocity=20.0,
+            sweep_type=SweepType.MULTI_GRID,
+            sweep_variable="alpha",
+            sweep_min=-4.0,
+            sweep_max=4.0,
+            sweep_steps=3,
+            secondary_variable="beta",
+            secondary_min=-6.0,
+            secondary_max=6.0,
+            secondary_steps=3,
+        )
+
+        result = self.engine.analyze(
+            self.components,
+            condition,
+            method=AnalysisMethod.AERO_BUILDUP,
+        )
+
+        self.assertEqual(len(result.polar_points), 9)
+        self.assertIsNotNone(result.sweep_result)
+        sweep = result.sweep_result
+        assert sweep is not None
+        self.assertEqual(sweep.variable_names, ["beta", "alpha"])
+        self.assertEqual(sweep.grid_shape, (3, 3))
+        self.assertAlmostEqual(sweep.point_at_indices(0, 0).beta, -6.0)
+        self.assertAlmostEqual(sweep.point_at_indices(0, 0).alpha, -4.0)
+        self.assertAlmostEqual(sweep.point_at_indices(1, 2).beta, 0.0)
+        self.assertAlmostEqual(sweep.point_at_indices(1, 2).alpha, 4.0)
 
 
 if __name__ == "__main__":

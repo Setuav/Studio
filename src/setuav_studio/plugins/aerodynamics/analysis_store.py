@@ -64,6 +64,8 @@ def result_name(result: AeroResult) -> str:
     if custom_name and str(custom_name).strip():
         return str(custom_name).strip()
     sweep_type = result.condition.sweep_type
+    if sweep_type == SweepType.MULTI_GRID:
+        return "α×β Grid"
     if sweep_type == SweepType.DUAL_ALPHA_BETA:
         return "α–β Sweep"
     if sweep_type == SweepType.BETA:
