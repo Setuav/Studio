@@ -45,3 +45,17 @@ select = ["E4", "E7", "E9", "F", "I"]
 quote-style = "double"
 indent-style = "space"
 line-ending = "lf"
+
+[tool.coverage.run]
+branch = true
+source = ["setuav_studio"]
+
+[tool.coverage.report]
+fail_under = 68
+precision = 1
+show_missing = true
+skip_covered = true
+
+[tool.coverage.html]
+directory = "htmlcov"
+title = "Setuav Studio Coverage"

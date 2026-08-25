@@ -16,15 +16,18 @@ sonraki adıma geçilmeyecek.
 - [x] Format kontrolünün temiz geçtiğini doğrula.
 - [x] Ruff lint kontrolünü yeniden çalıştır.
 - [x] Tüm testleri çalıştır.
-- [ ] Yalnızca formatlama değişikliklerini ayrı commit et.
+- [x] Yalnızca formatlama değişikliklerini ayrı commit et.
 
 ## 2. Coverage altyapısını kur
 
-- [ ] Coverage ayarlarını `pyproject.toml` içine ekle.
-- [ ] Kaynak kod kapsam raporunu üret.
-- [ ] HTML ve terminal raporlarını doğrula.
-- [ ] Mevcut coverage oranını başlangıç değeri olarak kaydet.
-- [ ] İlk aşamada gerçekçi bir minimum eşik belirle.
+- [x] Coverage ayarlarını `pyproject.toml` içine ekle.
+- [x] Kaynak kod kapsam raporunu üret.
+- [x] HTML ve terminal raporlarını doğrula.
+- [x] Mevcut coverage oranını başlangıç değeri olarak kaydet.
+- [x] İlk aşamada gerçekçi bir minimum eşik belirle.
+
+Başlangıç branch coverage değeri `%68,8`, minimum kabul eşiği `%68` olarak
+belirlendi.
 
 ## 3. Pre-commit kontrollerini ekle
 
