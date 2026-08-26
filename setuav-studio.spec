@@ -2,18 +2,23 @@
 
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 
 PROJECT_ROOT = Path(SPEC).resolve().parent
 SOURCE_ROOT = PROJECT_ROOT / "src"
+PACKAGE_DATA = [
+    *collect_data_files("setuav_studio", subdir="assets"),
+    *collect_data_files("setuav_studio", subdir="schemas"),
+    *collect_data_files("setuav_studio", subdir="data"),
+]
 
 
 analysis = Analysis(
     [str(SOURCE_ROOT / "setuav_studio" / "__main__.py")],
     pathex=[str(SOURCE_ROOT)],
     binaries=[],
-    datas=[],
+    datas=PACKAGE_DATA,
     hiddenimports=collect_submodules("setuav_studio.plugins"),
     hookspath=[],
     hooksconfig={},

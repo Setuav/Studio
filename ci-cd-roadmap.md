@@ -5,7 +5,7 @@
 - [x] `pyproject.toml` içine geliştirme araçlarını ekle.
 - [x] Ruff lint ve format ayarlarını tanımla.
 - [x] `setuav-studio` komut satırı giriş noktasını ekle.
-- [ ] PyInstaller bağımlılığını ve `.spec` dosyasını ekle.
+- [x] PyInstaller bağımlılığını ve `.spec` dosyasını ekle.
 - [ ] Uygulama adı, sürümü ve ikonlarını paketlemeye hazırla.
 - [x] Yerel lint, test ve build komutlarını doğrula.
 
