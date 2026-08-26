@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import os
+import shutil
 import tempfile
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -43,6 +45,13 @@ class TestFlightPerformance(unittest.TestCase):
         QThreadPool.globalInstance().waitForDone()
         for _ in range(iterations):
             self.app.processEvents()
+
+    def _temporary_project_copy(self) -> Path:
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        project_path = Path(temp_dir.name) / "fixed-wing"
+        shutil.copytree(TEST_PROJECT_PATH, project_path)
+        return project_path
 
     @staticmethod
     def _dock_content(dock: object) -> object:
@@ -317,7 +326,7 @@ class TestFlightPerformance(unittest.TestCase):
         pm.discover()
         win.restore_window_layout()
 
-        doc = open_project(TEST_PROJECT_PATH)
+        doc = open_project(self._temporary_project_copy())
         win.open_project(doc.location)
 
         # Switch workspace
