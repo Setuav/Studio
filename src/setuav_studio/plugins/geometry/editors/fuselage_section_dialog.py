@@ -503,40 +503,7 @@ class FuselageCanvasWidget(QWidget):
                 line_width=1.5,
             )
 
-        # 3. Active Profile
-        if self._active_points:
-            self._draw_profile_outline(
-                painter,
-                self._active_points,
-                world_to_screen,
-                stroke_color=QColor(accent_color()),
-                fill_color=QColor(*QColor(accent_color()).getRgb()[:3], 38),
-                pen_style=Qt.PenStyle.SolidLine,
-                line_width=2.2,
-            )
-
-            if self.show_radial_samples:
-                painter.setPen(Qt.PenStyle.NoPen)
-                painter.setBrush(QColor(accent_color()))
-                for y, z in self._active_points:
-                    pt = world_to_screen(y, z)
-                    painter.drawEllipse(pt, 1.8, 1.8)
-
-            # Edge insertion preview marker
-            if self._hovered_edge is not None:
-                _, screen_pt, (wy, wz) = self._hovered_edge
-                painter.setPen(QPen(QColor("#2ecc71"), 1.5, Qt.PenStyle.DashLine))
-                painter.setBrush(QColor(46, 204, 113, 80))
-                painter.drawEllipse(screen_pt, 6.0, 6.0)
-                painter.setPen(QColor("#2ecc71"))
-                painter.setFont(QFont("sans-serif", 8, QFont.Weight.Bold))
-                painter.drawText(
-                    int(screen_pt.x()) + 8, int(screen_pt.y()) - 4, f"+ Add ({wy:.1f}, {wz:.1f})"
-                )
-
-            # Interactive Polygon Handles
-            if self._profile.get("type") == "polygon":
-                self._draw_polygon_handles(painter, world_to_screen)
+        self._draw_active_profile(painter, world_to_screen)
 
         # 4. Centroid & Dimensions
         if self.show_centroid and self._metrics and self._metrics["area"] > 0:
@@ -561,6 +528,38 @@ class FuselageCanvasWidget(QWidget):
 
         # 5. HUD Header & Legend
         self._draw_hud(painter, width, height)
+
+    def _draw_active_profile(self, painter: QPainter, world_to_screen: Any) -> None:
+        if not self._active_points:
+            return
+        self._draw_profile_outline(
+            painter,
+            self._active_points,
+            world_to_screen,
+            stroke_color=QColor(accent_color()),
+            fill_color=QColor(*QColor(accent_color()).getRgb()[:3], 38),
+            pen_style=Qt.PenStyle.SolidLine,
+            line_width=2.2,
+        )
+        if self.show_radial_samples:
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor(accent_color()))
+            for y, z in self._active_points:
+                painter.drawEllipse(world_to_screen(y, z), 1.8, 1.8)
+        if self._hovered_edge is not None:
+            _, screen_point, (world_y, world_z) = self._hovered_edge
+            painter.setPen(QPen(QColor("#2ecc71"), 1.5, Qt.PenStyle.DashLine))
+            painter.setBrush(QColor(46, 204, 113, 80))
+            painter.drawEllipse(screen_point, 6.0, 6.0)
+            painter.setPen(QColor("#2ecc71"))
+            painter.setFont(QFont("sans-serif", 8, QFont.Weight.Bold))
+            painter.drawText(
+                int(screen_point.x()) + 8,
+                int(screen_point.y()) - 4,
+                f"+ Add ({world_y:.1f}, {world_z:.1f})",
+            )
+        if self._profile.get("type") == "polygon":
+            self._draw_polygon_handles(painter, world_to_screen)
 
     def _draw_polygon_handles(self, painter: QPainter, to_screen: Any) -> None:
         from setuav_studio.ui.theme import tokens

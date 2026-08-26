@@ -1071,6 +1071,13 @@ class MainWindow(QMainWindow):
 
     def _rebuild_toolbar_tools(self) -> None:
         workspace_id = self._current_workspace_id or self._api.current_workspace_id
+        grouped_actions, group_order = self._workspace_toolbar_actions(workspace_id)
+        self._remove_unregistered_toolbars()
+        self._apply_toolbar_groups(grouped_actions, group_order)
+
+    def _workspace_toolbar_actions(
+        self, workspace_id: str | None
+    ) -> tuple[dict[str, list[QAction]], list[str]]:
         grouped_actions: dict[str, list[QAction]] = {}
         group_order: list[str] = []
         contributions = sorted(
@@ -1093,7 +1100,9 @@ class MainWindow(QMainWindow):
                     grouped_actions[contribution.group] = []
                     group_order.append(contribution.group)
                 grouped_actions[contribution.group].append(action)
+        return grouped_actions, group_order
 
+    def _remove_unregistered_toolbars(self) -> None:
         registered_groups = {
             contribution.group for contribution in self._toolbar_contributions.values()
         }
@@ -1103,6 +1112,9 @@ class MainWindow(QMainWindow):
                 toolbar.deleteLater()
                 del self._toolset_bars[group]
 
+    def _apply_toolbar_groups(
+        self, grouped_actions: dict[str, list[QAction]], group_order: list[str]
+    ) -> None:
         for group in group_order:
             toolbar = self._toolset_bars.get(group)
             if toolbar is None:

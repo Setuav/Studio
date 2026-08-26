@@ -275,6 +275,13 @@ class OpenGLViewer(QOpenGLWidget):
             or self._highlight_count > 0
             or self._section_ring_count > 0
         )
+        self._draw_solid_mesh(mvp, lines_overlay)
+        if self._wire_program is None:
+            return
+        self._draw_wire_mesh(mvp)
+        self._draw_axis_gizmo()
+
+    def _draw_solid_mesh(self, mvp: QMatrix4x4, lines_overlay: bool) -> None:
         if self._show_solid and self._solid_program is not None:
             eye_direction = self._eye_position() - self._target
             eye_direction.normalize()
@@ -304,8 +311,8 @@ class OpenGLViewer(QOpenGLWidget):
             if lines_overlay:
                 self._functions.glDisable(_GL_POLYGON_OFFSET_FILL)
 
-        if self._wire_program is None:
-            return
+    def _draw_wire_mesh(self, mvp: QMatrix4x4) -> None:
+        assert self._wire_program is not None
         self._wire_program.bind()
         self._wire_program.setUniformValue("mvp", mvp)
         alpha_location = self._wire_program.uniformLocation("alpha")
@@ -332,7 +339,6 @@ class OpenGLViewer(QOpenGLWidget):
             self._functions.glUniform1f(alpha_location, 1.0)
             self._functions.glDisable(_GL_BLEND)
         self._wire_program.release()
-        self._draw_axis_gizmo()
 
     def _draw_axis_gizmo(self) -> None:
         if self.width() < 1 or self.height() < 1:

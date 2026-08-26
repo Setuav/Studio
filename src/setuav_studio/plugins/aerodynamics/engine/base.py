@@ -45,20 +45,32 @@ def _json_safe(value: Any) -> Any:
         # rather than writing a non-standard JSON number.
         return value if math.isfinite(value) else None
     if isinstance(value, dict):
-        result: dict[str, Any] = {}
-        for key, item in value.items():
-            safe = _json_safe(item)
-            if safe is not _UNSERIALIZABLE:
-                result[str(key)] = safe
-        return result
+        return _json_safe_mapping(value)
     if isinstance(value, (list, tuple)):
-        result_list: list[Any] = []
-        for item in value:
-            safe = _json_safe(item)
-            if safe is _UNSERIALIZABLE:
-                return _UNSERIALIZABLE
-            result_list.append(safe)
-        return result_list
+        return _json_safe_sequence(value)
+    return _json_safe_native(value)
+
+
+def _json_safe_mapping(value: dict[Any, Any]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, item in value.items():
+        safe = _json_safe(item)
+        if safe is not _UNSERIALIZABLE:
+            result[str(key)] = safe
+    return result
+
+
+def _json_safe_sequence(value: list[Any] | tuple[Any, ...]) -> Any:
+    result: list[Any] = []
+    for item in value:
+        safe = _json_safe(item)
+        if safe is _UNSERIALIZABLE:
+            return _UNSERIALIZABLE
+        result.append(safe)
+    return result
+
+
+def _json_safe_native(value: Any) -> Any:
     tolist = getattr(value, "tolist", None)
     if callable(tolist):
         try:
@@ -72,6 +84,18 @@ def _json_safe(value: Any) -> Any:
         except Exception:
             return _UNSERIALIZABLE
     return _UNSERIALIZABLE
+
+
+def _point_condition_value(point: PolarPoint, key: str) -> float | None:
+    values = {
+        "alpha": point.alpha,
+        "beta": point.beta,
+        "velocity": point.velocity,
+        "altitude": point.altitude,
+        "mach": point.mach,
+    }
+    value = values.get(key)
+    return value if value is not None else point.control_deflections.get(key)
 
 
 class AnalysisMethod(enum.Enum):
@@ -763,20 +787,7 @@ class MultiDimensionalSweepResult:
         for pt in self.points:
             match = True
             for key, val in fixed_conditions.items():
-                pt_val = None
-                if key == "alpha":
-                    pt_val = pt.alpha
-                elif key == "beta":
-                    pt_val = pt.beta
-                elif key == "velocity":
-                    pt_val = pt.velocity
-                elif key == "altitude":
-                    pt_val = pt.altitude
-                elif key == "mach":
-                    pt_val = pt.mach
-                elif key in pt.control_deflections:
-                    pt_val = pt.control_deflections[key]
-
+                pt_val = _point_condition_value(pt, key)
                 if pt_val is None or not math.isclose(pt_val, val, abs_tol=tolerance):
                     match = False
                     break

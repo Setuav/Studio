@@ -22,6 +22,8 @@ from setuav_studio.ui.icons import set_label_icon
 from setuav_studio.ui.numeric_spinbox import NumericSpinBox, set_table_spinbox
 from setuav_studio.ui.property_tables import PropertyTableMixin
 
+from .control_surface_values import resolve_chord_values, resolve_span_values
+
 CONTROL_SURFACE_TYPES = [
     ("aileron", "Aileron"),
     ("flap", "Flap"),
@@ -212,46 +214,8 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
         span_mode = str(geom.get("span_mode", "ratio")).lower()
         chord_mode = str(geom.get("chord_mode", "ratio")).lower()
 
-        # Resolve span and eta
-        if "span_start" in geom:
-            span_start = float(geom.get("span_start", 0.0))
-            eta_start = float(geom.get("eta_start", round(span_start / semi_span, 4)))
-        elif "eta_start" in geom:
-            eta_start = float(geom.get("eta_start", 0.0))
-            span_start = round(eta_start * semi_span, 1)
-            geom["span_start"] = span_start
-        else:
-            span_start = round(semi_span * 0.4, 1)
-            eta_start = 0.4
-            geom["span_start"] = span_start
-            geom["eta_start"] = eta_start
-
-        if "span_end" in geom:
-            span_end = float(geom.get("span_end", 0.0))
-            eta_end = float(geom.get("eta_end", round(span_end / semi_span, 4)))
-        elif "eta_end" in geom:
-            eta_end = float(geom.get("eta_end", 0.0))
-            span_end = round(eta_end * semi_span, 1)
-            geom["span_end"] = span_end
-        else:
-            span_end = round(semi_span * 0.85, 1)
-            eta_end = 0.85
-            geom["span_end"] = span_end
-            geom["eta_end"] = eta_end
-
-        # Resolve chord and chord fraction
-        if "chord_fraction" in geom and geom.get("chord_fraction") is not None:
-            chord_fraction = float(geom.get("chord_fraction", 0.25))
-            chord = float(geom.get("chord", round(chord_fraction * root_chord, 1)))
-        elif "chord" in geom:
-            chord = float(geom.get("chord", 40.0))
-            chord_fraction = round(chord / root_chord, 3)
-            geom["chord_fraction"] = chord_fraction
-        else:
-            chord_fraction = 0.25
-            chord = round(root_chord * 0.25, 1)
-            geom["chord"] = chord
-            geom["chord_fraction"] = chord_fraction
+        span_start, eta_start, span_end, eta_end = resolve_span_values(geom, semi_span)
+        chord, chord_fraction = resolve_chord_values(geom, root_chord)
 
         hinge_sweep = float(geom.get("hinge_sweep", 0.0))
         deflection = float(geom.get("deflection", 0.0))

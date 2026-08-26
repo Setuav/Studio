@@ -239,17 +239,7 @@ class PerformanceResultsDock(PropertyTableMixin, QWidget):
             for key in ("max_roc", "best_climb_angle", "max_range"):
                 self._set_property_value(self.summary_table, key, "N/A (no propulsion data)")
 
-        if res.propulsion_available and met.max_endurance_hours > 0:
-            total_mins = int(met.max_endurance_hours * 60)
-            hours = total_mins // 60
-            mins = total_mins % 60
-            self._set_property_value(
-                self.summary_table,
-                "max_endurance",
-                f"{met.max_endurance_hours:.2f} h ({hours}h {mins}m)",
-            )
-        else:
-            self._set_property_value(self.summary_table, "max_endurance", "N/A")
+        self._update_endurance(res)
 
         self._set_property_value(self.summary_table, "min_power", f"{met.min_power_required:.1f} W")
         self._set_property_value(
@@ -267,13 +257,7 @@ class PerformanceResultsDock(PropertyTableMixin, QWidget):
             "cruise_throttle",
             f"{cru.throttle:.0f} %" if res.propulsion_available and cru.throttle > 0 else "N/A",
         )
-        if not res.propulsion_available:
-            propulsion_status = "Unavailable — aerodynamic-only"
-        elif res.propulsion_feasible is False:
-            propulsion_status = "Available — no feasible operating point"
-        else:
-            propulsion_status = "Available"
-        self._set_property_value(self.summary_table, "propulsion_status", propulsion_status)
+        self._update_propulsion_status(res)
 
         # Populate Detailed Sweep Table
         c = res.curves
@@ -350,6 +334,24 @@ class PerformanceResultsDock(PropertyTableMixin, QWidget):
                 self.detail_table.setItem(row, col, item)
 
         self.btn_export_csv.setEnabled(n_rows > 0)
+
+    def _update_endurance(self, result: FlightEnvelopeResult) -> None:
+        hours = result.metrics.max_endurance_hours
+        if result.propulsion_available and hours > 0:
+            minutes = int(hours * 60)
+            value = f"{hours:.2f} h ({minutes // 60}h {minutes % 60}m)"
+        else:
+            value = "N/A"
+        self._set_property_value(self.summary_table, "max_endurance", value)
+
+    def _update_propulsion_status(self, result: FlightEnvelopeResult) -> None:
+        if not result.propulsion_available:
+            value = "Unavailable — aerodynamic-only"
+        elif result.propulsion_feasible is False:
+            value = "Available — no feasible operating point"
+        else:
+            value = "Available"
+        self._set_property_value(self.summary_table, "propulsion_status", value)
 
     def _export_csv(self) -> None:
         if not self._last_result:

@@ -352,28 +352,7 @@ class AeroSandboxEngine(AeroSandboxAnalysisMixin, AeroSandboxGeometryMixin, Aero
                 p_type = str(sec_prof.get("type", "circle")).lower()
                 w, h, shape = self._fuselage_profile_parameters(sec_prof)
 
-                sec_rot_data = sec.get("rotation")
-                sec_rot_data = sec_rot_data if isinstance(sec_rot_data, dict) else {}
-                sec_roll = float(
-                    (sec_rot_data.get("roll") or 0.0)
-                    if "roll" in sec_rot_data
-                    else (sec_rot_data.get("x") or 0.0)
-                )
-                sec_pitch = float(
-                    (sec_rot_data.get("pitch") or 0.0)
-                    if "pitch" in sec_rot_data
-                    else (sec_rot_data.get("y") or 0.0)
-                )
-                sec_yaw = float(
-                    (sec_rot_data.get("yaw") or 0.0)
-                    if "yaw" in sec_rot_data
-                    else (sec_rot_data.get("z") or 0.0)
-                )
-                sec_rot = self._rotation_matrix_xyz(sec_roll, sec_pitch, sec_yaw)
-                xyz_normal = base_rot @ sec_rot @ np.array([1.0, 0.0, 0.0])
-                normal_norm = float(np.linalg.norm(xyz_normal))
-                if normal_norm > 1e-9:
-                    xyz_normal = xyz_normal / normal_norm
+                xyz_normal = self._fuselage_section_normal(sec, base_rot)
 
                 xsecs.append(
                     asb.FuselageXSec(
@@ -408,6 +387,17 @@ class AeroSandboxEngine(AeroSandboxAnalysisMixin, AeroSandboxGeometryMixin, Aero
         if not fuselages:
             return None
         return fuselages[0] if len(fuselages) == 1 else fuselages
+
+    def _fuselage_section_normal(self, section: dict[str, Any], base_rotation: Any) -> Any:
+        rotation = section.get("rotation")
+        rotation = rotation if isinstance(rotation, dict) else {}
+        roll = float(rotation.get("roll", rotation.get("x", 0.0)) or 0.0)
+        pitch = float(rotation.get("pitch", rotation.get("y", 0.0)) or 0.0)
+        yaw = float(rotation.get("yaw", rotation.get("z", 0.0)) or 0.0)
+        local_rotation = self._rotation_matrix_xyz(roll, pitch, yaw)
+        normal = base_rotation @ local_rotation @ np.array([1.0, 0.0, 0.0])
+        length = float(np.linalg.norm(normal))
+        return normal / length if length > 1e-9 else normal
 
     @staticmethod
     def _fuselage_profile_parameters(profile: dict[str, Any]) -> tuple[float, float, float]:

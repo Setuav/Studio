@@ -162,12 +162,7 @@ class PropulsionCreationController:
             f"{assembly_id}-{component_kind}",
             base_name,
         )
-        attach_to = None
-        if component_kind in {"propeller", "rotor"}:
-            members = assembly.get("members")
-            motors = members.get("motors") if isinstance(members, dict) else None
-            if isinstance(motors, list) and motors:
-                attach_to = str(motors[-1])
+        attach_to = self._propulsor_attachment(component_kind, assembly)
         component = self._new_component(
             component_kind,
             component_id,
@@ -176,26 +171,7 @@ class PropulsionCreationController:
         )
 
         def change() -> None:
-            components = project.data.get("components")
-            target = self._find_assembly(assembly_id)
-            if not isinstance(components, list) or target is None:
-                return
-            components.append(component)
-            members = target.setdefault("members", {})
-            if component_kind == "battery":
-                members["battery"] = component_id
-            else:
-                role = {
-                    "esc": "controllers",
-                    "motor": "motors",
-                    "propeller": "propulsors",
-                    "rotor": "propulsors",
-                }[component_kind]
-                values = members.setdefault(role, [])
-                if isinstance(values, list):
-                    values.append(component_id)
-                else:
-                    members[role] = [component_id]
+            self._append_component(project.data, assembly_id, component_kind, component)
 
         assembly_name = str(assembly.get("name") or assembly_id)
         self._api.edit_project(
@@ -210,6 +186,43 @@ class PropulsionCreationController:
                 "success",
                 3000,
             )
+
+    @staticmethod
+    def _propulsor_attachment(component_kind: str, assembly: dict[str, Any]) -> str | None:
+        if component_kind not in {"propeller", "rotor"}:
+            return None
+        members = assembly.get("members")
+        motors = members.get("motors") if isinstance(members, dict) else None
+        return str(motors[-1]) if isinstance(motors, list) and motors else None
+
+    def _append_component(
+        self,
+        project_data: dict[str, Any],
+        assembly_id: str,
+        component_kind: str,
+        component: dict[str, Any],
+    ) -> None:
+        components = project_data.get("components")
+        target = self._find_assembly(assembly_id)
+        if not isinstance(components, list) or target is None:
+            return
+        components.append(component)
+        members = target.setdefault("members", {})
+        component_id = str(component.get("id") or "")
+        if component_kind == "battery":
+            members["battery"] = component_id
+            return
+        role = {
+            "esc": "controllers",
+            "motor": "motors",
+            "propeller": "propulsors",
+            "rotor": "propulsors",
+        }[component_kind]
+        values = members.setdefault(role, [])
+        if isinstance(values, list):
+            values.append(component_id)
+        else:
+            members[role] = [component_id]
 
     def _new_component(
         self,

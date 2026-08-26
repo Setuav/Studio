@@ -189,35 +189,9 @@ class WeightBalanceSolver(WeightBalanceEngine):
         if mass_g is None or mass_g <= 0.0:
             return None
 
-        # A derived mass source also owns the default CG/inertia.  This is
-        # important for control surfaces created with a placeholder
-        # ``local_cg_mm: {0, 0, 0}``; that placeholder must not mask the
-        # geometry-derived hinge-bay centre.
-        cg_value = None if source == "derived" else wb_extension.get("local_cg_mm")
-        has_declared_cg = isinstance(cg_value, dict)
-        if not has_declared_cg and derived is not None:
-            # Use the envelope centre for structural geometry.  A control
-            # surface has its centre represented by a derived local transform
-            # when its transform is implicit.
-            if component.get("type") == "org.setuav.core:control-surface":
-                transform_value = component.get("transform")
-                has_transform_position = isinstance(transform_value, dict) and isinstance(
-                    transform_value.get("position"), dict
-                )
-            else:
-                has_transform_position = False
-            if not has_transform_position:
-                derived_position = derived.transform.get("position")
-                if isinstance(derived_position, dict) and any(
-                    _optional_number(derived_position.get(axis)) for axis in ("x", "y", "z")
-                ):
-                    cg_value = derived_position
-                elif _envelope_has_size(derived.envelope):
-                    envelope_offset = derived.envelope.get("offset_mm")
-                    cg_value = envelope_offset if isinstance(envelope_offset, dict) else None
-        if not has_declared_cg and cg_value is None and physical_envelope is not None:
-            envelope_offset = physical_envelope.get("offset_mm")
-            cg_value = envelope_offset if isinstance(envelope_offset, dict) else None
+        cg_value, has_declared_cg = _component_cg_value(
+            component, wb_extension, physical_envelope, derived, source
+        )
         cg_local_mm = _vector(cg_value)
         cg_body = transform_point_mm(cg_local_mm)
 
@@ -277,6 +251,41 @@ def _optional_number(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _component_cg_value(
+    component: dict[str, Any],
+    wb_extension: dict[str, Any],
+    physical_envelope: dict[str, Any] | None,
+    derived: DerivedComponentGeometry | None,
+    source: str,
+) -> tuple[object, bool]:
+    value = None if source == "derived" else wb_extension.get("local_cg_mm")
+    declared = isinstance(value, dict)
+    if (
+        not declared
+        and derived is not None
+        and not _has_explicit_control_surface_position(component)
+    ):
+        derived_position = derived.transform.get("position")
+        if isinstance(derived_position, dict) and any(
+            _optional_number(derived_position.get(axis)) for axis in ("x", "y", "z")
+        ):
+            value = derived_position
+        elif _envelope_has_size(derived.envelope):
+            offset = derived.envelope.get("offset_mm")
+            value = offset if isinstance(offset, dict) else None
+    if not declared and value is None and physical_envelope is not None:
+        offset = physical_envelope.get("offset_mm")
+        value = offset if isinstance(offset, dict) else None
+    return value, declared
+
+
+def _has_explicit_control_surface_position(component: dict[str, Any]) -> bool:
+    if component.get("type") != "org.setuav.core:control-surface":
+        return False
+    transform = component.get("transform")
+    return isinstance(transform, dict) and isinstance(transform.get("position"), dict)
 
 
 def _vector(value: object) -> Vector3:

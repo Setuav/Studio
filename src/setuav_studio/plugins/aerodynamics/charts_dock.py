@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 
 from PySide6.QtCharts import (
     QChart,
@@ -375,69 +376,64 @@ class AeroChartsDock(QWidget):
 
         cond = result.condition
         sweep_type = cond.sweep_type if cond else SweepType.ALPHA
-        preferred_set = "flight_performance"
+        preferred_set = self._cache_result_sets(result, all_points, sweep_type)
+        self._refresh_combobox_and_render(preferred_set=preferred_set)
 
+    def _cache_result_sets(
+        self, result: AeroResult, all_points: list[PolarPoint], sweep_type: SweepType
+    ) -> str:
+        condition = result.condition
         if sweep_type == SweepType.MULTI_GRID:
             self._cached_results["alpha_beta_grid"] = result
             self._cached_points["alpha_beta_grid"] = all_points
             self._cached_results["alpha_beta_lateral"] = result
             self._cached_points["alpha_beta_lateral"] = all_points
-            preferred_set = "alpha_beta_grid"
+            return "alpha_beta_grid"
 
-        elif sweep_type == SweepType.DUAL_ALPHA_BETA:
+        if sweep_type == SweepType.DUAL_ALPHA_BETA:
             # 1. Alpha group
             alpha_group = [p for p in all_points if p.raw.get("_sweep_group") == "alpha"]
-            if not alpha_group and cond:
-                alpha_group = all_points[: int(cond.alpha_steps)]
+            if not alpha_group and condition:
+                alpha_group = all_points[: int(condition.alpha_steps)]
             alpha_pts = sorted(alpha_group if alpha_group else all_points, key=lambda p: p.alpha)
 
             # 2. Beta group
             beta_group = [p for p in all_points if p.raw.get("_sweep_group") == "beta"]
-            if not beta_group and cond:
-                beta_group = all_points[int(cond.alpha_steps) :]
+            if not beta_group and condition:
+                beta_group = all_points[int(condition.alpha_steps) :]
             beta_pts = sorted(beta_group if beta_group else all_points, key=lambda p: p.beta)
 
             if alpha_pts:
-                self._cached_results["flight_performance"] = result
-                self._cached_points["flight_performance"] = alpha_pts
-                self._cached_results["longitudinal_stability"] = result
-                self._cached_points["longitudinal_stability"] = alpha_pts
-                self._cached_results["forces_moments"] = result
-                self._cached_points["forces_moments"] = alpha_pts
+                self._cache_alpha_result(result, alpha_pts)
 
             if beta_pts:
                 self._cached_results["lateral_directional"] = result
                 self._cached_points["lateral_directional"] = beta_pts
+            return "flight_performance"
 
-            preferred_set = "flight_performance"
-
-        elif sweep_type == SweepType.BETA:
+        if sweep_type == SweepType.BETA:
             beta_pts = sorted(all_points, key=lambda p: p.beta)
             self._cached_results["lateral_directional"] = result
             self._cached_points["lateral_directional"] = beta_pts
             self._cached_results["forces_moments"] = result
             self._cached_points["forces_moments"] = beta_pts
-            preferred_set = "lateral_directional"
+            return "lateral_directional"
 
-        elif sweep_type == SweepType.CONTROL_DEFLECTION:
-            ctrl_k = cond.sweep_variable if cond else ""
+        if sweep_type == SweepType.CONTROL_DEFLECTION:
+            ctrl_k = condition.sweep_variable if condition else ""
             ctrl_pts = sorted(all_points, key=lambda p: p.control_deflections.get(ctrl_k, 0.0))
             self._cached_results["control_effectiveness"] = result
             self._cached_points["control_effectiveness"] = ctrl_pts
-            preferred_set = "control_effectiveness"
+            return "control_effectiveness"
 
-        else:
-            # ALPHA sweep
-            alpha_pts = sorted(all_points, key=lambda p: p.alpha)
-            self._cached_results["flight_performance"] = result
-            self._cached_points["flight_performance"] = alpha_pts
-            self._cached_results["longitudinal_stability"] = result
-            self._cached_points["longitudinal_stability"] = alpha_pts
-            self._cached_results["forces_moments"] = result
-            self._cached_points["forces_moments"] = alpha_pts
-            preferred_set = "flight_performance"
+        alpha_pts = sorted(all_points, key=lambda p: p.alpha)
+        self._cache_alpha_result(result, alpha_pts)
+        return "flight_performance"
 
-        self._refresh_combobox_and_render(preferred_set=preferred_set)
+    def _cache_alpha_result(self, result: AeroResult, points: list[PolarPoint]) -> None:
+        for key in ("flight_performance", "longitudinal_stability", "forces_moments"):
+            self._cached_results[key] = result
+            self._cached_points[key] = points
 
     def _refresh_combobox_and_render(self, preferred_set: str | None = None) -> None:
         curr_key = self.combo_view_mode.currentData()
@@ -473,34 +469,21 @@ class AeroChartsDock(QWidget):
             self._render_chart_set(active_key)
 
     def _render_chart_set(self, key: str) -> None:
-        if key not in self._cached_results or key not in self._cached_points:
+        chart_data = self._chart_data(key)
+        if chart_data is None:
             self.clear_charts()
             return
-
-        result = self._cached_results[key]
-        points = self._cached_points[key]
-        if not points:
-            self.clear_charts()
-            return
+        result, points = chart_data
 
         cond = result.condition
-        sweep_type = cond.sweep_type if cond else SweepType.ALPHA
+        sweep_type = getattr(cond, "sweep_type", SweepType.ALPHA)
 
-        if sweep_type == SweepType.MULTI_GRID and key in {
-            "alpha_beta_grid",
-            "alpha_beta_lateral",
-        }:
-            self._render_alpha_beta_grid(
-                result,
-                points,
-                lateral=(key == "alpha_beta_lateral"),
-            )
+        if self._render_grid_chart(key, result, points, sweep_type):
             return
 
         x_vals, x_label = self._chart_x_axis(key, points, sweep_type, cond)
 
-        self.setUpdatesEnabled(False)
-        try:
+        with self._chart_update():
             # Dynamic pressure is constant for the supported fixed-speed,
             # fixed-altitude sweeps, so it carries no information as a curve.
             self.chart_ld.setVisible(key != "forces_moments")
@@ -683,14 +666,41 @@ class AeroChartsDock(QWidget):
                     x_vals, loiter_factor, "CL^1.5/CD", "orange", x_label, "CL^1.5 / CD"
                 )
 
-        except Exception as err:
+    @contextmanager
+    def _chart_update(self) -> Iterator[None]:
+        self.setUpdatesEnabled(False)
+        try:
+            yield
+        except Exception as error:
             import logging
 
             logging.getLogger(__name__).error(
-                "Failed to update aerodynamic charts: %s", err, exc_info=True
+                "Failed to update aerodynamic charts: %s", error, exc_info=True
             )
         finally:
             self.setUpdatesEnabled(True)
+
+    def _chart_data(self, key: str) -> tuple[AeroResult, list[PolarPoint]] | None:
+        result = self._cached_results.get(key)
+        points = self._cached_points.get(key)
+        if result is None or not points:
+            return None
+        return result, points
+
+    def _render_grid_chart(
+        self,
+        key: str,
+        result: AeroResult,
+        points: list[PolarPoint],
+        sweep_type: SweepType,
+    ) -> bool:
+        if sweep_type != SweepType.MULTI_GRID or key not in {
+            "alpha_beta_grid",
+            "alpha_beta_lateral",
+        }:
+            return False
+        self._render_alpha_beta_grid(result, points, lateral=key == "alpha_beta_lateral")
+        return True
 
     @staticmethod
     def _chart_x_axis(

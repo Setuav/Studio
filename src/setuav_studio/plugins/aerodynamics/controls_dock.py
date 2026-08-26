@@ -480,39 +480,10 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         # Build FlightCondition with generalized sweep mode
         sweep_data = self.combo_mode.currentData()
         is_sweep = sweep_data is not None
-
-        if sweep_data == SweepType.MULTI_GRID:
-            sweep_type = SweepType.MULTI_GRID
-            sweep_var = "alpha"
-            secondary_var = "beta"
-        elif sweep_data == SweepType.DUAL_ALPHA_BETA:
-            sweep_type = SweepType.DUAL_ALPHA_BETA
-            sweep_var = "alpha"
-            secondary_var = "beta"
-        elif sweep_data == SweepType.ALPHA:
-            sweep_type = SweepType.ALPHA
-            sweep_var = "alpha"
-            secondary_var = None
-        elif sweep_data == SweepType.BETA:
-            sweep_type = SweepType.BETA
-            sweep_var = "beta"
-            secondary_var = None
-        elif sweep_data == SweepType.CONTROL_DEFLECTION:
-            self._refresh_control_channels()
-            if not self._available_control_channels:
-                QMessageBox.warning(
-                    self,
-                    "Missing Control Channel",
-                    "The aircraft geometry does not provide an elevator, aileron, rudder, or flap channel.",
-                )
-                return
-            sweep_type = SweepType.CONTROL_DEFLECTION
-            sweep_var = str(self.combo_ctrl.currentData())
-            secondary_var = None
-        else:
-            sweep_type = SweepType.ALPHA
-            sweep_var = "alpha"
-            secondary_var = None
+        sweep = self._resolve_sweep(sweep_data)
+        if sweep is None:
+            return
+        sweep_type, sweep_var, secondary_var = sweep
 
         s_min = float(self.spin_sweep_min.value())
         s_max = float(self.spin_sweep_max.value())
@@ -583,6 +554,23 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         self._worker.signals.progress.connect(self._on_analysis_progress)
 
         QThreadPool.globalInstance().start(self._worker)
+
+    def _resolve_sweep(self, value: object) -> tuple[SweepType, str, str | None] | None:
+        if value in {SweepType.MULTI_GRID, SweepType.DUAL_ALPHA_BETA}:
+            return value, "alpha", "beta"
+        if value == SweepType.BETA:
+            return SweepType.BETA, "beta", None
+        if value == SweepType.CONTROL_DEFLECTION:
+            self._refresh_control_channels()
+            if not self._available_control_channels:
+                QMessageBox.warning(
+                    self,
+                    "Missing Control Channel",
+                    "The aircraft geometry does not provide an elevator, aileron, rudder, or flap channel.",
+                )
+                return None
+            return SweepType.CONTROL_DEFLECTION, str(self.combo_ctrl.currentData()), None
+        return SweepType.ALPHA, "alpha", None
 
     def _on_analysis_progress(self, current: int, total: int, msg: str) -> None:
         self._api.report_progress(current, total, msg or "Solving")

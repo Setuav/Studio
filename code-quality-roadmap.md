@@ -208,8 +208,24 @@ sağlanıyor.
   ikon eşleme, entity karşılaştırma ve analiz toplama ayrıldı.
 - [x] Ruff `C901` eşiği kaynak kodun tamamında `15` olarak etkinleştirildi.
 
-Sonraki aşamada `11–15` aralığındaki fonksiyonlar ele alınarak eşik `10`
-seviyesine indirilecek.
+### Karmaşıklık eşiğini 10'a indirme
+
+- [x] Aerodynamics chart, controls, solver dönüşümü, JSON serileştirme ve
+  stability akışları küçük çözümleyici/handler fonksiyonlarına ayrıldı.
+- [x] Project Explorer contribution, context-menu, tip etiketi ve yeniden
+  adlandırma akışları ayrıldı.
+- [x] Electrical Propulsion oluşturma/assembly düzenleme ile Flight Performance
+  context/sonuç akışları sadeleştirildi.
+- [x] Control-surface değer çözümleme ortak yardımcı modüle taşındı; section
+  editor ve fuselage canvas çizim akışları bölündü.
+- [x] Planform, mesh hit-test, scene root-stub/fuselage kesiti ve OpenGL çizim
+  aşamaları ayrıldı.
+- [x] Weight-Balance CG çözümleme ve shell toolbar kurulum akışları bölündü.
+- [x] `11–15` aralığındaki 28 fonksiyonun tamamı `10` veya altına indirildi.
+- [x] Ruff `C901` eşiği kaynak kodun tamamında `10` olarak etkinleştirildi.
+
+Karmaşıklık kalite kapısı hedef seviyeye ulaştı; yeni fonksiyonlar da aynı
+eşikte kontrol edilecek.
 
 ## 9. Bağımlılıkları düzenle
 

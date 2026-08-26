@@ -292,13 +292,10 @@ def _build_wing_root_stubs(
         for item_id, item in items.items():
             if _frame_parent(item) != fuselage_id:
                 continue
-            source = _geometry_source(item, items)
-            if source is None or source.get("type") != "org.setuav.core:lifting-surface":
+            wing = _wing_root_geometry(item, items, provider)
+            if wing is None:
                 continue
-            wing_lofts = provider(source)
-            if not wing_lofts or not wing_lofts[0].sections:
-                continue
-            root_section = wing_lofts[0].sections[0]
+            source, root_section = wing
             matrices = [world_matrix_fn(item_id)]
             if _is_bilateral(source):
                 matrices.append(_mirrored_root_matrix(item, fuselage_id, world_matrix_fn))
@@ -307,6 +304,18 @@ def _build_wing_root_stubs(
                 if stub is not None:
                     stubs.append(stub)
     return stubs
+
+
+def _wing_root_geometry(
+    item: dict[str, Any], items: dict[str, Any], provider: GeometryProvider
+) -> tuple[dict[str, Any], Section] | None:
+    source = _geometry_source(item, items)
+    if source is None or source.get("type") != "org.setuav.core:lifting-surface":
+        return None
+    lofts = provider(source)
+    if not lofts or not lofts[0].sections:
+        return None
+    return source, lofts[0].sections[0]
 
 
 def _fuselage_items(items: dict[str, Any]) -> list[dict[str, Any]]:
@@ -390,34 +399,7 @@ def _get_fuselage_cross_section_at_x(
     fuse_comp: dict[str, Any],
     x_target: float,
 ) -> tuple[float, float, float, float, str]:
-    params = fuse_comp.get("parameters") if isinstance(fuse_comp.get("parameters"), dict) else {}
-    geom = params.get("geometry") if isinstance(params.get("geometry"), dict) else {}
-    segments = geom.get("segments") if isinstance(geom.get("segments"), list) else []
-
-    sections: list[tuple[float, float, float, float, float, str]] = []
-    for seg in segments:
-        if not isinstance(seg, dict):
-            continue
-        for sec in seg.get("sections", []):
-            if not isinstance(sec, dict):
-                continue
-            pos = sec.get("position") if isinstance(sec.get("position"), dict) else {}
-            sec_x = float(pos.get("x", 0.0))
-            sec_y = float(pos.get("y", 0.0))
-            sec_z = float(pos.get("z", 0.0))
-            prof = sec.get("profile") if isinstance(sec.get("profile"), dict) else {}
-            p_type = str(prof.get("type", "circle"))
-            if p_type == "circle":
-                w = float(prof.get("diameter", 0.0))
-                h = w
-            elif p_type in ("ellipse", "rectangle"):
-                w = float(prof.get("width", 0.0))
-                h = float(prof.get("height", 0.0))
-            else:
-                w = float(prof.get("width", prof.get("diameter", 100.0)))
-                h = float(prof.get("height", prof.get("diameter", 100.0)))
-            sections.append((sec_x, sec_y, sec_z, max(w * 0.5, 1e-4), max(h * 0.5, 1e-4), p_type))
-
+    sections = _fuselage_cross_sections(fuse_comp)
     sections.sort(key=lambda s: s[0])
     if not sections:
         return 0.0, 0.0, 50.0, 50.0, "circle"
@@ -443,6 +425,51 @@ def _get_fuselage_cross_section_at_x(
                 )
 
     return 0.0, 0.0, 50.0, 50.0, "circle"
+
+
+def _fuselage_cross_sections(
+    component: dict[str, Any],
+) -> list[tuple[float, float, float, float, float, str]]:
+    parameters = component.get("parameters")
+    parameters = parameters if isinstance(parameters, dict) else {}
+    geometry = parameters.get("geometry")
+    geometry = geometry if isinstance(geometry, dict) else {}
+    segments = geometry.get("segments")
+    segments = segments if isinstance(segments, list) else []
+    result: list[tuple[float, float, float, float, float, str]] = []
+    for segment in segments:
+        if not isinstance(segment, dict):
+            continue
+        for section in segment.get("sections", []):
+            if isinstance(section, dict):
+                result.append(_fuselage_cross_section(section))
+    return result
+
+
+def _fuselage_cross_section(
+    section: dict[str, Any],
+) -> tuple[float, float, float, float, float, str]:
+    position = section.get("position")
+    position = position if isinstance(position, dict) else {}
+    profile = section.get("profile")
+    profile = profile if isinstance(profile, dict) else {}
+    profile_type = str(profile.get("type", "circle"))
+    if profile_type == "circle":
+        width = height = float(profile.get("diameter", 0.0))
+    elif profile_type in {"ellipse", "rectangle"}:
+        width = float(profile.get("width", 0.0))
+        height = float(profile.get("height", 0.0))
+    else:
+        width = float(profile.get("width", profile.get("diameter", 100.0)))
+        height = float(profile.get("height", profile.get("diameter", 100.0)))
+    return (
+        float(position.get("x", 0.0)),
+        float(position.get("y", 0.0)),
+        float(position.get("z", 0.0)),
+        max(width * 0.5, 1e-4),
+        max(height * 0.5, 1e-4),
+        profile_type,
+    )
 
 
 def _project_point_to_fuselage(

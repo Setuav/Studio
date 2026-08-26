@@ -382,31 +382,9 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
         # Propulsion components
         assembly_id = self.combo_assembly.currentData()
         assemblies = proj.data.get("assemblies", [])
-        assembly = next((a for a in assemblies if a.get("id") == assembly_id), None)
-        comp_map = {c.get("id"): c for c in components}
-
-        motor_comp = None
-        prop_comp = None
-        bat_comp = None
-
-        if assembly:
-            m_ids = assembly.get("members", {}).get("motors", [])
-            motor_comp = comp_map.get(m_ids[0]) if m_ids else None
-
-            p_ids = assembly.get("members", {}).get("propulsors", [])
-            prop_comp = comp_map.get(p_ids[0]) if p_ids else None
-
-            b_id = assembly.get("members", {}).get("battery")
-            bat_comp = comp_map.get(b_id) if b_id else None
-        else:
-            for c in components:
-                ctype = c.get("type", "")
-                if "motor" in ctype and motor_comp is None:
-                    motor_comp = c
-                elif ("propeller" in ctype or "rotor" in ctype) and prop_comp is None:
-                    prop_comp = c
-                elif "battery" in ctype and bat_comp is None:
-                    bat_comp = c
+        motor_comp, prop_comp, bat_comp = self._propulsion_components(
+            components, assemblies, assembly_id
+        )
 
         motor_spec: MotorSpec | None = None
         if motor_comp:
@@ -483,6 +461,41 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
             "battery_voltage": bat_voltage,
             "usable_battery_ratio": 0.85,
         }
+
+    @staticmethod
+    def _propulsion_components(
+        components: list[dict[str, Any]], assemblies: list[Any], assembly_id: object
+    ) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None]:
+        assembly = next(
+            (
+                item
+                for item in assemblies
+                if isinstance(item, dict) and item.get("id") == assembly_id
+            ),
+            None,
+        )
+        if assembly is not None:
+            members = assembly.get("members")
+            members = members if isinstance(members, dict) else {}
+            by_id = {item.get("id"): item for item in components}
+            motors = members.get("motors") or []
+            propulsors = members.get("propulsors") or []
+            return (
+                by_id.get(motors[0]) if motors else None,
+                by_id.get(propulsors[0]) if propulsors else None,
+                by_id.get(members.get("battery")),
+            )
+
+        motor = propulsor = battery = None
+        for component in components:
+            component_type = str(component.get("type", ""))
+            if "motor" in component_type and motor is None:
+                motor = component
+            elif ("propeller" in component_type or "rotor" in component_type) and propulsor is None:
+                propulsor = component
+            elif "battery" in component_type and battery is None:
+                battery = component
+        return motor, propulsor, battery
 
     def _on_run_analysis(self) -> None:
         if self._is_running:

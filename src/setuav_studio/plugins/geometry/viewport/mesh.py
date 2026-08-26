@@ -501,20 +501,34 @@ def hit_test_loft(
                         continue
                     best_distance = distance
                     best_id = loft.component_id
-        if loft.closed_ends:
-            for loop, flip in ((loops[0], True), (loops[-1], False)):
-                centre = tuple(sum(point[axis] for point in loop) / len(loop) for axis in range(3))
-                for index, point in enumerate(loop):
-                    following = loop[(index + 1) % len(loop)]
-                    triangle = (centre, following, point) if flip else (centre, point, following)
-                    distance = _ray_triangle_intersection(origin, direction, triangle)
-                    if distance is None or (
-                        best_distance is not None and distance >= best_distance
-                    ):
-                        continue
-                    best_distance = distance
-                    best_id = loft.component_id
+        cap_distance = _loft_cap_hit_distance(loft, loops, origin, direction, best_distance)
+        if cap_distance is not None:
+            best_distance = cap_distance
+            best_id = loft.component_id
     return best_id
+
+
+def _loft_cap_hit_distance(
+    loft: LoftGeometry,
+    loops: list[tuple[Point3D, ...]],
+    origin: Point3D,
+    direction: Point3D,
+    current_best: float | None,
+) -> float | None:
+    if not loft.closed_ends:
+        return None
+    best = current_best
+    found = False
+    for loop, flip in ((loops[0], True), (loops[-1], False)):
+        centre = tuple(sum(point[axis] for point in loop) / len(loop) for axis in range(3))
+        for index, point in enumerate(loop):
+            following = loop[(index + 1) % len(loop)]
+            triangle = (centre, following, point) if flip else (centre, point, following)
+            distance = _ray_triangle_intersection(origin, direction, triangle)
+            if distance is not None and (best is None or distance < best):
+                best = distance
+                found = True
+    return best if found else None
 
 
 def _ray_triangle_intersection(

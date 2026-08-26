@@ -202,30 +202,27 @@ class ElectricPropulsionSystemEditor(PropertyTableMixin, QWidget):
             return
 
         def apply_members() -> None:
-            members = self._assembly.setdefault("members", {})
-            if role == "battery":
-                if member_id:
-                    members["battery"] = member_id
-                elif "battery" in members:
-                    members.pop("battery")
-            elif role == "controller":
-                if member_id:
-                    members["controllers"] = [member_id]
-                elif "controllers" in members:
-                    members.pop("controllers")
-            elif role == "motor":
-                if member_id:
-                    members["motors"] = [member_id]
-                elif "motors" in members:
-                    members.pop("motors")
-            elif role == "propulsor":
-                if member_id:
-                    members["propulsors"] = [member_id]
-                elif "propulsors" in members:
-                    members.pop("propulsors")
+            self._apply_member(role, member_id)
 
         self._api.edit_component(
             self._assembly,
             f"Update {role} in {self._assembly.get('name', 'assembly')}",
             apply_members,
         )
+
+    def _apply_member(self, role: str, member_id: str) -> None:
+        members = self._assembly.setdefault("members", {})
+        member_key = {
+            "battery": "battery",
+            "controller": "controllers",
+            "motor": "motors",
+            "propulsor": "propulsors",
+        }.get(role)
+        if member_key is None:
+            return
+        if not member_id:
+            members.pop(member_key, None)
+        elif role == "battery":
+            members[member_key] = member_id
+        else:
+            members[member_key] = [member_id]

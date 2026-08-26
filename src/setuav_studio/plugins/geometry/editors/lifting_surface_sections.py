@@ -434,22 +434,7 @@ class SectionsMixin:
         if not (0 <= row < len(sections)):
             return
 
-        sec = sections[row]
-        if column == 1:
-            sec["span"] = max(val, 1.0)
-        elif column == 2 and row == 0:
-            sec["root_chord"] = max(val, 1.0)
-        elif column == 3:
-            sec["tip_chord"] = max(val, 1.0)
-            if row + 1 < len(sections):
-                sections[row + 1]["root_chord"] = sec["tip_chord"]
-        elif column == 4:
-            sec["sweep"] = float(val)
-        elif column == 5:
-            sec["dihedral"] = float(val)
-        elif column == 6:
-            sec["twist"] = float(val)
-        else:
+        if not self._apply_section_cell(sections, row, column, val):
             return
 
         sw_loc = getattr(self, "_sweep_loc", 0.25)
@@ -463,6 +448,26 @@ class SectionsMixin:
         self.sections_table.selectRow(row)
         self._refresh_planform_table()
         self._load_section(row)
+
+    @staticmethod
+    def _apply_section_cell(
+        sections: list[dict[str, Any]], row: int, column: int, value: float
+    ) -> bool:
+        section = sections[row]
+        field = {
+            1: "span",
+            2: "root_chord",
+            3: "tip_chord",
+            4: "sweep",
+            5: "dihedral",
+            6: "twist",
+        }.get(column)
+        if field is None or (column == 2 and row != 0):
+            return False
+        section[field] = max(value, 1.0) if column in {1, 2, 3} else float(value)
+        if column == 3 and row + 1 < len(sections):
+            sections[row + 1]["root_chord"] = section["tip_chord"]
+        return True
 
     def _on_section_planform_changed(self, new_metrics: dict[str, float]) -> None:
         if self._loading:

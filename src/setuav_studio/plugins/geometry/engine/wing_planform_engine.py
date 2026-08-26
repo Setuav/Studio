@@ -80,7 +80,7 @@ def solve_wing_planform(
     Returns:
         (new_profiles, calculated_metrics)
     """
-    if mode == "manual" or not current_profiles:
+    if _uses_current_planform(mode, current_profiles):
         metrics = compute_planform_metrics(current_profiles, sweep_loc, symmetric, y_offset)
         return current_profiles, metrics
 
@@ -94,23 +94,15 @@ def solve_wing_planform(
     sweep_rad = math.radians(sweep_deg)
 
     # 2. Extract baseline profile station geometry
-    y_vals = [
-        float(p.get("position", {}).get("y", 0.0)) if isinstance(p.get("position"), dict) else 0.0
-        for p in current_profiles
-    ]
-    z_vals = [
-        float(p.get("position", {}).get("z", 0.0)) if isinstance(p.get("position"), dict) else 0.0
-        for p in current_profiles
-    ]
+    y_vals = [_profile_axis(profile, "position", "y") for profile in current_profiles]
+    z_vals = [_profile_axis(profile, "position", "z") for profile in current_profiles]
     chords_old = [max(float(p.get("chord", 0.0)), 1e-6) for p in current_profiles]
 
     y_root_old = min(y_vals) if y_vals else 0.0
     y_tip_old = max(y_vals) if y_vals else 0.0
     old_panel_span = max(y_tip_old - y_root_old, 1e-6)
     z_root_old = z_vals[0] if z_vals else 0.0
-    root_x0 = (
-        float(current_profiles[0].get("position", {}).get("x", 0.0)) if current_profiles else 0.0
-    )
+    root_x0 = _profile_axis(current_profiles[0], "position", "x")
 
     c_root_old = chords_old[0] if chords_old else 1.0
     c_tip_old = chords_old[-1] if chords_old else 1.0
@@ -119,16 +111,8 @@ def solve_wing_planform(
 
     has_washout = "washout" in inputs
     washout_deg = float(inputs.get("washout", 0.0))
-    root_pitch = (
-        float(current_profiles[0].get("rotation", {}).get("y", 0.0))
-        if current_profiles and isinstance(current_profiles[0].get("rotation"), dict)
-        else 0.0
-    )
-    tip_pitch_old = (
-        float(current_profiles[-1].get("rotation", {}).get("y", 0.0))
-        if current_profiles and isinstance(current_profiles[-1].get("rotation"), dict)
-        else 0.0
-    )
+    root_pitch = _profile_axis(current_profiles[0], "rotation", "y")
+    tip_pitch_old = _profile_axis(current_profiles[-1], "rotation", "y")
     washout_old = tip_pitch_old - root_pitch
 
     span_ratio = b_panel / old_panel_span
@@ -153,18 +137,16 @@ def solve_wing_planform(
         # Dihedral-preserving Z scaling
         pos["z"] = z_root_old + (z_old - z_root_old) * span_ratio
 
-        # Multi-station proportional chord morphing
-        if i == 0:
-            c_i = c_root
-        elif i == n_profiles - 1:
-            c_i = c_tip
-        else:
-            if abs(delta_c_old) > 1e-4:
-                r_i = (chords_old[i] - c_root_old) / delta_c_old
-                c_i = max(c_root + r_i * delta_c_new, 1.0)
-            else:
-                chord_ratio = c_root / max(c_root_old, 1e-6)
-                c_i = max(chords_old[i] * chord_ratio, 1.0)
+        c_i = _morphed_chord(
+            i,
+            n_profiles,
+            chords_old,
+            c_root,
+            c_tip,
+            c_root_old,
+            delta_c_old,
+            delta_c_new,
+        )
 
         p_new["chord"] = c_i
 
@@ -189,6 +171,30 @@ def solve_wing_planform(
 
     metrics = compute_planform_metrics(new_profiles, sweep_loc, symmetric, y_offset)
     return new_profiles, metrics
+
+
+def _uses_current_planform(mode: str, profiles: list[dict[str, Any]]) -> bool:
+    return mode == "manual" or not profiles
+
+
+def _morphed_chord(
+    index: int,
+    profile_count: int,
+    old_chords: list[float],
+    root: float,
+    tip: float,
+    old_root: float,
+    old_delta: float,
+    new_delta: float,
+) -> float:
+    if index == 0:
+        return root
+    if index == profile_count - 1:
+        return tip
+    if abs(old_delta) > 1e-4:
+        ratio = (old_chords[index] - old_root) / old_delta
+        return max(root + ratio * new_delta, 1.0)
+    return max(old_chords[index] * root / max(old_root, 1e-6), 1.0)
 
 
 def _resolve_planform_targets(
@@ -218,6 +224,11 @@ def _resolve_planform_targets(
         root = _root_chord_for_area(area, panel_span, taper, symmetric, offset)
         return panel_span, root, taper * root
     return None
+
+
+def _profile_axis(profile: dict[str, Any], group: str, axis: str) -> float:
+    values = profile.get(group)
+    return float(values.get(axis, 0.0)) if isinstance(values, dict) else 0.0
 
 
 def _target_planform_area(mode: str, inputs: dict[str, float], span: float) -> float:

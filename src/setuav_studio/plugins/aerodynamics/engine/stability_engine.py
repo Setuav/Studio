@@ -59,8 +59,7 @@ class StabilityAnalysisEngine:
         Returns:
             StabilityDerivatives object with all aerodynamic derivatives and trim solution.
         """
-        if not HAS_AEROSANDBOX:
-            raise RuntimeError("AeroSandbox is required for stability analysis.")
+        self._require_aerosandbox()
 
         vel = max(float(condition.velocity), 0.1)
         alt = max(float(condition.altitude), 0.0)
@@ -93,12 +92,7 @@ class StabilityAnalysisEngine:
             ) from err
 
         def scalar(key: str) -> float:
-            if key not in res or res[key] is None:
-                raise RuntimeError(f"{method.value} did not return native stability field '{key}'")
-            value = float(np.ravel(res[key])[0])
-            if not math.isfinite(value):
-                raise RuntimeError(f"{method.value} returned non-finite stability field '{key}'")
-            return value
+            return self._native_scalar(res, key, method)
 
         cl_0 = scalar("CL")
         cm_0 = scalar("Cm")
@@ -125,16 +119,7 @@ class StabilityAnalysisEngine:
         cn_r = scalar("Cnr")
 
         # Neutral Point & Static Margin
-        if "x_np" in res and res["x_np"] is not None and not np.isnan(np.ravel(res["x_np"])[0]):
-            x_np = float(np.ravel(res["x_np"])[0])
-            static_margin_pct = ((x_np - x_cg) / c_ref) * 100.0
-        elif abs(cla_rad) > 1e-4:
-            sm = -float(cma_rad / cla_rad)
-            x_np = x_cg + sm * c_ref
-            static_margin_pct = sm * 100.0
-        else:
-            x_np = x_cg
-            static_margin_pct = 0.0
+        x_np, static_margin_pct = self._neutral_point(res, x_cg, c_ref, cla_rad, cma_rad)
 
         # 7. Control Effectiveness & Elevator Trim
         # 7. 3-Axis Aerodynamic Control Effectiveness (Elevator, Aileron, Rudder)
@@ -261,6 +246,33 @@ class StabilityAnalysisEngine:
             solver_method=method.value,
             rate_derivative_convention="normalized_body_rates",
         )
+
+    @staticmethod
+    def _require_aerosandbox() -> None:
+        if not HAS_AEROSANDBOX:
+            raise RuntimeError("AeroSandbox is required for stability analysis.")
+
+    @staticmethod
+    def _native_scalar(result: dict[str, Any], key: str, method: AnalysisMethod) -> float:
+        if key not in result or result[key] is None:
+            raise RuntimeError(f"{method.value} did not return native stability field '{key}'")
+        value = float(np.ravel(result[key])[0])
+        if not math.isfinite(value):
+            raise RuntimeError(f"{method.value} returned non-finite stability field '{key}'")
+        return value
+
+    @staticmethod
+    def _neutral_point(
+        result: dict[str, Any], x_cg: float, chord: float, cl_alpha: float, cm_alpha: float
+    ) -> tuple[float, float]:
+        native = result.get("x_np")
+        if native is not None and not np.isnan(np.ravel(native)[0]):
+            x_np = float(np.ravel(native)[0])
+            return x_np, ((x_np - x_cg) / chord) * 100.0
+        if abs(cl_alpha) > 1e-4:
+            margin = -float(cm_alpha / cl_alpha)
+            return x_cg + margin * chord, margin * 100.0
+        return x_cg, 0.0
 
     @classmethod
     def _validated_elevator_trim(

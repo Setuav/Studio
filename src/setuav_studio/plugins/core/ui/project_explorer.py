@@ -492,30 +492,8 @@ class ProjectExplorer(QTreeWidget):
             else None
         )
         if analysis_id:
-            current_entries: dict[str, dict[str, Any]] = {}
-            if self._api.current_project:
-                try:
-                    from setuav_studio.plugins.aerodynamics.analysis_store import (
-                        analysis_entries as aero_entries,
-                    )
-
-                    for entry in aero_entries(self._api.current_project):
-                        if isinstance(entry, dict) and (eid := str(entry.get("id") or "")):
-                            current_entries[eid] = entry
-                except Exception:
-                    pass
-
-                try:
-                    from setuav_studio.plugins.flight_performance.analysis_store import (
-                        analysis_entries as perf_entries,
-                    )
-
-                    for entry in perf_entries(self._api.current_project):
-                        if isinstance(entry, dict) and (eid := str(entry.get("id") or "")):
-                            current_entries[eid] = entry
-                except Exception:
-                    pass
-
+            project = self._api.current_project
+            current_entries = self._snapshot_analysis_results(project) if project else {}
             current_entry = current_entries.get(analysis_id)
             saved_entry = self._saved_analysis_results.get(analysis_id)
             if saved_entry != current_entry:
@@ -687,19 +665,15 @@ class ProjectExplorer(QTreeWidget):
         if ctype == "org.setuav.core:lifting-surface":
             is_mirrored = geom.get("mirror") is True or component.get("mirror") is True
             return "Lifting Surface (Bilateral)" if is_mirrored else "Lifting Surface"
-        if ctype == "org.setuav.core:fuselage":
-            return "Fuselage"
-        if ctype == "org.setuav.core:motor":
-            return "Electric Motor"
-        if ctype == "org.setuav.core:propeller":
-            return "Propeller"
-        if ctype == "org.setuav.core:rotor":
-            return "Rotor"
-        if ctype == "org.setuav.core:esc":
-            return "ESC (Speed Controller)"
-        if ctype == "org.setuav.core:battery":
-            return "Battery"
-        return ctype
+        labels = {
+            "org.setuav.core:fuselage": "Fuselage",
+            "org.setuav.core:motor": "Electric Motor",
+            "org.setuav.core:propeller": "Propeller",
+            "org.setuav.core:rotor": "Rotor",
+            "org.setuav.core:esc": "ESC (Speed Controller)",
+            "org.setuav.core:battery": "Battery",
+        }
+        return labels.get(ctype, ctype)
 
     @staticmethod
     def _geometry_icon_source(
@@ -774,32 +748,7 @@ class ProjectExplorer(QTreeWidget):
             return
 
         if item in self._virtual_items:
-            contribution = self._project_contributions.get(
-                item
-            ) or self._component_contributions.get(item)
-            if contribution is None:
-                return
-            can_rename = contribution.rename is not None
-            can_delete = contribution.delete is not None
-            if not can_rename and not can_delete:
-                return
-            self.setCurrentItem(item)
-            can_edit = self._can_edit_project()
-            menu = QMenu(self)
-            rename_action = None
-            delete_action = None
-            if can_rename:
-                rename_action = menu.addAction(get_icon("edit"), "Rename")
-                rename_action.setEnabled(can_edit)
-            if can_delete:
-                delete_action = menu.addAction(get_icon("remove"), "Delete")
-                delete_action.setEnabled(can_edit)
-
-            chosen_action = menu.exec(self.viewport().mapToGlobal(position))
-            if rename_action is not None and chosen_action is rename_action:
-                self.editItem(item, 0)
-            elif delete_action is not None and chosen_action is delete_action:
-                self._delete_item(item)
+            self._open_virtual_context_menu(item, position)
             return
 
         self.setCurrentItem(item)
@@ -818,6 +767,27 @@ class ProjectExplorer(QTreeWidget):
         elif delete_action is not None and chosen_action is delete_action:
             self._delete_item(item)
 
+    def _open_virtual_context_menu(self, item: QTreeWidgetItem, position: QPoint) -> None:
+        contribution = self._project_contributions.get(item) or self._component_contributions.get(
+            item
+        )
+        if contribution is None or (contribution.rename is None and contribution.delete is None):
+            return
+        self.setCurrentItem(item)
+        menu = QMenu(self)
+        rename_action = menu.addAction(get_icon("edit"), "Rename") if contribution.rename else None
+        delete_action = (
+            menu.addAction(get_icon("remove"), "Delete") if contribution.delete else None
+        )
+        for action in (rename_action, delete_action):
+            if action is not None:
+                action.setEnabled(self._can_edit_project())
+        chosen = menu.exec(self.viewport().mapToGlobal(position))
+        if rename_action is not None and chosen is rename_action:
+            self.editItem(item, 0)
+        elif delete_action is not None and chosen is delete_action:
+            self._delete_item(item)
+
     def _rename_item(self, item: QTreeWidgetItem, column: int) -> None:
         if column != 0:
             return
@@ -825,23 +795,7 @@ class ProjectExplorer(QTreeWidget):
             item
         )
         if contribution is not None:
-            old_name = contribution.title
-            new_name = item.text(0).strip()
-            if not self._can_edit_project() or contribution.rename is None:
-                self._restore_item_text(item, old_name)
-                return
-            if not new_name:
-                self._restore_item_text(item, old_name)
-                self._api.show_status("Name cannot be empty", "warning", 3000)
-                return
-            if new_name == old_name:
-                return
-            contribution.rename(new_name)
-            self._api.show_status(
-                f'Renamed "{old_name}" to "{new_name}"',
-                "success",
-                3000,
-            )
+            self._rename_contribution(item, contribution)
             return
         element = self._element_map.get(item)
         if element is None:
@@ -882,6 +836,23 @@ class ProjectExplorer(QTreeWidget):
         if fresh_element is not None:
             self._api.set_selection(fresh_element)
         self._api.show_status(f'Renamed "{old_label}" to "{new_name}"', "success", 3000)
+
+    def _rename_contribution(
+        self, item: QTreeWidgetItem, contribution: ProjectTreeNodeContribution
+    ) -> None:
+        old_name = contribution.title
+        new_name = item.text(0).strip()
+        if not self._can_edit_project() or contribution.rename is None:
+            self._restore_item_text(item, old_name)
+            return
+        if not new_name:
+            self._restore_item_text(item, old_name)
+            self._api.show_status("Name cannot be empty", "warning", 3000)
+            return
+        if new_name == old_name:
+            return
+        contribution.rename(new_name)
+        self._api.show_status(f'Renamed "{old_name}" to "{new_name}"', "success", 3000)
 
     def _delete_item(self, item: QTreeWidgetItem | None) -> None:
         if item is None:
