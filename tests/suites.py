@@ -12,6 +12,7 @@ CORE_MODULES = (
     "tests.core.test_component_editor",
     "tests.core.test_instance",
     "tests.core.test_main",
+    "tests.core.test_plugin_system_edges",
     "tests.core.test_plugins",
     "tests.core.test_project",
     "tests.core.test_project_edge_cases",

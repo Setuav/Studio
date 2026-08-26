@@ -7,7 +7,7 @@ sonraki adıma geçilmeyecek.
 
 - [x] Ruff lint kuralları tanımlandı.
 - [x] Mevcut Ruff lint sorunları temizlendi.
-- [x] 273 test başarıyla çalışıyor.
+- [x] 287 test başarıyla çalışıyor.
 - [x] Ruff formatı tüm kod tabanına uygulandı.
 
 ## 1. Kod tabanını formatla
@@ -79,7 +79,7 @@ kontrolü tamamlandı.
 Testler `tests/<plugin>/` dizinlerinde gruplanıyor. `tests/suites.py`; `core`,
 `geometry`, `aerodynamics-fast`, `aerodynamics-integration`,
 `electrical-propulsion`, `flight-performance` ve `weight-balance` komutlarını
-sağlıyor. Suite runner Qt'yi headless çalıştırıyor; tüm gruplar birlikte 273
+sağlıyor. Suite runner Qt'yi headless çalıştırıyor; tüm gruplar birlikte 287
 test içeriyor.
 
 ## 7. Coverage eksiklerini kapat
@@ -113,8 +113,9 @@ izole test edilebilirliği dikkate alınarak yapıldı.
 6. [x] `project.py` — `%72,6` seviyesinden `%100` branch coverage'a çıkarıldı;
    11 sınır testiyle açma, kaydetme, archive asset koruma, atomik yazma temizliği,
    extension yardımcıları ve bozuk veri senaryoları kapsandı.
-7. [ ] `plugin_system.py` — `%81,8`, 90 eksik satır; plugin yaşam döngüsü ve hata
-   izolasyonu kritik.
+7. [x] `plugin_system.py` — `%81,8` seviyesinden `%100` branch coverage'a
+   çıkarıldı; 14 odak testle registry yaşam döngüsü, plugin discovery/activation
+   hataları, callback izolasyonu, listener temizliği ve provider çözümleme kapsandı.
 8. [ ] `shell.py` — `%53,8`, 384 eksik satır; ana pencere akışları küçük UI
    senaryolarına bölünerek ele alınacak.
 
