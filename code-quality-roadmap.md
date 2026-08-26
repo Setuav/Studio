@@ -7,7 +7,7 @@ sonraki adıma geçilmeyecek.
 
 - [x] Ruff lint kuralları tanımlandı.
 - [x] Mevcut Ruff lint sorunları temizlendi.
-- [x] 215 test başarıyla çalışıyor.
+- [x] 230 test başarıyla çalışıyor.
 - [x] Ruff formatı tüm kod tabanına uygulandı.
 
 ## 1. Kod tabanını formatla
@@ -79,7 +79,7 @@ kontrolü tamamlandı.
 Testler `tests/<plugin>/` dizinlerinde gruplanıyor. `tests/suites.py`; `core`,
 `geometry`, `aerodynamics-fast`, `aerodynamics-integration`,
 `electrical-propulsion`, `flight-performance` ve `weight-balance` komutlarını
-sağlıyor. Suite runner Qt'yi headless çalıştırıyor; tüm gruplar birlikte 215
+sağlıyor. Suite runner Qt'yi headless çalıştırıyor; tüm gruplar birlikte 230
 test içeriyor.
 
 ## 7. Coverage eksiklerini kapat
@@ -98,8 +98,9 @@ izole test edilebilirliği dikkate alınarak yapıldı.
 
 1. [x] `geometry/engine/wing_driver_solver.py` — `%13,3` seviyesinden `%100`
    branch coverage'a çıkarıldı; 7 odak test ve asimetrik alan düzeltmesi eklendi.
-2. [ ] `core/instance.py` — `%10,9`, 174 eksik satır; instance düzenleme ve türetme
-   akışı.
+2. [x] `core/instance.py` — `%10,9` seviyesinden `%100` branch coverage'a
+   çıkarıldı; 8 odak testle görünüm, copy/mirror türetme, parent/source çözümleme,
+   doğrulama, transform düzenleme ve undo/redo akışları kapsandı.
 3. [ ] `electrical_propulsion/creation.py` — `%12,8`, 157 eksik satır; propulsion
    bileşeni oluşturma akışı.
 4. [ ] `geometry/creation.py` — `%20,6`, 103 eksik satır; geometry bileşeni
@@ -112,6 +113,9 @@ izole test edilebilirliği dikkate alınarak yapıldı.
    izolasyonu kritik.
 8. [ ] `shell.py` — `%53,8`, 384 eksik satır; ana pencere akışları küçük UI
    senaryolarına bölünerek ele alınacak.
+
+İlk iki hedefin ardından tam suite branch coverage değeri `%70,2` seviyesine
+ulaştı.
 
 İkinci dalgada `geometry/viewport/widget.py`, `view2d/canvas.py` ve büyük
 geometry editor diyalogları headless Qt testleriyle kapsanacak.

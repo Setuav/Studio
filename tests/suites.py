@@ -10,6 +10,7 @@ from collections.abc import Sequence
 
 CORE_MODULES = (
     "tests.core.test_component_editor",
+    "tests.core.test_instance",
     "tests.core.test_main",
     "tests.core.test_plugins",
     "tests.core.test_project",
