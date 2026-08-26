@@ -170,149 +170,271 @@ def get_catalog() -> SchemaCatalog:
     return _default_catalog
 
 
-def validate_project(  # noqa: C901
+def validate_project(
     project: dict[str, Any],
     catalog: SchemaCatalog | None = None,
 ) -> list[Issue]:
-    """Validate a project document against the spec schema catalog.
-
-    Returns a list of :class:`Issue` entries; empty list means valid.
-    """
+    """Validate a project document against the spec schema catalog."""
     catalog = catalog or get_catalog()
-    issues: list[Issue] = []
-
-    # 1. Root Schema Validation
-    root_schema = catalog.schemas.get(SCHEMA_IDS["project"])
-    if root_schema is None:
-        return [Issue("error", "Core project schema not found in catalog", "$")]
-
-    cls = validator_for(root_schema)
-    validator = cls(root_schema, registry=catalog.registry, format_checker=FormatChecker())
-    for err in sorted(validator.iter_errors(project), key=lambda e: str(e.path)):
-        path_str = "$" + "".join(f"[{p!r}]" if isinstance(p, str) else f"[{p}]" for p in err.path)
-        issues.append(Issue("error", err.message, path_str))
+    root_issues, schema_available = _validate_project_schema(project, catalog)
+    if not schema_available:
+        return root_issues
 
     components = project.get("components", [])
     assemblies = project.get("assemblies", [])
+    component_issues, component_ids, components_by_id = _index_components(components)
+    return [
+        *root_issues,
+        *component_issues,
+        *_validate_component_links(components, component_ids),
+        *_validate_component_parameters(components, catalog),
+        *_validate_assemblies(assemblies, component_ids, components_by_id, catalog),
+    ]
 
-    # 2. Check unique IDs
-    comp_ids: set[str] = set()
-    comp_by_id: dict[str, dict[str, Any]] = {}
-    for idx, comp in enumerate(components):
-        cid = comp.get("id")
-        if not cid:
+
+def _validate_project_schema(
+    project: dict[str, Any],
+    catalog: SchemaCatalog,
+) -> tuple[list[Issue], bool]:
+    root_schema = catalog.schemas.get(SCHEMA_IDS["project"])
+    if root_schema is None:
+        return [Issue("error", "Core project schema not found in catalog", "$")], False
+    validator_class = validator_for(root_schema)
+    validator = validator_class(
+        root_schema,
+        registry=catalog.registry,
+        format_checker=FormatChecker(),
+    )
+    issues = [
+        Issue("error", error.message, _json_path(error.path))
+        for error in sorted(validator.iter_errors(project), key=lambda error: str(error.path))
+    ]
+    return issues, True
+
+
+def _json_path(path: Any, prefix: str = "$") -> str:
+    suffix = "".join(f"[{part!r}]" if isinstance(part, str) else f"[{part}]" for part in path)
+    return f"{prefix}{suffix}"
+
+
+def _index_components(
+    components: list[dict[str, Any]],
+) -> tuple[list[Issue], set[str], dict[str, dict[str, Any]]]:
+    issues: list[Issue] = []
+    component_ids: set[str] = set()
+    components_by_id: dict[str, dict[str, Any]] = {}
+    for index, component in enumerate(components):
+        component_id = component.get("id")
+        if not component_id:
             continue
-        if cid in comp_ids:
+        if component_id in component_ids:
             issues.append(
-                Issue("error", f"Duplicate component ID '{cid}'", f"$.components[{idx}].id")
-            )
-        comp_ids.add(cid)
-        comp_by_id[cid] = comp
-
-    # 3. Check parent / attach_to references & DAG cycles
-    def _validate_link_field(field: str) -> dict[str, str | None]:
-        link_map: dict[str, str | None] = {}
-        for idx, comp in enumerate(components):
-            cid = comp.get("id")
-            if not cid:
-                continue
-            link = comp.get(field)
-            if link:
-                if link not in comp_ids:
-                    issues.append(
-                        Issue("error", f"Unknown {field} '{link}'", f"$.components[{idx}].{field}")
-                    )
-                elif link == cid:
-                    issues.append(
-                        Issue(
-                            "error",
-                            f"Component '{cid}' cannot be its own {field}",
-                            f"$.components[{idx}].{field}",
-                        )
-                    )
-            link_map[cid] = link
-        return link_map
-
-    for field, label in (("parent", "Parent"), ("attach_to", "attach_to")):
-        link_map = _validate_link_field(field)
-        for cid in comp_ids:
-            visited: set[str] = set()
-            curr = link_map.get(cid)
-            while curr:
-                if curr in visited:
-                    issues.append(
-                        Issue("error", f"{label} cycle involving '{cid}'", "$.components")
-                    )
-                    break
-                visited.add(curr)
-                curr = link_map.get(curr)
-
-    # 4. Component Parameter Validation against Plugin Schemas
-    for idx, comp in enumerate(components):
-        ctype = comp.get("type", "")
-        params = comp.get("parameters")
-        if not ctype or params is None:
-            continue
-
-        plugin_id = ctype.split(":")[0] if ":" in ctype else ""
-        plugin = catalog.plugins.get(plugin_id)
-        if not plugin or ctype not in plugin.component_types:
-            continue
-
-        schema_info = plugin.component_types[ctype]
-        c_schema = schema_info["schema"]
-        c_validator = validator_for(c_schema)(
-            c_schema, registry=catalog.registry, format_checker=FormatChecker()
-        )
-        for err in c_validator.iter_errors(params):
-            param_path = "".join(f"[{p!r}]" if isinstance(p, str) else f"[{p}]" for p in err.path)
-            issues.append(
-                Issue("error", err.message, f"$.components[{idx}].parameters{param_path}")
-            )
-
-    # 5. Assembly Member Validation
-    asm_ids: set[str] = set()
-    for idx, asm in enumerate(assemblies):
-        aid = asm.get("id")
-        if aid:
-            if aid in asm_ids or aid in comp_ids:
-                issues.append(
-                    Issue("error", f"Duplicate assembly ID '{aid}'", f"$.assemblies[{idx}].id")
+                Issue(
+                    "error",
+                    f"Duplicate component ID '{component_id}'",
+                    f"$.components[{index}].id",
                 )
-            asm_ids.add(aid)
+            )
+        component_ids.add(component_id)
+        components_by_id[component_id] = component
+    return issues, component_ids, components_by_id
 
-        atype = asm.get("type", "")
-        members = asm.get("members", {})
-        plugin_id = atype.split(":")[0] if ":" in atype else ""
-        plugin = catalog.plugins.get(plugin_id)
-        if not plugin or atype not in plugin.assembly_types:
-            continue
 
-        allowed_members = plugin.assembly_types[atype].get("member_types", {})
-        for role, ref_val in members.items():
-            ref_list = ref_val if isinstance(ref_val, list) else [ref_val]
-            expected_types = allowed_members.get(role, [])
-            for ref_id in ref_list:
-                if not ref_id:
-                    continue
-                if ref_id not in comp_by_id:
-                    issues.append(
-                        Issue(
-                            "error",
-                            f"Assembly member '{ref_id}' for role '{role}' does not exist",
-                            f"$.assemblies[{idx}].members.{role}",
-                        )
-                    )
-                elif expected_types:
-                    c = comp_by_id[ref_id]
-                    actual_type = c.get("type")
-                    if actual_type and actual_type not in expected_types:
-                        issues.append(
-                            Issue(
-                                "error",
-                                f"Component '{ref_id}' of type '{actual_type}' is not allowed for role '{role}' in '{atype}'",
-                                f"$.assemblies[{idx}].members.{role}",
-                            )
-                        )
-
+def _validate_component_links(
+    components: list[dict[str, Any]],
+    component_ids: set[str],
+) -> list[Issue]:
+    issues: list[Issue] = []
+    for field, label in (("parent", "Parent"), ("attach_to", "attach_to")):
+        link_map, field_issues = _component_link_map(components, component_ids, field)
+        issues.extend(field_issues)
+        issues.extend(_component_cycle_issues(component_ids, link_map, label))
     return issues
+
+
+def _component_link_map(
+    components: list[dict[str, Any]],
+    component_ids: set[str],
+    field: str,
+) -> tuple[dict[str, str | None], list[Issue]]:
+    links: dict[str, str | None] = {}
+    issues: list[Issue] = []
+    for index, component in enumerate(components):
+        component_id = component.get("id")
+        if not component_id:
+            continue
+        link = component.get(field)
+        if link and link not in component_ids:
+            issues.append(
+                Issue(
+                    "error",
+                    f"Unknown {field} '{link}'",
+                    f"$.components[{index}].{field}",
+                )
+            )
+        elif link == component_id:
+            issues.append(
+                Issue(
+                    "error",
+                    f"Component '{component_id}' cannot be its own {field}",
+                    f"$.components[{index}].{field}",
+                )
+            )
+        links[component_id] = link
+    return links, issues
+
+
+def _component_cycle_issues(
+    component_ids: set[str],
+    links: dict[str, str | None],
+    label: str,
+) -> list[Issue]:
+    issues: list[Issue] = []
+    for component_id in component_ids:
+        visited: set[str] = set()
+        current = links.get(component_id)
+        while current:
+            if current in visited:
+                issues.append(
+                    Issue(
+                        "error",
+                        f"{label} cycle involving '{component_id}'",
+                        "$.components",
+                    )
+                )
+                break
+            visited.add(current)
+            current = links.get(current)
+    return issues
+
+
+def _validate_component_parameters(
+    components: list[dict[str, Any]],
+    catalog: SchemaCatalog,
+) -> list[Issue]:
+    issues: list[Issue] = []
+    for index, component in enumerate(components):
+        component_type = component.get("type", "")
+        parameters = component.get("parameters")
+        schema = _component_schema(catalog, component_type)
+        if parameters is None or schema is None:
+            continue
+        validator = validator_for(schema)(
+            schema,
+            registry=catalog.registry,
+            format_checker=FormatChecker(),
+        )
+        for error in validator.iter_errors(parameters):
+            path = _json_path(error.path, f"$.components[{index}].parameters")
+            issues.append(Issue("error", error.message, path))
+    return issues
+
+
+def _component_schema(
+    catalog: SchemaCatalog,
+    component_type: str,
+) -> dict[str, Any] | None:
+    if not component_type:
+        return None
+    plugin_id = component_type.split(":")[0] if ":" in component_type else ""
+    plugin = catalog.plugins.get(plugin_id)
+    if not plugin or component_type not in plugin.component_types:
+        return None
+    return plugin.component_types[component_type]["schema"]
+
+
+def _validate_assemblies(
+    assemblies: list[dict[str, Any]],
+    component_ids: set[str],
+    components_by_id: dict[str, dict[str, Any]],
+    catalog: SchemaCatalog,
+) -> list[Issue]:
+    issues: list[Issue] = []
+    assembly_ids: set[str] = set()
+    for index, assembly in enumerate(assemblies):
+        issues.extend(_assembly_id_issues(assembly, index, assembly_ids, component_ids))
+        issues.extend(_assembly_member_issues(assembly, index, components_by_id, catalog))
+    return issues
+
+
+def _assembly_id_issues(
+    assembly: dict[str, Any],
+    index: int,
+    assembly_ids: set[str],
+    component_ids: set[str],
+) -> list[Issue]:
+    assembly_id = assembly.get("id")
+    if not assembly_id:
+        return []
+    issues = []
+    if assembly_id in assembly_ids or assembly_id in component_ids:
+        issues.append(
+            Issue(
+                "error",
+                f"Duplicate assembly ID '{assembly_id}'",
+                f"$.assemblies[{index}].id",
+            )
+        )
+    assembly_ids.add(assembly_id)
+    return issues
+
+
+def _assembly_member_issues(
+    assembly: dict[str, Any],
+    index: int,
+    components_by_id: dict[str, dict[str, Any]],
+    catalog: SchemaCatalog,
+) -> list[Issue]:
+    assembly_type = assembly.get("type", "")
+    plugin_id = assembly_type.split(":")[0] if ":" in assembly_type else ""
+    plugin = catalog.plugins.get(plugin_id)
+    if not plugin or assembly_type not in plugin.assembly_types:
+        return []
+    allowed_members = plugin.assembly_types[assembly_type].get("member_types", {})
+    members = assembly.get("members", {})
+    issues: list[Issue] = []
+    for role, value in members.items():
+        references = value if isinstance(value, list) else [value]
+        for reference in references:
+            issues.extend(
+                _assembly_reference_issues(
+                    reference,
+                    role,
+                    index,
+                    assembly_type,
+                    allowed_members.get(role, []),
+                    components_by_id,
+                )
+            )
+    return issues
+
+
+def _assembly_reference_issues(
+    reference: Any,
+    role: str,
+    assembly_index: int,
+    assembly_type: str,
+    expected_types: list[str],
+    components_by_id: dict[str, dict[str, Any]],
+) -> list[Issue]:
+    if not reference:
+        return []
+    path = f"$.assemblies[{assembly_index}].members.{role}"
+    if reference not in components_by_id:
+        return [
+            Issue(
+                "error",
+                f"Assembly member '{reference}' for role '{role}' does not exist",
+                path,
+            )
+        ]
+    actual_type = components_by_id[reference].get("type")
+    if expected_types and actual_type and actual_type not in expected_types:
+        return [
+            Issue(
+                "error",
+                f"Component '{reference}' of type '{actual_type}' is not allowed for role '{role}' in '{assembly_type}'",
+                path,
+            )
+        ]
+    return []

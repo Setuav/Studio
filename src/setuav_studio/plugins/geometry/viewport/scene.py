@@ -26,166 +26,223 @@ def _frame_parent(item: dict[str, Any]) -> str | None:
     return parent if isinstance(parent, str) and parent else None
 
 
-def build_project_geometry(  # noqa: C901
+def build_project_geometry(
     project: Any,
     providers: dict[str, GeometryProvider],
 ) -> GeometryData:
+    items = _project_items(project)
+    if items is None:
+        return GeometryData()
+
+    world_matrix = _WorldMatrixResolver(items)
+    lofts: list[LoftGeometry] = []
+    for item_id, item in items.items():
+        source = _geometry_source(item, items)
+        if source is None:
+            continue
+        _attach_child_control_surfaces(source, item_id, items)
+        _append_component_geometry(
+            lofts,
+            item_id,
+            item,
+            source,
+            providers,
+            world_matrix,
+        )
+    lofts.extend(_build_wing_root_stubs(items, providers, world_matrix))
+    return GeometryData(tuple(lofts))
+
+
+def _project_items(project: Any) -> dict[str, dict[str, Any]] | None:
     project_data = getattr(project, "data", project) if project is not None else {}
     components = project_data.get("components") if isinstance(project_data, dict) else None
     if not isinstance(components, list):
-        return GeometryData()
-
-    items = {
+        return None
+    return {
         item["id"]: item
         for item in components
         if isinstance(item, dict) and isinstance(item.get("id"), str)
     }
-    world_cache: dict[str, Matrix4] = {}
 
-    def world_matrix(item_id: str, resolving: frozenset[str] = frozenset()) -> Matrix4:
-        if item_id in world_cache:
-            return world_cache[item_id]
+
+class _WorldMatrixResolver:
+    def __init__(self, items: dict[str, dict[str, Any]]) -> None:
+        self.items = items
+        self.cache: dict[str, Matrix4] = {}
+
+    def __call__(
+        self,
+        item_id: str,
+        resolving: frozenset[str] = frozenset(),
+    ) -> Matrix4:
+        if item_id in self.cache:
+            return self.cache[item_id]
         if item_id in resolving:
             raise ValueError(f"Component parent cycle at {item_id!r}")
-        item = items.get(item_id)
+        item = self.items.get(item_id)
         if item is None:
             return identity_matrix()
 
         parent_id = _frame_parent(item)
         parent = (
-            world_matrix(parent_id, resolving | {item_id})
+            self(parent_id, resolving | {item_id})
             if isinstance(parent_id, str)
             else identity_matrix()
         )
-        local = transform_matrix(item.get("transform"))
-        if item.get("kind") == "instance":
-            source = items.get(item.get("source"))
-            source_transform = (
-                transform_matrix(source.get("transform"))
-                if isinstance(source, dict)
-                else identity_matrix()
-            )
-            derivation = derivation_matrix(item.get("derivation"))
-            local = multiply_matrix(local, multiply_matrix(derivation, source_transform))
+        local = self._local_matrix(item)
         result = multiply_matrix(parent, local)
-        world_cache[item_id] = result
+        self.cache[item_id] = result
         return result
 
-    lofts: list[LoftGeometry] = []
-    for item_id, item in items.items():
-        if not isinstance(item, dict):
-            continue
-        source = deepcopy(item)
-        if item.get("kind") == "instance":
-            candidate = items.get(item.get("source"))
-            if not isinstance(candidate, dict):
-                continue
-            source = deepcopy(candidate)
-            overrides = item.get("parameter_overrides")
-            if isinstance(overrides, dict):
-                parameters = source.get("parameters")
-                if not isinstance(parameters, dict):
-                    parameters = {}
-                    source["parameters"] = parameters
-                _merge(parameters, overrides)
+    def _local_matrix(self, item: dict[str, Any]) -> Matrix4:
+        local = transform_matrix(item.get("transform"))
+        if item.get("kind") != "instance":
+            return local
+        source = self.items.get(item.get("source"))
+        source_transform = (
+            transform_matrix(source.get("transform"))
+            if isinstance(source, dict)
+            else identity_matrix()
+        )
+        derivation = derivation_matrix(item.get("derivation"))
+        return multiply_matrix(local, multiply_matrix(derivation, source_transform))
 
-            # Invert deflection on mirrored instances for anti-symmetric surfaces (aileron, elevon)
-            derivation = item.get("derivation")
-            if isinstance(derivation, dict) and derivation.get("type") == "mirror":
-                plane = derivation.get("plane", "XZ")
-                if plane in ("XZ", "1", None):
-                    params = (
-                        source.get("parameters")
-                        if isinstance(source.get("parameters"), dict)
-                        else {}
-                    )
-                    geom = (
-                        params.get("geometry") if isinstance(params.get("geometry"), dict) else {}
-                    )
-                    cs_list = geom.get("control_surfaces")
-                    if isinstance(cs_list, list):
-                        for cs in cs_list:
-                            if isinstance(cs, dict) and str(cs.get("type", "aileron")).lower() in (
-                                "aileron",
-                                "elevon",
-                            ):
-                                cs["deflection"] = -float(cs.get("deflection", 0.0))
 
-        component_type = source.get("type")
-        if component_type == "org.setuav.core:lifting-surface":
-            # Collect child control surfaces attached to this lifting surface
-            child_cs: list[dict[str, Any]] = []
-            for child in items.values():
-                if (
-                    isinstance(child, dict)
-                    and child.get("type") == "org.setuav.core:control-surface"
-                    and (_frame_parent(child) or "") == item_id
-                ):
-                    child_params = (
-                        child.get("parameters") if isinstance(child.get("parameters"), dict) else {}
-                    )
-                    child_geom = (
-                        deepcopy(child_params.get("geometry", {}))
-                        if isinstance(child_params.get("geometry"), dict)
-                        else {}
-                    )
-                    child_geom.setdefault("tag", child.get("name") or child.get("id"))
-                    child_cs.append(child_geom)
-            if child_cs:
-                params = source.setdefault("parameters", {})
-                geom = params.setdefault("geometry", {})
-                geom["control_surfaces"] = child_cs
+def _geometry_source(
+    item: dict[str, Any],
+    items: dict[str, dict[str, Any]],
+) -> dict[str, Any] | None:
+    source = deepcopy(item)
+    if item.get("kind") != "instance":
+        return source
+    candidate = items.get(item.get("source"))
+    if not isinstance(candidate, dict):
+        return None
+    source = deepcopy(candidate)
+    overrides = item.get("parameter_overrides")
+    if isinstance(overrides, dict):
+        parameters = source.get("parameters")
+        if not isinstance(parameters, dict):
+            parameters = {}
+            source["parameters"] = parameters
+        _merge(parameters, overrides)
+    if _is_xz_mirror(item.get("derivation")):
+        _invert_differential_controls(source)
+    return source
 
-        provider = providers.get(component_type) if isinstance(component_type, str) else None
-        if provider is None:
-            continue
-        matrix = world_matrix(item_id)
-        parent_id = _frame_parent(item)
-        params = source.get("parameters") if isinstance(source.get("parameters"), dict) else {}
-        geom = params.get("geometry") if isinstance(params.get("geometry"), dict) else {}
 
-        for loft in provider(source):
-            lofts.append(_transform_loft(loft, matrix, item_id))
+def _is_xz_mirror(derivation: Any) -> bool:
+    if not isinstance(derivation, dict) or derivation.get("type") != "mirror":
+        return False
+    return derivation.get("plane", "XZ") in ("XZ", "1", None)
 
-        # Check if bilateral mirror is enabled on lifting surface
-        if component_type == "org.setuav.core:lifting-surface" and (
-            geom.get("mirror") is True or source.get("mirror") is True
+
+def _invert_differential_controls(source: dict[str, Any]) -> None:
+    parameters = source.get("parameters")
+    parameters = parameters if isinstance(parameters, dict) else {}
+    geometry = parameters.get("geometry")
+    geometry = geometry if isinstance(geometry, dict) else {}
+    controls = geometry.get("control_surfaces")
+    if not isinstance(controls, list):
+        return
+    for control in controls:
+        if isinstance(control, dict) and str(control.get("type", "aileron")).lower() in (
+            "aileron",
+            "elevon",
         ):
-            parent_mat = (
-                world_matrix(parent_id) if isinstance(parent_id, str) else identity_matrix()
-            )
-            local_mat = transform_matrix(item.get("transform"))
-            mirror_deriv = derivation_matrix({"type": "mirror", "plane": "XZ"})
-            mirrored_world_mat = multiply_matrix(
-                parent_mat, multiply_matrix(mirror_deriv, local_mat)
-            )
+            control["deflection"] = -float(control.get("deflection", 0.0))
 
-            source_mirror = deepcopy(source)
-            mirror_params = (
-                source_mirror.get("parameters")
-                if isinstance(source_mirror.get("parameters"), dict)
-                else {}
-            )
-            mirror_geom = (
-                mirror_params.get("geometry")
-                if isinstance(mirror_params.get("geometry"), dict)
-                else {}
-            )
-            cs_list = mirror_geom.get("control_surfaces")
-            if isinstance(cs_list, list):
-                for cs in cs_list:
-                    if isinstance(cs, dict) and str(cs.get("type", "aileron")).lower() in (
-                        "aileron",
-                        "elevon",
-                    ):
-                        cs["deflection"] = -float(cs.get("deflection", 0.0))
 
-            for loft in provider(source_mirror):
-                lofts.append(_transform_loft(loft, mirrored_world_mat, f"{item_id}:mirror"))
+def _attach_child_control_surfaces(
+    source: dict[str, Any],
+    item_id: str,
+    items: dict[str, dict[str, Any]],
+) -> None:
+    if source.get("type") != "org.setuav.core:lifting-surface":
+        return
+    controls = [
+        control
+        for child in items.values()
+        if (control := _child_control_surface(child, item_id)) is not None
+    ]
+    if controls:
+        parameters = source.setdefault("parameters", {})
+        geometry = parameters.setdefault("geometry", {})
+        geometry["control_surfaces"] = controls
 
-    # Automatic wing-fuselage root stubs connecting wing root to fuselage skin
-    lofts.extend(_build_wing_root_stubs(items, providers, world_matrix))
-    return GeometryData(tuple(lofts))
+
+def _child_control_surface(
+    child: dict[str, Any],
+    parent_id: str,
+) -> dict[str, Any] | None:
+    if (
+        child.get("type") != "org.setuav.core:control-surface"
+        or (_frame_parent(child) or "") != parent_id
+    ):
+        return None
+    parameters = child.get("parameters")
+    parameters = parameters if isinstance(parameters, dict) else {}
+    geometry = parameters.get("geometry")
+    control = deepcopy(geometry) if isinstance(geometry, dict) else {}
+    control.setdefault("tag", child.get("name") or child.get("id"))
+    return control
+
+
+def _append_component_geometry(
+    lofts: list[LoftGeometry],
+    item_id: str,
+    item: dict[str, Any],
+    source: dict[str, Any],
+    providers: dict[str, GeometryProvider],
+    world_matrix: Callable[[str], Matrix4],
+) -> None:
+    component_type = source.get("type")
+    provider = providers.get(component_type) if isinstance(component_type, str) else None
+    if provider is None:
+        return
+    matrix = world_matrix(item_id)
+    lofts.extend(_transform_loft(loft, matrix, item_id) for loft in provider(source))
+    if component_type == "org.setuav.core:lifting-surface" and _is_bilateral(source):
+        _append_mirrored_geometry(
+            lofts,
+            item_id,
+            item,
+            source,
+            provider,
+            world_matrix,
+        )
+
+
+def _is_bilateral(source: dict[str, Any]) -> bool:
+    parameters = source.get("parameters")
+    parameters = parameters if isinstance(parameters, dict) else {}
+    geometry = parameters.get("geometry")
+    geometry = geometry if isinstance(geometry, dict) else {}
+    return geometry.get("mirror") is True or source.get("mirror") is True
+
+
+def _append_mirrored_geometry(
+    lofts: list[LoftGeometry],
+    item_id: str,
+    item: dict[str, Any],
+    source: dict[str, Any],
+    provider: GeometryProvider,
+    world_matrix: Callable[[str], Matrix4],
+) -> None:
+    parent_id = _frame_parent(item)
+    parent_matrix = world_matrix(parent_id) if isinstance(parent_id, str) else identity_matrix()
+    local_matrix = transform_matrix(item.get("transform"))
+    mirror = derivation_matrix({"type": "mirror", "plane": "XZ"})
+    mirrored_matrix = multiply_matrix(
+        parent_matrix,
+        multiply_matrix(mirror, local_matrix),
+    )
+    mirrored_source = deepcopy(source)
+    _invert_differential_controls(mirrored_source)
+    lofts.extend(
+        _transform_loft(loft, mirrored_matrix, f"{item_id}:mirror")
+        for loft in provider(mirrored_source)
+    )
 
 
 def _transform_loft(loft: LoftGeometry, matrix: Matrix4, component_id: str) -> LoftGeometry:
@@ -217,144 +274,116 @@ def _merge(target: dict[str, Any], overrides: dict[str, Any]) -> None:
             target[key] = deepcopy(value)
 
 
-def _build_wing_root_stubs(  # noqa: C901
+def _build_wing_root_stubs(
     items: dict[str, Any],
     providers: dict[str, GeometryProvider],
     world_matrix_fn: Callable[[str], Matrix4],
 ) -> list[LoftGeometry]:
+    provider = providers.get("org.setuav.core:lifting-surface")
+    if provider is None:
+        return []
+
     stubs: list[LoftGeometry] = []
-    fuselage_items = [
+    for fuselage in _fuselage_items(items):
+        fuselage_id = fuselage.get("id")
+        if not isinstance(fuselage_id, str):
+            continue
+        color = _fuselage_stub_color()
+        for item_id, item in items.items():
+            if _frame_parent(item) != fuselage_id:
+                continue
+            source = _geometry_source(item, items)
+            if source is None or source.get("type") != "org.setuav.core:lifting-surface":
+                continue
+            wing_lofts = provider(source)
+            if not wing_lofts or not wing_lofts[0].sections:
+                continue
+            root_section = wing_lofts[0].sections[0]
+            matrices = [world_matrix_fn(item_id)]
+            if _is_bilateral(source):
+                matrices.append(_mirrored_root_matrix(item, fuselage_id, world_matrix_fn))
+            for matrix in matrices:
+                stub = _build_root_stub(fuselage, fuselage_id, root_section, matrix, color)
+                if stub is not None:
+                    stubs.append(stub)
+    return stubs
+
+
+def _fuselage_items(items: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
         item
         for item in items.values()
         if isinstance(item, dict) and item.get("type") == "org.setuav.core:fuselage"
     ]
-    if not fuselage_items:
-        return stubs
 
-    for fuse in fuselage_items:
-        fuse_id = fuse.get("id")
-        if not isinstance(fuse_id, str):
-            continue
-        fuse_colors = segment_colors()
-        fuse_color = fuse_colors[0] if fuse_colors else (0.8, 0.8, 0.8, 1.0)
 
-        for item_id, item in items.items():
-            if not isinstance(item, dict):
-                continue
-            parent_id = _frame_parent(item)
-            if parent_id != fuse_id:
-                continue
+def _fuselage_stub_color() -> tuple[float, float, float, float]:
+    colors = segment_colors()
+    return colors[0] if colors else (0.8, 0.8, 0.8, 1.0)
 
-            source = item
-            if item.get("kind") == "instance":
-                candidate = items.get(item.get("source"))
-                if not isinstance(candidate, dict):
-                    continue
-                source = deepcopy(candidate)
-                overrides = item.get("parameter_overrides")
-                if isinstance(overrides, dict):
-                    params = source.get("parameters")
-                    if not isinstance(params, dict):
-                        params = {}
-                        source["parameters"] = params
-                    _merge(params, overrides)
 
-            if source.get("type") != "org.setuav.core:lifting-surface":
-                continue
+def _mirrored_root_matrix(
+    item: dict[str, Any],
+    fuselage_id: str,
+    world_matrix_fn: Callable[[str], Matrix4],
+) -> Matrix4:
+    parent_matrix = world_matrix_fn(fuselage_id)
+    local_matrix = transform_matrix(item.get("transform"))
+    mirror = derivation_matrix({"type": "mirror", "plane": "XZ"})
+    return multiply_matrix(parent_matrix, multiply_matrix(mirror, local_matrix))
 
-            ls_provider = providers.get("org.setuav.core:lifting-surface")
-            if ls_provider is None:
-                continue
 
-            wing_lofts = ls_provider(source)
-            if not wing_lofts or not wing_lofts[0].sections:
-                continue
+def _build_root_stub(
+    fuselage: dict[str, Any],
+    fuselage_id: str,
+    root_section: Section,
+    matrix: Matrix4,
+    color: tuple[float, float, float, float],
+) -> LoftGeometry | None:
+    outer_points = tuple(transform_point(matrix, point) for point in root_section.points)
+    inward = _inward_span_direction(matrix)
+    inner_points, has_gap = _project_root_points(fuselage, outer_points, inward)
+    if not has_gap:
+        return None
+    return LoftGeometry(
+        component_id=fuselage_id,
+        sections=(Section(inner_points), Section(outer_points)),
+        color=color,
+        interpolation="linear",
+        station_spacing=10.0,
+        closed_ends=False,
+    )
 
-            # Root section in local coordinates of this lifting surface
-            root_sec_local = wing_lofts[0].sections[0]
-            mat = world_matrix_fn(item_id)
-            outer_points = tuple(transform_point(mat, pt) for pt in root_sec_local.points)
 
-            # Compute inward ray direction along span root normal
-            p0 = transform_point(mat, (0.0, 0.0, 0.0))
-            p1 = transform_point(mat, (0.0, -1.0, 0.0))
-            d_vec = (p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2])
-            l_len = math.sqrt(d_vec[0] ** 2 + d_vec[1] ** 2 + d_vec[2] ** 2)
-            d_in = (
-                d_vec[0] / max(l_len, 1e-6),
-                d_vec[1] / max(l_len, 1e-6),
-                d_vec[2] / max(l_len, 1e-6),
-            )
+def _inward_span_direction(matrix: Matrix4) -> tuple[float, float, float]:
+    origin = transform_point(matrix, (0.0, 0.0, 0.0))
+    inward_point = transform_point(matrix, (0.0, -1.0, 0.0))
+    vector = tuple(inward_point[axis] - origin[axis] for axis in range(3))
+    length = math.sqrt(sum(value**2 for value in vector))
+    return (
+        vector[0] / max(length, 1e-6),
+        vector[1] / max(length, 1e-6),
+        vector[2] / max(length, 1e-6),
+    )
 
-            # Build matching inner points at the fuselage outer skin
-            inner_points: list[tuple[float, float, float]] = []
-            has_gap = False
-            for p_out in outer_points:
-                p_in, g_flag = _project_point_to_fuselage(fuse, p_out, d_in)
-                inner_points.append(p_in)
-                if g_flag:
-                    has_gap = True
 
-            if has_gap:
-                stubs.append(
-                    LoftGeometry(
-                        component_id=fuse_id,
-                        sections=(Section(tuple(inner_points)), Section(outer_points)),
-                        color=fuse_color,
-                        interpolation="linear",
-                        station_spacing=10.0,
-                        closed_ends=False,
-                    )
-                )
-
-            # If bilateral mirror is enabled on lifting surface, also build mirrored root stub
-            params = source.get("parameters") if isinstance(source.get("parameters"), dict) else {}
-            geom = params.get("geometry") if isinstance(params.get("geometry"), dict) else {}
-            if geom.get("mirror") is True or source.get("mirror") is True:
-                parent_mat = world_matrix_fn(fuse_id)
-                local_mat = transform_matrix(item.get("transform"))
-                mirror_deriv = derivation_matrix({"type": "mirror", "plane": "XZ"})
-                mirrored_world_mat = multiply_matrix(
-                    parent_mat, multiply_matrix(mirror_deriv, local_mat)
-                )
-                mirror_outer_points = tuple(
-                    transform_point(mirrored_world_mat, pt) for pt in root_sec_local.points
-                )
-
-                p0_m = transform_point(mirrored_world_mat, (0.0, 0.0, 0.0))
-                p1_m = transform_point(mirrored_world_mat, (0.0, -1.0, 0.0))
-                d_vec_m = (p1_m[0] - p0_m[0], p1_m[1] - p0_m[1], p1_m[2] - p0_m[2])
-                l_len_m = math.sqrt(d_vec_m[0] ** 2 + d_vec_m[1] ** 2 + d_vec_m[2] ** 2)
-                d_in_m = (
-                    d_vec_m[0] / max(l_len_m, 1e-6),
-                    d_vec_m[1] / max(l_len_m, 1e-6),
-                    d_vec_m[2] / max(l_len_m, 1e-6),
-                )
-
-                mirror_inner_points: list[tuple[float, float, float]] = []
-                mirror_has_gap = False
-                for p_out in mirror_outer_points:
-                    p_in, g_flag = _project_point_to_fuselage(fuse, p_out, d_in_m)
-                    mirror_inner_points.append(p_in)
-                    if g_flag:
-                        mirror_has_gap = True
-
-                if mirror_has_gap:
-                    stubs.append(
-                        LoftGeometry(
-                            component_id=fuse_id,
-                            sections=(
-                                Section(tuple(mirror_inner_points)),
-                                Section(mirror_outer_points),
-                            ),
-                            color=fuse_color,
-                            interpolation="linear",
-                            station_spacing=10.0,
-                            closed_ends=False,
-                        )
-                    )
-
-    return stubs
+def _project_root_points(
+    fuselage: dict[str, Any],
+    outer_points: tuple[tuple[float, float, float], ...],
+    inward: tuple[float, float, float],
+) -> tuple[tuple[tuple[float, float, float], ...], bool]:
+    inner_points: list[tuple[float, float, float]] = []
+    has_gap = False
+    for outer_point in outer_points:
+        inner_point, point_has_gap = _project_point_to_fuselage(
+            fuselage,
+            outer_point,
+            inward,
+        )
+        inner_points.append(inner_point)
+        if point_has_gap:
+            has_gap = True
+    return tuple(inner_points), has_gap
 
 
 def _get_fuselage_cross_section_at_x(

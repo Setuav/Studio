@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from itertools import pairwise
 from typing import Any, Literal
 
 from ..viewport.palettes import control_surface_color, wing_color
@@ -304,7 +305,7 @@ def _build_profile_section(
     return _section_with_align(matrix, chord, main_2d, dihedral_rad, section_align)
 
 
-def _build_lifting_surface_with_control_surfaces(  # noqa: C901
+def _build_lifting_surface_with_control_surfaces(
     comp_id: str,
     profiles: list[dict[str, Any]],
     control_surfaces: list[dict[str, Any]],
@@ -315,280 +316,469 @@ def _build_lifting_surface_with_control_surfaces(  # noqa: C901
     camber_scale: float = 1.0,
     section_align: str = "xz",
 ) -> tuple[LoftGeometry, ...]:
-    """Segment the wing cleanly along span so that each segment is straight/smooth without spline oscillations."""
-    # 1. Collect all span Y coordinates
-    span_values: list[float] = []
-    for p in profiles:
-        pos = _mapping(p.get("position"))
-        span_values.append(_number(pos.get("y")))
-
-    min_span = min(span_values)
-    max_span = max(span_values)
-    y_root = span_values[0]
-    y_tip = span_values[-1]
-    semi_span = max(abs(y_tip - y_root), 1.0)
-    span_dir = 1.0 if y_tip >= y_root else -1.0
-
-    # 2. Collect valid control surfaces and clip their spans
-    valid_cs: list[dict[str, Any]] = []
-    for idx, cs in enumerate(control_surfaces):
-        if not isinstance(cs, dict):
-            continue
-        span_mode = str(cs.get("span_mode", "ratio")).lower()
-        if span_mode == "dimension" and ("span_start" in cs or "span_end" in cs):
-            s_start = float(cs.get("span_start", 0.0))
-            s_end = float(cs.get("span_end", 0.0))
-        elif span_mode == "ratio" and ("eta_start" in cs or "eta_end" in cs):
-            s_start = float(cs.get("eta_start", 0.0)) * semi_span
-            s_end = float(cs.get("eta_end", 0.0)) * semi_span
-        elif "span_start" in cs or "span_end" in cs:
-            s_start = float(cs.get("span_start", 0.0))
-            s_end = float(cs.get("span_end", 0.0))
-        elif "eta_start" in cs or "eta_end" in cs:
-            s_start = float(cs.get("eta_start", 0.0)) * semi_span
-            s_end = float(cs.get("eta_end", 0.0)) * semi_span
-        else:
-            s_start = 0.0
-            s_end = 0.0
-
-        if s_end <= s_start:
-            continue
-        y_start = y_root + span_dir * min(s_start, s_end)
-        y_end = y_root + span_dir * max(s_start, s_end)
-        y_min_seg = min(y_start, y_end)
-        y_max_seg = max(y_start, y_end)
-
-        # Clip to wing span
-        y_min_seg = max(min_span, y_min_seg)
-        y_max_seg = min(max_span, y_max_seg)
-        if y_max_seg <= y_min_seg + 1e-3:
-            continue
-
-        chord_mode = str(cs.get("chord_mode", "ratio")).lower()
-        if chord_mode == "dimension":
-            chord_frac = None
-        else:
-            chord_frac = cs.get("chord_fraction")
-            if chord_frac is not None:
-                try:
-                    chord_frac = float(chord_frac)
-                except (ValueError, TypeError):
-                    chord_frac = None
-
-        valid_cs.append(
-            {
-                "tag": str(cs.get("tag") or f"CS_{idx + 1}"),
-                "type": str(cs.get("type") or "aileron"),
-                "y_min": y_min_seg,
-                "y_max": y_max_seg,
-                "s_start": min(s_start, s_end),
-                "s_end": max(s_start, s_end),
-                "eta_start": round(min(s_start, s_end) / semi_span, 4),
-                "eta_end": round(max(s_start, s_end) / semi_span, 4),
-                "chord_fraction": chord_frac,
-                "chord": max(_number(cs.get("chord", 40.0)), 1.0),
-                "hinge_sweep": _number(cs.get("hinge_sweep"))
-                if cs.get("hinge_sweep") is not None
-                else None,
-                "deflection": _number(cs.get("deflection", 0.0)),
-            }
+    """Build spanwise wing partitions with independent control-surface bays."""
+    span_values, root, semi_span, span_direction = _profile_span_context(profiles)
+    valid_controls = _valid_control_surfaces(
+        control_surfaces,
+        min(span_values),
+        max(span_values),
+        root,
+        semi_span,
+        span_direction,
+    )
+    if not valid_controls:
+        return _plain_lifting_surface(
+            comp_id,
+            profiles,
+            interpolation,
+            te_thickness,
+            thickness_scale,
+            camber_scale,
+            section_align,
         )
-
-    if not valid_cs:
-        sections = tuple(
-            section
-            for value in profiles
-            if (
-                section := _build_profile_section(
-                    value,
-                    te_thickness=te_thickness,
-                    thickness_scale=thickness_scale,
-                    camber_scale=camber_scale,
-                    section_align=section_align,
-                )
-            )
-            is not None
-        )
-        return (
-            LoftGeometry(
-                component_id=comp_id,
-                sections=sections,
-                color=wing_color(),
-                interpolation=interpolation,
-                station_spacing=15.0,
-                closed_ends=True,
-            ),
-        )
-
-    # 3. Create macro span partition boundaries
-    all_cuts = {min_span, max_span}
-    for cs in valid_cs:
-        all_cuts.add(cs["y_min"])
-        all_cuts.add(cs["y_max"])
-    sorted_cuts = sorted(all_cuts)
 
     lofts: list[LoftGeometry] = []
-
-    # 4. Generate lofts for each span interval [y_a, y_b]
-    for i in range(len(sorted_cuts) - 1):
-        y_a, y_b = sorted_cuts[i], sorted_cuts[i + 1]
-        if abs(y_b - y_a) < 1e-4:
-            continue
-        y_mid = (y_a + y_b) * 0.5
-
-        # Check if covered by a control surface
-        covering_cs = next((cs for cs in valid_cs if cs["y_min"] <= y_mid <= cs["y_max"]), None)
-
-        # Collect all stations in [y_a, y_b] (start, intermediate original profiles, end)
-        interval_stations = [y_a]
-        for y_p in sorted(span_values):
-            if y_a + 1e-3 < y_p < y_b - 1e-3:
-                interval_stations.append(y_p)
-        interval_stations.append(y_b)
-
-        if span_dir < 0:
-            interval_stations = sorted(interval_stations, reverse=True)
-
-        if covering_cs is None:
-            # Uncut Full Wing Segment (x_h = 1.0)
-            seg_sections: list[Section] = []
-            for y_s in interval_stations:
-                chord, prof, coords = _interpolate_station_props(y_s, profiles)
-                coords = _apply_shaping(coords, te_thickness, thickness_scale, camber_scale)
-                rot = _mapping(prof.get("rotation"))
-                dihedral_rad = math.radians(_number(rot.get("x", rot.get("roll", 0.0))))
-                matrix = section_transform(prof, chord=chord, twist_location=twist_location)
-                main_2d, _ = _sample_structured_airfoil_round(coords, x_h=1.0, is_flap=False)
-                is_orig_station = any(abs(y_s - y_p) < 1e-3 for y_p in span_values)
-                seg_sections.append(
-                    _section_with_align(
-                        matrix,
-                        chord,
-                        main_2d,
-                        dihedral_rad,
-                        section_align,
-                        is_station=is_orig_station,
-                    )
-                )
-
+    for stations, control in _span_partitions(
+        span_values,
+        valid_controls,
+        span_direction,
+    ):
+        if control is None:
             lofts.append(
-                LoftGeometry(
-                    component_id=comp_id,
-                    sections=tuple(seg_sections),
-                    color=wing_color(),
-                    interpolation=interpolation,
-                    station_spacing=15.0,
-                    closed_ends=True,
+                _build_uncut_segment(
+                    comp_id,
+                    stations,
+                    span_values,
+                    profiles,
+                    interpolation,
+                    twist_location,
+                    te_thickness,
+                    thickness_scale,
+                    camber_scale,
+                    section_align,
                 )
             )
         else:
-            # Control Surface Bay: Main Wing (with concave round hinge socket) + Flap (with convex round nose)
-            cs_chord = covering_cs["chord"]
-            deflection_deg = covering_cs["deflection"]
-            cs_tag = covering_cs["tag"]
-            hinge_sweep = covering_cs["hinge_sweep"]
-            s_0 = covering_cs["s_start"]
-
-            # Interpolate reference station properties at s_0
-            y_s0 = y_root + span_dir * s_0
-            chord_0, prof_0, _ = _interpolate_station_props(y_s0, profiles)
-            x_le_0 = (
-                float(prof_0.get("position", {}).get("x", 0.0))
-                if isinstance(prof_0.get("position"), dict)
-                else 0.0
-            )
-            X_h0 = (x_le_0 + chord_0) - cs_chord
-
-            main_sections: list[Section] = []
-            flap_sections: list[Section] = []
-            hinge_pts_3d: list[Point3D] = []
-
-            for y_s in interval_stations:
-                chord, prof, coords = _interpolate_station_props(y_s, profiles)
-                coords = _apply_shaping(coords, te_thickness, thickness_scale, camber_scale)
-                rot = _mapping(prof.get("rotation"))
-                dihedral_rad = math.radians(_number(rot.get("x", rot.get("roll", 0.0))))
-                matrix = section_transform(prof, chord=chord, twist_location=twist_location)
-                pos = _mapping(prof.get("position"))
-                x_le_s = _number(pos.get("x"))
-
-                s_curr = abs(y_s - y_root)
-                chord_frac = covering_cs.get("chord_fraction")
-                if hinge_sweep is not None:
-                    # Global swept hinge line
-                    X_h_curr = X_h0 + (s_curr - s_0) * math.tan(math.radians(hinge_sweep))
-                    x_rel = (X_h_curr - x_le_s) / max(chord, 1.0)
-                    x_h = min(max(x_rel, 0.05), 0.95)
-                elif chord_frac is not None and chord_frac > 0.0:
-                    # Constant chord fraction from trailing edge (e.g. 0.25 -> x_h = 0.75)
-                    x_h = 1.0 - min(max(chord_frac, 0.05), 0.95)
-                else:
-                    # Constant absolute chord depth from trailing edge
-                    x_h = 1.0 - min(max(cs_chord / max(chord, 1.0), 0.05), 0.95)
-
-                main_2d, h_pt = _sample_structured_airfoil_round(coords, x_h=x_h, is_flap=False)
-                flap_2d, _ = _sample_structured_airfoil_round(coords, x_h=x_h, is_flap=True)
-
-                is_orig_station = any(abs(y_s - y_p) < 1e-3 for y_p in span_values)
-                main_sections.append(
-                    _section_with_align(
-                        matrix,
-                        chord,
-                        main_2d,
-                        dihedral_rad,
-                        section_align,
-                        is_station=is_orig_station,
-                    )
-                )
-                flap_sections.append(
-                    _section_with_align(
-                        matrix, chord, flap_2d, dihedral_rad, section_align, is_station=False
-                    )
-                )
-                hinge_pts_3d.append(
-                    transform_point(matrix, (h_pt[0] * chord, 0.0, h_pt[1] * chord))
-                )
-
-            # Main wing bay
-            lofts.append(
-                LoftGeometry(
-                    component_id=comp_id,
-                    sections=tuple(main_sections),
-                    color=wing_color(),
-                    interpolation=interpolation,
-                    station_spacing=15.0,
-                    closed_ends=True,
+            lofts.extend(
+                _build_control_segment(
+                    comp_id,
+                    stations,
+                    span_values,
+                    profiles,
+                    control,
+                    interpolation,
+                    root,
+                    span_direction,
+                    twist_location,
+                    te_thickness,
+                    thickness_scale,
+                    camber_scale,
+                    section_align,
                 )
             )
-
-            # Deflect flap if deflection != 0
-            if abs(deflection_deg) > 1e-4 and len(hinge_pts_3d) >= 2:
-                axis_p0 = hinge_pts_3d[0]
-                axis_p1 = hinge_pts_3d[-1]
-                axis_dir = (
-                    axis_p1[0] - axis_p0[0],
-                    axis_p1[1] - axis_p0[1],
-                    axis_p1[2] - axis_p0[2],
-                )
-                rotated_sections: list[Section] = []
-                for sec in flap_sections:
-                    rotated_sections.append(
-                        _rotate_section_around_axis(sec, axis_p0, axis_dir, deflection_deg)
-                    )
-                flap_sections = rotated_sections
-
-            lofts.append(
-                LoftGeometry(
-                    component_id=f"{comp_id}:{cs_tag}",
-                    sections=tuple(flap_sections),
-                    color=control_surface_color(),
-                    interpolation=interpolation,
-                    station_spacing=15.0,
-                    closed_ends=True,
-                )
-            )
-
     return tuple(lofts)
+
+
+def _profile_span_context(
+    profiles: list[dict[str, Any]],
+) -> tuple[list[float], float, float, float]:
+    values = [_number(_mapping(profile.get("position")).get("y")) for profile in profiles]
+    root = values[0]
+    tip = values[-1]
+    return values, root, max(abs(tip - root), 1.0), 1.0 if tip >= root else -1.0
+
+
+def _valid_control_surfaces(
+    controls: list[dict[str, Any]],
+    min_span: float,
+    max_span: float,
+    root: float,
+    semi_span: float,
+    span_direction: float,
+) -> list[dict[str, Any]]:
+    valid: list[dict[str, Any]] = []
+    for index, control in enumerate(controls):
+        if not isinstance(control, dict):
+            continue
+        start, end = _control_span_values(control, semi_span)
+        if end <= start:
+            continue
+        y_start = root + span_direction * min(start, end)
+        y_end = root + span_direction * max(start, end)
+        y_min = max(min_span, min(y_start, y_end))
+        y_max = min(max_span, max(y_start, y_end))
+        if y_max <= y_min + 1e-3:
+            continue
+        valid.append(
+            _normalized_control_surface(
+                control,
+                index,
+                start,
+                end,
+                y_min,
+                y_max,
+                semi_span,
+            )
+        )
+    return valid
+
+
+def _control_span_values(control: dict[str, Any], semi_span: float) -> tuple[float, float]:
+    mode = str(control.get("span_mode", "ratio")).lower()
+    if mode == "dimension" and ("span_start" in control or "span_end" in control):
+        return float(control.get("span_start", 0.0)), float(control.get("span_end", 0.0))
+    if mode == "ratio" and ("eta_start" in control or "eta_end" in control):
+        return (
+            float(control.get("eta_start", 0.0)) * semi_span,
+            float(control.get("eta_end", 0.0)) * semi_span,
+        )
+    if "span_start" in control or "span_end" in control:
+        return float(control.get("span_start", 0.0)), float(control.get("span_end", 0.0))
+    if "eta_start" in control or "eta_end" in control:
+        return (
+            float(control.get("eta_start", 0.0)) * semi_span,
+            float(control.get("eta_end", 0.0)) * semi_span,
+        )
+    return 0.0, 0.0
+
+
+def _normalized_control_surface(
+    control: dict[str, Any],
+    index: int,
+    start: float,
+    end: float,
+    y_min: float,
+    y_max: float,
+    semi_span: float,
+) -> dict[str, Any]:
+    span_start = min(start, end)
+    span_end = max(start, end)
+    return {
+        "tag": str(control.get("tag") or f"CS_{index + 1}"),
+        "type": str(control.get("type") or "aileron"),
+        "y_min": y_min,
+        "y_max": y_max,
+        "s_start": span_start,
+        "s_end": span_end,
+        "eta_start": round(span_start / semi_span, 4),
+        "eta_end": round(span_end / semi_span, 4),
+        "chord_fraction": _control_chord_fraction(control),
+        "chord": max(_number(control.get("chord", 40.0)), 1.0),
+        "hinge_sweep": (
+            _number(control.get("hinge_sweep")) if control.get("hinge_sweep") is not None else None
+        ),
+        "deflection": _number(control.get("deflection", 0.0)),
+    }
+
+
+def _control_chord_fraction(control: dict[str, Any]) -> float | None:
+    if str(control.get("chord_mode", "ratio")).lower() == "dimension":
+        return None
+    value = control.get("chord_fraction")
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return None
+
+
+def _plain_lifting_surface(
+    comp_id: str,
+    profiles: list[dict[str, Any]],
+    interpolation: Literal["linear", "smooth"],
+    te_thickness: float,
+    thickness_scale: float,
+    camber_scale: float,
+    section_align: str,
+) -> tuple[LoftGeometry, ...]:
+    sections = tuple(
+        section
+        for profile in profiles
+        if (
+            section := _build_profile_section(
+                profile,
+                te_thickness=te_thickness,
+                thickness_scale=thickness_scale,
+                camber_scale=camber_scale,
+                section_align=section_align,
+            )
+        )
+        is not None
+    )
+    return (
+        LoftGeometry(
+            component_id=comp_id,
+            sections=sections,
+            color=wing_color(),
+            interpolation=interpolation,
+            station_spacing=15.0,
+            closed_ends=True,
+        ),
+    )
+
+
+def _span_partitions(
+    span_values: list[float],
+    controls: list[dict[str, Any]],
+    span_direction: float,
+) -> list[tuple[list[float], dict[str, Any] | None]]:
+    cuts = {min(span_values), max(span_values)}
+    for control in controls:
+        cuts.add(control["y_min"])
+        cuts.add(control["y_max"])
+    sorted_cuts = sorted(cuts)
+    partitions: list[tuple[list[float], dict[str, Any] | None]] = []
+    for start, end in pairwise(sorted_cuts):
+        if abs(end - start) < 1e-4:
+            continue
+        midpoint = (start + end) * 0.5
+        control = next(
+            (
+                candidate
+                for candidate in controls
+                if candidate["y_min"] <= midpoint <= candidate["y_max"]
+            ),
+            None,
+        )
+        stations = [
+            start,
+            *[value for value in sorted(span_values) if start + 1e-3 < value < end - 1e-3],
+            end,
+        ]
+        if span_direction < 0:
+            stations.sort(reverse=True)
+        partitions.append((stations, control))
+    return partitions
+
+
+def _build_uncut_segment(
+    comp_id: str,
+    stations: list[float],
+    span_values: list[float],
+    profiles: list[dict[str, Any]],
+    interpolation: Literal["linear", "smooth"],
+    twist_location: float,
+    te_thickness: float,
+    thickness_scale: float,
+    camber_scale: float,
+    section_align: str,
+) -> LoftGeometry:
+    sections: list[Section] = []
+    for station in stations:
+        chord, profile, coordinates = _interpolate_station_props(station, profiles)
+        coordinates = _apply_shaping(
+            coordinates,
+            te_thickness,
+            thickness_scale,
+            camber_scale,
+        )
+        rotation = _mapping(profile.get("rotation"))
+        dihedral = math.radians(_number(rotation.get("x", rotation.get("roll", 0.0))))
+        matrix = section_transform(profile, chord=chord, twist_location=twist_location)
+        main_2d, _ = _sample_structured_airfoil_round(
+            coordinates,
+            x_h=1.0,
+            is_flap=False,
+        )
+        sections.append(
+            _section_with_align(
+                matrix,
+                chord,
+                main_2d,
+                dihedral,
+                section_align,
+                is_station=_is_original_station(station, span_values),
+            )
+        )
+    return LoftGeometry(
+        component_id=comp_id,
+        sections=tuple(sections),
+        color=wing_color(),
+        interpolation=interpolation,
+        station_spacing=15.0,
+        closed_ends=True,
+    )
+
+
+def _build_control_segment(
+    comp_id: str,
+    stations: list[float],
+    span_values: list[float],
+    profiles: list[dict[str, Any]],
+    control: dict[str, Any],
+    interpolation: Literal["linear", "smooth"],
+    root: float,
+    span_direction: float,
+    twist_location: float,
+    te_thickness: float,
+    thickness_scale: float,
+    camber_scale: float,
+    section_align: str,
+) -> tuple[LoftGeometry, LoftGeometry]:
+    hinge_origin = _hinge_origin(control, root, span_direction, profiles)
+    main_sections: list[Section] = []
+    flap_sections: list[Section] = []
+    hinge_points: list[Point3D] = []
+    for station in stations:
+        main, flap, hinge = _control_station_sections(
+            station,
+            span_values,
+            profiles,
+            control,
+            hinge_origin,
+            root,
+            twist_location,
+            te_thickness,
+            thickness_scale,
+            camber_scale,
+            section_align,
+        )
+        main_sections.append(main)
+        flap_sections.append(flap)
+        hinge_points.append(hinge)
+    flap_sections = _deflected_sections(
+        flap_sections,
+        hinge_points,
+        control["deflection"],
+    )
+    return (
+        LoftGeometry(
+            component_id=comp_id,
+            sections=tuple(main_sections),
+            color=wing_color(),
+            interpolation=interpolation,
+            station_spacing=15.0,
+            closed_ends=True,
+        ),
+        LoftGeometry(
+            component_id=f"{comp_id}:{control['tag']}",
+            sections=tuple(flap_sections),
+            color=control_surface_color(),
+            interpolation=interpolation,
+            station_spacing=15.0,
+            closed_ends=True,
+        ),
+    )
+
+
+def _hinge_origin(
+    control: dict[str, Any],
+    root: float,
+    span_direction: float,
+    profiles: list[dict[str, Any]],
+) -> float:
+    station = root + span_direction * control["s_start"]
+    chord, profile, _ = _interpolate_station_props(station, profiles)
+    position = profile.get("position")
+    leading_edge = float(position.get("x", 0.0)) if isinstance(position, dict) else 0.0
+    return leading_edge + chord - control["chord"]
+
+
+def _control_station_sections(
+    station: float,
+    span_values: list[float],
+    profiles: list[dict[str, Any]],
+    control: dict[str, Any],
+    hinge_origin: float,
+    root: float,
+    twist_location: float,
+    te_thickness: float,
+    thickness_scale: float,
+    camber_scale: float,
+    section_align: str,
+) -> tuple[Section, Section, Point3D]:
+    chord, profile, coordinates = _interpolate_station_props(station, profiles)
+    coordinates = _apply_shaping(
+        coordinates,
+        te_thickness,
+        thickness_scale,
+        camber_scale,
+    )
+    rotation = _mapping(profile.get("rotation"))
+    dihedral = math.radians(_number(rotation.get("x", rotation.get("roll", 0.0))))
+    matrix = section_transform(profile, chord=chord, twist_location=twist_location)
+    position = _mapping(profile.get("position"))
+    hinge_fraction = _hinge_fraction(
+        control,
+        hinge_origin,
+        abs(station - root),
+        _number(position.get("x")),
+        chord,
+    )
+    main_2d, hinge = _sample_structured_airfoil_round(
+        coordinates,
+        x_h=hinge_fraction,
+        is_flap=False,
+    )
+    flap_2d, _ = _sample_structured_airfoil_round(
+        coordinates,
+        x_h=hinge_fraction,
+        is_flap=True,
+    )
+    main = _section_with_align(
+        matrix,
+        chord,
+        main_2d,
+        dihedral,
+        section_align,
+        is_station=_is_original_station(station, span_values),
+    )
+    flap = _section_with_align(
+        matrix,
+        chord,
+        flap_2d,
+        dihedral,
+        section_align,
+        is_station=False,
+    )
+    hinge_3d = transform_point(
+        matrix,
+        (hinge[0] * chord, 0.0, hinge[1] * chord),
+    )
+    return main, flap, hinge_3d
+
+
+def _hinge_fraction(
+    control: dict[str, Any],
+    hinge_origin: float,
+    current_span: float,
+    leading_edge: float,
+    chord: float,
+) -> float:
+    sweep = control["hinge_sweep"]
+    chord_fraction = control.get("chord_fraction")
+    if sweep is not None:
+        hinge_x = hinge_origin + (current_span - control["s_start"]) * math.tan(math.radians(sweep))
+        relative = (hinge_x - leading_edge) / max(chord, 1.0)
+        return min(max(relative, 0.05), 0.95)
+    if chord_fraction is not None and chord_fraction > 0.0:
+        return 1.0 - min(max(chord_fraction, 0.05), 0.95)
+    chord_depth = control["chord"] / max(chord, 1.0)
+    return 1.0 - min(max(chord_depth, 0.05), 0.95)
+
+
+def _is_original_station(station: float, span_values: list[float]) -> bool:
+    return any(abs(station - value) < 1e-3 for value in span_values)
+
+
+def _deflected_sections(
+    sections: list[Section],
+    hinge_points: list[Point3D],
+    deflection: float,
+) -> list[Section]:
+    if abs(deflection) <= 1e-4 or len(hinge_points) < 2:
+        return sections
+    origin = hinge_points[0]
+    end = hinge_points[-1]
+    direction = (
+        end[0] - origin[0],
+        end[1] - origin[1],
+        end[2] - origin[2],
+    )
+    return [
+        _rotate_section_around_axis(section, origin, direction, deflection) for section in sections
+    ]
 
 
 def _interpolate_station_props(

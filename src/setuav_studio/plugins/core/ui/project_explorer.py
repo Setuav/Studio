@@ -226,184 +226,246 @@ class ProjectExplorer(QTreeWidget):
         self._capture_saved_state(project)
         self._rebuild_project(project)
 
-    def _rebuild_project(self, project: ProjectDocument) -> None:  # noqa: C901
-        project_is_selected = self._api.current_selection is project.data
-        geometry_group_is_selected = self.currentItem() is self._geometry_group_item
-        current_sel_id = (
-            self._api.current_selection.get("id")
-            if isinstance(self._api.current_selection, dict)
-            else None
-        )
+    def _rebuild_project(self, project: ProjectDocument) -> None:
+        selection_state = self._tree_selection_state(project)
         fresh_selection: dict[str, Any] | None = None
-
         self.blockSignals(True)
         try:
-            self.clear()
-            self._item_map.clear()
-            self._element_map.clear()
-            self._project_root_item = None
-            self._geometry_group_item = None
-            self._virtual_items.clear()
-            self._project_contributions.clear()
-            self._component_contributions.clear()
-
-            project_name = str(
-                project.data.get("name") or project.location.name or "Unnamed Project"
+            self._reset_project_tree()
+            project_item = self._create_project_item(project)
+            components, assemblies = self._project_elements(project)
+            self._create_geometry_group(project_item, components)
+            component_assemblies = self._component_assembly_map(assemblies)
+            self._create_assembly_items(project_item, assemblies, project.read_only)
+            self._create_component_items(components, project.read_only)
+            self._attach_component_items(
+                project_item,
+                components,
+                component_assemblies,
             )
-            project_item = QTreeWidgetItem([project_name])
-            if not project.read_only:
-                project_item.setFlags(project_item.flags() | Qt.ItemFlag.ItemIsEditable)
-            project_item.setToolTip(0, f"Project: {project_name}")
-            self._element_map[project_item] = project.data
-            self._project_root_item = project_item
-            self.addTopLevelItem(project_item)
-
-            components = project.data.get("components", []) if project else []
-            raw_components = [item for item in components if isinstance(item, dict)]
-            assemblies = project.data.get("assemblies", []) if project else []
-            raw_assemblies = [item for item in assemblies if isinstance(item, dict)]
-
-            if any(
-                self._geometry_icon_source(component, raw_components) is not None
-                for component in raw_components
-            ):
-                geometry_group = QTreeWidgetItem(["Geometry"])
-                geometry_group.setIcon(0, get_icon("fa6s.shapes"))
-                geometry_group.setToolTip(0, "Geometry components")
-                self._geometry_group_item = geometry_group
-                project_item.addChild(geometry_group)
-
-            # Map member component IDs to their containing assembly ID
-            comp_to_assembly: dict[str, str] = {}
-            for asm in raw_assemblies:
-                asm_id = str(asm.get("id") or "")
-                members = asm.get("members", {}) if isinstance(asm.get("members"), dict) else {}
-                for member_val in members.values():
-                    if isinstance(member_val, str):
-                        comp_to_assembly[member_val] = asm_id
-                    elif isinstance(member_val, list):
-                        for mid in member_val:
-                            if isinstance(mid, str):
-                                comp_to_assembly[mid] = asm_id
-
-            # 1. Create Assembly Tree Items
-            for asm in raw_assemblies:
-                aid = str(asm.get("id") or "")
-                aname = str(asm.get("name") or aid or "Unnamed Assembly")
-                atype = self._assembly_type_text(asm)
-
-                tree_item = QTreeWidgetItem([aname])
-                if not project.read_only:
-                    tree_item.setFlags(tree_item.flags() | Qt.ItemFlag.ItemIsEditable)
-                tree_item.setIcon(0, self._assembly_icon(asm))
-                tree_item.setToolTip(0, f"{aname} ({atype})")
-                tree_item.setData(0, Qt.ItemDataRole.UserRole, aid)
-                self._apply_modified_color(
-                    tree_item,
-                    asm,
-                    self._saved_assemblies,
-                )
-                self._item_map[aid] = tree_item
-                self._element_map[tree_item] = asm
-                project_item.addChild(tree_item)
-
-            # 2. Create Component Tree Items
-            for comp in raw_components:
-                cid = str(comp.get("id") or "")
-                cname = self._component_name_text(comp)
-                ctype = self._component_type_text(comp, raw_components)
-
-                tree_item = QTreeWidgetItem([cname])
-                if not project.read_only:
-                    tree_item.setFlags(tree_item.flags() | Qt.ItemFlag.ItemIsEditable)
-                icon_source = self._geometry_icon_source(comp, raw_components)
-                if icon_source is None:
-                    # Non-geometry component icons are contributed by their
-                    # owning plugin (for example, Weight-Balance's point
-                    # mass). Keep the tree independent from those plugins.
-                    tree_item.setIcon(0, self._api.get_component_icon(comp))
-                else:
-                    tree_item.setIcon(0, get_icon(icon_source))
-                tree_item.setToolTip(0, f"{cname} ({ctype})")
-                tree_item.setData(0, Qt.ItemDataRole.UserRole, cid)
-                self._apply_modified_color(
-                    tree_item,
-                    comp,
-                    self._saved_components,
-                )
-                self._item_map[cid] = tree_item
-                self._element_map[tree_item] = comp
-
-                for contribution in self._api.component_tree_nodes(comp):
-                    child = QTreeWidgetItem([contribution.title])
-                    if contribution.rename is not None and self._can_edit_project():
-                        child.setFlags(child.flags() | Qt.ItemFlag.ItemIsEditable)
-                    else:
-                        child.setFlags(child.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                    if contribution.icon is not None:
-                        child.setIcon(0, get_icon(contribution.icon))
-                    child.setToolTip(
-                        0,
-                        contribution.tooltip or contribution.title,
-                    )
-                    child.setData(
-                        0,
-                        Qt.ItemDataRole.UserRole,
-                        contribution.id,
-                    )
-                    self._item_map[contribution.id] = child
-                    self._element_map[child] = contribution.selection
-                    self._virtual_items.add(child)
-                    self._component_contributions[child] = contribution
-                    tree_item.addChild(child)
-
-            # 3. Attach Component Tree Items to Parents / Assemblies / Top-Level
-            for comp in raw_components:
-                cid = str(comp.get("id") or "")
-                tree_item = self._item_map.get(cid)
-                if tree_item is None:
-                    continue
-
-                parent_id = str(comp.get("parent") or "")
-                parent_item = self._item_map.get(parent_id) if parent_id else None
-
-                if parent_item is not None and parent_item is not tree_item:
-                    parent_item.addChild(tree_item)
-                elif cid in comp_to_assembly:
-                    asm_item = self._item_map.get(comp_to_assembly[cid])
-                    if asm_item is not None:
-                        asm_item.addChild(tree_item)
-                    else:
-                        project_item.addChild(tree_item)
-                elif (
-                    self._geometry_group_item is not None
-                    and self._geometry_icon_source(comp, raw_components) is not None
-                ):
-                    self._geometry_group_item.addChild(tree_item)
-                else:
-                    project_item.addChild(tree_item)
-
-            # 4. Add project-level nodes contributed by plugins. These nodes
-            # carry selection payloads but do not become part of the core
-            # component/assembly schema.
             for contribution in self._api.project_tree_nodes(project):
                 self._append_project_contribution(project_item, contribution)
-
             self.expandAll()
-            if project_is_selected:
-                self.setCurrentItem(project_item)
-                fresh_selection = project.data
-            elif geometry_group_is_selected and self._geometry_group_item is not None:
-                self.setCurrentItem(self._geometry_group_item)
-            elif current_sel_id and current_sel_id in self._item_map:
-                selected_item = self._item_map[current_sel_id]
-                self.setCurrentItem(selected_item)
-                fresh_selection = self._element_map.get(selected_item)
+            fresh_selection = self._restore_tree_selection(
+                project,
+                project_item,
+                selection_state,
+            )
         finally:
             self.blockSignals(False)
 
-        if current_sel_id and self._api.current_selection is not fresh_selection:
+        current_selection_id = selection_state[2]
+        if current_selection_id and self._api.current_selection is not fresh_selection:
             self._api.set_selection(fresh_selection)
+
+    def _tree_selection_state(
+        self,
+        project: ProjectDocument,
+    ) -> tuple[bool, bool, str | None]:
+        current_selection = self._api.current_selection
+        return (
+            current_selection is project.data,
+            self.currentItem() is self._geometry_group_item,
+            (current_selection.get("id") if isinstance(current_selection, dict) else None),
+        )
+
+    def _reset_project_tree(self) -> None:
+        self.clear()
+        self._item_map.clear()
+        self._element_map.clear()
+        self._project_root_item = None
+        self._geometry_group_item = None
+        self._virtual_items.clear()
+        self._project_contributions.clear()
+        self._component_contributions.clear()
+
+    def _create_project_item(self, project: ProjectDocument) -> QTreeWidgetItem:
+        project_name = str(project.data.get("name") or project.location.name or "Unnamed Project")
+        item = QTreeWidgetItem([project_name])
+        if not project.read_only:
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
+        item.setToolTip(0, f"Project: {project_name}")
+        self._element_map[item] = project.data
+        self._project_root_item = item
+        self.addTopLevelItem(item)
+        return item
+
+    @staticmethod
+    def _project_elements(
+        project: ProjectDocument,
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        components = project.data.get("components", [])
+        assemblies = project.data.get("assemblies", [])
+        return (
+            [item for item in components if isinstance(item, dict)],
+            [item for item in assemblies if isinstance(item, dict)],
+        )
+
+    def _create_geometry_group(
+        self,
+        project_item: QTreeWidgetItem,
+        components: list[dict[str, Any]],
+    ) -> None:
+        if not any(
+            self._geometry_icon_source(component, components) is not None
+            for component in components
+        ):
+            return
+        geometry_group = QTreeWidgetItem(["Geometry"])
+        geometry_group.setIcon(0, get_icon("fa6s.shapes"))
+        geometry_group.setToolTip(0, "Geometry components")
+        self._geometry_group_item = geometry_group
+        project_item.addChild(geometry_group)
+
+    @staticmethod
+    def _component_assembly_map(
+        assemblies: list[dict[str, Any]],
+    ) -> dict[str, str]:
+        result: dict[str, str] = {}
+        for assembly in assemblies:
+            assembly_id = str(assembly.get("id") or "")
+            members = assembly.get("members")
+            members = members if isinstance(members, dict) else {}
+            for value in members.values():
+                references = value if isinstance(value, list) else [value]
+                for reference in references:
+                    if isinstance(reference, str):
+                        result[reference] = assembly_id
+        return result
+
+    def _create_assembly_items(
+        self,
+        project_item: QTreeWidgetItem,
+        assemblies: list[dict[str, Any]],
+        read_only: bool,
+    ) -> None:
+        for assembly in assemblies:
+            assembly_id = str(assembly.get("id") or "")
+            name = str(assembly.get("name") or assembly_id or "Unnamed Assembly")
+            assembly_type = self._assembly_type_text(assembly)
+            item = QTreeWidgetItem([name])
+            if not read_only:
+                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
+            item.setIcon(0, self._assembly_icon(assembly))
+            item.setToolTip(0, f"{name} ({assembly_type})")
+            item.setData(0, Qt.ItemDataRole.UserRole, assembly_id)
+            self._apply_modified_color(item, assembly, self._saved_assemblies)
+            self._item_map[assembly_id] = item
+            self._element_map[item] = assembly
+            project_item.addChild(item)
+
+    def _create_component_items(
+        self,
+        components: list[dict[str, Any]],
+        read_only: bool,
+    ) -> None:
+        for component in components:
+            component_id = str(component.get("id") or "")
+            name = self._component_name_text(component)
+            component_type = self._component_type_text(component, components)
+            item = QTreeWidgetItem([name])
+            if not read_only:
+                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
+            icon_source = self._geometry_icon_source(component, components)
+            item.setIcon(
+                0,
+                (
+                    self._api.get_component_icon(component)
+                    if icon_source is None
+                    else get_icon(icon_source)
+                ),
+            )
+            item.setToolTip(0, f"{name} ({component_type})")
+            item.setData(0, Qt.ItemDataRole.UserRole, component_id)
+            self._apply_modified_color(item, component, self._saved_components)
+            self._item_map[component_id] = item
+            self._element_map[item] = component
+            self._append_component_contributions(item, component)
+
+    def _append_component_contributions(
+        self,
+        parent: QTreeWidgetItem,
+        component: dict[str, Any],
+    ) -> None:
+        for contribution in self._api.component_tree_nodes(component):
+            child = QTreeWidgetItem([contribution.title])
+            if contribution.rename is not None and self._can_edit_project():
+                child.setFlags(child.flags() | Qt.ItemFlag.ItemIsEditable)
+            else:
+                child.setFlags(child.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            if contribution.icon is not None:
+                child.setIcon(0, get_icon(contribution.icon))
+            child.setToolTip(0, contribution.tooltip or contribution.title)
+            child.setData(0, Qt.ItemDataRole.UserRole, contribution.id)
+            self._item_map[contribution.id] = child
+            self._element_map[child] = contribution.selection
+            self._virtual_items.add(child)
+            self._component_contributions[child] = contribution
+            parent.addChild(child)
+
+    def _attach_component_items(
+        self,
+        project_item: QTreeWidgetItem,
+        components: list[dict[str, Any]],
+        component_assemblies: dict[str, str],
+    ) -> None:
+        for component in components:
+            component_id = str(component.get("id") or "")
+            item = self._item_map.get(component_id)
+            if item is None:
+                continue
+            parent_id = str(component.get("parent") or "")
+            parent_item = self._item_map.get(parent_id) if parent_id else None
+            target = self._component_tree_parent(
+                project_item,
+                component,
+                component_id,
+                item,
+                parent_item,
+                component_assemblies,
+                components,
+            )
+            target.addChild(item)
+
+    def _component_tree_parent(
+        self,
+        project_item: QTreeWidgetItem,
+        component: dict[str, Any],
+        component_id: str,
+        item: QTreeWidgetItem,
+        parent_item: QTreeWidgetItem | None,
+        component_assemblies: dict[str, str],
+        components: list[dict[str, Any]],
+    ) -> QTreeWidgetItem:
+        if parent_item is not None and parent_item is not item:
+            return parent_item
+        if component_id in component_assemblies:
+            return self._item_map.get(component_assemblies[component_id]) or project_item
+        if (
+            self._geometry_group_item is not None
+            and self._geometry_icon_source(component, components) is not None
+        ):
+            return self._geometry_group_item
+        return project_item
+
+    def _restore_tree_selection(
+        self,
+        project: ProjectDocument,
+        project_item: QTreeWidgetItem,
+        selection_state: tuple[bool, bool, str | None],
+    ) -> dict[str, Any] | None:
+        project_selected, geometry_selected, selection_id = selection_state
+        if project_selected:
+            self.setCurrentItem(project_item)
+            return project.data
+        if geometry_selected and self._geometry_group_item is not None:
+            self.setCurrentItem(self._geometry_group_item)
+            return None
+        if selection_id and selection_id in self._item_map:
+            selected_item = self._item_map[selection_id]
+            self.setCurrentItem(selected_item)
+            return self._element_map.get(selected_item)
+        return None
 
     def _append_project_contribution(
         self,
@@ -821,28 +883,11 @@ class ProjectExplorer(QTreeWidget):
             self._api.set_selection(fresh_element)
         self._api.show_status(f'Renamed "{old_label}" to "{new_name}"', "success", 3000)
 
-    def _delete_item(self, item: QTreeWidgetItem | None) -> None:  # noqa: C901
+    def _delete_item(self, item: QTreeWidgetItem | None) -> None:
         if item is None:
             return
         if item in self._virtual_items:
-            contribution = self._project_contributions.get(
-                item
-            ) or self._component_contributions.get(item)
-            if contribution is None or contribution.delete is None:
-                return
-            if not self._can_edit_project():
-                self._api.show_status("This project is read-only", "warning", 3000)
-                return
-            answer = QMessageBox.question(
-                self,
-                "Delete Project Item",
-                f'Delete "{contribution.title}"?\n\nThis action can be undone.',
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
-                QMessageBox.StandardButton.Cancel,
-            )
-            if answer != QMessageBox.StandardButton.Yes:
-                return
-            contribution.delete()
+            self._delete_virtual_item(item)
             return
         if item is self._project_root_item:
             self._api.show_status("The project root cannot be deleted", "warning", 3000)
@@ -861,18 +906,62 @@ class ProjectExplorer(QTreeWidget):
             return
         element_name = str(element.get("name") or element_id)
         kind = self._element_kind(element_id)
+        component_ids, assembly_ids = self._deletion_scope(
+            element,
+            element_id,
+            kind,
+        )
+        details = self._deletion_details(
+            element_id,
+            kind,
+            component_ids,
+            assembly_ids,
+        )
+        if not self._confirm_delete(element_name, details):
+            return
 
-        component_ids: set[str] = set()
-        assembly_ids: set[str] = set()
+        def change() -> None:
+            self._apply_deletion(component_ids, assembly_ids)
+
+        self._api.set_selection(None)
+        self._api.edit_project(f"Delete {element_name}", change)
+        self._api.show_status(f'Deleted "{element_name}"', "success", 3000)
+
+    def _delete_virtual_item(self, item: QTreeWidgetItem) -> None:
+        contribution = self._project_contributions.get(item) or self._component_contributions.get(
+            item
+        )
+        if contribution is None or contribution.delete is None:
+            return
+        if not self._can_edit_project():
+            self._api.show_status("This project is read-only", "warning", 3000)
+            return
+        confirmed = self._confirm_delete(contribution.title, [])
+        if confirmed:
+            contribution.delete()
+
+    def _deletion_scope(
+        self,
+        element: dict[str, Any],
+        element_id: str,
+        kind: str,
+    ) -> tuple[set[str], set[str]]:
         if kind == "assembly":
             member_ids = self._assembly_member_ids(element)
             component_ids = self._dependent_component_ids_from(member_ids)
             assembly_ids = {element_id}
             assembly_ids.update(self._assemblies_invalidated_by(component_ids))
-        else:
-            component_ids = self._dependent_component_ids(element_id)
-            assembly_ids = self._assemblies_invalidated_by(component_ids)
+            return component_ids, assembly_ids
+        component_ids = self._dependent_component_ids(element_id)
+        return component_ids, self._assemblies_invalidated_by(component_ids)
 
+    @staticmethod
+    def _deletion_details(
+        element_id: str,
+        kind: str,
+        component_ids: set[str],
+        assembly_ids: set[str],
+    ) -> list[str]:
         details: list[str] = []
         if kind == "assembly" and component_ids:
             details.append(
@@ -888,56 +977,63 @@ class ProjectExplorer(QTreeWidget):
         if additional_assemblies:
             details.append(
                 f"{len(additional_assemblies)} other assembly group(s) that would "
-                "become invalid "
-                "will also be removed; their remaining components will be kept."
+                "become invalid will also be removed; their remaining components will be kept."
             )
+        return details
+
+    def _confirm_delete(self, title: str, details: list[str]) -> bool:
         detail_text = "\n\n" + "\n".join(details) if details else ""
         answer = QMessageBox.question(
             self,
             "Delete Project Item",
-            f'Delete "{element_name}"?{detail_text}\n\nThis action can be undone.',
+            f'Delete "{title}"?{detail_text}\n\nThis action can be undone.',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
             QMessageBox.StandardButton.Cancel,
         )
-        if answer != QMessageBox.StandardButton.Yes:
+        return answer == QMessageBox.StandardButton.Yes
+
+    def _apply_deletion(
+        self,
+        component_ids: set[str],
+        assembly_ids: set[str],
+    ) -> None:
+        project = self._api.current_project
+        if project is None:
             return
+        components = project.data.get("components")
+        if isinstance(components, list) and component_ids:
+            components[:] = [
+                component
+                for component in components
+                if not (
+                    isinstance(component, dict) and str(component.get("id") or "") in component_ids
+                )
+            ]
+            self._clear_deleted_component_links(components, component_ids)
 
-        def change() -> None:
-            project = self._api.current_project
-            if project is None:
-                return
-            components = project.data.get("components")
-            if isinstance(components, list) and component_ids:
-                components[:] = [
-                    component
-                    for component in components
-                    if not (
-                        isinstance(component, dict)
-                        and str(component.get("id") or "") in component_ids
-                    )
-                ]
-                for component in components:
-                    if not isinstance(component, dict):
-                        continue
-                    if str(component.get("attach_to") or "") in component_ids:
-                        component["attach_to"] = None
-                    if str(component.get("parent") or "") in component_ids:
-                        component["parent"] = None
+        assemblies = project.data.get("assemblies")
+        if isinstance(assemblies, list):
+            assemblies[:] = [
+                assembly
+                for assembly in assemblies
+                if not (
+                    isinstance(assembly, dict) and str(assembly.get("id") or "") in assembly_ids
+                )
+            ]
+            self._remove_assembly_member_references(assemblies, component_ids)
 
-            assemblies = project.data.get("assemblies")
-            if isinstance(assemblies, list):
-                assemblies[:] = [
-                    assembly
-                    for assembly in assemblies
-                    if not (
-                        isinstance(assembly, dict) and str(assembly.get("id") or "") in assembly_ids
-                    )
-                ]
-                self._remove_assembly_member_references(assemblies, component_ids)
-
-        self._api.set_selection(None)
-        self._api.edit_project(f"Delete {element_name}", change)
-        self._api.show_status(f'Deleted "{element_name}"', "success", 3000)
+    @staticmethod
+    def _clear_deleted_component_links(
+        components: list[Any],
+        component_ids: set[str],
+    ) -> None:
+        for component in components:
+            if not isinstance(component, dict):
+                continue
+            if str(component.get("attach_to") or "") in component_ids:
+                component["attach_to"] = None
+            if str(component.get("parent") or "") in component_ids:
+                component["parent"] = None
 
     def _can_edit_project(self) -> bool:
         project = self._api.current_project

@@ -289,106 +289,106 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         layout.addWidget(self.sweep_table)
         self._on_mode_changed()
 
-    def _on_mode_changed(self) -> None:  # noqa: C901
-        sweep_data = self.combo_mode.currentData()
-        is_sweep = sweep_data is not None
+    def _on_mode_changed(self) -> None:
+        sweep_type = self.combo_mode.currentData()
+        is_sweep = sweep_type is not None
+        for widget in (
+            self.spin_sweep_min,
+            self.spin_sweep_max,
+            self.spin_sweep_steps,
+        ):
+            widget.setEnabled(is_sweep)
 
-        self.spin_sweep_min.setEnabled(is_sweep)
-        self.spin_sweep_max.setEnabled(is_sweep)
-        self.spin_sweep_steps.setEnabled(is_sweep)
+        is_control = sweep_type == SweepType.CONTROL_DEFLECTION
+        self.combo_ctrl.setEnabled(is_control and bool(self._available_control_channels))
+        self.sweep_table.setRowHidden(1, not is_control)
 
-        is_ctrl = sweep_data == SweepType.CONTROL_DEFLECTION
-        self.combo_ctrl.setEnabled(is_ctrl and bool(self._available_control_channels))
-        self.sweep_table.setRowHidden(1, not is_ctrl)
-
-        is_alpha_beta = sweep_data in (
+        is_alpha_beta = sweep_type in (
             SweepType.DUAL_ALPHA_BETA,
             SweepType.MULTI_GRID,
         )
-        self.sweep_table.setRowHidden(5, not is_alpha_beta)
-        self.sweep_table.setRowHidden(6, not is_alpha_beta)
-        self.sweep_table.setRowHidden(7, not is_alpha_beta)
-
-        # Update labels dynamically
-        item_p_min = self.sweep_table.item(2, 0)
-        item_p_max = self.sweep_table.item(3, 0)
-        item_p_steps = self.sweep_table.item(4, 0)
-        item_s_min = self.sweep_table.item(5, 0)
-        item_s_max = self.sweep_table.item(6, 0)
-        item_s_steps = self.sweep_table.item(7, 0)
+        for row in (5, 6, 7):
+            self.sweep_table.setRowHidden(row, not is_alpha_beta)
 
         if is_alpha_beta:
-            if item_p_min:
-                item_p_min.setText("Alpha Start")
-            if item_p_max:
-                item_p_max.setText("Alpha End")
-            if item_p_steps:
-                item_p_steps.setText("Alpha Steps")
-            if item_s_min:
-                item_s_min.setText("Beta Start")
-            if item_s_max:
-                item_s_max.setText("Beta End")
-            if item_s_steps:
-                item_s_steps.setText("Beta Steps")
+            self._configure_alpha_beta_sweep(sweep_type)
+        elif sweep_type == SweepType.ALPHA:
+            self._configure_primary_sweep("Alpha", -10.0, 18.0, 29)
+        elif sweep_type == SweepType.BETA:
+            self._configure_primary_sweep("Beta", -15.0, 15.0, 31)
+        elif is_control:
+            self._configure_primary_sweep("Deflection", -20.0, 20.0, 21)
 
-            self.spin_sweep_min.setSuffix(" °")
-            self.spin_sweep_max.setSuffix(" °")
+    def _configure_alpha_beta_sweep(self, sweep_type: object) -> None:
+        self._set_sweep_labels("Alpha", "Beta")
+        self._set_angle_suffixes(include_secondary=True)
+        if sweep_type == SweepType.MULTI_GRID:
+            self._set_primary_sweep_values(-8.0, 16.0, 13)
+            self._set_secondary_sweep_values(-10.0, 10.0, 5)
+        else:
+            self._set_primary_sweep_values(-10.0, 18.0, 29)
+            self._set_secondary_sweep_values(-12.0, 12.0, 13)
+
+    def _configure_primary_sweep(
+        self,
+        label: str,
+        minimum: float,
+        maximum: float,
+        steps: int,
+    ) -> None:
+        self._set_sweep_labels(label)
+        self._set_angle_suffixes(include_secondary=False)
+        self._set_primary_sweep_values(minimum, maximum, steps)
+
+    def _set_sweep_labels(
+        self,
+        primary: str,
+        secondary: str | None = None,
+    ) -> None:
+        labels = {
+            2: f"{primary} Start",
+            3: f"{primary} End",
+            4: f"{primary} Steps",
+        }
+        if secondary is not None:
+            labels.update(
+                {
+                    5: f"{secondary} Start",
+                    6: f"{secondary} End",
+                    7: f"{secondary} Steps",
+                }
+            )
+        for row, text in labels.items():
+            item = self.sweep_table.item(row, 0)
+            if item is not None:
+                item.setText(text)
+
+    def _set_angle_suffixes(self, *, include_secondary: bool) -> None:
+        self.spin_sweep_min.setSuffix(" °")
+        self.spin_sweep_max.setSuffix(" °")
+        if include_secondary:
             self.spin_sec_min.setSuffix(" °")
             self.spin_sec_max.setSuffix(" °")
 
-            if sweep_data == SweepType.MULTI_GRID:
-                self.spin_sweep_min.setValue(-8.0)
-                self.spin_sweep_max.setValue(16.0)
-                self.spin_sweep_steps.setValue(13)
-                self.spin_sec_steps.setValue(5)
-                self.spin_sec_min.setValue(-10.0)
-                self.spin_sec_max.setValue(10.0)
-            else:
-                self.spin_sweep_min.setValue(-10.0)
-                self.spin_sweep_max.setValue(18.0)
-                self.spin_sweep_steps.setValue(29)
-                self.spin_sec_steps.setValue(13)
-                self.spin_sec_min.setValue(-12.0)
-                self.spin_sec_max.setValue(12.0)
+    def _set_primary_sweep_values(
+        self,
+        minimum: float,
+        maximum: float,
+        steps: int,
+    ) -> None:
+        self.spin_sweep_min.setValue(minimum)
+        self.spin_sweep_max.setValue(maximum)
+        self.spin_sweep_steps.setValue(steps)
 
-        elif sweep_data == SweepType.ALPHA:
-            if item_p_min:
-                item_p_min.setText("Alpha Start")
-            if item_p_max:
-                item_p_max.setText("Alpha End")
-            if item_p_steps:
-                item_p_steps.setText("Alpha Steps")
-            self.spin_sweep_min.setSuffix(" °")
-            self.spin_sweep_max.setSuffix(" °")
-            self.spin_sweep_min.setValue(-10.0)
-            self.spin_sweep_max.setValue(18.0)
-            self.spin_sweep_steps.setValue(29)
-
-        elif sweep_data == SweepType.BETA:
-            if item_p_min:
-                item_p_min.setText("Beta Start")
-            if item_p_max:
-                item_p_max.setText("Beta End")
-            if item_p_steps:
-                item_p_steps.setText("Beta Steps")
-            self.spin_sweep_min.setSuffix(" °")
-            self.spin_sweep_max.setSuffix(" °")
-            self.spin_sweep_min.setValue(-15.0)
-            self.spin_sweep_max.setValue(15.0)
-            self.spin_sweep_steps.setValue(31)
-
-        elif sweep_data == SweepType.CONTROL_DEFLECTION:
-            if item_p_min:
-                item_p_min.setText("Deflection Start")
-            if item_p_max:
-                item_p_max.setText("Deflection End")
-            if item_p_steps:
-                item_p_steps.setText("Deflection Steps")
-            self.spin_sweep_min.setSuffix(" °")
-            self.spin_sweep_max.setSuffix(" °")
-            self.spin_sweep_min.setValue(-20.0)
-            self.spin_sweep_max.setValue(20.0)
-            self.spin_sweep_steps.setValue(21)
+    def _set_secondary_sweep_values(
+        self,
+        minimum: float,
+        maximum: float,
+        steps: int,
+    ) -> None:
+        self.spin_sec_min.setValue(minimum)
+        self.spin_sec_max.setValue(maximum)
+        self.spin_sec_steps.setValue(steps)
 
     def _on_project_changed(self, _project: object) -> None:
         self._refresh_control_channels()

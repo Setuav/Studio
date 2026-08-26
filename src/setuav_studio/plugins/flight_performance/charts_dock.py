@@ -128,7 +128,7 @@ class SinglePerformanceChartWidget(QWidget):
         axis.setLinePenColor(dim_col)
         return axis
 
-    def plot_dual_curves(  # noqa: C901
+    def plot_dual_curves(
         self,
         x_vals: Sequence[float],
         y1_vals: Sequence[float],
@@ -147,128 +147,226 @@ class SinglePerformanceChartWidget(QWidget):
         if not x_vals or not y1_vals:
             return
 
+        grid_color, dim_color = self._get_theme_colors()
+        axis_x = self._x_axis(x_vals, x_label, dim_color, grid_color)
+        y1_min, y1_max = self._combined_primary_bounds(
+            y1_vals,
+            y2_vals,
+            same_axis,
+        )
+        axis_y1, y1_bounds = self._primary_axis(
+            y1_min,
+            y1_max,
+            y1_label,
+            y1_unit,
+            same_axis,
+            dim_color,
+            grid_color,
+        )
+        self._add_infeasible_overlays(
+            x_vals,
+            feasible_mask,
+            axis_x,
+            axis_y1,
+            y1_bounds,
+        )
+        self._add_line_series(
+            x_vals,
+            y1_vals,
+            y1_label,
+            y1_color_role,
+            2.2,
+            axis_x,
+            axis_y1,
+        )
+        if y2_vals and any(value is not None for value in y2_vals):
+            self._add_secondary_series(
+                x_vals,
+                y2_vals,
+                y2_label,
+                y2_unit,
+                y2_color_role,
+                same_axis,
+                axis_x,
+                axis_y1,
+                dim_color,
+                grid_color,
+            )
+        self._hide_area_legend_markers()
+
+    def _x_axis(
+        self,
+        values: Sequence[float],
+        label: str,
+        dim_color: QColor,
+        grid_color: QColor,
+    ) -> QValueAxis:
+        minimum, maximum = float(min(values)), float(max(values))
+        if minimum == maximum:
+            maximum += 1.0
+        axis = self._create_axis(label, dim_color, grid_color, show_grid=True)
+        axis.setRange(minimum, maximum)
+        self.chart.addAxis(axis, Qt.AlignmentFlag.AlignBottom)
+        return axis
+
+    @staticmethod
+    def _combined_primary_bounds(
+        primary: Sequence[float],
+        secondary: Sequence[float] | None,
+        same_axis: bool,
+    ) -> tuple[float, float]:
+        minimum, maximum = SinglePerformanceChartWidget._value_bounds(primary)
+        if same_axis and secondary:
+            second_minimum, second_maximum = SinglePerformanceChartWidget._value_bounds(secondary)
+            minimum = min(minimum, second_minimum)
+            maximum = max(maximum, second_maximum)
+        return minimum, maximum
+
+    @staticmethod
+    def _value_bounds(values: Sequence[float]) -> tuple[float, float]:
+        valid = [value for value in values if value is not None]
+        minimum = float(min(valid)) if valid else 0.0
+        maximum = float(max(valid)) if valid else 1.0
+        if minimum == maximum:
+            maximum += 1.0
+        return minimum, maximum
+
+    def _primary_axis(
+        self,
+        minimum: float,
+        maximum: float,
+        label: str,
+        unit: str,
+        same_axis: bool,
+        dim_color: QColor,
+        grid_color: QColor,
+    ) -> tuple[QValueAxis, tuple[float, float]]:
+        if unit and not same_axis:
+            title = f"{label} ({unit})"
+        elif same_axis and unit:
+            title = f"Power ({unit})"
+        else:
+            title = label
+        axis = self._create_axis(title, dim_color, grid_color, show_grid=True)
+        bounds = self._padded_bounds(minimum, maximum)
+        axis.setRange(*bounds)
+        self.chart.addAxis(axis, Qt.AlignmentFlag.AlignLeft)
+        return axis, bounds
+
+    @staticmethod
+    def _padded_bounds(minimum: float, maximum: float) -> tuple[float, float]:
+        padding = max((maximum - minimum) * 0.05, 0.05)
+        return max(0.0, minimum - padding), maximum + padding
+
+    def _add_infeasible_overlays(
+        self,
+        x_values: Sequence[float],
+        feasible_mask: Sequence[bool] | None,
+        axis_x: QValueAxis,
+        axis_y: QValueAxis,
+        y_bounds: tuple[float, float],
+    ) -> None:
+        if feasible_mask is None or len(feasible_mask) != len(x_values):
+            return
+        for start, end in self._infeasible_spans(x_values, feasible_mask):
+            upper = QLineSeries()
+            upper.append(float(start), float(y_bounds[1]))
+            upper.append(float(end), float(y_bounds[1]))
+            lower = QLineSeries()
+            lower.append(float(start), float(y_bounds[0]))
+            lower.append(float(end), float(y_bounds[0]))
+            area = QAreaSeries(upper, lower)
+            area.setName("Infeasible")
+            area.setBrush(QBrush(QColor(235, 55, 55, 38)))
+            area.setPen(QPen(QColor(235, 55, 55, 90), 1, Qt.PenStyle.DashLine))
+            self.chart.addSeries(area)
+            area.attachAxis(axis_x)
+            area.attachAxis(axis_y)
+            self._overlay_refs.extend([upper, lower, area])
+
+    @staticmethod
+    def _infeasible_spans(
+        x_values: Sequence[float],
+        feasible_mask: Sequence[bool],
+    ) -> list[tuple[float, float]]:
+        spans: list[tuple[float, float]] = []
+        start: float | None = None
+        for x_value, feasible in zip(x_values, feasible_mask, strict=True):
+            if not feasible and start is None:
+                start = float(x_value)
+            elif feasible and start is not None:
+                spans.append((start, float(x_value)))
+                start = None
+        if start is not None:
+            spans.append((start, float(x_values[-1])))
+        return spans
+
+    def _add_line_series(
+        self,
+        x_values: Sequence[float],
+        y_values: Sequence[float],
+        label: str,
+        color_role: str,
+        width: float,
+        axis_x: QValueAxis,
+        axis_y: QValueAxis,
+    ) -> QLineSeries:
         from setuav_studio.ui.theme import chart_color
 
-        grid_col, dim_col = self._get_theme_colors()
+        series = QLineSeries()
+        series.setName(label)
+        series.setProperty("themeColorRole", color_role)
+        series.setPen(QPen(QColor(chart_color(color_role)), width))
+        for x_value, y_value in zip(x_values, y_values, strict=True):
+            if y_value is not None:
+                series.append(QPointF(float(x_value), float(y_value)))
+        self.chart.addSeries(series)
+        series.attachAxis(axis_x)
+        series.attachAxis(axis_y)
+        return series
 
-        x_min, x_max = float(min(x_vals)), float(max(x_vals))
-        if x_min == x_max:
-            x_max += 1.0
-
-        axis_x = self._create_axis(x_label, dim_col, grid_col, show_grid=True)
-        axis_x.setRange(x_min, x_max)
-        self.chart.addAxis(axis_x, Qt.AlignmentFlag.AlignBottom)
-
-        # Primary series (Y1) bounds
-        y1_valid = [v for v in y1_vals if v is not None]
-        y1_min = float(min(y1_valid)) if y1_valid else 0.0
-        y1_max = float(max(y1_valid)) if y1_valid else 1.0
-
-        if same_axis and y2_vals:
-            y2_valid = [v for v in y2_vals if v is not None]
-            if y2_valid:
-                y1_min = min(y1_min, float(min(y2_valid)))
-                y1_max = max(y1_max, float(max(y2_valid)))
-
-        if y1_min == y1_max:
-            y1_max += 1.0
-
-        title_y1 = (
-            f"{y1_label} ({y1_unit})"
-            if y1_unit and not same_axis
-            else (f"Power ({y1_unit})" if same_axis and y1_unit else y1_label)
+    def _add_secondary_series(
+        self,
+        x_values: Sequence[float],
+        y_values: Sequence[float],
+        label: str,
+        unit: str,
+        color_role: str,
+        same_axis: bool,
+        axis_x: QValueAxis,
+        axis_y1: QValueAxis,
+        dim_color: QColor,
+        grid_color: QColor,
+    ) -> None:
+        if same_axis:
+            self._add_line_series(
+                x_values,
+                y_values,
+                label,
+                color_role,
+                2.0,
+                axis_x,
+                axis_y1,
+            )
+            return
+        minimum, maximum = self._value_bounds(y_values)
+        title = f"{label} ({unit})" if unit else label
+        axis_y2 = self._create_axis(title, dim_color, grid_color, show_grid=False)
+        axis_y2.setRange(*self._padded_bounds(minimum, maximum))
+        self.chart.addAxis(axis_y2, Qt.AlignmentFlag.AlignRight)
+        self._add_line_series(
+            x_values,
+            y_values,
+            label,
+            color_role,
+            2.0,
+            axis_x,
+            axis_y2,
         )
-        axis_y1 = self._create_axis(title_y1, dim_col, grid_col, show_grid=True)
-        pad_y1 = max((y1_max - y1_min) * 0.05, 0.05)
-        y1_min_bound = max(0.0, y1_min - pad_y1)
-        y1_max_bound = y1_max + pad_y1
-        axis_y1.setRange(y1_min_bound, y1_max_bound)
-        self.chart.addAxis(axis_y1, Qt.AlignmentFlag.AlignLeft)
 
-        # Infeasible Shaded Overlay (Semi-transparent red band)
-        if feasible_mask is not None and len(feasible_mask) == len(x_vals):
-            infeasible_spans: list[tuple[float, float]] = []
-            span_start: float | None = None
-
-            for x, is_feas in zip(x_vals, feasible_mask, strict=True):
-                if not is_feas and span_start is None:
-                    span_start = float(x)
-                elif is_feas and span_start is not None:
-                    infeasible_spans.append((span_start, float(x)))
-                    span_start = None
-            if span_start is not None:
-                infeasible_spans.append((span_start, float(x_vals[-1])))
-
-            for x_start, x_end in infeasible_spans:
-                upper = QLineSeries()
-                upper.append(float(x_start), float(y1_max_bound))
-                upper.append(float(x_end), float(y1_max_bound))
-
-                lower = QLineSeries()
-                lower.append(float(x_start), float(y1_min_bound))
-                lower.append(float(x_end), float(y1_min_bound))
-
-                area = QAreaSeries(upper, lower)
-                area.setName("Infeasible")
-                area.setBrush(QBrush(QColor(235, 55, 55, 38)))
-                area.setPen(QPen(QColor(235, 55, 55, 90), 1, Qt.PenStyle.DashLine))
-
-                self.chart.addSeries(area)
-                area.attachAxis(axis_x)
-                area.attachAxis(axis_y1)
-
-                self._overlay_refs.extend([upper, lower, area])
-
-        # Draw Primary Series Curve
-        s1 = QLineSeries()
-        s1.setName(y1_label)
-        s1.setProperty("themeColorRole", y1_color_role)
-        pen1 = QPen(QColor(chart_color(y1_color_role)), 2.2)
-        s1.setPen(pen1)
-        for x, y in zip(x_vals, y1_vals, strict=True):
-            if y is not None:
-                s1.append(QPointF(float(x), float(y)))
-
-        self.chart.addSeries(s1)
-        s1.attachAxis(axis_x)
-        s1.attachAxis(axis_y1)
-
-        # Secondary series (Y2)
-        if y2_vals and any(v is not None for v in y2_vals):
-            s2 = QLineSeries()
-            s2.setName(y2_label)
-            s2.setProperty("themeColorRole", y2_color_role)
-            pen2 = QPen(QColor(chart_color(y2_color_role)), 2.0)
-            s2.setPen(pen2)
-            for x, y in zip(x_vals, y2_vals, strict=True):
-                if y is not None:
-                    s2.append(QPointF(float(x), float(y)))
-
-            self.chart.addSeries(s2)
-            s2.attachAxis(axis_x)
-
-            if same_axis:
-                s2.attachAxis(axis_y1)
-            else:
-                y2_valid = [v for v in y2_vals if v is not None]
-                y2_min = float(min(y2_valid)) if y2_valid else 0.0
-                y2_max = float(max(y2_valid)) if y2_valid else 1.0
-                if y2_min == y2_max:
-                    y2_max += 1.0
-
-                title_y2 = f"{y2_label} ({y2_unit})" if y2_unit else y2_label
-                axis_y2 = self._create_axis(title_y2, dim_col, grid_col, show_grid=False)
-                pad_y2 = max((y2_max - y2_min) * 0.05, 0.05)
-                y2_min_bound = max(0.0, y2_min - pad_y2)
-                y2_max_bound = y2_max + pad_y2
-                axis_y2.setRange(y2_min_bound, y2_max_bound)
-                self.chart.addAxis(axis_y2, Qt.AlignmentFlag.AlignRight)
-                s2.attachAxis(axis_y2)
-
-        # Hide any area series from legend cleanly
+    def _hide_area_legend_markers(self) -> None:
         for marker in self.chart.legend().markers():
-            series = marker.series()
-            if isinstance(series, QAreaSeries):
+            if isinstance(marker.series(), QAreaSeries):
                 marker.setVisible(False)
 
 
