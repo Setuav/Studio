@@ -19,6 +19,7 @@ CORE_MODULES = (
     "tests.core.test_workspaces",
 )
 GEOMETRY_MODULES = (
+    "tests.geometry.test_creation",
     "tests.geometry.test_geometry",
     "tests.geometry.test_wing_driver_solver",
 )

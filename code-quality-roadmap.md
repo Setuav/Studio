@@ -7,7 +7,7 @@ sonraki adıma geçilmeyecek.
 
 - [x] Ruff lint kuralları tanımlandı.
 - [x] Mevcut Ruff lint sorunları temizlendi.
-- [x] 242 test başarıyla çalışıyor.
+- [x] 252 test başarıyla çalışıyor.
 - [x] Ruff formatı tüm kod tabanına uygulandı.
 
 ## 1. Kod tabanını formatla
@@ -79,7 +79,7 @@ kontrolü tamamlandı.
 Testler `tests/<plugin>/` dizinlerinde gruplanıyor. `tests/suites.py`; `core`,
 `geometry`, `aerodynamics-fast`, `aerodynamics-integration`,
 `electrical-propulsion`, `flight-performance` ve `weight-balance` komutlarını
-sağlıyor. Suite runner Qt'yi headless çalıştırıyor; tüm gruplar birlikte 242
+sağlıyor. Suite runner Qt'yi headless çalıştırıyor; tüm gruplar birlikte 252
 test içeriyor.
 
 ## 7. Coverage eksiklerini kapat
@@ -104,8 +104,9 @@ izole test edilebilirliği dikkate alınarak yapıldı.
 3. [x] `electrical_propulsion/creation.py` — `%12,8` seviyesinden `%100` branch
    coverage'a çıkarıldı; 12 odak testle assembly ve bileşen oluşturma, benzersiz
    kimlikler, hedef seçimi, varsayılanlar, undo ve hatalı proje durumları kapsandı.
-4. [ ] `geometry/creation.py` — `%20,6`, 103 eksik satır; geometry bileşeni
-   oluşturma akışı.
+4. [x] `geometry/creation.py` — `%20,6` seviyesinden `%100` branch coverage'a
+   çıkarıldı; 10 odak testle fuselage, lifting/control surface presetleri, hedef
+   seçimi, benzersiz kimlikler, undo ve hatalı proje durumları kapsandı.
 5. [ ] `core/settings.py` ve `geometry/settings.py` — `%23,5` / `%21,1`; ayarların
    doğrulanması ve kalıcılığı.
 6. [ ] `project.py` — `%72,6`, 34 eksik satır; oranı daha yüksek olsa da açma,
