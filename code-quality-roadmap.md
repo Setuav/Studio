@@ -229,15 +229,23 @@ eşikte kontrol edilecek.
 
 ## 9. Bağımlılıkları düzenle
 
-- [ ] Kullanılmayan bağımlılıkları tespit et.
-- [ ] Runtime, opsiyonel ve geliştirme bağımlılıklarını ayır.
-- [ ] Sürüm aralıklarını gözden geçir.
-- [ ] Güvenlik ve lisans kontrollerini ekle.
+- [x] Kullanılmayan bağımlılıkları tespit et.
+- [x] Runtime, opsiyonel ve geliştirme bağımlılıklarını ayır.
+- [x] Sürüm aralıklarını gözden geçir.
+- [x] Güvenlik ve lisans kontrollerini ekle.
+
+Doğrudan kullanılan NumPy, SciPy ve Shiboken runtime bağımlılıklarına eklendi;
+paketleme ile güvenlik araçları ayrı gruplara taşındı. Deptry, pip-audit ve
+pip-licenses kontrolleri haftalık iş akışına bağlandı.
 
 ## 10. Paket smoke testleri ekle
 
-- [ ] Wheel ve source distribution üret.
-- [ ] Wheel'i temiz bir ortama kur.
-- [ ] Paket import testini çalıştır.
-- [ ] `setuav-studio --help` komutunu çalıştır.
-- [ ] İkon, font, şema ve veri dosyalarının pakette bulunduğunu doğrula.
+- [x] Wheel ve source distribution üret.
+- [x] Wheel'i temiz bir ortama kur.
+- [x] Paket import testini çalıştır.
+- [x] `setuav-studio --help` komutunu çalıştır.
+- [x] İkon, font, şema ve veri dosyalarının pakette bulunduğunu doğrula.
+
+`scripts/package_smoke_test.py`, kurulu wheel metadata'sı üzerinden giriş
+noktasını ve temel paket kaynaklarını doğruluyor; CI aynı testi temiz bir sanal
+ortamda çalıştırıyor.

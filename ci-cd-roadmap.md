@@ -7,23 +7,23 @@
 - [x] `setuav-studio` komut satırı giriş noktasını ekle.
 - [ ] PyInstaller bağımlılığını ve `.spec` dosyasını ekle.
 - [ ] Uygulama adı, sürümü ve ikonlarını paketlemeye hazırla.
-- [ ] Yerel lint, test ve build komutlarını doğrula.
+- [x] Yerel lint, test ve build komutlarını doğrula.
 
 ## 2. CI
 
-- [ ] `.github/workflows/ci.yml` oluştur.
-- [ ] Pull request ve `main` push işlemlerinde çalıştır.
-- [ ] Bağımlılıkları `uv.lock` üzerinden kur.
-- [ ] Ruff lint ve format kontrolünü çalıştır.
-- [ ] Qt testlerini headless ortamda çalıştır.
-- [ ] Python 3.11 ve güncel Python sürümünü test et.
-- [ ] Wheel ve source distribution üretimini doğrula.
+- [x] `.github/workflows/ci.yml` oluştur.
+- [x] Pull request ve `main` push işlemlerinde çalıştır.
+- [x] Bağımlılıkları `uv.lock` üzerinden kur.
+- [x] Ruff lint ve format kontrolünü çalıştır.
+- [x] Qt testlerini headless ortamda çalıştır.
+- [x] Python 3.11 ve güncel Python sürümünü test et.
+- [x] Wheel ve source distribution üretimini doğrula.
 - [ ] CI başarılı olmadan `main` birleştirmelerini engelle.
 
 ## 3. Masaüstü paketleme
 
 - [ ] PyInstaller ile `onedir` paket üret.
-- [ ] Paket içindeki ikon, font, şema ve veri dosyalarını doğrula.
+- [x] Paket içindeki ikon, font, şema ve veri dosyalarını doğrula.
 - [ ] Paketlenmiş uygulama için başlangıç testi ekle.
 - [ ] Windows `.zip` çıktısı üret.
 - [ ] Linux `.tar.gz` çıktısı üret.
@@ -48,7 +48,7 @@
 
 ## 6. Bakım
 
-- [ ] Bağımlılık güncellemelerini otomatik takip et.
-- [ ] GitHub Actions bağımlılıklarını sabit sürümlere bağla.
-- [ ] Haftalık güvenlik ve bağımlılık kontrolleri çalıştır.
+- [x] Bağımlılık güncellemelerini otomatik takip et.
+- [x] GitHub Actions bağımlılıklarını sabit sürümlere bağla.
+- [x] Haftalık güvenlik ve bağımlılık kontrolleri çalıştır.
 - [ ] Release sürecini gerçek bir temiz makinede doğrula.
