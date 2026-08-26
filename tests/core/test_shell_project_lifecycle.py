@@ -267,11 +267,24 @@ class ShellProjectLifecycleTests(unittest.TestCase):
 
     def test_collect_unsaved_changes_handles_no_project_and_read_failures(self) -> None:
         self.assertEqual(self.window._collect_unsaved_changes(), [])
-        self.window._project = self._project()
-        with patch("setuav_studio.project.open_project", side_effect=RuntimeError("failed")):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            project_file = Path(temporary_directory) / "project.json"
+            project_file.write_text("{}", encoding="utf-8")
+            self.window._project = ProjectDocument(project_file, "json", {"components": []})
+            with (
+                patch("setuav_studio.project.open_project", side_effect=RuntimeError("failed")),
+                patch(
+                    "setuav_studio.plugins.aerodynamics.analysis_store.analysis_entries",
+                    side_effect=RuntimeError("aero failed"),
+                ),
+                patch(
+                    "setuav_studio.plugins.flight_performance.analysis_store.analysis_entries",
+                    side_effect=RuntimeError("performance failed"),
+                ),
+            ):
+                self.assertEqual(self.window._collect_unsaved_changes(), [])
+            self.window._project.data["components"] = None
             self.assertEqual(self.window._collect_unsaved_changes(), [])
-        self.window._project.data["components"] = None
-        self.assertEqual(self.window._collect_unsaved_changes(), [])
 
     def test_confirm_close_supports_save_discard_cancel_and_long_summary(self) -> None:
         self.assertTrue(self.window._confirm_project_close())

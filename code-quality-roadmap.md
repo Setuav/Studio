@@ -7,7 +7,7 @@ sonraki adıma geçilmeyecek.
 
 - [x] Ruff lint kuralları tanımlandı.
 - [x] Mevcut Ruff lint sorunları temizlendi.
-- [x] 299 test başarıyla çalışıyor.
+- [x] 315 test başarıyla çalışıyor.
 - [x] Ruff formatı tüm kod tabanına uygulandı.
 
 ## 1. Kod tabanını formatla
@@ -79,15 +79,15 @@ kontrolü tamamlandı.
 Testler `tests/<plugin>/` dizinlerinde gruplanıyor. `tests/suites.py`; `core`,
 `geometry`, `aerodynamics-fast`, `aerodynamics-integration`,
 `electrical-propulsion`, `flight-performance` ve `weight-balance` komutlarını
-sağlıyor. Suite runner Qt'yi headless çalıştırıyor; tüm gruplar birlikte 299
+sağlıyor. Suite runner Qt'yi headless çalıştırıyor; tüm gruplar birlikte 315
 test içeriyor.
 
 ## 7. Coverage eksiklerini kapat
 
 - [x] Coverage oranı düşük modülleri listele.
-- [ ] Hata ve sınır durumları için testler ekle.
-- [ ] Plugin yükleme ve kaldırma senaryolarını güçlendir.
-- [ ] Proje açma, kaydetme ve bozuk veri senaryolarını güçlendir.
+- [x] Hata ve sınır durumları için testler ekle.
+- [x] Plugin yükleme ve kaldırma senaryolarını güçlendir.
+- [x] Proje açma, kaydetme ve bozuk veri senaryolarını güçlendir.
 - [ ] Coverage eşiğini kademeli olarak artır.
 
 Tam plugin suite'i için başlangıç coverage değeri `%68,8` olarak doğrulandı.
@@ -116,12 +116,13 @@ izole test edilebilirliği dikkate alınarak yapıldı.
 7. [x] `plugin_system.py` — `%81,8` seviyesinden `%100` branch coverage'a
    çıkarıldı; 14 odak testle registry yaşam döngüsü, plugin discovery/activation
    hataları, callback izolasyonu, listener temizliği ve provider çözümleme kapsandı.
-8. [ ] `shell.py` — `%53,8`, 384 eksik satır; ana pencere akışları küçük UI
-   senaryolarına bölünerek ele alınacak.
+8. [x] `shell.py` — ana pencere akışları iki küçük headless UI grubuna bölündü.
    - [x] Proje yaşam döngüsü: validation, açma/kaydetme, unsaved-change özeti,
      recent projects ve dosya diyalogları 12 headless testle kapsandı. Core suite
      ölçümünde shell branch coverage `%42,6` seviyesinden `%56,8` seviyesine çıktı.
-   - [ ] Toolbar, panel ve workspace layout yaşam döngüsü.
+   - [x] Toolbar, panel, tema, settings ve workspace layout yaşam döngüsü 16
+     headless testle kapsandı. İki grubun ardından core suite ölçümünde shell
+     branch coverage `%94,0` seviyesine ulaştı.
 
 İlk iki hedefin ardından tam suite branch coverage değeri `%70,2` seviyesine
 ulaştı.

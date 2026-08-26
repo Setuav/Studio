@@ -18,6 +18,7 @@ CORE_MODULES = (
     "tests.core.test_project_edge_cases",
     "tests.core.test_schema_drift",
     "tests.core.test_settings",
+    "tests.core.test_shell_contributions",
     "tests.core.test_shell_project_lifecycle",
     "tests.core.test_theme",
     "tests.core.test_workspaces",
