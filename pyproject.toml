@@ -87,6 +87,8 @@ include = [
     "src/setuav_studio/plugins/weight_balance/engine/base.py",
     "src/setuav_studio/plugins/weight_balance/engine/solver.py",
     "src/setuav_studio/plugins/weight_balance/engine/spatial.py",
+    "src/setuav_studio/ui/buttons.py",
+    "src/setuav_studio/ui/icons.py",
     "src/setuav_studio/ui/log_buffer.py",
     "src/setuav_studio/ui/numeric_spinbox.py",
 ]

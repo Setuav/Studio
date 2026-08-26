@@ -60,7 +60,8 @@ katmanlarının kademeli tip kontrolü tamamlandı.
 
 UI kapsamı `log_buffer.py` ve `numeric_spinbox.py` ile başlatıldı. Toplam 24
 dosya `basic` modda sıfır hata ile geçiyor; ilk UI grubu ek düzeltme
-gerektirmedi.
+gerektirmedi. `icons.py` ve `buttons.py` ile kapsam 26 dosyaya çıkarıldı; ikinci
+UI grubu da ek düzeltme gerektirmedi.
 
 ## 6. Test gruplarını ayır
 
