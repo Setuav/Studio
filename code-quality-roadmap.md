@@ -63,6 +63,8 @@ dosya `basic` modda sıfır hata ile geçiyor; ilk UI grubu ek düzeltme
 gerektirmedi. `icons.py` ve `buttons.py` ile kapsam 26 dosyaya çıkarıldı; ikinci
 UI grubu da ek düzeltme gerektirmedi. `log_window.py` ve `main_toolbar.py` ile
 kapsam 28 dosyaya çıkarıldı; üçüncü UI grubu da ek düzeltme gerektirmedi.
+`property_tables.py` ile kapsam 29 dosyaya çıkarıldı ve 2 Qt flag tip hatası
+giderildi.
 
 ## 6. Test gruplarını ayır
 

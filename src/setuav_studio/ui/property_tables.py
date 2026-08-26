@@ -91,7 +91,7 @@ class PropertyTableMixin:
     """Provides the standard property table helpers to QWidget subclasses."""
 
     table_headers: tuple[str, str] = ("Property", "Value")
-    table_edit_triggers: int = (
+    table_edit_triggers: QAbstractItemView.EditTrigger = (
         QAbstractItemView.EditTrigger.DoubleClicked
         | QAbstractItemView.EditTrigger.EditKeyPressed
         | QAbstractItemView.EditTrigger.SelectedClicked

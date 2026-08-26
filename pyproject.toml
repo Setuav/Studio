@@ -93,6 +93,7 @@ include = [
     "src/setuav_studio/ui/log_window.py",
     "src/setuav_studio/ui/main_toolbar.py",
     "src/setuav_studio/ui/numeric_spinbox.py",
+    "src/setuav_studio/ui/property_tables.py",
 ]
 pythonVersion = "3.11"
 typeCheckingMode = "basic"
