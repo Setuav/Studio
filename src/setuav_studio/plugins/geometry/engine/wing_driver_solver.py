@@ -77,11 +77,8 @@ def compute_all_8_parameters(
 
     ar = (b * b) / max(s_total_mm2, 1e-6)
 
-    # MAC calculation
-    if (c_root + c_tip) > 1e-4:
-        mac = (2.0 / 3.0) * (c_root + c_tip - (c_root * c_tip) / (c_root + c_tip))
-    else:
-        mac = c_root
+    # Chords are clamped above, so the MAC denominator is always positive.
+    mac = (2.0 / 3.0) * (c_root + c_tip - (c_root * c_tip) / (c_root + c_tip))
 
     # Area presented in dm² (1 dm² = 10,000 mm²)
     s_total_dm2 = s_total_mm2 / 10000.0
@@ -127,6 +124,8 @@ def solve_8_parameter_driver(
     if "span" in drivers:
         span = v["span"]
         b_panel = max((span / 2.0 - y_offset) if is_symmetric else span, 1e-4)
+        panel_area_factor = b_panel if is_symmetric else 0.5 * b_panel
+        root_area_factor = panel_area_factor + (2.0 * y_offset if is_symmetric else 0.0)
 
         if "root_chord" in drivers and "tip_chord" in drivers:
             c_root = v["root_chord"]
@@ -140,13 +139,13 @@ def solve_8_parameter_driver(
         elif "area" in drivers and "taper_ratio" in drivers:
             s_target = v["area"] * 10000.0  # dm² to mm²
             taper = v["taper_ratio"]
-            denom = b_panel * (1.0 + taper) + (2.0 * y_offset if is_symmetric else 0.0)
+            denom = root_area_factor + panel_area_factor * taper
             c_root = s_target / max(denom, 1e-6)
             c_tip = taper * c_root
         elif "aspect_ratio" in drivers and "taper_ratio" in drivers:
             s_target = (span * span) / max(v["aspect_ratio"], 1e-4)
             taper = v["taper_ratio"]
-            denom = b_panel * (1.0 + taper) + (2.0 * y_offset if is_symmetric else 0.0)
+            denom = root_area_factor + panel_area_factor * taper
             c_root = s_target / max(denom, 1e-6)
             c_tip = taper * c_root
         elif "area" in drivers and "root_chord" in drivers:
@@ -166,9 +165,8 @@ def solve_8_parameter_driver(
         elif "area" in drivers and "tip_chord" in drivers:
             c_tip = v["tip_chord"]
             s_target = v["area"] * 10000.0
-            num = s_target - (b_panel * c_tip if is_symmetric else 0.5 * b_panel * c_tip)
-            denom = b_panel + (2.0 * y_offset if is_symmetric else 0.0)
-            c_root = max(num / max(denom, 1e-6), 1e-4)
+            num = s_target - panel_area_factor * c_tip
+            c_root = max(num / max(root_area_factor, 1e-6), 1e-4)
         else:
             if "taper_ratio" in drivers:
                 taper = v["taper_ratio"]
@@ -185,10 +183,12 @@ def solve_8_parameter_driver(
             ar = v["aspect_ratio"]
             span = math.sqrt(s_target * ar)
             b_panel = max((span / 2.0 - y_offset) if is_symmetric else span, 1e-4)
+            panel_area_factor = b_panel if is_symmetric else 0.5 * b_panel
+            root_area_factor = panel_area_factor + (2.0 * y_offset if is_symmetric else 0.0)
 
             if "taper_ratio" in drivers:
                 taper = v["taper_ratio"]
-                denom = b_panel * (1.0 + taper) + (2.0 * y_offset if is_symmetric else 0.0)
+                denom = root_area_factor + panel_area_factor * taper
                 c_root = s_target / max(denom, 1e-6)
                 c_tip = taper * c_root
             elif "root_chord" in drivers:
@@ -199,12 +199,11 @@ def solve_8_parameter_driver(
                 c_tip = max(2.0 * c_ave - c_root, 1e-4)
             elif "tip_chord" in drivers:
                 c_tip = v["tip_chord"]
-                num = s_target - (b_panel * c_tip if is_symmetric else 0.5 * b_panel * c_tip)
-                denom = b_panel + (2.0 * y_offset if is_symmetric else 0.0)
-                c_root = max(num / max(denom, 1e-6), 1e-4)
+                num = s_target - panel_area_factor * c_tip
+                c_root = max(num / max(root_area_factor, 1e-6), 1e-4)
             else:
                 taper = cur["taper_ratio"]
-                denom = b_panel * (1.0 + taper) + (2.0 * y_offset if is_symmetric else 0.0)
+                denom = root_area_factor + panel_area_factor * taper
                 c_root = s_target / max(denom, 1e-6)
                 c_tip = taper * c_root
         elif "area" in drivers and "root_chord" in drivers and "tip_chord" in drivers:

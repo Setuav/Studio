@@ -17,7 +17,10 @@ CORE_MODULES = (
     "tests.core.test_theme",
     "tests.core.test_workspaces",
 )
-GEOMETRY_MODULES = ("tests.geometry.test_geometry",)
+GEOMETRY_MODULES = (
+    "tests.geometry.test_geometry",
+    "tests.geometry.test_wing_driver_solver",
+)
 AERODYNAMICS_FAST_MODULES = (
     "tests.aerodynamics.test_aero_engine_base",
     "tests.aerodynamics.test_aero_plugin",

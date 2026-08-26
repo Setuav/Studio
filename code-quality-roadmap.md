@@ -84,11 +84,37 @@ test içeriyor.
 
 ## 7. Coverage eksiklerini kapat
 
-- [ ] Coverage oranı düşük modülleri listele.
+- [x] Coverage oranı düşük modülleri listele.
 - [ ] Hata ve sınır durumları için testler ekle.
 - [ ] Plugin yükleme ve kaldırma senaryolarını güçlendir.
 - [ ] Proje açma, kaydetme ve bozuk veri senaryolarını güçlendir.
 - [ ] Coverage eşiğini kademeli olarak artır.
+
+Tam plugin suite'i için başlangıç coverage değeri `%68,8` olarak doğrulandı.
+Önceliklendirme yalnızca düşük orana göre değil, kullanıcı akışına etkisi ve
+izole test edilebilirliği dikkate alınarak yapıldı.
+
+### Öncelikli coverage kuyruğu
+
+1. [x] `geometry/engine/wing_driver_solver.py` — `%13,3` seviyesinden `%100`
+   branch coverage'a çıkarıldı; 7 odak test ve asimetrik alan düzeltmesi eklendi.
+2. [ ] `core/instance.py` — `%10,9`, 174 eksik satır; instance düzenleme ve türetme
+   akışı.
+3. [ ] `electrical_propulsion/creation.py` — `%12,8`, 157 eksik satır; propulsion
+   bileşeni oluşturma akışı.
+4. [ ] `geometry/creation.py` — `%20,6`, 103 eksik satır; geometry bileşeni
+   oluşturma akışı.
+5. [ ] `core/settings.py` ve `geometry/settings.py` — `%23,5` / `%21,1`; ayarların
+   doğrulanması ve kalıcılığı.
+6. [ ] `project.py` — `%72,6`, 34 eksik satır; oranı daha yüksek olsa da açma,
+   kaydetme ve bozuk veri sınırları kritik.
+7. [ ] `plugin_system.py` — `%81,8`, 90 eksik satır; plugin yaşam döngüsü ve hata
+   izolasyonu kritik.
+8. [ ] `shell.py` — `%53,8`, 384 eksik satır; ana pencere akışları küçük UI
+   senaryolarına bölünerek ele alınacak.
+
+İkinci dalgada `geometry/viewport/widget.py`, `view2d/canvas.py` ve büyük
+geometry editor diyalogları headless Qt testleriyle kapsanacak.
 
 ## 8. Kod karmaşıklığını azalt
 
