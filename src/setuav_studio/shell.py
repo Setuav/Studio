@@ -1210,167 +1210,140 @@ class MainWindow(QMainWindow):
             self._schedule_workspace_layout_save()
         return super().eventFilter(watched, event)
 
-    def _apply_default_workspace_layout(self, workspace_id: str) -> None:  # noqa: C901
-        explorer = self.findChild(QDockWidget, "project.explorer")
-        viewer = self.findChild(QDockWidget, "studio.viewer.opengl")
-        props = self.findChild(QDockWidget, "studio.properties")
-        controls = self.findChild(QDockWidget, "propulsion.controls_dock")
-        results = self.findChild(QDockWidget, "propulsion.results_dock")
-
-        # Hide any panels that do not belong to this workspace
-        for _cid, (panel_contrib, dock) in self._panels.items():
-            if not panel_contrib.is_in_workspace(workspace_id):
-                dock.hide()
+    def _apply_default_workspace_layout(self, workspace_id: str) -> None:
+        explorer = self._dock("project.explorer")
+        viewer = self._dock("studio.viewer.opengl")
+        properties = self._dock("studio.properties")
+        self._hide_panels_outside_workspace(workspace_id)
 
         if workspace_id in {"studio.workspace.design", "studio.viewer.opengl"}:
-            if controls:
-                controls.hide()
-            if results:
-                results.hide()
-            if explorer and viewer:
-                self.splitDockWidget(explorer, viewer, Qt.Orientation.Horizontal)
-            if viewer and props:
-                self.splitDockWidget(viewer, props, Qt.Orientation.Horizontal)
-            if explorer:
-                explorer.show()
-            if viewer:
-                viewer.show()
-                viewer.raise_()
-            if props:
-                props.show()
-
-            docks = [d for d in [explorer, viewer, props] if d is not None and not d.isHidden()]
-            if docks:
-                self.resizeDocks(docks, [260, 680, 260][: len(docks)], Qt.Orientation.Horizontal)
-
+            self._apply_design_workspace_layout(explorer, viewer, properties)
         elif workspace_id == "studio.workspace.propulsion":
-            charts = self.findChild(QDockWidget, "propulsion.charts_dock")
-            if viewer:
-                viewer.hide()
-            if explorer and props:
-                self.splitDockWidget(explorer, props, Qt.Orientation.Vertical)
-            if explorer and controls:
-                self.splitDockWidget(explorer, controls, Qt.Orientation.Horizontal)
-            if controls and charts:
-                self.splitDockWidget(controls, charts, Qt.Orientation.Horizontal)
-            if charts and results:
-                self.splitDockWidget(charts, results, Qt.Orientation.Horizontal)
-            elif controls and results:
-                self.splitDockWidget(controls, results, Qt.Orientation.Horizontal)
-
-            for d in (explorer, props, controls, charts, results):
-                if d:
-                    d.show()
-
-            docks = [
-                d
-                for d in [explorer, controls, charts, results]
-                if d is not None and not d.isHidden()
-            ]
-            if docks:
-                self.resizeDocks(
-                    docks, [220, 280, 480, 260][: len(docks)], Qt.Orientation.Horizontal
-                )
-
+            self._apply_analysis_workspace_layout(
+                "propulsion",
+                explorer,
+                viewer,
+                properties,
+                [220, 280, 480, 260],
+            )
         elif workspace_id == "studio.workspace.aerodynamics":
-            aero_controls = self.findChild(QDockWidget, "aerodynamics.controls_dock")
-            aero_charts = self.findChild(QDockWidget, "aerodynamics.charts_dock")
-            aero_results = self.findChild(QDockWidget, "aerodynamics.results_dock")
-
-            if viewer:
-                viewer.hide()
-            if explorer and props:
-                self.splitDockWidget(explorer, props, Qt.Orientation.Vertical)
-            if explorer and aero_controls:
-                self.splitDockWidget(explorer, aero_controls, Qt.Orientation.Horizontal)
-            if aero_controls and aero_charts:
-                self.splitDockWidget(aero_controls, aero_charts, Qt.Orientation.Horizontal)
-            if aero_charts and aero_results:
-                self.splitDockWidget(aero_charts, aero_results, Qt.Orientation.Horizontal)
-            elif aero_controls and aero_results:
-                self.splitDockWidget(aero_controls, aero_results, Qt.Orientation.Horizontal)
-
-            for d in (explorer, props, aero_controls, aero_charts, aero_results):
-                if d:
-                    d.show()
-
-            docks = [
-                d
-                for d in [explorer, aero_controls, aero_charts, aero_results]
-                if d is not None and not d.isHidden()
-            ]
-            if docks:
-                self.resizeDocks(
-                    docks, [200, 260, 560, 260][: len(docks)], Qt.Orientation.Horizontal
-                )
-
+            self._apply_analysis_workspace_layout(
+                "aerodynamics",
+                explorer,
+                viewer,
+                properties,
+                [200, 260, 560, 260],
+            )
         elif workspace_id == "studio.workspace.flight_performance":
-            fp_controls = self.findChild(QDockWidget, "flight_performance.controls_dock")
-            fp_charts = self.findChild(QDockWidget, "flight_performance.charts_dock")
-            fp_results = self.findChild(QDockWidget, "flight_performance.results_dock")
-
-            if viewer:
-                viewer.hide()
-            if explorer and props:
-                self.splitDockWidget(explorer, props, Qt.Orientation.Vertical)
-            if explorer and fp_controls:
-                self.splitDockWidget(explorer, fp_controls, Qt.Orientation.Horizontal)
-            if fp_controls and fp_charts:
-                self.splitDockWidget(fp_controls, fp_charts, Qt.Orientation.Horizontal)
-            if fp_charts and fp_results:
-                self.splitDockWidget(fp_charts, fp_results, Qt.Orientation.Horizontal)
-            elif fp_controls and fp_results:
-                self.splitDockWidget(fp_controls, fp_results, Qt.Orientation.Horizontal)
-
-            for d in (explorer, props, fp_controls, fp_charts, fp_results):
-                if d:
-                    d.show()
-
-            docks = [
-                d
-                for d in [explorer, fp_controls, fp_charts, fp_results]
-                if d is not None and not d.isHidden()
-            ]
-            if docks:
-                self.resizeDocks(
-                    docks, [200, 260, 560, 260][: len(docks)], Qt.Orientation.Horizontal
-                )
-
+            self._apply_analysis_workspace_layout(
+                "flight_performance",
+                explorer,
+                viewer,
+                properties,
+                [200, 260, 560, 260],
+            )
         elif workspace_id == "studio.workspace.weight_balance":
-            wb_view = self.findChild(QDockWidget, "weight_balance.view_dock")
-            wb_results = self.findChild(QDockWidget, "weight_balance.results_dock")
-
-            if viewer:
-                viewer.hide()
-            if explorer and props:
-                self.splitDockWidget(explorer, props, Qt.Orientation.Vertical)
-            if explorer and wb_view:
-                self.splitDockWidget(explorer, wb_view, Qt.Orientation.Horizontal)
-            if wb_view and wb_results:
-                self.splitDockWidget(wb_view, wb_results, Qt.Orientation.Horizontal)
-
-            if wb_results and props:
-                self.splitDockWidget(wb_results, props, Qt.Orientation.Vertical)
-
-            for dock in (explorer, props, wb_view, wb_results):
-                if dock:
-                    dock.show()
-
-            docks = [
-                dock
-                for dock in (explorer, wb_view, wb_results)
-                if dock is not None and not dock.isHidden()
-            ]
-            if docks:
-                self.resizeDocks(
-                    docks,
-                    [220, 600, 340][: len(docks)],
-                    Qt.Orientation.Horizontal,
-                )
-
+            self._apply_weight_balance_workspace_layout(explorer, viewer, properties)
         else:
-            for _cid, (panel_contrib, dock) in self._panels.items():
-                if panel_contrib.is_in_workspace(workspace_id):
-                    dock.show()
-                else:
-                    dock.hide()
+            self._apply_plugin_workspace_layout(workspace_id)
+
+    def _apply_design_workspace_layout(
+        self,
+        explorer: QDockWidget | None,
+        viewer: QDockWidget | None,
+        properties: QDockWidget | None,
+    ) -> None:
+        self._hide_docks(
+            self._dock("propulsion.controls_dock"),
+            self._dock("propulsion.results_dock"),
+        )
+        if explorer is not None and viewer is not None:
+            self.splitDockWidget(explorer, viewer, Qt.Orientation.Horizontal)
+        if viewer is not None and properties is not None:
+            self.splitDockWidget(viewer, properties, Qt.Orientation.Horizontal)
+        self._show_docks(explorer, viewer, properties)
+        if viewer is not None:
+            viewer.raise_()
+        self._resize_visible_docks((explorer, viewer, properties), [260, 680, 260])
+
+    def _apply_analysis_workspace_layout(
+        self,
+        namespace: str,
+        explorer: QDockWidget | None,
+        viewer: QDockWidget | None,
+        properties: QDockWidget | None,
+        widths: list[int],
+    ) -> None:
+        controls = self._dock(f"{namespace}.controls_dock")
+        charts = self._dock(f"{namespace}.charts_dock")
+        results = self._dock(f"{namespace}.results_dock")
+        self._hide_docks(viewer)
+        if explorer is not None and properties is not None:
+            self.splitDockWidget(explorer, properties, Qt.Orientation.Vertical)
+        if explorer is not None and controls is not None:
+            self.splitDockWidget(explorer, controls, Qt.Orientation.Horizontal)
+        if controls is not None and charts is not None:
+            self.splitDockWidget(controls, charts, Qt.Orientation.Horizontal)
+        if charts is not None and results is not None:
+            self.splitDockWidget(charts, results, Qt.Orientation.Horizontal)
+        elif controls is not None and results is not None:
+            self.splitDockWidget(controls, results, Qt.Orientation.Horizontal)
+        self._show_docks(explorer, properties, controls, charts, results)
+        self._resize_visible_docks((explorer, controls, charts, results), widths)
+
+    def _apply_weight_balance_workspace_layout(
+        self,
+        explorer: QDockWidget | None,
+        viewer: QDockWidget | None,
+        properties: QDockWidget | None,
+    ) -> None:
+        balance_view = self._dock("weight_balance.view_dock")
+        results = self._dock("weight_balance.results_dock")
+        self._hide_docks(viewer)
+        if explorer is not None and properties is not None:
+            self.splitDockWidget(explorer, properties, Qt.Orientation.Vertical)
+        if explorer is not None and balance_view is not None:
+            self.splitDockWidget(explorer, balance_view, Qt.Orientation.Horizontal)
+        if balance_view is not None and results is not None:
+            self.splitDockWidget(balance_view, results, Qt.Orientation.Horizontal)
+        if results is not None and properties is not None:
+            self.splitDockWidget(results, properties, Qt.Orientation.Vertical)
+        self._show_docks(explorer, properties, balance_view, results)
+        self._resize_visible_docks((explorer, balance_view, results), [220, 600, 340])
+
+    def _apply_plugin_workspace_layout(self, workspace_id: str) -> None:
+        for panel_contribution, dock in self._panels.values():
+            dock.setVisible(panel_contribution.is_in_workspace(workspace_id))
+
+    def _hide_panels_outside_workspace(self, workspace_id: str) -> None:
+        for panel_contribution, dock in self._panels.values():
+            if not panel_contribution.is_in_workspace(workspace_id):
+                dock.hide()
+
+    def _dock(self, panel_id: str) -> QDockWidget | None:
+        return self.findChild(QDockWidget, panel_id)
+
+    @staticmethod
+    def _show_docks(*docks: QDockWidget | None) -> None:
+        for dock in docks:
+            if dock is not None:
+                dock.show()
+
+    @staticmethod
+    def _hide_docks(*docks: QDockWidget | None) -> None:
+        for dock in docks:
+            if dock is not None:
+                dock.hide()
+
+    def _resize_visible_docks(
+        self,
+        docks: tuple[QDockWidget | None, ...],
+        widths: list[int],
+    ) -> None:
+        visible_docks = [dock for dock in docks if dock is not None and not dock.isHidden()]
+        if visible_docks:
+            self.resizeDocks(
+                visible_docks,
+                widths[: len(visible_docks)],
+                Qt.Orientation.Horizontal,
+            )

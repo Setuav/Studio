@@ -122,7 +122,8 @@ izole test edilebilirliği dikkate alınarak yapıldı.
      ölçümünde shell branch coverage `%42,6` seviyesinden `%56,8` seviyesine çıktı.
    - [x] Toolbar, panel, tema, settings ve workspace layout yaşam döngüsü 16
      headless testle kapsandı. İki grubun ardından core suite ölçümünde shell
-     branch coverage `%94,0` seviyesine ulaştı.
+     branch coverage `%94,0` seviyesine ulaştı; workspace layout refactor'ı
+     sonrasında `%95,8` olarak doğrulandı.
 
 İlk iki hedefin ardından tam suite branch coverage değeri `%70,2` seviyesine
 ulaştı.
@@ -139,15 +140,19 @@ geometry editor diyalogları headless Qt testleriyle kapsanacak.
 - [ ] Her refactor sonrasında mevcut davranışı testlerle doğrula.
 
 Başlangıç ölçümünde varsayılan `10` eşiğini aşan 53, geçici `20` eşiğini aşan
-13 fonksiyon bulundu. `C901` tüm kaynak kodda etkin; yalnızca aşağıdaki mevcut
-13 fonksiyon noktasal `noqa` ile baseline edildi. Dosya bazlı istisna
+13 fonksiyon bulundu. `C901` tüm kaynak kodda etkin; başlangıçta bu 13 fonksiyon
+noktasal `noqa` ile baseline edildi. Dosya bazlı istisna
 kullanılmadığı için aynı dosyalara eklenecek yeni karmaşık fonksiyonlar kalite
 kapısında yakalanacak.
 
+Shell workspace layout refactor'ının ardından ilk istisna kaldırıldı; güncel
+baseline 12 fonksiyondur.
+
 ### Karmaşıklık azaltma kuyruğu
 
-1. [ ] `shell._apply_default_workspace_layout` — `53`; workspace başına layout
-   handler'larına ayır.
+1. [x] `shell._apply_default_workspace_layout` — `53` seviyesinden `6` seviyesine
+   indirildi; design, analiz, weight-balance ve plugin workspace handler'larına
+   ayrıldı, `C901` istisnası kaldırıldı.
 2. [ ] `aerosandbox_engine._convert_lifting_surface` — `65` ve `analyze` — `39`;
    veri dönüşümü, çözümleme ve sonuç üretimini ayır.
 3. [ ] `flight_performance.solver.run_analysis` — `45`; analiz modlarını bağımsız
