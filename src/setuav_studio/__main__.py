@@ -50,7 +50,34 @@ def _parse_arguments(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help="enable debug-level logging",
     )
+    internal_commands = parser.add_mutually_exclusive_group()
+    internal_commands.add_argument(
+        "--render-aero-3d",
+        metavar="PAYLOAD",
+        help=argparse.SUPPRESS,
+    )
+    internal_commands.add_argument(
+        "--smoke-test-aero-3d",
+        metavar="PAYLOAD",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--smoke-test",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
     return parser.parse_args(argv)
+
+
+def _run_internal_command(arguments: argparse.Namespace) -> int | None:
+    payload_path = arguments.render_aero_3d or arguments.smoke_test_aero_3d
+    if payload_path is None:
+        return None
+
+    from setuav_studio.plugins.aerodynamics.aero_3d_tool import render_native_snapshot
+
+    render_native_snapshot(payload_path, show=arguments.render_aero_3d is not None)
+    return 0
 
 
 def _configure_opengl() -> None:
@@ -72,6 +99,10 @@ def _configure_opengl() -> None:
 
 def main() -> int:
     arguments = _parse_arguments(sys.argv[1:])
+    internal_result = _run_internal_command(arguments)
+    if internal_result is not None:
+        return internal_result
+
     _configure_logging(arguments.verbose)
     install_log_buffer(logging.DEBUG if arguments.verbose else logging.INFO)
     logging.getLogger(__name__).info("Setuav Studio starting")
@@ -97,6 +128,8 @@ def main() -> int:
             "Plugin load issues: "
             + "; ".join(f"{issue.source}: {issue.message}" for issue in plugin_issues)
         )
+        if arguments.smoke_test:
+            return 1
 
     # Restore the top-level geometry before showing, but defer dock/workspace
     # restoration until the platform has created and exposed the native
@@ -106,7 +139,9 @@ def main() -> int:
 
     def finish_startup() -> None:
         window.restore_workspace_layout()
-        if arguments.project:
+        if arguments.smoke_test:
+            QTimer.singleShot(100, app.quit)
+        elif arguments.project:
             window.open_project(arguments.project)
         elif settings.reopen_last_project:
             window.open_last_project()

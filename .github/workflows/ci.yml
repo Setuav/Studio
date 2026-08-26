@@ -75,3 +75,27 @@ jobs:
           cd "${RUNNER_TEMP}"
           "${RUNNER_TEMP}/setuav-package-smoke/bin/python" \
             "${GITHUB_WORKSPACE}/scripts/package_smoke_test.py"
+
+  desktop:
+    name: Desktop bundle smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+      - name: Set up uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          cache-dependency-glob: uv.lock
+          enable-cache: true
+      - name: Install desktop dependencies
+        run: uv sync --locked --all-extras --group desktop
+      - name: Build one-folder application
+        run: uv run --locked --all-extras --group desktop pyinstaller --noconfirm --clean setuav-studio.spec
+      - name: Verify bundled resources
+        run: python scripts/verify_desktop_resources.py dist/setuav-studio
+      - name: Verify desktop startup
+        run: python scripts/desktop_startup_smoke_test.py dist/setuav-studio

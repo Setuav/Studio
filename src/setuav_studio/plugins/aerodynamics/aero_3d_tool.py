@@ -32,6 +32,14 @@ from .engine.aerosandbox_engine import HAS_AEROSANDBOX, AeroSandboxEngine
 from .engine.base import AeroResult, FlightCondition, SweepType
 
 
+def viewer_process_command(payload_path: str | Path) -> tuple[str, list[str]]:
+    """Return the viewer command for source and frozen application modes."""
+    payload = str(payload_path)
+    if getattr(sys, "frozen", False):
+        return sys.executable, ["--render-aero-3d", payload]
+    return sys.executable, ["-m", __name__, "--render", payload]
+
+
 class Aero3DToolWindow(QDialog):
     """Collect a flight state and launch AeroSandbox's own PyVista viewer."""
 
@@ -187,9 +195,10 @@ class Aero3DToolWindow(QDialog):
         try:
             with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
                 json.dump(payload, stream)
+            program, arguments = viewer_process_command(payload_path)
             launch_result = QProcess.startDetached(
-                sys.executable,
-                ["-m", __name__, "--render", payload_path],
+                program,
+                arguments,
                 str(project.location),
             )
             started = launch_result[0] if isinstance(launch_result, tuple) else bool(launch_result)
@@ -204,7 +213,7 @@ class Aero3DToolWindow(QDialog):
         self._api.show_status("AeroSandbox 3D viewer launched", "success")
 
 
-def render_native_snapshot(payload_path: str | Path) -> None:
+def render_native_snapshot(payload_path: str | Path, *, show: bool = True) -> None:
     """Build and show one native AeroSandbox VLM scene."""
     path = Path(payload_path)
     try:
@@ -259,7 +268,9 @@ def render_native_snapshot(payload_path: str | Path) -> None:
     analysis.run()
     # Deliberately use the public PyPI API with no Setuav plotter adapter.
     # AeroSandbox creates and owns its native PyVista window.
-    analysis.draw(backend="pyvista", show=True)
+    plotter = analysis.draw(backend="pyvista", show=show)
+    if not show:
+        plotter.close()
 
 
 def main(argv: list[str] | None = None) -> int:

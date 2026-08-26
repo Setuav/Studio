@@ -63,6 +63,15 @@ CI installs the wheel into a clean environment and runs
 `scripts/package_smoke_test.py` to verify imports, the command-line entry point,
 and bundled icons, fonts, schemas, and airfoil data.
 
+Build and verify the desktop one-folder application with:
+
+```bash
+uv sync --locked --all-extras --group desktop
+uv run --locked --all-extras --group desktop pyinstaller --noconfirm --clean setuav-studio.spec
+python scripts/verify_desktop_resources.py dist/setuav-studio
+python scripts/desktop_startup_smoke_test.py dist/setuav-studio
+```
+
 # to-do
 - ci-cd
 - dökümantasyon

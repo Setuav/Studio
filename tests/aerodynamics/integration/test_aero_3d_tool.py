@@ -14,6 +14,7 @@ from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.plugins.aerodynamics.aero_3d_tool import (
     Aero3DToolWindow,
     render_native_snapshot,
+    viewer_process_command,
 )
 from setuav_studio.plugins.aerodynamics.engine.aerosandbox_engine import HAS_AEROSANDBOX
 from setuav_studio.project import open_project
@@ -51,6 +52,32 @@ class Aero3DToolTests(unittest.TestCase):
         self.assertEqual(payload["condition"]["beta"], 2.0)
         self.assertEqual(payload["condition"]["control_deflections"]["elevator"], -3.0)
         window.close()
+
+    def test_viewer_command_uses_bundled_executable_when_frozen(self) -> None:
+        payload_path = Path("/tmp/aero-snapshot.json")
+
+        with patch.object(sys, "frozen", True, create=True):
+            program, arguments = viewer_process_command(payload_path)
+
+        self.assertEqual(program, sys.executable)
+        self.assertEqual(arguments, ["--render-aero-3d", str(payload_path)])
+
+    def test_viewer_command_uses_python_module_in_source_mode(self) -> None:
+        payload_path = Path("/tmp/aero-snapshot.json")
+
+        with patch.object(sys, "frozen", False, create=True):
+            program, arguments = viewer_process_command(payload_path)
+
+        self.assertEqual(program, sys.executable)
+        self.assertEqual(
+            arguments,
+            [
+                "-m",
+                "setuav_studio.plugins.aerodynamics.aero_3d_tool",
+                "--render",
+                str(payload_path),
+            ],
+        )
 
     def test_module_entrypoint_is_not_preloaded_by_package_import(self) -> None:
         completed = subprocess.run(

@@ -22,9 +22,9 @@
 
 ## 3. Masaüstü paketleme
 
-- [ ] PyInstaller ile `onedir` paket üret.
+- [x] PyInstaller ile `onedir` paket üret.
 - [x] Paket içindeki ikon, font, şema ve veri dosyalarını doğrula.
-- [ ] Paketlenmiş uygulama için başlangıç testi ekle.
+- [x] Paketlenmiş uygulama için başlangıç testi ekle.
 - [ ] Windows `.zip` çıktısı üret.
 - [ ] Linux `.tar.gz` çıktısı üret.
 - [ ] macOS `.app.zip` çıktısı üret.

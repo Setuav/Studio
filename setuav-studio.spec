@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules
 
 
 PROJECT_ROOT = Path(SPEC).resolve().parent
@@ -11,13 +11,23 @@ PACKAGE_DATA = [
     *collect_data_files("setuav_studio", subdir="assets"),
     *collect_data_files("setuav_studio", subdir="schemas"),
     *collect_data_files("setuav_studio", subdir="data"),
+    *collect_data_files("aerosandbox"),
+    *collect_data_files("neuralfoil", subdir="nn_weights_and_biases"),
+    *collect_data_files("pythrust", subdir="data"),
+    *collect_data_files("qt_themes", subdir="themes"),
+]
+CASADI_RUNTIME_LIBRARIES = [
+    binary
+    for binary in collect_dynamic_libs("casadi")
+    if Path(binary[0]).name.startswith("libcasadi_interpolant_")
+    or Path(binary[0]).name == "libcasadi_linsol_lsqr.so"
 ]
 
 
 analysis = Analysis(
     [str(SOURCE_ROOT / "setuav_studio" / "__main__.py")],
     pathex=[str(SOURCE_ROOT)],
-    binaries=[],
+    binaries=CASADI_RUNTIME_LIBRARIES,
     datas=PACKAGE_DATA,
     hiddenimports=collect_submodules("setuav_studio.plugins"),
     hookspath=[],

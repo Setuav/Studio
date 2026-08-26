@@ -21,6 +21,15 @@ class MainTests(unittest.TestCase):
 
         self.assertIsNone(arguments.project)
 
+    def test_accepts_internal_desktop_commands(self) -> None:
+        viewer_arguments = _parse_arguments(["--render-aero-3d", "/tmp/snapshot.json"])
+        viewer_smoke_arguments = _parse_arguments(["--smoke-test-aero-3d", "/tmp/snapshot.json"])
+        smoke_arguments = _parse_arguments(["--smoke-test"])
+
+        self.assertEqual(viewer_arguments.render_aero_3d, "/tmp/snapshot.json")
+        self.assertEqual(viewer_smoke_arguments.smoke_test_aero_3d, "/tmp/snapshot.json")
+        self.assertTrue(smoke_arguments.smoke_test)
+
     def test_degraded_mode_badge_shown_for_missing_plugins(self) -> None:
         api = StudioAPI()
         api.set_project_requirement_checker(lambda data: ["Missing plugin: com.example.foo"])
