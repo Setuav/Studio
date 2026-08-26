@@ -17,6 +17,7 @@ from .models import WeightBalanceResult
 CG_COLOR = "#ff3b30"
 GEOMETRY_COMPONENT_COLOR = "#2e8cff"
 ELECTRONICS_COMPONENT_COLOR = "#ff8a00"
+POINT_MASS_COLOR = "#30d158"
 
 
 class _BalanceProjectionCanvas(View2DCanvas):
@@ -92,6 +93,10 @@ class _BalanceProjectionCanvas(View2DCanvas):
             symbol="crosshair",
             layer="cg",
         )
+        scene.add_legend("Geometry", GEOMETRY_COMPONENT_COLOR)
+        scene.add_legend("Electronics", ELECTRONICS_COMPONENT_COLOR)
+        scene.add_legend("Point Mass", POINT_MASS_COLOR)
+        scene.add_legend("Aircraft CG", CG_COLOR)
         self.set_scene(scene)
 
     def _geometry_color(self) -> str:
@@ -112,7 +117,9 @@ class _BalanceProjectionCanvas(View2DCanvas):
             return GEOMETRY_COMPONENT_COLOR
         if type_name in {"motor", "propeller", "esc", "battery"}:
             return ELECTRONICS_COMPONENT_COLOR
-        return chart_color("cyan")
+        if type_name in {"point-mass", "point_mass"}:
+            return POINT_MASS_COLOR
+        return POINT_MASS_COLOR if ("point" in type_name or "mass" in type_name) else chart_color("cyan")
 
     def _component_tooltip(self, item) -> str:
         x, y, z = (value * 1000.0 for value in item.cg_body_m)
@@ -277,6 +284,7 @@ class WeightBalanceViewDock(QMainWindow):
         for text, role in (
             ("Geometry", "geometry"),
             ("Electronics", "electronics"),
+            ("Point Mass", "point_mass"),
             ("Aircraft CG", "red"),
         ):
             label = QLabel(content)
@@ -295,6 +303,8 @@ class WeightBalanceViewDock(QMainWindow):
                 else GEOMETRY_COMPONENT_COLOR
                 if role == "geometry"
                 else ELECTRONICS_COMPONENT_COLOR
+                if role == "electronics"
+                else POINT_MASS_COLOR
             )
             label.setText(f'<span style="color:{color}">●</span> {text}')
 

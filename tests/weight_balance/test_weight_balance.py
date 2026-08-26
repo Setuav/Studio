@@ -535,6 +535,19 @@ class WeightBalancePluginTests(unittest.TestCase):
         self.assertEqual(api.current_selection.get("component_id"), "battery_1")
         self.assertIsInstance(properties._current_widget, MassPropertiesEditor)
 
+        # Verify point mass color and legend bar entry
+        from setuav_studio.plugins.weight_balance.balance_view_dock import (
+            POINT_MASS_COLOR,
+            _BalanceProjectionCanvas,
+        )
+
+        self.assertEqual(
+            _BalanceProjectionCanvas._component_color("org.setuav.core:point-mass"),
+            POINT_MASS_COLOR,
+        )
+        legend_texts = [text for _, _, text in view_dock._legend_labels]
+        self.assertIn("Point Mass", legend_texts)
+
 
 if __name__ == "__main__":
     unittest.main()
