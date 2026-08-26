@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import math
 import unittest
-from pathlib import Path
 from unittest.mock import patch
 
 from setuav_studio.plugins.aerodynamics.engine.aerosandbox_engine import (
@@ -22,6 +21,7 @@ from setuav_studio.plugins.aerodynamics.engine.base import (
 from setuav_studio.plugins.aerodynamics.engine.stability_engine import (
     StabilityAnalysisEngine,
 )
+from tests._common import TEST_PROJECT_PATH
 
 
 def _sample_components() -> list[dict]:
@@ -251,7 +251,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
     @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_fixed_wing_fixture_matches_regression_snapshot(self) -> None:
         """Detect aerodynamic regressions against the pinned fixed-wing baseline."""
-        fixture_dir = Path(__file__).parent / "fixtures" / "fixed-wing"
+        fixture_dir = TEST_PROJECT_PATH
         proj_data = json.loads((fixture_dir / "project.json").read_text(encoding="utf-8"))
         golden = json.loads(
             (fixture_dir / "aerodynamics-reference.json").read_text(encoding="utf-8")
@@ -359,7 +359,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
 
         from tests._aerosandbox_reference import build_fixed_wing_reference
 
-        fixture_dir = Path(__file__).parent / "fixtures" / "fixed-wing"
+        fixture_dir = TEST_PROJECT_PATH
         project = json.loads((fixture_dir / "project.json").read_text(encoding="utf-8"))
         components = project["components"]
         main_wing = next(component for component in components if component["id"] == "main-wing")
@@ -513,7 +513,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
     @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_fixed_wing_fixture_geometry_contract(self) -> None:
         """Keep the project-to-AeroSandbox geometry contract explicit."""
-        fixture_path = Path(__file__).parent / "fixtures" / "fixed-wing" / "project.json"
+        fixture_path = TEST_PROJECT_PATH / "project.json"
         components = json.loads(fixture_path.read_text(encoding="utf-8"))["components"]
         airplane = AeroSandboxEngine()._build_airplane(components)
 

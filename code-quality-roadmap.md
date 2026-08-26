@@ -70,11 +70,17 @@ kontrolü tamamlandı.
 
 ## 6. Test gruplarını ayır
 
-- [ ] Hızlı unit testleri belirle.
-- [ ] Qt GUI testlerini ayrı gruba al.
-- [ ] AeroSandbox entegrasyon testlerini ayrı gruba al.
-- [ ] Her grup için bağımsız çalıştırma komutu tanımla.
-- [ ] Hızlı test grubunu yerel geliştirmeye uygun hâle getir.
+- [x] Testleri uygulama çekirdeği ve plugin dizinlerine ayır.
+- [x] Hızlı aerodynamics testlerini gerçek solver entegrasyonlarından ayır.
+- [x] AeroSandbox entegrasyon testlerini ayrı gruba al.
+- [x] Her plugin için bağımsız çalıştırma komutu tanımla.
+- [x] Tam test ve coverage komutlarını koru.
+
+Testler `tests/<plugin>/` dizinlerinde gruplanıyor. `tests/suites.py`; `core`,
+`geometry`, `aerodynamics-fast`, `aerodynamics-integration`,
+`electrical-propulsion`, `flight-performance` ve `weight-balance` komutlarını
+sağlıyor. Suite runner Qt'yi headless çalıştırıyor; tüm gruplar birlikte 215
+test içeriyor.
 
 ## 7. Coverage eksiklerini kapat
 
