@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 _ASSET_ROOT = Path(__file__).resolve().parent.parent / "assets" / "icons"
 _ICON_MANIFEST = _ASSET_ROOT / "manifest.toml"
+_APPLICATION_ICON = _ASSET_ROOT / "studio.png"
 
 _ICON_MAP = {
     # File / Project actions
@@ -60,6 +61,11 @@ _ICON_MAP = {
 
 _LABEL_ICON_SOURCE = "setuavThemeIconSource"
 _LABEL_ICON_SIZE = "setuavThemeIconSize"
+
+
+def application_icon() -> QIcon:
+    """Return the Setuav Studio application icon."""
+    return QIcon(str(_APPLICATION_ICON))
 
 
 @lru_cache(maxsize=1)

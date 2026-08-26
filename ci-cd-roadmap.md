@@ -6,7 +6,7 @@
 - [x] Ruff lint ve format ayarlarını tanımla.
 - [x] `setuav-studio` komut satırı giriş noktasını ekle.
 - [x] PyInstaller bağımlılığını ve `.spec` dosyasını ekle.
-- [ ] Uygulama adı, sürümü ve ikonlarını paketlemeye hazırla.
+- [x] Uygulama adı, sürümü ve ikonlarını paketlemeye hazırla.
 - [x] Yerel lint, test ve build komutlarını doğrula.
 
 ## 2. CI

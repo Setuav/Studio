@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.setuav.org/plugins/org.setuav.core/extensions/physical.schema.json",
-  "title": "SETUAV Physical Envelope Extension",
+  "title": "Setuav Physical Envelope Extension",
   "type": "object",
   "properties": {
     "envelope": {

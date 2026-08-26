@@ -13,6 +13,9 @@ import setuav_studio
 EXPECTED_FILES = (
     "setuav_studio/assets/icons/manifest.toml",
     "setuav_studio/assets/icons/project-open-file.png",
+    "setuav_studio/assets/icons/studio.icns",
+    "setuav_studio/assets/icons/studio.ico",
+    "setuav_studio/assets/icons/studio.png",
     "setuav_studio/assets/fonts/Inter/Inter-VariableFont_opsz,wght.ttf",
     "setuav_studio/assets/fonts/Inter/OFL.txt",
     "setuav_studio/schemas/core/project.schema.json",

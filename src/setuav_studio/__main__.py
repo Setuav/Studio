@@ -11,6 +11,7 @@ from setuav_studio.plugin_system import PluginManager, StudioAPI
 from setuav_studio.plugins.core import CorePlugin
 from setuav_studio.plugins.core.settings import StudioSettings
 from setuav_studio.shell import MainWindow
+from setuav_studio.ui.icons import application_icon
 from setuav_studio.ui.log_buffer import install_log_buffer
 from setuav_studio.ui.theme import apply_theme
 
@@ -110,6 +111,7 @@ def main() -> int:
     app = QApplication([sys.argv[0]])
     app.setOrganizationName("Setware")
     app.setApplicationName("Setuav Studio")
+    app.setWindowIcon(application_icon())
     app.setQuitOnLastWindowClosed(True)
     settings = StudioSettings.load()
     apply_theme(app, settings.theme_mode)

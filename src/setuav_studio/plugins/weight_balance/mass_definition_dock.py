@@ -29,7 +29,7 @@ from .engine.solver import EXTENSION_ID
 
 
 class MassPropertiesEditor(PropertyTableMixin, QWidget):
-    """Table-based mass editor styled like the other SETUAV property docks."""
+    """Table-based mass editor styled like the other Setuav property docks."""
 
     table_scroll_policy_off = True
     table_max_visible_rows = None

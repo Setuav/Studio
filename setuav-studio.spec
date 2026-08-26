@@ -1,5 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import sys
 from pathlib import Path
 
 from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules
@@ -7,6 +8,10 @@ from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, co
 
 PROJECT_ROOT = Path(SPEC).resolve().parent
 SOURCE_ROOT = PROJECT_ROOT / "src"
+APPLICATION_ICON_SUFFIX = {"darwin": ".icns", "win32": ".ico"}.get(sys.platform, ".png")
+APPLICATION_ICON = (
+    SOURCE_ROOT / "setuav_studio" / "assets" / "icons" / f"studio{APPLICATION_ICON_SUFFIX}"
+)
 PACKAGE_DATA = [
     *collect_data_files("setuav_studio", subdir="assets"),
     *collect_data_files("setuav_studio", subdir="schemas"),
@@ -50,6 +55,7 @@ executable = EXE(
     strip=False,
     upx=True,
     console=False,
+    icon=str(APPLICATION_ICON),
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

@@ -4,7 +4,7 @@ from importlib import resources
 from PySide6.QtGui import QPalette
 
 from setuav_studio.plugins.core.settings import StudioSettings
-from setuav_studio.ui.icons import get_icon
+from setuav_studio.ui.icons import application_icon, get_icon
 from setuav_studio.ui.theme import (
     ACCENT_COLOR,
     DEFAULT_FONT_SIZE,
@@ -33,6 +33,9 @@ class ThemeTests(unittest.TestCase):
         self.assertTrue(font_root.joinpath("Inter-VariableFont_opsz,wght.ttf").is_file())
         self.assertTrue(font_root.joinpath("Inter-Italic-VariableFont_opsz,wght.ttf").is_file())
         self.assertTrue(font_root.joinpath("OFL.txt").is_file())
+
+    def test_application_icon_is_available(self) -> None:
+        self.assertFalse(application_icon().isNull())
 
     def test_theme_mode_switching_and_tokens(self) -> None:
         from setuav_studio.ui.theme import (
