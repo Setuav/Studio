@@ -1326,7 +1326,7 @@
             "offset_x": 0.0,
             "match_wing_tangent": true,
             "cant_root": 10.0,
-            "winglet_height": 60.0,
+            "winglet_height": 70.0,
             "cant_tip": 50.0,
             "cant_angle": 50.0,
             "blend_radius": 60.0,
@@ -1381,7 +1381,7 @@
           "span_end": 642.4,
           "chord": 64.3,
           "deflection": 0.0,
-          "hinge_sweep": -2.0,
+          "hinge_sweep": -1.0,
           "chord_fraction": 0.268,
           "eta_start": 0.45,
           "eta_end": 0.95
@@ -1708,9 +1708,9 @@
           "eta_start": 0.08,
           "eta_end": 0.425,
           "chord_mode": "ratio",
-          "chord_fraction": 0.32,
-          "chord": 76.8,
-          "hinge_sweep": -1.0,
+          "chord_fraction": 0.29,
+          "chord": 69.6,
+          "hinge_sweep": -0.5,
           "deflection": 0.0,
           "symmetry_mode": "auto"
         }

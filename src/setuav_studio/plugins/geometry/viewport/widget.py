@@ -2,10 +2,12 @@ import logging
 import math
 from array import array
 
-from PySide6.QtCore import QPoint, Qt, QTimer, Signal
-from PySide6.QtGui import QMatrix4x4, QPainter, QPalette, QSurfaceFormat, QVector3D, QVector4D
+from PySide6.QtCore import QPoint, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QImage, QMatrix4x4, QPainter, QPalette, QSurfaceFormat, QVector3D, QVector4D
 from PySide6.QtOpenGL import (
     QOpenGLBuffer,
+    QOpenGLFramebufferObject,
+    QOpenGLFramebufferObjectFormat,
     QOpenGLFunctions_3_3_Core,
     QOpenGLShader,
     QOpenGLShaderProgram,
@@ -18,6 +20,8 @@ from .mesh import (
     FACE_COLORED,
     FACE_MONOCHROME,
     FACE_TRANSPARENT,
+    WIRE_FEATURE,
+    WIRE_FULL,
     build_component_wire_vertices,
     build_loft_solid_vertices,
     build_loft_wire_vertices,
@@ -150,6 +154,7 @@ class OpenGLViewer(QOpenGLWidget):
         self._section_ring_count = 0
         self._show_solid = True
         self._show_wireframe = True
+        self._wire_mode = WIRE_FEATURE
         self._show_grid = True
         self._mode = SOLID_WIRE
         self._face_style = FACE_COLORED
@@ -406,6 +411,17 @@ class OpenGLViewer(QOpenGLWidget):
         self._sync_mode()
         self.update()
 
+    def wire_mode(self) -> str:
+        return self._wire_mode
+
+    def set_wire_mode(self, mode: str) -> None:
+        if mode not in {WIRE_FEATURE, WIRE_FULL}:
+            raise ValueError(f"Unknown wire mode: {mode}")
+        if self._wire_mode == mode:
+            return
+        self._wire_mode = mode
+        self._update_gpu_meshes()
+
     def set_show_grid(self, show: bool) -> None:
         self._show_grid = show
         self.update()
@@ -636,6 +652,7 @@ class OpenGLViewer(QOpenGLWidget):
             self._selected_component_id,
             self._hovered_component_id,
             self._face_style,
+            wire_mode=self._wire_mode,
         )
         solid_values = build_loft_solid_vertices(
             self._geometry_data,
@@ -647,6 +664,7 @@ class OpenGLViewer(QOpenGLWidget):
             self._geometry_data,
             self._selected_component_id,
             rgb(chart_color("orange")),
+            wire_mode=self._wire_mode,
         )
         hovered = (
             self._hovered_component_id
@@ -658,6 +676,7 @@ class OpenGLViewer(QOpenGLWidget):
                 self._geometry_data,
                 hovered,
                 rgb(tok["text"]),
+                wire_mode=self._wire_mode,
             )
         )
         ring_values = []
@@ -669,6 +688,7 @@ class OpenGLViewer(QOpenGLWidget):
                 segment_index,
                 section_index,
                 rgb(chart_color("orange")),
+                wire_mode=self._wire_mode,
             )
         self._grid_count = self._allocate(self._grid_vbo, grid_values, 6)
         self._wire_count = self._allocate(self._wire_vbo, wire_values, 6)
@@ -774,9 +794,9 @@ class OpenGLViewer(QOpenGLWidget):
         matrix.lookAt(self._eye_position(), self._target, QVector3D(0.0, 0.0, 1.0))
         return matrix
 
-    def _projection(self) -> QMatrix4x4:
+    def _projection(self, aspect_override: float | None = None) -> QMatrix4x4:
         matrix = QMatrix4x4()
-        aspect = self.width() / max(1, self.height())
+        aspect = aspect_override if aspect_override is not None else self.width() / max(1, self.height())
         if self._orthographic:
             half_height = max(
                 self._distance * math.tan(math.radians(45.0) * 0.5),
@@ -794,6 +814,71 @@ class OpenGLViewer(QOpenGLWidget):
         else:
             matrix.perspective(45.0, aspect, 1.0, 100_000.0)
         return matrix
+
+    def capture_screenshot(self, width: int, height: int) -> QImage | None:
+        """Render the current scene into an off-screen FBO and return a QImage.
+
+        Returns ``None`` if the OpenGL context is unavailable.
+        """
+        if self._functions is None or not self.isValid():
+            return None
+
+        self.makeCurrent()
+        try:
+            fmt = QOpenGLFramebufferObjectFormat()
+            fmt.setAttachment(
+                QOpenGLFramebufferObject.Attachment.CombinedDepthStencil,
+            )
+            fmt.setSamples(0)
+            fbo = QOpenGLFramebufferObject(QSize(width, height), fmt)
+            if not fbo.isValid():
+                return None
+
+            fbo.bind()
+            self._functions.glViewport(0, 0, width, height)
+
+            # Re-upload meshes so the FBO gets the latest data
+            if self._mesh_dirty:
+                try:
+                    self._upload_meshes()
+                    self._mesh_dirty = False
+                except Exception:
+                    logger.exception("Mesh upload failed during screenshot")
+
+            # Clear
+            from PySide6.QtGui import QColor
+            from setuav_studio.ui.theme import is_light_theme, tokens
+
+            tok = tokens()
+            is_light = is_light_theme()
+            bg_hex = tok.get("plot", "#ffffff" if is_light else "#141414")
+            qbg = QColor(bg_hex)
+            self._functions.glClearColor(qbg.redF(), qbg.greenF(), qbg.blueF(), 1.0)
+            self._functions.glClear(_GL_COLOR_BUFFER_BIT | _GL_DEPTH_BUFFER_BIT)
+
+            aspect = width / max(1, height)
+            mvp = self._projection(aspect_override=aspect) * self._view()
+
+            lines_overlay = (
+                (self._show_wireframe and self._wire_count > 0)
+                or self._highlight_count > 0
+                or self._section_ring_count > 0
+            )
+            self._draw_solid_mesh(mvp, lines_overlay)
+            if self._wire_program is not None:
+                self._draw_wire_mesh(mvp)
+
+            image = fbo.toImage()
+            fbo.release()
+
+            # Restore widget viewport
+            self._functions.glViewport(0, 0, self.width(), self.height())
+            return image
+        except Exception:
+            logger.exception("Screenshot capture failed")
+            return None
+        finally:
+            self.doneCurrent()
 
     def _release_resources(self) -> None:
         has_context = self.isValid()

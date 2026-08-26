@@ -19,6 +19,10 @@ _MIN_STATIONS = 1
 _MAX_STATIONS = 32
 
 
+WIRE_FEATURE = "feature"
+WIRE_FULL = "full"
+
+
 def _wire_tint(color: Point3D) -> Point3D:
     base = 0.82
     return tuple(channel + (base - channel) * _WIRE_TINT for channel in color)
@@ -35,22 +39,36 @@ def _is_matching_component(loft_component_id: str, target_component_id: str | No
     if loft_lower == target_lower:
         return True
 
-    parts = loft_component_id.split(":")
-    parts_lower = [p.lower() for p in parts]
-
-    # 1. If target matches a subpart (e.g. "aileron" matches "main-wing:Aileron" or "main-wing:mirror:Aileron")
-    if target_lower in parts_lower:
+    # Strip mirror tags for comparison
+    loft_clean = loft_lower.replace(":mirror", "")
+    target_clean = target_lower.replace(":mirror", "")
+    if loft_clean == target_clean:
         return True
 
-    # 2. If target is the main component (e.g. "main-wing"), matches base wing body and its mirror, but not control surface lofts
-    if parts_lower[0] == target_lower:
-        subparts = [
-            p
-            for p in parts_lower
-            if p not in (target_lower, "mirror", "stations", "tip-cap", "winglet")
-        ]
-        if not subparts:
+    parts_lower = [p.lower() for p in loft_component_id.split(":")]
+    base_id = parts_lower[0]
+
+    # Subpart tags excluding base and mirror
+    subparts = [p for p in parts_lower if p not in (base_id, "mirror", "stations")]
+
+    # 1. Target is a specific subpart / control surface
+    if subparts:
+        if target_lower in subparts or target_clean in subparts:
             return True
+        for sub in subparts:
+            if target_clean in (f"{base_id}:{sub}", f"{base_id}-{sub}", f"{base_id}_{sub}"):
+                return True
+            if sub in (
+                target_clean.removeprefix(f"{base_id}:"),
+                target_clean.removeprefix(f"{base_id}-"),
+                target_clean.removeprefix(f"{base_id}_"),
+            ):
+                return True
+
+    # 2. Target is the parent/main component (e.g. "main-wing")
+    # When the wing is selected, its main body, tip caps, winglets, AND all child control surfaces match together.
+    if base_id == target_clean:
+        return True
 
     return False
 
@@ -60,6 +78,7 @@ def build_loft_wire_vertices(
     selected_component_id: str | None = None,
     hovered_component_id: str | None = None,
     face_style: str = FACE_COLORED,
+    wire_mode: str = WIRE_FULL,
 ) -> list[float]:
     vertices: list[float] = []
     for loft in data.lofts:
@@ -75,7 +94,10 @@ def build_loft_wire_vertices(
         color = (
             _wire_tint(loft.color) if face_style in (FACE_COLORED, FACE_TRANSPARENT) else _WIRE_GREY
         )
-        _append_loft_wire(vertices, loops, color)
+        if wire_mode == WIRE_FEATURE:
+            _append_loft_feature_wire(vertices, loft, loops, color)
+        else:
+            _append_loft_wire(vertices, loops, color)
     return vertices
 
 
@@ -83,6 +105,7 @@ def build_component_wire_vertices(
     data: GeometryData,
     component_id: str | None,
     color: Point3D = SELECTED_WIRE,
+    wire_mode: str = WIRE_FULL,
 ) -> list[float]:
     vertices: list[float] = []
     if component_id is None:
@@ -95,8 +118,60 @@ def build_component_wire_vertices(
         loops = _tessellated_loops(loft)
         if not loops:
             continue
-        _append_loft_wire(vertices, loops, color)
+        if wire_mode == WIRE_FEATURE:
+            _append_loft_feature_wire(vertices, loft, loops, color)
+        else:
+            _append_loft_wire(vertices, loops, color)
     return vertices
+
+
+def _append_loft_feature_wire(
+    vertices: list[float],
+    loft: LoftGeometry,
+    loops: list[tuple[Point3D, ...]],
+    color: Point3D,
+) -> None:
+    if not loops:
+        return
+
+    # Special handling for open-section tip caps (round / sharp wingtips)
+    if ":tip-cap" in loft.component_id:
+        # 1. Chord boundary lines (upper seam, outermost tip ridge, lower seam)
+        chord_indices = (0, len(loops) // 2, len(loops) - 1) if len(loops) > 2 else range(len(loops))
+        for idx in set(chord_indices):
+            sec_pts = loops[idx]
+            for i in range(len(sec_pts) - 1):
+                _add_line(vertices, sec_pts[i], sec_pts[i + 1], color)
+        # 2. Leading Edge and Trailing Edge boundary curves wrapping around the tip
+        for k in range(len(loops) - 1):
+            _add_line(vertices, loops[k][0], loops[k + 1][0], color)
+            _add_line(vertices, loops[k][-1], loops[k + 1][-1], color)
+        return
+
+    point_count = len(loops[0])
+
+    # For procedurally blended/swept lofts (winglets, root stubs)
+    is_procedural = any(
+        tag in loft.component_id for tag in (":winglet", ":root-stub", ":stations")
+    )
+
+    if is_procedural:
+        if len(loops) >= 2:
+            _append_ring(vertices, loops[0], color)
+            _append_ring(vertices, loops[-1], color)
+    else:
+        # User components (fuselage, lifting surfaces, control surfaces):
+        # Draw ALL user-defined sections (frames, ribs, stations)
+        for section in loft.sections:
+            if section.points:
+                _append_ring(vertices, section.points, color)
+
+    # 2. Longitudinal primary contour/crease rails (4 cardinal quadrant lines)
+    # (0: Leading Edge / Top, 0.25: Upper Crest / Right, 0.5: Trailing Edge / Bottom, 0.75: Lower Crest / Left)
+    for frac in (0.0, 0.25, 0.5, 0.75):
+        pt_idx = int(frac * point_count) % point_count
+        for current, following in pairwise(loops):
+            _add_line(vertices, current[pt_idx], following[pt_idx], color)
 
 
 def _append_loft_wire(vertices: list[float], loops, color: Point3D) -> None:
@@ -121,11 +196,14 @@ def build_section_ring_vertices(
     segment_index: int | None,
     section_index: int | None,
     color: Point3D = SECTION_RING,
+    wire_mode: str = WIRE_FEATURE,
 ) -> list[float]:
     if component_id is None or section_index is None:
         return []
     if segment_index == 1:
-        return _build_control_surface_highlight(data, component_id, section_index)
+        return _build_control_surface_highlight(
+            data, component_id, section_index, color=color, wire_mode=wire_mode
+        )
     if segment_index == 2:
         return _build_station_highlight(data, component_id, section_index)
     return _build_panel_highlight(data, component_id, section_index, color)
@@ -135,6 +213,8 @@ def _build_control_surface_highlight(
     data: GeometryData,
     component_id: str,
     section_index: int,
+    color: Point3D = CS_HIGHLIGHT,
+    wire_mode: str = WIRE_FEATURE,
 ) -> list[float]:
     control_lofts, distinct_tags = _control_surface_lofts(data, component_id)
     if 0 <= section_index < len(distinct_tags):
@@ -147,7 +227,10 @@ def _build_control_surface_highlight(
     for loft in selected_lofts:
         loops = _tessellated_loops(loft)
         if loops:
-            _append_loft_wire(vertices, loops, CS_HIGHLIGHT)
+            if wire_mode == WIRE_FEATURE:
+                _append_loft_feature_wire(vertices, loft, loops, color)
+            else:
+                _append_loft_wire(vertices, loops, color)
     return vertices
 
 
@@ -157,17 +240,18 @@ def _control_surface_lofts(
 ) -> tuple[list[LoftGeometry], list[str]]:
     lofts: list[LoftGeometry] = []
     distinct_tags: list[str] = []
-    ignored_parts = (component_id, "mirror", "stations", "tip-cap", "winglet")
+    ignored_parts = (component_id.lower(), "mirror", "stations", "tip-cap", "winglet")
     for loft in data.lofts:
         if not _is_matching_component(loft.component_id, component_id):
             continue
-        subtags = [part for part in loft.component_id.split(":") if part not in ignored_parts]
+        parts = loft.component_id.split(":")
+        subtags = [part for part in parts if part.lower() not in ignored_parts]
         if not subtags:
             continue
         lofts.append(loft)
-        for tag in subtags:
-            if tag not in distinct_tags:
-                distinct_tags.append(tag)
+        tag = subtags[0]
+        if tag not in distinct_tags:
+            distinct_tags.append(tag)
     return lofts, distinct_tags
 
 

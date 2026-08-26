@@ -184,7 +184,7 @@ def _child_control_surface(
     parameters = parameters if isinstance(parameters, dict) else {}
     geometry = parameters.get("geometry")
     control = deepcopy(geometry) if isinstance(geometry, dict) else {}
-    control.setdefault("tag", child.get("name") or child.get("id"))
+    control.setdefault("tag", child.get("id") or child.get("name"))
     return control
 
 

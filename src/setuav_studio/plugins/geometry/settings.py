@@ -10,6 +10,7 @@ _VIEWER_PALETTE_KEY = "geometry/viewer/default_palette"
 _VIEWER_GRID_KEY = "geometry/viewer/show_grid"
 _VIEWER_SOLID_KEY = "geometry/viewer/show_solid"
 _VIEWER_WIRE_KEY = "geometry/viewer/show_wireframe"
+_VIEWER_WIRE_MODE_KEY = "geometry/viewer/wireframe_mode"
 
 _EDITOR_AUTO_FIT_KEY = "geometry/editor/auto_fit_sections"
 _EDITOR_GRID_KEY = "geometry/editor/show_section_grid"
@@ -49,6 +50,13 @@ def create_viewer_settings_page() -> QWidget:
     _combo_value(palette, _VIEWER_PALETTE_KEY, DEFAULT_PALETTE)
     form.addRow("Default palette:", palette)
 
+    wire_mode = QComboBox()
+    wire_mode.setObjectName("wireframeMode")
+    wire_mode.addItem("Feature Edges", "feature")
+    wire_mode.addItem("Full Mesh", "full")
+    _combo_value(wire_mode, _VIEWER_WIRE_MODE_KEY, "feature")
+    form.addRow("Wireframe style:", wire_mode)
+
     show_grid = QCheckBox("Show reference grid")
     show_grid.setObjectName("showGrid")
     show_grid.setChecked(_as_bool(settings.value(_VIEWER_GRID_KEY, True), True))
@@ -70,6 +78,7 @@ def apply_viewer_settings(page: QWidget) -> None:
     settings = QSettings()
     projection = page.findChild(QComboBox, "defaultProjection")
     palette = page.findChild(QComboBox, "defaultPalette")
+    wire_mode = page.findChild(QComboBox, "wireframeMode")
     show_grid = page.findChild(QCheckBox, "showGrid")
     show_solid = page.findChild(QCheckBox, "showSolid")
     show_wire = page.findChild(QCheckBox, "showWireframe")
@@ -79,6 +88,8 @@ def apply_viewer_settings(page: QWidget) -> None:
         value = str(palette.currentData())
         settings.setValue(_VIEWER_PALETTE_KEY, value)
         set_active_palette(value)
+    if wire_mode is not None:
+        settings.setValue(_VIEWER_WIRE_MODE_KEY, wire_mode.currentData())
     if show_grid is not None:
         settings.setValue(_VIEWER_GRID_KEY, show_grid.isChecked())
     if show_solid is not None:
@@ -141,6 +152,7 @@ __all__ = [
     "_VIEWER_PROJECTION_KEY",
     "_VIEWER_SOLID_KEY",
     "_VIEWER_WIRE_KEY",
+    "_VIEWER_WIRE_MODE_KEY",
     "apply_editor_settings",
     "apply_viewer_settings",
     "create_editor_settings_page",

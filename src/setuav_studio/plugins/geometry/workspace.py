@@ -5,10 +5,13 @@ from PySide6.QtCore import QSettings, Qt, QTimer
 from PySide6.QtGui import QAction, QActionGroup
 from PySide6.QtWidgets import (
     QButtonGroup,
+    QFileDialog,
     QFrame,
     QGridLayout,
     QHBoxLayout,
+    QInputDialog,
     QMenu,
+    QMessageBox,
     QToolButton,
     QWidget,
 )
@@ -23,11 +26,14 @@ from .settings import (
     _VIEWER_PROJECTION_KEY,
     _VIEWER_SOLID_KEY,
     _VIEWER_WIRE_KEY,
+    _VIEWER_WIRE_MODE_KEY,
     viewer_setting,
 )
 from .viewport.mesh import (
     FACE_COLORED,
     FACE_MONOCHROME,
+    WIRE_FEATURE,
+    WIRE_FULL,
 )
 from .viewport.palettes import (
     active_palette,
@@ -76,7 +82,7 @@ class ViewerWorkspace(QWidget):
         hud_layout.setContentsMargins(4, 3, 4, 3)
         hud_layout.setSpacing(3)
 
-        # Display Toggles (Solid & Wireframe active/passive toggles)
+        # Display Toggles (Solid surface toggle & Wireframe mode popup menu)
         self.solid_button = QToolButton(self.hud)
         self.solid_button.setCheckable(True)
         self.solid_button.setChecked(self._default_show_solid)
@@ -84,17 +90,17 @@ class ViewerWorkspace(QWidget):
         self.solid_button.setToolTip("Toggle Solid Surface")
         self.solid_button.setFixedSize(24, 24)
         self.solid_button.setAutoRaise(True)
-        self.solid_button.toggled.connect(self._on_display_toggled)
+        self.solid_button.toggled.connect(self._on_solid_toggled)
         hud_layout.addWidget(self.solid_button)
 
         self.wire_button = QToolButton(self.hud)
-        self.wire_button.setCheckable(True)
-        self.wire_button.setChecked(self._default_show_wire)
         self.wire_button.setIcon(get_icon("view_wireframe"))
-        self.wire_button.setToolTip("Toggle Wireframe Mesh")
         self.wire_button.setFixedSize(24, 24)
         self.wire_button.setAutoRaise(True)
-        self.wire_button.toggled.connect(self._on_display_toggled)
+        self.wire_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self._wire_menu = QMenu(self.wire_button)
+        self.wire_button.setMenu(self._wire_menu)
+        self._build_wire_menu()
         hud_layout.addWidget(self.wire_button)
 
         sep1 = QFrame(self.hud)
@@ -208,7 +214,6 @@ class ViewerWorkspace(QWidget):
             self._cam_buttons.append((button, icon))
             hud_layout.addWidget(button)
 
-        # Camera Fit Button
         self.fit_button = QToolButton(self.hud)
         self.fit_button.setIcon(get_icon("view_fit"))
         self.fit_button.setToolTip("Fit Model in View (F)")
@@ -216,6 +221,36 @@ class ViewerWorkspace(QWidget):
         self.fit_button.setAutoRaise(True)
         self.fit_button.clicked.connect(self.viewer.fit_view)
         hud_layout.addWidget(self.fit_button)
+
+        sep_screenshot = QFrame(self.hud)
+        sep_screenshot.setObjectName("hudSep")
+        sep_screenshot.setFrameShape(QFrame.Shape.VLine)
+        sep_screenshot.setFrameShadow(QFrame.Shadow.Plain)
+        hud_layout.addWidget(sep_screenshot)
+
+        # Screenshot Button with Resolution Menu
+        self.screenshot_button = QToolButton(self.hud)
+        self.screenshot_button.setIcon(get_icon("fa6s.camera"))
+        self.screenshot_button.setToolTip("Capture Screenshot")
+        self.screenshot_button.setFixedSize(24, 24)
+        self.screenshot_button.setAutoRaise(True)
+        self.screenshot_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self._screenshot_menu = QMenu(self.screenshot_button)
+        self._screenshot_presets = [
+            ("HD (1280 × 720)", 1280, 720),
+            ("Full HD (1920 × 1080)", 1920, 1080),
+            ("QHD (2560 × 1440)", 2560, 1440),
+            ("4K UHD (3840 × 2160)", 3840, 2160),
+        ]
+        for label, w, h in self._screenshot_presets:
+            self._screenshot_menu.addAction(
+                label,
+                lambda _checked=False, sw=w, sh=h: self._take_screenshot(sw, sh),
+            )
+        self._screenshot_menu.addSeparator()
+        self._screenshot_menu.addAction("Custom Resolution…", self._take_screenshot_custom)
+        self.screenshot_button.setMenu(self._screenshot_menu)
+        hud_layout.addWidget(self.screenshot_button)
 
         self.colored_button.clicked.connect(lambda: self.viewer.set_face_style(FACE_COLORED))
         self.mono_button.clicked.connect(lambda: self.viewer.set_face_style(FACE_MONOCHROME))
@@ -257,6 +292,7 @@ class ViewerWorkspace(QWidget):
         for btn, icon_name in self._cam_buttons:
             btn.setIcon(get_icon(icon_name))
         self.fit_button.setIcon(get_icon("view_fit"))
+        self.screenshot_button.setIcon(get_icon("fa6s.camera"))
         self.viewer.update_theme_style()
 
     def _build_palette_menu(self) -> None:
@@ -284,18 +320,44 @@ class ViewerWorkspace(QWidget):
         if project is not None:
             self._refresh(project, fit=False)
 
-    def _on_display_toggled(self) -> None:
-        if not self.solid_button.isChecked() and not self.wire_button.isChecked():
-            sender = self.sender()
-            if sender == self.solid_button:
-                self.wire_button.setChecked(True)
-            else:
-                self.solid_button.setChecked(True)
-        self.viewer.set_show_solid(self.solid_button.isChecked())
-        self.viewer.set_show_wireframe(self.wire_button.isChecked())
-        settings = QSettings()
-        settings.setValue(_VIEWER_SOLID_KEY, self.solid_button.isChecked())
-        settings.setValue(_VIEWER_WIRE_KEY, self.wire_button.isChecked())
+    def _build_wire_menu(self) -> None:
+        self._wire_menu.clear()
+        group = QActionGroup(self)
+        group.setExclusive(True)
+        is_wire_on = self.viewer._show_wireframe
+        current_mode = self.viewer.wire_mode()
+
+        modes = (
+            ("Off", "off", not is_wire_on),
+            ("Feature Edges", WIRE_FEATURE, is_wire_on and current_mode == WIRE_FEATURE),
+            ("Full Mesh", WIRE_FULL, is_wire_on and current_mode == WIRE_FULL),
+        )
+        for label, mode_key, is_checked in modes:
+            action = QAction(label, self)
+            action.setCheckable(True)
+            action.setChecked(is_checked)
+            action.triggered.connect(
+                lambda _checked=False, m=mode_key: self._on_wire_mode_selected(m)
+            )
+            group.addAction(action)
+            self._wire_menu.addAction(action)
+        self._update_wire_tooltip()
+
+    def _on_wire_mode_selected(self, mode: str) -> None:
+        if mode == "off":
+            self.viewer.set_show_wireframe(False)
+            QSettings().setValue(_VIEWER_WIRE_KEY, False)
+        else:
+            self.viewer.set_show_wireframe(True)
+            self.viewer.set_wire_mode(mode)
+            QSettings().setValue(_VIEWER_WIRE_KEY, True)
+            QSettings().setValue(_VIEWER_WIRE_MODE_KEY, mode)
+        self._build_wire_menu()
+        self._update_wire_tooltip()
+
+    def _on_solid_toggled(self, checked: bool) -> None:
+        self.viewer.set_show_solid(checked)
+        QSettings().setValue(_VIEWER_SOLID_KEY, checked)
 
     def _on_grid_toggled(self, checked: bool) -> None:
         self.viewer.set_show_grid(checked)
@@ -313,6 +375,14 @@ class ViewerWorkspace(QWidget):
         mode = "Orthographic" if self.projection_button.isChecked() else "Perspective"
         next_mode = "Perspective" if self.projection_button.isChecked() else "Orthographic"
         self.projection_button.setToolTip(f"Projection: {mode} (click for {next_mode})")
+
+    def _update_wire_tooltip(self) -> None:
+        if not self.viewer._show_wireframe:
+            self.wire_button.setToolTip("Wireframe: Off")
+        elif self.viewer.wire_mode() == WIRE_FEATURE:
+            self.wire_button.setToolTip("Wireframe: Feature Edges")
+        else:
+            self.wire_button.setToolTip("Wireframe: Full Mesh")
 
     def _load_viewer_defaults(self) -> None:
         projection = str(viewer_setting(_VIEWER_PROJECTION_KEY, "orthographic")).lower()
@@ -334,13 +404,17 @@ class ViewerWorkspace(QWidget):
             viewer_setting(_VIEWER_WIRE_KEY, True),
             True,
         )
+        wire_mode = str(viewer_setting(_VIEWER_WIRE_MODE_KEY, WIRE_FEATURE)).lower()
+        if wire_mode in (WIRE_FEATURE, WIRE_FULL):
+            self.viewer.set_wire_mode(wire_mode)
+        self.viewer.set_show_solid(self._default_show_solid)
+        self.viewer.set_show_wireframe(self._default_show_wire)
         self.viewer.set_orthographic(self._default_orthographic)
 
     def _on_viewer_settings_changed(self, _payload: object = None) -> None:
         self._load_viewer_defaults()
         for button, checked in (
             (self.solid_button, self._default_show_solid),
-            (self.wire_button, self._default_show_wire),
             (self.grid_button, self._default_show_grid),
             (self.projection_button, self._default_orthographic),
         ):
@@ -351,7 +425,9 @@ class ViewerWorkspace(QWidget):
         self.viewer.set_show_wireframe(self._default_show_wire)
         self.viewer.set_show_grid(self._default_show_grid)
         self._build_palette_menu()
+        self._build_wire_menu()
         self._update_projection_tooltip()
+        self._update_wire_tooltip()
         project = self._api.current_project
         if project is not None:
             self._refresh(project, fit=False)
@@ -399,9 +475,10 @@ class ViewerWorkspace(QWidget):
                 self._api.set_selection(component)
                 return
 
-        # 2. Match control surface sub-tag or child component (e.g. "main-wing:aileron", "main-wing:mirror:aileron")
+        # 2. Match control surface sub-tag or child component (e.g. "main-wing:control_1", "main-wing:mirror:control_1")
         parts = component_id.split(":")
         sub_tag = parts[-1]
+        base_id = parts[0]
         for component in raw_components:
             cid = str(component.get("id") or "")
             params = (
@@ -409,7 +486,7 @@ class ViewerWorkspace(QWidget):
             )
             geom = params.get("geometry") if isinstance(params.get("geometry"), dict) else {}
             tag = str(geom.get("tag") or component.get("name") or cid)
-            if cid == sub_tag or tag == sub_tag:
+            if cid in (sub_tag, f"{base_id}-{sub_tag}", f"{base_id}_{sub_tag}") or tag == sub_tag or sub_tag.endswith(cid):
                 self._api.set_selection(component)
                 return
 
@@ -425,6 +502,59 @@ class ViewerWorkspace(QWidget):
             self.viewer.set_geometry(self._api.build_geometry_data(project), fit=fit)
         except (TypeError, ValueError):
             logger.exception("Could not build viewer geometry")
+
+    def _take_screenshot(self, width: int, height: int) -> None:
+        image = self.viewer.capture_screenshot(width, height)
+        if image is None or image.isNull():
+            QMessageBox.warning(
+                self,
+                "Screenshot",
+                "Could not capture screenshot.\n"
+                "The OpenGL context may not be available.",
+            )
+            return
+
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save Screenshot",
+            f"screenshot_{width}x{height}.png",
+            "PNG Image (*.png);;JPEG Image (*.jpg *.jpeg);;All Files (*)",
+        )
+        if not path:
+            return
+
+        if not image.save(path):
+            QMessageBox.warning(
+                self,
+                "Screenshot",
+                f"Failed to save image to:\n{path}",
+            )
+
+    def _take_screenshot_custom(self) -> None:
+        text, ok = QInputDialog.getText(
+            self,
+            "Custom Resolution",
+            "Enter resolution (Width x Height):",
+            text="1920x1080",
+        )
+        if not ok or not text:
+            return
+        text = text.strip().lower().replace("×", "x")
+        parts = text.split("x")
+        if len(parts) != 2:
+            QMessageBox.warning(self, "Invalid Resolution", "Format: WIDTHxHEIGHT  (e.g. 1920x1080)")
+            return
+        try:
+            width, height = int(parts[0].strip()), int(parts[1].strip())
+        except ValueError:
+            QMessageBox.warning(self, "Invalid Resolution", "Width and height must be integers.")
+            return
+        if width < 1 or height < 1 or width > 16384 or height > 16384:
+            QMessageBox.warning(
+                self, "Invalid Resolution", "Resolution must be between 1×1 and 16384×16384."
+            )
+            return
+        self._take_screenshot(width, height)
 
     def _detach(self, *_args: object) -> None:
         self._api.unsubscribe(

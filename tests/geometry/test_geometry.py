@@ -714,6 +714,9 @@ class GeometryTests(unittest.TestCase):
 
     def test_fuselage_wing_root_stub_geometry(self) -> None:
         from setuav_studio.plugins.geometry.fuselage_geometry import build_fuselage_geometry
+        from setuav_studio.plugins.geometry.lifting_surface_geometry import (
+            build_lifting_surface_geometry,
+        )
         from setuav_studio.plugins.geometry.scene import build_project_geometry
 
         mock_project = {
@@ -781,14 +784,84 @@ class GeometryTests(unittest.TestCase):
         self.assertEqual(len(wing_loft.sections), 2)
 
         from setuav_studio.plugins.geometry.mesh import (
+            WIRE_FEATURE,
+            WIRE_FULL,
             build_loft_solid_vertices,
             build_loft_wire_vertices,
         )
 
         solid_verts = build_loft_solid_vertices(scene_geom)
-        wire_verts = build_loft_wire_vertices(scene_geom)
+        wire_feature_verts = build_loft_wire_vertices(scene_geom, wire_mode=WIRE_FEATURE)
+        wire_full_verts = build_loft_wire_vertices(scene_geom, wire_mode=WIRE_FULL)
         self.assertGreater(len(solid_verts), 0)
-        self.assertGreater(len(wire_verts), 0)
+        self.assertGreater(len(wire_feature_verts), 0)
+        self.assertGreater(len(wire_full_verts), len(wire_feature_verts))
+
+        # Test tip cap and fuselage feature wireframe lines
+        fuse_comp = {
+            "kind": "component",
+            "id": "fuselage",
+            "parameters": {
+                "geometry": {
+                    "segments": [
+                        {
+                            "sections": [
+                                {"position": {"x": 0}, "profile": {"type": "circle", "diameter": 100}},
+                                {"position": {"x": 200}, "profile": {"type": "circle", "diameter": 200}},
+                                {"position": {"x": 500}, "profile": {"type": "circle", "diameter": 200}},
+                                {"position": {"x": 800}, "profile": {"type": "circle", "diameter": 50}},
+                            ]
+                        }
+                    ]
+                }
+            },
+        }
+        fuse_lofts = build_fuselage_geometry(fuse_comp)
+        fuse_geom = GeometryData(fuse_lofts)
+        fuse_wire_feature = build_loft_wire_vertices(fuse_geom, wire_mode=WIRE_FEATURE)
+        self.assertGreater(len(fuse_wire_feature), 0)
+
+        for tip_t in ("round", "sharp"):
+            wing_with_cap = {
+                "kind": "component",
+                "id": "wing",
+                "parameters": {
+                    "geometry": {
+                        "profiles": [
+                            {"chord": 200.0, "position": {"x": 0, "y": 0, "z": 0}, "airfoil": {"spec": "0012"}},
+                            {"chord": 100.0, "position": {"x": 50, "y": 500, "z": 0}, "airfoil": {"spec": "0012"}},
+                        ],
+                        "tip_treatment": {
+                            "type": tip_t,
+                            "length": 30.0,
+                        },
+                    }
+                },
+            }
+            cap_lofts = build_lifting_surface_geometry(wing_with_cap)
+            cap_geom = GeometryData(cap_lofts)
+            cap_wire_feature = build_loft_wire_vertices(cap_geom, wire_mode=WIRE_FEATURE)
+            self.assertGreater(len(cap_wire_feature), 0)
+
+        # Test control surface vs wing selection matching
+        from setuav_studio.plugins.geometry.mesh import _is_matching_component
+
+        # When aileron-1 is selected, only aileron-1 matches
+        self.assertTrue(_is_matching_component("main-wing:aileron-1", "aileron-1"))
+        self.assertTrue(_is_matching_component("main-wing:mirror:aileron-1", "aileron-1"))
+        self.assertFalse(_is_matching_component("main-wing:flap-1", "aileron-1"))
+        self.assertFalse(_is_matching_component("main-wing", "aileron-1"))
+        self.assertFalse(_is_matching_component("main-wing:tip-cap", "aileron-1"))
+
+        # When main wing is selected, main wing and all its child control surfaces match
+        self.assertTrue(_is_matching_component("main-wing", "main-wing"))
+        self.assertTrue(_is_matching_component("main-wing:mirror", "main-wing"))
+        self.assertTrue(_is_matching_component("main-wing:tip-cap", "main-wing"))
+        self.assertTrue(_is_matching_component("main-wing:aileron-1", "main-wing"))
+        self.assertTrue(_is_matching_component("main-wing:mirror:aileron-1", "main-wing"))
+        self.assertTrue(_is_matching_component("main-wing:flap-1", "main-wing"))
+        self.assertFalse(_is_matching_component("h-stab", "main-wing"))
+        self.assertFalse(_is_matching_component("fuselage", "main-wing"))
 
     def test_control_surface_editor(self) -> None:
         from setuav_studio.plugins.geometry.control_surface import ControlSurfaceEditor
