@@ -58,6 +58,10 @@ dosyasına ulaştı ve `basic` modda sıfır hata ile geçiyor. Son gruptaki 5 t
 hatası açık `Vector3` ve `Matrix3` dönüşümleriyle giderildi. Model ve engine
 katmanlarının kademeli tip kontrolü tamamlandı.
 
+UI kapsamı `log_buffer.py` ve `numeric_spinbox.py` ile başlatıldı. Toplam 24
+dosya `basic` modda sıfır hata ile geçiyor; ilk UI grubu ek düzeltme
+gerektirmedi.
+
 ## 6. Test gruplarını ayır
 
 - [ ] Hızlı unit testleri belirle.
