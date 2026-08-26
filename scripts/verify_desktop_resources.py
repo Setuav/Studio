@@ -28,6 +28,11 @@ def main() -> int:
     missing = sorted(
         str(resource) for resource in expected_resources if not (package_root / resource).is_file()
     )
+    if not (bundle / "_internal" / "LICENSE").is_file():
+        missing.append("LICENSE")
+    metadata_files = list((bundle / "_internal").glob("setuav_studio-*.dist-info/METADATA"))
+    if not metadata_files:
+        missing.append("setuav_studio distribution metadata")
     if missing:
         formatted = "\n  - ".join(missing)
         raise RuntimeError(f"Desktop bundle resources are missing:\n  - {formatted}")

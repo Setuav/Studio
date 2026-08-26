@@ -3,7 +3,12 @@
 import sys
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules
+from PyInstaller.utils.hooks import (
+    collect_data_files,
+    collect_dynamic_libs,
+    collect_submodules,
+    copy_metadata,
+)
 
 
 PROJECT_ROOT = Path(SPEC).resolve().parent
@@ -13,6 +18,8 @@ APPLICATION_ICON = (
     SOURCE_ROOT / "setuav_studio" / "assets" / "icons" / f"studio{APPLICATION_ICON_SUFFIX}"
 )
 PACKAGE_DATA = [
+    (str(PROJECT_ROOT / "LICENSE"), "."),
+    *copy_metadata("setuav-studio"),
     *collect_data_files("setuav_studio", subdir="assets"),
     *collect_data_files("setuav_studio", subdir="schemas"),
     *collect_data_files("setuav_studio", subdir="data"),

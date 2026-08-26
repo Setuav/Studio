@@ -1,86 +1,118 @@
-# Setuav Studio
+<p align="center">
+  <img src="src/setuav_studio/assets/icons/studio.png" width="160" alt="Setuav Studio icon">
+</p>
 
-Plugin-based desktop application for parametric UAV design and analysis.
+<h1 align="center">Setuav Studio</h1>
 
-## Tests
+<p align="center">
+  A plugin-based desktop application for parametric UAV design and analysis.
+</p>
 
-Tests are grouped by application area and plugin. Run the complete suite with:
+<p align="center">
+  <a href="https://github.com/Setuav/studio/actions/workflows/ci.yml">
+    <img src="https://github.com/Setuav/studio/actions/workflows/ci.yml/badge.svg" alt="CI status">
+  </a>
+</p>
+
+Setuav Studio brings geometry design, engineering analysis, and project data into
+one extensible desktop workspace. It is built with Python and PySide6 and uses a
+plugin architecture so design and analysis capabilities can evolve independently.
+
+## Features
+
+- Parametric fuselage, lifting-surface, and control-surface design.
+- Interactive OpenGL geometry viewer with selection and section editing.
+- Aerodynamic analysis, stability results, polar charts, airfoil tools, and a
+  native AeroSandbox VLM viewer.
+- Electrical propulsion modeling and result visualization.
+- Flight-performance envelope analysis.
+- Weight-and-balance analysis with component-level mass properties.
+- Extensible workspaces, panels, tools, component editors, and project schemas.
+- Folder, `project.json`, and portable `.suav` project support.
+
+## Requirements
+
+- Python 3.11 or newer.
+- [`uv`](https://docs.astral.sh/uv/) for locked dependency management.
+- A desktop environment supported by PySide6.
+
+The aerodynamics extra installs AeroSandbox and PyVista. These dependencies are
+included by `--all-extras` in the commands below.
+
+## Quick start
+
+Clone the repository and install the locked runtime environment:
 
 ```bash
-python -m tests.suites all
+git clone https://github.com/Setuav/studio.git
+cd studio
+uv sync --locked --all-extras
 ```
 
-Run an individual suite while developing a plugin:
+Start the application:
 
 ```bash
-python -m tests.suites core
-python -m tests.suites geometry
-python -m tests.suites aerodynamics-fast
-python -m tests.suites aerodynamics-integration
-python -m tests.suites electrical-propulsion
-python -m tests.suites flight-performance
-python -m tests.suites weight-balance
+uv run --locked setuav-studio
 ```
 
-The aggregate aerodynamics suite is also available as
-`python -m tests.suites aerodynamics`. Use `python -m tests.suites --help` to
-list every suite.
-
-Run the full coverage gate with:
+Open an existing project directly:
 
 ```bash
-coverage run -m tests.suites all
-coverage report
+uv run --locked setuav-studio path/to/project
+uv run --locked setuav-studio path/to/project.suav
 ```
 
-## Quality and packaging
+## Development
 
-Install the locked development environment and run the local quality gates:
+Install the development dependencies:
 
 ```bash
 uv sync --locked --all-extras --group dev
-uv run --locked ruff check .
-uv run --locked ruff format --check .
-uv run --locked pyright
+```
+
+Run the code checks and test suite:
+
+```bash
+uv run --locked pre-commit run --all-files
 uv run --locked python -m tests.suites all
 ```
 
-Check dependency declarations, known vulnerabilities, and licenses:
+Automatic checks before each commit can be enabled optionally:
 
 ```bash
-uv run --locked --all-extras --group security deptry src
-uv run --locked --all-extras --group security pip-audit --local --progress-spinner=off
-uv run --locked --all-extras --group security pip-licenses
+uv run --locked pre-commit install
 ```
 
-Build the wheel and source distribution:
+Tests can also be run for a single area while developing:
 
 ```bash
-uv run --locked --group package python -m build
+uv run --locked python -m tests.suites geometry
+uv run --locked python -m tests.suites aerodynamics
 ```
 
-CI installs the wheel into a clean environment and runs
-`scripts/package_smoke_test.py` to verify imports, the command-line entry point,
-and bundled icons, fonts, schemas, and airfoil data.
+Run `uv run --locked python -m tests.suites --help` to list all test groups.
 
-Build and verify the desktop one-folder application with:
+## Desktop build
+
+Create a local PyInstaller build:
 
 ```bash
 uv sync --locked --all-extras --group desktop
-uv run --locked --all-extras --group desktop pyinstaller --noconfirm --clean setuav-studio.spec
-python scripts/verify_desktop_resources.py dist/setuav-studio
-python scripts/desktop_startup_smoke_test.py dist/setuav-studio
+uv run --locked --all-extras --group desktop \
+  pyinstaller --noconfirm --clean setuav-studio.spec
 ```
 
-# to-do
-- ci-cd
-- dökümantasyon
+The application is created under `dist/setuav-studio/`. CI runs the full package,
+startup, security, and dependency checks automatically.
 
--> vtol roadmap
--> multicopter roadmap
+## Plugin development
 
--> openvsp plugin
--> avl plugin ~
--> gazebo plugin
--> jsbsim plugin
--> openfoam/su2 plugin
+Plugins extend Setuav Studio through the `StudioAPI`. A plugin can register
+workspaces, panels, toolbar actions, tools, component editors, project schemas,
+geometry providers, and project-tree nodes. Each plugin owns its activation and
+cleanup lifecycle, allowing capabilities to be added without changing the
+application core.
+
+## License
+
+Setuav Studio is released under the [MIT License](LICENSE).

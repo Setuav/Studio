@@ -123,6 +123,16 @@ class ShellContributionTests(unittest.TestCase):
         self.window._remove_action("Missing", "Unknown")
         self.window._remove_action("", "Default")
 
+    def test_help_menu_opens_about_dialog(self) -> None:
+        self.assertEqual(self.window._help_menu.title(), "&Help")
+        self.assertEqual(self.window._about_action.text(), "About")
+
+        with patch("setuav_studio.shell.AboutDialog") as dialog_type:
+            self.window._about_action.trigger()
+
+        dialog_type.assert_called_once_with(self.window)
+        dialog_type.return_value.exec.assert_called_once_with()
+
     def test_toolbar_callbacks_commands_menus_and_state_failures(self) -> None:
         called: list[str] = []
         callback = ToolbarContribution(

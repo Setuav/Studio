@@ -6,7 +6,11 @@ build-backend = "hatchling.build"
 name = "setuav-studio"
 version = "0.1.0"
 description = "Plugin-based UAV design and analysis studio"
+license = { file = "LICENSE" }
 requires-python = ">=3.11"
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+]
 dependencies = [
     "PySide6>=6.8,<7",
     "shiboken6>=6.8,<7",
@@ -93,6 +97,7 @@ title = "Setuav Studio Coverage"
 
 [tool.pyright]
 include = [
+    "src/setuav_studio/ui/about_dialog.py",
     "src/setuav_studio/plugins/aerodynamics/engine/base.py",
     "src/setuav_studio/plugins/aerodynamics/engine/aerosandbox_engine.py",
     "src/setuav_studio/plugins/aerodynamics/engine/airfoil_cache.py",

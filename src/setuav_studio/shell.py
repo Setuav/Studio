@@ -37,6 +37,7 @@ from setuav_studio.project import (
     save_project,
 )
 from setuav_studio.schema_validation import validate_project
+from setuav_studio.ui.about_dialog import AboutDialog
 from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.log_buffer import install_log_buffer
 from setuav_studio.ui.main_toolbar import ToolSetBar, WorkspaceToolBar
@@ -284,6 +285,12 @@ class MainWindow(QMainWindow):
 
         self._tools_menu = self.menuBar().addMenu("&Tools")
         self._menus["tools"] = self._tools_menu
+
+        self._help_menu = self.menuBar().addMenu("&Help")
+        self._menus["help"] = self._help_menu
+        self._about_action = self._help_menu.addAction("About")
+        self._about_action.triggered.connect(self._open_about)
+        self._command_actions["core.help.about"] = self._about_action
 
         self._api.undo_stack.canUndoChanged.connect(self._undo_action.setEnabled)
         self._api.undo_stack.canRedoChanged.connect(self._redo_action.setEnabled)
@@ -920,6 +927,9 @@ class MainWindow(QMainWindow):
         if action is not None:
             action.deleteLater()
         self._update_view_menu(self._current_workspace_id)
+
+    def _open_about(self) -> None:
+        AboutDialog(self).exec()
 
     @staticmethod
     def _wrap_panel(content: QWidget) -> QWidget:
