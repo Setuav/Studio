@@ -3,7 +3,15 @@ import math
 from array import array
 
 from PySide6.QtCore import QPoint, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QImage, QMatrix4x4, QPainter, QPalette, QSurfaceFormat, QVector3D, QVector4D
+from PySide6.QtGui import (
+    QImage,
+    QMatrix4x4,
+    QPainter,
+    QPalette,
+    QSurfaceFormat,
+    QVector3D,
+    QVector4D,
+)
 from PySide6.QtOpenGL import (
     QOpenGLBuffer,
     QOpenGLFramebufferObject,
@@ -796,7 +804,9 @@ class OpenGLViewer(QOpenGLWidget):
 
     def _projection(self, aspect_override: float | None = None) -> QMatrix4x4:
         matrix = QMatrix4x4()
-        aspect = aspect_override if aspect_override is not None else self.width() / max(1, self.height())
+        aspect = (
+            aspect_override if aspect_override is not None else self.width() / max(1, self.height())
+        )
         if self._orthographic:
             half_height = max(
                 self._distance * math.tan(math.radians(45.0) * 0.5),
@@ -847,6 +857,7 @@ class OpenGLViewer(QOpenGLWidget):
 
             # Clear
             from PySide6.QtGui import QColor
+
             from setuav_studio.ui.theme import is_light_theme, tokens
 
             tok = tokens()

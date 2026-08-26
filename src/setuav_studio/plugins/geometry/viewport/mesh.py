@@ -28,6 +28,31 @@ def _wire_tint(color: Point3D) -> Point3D:
     return tuple(channel + (base - channel) * _WIRE_TINT for channel in color)
 
 
+def _matches_subpart(
+    base_id: str,
+    subparts: list[str],
+    target_lower: str,
+    target_clean: str,
+) -> bool:
+    if target_lower in subparts or target_clean in subparts:
+        return True
+
+    target_suffixes = (
+        target_clean.removeprefix(f"{base_id}:"),
+        target_clean.removeprefix(f"{base_id}-"),
+        target_clean.removeprefix(f"{base_id}_"),
+    )
+    for subpart in subparts:
+        qualified_names = (
+            f"{base_id}:{subpart}",
+            f"{base_id}-{subpart}",
+            f"{base_id}_{subpart}",
+        )
+        if target_clean in qualified_names or subpart in target_suffixes:
+            return True
+    return False
+
+
 def _is_matching_component(loft_component_id: str, target_component_id: str | None) -> bool:
     if target_component_id is None:
         return False
@@ -52,25 +77,12 @@ def _is_matching_component(loft_component_id: str, target_component_id: str | No
     subparts = [p for p in parts_lower if p not in (base_id, "mirror", "stations")]
 
     # 1. Target is a specific subpart / control surface
-    if subparts:
-        if target_lower in subparts or target_clean in subparts:
-            return True
-        for sub in subparts:
-            if target_clean in (f"{base_id}:{sub}", f"{base_id}-{sub}", f"{base_id}_{sub}"):
-                return True
-            if sub in (
-                target_clean.removeprefix(f"{base_id}:"),
-                target_clean.removeprefix(f"{base_id}-"),
-                target_clean.removeprefix(f"{base_id}_"),
-            ):
-                return True
+    if subparts and _matches_subpart(base_id, subparts, target_lower, target_clean):
+        return True
 
     # 2. Target is the parent/main component (e.g. "main-wing")
     # When the wing is selected, its main body, tip caps, winglets, AND all child control surfaces match together.
-    if base_id == target_clean:
-        return True
-
-    return False
+    return base_id == target_clean
 
 
 def build_loft_wire_vertices(
@@ -136,24 +148,13 @@ def _append_loft_feature_wire(
 
     # Special handling for open-section tip caps (round / sharp wingtips)
     if ":tip-cap" in loft.component_id:
-        # 1. Chord boundary lines (upper seam, outermost tip ridge, lower seam)
-        chord_indices = (0, len(loops) // 2, len(loops) - 1) if len(loops) > 2 else range(len(loops))
-        for idx in set(chord_indices):
-            sec_pts = loops[idx]
-            for i in range(len(sec_pts) - 1):
-                _add_line(vertices, sec_pts[i], sec_pts[i + 1], color)
-        # 2. Leading Edge and Trailing Edge boundary curves wrapping around the tip
-        for k in range(len(loops) - 1):
-            _add_line(vertices, loops[k][0], loops[k + 1][0], color)
-            _add_line(vertices, loops[k][-1], loops[k + 1][-1], color)
+        _append_tip_cap_feature_wire(vertices, loops, color)
         return
 
     point_count = len(loops[0])
 
     # For procedurally blended/swept lofts (winglets, root stubs)
-    is_procedural = any(
-        tag in loft.component_id for tag in (":winglet", ":root-stub", ":stations")
-    )
+    is_procedural = any(tag in loft.component_id for tag in (":winglet", ":root-stub", ":stations"))
 
     if is_procedural:
         if len(loops) >= 2:
@@ -172,6 +173,24 @@ def _append_loft_feature_wire(
         pt_idx = int(frac * point_count) % point_count
         for current, following in pairwise(loops):
             _add_line(vertices, current[pt_idx], following[pt_idx], color)
+
+
+def _append_tip_cap_feature_wire(
+    vertices: list[float],
+    loops: list[tuple[Point3D, ...]],
+    color: Point3D,
+) -> None:
+    # Chord boundary lines: upper seam, outermost tip ridge, and lower seam.
+    chord_indices = (0, len(loops) // 2, len(loops) - 1) if len(loops) > 2 else range(len(loops))
+    for index in set(chord_indices):
+        section_points = loops[index]
+        for current, following in pairwise(section_points):
+            _add_line(vertices, current, following, color)
+
+    # Leading- and trailing-edge boundary curves wrapping around the tip.
+    for current, following in pairwise(loops):
+        _add_line(vertices, current[0], following[0], color)
+        _add_line(vertices, current[-1], following[-1], color)
 
 
 def _append_loft_wire(vertices: list[float], loops, color: Point3D) -> None:

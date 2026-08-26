@@ -806,10 +806,22 @@ class GeometryTests(unittest.TestCase):
                     "segments": [
                         {
                             "sections": [
-                                {"position": {"x": 0}, "profile": {"type": "circle", "diameter": 100}},
-                                {"position": {"x": 200}, "profile": {"type": "circle", "diameter": 200}},
-                                {"position": {"x": 500}, "profile": {"type": "circle", "diameter": 200}},
-                                {"position": {"x": 800}, "profile": {"type": "circle", "diameter": 50}},
+                                {
+                                    "position": {"x": 0},
+                                    "profile": {"type": "circle", "diameter": 100},
+                                },
+                                {
+                                    "position": {"x": 200},
+                                    "profile": {"type": "circle", "diameter": 200},
+                                },
+                                {
+                                    "position": {"x": 500},
+                                    "profile": {"type": "circle", "diameter": 200},
+                                },
+                                {
+                                    "position": {"x": 800},
+                                    "profile": {"type": "circle", "diameter": 50},
+                                },
                             ]
                         }
                     ]
@@ -828,8 +840,16 @@ class GeometryTests(unittest.TestCase):
                 "parameters": {
                     "geometry": {
                         "profiles": [
-                            {"chord": 200.0, "position": {"x": 0, "y": 0, "z": 0}, "airfoil": {"spec": "0012"}},
-                            {"chord": 100.0, "position": {"x": 50, "y": 500, "z": 0}, "airfoil": {"spec": "0012"}},
+                            {
+                                "chord": 200.0,
+                                "position": {"x": 0, "y": 0, "z": 0},
+                                "airfoil": {"spec": "0012"},
+                            },
+                            {
+                                "chord": 100.0,
+                                "position": {"x": 50, "y": 500, "z": 0},
+                                "airfoil": {"spec": "0012"},
+                            },
                         ],
                         "tip_treatment": {
                             "type": tip_t,

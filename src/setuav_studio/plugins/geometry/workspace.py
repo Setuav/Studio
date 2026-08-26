@@ -486,7 +486,11 @@ class ViewerWorkspace(QWidget):
             )
             geom = params.get("geometry") if isinstance(params.get("geometry"), dict) else {}
             tag = str(geom.get("tag") or component.get("name") or cid)
-            if cid in (sub_tag, f"{base_id}-{sub_tag}", f"{base_id}_{sub_tag}") or tag == sub_tag or sub_tag.endswith(cid):
+            if (
+                cid in (sub_tag, f"{base_id}-{sub_tag}", f"{base_id}_{sub_tag}")
+                or tag == sub_tag
+                or sub_tag.endswith(cid)
+            ):
                 self._api.set_selection(component)
                 return
 
@@ -509,8 +513,7 @@ class ViewerWorkspace(QWidget):
             QMessageBox.warning(
                 self,
                 "Screenshot",
-                "Could not capture screenshot.\n"
-                "The OpenGL context may not be available.",
+                "Could not capture screenshot.\nThe OpenGL context may not be available.",
             )
             return
 
@@ -542,7 +545,9 @@ class ViewerWorkspace(QWidget):
         text = text.strip().lower().replace("×", "x")
         parts = text.split("x")
         if len(parts) != 2:
-            QMessageBox.warning(self, "Invalid Resolution", "Format: WIDTHxHEIGHT  (e.g. 1920x1080)")
+            QMessageBox.warning(
+                self, "Invalid Resolution", "Format: WIDTHxHEIGHT  (e.g. 1920x1080)"
+            )
             return
         try:
             width, height = int(parts[0].strip()), int(parts[1].strip())

@@ -119,7 +119,11 @@ class _BalanceProjectionCanvas(View2DCanvas):
             return ELECTRONICS_COMPONENT_COLOR
         if type_name in {"point-mass", "point_mass"}:
             return POINT_MASS_COLOR
-        return POINT_MASS_COLOR if ("point" in type_name or "mass" in type_name) else chart_color("cyan")
+        return (
+            POINT_MASS_COLOR
+            if ("point" in type_name or "mass" in type_name)
+            else chart_color("cyan")
+        )
 
     def _component_tooltip(self, item) -> str:
         x, y, z = (value * 1000.0 for value in item.cg_body_m)
