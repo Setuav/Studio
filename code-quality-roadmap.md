@@ -51,7 +51,7 @@ belirlendi.
 - [x] Temel yapılandırmayı ekle.
 - [x] Önce model ve engine katmanlarını kapsa.
 - [x] Tip hatalarını küçük gruplar hâlinde düzelt.
-- [ ] UI katmanını kademeli olarak kapsama al.
+- [x] UI katmanını kademeli olarak kapsama al.
 
 Pyright kapsamı, Weight & Balance solver'ın eklenmesiyle 22 saf model/engine
 dosyasına ulaştı ve `basic` modda sıfır hata ile geçiyor. Son gruptaki 5 tip
@@ -64,7 +64,9 @@ gerektirmedi. `icons.py` ve `buttons.py` ile kapsam 26 dosyaya çıkarıldı; ik
 UI grubu da ek düzeltme gerektirmedi. `log_window.py` ve `main_toolbar.py` ile
 kapsam 28 dosyaya çıkarıldı; üçüncü UI grubu da ek düzeltme gerektirmedi.
 `property_tables.py` ile kapsam 29 dosyaya çıkarıldı ve 2 Qt flag tip hatası
-giderildi.
+giderildi. Son olarak `theme.py` kapsama alındı ve 2 QObject daraltma hatası
+giderildi. Toplam 30 dosya sıfır hata ile geçiyor; UI katmanının kademeli tip
+kontrolü tamamlandı.
 
 ## 6. Test gruplarını ayır
 

@@ -14,11 +14,11 @@ class ComboBoxWheelFilter(QObject):
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         if event.type() == QEvent.Type.Wheel:
-            combo = (
-                watched
-                if isinstance(watched, QComboBox)
-                else (watched.parent() if isinstance(watched.parent(), QComboBox) else None)
-            )
+            if isinstance(watched, QComboBox):
+                combo = watched
+            else:
+                parent = watched.parent()
+                combo = parent if isinstance(parent, QComboBox) else None
             if combo is not None:
                 view = combo.view()
                 if view is None or not view.isVisible():
