@@ -45,6 +45,30 @@ from setuav_studio.ui.theme import status_color
 logger = logging.getLogger(__name__)
 
 
+def _items_by_id(data: dict[str, Any], key: str) -> dict[object, dict[str, Any]]:
+    return {item.get("id"): item for item in data.get(key, []) if isinstance(item, dict)}
+
+
+def _append_entity_changes(
+    changes: list[str],
+    disk_items: dict[object, dict[str, Any]],
+    current_items: dict[object, dict[str, Any]],
+    entity_name: str,
+    *,
+    include_deleted: bool = False,
+) -> None:
+    for item_id, item in current_items.items():
+        name = item.get("name") or item_id
+        if item_id not in disk_items:
+            changes.append(f"New {entity_name}: {name}")
+        elif disk_items[item_id] != item:
+            changes.append(f"Modified {entity_name}: {name}")
+    if include_deleted:
+        for item_id, item in disk_items.items():
+            if item_id not in current_items:
+                changes.append(f"Deleted {entity_name}: {item.get('name') or item_id}")
+
+
 def apply_runtime_validation(
     project: ProjectDocument,
     issues: object,
@@ -320,39 +344,35 @@ class MainWindow(QMainWindow):
 
     def _update_all_icons(self) -> None:
         try:
-            if hasattr(self, "_open_file_action"):
-                self._open_file_action.setIcon(get_icon("file_open"))
-            if hasattr(self, "_open_folder_action"):
-                self._open_folder_action.setIcon(get_icon("folder_open"))
-            if hasattr(self, "_recent_menu"):
-                self._recent_menu.setIcon(get_icon("project_folder"))
-            if hasattr(self, "_save_action"):
-                self._save_action.setIcon(get_icon("save"))
-            if hasattr(self, "_save_as_action"):
-                self._save_as_action.setIcon(get_icon("save_as"))
-            if hasattr(self, "_exit_action"):
-                self._exit_action.setIcon(get_icon("exit"))
-            if hasattr(self, "_undo_action"):
-                self._undo_action.setIcon(get_icon("undo"))
-            if hasattr(self, "_redo_action"):
-                self._redo_action.setIcon(get_icon("redo"))
-            if hasattr(self, "_settings_action"):
-                self._settings_action.setIcon(get_icon("fa6s.gear"))
-            if hasattr(self, "_log_button"):
-                self._log_button.setIcon(get_icon("log"))
-            for contribution_id, contribution in self._toolbar_contributions.items():
-                action = self._toolbar_actions.get(contribution_id)
-                if action is not None and contribution.icon:
-                    action.setIcon(get_icon(contribution.icon))
-                for menu_item, menu_action in self._toolbar_menu_actions.get(
-                    contribution_id,
-                    [],
-                ):
-                    if menu_item.icon:
-                        menu_action.setIcon(get_icon(menu_item.icon))
+            action_icons = {
+                "_open_file_action": "file_open",
+                "_open_folder_action": "folder_open",
+                "_recent_menu": "project_folder",
+                "_save_action": "save",
+                "_save_as_action": "save_as",
+                "_exit_action": "exit",
+                "_undo_action": "undo",
+                "_redo_action": "redo",
+                "_settings_action": "fa6s.gear",
+                "_log_button": "log",
+            }
+            for attribute, icon_name in action_icons.items():
+                action = getattr(self, attribute, None)
+                if action is not None:
+                    action.setIcon(get_icon(icon_name))
+            self._update_toolbar_contribution_icons()
             self._refresh_workspace_combo()
         except Exception as exc:
             logger.debug("Error refreshing icons: %s", exc)
+
+    def _update_toolbar_contribution_icons(self) -> None:
+        for contribution_id, contribution in self._toolbar_contributions.items():
+            action = self._toolbar_actions.get(contribution_id)
+            if action is not None and contribution.icon:
+                action.setIcon(get_icon(contribution.icon))
+            for menu_item, menu_action in self._toolbar_menu_actions.get(contribution_id, []):
+                if menu_item.icon:
+                    menu_action.setIcon(get_icon(menu_item.icon))
 
     def _switch_theme(self, mode: str) -> None:
         from setuav_studio.ui.buttons import refresh_all_button_roles
@@ -613,75 +633,68 @@ class MainWindow(QMainWindow):
             disk_data = disk_doc.data if disk_doc else {}
             curr_data = self._project.data
 
-            # 1. Components
-            disk_comps = {
-                c.get("id"): c for c in disk_data.get("components", []) if isinstance(c, dict)
-            }
-            curr_comps = {
-                c.get("id"): c for c in curr_data.get("components", []) if isinstance(c, dict)
-            }
-
-            for cid, c in curr_comps.items():
-                name = c.get("name") or cid
-                if cid not in disk_comps:
-                    changes.append(f"New Component: {name}")
-                elif disk_comps[cid] != c:
-                    changes.append(f"Modified Component: {name}")
-
-            for cid, c in disk_comps.items():
-                if cid not in curr_comps:
-                    name = c.get("name") or cid
-                    changes.append(f"Deleted Component: {name}")
-
-            # 2. Assemblies
-            disk_asms = {
-                a.get("id"): a for a in disk_data.get("assemblies", []) if isinstance(a, dict)
-            }
-            curr_asms = {
-                a.get("id"): a for a in curr_data.get("assemblies", []) if isinstance(a, dict)
-            }
-
-            for aid, a in curr_asms.items():
-                name = a.get("name") or aid
-                if aid not in disk_asms:
-                    changes.append(f"New Assembly: {name}")
-                elif disk_asms[aid] != a:
-                    changes.append(f"Modified Assembly: {name}")
-
-            # 3. Aerodynamic Analyses
-            try:
-                from setuav_studio.plugins.aerodynamics.analysis_store import (
-                    analysis_entries as aero_entries,
-                )
-
-                disk_aero = {e.get("id"): e for e in aero_entries(disk_doc)} if disk_doc else {}
-                curr_aero = {e.get("id"): e for e in aero_entries(self._project)}
-                for eid, e in curr_aero.items():
-                    if eid not in disk_aero:
-                        name = e.get("name") or "Aerodynamic Analysis"
-                        changes.append(f"Unsaved Aerodynamic Analysis: {name}")
-            except Exception:
-                pass
-
-            # 4. Flight Performance Analyses
-            try:
-                from setuav_studio.plugins.flight_performance.analysis_store import (
-                    analysis_entries as perf_entries,
-                )
-
-                disk_perf = {e.get("id"): e for e in perf_entries(disk_doc)} if disk_doc else {}
-                curr_perf = {e.get("id"): e for e in perf_entries(self._project)}
-                for eid, e in curr_perf.items():
-                    if eid not in disk_perf:
-                        name = e.get("name") or "Flight Performance Envelope"
-                        changes.append(f"Unsaved Flight Performance Analysis: {name}")
-            except Exception:
-                pass
+            _append_entity_changes(
+                changes,
+                _items_by_id(disk_data, "components"),
+                _items_by_id(curr_data, "components"),
+                "Component",
+                include_deleted=True,
+            )
+            _append_entity_changes(
+                changes,
+                _items_by_id(disk_data, "assemblies"),
+                _items_by_id(curr_data, "assemblies"),
+                "Assembly",
+            )
+            self._append_unsaved_aerodynamic_analyses(changes, disk_doc)
+            self._append_unsaved_performance_analyses(changes, disk_doc)
 
         except Exception as exc:
             logger.debug("Failed to collect detailed unsaved changes: %s", exc)
 
         return changes
+
+    def _append_unsaved_aerodynamic_analyses(
+        self, changes: list[str], disk_document: ProjectDocument | None
+    ) -> None:
+        try:
+            from setuav_studio.plugins.aerodynamics.analysis_store import analysis_entries
+
+            self._append_unsaved_analyses(
+                changes,
+                analysis_entries(disk_document) if disk_document else [],
+                analysis_entries(self._project),
+                "Aerodynamic Analysis",
+            )
+        except Exception:
+            pass
+
+    def _append_unsaved_performance_analyses(
+        self, changes: list[str], disk_document: ProjectDocument | None
+    ) -> None:
+        try:
+            from setuav_studio.plugins.flight_performance.analysis_store import analysis_entries
+
+            self._append_unsaved_analyses(
+                changes,
+                analysis_entries(disk_document) if disk_document else [],
+                analysis_entries(self._project),
+                "Flight Performance Analysis",
+            )
+        except Exception:
+            pass
+
+    @staticmethod
+    def _append_unsaved_analyses(
+        changes: list[str],
+        disk_entries: list[dict[str, Any]],
+        current_entries: list[dict[str, Any]],
+        fallback_name: str,
+    ) -> None:
+        disk_ids = {entry.get("id") for entry in disk_entries}
+        for entry in current_entries:
+            if entry.get("id") not in disk_ids:
+                changes.append(f"Unsaved {fallback_name}: {entry.get('name') or fallback_name}")
 
     def _confirm_project_close(self) -> bool:
         if self._project is None or not self._project.modified:

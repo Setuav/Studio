@@ -135,35 +135,7 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
         return table
 
     def set_results(self, data: dict[str, Any]) -> None:
-        # 1. Update Summary Table
-        if "static_thrust" in data:
-            self._set_property_value(
-                self.summary_table, "static_thrust", f"{data['static_thrust']:.2f} N"
-            )
-        if "peak_power" in data:
-            self._set_property_value(
-                self.summary_table, "peak_power", f"{data['peak_power']:.1f} W"
-            )
-        if "peak_current" in data:
-            self._set_property_value(
-                self.summary_table, "peak_current", f"{data['peak_current']:.1f} A"
-            )
-        if "max_rpm" in data:
-            self._set_property_value(self.summary_table, "max_rpm", f"{data['max_rpm']:.0f} RPM")
-        if "cruise_thrust" in data:
-            self._set_property_value(
-                self.summary_table, "cruise_thrust", f"{data['cruise_thrust']:.2f} N"
-            )
-        if "cruise_efficiency" in data:
-            self._set_property_value(
-                self.summary_table, "cruise_efficiency", f"{data['cruise_efficiency'] * 100:.1f} %"
-            )
-        if "endurance_min" in data:
-            self._set_property_value(
-                self.summary_table, "endurance", f"{data['endurance_min']:.1f} min"
-            )
-
-        # 2. Update Detailed Table
+        self._update_summary(data)
         sweep_rows: list[dict[str, Any]] = data.get("sweep_table", [])
         self.detail_table.setRowCount(0)
         if not sweep_rows:
@@ -171,107 +143,83 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
 
         max_curr_limit = float(data.get("motor_max_current") or 9999.0)
         self.detail_table.setRowCount(len(sweep_rows))
-
-        # Find best efficiency index
-        best_eff_idx = -1
-        best_eff_val = -1.0
-        for idx, row in enumerate(sweep_rows):
-            eta_val = float(row.get("eta_sys", 0.0))
-            if eta_val > best_eff_val:
-                best_eff_val = eta_val
-                best_eff_idx = idx
-
+        best_eff_idx = self._best_efficiency_row(sweep_rows)
         for r_idx, row in enumerate(sweep_rows):
-            x_val = row.get("x_val", 0.0)
-            x_lbl = row.get("x_label", "")
-            rpm = float(row.get("rpm", 0.0))
-            thrust = float(row.get("thrust", 0.0))
-            power = float(row.get("power", 0.0))
-            curr = float(row.get("current", 0.0))
-            eta_sys = float(row.get("eta_sys", 0.0))
-            eta_p = float(row.get("eta_p", 0.0))
-            eta_m = float(row.get("eta_m", 0.0))
-            j_val = float(row.get("j", 0.0))
-            feasible = bool(row.get("feasible", True))
-
-            is_best_row = r_idx == best_eff_idx
-            is_overcurrent = curr > max_curr_limit or not feasible
-
-            # Col 0: Operating Point
-            unit = "%" if "Throttle" in x_lbl else "m/s"
-            op_text = f"{x_val:.1f} {unit}" if unit == "m/s" else f"{x_val:.0f}%"
-            item_op = QTableWidgetItem(op_text)
-            item_op.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.detail_table.setItem(r_idx, 0, item_op)
-
-            # Col 1: RPM
-            item_rpm = QTableWidgetItem(f"{rpm:,.0f}")
-            item_rpm.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.detail_table.setItem(r_idx, 1, item_rpm)
-
-            # Col 2: Thrust (N)
-            item_thrust = QTableWidgetItem(f"{thrust:.2f}")
-            item_thrust.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.detail_table.setItem(r_idx, 2, item_thrust)
-
-            # Col 3: Power (W)
-            item_pwr = QTableWidgetItem(f"{power:.1f}")
-            item_pwr.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.detail_table.setItem(r_idx, 3, item_pwr)
-
-            from setuav_studio.ui.theme import is_light_theme
-
-            is_light = is_light_theme()
-            over_fg = QColor("#cf222e") if is_light else QColor("#f85149")
-            best_fg = QColor("#0e8a5b") if is_light else QColor("#4ec9b0")
-            safe_fg = QColor("#1a7f37") if is_light else QColor("#3fb950")
-
-            # Col 4: Current (A)
-            item_curr = QTableWidgetItem(f"{curr:.1f}")
-            item_curr.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            if is_overcurrent:
-                item_curr.setForeground(QBrush(over_fg))
-            self.detail_table.setItem(r_idx, 4, item_curr)
-
-            # Col 5: Total Efficiency
-            eff_str = f"{eta_sys * 100:.1f}%"
-            if is_best_row:
-                eff_str = f"★ {eff_str}"
-            item_eff = QTableWidgetItem(eff_str)
-            item_eff.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            if is_best_row:
-                item_eff.setForeground(QBrush(best_fg))
-            self.detail_table.setItem(r_idx, 5, item_eff)
-
-            # Col 6: Prop Efficiency
-            item_etap = QTableWidgetItem(f"{eta_p * 100:.1f}%")
-            item_etap.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.detail_table.setItem(r_idx, 6, item_etap)
-
-            # Col 7: Motor Efficiency
-            item_etam = QTableWidgetItem(f"{eta_m * 100:.1f}%")
-            item_etam.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.detail_table.setItem(r_idx, 7, item_etam)
-
-            # Col 8: Advance Ratio (J)
-            item_j = QTableWidgetItem(f"{j_val:.3f}")
-            item_j.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.detail_table.setItem(r_idx, 8, item_j)
-
-            # Col 9: Status
-            if is_overcurrent:
-                status_item = QTableWidgetItem("⚠️ Overload")
-                status_item.setForeground(QBrush(over_fg))
-            else:
-                status_item = QTableWidgetItem("✓ Safe")
-                status_item.setForeground(QBrush(safe_fg))
-            status_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.detail_table.setItem(r_idx, 9, status_item)
+            self._populate_detail_row(r_idx, row, best_eff_idx, max_curr_limit)
 
         self.detail_table.fit_columns_to_viewport()
         self._last_data = data
         if hasattr(self, "btn_export_csv"):
             self.btn_export_csv.setEnabled(bool(sweep_rows))
+
+    def _update_summary(self, data: dict[str, Any]) -> None:
+        summary_values = (
+            ("static_thrust", "static_thrust", lambda value: f"{value:.2f} N"),
+            ("peak_power", "peak_power", lambda value: f"{value:.1f} W"),
+            ("peak_current", "peak_current", lambda value: f"{value:.1f} A"),
+            ("max_rpm", "max_rpm", lambda value: f"{value:.0f} RPM"),
+            ("cruise_thrust", "cruise_thrust", lambda value: f"{value:.2f} N"),
+            ("cruise_efficiency", "cruise_efficiency", lambda value: f"{value * 100:.1f} %"),
+            ("endurance_min", "endurance", lambda value: f"{value:.1f} min"),
+        )
+        for data_key, table_key, formatter in summary_values:
+            if data_key in data:
+                self._set_property_value(self.summary_table, table_key, formatter(data[data_key]))
+
+    @staticmethod
+    def _best_efficiency_row(rows: list[dict[str, Any]]) -> int:
+        return max(range(len(rows)), key=lambda index: float(rows[index].get("eta_sys", 0.0)))
+
+    def _populate_detail_row(
+        self,
+        row_index: int,
+        row: dict[str, Any],
+        best_efficiency_index: int,
+        max_current: float,
+    ) -> None:
+        current = float(row.get("current", 0.0))
+        is_best = row_index == best_efficiency_index
+        is_overcurrent = current > max_current or not bool(row.get("feasible", True))
+        over_fg, best_fg, safe_fg = self._detail_colors()
+        values = self._detail_values(row, is_best, is_overcurrent)
+
+        for column, value in enumerate(values):
+            item = QTableWidgetItem(value)
+            item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            if column == 4 and is_overcurrent:
+                item.setForeground(QBrush(over_fg))
+            elif column == 5 and is_best:
+                item.setForeground(QBrush(best_fg))
+            elif column == 9:
+                item.setForeground(QBrush(over_fg if is_overcurrent else safe_fg))
+            self.detail_table.setItem(row_index, column, item)
+
+    @staticmethod
+    def _detail_values(row: dict[str, Any], is_best: bool, is_overcurrent: bool) -> tuple[str, ...]:
+        x_value = float(row.get("x_val", 0.0))
+        is_throttle = "Throttle" in str(row.get("x_label", ""))
+        operation = f"{x_value:.0f}%" if is_throttle else f"{x_value:.1f} m/s"
+        efficiency = f"{float(row.get('eta_sys', 0.0)) * 100:.1f}%"
+        return (
+            operation,
+            f"{float(row.get('rpm', 0.0)):,.0f}",
+            f"{float(row.get('thrust', 0.0)):.2f}",
+            f"{float(row.get('power', 0.0)):.1f}",
+            f"{float(row.get('current', 0.0)):.1f}",
+            f"★ {efficiency}" if is_best else efficiency,
+            f"{float(row.get('eta_p', 0.0)) * 100:.1f}%",
+            f"{float(row.get('eta_m', 0.0)) * 100:.1f}%",
+            f"{float(row.get('j', 0.0)):.3f}",
+            "⚠️ Overload" if is_overcurrent else "✓ Safe",
+        )
+
+    @staticmethod
+    def _detail_colors() -> tuple[QColor, QColor, QColor]:
+        from setuav_studio.ui.theme import is_light_theme
+
+        if is_light_theme():
+            return QColor("#cf222e"), QColor("#0e8a5b"), QColor("#1a7f37")
+        return QColor("#f85149"), QColor("#4ec9b0"), QColor("#3fb950")
 
     def clear_results(self) -> None:
         self._last_data = None

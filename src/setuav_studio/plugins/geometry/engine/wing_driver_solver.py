@@ -120,121 +120,130 @@ def solve_8_parameter_driver(
     c_root = cur["root_chord"]
     c_tip = cur["tip_chord"]
 
-    # 1. If span is an active driver
     if "span" in drivers:
-        span = v["span"]
-        b_panel = max((span / 2.0 - y_offset) if is_symmetric else span, 1e-4)
-        panel_area_factor = b_panel if is_symmetric else 0.5 * b_panel
-        root_area_factor = panel_area_factor + (2.0 * y_offset if is_symmetric else 0.0)
-
-        if "root_chord" in drivers and "tip_chord" in drivers:
-            c_root = v["root_chord"]
-            c_tip = v["tip_chord"]
-        elif "root_chord" in drivers and "taper_ratio" in drivers:
-            c_root = v["root_chord"]
-            c_tip = v["taper_ratio"] * c_root
-        elif "tip_chord" in drivers and "taper_ratio" in drivers:
-            c_tip = v["tip_chord"]
-            c_root = c_tip / max(v["taper_ratio"], 1e-4)
-        elif "area" in drivers and "taper_ratio" in drivers:
-            s_target = v["area"] * 10000.0  # dm² to mm²
-            taper = v["taper_ratio"]
-            denom = root_area_factor + panel_area_factor * taper
-            c_root = s_target / max(denom, 1e-6)
-            c_tip = taper * c_root
-        elif "aspect_ratio" in drivers and "taper_ratio" in drivers:
-            s_target = (span * span) / max(v["aspect_ratio"], 1e-4)
-            taper = v["taper_ratio"]
-            denom = root_area_factor + panel_area_factor * taper
-            c_root = s_target / max(denom, 1e-6)
-            c_tip = taper * c_root
-        elif "area" in drivers and "root_chord" in drivers:
-            c_root = v["root_chord"]
-            s_target = v["area"] * 10000.0
-            s_center = (2.0 * y_offset * c_root) if is_symmetric else 0.0
-            s_panel = (s_target - s_center) / (2.0 if is_symmetric else 1.0)
-            c_ave = max(s_panel / b_panel, 1e-4)
-            c_tip = max(2.0 * c_ave - c_root, 1e-4)
-        elif "aspect_ratio" in drivers and "root_chord" in drivers:
-            c_root = v["root_chord"]
-            s_target = (span * span) / max(v["aspect_ratio"], 1e-4)
-            s_center = (2.0 * y_offset * c_root) if is_symmetric else 0.0
-            s_panel = (s_target - s_center) / (2.0 if is_symmetric else 1.0)
-            c_ave = max(s_panel / b_panel, 1e-4)
-            c_tip = max(2.0 * c_ave - c_root, 1e-4)
-        elif "area" in drivers and "tip_chord" in drivers:
-            c_tip = v["tip_chord"]
-            s_target = v["area"] * 10000.0
-            num = s_target - panel_area_factor * c_tip
-            c_root = max(num / max(root_area_factor, 1e-6), 1e-4)
-        else:
-            if "taper_ratio" in drivers:
-                taper = v["taper_ratio"]
-                c_tip = taper * c_root
-            elif "root_chord" in drivers:
-                c_root = v["root_chord"]
-            elif "tip_chord" in drivers:
-                c_tip = v["tip_chord"]
-
-    # 2. If span is NOT an active driver
+        span, c_root, c_tip = _solve_with_span_driver(
+            drivers, v, c_root, c_tip, is_symmetric, y_offset
+        )
     else:
-        if "area" in drivers and "aspect_ratio" in drivers:
-            s_target = v["area"] * 10000.0
-            ar = v["aspect_ratio"]
-            span = math.sqrt(s_target * ar)
-            b_panel = max((span / 2.0 - y_offset) if is_symmetric else span, 1e-4)
-            panel_area_factor = b_panel if is_symmetric else 0.5 * b_panel
-            root_area_factor = panel_area_factor + (2.0 * y_offset if is_symmetric else 0.0)
-
-            if "taper_ratio" in drivers:
-                taper = v["taper_ratio"]
-                denom = root_area_factor + panel_area_factor * taper
-                c_root = s_target / max(denom, 1e-6)
-                c_tip = taper * c_root
-            elif "root_chord" in drivers:
-                c_root = v["root_chord"]
-                s_center = (2.0 * y_offset * c_root) if is_symmetric else 0.0
-                s_panel = (s_target - s_center) / (2.0 if is_symmetric else 1.0)
-                c_ave = max(s_panel / b_panel, 1e-4)
-                c_tip = max(2.0 * c_ave - c_root, 1e-4)
-            elif "tip_chord" in drivers:
-                c_tip = v["tip_chord"]
-                num = s_target - panel_area_factor * c_tip
-                c_root = max(num / max(root_area_factor, 1e-6), 1e-4)
-            else:
-                taper = cur["taper_ratio"]
-                denom = root_area_factor + panel_area_factor * taper
-                c_root = s_target / max(denom, 1e-6)
-                c_tip = taper * c_root
-        elif "area" in drivers and "root_chord" in drivers and "tip_chord" in drivers:
-            c_root = v["root_chord"]
-            c_tip = v["tip_chord"]
-            c_ave = 0.5 * (c_root + c_tip)
-            s_target = v["area"] * 10000.0
-            s_center = (2.0 * y_offset * c_root) if is_symmetric else 0.0
-            s_panel = max(s_target - s_center, 1e-4) / (2.0 if is_symmetric else 1.0)
-            b_panel = s_panel / max(c_ave, 1e-6)
-            span = (2.0 * (b_panel + y_offset)) if is_symmetric else b_panel
-        elif "area" in drivers and "root_chord" in drivers and "taper_ratio" in drivers:
-            c_root = v["root_chord"]
-            taper = v["taper_ratio"]
-            c_tip = taper * c_root
-            c_ave = 0.5 * (c_root + c_tip)
-            s_target = v["area"] * 10000.0
-            s_center = (2.0 * y_offset * c_root) if is_symmetric else 0.0
-            s_panel = max(s_target - s_center, 1e-4) / (2.0 if is_symmetric else 1.0)
-            b_panel = s_panel / max(c_ave, 1e-6)
-            span = (2.0 * (b_panel + y_offset)) if is_symmetric else b_panel
-        elif "aspect_ratio" in drivers and "root_chord" in drivers and "tip_chord" in drivers:
-            c_root = v["root_chord"]
-            c_tip = v["tip_chord"]
-            c_ave = 0.5 * (c_root + c_tip)
-            ar = v["aspect_ratio"]
-            span = ar * c_ave
-        else:
-            c_root = v.get("root_chord", cur["root_chord"])
-            c_tip = v.get("tip_chord", cur["tip_chord"])
+        span, c_root, c_tip = _solve_without_span_driver(drivers, v, cur, is_symmetric, y_offset)
 
     return compute_all_8_parameters(
         span, c_root, c_tip, is_symmetric=is_symmetric, y_offset=y_offset
     )
+
+
+def _solve_with_span_driver(
+    drivers: set[str],
+    values: dict[str, float],
+    current_root: float,
+    current_tip: float,
+    is_symmetric: bool,
+    y_offset: float,
+) -> tuple[float, float, float]:
+    span = values["span"]
+    panel_span = max((span / 2.0 - y_offset) if is_symmetric else span, 1e-4)
+    panel_factor = panel_span if is_symmetric else 0.5 * panel_span
+    root_factor = panel_factor + (2.0 * y_offset if is_symmetric else 0.0)
+    root, tip = current_root, current_tip
+
+    if {"root_chord", "tip_chord"} <= drivers:
+        root, tip = values["root_chord"], values["tip_chord"]
+    elif {"root_chord", "taper_ratio"} <= drivers:
+        root = values["root_chord"]
+        tip = values["taper_ratio"] * root
+    elif {"tip_chord", "taper_ratio"} <= drivers:
+        tip = values["tip_chord"]
+        root = tip / max(values["taper_ratio"], 1e-4)
+    elif "taper_ratio" in drivers and ({"area", "aspect_ratio"} & drivers):
+        area = _target_area(span, values, "area" in drivers)
+        taper = values["taper_ratio"]
+        root = area / max(root_factor + panel_factor * taper, 1e-6)
+        tip = taper * root
+    elif "root_chord" in drivers and ({"area", "aspect_ratio"} & drivers):
+        root = values["root_chord"]
+        area = _target_area(span, values, "area" in drivers)
+        center = 2.0 * y_offset * root if is_symmetric else 0.0
+        panel_area = (area - center) / (2.0 if is_symmetric else 1.0)
+        tip = max(2.0 * max(panel_area / panel_span, 1e-4) - root, 1e-4)
+    elif {"area", "tip_chord"} <= drivers:
+        tip = values["tip_chord"]
+        area = values["area"] * 10000.0
+        root = max((area - panel_factor * tip) / max(root_factor, 1e-6), 1e-4)
+    elif "taper_ratio" in drivers:
+        tip = values["taper_ratio"] * root
+    elif "root_chord" in drivers:
+        root = values["root_chord"]
+    elif "tip_chord" in drivers:
+        tip = values["tip_chord"]
+    return span, root, tip
+
+
+def _target_area(span: float, values: dict[str, float], use_area: bool) -> float:
+    if use_area:
+        return values["area"] * 10000.0
+    return span * span / max(values["aspect_ratio"], 1e-4)
+
+
+def _solve_without_span_driver(
+    drivers: set[str],
+    values: dict[str, float],
+    current: dict[str, float],
+    is_symmetric: bool,
+    y_offset: float,
+) -> tuple[float, float, float]:
+    span = current["span"]
+    root = values.get("root_chord", current["root_chord"])
+    tip = values.get("tip_chord", current["tip_chord"])
+    if {"area", "aspect_ratio"} <= drivers:
+        area = values["area"] * 10000.0
+        span = math.sqrt(area * values["aspect_ratio"])
+        return _chords_for_area(span, area, drivers, values, current, is_symmetric, y_offset)
+    if {"area", "root_chord", "tip_chord"} <= drivers:
+        return _span_for_area(values["area"] * 10000.0, root, tip, is_symmetric, y_offset)
+    if {"area", "root_chord", "taper_ratio"} <= drivers:
+        tip = values["taper_ratio"] * root
+        return _span_for_area(values["area"] * 10000.0, root, tip, is_symmetric, y_offset)
+    if {"aspect_ratio", "root_chord", "tip_chord"} <= drivers:
+        return values["aspect_ratio"] * 0.5 * (root + tip), root, tip
+    return span, root, tip
+
+
+def _chords_for_area(
+    span: float,
+    area: float,
+    drivers: set[str],
+    values: dict[str, float],
+    current: dict[str, float],
+    is_symmetric: bool,
+    y_offset: float,
+) -> tuple[float, float, float]:
+    panel_span = max((span / 2.0 - y_offset) if is_symmetric else span, 1e-4)
+    panel_factor = panel_span if is_symmetric else 0.5 * panel_span
+    root_factor = panel_factor + (2.0 * y_offset if is_symmetric else 0.0)
+    if "taper_ratio" in drivers:
+        taper = values["taper_ratio"]
+        root = area / max(root_factor + panel_factor * taper, 1e-6)
+        return span, root, taper * root
+    if "root_chord" in drivers:
+        root = values["root_chord"]
+        center = 2.0 * y_offset * root if is_symmetric else 0.0
+        panel_area = (area - center) / (2.0 if is_symmetric else 1.0)
+        tip = max(2.0 * max(panel_area / panel_span, 1e-4) - root, 1e-4)
+        return span, root, tip
+    if "tip_chord" in drivers:
+        tip = values["tip_chord"]
+        root = max((area - panel_factor * tip) / max(root_factor, 1e-6), 1e-4)
+        return span, root, tip
+    taper = current["taper_ratio"]
+    root = area / max(root_factor + panel_factor * taper, 1e-6)
+    return span, root, taper * root
+
+
+def _span_for_area(
+    area: float, root: float, tip: float, is_symmetric: bool, y_offset: float
+) -> tuple[float, float, float]:
+    center = 2.0 * y_offset * root if is_symmetric else 0.0
+    panel_area = max(area - center, 1e-4) / (2.0 if is_symmetric else 1.0)
+    panel_span = panel_area / max(0.5 * (root + tip), 1e-6)
+    span = 2.0 * (panel_span + y_offset) if is_symmetric else panel_span
+    return span, root, tip

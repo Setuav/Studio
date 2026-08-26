@@ -497,29 +497,7 @@ class AeroChartsDock(QWidget):
             )
             return
 
-        # Determine X axis values & label for this specific dataset
-        if key == "lateral_directional":
-            if any(not math.isclose(p.beta, points[0].beta, abs_tol=1e-2) for p in points):
-                x_vals = [p.beta for p in points]
-                x_label = "β (°)"
-            elif sweep_type == SweepType.CONTROL_DEFLECTION:
-                ctrl_k = cond.sweep_variable if cond else "Control"
-                x_vals = [p.control_deflections.get(ctrl_k, 0.0) for p in points]
-                x_label = f"{ctrl_k.capitalize()} δ (°)"
-            else:
-                x_vals = [p.beta for p in points]
-                x_label = "β (°)"
-        else:
-            if sweep_type == SweepType.BETA:
-                x_vals = [p.beta for p in points]
-                x_label = "β (°)"
-            elif sweep_type == SweepType.CONTROL_DEFLECTION:
-                ctrl_k = cond.sweep_variable if cond else "Control"
-                x_vals = [p.control_deflections.get(ctrl_k, 0.0) for p in points]
-                x_label = f"{ctrl_k.capitalize()} δ (°)"
-            else:
-                x_vals = [p.alpha for p in points]
-                x_label = "α (°)"
+        x_vals, x_label = self._chart_x_axis(key, points, sweep_type, cond)
 
         self.setUpdatesEnabled(False)
         try:
@@ -713,6 +691,26 @@ class AeroChartsDock(QWidget):
             )
         finally:
             self.setUpdatesEnabled(True)
+
+    @staticmethod
+    def _chart_x_axis(
+        key: str,
+        points: list[PolarPoint],
+        sweep_type: SweepType,
+        condition: object,
+    ) -> tuple[list[float], str]:
+        varying_beta = key == "lateral_directional" and any(
+            not math.isclose(point.beta, points[0].beta, abs_tol=1e-2) for point in points
+        )
+        if varying_beta or sweep_type == SweepType.BETA:
+            return [point.beta for point in points], "β (°)"
+        if sweep_type == SweepType.CONTROL_DEFLECTION:
+            control = getattr(condition, "sweep_variable", None) or "Control"
+            values = [point.control_deflections.get(control, 0.0) for point in points]
+            return values, f"{control.capitalize()} δ (°)"
+        if key == "lateral_directional":
+            return [point.beta for point in points], "β (°)"
+        return [point.alpha for point in points], "α (°)"
 
     def _render_alpha_beta_grid(
         self,

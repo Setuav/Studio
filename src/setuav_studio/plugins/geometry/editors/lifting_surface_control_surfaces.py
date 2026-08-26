@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from typing import Any
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -460,67 +461,47 @@ class ControlSurfacesMixin:
         semi_span, root_chord = self._wing_span_info()
 
         def change() -> None:
-            if key == "span_start":
-                geom["span_start"] = float(value)
-                new_eta = round(float(value) / semi_span, 4)
-                geom["eta_start"] = new_eta
-                if hasattr(self, "_cs_spinboxes") and "eta_start" in self._cs_spinboxes:
-                    self._cs_spinboxes["eta_start"].blockSignals(True)
-                    self._cs_spinboxes["eta_start"].setValue(new_eta)
-                    self._cs_spinboxes["eta_start"].blockSignals(False)
-
-            elif key == "span_end":
-                geom["span_end"] = float(value)
-                new_eta = round(float(value) / semi_span, 4)
-                geom["eta_end"] = new_eta
-                if hasattr(self, "_cs_spinboxes") and "eta_end" in self._cs_spinboxes:
-                    self._cs_spinboxes["eta_end"].blockSignals(True)
-                    self._cs_spinboxes["eta_end"].setValue(new_eta)
-                    self._cs_spinboxes["eta_end"].blockSignals(False)
-
-            elif key == "eta_start":
-                geom["eta_start"] = float(value)
-                new_span = round(float(value) * semi_span, 1)
-                geom["span_start"] = new_span
-                if hasattr(self, "_cs_spinboxes") and "span_start" in self._cs_spinboxes:
-                    self._cs_spinboxes["span_start"].blockSignals(True)
-                    self._cs_spinboxes["span_start"].setValue(new_span)
-                    self._cs_spinboxes["span_start"].blockSignals(False)
-
-            elif key == "eta_end":
-                geom["eta_end"] = float(value)
-                new_span = round(float(value) * semi_span, 1)
-                geom["span_end"] = new_span
-                if hasattr(self, "_cs_spinboxes") and "span_end" in self._cs_spinboxes:
-                    self._cs_spinboxes["span_end"].blockSignals(True)
-                    self._cs_spinboxes["span_end"].setValue(new_span)
-                    self._cs_spinboxes["span_end"].blockSignals(False)
-
-            elif key == "chord_fraction":
-                geom["chord_fraction"] = float(value)
-                new_c = round(float(value) * root_chord, 1)
-                geom["chord"] = new_c
-                if hasattr(self, "_cs_spinboxes") and "chord" in self._cs_spinboxes:
-                    self._cs_spinboxes["chord"].blockSignals(True)
-                    self._cs_spinboxes["chord"].setValue(new_c)
-                    self._cs_spinboxes["chord"].blockSignals(False)
-
-            elif key == "chord":
-                geom["chord"] = max(float(value), 1.0)
-                new_cf = round(float(value) / root_chord, 3)
-                geom["chord_fraction"] = new_cf
-                if hasattr(self, "_cs_spinboxes") and "chord_fraction" in self._cs_spinboxes:
-                    self._cs_spinboxes["chord_fraction"].blockSignals(True)
-                    self._cs_spinboxes["chord_fraction"].setValue(new_cf)
-                    self._cs_spinboxes["chord_fraction"].blockSignals(False)
-
-            elif key == "hinge_sweep":
-                geom["hinge_sweep"] = float(value)
-            elif key == "deflection":
-                geom["deflection"] = float(value)
+            self._apply_cs_spinbox_change(geom, key, value, semi_span, root_chord)
 
         self._edit_control_surface_item(cs, f"Edit control surface {key}", change)
         self._refresh_cs_table_row(self._control_surface_index)
+
+    def _apply_cs_spinbox_change(
+        self,
+        geometry: dict[str, Any],
+        key: str,
+        value: float,
+        semi_span: float,
+        root_chord: float,
+    ) -> None:
+        linked: tuple[str, float] | None = None
+        if key in {"span_start", "span_end"}:
+            geometry[key] = float(value)
+            linked = (key.replace("span", "eta"), round(float(value) / semi_span, 4))
+        elif key in {"eta_start", "eta_end"}:
+            geometry[key] = float(value)
+            linked = (key.replace("eta", "span"), round(float(value) * semi_span, 1))
+        elif key == "chord_fraction":
+            geometry[key] = float(value)
+            linked = ("chord", round(float(value) * root_chord, 1))
+        elif key == "chord":
+            geometry[key] = max(float(value), 1.0)
+            linked = ("chord_fraction", round(float(value) / root_chord, 3))
+        elif key in {"hinge_sweep", "deflection"}:
+            geometry[key] = float(value)
+
+        if linked is not None:
+            linked_key, linked_value = linked
+            geometry[linked_key] = linked_value
+            self._set_cs_spinbox_value(linked_key, linked_value)
+
+    def _set_cs_spinbox_value(self, key: str, value: float) -> None:
+        spinbox = getattr(self, "_cs_spinboxes", {}).get(key)
+        if spinbox is None:
+            return
+        spinbox.blockSignals(True)
+        spinbox.setValue(value)
+        spinbox.blockSignals(False)
 
     # -------------------------------------------------------------------------
     # Control Surface Actions & Mutation

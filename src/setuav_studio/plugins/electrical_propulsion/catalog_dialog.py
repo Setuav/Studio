@@ -37,6 +37,56 @@ from setuav_studio.ui.icons import get_icon
 _INVALID_MODEL_INDEX = QModelIndex()
 
 
+def _column_value(values: tuple[Any, ...], column: int) -> Any:
+    return values[column] if 0 <= column < len(values) else None
+
+
+def _motor_display_values(motor: MotorEntry) -> tuple[Any, ...]:
+    return (
+        motor.manufacturer or "",
+        motor.name or "",
+        f"{motor.kv:.0f}" if motor.kv is not None else "-",
+        f"{motor.max_current:.1f}" if motor.max_current is not None else "-",
+        f"{motor.max_power:.0f}" if motor.max_power is not None else "-",
+        f"{motor.weight_g:.1f}" if motor.weight_g is not None else "-",
+        f"{motor.resistance:.4f}" if motor.resistance is not None else "-",
+    )
+
+
+def _motor_sort_values(motor: MotorEntry) -> tuple[Any, ...]:
+    return (
+        motor.id,
+        motor.name or "",
+        motor.kv or 0.0,
+        motor.max_current or 0.0,
+        motor.max_power or 0.0,
+        motor.weight_g or 0.0,
+        motor.resistance or 0.0,
+    )
+
+
+def _propeller_display_values(propeller: PropellerEntry) -> tuple[Any, ...]:
+    return (
+        propeller.metadata.manufacturer or "",
+        propeller.metadata.model or "",
+        f"{propeller.metadata.diameter_in:.1f}",
+        f"{propeller.diameter_m * 1000.0:.1f}",
+        f"{propeller.metadata.pitch_in:.1f}",
+        str(propeller.metadata.blade_count),
+    )
+
+
+def _propeller_sort_values(propeller: PropellerEntry) -> tuple[Any, ...]:
+    return (
+        propeller.metadata.manufacturer or "",
+        propeller.metadata.model or "",
+        propeller.metadata.diameter_in or 0.0,
+        propeller.diameter_m or 0.0,
+        propeller.metadata.pitch_in or 0.0,
+        propeller.metadata.blade_count or 0,
+    )
+
+
 class MotorCatalogModel(QAbstractTableModel):
     """Virtualized table model for motor database entries."""
 
@@ -90,20 +140,7 @@ class MotorCatalogModel(QAbstractTableModel):
         col = index.column()
 
         if role == Qt.ItemDataRole.DisplayRole:
-            if col == 0:
-                return m.manufacturer or ""
-            if col == 1:
-                return m.name or ""
-            if col == 2:
-                return f"{m.kv:.0f}" if m.kv is not None else "-"
-            if col == 3:
-                return f"{m.max_current:.1f}" if m.max_current is not None else "-"
-            if col == 4:
-                return f"{m.max_power:.0f}" if m.max_power is not None else "-"
-            if col == 5:
-                return f"{m.weight_g:.1f}" if m.weight_g is not None else "-"
-            if col == 6:
-                return f"{m.resistance:.4f}" if m.resistance is not None else "-"
+            return _column_value(_motor_display_values(m), col)
 
         if role == Qt.ItemDataRole.TextAlignmentRole:
             if col in (0, 1):
@@ -111,20 +148,7 @@ class MotorCatalogModel(QAbstractTableModel):
             return int(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter)
 
         if role == Qt.ItemDataRole.UserRole:
-            if col == 0:
-                return m.id
-            if col == 1:
-                return m.name or ""
-            if col == 2:
-                return m.kv or 0.0
-            if col == 3:
-                return m.max_current or 0.0
-            if col == 4:
-                return m.max_power or 0.0
-            if col == 5:
-                return m.weight_g or 0.0
-            if col == 6:
-                return m.resistance or 0.0
+            return _column_value(_motor_sort_values(m), col)
 
         return None
 
@@ -223,18 +247,7 @@ class PropellerCatalogModel(QAbstractTableModel):
         col = index.column()
 
         if role == Qt.ItemDataRole.DisplayRole:
-            if col == 0:
-                return p.metadata.manufacturer or ""
-            if col == 1:
-                return p.metadata.model or ""
-            if col == 2:
-                return f"{p.metadata.diameter_in:.1f}"
-            if col == 3:
-                return f"{p.diameter_m * 1000.0:.1f}"
-            if col == 4:
-                return f"{p.metadata.pitch_in:.1f}"
-            if col == 5:
-                return str(p.metadata.blade_count)
+            return _column_value(_propeller_display_values(p), col)
 
         if role == Qt.ItemDataRole.TextAlignmentRole:
             if col in (0, 1):
@@ -242,18 +255,7 @@ class PropellerCatalogModel(QAbstractTableModel):
             return int(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter)
 
         if role == Qt.ItemDataRole.UserRole:
-            if col == 0:
-                return p.metadata.manufacturer or ""
-            if col == 1:
-                return p.metadata.model or ""
-            if col == 2:
-                return p.metadata.diameter_in or 0.0
-            if col == 3:
-                return p.diameter_m or 0.0
-            if col == 4:
-                return p.metadata.pitch_in or 0.0
-            if col == 5:
-                return p.metadata.blade_count or 0
+            return _column_value(_propeller_sort_values(p), col)
 
         return None
 

@@ -133,46 +133,17 @@ def parse_airfoil_dat(
 
     name = non_empty[0].strip()
 
-    # Check for Lednicer format in line 2 (e.g. "61.0  61.0" or "49.0  49.0")
-    is_lednicer = False
-    n_upper = 0
-    n_lower = 0
-    if len(non_empty) > 1:
-        second_line = non_empty[1].replace(",", " ").split()
-        if len(second_line) == 2:
-            try:
-                val1 = float(second_line[0])
-                val2 = float(second_line[1])
-                if (val1 > 5 or val2 > 5) and (val1.is_integer() or val2.is_integer()):
-                    is_lednicer = True
-                    n_upper = int(val1)
-                    n_lower = int(val2)
-            except ValueError:
-                pass
+    n_upper, n_lower = _lednicer_counts(non_empty)
+    is_lednicer = n_upper > 0 or n_lower > 0
 
     if is_lednicer:
         # Lednicer format: upper surface (LE -> TE), then lower surface (LE -> TE)
-        data_points: list[tuple[float, float]] = []
-        for line in non_empty[2:]:
-            parts = line.replace(",", " ").split()
-            if len(parts) >= 2:
-                try:
-                    data_points.append((float(parts[0]), float(parts[1])))
-                except ValueError:
-                    continue
-
+        data_points = _coordinate_lines(non_empty[2:])
         upper = data_points[:n_upper]  # LE -> TE
         lower = data_points[n_upper : n_upper + n_lower]  # LE -> TE
     else:
         # Selig format: single continuous loop TE -> LE -> TE
-        loop = []
-        for line in non_empty[1:]:
-            parts = line.replace(",", " ").split()
-            if len(parts) >= 2:
-                try:
-                    loop.append((float(parts[0]), float(parts[1])))
-                except ValueError:
-                    continue
+        loop = _coordinate_lines(non_empty[1:])
         if len(loop) < 3:
             return name, naca4("0012", samples // 2)
         le_idx = min(range(len(loop)), key=lambda i: loop[i][0])
@@ -202,6 +173,33 @@ def parse_airfoil_dat(
 
     loop_clean = tuple(list(reversed(upper_norm)) + lower_norm[1:])
     return name, loop_clean
+
+
+def _lednicer_counts(lines: list[str]) -> tuple[int, int]:
+    if len(lines) <= 1:
+        return 0, 0
+    parts = lines[1].replace(",", " ").split()
+    if len(parts) != 2:
+        return 0, 0
+    try:
+        upper, lower = float(parts[0]), float(parts[1])
+    except ValueError:
+        return 0, 0
+    looks_like_counts = (upper > 5 or lower > 5) and (upper.is_integer() or lower.is_integer())
+    return (int(upper), int(lower)) if looks_like_counts else (0, 0)
+
+
+def _coordinate_lines(lines: list[str]) -> list[tuple[float, float]]:
+    points: list[tuple[float, float]] = []
+    for line in lines:
+        parts = line.replace(",", " ").split()
+        if len(parts) < 2:
+            continue
+        try:
+            points.append((float(parts[0]), float(parts[1])))
+        except ValueError:
+            continue
+    return points
 
 
 def compute_airfoil_metrics(
@@ -497,67 +495,69 @@ PRESET_AIRFOILS: dict[str, dict[str, Any]] = {
 def sample_airfoil_points(value: object) -> tuple[tuple[float, float], ...]:
     """Sample coordinates for any airfoil representation (string, code, dict, file)."""
     if isinstance(value, dict):
-        val_type = value.get("type")
-        if val_type == "coordinates":
-            points = value.get("points")
-            if isinstance(points, list):
-                parsed = [
-                    (float(p[0]), float(p[1]))
-                    for p in points
-                    if isinstance(p, (list, tuple)) and len(p) >= 2
-                ]
-                if len(parsed) >= 3:
-                    min_x = min(p[0] for p in parsed)
-                    max_x = max(p[0] for p in parsed)
-                    chord = max(max_x - min_x, 1e-6)
-                    norm = [((p[0] - min_x) / chord, p[1] / chord) for p in parsed]
-                    le_idx = min(range(len(norm)), key=lambda i: norm[i][0])
-                    norm[le_idx] = (0.0, norm[le_idx][1])
-                    return tuple(norm)
-        elif val_type == "naca":
-            code = str(value.get("code") or "0012")
-            clean_digits = re.sub(r"[^\d]", "", code)
-            if len(clean_digits) == 5:
-                return naca5(clean_digits)
-            return naca4(clean_digits or "0012")
-        elif val_type == "file":
-            path_str = str(value.get("path") or value.get("file") or "")
-            path = Path(path_str)
-            if not path.is_file():
-                path = AIRFOILS_DATA_DIR / path_str
-            if path.is_file():
-                try:
-                    _, pts = parse_airfoil_dat(path.read_text(encoding="utf-8"))
-                    return pts
-                except (ValueError, OSError, IndexError) as exc:
-                    logger.warning("Failed to parse airfoil file %s: %s", path, exc)
+        points = _sample_airfoil_mapping(value)
+        if points is not None:
+            return points
 
-    # String matching
     if isinstance(value, str):
-        val_str = value.strip()
-        # 1. Preset dictionary
-        for name, preset in PRESET_AIRFOILS.items():
-            if (
-                name.lower() == val_str.lower()
-                or name.replace(" ", "").lower() == val_str.replace(" ", "").lower()
-            ):
-                return preset["generator"]()
-        # 2. NACA digits
-        match5 = re.search(r"(?:naca\s*)?(\d{5})", val_str, re.IGNORECASE)
-        if match5:
-            return naca5(match5.group(1))
-        match4 = re.search(r"(?:naca\s*)?(\d{4})", val_str, re.IGNORECASE)
-        if match4:
-            return naca4(match4.group(1))
-        # 3. File path
-        path = Path(val_str)
-        if not path.is_file():
-            path = AIRFOILS_DATA_DIR / val_str
-        if path.is_file():
-            try:
-                _, pts = parse_airfoil_dat(path.read_text(encoding="utf-8"))
-                return pts
-            except (ValueError, OSError, IndexError) as exc:
-                logger.warning("Failed to parse airfoil file %s: %s", path, exc)
+        points = _sample_airfoil_string(value.strip())
+        if points is not None:
+            return points
 
     return naca4("0012")
+
+
+def _sample_airfoil_mapping(value: dict[str, Any]) -> tuple[tuple[float, float], ...] | None:
+    value_type = value.get("type")
+    if value_type == "coordinates":
+        return _normalized_coordinates(value.get("points"))
+    if value_type == "naca":
+        digits = re.sub(r"[^\d]", "", str(value.get("code") or "0012"))
+        return naca5(digits) if len(digits) == 5 else naca4(digits or "0012")
+    if value_type == "file":
+        return _sample_airfoil_file(str(value.get("path") or value.get("file") or ""))
+    return None
+
+
+def _normalized_coordinates(value: object) -> tuple[tuple[float, float], ...] | None:
+    if not isinstance(value, list):
+        return None
+    parsed = [
+        (float(point[0]), float(point[1]))
+        for point in value
+        if isinstance(point, (list, tuple)) and len(point) >= 2
+    ]
+    if len(parsed) < 3:
+        return None
+    min_x = min(point[0] for point in parsed)
+    chord = max(max(point[0] for point in parsed) - min_x, 1e-6)
+    normalized = [((x - min_x) / chord, z / chord) for x, z in parsed]
+    leading_edge = min(range(len(normalized)), key=lambda index: normalized[index][0])
+    normalized[leading_edge] = (0.0, normalized[leading_edge][1])
+    return tuple(normalized)
+
+
+def _sample_airfoil_string(value: str) -> tuple[tuple[float, float], ...] | None:
+    normalized_name = value.replace(" ", "").lower()
+    for name, preset in PRESET_AIRFOILS.items():
+        if name.replace(" ", "").lower() == normalized_name:
+            return preset["generator"]()
+    match = re.search(r"(?:naca\s*)?(\d{5}|\d{4})", value, re.IGNORECASE)
+    if match:
+        digits = match.group(1)
+        return naca5(digits) if len(digits) == 5 else naca4(digits)
+    return _sample_airfoil_file(value)
+
+
+def _sample_airfoil_file(path_value: str) -> tuple[tuple[float, float], ...] | None:
+    path = Path(path_value)
+    if not path.is_file():
+        path = AIRFOILS_DATA_DIR / path_value
+    if not path.is_file():
+        return None
+    try:
+        _, points = parse_airfoil_dat(path.read_text(encoding="utf-8"))
+        return points
+    except (ValueError, OSError, IndexError) as exc:
+        logger.warning("Failed to parse airfoil file %s: %s", path, exc)
+        return None

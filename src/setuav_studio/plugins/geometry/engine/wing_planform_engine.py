@@ -84,68 +84,11 @@ def solve_wing_planform(
         metrics = compute_planform_metrics(current_profiles, sweep_loc, symmetric, y_offset)
         return current_profiles, metrics
 
-    abs_y_offset = abs(float(y_offset))
-
-    # 1. Resolve macro target dimensions
-    if mode == "area_ar_taper":
-        s_target = max(float(inputs.get("area", 200000.0)), 100.0)
-        ar_target = max(float(inputs.get("aspect_ratio", 5.0)), 0.1)
-        taper = max(float(inputs.get("taper_ratio", 0.5)), 0.01)
-        b_target = math.sqrt(s_target * ar_target)
-        if symmetric:
-            b_semi = b_target / 2.0
-            b_panel = max(b_semi - abs_y_offset, 1.0)
-            c_root = s_target / max(b_panel * (1.0 + taper) + 2.0 * abs_y_offset, 1e-6)
-        else:
-            b_panel = max(b_target, 1.0)
-            c_root = (2.0 * s_target) / max(b_panel * (1.0 + taper), 1e-6)
-        c_tip = taper * c_root
-
-    elif mode == "span_root_tip":
-        b_target = max(float(inputs.get("span", 1000.0)), 10.0)
-        c_root = max(float(inputs.get("root_chord", 200.0)), 1.0)
-        c_tip = max(float(inputs.get("tip_chord", 100.0)), 1.0)
-        taper = c_tip / max(c_root, 1e-6)
-        if symmetric:
-            b_semi = b_target / 2.0
-            b_panel = max(b_semi - abs_y_offset, 1.0)
-            s_target = b_panel * (c_root + c_tip) + 2.0 * abs_y_offset * c_root
-        else:
-            b_panel = max(b_target, 1.0)
-            s_target = b_panel * (c_root + c_tip) / 2.0
-        ar_target = (b_target**2) / max(s_target, 1e-6)
-
-    elif mode == "span_area_taper":
-        b_target = max(float(inputs.get("span", 1000.0)), 10.0)
-        s_target = max(float(inputs.get("area", 200000.0)), 100.0)
-        taper = max(float(inputs.get("taper_ratio", 0.5)), 0.01)
-        if symmetric:
-            b_semi = b_target / 2.0
-            b_panel = max(b_semi - abs_y_offset, 1.0)
-            c_root = s_target / max(b_panel * (1.0 + taper) + 2.0 * abs_y_offset, 1e-6)
-        else:
-            b_panel = max(b_target, 1.0)
-            c_root = (2.0 * s_target) / max(b_panel * (1.0 + taper), 1e-6)
-        c_tip = taper * c_root
-        ar_target = (b_target**2) / max(s_target, 1e-6)
-
-    elif mode == "span_ar_taper":
-        b_target = max(float(inputs.get("span", 1000.0)), 10.0)
-        ar_target = max(float(inputs.get("aspect_ratio", 5.0)), 0.1)
-        taper = max(float(inputs.get("taper_ratio", 0.5)), 0.01)
-        s_target = (b_target**2) / max(ar_target, 1e-6)
-        if symmetric:
-            b_semi = b_target / 2.0
-            b_panel = max(b_semi - abs_y_offset, 1.0)
-            c_root = s_target / max(b_panel * (1.0 + taper) + 2.0 * abs_y_offset, 1e-6)
-        else:
-            b_panel = max(b_target, 1.0)
-            c_root = (2.0 * s_target) / max(b_panel * (1.0 + taper), 1e-6)
-        c_tip = taper * c_root
-
-    else:
+    targets = _resolve_planform_targets(mode, inputs, symmetric, y_offset)
+    if targets is None:
         metrics = compute_planform_metrics(current_profiles, sweep_loc, symmetric, y_offset)
         return current_profiles, metrics
+    b_panel, c_root, c_tip = targets
 
     sweep_deg = float(inputs.get("sweep", 0.0))
     sweep_rad = math.radians(sweep_deg)
@@ -246,6 +189,54 @@ def solve_wing_planform(
 
     metrics = compute_planform_metrics(new_profiles, sweep_loc, symmetric, y_offset)
     return new_profiles, metrics
+
+
+def _resolve_planform_targets(
+    mode: str, inputs: dict[str, float], symmetric: bool, y_offset: float
+) -> tuple[float, float, float] | None:
+    offset = abs(float(y_offset))
+    if mode == "area_ar_taper":
+        area = max(float(inputs.get("area", 200000.0)), 100.0)
+        aspect_ratio = max(float(inputs.get("aspect_ratio", 5.0)), 0.1)
+        span = math.sqrt(area * aspect_ratio)
+        taper = max(float(inputs.get("taper_ratio", 0.5)), 0.01)
+        panel_span = _target_panel_span(span, symmetric, offset)
+        root = _root_chord_for_area(area, panel_span, taper, symmetric, offset)
+        return panel_span, root, taper * root
+    if mode == "span_root_tip":
+        span = max(float(inputs.get("span", 1000.0)), 10.0)
+        return (
+            _target_panel_span(span, symmetric, offset),
+            max(float(inputs.get("root_chord", 200.0)), 1.0),
+            max(float(inputs.get("tip_chord", 100.0)), 1.0),
+        )
+    if mode in {"span_area_taper", "span_ar_taper"}:
+        span = max(float(inputs.get("span", 1000.0)), 10.0)
+        taper = max(float(inputs.get("taper_ratio", 0.5)), 0.01)
+        area = _target_planform_area(mode, inputs, span)
+        panel_span = _target_panel_span(span, symmetric, offset)
+        root = _root_chord_for_area(area, panel_span, taper, symmetric, offset)
+        return panel_span, root, taper * root
+    return None
+
+
+def _target_planform_area(mode: str, inputs: dict[str, float], span: float) -> float:
+    if mode == "span_area_taper":
+        return max(float(inputs.get("area", 200000.0)), 100.0)
+    aspect_ratio = max(float(inputs.get("aspect_ratio", 5.0)), 0.1)
+    return span**2 / max(aspect_ratio, 1e-6)
+
+
+def _target_panel_span(span: float, symmetric: bool, offset: float) -> float:
+    return max(span / 2.0 - offset if symmetric else span, 1.0)
+
+
+def _root_chord_for_area(
+    area: float, panel_span: float, taper: float, symmetric: bool, offset: float
+) -> float:
+    if symmetric:
+        return area / max(panel_span * (1.0 + taper) + 2.0 * offset, 1e-6)
+    return 2.0 * area / max(panel_span * (1.0 + taper), 1e-6)
 
 
 def compute_planform_metrics(

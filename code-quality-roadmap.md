@@ -184,8 +184,32 @@ baseline 0 fonksiyondur.
    `C901` istisnası kaldırıldı.
 
 Tüm noktasal istisnalar kaldırıldı ve `20` eşiği kaynak kodun tamamında
-sağlanıyor. Sonraki aşamada `16–20` aralığındaki fonksiyonlar ele alınarak eşik
-önce `15`, ardından `10` seviyesine indirilecek.
+sağlanıyor.
+
+### Karmaşıklık eşiğini 15'e indirme
+
+- [x] `aerodynamics.charts_dock._render_chart_set` — `17 → 12`; X ekseni
+  çözümleme ayrıldı.
+- [x] Motor ve pervane katalog modellerinin `data` metotları — `20 / 18 → 6 / 6`;
+  görüntüleme ve sıralama değerleri kolon yardımcılarına taşındı.
+- [x] `electrical_propulsion.results_dock.set_results` — `17 → 4`; özet, verim
+  seçimi ve tablo satırı üretimi ayrıldı.
+- [x] Control-surface spinbox handler'ları — `17 / 18 → 3 / 4`; bağlı alan
+  hesaplama ve widget senkronizasyonu ayrıldı.
+- [x] `airfoil.parse_airfoil_dat` ve `sample_airfoil_points` — `17 / 19 → 7 / 5`;
+  format algılama, koordinat normalizasyonu ve kaynak çözümleme ayrıldı.
+- [x] `lifting_surface_geometry._build_winglet_loft` — `19 → 9`; sweep ve cant
+  açı çözümleme yardımcıları eklendi.
+- [x] `wing_driver_solver.solve_8_parameter_driver` — `20 → 2`; span kullanılan
+  ve türetilen çözüm yolları saf fonksiyonlara ayrıldı.
+- [x] `wing_planform_engine.solve_wing_planform` — `18 → 11`; hedef planform
+  boyutlarının çözümü ayrıldı.
+- [x] Shell ikon ve kaydedilmemiş değişiklik akışları — `16 / 19 → 4 / 5`;
+  ikon eşleme, entity karşılaştırma ve analiz toplama ayrıldı.
+- [x] Ruff `C901` eşiği kaynak kodun tamamında `15` olarak etkinleştirildi.
+
+Sonraki aşamada `11–15` aralığındaki fonksiyonlar ele alınarak eşik `10`
+seviyesine indirilecek.
 
 ## 9. Bağımlılıkları düzenle
 

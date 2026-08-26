@@ -1210,32 +1210,18 @@ def _build_winglet_loft(
     c_tip = cant_tip_deg if cant_tip_deg is not None else cant_angle_deg
     c_root = cant_root_deg if cant_root_deg is not None else 0.0
 
-    # Resolve LE sweep
-    if le_sweep_tip_deg is not None:
-        le_s_tip = le_sweep_tip_deg
-    elif sweep_tip_deg is not None:
-        le_s_tip = sweep_tip_deg
-    else:
-        le_s_tip = sweep_deg
-
-    if le_sweep_root_deg is not None:
-        le_s_root = le_sweep_root_deg
-    elif match_wing_tangent:
-        le_s_root = incoming_le_sweep_deg
-    elif sweep_root_deg is not None:
-        le_s_root = sweep_root_deg
-    else:
-        le_s_root = sweep_deg
-
-    # Resolve TE sweep
-    if te_sweep_root_deg is not None:
-        te_s_root = te_sweep_root_deg
-    elif match_wing_tangent:
-        te_s_root = incoming_te_sweep_deg
-    else:
-        te_s_root = le_s_root * 0.7
-
-    te_s_tip = te_sweep_tip_deg if te_sweep_tip_deg is not None else le_s_tip * 0.5
+    le_s_root, le_s_tip, te_s_root, te_s_tip = _winglet_sweep_angles(
+        sweep_deg,
+        sweep_root_deg,
+        sweep_tip_deg,
+        le_sweep_root_deg,
+        le_sweep_tip_deg,
+        te_sweep_root_deg,
+        te_sweep_tip_deg,
+        match_wing_tangent,
+        incoming_le_sweep_deg,
+        incoming_te_sweep_deg,
+    )
 
     # Curvature parameters
     le_curv_val = le_curvature + scimitar_offset
@@ -1249,21 +1235,7 @@ def _build_winglet_loft(
     n_pts = max(n_stations, 20)
     u_vals = [0.5 * (1.0 - math.cos(math.pi * i / (n_pts - 1))) for i in range(n_pts)]
 
-    # Pre-calculate cant angle Gamma(u) at each station
-    u_blend = min(1.0, max(0.01, blend_radius / winglet_height)) if blend_radius > 0.0 else 0.0
-
-    cant_angles_rad: list[float] = []
-    for u in u_vals:
-        if blend_radius > 0.0:
-            if u <= u_blend:
-                t = u / u_blend
-                w = t * t * t * (t * (t * 6.0 - 15.0) + 10.0)  # quintic smoothstep
-                angle = c_root + (c_tip - c_root) * w
-            else:
-                angle = c_tip
-        else:
-            angle = c_root + (c_tip - c_root) * u
-        cant_angles_rad.append(math.radians(angle))
+    cant_angles_rad = _winglet_cant_angles(u_vals, c_root, c_tip, blend_radius, winglet_height)
 
     # Integrate delta Y and delta Z along height
     y_offsets: list[float] = [0.0]
@@ -1391,3 +1363,57 @@ def _build_winglet_loft(
         station_spacing=10.0,
         closed_ends=True,
     )
+
+
+def _winglet_sweep_angles(
+    sweep: float,
+    sweep_root: float | None,
+    sweep_tip: float | None,
+    leading_root: float | None,
+    leading_tip: float | None,
+    trailing_root: float | None,
+    trailing_tip: float | None,
+    match_tangent: bool,
+    incoming_leading: float,
+    incoming_trailing: float,
+) -> tuple[float, float, float, float]:
+    leading_tip_value = leading_tip if leading_tip is not None else sweep_tip
+    if leading_tip_value is None:
+        leading_tip_value = sweep
+
+    leading_root_value = leading_root
+    if leading_root_value is None:
+        if match_tangent:
+            leading_root_value = incoming_leading
+        elif sweep_root is not None:
+            leading_root_value = sweep_root
+        else:
+            leading_root_value = sweep
+
+    trailing_root_value = trailing_root
+    if trailing_root_value is None:
+        trailing_root_value = incoming_trailing if match_tangent else leading_root_value * 0.7
+    trailing_tip_value = trailing_tip if trailing_tip is not None else leading_tip_value * 0.5
+    return leading_root_value, leading_tip_value, trailing_root_value, trailing_tip_value
+
+
+def _winglet_cant_angles(
+    stations: list[float],
+    root_angle: float,
+    tip_angle: float,
+    blend_radius: float,
+    height: float,
+) -> list[float]:
+    blend_end = min(1.0, max(0.01, blend_radius / height)) if blend_radius > 0.0 else 0.0
+    angles: list[float] = []
+    for station in stations:
+        if blend_radius <= 0.0:
+            angle = root_angle + (tip_angle - root_angle) * station
+        elif station > blend_end:
+            angle = tip_angle
+        else:
+            ratio = station / blend_end
+            weight = ratio**3 * (ratio * (ratio * 6.0 - 15.0) + 10.0)
+            angle = root_angle + (tip_angle - root_angle) * weight
+        angles.append(math.radians(angle))
+    return angles
