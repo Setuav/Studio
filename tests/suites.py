@@ -14,6 +14,7 @@ CORE_MODULES = (
     "tests.core.test_main",
     "tests.core.test_plugins",
     "tests.core.test_project",
+    "tests.core.test_project_edge_cases",
     "tests.core.test_schema_drift",
     "tests.core.test_settings",
     "tests.core.test_theme",
