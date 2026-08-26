@@ -145,8 +145,9 @@ noktasal `noqa` ile baseline edildi. Dosya bazlı istisna
 kullanılmadığı için aynı dosyalara eklenecek yeni karmaşık fonksiyonlar kalite
 kapısında yakalanacak.
 
-Shell workspace layout, AeroSandbox ve flight-performance refactor'larının
-ardından dört istisna kaldırıldı; güncel baseline 9 fonksiyondur.
+Shell workspace layout, AeroSandbox, flight-performance ve section-ring
+refactor'larının ardından beş istisna kaldırıldı; güncel baseline 8
+fonksiyondur.
 
 ### Karmaşıklık azaltma kuyruğu
 
@@ -161,8 +162,10 @@ ardından dört istisna kaldırıldı; güncel baseline 9 fonksiyondur.
    seviyesine indirildi. Girdi ve kütle çözümleme, aerodinamik model, hız ve
    propulsion grid'leri ile sonuç üretimi bağımsız pipeline aşamalarına ayrıldı;
    `C901` istisnası kaldırıldı.
-4. [ ] `geometry.viewport.mesh.build_section_ring_vertices` — `36`; profil türü
-   üreticilerini ayır.
+4. [x] `geometry.viewport.mesh.build_section_ring_vertices` — `36` seviyesinden
+   `4` seviyesine indirildi. Control surface, tek station ve panel vurguları
+   bağımsız üreticilere; ortak loft/station seçimi yardımcı fonksiyonlara
+   ayrıldı ve `C901` istisnası kaldırıldı.
 5. [ ] `schema_validation.validate_project` — `30`; doğrulama kurallarını saf
    validator fonksiyonlarına ayır.
 6. [ ] `geometry.viewport.scene` — `29` / `21`; scene çözümleme ve wing-root stub

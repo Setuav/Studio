@@ -115,140 +115,157 @@ AIRFOIL_HIGHLIGHT = SELECTED_WIRE
 AIRFOIL_CHORD_HIGHLIGHT = SELECTED_WIRE
 
 
-def build_section_ring_vertices(  # noqa: C901
+def build_section_ring_vertices(
     data: GeometryData,
     component_id: str | None,
     segment_index: int | None,
     section_index: int | None,
     color: Point3D = SECTION_RING,
 ) -> list[float]:
-    vertices: list[float] = []
     if component_id is None or section_index is None:
-        return vertices
-
-    # 1. Control Surface Selection (segment_index == 1)
+        return []
     if segment_index == 1:
-        cs_lofts: list[LoftGeometry] = []
-        distinct_tags: list[str] = []
-        for loft in data.lofts:
-            if not _is_matching_component(loft.component_id, component_id):
-                continue
-            parts = loft.component_id.split(":")
-            subtags = [
-                p
-                for p in parts
-                if p not in (component_id, "mirror", "stations", "tip-cap", "winglet")
-            ]
-            if subtags:
-                cs_lofts.append(loft)
-                for st in subtags:
-                    if st not in distinct_tags:
-                        distinct_tags.append(st)
-
-        if 0 <= section_index < len(distinct_tags):
-            target_tag = distinct_tags[section_index]
-            for loft in cs_lofts:
-                if target_tag in loft.component_id:
-                    loops = _tessellated_loops(loft)
-                    if loops:
-                        _append_loft_wire(vertices, loops, CS_HIGHLIGHT)
-        elif cs_lofts:
-            for loft in cs_lofts:
-                loops = _tessellated_loops(loft)
-                if loops:
-                    _append_loft_wire(vertices, loops, CS_HIGHLIGHT)
-        return vertices
-
-    # 2. Single Station / Airfoil Selection (segment_index == 2)
+        return _build_control_surface_highlight(data, component_id, section_index)
     if segment_index == 2:
-        for is_mirror in (False, True):
-            matched_lofts = [
-                loft
-                for loft in data.lofts
-                if _is_matching_component(loft.component_id, component_id)
-                and ((":mirror" in loft.component_id) == is_mirror)
-                and not (
-                    ":cs-" in loft.component_id
-                    or ":hinge-" in loft.component_id
-                    or ":tip-cap" in loft.component_id
-                )
-            ]
-            if not matched_lofts:
-                continue
+        return _build_station_highlight(data, component_id, section_index)
+    return _build_panel_highlight(data, component_id, section_index, color)
 
-            seen_y: list[float] = []
-            station_sections: list[Section] = []
-            for loft in matched_lofts:
-                for sec in loft.sections:
-                    if not getattr(sec, "is_station", True):
-                        continue
-                    y_coord = sec.points[0][1] if sec.points else 0.0
-                    if not any(abs(y_coord - sy) < 1e-2 for sy in seen_y):
-                        seen_y.append(y_coord)
-                        station_sections.append(sec)
 
-            station_sections.sort(key=lambda s: abs(s.points[0][1]))
+def _build_control_surface_highlight(
+    data: GeometryData,
+    component_id: str,
+    section_index: int,
+) -> list[float]:
+    control_lofts, distinct_tags = _control_surface_lofts(data, component_id)
+    if 0 <= section_index < len(distinct_tags):
+        target_tag = distinct_tags[section_index]
+        selected_lofts = [loft for loft in control_lofts if target_tag in loft.component_id]
+    else:
+        selected_lofts = control_lofts
 
-            if 0 <= section_index < len(station_sections):
-                loop = station_sections[section_index].points
-                for index, point in enumerate(loop):
-                    _add_line(vertices, point, loop[(index + 1) % len(loop)], AIRFOIL_HIGHLIGHT)
-                if loop:
-                    min_x_pt = min(loop, key=lambda p: p[0])
-                    max_x_pt = max(loop, key=lambda p: p[0])
-                    _add_line(vertices, min_x_pt, max_x_pt, AIRFOIL_CHORD_HIGHLIGHT)
-        return vertices
-
-    # 2. Wing Section (Panel) Selection (segment_index == 0 or None)
-    for is_mirror in (False, True):
-        matched_lofts = [
-            loft
-            for loft in data.lofts
-            if _is_matching_component(loft.component_id, component_id)
-            and ((":mirror" in loft.component_id) == is_mirror)
-            and not (
-                ":cs-" in loft.component_id
-                or ":hinge-" in loft.component_id
-                or ":tip-cap" in loft.component_id
-            )
-        ]
-        if not matched_lofts:
-            continue
-
-        # Extract only genuine profile stations (filtering out structural control surface bay cuts)
-        seen_y: list[float] = []
-        station_sections: list[Section] = []
-        for loft in matched_lofts:
-            for sec in loft.sections:
-                if not getattr(sec, "is_station", True):
-                    continue
-                y_coord = sec.points[0][1] if sec.points else 0.0
-                if not any(abs(y_coord - sy) < 1e-2 for sy in seen_y):
-                    seen_y.append(y_coord)
-                    station_sections.append(sec)
-
-        # Sort along span from root to tip
-        station_sections.sort(key=lambda s: abs(s.points[0][1]))
-
-        # Highlight root station ring and tip station ring of the selected panel
-        if 0 <= section_index < len(station_sections):
-            root_loop = station_sections[section_index].points
-            for index, point in enumerate(root_loop):
-                _add_line(vertices, point, root_loop[(index + 1) % len(root_loop)], color)
-
-            tip_idx = section_index + 1
-            if tip_idx < len(station_sections):
-                tip_loop = station_sections[tip_idx].points
-                for index, point in enumerate(tip_loop):
-                    _add_line(vertices, point, tip_loop[(index + 1) % len(tip_loop)], color)
-
-                # Add connecting longitudinal rails between root and tip
-                p_count = min(len(root_loop), len(tip_loop))
-                for frac in (0.0, 0.25, 0.5, 0.75):
-                    idx_pt = int(frac * p_count) % p_count
-                    _add_line(vertices, root_loop[idx_pt], tip_loop[idx_pt], color)
-
+    vertices: list[float] = []
+    for loft in selected_lofts:
+        loops = _tessellated_loops(loft)
+        if loops:
+            _append_loft_wire(vertices, loops, CS_HIGHLIGHT)
     return vertices
+
+
+def _control_surface_lofts(
+    data: GeometryData,
+    component_id: str,
+) -> tuple[list[LoftGeometry], list[str]]:
+    lofts: list[LoftGeometry] = []
+    distinct_tags: list[str] = []
+    ignored_parts = (component_id, "mirror", "stations", "tip-cap", "winglet")
+    for loft in data.lofts:
+        if not _is_matching_component(loft.component_id, component_id):
+            continue
+        subtags = [part for part in loft.component_id.split(":") if part not in ignored_parts]
+        if not subtags:
+            continue
+        lofts.append(loft)
+        for tag in subtags:
+            if tag not in distinct_tags:
+                distinct_tags.append(tag)
+    return lofts, distinct_tags
+
+
+def _build_station_highlight(
+    data: GeometryData,
+    component_id: str,
+    section_index: int,
+) -> list[float]:
+    vertices: list[float] = []
+    for is_mirror in (False, True):
+        sections = _station_sections(_matching_station_lofts(data, component_id, is_mirror))
+        if not 0 <= section_index < len(sections):
+            continue
+        loop = sections[section_index].points
+        _append_ring(vertices, loop, AIRFOIL_HIGHLIGHT)
+        if loop:
+            _add_line(
+                vertices,
+                min(loop, key=lambda point: point[0]),
+                max(loop, key=lambda point: point[0]),
+                AIRFOIL_CHORD_HIGHLIGHT,
+            )
+    return vertices
+
+
+def _build_panel_highlight(
+    data: GeometryData,
+    component_id: str,
+    section_index: int,
+    color: Point3D,
+) -> list[float]:
+    vertices: list[float] = []
+    for is_mirror in (False, True):
+        sections = _station_sections(_matching_station_lofts(data, component_id, is_mirror))
+        if not 0 <= section_index < len(sections):
+            continue
+        root_loop = sections[section_index].points
+        _append_ring(vertices, root_loop, color)
+
+        tip_index = section_index + 1
+        if tip_index >= len(sections):
+            continue
+        tip_loop = sections[tip_index].points
+        _append_ring(vertices, tip_loop, color)
+        _append_panel_rails(vertices, root_loop, tip_loop, color)
+    return vertices
+
+
+def _matching_station_lofts(
+    data: GeometryData,
+    component_id: str,
+    is_mirror: bool,
+) -> list[LoftGeometry]:
+    excluded_parts = (":cs-", ":hinge-", ":tip-cap")
+    return [
+        loft
+        for loft in data.lofts
+        if _is_matching_component(loft.component_id, component_id)
+        and ((":mirror" in loft.component_id) == is_mirror)
+        and not any(part in loft.component_id for part in excluded_parts)
+    ]
+
+
+def _station_sections(lofts: list[LoftGeometry]) -> list[Section]:
+    seen_y: list[float] = []
+    sections: list[Section] = []
+    for loft in lofts:
+        for section in loft.sections:
+            if not getattr(section, "is_station", True):
+                continue
+            y_coord = section.points[0][1] if section.points else 0.0
+            if any(abs(y_coord - seen) < 1e-2 for seen in seen_y):
+                continue
+            seen_y.append(y_coord)
+            sections.append(section)
+    sections.sort(key=lambda section: abs(section.points[0][1]))
+    return sections
+
+
+def _append_ring(
+    vertices: list[float],
+    loop: tuple[Point3D, ...],
+    color: Point3D,
+) -> None:
+    for index, point in enumerate(loop):
+        _add_line(vertices, point, loop[(index + 1) % len(loop)], color)
+
+
+def _append_panel_rails(
+    vertices: list[float],
+    root_loop: tuple[Point3D, ...],
+    tip_loop: tuple[Point3D, ...],
+    color: Point3D,
+) -> None:
+    point_count = min(len(root_loop), len(tip_loop))
+    for fraction in (0.0, 0.25, 0.5, 0.75):
+        point_index = int(fraction * point_count) % point_count
+        _add_line(vertices, root_loop[point_index], tip_loop[point_index], color)
 
 
 def build_loft_solid_vertices(
