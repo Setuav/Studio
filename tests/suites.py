@@ -33,7 +33,10 @@ AERODYNAMICS_INTEGRATION_MODULES = (
     "tests.aerodynamics.integration.test_stability_engine",
     "tests.aerodynamics.integration.test_sweep_infrastructure",
 )
-ELECTRICAL_PROPULSION_MODULES = ("tests.electrical_propulsion.test_electrical_propulsion",)
+ELECTRICAL_PROPULSION_MODULES = (
+    "tests.electrical_propulsion.test_creation",
+    "tests.electrical_propulsion.test_electrical_propulsion",
+)
 FLIGHT_PERFORMANCE_MODULES = ("tests.flight_performance.test_flight_performance",)
 WEIGHT_BALANCE_MODULES = ("tests.weight_balance.test_weight_balance",)
 
