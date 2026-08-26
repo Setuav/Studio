@@ -343,7 +343,7 @@ class FlightPerformanceSolver:
         return low
 
     @classmethod
-    def run_analysis(
+    def run_analysis(  # noqa: C901
         cls,
         context: dict[str, Any],
         progress_callback: Callable[[int, int, str], None] | None = None,

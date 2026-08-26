@@ -90,7 +90,7 @@ class AeroSandboxEngine(AeroEngine):
             supports_control_surfaces=True,
         )
 
-    def analyze(
+    def analyze(  # noqa: C901
         self,
         components: list[dict[str, Any]],
         condition: FlightCondition,
@@ -900,7 +900,7 @@ class AeroSandboxEngine(AeroEngine):
             return self._resolve_world_transform(comp_by_id[str(parent_id)], comp_by_id)
         return np.zeros(3), np.eye(3)
 
-    def _convert_lifting_surface(
+    def _convert_lifting_surface(  # noqa: C901
         self,
         comp: dict[str, Any],
         comp_by_id: dict[str, dict[str, Any]] | None = None,

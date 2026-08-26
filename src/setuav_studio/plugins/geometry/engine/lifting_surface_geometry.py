@@ -304,7 +304,7 @@ def _build_profile_section(
     return _section_with_align(matrix, chord, main_2d, dihedral_rad, section_align)
 
 
-def _build_lifting_surface_with_control_surfaces(
+def _build_lifting_surface_with_control_surfaces(  # noqa: C901
     comp_id: str,
     profiles: list[dict[str, Any]],
     control_surfaces: list[dict[str, Any]],

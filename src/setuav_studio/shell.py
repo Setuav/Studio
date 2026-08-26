@@ -1210,7 +1210,7 @@ class MainWindow(QMainWindow):
             self._schedule_workspace_layout_save()
         return super().eventFilter(watched, event)
 
-    def _apply_default_workspace_layout(self, workspace_id: str) -> None:
+    def _apply_default_workspace_layout(self, workspace_id: str) -> None:  # noqa: C901
         explorer = self.findChild(QDockWidget, "project.explorer")
         viewer = self.findChild(QDockWidget, "studio.viewer.opengl")
         props = self.findChild(QDockWidget, "studio.properties")

@@ -128,7 +128,7 @@ class SinglePerformanceChartWidget(QWidget):
         axis.setLinePenColor(dim_col)
         return axis
 
-    def plot_dual_curves(
+    def plot_dual_curves(  # noqa: C901
         self,
         x_vals: Sequence[float],
         y1_vals: Sequence[float],

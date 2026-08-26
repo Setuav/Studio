@@ -226,7 +226,7 @@ class ProjectExplorer(QTreeWidget):
         self._capture_saved_state(project)
         self._rebuild_project(project)
 
-    def _rebuild_project(self, project: ProjectDocument) -> None:
+    def _rebuild_project(self, project: ProjectDocument) -> None:  # noqa: C901
         project_is_selected = self._api.current_selection is project.data
         geometry_group_is_selected = self.currentItem() is self._geometry_group_item
         current_sel_id = (
@@ -821,7 +821,7 @@ class ProjectExplorer(QTreeWidget):
             self._api.set_selection(fresh_element)
         self._api.show_status(f'Renamed "{old_label}" to "{new_name}"', "success", 3000)
 
-    def _delete_item(self, item: QTreeWidgetItem | None) -> None:
+    def _delete_item(self, item: QTreeWidgetItem | None) -> None:  # noqa: C901
         if item is None:
             return
         if item in self._virtual_items:

@@ -289,7 +289,7 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         layout.addWidget(self.sweep_table)
         self._on_mode_changed()
 
-    def _on_mode_changed(self) -> None:
+    def _on_mode_changed(self) -> None:  # noqa: C901
         sweep_data = self.combo_mode.currentData()
         is_sweep = sweep_data is not None
 

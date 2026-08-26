@@ -132,10 +132,40 @@ geometry editor diyalogları headless Qt testleriyle kapsanacak.
 
 ## 8. Kod karmaşıklığını azalt
 
-- [ ] Büyük sınıf ve fonksiyonları raporla.
+- [x] Büyük sınıf ve fonksiyonları raporla.
+- [x] Ruff `C901` kalite kapısını başlangıç eşiği `20` ile etkinleştir.
 - [ ] UI, veri ve hesaplama sorumluluklarını ayır.
 - [ ] Solver ve plugin servislerini küçük bileşenlere böl.
 - [ ] Her refactor sonrasında mevcut davranışı testlerle doğrula.
+
+Başlangıç ölçümünde varsayılan `10` eşiğini aşan 53, geçici `20` eşiğini aşan
+13 fonksiyon bulundu. `C901` tüm kaynak kodda etkin; yalnızca aşağıdaki mevcut
+13 fonksiyon noktasal `noqa` ile baseline edildi. Dosya bazlı istisna
+kullanılmadığı için aynı dosyalara eklenecek yeni karmaşık fonksiyonlar kalite
+kapısında yakalanacak.
+
+### Karmaşıklık azaltma kuyruğu
+
+1. [ ] `shell._apply_default_workspace_layout` — `53`; workspace başına layout
+   handler'larına ayır.
+2. [ ] `aerosandbox_engine._convert_lifting_surface` — `65` ve `analyze` — `39`;
+   veri dönüşümü, çözümleme ve sonuç üretimini ayır.
+3. [ ] `flight_performance.solver.run_analysis` — `45`; analiz modlarını bağımsız
+   yürütücülere ayır.
+4. [ ] `geometry.viewport.mesh.build_section_ring_vertices` — `36`; profil türü
+   üreticilerini ayır.
+5. [ ] `schema_validation.validate_project` — `30`; doğrulama kurallarını saf
+   validator fonksiyonlarına ayır.
+6. [ ] `geometry.viewport.scene` — `29` / `21`; scene çözümleme ve wing-root stub
+   üretimini ayır.
+7. [ ] `project_explorer` — `28` / `25`; tree oluşturma ve silme komutlarını UI'dan
+   ayır.
+8. [ ] `lifting_surface_geometry` — `27`; control-surface üretimini böl.
+9. [ ] `aerodynamics.controls_dock` ve `flight_performance.charts_dock` — `21`;
+   mode/chart dallarını küçük handler'lara ayır.
+
+İlk hedef tüm noktasal istisnaları kaldırıp `20` eşiğini gerçekten sağlamak;
+ardından eşik sırasıyla `15` ve `10` seviyelerine indirilecek.
 
 ## 9. Bağımlılıkları düzenle
 

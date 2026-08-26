@@ -115,7 +115,7 @@ AIRFOIL_HIGHLIGHT = SELECTED_WIRE
 AIRFOIL_CHORD_HIGHLIGHT = SELECTED_WIRE
 
 
-def build_section_ring_vertices(
+def build_section_ring_vertices(  # noqa: C901
     data: GeometryData,
     component_id: str | None,
     segment_index: int | None,

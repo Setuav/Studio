@@ -170,7 +170,7 @@ def get_catalog() -> SchemaCatalog:
     return _default_catalog
 
 
-def validate_project(
+def validate_project(  # noqa: C901
     project: dict[str, Any],
     catalog: SchemaCatalog | None = None,
 ) -> list[Issue]:

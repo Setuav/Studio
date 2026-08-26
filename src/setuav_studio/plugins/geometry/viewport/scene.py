@@ -26,7 +26,7 @@ def _frame_parent(item: dict[str, Any]) -> str | None:
     return parent if isinstance(parent, str) and parent else None
 
 
-def build_project_geometry(
+def build_project_geometry(  # noqa: C901
     project: Any,
     providers: dict[str, GeometryProvider],
 ) -> GeometryData:
@@ -217,7 +217,7 @@ def _merge(target: dict[str, Any], overrides: dict[str, Any]) -> None:
             target[key] = deepcopy(value)
 
 
-def _build_wing_root_stubs(
+def _build_wing_root_stubs(  # noqa: C901
     items: dict[str, Any],
     providers: dict[str, GeometryProvider],
     world_matrix_fn: Callable[[str], Matrix4],
