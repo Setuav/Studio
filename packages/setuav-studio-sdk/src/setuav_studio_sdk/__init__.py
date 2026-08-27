@@ -8,13 +8,11 @@ from .api import (
     ComponentTreeProvider,
     GeometryProvider,
     MassPropertiesProvider,
-    ProjectDocument,
     ProjectTreeProvider,
     StudioAPI,
 )
 from .contributions import (
     ActionContribution,
-    BaseComponentEditor,
     ComponentTreeNodeContribution,
     PanelContribution,
     ParameterField,
@@ -25,6 +23,7 @@ from .contributions import (
     ToolContribution,
     WorkspaceContribution,
 )
+from .models import ProjectDocument
 from .plugin import PLUGIN_ENTRY_POINT_GROUP, StudioPlugin
 from .version import PLUGIN_API_VERSION
 
@@ -32,7 +31,6 @@ __all__ = [
     "PLUGIN_API_VERSION",
     "PLUGIN_ENTRY_POINT_GROUP",
     "ActionContribution",
-    "BaseComponentEditor",
     "ComponentTreeNodeContribution",
     "ComponentTreeProvider",
     "GeometryProvider",

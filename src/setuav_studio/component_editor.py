@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from PySide6.QtWidgets import (
@@ -14,28 +13,13 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from setuav_studio_sdk import ParameterField
 
 from setuav_studio.ui.icons import set_label_icon
 from setuav_studio.ui.property_tables import PropertyTableMixin
 
 if TYPE_CHECKING:
     from setuav_studio_sdk import StudioAPI
-
-
-@dataclass(frozen=True)
-class ParameterField:
-    """Descriptor for a component parameter field in the property editor."""
-
-    key: str
-    label: str
-    unit: str = ""
-    field_type: type = float
-    default: Any = 0.0
-    min_value: float | None = None
-    max_value: float | None = None
-    decimals: int = 2
-    tooltip: str = ""
-    options: tuple[tuple[str, str], ...] | tuple[str, ...] | None = None
 
 
 class BaseComponentEditor(PropertyTableMixin, QWidget):

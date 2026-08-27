@@ -13,11 +13,8 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QWidget
 
-from setuav_studio.component_editor import BaseComponentEditor, ParameterField
-
 __all__ = [
     "ActionContribution",
-    "BaseComponentEditor",
     "ComponentTreeNodeContribution",
     "PanelContribution",
     "ParameterField",
@@ -31,6 +28,22 @@ __all__ = [
 
 IconSource = str | Path | QIcon | None
 WorkspaceScope = str | list[str] | tuple[str, ...] | None
+
+
+@dataclass(frozen=True)
+class ParameterField:
+    """Descriptor for a component parameter field in a property editor."""
+
+    key: str
+    label: str
+    unit: str = ""
+    field_type: type = float
+    default: Any = 0.0
+    min_value: float | None = None
+    max_value: float | None = None
+    decimals: int = 2
+    tooltip: str = ""
+    options: tuple[tuple[str, str], ...] | tuple[str, ...] | None = None
 
 
 def _matches_workspace(scope: WorkspaceScope, workspace_id: str | None) -> bool:
