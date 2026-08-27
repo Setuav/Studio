@@ -152,8 +152,8 @@ providers, listeners, and background resources.
 ## Compatibility
 
 `PLUGIN_API_VERSION` versions the public plugin contract independently from the
-application. Compatibility metadata and enforcement will be introduced before
-third-party distribution is enabled.
+application. The SDK package is released independently using the
+`sdk-vX.Y.Z` release process documented in the SDK release guide.
 
 ## Security
 

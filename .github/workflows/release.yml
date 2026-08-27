@@ -141,9 +141,45 @@ jobs:
             "${RELEASE_ARCHIVE}.sha256" \
             --clobber
 
+  package:
+    name: Build Python packages
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          cache-dependency-glob: uv.lock
+          enable-cache: true
+
+      - name: Build application wheel and source distribution
+        run: uv run --locked --group package python -m build --outdir dist/platform
+
+      - name: Verify Python artifacts
+        shell: bash
+        run: |
+          test -n "$(find dist/platform -maxdepth 1 -name '*.whl' -print -quit)"
+          test -n "$(find dist/platform -maxdepth 1 -name '*.tar.gz' -print -quit)"
+
+      - name: Upload Python artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: gh release upload "${GITHUB_REF_NAME}" dist/platform/* --clobber
+
   publish:
     name: Publish release
-    needs: build
+    needs: [build, package]
     runs-on: ubuntu-latest
     permissions:
       contents: write
