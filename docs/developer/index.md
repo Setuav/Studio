@@ -11,7 +11,7 @@ outside this package are implementation details and may change at any time.
 1. Implement the `StudioPlugin` lifecycle contract.
 2. Register contributions through the `StudioAPI` received by `activate`.
 3. Publish the plugin class through the `setuav_studio.plugins` entry-point group.
-4. Undo registrations and release resources in `deactivate`.
+4. Undo registrations and release resources in the required `deactivate` method.
 
 ```python
 from PySide6.QtWidgets import QLabel
@@ -39,10 +39,10 @@ class ExamplePlugin:
 
 ## API reference
 
-- [Plugin API](@ref plugin_api) — services available through `StudioAPI`
-- [Contributions](@ref contributions) — immutable UI and project descriptors
-- [Provider contracts](@ref providers) — callbacks and domain services
-- [Plugin lifecycle](@ref lifecycle) — activation and deactivation contract
+- **Plugin API** — services available through `StudioAPI`
+- **Contributions** — immutable UI and project descriptors
+- **Provider contracts** — callbacks and domain services
+- **Plugin lifecycle** — activation and deactivation contract
 
 ## Package discovery
 
@@ -77,7 +77,7 @@ The entry-point target must expose a plugin class or instance with:
 - `id`: stable reverse-domain identifier.
 - `priority`: optional integer; lower values activate first.
 - `activate(api)`: required lifecycle method.
-- `deactivate(api)`: cleanup method recommended for every registration.
+- `deactivate(api)`: required cleanup method for every registration.
 
 ### 2. Schema manifest (when the plugin adds project data)
 

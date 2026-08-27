@@ -366,11 +366,15 @@ class PluginTests(unittest.TestCase):
 
             def activate(self, _api: StudioAPI) -> None: ...
 
+            def deactivate(self, _api: StudioAPI) -> None: ...
+
         class EarlierPlugin:
             id = "com.example.earlier"
             priority = 10
 
             def activate(self, _api: StudioAPI) -> None: ...
+
+            def deactivate(self, _api: StudioAPI) -> None: ...
 
         self.manager.activate(LaterPlugin())
         self.manager.activate(EarlierPlugin())
@@ -452,7 +456,7 @@ class PluginTests(unittest.TestCase):
         self.assertFalse(self.manager.is_active(plugin.id))
         self.assertTrue(self.manager.is_disabled(plugin.id))
 
-    def test_deactivate_without_deactivate_method_is_noop(self) -> None:
+    def test_deactivate_without_deactivate_method_keeps_plugin_active(self) -> None:
         class PlainPlugin:
             id = "com.example.plain"
 
@@ -461,12 +465,12 @@ class PluginTests(unittest.TestCase):
 
         plugin = PlainPlugin()
         self.manager.activate(plugin)
-        self.manager.deactivate("com.example.plain")
-
-        self.assertNotIn("com.example.plain", self.manager._plugins)
-        self.assertIn("com.example:plain", self.api._component_editors)
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(TypeError, "does not implement deactivate"):
             self.manager.deactivate("com.example.plain")
+
+        self.assertTrue(self.manager.is_active("com.example.plain"))
+        self.assertFalse(self.manager.is_disabled("com.example.plain"))
+        self.assertIn("com.example:plain", self.api._component_editors)
 
     def test_candidate_sort_key_orders_by_priority_then_id(self) -> None:
         class LowPriority:
