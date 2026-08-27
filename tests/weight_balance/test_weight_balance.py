@@ -208,7 +208,7 @@ class WeightBalancePluginTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls._app = get_qapp()
 
-    def test_plugin_registers_workspace_panels_and_provider(self) -> None:
+    def test_plugin_registers_workspace_and_panels(self) -> None:
         api = StudioAPI()
         panels: list[PanelContribution] = []
         workspaces: list[WorkspaceContribution] = []
@@ -230,10 +230,8 @@ class WeightBalancePluginTests(unittest.TestCase):
         self.assertEqual(toolbar[0].id, "weight_balance.add_point_mass")
         self.assertEqual(toolbar[0].icon, "fa6s.weight-scale")
         self.assertFalse(api.get_component_icon({"type": "org.setuav.core:point-mass"}).isNull())
-        self.assertIsNotNone(api.get_mass_properties_provider(EXTENSION_ID))
 
         manager.deactivate("org.setuav.studio.weight_balance")
-        self.assertIsNone(api.get_mass_properties_provider(EXTENSION_ID))
         self.assertEqual(api.component_tree_nodes({"id": "item"}), ())
 
     def test_point_mass_toolbar_adds_project_component(self) -> None:

@@ -50,7 +50,6 @@ class WeightBalancePlugin:
             "org.setuav.core:point-mass",
             POINT_MASS_ICON,
         )
-        api.register_mass_properties_provider(EXTENSION_ID, self._solver)
         api.register_component_tree_provider(EXTENSION_ID, self._mass_property_nodes)
         api.register_kind_editor(
             "mass-properties",
@@ -101,7 +100,6 @@ class WeightBalancePlugin:
         api.remove_component_editor("org.setuav.core:point-mass")
         api.remove_component_icon("org.setuav.core:point-mass")
         api.remove_component_tree_provider(EXTENSION_ID)
-        api.remove_mass_properties_provider(EXTENSION_ID)
         self._api = None
 
     def _can_edit_project(self) -> bool:

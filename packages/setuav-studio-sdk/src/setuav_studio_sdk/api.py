@@ -29,7 +29,6 @@ from .models import ProjectDocument
 __all__ = [
     "ComponentTreeProvider",
     "GeometryProvider",
-    "MassPropertiesProvider",
     "ProjectDocument",
     "ProjectTreeProvider",
     "StudioAPI",
@@ -44,17 +43,6 @@ ProjectTreeProvider = Callable[
     [ProjectDocument],
     tuple[ProjectTreeNodeContribution, ...],
 ]
-
-
-class MassPropertiesProvider(Protocol):
-    """Project-level mass-properties service contributed by a plugin.
-
-    @ingroup providers
-    """
-
-    def evaluate(self, project: ProjectDocument) -> Any:
-        """Calculate mass, center-of-gravity, and inertia data for a project."""
-        ...
 
 
 class StudioAPI(Protocol):
@@ -374,25 +362,6 @@ class StudioAPI(Protocol):
         project: ProjectDocument,
     ) -> tuple[ProjectTreeNodeContribution, ...]:
         """Collect plugin-owned nodes for the project root."""
-        ...
-
-    def register_mass_properties_provider(
-        self,
-        provider_id: str,
-        provider: MassPropertiesProvider,
-    ) -> None:
-        """Register a synchronous mass-properties provider."""
-        ...
-
-    def remove_mass_properties_provider(self, provider_id: str) -> None:
-        """Remove a mass-properties provider."""
-        ...
-
-    def get_mass_properties_provider(
-        self,
-        provider_id: str | None = None,
-    ) -> MassPropertiesProvider | None:
-        """Resolve a provider by ID, or return the sole registered provider."""
         ...
 
     def register_schema(self, schema_id: str, schema_dict: dict[str, Any]) -> None:
