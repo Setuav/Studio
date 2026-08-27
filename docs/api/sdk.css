@@ -1,3 +1,143 @@
+/* Keep the SDK reference neutral and consistent in every system theme. */
+html,
+html:not(.dark-mode),
+html.dark-mode {
+  color-scheme: dark;
+
+  --page-background-color: #0a0a0a;
+  --page-foreground-color: #d4d4d4;
+  --page-link-color: #e5e5e5;
+  --page-visited-link-color: #bdbdbd;
+  --page-external-link-color: #d4d4d4;
+
+  --index-odd-item-bg-color: #111111;
+  --index-even-item-bg-color: #0a0a0a;
+  --index-header-color: #eeeeee;
+  --index-separator-color: #333333;
+
+  --header-background-color: #0d0d0d;
+  --header-separator-color: #2a2a2a;
+  --group-header-separator-color: #333333;
+  --group-header-color: #eeeeee;
+  --inherit-header-color: #9a9a9a;
+
+  --footer-foreground-color: #8a8a8a;
+  --citation-label-color: #d4d4d4;
+  --glow-color: #ffffff;
+
+  --title-background-color: #0d0d0d;
+  --title-separator-color: #2a2a2a;
+  --directory-separator-color: #333333;
+  --separator-color: #404040;
+
+  --blockquote-background-color: #121212;
+  --blockquote-border-color: #4a4a4a;
+
+  --scrollbar-thumb-color: #444444;
+  --scrollbar-background-color: #111111;
+
+  --icon-background-color: #3a3a3a;
+  --icon-foreground-color: #eeeeee;
+  --icon-folder-open-fill-color: #666666;
+  --icon-folder-fill-color: #4a4a4a;
+  --icon-folder-border-color: #a0a0a0;
+  --icon-doc-fill-color: #5a5a5a;
+  --icon-doc-border-color: #a0a0a0;
+
+  --memdecl-background-color: #111111;
+  --memdecl-separator-color: #2e2e2e;
+  --memdecl-foreground-color: #c4c4c4;
+  --memdecl-template-color: #bdbdbd;
+  --memdecl-border-color: #303030;
+
+  --memdef-border-color: #3a3a3a;
+  --memdef-title-background-color: #1c1c1c;
+  --memdef-proto-background-color: #161616;
+  --memdef-proto-text-color: #e0e0e0;
+  --memdef-doc-background-color: #0d0d0d;
+  --memdef-param-name-color: #ffffff;
+  --memdef-template-color: #bdbdbd;
+
+  --table-cell-border-color: #3a3a3a;
+  --table-header-background-color: #242424;
+  --table-header-foreground-color: #eeeeee;
+
+  --label-background-color: #3a3a3a;
+  --label-left-top-border-color: #555555;
+  --label-right-bottom-border-color: #222222;
+  --label-foreground-color: #eeeeee;
+
+  --nav-background-color: #111111;
+  --nav-foreground-color: #d4d4d4;
+  --nav-border-color: #2a2a2a;
+  --nav-breadcrumb-separator-color: #333333;
+  --nav-breadcrumb-active-bg: #252525;
+  --nav-breadcrumb-color: #dddddd;
+  --nav-breadcrumb-border-color: #333333;
+  --nav-splitbar-bg-color: #2a2a2a;
+  --nav-splitbar-handle-color: #666666;
+  --nav-text-normal-color: #c8c8c8;
+  --nav-text-hover-color: #ffffff;
+  --nav-text-active-color: #ffffff;
+  --nav-menu-button-color: #d4d4d4;
+  --nav-menu-background-color: #111111;
+  --nav-menu-foreground-color: #c8c8c8;
+  --nav-menu-active-bg: #2a2a2a;
+  --nav-menu-active-color: #ffffff;
+  --nav-menu-toggle-color: rgb(255 255 255 / 20%);
+  --nav-arrow-color: #777777;
+  --nav-arrow-selected-color: #bbbbbb;
+
+  --sync-icon-border-color: #333333;
+  --sync-icon-background-color: #151515;
+  --sync-icon-selected-background-color: #2a2a2a;
+  --sync-icon-color: #777777;
+  --sync-icon-selected-color: #cccccc;
+
+  --toc-background-color: #141414;
+  --toc-border-color: #333333;
+  --toc-header-color: #e0e0e0;
+
+  --search-background-color: #111111;
+  --search-foreground-color: #a8a8a8;
+  --search-active-color: #ffffff;
+  --search-filter-background-color: #181818;
+  --search-filter-foreground-color: #e0e0e0;
+  --search-filter-backdrop-filter: none;
+  --search-filter-border-color: #444444;
+  --search-filter-highlight-text-color: #ffffff;
+  --search-filter-highlight-bg-color: #444444;
+  --search-results-background-color: #111111;
+  --search-results-foreground-color: #e0e0e0;
+  --search-results-backdrop-filter: none;
+  --search-results-border-color: #3a3a3a;
+  --search-box-border-color: #444444;
+  --search-close-icon-bg-color: #777777;
+  --search-close-icon-fg-color: #111111;
+
+  --fragment-foreground-color: #d4d4d4;
+  --fragment-background-color: #101010;
+  --fragment-border-color: #333333;
+  --fragment-lineno-border-color: #333333;
+  --fragment-lineno-background-color: #0a0a0a;
+  --fragment-lineno-foreground-color: #777777;
+  --fragment-lineno-link-fg-color: #999999;
+  --fragment-lineno-link-bg-color: #202020;
+  --fragment-lineno-link-hover-fg-color: #ffffff;
+  --fragment-lineno-link-hover-bg-color: #333333;
+  --code-link-color: #e0e0e0;
+  --code-external-link-color: #c8c8c8;
+
+  --tooltip-foreground-color: #d4d4d4;
+  --tooltip-background-color: #181818;
+  --tooltip-arrow-background-color: #181818;
+  --tooltip-border-color: #444444;
+  --tooltip-doc-color: #a8a8a8;
+  --tooltip-declaration-color: #eeeeee;
+  --tooltip-link-color: #ffffff;
+  --tooltip-shadow: 0 4px 12px rgb(0 0 0 / 55%);
+}
+
 #projectlogo img {
   width: 44px;
   height: 44px;
