@@ -1,0 +1,38 @@
+/* Neutral documentation theme for the standalone SDK package. */
+html,
+html:not(.dark-mode),
+html.dark-mode {
+  color-scheme: dark;
+  --page-background-color: #0a0a0a;
+  --page-foreground-color: #d4d4d4;
+  --page-link-color: #e5e5e5;
+  --page-visited-link-color: #bdbdbd;
+  --header-background-color: #0d0d0d;
+  --header-separator-color: #2a2a2a;
+  --title-background-color: #0d0d0d;
+  --title-separator-color: #2a2a2a;
+  --separator-color: #404040;
+  --blockquote-background-color: #121212;
+  --blockquote-border-color: #4a4a4a;
+  --nav-background-color: #111111;
+  --nav-border-color: #2a2a2a;
+  --nav-breadcrumb-color: #dddddd;
+  --nav-text-normal-color: #c8c8c8;
+  --nav-text-hover-color: #ffffff;
+  --nav-text-active-color: #ffffff;
+  --search-background-color: #111111;
+  --search-foreground-color: #a8a8a8;
+  --search-active-color: #ffffff;
+  --search-box-border-color: #444444;
+  --fragment-foreground-color: #d4d4d4;
+  --fragment-background-color: #101010;
+  --fragment-border-color: #333333;
+  --code-link-color: #e0e0e0;
+  --code-external-link-color: #c8c8c8;
+}
+
+#projectlogo img {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+}
