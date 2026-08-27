@@ -412,8 +412,8 @@ class TestFlightPerformance(unittest.TestCase):
 
     def test_project_tree_nodes(self) -> None:
         api = StudioAPI()
-        api.set_panel_handler(lambda _panel: None)
-        api.set_workspace_handler(lambda _workspace: None)
+        api._host.bind_panel_handlers(lambda _panel: None)
+        api._host.bind_workspace_handlers(lambda _workspace: None)
         plugin = FlightPerformancePlugin()
         plugin.activate(api)
 
@@ -448,12 +448,12 @@ class TestFlightPerformance(unittest.TestCase):
         removed_panels: list[str] = []
         workspaces: list[object] = []
         removed_workspaces: list[str] = []
-        api.set_action_handler(
+        api._host.bind_action_handlers(
             actions.append,
             lambda menu, title: removed_actions.append((menu, title)),
         )
-        api.set_panel_handler(panels.append, removed_panels.append)
-        api.set_workspace_handler(
+        api._host.bind_panel_handlers(panels.append, removed_panels.append)
+        api._host.bind_workspace_handlers(
             workspaces.append,
             remove_handler=removed_workspaces.append,
         )

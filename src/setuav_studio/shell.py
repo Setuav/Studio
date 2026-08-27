@@ -121,6 +121,7 @@ class MainWindow(QMainWindow):
     def __init__(self, api: StudioAPI) -> None:
         super().__init__()
         self._api = api
+        self._host = api._host
         self._project: ProjectDocument | None = None
         self._workspaces: dict[str, WorkspaceContribution] = {}
         self._toolbar_contributions: dict[str, ToolbarContribution] = {}
@@ -149,17 +150,17 @@ class MainWindow(QMainWindow):
         self._workspace_toolbar.workspace_activated.connect(self._api.switch_workspace)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self._workspace_toolbar)
 
-        self._api.set_panel_handler(self._add_panel, self._remove_panel)
-        self._api.set_workspace_handler(
+        self._host.bind_panel_handlers(self._add_panel, self._remove_panel)
+        self._host.bind_workspace_handlers(
             self._add_workspace,
             self._switch_workspace,
             self._remove_workspace,
         )
-        self._api.set_toolbar_handler(
+        self._host.bind_toolbar_handlers(
             self._add_toolbar_item,
             self._remove_toolbar_item,
         )
-        self._api.set_action_handler(self._add_action, self._remove_action)
+        self._host.bind_action_handlers(self._add_action, self._remove_action)
 
         self.setWindowTitle("Setuav Studio")
         self.resize(1200, 800)
@@ -292,10 +293,10 @@ class MainWindow(QMainWindow):
         self._about_action.triggered.connect(self._open_about)
         self._command_actions["core.help.about"] = self._about_action
 
-        self._api.undo_stack.canUndoChanged.connect(self._undo_action.setEnabled)
-        self._api.undo_stack.canRedoChanged.connect(self._redo_action.setEnabled)
-        self._api.undo_stack.undoTextChanged.connect(self._set_undo_text)
-        self._api.undo_stack.redoTextChanged.connect(self._set_redo_text)
+        self._host.undo_stack.canUndoChanged.connect(self._undo_action.setEnabled)
+        self._host.undo_stack.canRedoChanged.connect(self._redo_action.setEnabled)
+        self._host.undo_stack.undoTextChanged.connect(self._set_undo_text)
+        self._host.undo_stack.redoTextChanged.connect(self._set_redo_text)
         self._api.on_modified_changed(self._on_modified_changed)
         self._api.on_project_content_changed(self._on_project_content_changed)
         self._api.on_selection_changed(self._on_toolbar_context_changed)
@@ -336,11 +337,11 @@ class MainWindow(QMainWindow):
         self._status_level = "info"
         self.statusBar().addWidget(self._log_button)
         self.statusBar().addWidget(self._status_label)
-        self._api.set_progress_handler(self._show_progress)
+        self._host.bind_progress_handler(self._show_progress)
         self._status_timer = QTimer(self)
         self._status_timer.setSingleShot(True)
         self._status_timer.timeout.connect(self._clear_status_message)
-        self._api.set_status_handler(self._show_status_message)
+        self._host.bind_status_handler(self._show_status_message)
         self._api.show_status("Ready", "info", 0)
         install_log_buffer()
 
@@ -549,8 +550,8 @@ class MainWindow(QMainWindow):
             return False
 
         self._project = project
-        project.plugin_issues = self._api.check_project_requirements(project.data)
-        self._api.set_project(project)
+        project.plugin_issues = self._host.check_project_requirements(project.data)
+        self._host.set_project(project)
         self._add_recent_project(project.location)
         self._update_window_title()
         self._update_actions()
@@ -594,7 +595,7 @@ class MainWindow(QMainWindow):
         except ProjectSaveError as exc:
             QMessageBox.critical(self, "Cannot Save Project", str(exc))
             return False
-        self._api.mark_project_saved()
+        self._host.mark_project_saved()
         self._add_recent_project(self._project.location)
         self._update_window_title()
         self._api.show_status("Project saved", "success", 3000)
@@ -617,7 +618,7 @@ class MainWindow(QMainWindow):
         except ProjectSaveError as exc:
             QMessageBox.critical(self, "Cannot Save Project", str(exc))
             return False
-        self._api.mark_project_saved()
+        self._host.mark_project_saved()
         self._add_recent_project(self._project.location)
         self._update_window_title()
         return True
@@ -833,7 +834,7 @@ class MainWindow(QMainWindow):
         dialog = SettingsDialog(
             StudioSettings.load(),
             self,
-            pages=self._api.settings_pages(),
+            pages=self._host.settings_pages(),
         )
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return

@@ -43,7 +43,7 @@ class TestElectricalPropulsion(unittest.TestCase):
     def test_motor_editor(self) -> None:
         api = StudioAPI()
         doc = open_project(TEST_PROJECT_PATH)
-        api.set_project(doc)
+        api._host.set_project(doc)
 
         motor_comp = next(
             c for c in doc.data["components"] if c.get("type") == "org.setuav.core:motor"
@@ -64,7 +64,7 @@ class TestElectricalPropulsion(unittest.TestCase):
     def test_battery_editor(self) -> None:
         api = StudioAPI()
         doc = open_project(TEST_PROJECT_PATH)
-        api.set_project(doc)
+        api._host.set_project(doc)
 
         battery_comp = next(
             c for c in doc.data["components"] if c.get("type") == "org.setuav.core:battery"
@@ -86,7 +86,7 @@ class TestElectricalPropulsion(unittest.TestCase):
     def test_esc_editor(self) -> None:
         api = StudioAPI()
         doc = open_project(TEST_PROJECT_PATH)
-        api.set_project(doc)
+        api._host.set_project(doc)
 
         esc_comp = next(c for c in doc.data["components"] if c.get("type") == "org.setuav.core:esc")
         editor = EscEditor(api, esc_comp)
@@ -96,7 +96,7 @@ class TestElectricalPropulsion(unittest.TestCase):
     def test_propeller_editor(self) -> None:
         api = StudioAPI()
         doc = open_project(TEST_PROJECT_PATH)
-        api.set_project(doc)
+        api._host.set_project(doc)
 
         prop_comp = next(
             c for c in doc.data["components"] if c.get("type") == "org.setuav.core:propeller"
@@ -112,7 +112,7 @@ class TestElectricalPropulsion(unittest.TestCase):
     def test_assembly_editor(self) -> None:
         api = StudioAPI()
         doc = open_project(TEST_PROJECT_PATH)
-        api.set_project(doc)
+        api._host.set_project(doc)
 
         asm = doc.data["assemblies"][0]
         editor = ElectricPropulsionSystemEditor(api, asm)

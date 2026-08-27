@@ -61,15 +61,15 @@ class AerodynamicsPluginTests(unittest.TestCase):
         self.removed_workspaces: list[str] = []
         self.removed_actions: list[tuple[str, str]] = []
 
-        self.api.set_panel_handler(
+        self.api._host.bind_panel_handlers(
             self.panels.append,
             remove_handler=self.removed_panels.append,
         )
-        self.api.set_workspace_handler(
+        self.api._host.bind_workspace_handlers(
             self.workspaces.append,
             remove_handler=self.removed_workspaces.append,
         )
-        self.api.set_action_handler(
+        self.api._host.bind_action_handlers(
             self.actions.append,
             remove_handler=lambda menu, title: self.removed_actions.append((menu, title)),
         )
@@ -160,14 +160,14 @@ class AerodynamicsPluginTests(unittest.TestCase):
                 }
             },
         )
-        self.api.set_project(project)
+        self.api._host.set_project(project)
         persisted = project.get_extension("org.setuav.studio.aerodynamics")
         self.assertEqual(persisted["results_version"], RESULTS_VERSION)
         self.assertEqual(persisted["results"][0]["result"]["method"], "aero_buildup")
 
     def test_result_without_converged_points_is_not_persisted(self) -> None:
         statuses: list[tuple[str, str, int]] = []
-        self.api.set_status_handler(
+        self.api._host.bind_status_handler(
             lambda message, level, timeout: statuses.append((message, level, timeout))
         )
         self.plugin.activate(self.api)
@@ -176,7 +176,7 @@ class AerodynamicsPluginTests(unittest.TestCase):
             kind="json",
             data={"name": "Failed Aero", "components": []},
         )
-        self.api.set_project(project)
+        self.api._host.set_project(project)
         failed_result = AeroResult(
             method=AnalysisMethod.AERO_BUILDUP,
             engine_name="AeroSandbox",
@@ -336,7 +336,7 @@ class AerodynamicsPluginTests(unittest.TestCase):
             kind="json",
             data={"name": "Aero Results", "components": []},
         )
-        self.api.set_project(project)
+        self.api._host.set_project(project)
         sweep_modes = {
             controls_widget.combo_mode.itemText(index)
             for index in range(controls_widget.combo_mode.count())
@@ -547,7 +547,7 @@ class AerodynamicsPluginTests(unittest.TestCase):
         )
         self.assertNotIn(
             "aerodynamics.settings.airfoil_analysis",
-            {page.id for page in self.api.settings_pages()},
+            {page.id for page in self.api._host.settings_pages()},
         )
         self.assertIn("studio.workspace.aerodynamics", self.removed_workspaces)
 
@@ -556,7 +556,7 @@ class AerodynamicsPluginTests(unittest.TestCase):
         controls = next(
             panel.factory() for panel in self.panels if panel.id == "aerodynamics.controls_dock"
         )
-        self.api.set_project(
+        self.api._host.set_project(
             ProjectDocument(
                 path=Path("controls.json"),
                 kind="json",
@@ -648,7 +648,7 @@ class AerodynamicsPluginTests(unittest.TestCase):
             kind="json",
             data={"name": "Aero Results", "components": []},
         )
-        self.api.set_project(project)
+        self.api._host.set_project(project)
         dummy_result = AeroResult(
             method=AnalysisMethod.AERO_BUILDUP,
             engine_name="AeroSandbox",
@@ -688,7 +688,7 @@ class AerodynamicsPluginTests(unittest.TestCase):
             kind="json",
             data={"name": "Aero Results", "components": []},
         )
-        self.api.set_project(project)
+        self.api._host.set_project(project)
         dummy_result = AeroResult(
             method=AnalysisMethod.AERO_BUILDUP,
             engine_name="AeroSandbox",
@@ -719,7 +719,7 @@ class AerodynamicsPluginTests(unittest.TestCase):
             kind="json",
             data={"name": "Aero Results", "components": []},
         )
-        self.api.set_project(project)
+        self.api._host.set_project(project)
         dummy_result = AeroResult(
             method=AnalysisMethod.AERO_BUILDUP,
             engine_name="AeroSandbox",
@@ -764,7 +764,7 @@ class AerodynamicsPluginTests(unittest.TestCase):
             kind="json",
             data={"name": "Test Project", "components": [component]},
         )
-        self.api.set_project(project)
+        self.api._host.set_project(project)
         explorer = ProjectExplorer(self.api)
         wing_item = explorer._item_map["wing_main"]
         explorer.setCurrentItem(wing_item)
@@ -786,7 +786,7 @@ class AerodynamicsPluginTests(unittest.TestCase):
             kind="json",
             data={"name": "Aero Results", "components": []},
         )
-        self.api.set_project(project)
+        self.api._host.set_project(project)
         explorer = ProjectExplorer(self.api)
 
         # Run analysis (creates an unsaved result)
@@ -810,7 +810,7 @@ class AerodynamicsPluginTests(unittest.TestCase):
         )
 
         # After mark_project_saved / clean, dirty color is cleared
-        self.api.mark_project_saved()
+        self.api._host.mark_project_saved()
         result_item = explorer._item_map[result_node.id]
         self.assertNotEqual(
             result_item.foreground(0).color().name().lower(),

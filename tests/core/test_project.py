@@ -138,7 +138,7 @@ class ProjectTests(unittest.TestCase):
         project = open_project(self._write_project_json())
 
         api = StudioAPI()
-        api.set_project(project)
+        api._host.set_project(project)
 
         # 1. Edit project extension
         api.edit_project_extension(
@@ -153,7 +153,7 @@ class ProjectTests(unittest.TestCase):
         self.assertIsNone(project.get_extension("com.example.test"))
 
         # 3. Redo project extension edit
-        api.undo_stack.redo()
+        api._host.undo_stack.redo()
         self.assertEqual(project.get_extension("com.example.test")["alpha"], 10)
 
         # 4. Edit component extension

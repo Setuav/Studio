@@ -32,7 +32,7 @@ class MainTests(unittest.TestCase):
 
     def test_degraded_mode_badge_shown_for_missing_plugins(self) -> None:
         api = StudioAPI()
-        api.set_project_requirement_checker(lambda data: ["Missing plugin: com.example.foo"])
+        api._host.bind_project_requirement_checker(lambda data: ["Missing plugin: com.example.foo"])
         window = MainWindow(api)
         window.show()
         window.open_project(TEST_PROJECT_PATH)
@@ -41,7 +41,7 @@ class MainTests(unittest.TestCase):
         self.assertTrue(window._degraded_badge.isVisible())
         self.assertIn("com.example.foo", window._degraded_badge.toolTip())
 
-        api.set_project_requirement_checker(lambda data: [])
+        api._host.bind_project_requirement_checker(lambda data: [])
         window.open_project(TEST_PROJECT_PATH)
         self.assertFalse(window._degraded_badge.isVisible())
 

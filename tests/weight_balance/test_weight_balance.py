@@ -213,9 +213,9 @@ class WeightBalancePluginTests(unittest.TestCase):
         panels: list[PanelContribution] = []
         workspaces: list[WorkspaceContribution] = []
         toolbar = []
-        api.set_panel_handler(panels.append)
-        api.set_workspace_handler(workspaces.append)
-        api.set_toolbar_handler(toolbar.append)
+        api._host.bind_panel_handlers(panels.append)
+        api._host.bind_workspace_handlers(workspaces.append)
+        api._host.bind_toolbar_handlers(toolbar.append)
         manager = PluginManager(api)
 
         manager.activate(WeightBalancePlugin())
@@ -239,10 +239,10 @@ class WeightBalancePluginTests(unittest.TestCase):
     def test_point_mass_toolbar_adds_project_component(self) -> None:
         api = StudioAPI()
         toolbar = []
-        api.set_toolbar_handler(toolbar.append)
-        api.set_panel_handler(lambda _panel: None)
-        api.set_workspace_handler(lambda _workspace: None)
-        api.set_project(_project({"components": []}))
+        api._host.bind_toolbar_handlers(toolbar.append)
+        api._host.bind_panel_handlers(lambda _panel: None)
+        api._host.bind_workspace_handlers(lambda _workspace: None)
+        api._host.set_project(_project({"components": []}))
         plugin = WeightBalancePlugin()
         plugin.activate(api)
 
@@ -256,8 +256,8 @@ class WeightBalancePluginTests(unittest.TestCase):
 
     def test_point_mass_has_mass_transform_and_no_envelope(self) -> None:
         api = StudioAPI()
-        api.set_panel_handler(lambda _panel: None)
-        api.set_workspace_handler(lambda _workspace: None)
+        api._host.bind_panel_handlers(lambda _panel: None)
+        api._host.bind_workspace_handlers(lambda _workspace: None)
         manager = PluginManager(api)
         manager.activate(CorePlugin())
         manager.activate(WeightBalancePlugin())
@@ -269,7 +269,7 @@ class WeightBalancePluginTests(unittest.TestCase):
             "parameters": {"mass": 125.0},
             "transform": {},
         }
-        api.set_project(_project({"components": [component]}))
+        api._host.set_project(_project({"components": [component]}))
 
         nodes = api.component_tree_nodes(component)
         self.assertEqual(
@@ -287,11 +287,13 @@ class WeightBalancePluginTests(unittest.TestCase):
 
     def test_plugin_publishes_analysis_result(self) -> None:
         api = StudioAPI()
-        api.set_panel_handler(lambda _panel: None)
-        api.set_workspace_handler(lambda _workspace: None)
+        api._host.bind_panel_handlers(lambda _panel: None)
+        api._host.bind_workspace_handlers(lambda _workspace: None)
         plugin = WeightBalancePlugin()
         plugin.activate(api)
-        api.set_project(_project({"components": [{"id": "item", "name": "Item", "mass": 1250}]}))
+        api._host.set_project(
+            _project({"components": [{"id": "item", "name": "Item", "mass": 1250}]})
+        )
         received = []
         api.subscribe("weight_balance.analysis_completed", received.append)
 
@@ -303,11 +305,11 @@ class WeightBalancePluginTests(unittest.TestCase):
     def test_panel_factories_display_analysis_result(self) -> None:
         api = StudioAPI()
         panels: list[PanelContribution] = []
-        api.set_panel_handler(panels.append)
-        api.set_workspace_handler(lambda _workspace: None)
+        api._host.bind_panel_handlers(panels.append)
+        api._host.bind_workspace_handlers(lambda _workspace: None)
         plugin = WeightBalancePlugin()
         plugin.activate(api)
-        api.set_project(
+        api._host.set_project(
             _project(
                 {
                     "components": [
@@ -361,8 +363,8 @@ class WeightBalancePluginTests(unittest.TestCase):
 
     def test_mass_definition_editor_updates_component_with_undo(self) -> None:
         api = StudioAPI()
-        api.set_panel_handler(lambda _panel: None)
-        api.set_workspace_handler(lambda _workspace: None)
+        api._host.bind_panel_handlers(lambda _panel: None)
+        api._host.bind_workspace_handlers(lambda _workspace: None)
         plugin = WeightBalancePlugin()
         plugin.activate(api)
         component = {
@@ -372,7 +374,7 @@ class WeightBalancePluginTests(unittest.TestCase):
             "transform": {},
         }
         project = _project({"components": [component]})
-        api.set_project(project)
+        api._host.set_project(project)
         contribution = api.component_tree_nodes(component)[0]
         self.assertEqual(contribution.icon, "fa6s.cubes-stacked")
         definition = api.create_component_editor(contribution.selection)
@@ -427,15 +429,15 @@ class WeightBalancePluginTests(unittest.TestCase):
 
     def test_project_tree_child_opens_mass_properties_in_properties_panel(self) -> None:
         api = StudioAPI()
-        api.set_panel_handler(lambda _panel: None)
-        api.set_workspace_handler(lambda _workspace: None)
+        api._host.bind_panel_handlers(lambda _panel: None)
+        api._host.bind_workspace_handlers(lambda _workspace: None)
         plugin = WeightBalancePlugin()
         plugin.activate(api)
         component = {"id": "payload", "name": "Payload", "mass": 500}
         project = _project({"name": "Test", "components": [component]})
         explorer = ProjectExplorer(api)
         properties = PropertiesPanel(api)
-        api.set_project(project)
+        api._host.set_project(project)
 
         mass_item = explorer._item_map["payload:mass-properties"]
         self.assertEqual(mass_item.parent(), explorer._item_map["payload"])
@@ -450,7 +452,7 @@ class WeightBalancePluginTests(unittest.TestCase):
     def test_project_explorer_expand_and_collapse_buttons_control_tree(self) -> None:
         api = StudioAPI()
         panel = ProjectExplorerPanel(api)
-        api.set_project(
+        api._host.set_project(
             _project(
                 {
                     "name": "Test",
@@ -493,13 +495,13 @@ class WeightBalancePluginTests(unittest.TestCase):
         )
 
         api = StudioAPI()
-        api.set_panel_handler(lambda _panel: None)
-        api.set_workspace_handler(lambda _workspace: None)
+        api._host.bind_panel_handlers(lambda _panel: None)
+        api._host.bind_workspace_handlers(lambda _workspace: None)
         plugin = WeightBalancePlugin()
         plugin.activate(api)
         component = {"id": "battery_1", "name": "Main Battery", "mass": 450}
         project = _project({"name": "Test", "components": [component]})
-        api.set_project(project)
+        api._host.set_project(project)
 
         properties = PropertiesPanel(api)
         view_dock = WeightBalanceViewDock(api)

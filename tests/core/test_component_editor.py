@@ -41,7 +41,7 @@ class TestComponentEditor(unittest.TestCase):
                 ]
             },
         )
-        api.set_project(doc)
+        api._host.set_project(doc)
         comp = doc.data["components"][0]
 
         fields = [

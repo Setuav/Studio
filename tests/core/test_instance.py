@@ -49,7 +49,7 @@ class InstanceEditorTests(unittest.TestCase):
             kind="json",
             data={"components": [self.source, self.parent, self.instance]},
         )
-        self.api.set_project(self.project)
+        self.api._host.set_project(self.project)
         self.editor = InstanceEditor(self.api, self.instance)
         self.addCleanup(self.editor.deleteLater)
 
@@ -109,16 +109,16 @@ class InstanceEditorTests(unittest.TestCase):
         name_item.setText("Renamed Wing")
 
         self.assertEqual(self.instance["name"], "Renamed Wing")
-        self.assertEqual(self.api.undo_stack.undoText(), "Rename component instance")
+        self.assertEqual(self.api._host.undo_stack.undoText(), "Rename component instance")
         self.api.undo()
         self.assertEqual(self.instance["name"], "Right Wing")
         self.api.redo()
         self.assertEqual(self.instance["name"], "Renamed Wing")
 
-        command_count = self.api.undo_stack.count()
+        command_count = self.api._host.undo_stack.count()
         self.editor.properties_table.item(self._row("name"), 1).setText("   ")
         self.assertEqual(self.instance["name"], "Renamed Wing")
-        self.assertEqual(self.api.undo_stack.count(), command_count)
+        self.assertEqual(self.api._host.undo_stack.count(), command_count)
         self.assertEqual(
             self.editor.properties_table.item(self._row("name"), 1).text(),
             "Renamed Wing",
@@ -134,12 +134,12 @@ class InstanceEditorTests(unittest.TestCase):
         offset_item.setText("25.75")
 
         self.assertEqual(self.instance["derivation"]["offset"], 25.75)
-        self.assertEqual(self.api.undo_stack.undoText(), "Edit mirror offset")
+        self.assertEqual(self.api._host.undo_stack.undoText(), "Edit mirror offset")
 
-        command_count = self.api.undo_stack.count()
+        command_count = self.api._host.undo_stack.count()
         self.editor.properties_table.item(self._row("offset"), 1).setText("invalid")
         self.assertEqual(self.instance["derivation"]["offset"], 25.75)
-        self.assertEqual(self.api.undo_stack.count(), command_count)
+        self.assertEqual(self.api._host.undo_stack.count(), command_count)
 
     def test_derivation_and_plane_combos_update_the_instance(self) -> None:
         derivation_combo = self._combo("derivation_type")
@@ -157,14 +157,14 @@ class InstanceEditorTests(unittest.TestCase):
         plane_combo.setCurrentIndex(plane_combo.findData("XY"))
         self.assertEqual(self.instance["derivation"]["plane"], "XY")
 
-        command_count = self.api.undo_stack.count()
+        command_count = self.api._host.undo_stack.count()
         self.editor._change_derivation("invalid")
         self.editor._change_plane("invalid")
         self.editor._loading = True
         self.editor._change_derivation("copy")
         self.editor._change_plane("YZ")
         self.editor._loading = False
-        self.assertEqual(self.api.undo_stack.count(), command_count)
+        self.assertEqual(self.api._host.undo_stack.count(), command_count)
 
     def test_transform_edit_is_atomic_and_invalid_values_are_rejected(self) -> None:
         values = ((100.5, -20.0, 3.0), (4.0, 5.5, -6.0))
@@ -182,19 +182,19 @@ class InstanceEditorTests(unittest.TestCase):
                 "rotation": {"roll": 4.0, "pitch": 5.5, "yaw": -6.0},
             },
         )
-        self.assertEqual(self.api.undo_stack.undoText(), "Edit instance transform")
+        self.assertEqual(self.api._host.undo_stack.undoText(), "Edit instance transform")
 
-        command_count = self.api.undo_stack.count()
+        command_count = self.api._host.undo_stack.count()
         with QSignalBlocker(self.editor.transform_table):
             self.editor.transform_table.item(0, 0).setText("not-a-number")
         self.editor._update_transform(0, 0)
-        self.assertEqual(self.api.undo_stack.count(), command_count)
+        self.assertEqual(self.api._host.undo_stack.count(), command_count)
         self.assertEqual(self.editor.transform_table.item(0, 0).text(), "100.5")
 
         with QSignalBlocker(self.editor.transform_table):
             self.editor.transform_table.takeItem(1, 2)
         self.editor._update_transform(1, 2)
-        self.assertEqual(self.api.undo_stack.count(), command_count)
+        self.assertEqual(self.api._host.undo_stack.count(), command_count)
 
     def test_component_lookup_and_mapping_helpers_handle_malformed_data(self) -> None:
         self.project.data["components"] = ["invalid", {"id": "unnamed"}]

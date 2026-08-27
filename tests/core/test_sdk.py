@@ -7,11 +7,23 @@ from setuav_studio import plugin_system
 
 
 class PluginSDKTests(unittest.TestCase):
-    def test_public_api_reexports_plugin_contracts(self) -> None:
-        self.assertIs(sdk.StudioAPI, plugin_system.StudioAPI)
+    def test_public_api_owns_plugin_contracts(self) -> None:
+        self.assertIsNot(sdk.StudioAPI, plugin_system.StudioAPI)
         self.assertIs(sdk.StudioPlugin, plugin_system.StudioPlugin)
         self.assertIs(sdk.PanelContribution, plugin_system.PanelContribution)
         self.assertIs(sdk.ActionContribution, plugin_system.ActionContribution)
+
+        public_methods = {
+            name
+            for name, value in sdk.StudioAPI.__dict__.items()
+            if callable(value) and not name.startswith("_")
+        }
+        implementation_methods = {
+            name
+            for name in dir(plugin_system.StudioAPI)
+            if callable(getattr(plugin_system.StudioAPI, name))
+        }
+        self.assertLessEqual(public_methods, implementation_methods)
 
     def test_public_api_identifiers_are_stable(self) -> None:
         self.assertEqual(sdk.PLUGIN_API_VERSION, "1.0")

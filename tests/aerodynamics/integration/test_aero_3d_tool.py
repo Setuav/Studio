@@ -29,7 +29,7 @@ class Aero3DToolTests(unittest.TestCase):
 
     def test_tool_launches_detached_process_with_selected_state(self) -> None:
         api = StudioAPI()
-        api.set_project(open_project(TEST_PROJECT_PATH))
+        api._host.set_project(open_project(TEST_PROJECT_PATH))
         window = Aero3DToolWindow(api)
         window.alpha_spin.setValue(5.0)
         window.beta_spin.setValue(2.0)
