@@ -125,7 +125,7 @@ class ShellProjectLifecycleTests(unittest.TestCase):
         self.assertFalse(self.window._degraded_badge.isVisible())
 
         degraded = self._project("Degraded")
-        self.api.set_project_requirement_checker(lambda _data: ["Missing plugin: example"])
+        self.api._host.bind_project_requirement_checker(lambda _data: ["Missing plugin: example"])
         with (
             patch("setuav_studio.shell.open_project", return_value=degraded),
             patch("setuav_studio.shell.validate_project", return_value=[]),
@@ -168,7 +168,7 @@ class ShellProjectLifecycleTests(unittest.TestCase):
         with (
             patch("setuav_studio.shell.save_project") as save,
             patch.object(self.window, "_add_recent_project") as add_recent,
-            patch.object(self.api, "mark_project_saved") as mark_saved,
+            patch.object(self.window._host, "mark_project_saved") as mark_saved,
         ):
             self.assertTrue(self.window.save_project())
         save.assert_called_once_with(self.window._project)

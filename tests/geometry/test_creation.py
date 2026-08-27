@@ -25,7 +25,7 @@ class GeometryCreationTests(unittest.TestCase):
     def setUp(self) -> None:
         self.api = StudioAPI()
         self.statuses: list[tuple[str, str, int]] = []
-        self.api.set_status_handler(
+        self.api._host.bind_status_handler(
             lambda message, level, timeout: self.statuses.append((message, level, timeout))
         )
         self.project = ProjectDocument(
@@ -33,7 +33,7 @@ class GeometryCreationTests(unittest.TestCase):
             "json",
             {"components": []},
         )
-        self.api.set_project(self.project)
+        self.api._host.set_project(self.project)
         self.controller = GeometryCreationController(self.api)
 
     def test_toolbar_contributions_dispatch_all_presets(self) -> None:
@@ -218,7 +218,7 @@ class GeometryCreationTests(unittest.TestCase):
         with patch.object(self.controller, "_require_editable_project", return_value=True):
             self.controller.add_fuselage()
 
-        self.api.set_project(self.project)
+        self.api._host.set_project(self.project)
         self.project.data["components"] = "invalid"
         with patch.object(self.api, "edit_project", side_effect=lambda _text, change: change()):
             self.controller._append_component(component, "Add test")

@@ -38,8 +38,8 @@ class PluginTests(unittest.TestCase):
         self.api = StudioAPI()
         self.panels: list[PanelContribution] = []
         self.workspaces: list[WorkspaceContribution] = []
-        self.api.set_panel_handler(self.panels.append)
-        self.api.set_workspace_handler(self.workspaces.append)
+        self.api._host.bind_panel_handlers(self.panels.append)
+        self.api._host.bind_workspace_handlers(self.workspaces.append)
         self.manager = PluginManager(self.api)
 
     def test_studio_api_publishes_selection_changes(self) -> None:
@@ -121,7 +121,7 @@ class PluginTests(unittest.TestCase):
             "json",
             {"components": [component]},
         )
-        self.api.set_project(project)
+        self.api._host.set_project(project)
 
         contribution = self.api.component_tree_nodes(component)[0]
         self.assertEqual(contribution.id, "motor:transform")
@@ -337,7 +337,7 @@ class PluginTests(unittest.TestCase):
             "json",
             {"components": [component]},
         )
-        self.api.set_project(project)
+        self.api._host.set_project(project)
 
         self.api.edit_component(
             component,
@@ -447,7 +447,7 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(received, [])
         self.assertEqual(self.api._pending_status, [("queued", "warning", 0)])
 
-        self.api.set_status_handler(
+        self.api._host.bind_status_handler(
             lambda message, level, timeout_ms: received.append((message, level, timeout_ms))
         )
         self.assertEqual(received, [("queued", "warning", 0)])

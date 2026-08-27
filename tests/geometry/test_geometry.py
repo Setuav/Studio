@@ -204,7 +204,7 @@ class GeometryTests(unittest.TestCase):
         get_qapp()
         api = StudioAPI()
         doc = open_project(TEST_PROJECT_PATH)
-        api.set_project(doc)
+        api._host.set_project(doc)
 
         wing_comp = next(c for c in doc.data["components"] if c.get("id") == "main-wing")
         editor = LiftingSurfaceEditor(api, wing_comp)
@@ -978,7 +978,7 @@ class GeometryTests(unittest.TestCase):
         }
         doc = ProjectDocument(Path("/tmp/test.json"), "json", {"components": [wing_comp]})
         api = StudioAPI()
-        api.project = doc
+        api._host.set_project(doc)
         editor = LiftingSurfaceEditor(api, wing_comp)
 
         # 1. Test live spinbox sync when user edits eta_start on aileron (index 0)
@@ -1068,7 +1068,7 @@ class GeometryTests(unittest.TestCase):
 
         doc = ProjectDocument("/fake/path", {}, doc_data)
         api = StudioAPI()
-        api.set_project(doc)
+        api._host.set_project(doc)
 
         wing_comp = doc.data["components"][1]
         editor = LiftingSurfaceEditor(api, wing_comp)

@@ -6,15 +6,32 @@ from copy import deepcopy
 from dataclasses import dataclass
 from importlib import import_module, metadata
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any
 
 from packaging.version import InvalidVersion, Version
-from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon, QUndoCommand, QUndoStack
 from PySide6.QtWidgets import QWidget
 
 from setuav_studio.component_editor import BaseComponentEditor, ParameterField
 from setuav_studio.project import ProjectDocument
+from setuav_studio.sdk.api import (
+    ComponentTreeProvider,
+    GeometryProvider,
+    MassPropertiesProvider,
+    ProjectTreeProvider,
+)
+from setuav_studio.sdk.contributions import (
+    ActionContribution,
+    ComponentTreeNodeContribution,
+    PanelContribution,
+    ProjectTreeNodeContribution,
+    SettingsPageContribution,
+    ToolbarContribution,
+    ToolbarMenuItemContribution,
+    ToolContribution,
+    WorkspaceContribution,
+)
+from setuav_studio.sdk.plugin import StudioPlugin
 from setuav_studio.ui.icons import get_icon
 
 __all__ = [
@@ -34,156 +51,6 @@ __all__ = [
 ]
 
 logger = logging.getLogger(__name__)
-
-GeometryProvider = Callable[[dict[str, Any]], Any]
-ComponentTreeProvider = Callable[
-    [dict[str, Any]],
-    tuple["ComponentTreeNodeContribution", ...],
-]
-ProjectTreeProvider = Callable[
-    [ProjectDocument],
-    tuple["ProjectTreeNodeContribution", ...],
-]
-
-
-class MassPropertiesProvider(Protocol):
-    """Project-level mass-properties service contributed by a plugin."""
-
-    def evaluate(
-        self,
-        project: ProjectDocument,
-    ) -> Any: ...
-
-
-@dataclass(frozen=True)
-class ComponentTreeNodeContribution:
-    """A virtual child displayed beneath a project component."""
-
-    id: str
-    title: str
-    selection: dict[str, Any]
-    icon: str | Path | QIcon | None = None
-    tooltip: str | None = None
-    rename: Callable[[str], None] | None = None
-    delete: Callable[[], None] | None = None
-
-
-@dataclass(frozen=True)
-class ProjectTreeNodeContribution:
-    """A plugin-owned node displayed directly beneath the project root."""
-
-    id: str
-    title: str
-    selection: dict[str, Any]
-    children: tuple["ProjectTreeNodeContribution", ...] = ()
-    icon: str | Path | QIcon | None = None
-    tooltip: str | None = None
-    rename: Callable[[str], None] | None = None
-    delete: Callable[[], None] | None = None
-
-
-@dataclass(frozen=True)
-class PanelContribution:
-    id: str
-    title: str
-    factory: Callable[[], QWidget]
-    area: Qt.DockWidgetArea = Qt.DockWidgetArea.LeftDockWidgetArea
-    workspace_id: str | list[str] | tuple[str, ...] | None = None
-    icon: str | Path | QIcon | None = None
-
-    def is_in_workspace(self, current_workspace_id: str | None) -> bool:
-        if self.workspace_id is None:
-            return True
-        if isinstance(self.workspace_id, (list, tuple, set)):
-            return current_workspace_id in self.workspace_id
-        return self.workspace_id == current_workspace_id
-
-
-@dataclass(frozen=True)
-class SettingsPageContribution:
-    """A settings category contributed by a plugin.
-
-    ``factory`` creates the page widget when the Settings dialog opens.  The
-    optional ``apply`` callback is called with that widget after the user
-    presses OK, allowing the plugin to persist its values (usually through
-    ``QSettings``) without coupling the core dialog to plugin state.
-    Pages with the same ``group`` are shown beneath one expandable heading.
-    """
-
-    id: str
-    title: str
-    factory: Callable[[], QWidget]
-    icon: str | Path | QIcon | None = None
-    order: int = 0
-    apply: Callable[[QWidget], None] | None = None
-    group: str | None = None
-    group_icon: str | Path | QIcon | None = None
-
-
-@dataclass(frozen=True)
-class WorkspaceContribution:
-    id: str
-    title: str
-    factory: Callable[[], QWidget] | None = None
-    icon: str | Path | QIcon | None = None
-    order: int = 0
-
-
-@dataclass(frozen=True)
-class ToolbarMenuItemContribution:
-    """One command inside a contributed toolbar action's popup menu."""
-
-    title: str
-    callback: Callable[[], None]
-    icon: str | Path | QIcon | None = None
-    enabled_when: Callable[[], bool] | None = None
-
-
-@dataclass(frozen=True)
-class ToolbarContribution:
-    """A plugin-provided action displayed in the main application toolbar."""
-
-    id: str
-    title: str
-    icon: str | Path | QIcon | None = None
-    callback: Callable[[], None] | None = None
-    command: str | None = None
-    menu_items: tuple[ToolbarMenuItemContribution, ...] = ()
-    enabled_when: Callable[[], bool] | None = None
-    group: str = "default"
-    order: int = 0
-    workspace_id: str | list[str] | tuple[str, ...] | None = None
-
-    def __post_init__(self) -> None:
-        if self.callback is not None and self.command is not None:
-            raise ValueError("Toolbar contributions cannot define both callback and command")
-        if self.callback is None and self.command is None and not self.menu_items:
-            raise ValueError("Toolbar contributions require an action or menu")
-
-    def is_in_workspace(self, current_workspace_id: str | None) -> bool:
-        if self.workspace_id is None:
-            return True
-        if isinstance(self.workspace_id, (list, tuple, set)):
-            return current_workspace_id in self.workspace_id
-        return self.workspace_id == current_workspace_id
-
-
-@dataclass(frozen=True)
-class ToolContribution:
-    title: str
-    callback: Callable[[], None]
-    group: str | None = None
-    icon: str | Path | QIcon | None = None
-    shortcut: str | None = None
-
-
-@dataclass(frozen=True)
-class ActionContribution:
-    menu: str
-    title: str
-    callback: Callable[[], None]
-    icon: str | Path | QIcon | None = None
-    shortcut: str | None = None
 
 
 @dataclass(frozen=True)
@@ -247,6 +114,19 @@ class _ProjectEditCommand(QUndoCommand):
 
 
 class StudioAPI:
+    """Public service surface passed to a plugin during activation.
+
+    Plugins use this object to contribute UI elements, observe application
+    state, edit project data with undo/redo support, publish events, and
+    register schemas or domain providers. UI contributions and callbacks run on
+    the Qt UI thread; long-running work must be delegated to a worker thread.
+
+    Registration identifiers must be globally unique and should use the
+    plugin's reverse-domain namespace. Every listener and contribution should
+    be removed during plugin deactivation until automatic lifecycle ownership
+    is introduced.
+    """
+
     def __init__(self) -> None:
         self.current_project: ProjectDocument | None = None
         self.current_selection: Any | None = None
@@ -290,42 +170,29 @@ class StudioAPI:
         self._mass_properties_providers: dict[str, MassPropertiesProvider] = {}
         self._project_requirement_checker: Callable[[dict[str, Any]], list[str]] | None = None
         self._event_subscribers: dict[str, list[Callable[[Any], None]]] = {}
-        self.undo_stack = QUndoStack()
-        self.undo_stack.cleanChanged.connect(self._on_clean_changed)
+        self._undo_stack = QUndoStack()
+        self._undo_stack.cleanChanged.connect(self._on_clean_changed)
+        self._host = _StudioHost(self)
 
     @property
     def project(self) -> ProjectDocument | None:
+        """Return the currently open project, or `None` when no project is open."""
         return self.current_project
 
-    @project.setter
-    def project(self, value: ProjectDocument | None) -> None:
-        self.current_project = value
-
-    def set_panel_handler(
-        self,
-        handler: Callable[[PanelContribution], None],
-        remove_handler: Callable[[str], None] | None = None,
-    ) -> None:
-        self._add_panel = handler
-        self._remove_panel = remove_handler
-
     def add_panel(self, contribution: PanelContribution) -> None:
+        """Add a dock panel to the application shell.
+
+        @param contribution Panel descriptor with a globally unique ID.
+        @exception RuntimeError If the shell is not ready to accept panels.
+        """
         if self._add_panel is None:
             raise RuntimeError("The Studio shell is not ready for panel contributions")
         self._add_panel(contribution)
 
     def remove_panel(self, panel_id: str) -> None:
+        """Remove a previously contributed panel by ID."""
         if self._remove_panel is not None:
             self._remove_panel(panel_id)
-
-    def set_status_handler(
-        self,
-        handler: Callable[[str, str, int], None],
-    ) -> None:
-        self._status_handler = handler
-        for message, level, timeout_ms in self._pending_status:
-            handler(message, level, timeout_ms)
-        self._pending_status.clear()
 
     def show_status(
         self,
@@ -344,14 +211,9 @@ class StudioAPI:
             self._pending_status.append((message, level, timeout_ms))
 
     def clear_status(self) -> None:
+        """Clear the current status-bar message."""
         if self._status_handler is not None:
             self._status_handler("", "info", 0)
-
-    def set_progress_handler(
-        self,
-        handler: Callable[[int, int, str], None],
-    ) -> None:
-        self._progress_handler = handler
 
     def report_progress(self, completed: int, total: int, label: str = "") -> None:
         """Report task progress to the shell status bar.
@@ -362,6 +224,7 @@ class StudioAPI:
             self._progress_handler(completed, total, label)
 
     def clear_progress(self) -> None:
+        """Hide the status-bar progress indicator."""
         self.report_progress(1, 1, "")
 
     def subscribe(self, event_name: str, handler: Callable[[Any], None]) -> None:
@@ -385,33 +248,24 @@ class StudioAPI:
                     "Error executing subscriber for event '%s': %s", event_name, exc, exc_info=True
                 )
 
-    def set_workspace_handler(
-        self,
-        handler: Callable[[WorkspaceContribution], None],
-        switch_handler: Callable[[str], None] | None = None,
-        remove_handler: Callable[[str], None] | None = None,
-    ) -> None:
-        self._add_workspace = handler
-        self._switch_workspace_handler = switch_handler
-        self._remove_workspace = remove_handler
-        for workspace in self._pending_workspaces:
-            handler(workspace)
-        self._pending_workspaces.clear()
-
     def add_workspace(self, contribution: WorkspaceContribution) -> None:
+        """Register a workspace, queuing it until the shell is ready."""
         if self._add_workspace is not None:
             self._add_workspace(contribution)
         else:
             self._pending_workspaces.append(contribution)
 
     def remove_workspace(self, workspace_id: str) -> None:
+        """Remove a previously contributed workspace by ID."""
         if self._remove_workspace is not None:
             self._remove_workspace(workspace_id)
 
     def set_workspace(self, contribution: WorkspaceContribution) -> None:
+        """Register a workspace; retained as an alias for `add_workspace`."""
         self.add_workspace(contribution)
 
     def switch_workspace(self, workspace_id: str) -> None:
+        """Activate a workspace and notify workspace listeners."""
         self.current_workspace_id = workspace_id
         if self._switch_workspace_handler is not None:
             self._switch_workspace_handler(workspace_id)
@@ -419,52 +273,35 @@ class StudioAPI:
             listener(workspace_id)
 
     def on_workspace_changed(self, listener: Callable[[str], None]) -> None:
+        """Subscribe to workspace changes and receive the current ID immediately."""
         self._workspace_listeners.append(listener)
         if self.current_workspace_id is not None:
             listener(self.current_workspace_id)
 
-    def set_toolbar_handler(
-        self,
-        handler: Callable[[ToolbarContribution], None],
-        remove_handler: Callable[[str], None] | None = None,
-    ) -> None:
-        self._add_toolbar_item = handler
-        self._remove_toolbar_item = remove_handler
-        for contribution in self._pending_toolbar_items:
-            handler(contribution)
-        self._pending_toolbar_items.clear()
-
     def add_toolbar_item(self, contribution: ToolbarContribution) -> None:
+        """Add an action to the main toolbar."""
         if self._add_toolbar_item is not None:
             self._add_toolbar_item(contribution)
         else:
             self._pending_toolbar_items.append(contribution)
 
     def remove_toolbar_item(self, contribution_id: str) -> None:
+        """Remove a previously contributed toolbar action by ID."""
         self._pending_toolbar_items = [
             item for item in self._pending_toolbar_items if item.id != contribution_id
         ]
         if self._remove_toolbar_item is not None:
             self._remove_toolbar_item(contribution_id)
 
-    def set_action_handler(
-        self,
-        handler: Callable[[ActionContribution], None],
-        remove_handler: Callable[[str, str], None] | None = None,
-    ) -> None:
-        self._add_action = handler
-        self._remove_action = remove_handler
-        for action in self._pending_actions:
-            handler(action)
-        self._pending_actions.clear()
-
     def add_action(self, contribution: ActionContribution) -> None:
+        """Add an action to the menu path declared by the contribution."""
         if self._add_action is not None:
             self._add_action(contribution)
         else:
             self._pending_actions.append(contribution)
 
     def remove_action(self, menu: str, title: str) -> None:
+        """Remove a contributed menu action by menu path and title."""
         if self._remove_action is not None:
             self._remove_action(menu, title)
 
@@ -479,18 +316,11 @@ class StudioAPI:
         self._settings_pages[contribution.id] = contribution
 
     def remove_settings_page(self, page_id: str) -> None:
+        """Remove a plugin settings page by ID."""
         self._settings_pages.pop(page_id, None)
 
-    def settings_pages(self) -> tuple[SettingsPageContribution, ...]:
-        """Return registered plugin settings pages in display order."""
-        return tuple(
-            sorted(
-                self._settings_pages.values(),
-                key=lambda page: (page.order, page.title.casefold(), page.id),
-            )
-        )
-
     def register_tool(self, contribution: ToolContribution) -> None:
+        """Register a Tools-menu command from a compact tool descriptor."""
         menu_path = f"Tools/{contribution.group}" if contribution.group else "Tools"
         self.add_action(
             ActionContribution(
@@ -503,46 +333,34 @@ class StudioAPI:
         )
 
     def on_project_changed(self, listener: Callable[[ProjectDocument], None]) -> None:
+        """Subscribe to project replacement and receive the current project immediately."""
         self._project_listeners.append(listener)
         if self.current_project is not None:
             listener(self.current_project)
-
-    def set_project(self, project: ProjectDocument) -> None:
-        self.current_project = project
-        self.undo_stack.clear()
-        self.undo_stack.setClean()
-        project.modified = False
-        self.set_selection(None)
-        self.set_section_selection(None)
-        dead_listeners = []
-        for listener in list(self._project_listeners):
-            try:
-                listener(project)
-            except RuntimeError:
-                dead_listeners.append(listener)
-        for dead in dead_listeners:
-            if dead in self._project_listeners:
-                self._project_listeners.remove(dead)
 
     def on_project_content_changed(
         self,
         listener: Callable[[ProjectDocument], None],
     ) -> None:
+        """Subscribe to edits made within the current project."""
         self._project_content_listeners.append(listener)
 
     def remove_project_content_listener(
         self,
         listener: Callable[[ProjectDocument], None],
     ) -> None:
+        """Unsubscribe a project-content listener."""
         if listener in self._project_content_listeners:
             self._project_content_listeners.remove(listener)
 
     def on_modified_changed(self, listener: Callable[[bool], None]) -> None:
+        """Subscribe to project modified-state changes and receive current state."""
         self._modified_listeners.append(listener)
         with suppress(RuntimeError):
             listener(bool(self.current_project and self.current_project.modified))
 
     def remove_modified_listener(self, listener: Callable[[bool], None]) -> None:
+        """Unsubscribe a project modified-state listener."""
         if listener in self._modified_listeners:
             self._modified_listeners.remove(listener)
 
@@ -552,6 +370,12 @@ class StudioAPI:
         description: str,
         change: Callable[[], None],
     ) -> None:
+        """Apply one undoable edit to a component.
+
+        @param component Mutable component object owned by the current project.
+        @param description Human-readable undo command text.
+        @param change Callback that performs the mutation.
+        """
         before = deepcopy(component)
         change()
         after = deepcopy(component)
@@ -559,7 +383,7 @@ class StudioAPI:
         component.update(before)
         if before == after:
             return
-        self.undo_stack.push(
+        self._undo_stack.push(
             _ComponentEditCommand(
                 component,
                 before,
@@ -574,6 +398,7 @@ class StudioAPI:
         description: str,
         change: Callable[[], None],
     ) -> None:
+        """Apply one undoable edit to the current project data."""
         if self.current_project is None:
             change()
             return
@@ -584,7 +409,7 @@ class StudioAPI:
         self.current_project.data.update(before)
         if before == after:
             return
-        self.undo_stack.push(
+        self._undo_stack.push(
             _ProjectEditCommand(
                 self.current_project,
                 before,
@@ -638,28 +463,16 @@ class StudioAPI:
         self.edit_component(comp, description, wrapper)
 
     def undo(self) -> None:
-        if self.undo_stack.canUndo():
-            self.undo_stack.undo()
+        """Undo the most recent project or component edit when available."""
+        if self._undo_stack.canUndo():
+            self._undo_stack.undo()
             self.set_selection(self.current_selection)
 
     def redo(self) -> None:
-        if self.undo_stack.canRedo():
-            self.undo_stack.redo()
+        """Redo the most recently undone edit when available."""
+        if self._undo_stack.canRedo():
+            self._undo_stack.redo()
             self.set_selection(self.current_selection)
-
-    def mark_project_saved(self) -> None:
-        self.undo_stack.setClean()
-
-    def set_project_requirement_checker(
-        self,
-        checker: Callable[[dict[str, Any]], list[str]],
-    ) -> None:
-        self._project_requirement_checker = checker
-
-    def check_project_requirements(self, data: dict[str, Any]) -> list[str]:
-        if self._project_requirement_checker is None:
-            return []
-        return self._project_requirement_checker(data)
 
     def notify_project_content_changed(self) -> None:
         """Explicitly notify listeners that project content was updated or needs refresh."""
@@ -693,11 +506,13 @@ class StudioAPI:
                 self._modified_listeners.remove(dead)
 
     def on_selection_changed(self, listener: Callable[[Any | None], None]) -> None:
+        """Subscribe to selection changes and receive the current selection."""
         self._selection_listeners.append(listener)
         with suppress(RuntimeError):
             listener(self.current_selection)
 
     def set_selection(self, selection: Any | None) -> None:
+        """Set the application selection and notify listeners."""
         self.current_selection = selection
         dead_listeners = []
         for listener in list(self._selection_listeners):
@@ -713,6 +528,7 @@ class StudioAPI:
         self,
         listener: Callable[[tuple[str, int, int] | None], None],
     ) -> None:
+        """Subscribe to geometry-section selection changes."""
         self._section_selection_listeners.append(listener)
         with suppress(RuntimeError):
             listener(self.current_section_selection)
@@ -721,6 +537,7 @@ class StudioAPI:
         self,
         listener: Callable[[tuple[str, int, int] | None], None],
     ) -> None:
+        """Unsubscribe a geometry-section selection listener."""
         if listener in self._section_selection_listeners:
             self._section_selection_listeners.remove(listener)
 
@@ -728,6 +545,7 @@ class StudioAPI:
         self,
         selection: tuple[str, int, int] | None,
     ) -> None:
+        """Set the selected component, section, and side tuple."""
         self.current_section_selection = selection
         dead_listeners = []
         for listener in list(self._section_selection_listeners):
@@ -744,11 +562,13 @@ class StudioAPI:
         component_type: str,
         factory: Callable[[dict[str, Any]], QWidget],
     ) -> None:
+        """Register an editor factory for one fully qualified component type."""
         if component_type in self._component_editors:
             raise ValueError(f"A component editor is already registered for: {component_type}")
         self._component_editors[component_type] = factory
 
     def remove_component_editor(self, component_type: str) -> None:
+        """Remove the editor factory registered for a component type."""
         self._component_editors.pop(component_type, None)
 
     def register_kind_editor(
@@ -756,6 +576,7 @@ class StudioAPI:
         component_kind: str,
         factory: Callable[[dict[str, Any]], QWidget],
     ) -> None:
+        """Register a fallback editor factory for a component kind."""
         if component_kind in self._kind_editors:
             raise ValueError(
                 f"An editor is already registered for component kind: {component_kind}"
@@ -763,6 +584,7 @@ class StudioAPI:
         self._kind_editors[component_kind] = factory
 
     def remove_kind_editor(self, component_kind: str) -> None:
+        """Remove the fallback editor registered for a component kind."""
         self._kind_editors.pop(component_kind, None)
 
     def create_component_editor(
@@ -786,11 +608,13 @@ class StudioAPI:
         component_type: str,
         icon: str | Path | QIcon,
     ) -> None:
+        """Register an icon for one fully qualified component type."""
         if component_type in self._component_icons:
             raise ValueError(f"An icon is already registered for component type: {component_type}")
         self._component_icons[component_type] = icon
 
     def remove_component_icon(self, component_type: str) -> None:
+        """Remove the icon registered for a component type."""
         self._component_icons.pop(component_type, None)
 
     def register_kind_icon(
@@ -798,11 +622,13 @@ class StudioAPI:
         component_kind: str,
         icon: str | Path | QIcon,
     ) -> None:
+        """Register a fallback icon for a component kind."""
         if component_kind in self._kind_icons:
             raise ValueError(f"An icon is already registered for component kind: {component_kind}")
         self._kind_icons[component_kind] = icon
 
     def remove_kind_icon(self, component_kind: str) -> None:
+        """Remove the fallback icon registered for a component kind."""
         self._kind_icons.pop(component_kind, None)
 
     def get_component_icon(self, component: dict[str, Any]) -> QIcon:
@@ -824,11 +650,13 @@ class StudioAPI:
         component_type: str,
         provider: GeometryProvider,
     ) -> None:
+        """Register a 3D geometry provider for a component type."""
         if component_type in self._geometry_providers:
             raise ValueError(f"A geometry provider is already registered for: {component_type}")
         self._geometry_providers[component_type] = provider
 
     def remove_geometry_provider(self, component_type: str) -> None:
+        """Remove the geometry provider registered for a component type."""
         self._geometry_providers.pop(component_type, None)
 
     def register_component_tree_provider(
@@ -836,11 +664,13 @@ class StudioAPI:
         provider_id: str,
         provider: ComponentTreeProvider,
     ) -> None:
+        """Register a provider of virtual nodes beneath project components."""
         if provider_id in self._component_tree_providers:
             raise ValueError(f"A component tree provider is already registered for: {provider_id}")
         self._component_tree_providers[provider_id] = provider
 
     def remove_component_tree_provider(self, provider_id: str) -> None:
+        """Remove a component-tree provider by ID."""
         self._component_tree_providers.pop(provider_id, None)
 
     def component_tree_nodes(
@@ -857,6 +687,7 @@ class StudioAPI:
         provider_id: str,
         provider: ProjectTreeProvider,
     ) -> None:
+        """Register a provider of plugin-owned project-root nodes."""
         if provider_id in self._project_tree_providers:
             raise ValueError(f"A project tree provider is already registered for: {provider_id}")
         self._project_tree_providers[provider_id] = provider
@@ -864,6 +695,7 @@ class StudioAPI:
             self.notify_project_content_changed()
 
     def remove_project_tree_provider(self, provider_id: str) -> None:
+        """Remove a project-tree provider and refresh the project tree."""
         removed = self._project_tree_providers.pop(provider_id, None)
         if removed is not None and self.current_project is not None:
             self.notify_project_content_changed()
@@ -888,6 +720,7 @@ class StudioAPI:
         self._mass_properties_providers[provider_id] = provider
 
     def remove_mass_properties_provider(self, provider_id: str) -> None:
+        """Remove a mass-properties provider by ID."""
         self._mass_properties_providers.pop(provider_id, None)
 
     def get_mass_properties_provider(
@@ -924,6 +757,7 @@ class StudioAPI:
         self,
         project: ProjectDocument | None = None,
     ) -> Any:
+        """Build combined geometry data using all registered providers."""
         document = project or self.current_project
         if document is None:
             from setuav_studio.plugins.geometry.engine.data import GeometryData
@@ -937,6 +771,7 @@ class StudioAPI:
         self,
         listener: Callable[[ProjectDocument], None],
     ) -> None:
+        """Unsubscribe a project replacement listener."""
         if listener in self._project_listeners:
             self._project_listeners.remove(listener)
 
@@ -944,17 +779,116 @@ class StudioAPI:
         self,
         listener: Callable[[Any | None], None],
     ) -> None:
+        """Unsubscribe a selection listener."""
         if listener in self._selection_listeners:
             self._selection_listeners.remove(listener)
 
 
-class StudioPlugin(Protocol):
-    id: str
-    priority: int
+class _StudioHost:
+    """Internal bridge used by the application shell to drive ``StudioAPI``.
 
-    def activate(self, api: StudioAPI) -> None: ...
+    Plugins receive only ``StudioAPI``. Shell bindings and host-owned state
+    transitions live here so they cannot accidentally become part of the
+    supported third-party API.
+    """
 
-    def deactivate(self, api: StudioAPI) -> None: ...
+    def __init__(self, api: StudioAPI) -> None:
+        self._api = api
+
+    @property
+    def undo_stack(self) -> QUndoStack:
+        return self._api._undo_stack
+
+    def bind_panel_handlers(
+        self,
+        add_handler: Callable[[PanelContribution], None],
+        remove_handler: Callable[[str], None] | None = None,
+    ) -> None:
+        self._api._add_panel = add_handler
+        self._api._remove_panel = remove_handler
+
+    def bind_status_handler(self, handler: Callable[[str, str, int], None]) -> None:
+        self._api._status_handler = handler
+        for message, level, timeout_ms in self._api._pending_status:
+            handler(message, level, timeout_ms)
+        self._api._pending_status.clear()
+
+    def bind_progress_handler(self, handler: Callable[[int, int, str], None]) -> None:
+        self._api._progress_handler = handler
+
+    def bind_workspace_handlers(
+        self,
+        add_handler: Callable[[WorkspaceContribution], None],
+        switch_handler: Callable[[str], None] | None = None,
+        remove_handler: Callable[[str], None] | None = None,
+    ) -> None:
+        self._api._add_workspace = add_handler
+        self._api._switch_workspace_handler = switch_handler
+        self._api._remove_workspace = remove_handler
+        for workspace in self._api._pending_workspaces:
+            add_handler(workspace)
+        self._api._pending_workspaces.clear()
+
+    def bind_toolbar_handlers(
+        self,
+        add_handler: Callable[[ToolbarContribution], None],
+        remove_handler: Callable[[str], None] | None = None,
+    ) -> None:
+        self._api._add_toolbar_item = add_handler
+        self._api._remove_toolbar_item = remove_handler
+        for contribution in self._api._pending_toolbar_items:
+            add_handler(contribution)
+        self._api._pending_toolbar_items.clear()
+
+    def bind_action_handlers(
+        self,
+        add_handler: Callable[[ActionContribution], None],
+        remove_handler: Callable[[str, str], None] | None = None,
+    ) -> None:
+        self._api._add_action = add_handler
+        self._api._remove_action = remove_handler
+        for action in self._api._pending_actions:
+            add_handler(action)
+        self._api._pending_actions.clear()
+
+    def set_project(self, project: ProjectDocument) -> None:
+        api = self._api
+        api.current_project = project
+        api._undo_stack.clear()
+        api._undo_stack.setClean()
+        project.modified = False
+        api.set_selection(None)
+        api.set_section_selection(None)
+        dead_listeners = []
+        for listener in list(api._project_listeners):
+            try:
+                listener(project)
+            except RuntimeError:
+                dead_listeners.append(listener)
+        for dead in dead_listeners:
+            if dead in api._project_listeners:
+                api._project_listeners.remove(dead)
+
+    def mark_project_saved(self) -> None:
+        self._api._undo_stack.setClean()
+
+    def bind_project_requirement_checker(
+        self,
+        checker: Callable[[dict[str, Any]], list[str]],
+    ) -> None:
+        self._api._project_requirement_checker = checker
+
+    def check_project_requirements(self, data: dict[str, Any]) -> list[str]:
+        checker = self._api._project_requirement_checker
+        return [] if checker is None else checker(data)
+
+    def settings_pages(self) -> tuple[SettingsPageContribution, ...]:
+        return tuple(
+            sorted(
+                self._api._settings_pages.values(),
+                key=lambda page: (page.order, page.title.casefold(), page.id),
+            )
+        )
 
 
 class PluginManager:
@@ -963,7 +897,7 @@ class PluginManager:
         self._plugins: dict[str, StudioPlugin] = {}
         self._providers: dict[str, str] = {}
         self._plugin_providers: dict[str, dict[str, str]] = {}
-        api.set_project_requirement_checker(self.check_project_requirements)
+        api._host.bind_project_requirement_checker(self.check_project_requirements)
 
     def activate(self, plugin: StudioPlugin) -> None:
         if plugin.id in self._plugins:

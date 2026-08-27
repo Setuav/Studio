@@ -36,6 +36,26 @@ class PluginSystemEdgeTests(unittest.TestCase):
         self.api = StudioAPI()
         self.project = ProjectDocument(Path("project.json"), "json", {"components": []})
 
+    def test_host_services_are_not_exposed_as_plugin_api_methods(self) -> None:
+        host_only_names = {
+            "check_project_requirements",
+            "mark_project_saved",
+            "set_action_handler",
+            "set_panel_handler",
+            "set_progress_handler",
+            "set_project",
+            "set_project_requirement_checker",
+            "set_status_handler",
+            "set_toolbar_handler",
+            "set_workspace_handler",
+            "settings_pages",
+            "undo_stack",
+        }
+
+        for name in host_only_names:
+            with self.subTest(name=name):
+                self.assertFalse(hasattr(self.api, name))
+
     def test_contributions_validate_actions_and_workspace_filters(self) -> None:
         panel = PanelContribution("panel", "Panel", QWidget, workspace_id=["design", "analysis"])
         self.assertTrue(panel.is_in_workspace("design"))
@@ -67,7 +87,9 @@ class PluginSystemEdgeTests(unittest.TestCase):
         self.api.remove_panel("missing")
         panels: list[str] = []
         removed_panels: list[str] = []
-        self.api.set_panel_handler(lambda item: panels.append(item.id), removed_panels.append)
+        self.api._host.bind_panel_handlers(
+            lambda item: panels.append(item.id), removed_panels.append
+        )
         self.api.add_panel(PanelContribution("panel", "Panel", QWidget))
         self.api.remove_panel("panel")
         self.assertEqual((panels, removed_panels), (["panel"], ["panel"]))
@@ -77,7 +99,7 @@ class PluginSystemEdgeTests(unittest.TestCase):
         workspaces: list[str] = []
         removed_workspaces: list[str] = []
         switched: list[str] = []
-        self.api.set_workspace_handler(
+        self.api._host.bind_workspace_handlers(
             lambda item: workspaces.append(item.id), switched.append, removed_workspaces.append
         )
         self.api.set_workspace(WorkspaceContribution("analysis", "Analysis"))
@@ -96,7 +118,9 @@ class PluginSystemEdgeTests(unittest.TestCase):
         self.api.remove_toolbar_item("first")
         self.api.add_toolbar_item(first)
         toolbars: list[str] = []
-        self.api.set_toolbar_handler(lambda item: toolbars.append(item.id), removed_toolbar.append)
+        self.api._host.bind_toolbar_handlers(
+            lambda item: toolbars.append(item.id), removed_toolbar.append
+        )
         self.api.add_toolbar_item(ToolbarContribution("second", "Second", command="second"))
         self.api.remove_toolbar_item("second")
         self.assertEqual(toolbars, ["first", "second"])
@@ -105,13 +129,13 @@ class PluginSystemEdgeTests(unittest.TestCase):
     def test_status_progress_events_and_actions_are_isolated(self) -> None:
         self.api.clear_status()
         statuses: list[tuple[str, str, int]] = []
-        self.api.set_status_handler(lambda *args: statuses.append(args))
+        self.api._host.bind_status_handler(lambda *args: statuses.append(args))
         self.api.clear_status()
         self.assertEqual(statuses, [("", "info", 0)])
 
         self.api.report_progress(1, 2, "ignored")
         progress: list[tuple[int, int, str]] = []
-        self.api.set_progress_handler(lambda *args: progress.append(args))
+        self.api._host.bind_progress_handler(lambda *args: progress.append(args))
         self.api.report_progress(1, 2, "running")
         self.api.clear_progress()
         self.assertEqual(progress, [(1, 2, "running"), (1, 1, "")])
@@ -134,7 +158,7 @@ class PluginSystemEdgeTests(unittest.TestCase):
         self.api.add_action(pending)
         actions: list[str] = []
         removed: list[tuple[str, str]] = []
-        self.api.set_action_handler(
+        self.api._host.bind_action_handlers(
             lambda item: actions.append(item.title), lambda *args: removed.append(args)
         )
         self.api.add_action(ActionContribution("File", "Direct", lambda: None))
@@ -152,12 +176,12 @@ class PluginSystemEdgeTests(unittest.TestCase):
             self.api.add_settings_page(page)
         with self.assertRaises(ValueError):
             self.api.add_settings_page(pages[0])
-        self.assertEqual([page.id for page in self.api.settings_pages()], ["a", "b", "z"])
+        self.assertEqual([page.id for page in self.api._host.settings_pages()], ["a", "b", "z"])
         self.api.remove_settings_page("a")
         self.api.remove_settings_page("missing")
 
         actions: list[ActionContribution] = []
-        self.api.set_action_handler(actions.append)
+        self.api._host.bind_action_handlers(actions.append)
         self.api.register_tool(ToolContribution("Plain", lambda: None))
         self.api.register_tool(ToolContribution("Grouped", lambda: None, group="Geometry"))
         self.assertEqual([action.menu for action in actions], ["Tools", "Tools/Geometry"])
@@ -170,7 +194,7 @@ class PluginSystemEdgeTests(unittest.TestCase):
             raise RuntimeError("deleted")
 
         self.api.on_project_changed(dead_project)
-        self.api.set_project(self.project)
+        self.api._host.set_project(self.project)
         self.assertEqual(project_events, [self.project])
         self.assertNotIn(dead_project, self.api._project_listeners)
         self.api.on_project_changed(project_events.append)
@@ -232,7 +256,7 @@ class PluginSystemEdgeTests(unittest.TestCase):
     def test_noop_edits_and_missing_projects_do_not_create_undo_commands(self) -> None:
         component = {"name": "Wing"}
         self.api.edit_component(component, "No-op", lambda: None)
-        self.assertEqual(self.api.undo_stack.count(), 0)
+        self.assertEqual(self.api._host.undo_stack.count(), 0)
 
         changes: list[str] = []
         self.api.edit_project("Without project", lambda: changes.append("changed"))
@@ -241,10 +265,10 @@ class PluginSystemEdgeTests(unittest.TestCase):
         self.api.edit_component_extension("missing", "ext", "No project", lambda _ext: None)
         self.api.undo()
         self.api.redo()
-        self.api.mark_project_saved()
-        self.assertEqual(self.api.check_project_requirements({}), [])
+        self.api._host.mark_project_saved()
+        self.assertEqual(self.api._host.check_project_requirements({}), [])
 
-        self.api.set_project(self.project)
+        self.api._host.set_project(self.project)
         self.api.edit_project("No-op", lambda: None)
         self.api.edit_component_extension("missing", "ext", "Missing", lambda _ext: None)
         self.project.data["extensions"] = "invalid"
@@ -283,7 +307,7 @@ class PluginSystemEdgeTests(unittest.TestCase):
         self.api.remove_component_tree_provider("one")
 
         events: list[ProjectDocument] = []
-        self.api.set_project(self.project)
+        self.api._host.set_project(self.project)
         self.api.on_project_content_changed(events.append)
         project_node = ProjectTreeNodeContribution("node", "Node", {})
         self.api.register_project_tree_provider("one", lambda _project: (project_node,))
@@ -410,7 +434,9 @@ class PluginSystemEdgeTests(unittest.TestCase):
 
     def test_project_alias_schema_and_handler_absence_paths(self) -> None:
         self.assertIsNone(self.api.project)
-        self.api.project = self.project
+        with self.assertRaises(AttributeError):
+            self.api.project = self.project  # type: ignore[misc]
+        self.api._host.set_project(self.project)
         self.assertIs(self.api.project, self.project)
 
         empty_api = StudioAPI()
@@ -466,7 +492,7 @@ class PluginSystemEdgeTests(unittest.TestCase):
         api.on_modified_changed(dead_modified)
         api.on_selection_changed(dead_selection)
         api.on_section_selection_changed(dead_section)
-        api.set_project(self.project)
+        api._host.set_project(self.project)
         api.on_project_content_changed(dead_content)
         api.notify_project_content_changed()
         api._on_clean_changed(False)

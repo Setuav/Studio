@@ -23,7 +23,7 @@ class PropulsionCreationTests(unittest.TestCase):
     def setUp(self) -> None:
         self.api = StudioAPI()
         self.statuses: list[tuple[str, str, int]] = []
-        self.api.set_status_handler(
+        self.api._host.bind_status_handler(
             lambda message, level, timeout: self.statuses.append((message, level, timeout))
         )
         self.project = ProjectDocument(
@@ -31,7 +31,7 @@ class PropulsionCreationTests(unittest.TestCase):
             "json",
             {"components": [], "assemblies": []},
         )
-        self.api.set_project(self.project)
+        self.api._host.set_project(self.project)
         self.controller = PropulsionCreationController(self.api)
 
     def test_toolbar_contributions_dispatch_each_component_kind(self) -> None:
@@ -249,7 +249,7 @@ class PropulsionCreationTests(unittest.TestCase):
         ):
             self.controller.add_component("motor")
 
-        self.api.set_project(self.project)
+        self.api._host.set_project(self.project)
 
         def invalidate_components(_description: str, change: object) -> None:
             self.project.data["components"] = "invalid"
