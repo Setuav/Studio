@@ -435,6 +435,23 @@ class PluginTests(unittest.TestCase):
         self.assertTrue(self.manager.is_active("com.example.deactivation-failure"))
         self.assertFalse(self.manager.is_disabled("com.example.deactivation-failure"))
 
+    def test_failed_plugin_reactivation_preserves_disabled_state(self) -> None:
+        class FailingPlugin:
+            id = "com.example.activation-failure"
+
+            def activate(self, _api: StudioAPI) -> None:
+                raise RuntimeError("activation failed")
+
+        plugin = FailingPlugin()
+        self.manager._candidates[plugin.id] = plugin
+        self.manager._disabled_plugins.add(plugin.id)
+
+        with self.assertRaisesRegex(RuntimeError, "activation failed"):
+            self.manager.activate_plugin(plugin.id)
+
+        self.assertFalse(self.manager.is_active(plugin.id))
+        self.assertTrue(self.manager.is_disabled(plugin.id))
+
     def test_deactivate_without_deactivate_method_is_noop(self) -> None:
         class PlainPlugin:
             id = "com.example.plain"

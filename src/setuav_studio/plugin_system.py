@@ -906,10 +906,16 @@ class PluginManager:
     def activate(self, plugin: StudioPlugin) -> None:
         if plugin.id in self._plugins:
             raise ValueError(f"Plugin is already active: {plugin.id}")
+        was_disabled = plugin.id in self._disabled_plugins
         self._candidates[plugin.id] = plugin
         self._disabled_plugins.discard(plugin.id)
         logger.info("Activating plugin: %s", plugin.id)
-        plugin.activate(self._api)
+        try:
+            plugin.activate(self._api)
+        except Exception:
+            if was_disabled:
+                self._disabled_plugins.add(plugin.id)
+            raise
         self._plugins[plugin.id] = plugin
         provides = getattr(plugin, "provides", {})
         if isinstance(provides, dict):
@@ -1019,7 +1025,6 @@ class PluginManager:
         plugin = self._candidates.get(plugin_id)
         if plugin is None:
             raise ValueError(f"Plugin is not discovered: {plugin_id}")
-        self._disabled_plugins.discard(plugin_id)
         self.activate(plugin)
 
 
