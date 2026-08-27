@@ -77,6 +77,12 @@ uv run --locked pre-commit run --all-files
 uv run --locked python -m tests.suites all
 ```
 
+Run the standalone SDK contract and example-plugin tests separately:
+
+```bash
+uv run --locked python scripts/sdk_contract_tests.py
+```
+
 Automatic checks before each commit can be enabled optionally:
 
 ```bash
