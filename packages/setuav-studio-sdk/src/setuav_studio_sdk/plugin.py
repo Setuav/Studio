@@ -2,6 +2,21 @@
 
 @defgroup lifecycle Plugin lifecycle
 @brief Discovery and activation contract for plugin packages.
+
+@details
+Setuav Studio discovers installed plugins from the
+``setuav_studio.plugins`` Python entry-point group. The entry-point value must
+resolve to a plugin class or an already-created plugin object exposing a
+stable ``id`` and an ``activate(api)`` method.
+
+At startup the host loads bundled plugins and installed entry points, sorts
+them by ascending ``priority`` and then by plugin ID, and activates them in
+that order. A plugin should register all of its contributions and listeners in
+``activate`` and release them in ``deactivate``.
+
+Loading or activation failures are isolated. The host records a
+``PluginLoadIssue`` and continues starting the remaining plugins. A duplicate
+plugin ID is ignored after the first successful activation.
 """
 
 from typing import Protocol
