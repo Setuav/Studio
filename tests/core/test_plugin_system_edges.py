@@ -298,7 +298,7 @@ class PluginSystemEdgeTests(unittest.TestCase):
             self.api.register_geometry_provider("wing", provider)
         self.api.remove_geometry_provider("wing")
 
-    def test_tree_and_mass_provider_registries_notify_and_resolve(self) -> None:
+    def test_tree_provider_registries_notify_and_resolve(self) -> None:
         component_node = ComponentTreeNodeContribution("node", "Node", {})
         self.api.register_component_tree_provider("one", lambda _component: (component_node,))
         with self.assertRaises(ValueError):
@@ -317,18 +317,6 @@ class PluginSystemEdgeTests(unittest.TestCase):
         self.api.remove_project_tree_provider("missing")
         self.api.remove_project_tree_provider("one")
         self.assertEqual(len(events), 2)
-
-        first = object()
-        second = object()
-        self.api.register_mass_properties_provider("first", first)  # type: ignore[arg-type]
-        self.assertIs(self.api.get_mass_properties_provider(), first)
-        self.assertIs(self.api.get_mass_properties_provider("first"), first)
-        with self.assertRaises(ValueError):
-            self.api.register_mass_properties_provider("first", first)  # type: ignore[arg-type]
-        self.api.register_mass_properties_provider("second", second)  # type: ignore[arg-type]
-        self.assertIsNone(self.api.get_mass_properties_provider())
-        self.api.remove_mass_properties_provider("first")
-        self.api.remove_mass_properties_provider("second")
 
     def test_geometry_builder_handles_empty_and_explicit_projects(self) -> None:
         geometry = self.api.build_geometry_data()

@@ -14,7 +14,6 @@ from PySide6.QtWidgets import QWidget
 from setuav_studio_sdk.api import (
     ComponentTreeProvider,
     GeometryProvider,
-    MassPropertiesProvider,
     ProjectTreeProvider,
 )
 from setuav_studio_sdk.contributions import (
@@ -38,7 +37,6 @@ from setuav_studio.ui.icons import get_icon
 __all__ = [
     "BaseComponentEditor",
     "ComponentTreeNodeContribution",
-    "MassPropertiesProvider",
     "PanelContribution",
     "ParameterField",
     "PluginManager",
@@ -168,7 +166,6 @@ class StudioAPI:
         self._geometry_providers: dict[str, GeometryProvider] = {}
         self._component_tree_providers: dict[str, ComponentTreeProvider] = {}
         self._project_tree_providers: dict[str, ProjectTreeProvider] = {}
-        self._mass_properties_providers: dict[str, MassPropertiesProvider] = {}
         self._project_requirement_checker: Callable[[dict[str, Any]], list[str]] | None = None
         self._event_subscribers: dict[str, list[Callable[[Any], None]]] = {}
         self._undo_stack = QUndoStack()
@@ -709,31 +706,6 @@ class StudioAPI:
         for provider in self._project_tree_providers.values():
             nodes.extend(provider(project))
         return tuple(nodes)
-
-    def register_mass_properties_provider(
-        self,
-        provider_id: str,
-        provider: MassPropertiesProvider,
-    ) -> None:
-        """Register a synchronous mass/CG/inertia provider."""
-        if provider_id in self._mass_properties_providers:
-            raise ValueError(f"A mass properties provider is already registered for: {provider_id}")
-        self._mass_properties_providers[provider_id] = provider
-
-    def remove_mass_properties_provider(self, provider_id: str) -> None:
-        """Remove a mass-properties provider by ID."""
-        self._mass_properties_providers.pop(provider_id, None)
-
-    def get_mass_properties_provider(
-        self,
-        provider_id: str | None = None,
-    ) -> MassPropertiesProvider | None:
-        """Resolve a provider by id, or the sole registered provider."""
-        if provider_id is not None:
-            return self._mass_properties_providers.get(provider_id)
-        if len(self._mass_properties_providers) == 1:
-            return next(iter(self._mass_properties_providers.values()))
-        return None
 
     def register_schema(self, schema_id: str, schema_dict: dict[str, Any]) -> None:
         """Register a custom JSON schema dynamically (for 3rd-party plugins)."""

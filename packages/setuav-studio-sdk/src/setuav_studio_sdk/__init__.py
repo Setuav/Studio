@@ -7,7 +7,6 @@ application implementation modules.
 from .api import (
     ComponentTreeProvider,
     GeometryProvider,
-    MassPropertiesProvider,
     ProjectTreeProvider,
     StudioAPI,
 )
@@ -34,7 +33,6 @@ __all__ = [
     "ComponentTreeNodeContribution",
     "ComponentTreeProvider",
     "GeometryProvider",
-    "MassPropertiesProvider",
     "PanelContribution",
     "ParameterField",
     "ProjectDocument",
