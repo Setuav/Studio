@@ -1,6 +1,6 @@
 # Setuav Studio
 
-<p class="hero-logo"><img src="images/studio.png" alt="Setuav Studio logo"></p>
+![Setuav Studio banner](images/studio_banner.png)
 
 Welcome to the official documentation for **Setuav Studio**, a plugin-based
 desktop application for parametric UAV design and analysis.

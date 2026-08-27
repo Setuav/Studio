@@ -132,11 +132,11 @@ With MkDocs, Doxygen, and Graphviz installed, generate the documentation site:
 
 ```bash
 mkdocs build
-doxygen Doxyfile
 ```
 
-Open `build/docs/site/index.html` in a browser. The generated SDK reference is
-available under `Developer Guide → SDK API Reference`.
+The build hook runs Doxygen and places the SDK reference under
+`Developer Guide → SDK API Reference`. Open `build/docs/site/index.html` in a
+browser to view the site.
 
 ## License
 
