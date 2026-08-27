@@ -15,8 +15,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from setuav_studio_sdk import StudioAPI
 
-from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.ui.icons import set_label_icon
 
 

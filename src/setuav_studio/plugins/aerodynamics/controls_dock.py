@@ -20,8 +20,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from setuav_studio_sdk import StudioAPI
 
-from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.ui.buttons import refresh_button_role, set_button_role, set_native_button
 from setuav_studio.ui.icons import set_label_icon
 from setuav_studio.ui.numeric_spinbox import NumericSpinBox

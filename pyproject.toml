@@ -22,6 +22,7 @@ dependencies = [
     "referencing>=0.30,<1",
     "numpy>=1.26,<3",
     "scipy>=1.11,<2",
+    "setuav-studio-sdk",
 ]
 
 [project.optional-dependencies]
@@ -54,6 +55,9 @@ security = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/setuav_studio"]
+
+[tool.uv.sources]
+setuav-studio-sdk = { path = "packages/setuav-studio-sdk", editable = true }
 
 [tool.deptry.package_module_name_map]
 setuav-pythrust = "pythrust"
@@ -96,8 +100,9 @@ directory = "htmlcov"
 title = "Setuav Studio Coverage"
 
 [tool.pyright]
+extraPaths = ["packages/setuav-studio-sdk/src"]
 include = [
-    "src/setuav_studio/sdk",
+    "packages/setuav-studio-sdk/src/setuav_studio_sdk",
     "src/setuav_studio/ui/about_dialog.py",
     "src/setuav_studio/plugins/aerodynamics/engine/base.py",
     "src/setuav_studio/plugins/aerodynamics/engine/aerosandbox_engine.py",

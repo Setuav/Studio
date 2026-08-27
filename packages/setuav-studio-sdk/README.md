@@ -1,8 +1,7 @@
 # Setuav Studio SDK
 
-The standalone SDK package contains the stable Python contracts used by
-third-party Setuav Studio plugins. The package source and API reference live
-together so the SDK can be versioned and released independently.
+This package defines the Python contracts used by third-party Setuav Studio
+plugins. The source and API reference are kept together for versioned releases.
 
 ## API documentation
 

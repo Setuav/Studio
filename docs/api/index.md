@@ -3,7 +3,7 @@
 Build Python packages that extend Setuav Studio with panels, workspaces, menu
 commands, editors, project-tree nodes, schemas, and analysis providers.
 
-Only symbols imported from `setuav_studio.sdk` are public. Application modules
+Only symbols imported from `setuav_studio_sdk` are public. Application modules
 outside this package are implementation details and may change at any time.
 
 ## Start here
@@ -16,7 +16,7 @@ outside this package are implementation details and may change at any time.
 ```python
 from PySide6.QtWidgets import QLabel
 
-from setuav_studio.sdk import PanelContribution, StudioAPI
+from setuav_studio_sdk import PanelContribution, StudioAPI
 
 
 class ExamplePlugin:

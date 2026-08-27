@@ -1,8 +1,7 @@
 from typing import ClassVar
 
 from PySide6.QtWidgets import QWidget
-
-from setuav_studio.plugin_system import (
+from setuav_studio_sdk import (
     PanelContribution,
     SettingsPageContribution,
     StudioAPI,

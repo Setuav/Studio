@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import ClassVar
 
-from setuav_studio.plugin_system import StudioAPI
+from setuav_studio_sdk import StudioAPI
 
 
 class View2DPlugin:

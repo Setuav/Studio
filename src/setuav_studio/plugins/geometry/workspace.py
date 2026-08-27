@@ -15,8 +15,8 @@ from PySide6.QtWidgets import (
     QToolButton,
     QWidget,
 )
+from setuav_studio_sdk import StudioAPI
 
-from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.project import ProjectDocument
 from setuav_studio.ui.icons import get_icon
 

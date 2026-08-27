@@ -18,8 +18,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from setuav_studio_sdk import StudioAPI
 
-from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.plugins.core.derived_geometry import derive_component_geometry
 from setuav_studio.ui.icons import get_icon, set_label_icon
 from setuav_studio.ui.numeric_spinbox import NumericSpinBox, set_table_spinbox

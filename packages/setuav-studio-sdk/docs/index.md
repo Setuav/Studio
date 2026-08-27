@@ -14,7 +14,7 @@ implementation modules.
 ```python
 from PySide6.QtWidgets import QLabel
 
-from setuav_studio.sdk import PanelContribution, StudioAPI
+from setuav_studio_sdk import PanelContribution, StudioAPI
 
 
 class ExamplePlugin:

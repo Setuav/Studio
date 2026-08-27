@@ -23,8 +23,8 @@ from PySide6.QtWidgets import (
 from pythrust.propellers.database import PropellerEntry
 from pythrust.propulsion.models.motor import MotorSpec
 from pythrust.propulsion.models.propeller import PropellerSpec
+from setuav_studio_sdk import StudioAPI
 
-from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.ui.buttons import refresh_button_role, set_button_role, set_native_button
 from setuav_studio.ui.icons import get_icon, set_label_icon
 from setuav_studio.ui.property_tables import PropertyTableMixin
