@@ -14,9 +14,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  MPLCONFIGDIR: ${{ runner.temp }}/matplotlib
+  MPLCONFIGDIR: ${{ github.workspace }}/.cache/matplotlib
   QT_QPA_PLATFORM: offscreen
-  UV_CACHE_DIR: ${{ runner.temp }}/uv-cache
 
 jobs:
   quality:
