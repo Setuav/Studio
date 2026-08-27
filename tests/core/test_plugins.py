@@ -359,6 +359,32 @@ class PluginTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.manager.activate(CorePlugin())
 
+    def test_active_plugins_are_sorted_for_management_views(self) -> None:
+        class LaterPlugin:
+            id = "com.example.later"
+            priority = 100
+
+            def activate(self, _api: StudioAPI) -> None: ...
+
+        class EarlierPlugin:
+            id = "com.example.earlier"
+            priority = 10
+
+            def activate(self, _api: StudioAPI) -> None: ...
+
+        self.manager.activate(LaterPlugin())
+        self.manager.activate(EarlierPlugin())
+
+        self.assertEqual(
+            [plugin.id for plugin in self.manager.active_plugins],
+            ["com.example.earlier", "com.example.later"],
+        )
+
+        self.manager.deactivate("com.example.earlier")
+        self.assertTrue(self.manager.is_disabled("com.example.earlier"))
+        self.manager.activate_plugin("com.example.earlier")
+        self.assertTrue(self.manager.is_active("com.example.earlier"))
+
     def test_plugin_deactivate_and_reactivate(self) -> None:
         activated: list[str] = []
         deactivated: list[str] = []

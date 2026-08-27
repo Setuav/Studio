@@ -133,7 +133,18 @@ class ElectricalPropulsionPlugin:
         if controller is not None:
             for contribution_id in controller.toolbar_ids:
                 api.remove_toolbar_item(contribution_id)
+        for component_type in (
+            "org.setuav.core:motor",
+            "org.setuav.core:propeller",
+            "org.setuav.core:rotor",
+            "org.setuav.core:esc",
+            "org.setuav.core:battery",
+            "org.setuav.core:electric-propulsion-system",
+        ):
+            api.remove_component_editor(component_type)
+            api.remove_component_icon(component_type)
         api.remove_panel("propulsion.controls_dock")
         api.remove_panel("propulsion.results_dock")
         api.remove_panel("propulsion.charts_dock")
+        api.remove_action("Tools/Electrical Propulsion", "Component Database…")
         api.remove_workspace("studio.workspace.propulsion")

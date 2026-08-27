@@ -125,6 +125,7 @@ def main() -> int:
     window = MainWindow(api)
 
     plugin_manager = PluginManager(api)
+    window.bind_plugin_manager(plugin_manager)
     plugin_manager.activate(CorePlugin())
     plugin_issues = plugin_manager.discover()
     if plugin_issues:

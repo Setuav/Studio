@@ -40,6 +40,33 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertIn("org.setuav.core:battery", api._component_editors)
         self.assertIn("org.setuav.core:electric-propulsion-system", api._component_editors)
 
+    def test_plugin_can_be_deactivated_and_reactivated(self) -> None:
+        from setuav_studio.plugins.electrical_propulsion.plugin import ElectricalPropulsionPlugin
+        from setuav_studio.shell import MainWindow
+
+        api = StudioAPI()
+        window = MainWindow(api)
+        manager = PluginManager(api)
+        manager.activate(CorePlugin())
+        plugin = ElectricalPropulsionPlugin()
+        manager.activate(plugin)
+
+        self.assertIn("org.setuav.core:motor", api._component_editors)
+        self.assertIn("tools/electrical propulsion", window._menus)
+        self.assertIn("project.explorer", window._panels)
+        self.assertIn("studio.properties", window._panels)
+
+        manager.deactivate(plugin.id)
+
+        self.assertNotIn("org.setuav.core:motor", api._component_editors)
+        self.assertNotIn("org.setuav.core:motor", api._component_icons)
+        self.assertNotIn("tools/electrical propulsion", window._menus)
+        self.assertIn("project.explorer", window._panels)
+        self.assertIn("studio.properties", window._panels)
+
+        manager.activate_plugin(plugin.id)
+        self.assertIn("org.setuav.core:motor", api._component_editors)
+
     def test_motor_editor(self) -> None:
         api = StudioAPI()
         doc = open_project(TEST_PROJECT_PATH)

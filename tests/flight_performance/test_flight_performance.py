@@ -440,7 +440,7 @@ class TestFlightPerformance(unittest.TestCase):
         self.assertIn("V_stall: 9.0 m/s", run_node.tooltip or "")
         self.assertEqual(len(run_node.children), 0)
 
-    def test_plugin_deactivate_removes_tool_and_selection_listener(self) -> None:
+    def test_plugin_deactivate_removes_selection_listener(self) -> None:
         api = StudioAPI()
         actions: list[object] = []
         removed_actions: list[tuple[str, str]] = []
@@ -461,16 +461,13 @@ class TestFlightPerformance(unittest.TestCase):
         plugin = FlightPerformancePlugin()
         plugin.activate(api)
 
-        self.assertEqual(len(actions), 1)
+        self.assertEqual(len(actions), 0)
         self.assertIn(plugin._on_selection_changed, api._selection_listeners)
 
         plugin.deactivate(api)
 
         self.assertNotIn(plugin._on_selection_changed, api._selection_listeners)
-        self.assertEqual(
-            removed_actions,
-            [("Tools/Flight Performance", "Flight Performance Envelope…")],
-        )
+        self.assertEqual(removed_actions, [])
         self.assertEqual(
             removed_panels,
             [
@@ -482,7 +479,7 @@ class TestFlightPerformance(unittest.TestCase):
         self.assertEqual(removed_workspaces, ["studio.workspace.flight_performance"])
 
         plugin.activate(api)
-        self.assertEqual(len(actions), 2)
+        self.assertEqual(len(actions), 0)
         self.assertEqual(len(panels), 6)
         self.assertEqual(len(workspaces), 2)
         self.assertEqual(
