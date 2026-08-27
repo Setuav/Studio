@@ -1,0 +1,78 @@
+name: SDK Release
+
+on:
+  push:
+    tags:
+      - "sdk-v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sdk-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Build and publish SDK
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/setuav-studio-sdk
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          cache-dependency-glob: uv.lock
+          enable-cache: true
+
+      - name: Verify tag belongs to main and matches SDK version
+        shell: bash
+        run: |
+          git fetch origin main:refs/remotes/origin/main
+          tag_commit="$(git rev-list -n 1 "${GITHUB_REF_NAME}")"
+          git merge-base --is-ancestor "${tag_commit}" refs/remotes/origin/main
+
+          sdk_version="$(python -c 'import tomllib; print(tomllib.load(open("packages/setuav-studio-sdk/pyproject.toml", "rb"))["project"]["version"])')"
+          tag_version="${GITHUB_REF_NAME#sdk-v}"
+          if [[ "${tag_version}" != "${sdk_version}" ]]; then
+            echo "Tag version ${tag_version} does not match SDK version ${sdk_version}." >&2
+            exit 1
+          fi
+
+      - name: Build SDK distributions
+        working-directory: packages/setuav-studio-sdk
+        run: uv run --project ../.. --locked --group package python -m build --outdir ../../dist/sdk
+
+      - name: Verify SDK wheel metadata
+        shell: bash
+        run: |
+          test -n "$(find dist/sdk -maxdepth 1 -name '*.whl' -print -quit)"
+          test -n "$(find dist/sdk -maxdepth 1 -name '*.tar.gz' -print -quit)"
+          python -m venv "${RUNNER_TEMP}/setuav-sdk-release-smoke"
+          "${RUNNER_TEMP}/setuav-sdk-release-smoke/bin/python" -m pip install --no-deps dist/sdk/*.whl
+          "${RUNNER_TEMP}/setuav-sdk-release-smoke/bin/python" - <<'PY'
+          import importlib.metadata
+
+          distribution = importlib.metadata.distribution("setuav-studio-sdk")
+          assert any(str(entry).startswith("setuav_studio_sdk/") for entry in distribution.files or ())
+          print(f"SDK release smoke test passed: setuav-studio-sdk {distribution.version}")
+          PY
+
+      - name: Publish distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/sdk/

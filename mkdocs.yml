@@ -63,5 +63,6 @@ nav:
   - Developer Guide:
       - Overview: developer/index.md
       - SDK API Reference: developer/sdk-api-reference.md
+      - SDK release: developer/sdk-release.md
 
 site_dir: build/docs/site
