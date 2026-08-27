@@ -36,10 +36,10 @@ class ExamplePlugin:
 
 ## API reference
 
-- [Plugin API](@ref plugin_api)
-- [Contributions](@ref contributions)
-- [Provider contracts](@ref providers)
-- [Plugin lifecycle](@ref lifecycle)
+- **Plugin API**
+- **Contributions**
+- **Provider contracts**
+- **Plugin lifecycle**
 
 ## Package discovery
 
@@ -53,7 +53,7 @@ class ExamplePlugin:
 The entry point must resolve to a class or instance with a stable `id` and an
 `activate(api)` method. An optional integer `priority` controls startup order;
 lower values activate first, followed by plugin ID. Register contributions and
-listeners in `activate`, and remove them in `deactivate`.
+listeners in `activate`, and remove them in the required `deactivate` method.
 
 Plugins that add project data also ship a `plugin.json` schema manifest:
 

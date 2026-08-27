@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from packaging.version import InvalidVersion, Version
+from PySide6.QtCore import QSettings
 from PySide6.QtGui import QIcon, QUndoCommand, QUndoStack
 from PySide6.QtWidgets import QWidget
 
@@ -50,6 +51,7 @@ __all__ = [
 ]
 
 logger = logging.getLogger(__name__)
+_DISABLED_PLUGINS_KEY = "plugins/disabled"
 
 
 @dataclass(frozen=True)
@@ -874,7 +876,7 @@ class PluginManager:
         self._api = api
         self._plugins: dict[str, StudioPlugin] = {}
         self._candidates: dict[str, StudioPlugin] = {}
-        self._disabled_plugins: set[str] = set()
+        self._disabled_plugins = self._load_disabled_plugins()
         self._load_issues: list[PluginLoadIssue] = []
         self._providers: dict[str, str] = {}
         self._plugin_providers: dict[str, dict[str, str]] = {}
@@ -922,6 +924,8 @@ class PluginManager:
                 self._disabled_plugins.add(plugin.id)
             raise
         self._plugins[plugin.id] = plugin
+        if was_disabled:
+            self._save_disabled_plugins()
         provides = getattr(plugin, "provides", {})
         if isinstance(provides, dict):
             provided = {str(plugin_id): str(version) for plugin_id, version in provides.items()}
@@ -934,10 +938,12 @@ class PluginManager:
             raise ValueError(f"Plugin is not active: {plugin_id}")
         logger.info("Deactivating plugin: %s", plugin_id)
         deactivate = getattr(plugin, "deactivate", None)
-        if callable(deactivate):
-            deactivate(self._api)
+        if not callable(deactivate):
+            raise TypeError(f"Plugin does not implement deactivate(api): {plugin_id}")
+        deactivate(self._api)
         self._plugins.pop(plugin_id, None)
         self._disabled_plugins.add(plugin_id)
+        self._save_disabled_plugins()
         for provided_id in self._plugin_providers.pop(plugin_id, {}):
             self._providers.pop(provided_id, None)
 
@@ -1035,12 +1041,26 @@ class PluginManager:
         if isinstance(plugin_id, str) and plugin_id in self._plugins:
             return
         if isinstance(plugin_id, str):
+            if plugin_id in self._disabled_plugins and plugin_id in self._candidates:
+                return
             self._candidates[plugin_id] = plugin
             if plugin_id in self._disabled_plugins:
                 return
         if not hasattr(plugin, "activate") or not isinstance(plugin_id, str):
             raise TypeError("Plugin entry must provide id and activate(api)")
         self.activate(plugin)
+
+    @staticmethod
+    def _load_disabled_plugins() -> set[str]:
+        stored = QSettings().value(_DISABLED_PLUGINS_KEY, [])
+        if isinstance(stored, str):
+            return {stored}
+        if isinstance(stored, (list, tuple, set)):
+            return {str(plugin_id) for plugin_id in stored if str(plugin_id)}
+        return set()
+
+    def _save_disabled_plugins(self) -> None:
+        QSettings().setValue(_DISABLED_PLUGINS_KEY, sorted(self._disabled_plugins))
 
     def activate_plugin(self, plugin_id: str) -> None:
         """Activate a previously discovered plugin by ID."""

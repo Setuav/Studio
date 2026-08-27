@@ -462,6 +462,48 @@ class PluginSystemEdgeTests(unittest.TestCase):
 
         self.assertIs(manager._candidates["com.example.duplicate"], bundled)
 
+    def test_disabled_plugin_candidate_is_preserved_across_rediscovery(self) -> None:
+        manager = PluginManager(self.api)
+        manager._disabled_plugins.add("com.example.disabled")
+
+        class BundledPlugin:
+            id = "com.example.disabled"
+
+            def activate(self, _api: StudioAPI) -> None: ...
+
+        class EntryPointPlugin:
+            id = "com.example.disabled"
+
+            def activate(self, _api: StudioAPI) -> None: ...
+
+        bundled = BundledPlugin()
+        manager._activate_candidate(bundled)
+        manager._activate_candidate(EntryPointPlugin())
+
+        self.assertIs(manager._candidates["com.example.disabled"], bundled)
+
+    def test_disabled_plugin_state_is_loaded_and_saved(self) -> None:
+        settings = Mock()
+        settings.value.return_value = ["com.example.persisted"]
+        with patch("setuav_studio.plugin_system.QSettings", return_value=settings):
+            manager = PluginManager(self.api)
+
+            self.assertTrue(manager.is_disabled("com.example.persisted"))
+
+            class Plugin:
+                id = "com.example.saved"
+
+                def activate(self, _api: StudioAPI) -> None: ...
+
+                def deactivate(self, _api: StudioAPI) -> None: ...
+
+            manager.activate(Plugin())
+            manager.deactivate("com.example.saved")
+
+        settings.setValue.assert_called_once_with(
+            "plugins/disabled", ["com.example.persisted", "com.example.saved"]
+        )
+
     def test_discovery_uses_one_global_priority_order(self) -> None:
         manager = PluginManager(self.api)
         activation_order: list[str] = []
