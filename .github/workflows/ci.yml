@@ -80,6 +80,29 @@ jobs:
           cd "${RUNNER_TEMP}"
           "${RUNNER_TEMP}/setuav-package-smoke/bin/python" \
             "${GITHUB_WORKSPACE}/scripts/package_smoke_test.py"
+      - name: Build SDK wheel and source distribution
+        working-directory: packages/setuav-studio-sdk
+        run: uv run --project ../.. --locked --group package python -m build --outdir ../../dist/sdk
+      - name: Verify SDK wheel metadata
+        shell: bash
+        run: |
+          test -n "$(find dist/sdk -maxdepth 1 -name '*.tar.gz' -print -quit)"
+          expected_version="$(python -c 'import tomllib; print(tomllib.load(open("packages/setuav-studio-sdk/pyproject.toml", "rb"))["project"]["version"])')"
+          python -m venv "${RUNNER_TEMP}/setuav-sdk-package-smoke"
+          "${RUNNER_TEMP}/setuav-sdk-package-smoke/bin/python" -m pip install --no-deps dist/sdk/*.whl
+          EXPECTED_SDK_VERSION="${expected_version}" \
+            "${RUNNER_TEMP}/setuav-sdk-package-smoke/bin/python" - <<'PY'
+          import os
+          import importlib.metadata
+
+          distribution = importlib.metadata.distribution("setuav-studio-sdk")
+          assert distribution.version == os.environ["EXPECTED_SDK_VERSION"], distribution.version
+          assert any(
+              str(entry).startswith("setuav_studio_sdk/")
+              for entry in distribution.files or ()
+          )
+          print(f"SDK package smoke test passed: setuav-studio-sdk {distribution.version}")
+          PY
 
   desktop:
     name: Desktop bundle smoke test
