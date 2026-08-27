@@ -24,6 +24,7 @@ from .settings import (
     _VIEWER_GRID_KEY,
     _VIEWER_PALETTE_KEY,
     _VIEWER_PROJECTION_KEY,
+    _VIEWER_SCREENSHOT_TRANSPARENT_KEY,
     _VIEWER_SOLID_KEY,
     _VIEWER_WIRE_KEY,
     _VIEWER_WIRE_MODE_KEY,
@@ -249,6 +250,20 @@ class ViewerWorkspace(QWidget):
             )
         self._screenshot_menu.addSeparator()
         self._screenshot_menu.addAction("Custom Resolution…", self._take_screenshot_custom)
+        self._screenshot_menu.addSeparator()
+        self._action_transparent_bg = self._screenshot_menu.addAction("Transparent Background")
+        self._action_transparent_bg.setCheckable(True)
+        self._action_transparent_bg.setChecked(
+            _as_bool(
+                viewer_setting(_VIEWER_SCREENSHOT_TRANSPARENT_KEY, False),
+                False,
+            )
+        )
+        self._action_transparent_bg.toggled.connect(
+            lambda checked: QSettings().setValue(
+                _VIEWER_SCREENSHOT_TRANSPARENT_KEY, checked
+            )
+        )
         self.screenshot_button.setMenu(self._screenshot_menu)
         hud_layout.addWidget(self.screenshot_button)
 
@@ -410,6 +425,15 @@ class ViewerWorkspace(QWidget):
         self.viewer.set_show_solid(self._default_show_solid)
         self.viewer.set_show_wireframe(self._default_show_wire)
         self.viewer.set_orthographic(self._default_orthographic)
+        if hasattr(self, "_action_transparent_bg"):
+            self._action_transparent_bg.blockSignals(True)
+            self._action_transparent_bg.setChecked(
+                _as_bool(
+                    viewer_setting(_VIEWER_SCREENSHOT_TRANSPARENT_KEY, False),
+                    False,
+                )
+            )
+            self._action_transparent_bg.blockSignals(False)
 
     def _on_viewer_settings_changed(self, _payload: object = None) -> None:
         self._load_viewer_defaults()
@@ -507,8 +531,23 @@ class ViewerWorkspace(QWidget):
         except (TypeError, ValueError):
             logger.exception("Could not build viewer geometry")
 
-    def _take_screenshot(self, width: int, height: int) -> None:
-        image = self.viewer.capture_screenshot(width, height)
+    def _take_screenshot(
+        self,
+        width: int,
+        height: int,
+        transparent: bool | None = None,
+    ) -> None:
+        if transparent is None:
+            transparent = (
+                self._action_transparent_bg.isChecked()
+                if hasattr(self, "_action_transparent_bg")
+                else False
+            )
+        image = self.viewer.capture_screenshot(
+            width,
+            height,
+            transparent_background=transparent,
+        )
         if image is None or image.isNull():
             QMessageBox.warning(
                 self,

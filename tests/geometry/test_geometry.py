@@ -2182,6 +2182,32 @@ def _build_fuselage_component() -> dict:
             format_profile_size({"type": "ellipse", "width": 120.0, "height": 60.0}), "120.0 × 60.0"
         )
 
+    def test_geometry_screenshot_transparent_background(self) -> None:
+        """Verify screenshot transparent background action and capture parameter."""
+        from setuav_studio.plugins.geometry.workspace import GeometryWorkspace
+        from setuav_studio_sdk import StudioAPI
+
+        api = StudioAPI()
+        workspace = GeometryWorkspace(api)
+        self.addCleanup(workspace.deleteLater)
+
+        self.assertTrue(hasattr(workspace, "_action_transparent_bg"))
+        self.assertTrue(workspace._action_transparent_bg.isCheckable())
+
+        with mock.patch.object(workspace.viewer, "capture_screenshot") as mock_capture:
+            mock_capture.return_value = None
+
+            # 1. Capture with transparent bg unchecked
+            workspace._action_transparent_bg.setChecked(False)
+            workspace._take_screenshot(1920, 1080)
+            mock_capture.assert_called_with(1920, 1080, transparent_background=False)
+
+            # 2. Capture with transparent bg checked
+            workspace._action_transparent_bg.setChecked(True)
+            workspace._take_screenshot(1920, 1080)
+            mock_capture.assert_called_with(1920, 1080, transparent_background=True)
+
 
 if __name__ == "__main__":
     unittest.main()
+
