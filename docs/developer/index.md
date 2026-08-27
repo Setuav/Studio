@@ -126,8 +126,8 @@ actionable errors through the application logger or status service.
 
 ## Plugin template and tests
 
-The repository contains a minimal installable plugin in
-[`packages/example-plugin`](../../packages/example-plugin). Copy it as a
+The repository contains a minimal installable plugin in the
+[`example-plugin` repository directory](https://github.com/Setuav/studio/tree/main/packages/example-plugin). Copy it as a
 starting point, replace its reverse-domain IDs, and declare the SDK dependency
 in `pyproject.toml`.
 

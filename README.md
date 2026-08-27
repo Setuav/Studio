@@ -64,7 +64,7 @@ uv run --locked setuav-studio path/to/project.suav
 
 ## Documentation
 
-- [User guide](docs/user-guide/index.md)
+- [User guide](docs/index.md)
 - [Developer documentation](docs/developer/index.md)
 
 ## Development
@@ -128,14 +128,15 @@ At runtime, use **Tools → Plugin Manager** to review active plugins and any
 discovery or activation issues. User plugins can be enabled or disabled from
 the same screen; the core plugin remains protected.
 
-With Doxygen and Graphviz installed, generate the Plugin SDK API reference:
+With MkDocs, Doxygen, and Graphviz installed, generate the documentation site:
 
 ```bash
+mkdocs build
 doxygen Doxyfile
 ```
 
-Open `build/docs/doxygen/html/index.html` in a browser to view the generated
-documentation.
+Open `build/docs/site/index.html` in a browser. The generated SDK reference is
+available under `Developer Guide → SDK API Reference`.
 
 ## License
 

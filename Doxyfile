@@ -5,7 +5,7 @@ PROJECT_NUMBER         = "1.0"
 PROJECT_BRIEF          = "SDK and plugin development reference for Setuav Studio"
 PROJECT_LOGO           = src/setuav_studio/assets/icons/studio.png
 
-OUTPUT_DIRECTORY       = build/docs/doxygen
+OUTPUT_DIRECTORY       = build/docs/site/developer/sdk-api
 CREATE_SUBDIRS         = NO
 ALLOW_UNICODE_NAMES    = YES
 OUTPUT_LANGUAGE        = English
@@ -44,7 +44,7 @@ REFERENCED_BY_RELATION = NO
 REFERENCES_RELATION    = NO
 
 GENERATE_HTML          = YES
-HTML_OUTPUT            = html
+HTML_OUTPUT            = .
 HTML_EXTRA_STYLESHEET  = docs/developer/sdk.css
 HTML_DYNAMIC_MENUS     = YES
 GENERATE_TREEVIEW      = YES

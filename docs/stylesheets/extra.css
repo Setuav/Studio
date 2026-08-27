@@ -1,0 +1,13 @@
+:root {
+  --md-text-font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --md-code-font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.hero-logo {
+  margin: 1.5rem 0 2rem;
+  text-align: center;
+}
+
+.hero-logo img {
+  width: min(260px, 60vw);
+}
