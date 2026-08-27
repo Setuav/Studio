@@ -47,3 +47,27 @@ class ExamplePlugin:
 [project.entry-points."setuav_studio.plugins"]
 "com.example.demo" = "example_plugin.plugin:ExamplePlugin"
 ```
+
+## Discovery and loading
+
+The entry point must resolve to a class or instance with a stable `id` and an
+`activate(api)` method. An optional integer `priority` controls startup order;
+lower values activate first, followed by plugin ID. Register contributions and
+listeners in `activate`, and remove them in `deactivate`.
+
+Plugins that add project data also ship a `plugin.json` schema manifest:
+
+```json
+{
+  "$schema": "https://schemas.setuav.org/core/plugin-manifest.schema.json",
+  "id": "com.example.demo",
+  "version": "1.0.0",
+  "component_types": {},
+  "assembly_types": {},
+  "analysis_types": {}
+}
+```
+
+Import, validation, and activation errors are isolated to the failing plugin;
+Setuav Studio records the issue and continues loading the remaining plugins.
+A duplicate plugin ID is ignored after the first successful activation.

@@ -57,6 +57,73 @@ The entry point may resolve to a plugin class or instance. Setuav Studio loads
 plugins in priority and plugin-ID order. A plugin that fails to load does not
 prevent other plugins from starting.
 
+## Plugin discovery and loading
+
+### 1. Package metadata
+
+Declare the plugin package and its entry point in `pyproject.toml`:
+
+```toml
+[project]
+name = "acme-uav-tools"
+dependencies = ["setuav-studio-sdk>=0.1,<0.2"]
+
+[project.entry-points."setuav_studio.plugins"]
+"com.acme.uav-tools" = "acme_uav_tools.plugin:AcmePlugin"
+```
+
+The entry-point target must expose a plugin class or instance with:
+
+- `id`: stable reverse-domain identifier.
+- `priority`: optional integer; lower values activate first.
+- `activate(api)`: required lifecycle method.
+- `deactivate(api)`: cleanup method recommended for every registration.
+
+### 2. Schema manifest (when the plugin adds project data)
+
+Plugins that add component, assembly, or analysis data ship a `plugin.json`
+manifest that follows the core plugin-manifest schema. The manifest declares
+the plugin ID and version, then maps typed IDs to schema files:
+
+```json
+{
+  "$schema": "https://schemas.setuav.org/core/plugin-manifest.schema.json",
+  "id": "com.acme.uav-tools",
+  "version": "1.0.0",
+  "component_types": {
+    "com.acme.uav-tools:sensor": {
+      "schema": "components/sensor.schema.json"
+    }
+  },
+  "assembly_types": {},
+  "analysis_types": {}
+}
+```
+
+Keep schema paths relative to the manifest and use the same plugin ID prefix
+for every type. A UI-only plugin does not need a schema manifest.
+
+### 3. Startup and activation
+
+On startup the host discovers bundled plugins and installed entry points,
+orders them by `(priority, id)`, and calls `activate(api)`. Contributions,
+listeners, providers, and commands become available only after activation
+returns successfully. Remove all of them in `deactivate(api)` so the plugin
+can be disabled and re-enabled safely.
+
+### 4. Failure scenarios
+
+- An import or entry-point error is logged and the plugin is skipped.
+- A missing `id` or `activate` method is rejected as an invalid plugin.
+- An exception from `activate` is isolated; other plugins still start.
+- A duplicate plugin ID is ignored after the first successful activation.
+- Missing or incompatible project plugin requirements are reported as project
+  issues; the application remains usable in degraded mode.
+
+The host records these failures as load issues for diagnostics. Plugins should
+validate their own optional dependencies before registering UI and report
+actionable errors through the application logger or status service.
+
 ## Compatibility
 
 `PLUGIN_API_VERSION` versions the public plugin contract independently from the
