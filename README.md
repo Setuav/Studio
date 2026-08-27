@@ -113,6 +113,15 @@ geometry providers, and project-tree nodes. Each plugin owns its activation and
 cleanup lifecycle, allowing capabilities to be added without changing the
 application core.
 
+With Doxygen and Graphviz installed, generate the Plugin SDK API reference:
+
+```bash
+doxygen Doxyfile
+```
+
+Open `build/docs/doxygen/html/index.html` in a browser to view the generated
+documentation.
+
 ## License
 
 Setuav Studio is released under the [MIT License](LICENSE).
