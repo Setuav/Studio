@@ -51,6 +51,12 @@ jobs:
         run: uv run --locked pyright
       - name: Test
         run: uv run --locked python -m tests.suites all
+      - name: Test SDK package
+        env:
+          PYTHONPATH: packages/setuav-studio-sdk/src:packages/setuav-studio-sdk/examples/hello-plugin/src
+        run: |
+          uv run --locked python -m unittest discover -s packages/setuav-studio-sdk/tests
+          uv run --locked python -m unittest discover -s packages/setuav-studio-sdk/examples/hello-plugin/tests
 
   package:
     name: Package smoke test
