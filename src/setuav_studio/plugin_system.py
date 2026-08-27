@@ -19,7 +19,6 @@ from setuav_studio_sdk.api import (
 )
 from setuav_studio_sdk.contributions import (
     ActionContribution,
-    BaseComponentEditor,
     ComponentTreeNodeContribution,
     PanelContribution,
     ParameterField,
@@ -32,6 +31,7 @@ from setuav_studio_sdk.contributions import (
 )
 from setuav_studio_sdk.plugin import StudioPlugin
 
+from setuav_studio.component_editor import BaseComponentEditor
 from setuav_studio.project import ProjectDocument
 from setuav_studio.ui.icons import get_icon
 

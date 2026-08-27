@@ -2228,6 +2228,12 @@ security = [
 name = "setuav-studio-sdk"
 version = "0.1.0"
 source = { editable = "packages/setuav-studio-sdk" }
+dependencies = [
+    { name = "pyside6" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "pyside6", specifier = ">=6.8,<7" }]
 
 [[package]]
 name = "setuptools"

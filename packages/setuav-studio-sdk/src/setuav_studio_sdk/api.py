@@ -14,8 +14,6 @@ from typing import Any, Protocol
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QWidget
 
-from setuav_studio.project import ProjectDocument
-
 from .contributions import (
     ActionContribution,
     ComponentTreeNodeContribution,
@@ -26,6 +24,7 @@ from .contributions import (
     ToolContribution,
     WorkspaceContribution,
 )
+from .models import ProjectDocument
 
 __all__ = [
     "ComponentTreeProvider",
