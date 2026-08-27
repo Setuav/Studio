@@ -346,6 +346,27 @@ class ShellContributionTests(unittest.TestCase):
         self.assertNotIn("single", self.window._panels)
         self.assertIn("multiple", self.window._panels)
 
+    def test_removing_current_workspace_switches_to_survivor(self) -> None:
+        self.api.add_workspace(WorkspaceContribution("remove", "Remove", order=20))
+        self.api.add_workspace(WorkspaceContribution("keep", "Keep", order=10))
+        with patch.object(self.window, "_apply_default_workspace_layout"):
+            self.api.switch_workspace("remove")
+            self.api.remove_workspace("remove")
+
+        self.assertEqual(self.api.current_workspace_id, "keep")
+        self.assertEqual(self.window._current_workspace_id, "keep")
+        self.assertEqual(self.window._workspace_toolbar.workspace_combo.currentData(), "keep")
+
+    def test_removing_last_workspace_clears_active_workspace(self) -> None:
+        self.api.add_workspace(WorkspaceContribution("remove", "Remove"))
+        with patch.object(self.window, "_apply_default_workspace_layout"):
+            self.api.switch_workspace("remove")
+            self.api.remove_workspace("remove")
+
+        self.assertIsNone(self.api.current_workspace_id)
+        self.assertIsNone(self.window._current_workspace_id)
+        self.assertEqual(self.window._workspace_toolbar.workspace_combo.count(), 0)
+
     def test_layout_save_scheduling_and_dock_event_filter(self) -> None:
         self.window._schedule_workspace_layout_save()
         self.window._layout_persistence_enabled = True
