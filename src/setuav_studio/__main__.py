@@ -3,20 +3,10 @@ import logging
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QStandardPaths, Qt, QTimer
-from PySide6.QtGui import QSurfaceFormat
-from PySide6.QtWidgets import QApplication
-
-from setuav_studio.plugin_system import PluginManager, StudioAPI
-from setuav_studio.plugins.core import CorePlugin
-from setuav_studio.plugins.core.settings import StudioSettings
-from setuav_studio.shell import MainWindow
-from setuav_studio.ui.icons import application_icon
-from setuav_studio.ui.log_buffer import install_log_buffer
-from setuav_studio.ui.theme import apply_theme
-
 
 def _configure_logging(verbose: bool = False) -> None:
+    from PySide6.QtCore import QStandardPaths
+
     log_dir = Path(QStandardPaths.writableLocation(QStandardPaths.AppDataLocation))
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / "setuav-studio.log"
@@ -83,6 +73,10 @@ def _run_internal_command(arguments: argparse.Namespace) -> int | None:
 
 def _configure_opengl() -> None:
     """Configure one conservative shared format for Qt and VTK viewers."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QSurfaceFormat
+    from PySide6.QtWidgets import QApplication
+
     QApplication.setAttribute(
         Qt.ApplicationAttribute.AA_ShareOpenGLContexts,
         True,
@@ -103,6 +97,17 @@ def main() -> int:
     internal_result = _run_internal_command(arguments)
     if internal_result is not None:
         return internal_result
+
+    from PySide6.QtCore import QTimer
+    from PySide6.QtWidgets import QApplication
+
+    from setuav_studio.plugin_system import PluginManager, StudioAPI
+    from setuav_studio.plugins.core import CorePlugin
+    from setuav_studio.plugins.core.settings import StudioSettings
+    from setuav_studio.shell import MainWindow
+    from setuav_studio.ui.icons import application_icon
+    from setuav_studio.ui.log_buffer import install_log_buffer
+    from setuav_studio.ui.theme import apply_theme
 
     _configure_logging(arguments.verbose)
     install_log_buffer(logging.DEBUG if arguments.verbose else logging.INFO)
