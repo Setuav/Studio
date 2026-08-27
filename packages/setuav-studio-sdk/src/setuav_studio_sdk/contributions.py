@@ -230,10 +230,17 @@ class ToolbarContribution:
     workspace_id: WorkspaceScope = None
 
     def __post_init__(self) -> None:
-        if self.callback is not None and self.command is not None:
-            raise ValueError("Toolbar contributions cannot define both callback and command")
-        if self.callback is None and self.command is None and not self.menu_items:
-            raise ValueError("Toolbar contributions require an action or menu")
+        action_forms = sum(
+            (
+                self.callback is not None,
+                self.command is not None,
+                bool(self.menu_items),
+            )
+        )
+        if action_forms != 1:
+            raise ValueError(
+                "Toolbar contributions require exactly one of callback, command, or menu_items"
+            )
 
     def is_in_workspace(self, current_workspace_id: str | None) -> bool:
         """Return whether this item belongs to the selected workspace."""
