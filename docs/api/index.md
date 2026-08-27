@@ -1,4 +1,4 @@
-# Setuav Studio Plugin SDK
+# Setuav Studio Developer Documentation
 
 Build Python packages that extend Setuav Studio with panels, workspaces, menu
 commands, editors, project-tree nodes, schemas, and analysis providers.

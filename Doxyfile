@@ -1,8 +1,8 @@
-# Setuav Studio Plugin SDK documentation
+# Setuav Studio developer documentation
 
-PROJECT_NAME           = "Setuav Studio Plugin SDK"
+PROJECT_NAME           = "Setuav Studio Developer Documentation"
 PROJECT_NUMBER         = "1.0"
-PROJECT_BRIEF          = "Public Python API for third-party Setuav Studio plugins"
+PROJECT_BRIEF          = "SDK and plugin development reference for Setuav Studio"
 PROJECT_LOGO           = src/setuav_studio/assets/icons/studio.png
 
 OUTPUT_DIRECTORY       = build/docs/doxygen
