@@ -1,0 +1,65 @@
+site_name: Setuav Studio
+site_description: User and developer documentation for Setuav Studio
+site_author: Setuav
+site_url: https://setuav.github.io/studio/
+repo_url: https://github.com/Setuav/studio
+repo_name: Setuav/studio
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  logo: images/studio.png
+  favicon: images/studio.png
+  font:
+    text: Inter
+    code: Inter
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: white
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+extra_css:
+  - stylesheets/extra.css
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+
+nav:
+  - User Guide:
+      - Home: index.md
+      - Getting Started: user-guide/getting-started.md
+      - Workspaces: user-guide/workspaces.md
+      - Plugin Manager: user-guide/plugins.md
+  - Developer Guide:
+      - Overview: developer/index.md
+      - SDK API Reference: developer/sdk-api-reference.md
+
+site_dir: build/docs/site
