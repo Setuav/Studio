@@ -1003,12 +1003,12 @@ class PluginManager:
     def _activate_candidate(self, candidate: object) -> None:
         plugin = candidate() if isinstance(candidate, type) else candidate
         plugin_id = getattr(plugin, "id", None)
+        if isinstance(plugin_id, str) and plugin_id in self._plugins:
+            return
         if isinstance(plugin_id, str):
             self._candidates[plugin_id] = plugin
             if plugin_id in self._disabled_plugins:
                 return
-        if isinstance(plugin_id, str) and plugin_id in self._plugins:
-            return
         if not hasattr(plugin, "activate") or not isinstance(plugin_id, str):
             raise TypeError("Plugin entry must provide id and activate(api)")
         self.activate(plugin)
