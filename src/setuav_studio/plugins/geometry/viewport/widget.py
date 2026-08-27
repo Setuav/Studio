@@ -825,7 +825,12 @@ class OpenGLViewer(QOpenGLWidget):
             matrix.perspective(45.0, aspect, 1.0, 100_000.0)
         return matrix
 
-    def capture_screenshot(self, width: int, height: int) -> QImage | None:
+    def capture_screenshot(
+        self,
+        width: int,
+        height: int,
+        transparent_background: bool = False,
+    ) -> QImage | None:
         """Render the current scene into an off-screen FBO and return a QImage.
 
         Returns ``None`` if the OpenGL context is unavailable.
@@ -856,15 +861,18 @@ class OpenGLViewer(QOpenGLWidget):
                     logger.exception("Mesh upload failed during screenshot")
 
             # Clear
-            from PySide6.QtGui import QColor
+            if transparent_background:
+                self._functions.glClearColor(0.0, 0.0, 0.0, 0.0)
+            else:
+                from PySide6.QtGui import QColor
 
-            from setuav_studio.ui.theme import is_light_theme, tokens
+                from setuav_studio.ui.theme import is_light_theme, tokens
 
-            tok = tokens()
-            is_light = is_light_theme()
-            bg_hex = tok.get("plot", "#ffffff" if is_light else "#141414")
-            qbg = QColor(bg_hex)
-            self._functions.glClearColor(qbg.redF(), qbg.greenF(), qbg.blueF(), 1.0)
+                tok = tokens()
+                is_light = is_light_theme()
+                bg_hex = tok.get("plot", "#ffffff" if is_light else "#141414")
+                qbg = QColor(bg_hex)
+                self._functions.glClearColor(qbg.redF(), qbg.greenF(), qbg.blueF(), 1.0)
             self._functions.glClear(_GL_COLOR_BUFFER_BIT | _GL_DEPTH_BUFFER_BIT)
 
             aspect = width / max(1, height)

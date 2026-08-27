@@ -11,6 +11,7 @@ _VIEWER_GRID_KEY = "geometry/viewer/show_grid"
 _VIEWER_SOLID_KEY = "geometry/viewer/show_solid"
 _VIEWER_WIRE_KEY = "geometry/viewer/show_wireframe"
 _VIEWER_WIRE_MODE_KEY = "geometry/viewer/wireframe_mode"
+_VIEWER_SCREENSHOT_TRANSPARENT_KEY = "geometry/viewer/screenshot_transparent_bg"
 
 _EDITOR_AUTO_FIT_KEY = "geometry/editor/auto_fit_sections"
 _EDITOR_GRID_KEY = "geometry/editor/show_section_grid"
@@ -71,6 +72,13 @@ def create_viewer_settings_page() -> QWidget:
     show_wire.setObjectName("showWireframe")
     show_wire.setChecked(_as_bool(settings.value(_VIEWER_WIRE_KEY, True), True))
     form.addRow(show_wire)
+
+    transparent_screenshot = QCheckBox("Transparent background in screenshots")
+    transparent_screenshot.setObjectName("transparentScreenshot")
+    transparent_screenshot.setChecked(
+        _as_bool(settings.value(_VIEWER_SCREENSHOT_TRANSPARENT_KEY, False), False)
+    )
+    form.addRow(transparent_screenshot)
     return page
 
 
@@ -82,6 +90,7 @@ def apply_viewer_settings(page: QWidget) -> None:
     show_grid = page.findChild(QCheckBox, "showGrid")
     show_solid = page.findChild(QCheckBox, "showSolid")
     show_wire = page.findChild(QCheckBox, "showWireframe")
+    transparent_screenshot = page.findChild(QCheckBox, "transparentScreenshot")
     if projection is not None:
         settings.setValue(_VIEWER_PROJECTION_KEY, projection.currentData())
     if palette is not None:
@@ -96,6 +105,10 @@ def apply_viewer_settings(page: QWidget) -> None:
         settings.setValue(_VIEWER_SOLID_KEY, show_solid.isChecked())
     if show_wire is not None:
         settings.setValue(_VIEWER_WIRE_KEY, show_wire.isChecked())
+    if transparent_screenshot is not None:
+        settings.setValue(
+            _VIEWER_SCREENSHOT_TRANSPARENT_KEY, transparent_screenshot.isChecked()
+        )
 
 
 def create_editor_settings_page() -> QWidget:
@@ -150,6 +163,7 @@ __all__ = [
     "_VIEWER_GRID_KEY",
     "_VIEWER_PALETTE_KEY",
     "_VIEWER_PROJECTION_KEY",
+    "_VIEWER_SCREENSHOT_TRANSPARENT_KEY",
     "_VIEWER_SOLID_KEY",
     "_VIEWER_WIRE_KEY",
     "_VIEWER_WIRE_MODE_KEY",

@@ -57,6 +57,7 @@ class GeometrySettingsTests(unittest.TestCase):
             geometry_settings._VIEWER_GRID_KEY: "false",
             geometry_settings._VIEWER_SOLID_KEY: False,
             geometry_settings._VIEWER_WIRE_KEY: "yes",
+            geometry_settings._VIEWER_SCREENSHOT_TRANSPARENT_KEY: True,
         }
         page = geometry_settings.create_viewer_settings_page()
         self.addCleanup(page.deleteLater)
@@ -66,24 +67,30 @@ class GeometrySettingsTests(unittest.TestCase):
         show_grid = page.findChild(QCheckBox, "showGrid")
         show_solid = page.findChild(QCheckBox, "showSolid")
         show_wire = page.findChild(QCheckBox, "showWireframe")
-        assert projection and palette and show_grid and show_solid and show_wire
+        trans_screen = page.findChild(QCheckBox, "transparentScreenshot")
+        assert projection and palette and show_grid and show_solid and show_wire and trans_screen
         self.assertEqual(projection.currentData(), "perspective")
         self.assertEqual(palette.currentIndex(), 0)
         self.assertFalse(show_grid.isChecked())
         self.assertFalse(show_solid.isChecked())
         self.assertTrue(show_wire.isChecked())
+        self.assertTrue(trans_screen.isChecked())
 
         projection.setCurrentIndex(0)
         palette.setCurrentIndex(min(1, palette.count() - 1))
         show_grid.setChecked(True)
         show_solid.setChecked(True)
         show_wire.setChecked(False)
+        trans_screen.setChecked(False)
         with patch.object(geometry_settings, "set_active_palette") as set_palette:
             geometry_settings.apply_viewer_settings(page)
         self.assertEqual(
             _FakeSettings.values[geometry_settings._VIEWER_PROJECTION_KEY], "orthographic"
         )
         self.assertEqual(_FakeSettings.values[geometry_settings._VIEWER_GRID_KEY], True)
+        self.assertEqual(
+            _FakeSettings.values[geometry_settings._VIEWER_SCREENSHOT_TRANSPARENT_KEY], False
+        )
         set_palette.assert_called_once_with(str(palette.currentData()))
 
     def test_editor_page_loads_and_applies_all_values(self) -> None:
