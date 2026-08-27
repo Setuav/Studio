@@ -21,8 +21,15 @@ def _add_source_paths() -> None:
 
 
 def _load_suite() -> unittest.TestSuite:
-    loader = unittest.defaultTestLoader
-    return unittest.TestSuite(loader.discover(str(directory)) for directory in TEST_DIRECTORIES)
+    # ``TestLoader`` keeps the inferred top-level directory between discover
+    # calls. The SDK and example plugin live in separate package trees, so a
+    # shared loader triggers Python 3.11's "Path must be within the project"
+    # assertion on the second directory.
+    suites = []
+    for directory in TEST_DIRECTORIES:
+        loader = unittest.TestLoader()
+        suites.append(loader.discover(str(directory)))
+    return unittest.TestSuite(suites)
 
 
 def main() -> int:
