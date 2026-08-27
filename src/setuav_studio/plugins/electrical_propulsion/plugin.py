@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
+
 from setuav_studio_sdk import (
     PanelContribution,
     StudioAPI,

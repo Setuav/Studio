@@ -23,10 +23,10 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from setuav_studio_sdk import StudioAPI
 
 from setuav_studio.ui.buttons import set_native_button
 from setuav_studio.ui.numeric_spinbox import NumericSpinBox
+from setuav_studio_sdk import StudioAPI
 
 from .engine.aerosandbox_engine import HAS_AEROSANDBOX, AeroSandboxEngine
 from .engine.base import AeroResult, FlightCondition, SweepType

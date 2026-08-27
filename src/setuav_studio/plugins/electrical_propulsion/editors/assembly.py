@@ -12,10 +12,10 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from setuav_studio_sdk import StudioAPI
 
 from setuav_studio.ui.icons import set_label_icon
 from setuav_studio.ui.property_tables import PropertyTableMixin
+from setuav_studio_sdk import StudioAPI
 
 
 class ElectricPropulsionSystemEditor(PropertyTableMixin, QWidget):

@@ -24,9 +24,9 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from setuav_studio_sdk import SettingsPageContribution
 
 from setuav_studio.ui.buttons import set_button_role
+from setuav_studio_sdk import SettingsPageContribution
 
 logger = logging.getLogger(__name__)
 

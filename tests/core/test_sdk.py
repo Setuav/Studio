@@ -3,7 +3,6 @@
 import unittest
 
 import setuav_studio_sdk as sdk
-
 from setuav_studio import plugin_system
 
 

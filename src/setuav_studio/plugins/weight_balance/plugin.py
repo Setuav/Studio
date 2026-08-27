@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import ClassVar
 
 from PySide6.QtCore import Qt
+
 from setuav_studio_sdk import (
     ComponentTreeNodeContribution,
     PanelContribution,

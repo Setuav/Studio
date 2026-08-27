@@ -3,6 +3,7 @@
 import unittest
 
 from setuav_example_plugin import HelloPlugin
+
 from setuav_studio_sdk import PanelContribution, WorkspaceContribution
 
 

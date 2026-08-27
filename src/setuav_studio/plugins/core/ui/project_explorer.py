@@ -18,14 +18,14 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from setuav_studio.project import ProjectDocument
+from setuav_studio.ui.icons import get_icon
 from setuav_studio_sdk import (
     ComponentTreeNodeContribution,
     ProjectTreeNodeContribution,
     StudioAPI,
 )
-
-from setuav_studio.project import ProjectDocument
-from setuav_studio.ui.icons import get_icon
 
 _GEOMETRY_COMPONENT_ICONS = {
     "org.setuav.core:fuselage": "geometry_add_fuselage",

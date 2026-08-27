@@ -1,6 +1,7 @@
 """Minimal plugin demonstrating SDK discovery and lifecycle hooks."""
 
 from PySide6.QtWidgets import QLabel
+
 from setuav_studio_sdk import PanelContribution, StudioAPI, WorkspaceContribution
 
 

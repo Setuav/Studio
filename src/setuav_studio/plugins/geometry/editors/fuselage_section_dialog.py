@@ -42,7 +42,6 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from setuav_studio_sdk import StudioAPI
 
 from setuav_studio.ui.buttons import set_button_role, set_native_button
 from setuav_studio.ui.icons import get_icon
@@ -51,6 +50,7 @@ from setuav_studio.ui.numeric_spinbox import (
     set_table_spinbox,
 )
 from setuav_studio.ui.theme import accent_color, tokens
+from setuav_studio_sdk import StudioAPI
 
 from ..engine.fuselage_geometry import compute_section_metrics, sample_profile
 from ..settings import _EDITOR_AUTO_FIT_KEY, _EDITOR_GRID_KEY, _as_bool, editor_setting
