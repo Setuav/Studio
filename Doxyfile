@@ -15,9 +15,9 @@ OPTIMIZE_OUTPUT_JAVA   = YES
 PYTHON_DOCSTRING       = NO
 MARKDOWN_SUPPORT       = YES
 AUTOLINK_SUPPORT       = YES
-USE_MDFILE_AS_MAINPAGE = docs/api/index.md
+USE_MDFILE_AS_MAINPAGE = docs/developer/index.md
 
-INPUT                  = docs/api/index.md \
+INPUT                  = docs/developer/index.md \
                          packages/setuav-studio-sdk/src/setuav_studio_sdk
 FILE_PATTERNS          = *.py *.md
 RECURSIVE              = YES
@@ -45,7 +45,7 @@ REFERENCES_RELATION    = NO
 
 GENERATE_HTML          = YES
 HTML_OUTPUT            = html
-HTML_EXTRA_STYLESHEET  = docs/api/sdk.css
+HTML_EXTRA_STYLESHEET  = docs/developer/sdk.css
 HTML_DYNAMIC_MENUS     = YES
 GENERATE_TREEVIEW      = YES
 FULL_SIDEBAR           = YES

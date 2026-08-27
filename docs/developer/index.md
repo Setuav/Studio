@@ -124,6 +124,31 @@ The host records these failures as load issues for diagnostics. Plugins should
 validate their own optional dependencies before registering UI and report
 actionable errors through the application logger or status service.
 
+## Plugin template and tests
+
+The repository contains a minimal installable plugin in
+[`packages/example-plugin`](../../packages/example-plugin). Copy it as a
+starting point, replace its reverse-domain IDs, and declare the SDK dependency
+in `pyproject.toml`.
+
+Run the plugin's lifecycle test from its directory:
+
+```bash
+uv pip install -e .
+uv run python -m unittest discover -s tests
+```
+
+From the repository root, run the SDK contract tests as well:
+
+```bash
+uv run --locked python scripts/sdk_contract_tests.py
+```
+
+Before publishing, verify that the plugin can be activated, deactivated, and
+activated again. Every registration made in `activate` should have a matching
+cleanup call in `deactivate`: panels, workspaces, actions, editors, icons,
+providers, listeners, and background resources.
+
 ## Compatibility
 
 `PLUGIN_API_VERSION` versions the public plugin contract independently from the

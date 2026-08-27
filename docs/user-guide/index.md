@@ -10,4 +10,4 @@ analysing UAV projects.
 - [Plugin Manager](plugins.md) — enabling, disabling, and diagnosing plugins
 
 For SDK contracts and plugin development, see the [Developer
-documentation](../api/index.md).
+documentation](../developer/index.md).

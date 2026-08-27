@@ -12,4 +12,4 @@ Use **Discover plugins** after installing a new plugin. Import, compatibility,
 and activation failures appear under **Discovery and activation issues**.
 
 For creating third-party plugins, see the [Developer
-documentation](../api/index.md).
+documentation](../developer/index.md).
