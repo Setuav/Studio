@@ -1182,15 +1182,38 @@ class MainWindow(QMainWindow):
     def _remove_workspace(self, workspace_id: str) -> None:
         if workspace_id not in self._workspaces:
             return
+        was_current = workspace_id in {
+            self._current_workspace_id,
+            self._api.current_workspace_id,
+        }
         del self._workspaces[workspace_id]
         self._workspace_states.pop(workspace_id, None)
         QSettings().remove(f"workspace_perspective/{workspace_id}")
-        self._refresh_workspace_combo()
         for panel_id in list(self._panels):
             contribution, _ = self._panels[panel_id]
             panel_workspaces = contribution.workspace_id
             if panel_workspaces == workspace_id:
                 self._remove_panel(panel_id)
+
+        if was_current:
+            # Do not let the API or shell keep pointing at a workspace that no
+            # longer exists.  Clear the old ID before switching so the normal
+            # switch path does not persist a layout for the removed workspace.
+            self._current_workspace_id = None
+            self._api.current_workspace_id = None
+
+        self._refresh_workspace_combo()
+
+        if was_current:
+            remaining = sorted(
+                self._workspaces.values(),
+                key=lambda item: (item.order, item.title.casefold()),
+            )
+            if remaining:
+                self._api.switch_workspace(remaining[0].id)
+            else:
+                self._rebuild_toolbar_tools()
+                self._update_view_menu(None)
 
     def _refresh_workspace_combo(self) -> None:
         workspaces = sorted(
