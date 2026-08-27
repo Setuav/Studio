@@ -136,6 +136,10 @@ class StudioAPI(Protocol):
         """Subscribe to workspace changes and immediately receive the current ID."""
         ...
 
+    def remove_workspace_listener(self, listener: Callable[[str], None]) -> None:
+        """Remove a workspace-change listener."""
+        ...
+
     def add_toolbar_item(self, contribution: ToolbarContribution) -> None:
         """Add an item to the main toolbar."""
         ...

@@ -461,6 +461,20 @@ class PluginSystemEdgeTests(unittest.TestCase):
             empty_api.register_schema("example", {"type": "object"})
         catalog.register_schema.assert_called_once_with({"type": "object"}, "example")
 
+    def test_workspace_listener_can_be_removed(self) -> None:
+        api = StudioAPI()
+        changes: list[str] = []
+
+        def listener(workspace_id: str) -> None:
+            changes.append(workspace_id)
+
+        api.on_workspace_changed(listener)
+        api.switch_workspace("one")
+        api.remove_workspace_listener(listener)
+        api.switch_workspace("two")
+
+        self.assertEqual(changes, ["one"])
+
     def test_listeners_may_remove_themselves_before_raising(self) -> None:
         api = StudioAPI()
         calls = {"modified": 0, "selection": 0, "section": 0}

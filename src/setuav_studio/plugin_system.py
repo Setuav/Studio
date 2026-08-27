@@ -276,6 +276,11 @@ class StudioAPI:
         if self.current_workspace_id is not None:
             listener(self.current_workspace_id)
 
+    def remove_workspace_listener(self, listener: Callable[[str], None]) -> None:
+        """Unsubscribe a workspace-change listener."""
+        if listener in self._workspace_listeners:
+            self._workspace_listeners.remove(listener)
+
     def add_toolbar_item(self, contribution: ToolbarContribution) -> None:
         """Add an action to the main toolbar."""
         if self._add_toolbar_item is not None:
