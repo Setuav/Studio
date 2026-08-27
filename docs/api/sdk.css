@@ -1,6 +1,148 @@
-/* Keep the SDK reference neutral and consistent in every system theme. */
-html,
+/* Keep the SDK reference readable in both selectable themes. */
 html:not(.dark-mode),
+html.light-mode {
+  color-scheme: light;
+
+  --page-background-color: #ffffff;
+  --page-foreground-color: #1f2937;
+  --page-link-color: #0f172a;
+  --page-visited-link-color: #475569;
+  --page-external-link-color: #1f2937;
+
+  --index-odd-item-bg-color: #f1f5f9;
+  --index-even-item-bg-color: #ffffff;
+  --index-header-color: #0f172a;
+  --index-separator-color: #cbd5e1;
+
+  --header-background-color: #f8fafc;
+  --header-separator-color: #cbd5e1;
+  --group-header-separator-color: #cbd5e1;
+  --group-header-color: #0f172a;
+  --inherit-header-color: #475569;
+
+  --footer-foreground-color: #64748b;
+  --citation-label-color: #1f2937;
+  --glow-color: #0f172a;
+
+  --title-background-color: #f8fafc;
+  --title-separator-color: #cbd5e1;
+  --directory-separator-color: #cbd5e1;
+  --separator-color: #94a3b8;
+
+  --blockquote-background-color: #f8fafc;
+  --blockquote-border-color: #94a3b8;
+
+  --scrollbar-thumb-color: #94a3b8;
+  --scrollbar-background-color: #f1f5f9;
+
+  --icon-background-color: #cbd5e1;
+  --icon-foreground-color: #0f172a;
+  --icon-folder-open-fill-color: #64748b;
+  --icon-folder-fill-color: #94a3b8;
+  --icon-folder-border-color: #64748b;
+  --icon-doc-fill-color: #64748b;
+  --icon-doc-border-color: #64748b;
+
+  --memdecl-background-color: #f1f5f9;
+  --memdecl-separator-color: #cbd5e1;
+  --memdecl-foreground-color: #334155;
+  --memdecl-template-color: #475569;
+  --memdecl-border-color: #cbd5e1;
+
+  --memdef-border-color: #cbd5e1;
+  --memdef-title-background-color: #e2e8f0;
+  --memdef-proto-background-color: #ffffff;
+  --memdef-proto-text-color: #1f2937;
+  --memdef-doc-background-color: #f8fafc;
+  --memdef-param-name-color: #0f172a;
+  --memdef-template-color: #475569;
+
+  --table-cell-border-color: #cbd5e1;
+  --table-header-background-color: #e2e8f0;
+  --table-header-foreground-color: #0f172a;
+
+  --label-background-color: #cbd5e1;
+  --label-left-top-border-color: #64748b;
+  --label-right-bottom-border-color: #e2e8f0;
+  --label-foreground-color: #0f172a;
+
+  --nav-background-color: #f1f5f9;
+  --nav-foreground-color: #1f2937;
+  --nav-border-color: #cbd5e1;
+  --nav-breadcrumb-separator-color: #cbd5e1;
+  --nav-breadcrumb-active-bg: #dbeafe;
+  --nav-breadcrumb-color: #1f2937;
+  --nav-breadcrumb-border-color: #cbd5e1;
+  --nav-splitbar-bg-color: #cbd5e1;
+  --nav-splitbar-handle-color: #64748b;
+  --nav-text-normal-color: #334155;
+  --nav-text-hover-color: #0f172a;
+  --nav-text-active-color: #0f172a;
+  --nav-menu-button-color: #1f2937;
+  --nav-menu-background-color: #f1f5f9;
+  --nav-menu-foreground-color: #334155;
+  --nav-menu-active-bg: #cbd5e1;
+  --nav-menu-active-color: #0f172a;
+  --nav-menu-toggle-color: rgb(15 23 42 / 12%);
+  --nav-arrow-color: #64748b;
+  --nav-arrow-selected-color: #334155;
+
+  --sync-icon-border-color: #cbd5e1;
+  --sync-icon-background-color: #ffffff;
+  --sync-icon-selected-background-color: #cbd5e1;
+  --sync-icon-color: #64748b;
+  --sync-icon-selected-color: #334155;
+
+  --toc-background-color: #f1f5f9;
+  --toc-border-color: #cbd5e1;
+  --toc-header-color: #1f2937;
+
+  --search-background-color: #f1f5f9;
+  --search-foreground-color: #475569;
+  --search-active-color: #0f172a;
+  --search-filter-background-color: #f8fafc;
+  --search-filter-foreground-color: #1f2937;
+  --search-filter-backdrop-filter: none;
+  --search-filter-border-color: #94a3b8;
+  --search-filter-highlight-text-color: #0f172a;
+  --search-filter-highlight-bg-color: #94a3b8;
+  --search-results-background-color: #f1f5f9;
+  --search-results-foreground-color: #1f2937;
+  --search-results-backdrop-filter: none;
+  --search-results-border-color: #cbd5e1;
+  --search-box-border-color: #94a3b8;
+  --search-close-icon-bg-color: #64748b;
+  --search-close-icon-fg-color: #f1f5f9;
+
+  --fragment-foreground-color: #1f2937;
+  --fragment-background-color: #f8fafc;
+  --fragment-border-color: #cbd5e1;
+  --fragment-lineno-border-color: #cbd5e1;
+  --fragment-lineno-background-color: #ffffff;
+  --fragment-lineno-foreground-color: #64748b;
+  --fragment-lineno-link-fg-color: #475569;
+  --fragment-lineno-link-bg-color: #e2e8f0;
+  --fragment-lineno-link-hover-fg-color: #0f172a;
+  --fragment-lineno-link-hover-bg-color: #cbd5e1;
+  --code-link-color: #1f2937;
+  --code-external-link-color: #334155;
+
+  --tooltip-foreground-color: #1f2937;
+  --tooltip-background-color: #f8fafc;
+  --tooltip-arrow-background-color: #f8fafc;
+  --tooltip-border-color: #94a3b8;
+  --tooltip-doc-color: #475569;
+  --tooltip-declaration-color: #0f172a;
+  --tooltip-link-color: #0f172a;
+  --tooltip-shadow: 0 4px 12px rgb(15 23 42 / 15%);
+}
+
+#projectlogo img {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+}
+
 html.dark-mode {
   color-scheme: dark;
 
@@ -142,4 +284,56 @@ html.dark-mode {
   width: 44px;
   height: 44px;
   object-fit: contain;
+}
+
+
+/* The documentation uses the sidebar as its primary navigation. */
+#main-nav {
+  display: none;
+}
+
+#titlearea {
+  display: block;
+  height: 0;
+  overflow: visible;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+#titlearea #projectrow,
+#titlearea #MSearchBox {
+  display: none;
+}
+
+#top,
+#side-nav,
+#nav-tree,
+#doc-content {
+  top: 0;
+}
+
+#top {
+  min-height: 0;
+}
+
+dark-mode-toggle {
+  position: fixed;
+  z-index: 1000;
+  top: 12px;
+  right: 16px;
+  border: 1px solid var(--nav-border-color);
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: var(--nav-background-color);
+  color: var(--nav-foreground-color);
+  cursor: pointer;
+  font: inherit;
+}
+
+dark-mode-toggle:hover,
+dark-mode-toggle:focus-visible {
+  background: var(--nav-menu-active-bg);
+  outline: 2px solid var(--nav-text-active-color);
+  outline-offset: 2px;
 }

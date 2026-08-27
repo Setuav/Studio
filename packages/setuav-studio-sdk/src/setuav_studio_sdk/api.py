@@ -5,6 +5,27 @@
 
 @defgroup providers Provider contracts
 @brief Callbacks and services that plugins may register.
+
+@details
+Provider contracts let a plugin contribute computed data or virtual project
+nodes without coupling itself to the application's internal models.
+
+Providers are ordinary callables. Register them during ``activate`` and remove
+them during ``deactivate``. Provider identifiers must be unique within the
+application; use the same reverse-domain prefix as other plugin contributions.
+
+@par GeometryProvider
+Receives a component dictionary and returns the geometry payload used by the
+viewer and analysis tools. The payload shape is defined by the consuming
+plugin, so providers should document the keys they produce.
+
+@par ComponentTreeProvider
+Receives a component dictionary and returns virtual child nodes displayed below
+that component in the project tree.
+
+@par ProjectTreeProvider
+Receives the open ``ProjectDocument`` and returns plugin-owned nodes displayed
+below the project root. Return an empty tuple when no nodes apply.
 """
 
 from collections.abc import Callable
@@ -34,11 +55,17 @@ __all__ = [
     "StudioAPI",
 ]
 
+#: Callback that builds geometry data for a component.
+## @ingroup providers
 GeometryProvider = Callable[[dict[str, Any]], Any]
+#: Callback that contributes virtual nodes beneath a component.
+## @ingroup providers
 ComponentTreeProvider = Callable[
     [dict[str, Any]],
     tuple[ComponentTreeNodeContribution, ...],
 ]
+#: Callback that contributes plugin-owned nodes beneath the project root.
+## @ingroup providers
 ProjectTreeProvider = Callable[
     [ProjectDocument],
     tuple[ProjectTreeNodeContribution, ...],
