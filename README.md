@@ -1,26 +1,43 @@
 <p align="center">
-  <img src="src/setuav_studio/assets/icons/studio.png" width="160" alt="Setuav Studio icon">
-</p>
-
-<h1 align="center">Setuav Studio</h1>
-
-<p align="center">
-  A plugin-based desktop application for parametric UAV design and analysis.
-</p>
-
-<p align="center">
   <img src="docs/images/studio_banner.png" alt="Setuav Studio banner">
 </p>
 
 <p align="center">
   <a href="https://github.com/Setuav/studio/actions/workflows/ci.yml">
-    <img src="https://github.com/Setuav/studio/actions/workflows/ci.yml/badge.svg" alt="CI status">
+    <img src="https://github.com/Setuav/studio/actions/workflows/ci.yml/badge.svg?branch=main" alt="Main CI status">
   </a>
+  <a href="https://github.com/Setuav/studio/actions/workflows/ci.yml">
+    <img src="https://github.com/Setuav/studio/actions/workflows/ci.yml/badge.svg?branch=dev" alt="Dev CI status">
+  </a>
+  <a href="https://github.com/Setuav/studio/actions/workflows/dependency-audit.yml">
+    <img src="https://github.com/Setuav/studio/actions/workflows/dependency-audit.yml/badge.svg" alt="Dependency audit status">
+  </a>
+  <a href="https://github.com/Setuav/studio/releases">
+    <img src="https://img.shields.io/github/v/release/Setuav/studio?sort=semver" alt="Latest GitHub release">
+  </a>
+  <a href="https://pypi.org/project/setuav-studio-sdk/">
+    <img src="https://img.shields.io/pypi/v/setuav-studio-sdk" alt="PyPI SDK version">
+  </a>
+  <a href="LICENSE">
+    <img src="https://img.shields.io/github/license/Setuav/studio" alt="MIT license">
+  </a>
+  <img src="https://img.shields.io/badge/python-3.11%2B-blue" alt="Python 3.11 or newer">
 </p>
 
-Setuav Studio brings geometry design, engineering analysis, and project data into
+**Setuav Studio** brings geometry design, engineering analysis, and project data into
 one extensible desktop workspace. It is built with Python and PySide6 and uses a
 plugin architecture so design and analysis capabilities can evolve independently.
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/user-guide/images/design-workspace.png" alt="Design workspace" width="480"></td>
+    <td align="center"><img src="docs/user-guide/images/performance-workspace.png" alt="Performance workspace" width="480"></td>
+  </tr>
+  <tr>
+    <td align="center"><em>Design workspace</em></td>
+    <td align="center"><em>Performance workspace</em></td>
+  </tr>
+</table>
 
 ## Features
 
@@ -34,16 +51,12 @@ plugin architecture so design and analysis capabilities can evolve independently
 - Extensible workspaces, panels, tools, component editors, and project schemas.
 - Folder, `project.json`, and portable `.suav` project support.
 
-## Requirements
-
-- Python 3.11 or newer.
-- [`uv`](https://docs.astral.sh/uv/) for locked dependency management.
-- A desktop environment supported by PySide6.
-
-The aerodynamics extra installs AeroSandbox and PyVista. These dependencies are
-included by `--all-extras` in the commands below.
-
 ## Quick start
+
+Requires Python 3.11 or newer, [`uv`](https://docs.astral.sh/uv/) for locked
+dependency management, and a desktop environment supported by PySide6. The
+aerodynamics extra installs AeroSandbox and PyVista; these dependencies are
+included by `--all-extras` in the commands below.
 
 Clone the repository and install the locked runtime environment:
 
