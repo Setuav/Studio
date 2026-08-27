@@ -420,6 +420,25 @@ class PluginSystemEdgeTests(unittest.TestCase):
         ):
             self.assertEqual(len(manager.discover()), 2)
 
+    def test_active_plugin_candidate_is_not_overwritten_by_duplicate(self) -> None:
+        manager = PluginManager(self.api)
+
+        class BundledPlugin:
+            id = "com.example.duplicate"
+
+            def activate(self, _api: StudioAPI) -> None: ...
+
+        class EntryPointPlugin:
+            id = "com.example.duplicate"
+
+            def activate(self, _api: StudioAPI) -> None: ...
+
+        bundled = BundledPlugin()
+        manager.activate(bundled)
+        manager._activate_candidate(EntryPointPlugin())
+
+        self.assertIs(manager._candidates["com.example.duplicate"], bundled)
+
     def test_project_alias_schema_and_handler_absence_paths(self) -> None:
         self.assertIsNone(self.api.project)
         with self.assertRaises(AttributeError):
