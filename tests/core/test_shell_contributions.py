@@ -120,6 +120,7 @@ class ShellContributionTests(unittest.TestCase):
         self.assertIn("Default", [action.text() for action in self.window._tools_menu.actions()])
         self.window._remove_action("Tools/Geometry", "Nested")
         self.assertNotIn("Nested", [action.text() for action in menu.actions()])
+        self.assertNotIn("tools/geometry", self.window._menus)
         self.window._remove_action("Missing", "Unknown")
         self.window._remove_action("", "Default")
 
@@ -333,6 +334,7 @@ class ShellContributionTests(unittest.TestCase):
     def test_workspace_removal_cleans_string_and_list_scoped_panels(self) -> None:
         with patch("setuav_studio.shell.QSettings", _FakeSettings):
             self.api.add_workspace(WorkspaceContribution("remove", "Remove"))
+            self.api.add_workspace(WorkspaceContribution("keep", "Keep"))
             self.api.add_panel(
                 PanelContribution("single", "Single", QWidget, workspace_id="remove")
             )
@@ -342,7 +344,7 @@ class ShellContributionTests(unittest.TestCase):
             self.window._remove_workspace("missing")
             self.api.remove_workspace("remove")
         self.assertNotIn("single", self.window._panels)
-        self.assertNotIn("multiple", self.window._panels)
+        self.assertIn("multiple", self.window._panels)
 
     def test_layout_save_scheduling_and_dock_event_filter(self) -> None:
         self.window._schedule_workspace_layout_save()

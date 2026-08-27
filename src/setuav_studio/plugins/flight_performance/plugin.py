@@ -9,7 +9,6 @@ from setuav_studio_sdk import (
     PanelContribution,
     ProjectTreeNodeContribution,
     StudioAPI,
-    ToolContribution,
     WorkspaceContribution,
 )
 
@@ -93,20 +92,9 @@ class FlightPerformancePlugin:
             )
         )
 
-        # 7. Register Tools Menu Item
-        api.register_tool(
-            ToolContribution(
-                group="Flight Performance",
-                title="Flight Performance Envelope…",
-                callback=lambda: api.switch_workspace("studio.workspace.flight_performance"),
-                icon="fa6s.gauge-high",
-            )
-        )
-
     def deactivate(self, api: StudioAPI) -> None:
         api.remove_selection_listener(self._on_selection_changed)
         api.remove_project_tree_provider(self.id)
-        api.remove_action("Tools/Flight Performance", "Flight Performance Envelope…")
         api.remove_panel("flight_performance.controls_dock")
         api.remove_panel("flight_performance.charts_dock")
         api.remove_panel("flight_performance.results_dock")

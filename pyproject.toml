@@ -131,6 +131,7 @@ include = [
     "src/setuav_studio/ui/log_buffer.py",
     "src/setuav_studio/ui/log_window.py",
     "src/setuav_studio/ui/main_toolbar.py",
+    "src/setuav_studio/ui/plugin_manager.py",
     "src/setuav_studio/ui/numeric_spinbox.py",
     "src/setuav_studio/ui/property_tables.py",
     "src/setuav_studio/ui/theme.py",

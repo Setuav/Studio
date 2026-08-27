@@ -28,6 +28,7 @@ from setuav_studio_sdk import (
     WorkspaceContribution,
 )
 
+from setuav_studio.plugin_system import PluginManager
 from setuav_studio.plugins.core.settings import SettingsDialog, StudioSettings
 from setuav_studio.project import (
     ProjectDocument,
@@ -41,6 +42,7 @@ from setuav_studio.ui.about_dialog import AboutDialog
 from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.log_buffer import install_log_buffer
 from setuav_studio.ui.main_toolbar import ToolSetBar, WorkspaceToolBar
+from setuav_studio.ui.plugin_manager import PluginManagerDialog
 from setuav_studio.ui.theme import status_color
 
 logger = logging.getLogger(__name__)
@@ -140,6 +142,8 @@ class MainWindow(QMainWindow):
         self._restoring_workspace_layout = False
         self._layout_save_scheduled = False
         self._layout_persistence_enabled = False
+        self._plugin_manager: PluginManager | None = None
+        self._plugin_manager_dialog: PluginManagerDialog | None = None
         self.setDockNestingEnabled(True)
 
         central_anchor = QWidget(self)
@@ -286,6 +290,10 @@ class MainWindow(QMainWindow):
 
         self._tools_menu = self.menuBar().addMenu("&Tools")
         self._menus["tools"] = self._tools_menu
+        self._plugin_manager_action = self._tools_menu.addAction("Plugin Manager…")
+        self._plugin_manager_action.setEnabled(False)
+        self._plugin_manager_action.triggered.connect(self._open_plugin_manager)
+        self._command_actions["core.plugins.manage"] = self._plugin_manager_action
 
         self._help_menu = self.menuBar().addMenu("&Help")
         self._menus["help"] = self._help_menu
@@ -932,6 +940,19 @@ class MainWindow(QMainWindow):
     def _open_about(self) -> None:
         AboutDialog(self).exec()
 
+    def bind_plugin_manager(self, manager: PluginManager) -> None:
+        """Attach the application plugin manager to the Plugin Manager action."""
+        self._plugin_manager = manager
+        self._plugin_manager_action.setEnabled(True)
+
+    def _open_plugin_manager(self) -> None:
+        if self._plugin_manager is None:
+            return
+        if self._plugin_manager_dialog is None:
+            self._plugin_manager_dialog = PluginManagerDialog(self._plugin_manager, self)
+        self._plugin_manager_dialog.refresh()
+        self._plugin_manager_dialog.exec()
+
     @staticmethod
     def _wrap_panel(content: QWidget) -> QWidget:
         container = QWidget()
@@ -987,6 +1008,20 @@ class MainWindow(QMainWindow):
             if action.text() == title:
                 menu.removeAction(action)
                 break
+
+        # Remove empty plugin-owned submenus as well. Keep top-level menus
+        # (for example Tools) available for future contributions.
+        for index in range(len(parts), 1, -1):
+            child_key = "/".join(part.lower() for part in parts[:index])
+            child = self._menus.get(child_key)
+            if child is None or not shiboken6.isValid(child) or child.actions():
+                break
+            parent_key = "/".join(part.lower() for part in parts[: index - 1])
+            parent = self._menus.get(parent_key)
+            if parent is not None and shiboken6.isValid(parent):
+                parent.removeAction(child.menuAction())
+            self._menus.pop(child_key, None)
+            child.deleteLater()
 
     def _add_toolbar_item(self, contribution: ToolbarContribution) -> None:
         if contribution.id in self._toolbar_contributions:
@@ -1153,10 +1188,8 @@ class MainWindow(QMainWindow):
         self._refresh_workspace_combo()
         for panel_id in list(self._panels):
             contribution, _ = self._panels[panel_id]
-            if contribution.workspace_id == workspace_id or (
-                isinstance(contribution.workspace_id, (list, tuple, set))
-                and workspace_id in contribution.workspace_id
-            ):
+            panel_workspaces = contribution.workspace_id
+            if panel_workspaces == workspace_id:
                 self._remove_panel(panel_id)
 
     def _refresh_workspace_combo(self) -> None:

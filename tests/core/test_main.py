@@ -3,7 +3,12 @@ import unittest
 from PySide6.QtWidgets import QDockWidget, QWidget
 
 from setuav_studio.__main__ import _parse_arguments
-from setuav_studio.plugin_system import PanelContribution, StudioAPI, WorkspaceContribution
+from setuav_studio.plugin_system import (
+    PanelContribution,
+    PluginManager,
+    StudioAPI,
+    WorkspaceContribution,
+)
 from setuav_studio.shell import MainWindow
 from tests._common import TEST_PROJECT_PATH, get_qapp
 
@@ -11,6 +16,14 @@ _app = get_qapp()
 
 
 class MainTests(unittest.TestCase):
+    def test_plugin_manager_action_is_bound_to_manager(self) -> None:
+        api = StudioAPI()
+        window = MainWindow(api)
+
+        self.assertFalse(window._plugin_manager_action.isEnabled())
+        window.bind_plugin_manager(PluginManager(api))
+        self.assertTrue(window._plugin_manager_action.isEnabled())
+
     def test_accepts_optional_project_path(self) -> None:
         arguments = _parse_arguments(["example/project.json"])
 

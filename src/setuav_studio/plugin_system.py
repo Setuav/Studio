@@ -868,13 +868,46 @@ class PluginManager:
     def __init__(self, api: StudioAPI) -> None:
         self._api = api
         self._plugins: dict[str, StudioPlugin] = {}
+        self._candidates: dict[str, StudioPlugin] = {}
+        self._disabled_plugins: set[str] = set()
+        self._load_issues: list[PluginLoadIssue] = []
         self._providers: dict[str, str] = {}
         self._plugin_providers: dict[str, dict[str, str]] = {}
         api._host.bind_project_requirement_checker(self.check_project_requirements)
 
+    @property
+    def active_plugins(self) -> tuple[StudioPlugin, ...]:
+        """Return active plugins ordered by priority and plugin ID."""
+        return tuple(
+            sorted(
+                self._plugins.values(),
+                key=_plugin_sort_key,
+            )
+        )
+
+    @property
+    def load_issues(self) -> tuple[PluginLoadIssue, ...]:
+        """Return issues from the most recent discovery pass."""
+        return tuple(self._load_issues)
+
+    @property
+    def known_plugins(self) -> tuple[StudioPlugin, ...]:
+        """Return discovered plugin candidates ordered by priority and ID."""
+        return tuple(sorted(self._candidates.values(), key=_plugin_sort_key))
+
+    def is_active(self, plugin_id: str) -> bool:
+        """Return whether a plugin is currently active."""
+        return plugin_id in self._plugins
+
+    def is_disabled(self, plugin_id: str) -> bool:
+        """Return whether a plugin was explicitly disabled by the user."""
+        return plugin_id in self._disabled_plugins
+
     def activate(self, plugin: StudioPlugin) -> None:
         if plugin.id in self._plugins:
             raise ValueError(f"Plugin is already active: {plugin.id}")
+        self._candidates[plugin.id] = plugin
+        self._disabled_plugins.discard(plugin.id)
         logger.info("Activating plugin: %s", plugin.id)
         plugin.activate(self._api)
         self._plugins[plugin.id] = plugin
@@ -888,6 +921,7 @@ class PluginManager:
         plugin = self._plugins.pop(plugin_id, None)
         if plugin is None:
             raise ValueError(f"Plugin is not active: {plugin_id}")
+        self._disabled_plugins.add(plugin_id)
         logger.info("Deactivating plugin: %s", plugin_id)
         deactivate = getattr(plugin, "deactivate", None)
         if callable(deactivate):
@@ -899,6 +933,7 @@ class PluginManager:
         logger.info("Discovering plugins")
         issues = self._discover_bundled()
         issues.extend(self._discover_entry_points())
+        self._load_issues = issues
         return issues
 
     def check_project_requirements(self, data: dict[str, Any]) -> list[str]:
@@ -968,10 +1003,22 @@ class PluginManager:
     def _activate_candidate(self, candidate: object) -> None:
         plugin = candidate() if isinstance(candidate, type) else candidate
         plugin_id = getattr(plugin, "id", None)
+        if isinstance(plugin_id, str):
+            self._candidates[plugin_id] = plugin
+            if plugin_id in self._disabled_plugins:
+                return
         if isinstance(plugin_id, str) and plugin_id in self._plugins:
             return
         if not hasattr(plugin, "activate") or not isinstance(plugin_id, str):
             raise TypeError("Plugin entry must provide id and activate(api)")
+        self.activate(plugin)
+
+    def activate_plugin(self, plugin_id: str) -> None:
+        """Activate a previously discovered plugin by ID."""
+        plugin = self._candidates.get(plugin_id)
+        if plugin is None:
+            raise ValueError(f"Plugin is not discovered: {plugin_id}")
+        self._disabled_plugins.discard(plugin_id)
         self.activate(plugin)
 
 
@@ -981,6 +1028,13 @@ def _candidate_sort_key(candidate: object, source: str) -> tuple[int, str, objec
         priority = 100
     plugin_id = getattr(candidate, "id", source)
     return priority, str(plugin_id), candidate
+
+
+def _plugin_sort_key(plugin: StudioPlugin) -> tuple[int, str]:
+    priority = getattr(plugin, "priority", 100)
+    if not isinstance(priority, int):
+        priority = 100
+    return priority, plugin.id
 
 
 def _version_satisfies(installed: str, requirement: str) -> bool:

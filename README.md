@@ -119,6 +119,10 @@ geometry providers, and project-tree nodes. Each plugin owns its activation and
 cleanup lifecycle, allowing capabilities to be added without changing the
 application core.
 
+At runtime, use **Tools → Plugin Manager** to review active plugins and any
+discovery or activation issues. User plugins can be enabled or disabled from
+the same screen; the core plugin remains protected.
+
 With Doxygen and Graphviz installed, generate the Plugin SDK API reference:
 
 ```bash
