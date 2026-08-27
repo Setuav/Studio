@@ -21,6 +21,7 @@ EXPECTED_FILES = (
     "setuav_studio/schemas/core/project.schema.json",
     "setuav_studio/schemas/plugins/org.setuav.core/plugin.json",
     "setuav_studio/data/airfoils/clarky.dat",
+    "setuav_studio/sdk/__init__.py",
 )
 
 

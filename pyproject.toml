@@ -97,6 +97,7 @@ title = "Setuav Studio Coverage"
 
 [tool.pyright]
 include = [
+    "src/setuav_studio/sdk",
     "src/setuav_studio/ui/about_dialog.py",
     "src/setuav_studio/plugins/aerodynamics/engine/base.py",
     "src/setuav_studio/plugins/aerodynamics/engine/aerosandbox_engine.py",
