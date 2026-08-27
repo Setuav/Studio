@@ -418,6 +418,23 @@ class PluginTests(unittest.TestCase):
         self.manager.activate(plugin)
         self.assertIn("com.example:thing", self.api._component_editors)
 
+    def test_failed_plugin_deactivation_keeps_plugin_active(self) -> None:
+        class FailingPlugin:
+            id = "com.example.deactivation-failure"
+
+            def activate(self, _api: StudioAPI) -> None: ...
+
+            def deactivate(self, _api: StudioAPI) -> None:
+                raise RuntimeError("cleanup failed")
+
+        self.manager.activate(FailingPlugin())
+
+        with self.assertRaisesRegex(RuntimeError, "cleanup failed"):
+            self.manager.deactivate("com.example.deactivation-failure")
+
+        self.assertTrue(self.manager.is_active("com.example.deactivation-failure"))
+        self.assertFalse(self.manager.is_disabled("com.example.deactivation-failure"))
+
     def test_deactivate_without_deactivate_method_is_noop(self) -> None:
         class PlainPlugin:
             id = "com.example.plain"

@@ -918,14 +918,15 @@ class PluginManager:
             self._plugin_providers[plugin.id] = provided
 
     def deactivate(self, plugin_id: str) -> None:
-        plugin = self._plugins.pop(plugin_id, None)
+        plugin = self._plugins.get(plugin_id)
         if plugin is None:
             raise ValueError(f"Plugin is not active: {plugin_id}")
-        self._disabled_plugins.add(plugin_id)
         logger.info("Deactivating plugin: %s", plugin_id)
         deactivate = getattr(plugin, "deactivate", None)
         if callable(deactivate):
             deactivate(self._api)
+        self._plugins.pop(plugin_id, None)
+        self._disabled_plugins.add(plugin_id)
         for provided_id in self._plugin_providers.pop(plugin_id, {}):
             self._providers.pop(provided_id, None)
 
