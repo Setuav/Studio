@@ -20,8 +20,8 @@ from PySide6.QtWidgets import (
 )
 from pythrust.propulsion.models.motor import MotorSpec
 from pythrust.propulsion.models.propeller import PropellerSpec
+from setuav_studio_sdk import StudioAPI
 
-from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.plugins.electrical_propulsion.database import get_propeller_database
 from setuav_studio.plugins.electrical_propulsion.engine.solver import PropulsionSolverEngine
 from setuav_studio.plugins.weight_balance.engine.solver import WeightBalanceSolver

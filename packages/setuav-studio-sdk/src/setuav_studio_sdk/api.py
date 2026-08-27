@@ -80,7 +80,7 @@ class StudioAPI(Protocol):
 
     @property
     def current_project(self) -> ProjectDocument | None:
-        """Alias of ``project`` retained for existing plugins."""
+        """Currently open project, exposed under the application property name."""
         ...
 
     @property

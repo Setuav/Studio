@@ -1,5 +1,52 @@
-"""Public SDK package for third-party Setuav Studio plugins."""
+"""Public API for Setuav Studio plugin authors.
 
-__version__ = "0.1.0"
+Third-party plugins should import contracts from this package instead of
+application implementation modules.
+"""
 
-__all__ = ["__version__"]
+from .api import (
+    ComponentTreeProvider,
+    GeometryProvider,
+    MassPropertiesProvider,
+    ProjectDocument,
+    ProjectTreeProvider,
+    StudioAPI,
+)
+from .contributions import (
+    ActionContribution,
+    BaseComponentEditor,
+    ComponentTreeNodeContribution,
+    PanelContribution,
+    ParameterField,
+    ProjectTreeNodeContribution,
+    SettingsPageContribution,
+    ToolbarContribution,
+    ToolbarMenuItemContribution,
+    ToolContribution,
+    WorkspaceContribution,
+)
+from .plugin import PLUGIN_ENTRY_POINT_GROUP, StudioPlugin
+from .version import PLUGIN_API_VERSION
+
+__all__ = [
+    "PLUGIN_API_VERSION",
+    "PLUGIN_ENTRY_POINT_GROUP",
+    "ActionContribution",
+    "BaseComponentEditor",
+    "ComponentTreeNodeContribution",
+    "ComponentTreeProvider",
+    "GeometryProvider",
+    "MassPropertiesProvider",
+    "PanelContribution",
+    "ParameterField",
+    "ProjectDocument",
+    "ProjectTreeNodeContribution",
+    "ProjectTreeProvider",
+    "SettingsPageContribution",
+    "StudioAPI",
+    "StudioPlugin",
+    "ToolContribution",
+    "ToolbarContribution",
+    "ToolbarMenuItemContribution",
+    "WorkspaceContribution",
+]

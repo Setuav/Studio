@@ -19,8 +19,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-
-from setuav_studio.plugin_system import (
+from setuav_studio_sdk import (
     ActionContribution,
     PanelContribution,
     StudioAPI,
@@ -28,6 +27,7 @@ from setuav_studio.plugin_system import (
     ToolbarMenuItemContribution,
     WorkspaceContribution,
 )
+
 from setuav_studio.plugins.core.settings import SettingsDialog, StudioSettings
 from setuav_studio.project import (
     ProjectDocument,

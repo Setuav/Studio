@@ -5,14 +5,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt
-
-from setuav_studio.plugin_system import (
+from setuav_studio_sdk import (
     PanelContribution,
     ProjectTreeNodeContribution,
     StudioAPI,
     ToolContribution,
     WorkspaceContribution,
 )
+
 from setuav_studio.project import ProjectDocument
 
 from .analysis_store import (

@@ -1,4 +1,4 @@
-# Setuav Studio standalone SDK documentation
+# Setuav Studio SDK documentation
 
 PROJECT_NAME           = "Setuav Studio SDK"
 PROJECT_NUMBER         = "0.1.0"
@@ -15,12 +15,12 @@ USE_MDFILE_AS_MAINPAGE = docs/index.md
 
 # The API reference is generated from the public SDK modules only.
 INPUT                  = docs/index.md \
-                         ../../src/setuav_studio/sdk
+                         src/setuav_studio_sdk
 FILE_PATTERNS          = *.py *.md
 RECURSIVE              = YES
 EXCLUDE_PATTERNS       = */__pycache__/*
 FULL_PATH_NAMES        = YES
-STRIP_FROM_PATH        = ../../src
+STRIP_FROM_PATH        = src
 SHOW_FILES             = NO
 SHOW_NAMESPACES        = NO
 SHOW_USED_FILES        = NO

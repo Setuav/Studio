@@ -1,11 +1,11 @@
 from PySide6.QtCore import Qt
-
-from setuav_studio.plugin_system import (
+from setuav_studio_sdk import (
     ComponentTreeNodeContribution,
     PanelContribution,
     StudioAPI,
     ToolbarContribution,
 )
+
 from setuav_studio.plugins.core.envelope import EnvelopeEditor
 from setuav_studio.plugins.core.instance import InstanceEditor
 from setuav_studio.plugins.core.properties import PropertiesPanel
