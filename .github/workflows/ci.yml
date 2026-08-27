@@ -49,14 +49,10 @@ jobs:
         run: uv run --locked ruff format --check .
       - name: Type check
         run: uv run --locked pyright
-      - name: Test
+      - name: Test application
         run: uv run --locked python -m tests.suites all
-      - name: Test SDK package
-        env:
-          PYTHONPATH: packages/setuav-studio-sdk/src:packages/example-plugin/src
-        run: |
-          uv run --locked python -m unittest discover -s packages/setuav-studio-sdk/tests
-          uv run --locked python -m unittest discover -s packages/example-plugin/tests
+      - name: Test SDK contracts
+        run: uv run --locked python scripts/sdk_contract_tests.py
 
   package:
     name: Package smoke test

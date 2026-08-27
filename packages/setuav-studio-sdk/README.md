@@ -25,8 +25,5 @@ entry point, and cleans up its workspace and panel during deactivation.
 Run the SDK and example-plugin tests from the repository root:
 
 ```bash
-PYTHONPATH=packages/setuav-studio-sdk/src \
-  python -m unittest discover -s packages/setuav-studio-sdk/tests
-PYTHONPATH=packages/setuav-studio-sdk/src:packages/example-plugin/src \
-  python -m unittest discover -s packages/example-plugin/tests
+python scripts/sdk_contract_tests.py
 ```
