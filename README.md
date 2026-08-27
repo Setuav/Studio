@@ -9,6 +9,10 @@
 </p>
 
 <p align="center">
+  <img src="docs/images/studio_banner.png" alt="Setuav Studio banner">
+</p>
+
+<p align="center">
   <a href="https://github.com/Setuav/studio/actions/workflows/ci.yml">
     <img src="https://github.com/Setuav/studio/actions/workflows/ci.yml/badge.svg" alt="CI status">
   </a>
