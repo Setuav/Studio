@@ -20,6 +20,13 @@ class ProjectSaveError(Exception):
 
 @dataclass
 class ProjectDocument:
+    """Represent the open Setuav project exposed to plugins.
+
+    `data` contains the JSON-compatible project model. Plugins should mutate it
+    through `StudioAPI.edit_project`, `StudioAPI.edit_component`, or their
+    extension helpers so undo/redo and modified-state tracking remain correct.
+    """
+
     path: Path
     kind: Literal["folder", "json", "archive"]
     data: dict[str, Any]

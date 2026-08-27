@@ -5,22 +5,19 @@ PROJECT_NUMBER         = "1.0"
 PROJECT_BRIEF          = "Public Python API for third-party Setuav Studio plugins"
 PROJECT_LOGO           = src/setuav_studio/assets/icons/studio.png
 
-OUTPUT_DIRECTORY       = build
+OUTPUT_DIRECTORY       = build/docs/doxygen
 CREATE_SUBDIRS         = NO
 ALLOW_UNICODE_NAMES    = YES
 OUTPUT_LANGUAGE        = English
 
 OPTIMIZE_OUTPUT_JAVA   = YES
-PYTHON_DOCSTRING       = YES
+PYTHON_DOCSTRING       = NO
 MARKDOWN_SUPPORT       = YES
 AUTOLINK_SUPPORT       = YES
 USE_MDFILE_AS_MAINPAGE = docs/api/index.md
 
 INPUT                  = docs/api/index.md \
-                         src/setuav_studio/sdk \
-                         src/setuav_studio/plugin_system.py \
-                         src/setuav_studio/component_editor.py \
-                         src/setuav_studio/project.py
+                         src/setuav_studio/sdk
 FILE_PATTERNS          = *.py *.md
 RECURSIVE              = YES
 EXCLUDE_PATTERNS       = */__pycache__/*
@@ -28,34 +25,29 @@ EXCLUDE_PATTERNS       = */__pycache__/*
 FULL_PATH_NAMES        = YES
 STRIP_FROM_PATH        = src
 SHOW_FILES             = NO
-SHOW_NAMESPACES        = YES
+SHOW_NAMESPACES        = NO
+SHOW_USED_FILES        = NO
 
-EXTRACT_ALL            = YES
+EXTRACT_ALL            = NO
 EXTRACT_PRIVATE        = NO
 EXTRACT_STATIC         = NO
-HIDE_UNDOC_MEMBERS     = NO
-HIDE_UNDOC_CLASSES     = NO
+HIDE_UNDOC_MEMBERS     = YES
+HIDE_UNDOC_CLASSES     = YES
 INTERNAL_DOCS          = NO
-EXCLUDE_SYMBOLS        = "_*" \
-                         _ComponentEditCommand \
-                         _ProjectEditCommand \
-                         PluginLoadIssue \
-                         PluginManager \
-                         ProjectOpenError \
-                         ProjectSaveError \
-                         open_project \
-                         save_project
+EXCLUDE_SYMBOLS        = "_*"
 
-SOURCE_BROWSER         = YES
+SOURCE_BROWSER         = NO
+VERBATIM_HEADERS       = NO
 INLINE_SOURCES         = NO
 REFERENCED_BY_RELATION = NO
 REFERENCES_RELATION    = NO
 
 GENERATE_HTML          = YES
-HTML_OUTPUT            = docs/doxygen/html
+HTML_OUTPUT            = html
 HTML_EXTRA_STYLESHEET  = docs/api/sdk.css
 HTML_DYNAMIC_MENUS     = YES
-GENERATE_TREEVIEW      = YES
+GENERATE_TREEVIEW      = NO
+DISABLE_INDEX          = YES
 SEARCHENGINE           = YES
 
 GENERATE_LATEX         = NO
