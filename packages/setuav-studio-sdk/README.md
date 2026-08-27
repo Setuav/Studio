@@ -3,7 +3,7 @@
 This package defines the Python contracts used by third-party Setuav Studio
 plugins. The source and API reference are kept together for versioned releases.
 
-## API documentation
+## Developer documentation
 
 From this directory:
 
