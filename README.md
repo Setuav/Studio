@@ -65,7 +65,7 @@ uv run --locked setuav-studio path/to/project.suav
 ## Documentation
 
 - [User guide](docs/user-guide/index.md)
-- [Developer documentation](docs/api/index.md)
+- [Developer documentation](docs/developer/index.md)
 
 ## Development
 
