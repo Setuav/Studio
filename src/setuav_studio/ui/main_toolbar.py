@@ -6,9 +6,9 @@ from collections.abc import Iterable
 from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QComboBox, QToolBar, QToolButton
-from setuav_studio_sdk import WorkspaceContribution
 
 from setuav_studio.ui.icons import get_icon
+from setuav_studio_sdk import WorkspaceContribution
 
 
 def _configure_toolbar(toolbar: QToolBar) -> None:

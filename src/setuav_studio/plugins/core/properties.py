@@ -2,6 +2,7 @@ from typing import Any
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
+
 from setuav_studio_sdk import StudioAPI
 
 

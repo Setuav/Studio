@@ -18,12 +18,12 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from setuav_studio_sdk import StudioAPI
 
 from setuav_studio.ui.buttons import set_native_button
 from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.property_tables import ContentFitTableWidget, PropertyTableMixin
 from setuav_studio.ui.theme import status_color, tokens
+from setuav_studio_sdk import StudioAPI
 
 from .engine.models import FlightEnvelopeResult
 

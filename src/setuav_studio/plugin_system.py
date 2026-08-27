@@ -11,6 +11,10 @@ from typing import Any
 from packaging.version import InvalidVersion, Version
 from PySide6.QtGui import QIcon, QUndoCommand, QUndoStack
 from PySide6.QtWidgets import QWidget
+
+from setuav_studio.component_editor import BaseComponentEditor
+from setuav_studio.project import ProjectDocument
+from setuav_studio.ui.icons import get_icon
 from setuav_studio_sdk.api import (
     ComponentTreeProvider,
     GeometryProvider,
@@ -29,10 +33,6 @@ from setuav_studio_sdk.contributions import (
     WorkspaceContribution,
 )
 from setuav_studio_sdk.plugin import StudioPlugin
-
-from setuav_studio.component_editor import BaseComponentEditor
-from setuav_studio.project import ProjectDocument
-from setuav_studio.ui.icons import get_icon
 
 __all__ = [
     "BaseComponentEditor",

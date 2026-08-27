@@ -15,10 +15,10 @@ from PySide6.QtWidgets import (
     QToolButton,
     QWidget,
 )
-from setuav_studio_sdk import StudioAPI
 
 from setuav_studio.project import ProjectDocument
 from setuav_studio.ui.icons import get_icon
+from setuav_studio_sdk import StudioAPI
 
 from .settings import (
     _VIEWER_GRID_KEY,
@@ -260,9 +260,7 @@ class ViewerWorkspace(QWidget):
             )
         )
         self._action_transparent_bg.toggled.connect(
-            lambda checked: QSettings().setValue(
-                _VIEWER_SCREENSHOT_TRANSPARENT_KEY, checked
-            )
+            lambda checked: QSettings().setValue(_VIEWER_SCREENSHOT_TRANSPARENT_KEY, checked)
         )
         self.screenshot_button.setMenu(self._screenshot_menu)
         hud_layout.addWidget(self.screenshot_button)

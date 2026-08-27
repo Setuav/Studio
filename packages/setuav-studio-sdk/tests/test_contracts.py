@@ -5,8 +5,9 @@ import unittest
 from pathlib import Path
 from typing import Protocol
 
-import setuav_studio_sdk as sdk
 from PySide6.QtCore import Qt
+
+import setuav_studio_sdk as sdk
 
 
 class SDKContractTests(unittest.TestCase):

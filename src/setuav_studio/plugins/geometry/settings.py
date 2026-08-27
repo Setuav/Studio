@@ -106,9 +106,7 @@ def apply_viewer_settings(page: QWidget) -> None:
     if show_wire is not None:
         settings.setValue(_VIEWER_WIRE_KEY, show_wire.isChecked())
     if transparent_screenshot is not None:
-        settings.setValue(
-            _VIEWER_SCREENSHOT_TRANSPARENT_KEY, transparent_screenshot.isChecked()
-        )
+        settings.setValue(_VIEWER_SCREENSHOT_TRANSPARENT_KEY, transparent_screenshot.isChecked())
 
 
 def create_editor_settings_page() -> QWidget:

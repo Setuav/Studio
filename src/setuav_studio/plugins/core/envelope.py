@@ -17,11 +17,11 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from setuav_studio_sdk import StudioAPI
 
 from setuav_studio.ui.icons import set_label_icon
 from setuav_studio.ui.numeric_spinbox import NumericSpinBox, set_table_spinbox
 from setuav_studio.ui.property_tables import PropertyTableMixin
+from setuav_studio_sdk import StudioAPI
 
 from .derived_geometry import derive_component_geometry
 

@@ -17,12 +17,12 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from setuav_studio_sdk import StudioAPI
 
 from setuav_studio.ui.buttons import refresh_button_role, set_native_button
 from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.property_tables import ContentFitTableWidget, PropertyTableMixin
 from setuav_studio.ui.theme import tokens
+from setuav_studio_sdk import StudioAPI
 
 
 class PropulsionResultsDock(PropertyTableMixin, QWidget):

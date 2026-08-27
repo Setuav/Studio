@@ -19,14 +19,6 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from setuav_studio_sdk import (
-    ActionContribution,
-    PanelContribution,
-    StudioAPI,
-    ToolbarContribution,
-    ToolbarMenuItemContribution,
-    WorkspaceContribution,
-)
 
 from setuav_studio.plugin_system import PluginManager
 from setuav_studio.plugins.core.settings import SettingsDialog, StudioSettings
@@ -44,6 +36,14 @@ from setuav_studio.ui.log_buffer import install_log_buffer
 from setuav_studio.ui.main_toolbar import ToolSetBar, WorkspaceToolBar
 from setuav_studio.ui.plugin_manager import PluginManagerDialog
 from setuav_studio.ui.theme import status_color
+from setuav_studio_sdk import (
+    ActionContribution,
+    PanelContribution,
+    StudioAPI,
+    ToolbarContribution,
+    ToolbarMenuItemContribution,
+    WorkspaceContribution,
+)
 
 logger = logging.getLogger(__name__)
 
