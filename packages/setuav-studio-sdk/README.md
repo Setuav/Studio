@@ -18,7 +18,7 @@ implementation modules are deliberately excluded.
 
 ## Example plugin
 
-The [`examples/hello-plugin`](examples/hello-plugin) project shows the
+The [`packages/example-plugin`](../example-plugin) project shows the
 smallest installable plugin: it declares the SDK dependency, publishes an
 entry point, and cleans up its workspace and panel during deactivation.
 
@@ -27,6 +27,6 @@ Run the SDK and example-plugin tests from the repository root:
 ```bash
 PYTHONPATH=packages/setuav-studio-sdk/src \
   python -m unittest discover -s packages/setuav-studio-sdk/tests
-PYTHONPATH=packages/setuav-studio-sdk/src:packages/setuav-studio-sdk/examples/hello-plugin/src \
-  python -m unittest discover -s packages/setuav-studio-sdk/examples/hello-plugin/tests
+PYTHONPATH=packages/setuav-studio-sdk/src:packages/example-plugin/src \
+  python -m unittest discover -s packages/example-plugin/tests
 ```

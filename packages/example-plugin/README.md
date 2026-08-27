@@ -7,7 +7,7 @@ plugin and replace the example identifiers and UI.
 ## Layout
 
 ```text
-hello-plugin/
+example-plugin/
 ├── pyproject.toml                 # package metadata and entry point
 ├── src/setuav_example_plugin/
 │   ├── __init__.py
