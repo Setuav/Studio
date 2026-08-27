@@ -1,4 +1,4 @@
-"""Verify resources bundled in a PyInstaller one-folder build."""
+"""Verify resources bundled in a PyInstaller desktop build."""
 
 from __future__ import annotations
 
@@ -12,13 +12,20 @@ RESOURCE_DIRECTORIES = ("assets", "schemas", "data")
 
 def _parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("bundle", type=Path, help="PyInstaller one-folder bundle")
+    parser.add_argument("bundle", type=Path, help="PyInstaller desktop bundle")
     return parser.parse_args()
+
+
+def _internal_roots(bundle: Path) -> tuple[Path, ...]:
+    if bundle.suffix == ".app":
+        contents = bundle / "Contents"
+        return contents / "Frameworks", contents / "Resources"
+    return (bundle / "_internal",)
 
 
 def main() -> int:
     bundle = _parse_arguments().bundle.resolve()
-    package_root = bundle / "_internal" / "setuav_studio"
+    internal_roots = _internal_roots(bundle)
     expected_resources = {
         path.relative_to(SOURCE_PACKAGE_ROOT)
         for directory in RESOURCE_DIRECTORIES
@@ -26,11 +33,17 @@ def main() -> int:
         if path.is_file()
     }
     missing = sorted(
-        str(resource) for resource in expected_resources if not (package_root / resource).is_file()
+        str(resource)
+        for resource in expected_resources
+        if not any((root / "setuav_studio" / resource).is_file() for root in internal_roots)
     )
-    if not (bundle / "_internal" / "LICENSE").is_file():
+    if not any((root / "LICENSE").is_file() for root in internal_roots):
         missing.append("LICENSE")
-    metadata_files = list((bundle / "_internal").glob("setuav_studio-*.dist-info/METADATA"))
+    metadata_files = [
+        metadata
+        for root in internal_roots
+        for metadata in root.glob("setuav_studio-*.dist-info/METADATA")
+    ]
     if not metadata_files:
         missing.append("setuav_studio distribution metadata")
     if missing:

@@ -1,0 +1,149 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+env:
+  GH_REPO: ${{ github.repository }}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Validate release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+      - name: Verify tag belongs to main
+        shell: bash
+        run: |
+          git fetch origin main:refs/remotes/origin/main
+          tag_commit="$(git rev-list -n 1 "${GITHUB_REF_NAME}")"
+          git merge-base --is-ancestor "${tag_commit}" refs/remotes/origin/main
+      - name: Verify tag matches project version
+        shell: bash
+        run: |
+          project_version="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
+          tag_version="${GITHUB_REF_NAME#v}"
+          if [[ "${tag_version}" != "${project_version}" ]]; then
+            echo "Tag version ${tag_version} does not match project version ${project_version}." >&2
+            exit 1
+          fi
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1 || \
+            gh release create "${GITHUB_REF_NAME}" \
+              --draft \
+              --generate-notes \
+              --title "Setuav Studio ${GITHUB_REF_NAME}" \
+              --verify-tag
+
+  build:
+    name: Build / ${{ matrix.name }}
+    needs: prepare
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux x86_64
+            runner: ubuntu-latest
+          - name: Windows x86_64
+            runner: windows-latest
+          - name: macOS
+            runner: macos-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+      - name: Set up uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          cache-dependency-glob: uv.lock
+          enable-cache: true
+      - name: Install locked dependencies
+        run: uv sync --locked --all-extras --group desktop
+      - name: Build desktop application
+        run: uv run --locked --all-extras --group desktop pyinstaller --noconfirm --clean setuav-studio.spec
+      - name: Verify Linux or Windows bundle
+        if: runner.os != 'macOS'
+        shell: bash
+        run: |
+          python scripts/verify_desktop_resources.py dist/setuav-studio
+          python scripts/desktop_startup_smoke_test.py dist/setuav-studio
+      - name: Verify macOS bundle
+        if: runner.os == 'macOS'
+        run: |
+          python scripts/verify_desktop_resources.py "dist/Setuav Studio.app"
+          python scripts/desktop_startup_smoke_test.py "dist/Setuav Studio.app"
+      - name: Package Linux release
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          archive="setuav-studio-${GITHUB_REF_NAME}-linux-x86_64.tar.gz"
+          tar -czf "${archive}" -C dist setuav-studio
+          sha256sum "${archive}" > "${archive}.sha256"
+          echo "RELEASE_ARCHIVE=${archive}" >> "${GITHUB_ENV}"
+      - name: Package Windows release
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $archive = "setuav-studio-$env:GITHUB_REF_NAME-windows-x86_64.zip"
+          Compress-Archive -Path "dist/setuav-studio" -DestinationPath $archive
+          $hash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLower()
+          "$hash  $archive" | Set-Content "$archive.sha256"
+          "RELEASE_ARCHIVE=$archive" >> $env:GITHUB_ENV
+      - name: Package macOS release
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          architecture="$(uname -m)"
+          archive="setuav-studio-${GITHUB_REF_NAME}-macos-${architecture}.app.zip"
+          ditto -c -k --sequesterRsrc --keepParent "dist/Setuav Studio.app" "${archive}"
+          shasum -a 256 "${archive}" > "${archive}.sha256"
+          echo "RELEASE_ARCHIVE=${archive}" >> "${GITHUB_ENV}"
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release upload "${GITHUB_REF_NAME}" \
+            "${RELEASE_ARCHIVE}" \
+            "${RELEASE_ARCHIVE}.sha256" \
+            --clobber
+
+  publish:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Publish draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "${GITHUB_REF_NAME}" --draft=false --latest

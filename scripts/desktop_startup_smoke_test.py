@@ -1,4 +1,4 @@
-"""Start a PyInstaller one-folder bundle and require a clean automatic exit."""
+"""Start a PyInstaller desktop bundle and require a clean automatic exit."""
 
 from __future__ import annotations
 
@@ -15,11 +15,13 @@ TEST_PROJECT = PROJECT_ROOT / "tests" / "fixtures" / "fixed-wing" / "project.jso
 
 def _parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("bundle", type=Path, help="PyInstaller one-folder bundle")
+    parser.add_argument("bundle", type=Path, help="PyInstaller desktop bundle")
     return parser.parse_args()
 
 
 def _executable_path(bundle: Path) -> Path:
+    if bundle.suffix == ".app":
+        return bundle / "Contents" / "MacOS" / "setuav-studio"
     suffix = ".exe" if os.name == "nt" else ""
     return bundle / f"setuav-studio{suffix}"
 

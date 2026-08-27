@@ -25,18 +25,18 @@
 - [x] PyInstaller ile `onedir` paket üret.
 - [x] Paket içindeki ikon, font, şema ve veri dosyalarını doğrula.
 - [x] Paketlenmiş uygulama için başlangıç testi ekle.
-- [ ] Windows `.zip` çıktısı üret.
-- [ ] Linux `.tar.gz` çıktısı üret.
-- [ ] macOS `.app.zip` çıktısı üret.
+- [x] Windows `.zip` çıktısı üret.
+- [x] Linux `.tar.gz` çıktısı üret.
+- [x] macOS `.app.zip` çıktısı üret.
 
 ## 4. Release otomasyonu
 
-- [ ] `.github/workflows/release.yml` oluştur.
-- [ ] `v*` etiketiyle release sürecini başlat.
-- [ ] Git etiketi ile proje sürümünün eşleşmesini kontrol et.
-- [ ] Paketleri işletim sistemlerine göre paralel üret.
-- [ ] SHA-256 checksum dosyalarını oluştur.
-- [ ] Çıktıları GitHub Release'e yükle.
+- [x] `.github/workflows/release.yml` oluştur.
+- [x] `v*` etiketiyle release sürecini başlat.
+- [x] Git etiketi ile proje sürümünün eşleşmesini kontrol et.
+- [x] Paketleri işletim sistemlerine göre paralel üret.
+- [x] SHA-256 checksum dosyalarını oluştur.
+- [x] Çıktıları GitHub Release'e yükle.
 - [ ] Windows ve macOS imzalamayı sonraki aşamada ekle.
 
 ## 5. Dokümantasyon

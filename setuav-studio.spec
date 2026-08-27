@@ -1,6 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 import sys
+import tomllib
 from pathlib import Path
 
 from PyInstaller.utils.hooks import (
@@ -13,6 +14,9 @@ from PyInstaller.utils.hooks import (
 
 PROJECT_ROOT = Path(SPEC).resolve().parent
 SOURCE_ROOT = PROJECT_ROOT / "src"
+PROJECT_VERSION = tomllib.loads(
+    (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+)["project"]["version"]
 APPLICATION_ICON_SUFFIX = {"darwin": ".icns", "win32": ".ico"}.get(sys.platform, ".png")
 APPLICATION_ICON = (
     SOURCE_ROOT / "setuav_studio" / "assets" / "icons" / f"studio{APPLICATION_ICON_SUFFIX}"
@@ -31,8 +35,8 @@ PACKAGE_DATA = [
 CASADI_RUNTIME_LIBRARIES = [
     binary
     for binary in collect_dynamic_libs("casadi")
-    if Path(binary[0]).name.startswith("libcasadi_interpolant_")
-    or Path(binary[0]).name == "libcasadi_linsol_lsqr.so"
+    if "casadi_interpolant_" in Path(binary[0]).name
+    or "casadi_linsol_lsqr" in Path(binary[0]).name
 ]
 
 
@@ -79,3 +83,17 @@ bundle = COLLECT(
     upx_exclude=[],
     name="setuav-studio",
 )
+
+if sys.platform == "darwin":
+    app = BUNDLE(
+        bundle,
+        name="Setuav Studio.app",
+        icon=str(APPLICATION_ICON),
+        bundle_identifier="org.setuav.studio",
+        info_plist={
+            "CFBundleDisplayName": "Setuav Studio",
+            "CFBundleName": "Setuav Studio",
+            "CFBundleShortVersionString": PROJECT_VERSION,
+            "CFBundleVersion": PROJECT_VERSION,
+        },
+    )
