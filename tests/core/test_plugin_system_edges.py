@@ -19,6 +19,7 @@ from setuav_studio.plugin_system import (
     SettingsPageContribution,
     StudioAPI,
     ToolbarContribution,
+    ToolbarMenuItemContribution,
     ToolContribution,
     WorkspaceContribution,
     _candidate_sort_key,
@@ -71,6 +72,20 @@ class PluginSystemEdgeTests(unittest.TestCase):
             ToolbarContribution("invalid", "Invalid")
         with self.assertRaises(ValueError):
             ToolbarContribution("invalid", "Invalid", callback=lambda: None, command="run")
+        with self.assertRaises(ValueError):
+            ToolbarContribution(
+                "invalid",
+                "Invalid",
+                callback=lambda: None,
+                menu_items=(ToolbarMenuItemContribution("Item", lambda: None),),
+            )
+        with self.assertRaises(ValueError):
+            ToolbarContribution(
+                "invalid",
+                "Invalid",
+                command="run",
+                menu_items=(ToolbarMenuItemContribution("Item", lambda: None),),
+            )
         toolbar = ToolbarContribution("toolbar", "Toolbar", command="run", workspace_id=("design",))
         self.assertTrue(toolbar.is_in_workspace("design"))
         self.assertFalse(toolbar.is_in_workspace("other"))
@@ -415,8 +430,16 @@ class PluginSystemEdgeTests(unittest.TestCase):
         self.assertEqual(len(issues), 2)
 
         with (
-            patch.object(manager, "_discover_bundled", return_value=[issues[0]]),
-            patch.object(manager, "_discover_entry_points", return_value=[issues[1]]),
+            patch.object(
+                manager,
+                "_collect_bundled_candidates",
+                return_value=([issues[0]], []),
+            ),
+            patch.object(
+                manager,
+                "_collect_entry_point_candidates",
+                return_value=([issues[1]], []),
+            ),
         ):
             self.assertEqual(len(manager.discover()), 2)
 
@@ -438,6 +461,40 @@ class PluginSystemEdgeTests(unittest.TestCase):
         manager._activate_candidate(EntryPointPlugin())
 
         self.assertIs(manager._candidates["com.example.duplicate"], bundled)
+
+    def test_discovery_uses_one_global_priority_order(self) -> None:
+        manager = PluginManager(self.api)
+        activation_order: list[str] = []
+
+        class BundledPlugin:
+            id = "bundled"
+            priority = 100
+
+            def activate(self, _api: StudioAPI) -> None:
+                activation_order.append(self.id)
+
+        class EntryPointPlugin:
+            id = "entry-point"
+            priority = 0
+
+            def activate(self, _api: StudioAPI) -> None:
+                activation_order.append(self.id)
+
+        with (
+            patch.object(
+                manager,
+                "_collect_bundled_candidates",
+                return_value=([], [_candidate_sort_key(BundledPlugin, "bundled")]),
+            ),
+            patch.object(
+                manager,
+                "_collect_entry_point_candidates",
+                return_value=([], [_candidate_sort_key(EntryPointPlugin, "entry-point")]),
+            ),
+        ):
+            self.assertEqual(manager.discover(), [])
+
+        self.assertEqual(activation_order, ["entry-point", "bundled"])
 
     def test_project_alias_schema_and_handler_absence_paths(self) -> None:
         self.assertIsNone(self.api.project)

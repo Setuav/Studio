@@ -2194,7 +2194,12 @@ def _build_fuselage_component() -> dict:
         self.assertTrue(hasattr(workspace, "_action_transparent_bg"))
         self.assertTrue(workspace._action_transparent_bg.isCheckable())
 
-        with mock.patch.object(workspace.viewer, "capture_screenshot") as mock_capture:
+        with (
+            mock.patch.object(workspace.viewer, "capture_screenshot") as mock_capture,
+            mock.patch(
+                "setuav_studio.plugins.geometry.workspace.QMessageBox.warning"
+            ) as mock_warning,
+        ):
             mock_capture.return_value = None
 
             # 1. Capture with transparent bg unchecked
@@ -2206,6 +2211,8 @@ def _build_fuselage_component() -> dict:
             workspace._action_transparent_bg.setChecked(True)
             workspace._take_screenshot(1920, 1080)
             mock_capture.assert_called_with(1920, 1080, transparent_background=True)
+
+        self.assertEqual(mock_warning.call_count, 2)
 
 
 if __name__ == "__main__":

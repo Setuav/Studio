@@ -943,8 +943,12 @@ class PluginManager:
 
     def discover(self) -> list[PluginLoadIssue]:
         logger.info("Discovering plugins")
-        issues = self._discover_bundled()
-        issues.extend(self._discover_entry_points())
+        bundled_issues, bundled_candidates = self._collect_bundled_candidates()
+        entry_point_issues, entry_point_candidates = self._collect_entry_point_candidates()
+        issues = bundled_issues + entry_point_issues
+        candidates = bundled_candidates + entry_point_candidates
+        candidates.sort(key=lambda item: (item[0], item[1]))
+        self._activate_candidates(candidates, issues)
         self._load_issues = issues
         return issues
 
@@ -971,6 +975,13 @@ class PluginManager:
         return issues
 
     def _discover_bundled(self) -> list[PluginLoadIssue]:
+        issues, candidates = self._collect_bundled_candidates()
+        self._activate_candidates(candidates, issues)
+        return issues
+
+    def _collect_bundled_candidates(
+        self,
+    ) -> tuple[list[PluginLoadIssue], list[tuple[int, str, object]]]:
         package = import_module("setuav_studio.plugins")
         issues: list[PluginLoadIssue] = []
         candidates: list[tuple[int, str, object]] = []
@@ -984,16 +995,16 @@ class PluginManager:
             except Exception as exc:
                 logger.warning("Failed to load bundled plugin %s: %s", source, exc)
                 issues.append(PluginLoadIssue(source, str(exc)))
-        candidates.sort(key=lambda item: (item[0], item[1]))
-        for _, _, candidate in candidates:
-            try:
-                self._activate_candidate(candidate)
-            except Exception as exc:
-                logger.warning("Failed to activate plugin: %s", exc)
-                issues.append(PluginLoadIssue("plugin", str(exc)))
-        return issues
+        return issues, candidates
 
     def _discover_entry_points(self) -> list[PluginLoadIssue]:
+        issues, candidates = self._collect_entry_point_candidates()
+        self._activate_candidates(candidates, issues)
+        return issues
+
+    def _collect_entry_point_candidates(
+        self,
+    ) -> tuple[list[PluginLoadIssue], list[tuple[int, str, object]]]:
         issues: list[PluginLoadIssue] = []
         candidates: list[tuple[int, str, object]] = []
         for entry_point in metadata.entry_points(group="setuav_studio.plugins"):
@@ -1003,6 +1014,13 @@ class PluginManager:
             except Exception as exc:
                 logger.warning("Failed to load entry-point plugin %s: %s", entry_point.name, exc)
                 issues.append(PluginLoadIssue(entry_point.name, str(exc)))
+        return issues, candidates
+
+    def _activate_candidates(
+        self,
+        candidates: list[tuple[int, str, object]],
+        issues: list[PluginLoadIssue],
+    ) -> None:
         candidates.sort(key=lambda item: (item[0], item[1]))
         for _, _, candidate in candidates:
             try:
@@ -1010,7 +1028,6 @@ class PluginManager:
             except Exception as exc:
                 logger.warning("Failed to activate plugin: %s", exc)
                 issues.append(PluginLoadIssue("plugin", str(exc)))
-        return issues
 
     def _activate_candidate(self, candidate: object) -> None:
         plugin = candidate() if isinstance(candidate, type) else candidate
