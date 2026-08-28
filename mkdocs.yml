@@ -1,7 +1,7 @@
 site_name: Setuav Studio
 site_description: User and developer documentation for Setuav Studio
 site_author: Setuav
-site_url: https://setuav.github.io/studio/
+site_url: https://setuav.github.io/Studio/
 repo_url: https://github.com/Setuav/Studio
 repo_name: Setuav/Studio
 edit_uri: edit/main/docs/
