@@ -9,6 +9,9 @@
   <a href="https://github.com/Setuav/Studio/actions/workflows/dependency-audit.yml">
     <img src="https://github.com/Setuav/Studio/actions/workflows/dependency-audit.yml/badge.svg" alt="Dependency audit status">
   </a>
+  <a href="https://setuav.github.io/Studio/">
+    <img src="https://github.com/Setuav/Studio/actions/workflows/docs.yml/badge.svg" alt="Documentation build status">
+  </a>
   <a href="https://github.com/Setuav/Studio/releases">
     <img src="https://img.shields.io/github/v/release/Setuav/Studio?sort=semver" alt="Latest GitHub release">
   </a>
