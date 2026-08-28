@@ -3,23 +3,20 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Setuav/studio/actions/workflows/ci.yml">
-    <img src="https://github.com/Setuav/studio/actions/workflows/ci.yml/badge.svg?branch=main" alt="Main CI status">
+  <a href="https://github.com/Setuav/Studio/actions/workflows/ci.yml">
+    <img src="https://github.com/Setuav/Studio/actions/workflows/ci.yml/badge.svg?branch=main" alt="Main CI status">
   </a>
-  <a href="https://github.com/Setuav/studio/actions/workflows/ci.yml">
-    <img src="https://github.com/Setuav/studio/actions/workflows/ci.yml/badge.svg?branch=dev" alt="Dev CI status">
+  <a href="https://github.com/Setuav/Studio/actions/workflows/dependency-audit.yml">
+    <img src="https://github.com/Setuav/Studio/actions/workflows/dependency-audit.yml/badge.svg" alt="Dependency audit status">
   </a>
-  <a href="https://github.com/Setuav/studio/actions/workflows/dependency-audit.yml">
-    <img src="https://github.com/Setuav/studio/actions/workflows/dependency-audit.yml/badge.svg" alt="Dependency audit status">
-  </a>
-  <a href="https://github.com/Setuav/studio/releases">
-    <img src="https://img.shields.io/github/v/release/Setuav/studio?sort=semver" alt="Latest GitHub release">
+  <a href="https://github.com/Setuav/Studio/releases">
+    <img src="https://img.shields.io/github/v/release/Setuav/Studio?sort=semver" alt="Latest GitHub release">
   </a>
   <a href="https://pypi.org/project/setuav-studio-sdk/">
     <img src="https://img.shields.io/pypi/v/setuav-studio-sdk" alt="PyPI SDK version">
   </a>
   <a href="LICENSE">
-    <img src="https://img.shields.io/github/license/Setuav/studio" alt="MIT license">
+    <img src="https://img.shields.io/github/license/Setuav/Studio" alt="MIT license">
   </a>
   <img src="https://img.shields.io/badge/python-3.11%2B-blue" alt="Python 3.11 or newer">
 </p>
@@ -61,7 +58,7 @@ included by `--all-extras` in the commands below.
 Clone the repository and install the locked runtime environment:
 
 ```bash
-git clone https://github.com/Setuav/studio.git
+git clone https://github.com/Setuav/Studio.git
 cd studio
 uv sync --locked --all-extras
 ```

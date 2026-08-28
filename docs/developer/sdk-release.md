@@ -19,7 +19,7 @@ The `SDK Release` workflow builds the wheel and source distribution, verifies
 their metadata, and publishes both files to PyPI.
 
 Before the first release, configure a PyPI Trusted Publisher for the
-`Setuav/studio` repository, workflow `sdk-release.yml`, and environment
+`Setuav/Studio` repository, workflow `sdk-release.yml`, and environment
 `pypi`. No PyPI token is stored in GitHub secrets.
 
 ## Build locally
