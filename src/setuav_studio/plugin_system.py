@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from packaging.version import InvalidVersion, Version
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QObject, QSettings
 from PySide6.QtGui import QIcon, QUndoCommand, QUndoStack
 from PySide6.QtWidgets import QWidget
 
@@ -123,9 +123,9 @@ class StudioAPI:
     the Qt UI thread; long-running work must be delegated to a worker thread.
 
     Registration identifiers must be globally unique and should use the
-    plugin's reverse-domain namespace. Every listener and contribution should
-    be removed during plugin deactivation until automatic lifecycle ownership
-    is introduced.
+    plugin's reverse-domain namespace. QObject-bound event subscribers are
+    removed automatically when their owner is destroyed; other listeners and
+    contributions should still be removed during plugin deactivation.
     """
 
     def __init__(self) -> None:
@@ -228,8 +228,22 @@ class StudioAPI:
         self.report_progress(1, 1, "")
 
     def subscribe(self, event_name: str, handler: Callable[[Any], None]) -> None:
-        """Subscribe a callback handler to a named studio event (Event Bus)."""
+        """Subscribe a callback handler to a named studio event (Event Bus).
+
+        Bound methods owned by a QObject are removed automatically when that
+        QObject is destroyed.
+        """
         self._event_subscribers.setdefault(event_name, []).append(handler)
+        owner = getattr(handler, "__self__", None)
+        if isinstance(owner, QObject):
+            # Panel callbacks commonly belong to widgets that are destroyed
+            # when their plugin is deactivated. Remove the callback with the
+            # QObject so a later event cannot target a deleted C++ object.
+            owner.destroyed.connect(
+                lambda _object=None, event=event_name, callback=handler: self.unsubscribe(
+                    event, callback
+                )
+            )
 
     def unsubscribe(self, event_name: str, handler: Callable[[Any], None]) -> None:
         """Unsubscribe a callback handler from a named studio event."""
@@ -243,6 +257,20 @@ class StudioAPI:
         for handler in handlers:
             try:
                 handler(payload)
+            except RuntimeError as exc:
+                if "already deleted" in str(exc):
+                    # QObject destruction can race with queued events. Drop
+                    # the stale callback and keep the event bus healthy.
+                    self.unsubscribe(event_name, handler)
+                    logger.debug(
+                        "Removed stale subscriber for event '%s': %s",
+                        event_name,
+                        exc,
+                    )
+                    continue
+                logger.error(
+                    "Error executing subscriber for event '%s': %s", event_name, exc, exc_info=True
+                )
             except Exception as exc:
                 logger.error(
                     "Error executing subscriber for event '%s': %s", event_name, exc, exc_info=True
