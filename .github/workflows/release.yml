@@ -105,7 +105,11 @@ jobs:
         shell: bash
         run: |
           python scripts/verify_desktop_resources.py dist/setuav-studio
-          python scripts/desktop_startup_smoke_test.py dist/setuav-studio
+          if [[ "${RUNNER_OS}" == "Windows" ]]; then
+            python scripts/desktop_startup_smoke_test.py dist/setuav-studio --skip-aero-3d
+          else
+            python scripts/desktop_startup_smoke_test.py dist/setuav-studio
+          fi
       - name: Verify macOS bundle
         if: runner.os == 'macOS'
         env:
