@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 _ASSET_ROOT = Path(__file__).resolve().parent.parent / "assets" / "icons"
 _ICON_MANIFEST = _ASSET_ROOT / "manifest.toml"
-_APPLICATION_ICON = _ASSET_ROOT / "studio.png"
+_APPLICATION_ICON = _ASSET_ROOT / "studio.svg"
 
 _ICON_MAP = {
     # File / Project actions

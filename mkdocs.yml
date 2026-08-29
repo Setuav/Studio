@@ -10,8 +10,8 @@ hooks:
 
 theme:
   name: material
-  logo: images/studio.png
-  favicon: images/studio.png
+  logo: images/studio.svg
+  favicon: images/studio.svg
   font:
     text: Inter
     code: Ubuntu Mono
