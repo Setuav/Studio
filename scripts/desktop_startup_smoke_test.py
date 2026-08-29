@@ -74,7 +74,8 @@ def _viewer_payload_path() -> Path:
 
 
 def main() -> int:
-    bundle = _parse_arguments().bundle.resolve()
+    arguments = _parse_arguments()
+    bundle = arguments.bundle.resolve()
     executable = _executable_path(bundle)
     if not executable.is_file():
         raise RuntimeError(f"Desktop executable is missing: {executable}")
