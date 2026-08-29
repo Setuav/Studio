@@ -17,6 +17,11 @@ SMOKE_TEST_TIMEOUT_SECONDS = int(os.environ.get("SETUAV_DESKTOP_SMOKE_TIMEOUT", 
 def _parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("bundle", type=Path, help="PyInstaller desktop bundle")
+    parser.add_argument(
+        "--skip-aero-3d",
+        action="store_true",
+        help="skip the native AeroSandbox/PyVista smoke test",
+    )
     return parser.parse_args()
 
 
@@ -69,7 +74,8 @@ def _viewer_payload_path() -> Path:
 
 
 def main() -> int:
-    bundle = _parse_arguments().bundle.resolve()
+    arguments = _parse_arguments()
+    bundle = arguments.bundle.resolve()
     executable = _executable_path(bundle)
     if not executable.is_file():
         raise RuntimeError(f"Desktop executable is missing: {executable}")
@@ -87,17 +93,21 @@ def main() -> int:
             }
         )
         _run_command(executable, ["--smoke-test"], environment)
-        viewer_payload = _viewer_payload_path()
-        try:
-            _run_command(
-                executable,
-                ["--smoke-test-aero-3d", str(viewer_payload)],
-                environment,
-            )
-        finally:
-            viewer_payload.unlink(missing_ok=True)
+        if not arguments.skip_aero_3d:
+            viewer_payload = _viewer_payload_path()
+            try:
+                _run_command(
+                    executable,
+                    ["--smoke-test-aero-3d", str(viewer_payload)],
+                    environment,
+                )
+            finally:
+                viewer_payload.unlink(missing_ok=True)
 
-    print(f"Desktop startup and VLM viewer smoke tests passed: {executable}")
+    if arguments.skip_aero_3d:
+        print(f"Desktop startup smoke test passed (AeroSandbox 3D skipped): {executable}")
+    else:
+        print(f"Desktop startup and VLM viewer smoke tests passed: {executable}")
     return 0
 
 
