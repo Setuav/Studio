@@ -11,6 +11,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 TEST_PROJECT = PROJECT_ROOT / "tests" / "fixtures" / "fixed-wing" / "project.json"
+SMOKE_TEST_TIMEOUT_SECONDS = int(os.environ.get("SETUAV_DESKTOP_SMOKE_TIMEOUT", "60"))
 
 
 def _parse_arguments() -> argparse.Namespace:
@@ -32,7 +33,7 @@ def _run_command(executable: Path, arguments: list[str], environment: dict[str, 
         check=False,
         capture_output=True,
         text=True,
-        timeout=60,
+        timeout=SMOKE_TEST_TIMEOUT_SECONDS,
         env=environment,
     )
     if result.returncode != 0:

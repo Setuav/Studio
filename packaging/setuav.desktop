@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Setuav Studio
+Comment=Plugin-based UAV design and analysis studio
+Exec=setuav-studio
+Icon=setuav-studio
+Terminal=false
+Type=Application
+Categories=Science;Engineering;
+StartupNotify=true
