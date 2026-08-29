@@ -94,14 +94,22 @@ jobs:
         run: uv sync --locked --all-extras --group desktop
       - name: Build desktop application
         run: uv run --locked --all-extras --group desktop pyinstaller --noconfirm --clean setuav-studio.spec
+      - name: Install NSIS
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: choco install nsis --no-progress -y
       - name: Verify Linux or Windows bundle
         if: runner.os != 'macOS'
+        env:
+          SETUAV_DESKTOP_SMOKE_TIMEOUT: "180"
         shell: bash
         run: |
           python scripts/verify_desktop_resources.py dist/setuav-studio
           python scripts/desktop_startup_smoke_test.py dist/setuav-studio
       - name: Verify macOS bundle
         if: runner.os == 'macOS'
+        env:
+          SETUAV_DESKTOP_SMOKE_TIMEOUT: "180"
         run: |
           python scripts/verify_desktop_resources.py "dist/Setuav Studio.app"
           python scripts/desktop_startup_smoke_test.py "dist/Setuav Studio.app"
@@ -110,36 +118,77 @@ jobs:
         shell: bash
         run: |
           archive="setuav-studio-${GITHUB_REF_NAME}-linux-x86_64.tar.gz"
+          appimage="setuav-studio-${GITHUB_REF_NAME}-linux-x86_64.AppImage"
           tar -czf "${archive}" -C dist setuav-studio
           sha256sum "${archive}" > "${archive}.sha256"
+          appdir="Setuav.AppDir"
+          mkdir -p "${appdir}/usr/lib/setuav-studio"
+          mkdir -p "${appdir}/usr/share/icons/hicolor/256x256/apps"
+          cp -a dist/setuav-studio/. "${appdir}/usr/lib/setuav-studio/"
+          cp packaging/AppRun "${appdir}/AppRun"
+          cp packaging/setuav.desktop "${appdir}/setuav.desktop"
+          cp src/setuav_studio/assets/icons/studio.png "${appdir}/setuav-studio.png"
+          cp src/setuav_studio/assets/icons/studio.png \
+            "${appdir}/usr/share/icons/hicolor/256x256/apps/setuav-studio.png"
+          chmod +x "${appdir}/AppRun"
+          wget -q -O appimagetool \
+            "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
+          chmod +x appimagetool
+          ARCH=x86_64 ./appimagetool --appimage-extract-and-run --no-appstream \
+            "${appdir}" "${appimage}"
+          sha256sum "${appimage}" > "${appimage}.sha256"
           echo "RELEASE_ARCHIVE=${archive}" >> "${GITHUB_ENV}"
+          echo "RELEASE_EXTRA_ASSET=${appimage}" >> "${GITHUB_ENV}"
+          echo "RELEASE_EXTRA_CHECKSUM=${appimage}.sha256" >> "${GITHUB_ENV}"
       - name: Package Windows release
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $archive = "setuav-studio-$env:GITHUB_REF_NAME-windows-x86_64.zip"
+          $version = $env:GITHUB_REF_NAME.Substring(1)
+          $installer = "dist\setuav-studio-Setup-$version.exe"
+          $installerAsset = "setuav-studio-$env:GITHUB_REF_NAME-windows-x86_64.exe"
           Compress-Archive -Path "dist/setuav-studio" -DestinationPath $archive
+          & "C:\Program Files (x86)\NSIS\makensis.exe" "/DAPP_VERSION=$version" "packaging\installer.nsi"
+          if ($LASTEXITCODE -ne 0) { throw "NSIS build failed." }
+          if (-not (Test-Path $installer)) { throw "Windows installer was not created: $installer" }
+          Copy-Item $installer $installerAsset
           $hash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLower()
           "$hash  $archive" | Set-Content "$archive.sha256"
+          $installerHash = (Get-FileHash $installerAsset -Algorithm SHA256).Hash.ToLower()
+          "$installerHash  $installerAsset" | Set-Content "$installerAsset.sha256"
           "RELEASE_ARCHIVE=$archive" >> $env:GITHUB_ENV
+          "RELEASE_EXTRA_ASSET=$installerAsset" >> $env:GITHUB_ENV
+          "RELEASE_EXTRA_CHECKSUM=$installerAsset.sha256" >> $env:GITHUB_ENV
       - name: Package macOS release
         if: runner.os == 'macOS'
         shell: bash
         run: |
           architecture="$(uname -m)"
           archive="setuav-studio-${GITHUB_REF_NAME}-macos-${architecture}.app.zip"
+          disk_image="setuav-studio-${GITHUB_REF_NAME}-macos-${architecture}.dmg"
           ditto -c -k --sequesterRsrc --keepParent "dist/Setuav Studio.app" "${archive}"
+          hdiutil create \
+            -volname "Setuav Studio" \
+            -srcfolder "dist/Setuav Studio.app" \
+            -ov \
+            -format UDZO \
+            "${disk_image}"
           shasum -a 256 "${archive}" > "${archive}.sha256"
+          shasum -a 256 "${disk_image}" > "${disk_image}.sha256"
           echo "RELEASE_ARCHIVE=${archive}" >> "${GITHUB_ENV}"
+          echo "RELEASE_EXTRA_ASSET=${disk_image}" >> "${GITHUB_ENV}"
+          echo "RELEASE_EXTRA_CHECKSUM=${disk_image}.sha256" >> "${GITHUB_ENV}"
       - name: Upload release assets
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          gh release upload "${GITHUB_REF_NAME}" \
-            "${RELEASE_ARCHIVE}" \
-            "${RELEASE_ARCHIVE}.sha256" \
-            --clobber
+          assets=("${RELEASE_ARCHIVE}" "${RELEASE_ARCHIVE}.sha256")
+          if [[ -n "${RELEASE_EXTRA_ASSET:-}" ]]; then
+            assets+=("${RELEASE_EXTRA_ASSET}" "${RELEASE_EXTRA_CHECKSUM}")
+          fi
+          gh release upload "${GITHUB_REF_NAME}" "${assets[@]}" --clobber
 
   package:
     name: Build Python packages
