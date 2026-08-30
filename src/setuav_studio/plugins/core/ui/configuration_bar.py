@@ -48,12 +48,12 @@ class ConfigurationToolBar(QToolBar):
 
         self.addSeparator()
 
-        self.add_const_act = self.addAction(get_icon("properties"), "Add Constant")
+        self.add_const_act = self.addAction(get_icon("constant"), "Add Constant")
         self.add_const_act.setToolTip("Add Constant…")
         self.add_const_act.setEnabled(False)
         self.add_const_act.triggered.connect(self._add_constant)
 
-        self.add_constraint_act = self.addAction(get_icon("fa6s.scale-balanced"), "Add Constraint")
+        self.add_constraint_act = self.addAction(get_icon("constraint"), "Add Constraint")
         self.add_constraint_act.setToolTip("Add Design Constraint…")
         self.add_constraint_act.setEnabled(False)
         self.add_constraint_act.triggered.connect(self._add_constraint)

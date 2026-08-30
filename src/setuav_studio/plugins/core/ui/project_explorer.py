@@ -344,14 +344,14 @@ class ProjectExplorer(QTreeWidget):
 
         # 1. Constants Group
         const_group = QTreeWidgetItem(["Constants"])
-        const_group.setIcon(0, get_icon("properties"))
+        const_group.setIcon(0, get_icon("constant"))
         const_group.setToolTip(0, "Project Design Constants")
         self._parameters_group_item = const_group
         project_item.addChild(const_group)
 
         for k, v in constants.items():
             item = QTreeWidgetItem([str(k)])
-            item.setIcon(0, get_icon("properties"))
+            item.setIcon(0, get_icon("constant"))
             if isinstance(v, dict):
                 unit_str = f" {v.get('unit')}" if v.get("unit") else ""
                 val_disp = f"{v.get('value', '')}{unit_str}"
@@ -366,13 +366,13 @@ class ProjectExplorer(QTreeWidget):
         # 2. Equations Group (if any exist)
         if equations:
             eq_group = QTreeWidgetItem(["Equations"])
-            eq_group.setIcon(0, get_icon("fa6s.code"))
+            eq_group.setIcon(0, get_icon("equation"))
             eq_group.setToolTip(0, "Project Formulas & Equations")
             project_item.addChild(eq_group)
 
             for k, v in equations.items():
                 item = QTreeWidgetItem([str(k)])
-                item.setIcon(0, get_icon("fa6s.code"))
+                item.setIcon(0, get_icon("equation"))
                 raw_val = v.get("value") if isinstance(v, dict) and "value" in v else v
                 item.setToolTip(0, f"Equation: {k}\nFormula: {raw_val}")
                 param_payload = {"kind": "parameter", "id": f"param_{k}", "key": k, "value": v}
@@ -390,7 +390,7 @@ class ProjectExplorer(QTreeWidget):
             return
 
         constraint_group = QTreeWidgetItem(["Design Constraints"])
-        constraint_group.setIcon(0, get_icon("settings"))
+        constraint_group.setIcon(0, get_icon("constraint"))
         constraint_group.setToolTip(0, "Design Rules & Limits")
         self._constraints_group_item = constraint_group
         project_item.addChild(constraint_group)
@@ -884,7 +884,7 @@ class ProjectExplorer(QTreeWidget):
 
         if item is self._parameters_group_item or (item and item.text(0) in ("Constants", "Equations")):
             action_label = "Add Constant…" if (item and item.text(0) == "Constants") else "Add Parameter…"
-            add_param_act = menu.addAction(get_icon("file_new"), action_label)
+            add_param_act = menu.addAction(get_icon("constant"), action_label)
             add_param_act.setEnabled(can_edit)
             chosen = menu.exec(self.viewport().mapToGlobal(position))
             if chosen is add_param_act:
@@ -892,9 +892,9 @@ class ProjectExplorer(QTreeWidget):
             return
 
         if item is self._constraints_group_item:
-            add_c_act = menu.addAction(get_icon("file_new"), "Add Constraint…")
+            add_c_act = menu.addAction(get_icon("constraint"), "Add Constraint…")
             add_c_act.setEnabled(can_edit)
-            manage_c_act = menu.addAction(get_icon("settings"), "Manage Constraints…")
+            manage_c_act = menu.addAction(get_icon("constraint"), "Manage Constraints…")
             chosen = menu.exec(self.viewport().mapToGlobal(position))
             if chosen is add_c_act:
                 self._add_constraint_action()

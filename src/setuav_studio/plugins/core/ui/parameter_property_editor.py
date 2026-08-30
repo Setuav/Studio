@@ -98,7 +98,7 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
         return layout
 
     def _create_general_section(self) -> None:
-        layout = self._create_section("Parameter Details", "fa6s.sliders")
+        layout = self._create_section("Parameter Details", "constant")
         self.general_table = self._property_table(
             [
                 ("name", "Name"),

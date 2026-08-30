@@ -95,7 +95,7 @@ class ConstraintPropertyEditor(PropertyTableMixin, QWidget):
         return layout
 
     def _create_general_section(self) -> None:
-        layout = self._create_section("Constraint Details", "fa6s.scale-balanced")
+        layout = self._create_section("Constraint Details", "constraint")
         self.general_table = self._property_table(
             [
                 ("name", "Name"),

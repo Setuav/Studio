@@ -53,6 +53,9 @@ _ICON_MAP = {
     "check": "fa6s.check",
     "warning": "fa6s.triangle-exclamation",
     "error": "fa6s.circle-xmark",
+    "constant": "mdi6.pi",
+    "constraint": "mdi6.link-variant",
+    "equation": "fa6s.code",
     # QtAwesome controls intentionally used inside 3D viewers
     "view_colored": "fa6s.palette",
     "view_grid": "mdi6.grid",
