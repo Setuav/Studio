@@ -105,7 +105,7 @@ class ConfigurationToolBar(QToolBar):
                 color = cfg.get("color", "#2196F3")
                 icon = create_color_badge_icon(color)
                 self.config_combo.addItem(icon, label, cid)
-                if cid == active_id:
+                if str(cid) == str(active_id):
                     active_idx = i + 1  # offset by 1 for [Base]
 
             # Separator and management actions
@@ -114,6 +114,9 @@ class ConfigurationToolBar(QToolBar):
             self.config_combo.addItem(
                 get_icon("settings"), "Manage Configurations…", "__manage__"
             )
+
+            self.config_combo.setCurrentIndex(active_idx)
+            self.config_combo.setEnabled(True)
 
             has_project = self._manager is not None
             self.add_const_act.setEnabled(has_project)
