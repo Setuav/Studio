@@ -1,4 +1,4 @@
-"""Configuration management for variant parameter overrides and switching."""
+"""Configuration management for project variants (independent component sets & parameters)."""
 
 from __future__ import annotations
 
@@ -79,7 +79,11 @@ def set_by_path(target: Any, path: str, value: Any) -> None:
 
 
 class ConfigurationManager:
-    """Manages project configurations, variant overrides, and parameter resolution."""
+    """Manages project configurations as distinct design variants.
+
+    Each configuration has its own components, parameters, and assemblies,
+    functioning like an independent variant within the same project file.
+    """
 
     def __init__(
         self,
@@ -91,11 +95,12 @@ class ConfigurationManager:
         self._active_id: str | None = None
         self._listeners: list[Callable[[], None]] = []
 
-        # Initialize active_id to default config if one exists
-        for cfg in self.get_configurations():
-            if cfg.get("is_default"):
-                self._active_id = cfg.get("id")
-                break
+        # Keep snapshot of base state
+        self._base_state: dict[str, Any] = {
+            "components": copy.deepcopy(self.project_data.get("components", [])),
+            "parameters": copy.deepcopy(self.project_data.get("parameters", {})),
+            "assemblies": copy.deepcopy(self.project_data.get("assemblies", [])),
+        }
 
     def add_change_listener(self, callback: Callable[[], None]) -> None:
         """Register a callback for configuration changes."""
@@ -133,13 +138,57 @@ class ConfigurationManager:
             return None
         return self.get_configuration(self._active_id)
 
+    def sync_current_state_to_active(self) -> None:
+        """Save current working components/parameters into the active configuration or base snapshot."""
+        current_components = copy.deepcopy(self.project_data.get("components", []))
+        current_parameters = copy.deepcopy(self.project_data.get("parameters", {}))
+        current_assemblies = copy.deepcopy(self.project_data.get("assemblies", []))
+
+        if self._active_id is None:
+            self._base_state = {
+                "components": current_components,
+                "parameters": current_parameters,
+                "assemblies": current_assemblies,
+            }
+        else:
+            cfg = self.get_configuration(self._active_id)
+            if cfg is not None:
+                cfg["components"] = current_components
+                cfg["parameters"] = current_parameters
+                cfg["assemblies"] = current_assemblies
+
     def set_active_id(self, config_id: str | None) -> None:
-        """Set active configuration ID (None for base)."""
+        """Switch active configuration and swap project components and parameters."""
         if config_id is not None and self.get_configuration(config_id) is None:
             raise KeyError(f"Configuration '{config_id}' does not exist.")
-        if self._active_id != config_id:
-            self._active_id = config_id
-            self._notify()
+
+        if self._active_id == config_id:
+            return
+
+        # 1. Save current working state to previous active config/base
+        self.sync_current_state_to_active()
+
+        # 2. Load new active state into project_data
+        if config_id is None:
+            self.project_data["components"] = copy.deepcopy(self._base_state["components"])
+            self.project_data["parameters"] = copy.deepcopy(self._base_state["parameters"])
+            self.project_data["assemblies"] = copy.deepcopy(self._base_state.get("assemblies", []))
+        else:
+            target_cfg = self.get_configuration(config_id)
+            if target_cfg is not None:
+                if "components" not in target_cfg:
+                    target_cfg["components"] = copy.deepcopy(self._base_state["components"])
+                if "parameters" not in target_cfg:
+                    target_cfg["parameters"] = copy.deepcopy(self._base_state["parameters"])
+                if "assemblies" not in target_cfg:
+                    target_cfg["assemblies"] = copy.deepcopy(self._base_state.get("assemblies", []))
+
+                self.project_data["components"] = copy.deepcopy(target_cfg["components"])
+                self.project_data["parameters"] = copy.deepcopy(target_cfg["parameters"])
+                self.project_data["assemblies"] = copy.deepcopy(target_cfg["assemblies"])
+
+        self._active_id = config_id
+        self._notify()
 
     def create_configuration(
         self,
@@ -149,15 +198,19 @@ class ConfigurationManager:
         color: str = "#2196F3",
         is_default: bool = False,
         config_id: str | None = None,
+        components: list[dict[str, Any]] | None = None,
+        parameters: dict[str, Any] | None = None,
+        assemblies: list[dict[str, Any]] | None = None,
         parameter_overrides: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Create a new configuration and add it to the project."""
+        """Create a new configuration variant, cloning the current working project state by default."""
+        self.sync_current_state_to_active()
+
         configs = self.get_configurations()
         cid = config_id or tag.lower().strip()
         if not cid:
             cid = f"config-{len(configs) + 1}"
 
-        # Ensure ID uniqueness
         base_cid = cid
         counter = 1
         existing_ids = {c.get("id") for c in configs}
@@ -169,12 +222,31 @@ class ConfigurationManager:
             for c in configs:
                 c["is_default"] = False
 
+        init_components = (
+            copy.deepcopy(components)
+            if components is not None
+            else copy.deepcopy(self.project_data.get("components", []))
+        )
+        init_parameters = (
+            copy.deepcopy(parameters)
+            if parameters is not None
+            else copy.deepcopy(self.project_data.get("parameters", {}))
+        )
+        init_assemblies = (
+            copy.deepcopy(assemblies)
+            if assemblies is not None
+            else copy.deepcopy(self.project_data.get("assemblies", []))
+        )
+
         new_config: dict[str, Any] = {
             "id": cid,
             "name": name,
             "tag": tag,
             "description": description,
             "color": color,
+            "components": init_components,
+            "parameters": init_parameters,
+            "assemblies": init_assemblies,
             "parameter_overrides": dict(parameter_overrides or {}),
             "is_default": is_default,
         }
@@ -183,7 +255,7 @@ class ConfigurationManager:
         return new_config
 
     def update_configuration(self, config_id: str, **kwargs: Any) -> dict[str, Any]:
-        """Update fields of an existing configuration."""
+        """Update metadata fields of an existing configuration."""
         cfg = self.get_configuration(config_id)
         if cfg is None:
             raise KeyError(f"Configuration '{config_id}' not found.")
@@ -194,7 +266,7 @@ class ConfigurationManager:
 
         for k, v in kwargs.items():
             if k == "id":
-                continue  # immutable ID
+                continue
             cfg[k] = v
 
         self._notify()
@@ -211,7 +283,13 @@ class ConfigurationManager:
         if idx != -1:
             configs.pop(idx)
             if self._active_id == config_id:
+                # Switch back to base
                 self._active_id = None
+                self.project_data["components"] = copy.deepcopy(self._base_state["components"])
+                self.project_data["parameters"] = copy.deepcopy(self._base_state["parameters"])
+                self.project_data["assemblies"] = copy.deepcopy(
+                    self._base_state.get("assemblies", [])
+                )
             self._notify()
             return True
         return False
@@ -227,7 +305,7 @@ class ConfigurationManager:
         return cfg.setdefault("parameter_overrides", {})
 
     def set_override(self, config_id: str, path: str, value: Any) -> None:
-        """Set a parameter override for a specific configuration."""
+        """Set a parameter override."""
         cfg = self.get_configuration(config_id)
         if cfg is None:
             raise KeyError(f"Configuration '{config_id}' not found.")
@@ -236,7 +314,7 @@ class ConfigurationManager:
         self._notify()
 
     def remove_override(self, config_id: str, path: str) -> bool:
-        """Remove a parameter override from a specific configuration."""
+        """Remove a parameter override."""
         cfg = self.get_configuration(config_id)
         if cfg is None:
             return False
@@ -248,41 +326,27 @@ class ConfigurationManager:
         return False
 
     def is_overridden(self, path: str, config_id: str | None = None) -> bool:
-        """Check if a path is overridden in the specified or active configuration."""
+        """Check if a path is overridden."""
         overrides = self.get_overrides(config_id)
         return path in overrides
 
     def get_effective_project_parameters(self, config_id: str | None = None) -> dict[str, Any]:
-        """Compute resolved project parameters including any active overrides."""
-        base_params = copy.deepcopy(self.project_data.get("parameters", {}))
-        overrides = self.get_overrides(config_id)
+        """Compute resolved project parameters for the active configuration."""
+        if config_id is not None and config_id != self._active_id:
+            cfg = self.get_configuration(config_id)
+            params = copy.deepcopy(cfg.get("parameters", {})) if cfg else {}
+        else:
+            params = copy.deepcopy(self.project_data.get("parameters", {}))
 
-        # Apply project.parameters.* overrides
-        for path, val in overrides.items():
-            if path.startswith("project.parameters."):
-                param_key = path[len("project.parameters.") :]
-                base_params[param_key] = val
-
-        return self.resolver.resolve_all(base_params)
+        return self.resolver.resolve_all(params)
 
     def get_resolved_component(
         self, component: dict[str, Any], config_id: str | None = None
     ) -> dict[str, Any]:
-        """Return a deep copy of a component with active overrides and expressions evaluated."""
+        """Return a deep copy of a component with inline expressions evaluated."""
         comp_copy = copy.deepcopy(component)
-        comp_id = comp_copy.get("id", "")
-        overrides = self.get_overrides(config_id)
-
-        # Apply overrides targeted at this component (e.g. "wing-1.parameters.geometry.span")
-        prefix = f"{comp_id}."
-        for path, val in overrides.items():
-            if path.startswith(prefix):
-                rel_path = path[len(prefix) :]
-                with contextlib.suppress(Exception):
-                    set_by_path(comp_copy, rel_path, val)
-
-        # Evaluate expressions inside component parameters using effective project parameters
         effective_params = self.get_effective_project_parameters(config_id)
+
         if "parameters" in comp_copy and isinstance(comp_copy["parameters"], dict):
             comp_copy["parameters"] = self.resolver.evaluate_component_parameters(
                 comp_copy["parameters"], effective_params

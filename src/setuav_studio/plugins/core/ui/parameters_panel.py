@@ -114,7 +114,11 @@ class ProjectParametersPanel(QWidget):
 
                 # Col 2: Resolved Value
                 res_val = resolved_params.get(k, "Error")
-                res_str = f"{res_val:.4g}" if isinstance(res_val, (float, int)) and not isinstance(res_val, bool) else str(res_val)
+                res_str = (
+                    f"{res_val:.4g}"
+                    if isinstance(res_val, (float, int)) and not isinstance(res_val, bool)
+                    else str(res_val)
+                )
                 res_item = QTableWidgetItem(res_str)
                 res_item.setFlags(res_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
 
@@ -134,7 +138,6 @@ class ProjectParametersPanel(QWidget):
             return
 
         row = item.row()
-        col = item.column()
         data = self._get_project_data()
         if not data:
             return
@@ -156,10 +159,7 @@ class ProjectParametersPanel(QWidget):
             parsed_val = val_text
         else:
             try:
-                if "." in val_text:
-                    parsed_val = float(val_text)
-                else:
-                    parsed_val = int(val_text)
+                parsed_val = float(val_text) if "." in val_text else int(val_text)
             except ValueError:
                 parsed_val = val_text
 

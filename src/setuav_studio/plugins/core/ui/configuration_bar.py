@@ -98,7 +98,9 @@ class ConfigurationToolBar(QToolBar):
             # Separator and management actions
             self.config_combo.insertSeparator(self.config_combo.count())
             self.config_combo.addItem(get_icon("file_new"), "+ New Configuration…", "__new__")
-            self.config_combo.addItem(get_icon("settings"), "⚙ Manage Configurations…", "__manage__")
+            self.config_combo.addItem(
+                get_icon("settings"), "⚙ Manage Configurations…", "__manage__"
+            )
 
             self.config_combo.setCurrentIndex(active_idx)
         finally:

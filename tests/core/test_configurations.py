@@ -50,17 +50,30 @@ class ConfigurationManagerTests(unittest.TestCase):
                     "tag": "CRZ",
                     "description": "Standard cruise",
                     "color": "#2196F3",
-                    "parameter_overrides": {
-                        "project.parameters.aspect_ratio": 10.0,
-                        "wing-1.parameters.geometry.span": 2500.0,
+                    "parameters": {
+                        "aspect_ratio": 10.0,
+                        "wing_area": 2.0,
+                        "wing_span": "= sqrt(aspect_ratio * wing_area)",
                     },
-                    "is_default": True,
+                    "components": [
+                        {
+                            "id": "wing-1",
+                            "name": "Cruise Wing",
+                            "type": "org.setuav.core:lifting-surface",
+                            "parameters": {
+                                "geometry": {
+                                    "span": 2500.0,
+                                    "chord": "= wing_span * 200",
+                                }
+                            },
+                        }
+                    ],
                 }
             ],
             "components": [
                 {
                     "id": "wing-1",
-                    "name": "Main Wing",
+                    "name": "Base Wing",
                     "type": "org.setuav.core:lifting-surface",
                     "parameters": {
                         "geometry": {
@@ -73,71 +86,78 @@ class ConfigurationManagerTests(unittest.TestCase):
         }
         self.manager = ConfigurationManager(self.project_data)
 
-    def test_initial_active_config(self) -> None:
-        # Should initialize to default config
-        self.assertEqual(self.manager.get_active_id(), "cruise")
-        cfg = self.manager.get_active_configuration()
-        self.assertIsNotNone(cfg)
-        self.assertEqual(cfg["tag"], "CRZ")
-
-    def test_create_and_delete_configuration(self) -> None:
-        vtol = self.manager.create_configuration(
-            name="VTOL Mode",
-            tag="VTOL",
-            description="Vertical takeoff",
-            color="#FF9800",
-        )
-        self.assertEqual(vtol["id"], "vtol")
-        self.assertEqual(len(self.manager.get_configurations()), 2)
-
-        deleted = self.manager.delete_configuration("vtol")
-        self.assertTrue(deleted)
-        self.assertEqual(len(self.manager.get_configurations()), 1)
-
-    def test_switching_configurations_and_listeners(self) -> None:
-        calls = []
-        self.manager.add_change_listener(lambda: calls.append(1))
-
-        self.manager.set_active_id(None)  # Switch to base
+    def test_initial_active_is_base(self) -> None:
+        # Base is default active initially unless explicitly switched
         self.assertIsNone(self.manager.get_active_id())
-        self.assertEqual(len(calls), 1)
+        self.assertEqual(self.project_data["components"][0]["name"], "Base Wing")
 
+    def test_switching_to_configuration_loads_variant_components(self) -> None:
         self.manager.set_active_id("cruise")
         self.assertEqual(self.manager.get_active_id(), "cruise")
-        self.assertEqual(len(calls), 2)
-
-    def test_effective_project_parameters(self) -> None:
-        # In base (no config active)
-        self.manager.set_active_id(None)
-        base_params = self.manager.get_effective_project_parameters()
-        self.assertAlmostEqual(base_params["aspect_ratio"], 8.0)
-        self.assertAlmostEqual(base_params["wing_span"], 4.0)
-
-        # In cruise config (AR overridden to 10.0)
-        self.manager.set_active_id("cruise")
-        crz_params = self.manager.get_effective_project_parameters()
-        self.assertAlmostEqual(crz_params["aspect_ratio"], 10.0)
-        # wing_span is derived: sqrt(10.0 * 2.0) = sqrt(20) ~ 4.472
-        self.assertAlmostEqual(crz_params["wing_span"], (20.0) ** 0.5)
-
-    def test_get_resolved_component(self) -> None:
-        component = self.project_data["components"][0]
-
-        # In base mode
-        self.manager.set_active_id(None)
-        resolved_base = self.manager.get_resolved_component(component)
-        self.assertEqual(resolved_base["parameters"]["geometry"]["span"], 2000.0)
-        self.assertAlmostEqual(resolved_base["parameters"]["geometry"]["chord"], 4.0 * 200)
-
-        # In cruise mode
-        self.manager.set_active_id("cruise")
-        resolved_crz = self.manager.get_resolved_component(component)
-        # Span was overridden to 2500.0
-        self.assertEqual(resolved_crz["parameters"]["geometry"]["span"], 2500.0)
-        # Chord is computed using effective wing_span (sqrt(20) ~ 4.472)
-        self.assertAlmostEqual(
-            resolved_crz["parameters"]["geometry"]["chord"], ((20.0) ** 0.5) * 200
+        # In cruise configuration, component name is "Cruise Wing" and span is 2500
+        self.assertEqual(self.project_data["components"][0]["name"], "Cruise Wing")
+        self.assertEqual(
+            self.project_data["components"][0]["parameters"]["geometry"]["span"], 2500.0
         )
+
+        # Switch back to base
+        self.manager.set_active_id(None)
+        self.assertIsNone(self.manager.get_active_id())
+        self.assertEqual(self.project_data["components"][0]["name"], "Base Wing")
+        self.assertEqual(
+            self.project_data["components"][0]["parameters"]["geometry"]["span"], 2000.0
+        )
+
+    def test_adding_component_in_configuration_does_not_affect_base(self) -> None:
+        # Switch to cruise
+        self.manager.set_active_id("cruise")
+        # Add a new motor in cruise
+        new_motor = {"id": "motor-1", "name": "Cruise Motor", "type": "org.setuav.core:motor"}
+        self.project_data["components"].append(new_motor)
+        self.assertEqual(len(self.project_data["components"]), 2)
+
+        # Switch back to base
+        self.manager.set_active_id(None)
+        # Base still has only 1 component!
+        self.assertEqual(len(self.project_data["components"]), 1)
+        self.assertEqual(self.project_data["components"][0]["id"], "wing-1")
+
+        # Switch to cruise again
+        self.manager.set_active_id("cruise")
+        # Cruise has 2 components!
+        self.assertEqual(len(self.project_data["components"]), 2)
+        self.assertEqual(self.project_data["components"][1]["id"], "motor-1")
+
+    def test_modifying_component_name_in_configuration(self) -> None:
+        # Switch to cruise
+        self.manager.set_active_id("cruise")
+        self.project_data["components"][0]["name"] = "Modified Cruise Wing"
+
+        # Switch to base
+        self.manager.set_active_id(None)
+        self.assertEqual(self.project_data["components"][0]["name"], "Base Wing")
+
+        # Switch to cruise
+        self.manager.set_active_id("cruise")
+        self.assertEqual(self.project_data["components"][0]["name"], "Modified Cruise Wing")
+
+    def test_deleting_component_in_configuration(self) -> None:
+        # Create VTOL configuration
+        self.manager.create_configuration(name="VTOL", tag="VTOL")
+        self.manager.set_active_id("vtol")
+        self.assertEqual(len(self.project_data["components"]), 1)
+
+        # Delete the component in VTOL
+        self.project_data["components"].clear()
+        self.assertEqual(len(self.project_data["components"]), 0)
+
+        # Switch to base - Base still has the wing!
+        self.manager.set_active_id(None)
+        self.assertEqual(len(self.project_data["components"]), 1)
+
+        # Switch to VTOL - VTOL has 0 components!
+        self.manager.set_active_id("vtol")
+        self.assertEqual(len(self.project_data["components"]), 0)
 
 
 if __name__ == "__main__":

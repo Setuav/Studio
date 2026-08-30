@@ -252,6 +252,7 @@ class ManageConfigurationsDialog(QDialog):
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply == QMessageBox.StandardButton.Yes:
+
             def _apply() -> None:
                 self.manager.delete_configuration(cid)
 

@@ -6,7 +6,6 @@ import unittest
 from pathlib import Path
 
 from setuav_studio.plugin_system import StudioAPI
-from setuav_studio.plugins.core.configurations import ConfigurationManager
 from setuav_studio.plugins.core.ui.configuration_bar import ConfigurationToolBar
 from setuav_studio.plugins.core.ui.configuration_dialogs import ConfigurationEditDialog
 from setuav_studio.project import ProjectDocument
@@ -53,8 +52,13 @@ class TestConfigurationUI(unittest.TestCase):
         self.assertEqual(combo.itemText(1), "[CRZ] Cruise")
         self.assertEqual(combo.itemText(2), "[VTOL] VTOL")
 
-        # Cruise was default, so index 1 is selected
-        self.assertEqual(combo.currentIndex(), 1)
+        # Base configuration is initially selected (index 0)
+        self.assertEqual(combo.currentIndex(), 0)
+
+        # Switch to Cruise via combo
+        combo.setCurrentIndex(1)
+        combo.activated.emit(1)
+        self.assertEqual(toolbar.manager.get_active_id(), "cruise")
 
     def test_configuration_edit_dialog_validation(self) -> None:
         dlg = ConfigurationEditDialog(None, {"name": "High Speed", "tag": "SPD"})
