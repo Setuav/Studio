@@ -382,11 +382,6 @@ class MainWindow(QMainWindow):
         self._degraded_badge.clicked.connect(self._show_degraded_details)
         self.statusBar().addPermanentWidget(self._degraded_badge)
 
-        from setuav_studio.plugins.core.ui.constraint_status import ConstraintStatusWidget
-
-        self._constraint_status = ConstraintStatusWidget(self._api, self)
-        self.statusBar().addPermanentWidget(self._constraint_status)
-
         self._log_button = QToolButton(self)
         self._log_button.setObjectName("studioStatusLogButton")
         self._log_button.setIcon(get_icon("log"))
