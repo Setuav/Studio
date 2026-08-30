@@ -86,7 +86,23 @@ class GeometryPlugin:
             )
         )
 
-        # 2. Component Editors
+        # 2. Component Models
+        from .models import ControlSurfaceModel, FuselageModel, LiftingSurfaceModel
+
+        api.register_component_model(
+            "org.setuav.core:lifting-surface",
+            LiftingSurfaceModel,
+        )
+        api.register_component_model(
+            "org.setuav.core:fuselage",
+            FuselageModel,
+        )
+        api.register_component_model(
+            "org.setuav.core:control-surface",
+            ControlSurfaceModel,
+        )
+
+        # 3. Component Editors
         api.register_component_editor(
             "org.setuav.core:fuselage",
             lambda component: FuselageEditor(api, component),
@@ -100,7 +116,7 @@ class GeometryPlugin:
             lambda component: ControlSurfaceEditor(api, component),
         )
 
-        # 3. Component Icons
+        # 4. Component Icons
         api.register_component_icon(
             "org.setuav.core:fuselage",
             "geometry_add_fuselage",
@@ -114,7 +130,7 @@ class GeometryPlugin:
             "geometry_add_control_surface",
         )
 
-        # 4. Geometry Providers
+        # 5. Geometry Providers
         api.register_geometry_provider(
             "org.setuav.core:fuselage",
             build_fuselage_geometry,
@@ -129,6 +145,9 @@ class GeometryPlugin:
         if controller is not None:
             for contribution_id in controller.toolbar_ids:
                 api.remove_toolbar_item(contribution_id)
+        api.remove_component_model("org.setuav.core:lifting-surface")
+        api.remove_component_model("org.setuav.core:fuselage")
+        api.remove_component_model("org.setuav.core:control-surface")
         api.remove_geometry_provider("org.setuav.core:fuselage")
         api.remove_geometry_provider("org.setuav.core:lifting-surface")
         api.remove_component_icon("org.setuav.core:fuselage")
