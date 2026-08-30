@@ -70,9 +70,15 @@ class PlanformMixin:
         if self._loading:
             return
         try:
-            self._sweep_loc = float(loc_val_str)
+            sw_loc = float(loc_val_str)
         except ValueError:
-            self._sweep_loc = 0.25
+            sw_loc = 0.25
+        self._sweep_loc = sw_loc
+
+        def change() -> None:
+            self._geometry()["sweep_location"] = sw_loc
+
+        self._edit_component("Change wing sweep location", change)
         self._refresh_planform_table()
 
     def _on_twist_loc_changed(self, twist_val_str: str) -> None:
@@ -109,8 +115,10 @@ class PlanformMixin:
             if len(profiles) < 2:
                 return
 
-            sw_loc = getattr(self, "_sweep_loc", 0.25)
             geom = self._geometry()
+            sw_loc = float(geom.get("sweep_location", getattr(self, "_sweep_loc", 0.25)))
+            self._sweep_loc = sw_loc
+
             metrics = compute_planform_metrics(
                 profiles,
                 sw_loc,
@@ -147,7 +155,7 @@ class PlanformMixin:
                 self._set_property_combo(
                     self.wing_angles_table,
                     "sweep_loc",
-                    str(getattr(self, "_sweep_loc", 0.25)),
+                    str(sw_loc),
                     [(str(val), label) for val, label in SWEEP_LOCATIONS],
                     self._on_sweep_loc_changed,
                 )

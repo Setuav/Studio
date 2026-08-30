@@ -143,7 +143,9 @@ class SectionsMixin:
 
     def _get_sections(self) -> list[dict[str, Any]]:
         profiles = self._profiles()
-        sw_loc = getattr(self, "_sweep_loc", 0.25)
+        geom = self._geometry()
+        sw_loc = float(geom.get("sweep_location", getattr(self, "_sweep_loc", 0.25)))
+        self._sweep_loc = sw_loc
         return profiles_to_sections(profiles, sw_loc)
 
     def _populate_sections(self) -> None:

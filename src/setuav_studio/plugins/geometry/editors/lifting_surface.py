@@ -60,7 +60,7 @@ class LiftingSurfaceEditor(
         self._profile_index = -1
         self._control_surface_index = -1
         self._driver_mode = "area_ar_taper"
-        self._sweep_loc = 0.25
+        self._sweep_loc = float(self._geometry().get("sweep_location", 0.25))
         self._loading = False
 
         layout = QVBoxLayout(self)

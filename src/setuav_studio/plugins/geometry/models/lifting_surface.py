@@ -101,6 +101,10 @@ class LiftingSurfaceModel(BaseComponentModel):
         return self.mirror
 
     @property
+    def sweep_location(self) -> float:
+        return float(self.geometry.get("sweep_location", 0.25))
+
+    @property
     def planform_metrics(self) -> dict[str, float]:
         """Compute closed-loop planform metrics from station profile geometry."""
         profiles = self.profiles
@@ -109,7 +113,7 @@ class LiftingSurfaceModel(BaseComponentModel):
         try:
             return compute_planform_metrics(
                 profiles,
-                sweep_loc=0.25,
+                sweep_loc=self.sweep_location,
                 symmetric=self.symmetric,
                 y_offset=self.y,
             )
