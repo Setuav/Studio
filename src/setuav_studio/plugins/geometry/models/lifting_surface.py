@@ -8,8 +8,65 @@ from setuav_studio.component_model import BaseComponentModel
 from setuav_studio.plugins.geometry.engine.wing_planform_engine import compute_planform_metrics
 
 
+class WingSectionModel:
+    """Domain model for a single Wing station / profile section."""
+
+    def __init__(self, data: dict[str, Any], index: int = 0) -> None:
+        self._data = data
+        self._index = index
+
+    @property
+    def chord(self) -> float:
+        return float(self._data.get("chord", 0.0))
+
+    @property
+    def position(self) -> dict[str, float]:
+        return self._data.setdefault("position", {})
+
+    @property
+    def x(self) -> float:
+        return float(self.position.get("x", 0.0))
+
+    @property
+    def y(self) -> float:
+        return float(self.position.get("y", 0.0))
+
+    @property
+    def z(self) -> float:
+        return float(self.position.get("z", 0.0))
+
+    @property
+    def twist(self) -> float:
+        rot = self._data.get("rotation", {})
+        if isinstance(rot, dict):
+            return float(rot.get("x", self._data.get("twist", 0.0)))
+        return float(self._data.get("twist", 0.0))
+
+    @property
+    def airfoil(self) -> str:
+        af = self._data.get("airfoil")
+        if isinstance(af, dict):
+            return str(af.get("code") or af.get("name") or "naca0012")
+        return str(af or "naca0012")
+
+    def get_exposed_properties(self) -> dict[str, Any]:
+        return {
+            "chord": self.chord,
+            "x": self.x,
+            "y": self.y,
+            "z": self.z,
+            "twist": self.twist,
+            "airfoil": self.airfoil,
+        }
+
+    def __getattr__(self, name: str) -> Any:
+        if name in self._data:
+            return self._data[name]
+        raise AttributeError(f"'WingSectionModel' object has no attribute '{name}'")
+
+
 class LiftingSurfaceModel(BaseComponentModel):
-    """Domain model for LiftingSurface (Wing / Tail / Fin) with live geometric properties."""
+    """Domain model for LiftingSurface (Wing / Tail / Fin) with live geometric properties and station sections."""
 
     @property
     def geometry(self) -> dict[str, Any]:
@@ -19,6 +76,21 @@ class LiftingSurfaceModel(BaseComponentModel):
     def profiles(self) -> list[dict[str, Any]]:
         geom = self.geometry
         return geom.get("profiles") or geom.get("sections") or []
+
+    @property
+    def sections(self) -> list[WingSectionModel]:
+        """List of typed domain models for each station section."""
+        return [WingSectionModel(p, i) for i, p in enumerate(self.profiles) if isinstance(p, dict)]
+
+    @property
+    def root_section(self) -> WingSectionModel | None:
+        secs = self.sections
+        return secs[0] if secs else None
+
+    @property
+    def tip_section(self) -> WingSectionModel | None:
+        secs = self.sections
+        return secs[-1] if secs else None
 
     @property
     def mirror(self) -> bool:
@@ -126,4 +198,19 @@ class LiftingSurfaceModel(BaseComponentModel):
             "dihedral_angle": self.dihedral_angle,
             "twist": self.twist,
         })
+        for i, sec in enumerate(self.sections):
+            for sp_k, sp_v in sec.get_exposed_properties().items():
+                props[f"section_{i}_{sp_k}"] = sp_v
         return props
+
+    def __getattr__(self, name: str) -> Any:
+        # Dynamic section access: section_0, section_1, etc.
+        if name.startswith("section_"):
+            try:
+                idx = int(name.split("_", 1)[1])
+                secs = self.sections
+                if 0 <= idx < len(secs):
+                    return secs[idx]
+            except ValueError:
+                pass
+        return super().__getattr__(name)
