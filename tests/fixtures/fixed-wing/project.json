@@ -1734,91 +1734,6 @@
           }
         }
       }
-    },
-    {
-      "kind": "component",
-      "id": "vertical-tail",
-      "name": "Vertical Tail",
-      "type": "org.setuav.core:lifting-surface",
-      "attach_to": "fuselage",
-      "transform": {
-        "position": {
-          "x": 645.0,
-          "y": 0.0,
-          "z": 70.0
-        },
-        "rotation": {
-          "roll": 90.0,
-          "pitch": 2.0,
-          "yaw": 0.0
-        }
-      },
-      "parameters": {
-        "geometry": {
-          "mirror": false,
-          "symmetric": false,
-          "profiles": [
-            {
-              "position": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0
-              },
-              "chord": 160.0,
-              "rotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0
-              },
-              "airfoil": "0012"
-            },
-            {
-              "position": {
-                "x": 85.0,
-                "y": 170.0,
-                "z": 0.0
-              },
-              "chord": 75.0,
-              "rotation": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0
-              },
-              "airfoil": "0012"
-            }
-          ],
-          "tip_treatment": {
-            "type": "round",
-            "length": 8.0
-          },
-          "control_surfaces": [],
-          "sweep_curvature": 0.0
-        }
-      }
-    },
-    {
-      "kind": "component",
-      "id": "vertical-tail-control_1",
-      "name": "Rudder",
-      "type": "org.setuav.core:control-surface",
-      "parent": "vertical-tail",
-      "parameters": {
-        "geometry": {
-          "tag": "Rudder",
-          "type": "rudder",
-          "span_mode": "ratio",
-          "span_start": 17.0,
-          "span_end": 153.0,
-          "eta_start": 0.1,
-          "eta_end": 0.9,
-          "chord_mode": "ratio",
-          "chord_fraction": 0.3,
-          "chord": 48.0,
-          "hinge_sweep": 1.0,
-          "deflection": 0.0,
-          "symmetry_mode": "auto"
-        }
-      }
     }
   ],
   "assemblies": [
@@ -1887,18 +1802,23 @@
       "id": "rev-t",
       "name": "Conventional Tail",
       "tag": "REV-T",
-      "description": "Conventional tail configuration with horizontal stabilizer",
+      "description": "Conventional tail configuration with horizontal stabilizer and vertical rudder",
       "color": "#ffa348",
-      "parameter_overrides": {},
-      "excluded_components": [],
-      "added_components": [],
-      "component_overrides": {
-        "v-tail": {
+      "excluded_components": [
+        "v-tail",
+        "ruddervator"
+      ],
+      "added_components": [
+        {
+          "kind": "component",
+          "id": "horizontal-stabilizer",
           "name": "Horizontal Stabilizer",
+          "type": "org.setuav.core:lifting-surface",
+          "attach_to": "fuselage",
           "transform": {
             "position": {
               "x": 650.0,
-              "y": 45.0,
+              "y": 0.0,
               "z": 45.0
             },
             "rotation": {
@@ -1906,9 +1826,156 @@
               "pitch": 0.0,
               "yaw": 0.0
             }
+          },
+          "parameters": {
+            "geometry": {
+              "mirror": true,
+              "symmetric": true,
+              "profiles": [
+                {
+                  "position": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                  },
+                  "chord": 160.0,
+                  "rotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                  },
+                  "airfoil": "0012"
+                },
+                {
+                  "position": {
+                    "x": 40.0,
+                    "y": 250.0,
+                    "z": 0.0
+                  },
+                  "chord": 100.0,
+                  "rotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                  },
+                  "airfoil": "0012"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "kind": "component",
+          "id": "elevator",
+          "name": "Elevator",
+          "type": "org.setuav.core:control-surface",
+          "parent": "horizontal-stabilizer",
+          "parameters": {
+            "geometry": {
+              "tag": "Elevator",
+              "type": "elevator",
+              "span_mode": "ratio",
+              "span_start": 25.0,
+              "span_end": 225.0,
+              "eta_start": 0.1,
+              "eta_end": 0.9,
+              "chord_mode": "ratio",
+              "chord_fraction": 0.3,
+              "chord": 40.0,
+              "hinge_sweep": 0.0,
+              "deflection": 0.0,
+              "symmetry_mode": "auto"
+            }
+          }
+        },
+        {
+          "kind": "component",
+          "id": "vertical-tail",
+          "name": "Vertical Tail",
+          "type": "org.setuav.core:lifting-surface",
+          "attach_to": "fuselage",
+          "transform": {
+            "position": {
+              "x": 645.0,
+              "y": 0.0,
+              "z": 70.0
+            },
+            "rotation": {
+              "roll": 90.0,
+              "pitch": 2.0,
+              "yaw": 0.0
+            }
+          },
+          "parameters": {
+            "geometry": {
+              "mirror": false,
+              "symmetric": false,
+              "profiles": [
+                {
+                  "position": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                  },
+                  "chord": 160.0,
+                  "rotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                  },
+                  "airfoil": "0012"
+                },
+                {
+                  "position": {
+                    "x": 85.0,
+                    "y": 170.0,
+                    "z": 0.0
+                  },
+                  "chord": 75.0,
+                  "rotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                  },
+                  "airfoil": "0012"
+                }
+              ],
+              "tip_treatment": {
+                "type": "round",
+                "length": 8.0
+              },
+              "control_surfaces": [],
+              "sweep_curvature": 0.0
+            }
+          }
+        },
+        {
+          "kind": "component",
+          "id": "vertical-tail-control_1",
+          "name": "Rudder",
+          "type": "org.setuav.core:control-surface",
+          "parent": "vertical-tail",
+          "parameters": {
+            "geometry": {
+              "tag": "Rudder",
+              "type": "rudder",
+              "span_mode": "ratio",
+              "span_start": 17.0,
+              "span_end": 153.0,
+              "eta_start": 0.1,
+              "eta_end": 0.9,
+              "chord_mode": "ratio",
+              "chord_fraction": 0.3,
+              "chord": 48.0,
+              "hinge_sweep": 1.0,
+              "deflection": 0.0,
+              "symmetry_mode": "auto"
+            }
           }
         }
-      },
+      ],
+      "component_overrides": {},
+      "parameter_overrides": {},
       "is_default": false
     }
   ],

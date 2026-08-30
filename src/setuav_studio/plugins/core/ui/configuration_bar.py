@@ -56,15 +56,15 @@ class ConfigurationToolBar(QToolBar):
 
     def _on_project_changed(self, project) -> None:
         if project is not None:
-            self._manager = ConfigurationManager(project.data)
+            self._manager = project.get_configuration_manager()
             self._manager.add_change_listener(self._refresh_combo)
         else:
             self._manager = None
         self._refresh_combo()
 
     def _on_project_content_changed(self, project) -> None:
-        if project is not None and self._manager is None:
-            self._manager = ConfigurationManager(project.data)
+        if project is not None:
+            self._manager = project.get_configuration_manager()
             self._manager.add_change_listener(self._refresh_combo)
         self._refresh_combo()
 

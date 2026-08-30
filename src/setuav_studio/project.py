@@ -92,6 +92,18 @@ class ProjectDocument:
         comp["extensions"][namespace] = value
         self.modified = True
 
+    def get_configuration_manager(self) -> Any:
+        """Return the shared ConfigurationManager instance for this project."""
+        if (
+            not hasattr(self, "_config_manager")
+            or getattr(self, "_config_manager_data", None) is not self.data
+        ):
+            from setuav_studio.plugins.core.configurations import ConfigurationManager
+
+            self._config_manager = ConfigurationManager(self.data)
+            self._config_manager_data = self.data
+        return self._config_manager
+
 
 def create_project(path: str | Path) -> ProjectDocument:
     """Create a new, empty project document at ``path``.
@@ -157,13 +169,25 @@ def save_project(
     target = project.path if path is None else Path(path).expanduser().resolve()
     logger.info("Saving project: %s", target)
 
+    save_data = project.data
+    if hasattr(project, "get_configuration_manager"):
+        import copy
+
+        cfg_mgr = project.get_configuration_manager()
+        cfg_mgr.sync_current_state_to_active()
+        if cfg_mgr.get_active_id() is not None:
+            save_data = copy.deepcopy(project.data)
+            save_data["components"] = copy.deepcopy(cfg_mgr._base_state["components"])
+            save_data["parameters"] = copy.deepcopy(cfg_mgr._base_state["parameters"])
+            save_data["assemblies"] = copy.deepcopy(cfg_mgr._base_state["assemblies"])
+
     try:
         if target.suffix.lower() == ".suav":
-            _write_suav(project, target)
+            _write_suav(project, target, data=save_data)
             project.path = target
             project.kind = "archive"
         elif target.name == "project.json":
-            _write_json_file(target, project.data)
+            _write_json_file(target, save_data)
             project.path = target
             if path is not None or project.kind != "folder":
                 project.kind = "json"
@@ -221,8 +245,11 @@ def _write_json_file(path: Path, data: dict[str, Any]) -> None:
             temporary_path.unlink()
 
 
-def _write_suav(project: ProjectDocument, target: Path) -> None:
+def _write_suav(
+    project: ProjectDocument, target: Path, data: dict[str, Any] | None = None
+) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
+    payload = data if data is not None else project.data
     temporary_path: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(
@@ -237,7 +264,7 @@ def _write_suav(project: ProjectDocument, target: Path) -> None:
             _copy_project_files_to_archive(project, destination)
             destination.writestr(
                 "project.json",
-                json.dumps(project.data, ensure_ascii=False, indent=2) + "\n",
+                json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
             )
         os.replace(temporary_path, target)
     finally:
