@@ -879,6 +879,7 @@ class _StudioHost:
 
     def mark_project_saved(self) -> None:
         self._api._undo_stack.setClean()
+        self._api._on_clean_changed(True)
 
     def bind_project_requirement_checker(
         self,
