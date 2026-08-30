@@ -4,7 +4,13 @@ import unittest
 from pathlib import Path
 from zipfile import ZipFile
 
-from setuav_studio.project import ProjectOpenError, open_project, save_project
+from setuav_studio.project import (
+    ProjectOpenError,
+    ProjectSaveError,
+    create_project,
+    open_project,
+    save_project,
+)
 
 
 class ProjectTests(unittest.TestCase):
@@ -23,6 +29,19 @@ class ProjectTests(unittest.TestCase):
 
         self.assertEqual(project.kind, "folder")
         self.assertEqual(project.data, self.project_data)
+
+    def test_create_project_builds_empty_core_project(self) -> None:
+        project = create_project(self.root / "new.suav")
+
+        self.assertEqual(project.kind, "archive")
+        self.assertTrue(project.modified)
+        self.assertEqual(project.data["name"], "new")
+        self.assertEqual(project.data["plugins"], [{"id": "org.setuav.core", "version": "^1.0.0"}])
+        self.assertEqual(project.data["components"], [])
+        self.assertEqual(project.data["assemblies"], [])
+
+        with self.assertRaises(ProjectSaveError):
+            create_project(self.root / "new.txt")
 
     def test_opens_project_json(self) -> None:
         project_file = self._write_project_json()

@@ -1,6 +1,7 @@
 [icons]
 # File menu
 file_open = "project-open-file.png"
+file_new = "project-open-file.png"
 folder_open = "project-open-folder.png"
 project_folder = "project-open-folder.png"
 save = "project-save.png"

@@ -28,8 +28,11 @@ Setuav Studio supports three project forms:
 - a `project.json` file;
 - a portable `.suav` archive.
 
-Use **File → Open Project** to open a project. **File → Save** writes the
-current format, while **Save As** creates a new project or archive.
+Use **File → New Project** to create an empty `.suav` archive, or **Open
+Project** to open an existing project folder. **File → Save** writes
+the current project, while **Save As** creates a copy in another format or
+location. A `project.json` or `.suav` file can also be opened by passing its
+path on the command line.
 
 ## Editing
 

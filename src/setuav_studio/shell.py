@@ -26,6 +26,7 @@ from setuav_studio.project import (
     ProjectDocument,
     ProjectOpenError,
     ProjectSaveError,
+    create_project,
     open_project,
     save_project,
 )
@@ -174,13 +175,12 @@ class MainWindow(QMainWindow):
         self._file_menu = self.menuBar().addMenu("&File")
         self._menus["file"] = self._file_menu
 
-        self._open_file_action = self._file_menu.addAction(
-            get_icon("file_open"), "Open Project File…"
-        )
-        self._open_file_action.triggered.connect(self._open_project_file)
+        self._new_project_action = self._file_menu.addAction(get_icon("file_new"), "New Project…")
+        self._new_project_action.setShortcut(QKeySequence.StandardKey.New)
+        self._new_project_action.triggered.connect(self._new_project)
 
         self._open_folder_action = self._file_menu.addAction(
-            get_icon("folder_open"), "Open Project Folder…"
+            get_icon("folder_open"), "Open Project…"
         )
         self._open_folder_action.triggered.connect(self._open_project_folder)
 
@@ -224,7 +224,7 @@ class MainWindow(QMainWindow):
 
         self._command_actions.update(
             {
-                "core.project.open-file": self._open_file_action,
+                "core.project.new": self._new_project_action,
                 "core.project.open-folder": self._open_folder_action,
                 "core.project.save": self._save_action,
                 "core.project.save-as": self._save_as_action,
@@ -361,7 +361,7 @@ class MainWindow(QMainWindow):
     def _update_all_icons(self) -> None:
         try:
             action_icons = {
-                "_open_file_action": "file_open",
+                "_new_project_action": "file_new",
                 "_open_folder_action": "folder_open",
                 "_recent_menu": "project_folder",
                 "_save_action": "save",
@@ -521,18 +521,28 @@ class MainWindow(QMainWindow):
         if recent:
             self.open_project(recent[0])
 
-    def _open_project_file(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(
+    def _new_project(self) -> bool:
+        path, _ = QFileDialog.getSaveFileName(
             self,
-            "Open Setuav Project",
-            "",
-            "Setuav Projects (*.suav project.json);;All Files (*)",
+            "New Setuav Project",
+            "untitled.suav",
+            "Setuav Archive (*.suav)",
         )
-        if path:
-            self.open_project(path)
+        if not path or not self._confirm_project_close():
+            return False
+        if not Path(path).suffix:
+            path = f"{path}.suav"
+
+        try:
+            project = create_project(path)
+            save_project(project)
+        except ProjectSaveError as exc:
+            QMessageBox.critical(self, "Cannot Create Project", str(exc))
+            return False
+        return self._activate_project(project, confirm_close=False)
 
     def _open_project_folder(self) -> None:
-        path = QFileDialog.getExistingDirectory(self, "Open Setuav Project Folder")
+        path = QFileDialog.getExistingDirectory(self, "Open Setuav Project")
         if path:
             self.open_project(path)
 
@@ -542,6 +552,11 @@ class MainWindow(QMainWindow):
         except ProjectOpenError as exc:
             QMessageBox.critical(self, "Cannot Open Project", str(exc))
             return False
+
+        return self._activate_project(project)
+
+    def _activate_project(self, project: ProjectDocument, *, confirm_close: bool = True) -> bool:
+        """Validate and make a project the active document in the shell."""
 
         validation_issues = validate_project(project.data)
         settings = StudioSettings.load()
@@ -554,7 +569,7 @@ class MainWindow(QMainWindow):
         if decision == "cancel":
             return False
 
-        if not self._confirm_project_close():
+        if confirm_close and not self._confirm_project_close():
             return False
 
         self._project = project

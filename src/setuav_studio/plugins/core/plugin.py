@@ -18,20 +18,20 @@ class CorePlugin:
 
     _TOOLBAR_ITEMS = (
         ToolbarContribution(
-            id="core.open-project-file",
-            title="Open Project File…",
-            command="core.project.open-file",
-            icon="file_open",
+            id="core.new-project",
+            title="New Project…",
+            command="core.project.new",
+            icon="file_new",
             group="project",
-            order=10,
+            order=5,
         ),
         ToolbarContribution(
             id="core.open-project-folder",
-            title="Open Project Folder…",
+            title="Open Project…",
             command="core.project.open-folder",
             icon="folder_open",
             group="project",
-            order=20,
+            order=10,
         ),
         ToolbarContribution(
             id="core.save-project",

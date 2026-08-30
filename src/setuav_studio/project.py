@@ -93,6 +93,42 @@ class ProjectDocument:
         self.modified = True
 
 
+def create_project(path: str | Path) -> ProjectDocument:
+    """Create a new, empty project document at ``path``.
+
+    New projects always start with the core plugin requirement and empty
+    collections. The document is marked modified until the caller saves it.
+    """
+    selected_path = Path(path).expanduser().resolve()
+    if selected_path.suffix.lower() == ".suav":
+        kind: Literal["json", "archive"] = "archive"
+    elif selected_path.name == "project.json":
+        kind = "json"
+    else:
+        raise ProjectSaveError("Expected a project.json or a .suav file")
+
+    project_name = selected_path.stem
+    if selected_path.name == "project.json":
+        project_name = selected_path.parent.name or "Untitled Project"
+    if not project_name:
+        project_name = "Untitled Project"
+
+    return ProjectDocument(
+        path=selected_path,
+        kind=kind,
+        data={
+            "$schema": "https://schemas.setuav.org/core/project.schema.json",
+            "name": project_name,
+            "plugins": [{"id": "org.setuav.core", "version": "^1.0.0"}],
+            "components": [],
+            "assemblies": [],
+            "parameters": {},
+            "extensions": {},
+        },
+        modified=True,
+    )
+
+
 def open_project(path: str | Path) -> ProjectDocument:
     selected_path = Path(path).expanduser().resolve()
     logger.info("Opening project: %s", selected_path)
