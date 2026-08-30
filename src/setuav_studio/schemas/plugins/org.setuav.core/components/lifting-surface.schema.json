@@ -137,6 +137,7 @@
       "required": ["profiles"],
       "properties": {
         "mirror": { "type": "boolean", "default": false },
+        "symmetric": { "type": "boolean", "default": false },
         "twist_location": {
           "type": "number",
           "minimum": 0,
