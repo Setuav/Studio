@@ -236,59 +236,46 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
             SPAN_SIZING_MODES,
             lambda val: self._on_prop_combo_changed("span_mode", val),
         )
-        sb_ss = self._set_property_spinbox(
+
+        ss_val = geom.get("span_start_expression") or span_start
+        self._set_property_expression(
             self.properties_table,
             "span_start",
-            span_start,
-            min_val=0.0,
-            max_val=20000.0,
-            step=5.0,
-            decimals=1,
-            suffix=" mm",
+            ss_val,
             on_changed=lambda val: self._on_prop_spinbox_changed("span_start", val),
+            api=self._api,
+            label="Span start (mm)",
         )
-        if sb_ss:
-            self._cs_spinboxes["span_start"] = sb_ss
 
-        sb_se = self._set_property_spinbox(
+        se_val = geom.get("span_end_expression") or span_end
+        self._set_property_expression(
             self.properties_table,
             "span_end",
-            span_end,
-            min_val=0.0,
-            max_val=20000.0,
-            step=5.0,
-            decimals=1,
-            suffix=" mm",
+            se_val,
             on_changed=lambda val: self._on_prop_spinbox_changed("span_end", val),
+            api=self._api,
+            label="Span end (mm)",
         )
-        if sb_se:
-            self._cs_spinboxes["span_end"] = sb_se
 
-        sb_es = self._set_property_spinbox(
+        es_val = geom.get("eta_start_expression") or eta_start
+        self._set_property_expression(
             self.properties_table,
             "eta_start",
-            eta_start,
-            min_val=0.0,
-            max_val=1.0,
-            step=0.01,
-            decimals=3,
+            es_val,
             on_changed=lambda val: self._on_prop_spinbox_changed("eta_start", val),
+            api=self._api,
+            label="Span start fraction (eta)",
         )
-        if sb_es:
-            self._cs_spinboxes["eta_start"] = sb_es
 
-        sb_ee = self._set_property_spinbox(
+        ee_val = geom.get("eta_end_expression") or eta_end
+        self._set_property_expression(
             self.properties_table,
             "eta_end",
-            eta_end,
-            min_val=0.0,
-            max_val=1.0,
-            step=0.01,
-            decimals=3,
+            ee_val,
             on_changed=lambda val: self._on_prop_spinbox_changed("eta_end", val),
+            api=self._api,
+            label="Span end fraction (eta)",
         )
-        if sb_ee:
-            self._cs_spinboxes["eta_end"] = sb_ee
 
         self._set_property_combo(
             self.properties_table,
@@ -297,56 +284,47 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
             CHORD_SIZING_MODES,
             lambda val: self._on_prop_combo_changed("chord_mode", val),
         )
-        sb_cf = self._set_property_spinbox(
+
+        cf_val = geom.get("chord_fraction_expression") or chord_fraction
+        self._set_property_expression(
             self.properties_table,
             "chord_fraction",
-            chord_fraction,
-            min_val=0.02,
-            max_val=0.95,
-            step=0.01,
-            decimals=3,
-            suffix=" c",
+            cf_val,
             on_changed=lambda val: self._on_prop_spinbox_changed("chord_fraction", val),
+            api=self._api,
+            label="Chord fraction (%c)",
         )
-        if sb_cf:
-            self._cs_spinboxes["chord_fraction"] = sb_cf
 
-        sb_c = self._set_property_spinbox(
+        c_val = geom.get("chord_expression") or chord
+        self._set_property_expression(
             self.properties_table,
             "chord",
-            chord,
-            min_val=1.0,
-            max_val=5000.0,
-            step=1.0,
-            decimals=1,
-            suffix=" mm",
+            c_val,
             on_changed=lambda val: self._on_prop_spinbox_changed("chord", val),
+            api=self._api,
+            label="Chord depth (mm)",
         )
-        if sb_c:
-            self._cs_spinboxes["chord"] = sb_c
 
-        self._set_property_spinbox(
+        hs_val = geom.get("hinge_sweep_expression") or hinge_sweep
+        self._set_property_expression(
             self.properties_table,
             "hinge_sweep",
-            hinge_sweep,
-            min_val=-85.0,
-            max_val=85.0,
-            step=0.5,
-            decimals=1,
-            suffix="°",
+            hs_val,
             on_changed=lambda val: self._on_prop_spinbox_changed("hinge_sweep", val),
+            api=self._api,
+            label="Hinge sweep angle (°)",
         )
-        self._set_property_spinbox(
+
+        def_val = geom.get("deflection_expression") or deflection
+        self._set_property_expression(
             self.properties_table,
             "deflection",
-            deflection,
-            min_val=-90.0,
-            max_val=90.0,
-            step=1.0,
-            decimals=1,
-            suffix="°",
+            def_val,
             on_changed=lambda val: self._on_prop_spinbox_changed("deflection", val),
+            api=self._api,
+            label="Deflection angle (°)",
         )
+
         self._set_property_combo(
             self.properties_table,
             "symmetry_mode",
@@ -355,14 +333,41 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
             lambda val: self._on_prop_combo_changed("symmetry_mode", val),
         )
 
-    def _on_prop_spinbox_changed(self, key: str, value: float) -> None:
+    def _on_prop_spinbox_changed(self, key: str, value: Any) -> None:
         if self._loading:
             return
         geom = self._geometry()
         semi_span, root_chord = self._parent_wing_info()
 
+        val_str = str(value).strip() if value is not None else ""
+        num_val: float | None = None
+        if val_str.startswith("=") or not val_str.replace(".", "", 1).replace("-", "", 1).isdigit():
+            # Expression formula
+            geom[f"{key}_expression"] = val_str
+            if self._api is not None and getattr(self._api, "current_project", None) is not None:
+                try:
+                    from setuav_studio.plugins.core.expressions import ExpressionEvaluator
+
+                    evaluator = ExpressionEvaluator()
+                    scope = self._api.current_project.get_scope(api=self._api)
+                    expr = val_str.lstrip("=").strip()
+                    res = evaluator.evaluate(expr, scope)
+                    if isinstance(res, (int, float)):
+                        num_val = float(res)
+                except Exception:
+                    pass
+        else:
+            geom.pop(f"{key}_expression", None)
+            try:
+                num_val = float(val_str)
+            except ValueError:
+                pass
+
+        if num_val is None:
+            return
+
         def change() -> None:
-            self._apply_spinbox_change(geom, key, value, semi_span, root_chord)
+            self._apply_spinbox_change(geom, key, num_val, semi_span, root_chord)
 
         self._edit_component(f"Edit control surface {key}", change)
 

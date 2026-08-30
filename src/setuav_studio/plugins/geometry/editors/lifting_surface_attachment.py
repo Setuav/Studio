@@ -73,40 +73,40 @@ class AttachmentMixin:
         rot = transform.get("rotation")
         rot = rot if isinstance(rot, dict) else {}
 
-        pos_vals = (
-            float(pos.get("x", 0.0)),
-            float(pos.get("y", 0.0)),
-            float(pos.get("z", 0.0)),
-        )
-        rot_vals = (
-            float(rot.get("roll") if "roll" in rot else rot.get("x", 0.0)),
-            float(rot.get("pitch") if "pitch" in rot else rot.get("y", 0.0)),
-            float(rot.get("yaw") if "yaw" in rot else rot.get("z", 0.0)),
-        )
+        axes = ("x", "y", "z")
+        rot_keys = (("roll", "x"), ("pitch", "y"), ("yaw", "z"))
 
-        for col, val in enumerate(pos_vals):
+        for col, axis in enumerate(axes):
+            raw_pos = pos.get(f"{axis}_expression") or float(pos.get(axis, 0.0))
             set_table_spinbox(
                 self.attachment_table,
                 0,
                 col,
-                val,
+                raw_pos,
                 step=5.0,
                 decimals=2,
                 suffix="mm",
-                on_changed=lambda _v: self._on_attachment_spinbox_changed(),
+                on_changed=lambda _v, a=axis: self._on_attachment_spinbox_changed("pos", a, _v),
+                api=getattr(self, "_api", None),
+                label=f"Position {axis.upper()}",
             )
-        for col, val in enumerate(rot_vals):
+
+        for col, (rk1, rk2) in enumerate(rot_keys):
+            rot_val = float(rot.get(rk1) if rk1 in rot else rot.get(rk2, 0.0))
+            raw_rot = rot.get(f"{rk1}_expression") or rot.get(f"{rk2}_expression") or rot_val
             set_table_spinbox(
                 self.attachment_table,
                 1,
                 col,
-                val,
+                raw_rot,
                 min_val=-360.0,
                 max_val=360.0,
                 step=1.0,
                 decimals=2,
                 suffix="°",
-                on_changed=lambda _v: self._on_attachment_spinbox_changed(),
+                on_changed=lambda _v, r=rk1: self._on_attachment_spinbox_changed("rot", r, _v),
+                api=getattr(self, "_api", None),
+                label=f"Rotation {rk1.title()}",
             )
 
         # Symmetry / Mirror
@@ -131,25 +131,47 @@ class AttachmentMixin:
 
         self._edit_component("Toggle bilateral wing mirror", change)
 
-    def _on_attachment_spinbox_changed(self) -> None:
+    def _on_attachment_spinbox_changed(self, kind: str, axis: str, value: Any) -> None:
         if self._loading:
             return
         vals_pos = []
         for col in range(3):
             w = self.attachment_table.cellWidget(0, col)
-            vals_pos.append(float(w.value()) if isinstance(w, QDoubleSpinBox) else 0.0)
+            vals_pos.append(float(w.value()) if hasattr(w, "value") else 0.0)
         vals_rot = []
         for col in range(3):
             w = self.attachment_table.cellWidget(1, col)
-            vals_rot.append(float(w.value()) if isinstance(w, QDoubleSpinBox) else 0.0)
+            vals_rot.append(float(w.value()) if hasattr(w, "value") else 0.0)
+
+        val_str = str(value).strip() if value is not None else ""
+        is_expr = val_str.startswith("=") or not val_str.replace(".", "", 1).replace("-", "", 1).isdigit()
 
         def change() -> None:
             tf = self._component.get("transform")
             if not isinstance(tf, dict):
                 tf = {}
                 self._component["transform"] = tf
-            tf["position"] = {"x": vals_pos[0], "y": vals_pos[1], "z": vals_pos[2]}
-            tf["rotation"] = {"roll": vals_rot[0], "pitch": vals_rot[1], "yaw": vals_rot[2]}
+            pos_dict = tf.setdefault("position", {})
+            rot_dict = tf.setdefault("rotation", {})
+
+            pos_dict["x"] = vals_pos[0]
+            pos_dict["y"] = vals_pos[1]
+            pos_dict["z"] = vals_pos[2]
+
+            rot_dict["roll"] = vals_rot[0]
+            rot_dict["pitch"] = vals_rot[1]
+            rot_dict["yaw"] = vals_rot[2]
+
+            if kind == "pos":
+                if is_expr:
+                    pos_dict[f"{axis}_expression"] = val_str
+                else:
+                    pos_dict.pop(f"{axis}_expression", None)
+            elif kind == "rot":
+                if is_expr:
+                    rot_dict[f"{axis}_expression"] = val_str
+                else:
+                    rot_dict.pop(f"{axis}_expression", None)
 
         self._edit_component("Edit wing attachment transform", change)
         self._refresh_planform_table()

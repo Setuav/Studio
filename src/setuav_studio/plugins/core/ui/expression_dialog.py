@@ -129,12 +129,13 @@ class ExpressionLineEdit(QLineEdit):
         token, start_pos, end_pos = self._get_current_token()
         text = self.text()
 
-        # If user was typing component.something, sanitize component ID (e.g. main-wing -> main_wing)
+        # If user was typing e.g. main_wing.section_0.chord or main-wing.something
         if "." in token:
-            comp_part = token.split(".", 1)[0]
-            clean_comp = comp_part.replace("-", "_")
-            if not completion.startswith(f"{clean_comp}."):
-                completion = f"{clean_comp}.{completion}"
+            parts = token.split(".")
+            clean_parts = [p.replace("-", "_") for p in parts[:-1]]
+            prefix = ".".join(clean_parts)
+            if not completion.startswith(f"{prefix}."):
+                completion = f"{prefix}.{completion}"
         elif completion.replace("-", "_") in self._component_props:
             completion = completion.replace("-", "_")
 
@@ -165,15 +166,44 @@ class ExpressionLineEdit(QLineEdit):
                 self._completer.popup().hide()
             return
 
-        # Check if dot notation: e.g. "main_wing." or "main-wing."
+        # Check if dot notation: e.g. "main_wing.", "main-wing.", or "main_wing.section_0."
         if "." in token:
-            comp_part, prop_prefix = token.split(".", 1)
-            comp_clean = comp_part.replace("-", "_")
-            props = self._component_props.get(comp_part) or self._component_props.get(comp_clean)
-            if props:
-                # Show clean property names for this component in dropdown
-                self._update_completer_model(props)
-                self._completer.setCompletionPrefix(prop_prefix)
+            parts = token.split(".")
+            if len(parts) == 2:
+                comp_part, prop_prefix = parts[0], parts[1]
+                comp_clean = comp_part.replace("-", "_")
+                props = self._component_props.get(comp_part) or self._component_props.get(comp_clean)
+                if props:
+                    # Clean property list: top-level + section names (e.g. section_0, section_1)
+                    clean_props = []
+                    seen = set()
+                    for p in props:
+                        if p.startswith("section_"):
+                            sec_name = "_".join(p.split("_")[:2])  # section_0
+                            if sec_name not in seen:
+                                clean_props.append(sec_name)
+                                seen.add(sec_name)
+                        else:
+                            clean_props.append(p)
+                    self._update_completer_model(clean_props)
+                    self._completer.setCompletionPrefix(prop_prefix)
+                else:
+                    self._update_completer_model(self._all_symbols)
+                    self._completer.setCompletionPrefix(token)
+            elif len(parts) == 3:
+                comp_part, sec_part, prop_prefix = parts[0], parts[1], parts[2]
+                comp_clean = comp_part.replace("-", "_")
+                props = self._component_props.get(comp_part) or self._component_props.get(comp_clean)
+                if props:
+                    prefix_match = f"{sec_part}_"
+                    sec_subprops = [
+                        p[len(prefix_match):] for p in props if p.startswith(prefix_match)
+                    ]
+                    self._update_completer_model(sec_subprops)
+                    self._completer.setCompletionPrefix(prop_prefix)
+                else:
+                    self._update_completer_model(self._all_symbols)
+                    self._completer.setCompletionPrefix(token)
             else:
                 self._update_completer_model(self._all_symbols)
                 self._completer.setCompletionPrefix(token)
@@ -341,15 +371,52 @@ class AdvancedExpressionDialog(QDialog):
             parent_item = QTreeWidgetItem([f"{cname} ({cid})", "", ""])
             self.comp_tree.addTopLevelItem(parent_item)
 
+            sections_folder: QTreeWidgetItem | None = None
+            section_items: dict[str, QTreeWidgetItem] = {}
+
             for prop in comp.get("properties", []):
+                pkey = prop["key"]
                 pval = prop["value"]
                 val_str = f"{pval:.4g}" if isinstance(pval, (int, float)) else str(pval)
                 expr_tag = prop["expression"]
-                child_item = QTreeWidgetItem([prop["key"], val_str, expr_tag])
-                child_item.setData(0, Qt.ItemDataRole.UserRole, expr_tag)
-                parent_item.addChild(child_item)
+
+                if pkey.startswith("section_"):
+                    if sections_folder is None:
+                        sec_label = (
+                            "Stations / Sections"
+                            if "lifting" in ctype or "wing" in cid or "tail" in cid
+                            else "Cross Sections"
+                        )
+                        sections_folder = QTreeWidgetItem([sec_label, "", ""])
+                        parent_item.addChild(sections_folder)
+
+                    parts = pkey.split("_", 2)
+                    if len(parts) >= 3:
+                        sec_idx = parts[1]
+                        subprop = parts[2]
+                        sec_key = f"section_{sec_idx}"
+                        if sec_key not in section_items:
+                            sec_item = QTreeWidgetItem([f"Section {sec_idx}", "", ""])
+                            sections_folder.addChild(sec_item)
+                            section_items[sec_key] = sec_item
+
+                        target_sec_item = section_items[sec_key]
+                        sub_tag = f"{cid}.{sec_key}.{subprop}"
+                        child_item = QTreeWidgetItem([subprop, val_str, sub_tag])
+                        child_item.setData(0, Qt.ItemDataRole.UserRole, sub_tag)
+                        target_sec_item.addChild(child_item)
+                    else:
+                        child_item = QTreeWidgetItem([pkey, val_str, expr_tag])
+                        child_item.setData(0, Qt.ItemDataRole.UserRole, expr_tag)
+                        parent_item.addChild(child_item)
+                else:
+                    child_item = QTreeWidgetItem([pkey, val_str, expr_tag])
+                    child_item.setData(0, Qt.ItemDataRole.UserRole, expr_tag)
+                    parent_item.addChild(child_item)
 
             parent_item.setExpanded(True)
+            if sections_folder:
+                sections_folder.setExpanded(False)
 
     def _populate_parameters_table(self) -> None:
         constants = self._metadata.get("constants", [])
