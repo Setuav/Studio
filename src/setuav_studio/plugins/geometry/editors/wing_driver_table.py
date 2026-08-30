@@ -122,7 +122,9 @@ class DriverPlanformTable(QTableWidget):
         self._y_offset = y_offset
         self._current_values.update(values)
         if expressions is not None:
-            self._driver_expressions.update(expressions)
+            self._driver_expressions = {
+                k: v for k, v in expressions.items() if k in self._active_drivers
+            }
         self._refresh_table_widgets()
 
     def get_active_drivers(self) -> list[str]:
@@ -148,8 +150,11 @@ class DriverPlanformTable(QTableWidget):
         else:
             if key in self._active_drivers:
                 self._active_drivers.remove(key)
+            self._driver_expressions.pop(key, None)
 
         self._refresh_table_widgets()
+        if self._on_values_changed:
+            self._on_values_changed(self._current_values)
 
     def _update_checkbox_ui(self, key: str, checked: bool) -> None:
         row = PLANFORM_PARAM_KEYS.index(key)
@@ -207,9 +212,16 @@ class DriverPlanformTable(QTableWidget):
                         self.setItem(row, 2, QTableWidgetItem(""))
 
                     raw_expr = self._driver_expressions.get(key)
-                    init_str = raw_expr or str(val)
-
                     dec = 3 if key in ("area", "taper_ratio", "aspect_ratio") else 2
+                    if raw_expr:
+                        init_str = raw_expr
+                    else:
+                        from setuav_studio.ui.property_tables import format_engineering_value
+
+                        q_id = get_quantity_for_unit(unit)
+                        disp_val = um.to_display(val, q_id) if q_id else val
+                        init_str = format_engineering_value(disp_val, dec)
+
                     label_name = PLANFORM_PARAM_LABELS[key]
                     cell = ExpressionPropertyCell(
                         initial_value=init_str,
