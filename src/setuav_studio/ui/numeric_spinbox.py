@@ -96,31 +96,74 @@ def set_table_spinbox(
     table: QTableWidget,
     row: int,
     column: int,
-    value: float,
+    value: float | str,
     *,
     min_val: float = -1e6,
     max_val: float = 1e6,
     step: float = 1.0,
     decimals: int = 2,
     suffix: str = "",
-    on_changed: Callable[[float], None] | None = None,
-) -> NumericSpinBox:
-    """Helper to cleanly place a NumericSpinBox into a QTableWidget cell."""
+    on_changed: Callable[[Any], None] | None = None,
+    api: Any | None = None,
+    label: str = "",
+) -> Any:
+    """Helper to cleanly place an ExpressionPropertyCell with fx assistant into a QTableWidget cell."""
+    from setuav_studio.ui.property_tables import ExpressionPropertyCell
+
     item = table.item(row, column)
     if item is not None:
         item.setText("")
         item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
 
-    spin = NumericSpinBox(
-        value=value,
-        min_value=min_val,
-        max_value=max_val,
-        step=step,
-        decimals=decimals,
-        suffix=suffix,
+    if not label:
+        col0_item = table.item(row, 0)
+        label = col0_item.text() if col0_item else ""
+
+    resolved_api = api
+    if resolved_api is None:
+        parent = table.parent()
+        while parent is not None:
+            if hasattr(parent, "_api"):
+                resolved_api = getattr(parent, "_api")
+                break
+            parent = parent.parent()
+
+    def handle_cell_changed(new_text: str) -> None:
+        if on_changed is None:
+            return
+        clean = new_text.strip()
+        if clean.startswith("=") or not clean.replace(".", "", 1).replace("-", "", 1).isdigit():
+            if resolved_api is not None and getattr(resolved_api, "current_project", None) is not None:
+                try:
+                    from setuav_studio.plugins.core.expressions import ExpressionEvaluator
+
+                    evaluator = ExpressionEvaluator()
+                    scope = resolved_api.current_project.get_scope(api=resolved_api)
+                    expr = clean.lstrip("=").strip()
+                    res = evaluator.evaluate(expr, scope)
+                    if isinstance(res, (int, float)):
+                        on_changed(float(res))
+                        return
+                except Exception:
+                    pass
+            on_changed(clean)
+        else:
+            try:
+                on_changed(float(clean))
+            except ValueError:
+                on_changed(clean)
+
+    init_str = (
+        f"{value:.{decimals}f}"
+        if isinstance(value, float) and not str(value).startswith("=")
+        else str(value)
+    )
+    cell = ExpressionPropertyCell(
+        initial_value=init_str,
+        on_changed=handle_cell_changed if on_changed else None,
+        api=resolved_api,
+        label=label,
         parent=table,
     )
-    if on_changed is not None:
-        spin.valueChanged.connect(on_changed)
-    table.setCellWidget(row, column, spin)
-    return spin
+    table.setCellWidget(row, column, cell)
+    return cell

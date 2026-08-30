@@ -275,6 +275,32 @@ class ExpressionPropertyCell(QWidget):
         self._raw_expression = str(text)
         self._refresh_display()
 
+    def value(self) -> float:
+        clean = self._raw_expression.strip()
+        if self._is_formula(clean):
+            ok, val = self._evaluate_expression(clean)
+            if ok and isinstance(val, (int, float)):
+                return float(val)
+        try:
+            return float(clean)
+        except ValueError:
+            return 0.0
+
+    def setValue(self, val: float | str) -> None:
+        self.setText(str(val))
+
+    def setDecimals(self, dec: int) -> None:
+        pass
+
+    def setRange(self, min_v: float, max_v: float) -> None:
+        pass
+
+    def setSingleStep(self, step: float) -> None:
+        pass
+
+    def setSuffix(self, suffix: str) -> None:
+        pass
+
 
 class PropertyTableMixin:
     """Provides the standard property table helpers to QWidget subclasses."""
@@ -413,6 +439,47 @@ class PropertyTableMixin:
             else:
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             return
+
+    def _set_property_spinbox(
+        self,
+        table: QTableWidget,
+        key: str,
+        value: float | str,
+        *,
+        min_val: float = -1e6,
+        max_val: float = 1e6,
+        step: float = 1.0,
+        decimals: int = 2,
+        suffix: str = "",
+        on_changed: Callable[[Any], None] | None = None,
+        api: Any | None = None,
+        label: str = "",
+    ) -> Any:
+        for row in range(table.rowCount()):
+            if self._property_key(table, row) != key:
+                continue
+            from setuav_studio.ui.numeric_spinbox import set_table_spinbox
+
+            resolved_label = label
+            if not resolved_label:
+                col0_item = table.item(row, 0)
+                resolved_label = col0_item.text() if col0_item else key
+
+            return set_table_spinbox(
+                table,
+                row,
+                1,
+                value,
+                min_val=min_val,
+                max_val=max_val,
+                step=step,
+                decimals=decimals,
+                suffix=suffix,
+                on_changed=on_changed,
+                api=api or getattr(self, "_api", None),
+                label=resolved_label,
+            )
+        return None
 
     def _set_property_expression(
         self,
