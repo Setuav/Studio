@@ -1,5 +1,5 @@
-import unittest
 import math
+import unittest
 
 from setuav_studio.plugins.core.expressions import (
     ExpressionEvaluationError,
@@ -41,7 +41,9 @@ class ExpressionEvaluatorTests(unittest.TestCase):
         self.assertAlmostEqual(res, 4.0)
 
     def test_extract_symbols(self) -> None:
-        symbols = self.evaluator.extract_symbols("= sqrt(aspect_ratio * wing_area) + pi + sin(alpha)")
+        symbols = self.evaluator.extract_symbols(
+            "= sqrt(aspect_ratio * wing_area) + pi + sin(alpha)"
+        )
         self.assertEqual(symbols, {"aspect_ratio", "wing_area", "alpha"})
 
     def test_syntax_validation(self) -> None:

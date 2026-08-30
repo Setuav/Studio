@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import copy
 import re
 from collections.abc import Callable
@@ -11,12 +12,7 @@ from setuav_studio.plugins.core.parameters import ParameterResolver
 
 
 def parse_path_segments(path: str) -> list[str | int]:
-    """Parse a dot/bracket notation path into list of key/index segments.
-
-    Example:
-        "wing-1.parameters.geometry.profiles[0].chord"
-        -> ["wing-1", "parameters", "geometry", "profiles", 0, "chord"]
-    """
+    """Parse a dot/bracket notation path into list of key/index segments."""
     tokens = re.findall(r"[^.\[\]]+|\[\d+\]", path)
     segments: list[str | int] = []
     for token in tokens:
@@ -28,10 +24,7 @@ def parse_path_segments(path: str) -> list[str | int]:
 
 
 def get_by_path(target: Any, path: str) -> Any:
-    """Retrieve value from nested dict/list using dot/bracket path.
-
-    Raises KeyError or IndexError if path is not found.
-    """
+    """Retrieve value from nested dict/list using dot/bracket path."""
     segments = parse_path_segments(path)
     curr = target
     for seg in segments:
@@ -46,30 +39,31 @@ def get_by_path(target: Any, path: str) -> Any:
     return curr
 
 
-def set_by_path(target: Any, path: str, value: Any) -> None:
-    """Set value in nested dict/list using dot/bracket path.
+def _ensure_intermediate_segment(curr: Any, seg: str | int, next_seg: str | int) -> Any:
+    """Ensure intermediate list or dict container exists."""
+    if isinstance(seg, int):
+        if not isinstance(curr, list):
+            raise TypeError("Expected list container")
+        while len(curr) <= seg:
+            curr.append({} if isinstance(next_seg, str) else [])
+        return curr[seg]
 
-    Creates intermediate dicts if missing.
-    """
+    if not isinstance(curr, dict):
+        raise TypeError("Expected dict container")
+    if seg not in curr or not isinstance(curr[seg], (dict, list)):
+        curr[seg] = [] if isinstance(next_seg, int) else {}
+    return curr[seg]
+
+
+def set_by_path(target: Any, path: str, value: Any) -> None:
+    """Set value in nested dict/list using dot/bracket path."""
     segments = parse_path_segments(path)
     if not segments:
         return
 
     curr = target
     for i, seg in enumerate(segments[:-1]):
-        next_seg = segments[i + 1]
-        if isinstance(seg, int):
-            if not isinstance(curr, list):
-                raise TypeError(f"Expected list at segment {i} in path '{path}'")
-            while len(curr) <= seg:
-                curr.append({} if isinstance(next_seg, str) else [])
-            curr = curr[seg]
-        else:
-            if not isinstance(curr, dict):
-                raise TypeError(f"Expected dict at segment {i} in path '{path}'")
-            if seg not in curr or not isinstance(curr[seg], (dict, list)):
-                curr[seg] = [] if isinstance(next_seg, int) else {}
-            curr = curr[seg]
+        curr = _ensure_intermediate_segment(curr, seg, segments[i + 1])
 
     last_seg = segments[-1]
     if isinstance(last_seg, int):
@@ -115,10 +109,8 @@ class ConfigurationManager:
 
     def _notify(self) -> None:
         for cb in list(self._listeners):
-            try:
+            with contextlib.suppress(Exception):
                 cb()
-            except Exception:
-                pass
 
     def get_configurations(self) -> list[dict[str, Any]]:
         """Return list of configuration dictionaries."""
@@ -260,9 +252,7 @@ class ConfigurationManager:
         overrides = self.get_overrides(config_id)
         return path in overrides
 
-    def get_effective_project_parameters(
-        self, config_id: str | None = None
-    ) -> dict[str, Any]:
+    def get_effective_project_parameters(self, config_id: str | None = None) -> dict[str, Any]:
         """Compute resolved project parameters including any active overrides."""
         base_params = copy.deepcopy(self.project_data.get("parameters", {}))
         overrides = self.get_overrides(config_id)
@@ -270,7 +260,7 @@ class ConfigurationManager:
         # Apply project.parameters.* overrides
         for path, val in overrides.items():
             if path.startswith("project.parameters."):
-                param_key = path[len("project.parameters."):]
+                param_key = path[len("project.parameters.") :]
                 base_params[param_key] = val
 
         return self.resolver.resolve_all(base_params)
@@ -287,11 +277,9 @@ class ConfigurationManager:
         prefix = f"{comp_id}."
         for path, val in overrides.items():
             if path.startswith(prefix):
-                rel_path = path[len(prefix):]
-                try:
+                rel_path = path[len(prefix) :]
+                with contextlib.suppress(Exception):
                     set_by_path(comp_copy, rel_path, val)
-                except Exception:
-                    pass
 
         # Evaluate expressions inside component parameters using effective project parameters
         effective_params = self.get_effective_project_parameters(config_id)

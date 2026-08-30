@@ -12,9 +12,7 @@ class PathUtilsTests(unittest.TestCase):
     def test_parse_path_segments(self) -> None:
         path = "wing-1.parameters.geometry.profiles[0].chord"
         segments = parse_path_segments(path)
-        self.assertEqual(
-            segments, ["wing-1", "parameters", "geometry", "profiles", 0, "chord"]
-        )
+        self.assertEqual(segments, ["wing-1", "parameters", "geometry", "profiles", 0, "chord"])
 
     def test_get_and_set_by_path(self) -> None:
         data = {
@@ -31,9 +29,7 @@ class PathUtilsTests(unittest.TestCase):
         self.assertEqual(val, 200.0)
 
         set_by_path(data, "wing-1.parameters.geometry.profiles[0].chord", 250.0)
-        self.assertEqual(
-            get_by_path(data, "wing-1.parameters.geometry.profiles[0].chord"), 250.0
-        )
+        self.assertEqual(get_by_path(data, "wing-1.parameters.geometry.profiles[0].chord"), 250.0)
 
         set_by_path(data, "wing-1.parameters.geometry.sweep", 15.0)
         self.assertEqual(data["wing-1"]["parameters"]["geometry"]["sweep"], 15.0)
@@ -131,9 +127,7 @@ class ConfigurationManagerTests(unittest.TestCase):
         self.manager.set_active_id(None)
         resolved_base = self.manager.get_resolved_component(component)
         self.assertEqual(resolved_base["parameters"]["geometry"]["span"], 2000.0)
-        self.assertAlmostEqual(
-            resolved_base["parameters"]["geometry"]["chord"], 4.0 * 200
-        )
+        self.assertAlmostEqual(resolved_base["parameters"]["geometry"]["chord"], 4.0 * 200)
 
         # In cruise mode
         self.manager.set_active_id("cruise")

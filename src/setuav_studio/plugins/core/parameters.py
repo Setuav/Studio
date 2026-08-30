@@ -20,6 +20,37 @@ class CircularDependencyError(ParameterResolutionError):
         super().__init__(f"Circular dependency detected: {' -> '.join(cycle_path)}")
 
 
+def _topological_sort(graph: dict[str, set[str]]) -> list[str]:
+    """Sort dependency DAG in topological order using Kahn's algorithm."""
+    adj: dict[str, set[str]] = {k: set() for k in graph}
+    in_deg: dict[str, int] = dict.fromkeys(graph, 0)
+    for node, deps in graph.items():
+        in_deg[node] = len(deps)
+        for dep in deps:
+            adj[dep].add(node)
+
+    queue = [k for k, deg in in_deg.items() if deg == 0]
+    queue.sort()
+    order: list[str] = []
+
+    while queue:
+        curr = queue.pop(0)
+        order.append(curr)
+        for neighbor in sorted(adj[curr]):
+            in_deg[neighbor] -= 1
+            if in_deg[neighbor] == 0:
+                queue.append(neighbor)
+                queue.sort()
+
+    if len(order) != len(graph):
+        remaining = [k for k in graph if k not in order]
+        raise ParameterResolutionError(
+            f"Could not determine evaluation order for parameters: {remaining}"
+        )
+
+    return order
+
+
 class ParameterResolver:
     """Resolves project parameters with support for formulas and dependency DAG."""
 
@@ -53,7 +84,7 @@ class ParameterResolver:
                     dfs(neighbor)
                 elif neighbor in rec_stack:
                     idx = rec_stack.index(neighbor)
-                    cycles.append(rec_stack[idx:] + [neighbor])
+                    cycles.append([*rec_stack[idx:], neighbor])
             rec_stack.pop()
 
         for key in sorted(graph.keys()):
@@ -73,42 +104,7 @@ class ParameterResolver:
             raise CircularDependencyError(cycles[0])
 
         graph = self.build_dependency_graph(parameters)
-        in_degree: dict[str, int] = {k: 0 for k in graph}
-        for deps in graph.values():
-            for dep in deps:
-                if dep in in_degree:
-                    in_degree[dep] += 0  # ensure key exists
-
-        # Reversed graph for topological sort: node depends on deps,
-        # so deps must be evaluated BEFORE node.
-        # Adjacency where edge is: dep -> node
-        adj: dict[str, set[str]] = {k: set() for k in graph}
-        in_deg: dict[str, int] = {k: 0 for k in graph}
-        for node, deps in graph.items():
-            in_deg[node] = len(deps)
-            for dep in deps:
-                adj[dep].add(node)
-
-        queue = [k for k, deg in in_deg.items() if deg == 0]
-        queue.sort()
-        order: list[str] = []
-
-        while queue:
-            curr = queue.pop(0)
-            order.append(curr)
-            for neighbor in sorted(adj[curr]):
-                in_deg[neighbor] -= 1
-                if in_deg[neighbor] == 0:
-                    queue.append(neighbor)
-                    queue.sort()
-
-        if len(order) != len(graph):
-            remaining = [k for k in graph if k not in order]
-            raise ParameterResolutionError(
-                f"Could not determine evaluation order for parameters: {remaining}"
-            )
-
-        return order
+        return _topological_sort(graph)
 
     def resolve_all(self, parameters: dict[str, Any]) -> dict[str, Any]:
         """Resolve all parameters into concrete scalar/string values.
@@ -160,9 +156,7 @@ class ParameterResolver:
                 queue.extend(adj.get(curr, set()))
         return dependents
 
-    def evaluate_component_value(
-        self, value: Any, resolved_parameters: dict[str, Any]
-    ) -> Any:
+    def evaluate_component_value(self, value: Any, resolved_parameters: dict[str, Any]) -> Any:
         """Evaluate an arbitrary component parameter value (scalar, formula, dict, or list)."""
         if self.evaluator.is_expression(value):
             try:
@@ -174,8 +168,7 @@ class ParameterResolver:
 
         if isinstance(value, dict):
             return {
-                k: self.evaluate_component_value(v, resolved_parameters)
-                for k, v in value.items()
+                k: self.evaluate_component_value(v, resolved_parameters) for k, v in value.items()
             }
 
         if isinstance(value, list):

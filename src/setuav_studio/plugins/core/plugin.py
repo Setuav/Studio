@@ -4,6 +4,7 @@ from setuav_studio.plugins.core.envelope import EnvelopeEditor
 from setuav_studio.plugins.core.instance import InstanceEditor
 from setuav_studio.plugins.core.properties import PropertiesPanel
 from setuav_studio.plugins.core.transform import TransformEditor
+from setuav_studio.plugins.core.ui.parameters_panel import ProjectParametersPanel
 from setuav_studio.plugins.core.ui.project_explorer import ProjectExplorerPanel
 from setuav_studio_sdk import (
     ComponentTreeNodeContribution,
@@ -119,6 +120,22 @@ class CorePlugin:
                 icon="properties",
             )
         )
+        api.add_panel(
+            PanelContribution(
+                id="project.parameters",
+                title="Project Parameters",
+                factory=lambda: ProjectParametersPanel(api),
+                area=Qt.DockWidgetArea.RightDockWidgetArea,
+                workspace_id=[
+                    "studio.workspace.design",
+                    "studio.workspace.weight_balance",
+                    "studio.workspace.propulsion",
+                    "studio.workspace.aerodynamics",
+                    "studio.workspace.flight_performance",
+                ],
+                icon="settings",
+            )
+        )
 
     def deactivate(self, api: StudioAPI) -> None:
         for contribution in self._TOOLBAR_ITEMS:
@@ -129,6 +146,7 @@ class CorePlugin:
         api.remove_component_tree_provider("org.setuav.studio.core.transform")
         api.remove_panel("project.explorer")
         api.remove_panel("studio.properties")
+        api.remove_panel("project.parameters")
 
     @staticmethod
     def _transform_tree_nodes(

@@ -58,8 +58,11 @@ def _project_items(project: Any) -> dict[str, dict[str, Any]] | None:
     components = project_data.get("components") if isinstance(project_data, dict) else None
     if not isinstance(components, list):
         return None
+    from setuav_studio.plugins.core.configurations import ConfigurationManager
+
+    cfg_mgr = ConfigurationManager(project_data)
     return {
-        item["id"]: item
+        item["id"]: cfg_mgr.get_resolved_component(item)
         for item in components
         if isinstance(item, dict) and isinstance(item.get("id"), str)
     }

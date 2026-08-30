@@ -151,8 +151,19 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
 
             # Load Parameters
             if hasattr(self, "parameters_table"):
+                project_data = self._api.current_project.data if self._api.current_project else None
+                from setuav_studio.plugins.core.configurations import ConfigurationManager
+
+                cfg_mgr = ConfigurationManager(project_data) if project_data else None
+                comp_id = self._component.get("id", "")
+
                 for field in self._fields:
-                    val = params.get(field.key, field.default)
+                    override_path = f"{comp_id}.parameters.{field.key}"
+                    if cfg_mgr and cfg_mgr.is_overridden(override_path):
+                        val = cfg_mgr.get_overrides().get(override_path, field.default)
+                    else:
+                        val = params.get(field.key, field.default)
+
                     if field.options:
                         formatted_options: list[tuple[str, str]] = []
                         for opt in field.options:
@@ -168,7 +179,9 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
                             lambda new_val, k=field.key: self._on_combo_changed(k, new_val),
                         )
                     else:
-                        if field.field_type is float:
+                        if isinstance(val, str) and val.strip().startswith("="):
+                            str_val = val.strip()
+                        elif field.field_type is float:
                             str_val = (
                                 f"{float(val):.{field.decimals}f}" if val is not None else "0.0"
                             )
@@ -215,9 +228,11 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
         if field is None:
             return
 
-        if field.field_type is int:
+        if isinstance(val_text, str) and val_text.strip().startswith("="):
+            final_val: Any = val_text.strip()
+        elif field.field_type is int:
             parsed_num = self._parse_number(val_text)
-            final_val: Any = int(parsed_num) if parsed_num is not None else field.default
+            final_val = int(parsed_num) if parsed_num is not None else field.default
         elif field.field_type is float:
             parsed_num = self._parse_number(val_text)
             final_val = float(parsed_num) if parsed_num is not None else field.default
@@ -225,8 +240,18 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
             final_val = val_text
 
         def apply_param() -> None:
-            p = self._component.setdefault("parameters", {})
-            p[key] = final_val
+            project_data = self._api.current_project.data if self._api.current_project else None
+            from setuav_studio.plugins.core.configurations import ConfigurationManager
+
+            cfg_mgr = ConfigurationManager(project_data) if project_data else None
+            active_cid = cfg_mgr.get_active_id() if cfg_mgr else None
+            if active_cid:
+                comp_id = self._component.get("id", "")
+                override_path = f"{comp_id}.parameters.{key}"
+                cfg_mgr.set_override(active_cid, override_path, final_val)
+            else:
+                p = self._component.setdefault("parameters", {})
+                p[key] = final_val
 
         self._api.edit_component(
             self._component,
@@ -239,8 +264,18 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
             return
 
         def apply_param() -> None:
-            p = self._component.setdefault("parameters", {})
-            p[key] = value
+            project_data = self._api.current_project.data if self._api.current_project else None
+            from setuav_studio.plugins.core.configurations import ConfigurationManager
+
+            cfg_mgr = ConfigurationManager(project_data) if project_data else None
+            active_cid = cfg_mgr.get_active_id() if cfg_mgr else None
+            if active_cid:
+                comp_id = self._component.get("id", "")
+                override_path = f"{comp_id}.parameters.{key}"
+                cfg_mgr.set_override(active_cid, override_path, value)
+            else:
+                p = self._component.setdefault("parameters", {})
+                p[key] = value
 
         self._api.edit_component(
             self._component,

@@ -2,7 +2,6 @@ import unittest
 
 from setuav_studio.plugins.core.parameters import (
     CircularDependencyError,
-    ParameterResolutionError,
     ParameterResolver,
 )
 
@@ -80,9 +79,7 @@ class ParameterResolverTests(unittest.TestCase):
             "name": "Main Wing",
         }
 
-        evaluated = self.resolver.evaluate_component_parameters(
-            component_params, resolved_project
-        )
+        evaluated = self.resolver.evaluate_component_parameters(component_params, resolved_project)
 
         self.assertEqual(evaluated["name"], "Main Wing")
         self.assertAlmostEqual(evaluated["geometry"]["span"], 4000.0)

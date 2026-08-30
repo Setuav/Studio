@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 
 from setuav_studio.plugin_system import PluginManager
 from setuav_studio.plugins.core.settings import SettingsDialog, StudioSettings
+from setuav_studio.plugins.core.ui.configuration_bar import ConfigurationToolBar
 from setuav_studio.project import (
     ProjectDocument,
     ProjectOpenError,
@@ -205,6 +206,9 @@ class MainWindow(QMainWindow):
         self._workspace_toolbar = WorkspaceToolBar(self)
         self._workspace_toolbar.workspace_activated.connect(self._api.switch_workspace)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self._workspace_toolbar)
+
+        self._configuration_toolbar = ConfigurationToolBar(self._api, self)
+        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self._configuration_toolbar)
 
         self._host.bind_panel_handlers(self._add_panel, self._remove_panel)
         self._host.bind_workspace_handlers(
