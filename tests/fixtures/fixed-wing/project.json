@@ -1391,17 +1391,17 @@
     {
       "kind": "component",
       "id": "v-tail",
-      "name": "Horizontal Stabilizer",
+      "name": "V-Tail",
       "type": "org.setuav.core:lifting-surface",
       "attach_to": "fuselage",
       "transform": {
         "position": {
           "x": 645.0,
-          "y": 45.0,
-          "z": 45.0
+          "y": 40.0,
+          "z": 55.0
         },
         "rotation": {
-          "roll": 0.0,
+          "roll": 40.0,
           "pitch": 0.0,
           "yaw": 0.0
         }
@@ -1818,7 +1818,7 @@
           "transform": {
             "position": {
               "x": 650.0,
-              "y": 0.0,
+              "y": 45.0,
               "z": 45.0
             },
             "rotation": {
@@ -1848,8 +1848,8 @@
                 },
                 {
                   "position": {
-                    "x": 40.0,
-                    "y": 250.0,
+                    "x": 60.0,
+                    "y": 200.0,
                     "z": 0.0
                   },
                   "chord": 100.0,
@@ -1860,7 +1860,12 @@
                   },
                   "airfoil": "0012"
                 }
-              ]
+              ],
+              "sweep_curvature": 0.0,
+              "tip_treatment": {
+                "type": "round",
+                "length": 12.0
+              }
             }
           }
         },
@@ -1875,13 +1880,13 @@
               "tag": "Elevator",
               "type": "elevator",
               "span_mode": "ratio",
-              "span_start": 25.0,
-              "span_end": 225.0,
-              "eta_start": 0.1,
-              "eta_end": 0.9,
+              "span_start": 10.0,
+              "span_end": 190.0,
+              "eta_start": 0.05,
+              "eta_end": 0.95,
               "chord_mode": "ratio",
               "chord_fraction": 0.3,
-              "chord": 40.0,
+              "chord": 48.0,
               "hinge_sweep": 0.0,
               "deflection": 0.0,
               "symmetry_mode": "auto"
@@ -1942,7 +1947,7 @@
               ],
               "tip_treatment": {
                 "type": "round",
-                "length": 8.0
+                "length": 12.0
               },
               "control_surfaces": [],
               "sweep_curvature": 0.0

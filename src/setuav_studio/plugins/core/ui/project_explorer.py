@@ -216,6 +216,7 @@ class ProjectExplorer(QTreeWidget):
         self._saved_components: dict[str, dict[str, Any]] = {}
         self._saved_assemblies: dict[str, dict[str, Any]] = {}
         self._saved_analysis_results: dict[str, dict[str, Any]] = {}
+        self._last_active_config_id: str | None = None
 
         api.on_project_changed(self.set_project)
         api.on_project_content_changed(self.refresh_project)
@@ -223,6 +224,8 @@ class ProjectExplorer(QTreeWidget):
         api.on_modified_changed(self._on_modified_changed)
 
     def set_project(self, project: ProjectDocument) -> None:
+        if hasattr(project, "get_configuration_manager"):
+            self._last_active_config_id = project.get_configuration_manager().get_active_id()
         self._capture_saved_state(project)
         self._rebuild_project(project)
 
@@ -511,6 +514,11 @@ class ProjectExplorer(QTreeWidget):
     def refresh_project(self, project: ProjectDocument | None = None) -> None:
         current_project = project or self._api.current_project
         if current_project is not None:
+            if hasattr(current_project, "get_configuration_manager"):
+                curr_active_id = current_project.get_configuration_manager().get_active_id()
+                if curr_active_id != self._last_active_config_id:
+                    self._last_active_config_id = curr_active_id
+                    self._capture_saved_state(current_project)
             self._rebuild_project(current_project)
 
     def _capture_saved_state(self, project: ProjectDocument) -> None:
@@ -582,6 +590,8 @@ class ProjectExplorer(QTreeWidget):
         project = self._api.current_project
         if project is None:
             return
+        if hasattr(project, "get_configuration_manager"):
+            self._last_active_config_id = project.get_configuration_manager().get_active_id()
         self._capture_saved_state(project)
         self._rebuild_project(project)
 
