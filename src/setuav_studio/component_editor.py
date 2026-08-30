@@ -140,8 +140,16 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
                 editable=False,
             )
             params = self._component.get("parameters", {})
-            mass = self._component.get("mass", params.get("mass", 0))
-            self._set_property_value(self.general_table, "mass", mass)
+            mass_val = self._component.get("mass_expression") or self._component.get(
+                "mass", params.get("mass", 0.0)
+            )
+            self._set_property_expression(
+                self.general_table,
+                "mass",
+                mass_val,
+                on_changed=self._on_mass_changed,
+                label="Mass (g)",
+            )
             self._set_property_value(
                 self.general_table, "manufacturer", str(self._component.get("manufacturer") or "")
             )
@@ -231,6 +239,40 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
             f"Set {key} of {self._component.get('name', 'component')}",
             apply_param,
         )
+
+    def _on_mass_changed(self, val_text: str) -> None:
+        if self._loading:
+            return
+        clean = val_text.strip()
+        num_val: float | None = None
+        if clean.startswith("=") or not clean.replace(".", "", 1).replace("-", "", 1).isdigit():
+            self._component["mass_expression"] = clean
+            if self._api is not None and getattr(self._api, "current_project", None) is not None:
+                try:
+                    from setuav_studio.plugins.core.expressions import ExpressionEvaluator
+
+                    evaluator = ExpressionEvaluator()
+                    scope = self._api.current_project.get_scope(api=self._api)
+                    expr = clean.lstrip("=").strip()
+                    res = evaluator.evaluate(expr, scope)
+                    if isinstance(res, (int, float)):
+                        num_val = float(res)
+                except Exception:
+                    pass
+        else:
+            self._component.pop("mass_expression", None)
+            try:
+                num_val = float(clean)
+            except ValueError:
+                pass
+
+        def change() -> None:
+            if num_val is not None:
+                self._component["mass"] = num_val
+                if "parameters" in self._component and isinstance(self._component["parameters"], dict):
+                    self._component["parameters"]["mass"] = num_val
+
+        self._api.edit_component(self._component, "Change component mass", change)
 
     def _update_general(self, row: int, column: int) -> None:
         if self._loading or column != 1:
