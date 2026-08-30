@@ -6,8 +6,10 @@ from copy import deepcopy
 from typing import Any
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QApplication,
     QHBoxLayout,
     QTableWidgetItem,
 )
@@ -144,7 +146,7 @@ class ControlSurfacesMixin:
         cs_list = self._control_surfaces()
         if not cs_list:
             return
-        semi_span, root_chord = self._wing_span_info()
+        semi_span, root_chord, *_ = self._wing_span_info()
         for cs in cs_list:
             sync_sizing_values(self._cs_geom(cs), semi_span, root_chord)
 
@@ -161,7 +163,7 @@ class ControlSurfacesMixin:
         self._loading = True
         try:
             cs_list = self._control_surfaces()
-            semi_span, root_chord = self._wing_span_info()
+            semi_span, root_chord, *_ = self._wing_span_info()
             self.control_surfaces_table.setRowCount(len(cs_list))
             for row, cs in enumerate(cs_list):
                 geom = self._cs_geom(cs)
@@ -236,6 +238,16 @@ class ControlSurfacesMixin:
             deflection = float(geom.get("deflection", 0.0))
             sym_mode = str(geom.get("symmetry_mode", "auto")).lower()
 
+            # Active drivers based on mode
+            if sizing_mode == "dimension":
+                driver_keys = {"span_start", "span_end", "chord"}
+            elif sizing_mode == "area_chord":
+                driver_keys = {"area", "span_start", "eta_start", "chord_fraction"}
+            elif sizing_mode == "area_span":
+                driver_keys = {"area", "span_start", "span_end", "eta_start", "eta_end"}
+            else:  # "ratio"
+                driver_keys = {"eta_start", "eta_end", "chord_fraction"}
+
             self._set_property_value(self.cs_properties_table, "tag", tag_val)
             self._set_property_combo(
                 self.cs_properties_table,
@@ -252,89 +264,60 @@ class ControlSurfacesMixin:
                 lambda val: self._update_cs_choice("sizing_mode", val),
             )
 
-            area_val = geom.get("area_expression") or metrics["area_dm2"]
-            self._set_property_expression(
-                self.cs_properties_table,
-                "area",
-                area_val,
-                on_changed=lambda val: self._on_cs_prop_spinbox_changed("area", val),
-                api=self._api,
-                label="Area (dm²)",
-            )
+            def _setup_param(key: str, label_text: str, current_val: float, raw_expr: str | None, unit: str, dec: int = 2) -> None:
+                is_driver = key in driver_keys
+                target_row = -1
+                for r in range(self.cs_properties_table.rowCount()):
+                    if self._property_key(self.cs_properties_table, r) == key:
+                        target_row = r
+                        break
+                if target_row < 0:
+                    return
 
-            self._set_property_value(
-                self.cs_properties_table, "area_ratio", f"{metrics['area_ratio']:.1f}%", editable=False
-            )
+                label_item = self.cs_properties_table.item(target_row, 0)
+                if label_item:
+                    font = label_item.font()
+                    font.setBold(is_driver)
+                    label_item.setFont(font)
+                    if is_driver:
+                        label_item.setForeground(QApplication.palette().text())
+                    else:
+                        label_item.setForeground(QColor(130, 130, 130))
 
-            ss_val = geom.get("span_start_expression") or metrics["span_start"]
-            self._set_property_expression(
-                self.cs_properties_table,
-                "span_start",
-                ss_val,
-                on_changed=lambda val: self._on_cs_prop_spinbox_changed("span_start", val),
-                api=self._api,
-                label="Span start (mm)",
-            )
+                if is_driver:
+                    val_to_pass = raw_expr if raw_expr else current_val
+                    self._set_property_expression(
+                        self.cs_properties_table,
+                        key,
+                        val_to_pass,
+                        on_changed=lambda val, k=key: self._on_cs_prop_spinbox_changed(k, val),
+                        api=self._api,
+                        label=label_text,
+                    )
+                else:
+                    self.cs_properties_table.removeCellWidget(target_row, 1)
+                    val_str = f"{current_val:.{dec}f}"
+                    if unit:
+                        val_str += f" {unit}"
+                    val_item = self.cs_properties_table.item(target_row, 1)
+                    if not val_item:
+                        val_item = QTableWidgetItem(val_str)
+                        self.cs_properties_table.setItem(target_row, 1, val_item)
+                    else:
+                        val_item.setText(val_str)
+                    val_item.setForeground(QColor(130, 130, 130))
+                    val_item.setFlags(val_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                    val_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
-            se_val = geom.get("span_end_expression") or metrics["span_end"]
-            self._set_property_expression(
-                self.cs_properties_table,
-                "span_end",
-                se_val,
-                on_changed=lambda val: self._on_cs_prop_spinbox_changed("span_end", val),
-                api=self._api,
-                label="Span end (mm)",
-            )
-
-            sl_val = geom.get("span_length_expression") or metrics["span_length"]
-            self._set_property_expression(
-                self.cs_properties_table,
-                "span_length",
-                sl_val,
-                on_changed=lambda val: self._on_cs_prop_spinbox_changed("span_length", val),
-                api=self._api,
-                label="Span length (mm)",
-            )
-
-            es_val = geom.get("eta_start_expression") or metrics["eta_start"]
-            self._set_property_expression(
-                self.cs_properties_table,
-                "eta_start",
-                es_val,
-                on_changed=lambda val: self._on_cs_prop_spinbox_changed("eta_start", val),
-                api=self._api,
-                label="Span start fraction (eta)",
-            )
-
-            ee_val = geom.get("eta_end_expression") or metrics["eta_end"]
-            self._set_property_expression(
-                self.cs_properties_table,
-                "eta_end",
-                ee_val,
-                on_changed=lambda val: self._on_cs_prop_spinbox_changed("eta_end", val),
-                api=self._api,
-                label="Span end fraction (eta)",
-            )
-
-            cf_val = geom.get("chord_fraction_expression") or metrics["chord_fraction"]
-            self._set_property_expression(
-                self.cs_properties_table,
-                "chord_fraction",
-                cf_val,
-                on_changed=lambda val: self._on_cs_prop_spinbox_changed("chord_fraction", val),
-                api=self._api,
-                label="Chord fraction (%c)",
-            )
-
-            c_val = geom.get("chord_expression") or metrics["chord"]
-            self._set_property_expression(
-                self.cs_properties_table,
-                "chord",
-                c_val,
-                on_changed=lambda val: self._on_cs_prop_spinbox_changed("chord", val),
-                api=self._api,
-                label="Chord depth (mm)",
-            )
+            _setup_param("area", "Area (dm²)", metrics["area_dm2"], geom.get("area_expression"), "dm²", 4)
+            _setup_param("area_ratio", "Area Ratio (% Wing)", metrics["area_ratio"], None, "%", 1)
+            _setup_param("span_start", "Span start (mm)", metrics["span_start"], geom.get("span_start_expression"), "mm", 1)
+            _setup_param("span_end", "Span end (mm)", metrics["span_end"], geom.get("span_end_expression"), "mm", 1)
+            _setup_param("span_length", "Span length (mm)", metrics["span_length"], geom.get("span_length_expression"), "mm", 1)
+            _setup_param("eta_start", "Span start fraction (eta)", metrics["eta_start"], geom.get("eta_start_expression"), "", 3)
+            _setup_param("eta_end", "Span end fraction (eta)", metrics["eta_end"], geom.get("eta_end_expression"), "", 3)
+            _setup_param("chord_fraction", "Chord fraction (%c)", metrics["chord_fraction"], geom.get("chord_fraction_expression"), "c", 3)
+            _setup_param("chord", "Control chord (mm)", metrics["chord"], geom.get("chord_expression"), "mm", 1)
 
             hs_val = geom.get("hinge_sweep_expression") or hinge_sweep
             self._set_property_expression(
@@ -498,7 +481,7 @@ class ControlSurfacesMixin:
         new_id = f"{wing_id}-{new_tag}"
         project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
 
-        semi_span, root_chord = self._wing_span_info()
+        semi_span, root_chord, *_ = self._wing_span_info()
         def_start = round(max(semi_span * 0.4, 20.0), 1)
         def_end = round(max(semi_span * 0.85, def_start + 50.0), 1)
         def_chord = round(max(root_chord * 0.25, 10.0), 1)
@@ -729,7 +712,7 @@ class ControlSurfacesMixin:
             return
         cs = cs_list[row]
         geom = self._cs_geom(cs)
-        semi_span, root_chord = self._wing_span_info()
+        semi_span, root_chord, *_ = self._wing_span_info()
         s_start = float(geom.get("span_start", 0.0))
         s_end = float(geom.get("span_end", 0.0))
         eta_start = float(geom.get("eta_start", round(s_start / semi_span, 3)))
