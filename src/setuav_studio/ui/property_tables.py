@@ -91,8 +91,27 @@ class ContentFitTableWidget(QTableWidget):
             self._fitting_columns = False
 
 
+from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtGui import QFocusEvent, QResizeEvent
+
+
+class FocusAwareLineEdit(QLineEdit):
+    """QLineEdit that emits focus signals to support dual-state evaluated/formula display."""
+
+    focused_in = Signal()
+    focused_out = Signal()
+
+    def focusInEvent(self, event: QFocusEvent) -> None:
+        super().focusInEvent(event)
+        self.focused_in.emit()
+
+    def focusOutEvent(self, event: QFocusEvent) -> None:
+        super().focusOutEvent(event)
+        self.focused_out.emit()
+
+
 class ExpressionPropertyCell(QWidget):
-    """Table cell editor widget with inline text edit and 'fx' expression assistant button."""
+    """Table cell editor widget with dual display (evaluated value when idle, formula when editing) and 'fx' assistant button."""
 
     def __init__(
         self,
@@ -108,14 +127,17 @@ class ExpressionPropertyCell(QWidget):
         self._on_open_assistant = on_open_assistant
         self._api = api
         self._label = label
+        self._raw_expression = str(initial_value)
+        self._is_focused = False
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(2)
 
-        self.line_edit = QLineEdit(self)
-        self.line_edit.setText(initial_value)
-        self.line_edit.textChanged.connect(self._handle_text_changed)
+        self.line_edit = FocusAwareLineEdit(self)
+        self.line_edit.focused_in.connect(self._on_focus_in)
+        self.line_edit.focused_out.connect(self._on_focus_out)
+        self.line_edit.returnPressed.connect(self._on_return_pressed)
         layout.addWidget(self.line_edit)
 
         self.fx_button = QPushButton("fx", self)
@@ -128,18 +150,17 @@ class ExpressionPropertyCell(QWidget):
         self.fx_button.clicked.connect(self._handle_button_clicked)
         layout.addWidget(self.fx_button)
 
-        self._update_style(initial_value)
+        self._refresh_display()
 
-    def _update_style(self, text: str) -> None:
+    def _is_formula(self, text: str) -> bool:
         clean = text.strip()
-        if clean.startswith("="):
-            self.line_edit.setStyleSheet("color: #4CAF50; font-weight: bold;")
-            self._update_tooltip(clean)
-        else:
-            self.line_edit.setStyleSheet("")
-            self.line_edit.setToolTip("")
+        return bool(
+            clean.startswith("=")
+            or (clean and not clean.replace(".", "", 1).replace("-", "", 1).isdigit())
+        )
 
-    def _update_tooltip(self, expr_text: str) -> None:
+    def _evaluate_expression(self, expr_text: str) -> tuple[bool, Any]:
+        """Evaluate expression against current project scope."""
         if self._api is not None and getattr(self._api, "current_project", None) is not None:
             try:
                 from setuav_studio.plugins.core.expressions import ExpressionEvaluator
@@ -148,22 +169,86 @@ class ExpressionPropertyCell(QWidget):
                 scope = self._api.current_project.get_scope(api=self._api)
                 expr = expr_text.lstrip("=").strip()
                 val = evaluator.evaluate(expr, scope)
-                self.line_edit.setToolTip(f"Formula: {expr}\nEvaluated Value: {val:.4g}")
+                return True, val
             except Exception:
-                self.line_edit.setToolTip(f"Formula: {expr_text}")
+                return False, None
+        return False, None
 
-    def _handle_text_changed(self, text: str) -> None:
-        self._update_style(text)
-        if self._on_changed:
-            self._on_changed(text)
+    def _refresh_display(self) -> None:
+        clean = self._raw_expression.strip()
+        if not clean:
+            self.line_edit.blockSignals(True)
+            self.line_edit.setText("")
+            self.line_edit.setStyleSheet("")
+            self.line_edit.setToolTip("")
+            self.line_edit.blockSignals(False)
+            return
+
+        if self._is_focused:
+            # Editing mode: show raw formula
+            self.line_edit.blockSignals(True)
+            self.line_edit.setText(self._raw_expression)
+            if clean.startswith("="):
+                self.line_edit.setStyleSheet("color: #4CAF50; font-weight: bold;")
+            else:
+                self.line_edit.setStyleSheet("")
+            self.line_edit.blockSignals(False)
+        else:
+            # Idle / Display mode: show evaluated calculated value if it is a formula
+            if self._is_formula(clean):
+                ok, val = self._evaluate_expression(clean)
+                self.line_edit.blockSignals(True)
+                if ok and isinstance(val, (int, float)):
+                    self.line_edit.setText(f"{val:.4g}")
+                    self.line_edit.setStyleSheet(
+                        "color: #4CAF50; font-style: italic; font-weight: bold;"
+                    )
+                    self.line_edit.setToolTip(
+                        f"Bound to: {self._raw_expression}\nCalculated value: {val:.4g}"
+                    )
+                else:
+                    self.line_edit.setText(self._raw_expression)
+                    self.line_edit.setStyleSheet("color: #4CAF50; font-weight: bold;")
+                    self.line_edit.setToolTip(f"Formula: {self._raw_expression}")
+                self.line_edit.blockSignals(False)
+            else:
+                self.line_edit.blockSignals(True)
+                self.line_edit.setText(self._raw_expression)
+                self.line_edit.setStyleSheet("")
+                self.line_edit.setToolTip("")
+                self.line_edit.blockSignals(False)
+
+    def _on_focus_in(self) -> None:
+        self._is_focused = True
+        self._refresh_display()
+        self.line_edit.selectAll()
+
+    def _on_focus_out(self) -> None:
+        self._is_focused = False
+        new_text = self.line_edit.text().strip()
+        if new_text != self._raw_expression:
+            self._raw_expression = new_text
+            if self._on_changed:
+                self._on_changed(self._raw_expression)
+        self._refresh_display()
+
+    def _on_return_pressed(self) -> None:
+        self._is_focused = False
+        new_text = self.line_edit.text().strip()
+        if new_text != self._raw_expression:
+            self._raw_expression = new_text
+            if self._on_changed:
+                self._on_changed(self._raw_expression)
+        self._refresh_display()
+        self.line_edit.clearFocus()
 
     def _handle_button_clicked(self) -> None:
         if self._on_open_assistant:
-            self._on_open_assistant(self.line_edit.text())
+            self._on_open_assistant(self._raw_expression)
         elif self._api is not None:
             from setuav_studio.plugins.core.ui.expression_dialog import AdvancedExpressionDialog
 
-            curr_text = self.line_edit.text().strip()
+            curr_text = self._raw_expression.strip()
             dlg = AdvancedExpressionDialog(
                 api=self._api,
                 initial_expression=curr_text,
@@ -173,19 +258,22 @@ class ExpressionPropertyCell(QWidget):
             )
             if dlg.exec():
                 new_expr = dlg.get_expression().strip()
-                # Prepend '=' if it is a formula and not already starting with '='
-                if new_expr and not new_expr.startswith("=") and not new_expr.replace(".", "", 1).isdigit():
+                if (
+                    new_expr
+                    and not new_expr.startswith("=")
+                    and not new_expr.replace(".", "", 1).isdigit()
+                ):
                     new_expr = f"={new_expr}"
                 self.setText(new_expr)
                 if self._on_changed:
                     self._on_changed(new_expr)
 
     def text(self) -> str:
-        return self.line_edit.text()
+        return self._raw_expression
 
     def setText(self, text: str) -> None:
-        self.line_edit.setText(text)
-        self._update_style(text)
+        self._raw_expression = str(text)
+        self._refresh_display()
 
 
 class PropertyTableMixin:
