@@ -207,164 +207,141 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
     def _load_properties(self) -> None:
         from .control_surface_values import compute_control_surface_metrics
 
-        geom = self._geometry()
-        semi_span, root_chord, tip_chord, wing_area = self._parent_wing_info()
-        self._cs_spinboxes = {}
+        was_loading = self._loading
+        self._loading = True
+        try:
+            geom = self._geometry()
+            semi_span, root_chord, tip_chord, wing_area = self._parent_wing_info()
+            self._cs_spinboxes = {}
 
-        metrics = compute_control_surface_metrics(geom, semi_span, root_chord, tip_chord, wing_area)
+            metrics = compute_control_surface_metrics(geom, semi_span, root_chord, tip_chord, wing_area)
 
-        tag_val = str(
-            geom.get("tag") or self._component.get("name") or self._component.get("id") or ""
-        )
-        cs_type = str(geom.get("type") or "aileron").lower()
-        sizing_mode = str(geom.get("sizing_mode", geom.get("span_mode", "ratio"))).lower()
+            tag_val = str(
+                geom.get("tag") or self._component.get("name") or self._component.get("id") or ""
+            )
+            cs_type = str(geom.get("type") or "aileron").lower()
+            sizing_mode = str(geom.get("sizing_mode", geom.get("span_mode", "ratio"))).lower()
 
-        hinge_sweep = float(geom.get("hinge_sweep", 0.0))
-        deflection = float(geom.get("deflection", 0.0))
-        sym_mode = str(geom.get("symmetry_mode", "auto")).lower()
+            hinge_sweep = float(geom.get("hinge_sweep", 0.0))
+            deflection = float(geom.get("deflection", 0.0))
+            sym_mode = str(geom.get("symmetry_mode", "auto")).lower()
 
-        # Active drivers based on mode
-        if sizing_mode == "dimension":
-            driver_keys = {"span_start", "span_end", "chord"}
-        elif sizing_mode == "area_chord":
-            driver_keys = {"area", "span_start", "eta_start", "chord_fraction"}
-        elif sizing_mode == "area_span":
-            driver_keys = {"area", "span_start", "span_end", "eta_start", "eta_end"}
-        else:  # "ratio"
-            driver_keys = {"eta_start", "eta_end", "chord_fraction"}
+            # Active drivers based on mode
+            if sizing_mode == "dimension":
+                driver_keys = {"span_start", "span_end", "chord"}
+            elif sizing_mode == "area_chord":
+                driver_keys = {"area", "span_start", "eta_start", "chord_fraction"}
+            elif sizing_mode == "area_span":
+                driver_keys = {"area", "span_start", "span_end", "eta_start", "eta_end"}
+            else:  # "ratio"
+                driver_keys = {"eta_start", "eta_end", "chord_fraction"}
 
-        self._set_property_value(self.properties_table, "tag", tag_val)
-        self._set_property_combo(
-            self.properties_table,
-            "type",
-            cs_type,
-            CONTROL_SURFACE_TYPES,
-            lambda val: self._on_prop_combo_changed("type", val),
-        )
-        self._set_property_combo(
-            self.properties_table,
-            "sizing_mode",
-            sizing_mode,
-            SIZING_DRIVER_MODES,
-            lambda val: self._on_prop_combo_changed("sizing_mode", val),
-        )
+            self._set_property_value(self.properties_table, "tag", tag_val)
+            self._set_property_combo(
+                self.properties_table,
+                "type",
+                cs_type,
+                CONTROL_SURFACE_TYPES,
+                lambda val: self._on_prop_combo_changed("type", val),
+            )
+            self._set_property_combo(
+                self.properties_table,
+                "sizing_mode",
+                sizing_mode,
+                SIZING_DRIVER_MODES,
+                lambda val: self._on_prop_combo_changed("sizing_mode", val),
+            )
 
-        def _setup_param(key: str, label_text: str, current_val: float, raw_expr: str | None, unit: str, dec: int = 2) -> None:
-            is_driver = key in driver_keys
-            # Find row in table
-            target_row = -1
-            for r in range(self.properties_table.rowCount()):
-                if self._property_key(self.properties_table, r) == key:
-                    target_row = r
-                    break
-            if target_row < 0:
-                return
+            def _setup_param(key: str, label_text: str, current_val: float, raw_expr: str | None, unit: str, dec: int = 2) -> None:
+                is_driver = key in driver_keys
+                # Find row in table
+                target_row = -1
+                for r in range(self.properties_table.rowCount()):
+                    if self._property_key(self.properties_table, r) == key:
+                        target_row = r
+                        break
+                if target_row < 0:
+                    return
 
-            label_item = self.properties_table.item(target_row, 0)
-            if label_item:
-                font = label_item.font()
-                font.setBold(is_driver)
-                label_item.setFont(font)
+                label_item = self.properties_table.item(target_row, 0)
+                if label_item:
+                    font = label_item.font()
+                    font.setBold(is_driver)
+                    label_item.setFont(font)
+                    if is_driver:
+                        label_item.setForeground(QApplication.palette().text())
+                    else:
+                        label_item.setForeground(QColor(130, 130, 130))
+
                 if is_driver:
-                    label_item.setForeground(QApplication.palette().text())
+                    val_to_pass = raw_expr if raw_expr else current_val
+                    self._set_property_expression(
+                        self.properties_table,
+                        key,
+                        val_to_pass,
+                        on_changed=lambda val, k=key: self._on_prop_spinbox_changed(k, val),
+                        api=self._api,
+                        label=label_text,
+                        decimals=dec,
+                    )
                 else:
-                    label_item.setForeground(QColor(130, 130, 130))
+                    from setuav_studio.ui.property_tables import format_engineering_value
 
-            if is_driver:
-                val_to_pass = raw_expr if raw_expr else current_val
-                self._set_property_expression(
-                    self.properties_table,
-                    key,
-                    val_to_pass,
-                    on_changed=lambda val, k=key: self._on_prop_spinbox_changed(k, val),
-                    api=self._api,
-                    label=label_text,
-                    decimals=dec,
-                )
-            else:
-                from setuav_studio.ui.property_tables import format_engineering_value
+                    self.properties_table.removeCellWidget(target_row, 1)
+                    val_str = format_engineering_value(current_val, dec)
+                    if unit:
+                        val_str += f" {unit}"
+                    val_item = self.properties_table.item(target_row, 1)
+                    if not val_item:
+                        val_item = QTableWidgetItem(val_str)
+                        self.properties_table.setItem(target_row, 1, val_item)
+                    else:
+                        val_item.setText(val_str)
+                    val_item.setForeground(QColor(130, 130, 130))
+                    val_item.setFlags(val_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                    val_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
-                self.properties_table.removeCellWidget(target_row, 1)
-                val_str = format_engineering_value(current_val, dec)
-                if unit:
-                    val_str += f" {unit}"
-                val_item = self.properties_table.item(target_row, 1)
-                if not val_item:
-                    val_item = QTableWidgetItem(val_str)
-                    self.properties_table.setItem(target_row, 1, val_item)
-                else:
-                    val_item.setText(val_str)
-                val_item.setForeground(QColor(130, 130, 130))
-                val_item.setFlags(val_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                val_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            _setup_param("area", "Area (dm²)", metrics["area_dm2"], geom.get("area_expression"), "dm²", 3)
+            _setup_param("area_ratio", "Area Ratio (% Wing)", metrics["area_ratio"], None, "%", 1)
+            _setup_param("span_start", "Span start (mm)", metrics["span_start"], geom.get("span_start_expression"), "mm", 2)
+            _setup_param("span_end", "Span end (mm)", metrics["span_end"], geom.get("span_end_expression"), "mm", 2)
+            _setup_param("span_length", "Span length (mm)", metrics["span_length"], geom.get("span_length_expression"), "mm", 2)
+            _setup_param("eta_start", "Span start fraction (eta)", metrics["eta_start"], geom.get("eta_start_expression"), "", 3)
+            _setup_param("eta_end", "Span end fraction (eta)", metrics["eta_end"], geom.get("eta_end_expression"), "", 3)
+            _setup_param("chord_fraction", "Chord fraction (%c)", metrics["chord_fraction"], geom.get("chord_fraction_expression"), "c", 3)
+            _setup_param("chord", "Control chord (mm)", metrics["chord"], geom.get("chord_expression"), "mm", 2)
 
-        _setup_param("area", "Area (dm²)", metrics["area_dm2"], geom.get("area_expression"), "dm²", 3)
-        _setup_param("area_ratio", "Area Ratio (% Wing)", metrics["area_ratio"], None, "%", 1)
-        _setup_param("span_start", "Span start (mm)", metrics["span_start"], geom.get("span_start_expression"), "mm", 2)
-        _setup_param("span_end", "Span end (mm)", metrics["span_end"], geom.get("span_end_expression"), "mm", 2)
-        _setup_param("span_length", "Span length (mm)", metrics["span_length"], geom.get("span_length_expression"), "mm", 2)
-        _setup_param("eta_start", "Span start fraction (eta)", metrics["eta_start"], geom.get("eta_start_expression"), "", 3)
-        _setup_param("eta_end", "Span end fraction (eta)", metrics["eta_end"], geom.get("eta_end_expression"), "", 3)
-        _setup_param("chord_fraction", "Chord fraction (%c)", metrics["chord_fraction"], geom.get("chord_fraction_expression"), "c", 3)
-        _setup_param("chord", "Control chord (mm)", metrics["chord"], geom.get("chord_expression"), "mm", 2)
+            hs_val = geom.get("hinge_sweep_expression") or hinge_sweep
+            self._set_property_expression(
+                self.properties_table,
+                "hinge_sweep",
+                hs_val,
+                on_changed=lambda val: self._on_prop_spinbox_changed("hinge_sweep", val),
+                api=self._api,
+                label="Hinge sweep angle (°)",
+                decimals=2,
+            )
 
-        hs_val = geom.get("hinge_sweep_expression") or hinge_sweep
-        self._set_property_expression(
-            self.properties_table,
-            "hinge_sweep",
-            hs_val,
-            on_changed=lambda val: self._on_prop_spinbox_changed("hinge_sweep", val),
-            api=self._api,
-            label="Hinge sweep angle (°)",
-            decimals=2,
-        )
+            def_val = geom.get("deflection_expression") or deflection
+            self._set_property_expression(
+                self.properties_table,
+                "deflection",
+                def_val,
+                on_changed=lambda val: self._on_prop_spinbox_changed("deflection", val),
+                api=self._api,
+                label="Deflection angle (°)",
+                decimals=2,
+            )
 
-        def_val = geom.get("deflection_expression") or deflection
-        self._set_property_expression(
-            self.properties_table,
-            "deflection",
-            def_val,
-            on_changed=lambda val: self._on_prop_spinbox_changed("deflection", val),
-            api=self._api,
-            label="Deflection angle (°)",
-            decimals=2,
-        )
-
-        self._set_property_combo(
-            self.properties_table,
-            "symmetry_mode",
-            sym_mode,
-            SYMMETRY_MODES,
-            lambda val: self._on_prop_combo_changed("symmetry_mode", val),
-        )
-
-        hs_val = geom.get("hinge_sweep_expression") or hinge_sweep
-        self._set_property_expression(
-            self.properties_table,
-            "hinge_sweep",
-            hs_val,
-            on_changed=lambda val: self._on_prop_spinbox_changed("hinge_sweep", val),
-            api=self._api,
-            label="Hinge sweep angle (°)",
-        )
-
-        def_val = geom.get("deflection_expression") or deflection
-        self._set_property_expression(
-            self.properties_table,
-            "deflection",
-            def_val,
-            on_changed=lambda val: self._on_prop_spinbox_changed("deflection", val),
-            api=self._api,
-            label="Deflection angle (°)",
-        )
-
-        self._set_property_combo(
-            self.properties_table,
-            "symmetry_mode",
-            sym_mode,
-            SYMMETRY_MODES,
-            lambda val: self._on_prop_combo_changed("symmetry_mode", val),
-        )
+            self._set_property_combo(
+                self.properties_table,
+                "symmetry_mode",
+                sym_mode,
+                SYMMETRY_MODES,
+                lambda val: self._on_prop_combo_changed("symmetry_mode", val),
+            )
+        finally:
+            self._loading = was_loading
 
     def _on_prop_spinbox_changed(self, key: str, value: Any) -> None:
         if self._loading:
@@ -456,6 +433,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
             geom[key] = value
 
         self._edit_component(f"Edit control surface {key}", change)
+        self._load_properties()
 
     def _update_property_cell(self, row: int, column: int) -> None:
         if self._loading or column != 1:

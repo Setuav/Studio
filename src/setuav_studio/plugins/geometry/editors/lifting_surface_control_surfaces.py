@@ -786,3 +786,4 @@ class ControlSurfacesMixin:
 
         self._edit_control_surface_item(cs, f"Edit control surface {key}", change)
         self._refresh_cs_table_row(self._control_surface_index)
+        self._load_control_surface(self._control_surface_index)
