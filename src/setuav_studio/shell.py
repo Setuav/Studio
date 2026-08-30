@@ -170,7 +170,7 @@ class _WorkspaceLayoutContext:
 class MainWindow(QMainWindow):
     # Bump this whenever the built-in workspace perspectives change. Existing
     # user perspectives are discarded once so the new defaults take effect.
-    _LAYOUT_VERSION = 11
+    _LAYOUT_VERSION = 12
     _LAYOUT_DEFAULTS_KEY = "workspace_layout_defaults_version"
 
     def __init__(self, api: StudioAPI) -> None:
@@ -964,6 +964,22 @@ class MainWindow(QMainWindow):
                     action.setChecked(dock.isVisible())
                     self._update_panel_action_icon(cid)
                     self._view_menu.addAction(action)
+
+        self._view_menu.addSeparator()
+        reset_layout_action = QAction("Reset Workspace Layout", self)
+        reset_layout_action.setIcon(get_icon("fa6s.arrow-rotate-left"))
+        reset_layout_action.triggered.connect(self._reset_current_workspace_layout)
+        self._view_menu.addAction(reset_layout_action)
+
+    def _reset_current_workspace_layout(self) -> None:
+        ws_id = self._current_workspace_id or self._api.current_workspace_id
+        if ws_id is None:
+            return
+        settings = QSettings()
+        settings.remove(f"workspace_perspective/{ws_id}")
+        self._workspace_states.pop(ws_id, None)
+        self._apply_default_workspace_layout(ws_id)
+        self._save_current_workspace_layout()
 
     def _update_panel_action_icon(self, panel_id: str) -> None:
         action = self._panel_actions.get(panel_id)
