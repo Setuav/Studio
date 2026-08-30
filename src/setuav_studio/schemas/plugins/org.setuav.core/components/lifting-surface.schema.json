@@ -145,6 +145,13 @@
           "default": 0.25,
           "description": "Chordwise twist pivot location as a fraction of chord (0.25 = quarter chord)."
         },
+        "sweep_location": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.25,
+          "description": "Chordwise sweep reference location as a fraction of chord (0.0 = leading edge, 0.25 = quarter chord, 1.0 = trailing edge)."
+        },
         "sweep_curvature": {
           "type": "number",
           "default": 0.0,
@@ -169,6 +176,9 @@
               "rotation": { "$ref": "#/$defs/rotation" },
               "airfoil": { "$ref": "#/$defs/airfoil" }
             },
+            "patternProperties": {
+              "^.*_expression$": { "type": "string" }
+            },
             "additionalProperties": false
           }
         },
@@ -180,9 +190,12 @@
             "properties": {
               "tag": { "type": "string", "minLength": 1 },
               "type": { "enum": ["aileron", "flap", "elevator", "rudder", "elevon", "ruddervator"] },
+              "sizing_mode": { "enum": ["ratio", "dimension", "area_chord", "area_span"], "default": "ratio" },
+              "area": { "type": "number", "x-setuav-unit": "dm2" },
               "span_mode": { "enum": ["ratio", "dimension"], "default": "ratio" },
               "span_start": { "type": "number", "x-setuav-unit": "mm" },
               "span_end": { "type": "number", "x-setuav-unit": "mm" },
+              "span_length": { "type": "number", "x-setuav-unit": "mm" },
               "eta_start": { "type": "number", "minimum": 0, "maximum": 1 },
               "eta_end": { "type": "number", "minimum": 0, "maximum": 1 },
               "chord_mode": { "enum": ["ratio", "dimension"], "default": "ratio" },
@@ -192,9 +205,15 @@
               "deflection": { "type": "number", "default": 0, "x-setuav-unit": "deg" },
               "symmetry_mode": { "enum": ["auto", "antisymmetric", "symmetric", "none"], "default": "auto" }
             },
+            "patternProperties": {
+              "^.*_expression$": { "type": "string" }
+            },
             "additionalProperties": false
           }
         }
+      },
+      "patternProperties": {
+        "^.*_expression$": { "type": "string" }
       },
       "additionalProperties": false
     }
