@@ -21,6 +21,7 @@ from .contributions import (
     ToolbarMenuItemContribution,
     ToolContribution,
     WorkspaceContribution,
+    WorkspaceLayoutContext,
 )
 from .models import ProjectDocument
 from .plugin import PLUGIN_ENTRY_POINT_GROUP, StudioPlugin
@@ -45,4 +46,5 @@ __all__ = [
     "ToolbarContribution",
     "ToolbarMenuItemContribution",
     "WorkspaceContribution",
+    "WorkspaceLayoutContext",
 ]

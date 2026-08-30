@@ -12,6 +12,7 @@ from setuav_studio_sdk import (
     StudioAPI,
     ToolbarContribution,
     WorkspaceContribution,
+    WorkspaceLayoutContext,
 )
 
 from .balance_view_dock import WeightBalanceViewDock
@@ -22,6 +23,24 @@ from .point_mass_editor import PointMassEditor
 from .results_dock import WeightBalanceResultsDock
 
 POINT_MASS_ICON = "fa6s.weight-scale"
+
+
+def _apply_weight_balance_workspace_layout(layout: WorkspaceLayoutContext) -> None:
+    """Set the default Weight-Balance workspace arrangement owned by this plugin."""
+    layout.hide("studio.viewer.opengl")
+    layout.split("project.explorer", "weight_balance.view_dock")
+    layout.split("weight_balance.view_dock", "weight_balance.results_dock")
+    layout.split("weight_balance.results_dock", "studio.properties", "vertical")
+    layout.show(
+        "project.explorer",
+        "weight_balance.view_dock",
+        "weight_balance.results_dock",
+        "studio.properties",
+    )
+    layout.resize(
+        ("project.explorer", "weight_balance.view_dock", "weight_balance.results_dock"),
+        (290, 500, 400),
+    )
 
 
 class WeightBalancePlugin:
@@ -65,6 +84,7 @@ class WeightBalancePlugin:
                 id="studio.workspace.weight_balance",
                 title="Weight-Balance",
                 order=10,
+                default_layout=_apply_weight_balance_workspace_layout,
             )
         )
         api.add_panel(

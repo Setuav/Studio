@@ -2,7 +2,18 @@
 
 from PySide6.QtWidgets import QLabel
 
-from setuav_studio_sdk import PanelContribution, StudioAPI, WorkspaceContribution
+from setuav_studio_sdk import (
+    PanelContribution,
+    StudioAPI,
+    WorkspaceContribution,
+    WorkspaceLayoutContext,
+)
+
+
+def default_layout(layout: WorkspaceLayoutContext) -> None:
+    """Set the example workspace's initial panel arrangement."""
+    layout.show("com.example.hello.panel")
+    layout.resize(("com.example.hello.panel",), (1000,))
 
 
 class HelloPlugin:
@@ -17,6 +28,7 @@ class HelloPlugin:
                 id="com.example.hello.workspace",
                 title="Hello",
                 order=1000,
+                default_layout=default_layout,
             )
         )
         api.add_panel(

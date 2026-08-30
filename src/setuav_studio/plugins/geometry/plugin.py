@@ -7,6 +7,7 @@ from setuav_studio_sdk import (
     SettingsPageContribution,
     StudioAPI,
     WorkspaceContribution,
+    WorkspaceLayoutContext,
 )
 
 from .creation import GeometryCreationController
@@ -22,6 +23,18 @@ from .settings import (
     create_viewer_settings_page,
 )
 from .workspace import ViewerWorkspace
+
+
+def _apply_design_workspace_layout(layout: WorkspaceLayoutContext) -> None:
+    """Set the default Design workspace arrangement owned by this plugin."""
+    layout.split("project.explorer", "studio.viewer.opengl")
+    layout.split("studio.viewer.opengl", "studio.properties")
+    layout.show("project.explorer", "studio.viewer.opengl", "studio.properties")
+    layout.raise_dock("studio.viewer.opengl")
+    layout.resize(
+        ("project.explorer", "studio.viewer.opengl", "studio.properties"),
+        (240, 680, 270),
+    )
 
 
 class GeometryPlugin:
@@ -40,6 +53,7 @@ class GeometryPlugin:
                 id="studio.workspace.design",
                 title="Design",
                 order=0,
+                default_layout=_apply_design_workspace_layout,
             )
         )
         api.add_panel(

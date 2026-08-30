@@ -13,6 +13,7 @@ from setuav_studio_sdk import (
     StudioAPI,
     ToolContribution,
     WorkspaceContribution,
+    WorkspaceLayoutContext,
 )
 
 from .analysis_store import (
@@ -39,6 +40,29 @@ if TYPE_CHECKING:
     from .airfoil_analysis_tool import AirfoilAnalysisToolWindow
 
 
+def _apply_aerodynamics_workspace_layout(layout: WorkspaceLayoutContext) -> None:
+    """Set the default Aerodynamics workspace arrangement owned by this plugin."""
+    layout.hide("studio.viewer.opengl", "studio.properties")
+    layout.split("project.explorer", "aerodynamics.controls_dock")
+    layout.split("aerodynamics.controls_dock", "aerodynamics.results_dock")
+    layout.split("aerodynamics.results_dock", "aerodynamics.charts_dock")
+    layout.show(
+        "project.explorer",
+        "aerodynamics.controls_dock",
+        "aerodynamics.results_dock",
+        "aerodynamics.charts_dock",
+    )
+    layout.resize(
+        (
+            "project.explorer",
+            "aerodynamics.controls_dock",
+            "aerodynamics.results_dock",
+            "aerodynamics.charts_dock",
+        ),
+        (180, 240, 250, 510),
+    )
+
+
 class AerodynamicsPlugin:
     """Plugin providing aerodynamic analysis, persisted results, and curves."""
 
@@ -63,6 +87,7 @@ class AerodynamicsPlugin:
                 id="studio.workspace.aerodynamics",
                 title="Aerodynamics",
                 order=15,
+                default_layout=_apply_aerodynamics_workspace_layout,
             )
         )
 

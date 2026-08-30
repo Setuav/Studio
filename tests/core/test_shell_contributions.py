@@ -445,6 +445,21 @@ class ShellContributionTests(unittest.TestCase):
         ):
             self.window._apply_default_workspace_layout(workspace_id)
 
+    def test_workspace_default_layout_is_owned_by_contribution(self) -> None:
+        layouts = []
+        self.api.add_workspace(
+            WorkspaceContribution(
+                "custom.workspace",
+                "Custom",
+                default_layout=layouts.append,
+            )
+        )
+
+        self.window._apply_default_workspace_layout("custom.workspace")
+
+        self.assertEqual(len(layouts), 1)
+        self.assertEqual(layouts[0].workspace_id, "custom.workspace")
+
     def test_invalid_window_guards_and_rejected_close_event_are_safe(self) -> None:
         event = QCloseEvent()
         with patch.object(self.window, "_confirm_project_close", return_value=False):

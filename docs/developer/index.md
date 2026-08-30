@@ -111,6 +111,29 @@ listeners, providers, and commands become available only after activation
 returns successfully. Remove all of them in `deactivate(api)` so the plugin
 can be disabled and re-enabled safely.
 
+When a plugin owns a workspace, pass a `default_layout` callback to its
+`WorkspaceContribution`. The callback receives a `WorkspaceLayoutContext` and
+can show or hide its panels, split them, and set rounded initial widths. The
+shell only applies the callback when no user perspective is saved; the layout
+definition stays with the plugin.
+
+```python
+from setuav_studio_sdk import WorkspaceContribution, WorkspaceLayoutContext
+
+
+def default_layout(layout: WorkspaceLayoutContext) -> None:
+    layout.split("project.explorer", "com.acme.panel")
+    layout.show("project.explorer", "com.acme.panel")
+    layout.resize(("project.explorer", "com.acme.panel"), (300, 900))
+
+
+workspace = WorkspaceContribution(
+    id="com.acme.workspace",
+    title="Acme Tools",
+    default_layout=default_layout,
+)
+```
+
 ### 4. Failure scenarios
 
 - An import or entry-point error is logged and the plugin is skipped.

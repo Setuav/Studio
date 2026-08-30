@@ -9,6 +9,7 @@ from setuav_studio_sdk import (
     StudioAPI,
     ToolContribution,
     WorkspaceContribution,
+    WorkspaceLayoutContext,
 )
 
 from .catalog_dialog import ComponentCatalogDialog
@@ -21,6 +22,29 @@ from .editors.esc import EscEditor
 from .editors.motor import MotorEditor
 from .editors.propeller import PropellerEditor
 from .results_dock import PropulsionResultsDock
+
+
+def _apply_propulsion_workspace_layout(layout: WorkspaceLayoutContext) -> None:
+    """Set the default Propulsion workspace arrangement owned by this plugin."""
+    layout.hide("studio.viewer.opengl", "studio.properties")
+    layout.split("project.explorer", "propulsion.controls_dock")
+    layout.split("propulsion.controls_dock", "propulsion.results_dock")
+    layout.split("propulsion.results_dock", "propulsion.charts_dock")
+    layout.show(
+        "project.explorer",
+        "propulsion.controls_dock",
+        "propulsion.results_dock",
+        "propulsion.charts_dock",
+    )
+    layout.resize(
+        (
+            "project.explorer",
+            "propulsion.controls_dock",
+            "propulsion.results_dock",
+            "propulsion.charts_dock",
+        ),
+        (260, 220, 220, 490),
+    )
 
 
 class ElectricalPropulsionPlugin:
@@ -77,6 +101,7 @@ class ElectricalPropulsionPlugin:
                 id="studio.workspace.propulsion",
                 title="Propulsion",
                 order=20,
+                default_layout=_apply_propulsion_workspace_layout,
             )
         )
 
