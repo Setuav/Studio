@@ -99,11 +99,15 @@ class ExpressionPropertyCell(QWidget):
         initial_value: str = "",
         on_changed: Callable[[str], None] | None = None,
         on_open_assistant: Callable[[str], None] | None = None,
+        api: Any | None = None,
+        label: str = "",
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._on_changed = on_changed
         self._on_open_assistant = on_open_assistant
+        self._api = api
+        self._label = label
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -118,16 +122,35 @@ class ExpressionPropertyCell(QWidget):
         self.fx_button.setToolTip("Open Equation / Expression Assistant")
         self.fx_button.setFixedWidth(24)
         self.fx_button.setFixedHeight(20)
+        self.fx_button.setStyleSheet(
+            "QPushButton { font-style: italic; font-weight: bold; padding: 0px; font-size: 11px; }"
+        )
         self.fx_button.clicked.connect(self._handle_button_clicked)
         layout.addWidget(self.fx_button)
 
         self._update_style(initial_value)
 
     def _update_style(self, text: str) -> None:
-        if text.strip().startswith("="):
+        clean = text.strip()
+        if clean.startswith("="):
             self.line_edit.setStyleSheet("color: #4CAF50; font-weight: bold;")
+            self._update_tooltip(clean)
         else:
             self.line_edit.setStyleSheet("")
+            self.line_edit.setToolTip("")
+
+    def _update_tooltip(self, expr_text: str) -> None:
+        if self._api is not None and getattr(self._api, "current_project", None) is not None:
+            try:
+                from setuav_studio.plugins.core.expressions import ExpressionEvaluator
+
+                evaluator = ExpressionEvaluator()
+                scope = self._api.current_project.get_scope(api=self._api)
+                expr = expr_text.lstrip("=").strip()
+                val = evaluator.evaluate(expr, scope)
+                self.line_edit.setToolTip(f"Formula: {expr}\nEvaluated Value: {val:.4g}")
+            except Exception:
+                self.line_edit.setToolTip(f"Formula: {expr_text}")
 
     def _handle_text_changed(self, text: str) -> None:
         self._update_style(text)
@@ -137,6 +160,25 @@ class ExpressionPropertyCell(QWidget):
     def _handle_button_clicked(self) -> None:
         if self._on_open_assistant:
             self._on_open_assistant(self.line_edit.text())
+        elif self._api is not None:
+            from setuav_studio.plugins.core.ui.expression_dialog import AdvancedExpressionDialog
+
+            curr_text = self.line_edit.text().strip()
+            dlg = AdvancedExpressionDialog(
+                api=self._api,
+                initial_expression=curr_text,
+                title=f"Equation Editor — {self._label}" if self._label else "Equation Editor",
+                is_boolean_constraint=False,
+                parent=self.window(),
+            )
+            if dlg.exec():
+                new_expr = dlg.get_expression().strip()
+                # Prepend '=' if it is a formula and not already starting with '='
+                if new_expr and not new_expr.startswith("=") and not new_expr.replace(".", "", 1).isdigit():
+                    new_expr = f"={new_expr}"
+                self.setText(new_expr)
+                if self._on_changed:
+                    self._on_changed(new_expr)
 
     def text(self) -> str:
         return self.line_edit.text()
@@ -288,9 +330,11 @@ class PropertyTableMixin:
         self,
         table: QTableWidget,
         key: str,
-        value: str,
+        value: object,
         on_changed: Callable[[str], None] | None = None,
         on_open_assistant: Callable[[str], None] | None = None,
+        api: Any | None = None,
+        label: str = "",
     ) -> None:
         for row in range(table.rowCount()):
             if self._property_key(table, row) != key:
@@ -299,10 +343,18 @@ class PropertyTableMixin:
             if item is not None:
                 item.setText("")
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+
+            resolved_label = label
+            if not resolved_label:
+                col0_item = table.item(row, 0)
+                resolved_label = col0_item.text() if col0_item else key
+
             cell = ExpressionPropertyCell(
-                initial_value=value,
+                initial_value=str(value) if value is not None else "",
                 on_changed=on_changed,
                 on_open_assistant=on_open_assistant,
+                api=api or getattr(self, "_api", None),
+                label=resolved_label,
                 parent=table,
             )
             table.setCellWidget(row, 1, cell)
