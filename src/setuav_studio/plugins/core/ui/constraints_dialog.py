@@ -185,6 +185,8 @@ class ManageConstraintsDialog(QDialog):
         self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        self.table.setWordWrap(True)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.table.doubleClicked.connect(self._on_edit)
@@ -278,6 +280,8 @@ class ManageConstraintsDialog(QDialog):
             self.table.setItem(row, 2, expr_item)
             self.table.setItem(row, 3, sev_item)
             self.table.setItem(row, 4, en_item)
+
+        self.table.resizeRowsToContents()
 
     def _on_add(self) -> None:
         dlg = ConstraintEditDialog(self, checker=self._checker, project_data=self._get_project_data())

@@ -143,6 +143,8 @@ class ManageConfigurationsDialog(QDialog):
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
         self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        self.table.setWordWrap(True)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.itemSelectionChanged.connect(self._update_button_states)
@@ -198,6 +200,7 @@ class ManageConfigurationsDialog(QDialog):
             self.table.setItem(row, 2, desc_item)
             self.table.setItem(row, 3, color_item)
 
+        self.table.resizeRowsToContents()
         self._update_button_states()
 
     def _selected_config_id(self) -> str | None:
