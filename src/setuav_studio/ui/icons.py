@@ -229,3 +229,20 @@ def refresh_label_icon(label: QLabel) -> None:
     size = label.property(_LABEL_ICON_SIZE)
     icon_size = int(size) if isinstance(size, int) and size > 0 else 14
     label.setPixmap(get_icon(icon_source).pixmap(icon_size, icon_size))
+
+
+def create_color_badge_icon(color_hex: str, size: int = 16) -> QIcon:
+    """Create a crisp circular color dot icon for configurations and tags."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QColor, QPainter, QPixmap
+
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    col = QColor(color_hex) if color_hex else QColor("#2196F3")
+    painter.setBrush(col)
+    painter.setPen(col.darker(130))
+    painter.drawEllipse(2, 2, size - 4, size - 4)
+    painter.end()
+    return QIcon(pixmap)

@@ -12,7 +12,7 @@ from setuav_studio.plugins.core.ui.configuration_dialogs import (
     ConfigurationEditDialog,
     ManageConfigurationsDialog,
 )
-from setuav_studio.ui.icons import get_icon
+from setuav_studio.ui.icons import create_color_badge_icon, get_icon
 
 if TYPE_CHECKING:
     from setuav_studio_sdk import StudioAPI
@@ -77,10 +77,9 @@ class ConfigurationToolBar(QToolBar):
                 self.config_combo.setEnabled(False)
                 return
 
-            self.config_combo.setEnabled(True)
-
             # Base configuration
-            self.config_combo.addItem(get_icon("settings"), "[Base Configuration]", None)
+            base_icon = create_color_badge_icon("#2196F3")
+            self.config_combo.addItem(base_icon, "[Base Configuration]", None)
 
             configs = self._manager.get_configurations()
             active_id = self._manager.get_active_id()
@@ -91,7 +90,9 @@ class ConfigurationToolBar(QToolBar):
                 name = cfg.get("name", "").strip()
                 label = f"[{tag}] {name}" if tag else name
                 cid = cfg.get("id")
-                self.config_combo.addItem(get_icon("settings"), label, cid)
+                color = cfg.get("color", "#2196F3")
+                icon = create_color_badge_icon(color)
+                self.config_combo.addItem(icon, label, cid)
                 if cid == active_id:
                     active_idx = i + 1  # offset by 1 for [Base]
 

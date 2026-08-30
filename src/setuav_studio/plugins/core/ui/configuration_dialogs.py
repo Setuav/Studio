@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.ui.icons import get_icon
+from setuav_studio.ui.icons import create_color_badge_icon, get_icon
 
 if TYPE_CHECKING:
     from setuav_studio.plugins.core.configurations import ConfigurationManager
@@ -120,7 +120,7 @@ class ConfigurationEditDialog(QDialog):
 
 
 class ManageConfigurationsDialog(QDialog):
-    """Dialog to list, add, edit, delete, and inspect configurations and their overrides."""
+    """Dialog to list, add, edit, and delete project configurations."""
 
     def __init__(
         self,
@@ -132,14 +132,17 @@ class ManageConfigurationsDialog(QDialog):
         self.manager = manager
         self.api = api
         self.setWindowTitle("Manage Configurations")
-        self.resize(650, 420)
+        self.resize(650, 380)
 
         layout = QVBoxLayout(self)
 
         # Table of configurations
         self.table = QTableWidget(0, 4)
-        self.table.setHorizontalHeaderLabels(["Tag", "Name", "Color", "Overrides"])
-        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.table.setHorizontalHeaderLabels(["Tag", "Name", "Description", "Color"])
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
+        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.itemSelectionChanged.connect(self._update_button_states)
@@ -173,24 +176,27 @@ class ManageConfigurationsDialog(QDialog):
         configs = self.manager.get_configurations()
         self.table.setRowCount(len(configs))
         for row, cfg in enumerate(configs):
-            tag_item = QTableWidgetItem(cfg.get("tag", ""))
+            color = cfg.get("color", "#2196F3")
+            icon = create_color_badge_icon(color)
+
+            tag_item = QTableWidgetItem(icon, cfg.get("tag", ""))
             tag_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             tag_item.setFlags(tag_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
 
             name_item = QTableWidgetItem(cfg.get("name", ""))
             name_item.setFlags(name_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
 
-            color_item = QTableWidgetItem(cfg.get("color", ""))
-            color_item.setFlags(color_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            desc_item = QTableWidgetItem(cfg.get("description", ""))
+            desc_item.setFlags(desc_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
 
-            overrides_count = len(cfg.get("parameter_overrides", {}))
-            overrides_item = QTableWidgetItem(f"{overrides_count} parameter(s)")
-            overrides_item.setFlags(overrides_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            color_item = QTableWidgetItem(color)
+            color_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            color_item.setFlags(color_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
 
             self.table.setItem(row, 0, tag_item)
             self.table.setItem(row, 1, name_item)
-            self.table.setItem(row, 2, color_item)
-            self.table.setItem(row, 3, overrides_item)
+            self.table.setItem(row, 2, desc_item)
+            self.table.setItem(row, 3, color_item)
 
         self._update_button_states()
 
