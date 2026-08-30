@@ -33,6 +33,7 @@ class PlanformMixin:
         self.planform_table = DriverPlanformTable(
             default_drivers=["area", "aspect_ratio", "taper_ratio"],
             on_values_changed=self._on_wing_driver_values_changed,
+            api=getattr(self, "_api", None),
         )
         layout.addWidget(self.planform_table)
 
@@ -100,44 +101,48 @@ class PlanformMixin:
         return 0.0
 
     def _refresh_planform_table(self) -> None:
-        profiles = self._profiles()
-        metrics = compute_planform_metrics(
-            profiles,
-            getattr(self, "_sweep_loc", 0.25),
-            symmetric=self._is_symmetric(),
-            y_offset=self._y_offset(),
-        )
-
-        all_8 = compute_all_8_parameters(
-            metrics["span"],
-            metrics["root_chord"],
-            metrics["tip_chord"],
-            is_symmetric=self._is_symmetric(),
-            y_offset=self._y_offset(),
-        )
-
+        """Recalculate all 8 planform parameters and update the interactive driver table."""
         was_loading = self._loading
         self._loading = True
         try:
-            # 1. Update 8-parameter Wing Planform Sizing Table
+            profiles = self._profiles()
+            if len(profiles) < 2:
+                return
+
+            sw_loc = getattr(self, "_sweep_loc", 0.25)
+            geom = self._geometry()
+            metrics = compute_planform_metrics(
+                profiles,
+                sw_loc,
+                symmetric=self._is_symmetric(),
+                y_offset=self._y_offset(),
+            )
+
+            # 1. Update 8-Parameter 3-Driver Table
+            planform_8 = compute_all_8_parameters(
+                metrics["span"],
+                metrics["root_chord"],
+                metrics["tip_chord"],
+                is_symmetric=self._is_symmetric(),
+                y_offset=self._y_offset(),
+            )
+            driver_exprs = geom.get("driver_expressions", {})
             self.planform_table.set_parameters(
-                all_8,
+                planform_8,
+                expressions=driver_exprs,
                 is_symmetric=self._is_symmetric(),
                 y_offset=self._y_offset(),
             )
 
             # 2. Update Wing Angles & Alignment Table
             if hasattr(self, "wing_angles_table"):
-                self._set_property_spinbox(
+                sw_val = geom.get("sweep_expression") or float(metrics.get("sweep", 0.0))
+                self._set_property_expression(
                     self.wing_angles_table,
                     "sweep",
-                    float(metrics.get("sweep", 0.0)),
-                    min_val=-85.0,
-                    max_val=85.0,
-                    step=0.5,
-                    decimals=2,
-                    suffix="°",
+                    sw_val,
                     on_changed=lambda val: self._on_wing_angle_changed("sweep", val),
+                    label="Sweep Angle",
                 )
                 self._set_property_combo(
                     self.wing_angles_table,
@@ -146,39 +151,31 @@ class PlanformMixin:
                     [(str(val), label) for val, label in SWEEP_LOCATIONS],
                     self._on_sweep_loc_changed,
                 )
-                sw_curv = float(self._geometry().get("sweep_curvature", 0.0))
-                self._set_property_spinbox(
+                sw_curv = geom.get("sweep_curvature_expression") or float(
+                    geom.get("sweep_curvature", 0.0)
+                )
+                self._set_property_expression(
                     self.wing_angles_table,
                     "sweep_curvature",
                     sw_curv,
-                    min_val=-500.0,
-                    max_val=500.0,
-                    step=5.0,
-                    decimals=1,
-                    suffix="mm",
                     on_changed=lambda val: self._on_wing_angle_changed("sweep_curvature", val),
+                    label="Sweep Curvature",
                 )
-                self._set_property_spinbox(
+                di_val = geom.get("dihedral_expression") or float(metrics.get("dihedral", 0.0))
+                self._set_property_expression(
                     self.wing_angles_table,
                     "dihedral",
-                    float(metrics.get("dihedral", 0.0)),
-                    min_val=-85.0,
-                    max_val=85.0,
-                    step=0.5,
-                    decimals=2,
-                    suffix="°",
+                    di_val,
                     on_changed=lambda val: self._on_wing_angle_changed("dihedral", val),
+                    label="Dihedral Angle",
                 )
-                self._set_property_spinbox(
+                tw_val = geom.get("twist_expression") or float(metrics.get("washout", 0.0))
+                self._set_property_expression(
                     self.wing_angles_table,
                     "twist",
-                    float(metrics.get("washout", 0.0)),
-                    min_val=-45.0,
-                    max_val=45.0,
-                    step=0.5,
-                    decimals=2,
-                    suffix="°",
+                    tw_val,
                     on_changed=lambda val: self._on_wing_angle_changed("twist", val),
+                    label="Twist / Washout",
                 )
                 twist_loc = float(self._geometry().get("twist_location", 0.25))
                 self._set_property_combo(
@@ -193,7 +190,7 @@ class PlanformMixin:
         finally:
             self._loading = was_loading
 
-    def _on_wing_angle_changed(self, key: str, value: float) -> None:
+    def _on_wing_angle_changed(self, key: str, value: Any) -> None:
         if self._loading:
             return
         profiles = self._profiles()
@@ -206,19 +203,48 @@ class PlanformMixin:
             y_offset=self._y_offset(),
         )
 
+        num_val: float | None = None
+        val_str = str(value).strip() if value is not None else ""
+
+        if val_str.startswith("=") or not val_str.replace(".", "", 1).replace("-", "", 1).isdigit():
+            # Expression formula
+            geom[f"{key}_expression"] = val_str
+            api = getattr(self, "_api", None)
+            if api is not None and getattr(api, "current_project", None) is not None:
+                try:
+                    from setuav_studio.plugins.core.expressions import ExpressionEvaluator
+
+                    evaluator = ExpressionEvaluator()
+                    scope = api.current_project.get_scope(api=api)
+                    expr = val_str.lstrip("=").strip()
+                    res = evaluator.evaluate(expr, scope)
+                    if isinstance(res, (int, float)):
+                        num_val = float(res)
+                except Exception:
+                    pass
+        else:
+            geom.pop(f"{key}_expression", None)
+            try:
+                num_val = float(val_str)
+            except ValueError:
+                pass
+
+        if num_val is None:
+            return
+
         if key in ("sweep", "sweep_curvature"):
-            sweep_val = float(value if key == "sweep" else metrics.get("sweep", 0.0))
+            sweep_val = float(num_val if key == "sweep" else metrics.get("sweep", 0.0))
             curv_val = float(
-                value if key == "sweep_curvature" else geom.get("sweep_curvature", 0.0)
+                num_val if key == "sweep_curvature" else geom.get("sweep_curvature", 0.0)
             )
             new_profiles = set_wing_global_sweep(
                 profiles, sweep_val, sw_loc, sweep_curvature=curv_val
             )
             geom["sweep_curvature"] = curv_val
         elif key == "dihedral":
-            new_profiles = set_wing_global_dihedral(profiles, value)
+            new_profiles = set_wing_global_dihedral(profiles, num_val)
         elif key == "twist":
-            new_profiles = set_wing_global_twist(profiles, value)
+            new_profiles = set_wing_global_twist(profiles, num_val)
         else:
             return
 
@@ -240,6 +266,14 @@ class PlanformMixin:
         is_sym = self._is_symmetric()
         y_off = self._y_offset()
         sw_loc = getattr(self, "_sweep_loc", 0.25)
+        geom = self._geometry()
+
+        # Preserve driver expressions in component parameters
+        driver_exprs = self.planform_table.get_driver_expressions()
+        if driver_exprs:
+            geom["driver_expressions"] = driver_exprs
+        else:
+            geom.pop("driver_expressions", None)
 
         inputs = {
             "span": new_metrics["span"],
