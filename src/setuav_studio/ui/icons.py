@@ -13,7 +13,10 @@ logger = logging.getLogger(__name__)
 
 _ASSET_ROOT = Path(__file__).resolve().parent.parent / "assets" / "icons"
 _ICON_MANIFEST = _ASSET_ROOT / "manifest.toml"
-_APPLICATION_ICON = _ASSET_ROOT / "studio.svg"
+# Use the librsvg-rendered fallback at runtime. Qt's SVG renderer does not
+# preserve the logo's clip paths, while this PNG is generated from the same
+# canonical SVG and retains the complete typography artwork.
+_APPLICATION_ICON = _ASSET_ROOT / "studio.png"
 
 _ICON_MAP = {
     # File / Project actions

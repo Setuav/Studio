@@ -16,8 +16,8 @@ be obtained from the rights holder before distributing these icons.
 ## Setuav Studio application icon
 
 - Source: `studio.svg`
-- Formats: SVG (runtime and documentation), PNG (Doxygen fallback), ICO
-  (Windows), and ICNS (macOS)
+- Formats: SVG (canonical and documentation), PNG (runtime and Doxygen
+  fallback), ICO (Windows), and ICNS (macOS)
 
 The raster and platform-specific files are generated from the canonical SVG
 source so the application, documentation, and release bundles share one mark.
