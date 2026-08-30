@@ -143,6 +143,7 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
             maximum=1_000_000_000.0,
             step=1.0,
             decimals=3,
+            quantity="mass",
             suffix="g",
             on_changed=self._on_field_changed,
         )
@@ -250,6 +251,7 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
         maximum: float,
         step: float,
         decimals: int,
+        quantity: str = "",
         suffix: str,
         on_changed: Any | None = None,
     ) -> NumericSpinBox:
@@ -264,6 +266,7 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
                     max_val=maximum,
                     step=step,
                     decimals=decimals,
+                    quantity=quantity,
                     suffix=suffix,
                     on_changed=on_changed,
                 )

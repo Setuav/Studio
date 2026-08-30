@@ -642,8 +642,14 @@ class PropertyTableMixin:
     @staticmethod
     def _parse_number(value: str) -> float | None:
         try:
-            return float(value)
+            return float(value.strip())
         except ValueError:
+            tokens = value.strip().split()
+            if tokens:
+                try:
+                    return float(tokens[0])
+                except ValueError:
+                    pass
             return None
 
     @staticmethod

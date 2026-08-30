@@ -34,7 +34,6 @@ from ..engine.fuselage_geometry import (
     FUSELAGE_PROFILE_TYPES,
     create_default_section,
     create_default_segment,
-    format_profile_size,
     get_default_profile,
 )
 from .fuselage_section_dialog import FuselageSectionDialog
@@ -74,7 +73,19 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         self._create_segments_section()
         self._create_sections_section()
         self._content_layout.addStretch()
+
+        from setuav_studio.units import get_unit_manager
+
+        get_unit_manager().units_changed.connect(self._on_units_changed)
+
         self._load_component()
+
+    def _on_units_changed(self) -> None:
+        if not hasattr(self, "sections_table"):
+            return
+        self._populate_sections()
+        if self._section_index >= 0:
+            self._load_section(self._section_index)
 
     def _create_general_section(self) -> None:
         layout = self._create_section("General", "fa6s.circle-info")
@@ -338,6 +349,10 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         self._update_segment_actions()
 
     def _populate_sections(self) -> None:
+        from setuav_studio.units import get_unit_manager
+
+        um = get_unit_manager()
+        length_sym = um.get_unit_symbol("length")
         sections = self._sections()
         self.sections_table.setRowCount(len(sections))
         for row, section in enumerate(sections):
@@ -347,10 +362,17 @@ class FuselageEditor(PropertyTableMixin, QWidget):
             position = section.get("position")
             if not isinstance(position, dict):
                 position = {}
+            x_raw = float(position.get("x") or 0.0)
+            disp_x = um.to_display(x_raw, "length")
+            disp_x_str = (
+                f"{disp_x:.1f} {length_sym}"
+                if abs(disp_x - round(disp_x)) > 1e-4
+                else f"{disp_x:.0f} {length_sym}"
+            )
             values = (
                 str(row + 1),
                 str(profile.get("type") or ""),
-                str(position.get("x") or 0),
+                disp_x_str,
                 self._profile_size(profile),
             )
             for column, value in enumerate(values):
@@ -1102,11 +1124,22 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         section = self._current_section()
         if section is None:
             return
+        from setuav_studio.units import get_unit_manager
+
+        um = get_unit_manager()
+        length_sym = um.get_unit_symbol("length")
         position = section.get("position") if isinstance(section.get("position"), dict) else {}
         profile = section.get("profile") if isinstance(section.get("profile"), dict) else {}
         row = self._section_index
+        x_raw = float(position.get("x") or 0.0)
+        disp_x = um.to_display(x_raw, "length")
+        disp_x_str = (
+            f"{disp_x:.1f} {length_sym}"
+            if abs(disp_x - round(disp_x)) > 1e-4
+            else f"{disp_x:.0f} {length_sym}"
+        )
         self.sections_table.item(row, 1).setText(str(profile.get("type") or ""))
-        self.sections_table.item(row, 2).setText(str(position.get("x") or 0))
+        self.sections_table.item(row, 2).setText(disp_x_str)
         self.sections_table.item(row, 3).setText(self._profile_size(profile))
 
     def _parameters(self) -> dict[str, Any]:
@@ -1186,7 +1219,31 @@ class FuselageEditor(PropertyTableMixin, QWidget):
 
     @staticmethod
     def _profile_size(profile: dict[str, Any]) -> str:
-        return format_profile_size(profile)
+        from setuav_studio.units import get_unit_manager
+
+        um = get_unit_manager()
+        profile_type = profile.get("type")
+        length_sym = um.get_unit_symbol("length")
+
+        def _fmt(val: Any) -> str:
+            try:
+                num = float(val or 0.0)
+                disp = um.to_display(num, "length")
+                return f"{disp:.1f}" if abs(disp - round(disp)) > 1e-4 else f"{disp:.0f}"
+            except (ValueError, TypeError):
+                return str(val)
+
+        if profile_type == "circle":
+            return f"D {_fmt(profile.get('diameter', 0))} {length_sym}"
+        if profile_type in {"ellipse", "rectangle"}:
+            return f"{_fmt(profile.get('width', 0))} × {_fmt(profile.get('height', 0))} {length_sym}"
+        if profile_type == "trapezoid":
+            return f"{_fmt(profile.get('top_width', 0))} / {_fmt(profile.get('bottom_width', 0))} {length_sym}"
+        if profile_type == "triangle":
+            return f"{_fmt(profile.get('base_width', 0))} × {_fmt(profile.get('height', 0))} {length_sym}"
+        if profile_type == "polygon":
+            return f"{len(profile.get('vertices') or [])} vertices"
+        return ""
 
     @staticmethod
     def _default_profile(profile_type: str) -> dict[str, Any]:

@@ -62,14 +62,14 @@ class PerformanceResultsDock(PropertyTableMixin, QWidget):
 
         self.summary_table = self._property_table(
             [
-                ("stall_speed", "Stall Speed (V_stall)"),
-                ("best_range_speed", "Best Range Speed (V_br)"),
-                ("best_endurance_speed", "Best Endurance Speed (V_be)"),
-                ("best_climb_speed", "Best Climb Speed (Vy)"),
-                ("max_level_speed", "Max Level Flight Speed (V_max)"),
+                ("stall_speed", "Stall Speed"),
+                ("best_range_speed", "Best Range Speed"),
+                ("best_endurance_speed", "Best Endurance Speed"),
+                ("best_climb_speed", "Best Climb Speed"),
+                ("max_level_speed", "Max Level Flight Speed"),
                 ("max_ld", "Maximum L/D Ratio"),
-                ("max_roc", "Max Rate of Climb (ROC_max)"),
-                ("best_climb_angle", "Best Climb Angle (γ_max)"),
+                ("max_roc", "Max Rate of Climb"),
+                ("best_climb_angle", "Best Climb Angle"),
                 ("max_range", "Estimated Max Range"),
                 ("max_endurance", "Estimated Max Endurance"),
                 ("min_power", "Min Aerodynamic Power Required"),
@@ -114,18 +114,18 @@ class PerformanceResultsDock(PropertyTableMixin, QWidget):
 
     def _create_detail_table(self) -> ContentFitTableWidget:
         headers = [
-            "V (m/s)",
-            "P_req (W)",
-            "P_avail (W)",
-            "T_req (N)",
-            "T_avail (N)",
-            "ROC (m/s)",
-            "γ (°)",
-            "P_elec (W)",
-            "Current (A)",
-            "Throttle (%)",
-            "Range (km)",
-            "Endurance (h)",
+            "Airspeed",
+            "P_req",
+            "P_avail",
+            "T_req",
+            "T_avail",
+            "ROC",
+            "γ",
+            "P_elec",
+            "Current",
+            "Throttle",
+            "Range",
+            "Endurance",
         ]
         table = ContentFitTableWidget(0, len(headers))
         table.setHorizontalHeaderLabels(headers)

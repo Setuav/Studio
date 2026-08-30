@@ -78,7 +78,15 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.addWidget(scroll)
 
+        from setuav_studio.units import get_unit_manager
+
+        get_unit_manager().units_changed.connect(self._on_units_changed)
+
         self.load_component(component)
+
+    def _on_units_changed(self) -> None:
+        if self._component is not None:
+            self._load_properties()
 
     def load_component(self, component: dict[str, Any]) -> None:
         self._loading = True
@@ -130,23 +138,23 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
         layout.addWidget(self.general_table)
 
     def _create_properties_section(self) -> None:
-        layout = self._create_section("Control Surface Shaping", "fa6s.pen-ruler")
+        layout = self._create_section("Control Surfaces", "geometry_add_control_surface")
         self.properties_table = self._property_table(
             [
                 ("tag", "Tag / Label"),
                 ("type", "Type"),
                 ("sizing_mode", "Sizing Driver Mode"),
-                ("area", "Area (dm²)"),
-                ("area_ratio", "Area Ratio (% Wing)"),
-                ("span_start", "Span Start (mm)"),
-                ("span_end", "Span End (mm)"),
-                ("span_length", "Span Length (mm)"),
-                ("eta_start", "Eta Start (0 - 1)"),
-                ("eta_end", "Eta End (0 - 1)"),
-                ("chord_fraction", "Chord Fraction (% c)"),
-                ("chord", "Control Chord (mm)"),
-                ("hinge_sweep", "Hinge Sweep (°)"),
-                ("deflection", "Deflection Angle (°)"),
+                ("area", "Area"),
+                ("area_ratio", "Area Ratio"),
+                ("span_start", "Span Start"),
+                ("span_end", "Span End"),
+                ("span_length", "Span Length"),
+                ("eta_start", "Eta Start"),
+                ("eta_end", "Eta End"),
+                ("chord_fraction", "Chord Fraction"),
+                ("chord", "Control Chord"),
+                ("hinge_sweep", "Hinge Sweep"),
+                ("deflection", "Deflection Angle"),
                 ("symmetry_mode", "Symmetry Mode"),
             ]
         )
@@ -261,6 +269,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
                 on_changed=lambda val: self._on_prop_spinbox_changed("hinge_sweep", val),
                 api=self._api,
                 label="Hinge sweep angle",
+                unit="°",
                 decimals=2,
             )
 
@@ -272,6 +281,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
                 on_changed=lambda val: self._on_prop_spinbox_changed("deflection", val),
                 api=self._api,
                 label="Deflection angle",
+                unit="°",
                 decimals=2,
             )
 
@@ -404,15 +414,27 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
                 on_changed=lambda val, k=key: self._on_prop_spinbox_changed(k, val),
                 api=self._api,
                 label=label_text,
+                unit=unit,
                 decimals=dec,
             )
         else:
             from setuav_studio.ui.property_tables import format_engineering_value
+            from setuav_studio.units import get_quantity_for_unit, get_unit_manager
 
+            um = get_unit_manager()
             self.properties_table.removeCellWidget(target_row, 1)
-            val_str = format_engineering_value(current_val, dec)
-            if unit:
-                val_str += f" {unit}"
+
+            q_id = get_quantity_for_unit(unit)
+            if q_id:
+                disp_val = um.to_display(current_val, q_id)
+                sym = um.get_unit_symbol(q_id)
+            else:
+                disp_val = current_val
+                sym = unit or ""
+
+            val_str = format_engineering_value(disp_val, dec)
+            if sym:
+                val_str += f" {sym}"
             val_item = self.properties_table.item(target_row, 1)
             if not val_item:
                 val_item = QTableWidgetItem(val_str)

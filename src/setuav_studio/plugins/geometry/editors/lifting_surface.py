@@ -95,7 +95,22 @@ class LiftingSurfaceEditor(
         self.duplicate_profile_button = self.split_section_button
         self.delete_profile_button = self.delete_section_button
 
+        from setuav_studio.units import get_unit_manager
+
+        get_unit_manager().units_changed.connect(self._on_units_changed)
+
         self._load_component()
+
+    def _on_units_changed(self) -> None:
+        if not hasattr(self, "sections_table"):
+            return
+        self._populate_sections()
+        if hasattr(self, "_populate_control_surfaces"):
+            self._populate_control_surfaces()
+        if hasattr(self, "_control_surface_index") and self._control_surface_index >= 0:
+            self._load_control_surface(self._control_surface_index)
+        if hasattr(self, "_section_index") and self._section_index >= 0:
+            self._load_section(self._section_index)
 
     def closeEvent(self, event: QCloseEvent) -> None:
         self._api.set_section_selection(None)

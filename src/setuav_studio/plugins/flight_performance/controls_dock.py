@@ -141,16 +141,15 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
             [
                 ("empty_mass", "Empty Mass"),
                 ("payload", "Payload"),
-                ("tow", "Takeoff Weight (TOW)"),
+                ("tow", "Takeoff Weight"),
             ]
         )
 
-        self.spin_payload = NumericSpinBox()
+        self.spin_payload = NumericSpinBox(quantity="mass", suffix="g")
         self.spin_payload.setRange(0.0, 100000.0)
         self.spin_payload.setValue(0.0)
         self.spin_payload.setDecimals(1)
         self.spin_payload.setSingleStep(10.0)
-        self.spin_payload.setSuffix(" g")
         self.spin_payload.valueChanged.connect(self._update_takeoff_mass)
 
         self._set_property_value(self.mass_table, "empty_mass", "0.0 g")
@@ -164,22 +163,20 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
 
         self.atmosphere_table = self._property_table(
             [
-                ("altitude", "Altitude (MSL)"),
+                ("altitude", "Altitude"),
                 ("temperature", "Temperature"),
-                ("density", "Air Density (ρ)"),
+                ("density", "Air Density"),
             ]
         )
 
-        self.spin_alt = NumericSpinBox()
+        self.spin_alt = NumericSpinBox(quantity="length", suffix="m")
         self.spin_alt.setRange(-500.0, 15000.0)
         self.spin_alt.setValue(0.0)
-        self.spin_alt.setSuffix(" m")
         self.spin_alt.valueChanged.connect(self._update_density_preview)
 
-        self.spin_temp = NumericSpinBox()
+        self.spin_temp = NumericSpinBox(suffix="°C")
         self.spin_temp.setRange(-50.0, 60.0)
         self.spin_temp.setValue(15.0)
-        self.spin_temp.setSuffix(" °C")
         self.spin_temp.valueChanged.connect(self._update_density_preview)
 
         self.atmosphere_table.setCellWidget(0, 1, self.spin_alt)
@@ -193,36 +190,32 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
 
         self.sweep_table = self._property_table(
             [
-                ("v_min", "Min Speed (V_min)"),
-                ("v_max", "Max Speed (V_max)"),
-                ("v_step", "Speed Step (V_step)"),
+                ("v_min", "Min Speed"),
+                ("v_max", "Max Speed"),
+                ("v_step", "Speed Step"),
                 ("stall_margin", "Stall Margin"),
             ]
         )
 
-        self.spin_vmin = NumericSpinBox()
+        self.spin_vmin = NumericSpinBox(quantity="velocity", suffix="m/s")
         self.spin_vmin.setRange(1.0, 100.0)
         self.spin_vmin.setValue(8.0)
-        self.spin_vmin.setSuffix(" m/s")
 
-        self.spin_vmax = NumericSpinBox()
+        self.spin_vmax = NumericSpinBox(quantity="velocity", suffix="m/s")
         self.spin_vmax.setRange(5.0, 200.0)
         self.spin_vmax.setValue(35.0)
-        self.spin_vmax.setSuffix(" m/s")
 
-        self.spin_vstep = NumericSpinBox()
+        self.spin_vstep = NumericSpinBox(quantity="velocity", suffix="m/s")
         self.spin_vstep.setRange(0.05, 5.0)
         self.spin_vstep.setValue(0.25)
         self.spin_vstep.setDecimals(2)
         self.spin_vstep.setSingleStep(0.05)
-        self.spin_vstep.setSuffix(" m/s")
 
-        self.spin_stall_margin = NumericSpinBox()
+        self.spin_stall_margin = NumericSpinBox(suffix="×")
         self.spin_stall_margin.setRange(1.0, 2.0)
         self.spin_stall_margin.setValue(1.15)
         self.spin_stall_margin.setDecimals(2)
         self.spin_stall_margin.setSingleStep(0.05)
-        self.spin_stall_margin.setSuffix(" ×")
 
         self.sweep_table.setCellWidget(0, 1, self.spin_vmin)
         self.sweep_table.setCellWidget(1, 1, self.spin_vmax)

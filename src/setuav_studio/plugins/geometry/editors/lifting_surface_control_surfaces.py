@@ -49,15 +49,12 @@ class ControlSurfacesMixin:
     # -------------------------------------------------------------------------
 
     def _create_control_surfaces_section(self) -> None:
-        layout = self._create_section("Control Surface Shaping", "fa6s.pen-ruler")
+        layout = self._create_section("Control Surfaces", "geometry_add_control_surface")
 
         self.control_surfaces_table = self._table(
             [
                 "Tag",
                 "Type",
-                "Span",
-                "Eta",
-                "Chord",
                 "Defl",
             ]
         )
@@ -161,18 +158,18 @@ class ControlSurfacesMixin:
         was_loading = self._loading
         self._loading = True
         try:
+            from setuav_studio.units import get_unit_manager
+
+            um = get_unit_manager()
             cs_list = self._control_surfaces()
-            semi_span, root_chord, *_ = self._wing_span_info()
             self.control_surfaces_table.setRowCount(len(cs_list))
             for row, cs in enumerate(cs_list):
                 geom = self._cs_geom(cs)
-                s_start = float(geom.get("span_start", 0.0))
-                s_end = float(geom.get("span_end", 0.0))
-                eta_start = float(geom.get("eta_start", round(s_start / semi_span, 3)))
-                eta_end = float(geom.get("eta_end", round(s_end / semi_span, 3)))
-                chord = float(geom.get("chord", 40.0))
-                chord_frac = float(geom.get("chord_fraction", round(chord / root_chord, 2)))
                 defl = float(geom.get("deflection", 0.0))
+                disp_defl = um.to_display(defl, "angle")
+                angle_sym = um.get_unit_symbol("angle")
+                defl_str = f"{disp_defl:+.1f} {angle_sym}" if abs(disp_defl) > 1e-4 else f"0.0 {angle_sym}"
+
                 tag_label = str(
                     geom.get("tag") or cs.get("name") or cs.get("id") or f"CS_{row + 1}"
                 )
@@ -181,14 +178,11 @@ class ControlSurfacesMixin:
                 values = (
                     tag_label,
                     cs_type,
-                    f"{s_start:.1f} - {s_end:.1f}",
-                    f"{eta_start:.2f} - {eta_end:.2f}",
-                    f"{chord_frac * 100:.0f}% ({chord:.1f} mm)",
-                    f"{defl:+.1f}°" if defl != 0.0 else "0.0°",
+                    defl_str,
                 )
                 for column, value in enumerate(values):
                     item = QTableWidgetItem(value)
-                    if column in (2, 3, 4, 5):
+                    if column in (1, 2):
                         item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                         item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     else:
@@ -273,6 +267,7 @@ class ControlSurfacesMixin:
                 on_changed=lambda val: self._on_cs_prop_spinbox_changed("hinge_sweep", val),
                 api=self._api,
                 label="Hinge sweep angle",
+                unit="°",
                 decimals=2,
             )
 
@@ -284,6 +279,7 @@ class ControlSurfacesMixin:
                 on_changed=lambda val: self._on_cs_prop_spinbox_changed("deflection", val),
                 api=self._api,
                 label="Deflection angle",
+                unit="°",
                 decimals=2,
             )
 
@@ -439,15 +435,27 @@ class ControlSurfacesMixin:
                 on_changed=lambda val, k=key: self._on_cs_prop_spinbox_changed(k, val),
                 api=self._api,
                 label=label_text,
+                unit=unit,
                 decimals=dec,
             )
         else:
             from setuav_studio.ui.property_tables import format_engineering_value
+            from setuav_studio.units import get_quantity_for_unit, get_unit_manager
 
+            um = get_unit_manager()
             self.cs_properties_table.removeCellWidget(target_row, 1)
-            val_str = format_engineering_value(current_val, dec)
-            if unit:
-                val_str += f" {unit}"
+
+            q_id = get_quantity_for_unit(unit)
+            if q_id:
+                disp_val = um.to_display(current_val, q_id)
+                sym = um.get_unit_symbol(q_id)
+            else:
+                disp_val = current_val
+                sym = unit or ""
+
+            val_str = format_engineering_value(disp_val, dec)
+            if sym:
+                val_str += f" {sym}"
             val_item = self.cs_properties_table.item(target_row, 1)
             if not val_item:
                 val_item = QTableWidgetItem(val_str)

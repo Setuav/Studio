@@ -105,13 +105,13 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
         headers = [
             "Operating Pt",
             "RPM",
-            "Thrust (N)",
-            "Power (W)",
-            "Current (A)",
+            "Thrust",
+            "Power",
+            "Current",
             "Total η",
             "Prop ηp",
             "Motor ηm",
-            "Advance (J)",
+            "Advance Ratio",
             "Status",
         ]
         table = ContentFitTableWidget(0, len(headers))

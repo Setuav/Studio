@@ -185,32 +185,28 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
 
         self.conditions_table = self._property_table(
             [
-                ("velocity", "Airspeed (V)"),
-                ("altitude", "Altitude (MSL)"),
-                ("ref_alpha", "Reference AoA (α)"),
-                ("ref_beta", "Sideslip Angle (β)"),
+                ("velocity", "Airspeed"),
+                ("altitude", "Altitude"),
+                ("ref_alpha", "Reference AoA"),
+                ("ref_beta", "Sideslip Angle"),
             ]
         )
 
-        self.spin_velocity = NumericSpinBox()
+        self.spin_velocity = NumericSpinBox(quantity="velocity", suffix="m/s")
         self.spin_velocity.setRange(1.0, 300.0)
         self.spin_velocity.setValue(25.0)
-        self.spin_velocity.setSuffix(" m/s")
 
-        self.spin_altitude = NumericSpinBox()
+        self.spin_altitude = NumericSpinBox(quantity="length", suffix="m")
         self.spin_altitude.setRange(0.0, 15000.0)
         self.spin_altitude.setValue(0.0)
-        self.spin_altitude.setSuffix(" m")
 
-        self.spin_ref_alpha = NumericSpinBox()
+        self.spin_ref_alpha = NumericSpinBox(quantity="angle", suffix="°")
         self.spin_ref_alpha.setRange(-20.0, 30.0)
         self.spin_ref_alpha.setValue(2.0)
-        self.spin_ref_alpha.setSuffix(" °")
 
-        self.spin_ref_beta = NumericSpinBox()
+        self.spin_ref_beta = NumericSpinBox(quantity="angle", suffix="°")
         self.spin_ref_beta.setRange(-45.0, 45.0)
         self.spin_ref_beta.setValue(0.0)
-        self.spin_ref_beta.setSuffix(" °")
 
         self.conditions_table.setCellWidget(0, 1, self.spin_velocity)
         self.conditions_table.setCellWidget(1, 1, self.spin_altitude)

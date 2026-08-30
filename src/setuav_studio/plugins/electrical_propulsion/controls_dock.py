@@ -166,9 +166,9 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
         layout = self._create_section("Atmosphere", "fa6s.cloud")
         self.atmosphere_table = self._property_table(
             [
-                ("altitude", "Altitude (m)"),
-                ("temperature", "Temperature (°C)"),
-                ("density", "Air Density (kg/m³)"),
+                ("altitude", "Altitude"),
+                ("temperature", "Temperature"),
+                ("density", "Air Density"),
             ]
         )
         self.atmosphere_table.cellChanged.connect(self._on_atmosphere_cell_changed)
@@ -286,7 +286,7 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
         self._loading = True
         if mode == "airspeed_sweep":
             defs = [
-                ("throttle", "Throttle (%)"),
+                ("throttle", "Throttle"),
                 ("v_min", "Min Airspeed"),
                 ("v_max", "Max Airspeed"),
                 ("v_step", "Airspeed Step"),
@@ -299,9 +299,9 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
         elif mode == "throttle_sweep":
             defs = [
                 ("airspeed", "Airspeed"),
-                ("t_min", "Min Throttle (%)"),
-                ("t_max", "Max Throttle (%)"),
-                ("t_step", "Throttle Step (%)"),
+                ("t_min", "Min Throttle"),
+                ("t_max", "Max Throttle"),
+                ("t_step", "Throttle Step"),
             ]
             self._configure_property_table(self.parameters_table, defs)
             self._set_property_value(self.parameters_table, "airspeed", "0.0")
@@ -311,7 +311,7 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
         elif mode == "operating_point":
             defs = [
                 ("airspeed", "Airspeed"),
-                ("throttle", "Throttle (%)"),
+                ("throttle", "Throttle"),
             ]
             self._configure_property_table(self.parameters_table, defs)
             self._set_property_value(self.parameters_table, "airspeed", "18.0")
