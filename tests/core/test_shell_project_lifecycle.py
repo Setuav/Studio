@@ -337,9 +337,12 @@ class ShellProjectLifecycleTests(unittest.TestCase):
             self.assertEqual(self.window._recent_projects(), [])
             self.assertFalse(self.window._recent_menu.actions()[0].isEnabled())
 
-        with patch.object(self.window, "open_project") as open_selected, patch(
-            "setuav_studio.shell.QFileDialog.getExistingDirectory",
-            side_effect=["", "project-folder"],
+        with (
+            patch.object(self.window, "open_project") as open_selected,
+            patch(
+                "setuav_studio.shell.QFileDialog.getExistingDirectory",
+                side_effect=["", "project-folder"],
+            ),
         ):
             self.window._open_project_folder()
             self.window._open_project_folder()

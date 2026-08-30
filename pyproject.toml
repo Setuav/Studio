@@ -23,6 +23,7 @@ dependencies = [
     "numpy>=1.26,<3",
     "scipy>=1.11,<2",
     "setuav-studio-sdk>=0.1,<0.2",
+    "asteval>=1.0.5,<2",
 ]
 
 [project.optional-dependencies]
@@ -138,6 +139,9 @@ include = [
     "src/setuav_studio/ui/log_window.py",
     "src/setuav_studio/ui/main_toolbar.py",
     "src/setuav_studio/ui/plugin_manager.py",
+    "src/setuav_studio/plugins/core/expressions.py",
+    "src/setuav_studio/plugins/core/parameters.py",
+    "src/setuav_studio/plugins/core/configurations.py",
     "src/setuav_studio/ui/numeric_spinbox.py",
     "src/setuav_studio/ui/property_tables.py",
     "src/setuav_studio/ui/theme.py",
