@@ -14,6 +14,7 @@ from PySide6.QtGui import QIcon, QUndoCommand, QUndoStack
 from PySide6.QtWidgets import QWidget
 
 from setuav_studio.component_editor import BaseComponentEditor
+from setuav_studio.component_model import BaseComponentModel
 from setuav_studio.project import ProjectDocument
 from setuav_studio.ui.icons import get_icon
 from setuav_studio_sdk.api import (
@@ -37,6 +38,7 @@ from setuav_studio_sdk.plugin import StudioPlugin
 
 __all__ = [
     "BaseComponentEditor",
+    "BaseComponentModel",
     "ComponentTreeNodeContribution",
     "PanelContribution",
     "ParameterField",
@@ -165,6 +167,7 @@ class StudioAPI:
         ] = {}
         self._component_icons: dict[str, str | Path | QIcon] = {}
         self._kind_icons: dict[str, str | Path | QIcon] = {}
+        self._component_models: dict[str, Any] = {}
         self._geometry_providers: dict[str, GeometryProvider] = {}
         self._component_tree_providers: dict[str, ComponentTreeProvider] = {}
         self._project_tree_providers: dict[str, ProjectTreeProvider] = {}
@@ -677,6 +680,35 @@ class StudioAPI:
             return get_icon("instance")
 
         return get_icon("component")
+
+    def register_component_model(
+        self,
+        component_type: str,
+        model_factory: Any,
+    ) -> None:
+        """Register a domain model class or factory for a component type."""
+        self._component_models[component_type] = model_factory
+
+    def remove_component_model(self, component_type: str) -> None:
+        """Remove a registered component model by component type."""
+        self._component_models.pop(component_type, None)
+
+    def create_component_model(
+        self,
+        component: dict[str, Any],
+    ) -> Any:
+        """Instantiate the domain model object for a given component dictionary."""
+        from setuav_studio.component_model import GenericComponentModel
+
+        component_type = component.get("type")
+        factory = (
+            self._component_models.get(component_type)
+            if isinstance(component_type, str)
+            else None
+        )
+        if factory is not None:
+            return factory(component)
+        return GenericComponentModel(component)
 
     def register_geometry_provider(
         self,
