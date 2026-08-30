@@ -1445,7 +1445,8 @@
             "length": 20.0,
             "offset_x": 0.0
           },
-          "sweep_curvature": 0.0
+          "sweep_curvature": 0.0,
+          "sweep_location": 1.0
         }
       },
       "mass": 85.0,
@@ -1487,7 +1488,8 @@
           "hinge_sweep": 1.0,
           "chord_fraction": 0.303,
           "eta_start": 0.1107,
-          "eta_end": 0.8855
+          "eta_end": 0.8855,
+          "sizing_mode": "ratio"
         }
       }
     },
