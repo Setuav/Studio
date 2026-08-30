@@ -1391,17 +1391,17 @@
     {
       "kind": "component",
       "id": "v-tail",
-      "name": "V-Tail",
+      "name": "Horizontal Stabilizer",
       "type": "org.setuav.core:lifting-surface",
       "attach_to": "fuselage",
       "transform": {
         "position": {
           "x": 645.0,
-          "y": 38.0,
-          "z": 58.0
+          "y": 45.0,
+          "z": 45.0
         },
         "rotation": {
-          "roll": 40.0,
+          "roll": 0.0,
           "pitch": 0.0,
           "yaw": 0.0
         }
@@ -1427,7 +1427,7 @@
             },
             {
               "position": {
-                "x": 58.996412255372086,
+                "x": 65.52820969989904,
                 "y": 200.4848003542364,
                 "z": 0.0
               },
@@ -1482,7 +1482,7 @@
           "type": "ruddervator",
           "span_start": 22.2,
           "span_end": 177.5,
-          "chord": 49.6,
+          "chord": 48.5,
           "deflection": 0.0,
           "hinge_sweep": 1.0,
           "chord_fraction": 0.303,
@@ -1734,6 +1734,91 @@
           }
         }
       }
+    },
+    {
+      "kind": "component",
+      "id": "vertical-tail",
+      "name": "Vertical Tail",
+      "type": "org.setuav.core:lifting-surface",
+      "attach_to": "fuselage",
+      "transform": {
+        "position": {
+          "x": 645.0,
+          "y": 0.0,
+          "z": 70.0
+        },
+        "rotation": {
+          "roll": 90.0,
+          "pitch": 2.0,
+          "yaw": 0.0
+        }
+      },
+      "parameters": {
+        "geometry": {
+          "mirror": false,
+          "symmetric": false,
+          "profiles": [
+            {
+              "position": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              },
+              "chord": 160.0,
+              "rotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              },
+              "airfoil": "0012"
+            },
+            {
+              "position": {
+                "x": 85.0,
+                "y": 170.0,
+                "z": 0.0
+              },
+              "chord": 75.0,
+              "rotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              },
+              "airfoil": "0012"
+            }
+          ],
+          "tip_treatment": {
+            "type": "round",
+            "length": 8.0
+          },
+          "control_surfaces": [],
+          "sweep_curvature": 0.0
+        }
+      }
+    },
+    {
+      "kind": "component",
+      "id": "vertical-tail-control_1",
+      "name": "Rudder",
+      "type": "org.setuav.core:control-surface",
+      "parent": "vertical-tail",
+      "parameters": {
+        "geometry": {
+          "tag": "Rudder",
+          "type": "rudder",
+          "span_mode": "ratio",
+          "span_start": 17.0,
+          "span_end": 153.0,
+          "eta_start": 0.1,
+          "eta_end": 0.9,
+          "chord_mode": "ratio",
+          "chord_fraction": 0.3,
+          "chord": 48.0,
+          "hinge_sweep": 1.0,
+          "deflection": 0.0,
+          "symmetry_mode": "auto"
+        }
+      }
     }
   ],
   "assemblies": [
@@ -1797,7 +1882,36 @@
       "selected": 0
     }
   ],
-  "configurations": [],
+  "configurations": [
+    {
+      "id": "rev-t",
+      "name": "Conventional Tail",
+      "tag": "REV-T",
+      "description": "Conventional tail configuration with horizontal stabilizer",
+      "color": "#ffa348",
+      "parameter_overrides": {},
+      "excluded_components": [],
+      "added_components": [],
+      "component_overrides": {
+        "v-tail": {
+          "name": "Horizontal Stabilizer",
+          "transform": {
+            "position": {
+              "x": 650.0,
+              "y": 45.0,
+              "z": 45.0
+            },
+            "rotation": {
+              "roll": 0.0,
+              "pitch": 0.0,
+              "yaw": 0.0
+            }
+          }
+        }
+      },
+      "is_default": false
+    }
+  ],
   "extensions": {
     "org.setuav.studio.aerodynamics": {
       "results_version": 2,

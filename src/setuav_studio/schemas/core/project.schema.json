@@ -90,6 +90,21 @@
           "parameter_overrides": {
             "type": "object"
           },
+          "excluded_components": {
+            "type": "array",
+            "items": {
+              "$ref": "definitions.schema.json#/$defs/localId"
+            }
+          },
+          "added_components": {
+            "type": "array",
+            "items": {
+              "$ref": "component.schema.json"
+            }
+          },
+          "component_overrides": {
+            "type": "object"
+          },
           "is_default": {
             "type": "boolean"
           }

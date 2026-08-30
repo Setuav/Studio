@@ -1,4 +1,11 @@
-"""Configuration management for project variants (independent component sets & parameters)."""
+"""Configuration management using a clean Delta (diff/overrides) model.
+
+Configurations inherit all base project components and parameters, storing only:
+- parameter_overrides: dictionary of path -> value (e.g. project.parameters.* or comp_id.parameters.*)
+- excluded_components: list of component IDs removed in this configuration
+- added_components: list of new component definitions added in this configuration
+- component_overrides: dictionary of comp_id -> changed properties (name, transform, etc.)
+"""
 
 from __future__ import annotations
 
@@ -78,12 +85,138 @@ def set_by_path(target: Any, path: str, value: Any) -> None:
         curr[last_seg] = value
 
 
-class ConfigurationManager:
-    """Manages project configurations as distinct design variants.
+def _apply_component_overrides(
+    components: list[dict[str, Any]], comp_overrides: dict[str, Any]
+) -> None:
+    """Apply top-level component property overrides in place."""
+    for comp in components:
+        cid = comp.get("id")
+        if cid in comp_overrides:
+            for k, v in comp_overrides[cid].items():
+                comp[k] = copy.deepcopy(v)
 
-    Each configuration has its own components, parameters, and assemblies,
-    functioning like an independent variant within the same project file.
-    """
+
+def _apply_parameter_overrides(
+    components: list[dict[str, Any]],
+    parameters: dict[str, Any],
+    param_overrides: dict[str, Any],
+) -> None:
+    """Apply project and component parameter overrides in place."""
+    for path, value in param_overrides.items():
+        if path.startswith("project.parameters."):
+            param_key = path[len("project.parameters.") :]
+            parameters[param_key] = copy.deepcopy(value)
+        else:
+            for comp in components:
+                cid = str(comp.get("id") or "")
+                if cid and path.startswith(f"{cid}."):
+                    sub_path = path[len(cid) + 1 :]
+                    with contextlib.suppress(Exception):
+                        set_by_path(comp, sub_path, copy.deepcopy(value))
+                    break
+
+
+def apply_configuration_delta(
+    base_components: list[dict[str, Any]],
+    base_parameters: dict[str, Any],
+    base_assemblies: list[dict[str, Any]],
+    config_dict: dict[str, Any],
+) -> tuple[list[dict[str, Any]], dict[str, Any], list[dict[str, Any]]]:
+    """Materialize full components and parameters for a configuration by applying its delta to base."""
+    if "components" in config_dict and isinstance(config_dict["components"], list):
+        components = copy.deepcopy(config_dict["components"])
+        parameters = copy.deepcopy(config_dict.get("parameters", base_parameters))
+        assemblies = copy.deepcopy(config_dict.get("assemblies", base_assemblies))
+        return components, parameters, assemblies
+
+    components = copy.deepcopy(base_components)
+    parameters = copy.deepcopy(base_parameters)
+    assemblies = copy.deepcopy(base_assemblies)
+
+    excluded_ids = set(config_dict.get("excluded_components", []))
+    if excluded_ids:
+        components = [c for c in components if c.get("id") not in excluded_ids]
+
+    _apply_component_overrides(components, config_dict.get("component_overrides", {}))
+    _apply_parameter_overrides(components, parameters, config_dict.get("parameter_overrides", {}))
+
+    added_components = copy.deepcopy(config_dict.get("added_components", []))
+    components.extend(added_components)
+
+    return components, parameters, assemblies
+
+
+def compute_configuration_delta(
+    base_components: list[dict[str, Any]],
+    base_parameters: dict[str, Any],
+    current_components: list[dict[str, Any]],
+    current_parameters: dict[str, Any],
+) -> dict[str, Any]:
+    """Compute the minimal delta (overrides, additions, exclusions) between base and current state."""
+    base_comp_map = {c["id"]: c for c in base_components if isinstance(c, dict) and "id" in c}
+    curr_comp_map = {c["id"]: c for c in current_components if isinstance(c, dict) and "id" in c}
+
+    excluded_components = [cid for cid in base_comp_map if cid not in curr_comp_map]
+    added_components = [c for cid, c in curr_comp_map.items() if cid not in base_comp_map]
+
+    component_overrides: dict[str, Any] = {}
+    parameter_overrides: dict[str, Any] = {}
+
+    # Check project parameter differences
+    for k, v in current_parameters.items():
+        if k not in base_parameters or base_parameters[k] != v:
+            parameter_overrides[f"project.parameters.{k}"] = v
+
+    # Check common components
+    for cid in base_comp_map:
+        if cid not in curr_comp_map:
+            continue
+        base_c = base_comp_map[cid]
+        curr_c = curr_comp_map[cid]
+
+        # Check top-level properties
+        overrides: dict[str, Any] = {}
+        for prop in ("name", "parent", "attach_to", "transform", "mass"):
+            if curr_c.get(prop) != base_c.get(prop):
+                overrides[prop] = copy.deepcopy(curr_c.get(prop))
+        if overrides:
+            component_overrides[cid] = overrides
+
+        # Check parameter differences
+        _diff_dict_paths(
+            base_c.get("parameters", {}),
+            curr_c.get("parameters", {}),
+            prefix=f"{cid}.parameters",
+            out=parameter_overrides,
+        )
+
+    delta: dict[str, Any] = {
+        "parameter_overrides": parameter_overrides,
+        "excluded_components": excluded_components,
+        "added_components": added_components,
+        "component_overrides": component_overrides,
+    }
+    return delta
+
+
+def _diff_dict_paths(base: Any, current: Any, prefix: str, out: dict[str, Any]) -> None:
+    """Helper to find leaf differences between two dict structures."""
+    if isinstance(base, dict) and isinstance(current, dict):
+        all_keys = set(base.keys()) | set(current.keys())
+        for k in all_keys:
+            new_prefix = f"{prefix}.{k}"
+            if k not in base:
+                out[new_prefix] = current[k]
+            elif k not in current:
+                out[new_prefix] = None
+            else:
+                _diff_dict_paths(base[k], current[k], new_prefix, out)
+    elif base != current:
+        out[prefix] = current
+
+
+class ConfigurationManager:
+    """Manages project configurations using a clean Delta (diff/override) model."""
 
     def __init__(
         self,
@@ -95,7 +228,7 @@ class ConfigurationManager:
         self._active_id: str | None = None
         self._listeners: list[Callable[[], None]] = []
 
-        # Keep snapshot of base state
+        # Snapshot of clean base state
         self._base_state: dict[str, Any] = {
             "components": copy.deepcopy(self.project_data.get("components", [])),
             "parameters": copy.deepcopy(self.project_data.get("parameters", {})),
@@ -139,36 +272,47 @@ class ConfigurationManager:
         return self.get_configuration(self._active_id)
 
     def sync_current_state_to_active(self) -> None:
-        """Save current working components/parameters into the active configuration or base snapshot."""
-        current_components = copy.deepcopy(self.project_data.get("components", []))
-        current_parameters = copy.deepcopy(self.project_data.get("parameters", {}))
-        current_assemblies = copy.deepcopy(self.project_data.get("assemblies", []))
+        """Sync working state back into the active configuration's delta or base snapshot."""
+        current_components = self.project_data.get("components", [])
+        current_parameters = self.project_data.get("parameters", {})
+        current_assemblies = self.project_data.get("assemblies", [])
 
         if self._active_id is None:
             self._base_state = {
-                "components": current_components,
-                "parameters": current_parameters,
-                "assemblies": current_assemblies,
+                "components": copy.deepcopy(current_components),
+                "parameters": copy.deepcopy(current_parameters),
+                "assemblies": copy.deepcopy(current_assemblies),
             }
         else:
             cfg = self.get_configuration(self._active_id)
             if cfg is not None:
-                cfg["components"] = current_components
-                cfg["parameters"] = current_parameters
-                cfg["assemblies"] = current_assemblies
+                delta = compute_configuration_delta(
+                    self._base_state["components"],
+                    self._base_state["parameters"],
+                    current_components,
+                    current_parameters,
+                )
+                cfg["parameter_overrides"] = delta["parameter_overrides"]
+                cfg["excluded_components"] = delta["excluded_components"]
+                cfg["added_components"] = delta["added_components"]
+                cfg["component_overrides"] = delta["component_overrides"]
+                # Clean up legacy redundant full snapshots if present
+                cfg.pop("components", None)
+                cfg.pop("parameters", None)
+                cfg.pop("assemblies", None)
 
     def set_active_id(self, config_id: str | None) -> None:
-        """Switch active configuration and swap project components and parameters."""
+        """Switch active configuration, materializing the state from base + delta."""
         if config_id is not None and self.get_configuration(config_id) is None:
             raise KeyError(f"Configuration '{config_id}' does not exist.")
 
         if self._active_id == config_id:
             return
 
-        # 1. Save current working state to previous active config/base
+        # 1. Sync current working state
         self.sync_current_state_to_active()
 
-        # 2. Load new active state into project_data
+        # 2. Materialize target configuration state
         if config_id is None:
             self.project_data["components"] = copy.deepcopy(self._base_state["components"])
             self.project_data["parameters"] = copy.deepcopy(self._base_state["parameters"])
@@ -176,16 +320,15 @@ class ConfigurationManager:
         else:
             target_cfg = self.get_configuration(config_id)
             if target_cfg is not None:
-                if "components" not in target_cfg:
-                    target_cfg["components"] = copy.deepcopy(self._base_state["components"])
-                if "parameters" not in target_cfg:
-                    target_cfg["parameters"] = copy.deepcopy(self._base_state["parameters"])
-                if "assemblies" not in target_cfg:
-                    target_cfg["assemblies"] = copy.deepcopy(self._base_state.get("assemblies", []))
-
-                self.project_data["components"] = copy.deepcopy(target_cfg["components"])
-                self.project_data["parameters"] = copy.deepcopy(target_cfg["parameters"])
-                self.project_data["assemblies"] = copy.deepcopy(target_cfg["assemblies"])
+                comps, params, assems = apply_configuration_delta(
+                    self._base_state["components"],
+                    self._base_state["parameters"],
+                    self._base_state.get("assemblies", []),
+                    target_cfg,
+                )
+                self.project_data["components"] = comps
+                self.project_data["parameters"] = params
+                self.project_data["assemblies"] = assems
 
         self._active_id = config_id
         self._notify()
@@ -198,12 +341,13 @@ class ConfigurationManager:
         color: str = "#2196F3",
         is_default: bool = False,
         config_id: str | None = None,
-        components: list[dict[str, Any]] | None = None,
-        parameters: dict[str, Any] | None = None,
-        assemblies: list[dict[str, Any]] | None = None,
         parameter_overrides: dict[str, Any] | None = None,
+        excluded_components: list[str] | None = None,
+        added_components: list[dict[str, Any]] | None = None,
+        component_overrides: dict[str, Any] | None = None,
+        **_kwargs: Any,
     ) -> dict[str, Any]:
-        """Create a new configuration variant, cloning the current working project state by default."""
+        """Create a new delta-based configuration."""
         self.sync_current_state_to_active()
 
         configs = self.get_configurations()
@@ -222,32 +366,16 @@ class ConfigurationManager:
             for c in configs:
                 c["is_default"] = False
 
-        init_components = (
-            copy.deepcopy(components)
-            if components is not None
-            else copy.deepcopy(self.project_data.get("components", []))
-        )
-        init_parameters = (
-            copy.deepcopy(parameters)
-            if parameters is not None
-            else copy.deepcopy(self.project_data.get("parameters", {}))
-        )
-        init_assemblies = (
-            copy.deepcopy(assemblies)
-            if assemblies is not None
-            else copy.deepcopy(self.project_data.get("assemblies", []))
-        )
-
         new_config: dict[str, Any] = {
             "id": cid,
             "name": name,
             "tag": tag,
             "description": description,
             "color": color,
-            "components": init_components,
-            "parameters": init_parameters,
-            "assemblies": init_assemblies,
             "parameter_overrides": dict(parameter_overrides or {}),
+            "excluded_components": list(excluded_components or []),
+            "added_components": list(added_components or []),
+            "component_overrides": dict(component_overrides or {}),
             "is_default": is_default,
         }
         configs.append(new_config)
@@ -283,7 +411,6 @@ class ConfigurationManager:
         if idx != -1:
             configs.pop(idx)
             if self._active_id == config_id:
-                # Switch back to base
                 self._active_id = None
                 self.project_data["components"] = copy.deepcopy(self._base_state["components"])
                 self.project_data["parameters"] = copy.deepcopy(self._base_state["parameters"])
@@ -334,7 +461,12 @@ class ConfigurationManager:
         """Compute resolved project parameters for the active configuration."""
         if config_id is not None and config_id != self._active_id:
             cfg = self.get_configuration(config_id)
-            params = copy.deepcopy(cfg.get("parameters", {})) if cfg else {}
+            params = copy.deepcopy(self._base_state["parameters"])
+            if cfg:
+                for path, val in cfg.get("parameter_overrides", {}).items():
+                    if path.startswith("project.parameters."):
+                        k = path[len("project.parameters.") :]
+                        params[k] = copy.deepcopy(val)
         else:
             params = copy.deepcopy(self.project_data.get("parameters", {}))
 

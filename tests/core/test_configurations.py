@@ -2,6 +2,8 @@ import unittest
 
 from setuav_studio.plugins.core.configurations import (
     ConfigurationManager,
+    apply_configuration_delta,
+    compute_configuration_delta,
     get_by_path,
     parse_path_segments,
     set_by_path,
@@ -35,129 +37,121 @@ class PathUtilsTests(unittest.TestCase):
         self.assertEqual(data["wing-1"]["parameters"]["geometry"]["sweep"], 15.0)
 
 
-class ConfigurationManagerTests(unittest.TestCase):
+class DeltaConfigurationsTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.project_data = {
-            "parameters": {
-                "aspect_ratio": 8.0,
-                "wing_area": 2.0,
-                "wing_span": "= sqrt(aspect_ratio * wing_area)",
+        self.base_components = [
+            {
+                "id": "fuselage-1",
+                "name": "Fuselage",
+                "type": "org.setuav.core:fuselage",
+                "parameters": {"mass": 500.0},
             },
+            {
+                "id": "wing-1",
+                "name": "Main Wing",
+                "type": "org.setuav.core:lifting-surface",
+                "parameters": {"geometry": {"span": 2000.0, "chord": 250.0}},
+            },
+        ]
+        self.base_parameters = {"aspect_ratio": 8.0, "cruise_speed": 25.0}
+
+    def test_apply_delta_with_overrides_and_additions(self) -> None:
+        cfg = {
+            "id": "vtol",
+            "name": "VTOL Config",
+            "tag": "VTOL",
+            "parameter_overrides": {
+                "project.parameters.aspect_ratio": 10.0,
+                "wing-1.parameters.geometry.span": 2600.0,
+            },
+            "excluded_components": [],
+            "added_components": [
+                {"id": "motor-vtol-1", "name": "VTOL Motor", "type": "org.setuav.core:motor"}
+            ],
+            "component_overrides": {
+                "wing-1": {"name": "Long Span Wing"},
+            },
+        }
+        comps, params, _ = apply_configuration_delta(
+            self.base_components, self.base_parameters, [], cfg
+        )
+
+        self.assertEqual(len(comps), 3)
+        self.assertEqual(comps[1]["name"], "Long Span Wing")
+        self.assertEqual(comps[1]["parameters"]["geometry"]["span"], 2600.0)
+        self.assertEqual(comps[2]["id"], "motor-vtol-1")
+        self.assertEqual(params["aspect_ratio"], 10.0)
+        self.assertEqual(params["cruise_speed"], 25.0)  # inherited
+
+    def test_compute_delta(self) -> None:
+        curr_components = [
+            {
+                "id": "fuselage-1",
+                "name": "Fuselage",
+                "type": "org.setuav.core:fuselage",
+                "parameters": {"mass": 500.0},
+            },
+            {
+                "id": "wing-1",
+                "name": "High Speed Wing",
+                "type": "org.setuav.core:lifting-surface",
+                "parameters": {"geometry": {"span": 1800.0, "chord": 250.0}},
+            },
+            {
+                "id": "pod-1",
+                "name": "Camera Pod",
+                "type": "org.setuav.core:point-mass",
+            },
+        ]
+        curr_parameters = {"aspect_ratio": 7.0, "cruise_speed": 35.0}
+
+        delta = compute_configuration_delta(
+            self.base_components, self.base_parameters, curr_components, curr_parameters
+        )
+
+        self.assertEqual(delta["excluded_components"], [])
+        self.assertEqual(len(delta["added_components"]), 1)
+        self.assertEqual(delta["added_components"][0]["id"], "pod-1")
+        self.assertEqual(delta["component_overrides"]["wing-1"]["name"], "High Speed Wing")
+        self.assertEqual(delta["parameter_overrides"]["wing-1.parameters.geometry.span"], 1800.0)
+        self.assertEqual(delta["parameter_overrides"]["project.parameters.aspect_ratio"], 7.0)
+        self.assertEqual(delta["parameter_overrides"]["project.parameters.cruise_speed"], 35.0)
+
+    def test_configuration_manager_lifecycle(self) -> None:
+        project_data = {
+            "components": self.base_components,
+            "parameters": self.base_parameters,
             "configurations": [
                 {
-                    "id": "cruise",
-                    "name": "Cruise Mode",
-                    "tag": "CRZ",
-                    "description": "Standard cruise",
-                    "color": "#2196F3",
-                    "parameters": {
-                        "aspect_ratio": 10.0,
-                        "wing_area": 2.0,
-                        "wing_span": "= sqrt(aspect_ratio * wing_area)",
+                    "id": "speed",
+                    "name": "High Speed",
+                    "tag": "SPD",
+                    "parameter_overrides": {
+                        "project.parameters.cruise_speed": 40.0,
                     },
-                    "components": [
-                        {
-                            "id": "wing-1",
-                            "name": "Cruise Wing",
-                            "type": "org.setuav.core:lifting-surface",
-                            "parameters": {
-                                "geometry": {
-                                    "span": 2500.0,
-                                    "chord": "= wing_span * 200",
-                                }
-                            },
-                        }
-                    ],
-                }
-            ],
-            "components": [
-                {
-                    "id": "wing-1",
-                    "name": "Base Wing",
-                    "type": "org.setuav.core:lifting-surface",
-                    "parameters": {
-                        "geometry": {
-                            "span": 2000.0,
-                            "chord": "= wing_span * 200",
-                        }
+                    "excluded_components": [],
+                    "added_components": [],
+                    "component_overrides": {
+                        "wing-1": {"name": "Clipped Wing"},
                     },
                 }
             ],
         }
-        self.manager = ConfigurationManager(self.project_data)
+        manager = ConfigurationManager(project_data)
 
-    def test_initial_active_is_base(self) -> None:
-        # Base is default active initially unless explicitly switched
-        self.assertIsNone(self.manager.get_active_id())
-        self.assertEqual(self.project_data["components"][0]["name"], "Base Wing")
+        # Initially in base
+        self.assertIsNone(manager.get_active_id())
+        self.assertEqual(project_data["components"][1]["name"], "Main Wing")
 
-    def test_switching_to_configuration_loads_variant_components(self) -> None:
-        self.manager.set_active_id("cruise")
-        self.assertEqual(self.manager.get_active_id(), "cruise")
-        # In cruise configuration, component name is "Cruise Wing" and span is 2500
-        self.assertEqual(self.project_data["components"][0]["name"], "Cruise Wing")
-        self.assertEqual(
-            self.project_data["components"][0]["parameters"]["geometry"]["span"], 2500.0
-        )
+        # Switch to speed config
+        manager.set_active_id("speed")
+        self.assertEqual(project_data["components"][1]["name"], "Clipped Wing")
+        self.assertEqual(project_data["parameters"]["cruise_speed"], 40.0)
 
         # Switch back to base
-        self.manager.set_active_id(None)
-        self.assertIsNone(self.manager.get_active_id())
-        self.assertEqual(self.project_data["components"][0]["name"], "Base Wing")
-        self.assertEqual(
-            self.project_data["components"][0]["parameters"]["geometry"]["span"], 2000.0
-        )
-
-    def test_adding_component_in_configuration_does_not_affect_base(self) -> None:
-        # Switch to cruise
-        self.manager.set_active_id("cruise")
-        # Add a new motor in cruise
-        new_motor = {"id": "motor-1", "name": "Cruise Motor", "type": "org.setuav.core:motor"}
-        self.project_data["components"].append(new_motor)
-        self.assertEqual(len(self.project_data["components"]), 2)
-
-        # Switch back to base
-        self.manager.set_active_id(None)
-        # Base still has only 1 component!
-        self.assertEqual(len(self.project_data["components"]), 1)
-        self.assertEqual(self.project_data["components"][0]["id"], "wing-1")
-
-        # Switch to cruise again
-        self.manager.set_active_id("cruise")
-        # Cruise has 2 components!
-        self.assertEqual(len(self.project_data["components"]), 2)
-        self.assertEqual(self.project_data["components"][1]["id"], "motor-1")
-
-    def test_modifying_component_name_in_configuration(self) -> None:
-        # Switch to cruise
-        self.manager.set_active_id("cruise")
-        self.project_data["components"][0]["name"] = "Modified Cruise Wing"
-
-        # Switch to base
-        self.manager.set_active_id(None)
-        self.assertEqual(self.project_data["components"][0]["name"], "Base Wing")
-
-        # Switch to cruise
-        self.manager.set_active_id("cruise")
-        self.assertEqual(self.project_data["components"][0]["name"], "Modified Cruise Wing")
-
-    def test_deleting_component_in_configuration(self) -> None:
-        # Create VTOL configuration
-        self.manager.create_configuration(name="VTOL", tag="VTOL")
-        self.manager.set_active_id("vtol")
-        self.assertEqual(len(self.project_data["components"]), 1)
-
-        # Delete the component in VTOL
-        self.project_data["components"].clear()
-        self.assertEqual(len(self.project_data["components"]), 0)
-
-        # Switch to base - Base still has the wing!
-        self.manager.set_active_id(None)
-        self.assertEqual(len(self.project_data["components"]), 1)
-
-        # Switch to VTOL - VTOL has 0 components!
-        self.manager.set_active_id("vtol")
-        self.assertEqual(len(self.project_data["components"]), 0)
+        manager.set_active_id(None)
+        self.assertEqual(project_data["components"][1]["name"], "Main Wing")
+        self.assertEqual(project_data["parameters"]["cruise_speed"], 25.0)
 
 
 if __name__ == "__main__":
