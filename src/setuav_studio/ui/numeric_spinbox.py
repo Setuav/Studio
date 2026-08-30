@@ -103,6 +103,8 @@ def set_table_spinbox(
     step: float = 1.0,
     decimals: int = 2,
     suffix: str = "",
+    quantity: str | None = None,
+    unit: str | None = None,
     on_changed: Callable[[Any], None] | None = None,
     api: Any | None = None,
     label: str = "",
@@ -166,6 +168,8 @@ def set_table_spinbox(
         api=resolved_api,
         label=label,
         decimals=decimals,
+        quantity=quantity,
+        unit=unit or suffix.strip(),
         parent=table,
     )
     table.setCellWidget(row, column, cell)

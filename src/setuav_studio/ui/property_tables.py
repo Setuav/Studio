@@ -141,6 +141,8 @@ class ExpressionPropertyCell(QWidget):
         api: Any | None = None,
         label: str = "",
         decimals: int | None = None,
+        quantity: str | None = None,
+        unit: str | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -150,6 +152,12 @@ class ExpressionPropertyCell(QWidget):
         self._label = label
         self._raw_expression = str(initial_value)
         self._is_focused = False
+
+        from setuav_studio.units import SCHEMA_UNIT_TO_QUANTITY, get_unit_manager
+
+        self._quantity = quantity
+        if not self._quantity and unit:
+            self._quantity = SCHEMA_UNIT_TO_QUANTITY.get(unit.lower(), unit.lower())
 
         self._decimals = decimals
         if self._decimals is None:
@@ -200,6 +208,7 @@ class ExpressionPropertyCell(QWidget):
         self.fx_button.clicked.connect(self._handle_button_clicked)
         layout.addWidget(self.fx_button)
 
+        get_unit_manager().units_changed.connect(self._refresh_display)
         self._refresh_display()
 
     def _is_formula(self, text: str) -> bool:
@@ -224,6 +233,16 @@ class ExpressionPropertyCell(QWidget):
                 return False, None
         return False, None
 
+    def _display_number(self, base_val: float) -> tuple[str, str]:
+        from setuav_studio.units import get_unit_manager
+
+        um = get_unit_manager()
+        if self._quantity:
+            disp_num = um.to_display(base_val, self._quantity)
+            sym = um.get_unit_symbol(self._quantity)
+            return format_engineering_value(disp_num, self._decimals), sym
+        return format_engineering_value(base_val, self._decimals), ""
+
     def _refresh_display(self) -> None:
         clean = self._raw_expression.strip()
         if not clean:
@@ -235,12 +254,21 @@ class ExpressionPropertyCell(QWidget):
             return
 
         if self._is_focused:
-            # Editing mode: show raw formula or raw number
+            # Editing mode: show raw formula or current display number
             self.line_edit.blockSignals(True)
-            self.line_edit.setText(self._raw_expression)
-            if clean.startswith("="):
-                self.line_edit.setStyleSheet("color: #4CAF50; font-weight: bold;")
+            if self._is_formula(clean):
+                self.line_edit.setText(self._raw_expression)
+                if clean.startswith("="):
+                    self.line_edit.setStyleSheet("color: #4CAF50; font-weight: bold;")
+                else:
+                    self.line_edit.setStyleSheet("")
             else:
+                try:
+                    num_val = float(clean)
+                    disp_val, _ = self._display_number(num_val)
+                    self.line_edit.setText(disp_val)
+                except ValueError:
+                    self.line_edit.setText(self._raw_expression)
                 self.line_edit.setStyleSheet("")
             self.line_edit.blockSignals(False)
         else:
@@ -249,14 +277,15 @@ class ExpressionPropertyCell(QWidget):
                 ok, val = self._evaluate_expression(clean)
                 self.line_edit.blockSignals(True)
                 if ok and isinstance(val, (int, float)):
-                    disp_val = format_engineering_value(val, self._decimals)
+                    disp_val, sym = self._display_number(float(val))
                     self.line_edit.setText(disp_val)
                     self.line_edit.setStyleSheet(
                         "color: #4CAF50; font-style: italic; font-weight: bold;"
                     )
-                    self.line_edit.setToolTip(
-                        f"Bound to: {self._raw_expression}\nCalculated value: {disp_val}"
-                    )
+                    tip = f"Bound to: {self._raw_expression}\nCalculated value: {disp_val}"
+                    if sym:
+                        tip += f" {sym}"
+                    self.line_edit.setToolTip(tip)
                 else:
                     self.line_edit.setText(self._raw_expression)
                     self.line_edit.setStyleSheet("color: #4CAF50; font-weight: bold;")
@@ -266,12 +295,13 @@ class ExpressionPropertyCell(QWidget):
                 self.line_edit.blockSignals(True)
                 try:
                     num_val = float(clean)
-                    disp_val = format_engineering_value(num_val, self._decimals)
+                    disp_val, sym = self._display_number(num_val)
                     self.line_edit.setText(disp_val)
+                    self.line_edit.setToolTip(f"{disp_val} {sym}" if sym else "")
                 except ValueError:
                     self.line_edit.setText(self._raw_expression)
+                    self.line_edit.setToolTip("")
                 self.line_edit.setStyleSheet("")
-                self.line_edit.setToolTip("")
                 self.line_edit.blockSignals(False)
 
     def _on_focus_in(self) -> None:
@@ -279,22 +309,47 @@ class ExpressionPropertyCell(QWidget):
         self._refresh_display()
         self.line_edit.selectAll()
 
+    def _commit_line_edit(self) -> None:
+        from setuav_studio.units import get_unit_manager
+
+        new_text = self.line_edit.text().strip()
+        if not new_text:
+            self._raw_expression = ""
+            if self._on_changed:
+                self._on_changed("")
+            return
+
+        if self._is_formula(new_text):
+            if new_text != self._raw_expression:
+                self._raw_expression = new_text
+                if self._on_changed:
+                    self._on_changed(self._raw_expression)
+        else:
+            try:
+                disp_num = float(new_text)
+                if self._quantity:
+                    base_num = get_unit_manager().to_base(disp_num, self._quantity)
+                else:
+                    base_num = disp_num
+                clean_base_str = str(base_num)
+                if clean_base_str != self._raw_expression:
+                    self._raw_expression = clean_base_str
+                    if self._on_changed:
+                        self._on_changed(self._raw_expression)
+            except ValueError:
+                if new_text != self._raw_expression:
+                    self._raw_expression = new_text
+                    if self._on_changed:
+                        self._on_changed(self._raw_expression)
+
     def _on_focus_out(self) -> None:
         self._is_focused = False
-        new_text = self.line_edit.text().strip()
-        if new_text != self._raw_expression:
-            self._raw_expression = new_text
-            if self._on_changed:
-                self._on_changed(self._raw_expression)
+        self._commit_line_edit()
         self._refresh_display()
 
     def _on_return_pressed(self) -> None:
         self._is_focused = False
-        new_text = self.line_edit.text().strip()
-        if new_text != self._raw_expression:
-            self._raw_expression = new_text
-            if self._on_changed:
-                self._on_changed(self._raw_expression)
+        self._commit_line_edit()
         self._refresh_display()
         self.line_edit.clearFocus()
 
@@ -551,6 +606,8 @@ class PropertyTableMixin:
         api: Any | None = None,
         label: str = "",
         decimals: int | None = None,
+        quantity: str | None = None,
+        unit: str | None = None,
     ) -> None:
         for row in range(table.rowCount()):
             if self._property_key(table, row) != key:
@@ -572,6 +629,8 @@ class PropertyTableMixin:
                 api=api or getattr(self, "_api", None),
                 label=resolved_label,
                 decimals=decimals,
+                quantity=quantity,
+                unit=unit,
                 parent=table,
             )
             table.setCellWidget(row, 1, cell)

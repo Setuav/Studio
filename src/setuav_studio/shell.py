@@ -935,6 +935,7 @@ class MainWindow(QMainWindow):
         values = dialog.values()
         values.save()
         dialog.apply_plugin_pages()
+        dialog.apply_units()
         self._switch_theme(values.theme_mode)
         self._trim_recent_projects(values.recent_project_limit)
         self._update_recent_menu()

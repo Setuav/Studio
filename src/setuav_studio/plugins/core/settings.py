@@ -133,6 +133,7 @@ class SettingsDialog(QDialog):
 
         self._build_general_page(values)
         self._build_appearance_page(values)
+        self._build_units_page()
         self._build_propulsion_page(values)
         for contribution in sorted(
             pages,
@@ -268,6 +269,105 @@ class SettingsDialog(QDialog):
         layout.addLayout(form)
         layout.addStretch(1)
         self._add_page("appearance", "Appearance", page, "fa6s.palette")
+
+    def _build_units_page(self) -> None:
+        from setuav_studio.units import QUANTITIES, PRESETS, get_unit_manager
+
+        um = get_unit_manager()
+        page, layout = self._page_container("Units & Dimensions")
+        form = QFormLayout()
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
+        form.setFormAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+
+        self._units_updating = True
+        self._unit_combos: dict[str, QComboBox] = {}
+
+        # 1. Preset Selector
+        self.units_preset_combo = QComboBox()
+        self.units_preset_combo.addItem("Metric (SI Standard)", "si")
+        self.units_preset_combo.addItem("Aviation Standard", "aviation")
+        self.units_preset_combo.addItem("Imperial (US Customary)", "imperial")
+        self.units_preset_combo.addItem("Custom", "custom")
+
+        preset_idx = self.units_preset_combo.findData(um.get_active_preset())
+        self.units_preset_combo.setCurrentIndex(preset_idx if preset_idx >= 0 else 0)
+        self.units_preset_combo.currentIndexChanged.connect(self._on_units_preset_changed)
+        form.addRow("Preset System:", self.units_preset_combo)
+
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setFrameShadow(QFrame.Shadow.Sunken)
+        form.addRow(sep)
+
+        # 2. Individual Quantities
+        for q_id, q_def in QUANTITIES.items():
+            combo = QComboBox()
+            for u_id, u_def in q_def.units.items():
+                combo.addItem(f"{u_def.name}", u_id)
+            cur_unit = um.get_display_unit(q_id)
+            idx = combo.findData(cur_unit)
+            if idx >= 0:
+                combo.setCurrentIndex(idx)
+            combo.currentIndexChanged.connect(lambda _idx, q=q_id: self._on_single_unit_changed(q))
+            self._unit_combos[q_id] = combo
+            form.addRow(f"{q_def.name}:", combo)
+
+        self._units_updating = False
+        layout.addLayout(form)
+        layout.addStretch(1)
+        self._add_page("units", "Units", page, "fa6s.ruler-combined")
+
+    def _on_units_preset_changed(self) -> None:
+        if getattr(self, "_units_updating", False):
+            return
+        from setuav_studio.units import PRESETS
+
+        preset_id = str(self.units_preset_combo.currentData())
+        if preset_id not in PRESETS:
+            return
+        preset_map = PRESETS[preset_id]
+        self._units_updating = True
+        try:
+            for q_id, combo in self._unit_combos.items():
+                target_unit = preset_map.get(q_id)
+                if target_unit:
+                    idx = combo.findData(target_unit)
+                    if idx >= 0:
+                        combo.setCurrentIndex(idx)
+        finally:
+            self._units_updating = False
+
+    def _on_single_unit_changed(self, quantity_id: str) -> None:
+        if getattr(self, "_units_updating", False):
+            return
+        from setuav_studio.units import PRESETS
+
+        current_map = {q_id: str(c.currentData()) for q_id, c in self._unit_combos.items()}
+        matched_preset = "custom"
+        for p_id, p_map in PRESETS.items():
+            if all(current_map.get(k) == v for k, v in p_map.items()):
+                matched_preset = p_id
+                break
+
+        self._units_updating = True
+        try:
+            idx = self.units_preset_combo.findData(matched_preset)
+            if idx >= 0:
+                self.units_preset_combo.setCurrentIndex(idx)
+        finally:
+            self._units_updating = False
+
+    def apply_units(self) -> None:
+        from setuav_studio.units import get_unit_manager
+
+        if not hasattr(self, "_unit_combos"):
+            return
+        um = get_unit_manager()
+        preset_id = str(self.units_preset_combo.currentData())
+        um.set_active_preset(preset_id)
+        for q_id, combo in self._unit_combos.items():
+            um.set_display_unit(q_id, str(combo.currentData()))
+        um.save_to_settings()
 
     def _build_propulsion_page(self, values: StudioSettings) -> None:
         page, layout = self._page_container("Propulsion")
