@@ -39,7 +39,7 @@ def _apply_weight_balance_workspace_layout(layout: WorkspaceLayoutContext) -> No
     )
     layout.resize(
         ("project.explorer", "weight_balance.view_dock", "weight_balance.results_dock"),
-        (290, 500, 400),
+        (240, 550, 400),
     )
 
 

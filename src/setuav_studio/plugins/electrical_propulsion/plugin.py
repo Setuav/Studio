@@ -43,7 +43,7 @@ def _apply_propulsion_workspace_layout(layout: WorkspaceLayoutContext) -> None:
             "propulsion.results_dock",
             "propulsion.charts_dock",
         ),
-        (260, 220, 220, 490),
+        (240, 230, 230, 490),
     )
 
 

@@ -49,7 +49,7 @@ def _apply_flight_performance_workspace_layout(layout: WorkspaceLayoutContext) -
             "flight_performance.results_dock",
             "flight_performance.charts_dock",
         ),
-        (180, 240, 250, 510),
+        (240, 220, 240, 490),
     )
 
 

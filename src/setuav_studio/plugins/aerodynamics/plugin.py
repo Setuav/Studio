@@ -59,7 +59,7 @@ def _apply_aerodynamics_workspace_layout(layout: WorkspaceLayoutContext) -> None
             "aerodynamics.results_dock",
             "aerodynamics.charts_dock",
         ),
-        (180, 240, 250, 510),
+        (240, 220, 240, 490),
     )
 
 
