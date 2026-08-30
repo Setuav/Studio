@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 from collections.abc import Callable
 from typing import Any
 
@@ -224,15 +225,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
             deflection = float(geom.get("deflection", 0.0))
             sym_mode = str(geom.get("symmetry_mode", "auto")).lower()
 
-            # Active drivers based on mode
-            if sizing_mode == "dimension":
-                driver_keys = {"span_start", "span_end", "chord"}
-            elif sizing_mode == "area_chord":
-                driver_keys = {"area", "span_start", "eta_start", "chord_fraction"}
-            elif sizing_mode == "area_span":
-                driver_keys = {"area", "span_start", "span_end", "eta_start", "eta_end"}
-            else:  # "ratio"
-                driver_keys = {"eta_start", "eta_end", "chord_fraction"}
+            driver_keys = self._get_driver_keys_for_mode(sizing_mode)
 
             self._set_property_value(self.properties_table, "tag", tag_val)
             self._set_property_combo(
@@ -250,64 +243,15 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
                 lambda val: self._on_prop_combo_changed("sizing_mode", val),
             )
 
-            def _setup_param(key: str, label_text: str, current_val: float, raw_expr: str | None, unit: str, dec: int = 2) -> None:
-                is_driver = key in driver_keys
-                # Find row in table
-                target_row = -1
-                for r in range(self.properties_table.rowCount()):
-                    if self._property_key(self.properties_table, r) == key:
-                        target_row = r
-                        break
-                if target_row < 0:
-                    return
-
-                label_item = self.properties_table.item(target_row, 0)
-                if label_item:
-                    font = label_item.font()
-                    font.setBold(is_driver)
-                    label_item.setFont(font)
-                    if is_driver:
-                        label_item.setForeground(QApplication.palette().text())
-                    else:
-                        label_item.setForeground(QColor(130, 130, 130))
-
-                if is_driver:
-                    val_to_pass = raw_expr if raw_expr else current_val
-                    self._set_property_expression(
-                        self.properties_table,
-                        key,
-                        val_to_pass,
-                        on_changed=lambda val, k=key: self._on_prop_spinbox_changed(k, val),
-                        api=self._api,
-                        label=label_text,
-                        decimals=dec,
-                    )
-                else:
-                    from setuav_studio.ui.property_tables import format_engineering_value
-
-                    self.properties_table.removeCellWidget(target_row, 1)
-                    val_str = format_engineering_value(current_val, dec)
-                    if unit:
-                        val_str += f" {unit}"
-                    val_item = self.properties_table.item(target_row, 1)
-                    if not val_item:
-                        val_item = QTableWidgetItem(val_str)
-                        self.properties_table.setItem(target_row, 1, val_item)
-                    else:
-                        val_item.setText(val_str)
-                    val_item.setForeground(QColor(130, 130, 130))
-                    val_item.setFlags(val_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                    val_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-
-            _setup_param("area", "Area (dm²)", metrics["area_dm2"], geom.get("area_expression"), "dm²", 3)
-            _setup_param("area_ratio", "Area Ratio (% Wing)", metrics["area_ratio"], None, "%", 1)
-            _setup_param("span_start", "Span start (mm)", metrics["span_start"], geom.get("span_start_expression"), "mm", 2)
-            _setup_param("span_end", "Span end (mm)", metrics["span_end"], geom.get("span_end_expression"), "mm", 2)
-            _setup_param("span_length", "Span length (mm)", metrics["span_length"], geom.get("span_length_expression"), "mm", 2)
-            _setup_param("eta_start", "Span start fraction (eta)", metrics["eta_start"], geom.get("eta_start_expression"), "", 3)
-            _setup_param("eta_end", "Span end fraction (eta)", metrics["eta_end"], geom.get("eta_end_expression"), "", 3)
-            _setup_param("chord_fraction", "Chord fraction (%c)", metrics["chord_fraction"], geom.get("chord_fraction_expression"), "c", 3)
-            _setup_param("chord", "Control chord (mm)", metrics["chord"], geom.get("chord_expression"), "mm", 2)
+            self._setup_param("area", "Area", metrics["area_dm2"], geom.get("area_expression"), "dm²", 3, driver_keys)
+            self._setup_param("area_ratio", "Area Ratio", metrics["area_ratio"], None, "%", 1, driver_keys)
+            self._setup_param("span_start", "Span start", metrics["span_start"], geom.get("span_start_expression"), "mm", 2, driver_keys)
+            self._setup_param("span_end", "Span end", metrics["span_end"], geom.get("span_end_expression"), "mm", 2, driver_keys)
+            self._setup_param("span_length", "Span length", metrics["span_length"], geom.get("span_length_expression"), "mm", 2, driver_keys)
+            self._setup_param("eta_start", "Span start fraction", metrics["eta_start"], geom.get("eta_start_expression"), "", 3, driver_keys)
+            self._setup_param("eta_end", "Span end fraction", metrics["eta_end"], geom.get("eta_end_expression"), "", 3, driver_keys)
+            self._setup_param("chord_fraction", "Chord fraction", metrics["chord_fraction"], geom.get("chord_fraction_expression"), "c", 3, driver_keys)
+            self._setup_param("chord", "Control chord", metrics["chord"], geom.get("chord_expression"), "mm", 2, driver_keys)
 
             hs_val = geom.get("hinge_sweep_expression") or hinge_sweep
             self._set_property_expression(
@@ -316,7 +260,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
                 hs_val,
                 on_changed=lambda val: self._on_prop_spinbox_changed("hinge_sweep", val),
                 api=self._api,
-                label="Hinge sweep angle (°)",
+                label="Hinge sweep angle",
                 decimals=2,
             )
 
@@ -327,7 +271,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
                 def_val,
                 on_changed=lambda val: self._on_prop_spinbox_changed("deflection", val),
                 api=self._api,
-                label="Deflection angle (°)",
+                label="Deflection angle",
                 decimals=2,
             )
 
@@ -345,7 +289,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
         if self._loading:
             return
         geom = self._geometry()
-        semi_span, root_chord, tip_chord, wing_area = self._parent_wing_info()
+        semi_span, root_chord, tip_chord, _wing_area = self._parent_wing_info()
 
         val_str = str(value).strip() if value is not None else ""
         num_val: float | None = None
@@ -366,10 +310,8 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
                     pass
         else:
             geom.pop(f"{key}_expression", None)
-            try:
+            with contextlib.suppress(ValueError):
                 num_val = float(val_str)
-            except ValueError:
-                pass
 
         if num_val is None:
             return
@@ -413,6 +355,73 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
             geometry["chord_fraction"] = round(float(value) / root_chord, 3)
         elif key in {"hinge_sweep", "deflection"}:
             geometry[key] = float(value)
+
+    @staticmethod
+    def _get_driver_keys_for_mode(sizing_mode: str) -> set[str]:
+        if sizing_mode == "dimension":
+            return {"span_start", "span_end", "chord"}
+        if sizing_mode == "area_chord":
+            return {"area", "span_start", "eta_start", "chord_fraction"}
+        if sizing_mode == "area_span":
+            return {"area", "span_start", "span_end", "eta_start", "eta_end"}
+        return {"eta_start", "eta_end", "chord_fraction"}
+
+    def _setup_param(
+        self,
+        key: str,
+        label_text: str,
+        current_val: float,
+        raw_expr: str | None,
+        unit: str,
+        dec: int,
+        driver_keys: set[str],
+    ) -> None:
+        is_driver = key in driver_keys
+        target_row = -1
+        for r in range(self.properties_table.rowCount()):
+            if self._property_key(self.properties_table, r) == key:
+                target_row = r
+                break
+        if target_row < 0:
+            return
+
+        label_item = self.properties_table.item(target_row, 0)
+        if label_item:
+            font = label_item.font()
+            font.setBold(is_driver)
+            label_item.setFont(font)
+            if is_driver:
+                label_item.setForeground(QApplication.palette().text())
+            else:
+                label_item.setForeground(QColor(130, 130, 130))
+
+        if is_driver:
+            val_to_pass = raw_expr if raw_expr else current_val
+            self._set_property_expression(
+                self.properties_table,
+                key,
+                val_to_pass,
+                on_changed=lambda val, k=key: self._on_prop_spinbox_changed(k, val),
+                api=self._api,
+                label=label_text,
+                decimals=dec,
+            )
+        else:
+            from setuav_studio.ui.property_tables import format_engineering_value
+
+            self.properties_table.removeCellWidget(target_row, 1)
+            val_str = format_engineering_value(current_val, dec)
+            if unit:
+                val_str += f" {unit}"
+            val_item = self.properties_table.item(target_row, 1)
+            if not val_item:
+                val_item = QTableWidgetItem(val_str)
+                self.properties_table.setItem(target_row, 1, val_item)
+            else:
+                val_item.setText(val_str)
+            val_item.setForeground(QColor(130, 130, 130))
+            val_item.setFlags(val_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            val_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
     def _set_linked_spinbox_value(self, key: str, value: float) -> None:
         spinbox = getattr(self, "_cs_spinboxes", {}).get(key)

@@ -181,36 +181,49 @@ class PerformanceResultsDock(PropertyTableMixin, QWidget):
             res = result_obj
 
         self._last_result = res
+        self._populate_summary_metrics(res)
+        self._populate_detail_table(res)
+
+    def _populate_summary_metrics(self, res: FlightEnvelopeResult) -> None:
         opt = res.optimal_speeds
         met = res.metrics
         cru = res.cruise
+
+        from setuav_studio.units import get_unit_manager
+
+        um = get_unit_manager()
+        v_sym = um.get_unit_symbol("velocity")
+
+        def _fmt_v(v_m_s: float) -> str:
+            disp_v = um.to_display(v_m_s, "velocity")
+            return f"{disp_v:.1f} {v_sym}"
 
         # Format Summary Metrics
         self._set_property_value(
             self.summary_table,
             "stall_speed",
-            f"{met.stall_speed:.1f} m/s ({met.stall_speed * 3.6:.1f} km/h)",
+            _fmt_v(met.stall_speed),
         )
         if res.propulsion_available:
             self._set_property_value(
                 self.summary_table,
                 "best_range_speed",
-                f"{opt.best_range:.1f} m/s ({opt.best_range * 3.6:.1f} km/h)",
+                _fmt_v(opt.best_range),
             )
             self._set_property_value(
                 self.summary_table,
                 "best_endurance_speed",
-                f"{opt.best_endurance:.1f} m/s ({opt.best_endurance * 3.6:.1f} km/h)",
+                _fmt_v(opt.best_endurance),
             )
             self._set_property_value(
                 self.summary_table,
                 "best_climb_speed",
-                f"{opt.best_climb:.1f} m/s ({opt.best_climb * 3.6:.1f} km/h)",
+                _fmt_v(opt.best_climb),
             )
             self._set_property_value(
                 self.summary_table,
                 "max_level_speed",
-                f"{met.max_speed:.1f} m/s ({met.max_speed * 3.6:.1f} km/h)",
+                _fmt_v(met.max_speed),
             )
         else:
             for key in (
@@ -225,7 +238,7 @@ class PerformanceResultsDock(PropertyTableMixin, QWidget):
             self._set_property_value(
                 self.summary_table,
                 "max_roc",
-                f"{met.max_rate_of_climb:.2f} m/s ({met.max_rate_of_climb * 196.85:.0f} ft/min)",
+                f"{_fmt_v(met.max_rate_of_climb)}",
             )
             self._set_property_value(
                 self.summary_table, "best_climb_angle", f"{met.best_climb_angle_deg:.1f}°"
@@ -259,7 +272,7 @@ class PerformanceResultsDock(PropertyTableMixin, QWidget):
         )
         self._update_propulsion_status(res)
 
-        # Populate Detailed Sweep Table
+    def _populate_detail_table(self, res: FlightEnvelopeResult) -> None:
         c = res.curves
         n_rows = len(c.velocities)
         self.detail_table.setRowCount(n_rows)

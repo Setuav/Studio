@@ -22,7 +22,7 @@ from .mass_definition_dock import MassPropertiesEditor
 from .point_mass_editor import PointMassEditor
 from .results_dock import WeightBalanceResultsDock
 
-POINT_MASS_ICON = "fa6s.weight-hanging"
+POINT_MASS_ICON = "fa6s.weight-scale"
 
 
 def _apply_weight_balance_workspace_layout(layout: WorkspaceLayoutContext) -> None:

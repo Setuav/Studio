@@ -104,7 +104,7 @@ def solve_control_surface_from_area(
     target_area_mm2 = max(target_area_dm2 * 10000.0, 1.0)
     tc = tip_chord if tip_chord is not None else root_chord
     _, eta_start, _, eta_end = resolve_span_values(geometry, semi_span)
-    chord, chord_fraction = resolve_chord_values(geometry, root_chord)
+    _chord, chord_fraction = resolve_chord_values(geometry, root_chord)
 
     if driver_mode == "area_span":
         # Span extent is fixed, solve for required chord_fraction
@@ -128,10 +128,7 @@ def solve_control_surface_from_area(
             B = c0
             C = -(0.5 * dc * (eta_start**2) + c0 * eta_start + K)
             disc = B * B - 4 * A * C
-            if disc >= 0:
-                new_eta2 = (-B + math.sqrt(disc)) / (2 * A)
-            else:
-                new_eta2 = eta_start + 0.3
+            new_eta2 = (-B + math.sqrt(disc)) / (2 * A) if disc >= 0 else eta_start + 0.3
             new_eta2 = min(max(new_eta2, eta_start + 0.01), 1.0)
 
         geometry["eta_end"] = round(new_eta2, 4)

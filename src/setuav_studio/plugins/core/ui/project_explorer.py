@@ -880,61 +880,83 @@ class ProjectExplorer(QTreeWidget):
 
         self.setCurrentItem(item)
         can_edit = self._can_edit_project()
-        menu = QMenu(self)
 
         if item is self._parameters_group_item or (item and item.text(0) in ("Constants", "Equations")):
-            action_label = "Add Constant…" if (item and item.text(0) == "Constants") else "Add Parameter…"
-            add_param_act = menu.addAction(get_icon("constant"), action_label)
-            add_param_act.setEnabled(can_edit)
-            chosen = menu.exec(self.viewport().mapToGlobal(position))
-            if chosen is add_param_act:
-                self._add_parameter_action()
+            self._open_parameters_group_menu(item, position, can_edit)
             return
 
         if item is self._constraints_group_item:
-            add_c_act = menu.addAction(get_icon("constraint"), "Add Constraint…")
-            add_c_act.setEnabled(can_edit)
-            manage_c_act = menu.addAction(get_icon("constraint"), "Manage Constraints…")
-            chosen = menu.exec(self.viewport().mapToGlobal(position))
-            if chosen is add_c_act:
-                self._add_constraint_action()
-            elif chosen is manage_c_act:
-                from setuav_studio.plugins.core.ui.constraints_dialog import (
-                    ManageConstraintsDialog,
-                )
-
-                ManageConstraintsDialog(self._api, parent=self).exec()
+            self._open_constraints_group_menu(position, can_edit)
             return
 
         element = self._element_map.get(item)
         if element and element.get("kind") == "parameter":
-            fx_act = menu.addAction(get_icon("settings"), "Edit with fx Assistant…")
-            fx_act.setEnabled(can_edit)
-            del_act = menu.addAction(get_icon("remove"), "Delete")
-            del_act.setEnabled(can_edit)
-            chosen = menu.exec(self.viewport().mapToGlobal(position))
-            if chosen is fx_act:
-                self._edit_parameter_fx(element)
-            elif chosen is del_act:
-                self._delete_item(item)
+            self._open_parameter_element_menu(item, element, position, can_edit)
             return
 
         if element and element.get("kind") == "constraint":
-            fx_act = menu.addAction(get_icon("settings"), "Edit with fx Assistant…")
-            fx_act.setEnabled(can_edit)
-            toggle_act = menu.addAction("Toggle Enabled")
-            toggle_act.setEnabled(can_edit)
-            del_act = menu.addAction(get_icon("remove"), "Delete")
-            del_act.setEnabled(can_edit)
-            chosen = menu.exec(self.viewport().mapToGlobal(position))
-            if chosen is fx_act:
-                self._edit_constraint_fx(element)
-            elif chosen is toggle_act:
-                self._toggle_constraint(element)
-            elif chosen is del_act:
-                self._delete_item(item)
+            self._open_constraint_element_menu(item, element, position, can_edit)
             return
 
+        self._open_default_context_menu(item, position, can_edit)
+
+    def _open_parameters_group_menu(self, item: QTreeWidgetItem, position: QPoint, can_edit: bool) -> None:
+        menu = QMenu(self)
+        is_const = item.text(0) == "Constants"
+        action_label = "Add Constant…" if is_const else "Add Parameter…"
+        add_param_act = menu.addAction(get_icon("constant"), action_label)
+        add_param_act.setEnabled(can_edit)
+        chosen = menu.exec(self.viewport().mapToGlobal(position))
+        if chosen is add_param_act:
+            self._add_parameter_action(is_constant=is_const)
+
+    def _open_constraints_group_menu(self, position: QPoint, can_edit: bool) -> None:
+        menu = QMenu(self)
+        add_c_act = menu.addAction(get_icon("constraint"), "Add Constraint…")
+        add_c_act.setEnabled(can_edit)
+        manage_c_act = menu.addAction(get_icon("constraint"), "Manage Constraints…")
+        chosen = menu.exec(self.viewport().mapToGlobal(position))
+        if chosen is add_c_act:
+            self._add_constraint_action()
+        elif chosen is manage_c_act:
+            from setuav_studio.plugins.core.ui.constraints_dialog import ManageConstraintsDialog
+
+            ManageConstraintsDialog(self._api, parent=self).exec()
+
+    def _open_parameter_element_menu(
+        self, item: QTreeWidgetItem, element: dict[str, Any], position: QPoint, can_edit: bool
+    ) -> None:
+        menu = QMenu(self)
+        fx_act = menu.addAction(get_icon("settings"), "Edit with fx Assistant…")
+        fx_act.setEnabled(can_edit)
+        del_act = menu.addAction(get_icon("remove"), "Delete")
+        del_act.setEnabled(can_edit)
+        chosen = menu.exec(self.viewport().mapToGlobal(position))
+        if chosen is fx_act:
+            self._edit_parameter_fx(element)
+        elif chosen is del_act:
+            self._delete_item(item)
+
+    def _open_constraint_element_menu(
+        self, item: QTreeWidgetItem, element: dict[str, Any], position: QPoint, can_edit: bool
+    ) -> None:
+        menu = QMenu(self)
+        fx_act = menu.addAction(get_icon("settings"), "Edit with fx Assistant…")
+        fx_act.setEnabled(can_edit)
+        toggle_act = menu.addAction("Toggle Enabled")
+        toggle_act.setEnabled(can_edit)
+        del_act = menu.addAction(get_icon("remove"), "Delete")
+        del_act.setEnabled(can_edit)
+        chosen = menu.exec(self.viewport().mapToGlobal(position))
+        if chosen is fx_act:
+            self._edit_constraint_fx(element)
+        elif chosen is toggle_act:
+            self._toggle_constraint(element)
+        elif chosen is del_act:
+            self._delete_item(item)
+
+    def _open_default_context_menu(self, item: QTreeWidgetItem, position: QPoint, can_edit: bool) -> None:
+        menu = QMenu(self)
         rename_action = menu.addAction(get_icon("edit"), "Rename")
         rename_action.setEnabled(can_edit)
         delete_action = None
@@ -1056,36 +1078,43 @@ class ProjectExplorer(QTreeWidget):
         if element is None:
             return
 
-        if element.get("kind") == "parameter":
-            param_name = str(element.get("key") or "")
-            if not self._confirm_delete(f"Parameter '{param_name}'", []):
-                return
+        kind = element.get("kind")
+        if kind == "parameter":
+            self._delete_parameter_item(element)
+        elif kind == "constraint":
+            self._delete_constraint_item(element)
+        else:
+            self._delete_component_item(element)
 
-            def _apply_param_del() -> None:
-                pdata = self._api.current_project.data if self._api.current_project else {}
-                pdata.get("parameters", {}).pop(param_name, None)
-
-            self._api.set_selection(None)
-            self._api.edit_project(f"Delete parameter '{param_name}'", _apply_param_del)
-            self._api.show_status(f'Deleted parameter "{param_name}"', "success", 3000)
+    def _delete_parameter_item(self, element: dict[str, Any]) -> None:
+        param_name = str(element.get("key") or "")
+        if not self._confirm_delete(f"Parameter '{param_name}'", []):
             return
 
-        if element.get("kind") == "constraint":
-            cid = str(element.get("id") or "")
-            cname = str(element.get("name") or cid)
-            if not self._confirm_delete(f"Constraint '{cname}'", []):
-                return
+        def _apply_param_del() -> None:
+            pdata = self._api.current_project.data if self._api.current_project else {}
+            pdata.get("parameters", {}).pop(param_name, None)
 
-            def _apply_c_del() -> None:
-                pdata = self._api.current_project.data if self._api.current_project else {}
-                constraints = pdata.get("constraints", [])
-                pdata["constraints"] = [c for c in constraints if c.get("id") != cid]
+        self._api.set_selection(None)
+        self._api.edit_project(f"Delete parameter '{param_name}'", _apply_param_del)
+        self._api.show_status(f'Deleted parameter "{param_name}"', "success", 3000)
 
-            self._api.set_selection(None)
-            self._api.edit_project(f"Delete constraint '{cname}'", _apply_c_del)
-            self._api.show_status(f'Deleted constraint "{cname}"', "success", 3000)
+    def _delete_constraint_item(self, element: dict[str, Any]) -> None:
+        cid = str(element.get("id") or "")
+        cname = str(element.get("name") or cid)
+        if not self._confirm_delete(f"Constraint '{cname}'", []):
             return
 
+        def _apply_c_del() -> None:
+            pdata = self._api.current_project.data if self._api.current_project else {}
+            constraints = pdata.get("constraints", [])
+            pdata["constraints"] = [c for c in constraints if c.get("id") != cid]
+
+        self._api.set_selection(None)
+        self._api.edit_project(f"Delete constraint '{cname}'", _apply_c_del)
+        self._api.show_status(f'Deleted constraint "{cname}"', "success", 3000)
+
+    def _delete_component_item(self, element: dict[str, Any]) -> None:
         element_id = str(element.get("id") or "")
         if not element_id:
             return
@@ -1347,25 +1376,28 @@ class ProjectExplorer(QTreeWidget):
         finally:
             self.blockSignals(previous)
 
-    def _add_parameter_action(self) -> None:
-        from PySide6.QtWidgets import QInputDialog, QMessageBox
+    def _add_parameter_action(self, is_constant: bool = False) -> None:
+        from PySide6.QtWidgets import QDialog
 
-        name, ok = QInputDialog.getText(
-            self, "Add Parameter", "Parameter name (e.g. wing_span, mtow):"
-        )
-        if not ok or not name.strip():
-            return
-        param_name = name.strip()
+        from setuav_studio.plugins.core.ui.parameters_dialog import AddParameterDialog
+
         data = self._api.current_project.data if self._api.current_project else {}
         raw = data.setdefault("parameters", {})
-        if param_name in raw:
-            QMessageBox.warning(self, "Duplicate Name", f"Parameter '{param_name}' already exists.")
-            return
+        dlg = AddParameterDialog(
+            api=self._api,
+            existing_names=set(raw.keys()),
+            is_constant=is_constant,
+            parent=self,
+        )
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            param_name, param_val = dlg.get_data()
 
-        def _apply() -> None:
-            raw[param_name] = 0.0
+            def _apply() -> None:
+                pdata = self._api.current_project.data if self._api.current_project else {}
+                pdata.setdefault("parameters", {})[param_name] = param_val
 
-        self._api.edit_project(f"Add parameter '{param_name}'", _apply)
+            action_name = "constant" if is_constant else "parameter"
+            self._api.edit_project(f"Add {action_name} '{param_name}'", _apply)
 
     def _add_constraint_action(self) -> None:
         from PySide6.QtWidgets import QDialog

@@ -94,7 +94,7 @@ class ExpressionLineEdit(QLineEdit):
             for p in props:
                 self._all_symbols.append(f"{clean_cid}.{p}")
 
-        self._all_symbols = sorted(list(set(self._all_symbols)))
+        self._all_symbols = sorted(set(self._all_symbols))
         self._update_completer_model(self._all_symbols)
 
     def _update_completer_model(self, items: list[str]) -> None:
@@ -138,73 +138,76 @@ class ExpressionLineEdit(QLineEdit):
         self.setText(new_text)
         self.setCursorPosition(start_pos + len(completion))
 
+    def _update_token_completions(self, token: str) -> None:
+        if not self._completer:
+            return
+        if "." not in token:
+            self._update_completer_model(self._all_symbols)
+            self._completer.setCompletionPrefix(token)
+            return
+
+        parts = token.split(".")
+        if len(parts) == 2:
+            comp_part, prop_prefix = parts[0], parts[1]
+            comp_clean = comp_part.replace("-", "_")
+            props = self._component_props.get(comp_part) or self._component_props.get(comp_clean)
+            if props:
+                clean_props = []
+                seen = set()
+                for p in props:
+                    if p.startswith("section_"):
+                        sec_name = "_".join(p.split("_")[:2])
+                        if sec_name not in seen:
+                            clean_props.append(sec_name)
+                            seen.add(sec_name)
+                    else:
+                        clean_props.append(p)
+                self._update_completer_model(clean_props)
+                self._completer.setCompletionPrefix(prop_prefix)
+                return
+        elif len(parts) == 3:
+            comp_part, sec_part, prop_prefix = parts[0], parts[1], parts[2]
+            comp_clean = comp_part.replace("-", "_")
+            props = self._component_props.get(comp_part) or self._component_props.get(comp_clean)
+            if props:
+                prefix_match = f"{sec_part}_"
+                sec_subprops = [p[len(prefix_match):] for p in props if p.startswith(prefix_match)]
+                self._update_completer_model(sec_subprops)
+                self._completer.setCompletionPrefix(prop_prefix)
+                return
+
+        self._update_completer_model(self._all_symbols)
+        self._completer.setCompletionPrefix(token)
+
     def keyPressEvent(self, event: QKeyEvent) -> None:
-        if self._completer and self._completer.popup() and self._completer.popup().isVisible():
-            if event.key() in (
+        if (
+            self._completer
+            and self._completer.popup()
+            and self._completer.popup().isVisible()
+            and event.key()
+            in (
                 Qt.Key.Key_Enter,
                 Qt.Key.Key_Return,
                 Qt.Key.Key_Escape,
                 Qt.Key.Key_Tab,
                 Qt.Key.Key_Backtab,
-            ):
-                event.ignore()
-                return
+            )
+        ):
+            event.ignore()
+            return
 
         super().keyPressEvent(event)
 
         if not self._completer:
             return
 
-        token, start_pos, end_pos = self._get_current_token()
+        token, _start_pos, _end_pos = self._get_current_token()
         if not token:
             if self._completer.popup():
                 self._completer.popup().hide()
             return
 
-        # Check if dot notation: e.g. "main_wing.", "main-wing.", or "main_wing.section_0."
-        if "." in token:
-            parts = token.split(".")
-            if len(parts) == 2:
-                comp_part, prop_prefix = parts[0], parts[1]
-                comp_clean = comp_part.replace("-", "_")
-                props = self._component_props.get(comp_part) or self._component_props.get(comp_clean)
-                if props:
-                    # Clean property list: top-level + section names (e.g. section_0, section_1)
-                    clean_props = []
-                    seen = set()
-                    for p in props:
-                        if p.startswith("section_"):
-                            sec_name = "_".join(p.split("_")[:2])  # section_0
-                            if sec_name not in seen:
-                                clean_props.append(sec_name)
-                                seen.add(sec_name)
-                        else:
-                            clean_props.append(p)
-                    self._update_completer_model(clean_props)
-                    self._completer.setCompletionPrefix(prop_prefix)
-                else:
-                    self._update_completer_model(self._all_symbols)
-                    self._completer.setCompletionPrefix(token)
-            elif len(parts) == 3:
-                comp_part, sec_part, prop_prefix = parts[0], parts[1], parts[2]
-                comp_clean = comp_part.replace("-", "_")
-                props = self._component_props.get(comp_part) or self._component_props.get(comp_clean)
-                if props:
-                    prefix_match = f"{sec_part}_"
-                    sec_subprops = [
-                        p[len(prefix_match):] for p in props if p.startswith(prefix_match)
-                    ]
-                    self._update_completer_model(sec_subprops)
-                    self._completer.setCompletionPrefix(prop_prefix)
-                else:
-                    self._update_completer_model(self._all_symbols)
-                    self._completer.setCompletionPrefix(token)
-            else:
-                self._update_completer_model(self._all_symbols)
-                self._completer.setCompletionPrefix(token)
-        else:
-            self._update_completer_model(self._all_symbols)
-            self._completer.setCompletionPrefix(token)
+        self._update_token_completions(token)
 
         popup = self._completer.popup()
         if self._completer.completionCount() > 0:

@@ -152,7 +152,7 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
         layout = self._create_section("Local Center of Gravity", "fa6s.crosshairs")
         self.cg_table = QTableWidget(1, 3, self)
         self.cg_table.setHorizontalHeaderLabels(["X", "Y", "Z"])
-        self.cg_table.setVerticalHeaderLabels(["Position (mm)"])
+        self.cg_table.setVerticalHeaderLabels(["Position"])
         self.cg_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.cg_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
         self.cg_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -176,6 +176,7 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
                 max_val=10_000_000.0,
                 step=1.0,
                 decimals=3,
+                quantity="length",
                 suffix="mm",
                 on_changed=self._on_field_changed,
             )
@@ -211,6 +212,7 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
                         max_val=1_000_000.0,
                         step=0.000001,
                         decimals=8,
+                        quantity="inertia",
                         suffix="kg·m²",
                         on_changed=self._on_field_changed,
                     )

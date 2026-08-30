@@ -201,7 +201,7 @@ QUANTITIES: dict[str, QuantityDefinition] = {
             "Wh": UnitDefinition("Wh", "Wh", "Watt-hour (Wh)", 1.0, 1.0, decimals=1),
         },
     ),
-    "resistance": QuantityDefinition(
+        "resistance": QuantityDefinition(
         id="resistance",
         name="Electrical Resistance",
         base_unit_id="ohm",
@@ -212,9 +212,21 @@ QUANTITIES: dict[str, QuantityDefinition] = {
             "kohm": UnitDefinition("kohm", "kΩ", "Kiloohm (kΩ)", 1000.0, 0.001, decimals=4),
         },
     ),
+    "inertia": QuantityDefinition(
+        id="inertia",
+        name="Mass Moment of Inertia",
+        base_unit_id="kg*m2",
+        default_decimals=6,
+        units={
+            "kg*m2": UnitDefinition("kg*m2", "kg·m²", "Kilogram square meter (kg·m²)", 1.0, 1.0, decimals=6),
+            "g*mm2": UnitDefinition("g*mm2", "g·mm²", "Gram square millimeter (g·mm²)", 1e-9, 1e9, decimals=1),
+            "lb*in2": UnitDefinition("lb*in2", "lb·in²", "Pound square inch (lb·in²)", 0.0002926396534292, 1.0 / 0.0002926396534292, decimals=4),
+            "slug*ft2": UnitDefinition("slug*ft2", "slug·ft²", "Slug square foot (slug·ft²)", 1.3558179483314, 1.0 / 1.3558179483314, decimals=6),
+        },
+    ),
 }
 
-# Mapping schema unit strings (e.g. "deg", "mm", "dm2") to Quantity ID
+# Mapping schema unit strings and symbols (e.g. "deg", "°", "mm", "dm2", "dm²") to Quantity ID
 SCHEMA_UNIT_TO_QUANTITY: dict[str, str] = {
     "mm": "length",
     "cm": "length",
@@ -222,21 +234,34 @@ SCHEMA_UNIT_TO_QUANTITY: dict[str, str] = {
     "in": "length",
     "ft": "length",
     "dm2": "area",
+    "dm²": "area",
     "m2": "area",
+    "m²": "area",
     "cm2": "area",
+    "cm²": "area",
     "mm2": "area",
+    "mm²": "area",
     "in2": "area",
+    "in²": "area",
     "ft2": "area",
+    "ft²": "area",
     "dm3": "volume",
+    "dm³": "volume",
     "l": "volume",
     "ml": "volume",
     "cm3": "volume",
+    "cm³": "volume",
     "m3": "volume",
+    "m³": "volume",
+    "in3": "volume",
+    "in³": "volume",
+    "gal": "volume",
     "g": "mass",
     "kg": "mass",
     "oz": "mass",
     "lb": "mass",
     "deg": "angle",
+    "°": "angle",
     "rad": "angle",
     "m/s": "velocity",
     "km/h": "velocity",
@@ -250,22 +275,54 @@ SCHEMA_UNIT_TO_QUANTITY: dict[str, str] = {
     "n*m": "torque",
     "n*cm": "torque",
     "kgf*cm": "torque",
+    "lbf*in": "torque",
     "pa": "pressure",
     "kpa": "pressure",
     "bar": "pressure",
+    "mbar": "pressure",
     "psi": "pressure",
     "w": "power",
     "kw": "power",
     "hp": "power",
     "v": "voltage",
     "mv": "voltage",
+    "kv": "voltage",
     "a": "current",
     "ma": "current",
     "mah": "capacity",
     "ah": "capacity",
+    "wh": "capacity",
     "ohm": "resistance",
     "mohm": "resistance",
+    "kohm": "resistance",
+    "kg*m2": "inertia",
+    "kg·m²": "inertia",
+    "g*mm2": "inertia",
+    "g·mm²": "inertia",
+    "lb*in2": "inertia",
+    "lb·in²": "inertia",
+    "slug*ft2": "inertia",
+    "slug·ft²": "inertia",
 }
+
+
+def get_quantity_for_unit(unit_str: str | None) -> str | None:
+    """Resolve a unit string or quantity name to a recognized Quantity ID."""
+    if not unit_str:
+        return None
+    clean = unit_str.strip().lower()
+    if clean in QUANTITIES:
+        return clean
+    return SCHEMA_UNIT_TO_QUANTITY.get(clean)
+
+
+def get_quantity_choices() -> list[tuple[str, str]]:
+    """Return list of (quantity_id, display_label) for UI dropdowns."""
+    choices = [("", "Dimensionless (None)")]
+    for q_id, q in QUANTITIES.items():
+        choices.append((q_id, f"{q.name} ({q_id})"))
+    return choices
+
 
 # ---------------------------------------------------------------------------
 # Unit System Presets
@@ -288,6 +345,7 @@ PRESETS: dict[str, dict[str, str]] = {
         "current": "A",
         "capacity": "mAh",
         "resistance": "ohm",
+        "inertia": "kg*m2",
     },
     "aviation": {
         "name": "Aviation Standard",
@@ -305,6 +363,7 @@ PRESETS: dict[str, dict[str, str]] = {
         "current": "A",
         "capacity": "mAh",
         "resistance": "mohm",
+        "inertia": "kg*m2",
     },
     "imperial": {
         "name": "Imperial (US Customary)",
@@ -322,6 +381,7 @@ PRESETS: dict[str, dict[str, str]] = {
         "current": "A",
         "capacity": "Ah",
         "resistance": "ohm",
+        "inertia": "lb*in2",
     },
 }
 
@@ -433,18 +493,21 @@ class UnitManager(QObject):
                 return
         self._active_preset = "custom"
 
-    def get_unit_symbol(self, quantity_id: str, unit_id: str | None = None) -> str:
-        """Get the human-readable display symbol (e.g. 'dm²', 'in', '°')."""
-        qty = QUANTITIES.get(quantity_id)
-        if not qty:
+    def get_unit_symbol(self, quantity_or_unit: str, unit_id: str | None = None) -> str:
+        """Get the human-readable display symbol (e.g. 'dm²', 'in', '°', 'kg·m²')."""
+        if not quantity_or_unit:
             return unit_id or ""
-        u_id = unit_id or self.get_display_unit(quantity_id)
+        q_id = get_quantity_for_unit(quantity_or_unit) or quantity_or_unit
+        qty = QUANTITIES.get(q_id)
+        if not qty:
+            return unit_id or quantity_or_unit
+        u_id = unit_id or self.get_display_unit(q_id)
         u_def = qty.units.get(u_id)
         return u_def.symbol if u_def else u_id
 
     def to_display(self, base_value: float, quantity_or_schema_unit: str) -> float:
         """Convert a base storage value to the user's active display unit."""
-        q_id = SCHEMA_UNIT_TO_QUANTITY.get(quantity_or_schema_unit.lower(), quantity_or_schema_unit)
+        q_id = get_quantity_for_unit(quantity_or_schema_unit) or quantity_or_schema_unit
         qty = QUANTITIES.get(q_id)
         if qty is None:
             return base_value
@@ -454,13 +517,56 @@ class UnitManager(QObject):
 
     def to_base(self, display_value: float, quantity_or_schema_unit: str) -> float:
         """Convert a display unit value back to standard base storage unit."""
-        q_id = SCHEMA_UNIT_TO_QUANTITY.get(quantity_or_schema_unit.lower(), quantity_or_schema_unit)
+        q_id = get_quantity_for_unit(quantity_or_schema_unit) or quantity_or_schema_unit
         qty = QUANTITIES.get(q_id)
         if qty is None:
             return display_value
 
         current_unit = self.get_display_unit(q_id)
         return convert_value(display_value, q_id, current_unit, qty.base_unit_id)
+
+    def get_inertia_display(self, base_val_kg_m2: float) -> tuple[float, str]:
+        """Convert standard kg*m^2 inertia tensor value based on active mass & length units."""
+        mass_u_id = self.get_display_unit("mass")
+        len_u_id = self.get_display_unit("length")
+
+        mass_u = QUANTITIES["mass"].units.get(mass_u_id)
+        len_u = QUANTITIES["length"].units.get(len_u_id)
+
+        if not mass_u or not len_u:
+            return base_val_kg_m2, "kg·m²"
+
+        # Base mass is g, so 1 kg = 1000 g -> scale from kg to display mass
+        mass_from_kg = mass_u.from_base * 1000.0 if not callable(mass_u.from_base) else 1.0
+        # Base length is mm, so 1 m = 1000 mm -> scale from m to display length
+        len_from_m = len_u.from_base * 1000.0 if not callable(len_u.from_base) else 1.0
+
+        scale = mass_from_kg * (len_from_m**2)
+        disp_val = base_val_kg_m2 * scale
+
+        mass_sym = mass_u.symbol
+        len_sym = len_u.symbol
+        symbol = f"{mass_sym}·{len_sym}²"
+        return disp_val, symbol
+
+    def get_wing_loading_display(self, base_val_g_dm2: float) -> tuple[float, str]:
+        """Convert standard g/dm^2 wing loading based on active mass & area units."""
+        mass_u_id = self.get_display_unit("mass")
+        area_u_id = self.get_display_unit("area")
+
+        mass_u = QUANTITIES["mass"].units.get(mass_u_id)
+        area_u = QUANTITIES["area"].units.get(area_u_id)
+
+        if not mass_u or not area_u:
+            return base_val_g_dm2, "g/dm²"
+
+        mass_scale = mass_u.from_base if not callable(mass_u.from_base) else 1.0
+        area_scale = area_u.from_base if not callable(area_u.from_base) else 1.0
+
+        scale = mass_scale / area_scale if area_scale != 0 else 1.0
+        disp_val = base_val_g_dm2 * scale
+        symbol = f"{mass_u.symbol}/{area_u.symbol}"
+        return disp_val, symbol
 
 
 # Global singleton instance

@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QHBoxLayout,
     QHeaderView,
+    QLabel,
     QLineEdit,
     QPushButton,
     QSizePolicy,
@@ -150,12 +151,9 @@ class ExpressionPropertyCell(QWidget):
         self._raw_expression = str(initial_value)
         self._is_focused = False
 
-        from setuav_studio.units import SCHEMA_UNIT_TO_QUANTITY, get_unit_manager
+        from setuav_studio.units import get_quantity_for_unit, get_unit_manager
 
-        self._quantity = quantity
-        if not self._quantity and unit:
-            self._quantity = SCHEMA_UNIT_TO_QUANTITY.get(unit.lower(), unit.lower())
-
+        self._quantity = quantity or get_quantity_for_unit(unit)
         self._suffix = unit or ""
         self._decimals = decimals
         if self._decimals is None:
@@ -173,7 +171,15 @@ class ExpressionPropertyCell(QWidget):
         self.line_edit.focused_in.connect(self._on_focus_in)
         self.line_edit.focused_out.connect(self._on_focus_out)
         self.line_edit.returnPressed.connect(self._on_return_pressed)
-        layout.addWidget(self.line_edit)
+        layout.addWidget(self.line_edit, 1)
+
+        self.unit_label = QLabel(self)
+        self.unit_label.setObjectName("cellUnitBadge")
+        self.unit_label.setStyleSheet(
+            "QLabel { color: #f0f0f0; font-size: 11px; font-weight: bold; padding-left: 2px; padding-right: 3px; }"
+        )
+        self.unit_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(self.unit_label)
 
         self.fx_button = QPushButton("fx", self)
         self.fx_button.setToolTip("Open Equation / Expression Assistant")
@@ -218,9 +224,16 @@ class ExpressionPropertyCell(QWidget):
             disp_num = um.to_display(base_val, self._quantity)
             sym = um.get_unit_symbol(self._quantity)
             return format_engineering_value(disp_num, self._decimals), sym
-        return format_engineering_value(base_val, self._decimals), ""
+        return format_engineering_value(base_val, self._decimals), self._suffix
 
     def _refresh_display(self) -> None:
+        from setuav_studio.units import get_unit_manager
+
+        um = get_unit_manager()
+        active_sym = um.get_unit_symbol(self._quantity) if self._quantity else (self._suffix or "")
+        self.unit_label.setText(active_sym)
+        self.unit_label.setVisible(bool(active_sym))
+
         clean = self._raw_expression.strip()
         if not clean:
             self.line_edit.blockSignals(True)
@@ -286,38 +299,25 @@ class ExpressionPropertyCell(QWidget):
         self._refresh_display()
         self.line_edit.selectAll()
 
-    def _commit_line_edit(self) -> None:
+    def _convert_input_to_raw_storage(self, text: str) -> str:
         from setuav_studio.units import get_unit_manager
 
-        new_text = self.line_edit.text().strip()
-        if not new_text:
-            self._raw_expression = ""
-            if self._on_changed:
-                self._on_changed("")
-            return
+        if not text or self._is_formula(text):
+            return text
+        try:
+            disp_num = float(text)
+            base_num = get_unit_manager().to_base(disp_num, self._quantity) if self._quantity else disp_num
+            return str(base_num)
+        except ValueError:
+            return text
 
-        if self._is_formula(new_text):
-            if new_text != self._raw_expression:
-                self._raw_expression = new_text
-                if self._on_changed:
-                    self._on_changed(self._raw_expression)
-        else:
-            try:
-                disp_num = float(new_text)
-                if self._quantity:
-                    base_num = get_unit_manager().to_base(disp_num, self._quantity)
-                else:
-                    base_num = disp_num
-                clean_base_str = str(base_num)
-                if clean_base_str != self._raw_expression:
-                    self._raw_expression = clean_base_str
-                    if self._on_changed:
-                        self._on_changed(self._raw_expression)
-            except ValueError:
-                if new_text != self._raw_expression:
-                    self._raw_expression = new_text
-                    if self._on_changed:
-                        self._on_changed(self._raw_expression)
+    def _commit_line_edit(self) -> None:
+        new_text = self.line_edit.text().strip()
+        new_raw = self._convert_input_to_raw_storage(new_text)
+        if new_raw != self._raw_expression:
+            self._raw_expression = new_raw
+            if self._on_changed:
+                self._on_changed(self._raw_expression)
 
     def _on_focus_out(self) -> None:
         self._is_focused = False
@@ -380,6 +380,8 @@ class ExpressionPropertyCell(QWidget):
 
     def setValue(self, val: float | str) -> None:
         self.setText(str(val))
+        if self._on_changed:
+            self._on_changed(str(val))
 
     def suffix(self) -> str:
         from setuav_studio.units import get_unit_manager

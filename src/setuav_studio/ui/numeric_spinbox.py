@@ -93,6 +93,38 @@ class NumericSpinBox(QDoubleSpinBox):
         event.accept()
 
 
+def _resolve_table_api(table: QTableWidget, explicit_api: Any | None) -> Any | None:
+    if explicit_api is not None:
+        return explicit_api
+    parent = table.parent()
+    while parent is not None:
+        if hasattr(parent, "_api"):
+            return parent._api
+        parent = parent.parent()
+    return None
+
+
+def _parse_spinbox_callback_value(new_text: str, api: Any | None) -> Any:
+    clean = new_text.strip()
+    if clean.startswith("=") or not clean.replace(".", "", 1).replace("-", "", 1).isdigit():
+        if api is not None and getattr(api, "current_project", None) is not None:
+            try:
+                from setuav_studio.plugins.core.expressions import ExpressionEvaluator
+
+                evaluator = ExpressionEvaluator()
+                scope = api.current_project.get_scope(api=api)
+                res = evaluator.evaluate(clean.lstrip("=").strip(), scope)
+                if isinstance(res, (int, float)):
+                    return float(res)
+            except Exception:
+                pass
+        return clean
+    try:
+        return float(clean)
+    except ValueError:
+        return clean
+
+
 def set_table_spinbox(
     table: QTableWidget,
     row: int,
@@ -111,7 +143,7 @@ def set_table_spinbox(
     label: str = "",
 ) -> Any:
     """Helper to cleanly place an ExpressionPropertyCell with fx assistant into a QTableWidget cell."""
-    from setuav_studio.ui.property_tables import ExpressionPropertyCell
+    from setuav_studio.ui.property_tables import ExpressionPropertyCell, format_engineering_value
 
     item = table.item(row, column)
     if item is not None:
@@ -122,41 +154,11 @@ def set_table_spinbox(
         col0_item = table.item(row, 0)
         label = col0_item.text() if col0_item else ""
 
-    resolved_api = api
-    if resolved_api is None:
-        parent = table.parent()
-        while parent is not None:
-            if hasattr(parent, "_api"):
-                resolved_api = parent._api
-                break
-            parent = parent.parent()
+    resolved_api = _resolve_table_api(table, api)
 
     def handle_cell_changed(new_text: str) -> None:
-        if on_changed is None:
-            return
-        clean = new_text.strip()
-        if clean.startswith("=") or not clean.replace(".", "", 1).replace("-", "", 1).isdigit():
-            if resolved_api is not None and getattr(resolved_api, "current_project", None) is not None:
-                try:
-                    from setuav_studio.plugins.core.expressions import ExpressionEvaluator
-
-                    evaluator = ExpressionEvaluator()
-                    scope = resolved_api.current_project.get_scope(api=resolved_api)
-                    expr = clean.lstrip("=").strip()
-                    res = evaluator.evaluate(expr, scope)
-                    if isinstance(res, (int, float)):
-                        on_changed(float(res))
-                        return
-                except Exception:
-                    pass
-            on_changed(clean)
-        else:
-            try:
-                on_changed(float(clean))
-            except ValueError:
-                on_changed(clean)
-
-    from setuav_studio.ui.property_tables import format_engineering_value
+        if on_changed is not None:
+            on_changed(_parse_spinbox_callback_value(new_text, resolved_api))
 
     init_str = (
         format_engineering_value(value, decimals)

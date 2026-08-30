@@ -8,6 +8,7 @@ Provides an 8-row table with:
 
 from __future__ import annotations
 
+import contextlib
 from collections.abc import Callable
 from typing import Any
 
@@ -103,6 +104,9 @@ class DriverPlanformTable(QTableWidget):
             val_item.setFlags(val_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             self.setItem(row, 2, val_item)
 
+        from setuav_studio.units import get_unit_manager
+
+        get_unit_manager().units_changed.connect(self._refresh_table_widgets)
         self._update_checkbox_states()
 
     def set_parameters(
@@ -178,6 +182,9 @@ class DriverPlanformTable(QTableWidget):
         self._updating = True
         try:
             self._update_checkbox_states()
+            from setuav_studio.units import get_quantity_for_unit, get_unit_manager
+
+            um = get_unit_manager()
 
             for row, key in enumerate(PLANFORM_PARAM_KEYS):
                 is_driver = key in self._active_drivers
@@ -192,32 +199,42 @@ class DriverPlanformTable(QTableWidget):
                     label_item.setFont(font)
 
                 if is_driver:
-                    raw_expr = self._driver_expressions.get(key)
-                    if raw_expr:
-                        init_str = raw_expr
+                    # Clear underlying item text to prevent ghosting behind the cell widget
+                    item = self.item(row, 2)
+                    if item:
+                        item.setText("")
                     else:
-                        dec = 2 if key in ("area", "aspect_ratio") else (3 if key == "taper_ratio" else 1)
-                        init_str = f"{val:.{dec}f}"
+                        self.setItem(row, 2, QTableWidgetItem(""))
 
+                    raw_expr = self._driver_expressions.get(key)
+                    init_str = raw_expr or str(val)
+
+                    dec = 3 if key in ("area", "taper_ratio", "aspect_ratio") else 2
                     label_name = PLANFORM_PARAM_LABELS[key]
                     cell = ExpressionPropertyCell(
                         initial_value=init_str,
                         on_changed=lambda s, k=key: self._on_expression_cell_changed(k, s),
                         api=self._api,
                         label=label_name,
+                        decimals=dec,
+                        unit=unit,
                         parent=self,
                     )
                     self.setCellWidget(row, 2, cell)
                 else:
                     self.removeCellWidget(row, 2)
-                    dec = (
-                        2
-                        if key == "area"
-                        else (3 if key == "taper_ratio" else (2 if key == "aspect_ratio" else 1))
-                    )
-                    val_str = f"{val:.{dec}f}"
-                    if unit:
-                        val_str += f" {unit}"
+                    dec = 3 if key in ("area", "taper_ratio", "aspect_ratio") else 2
+                    q_id = get_quantity_for_unit(unit)
+                    if q_id:
+                        disp_val = um.to_display(val, q_id)
+                        sym = um.get_unit_symbol(q_id)
+                    else:
+                        disp_val = val
+                        sym = unit or ""
+
+                    val_str = f"{disp_val:.{dec}f}"
+                    if sym:
+                        val_str += f" {sym}"
                     val_item = self.item(row, 2)
                     if not val_item:
                         val_item = QTableWidgetItem(val_str)
@@ -255,10 +272,8 @@ class DriverPlanformTable(QTableWidget):
                     pass
         else:
             self._driver_expressions.pop(edited_key, None)
-            try:
+            with contextlib.suppress(ValueError):
                 eval_val = float(clean)
-            except ValueError:
-                pass
 
         if eval_val is not None:
             self._on_spinbox_value_changed(edited_key, eval_val)

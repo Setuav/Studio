@@ -72,7 +72,7 @@ class ConstraintStatusWidget(QWidget):
 
         if not violations:
             self.btn.setText(f"✔ Constraints OK ({len(results)})")
-            self.btn.setIcon(get_icon("success") if hasattr(get_icon, "__call__") else get_icon("settings"))
+            self.btn.setIcon(get_icon("success") if callable(get_icon) else get_icon("settings"))
             self.btn.setStyleSheet(f"color: {status_color('success')}; font-weight: bold;")
             self.btn.setToolTip(f"All {len(results)} constraints satisfied.")
         else:

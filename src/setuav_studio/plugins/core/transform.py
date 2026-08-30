@@ -121,7 +121,7 @@ class TransformEditor(PropertyTableMixin, QWidget):
         layout = self._create_section("Transform", "mdi6.axis-arrow")
         self.transform_table = QTableWidget(2, 3, self)
         self.transform_table.setHorizontalHeaderLabels(["X", "Y", "Z"])
-        self.transform_table.setVerticalHeaderLabels(["Position (mm)", "Rotation (°)"])
+        self.transform_table.setVerticalHeaderLabels(["Position", "Rotation"])
         self.transform_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.transform_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
         self.transform_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -143,6 +143,7 @@ class TransformEditor(PropertyTableMixin, QWidget):
                 maximum=1_000_000_000.0,
                 step=1.0,
                 decimals=3,
+                quantity="length",
                 suffix="mm",
             )
             for column, axis in enumerate(("x", "y", "z"))
@@ -155,6 +156,7 @@ class TransformEditor(PropertyTableMixin, QWidget):
                 maximum=360.0,
                 step=1.0,
                 decimals=3,
+                quantity="angle",
                 suffix="°",
             )
             for column, axis in enumerate(("roll", "pitch", "yaw"))
@@ -170,6 +172,7 @@ class TransformEditor(PropertyTableMixin, QWidget):
         maximum: float,
         step: float,
         decimals: int,
+        quantity: str,
         suffix: str,
     ) -> NumericSpinBox:
         return set_table_spinbox(
@@ -181,6 +184,7 @@ class TransformEditor(PropertyTableMixin, QWidget):
             max_val=maximum,
             step=step,
             decimals=decimals,
+            quantity=quantity,
             suffix=suffix,
             on_changed=lambda _value: self._update_transform(),
         )

@@ -9,7 +9,6 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QHBoxLayout,
     QHeaderView,
-    QInputDialog,
     QMessageBox,
     QPushButton,
     QTableWidget,
@@ -182,23 +181,26 @@ class ProjectParametersPanel(QWidget):
         if not data:
             return
 
-        name, ok = QInputDialog.getText(
-            self, "Add Parameter", "Parameter name (e.g. wing_span, mtow):"
-        )
-        if not ok or not name.strip():
-            return
-        param_name = name.strip()
+        from PySide6.QtWidgets import QDialog
+
+        from setuav_studio.plugins.core.ui.parameters_dialog import AddParameterDialog
 
         raw_params: dict[str, Any] = data.setdefault("parameters", {})
-        if param_name in raw_params:
-            QMessageBox.warning(self, "Duplicate Name", f"Parameter '{param_name}' already exists.")
-            return
+        dlg = AddParameterDialog(
+            api=self._api,
+            existing_names=set(raw_params.keys()),
+            is_constant=False,
+            parent=self,
+        )
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            param_name, param_val = dlg.get_data()
 
-        def _apply() -> None:
-            raw_params[param_name] = 0.0
+            def _apply() -> None:
+                pdata = self._api.current_project.data if self._api.current_project else {}
+                pdata.setdefault("parameters", {})[param_name] = param_val
 
-        self._api.edit_project(f"Add parameter '{param_name}'", _apply)
-        self._refresh()
+            self._api.edit_project(f"Add parameter '{param_name}'", _apply)
+            self._refresh()
 
     def _remove_parameter(self) -> None:
         data = self._get_project_data()

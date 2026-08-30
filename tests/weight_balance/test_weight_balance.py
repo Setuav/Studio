@@ -347,7 +347,7 @@ class WeightBalancePluginTests(unittest.TestCase):
         self.assertEqual(results.summary_table.rowCount(), 2)
         self.assertEqual(results.cg_table.columnCount(), 3)
         self.assertEqual(results.inertia_table.rowCount(), 2)
-        self.assertEqual(results.component_table.horizontalHeaderItem(2).text(), "CG-X (mm)")
+        self.assertEqual(results.component_table.horizontalHeaderItem(2).text(), "CG-X")
         self.assertEqual(results.component_table.horizontalHeaderItem(7).text(), "Notes")
         self.assertRegex(results.warning_label.text(), r"^\d+ warning\(s\)$")
         self.assertFalse(results.warning_icon.pixmap().isNull())

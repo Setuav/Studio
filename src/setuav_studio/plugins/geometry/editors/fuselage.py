@@ -1,3 +1,4 @@
+import contextlib
 from collections.abc import Callable
 from copy import deepcopy
 from typing import Any
@@ -26,7 +27,7 @@ from setuav_studio.ui.numeric_spinbox import (
     NumericSpinBox,
     set_table_spinbox,
 )
-from setuav_studio.ui.property_tables import PropertyTableMixin
+from setuav_studio.ui.property_tables import ExpressionPropertyCell, PropertyTableMixin
 from setuav_studio_sdk import StudioAPI
 
 from ..engine.fuselage_geometry import (
@@ -168,7 +169,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         transform_layout = self._create_section("Transform", "mdi6.axis-arrow")
         self.transform_table = QTableWidget(2, 3)
         self.transform_table.setHorizontalHeaderLabels(["X", "Y", "Z"])
-        self.transform_table.setVerticalHeaderLabels(["Position (mm)", "Rotation (°)"])
+        self.transform_table.setVerticalHeaderLabels(["Position", "Rotation"])
         self.transform_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.transform_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
         self.transform_table.setEditTriggers(
@@ -836,6 +837,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
                 value,
                 step=5.0,
                 decimals=2,
+                quantity="length",
                 suffix="mm",
                 on_changed=lambda _v: self._update_section(0, 0),
             )
@@ -849,6 +851,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
                 max_val=360.0,
                 step=1.0,
                 decimals=2,
+                quantity="angle",
                 suffix="°",
                 on_changed=lambda _v: self._update_section(1, 0),
             )
@@ -861,7 +864,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
             vals: list[float] = []
             for column in range(3):
                 w = self.transform_table.cellWidget(row, column)
-                if isinstance(w, QDoubleSpinBox):
+                if isinstance(w, (QDoubleSpinBox, ExpressionPropertyCell)):
                     vals.append(float(w.value()))
                 else:
                     item = self.transform_table.item(row, column)
@@ -883,7 +886,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         if not isinstance(vertices, list) or not 0 <= row < len(vertices):
             return
         w = self.vertices_table.cellWidget(row, column)
-        if isinstance(w, QDoubleSpinBox):
+        if isinstance(w, (QDoubleSpinBox, ExpressionPropertyCell)):
             value = float(w.value())
         else:
             item = self.vertices_table.item(row, column)
@@ -902,24 +905,24 @@ class FuselageEditor(PropertyTableMixin, QWidget):
     def _populate_section_properties(self, profile: dict[str, Any]) -> None:
         profile_type = str(profile.get("type") or "circle")
         fields: dict[str, list[tuple[str, str]]] = {
-            "circle": [("diameter", "Diameter (mm)")],
-            "ellipse": [("width", "Width (mm)"), ("height", "Height (mm)")],
+            "circle": [("diameter", "Diameter")],
+            "ellipse": [("width", "Width"), ("height", "Height")],
             "rectangle": [
-                ("width", "Width (mm)"),
-                ("height", "Height (mm)"),
-                ("corner_radius", "Corner radius (mm)"),
+                ("width", "Width"),
+                ("height", "Height"),
+                ("corner_radius", "Corner radius"),
             ],
             "trapezoid": [
-                ("top_width", "Top width (mm)"),
-                ("bottom_width", "Bottom width (mm)"),
-                ("height", "Height (mm)"),
-                ("corner_radius", "Corner radius (mm)"),
+                ("top_width", "Top width"),
+                ("bottom_width", "Bottom width"),
+                ("height", "Height"),
+                ("corner_radius", "Corner radius"),
             ],
             "triangle": [
-                ("base_width", "Base width (mm)"),
-                ("height", "Height (mm)"),
+                ("base_width", "Base width"),
+                ("height", "Height"),
                 ("orientation", "Orientation"),
-                ("corner_radius", "Corner radius (mm)"),
+                ("corner_radius", "Corner radius"),
             ],
             "polygon": [("vertices", "Vertices")],
         }
@@ -933,7 +936,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
                 self._set_property_value(
                     self.section_properties_table,
                     key,
-                    value,
+                    str(value),
                     editable=False,
                 )
             elif key in (
@@ -954,6 +957,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
                     on_changed=lambda v, k=key: self._on_property_expression_changed(k, v),
                     api=self._api,
                     label=_label,
+                    unit="mm",
                 )
             else:
                 self._set_property_value(
@@ -1004,10 +1008,8 @@ class FuselageEditor(PropertyTableMixin, QWidget):
                     pass
         else:
             profile.pop(f"{key}_expression", None)
-            try:
+            with contextlib.suppress(ValueError):
                 num_val = float(val_str)
-            except ValueError:
-                pass
 
         if num_val is not None:
             profile[key] = num_val

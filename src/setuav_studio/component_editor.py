@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
@@ -15,7 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.ui.icons import set_label_icon
-from setuav_studio.ui.property_tables import PropertyTableMixin
+from setuav_studio.ui.property_tables import ExpressionPropertyCell, PropertyTableMixin
 from setuav_studio_sdk import ParameterField
 
 if TYPE_CHECKING:
@@ -119,8 +120,7 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
         layout = self._create_section("Parameters", "fa6s.sliders")
         defs: list[tuple[str, str]] = []
         for f in self._fields:
-            display_label = f"{f.label} ({f.unit})" if f.unit else f.label
-            defs.append((f.key, display_label))
+            defs.append((f.key, f.label))
 
         self.parameters_table = self._property_table(defs)
         self.parameters_table.cellChanged.connect(self._update_parameter_cell)
@@ -148,7 +148,8 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
                 "mass",
                 mass_val,
                 on_changed=self._on_mass_changed,
-                label="Mass (g)",
+                label="Mass",
+                unit="g",
             )
             self._set_property_value(
                 self.general_table, "manufacturer", str(self._component.get("manufacturer") or "")
@@ -191,6 +192,9 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
                             str_val,
                             on_changed=lambda new_val, k=field.key: self._on_expression_cell_changed(k, new_val),
                             on_open_assistant=lambda curr_val, f=field: self._open_field_expression_assistant(f, curr_val),
+                            decimals=field.decimals,
+                            unit=field.unit,
+                            label=field.label,
                         )
         finally:
             self._loading = False
@@ -261,10 +265,8 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
                     pass
         else:
             self._component.pop("mass_expression", None)
-            try:
+            with contextlib.suppress(ValueError):
                 num_val = float(clean)
-            except ValueError:
-                pass
 
         def change() -> None:
             if num_val is not None:
@@ -306,7 +308,14 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
             return
 
         key = self._property_key(self.parameters_table, row)
-        val_text = self._property_text(self.parameters_table, row)
+        item = self.parameters_table.item(row, column)
+        cell_widget = self.parameters_table.cellWidget(row, column)
+        if item is not None and item.text():
+            val_text = item.text()
+            if isinstance(cell_widget, ExpressionPropertyCell):
+                cell_widget.setText(val_text)
+        else:
+            val_text = self._property_text(self.parameters_table, row)
         field = next((f for f in self._fields if f.key == key), None)
         if field is None:
             return

@@ -28,7 +28,7 @@ class AttachmentMixin:
 
         self.attachment_table = QTableWidget(2, 3)
         self.attachment_table.setHorizontalHeaderLabels(["X", "Y", "Z"])
-        self.attachment_table.setVerticalHeaderLabels(["Position (mm)", "Rotation (°)"])
+        self.attachment_table.setVerticalHeaderLabels(["Position", "Rotation"])
         self.attachment_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.attachment_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
         self.attachment_table.setEditTriggers(

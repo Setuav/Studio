@@ -132,7 +132,7 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
 
     def _create_dimensions_section(self) -> None:
         layout = self._create_section("Dimensions", "fa6s.arrows-left-right")
-        self.dimensions_table = self._vector_table("Size (mm)")
+        self.dimensions_table = self._vector_table("Size")
         self.dimension_spins = {
             axis: self._set_vector_spin(self.dimensions_table, column, axis)
             for column, axis in enumerate(("x", "y", "z"))
@@ -141,7 +141,7 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
 
     def _create_offset_section(self) -> None:
         layout = self._create_section("Local Offset", "mdi6.axis-arrow")
-        self.offset_table = self._vector_table("Offset (mm)")
+        self.offset_table = self._vector_table("Offset")
         self.offset_spins = {
             axis: self._set_vector_spin(self.offset_table, column, axis)
             for column, axis in enumerate(("x", "y", "z"))

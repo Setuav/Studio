@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from typing import Any
 
 from PySide6.QtCore import Qt
@@ -84,7 +85,7 @@ class PointMassEditor(PropertyTableMixin, QWidget):
 
     def _create_mass_section(self) -> None:
         layout = self._create_section("Mass", "fa6s.weight-scale")
-        self.mass_table = self._property_table([("mass", "Mass (g)")])
+        self.mass_table = self._property_table([("mass", "Mass")])
         self.mass_table.cellChanged.connect(self._mass_changed)
         layout.addWidget(self.mass_table)
 
@@ -92,7 +93,7 @@ class PointMassEditor(PropertyTableMixin, QWidget):
         layout = self._create_section("Transform", "mdi6.axis-arrow")
         self.transform_table = QTableWidget(2, 3, self)
         self.transform_table.setHorizontalHeaderLabels(["X", "Y", "Z"])
-        self.transform_table.setVerticalHeaderLabels(["Position (mm)", "Rotation (°)"])
+        self.transform_table.setVerticalHeaderLabels(["Position", "Rotation"])
         self.transform_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.transform_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.transform_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -105,11 +106,25 @@ class PointMassEditor(PropertyTableMixin, QWidget):
         self.transform_table.setAlternatingRowColors(True)
         self.transform_table.setFixedHeight(71)
         self.position_spins = {
-            axis: self._spin(row=0, column=column, minimum=-1e9, maximum=1e9, suffix="mm")
+            axis: self._spin(
+                row=0,
+                column=column,
+                minimum=-1e9,
+                maximum=1e9,
+                quantity="length",
+                suffix="mm",
+            )
             for column, axis in enumerate(("x", "y", "z"))
         }
         self.rotation_spins = {
-            axis: self._spin(row=1, column=column, minimum=-360.0, maximum=360.0, suffix="°")
+            axis: self._spin(
+                row=1,
+                column=column,
+                minimum=-360.0,
+                maximum=360.0,
+                quantity="angle",
+                suffix="°",
+            )
             for column, axis in enumerate(("roll", "pitch", "yaw"))
         }
         layout.addWidget(self.transform_table)
@@ -121,6 +136,7 @@ class PointMassEditor(PropertyTableMixin, QWidget):
         column: int,
         minimum: float,
         maximum: float,
+        quantity: str,
         suffix: str,
         label: str = "",
     ) -> Any:
@@ -133,6 +149,7 @@ class PointMassEditor(PropertyTableMixin, QWidget):
             max_val=maximum,
             step=1.0,
             decimals=2,
+            quantity=quantity,
             suffix=suffix,
             on_changed=lambda _value: self._transform_changed(),
             api=self._api,
@@ -152,7 +169,8 @@ class PointMassEditor(PropertyTableMixin, QWidget):
                 "mass",
                 mass_val,
                 on_changed=self._on_mass_expression_changed,
-                label="Mass (g)",
+                label="Mass",
+                unit="g",
             )
             transform = self._component.get("transform")
             transform = transform if isinstance(transform, dict) else {}
@@ -190,10 +208,8 @@ class PointMassEditor(PropertyTableMixin, QWidget):
                     pass
         else:
             self._component.pop("mass_expression", None)
-            try:
+            with contextlib.suppress(ValueError):
                 num_val = float(clean)
-            except ValueError:
-                pass
 
         def change() -> None:
             if num_val is not None:
@@ -203,7 +219,11 @@ class PointMassEditor(PropertyTableMixin, QWidget):
         self._api.edit_component(self._component, "Edit point mass", change)
 
     def _mass_changed(self, row: int, column: int) -> None:
-        pass
+        if self._loading or column != 1:
+            return
+        item = self.mass_table.item(row, column)
+        if item is not None:
+            self._on_mass_expression_changed(item.text())
 
     def _transform_changed(self) -> None:
         if self._loading:

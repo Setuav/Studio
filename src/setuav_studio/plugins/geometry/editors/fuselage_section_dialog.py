@@ -49,6 +49,7 @@ from setuav_studio.ui.numeric_spinbox import (
     NoWheelComboBox,
     set_table_spinbox,
 )
+from setuav_studio.ui.property_tables import ExpressionPropertyCell
 from setuav_studio.ui.theme import accent_color, tokens
 from setuav_studio_sdk import StudioAPI
 
@@ -1012,7 +1013,7 @@ class FuselageSectionDialog(QDialog):
         poly_layout.addWidget(QLabel("Polygon Vertices (Interactive on Canvas):"))
 
         self.vertices_table = QTableWidget(0, 3)
-        self.vertices_table.setHorizontalHeaderLabels(["Y (mm)", "Z (mm)", "Radius (mm)"])
+        self.vertices_table.setHorizontalHeaderLabels(["Y", "Z", "Radius"])
         self.vertices_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.vertices_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.vertices_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
@@ -1041,8 +1042,8 @@ class FuselageSectionDialog(QDialog):
         trans_box = QGroupBox("Section Transform")
         trans_layout = QVBoxLayout(trans_box)
         self.trans_table = QTableWidget(2, 3)
-        self.trans_table.setHorizontalHeaderLabels(["X (mm)", "Y (mm)", "Z (mm)"])
-        self.trans_table.setVerticalHeaderLabels(["Position", "Rotation (°)"])
+        self.trans_table.setHorizontalHeaderLabels(["X", "Y", "Z"])
+        self.trans_table.setVerticalHeaderLabels(["Position", "Rotation"])
         self.trans_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.trans_table.verticalHeader().setDefaultSectionSize(24)
         self.trans_table.setFixedHeight(75)
@@ -1327,30 +1328,30 @@ class FuselageSectionDialog(QDialog):
         self.props_table.setVisible(not is_polygon)
 
         if prof_type == "circle":
-            self._add_prop_row("Diameter (mm)", profile.get("diameter", 100.0), "diameter")
+            self._add_prop_row("Diameter", profile.get("diameter", 100.0), "diameter")
         elif prof_type == "ellipse":
-            self._add_prop_row("Width (mm)", profile.get("width", 120.0), "width")
-            self._add_prop_row("Height (mm)", profile.get("height", 80.0), "height")
+            self._add_prop_row("Width", profile.get("width", 120.0), "width")
+            self._add_prop_row("Height", profile.get("height", 80.0), "height")
         elif prof_type == "rectangle":
-            self._add_prop_row("Width (mm)", profile.get("width", 120.0), "width")
-            self._add_prop_row("Height (mm)", profile.get("height", 80.0), "height")
+            self._add_prop_row("Width", profile.get("width", 120.0), "width")
+            self._add_prop_row("Height", profile.get("height", 80.0), "height")
             self._add_prop_row(
-                "Corner Radius (mm)", profile.get("corner_radius", 10.0), "corner_radius"
+                "Corner Radius", profile.get("corner_radius", 10.0), "corner_radius"
             )
         elif prof_type == "trapezoid":
-            self._add_prop_row("Top Width (mm)", profile.get("top_width", 80.0), "top_width")
+            self._add_prop_row("Top Width", profile.get("top_width", 80.0), "top_width")
             self._add_prop_row(
-                "Bottom Width (mm)", profile.get("bottom_width", 120.0), "bottom_width"
+                "Bottom Width", profile.get("bottom_width", 120.0), "bottom_width"
             )
-            self._add_prop_row("Height (mm)", profile.get("height", 80.0), "height")
+            self._add_prop_row("Height", profile.get("height", 80.0), "height")
             self._add_prop_row(
-                "Corner Radius (mm)", profile.get("corner_radius", 5.0), "corner_radius"
+                "Corner Radius", profile.get("corner_radius", 5.0), "corner_radius"
             )
         elif prof_type == "triangle":
-            self._add_prop_row("Base Width (mm)", profile.get("base_width", 100.0), "base_width")
-            self._add_prop_row("Height (mm)", profile.get("height", 80.0), "height")
+            self._add_prop_row("Base Width", profile.get("base_width", 100.0), "base_width")
+            self._add_prop_row("Height", profile.get("height", 80.0), "height")
             self._add_prop_row(
-                "Corner Radius (mm)", profile.get("corner_radius", 5.0), "corner_radius"
+                "Corner Radius", profile.get("corner_radius", 5.0), "corner_radius"
             )
             self._add_prop_row("Orientation", profile.get("orientation", "up"), "orientation")
         elif prof_type == "polygon":
@@ -1494,6 +1495,7 @@ class FuselageSectionDialog(QDialog):
                 float(pos.get(axis, 0.0)),
                 step=5.0,
                 decimals=2,
+                quantity="length",
                 suffix="mm",
                 on_changed=lambda _v: self._on_transform_spinbox_changed(),
             )
@@ -1506,6 +1508,7 @@ class FuselageSectionDialog(QDialog):
                 max_val=360.0,
                 step=1.0,
                 decimals=2,
+                quantity="angle",
                 suffix="°",
                 on_changed=lambda _v: self._on_transform_spinbox_changed(),
             )
@@ -1521,10 +1524,10 @@ class FuselageSectionDialog(QDialog):
 
         for col, axis in enumerate(("x", "y", "z")):
             w_pos = self.trans_table.cellWidget(0, col)
-            if isinstance(w_pos, QDoubleSpinBox):
+            if isinstance(w_pos, (QDoubleSpinBox, ExpressionPropertyCell)):
                 pos[axis] = float(w_pos.value())
             w_rot = self.trans_table.cellWidget(1, col)
-            if isinstance(w_rot, QDoubleSpinBox):
+            if isinstance(w_rot, (QDoubleSpinBox, ExpressionPropertyCell)):
                 rotation[axis] = float(w_rot.value())
         sec["position"] = pos
         sec["rotation"] = rotation
@@ -1567,10 +1570,10 @@ class FuselageSectionDialog(QDialog):
             self._loading = True
             if vertex_idx < self.vertices_table.rowCount():
                 wy = self.vertices_table.cellWidget(vertex_idx, 0)
-                if isinstance(wy, QDoubleSpinBox):
+                if isinstance(wy, (QDoubleSpinBox, ExpressionPropertyCell)):
                     wy.setValue(y)
                 wz = self.vertices_table.cellWidget(vertex_idx, 1)
-                if isinstance(wz, QDoubleSpinBox):
+                if isinstance(wz, (QDoubleSpinBox, ExpressionPropertyCell)):
                     wz.setValue(z)
             self._loading = False
             self._refresh_canvas_and_metrics()
@@ -1644,10 +1647,10 @@ class FuselageSectionDialog(QDialog):
         if 0 <= index < self.vertices_table.rowCount():
             self._loading = True
             wy = self.vertices_table.cellWidget(index, 0)
-            if isinstance(wy, QDoubleSpinBox):
+            if isinstance(wy, (QDoubleSpinBox, ExpressionPropertyCell)):
                 wy.setValue(y)
             wz = self.vertices_table.cellWidget(index, 1)
-            if isinstance(wz, QDoubleSpinBox):
+            if isinstance(wz, (QDoubleSpinBox, ExpressionPropertyCell)):
                 wz.setValue(z)
             self._loading = False
             self._update_metrics_labels()

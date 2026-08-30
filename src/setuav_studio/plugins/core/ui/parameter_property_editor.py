@@ -38,6 +38,7 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
         self._param_key = str(param_item.get("key") or param_item.get("id") or "")
         self._resolver = ParameterResolver()
         self._loading = False
+        self._current_quantity: str = ""
         self._current_unit: str = ""
 
         layout = QVBoxLayout(self)
@@ -103,8 +104,9 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
             [
                 ("name", "Name"),
                 ("value", "Value / Formula"),
+                ("quantity", "Quantity"),
+                ("unit", "Active Unit"),
                 ("resolved", "Resolved Value"),
-                ("unit", "Unit"),
             ]
         )
         self.general_table.cellChanged.connect(self._on_cell_changed)
@@ -125,34 +127,63 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
             curr_val = raw_params.get(self._param_key, "")
             if isinstance(curr_val, dict):
                 val_raw = curr_val.get("value", "")
+                self._current_quantity = str(curr_val.get("quantity", ""))
                 self._current_unit = str(curr_val.get("unit", ""))
+                if not self._current_quantity and self._current_unit:
+                    from setuav_studio.units import get_quantity_for_unit
+
+                    self._current_quantity = get_quantity_for_unit(self._current_unit) or ""
             else:
                 val_raw = curr_val
+                self._current_quantity = ""
                 self._current_unit = ""
 
+            from setuav_studio.units import get_quantity_choices, get_unit_manager
+
+            um = get_unit_manager()
             self._set_property_value(self.general_table, "name", self._param_key)
             self._set_property_expression(
                 self.general_table,
                 "value",
                 str(val_raw) if val_raw is not None else "",
+                quantity=self._current_quantity or None,
+                unit=self._current_unit or None,
                 on_changed=self._on_value_expression_changed,
                 on_open_assistant=self._open_assistant,
             )
+
+            self._set_property_combo(
+                self.general_table,
+                "quantity",
+                self._current_quantity,
+                get_quantity_choices(),
+                self._on_quantity_changed,
+            )
+
+            active_sym = (
+                um.get_unit_symbol(self._current_quantity)
+                if self._current_quantity
+                else (self._current_unit or "—")
+            )
+            self._set_property_value(self.general_table, "unit", active_sym, editable=False)
 
             cfg_mgr = ConfigurationManager(data, self._resolver)
             res_str = "—"
             with contextlib.suppress(Exception):
                 resolved = cfg_mgr.get_effective_project_parameters()
                 res_val = resolved.get(self._param_key, "—")
-                unit_suffix = f" {self._current_unit}" if self._current_unit else ""
-                res_str = (
-                    f"{res_val:.4g}{unit_suffix}"
-                    if isinstance(res_val, (int, float))
-                    else f"{res_val}{unit_suffix}"
-                )
+                if isinstance(res_val, (int, float)):
+                    disp_val = (
+                        um.to_display(res_val, self._current_quantity)
+                        if self._current_quantity
+                        else res_val
+                    )
+                    unit_suffix = f" {active_sym}" if active_sym and active_sym != "—" else ""
+                    res_str = f"{disp_val:.4g}{unit_suffix}"
+                else:
+                    res_str = str(res_val)
 
             self._set_property_value(self.general_table, "resolved", res_str, editable=False)
-            self._set_property_value(self.general_table, "unit", self._current_unit)
         finally:
             self._loading = False
 
@@ -188,14 +219,51 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
             except ValueError:
                 parsed = new_val_str
 
-        final_val: Any = (
-            {"value": parsed, "unit": self._current_unit} if self._current_unit else parsed
-        )
+        if self._current_quantity:
+            from setuav_studio.units import get_unit_manager
+
+            final_val: Any = {
+                "value": parsed,
+                "quantity": self._current_quantity,
+                "unit": get_unit_manager().get_unit_symbol(self._current_quantity),
+            }
+        else:
+            final_val = parsed
 
         def _apply() -> None:
             raw_params[self._param_key] = final_val
 
         self._api.edit_project(f"Set parameter '{self._param_key}'", _apply)
+        self._load_data()
+
+    def _on_quantity_changed(self, new_quantity: str) -> None:
+        if self._loading:
+            return
+        self._current_quantity = new_quantity.strip()
+        from setuav_studio.units import get_unit_manager
+
+        um = get_unit_manager()
+        self._current_unit = (
+            um.get_unit_symbol(self._current_quantity) if self._current_quantity else ""
+        )
+
+        data = self._get_project_data()
+        if not data:
+            return
+        raw_params = data.setdefault("parameters", {})
+        curr = raw_params.get(self._param_key, 0.0)
+        val = curr.get("value", curr) if isinstance(curr, dict) else curr
+
+        if self._current_quantity:
+            raw_params[self._param_key] = {
+                "value": val,
+                "quantity": self._current_quantity,
+                "unit": self._current_unit,
+            }
+        else:
+            raw_params[self._param_key] = val
+
+        self._api.notify_project_content_changed()
         self._load_data()
 
     def _on_cell_changed(self, row: int, column: int) -> None:
@@ -216,12 +284,3 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
                 raw_params[clean_name] = val
                 self._param_key = clean_name
                 self._api.notify_project_content_changed()
-        elif key == "unit":
-            self._current_unit = val_text.strip()
-            curr = raw_params.get(self._param_key, 0.0)
-            val = curr.get("value", curr) if isinstance(curr, dict) else curr
-            raw_params[self._param_key] = (
-                {"value": val, "unit": self._current_unit} if self._current_unit else val
-            )
-            self._api.notify_project_content_changed()
-            self._load_data()

@@ -44,8 +44,24 @@ STANDARD_SYMBOLS: dict[str, Any] = {
 }
 
 
+def _get_dotted_name(node: ast.AST) -> str | None:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        val = _get_dotted_name(node.value)
+        if val:
+            return f"{val}.{node.attr}"
+    return None
+
+
+def _is_standard_symbol_or_chain(name: str) -> bool:
+    if name in STANDARD_SYMBOLS:
+        return True
+    return any(name.startswith(f"{f}.") for f in STANDARD_SYMBOLS)
+
+
 class ExpressionEvaluator:
-    """Evaluates mathematical expressions safely using asteval.
+    """Evaluates mathematical expressions with variable substitution and error handling.
 
     Expressions start with '=' (e.g. '= sqrt(aspect_ratio * wing_area)').
     Standard math functions (sin, cos, sqrt, etc.) and constants (pi, e, g)
@@ -88,24 +104,15 @@ class ExpressionEvaluator:
         except SyntaxError:
             return set()
 
-        def _get_dotted_name(node: ast.AST) -> str | None:
-            if isinstance(node, ast.Name):
-                return node.id
-            if isinstance(node, ast.Attribute):
-                val = _get_dotted_name(node.value)
-                if val:
-                    return f"{val}.{node.attr}"
-            return None
-
         symbols: set[str] = set()
         for node in ast.walk(tree):
             if isinstance(node, ast.Name):
                 name = node.id
-                if name not in STANDARD_SYMBOLS:
+                if not _is_standard_symbol_or_chain(name):
                     symbols.add(name)
             elif isinstance(node, ast.Attribute):
                 dotted = _get_dotted_name(node)
-                if dotted and not any(dotted.startswith(f"{f}.") for f in STANDARD_SYMBOLS):
+                if dotted and not _is_standard_symbol_or_chain(dotted):
                     symbols.add(dotted)
         return symbols
 

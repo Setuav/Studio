@@ -45,7 +45,7 @@ class InstanceEditor(QWidget):
         layout.addWidget(self._header("Transform", "mdi6.axis-arrow"))
         self.transform_table = QTableWidget(2, 3)
         self.transform_table.setHorizontalHeaderLabels(["X", "Y", "Z"])
-        self.transform_table.setVerticalHeaderLabels(["Position (mm)", "Rotation (°)"])
+        self.transform_table.setVerticalHeaderLabels(["Position", "Rotation"])
         self.transform_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.transform_table.horizontalHeader().setFixedHeight(23)
         self.transform_table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
@@ -94,7 +94,7 @@ class InstanceEditor(QWidget):
             definitions.extend(
                 [
                     ("plane", "Mirror plane", False),
-                    ("offset", "Mirror offset (mm)", True),
+                    ("offset", "Mirror offset", True),
                 ]
             )
 

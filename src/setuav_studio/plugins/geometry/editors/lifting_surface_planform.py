@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from copy import deepcopy
 from typing import Any
 
@@ -44,11 +45,11 @@ class PlanformMixin:
 
         self.wing_angles_table = self._property_table(
             [
-                ("sweep", "Sweep Angle (°)"),
+                ("sweep", "Sweep Angle"),
                 ("sweep_loc", "Sweep Location"),
-                ("sweep_curvature", "Sweep Curvature (mm)"),
-                ("dihedral", "Dihedral Angle (°)"),
-                ("twist", "Twist / Washout (°)"),
+                ("sweep_curvature", "Sweep Curvature"),
+                ("dihedral", "Dihedral Angle"),
+                ("twist", "Twist / Washout"),
                 ("twist_axis", "Twist Axis Location"),
             ]
         )
@@ -152,6 +153,7 @@ class PlanformMixin:
                     sw_val,
                     on_changed=lambda val: self._on_wing_angle_changed("sweep", val),
                     label="Sweep Angle",
+                    unit="deg",
                 )
                 self._set_property_combo(
                     self.wing_angles_table,
@@ -169,6 +171,7 @@ class PlanformMixin:
                     sw_curv,
                     on_changed=lambda val: self._on_wing_angle_changed("sweep_curvature", val),
                     label="Sweep Curvature",
+                    unit="mm",
                 )
                 di_val = geom.get("dihedral_expression") or float(metrics.get("dihedral", 0.0))
                 self._set_property_expression(
@@ -177,6 +180,7 @@ class PlanformMixin:
                     di_val,
                     on_changed=lambda val: self._on_wing_angle_changed("dihedral", val),
                     label="Dihedral Angle",
+                    unit="deg",
                 )
                 tw_val = geom.get("twist_expression") or float(metrics.get("washout", 0.0))
                 self._set_property_expression(
@@ -185,6 +189,7 @@ class PlanformMixin:
                     tw_val,
                     on_changed=lambda val: self._on_wing_angle_changed("twist", val),
                     label="Twist / Washout",
+                    unit="deg",
                 )
                 twist_loc = float(self._geometry().get("twist_location", 0.25))
                 self._set_property_combo(
@@ -199,6 +204,30 @@ class PlanformMixin:
         finally:
             self._loading = was_loading
 
+    def _resolve_angle_expression(self, key: str, value: Any, geom: dict[str, Any]) -> float | None:
+        val_str = str(value).strip() if value is not None else ""
+        if not val_str:
+            return None
+        if val_str.startswith("=") or not val_str.replace(".", "", 1).replace("-", "", 1).isdigit():
+            geom[f"{key}_expression"] = val_str
+            api = getattr(self, "_api", None)
+            if api is not None and getattr(api, "current_project", None) is not None:
+                try:
+                    from setuav_studio.plugins.core.expressions import ExpressionEvaluator
+
+                    evaluator = ExpressionEvaluator()
+                    scope = api.current_project.get_scope(api=api)
+                    res = evaluator.evaluate(val_str.lstrip("=").strip(), scope)
+                    if isinstance(res, (int, float)):
+                        return float(res)
+                except Exception:
+                    pass
+            return None
+        geom.pop(f"{key}_expression", None)
+        with contextlib.suppress(ValueError):
+            return float(val_str)
+        return None
+
     def _on_wing_angle_changed(self, key: str, value: Any) -> None:
         if self._loading:
             return
@@ -212,32 +241,7 @@ class PlanformMixin:
             y_offset=self._y_offset(),
         )
 
-        num_val: float | None = None
-        val_str = str(value).strip() if value is not None else ""
-
-        if val_str.startswith("=") or not val_str.replace(".", "", 1).replace("-", "", 1).isdigit():
-            # Expression formula
-            geom[f"{key}_expression"] = val_str
-            api = getattr(self, "_api", None)
-            if api is not None and getattr(api, "current_project", None) is not None:
-                try:
-                    from setuav_studio.plugins.core.expressions import ExpressionEvaluator
-
-                    evaluator = ExpressionEvaluator()
-                    scope = api.current_project.get_scope(api=api)
-                    expr = val_str.lstrip("=").strip()
-                    res = evaluator.evaluate(expr, scope)
-                    if isinstance(res, (int, float)):
-                        num_val = float(res)
-                except Exception:
-                    pass
-        else:
-            geom.pop(f"{key}_expression", None)
-            try:
-                num_val = float(val_str)
-            except ValueError:
-                pass
-
+        num_val = self._resolve_angle_expression(key, value, geom)
         if num_val is None:
             return
 
