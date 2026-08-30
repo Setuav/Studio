@@ -41,34 +41,13 @@ class ConstraintChecker:
     def extract_context(
         self,
         project_data: dict[str, Any],
+        api: Any | None = None,
         config_id: str | None = None,
     ) -> dict[str, Any]:
         """Build evaluation context containing resolved parameters and component values."""
-        cfg_mgr = ConfigurationManager(project_data, resolver=self.resolver)
-        context: dict[str, Any] = cfg_mgr.get_effective_project_parameters(config_id)
+        from setuav_studio.plugins.core.symbols import build_evaluation_context
 
-        # Include basic component properties in context if available
-        components = project_data.get("components", [])
-        if isinstance(components, list):
-            for comp in components:
-                if not isinstance(comp, dict):
-                    continue
-                cid = str(comp.get("id") or "").replace("-", "_")
-                if not cid:
-                    continue
-
-                # Add component mass
-                if "mass" in comp:
-                    context[f"{cid}_mass"] = comp["mass"]
-
-                # Add flattened component parameters
-                params = comp.get("parameters")
-                if isinstance(params, dict):
-                    resolved_comp = cfg_mgr.get_resolved_component(comp, config_id)
-                    res_params = resolved_comp.get("parameters", {})
-                    self._flatten_params(res_params, prefix=cid, out=context)
-
-        return context
+        return build_evaluation_context(project_data, api=api, config_id=config_id)
 
     def _flatten_params(self, params: Any, prefix: str, out: dict[str, Any]) -> None:
         """Helper to expose nested component parameters as flat variable names."""
@@ -89,15 +68,17 @@ class ConstraintChecker:
         constraint: dict[str, Any],
         project_data: dict[str, Any],
         context: dict[str, Any] | None = None,
+        api: Any | None = None,
+        config_id: str | None = None,
     ) -> ConstraintResult:
         """Evaluate a single constraint against the project context."""
         cid = str(constraint.get("id") or "")
         name = str(constraint.get("name") or cid)
         expr = str(constraint.get("expression") or "").strip()
         severity = str(constraint.get("severity") or "warning")
-        description = str(constraint.get("description") or "")
         message = str(constraint.get("message") or "")
-        enabled = bool(constraint.get("enabled", True))
+        description = str(constraint.get("description") or "")
+        enabled = constraint.get("enabled", True)
 
         if not enabled:
             return ConstraintResult(
@@ -106,9 +87,8 @@ class ConstraintChecker:
                 expression=expr,
                 passed=True,
                 severity=severity,
-                message=message or "Disabled",
+                message="Disabled",
                 description=description,
-                enabled=False,
             )
 
         if not expr:
@@ -122,7 +102,9 @@ class ConstraintChecker:
                 description=description,
             )
 
-        eval_ctx = dict(context if context is not None else self.extract_context(project_data))
+        eval_ctx = dict(
+            context if context is not None else self.extract_context(project_data, api=api, config_id=config_id)
+        )
 
         # Apply explicit variable mappings if specified in constraint
         var_mappings = constraint.get("variables")
