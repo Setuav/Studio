@@ -27,6 +27,7 @@ class ElectricalPropulsionPlugin:
     """Plugin providing electrical propulsion component editors, icons, database, and assemblies."""
 
     id = "org.setuav.studio.electrical_propulsion"
+    priority = 70
 
     def activate(self, api: StudioAPI) -> None:
         self._creation_controller = PropulsionCreationController(api)

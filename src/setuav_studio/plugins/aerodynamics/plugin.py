@@ -43,7 +43,7 @@ class AerodynamicsPlugin:
     """Plugin providing aerodynamic analysis, persisted results, and curves."""
 
     id = "org.setuav.studio.aerodynamics"
-    priority = 20
+    priority = 70
 
     def __init__(self) -> None:
         self._api: StudioAPI | None = None

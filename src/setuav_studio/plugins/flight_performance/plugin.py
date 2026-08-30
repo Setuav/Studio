@@ -33,7 +33,7 @@ class FlightPerformancePlugin:
     """Plugin providing coupled fixed-wing flight envelope, optimal speeds, climb, range, and endurance analysis."""
 
     id = "org.setuav.studio.flight_performance"
-    priority = 25
+    priority = 50
 
     def __init__(self) -> None:
         self._api: StudioAPI | None = None

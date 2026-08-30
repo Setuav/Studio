@@ -15,6 +15,7 @@ from setuav_studio_sdk import (
 
 class CorePlugin:
     id = "org.setuav.studio.core"
+    priority = 100
 
     _TOOLBAR_ITEMS = (
         ToolbarContribution(

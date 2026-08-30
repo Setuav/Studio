@@ -26,7 +26,7 @@ POINT_MASS_ICON = "fa6s.weight-scale"
 
 class WeightBalancePlugin:
     id = "org.setuav.studio.weight_balance"
-    priority = 25
+    priority = 50
     provides: ClassVar[dict[str, str]] = {EXTENSION_ID: "1.0.0"}
 
     def __init__(self) -> None:

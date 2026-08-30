@@ -11,7 +11,7 @@ class View2DPlugin:
     """Provide the reusable 2D scene/canvas runtime to other plugins."""
 
     id = "org.setuav.studio.view2d"
-    priority = 20
+    priority = 50
     provides: ClassVar[dict[str, str]] = {"org.setuav.studio.view2d": "1.0.0"}
 
     def activate(self, api: StudioAPI) -> None:
