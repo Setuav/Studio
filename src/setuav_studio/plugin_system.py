@@ -137,6 +137,7 @@ class StudioAPI:
         self.current_workspace_id: str | None = None
         self._add_panel: Callable[[PanelContribution], None] | None = None
         self._remove_panel: Callable[[str], None] | None = None
+        self._pending_panels: list[PanelContribution] = []
         self._add_workspace: Callable[[WorkspaceContribution], None] | None = None
         self._remove_workspace: Callable[[str], None] | None = None
         self._switch_workspace_handler: Callable[[str], None] | None = None
@@ -186,11 +187,11 @@ class StudioAPI:
         """Add a dock panel to the application shell.
 
         @param contribution Panel descriptor with a globally unique ID.
-        @exception RuntimeError If the shell is not ready to accept panels.
         """
-        if self._add_panel is None:
-            raise RuntimeError("The Studio shell is not ready for panel contributions")
-        self._add_panel(contribution)
+        if self._add_panel is not None:
+            self._add_panel(contribution)
+        else:
+            self._pending_panels.append(contribution)
 
     def remove_panel(self, panel_id: str) -> None:
         """Remove a previously contributed panel by ID."""
@@ -846,6 +847,9 @@ class _StudioHost:
     ) -> None:
         self._api._add_panel = add_handler
         self._api._remove_panel = remove_handler
+        for panel in self._api._pending_panels:
+            add_handler(panel)
+        self._api._pending_panels.clear()
 
     def bind_status_handler(self, handler: Callable[[str, str, int], None]) -> None:
         self._api._status_handler = handler

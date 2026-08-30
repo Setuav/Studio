@@ -104,6 +104,62 @@ class ProjectDocument:
             self._config_manager_data = self.data
         return self._config_manager
 
+    def get_component_models(self, api: Any | None = None, config_id: str | None = None) -> list[Any]:
+        """Return the list of typed domain model instances for all project components."""
+        from setuav_studio.component_model import GenericComponentModel
+
+        cfg_mgr = self.get_configuration_manager()
+        components = self.data.get("components", [])
+        models: list[Any] = []
+        if not isinstance(components, list):
+            return models
+
+        for comp in components:
+            if not isinstance(comp, dict):
+                continue
+            resolved_comp = cfg_mgr.get_resolved_component(comp, config_id)
+            if api is not None and hasattr(api, "create_component_model"):
+                model = api.create_component_model(resolved_comp)
+            else:
+                model = GenericComponentModel(resolved_comp)
+            models.append(model)
+        return models
+
+    def get_scope(self, api: Any | None = None, config_id: str | None = None) -> dict[str, Any]:
+        """Return the complete runtime evaluation scope containing resolved parameters and live component models."""
+        cfg_mgr = self.get_configuration_manager()
+        scope: dict[str, Any] = {}
+
+        # 1. Project Parameters & Constants
+        resolved_params = cfg_mgr.get_effective_project_parameters(config_id)
+        for k, v in resolved_params.items():
+            scope[k] = v
+
+        # 2. Live Component Models
+        models = self.get_component_models(api, config_id)
+        total_mass = 0.0
+
+        for model in models:
+            raw_cid = model.id
+            if not raw_cid:
+                continue
+            clean_cid = raw_cid.replace("-", "_")
+            scope[clean_cid] = model
+            if raw_cid != clean_cid:
+                scope[raw_cid] = model
+
+            # Flat aliases for compatibility (e.g. main_wing_planform_area)
+            if hasattr(model, "get_exposed_properties"):
+                for prop_name, prop_val in model.get_exposed_properties().items():
+                    if isinstance(prop_val, (int, float, bool, str)):
+                        scope[f"{clean_cid}_{prop_name}"] = prop_val
+
+            total_mass += model.mass
+
+        scope["total_mass"] = total_mass
+        scope["mtow"] = resolved_params.get("mtow", total_mass)
+        return scope
+
 
 def create_project(path: str | Path) -> ProjectDocument:
     """Create a new, empty project document at ``path``.
