@@ -58,6 +58,15 @@ class ElectricalPropulsionPlugin:
         for contribution in self._creation_controller.contributions():
             api.add_toolbar_item(contribution)
 
+        # Register Component Models
+        from .models import BatteryModel, ESCModel, MotorModel, PropellerModel
+
+        api.register_component_model("org.setuav.core:motor", MotorModel)
+        api.register_component_model("org.setuav.core:battery", BatteryModel)
+        api.register_component_model("org.setuav.core:esc", ESCModel)
+        api.register_component_model("org.setuav.core:propeller", PropellerModel)
+        api.register_component_model("org.setuav.core:rotor", PropellerModel)
+
         # Register Component Editors
         api.register_component_editor(
             "org.setuav.core:motor",
@@ -121,7 +130,7 @@ class ElectricalPropulsionPlugin:
         api.add_panel(
             PanelContribution(
                 id="propulsion.charts_dock",
-                title="Performance Charts",
+                title="Propulsion Charts",
                 factory=lambda: PropulsionChartsDock(api),
                 workspace_id="studio.workspace.propulsion",
                 area=Qt.DockWidgetArea.RightDockWidgetArea,
@@ -129,7 +138,7 @@ class ElectricalPropulsionPlugin:
             )
         )
 
-        # Register Propulsion Results Dock (Right dock in Propulsion workspace)
+        # Register Propulsion Results Dock (Bottom-Right dock in Propulsion workspace)
         api.add_panel(
             PanelContribution(
                 id="propulsion.results_dock",
@@ -137,11 +146,11 @@ class ElectricalPropulsionPlugin:
                 factory=lambda: PropulsionResultsDock(api),
                 workspace_id="studio.workspace.propulsion",
                 area=Qt.DockWidgetArea.RightDockWidgetArea,
-                icon="fa6s.table-list",
+                icon="fa6s.table",
             )
         )
 
-        # Register Tools in Tools menu
+        # Register Tools menu item
         def open_component_database() -> None:
             dialog = ComponentCatalogDialog(component_type="all")
             dialog.exec()
@@ -168,6 +177,7 @@ class ElectricalPropulsionPlugin:
             "org.setuav.core:battery",
             "org.setuav.core:electric-propulsion-system",
         ):
+            api.remove_component_model(component_type)
             api.remove_component_editor(component_type)
             api.remove_component_icon(component_type)
         api.remove_panel("propulsion.controls_dock")

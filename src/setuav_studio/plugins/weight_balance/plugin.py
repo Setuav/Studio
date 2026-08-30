@@ -66,6 +66,13 @@ class WeightBalancePlugin:
                 workspace_id="studio.workspace.weight_balance",
             )
         )
+        # Register Component Model
+        from .models import PointMassModel
+
+        api.register_component_model(
+            "org.setuav.core:point-mass",
+            PointMassModel,
+        )
         api.register_component_icon(
             "org.setuav.core:point-mass",
             POINT_MASS_ICON,
@@ -118,6 +125,7 @@ class WeightBalancePlugin:
         api.remove_project_listener(self._project_changed)
         api.remove_project_content_listener(self._project_changed)
         api.remove_kind_editor("mass-properties")
+        api.remove_component_model("org.setuav.core:point-mass")
         api.remove_component_editor("org.setuav.core:point-mass")
         api.remove_component_icon("org.setuav.core:point-mass")
         api.remove_component_tree_provider(EXTENSION_ID)
