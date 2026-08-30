@@ -20,6 +20,7 @@ _APPLICATION_ICON = _ASSET_ROOT / "studio.png"
 
 _ICON_MAP = {
     # File / Project actions
+    "file_new": "fa6s.file",
     "file_open": "fa6s.file-code",
     "folder_open": "fa6s.folder-open",
     "project_folder": "fa6s.folder",
@@ -39,6 +40,7 @@ _ICON_MAP = {
     # Toolbar & General actions
     "add": "fa6s.plus",
     "remove": "fa6s.trash-can",
+    "delete": "fa6s.trash-can",
     "edit": "fa6s.pen-to-square",
     "pencil": "mdi6.pencil",
     "pen": "fa6s.pen",
@@ -47,6 +49,10 @@ _ICON_MAP = {
     "fit": "fa6s.expand",
     "log": "mdi6.message-text-outline",
     "export_csv": "fa6s.file-export",
+    "success": "fa6s.check",
+    "check": "fa6s.check",
+    "warning": "fa6s.triangle-exclamation",
+    "error": "fa6s.circle-xmark",
     # QtAwesome controls intentionally used inside 3D viewers
     "view_colored": "fa6s.palette",
     "view_grid": "mdi6.grid",
@@ -150,15 +156,20 @@ class _ThemeIconEngine(QIconEngine):
             QPalette.ColorGroup.Active,
             QPalette.ColorRole.HighlightedText,
         ).name()
-        icon = qta.icon(
-            self._specifier,
-            color=normal,
-            color_active=normal,
-            color_disabled=disabled,
-            color_selected=selected,
-            **self._options,
-        )
-        return icon.pixmap(size, mode, state)
+        try:
+            icon = qta.icon(
+                self._specifier,
+                color=normal,
+                color_active=normal,
+                color_disabled=disabled,
+                color_selected=selected,
+                **self._options,
+            )
+            return icon.pixmap(size, mode, state)
+        except Exception:
+            pixmap = QPixmap(size)
+            pixmap.fill(Qt.GlobalColor.transparent)
+            return pixmap
 
     def paint(
         self,
