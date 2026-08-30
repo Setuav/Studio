@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Any
 
 from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtGui import QWheelEvent
@@ -126,7 +127,7 @@ def set_table_spinbox(
         parent = table.parent()
         while parent is not None:
             if hasattr(parent, "_api"):
-                resolved_api = getattr(parent, "_api")
+                resolved_api = parent._api
                 break
             parent = parent.parent()
 

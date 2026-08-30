@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import sys
 import unittest
+
 from PySide6.QtWidgets import QApplication
 
 from setuav_studio.plugin_system import PluginManager, StudioAPI
 from setuav_studio.plugins.core.constraints import ConstraintChecker
 from setuav_studio.plugins.core.expressions import ExpressionEvaluator
 from setuav_studio.plugins.core.parameters import ParameterResolver
-from setuav_studio.plugins.core.symbols import build_evaluation_context, get_available_symbols_metadata
+from setuav_studio.plugins.core.symbols import get_available_symbols_metadata
 from setuav_studio.project import open_project
 
 

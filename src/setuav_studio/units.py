@@ -8,8 +8,8 @@ to and from user-configured display units.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
 
 from PySide6.QtCore import QObject, QSettings, Signal
 
@@ -349,19 +349,8 @@ def convert_value(
     if from_u is None or to_u is None:
         return value
 
-    # Convert from -> base
-    if callable(from_u.to_base):
-        base_val = from_u.to_base(value)
-    else:
-        base_val = value * from_u.to_base
-
-    # Convert base -> to
-    if callable(to_u.from_base):
-        result = to_u.from_base(base_val)
-    else:
-        result = base_val * to_u.from_base
-
-    return result
+    base_val = from_u.to_base(value) if callable(from_u.to_base) else value * from_u.to_base
+    return to_u.from_base(base_val) if callable(to_u.from_base) else base_val * to_u.from_base
 
 
 # ---------------------------------------------------------------------------

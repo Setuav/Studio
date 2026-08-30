@@ -14,9 +14,7 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
 )
 
-from setuav_studio.ui.numeric_spinbox import NumericSpinBox
-
-from .control_surface_values import resolve_chord_values, resolve_span_values, sync_sizing_values
+from .control_surface_values import sync_sizing_values
 
 
 class ControlSurfacesMixin:

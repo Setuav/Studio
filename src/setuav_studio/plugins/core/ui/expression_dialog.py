@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-import contextlib
+import re
 from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import QStringListModel, Qt
+from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import (
     QCompleter,
     QDialog,
@@ -16,10 +17,9 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
-    QSplitter,
-    QTabWidget,
     QTableWidget,
     QTableWidgetItem,
+    QTabWidget,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -30,7 +30,6 @@ from setuav_studio.plugins.core.constraints import ConstraintChecker
 from setuav_studio.plugins.core.expressions import ExpressionEvaluator
 from setuav_studio.plugins.core.parameters import ParameterResolver
 from setuav_studio.plugins.core.symbols import (
-    build_evaluation_context,
     get_available_symbols_metadata,
 )
 from setuav_studio.ui.theme import status_color
@@ -60,10 +59,6 @@ MATH_FUNCTIONS: list[tuple[str, str, str]] = [
     ("e", "e", "Mathematical constant e ≈ 2.71828"),
     ("g", "9.80665", "Standard gravity constant (9.81 m/s²)"),
 ]
-
-
-import re
-from PySide6.QtGui import QKeyEvent
 
 
 class ExpressionLineEdit(QLineEdit):

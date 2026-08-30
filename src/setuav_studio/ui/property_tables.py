@@ -21,9 +21,10 @@ copying the implementation:
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Any
 
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QResizeEvent
+from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtGui import QFocusEvent, QResizeEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -91,10 +92,6 @@ class ContentFitTableWidget(QTableWidget):
             self._fitting_columns = False
 
 
-from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QFocusEvent, QResizeEvent
-
-
 class FocusAwareLineEdit(QLineEdit):
     """QLineEdit that emits focus signals to support dual-state evaluated/formula display."""
 
@@ -159,32 +156,12 @@ class ExpressionPropertyCell(QWidget):
         if not self._quantity and unit:
             self._quantity = SCHEMA_UNIT_TO_QUANTITY.get(unit.lower(), unit.lower())
 
+        self._suffix = unit or ""
         self._decimals = decimals
         if self._decimals is None:
             lbl = self._label.lower()
-            if any(w in lbl for w in ("eta", "fraction", "taper", "aspect", "ratio")):
+            if any(w in lbl for w in ("eta", "fraction", "taper", "aspect", "ratio", "area", "dm2", "m2", "dm²", "m²")):
                 self._decimals = 3
-            elif any(w in lbl for w in ("area", "dm2", "m2", "dm²", "m²")):
-                self._decimals = 3
-            elif any(
-                w in lbl
-                for w in (
-                    "rot",
-                    "deg",
-                    "angle",
-                    "sweep",
-                    "dihedral",
-                    "deflection",
-                    "pitch",
-                    "roll",
-                    "yaw",
-                    "twist",
-                    "°",
-                )
-            ):
-                self._decimals = 2
-            elif any(w in lbl for w in ("mass", "weight", "gram", "kg")):
-                self._decimals = 2
             else:
                 self._decimals = 2
 
@@ -404,16 +381,21 @@ class ExpressionPropertyCell(QWidget):
     def setValue(self, val: float | str) -> None:
         self.setText(str(val))
 
-    def setDecimals(self, dec: int) -> None:
-        pass
+    def suffix(self) -> str:
+        from setuav_studio.units import get_unit_manager
+
+        if self._quantity:
+            return f" {get_unit_manager().get_unit_symbol(self._quantity)}"
+        return f" {self._suffix}" if self._suffix else ""
+
+    def setSuffix(self, suffix: str) -> None:
+        self._suffix = suffix.strip()
+        self._refresh_display()
 
     def setRange(self, min_v: float, max_v: float) -> None:
         pass
 
     def setSingleStep(self, step: float) -> None:
-        pass
-
-    def setSuffix(self, suffix: str) -> None:
         pass
 
 

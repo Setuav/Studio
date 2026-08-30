@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import qtawesome as qta
-from PySide6.QtCore import QRect, QSize
+from PySide6.QtCore import QRect, QSize, Qt
 from PySide6.QtGui import QIcon, QIconEngine, QPainter, QPalette, QPixmap
 from PySide6.QtWidgets import QApplication, QLabel
 

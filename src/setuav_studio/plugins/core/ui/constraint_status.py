@@ -5,9 +5,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QToolButton, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QToolButton, QWidget
 
-from setuav_studio.plugins.core.constraints import ConstraintChecker, ConstraintResult
+from setuav_studio.plugins.core.constraints import ConstraintChecker
 from setuav_studio.plugins.core.ui.constraints_dialog import ManageConstraintsDialog
 from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.theme import status_color

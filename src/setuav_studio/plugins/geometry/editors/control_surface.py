@@ -4,6 +4,7 @@ from collections.abc import Callable
 from typing import Any
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -13,6 +14,7 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSizePolicy,
     QTableWidget,
+    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -21,10 +23,6 @@ from setuav_studio.ui.icons import set_label_icon
 from setuav_studio.ui.numeric_spinbox import NumericSpinBox, set_table_spinbox
 from setuav_studio.ui.property_tables import PropertyTableMixin
 from setuav_studio_sdk import StudioAPI
-
-from .control_surface_values import resolve_chord_values, resolve_span_values
-
-from PySide6.QtGui import QColor
 
 CONTROL_SURFACE_TYPES = [
     ("aileron", "Aileron"),

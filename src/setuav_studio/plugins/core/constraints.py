@@ -6,7 +6,7 @@ import contextlib
 from dataclasses import dataclass, field
 from typing import Any
 
-from setuav_studio.plugins.core.configurations import ConfigurationManager, get_by_path
+from setuav_studio.plugins.core.configurations import get_by_path
 from setuav_studio.plugins.core.expressions import ExpressionEvaluator
 from setuav_studio.plugins.core.parameters import ParameterResolver
 

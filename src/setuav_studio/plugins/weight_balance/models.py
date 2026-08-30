@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
+
+from setuav_studio.component_model import BaseComponentModel
 
 Vector3 = tuple[float, float, float]
 
@@ -67,10 +70,6 @@ class WeightBalanceResult:
     total: MassProperties
     components: list[ComponentMassProperties] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
-
-
-from typing import Any
-from setuav_studio.component_model import BaseComponentModel
 
 
 class PointMassModel(BaseComponentModel):

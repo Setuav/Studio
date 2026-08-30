@@ -271,7 +271,7 @@ class SettingsDialog(QDialog):
         self._add_page("appearance", "Appearance", page, "fa6s.palette")
 
     def _build_units_page(self) -> None:
-        from setuav_studio.units import QUANTITIES, PRESETS, get_unit_manager
+        from setuav_studio.units import QUANTITIES, get_unit_manager
 
         um = get_unit_manager()
         page, layout = self._page_container("Units & Dimensions")

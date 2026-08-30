@@ -1021,7 +1021,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
                 change,
             )
             self._update_sections_table()
-        self.vertices_table.setVisible(profile_type == "polygon")
+        self.vertices_table.setVisible(profile.get("type") == "polygon")
 
     def _on_property_spin_changed(self, key: str, value: float) -> None:
         if self._loading:
