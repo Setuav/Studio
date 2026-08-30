@@ -1,19 +1,14 @@
-"""Properties panel editor for a selected Project Design Constraint."""
+"""Properties panel editor for a selected Project Design Constraint styled as a property table."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
 from PySide6.QtWidgets import (
-    QCheckBox,
-    QComboBox,
-    QFormLayout,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
-    QPushButton,
     QScrollArea,
-    QTextEdit,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -21,14 +16,14 @@ from PySide6.QtWidgets import (
 from setuav_studio.plugins.core.constraints import ConstraintChecker
 from setuav_studio.plugins.core.ui.expression_dialog import AdvancedExpressionDialog
 from setuav_studio.ui.icons import set_label_icon
-from setuav_studio.ui.theme import status_color
+from setuav_studio.ui.property_tables import PropertyTableMixin
 
 if TYPE_CHECKING:
     from setuav_studio_sdk import StudioAPI
 
 
-class ConstraintPropertyEditor(QWidget):
-    """Property editor widget displayed in Properties Panel when a Constraint is selected."""
+class ConstraintPropertyEditor(PropertyTableMixin, QWidget):
+    """Reusable property editor for design constraints matching the application style."""
 
     def __init__(
         self,
@@ -56,72 +51,63 @@ class ConstraintPropertyEditor(QWidget):
         scroll.setWidget(content)
         layout.addWidget(scroll)
 
-        # Section Header
-        self._create_header("Constraint Properties", "fa6s.scale-balanced")
-
-        # Form
-        form = QFormLayout()
-        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
-
-        self.name_edit = QLineEdit()
-        self.name_edit.textChanged.connect(self._on_field_changed)
-        form.addRow("Name:", self.name_edit)
-
-        expr_layout = QHBoxLayout()
-        self.expr_edit = QLineEdit()
-        self.expr_edit.textChanged.connect(self._on_field_changed)
-        expr_layout.addWidget(self.expr_edit)
-
-        self.btn_fx = QPushButton("fx")
-        self.btn_fx.setToolTip("Open Constraint Expression Assistant")
-        self.btn_fx.setFixedWidth(28)
-        self.btn_fx.clicked.connect(self._open_assistant)
-        expr_layout.addWidget(self.btn_fx)
-        form.addRow("Expression:", expr_layout)
-
-        self.sev_combo = QComboBox()
-        self.sev_combo.addItems(["warning", "error", "info"])
-        self.sev_combo.currentIndexChanged.connect(self._on_field_changed)
-        form.addRow("Severity:", self.sev_combo)
-
-        self.enabled_check = QCheckBox("Enable Constraint")
-        self.enabled_check.toggled.connect(self._on_field_changed)
-        form.addRow("", self.enabled_check)
-
-        self.desc_edit = QTextEdit()
-        self.desc_edit.setMaximumHeight(60)
-        self.desc_edit.textChanged.connect(self._on_field_changed)
-        form.addRow("Description:", self.desc_edit)
-
-        self._content_layout.addLayout(form)
-
-        # Live Status Box
-        self.status_label = QLabel()
-        self.status_label.setWordWrap(True)
-        self._content_layout.addWidget(self.status_label)
-
+        self._create_general_section()
         self._content_layout.addStretch()
-
         self._load_data()
 
-    def _create_header(self, title: str, icon_name: str) -> None:
+    def _create_section(
+        self,
+        title: str,
+        icon_name: str | None = None,
+        action_widget: QWidget | None = None,
+    ) -> QVBoxLayout:
+        section = QWidget()
+        section.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Maximum,
+        )
+        layout = QVBoxLayout(section)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(3)
+
         header = QWidget()
         header.setProperty("sectionHeader", True)
         header.setFixedHeight(20)
-        h_layout = QHBoxLayout(header)
-        h_layout.setContentsMargins(0, 0, 0, 0)
-        h_layout.setSpacing(5)
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(5)
 
-        icon_label = QLabel()
-        set_label_icon(icon_label, icon_name)
-        icon_label.setFixedSize(14, 14)
-        h_layout.addWidget(icon_label)
+        if icon_name:
+            icon_label = QLabel()
+            set_label_icon(icon_label, icon_name)
+            icon_label.setFixedSize(14, 14)
+            header_layout.addWidget(icon_label)
 
         title_label = QLabel(title)
-        h_layout.addWidget(title_label)
-        h_layout.addStretch()
+        header_layout.addWidget(title_label)
+        header_layout.addStretch()
 
-        self._content_layout.addWidget(header)
+        if action_widget is not None:
+            header_layout.addWidget(action_widget)
+
+        layout.addWidget(header)
+        self._content_layout.addWidget(section)
+        return layout
+
+    def _create_general_section(self) -> None:
+        layout = self._create_section("Constraint Details", "fa6s.scale-balanced")
+        self.general_table = self._property_table(
+            [
+                ("name", "Name"),
+                ("expression", "Expression"),
+                ("severity", "Severity"),
+                ("enabled", "Enabled"),
+                ("status", "Status"),
+                ("description", "Description"),
+            ]
+        )
+        self.general_table.cellChanged.connect(self._on_cell_changed)
+        layout.addWidget(self.general_table)
 
     def _get_project_data(self) -> dict[str, Any] | None:
         if self._api.current_project is None:
@@ -139,48 +125,63 @@ class ConstraintPropertyEditor(QWidget):
 
         self._loading = True
         try:
-            self.name_edit.setText(c.get("name", ""))
-            self.expr_edit.setText(c.get("expression", ""))
-            sev = c.get("severity", "warning")
-            idx = self.sev_combo.findText(sev)
-            if idx >= 0:
-                self.sev_combo.setCurrentIndex(idx)
-            self.enabled_check.setChecked(c.get("enabled", True))
-            self.desc_edit.setPlainText(c.get("description", ""))
+            self._set_property_value(self.general_table, "name", c.get("name", ""))
+            self._set_property_expression(
+                self.general_table,
+                "expression",
+                c.get("expression", ""),
+                on_changed=self._on_expression_changed,
+                on_open_assistant=self._open_assistant,
+            )
+            self._set_property_combo(
+                self.general_table,
+                "severity",
+                c.get("severity", "warning"),
+                [("warning", "Warning"), ("error", "Error"), ("info", "Info")],
+                self._on_severity_changed,
+            )
+            self._set_property_combo(
+                self.general_table,
+                "enabled",
+                "true" if c.get("enabled", True) else "false",
+                [("true", "Yes"), ("false", "No")],
+                self._on_enabled_changed,
+            )
 
             # Evaluate status
             res = self._checker.check_constraint(c, data)
             if not c.get("enabled", True):
-                self.status_label.setText("⚪ <b>Status:</b> Disabled")
+                status_text = "⚪ Disabled"
             elif res.error:
-                self.status_label.setText(
-                    f"<span style='color: {status_color('error')}'>❌ <b>Error:</b> {res.error}</span>"
-                )
+                status_text = f"❌ Error: {res.error}"
             elif res.passed:
-                self.status_label.setText(
-                    f"<span style='color: {status_color('success')}'>✔ <b>Passed:</b> Satisfied</span>"
-                )
+                status_text = "✔ Passed"
             else:
-                self.status_label.setText(
-                    f"<span style='color: {status_color('warning')}'>⚠ <b>Violated:</b> Condition evaluated to False</span>"
-                )
+                status_text = f"⚠ Violated: {res.message or 'Condition evaluated to False'}"
+
+            self._set_property_value(self.general_table, "status", status_text, editable=False)
+            self._set_property_value(
+                self.general_table, "description", c.get("description", "")
+            )
         finally:
             self._loading = False
 
-    def _open_assistant(self) -> None:
+    def _open_assistant(self, current_val: str) -> None:
+        from PySide6.QtWidgets import QDialog
+
         dlg = AdvancedExpressionDialog(
             self._api,
-            initial_expression=self.expr_edit.text(),
-            title=f"Constraint Assistant — {self.name_edit.text()}",
+            initial_expression=current_val,
+            title=f"Constraint Assistant — {self._cid}",
             is_boolean_constraint=True,
             parent=self,
         )
-        from PySide6.QtWidgets import QDialog
-
         if dlg.exec() == QDialog.DialogCode.Accepted:
-            self.expr_edit.setText(dlg.get_expression())
+            new_expr = dlg.get_expression()
+            self._on_expression_changed(new_expr)
+            self._load_data()
 
-    def _on_field_changed(self) -> None:
+    def _on_expression_changed(self, new_expr: str) -> None:
         if self._loading:
             return
         data = self._get_project_data()
@@ -191,11 +192,55 @@ class ConstraintPropertyEditor(QWidget):
         if not c:
             return
 
-        c["name"] = self.name_edit.text().strip()
-        c["expression"] = self.expr_edit.text().strip()
-        c["severity"] = self.sev_combo.currentText()
-        c["enabled"] = self.enabled_check.isChecked()
-        c["description"] = self.desc_edit.toPlainText().strip()
+        c["expression"] = new_expr.strip()
+        self._api.notify_project_content_changed()
 
+    def _on_severity_changed(self, new_sev: str) -> None:
+        if self._loading:
+            return
+        data = self._get_project_data()
+        if not data:
+            return
+        constraints = data.setdefault("constraints", [])
+        c = next((item for item in constraints if item.get("id") == self._cid), None)
+        if not c:
+            return
+
+        c["severity"] = new_sev
+        self._api.notify_project_content_changed()
+
+    def _on_enabled_changed(self, val: str) -> None:
+        if self._loading:
+            return
+        data = self._get_project_data()
+        if not data:
+            return
+        constraints = data.setdefault("constraints", [])
+        c = next((item for item in constraints if item.get("id") == self._cid), None)
+        if not c:
+            return
+
+        c["enabled"] = val == "true"
         self._api.notify_project_content_changed()
         self._load_data()
+
+    def _on_cell_changed(self, row: int, column: int) -> None:
+        if self._loading or column != 1:
+            return
+        key = self._property_key(self.general_table, row)
+        val_text = self._property_text(self.general_table, row)
+        data = self._get_project_data()
+        if not data:
+            return
+
+        constraints = data.setdefault("constraints", [])
+        c = next((item for item in constraints if item.get("id") == self._cid), None)
+        if not c:
+            return
+
+        if key == "name":
+            c["name"] = val_text.strip()
+            self._api.notify_project_content_changed()
+        elif key == "description":
+            c["description"] = val_text.strip()
+            self._api.notify_project_content_changed()

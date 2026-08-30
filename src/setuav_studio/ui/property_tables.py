@@ -91,6 +91,61 @@ class ContentFitTableWidget(QTableWidget):
             self._fitting_columns = False
 
 
+class ExpressionPropertyCell(QWidget):
+    """Table cell editor widget with inline text edit and 'fx' expression assistant button."""
+
+    def __init__(
+        self,
+        initial_value: str = "",
+        on_changed: Callable[[str], None] | None = None,
+        on_open_assistant: Callable[[str], None] | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self._on_changed = on_changed
+        self._on_open_assistant = on_open_assistant
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(2)
+
+        self.line_edit = QLineEdit(self)
+        self.line_edit.setText(initial_value)
+        self.line_edit.textChanged.connect(self._handle_text_changed)
+        layout.addWidget(self.line_edit)
+
+        self.fx_button = QPushButton("fx", self)
+        self.fx_button.setToolTip("Open Equation / Expression Assistant")
+        self.fx_button.setFixedWidth(24)
+        self.fx_button.setFixedHeight(20)
+        self.fx_button.clicked.connect(self._handle_button_clicked)
+        layout.addWidget(self.fx_button)
+
+        self._update_style(initial_value)
+
+    def _update_style(self, text: str) -> None:
+        if text.strip().startswith("="):
+            self.line_edit.setStyleSheet("color: #4CAF50; font-weight: bold;")
+        else:
+            self.line_edit.setStyleSheet("")
+
+    def _handle_text_changed(self, text: str) -> None:
+        self._update_style(text)
+        if self._on_changed:
+            self._on_changed(text)
+
+    def _handle_button_clicked(self) -> None:
+        if self._on_open_assistant:
+            self._on_open_assistant(self.line_edit.text())
+
+    def text(self) -> str:
+        return self.line_edit.text()
+
+    def setText(self, text: str) -> None:
+        self.line_edit.setText(text)
+        self._update_style(text)
+
+
 class PropertyTableMixin:
     """Provides the standard property table helpers to QWidget subclasses."""
 
@@ -228,61 +283,6 @@ class PropertyTableMixin:
             else:
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             return
-
-class ExpressionPropertyCell(QWidget):
-    """Table cell editor widget with inline text edit and 'fx' expression assistant button."""
-
-    def __init__(
-        self,
-        initial_value: str = "",
-        on_changed: Callable[[str], None] | None = None,
-        on_open_assistant: Callable[[str], None] | None = None,
-        parent: QWidget | None = None,
-    ) -> None:
-        super().__init__(parent)
-        self._on_changed = on_changed
-        self._on_open_assistant = on_open_assistant
-
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(2)
-
-        self.line_edit = QLineEdit(self)
-        self.line_edit.setText(initial_value)
-        self.line_edit.textChanged.connect(self._handle_text_changed)
-        layout.addWidget(self.line_edit)
-
-        self.fx_button = QPushButton("fx", self)
-        self.fx_button.setToolTip("Open Equation / Expression Assistant")
-        self.fx_button.setFixedWidth(24)
-        self.fx_button.setFixedHeight(20)
-        self.fx_button.clicked.connect(self._handle_button_clicked)
-        layout.addWidget(self.fx_button)
-
-        self._update_style(initial_value)
-
-    def _update_style(self, text: str) -> None:
-        if text.strip().startswith("="):
-            self.line_edit.setStyleSheet("color: #4CAF50; font-weight: bold;")
-        else:
-            self.line_edit.setStyleSheet("")
-
-    def _handle_text_changed(self, text: str) -> None:
-        self._update_style(text)
-        if self._on_changed:
-            self._on_changed(text)
-
-    def _handle_button_clicked(self) -> None:
-        if self._on_open_assistant:
-            self._on_open_assistant(self.line_edit.text())
-
-    def text(self) -> str:
-        return self.line_edit.text()
-
-    def setText(self, text: str) -> None:
-        self.line_edit.setText(text)
-        self._update_style(text)
-
 
     def _set_property_expression(
         self,
