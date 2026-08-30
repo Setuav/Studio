@@ -62,6 +62,142 @@ MATH_FUNCTIONS: list[tuple[str, str, str]] = [
 ]
 
 
+import re
+from PySide6.QtGui import QKeyEvent
+
+
+class ExpressionLineEdit(QLineEdit):
+    """IDE-like expression input with intelligent dot-triggering and token-aware autocompletion."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._completer: QCompleter | None = None
+        self._component_props: dict[str, list[str]] = {}
+        self._all_symbols: list[str] = []
+
+    def set_symbol_data(
+        self,
+        constants: list[str],
+        components: list[dict[str, Any]],
+        math_funcs: list[str],
+    ) -> None:
+        self._all_symbols = list(constants) + list(math_funcs)
+        self._component_props = {}
+
+        for comp in components:
+            raw_cid = comp["id"]
+            clean_cid = raw_cid.replace("-", "_")
+            props = [p["key"] for p in comp.get("properties", [])]
+
+            self._component_props[raw_cid] = props
+            self._component_props[clean_cid] = props
+
+            self._all_symbols.append(clean_cid)
+            if raw_cid != clean_cid:
+                self._all_symbols.append(raw_cid)
+
+            for p in props:
+                self._all_symbols.append(f"{clean_cid}.{p}")
+
+        self._all_symbols = sorted(list(set(self._all_symbols)))
+        self._update_completer_model(self._all_symbols)
+
+    def _update_completer_model(self, items: list[str]) -> None:
+        model = QStringListModel(items, self)
+        if self._completer is None:
+            self._completer = QCompleter(model, self)
+            self._completer.setWidget(self)
+            self._completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+            self._completer.setFilterMode(Qt.MatchFlag.MatchContains)
+            self._completer.activated.connect(self._insert_completion)
+        else:
+            self._completer.setModel(model)
+
+    def _get_current_token(self) -> tuple[str, int, int]:
+        """Return (token_text, start_pos, end_pos) for token under cursor."""
+        text = self.text()
+        cursor_pos = self.cursorPosition()
+        left_text = text[:cursor_pos]
+        match = re.search(r"([A-Za-z_0-9\-\.]+)$", left_text)
+        if not match:
+            return "", cursor_pos, cursor_pos
+        token = match.group(1)
+        start_pos = cursor_pos - len(token)
+        return token, start_pos, cursor_pos
+
+    def _insert_completion(self, completion: str) -> None:
+        token, start_pos, end_pos = self._get_current_token()
+        text = self.text()
+
+        # If user was typing component.something, sanitize component ID (e.g. main-wing -> main_wing)
+        if "." in token:
+            comp_part = token.split(".", 1)[0]
+            clean_comp = comp_part.replace("-", "_")
+            if not completion.startswith(f"{clean_comp}."):
+                completion = f"{clean_comp}.{completion}"
+        elif completion.replace("-", "_") in self._component_props:
+            completion = completion.replace("-", "_")
+
+        new_text = text[:start_pos] + completion + text[end_pos:]
+        self.setText(new_text)
+        self.setCursorPosition(start_pos + len(completion))
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        if self._completer and self._completer.popup() and self._completer.popup().isVisible():
+            if event.key() in (
+                Qt.Key.Key_Enter,
+                Qt.Key.Key_Return,
+                Qt.Key.Key_Escape,
+                Qt.Key.Key_Tab,
+                Qt.Key.Key_Backtab,
+            ):
+                event.ignore()
+                return
+
+        super().keyPressEvent(event)
+
+        if not self._completer:
+            return
+
+        token, start_pos, end_pos = self._get_current_token()
+        if not token:
+            if self._completer.popup():
+                self._completer.popup().hide()
+            return
+
+        # Check if dot notation: e.g. "main_wing." or "main-wing."
+        if "." in token:
+            comp_part, prop_prefix = token.split(".", 1)
+            comp_clean = comp_part.replace("-", "_")
+            props = self._component_props.get(comp_part) or self._component_props.get(comp_clean)
+            if props:
+                # Show clean property names for this component in dropdown
+                self._update_completer_model(props)
+                self._completer.setCompletionPrefix(prop_prefix)
+            else:
+                self._update_completer_model(self._all_symbols)
+                self._completer.setCompletionPrefix(token)
+        else:
+            self._update_completer_model(self._all_symbols)
+            self._completer.setCompletionPrefix(token)
+
+        popup = self._completer.popup()
+        if self._completer.completionCount() > 0:
+            cr = self.cursorRect()
+            cr.setWidth(
+                max(
+                    220,
+                    self._completer.popup().sizeHintForColumn(0)
+                    + self._completer.popup().verticalScrollBar().sizeHint().width()
+                    + 30,
+                )
+            )
+            self._completer.complete(cr)
+        else:
+            if popup:
+                popup.hide()
+
+
 class AdvancedExpressionDialog(QDialog):
     """Rich equation editor dialog with component parameter autocomplete, variable inserter, and live preview."""
 
@@ -93,7 +229,7 @@ class AdvancedExpressionDialog(QDialog):
         input_group = QGroupBox("Expression", self)
         input_layout = QVBoxLayout(input_group)
 
-        self.expr_edit = QLineEdit(self)
+        self.expr_edit = ExpressionLineEdit(self)
         self.expr_edit.setText(initial_expression)
         placeholder = (
             "e.g. main_wing.planform_area >= 0.25 and main_wing.aspect_ratio <= 10.0"
@@ -188,30 +324,10 @@ class AdvancedExpressionDialog(QDialog):
         self._on_expression_changed()
 
     def _setup_completer(self) -> None:
-        completions: list[str] = []
-        for name, insert_txt, _ in MATH_FUNCTIONS:
-            completions.append(insert_txt.rstrip("("))
-
-        # Add all project constants
-        for c in self._metadata.get("constants", []):
-            completions.append(c["key"])
-
-        # Add all component dot-notation expressions
-        for comp in self._metadata.get("components", []):
-            cid = comp["id"]
-            completions.append(cid)
-            for prop in comp.get("properties", []):
-                completions.append(f"{cid}.{prop['key']}")
-
-        for key in self._context:
-            completions.append(key)
-
-        unique_completions = sorted(list(set(completions)))
-        model = QStringListModel(unique_completions, self)
-        completer = QCompleter(model, self)
-        completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-        completer.setFilterMode(Qt.MatchFlag.MatchContains)
-        self.expr_edit.setCompleter(completer)
+        math_funcs = [insert_txt.rstrip("(") for _, insert_txt, _ in MATH_FUNCTIONS]
+        constants = [c["key"] for c in self._metadata.get("constants", [])]
+        components = self._metadata.get("components", [])
+        self.expr_edit.set_symbol_data(constants, components, math_funcs)
 
     def _populate_component_tree(self) -> None:
         self.comp_tree.clear()
