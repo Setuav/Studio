@@ -64,8 +64,15 @@ class ParameterResolver:
             raw_val = val.get("value") if isinstance(val, dict) and "value" in val else val
             if self.evaluator.is_expression(raw_val):
                 symbols = self.evaluator.extract_symbols(str(raw_val))
-                # Only keep symbols that exist in parameters
-                graph[key] = {sym for sym in symbols if sym in parameters}
+                # Only keep symbols (or root identifiers) that exist in parameters
+                dep_set: set[str] = set()
+                for sym in symbols:
+                    root_sym = sym.split(".")[0]
+                    if sym in parameters:
+                        dep_set.add(sym)
+                    elif root_sym in parameters:
+                        dep_set.add(root_sym)
+                graph[key] = dep_set
             else:
                 graph[key] = set()
         return graph
@@ -107,14 +114,18 @@ class ParameterResolver:
         graph = self.build_dependency_graph(parameters)
         return _topological_sort(graph)
 
-    def resolve_all(self, parameters: dict[str, Any]) -> dict[str, Any]:
+    def resolve_all(
+        self,
+        parameters: dict[str, Any],
+        extra_context: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Resolve all parameters into concrete scalar/string values.
 
         Raises:
             ParameterResolutionError: If an expression fails or cannot be resolved.
         """
         order = self.get_evaluation_order(parameters)
-        resolved: dict[str, Any] = {}
+        resolved: dict[str, Any] = dict(extra_context or {})
 
         for key in order:
             val = parameters[key]
@@ -130,7 +141,7 @@ class ParameterResolver:
             else:
                 resolved[key] = raw_val
 
-        return resolved
+        return {k: resolved[k] for k in parameters}
 
     def resolve_single(self, key: str, parameters: dict[str, Any]) -> Any:
         """Resolve a single parameter, evaluating dependencies as needed."""

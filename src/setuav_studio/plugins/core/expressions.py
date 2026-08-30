@@ -75,7 +75,7 @@ class ExpressionEvaluator:
         return trimmed
 
     def extract_symbols(self, expression: str) -> set[str]:
-        """Extract all variable identifier names used in the expression.
+        """Extract all variable identifier names and dotted attribute chains used in the expression.
 
         Standard functions and constants (such as 'sin', 'pi') are excluded.
         """
@@ -88,12 +88,25 @@ class ExpressionEvaluator:
         except SyntaxError:
             return set()
 
+        def _get_dotted_name(node: ast.AST) -> str | None:
+            if isinstance(node, ast.Name):
+                return node.id
+            if isinstance(node, ast.Attribute):
+                val = _get_dotted_name(node.value)
+                if val:
+                    return f"{val}.{node.attr}"
+            return None
+
         symbols: set[str] = set()
         for node in ast.walk(tree):
             if isinstance(node, ast.Name):
                 name = node.id
                 if name not in STANDARD_SYMBOLS:
                     symbols.add(name)
+            elif isinstance(node, ast.Attribute):
+                dotted = _get_dotted_name(node)
+                if dotted and not any(dotted.startswith(f"{f}.") for f in STANDARD_SYMBOLS):
+                    symbols.add(dotted)
         return symbols
 
     def validate(self, expression: str) -> list[str]:
