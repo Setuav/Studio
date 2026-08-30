@@ -110,6 +110,26 @@ class FocusAwareLineEdit(QLineEdit):
         self.focused_out.emit()
 
 
+def format_engineering_value(val: Any, decimals: int = 2) -> str:
+    """Cleanly formats numbers removing floating-point noise and keeping engineering precision."""
+    if val is None or val == "":
+        return ""
+    try:
+        f_val = float(val)
+    except (ValueError, TypeError):
+        return str(val)
+
+    rounded = round(f_val, decimals)
+    if abs(rounded) < 1e-12:
+        return "0.0"
+    if abs(rounded - int(rounded)) < 1e-9:
+        return f"{rounded:.1f}"
+    formatted = f"{rounded:.{decimals}f}".rstrip("0")
+    if formatted.endswith("."):
+        formatted += "0"
+    return formatted
+
+
 class ExpressionPropertyCell(QWidget):
     """Table cell editor widget with dual display (evaluated value when idle, formula when editing) and 'fx' assistant button."""
 
@@ -120,6 +140,7 @@ class ExpressionPropertyCell(QWidget):
         on_open_assistant: Callable[[str], None] | None = None,
         api: Any | None = None,
         label: str = "",
+        decimals: int | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -129,6 +150,35 @@ class ExpressionPropertyCell(QWidget):
         self._label = label
         self._raw_expression = str(initial_value)
         self._is_focused = False
+
+        self._decimals = decimals
+        if self._decimals is None:
+            lbl = self._label.lower()
+            if any(w in lbl for w in ("eta", "fraction", "taper", "aspect", "ratio")):
+                self._decimals = 3
+            elif any(w in lbl for w in ("area", "dm2", "m2", "dm²", "m²")):
+                self._decimals = 3
+            elif any(
+                w in lbl
+                for w in (
+                    "rot",
+                    "deg",
+                    "angle",
+                    "sweep",
+                    "dihedral",
+                    "deflection",
+                    "pitch",
+                    "roll",
+                    "yaw",
+                    "twist",
+                    "°",
+                )
+            ):
+                self._decimals = 2
+            elif any(w in lbl for w in ("mass", "weight", "gram", "kg")):
+                self._decimals = 2
+            else:
+                self._decimals = 2
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -185,7 +235,7 @@ class ExpressionPropertyCell(QWidget):
             return
 
         if self._is_focused:
-            # Editing mode: show raw formula
+            # Editing mode: show raw formula or raw number
             self.line_edit.blockSignals(True)
             self.line_edit.setText(self._raw_expression)
             if clean.startswith("="):
@@ -199,12 +249,13 @@ class ExpressionPropertyCell(QWidget):
                 ok, val = self._evaluate_expression(clean)
                 self.line_edit.blockSignals(True)
                 if ok and isinstance(val, (int, float)):
-                    self.line_edit.setText(f"{val:.4g}")
+                    disp_val = format_engineering_value(val, self._decimals)
+                    self.line_edit.setText(disp_val)
                     self.line_edit.setStyleSheet(
                         "color: #4CAF50; font-style: italic; font-weight: bold;"
                     )
                     self.line_edit.setToolTip(
-                        f"Bound to: {self._raw_expression}\nCalculated value: {val:.4g}"
+                        f"Bound to: {self._raw_expression}\nCalculated value: {disp_val}"
                     )
                 else:
                     self.line_edit.setText(self._raw_expression)
@@ -213,7 +264,12 @@ class ExpressionPropertyCell(QWidget):
                 self.line_edit.blockSignals(False)
             else:
                 self.line_edit.blockSignals(True)
-                self.line_edit.setText(self._raw_expression)
+                try:
+                    num_val = float(clean)
+                    disp_val = format_engineering_value(num_val, self._decimals)
+                    self.line_edit.setText(disp_val)
+                except ValueError:
+                    self.line_edit.setText(self._raw_expression)
                 self.line_edit.setStyleSheet("")
                 self.line_edit.setToolTip("")
                 self.line_edit.blockSignals(False)
@@ -241,6 +297,10 @@ class ExpressionPropertyCell(QWidget):
                 self._on_changed(self._raw_expression)
         self._refresh_display()
         self.line_edit.clearFocus()
+
+    def setDecimals(self, dec: int) -> None:
+        self._decimals = dec
+        self._refresh_display()
 
     def _handle_button_clicked(self) -> None:
         if self._on_open_assistant:
@@ -490,6 +550,7 @@ class PropertyTableMixin:
         on_open_assistant: Callable[[str], None] | None = None,
         api: Any | None = None,
         label: str = "",
+        decimals: int | None = None,
     ) -> None:
         for row in range(table.rowCount()):
             if self._property_key(table, row) != key:
@@ -510,6 +571,7 @@ class PropertyTableMixin:
                 on_open_assistant=on_open_assistant,
                 api=api or getattr(self, "_api", None),
                 label=resolved_label,
+                decimals=decimals,
                 parent=table,
             )
             table.setCellWidget(row, 1, cell)

@@ -279,10 +279,13 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
                     on_changed=lambda val, k=key: self._on_prop_spinbox_changed(k, val),
                     api=self._api,
                     label=label_text,
+                    decimals=dec,
                 )
             else:
+                from setuav_studio.ui.property_tables import format_engineering_value
+
                 self.properties_table.removeCellWidget(target_row, 1)
-                val_str = f"{current_val:.{dec}f}"
+                val_str = format_engineering_value(current_val, dec)
                 if unit:
                     val_str += f" {unit}"
                 val_item = self.properties_table.item(target_row, 1)
@@ -295,15 +298,15 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
                 val_item.setFlags(val_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 val_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
-        _setup_param("area", "Area (dm²)", metrics["area_dm2"], geom.get("area_expression"), "dm²", 4)
+        _setup_param("area", "Area (dm²)", metrics["area_dm2"], geom.get("area_expression"), "dm²", 3)
         _setup_param("area_ratio", "Area Ratio (% Wing)", metrics["area_ratio"], None, "%", 1)
-        _setup_param("span_start", "Span start (mm)", metrics["span_start"], geom.get("span_start_expression"), "mm", 1)
-        _setup_param("span_end", "Span end (mm)", metrics["span_end"], geom.get("span_end_expression"), "mm", 1)
-        _setup_param("span_length", "Span length (mm)", metrics["span_length"], geom.get("span_length_expression"), "mm", 1)
+        _setup_param("span_start", "Span start (mm)", metrics["span_start"], geom.get("span_start_expression"), "mm", 2)
+        _setup_param("span_end", "Span end (mm)", metrics["span_end"], geom.get("span_end_expression"), "mm", 2)
+        _setup_param("span_length", "Span length (mm)", metrics["span_length"], geom.get("span_length_expression"), "mm", 2)
         _setup_param("eta_start", "Span start fraction (eta)", metrics["eta_start"], geom.get("eta_start_expression"), "", 3)
         _setup_param("eta_end", "Span end fraction (eta)", metrics["eta_end"], geom.get("eta_end_expression"), "", 3)
         _setup_param("chord_fraction", "Chord fraction (%c)", metrics["chord_fraction"], geom.get("chord_fraction_expression"), "c", 3)
-        _setup_param("chord", "Control chord (mm)", metrics["chord"], geom.get("chord_expression"), "mm", 1)
+        _setup_param("chord", "Control chord (mm)", metrics["chord"], geom.get("chord_expression"), "mm", 2)
 
         hs_val = geom.get("hinge_sweep_expression") or hinge_sweep
         self._set_property_expression(
@@ -313,6 +316,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
             on_changed=lambda val: self._on_prop_spinbox_changed("hinge_sweep", val),
             api=self._api,
             label="Hinge sweep angle (°)",
+            decimals=2,
         )
 
         def_val = geom.get("deflection_expression") or deflection
@@ -323,6 +327,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
             on_changed=lambda val: self._on_prop_spinbox_changed("deflection", val),
             api=self._api,
             label="Deflection angle (°)",
+            decimals=2,
         )
 
         self._set_property_combo(

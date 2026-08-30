@@ -132,7 +132,7 @@ class PointMassEditor(PropertyTableMixin, QWidget):
             min_val=minimum,
             max_val=maximum,
             step=1.0,
-            decimals=3,
+            decimals=2,
             suffix=suffix,
             on_changed=lambda _value: self._transform_changed(),
             api=self._api,

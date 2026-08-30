@@ -153,9 +153,11 @@ def set_table_spinbox(
             except ValueError:
                 on_changed(clean)
 
+    from setuav_studio.ui.property_tables import format_engineering_value
+
     init_str = (
-        f"{value:.{decimals}f}"
-        if isinstance(value, float) and not str(value).startswith("=")
+        format_engineering_value(value, decimals)
+        if isinstance(value, (int, float)) and not str(value).startswith("=")
         else str(value)
     )
     cell = ExpressionPropertyCell(
@@ -163,6 +165,7 @@ def set_table_spinbox(
         on_changed=handle_cell_changed if on_changed else None,
         api=resolved_api,
         label=label,
+        decimals=decimals,
         parent=table,
     )
     table.setCellWidget(row, column, cell)
