@@ -345,6 +345,12 @@ class MainWindow(QMainWindow):
 
         self._tools_menu = self.menuBar().addMenu("&Tools")
         self._menus["tools"] = self._tools_menu
+        self._constraints_action = self._tools_menu.addAction(
+            get_icon("settings"),
+            "Design Constraints…",
+            self._open_constraints,
+        )
+        self._command_actions["core.constraints.manage"] = self._constraints_action
         self._plugin_manager_action = self._tools_menu.addAction("Plugin Manager…")
         self._plugin_manager_action.setEnabled(False)
         self._plugin_manager_action.triggered.connect(self._open_plugin_manager)
@@ -375,6 +381,11 @@ class MainWindow(QMainWindow):
         self._degraded_badge.hide()
         self._degraded_badge.clicked.connect(self._show_degraded_details)
         self.statusBar().addPermanentWidget(self._degraded_badge)
+
+        from setuav_studio.plugins.core.ui.constraint_status import ConstraintStatusWidget
+
+        self._constraint_status = ConstraintStatusWidget(self._api, self)
+        self.statusBar().addPermanentWidget(self._constraint_status)
 
         self._log_button = QToolButton(self)
         self._log_button.setObjectName("studioStatusLogButton")
@@ -1019,6 +1030,12 @@ class MainWindow(QMainWindow):
 
     def _open_about(self) -> None:
         AboutDialog(self).exec()
+
+    def _open_constraints(self) -> None:
+        from setuav_studio.plugins.core.ui.constraints_dialog import ManageConstraintsDialog
+
+        dlg = ManageConstraintsDialog(self._api, parent=self)
+        dlg.exec()
 
     def bind_plugin_manager(self, manager: PluginManager) -> None:
         """Attach the application plugin manager to the Plugin Manager action."""

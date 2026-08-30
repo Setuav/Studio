@@ -13,6 +13,7 @@ CORE_MODULES = (
     "tests.core.test_component_editor",
     "tests.core.test_configurations",
     "tests.core.test_configuration_ui",
+    "tests.core.test_constraints",
     "tests.core.test_expressions",
     "tests.core.test_instance",
     "tests.core.test_main",

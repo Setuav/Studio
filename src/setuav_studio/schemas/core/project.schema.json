@@ -119,8 +119,7 @@
         "required": [
           "id",
           "name",
-          "expression",
-          "message"
+          "expression"
         ],
         "properties": {
           "id": {
@@ -140,7 +139,15 @@
               "type": "string"
             }
           },
+          "severity": {
+            "type": "string",
+            "enum": ["warning", "error", "info"],
+            "default": "warning"
+          },
           "message": {
+            "type": "string"
+          },
+          "description": {
             "type": "string"
           },
           "enabled": {
