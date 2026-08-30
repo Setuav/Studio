@@ -1,4 +1,4 @@
-"""Advanced Equation and Expression Editor Dialog with autocompletion and live preview."""
+"""Advanced Equation and Expression Editor Dialog with component dot-notation autocompletion and live preview."""
 
 from __future__ import annotations
 
@@ -20,15 +20,19 @@ from PySide6.QtWidgets import (
     QTabWidget,
     QTableWidget,
     QTableWidgetItem,
+    QTreeWidget,
+    QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
-from setuav_studio.plugins.core.configurations import ConfigurationManager
 from setuav_studio.plugins.core.constraints import ConstraintChecker
 from setuav_studio.plugins.core.expressions import ExpressionEvaluator
 from setuav_studio.plugins.core.parameters import ParameterResolver
-from setuav_studio.ui.icons import get_icon
+from setuav_studio.plugins.core.symbols import (
+    build_evaluation_context,
+    get_available_symbols_metadata,
+)
 from setuav_studio.ui.theme import status_color
 
 if TYPE_CHECKING:
@@ -40,6 +44,9 @@ MATH_FUNCTIONS: list[tuple[str, str, str]] = [
     ("sin(x)", "sin(", "Sine of angle in radians"),
     ("cos(x)", "cos(", "Cosine of angle in radians"),
     ("tan(x)", "tan(", "Tangent of angle in radians"),
+    ("asin(x)", "asin(", "Arc sine in radians"),
+    ("acos(x)", "acos(", "Arc cosine in radians"),
+    ("atan(x)", "atan(", "Arc tangent in radians"),
     ("deg2rad(x)", "deg2rad(", "Convert degrees to radians: deg2rad(180) -> pi"),
     ("rad2deg(x)", "rad2deg(", "Convert radians to degrees: rad2deg(pi) -> 180"),
     ("abs(x)", "abs(", "Absolute value: abs(-5) -> 5"),
@@ -51,11 +58,12 @@ MATH_FUNCTIONS: list[tuple[str, str, str]] = [
     ("pow(x, y)", "pow(", "x raised to power y: pow(2, 3) -> 8"),
     ("pi", "pi", "Mathematical constant π ≈ 3.14159"),
     ("e", "e", "Mathematical constant e ≈ 2.71828"),
+    ("g", "9.80665", "Standard gravity constant (9.81 m/s²)"),
 ]
 
 
 class AdvancedExpressionDialog(QDialog):
-    """Rich equation editor dialog with parameter autocomplete, variable inserter, and live preview."""
+    """Rich equation editor dialog with component parameter autocomplete, variable inserter, and live preview."""
 
     def __init__(
         self,
@@ -67,7 +75,7 @@ class AdvancedExpressionDialog(QDialog):
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(title)
-        self.resize(720, 480)
+        self.resize(760, 520)
 
         self._api = api
         self._is_constraint = is_boolean_constraint
@@ -75,9 +83,9 @@ class AdvancedExpressionDialog(QDialog):
         self._resolver = ParameterResolver(self._evaluator)
         self._checker = ConstraintChecker(self._evaluator, self._resolver)
 
-        # Context gathering
         project_data = api.current_project.data if api.current_project else {}
-        self._context = self._checker.extract_context(project_data)
+        self._metadata = get_available_symbols_metadata(project_data, api=api)
+        self._context = self._metadata.get("context", {})
 
         layout = QVBoxLayout(self)
 
@@ -88,9 +96,9 @@ class AdvancedExpressionDialog(QDialog):
         self.expr_edit = QLineEdit(self)
         self.expr_edit.setText(initial_expression)
         placeholder = (
-            "e.g. mtow / wing_area <= 50"
+            "e.g. main_wing.planform_area >= 0.25 and main_wing.aspect_ratio <= 10.0"
             if self._is_constraint
-            else "e.g. =2 * span + root_chord / 2"
+            else "e.g. =2 * main_wing.planform_area + root_chord / 2"
         )
         self.expr_edit.setPlaceholderText(placeholder)
         self.expr_edit.textChanged.connect(self._on_expression_changed)
@@ -101,9 +109,9 @@ class AdvancedExpressionDialog(QDialog):
 
         # Quick Math Operator Bar
         op_bar = QHBoxLayout()
-        for op in ("+", "-", "*", "/", "^", "(", ")", "<=", ">=", "==", "!="):
+        for op in ("+", "-", "*", "/", "^", "(", ")", "<=", ">=", "==", "!=", "and", "or"):
             btn = QPushButton(op, self)
-            btn.setMaximumWidth(36)
+            btn.setMaximumWidth(40)
             btn.clicked.connect(lambda _, text=op: self._insert_text(f" {text} "))
             op_bar.addWidget(btn)
         op_bar.addStretch()
@@ -117,18 +125,28 @@ class AdvancedExpressionDialog(QDialog):
 
         self.tabs = QTabWidget(self)
 
-        # Tab 1: Project Parameters
+        # Tab 1: Component Properties Tree (e.g. main_wing.planform_area)
+        self.comp_tree = QTreeWidget(self)
+        self.comp_tree.setHeaderLabels(["Component / Property", "Value", "Expression Tag"])
+        self.comp_tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        self.comp_tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.comp_tree.header().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        self.comp_tree.itemDoubleClicked.connect(self._on_comp_tree_double_clicked)
+        self._populate_component_tree()
+        self.tabs.addTab(self.comp_tree, "Component Properties")
+
+        # Tab 2: Project Constants
         self.params_table = QTableWidget(0, 3, self)
-        self.params_table.setHorizontalHeaderLabels(["Parameter", "Current Value", "Unit"])
+        self.params_table.setHorizontalHeaderLabels(["Constant", "Current Value", "Unit"])
         self.params_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
         self.params_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.params_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         self.params_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.params_table.doubleClicked.connect(self._insert_selected_parameter)
-        self._populate_parameters_table(project_data)
-        self.tabs.addTab(self.params_table, "Project Parameters")
+        self._populate_parameters_table()
+        self.tabs.addTab(self.params_table, "Project Constants")
 
-        # Tab 2: Math Functions
+        # Tab 3: Math Functions
         self.funcs_table = QTableWidget(0, 2, self)
         self.funcs_table.setHorizontalHeaderLabels(["Function / Constant", "Description"])
         self.funcs_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
@@ -173,29 +191,64 @@ class AdvancedExpressionDialog(QDialog):
         completions: list[str] = []
         for name, insert_txt, _ in MATH_FUNCTIONS:
             completions.append(insert_txt.rstrip("("))
+
+        # Add all project constants
+        for c in self._metadata.get("constants", []):
+            completions.append(c["key"])
+
+        # Add all component dot-notation expressions
+        for comp in self._metadata.get("components", []):
+            cid = comp["id"]
+            completions.append(cid)
+            for prop in comp.get("properties", []):
+                completions.append(f"{cid}.{prop['key']}")
+
         for key in self._context:
             completions.append(key)
 
-        model = QStringListModel(completions, self)
+        unique_completions = sorted(list(set(completions)))
+        model = QStringListModel(unique_completions, self)
         completer = QCompleter(model, self)
         completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         completer.setFilterMode(Qt.MatchFlag.MatchContains)
         self.expr_edit.setCompleter(completer)
 
-    def _populate_parameters_table(self, project_data: dict[str, Any]) -> None:
-        raw_params = project_data.get("parameters", {})
+    def _populate_component_tree(self) -> None:
+        self.comp_tree.clear()
+        components = self._metadata.get("components", [])
+
+        for comp in components:
+            cid = comp["id"]
+            cname = comp["name"]
+            ctype = comp["type"]
+
+            parent_item = QTreeWidgetItem([f"{cname} ({cid})", "", ""])
+            self.comp_tree.addTopLevelItem(parent_item)
+
+            for prop in comp.get("properties", []):
+                pval = prop["value"]
+                val_str = f"{pval:.4g}" if isinstance(pval, (int, float)) else str(pval)
+                expr_tag = prop["expression"]
+                child_item = QTreeWidgetItem([prop["key"], val_str, expr_tag])
+                child_item.setData(0, Qt.ItemDataRole.UserRole, expr_tag)
+                parent_item.addChild(child_item)
+
+            parent_item.setExpanded(True)
+
+    def _populate_parameters_table(self) -> None:
+        constants = self._metadata.get("constants", [])
         self.params_table.setRowCount(0)
-        for row, (k, v) in enumerate(raw_params.items()):
+        for row, c in enumerate(constants):
             self.params_table.insertRow(row)
-            item_name = QTableWidgetItem(str(k))
+            item_name = QTableWidgetItem(c["key"])
             item_name.setFlags(item_name.flags() & ~Qt.ItemFlag.ItemIsEditable)
 
-            resolved_val = self._context.get(k, v)
-            val_str = f"{resolved_val:.4g}" if isinstance(resolved_val, (int, float)) else str(resolved_val)
+            val = c["value"]
+            val_str = f"{val:.4g}" if isinstance(val, (int, float)) else str(val)
             item_val = QTableWidgetItem(val_str)
             item_val.setFlags(item_val.flags() & ~Qt.ItemFlag.ItemIsEditable)
 
-            item_unit = QTableWidgetItem("")
+            item_unit = QTableWidgetItem(c.get("unit", ""))
             item_unit.setFlags(item_unit.flags() & ~Qt.ItemFlag.ItemIsEditable)
 
             self.params_table.setItem(row, 0, item_name)
@@ -220,6 +273,11 @@ class AdvancedExpressionDialog(QDialog):
         self.expr_edit.setCursorPosition(cursor_pos + len(text))
         self.expr_edit.setFocus()
 
+    def _on_comp_tree_double_clicked(self, item: QTreeWidgetItem, column: int) -> None:
+        expr_tag = item.data(0, Qt.ItemDataRole.UserRole)
+        if expr_tag:
+            self._insert_text(str(expr_tag))
+
     def _insert_selected_parameter(self) -> None:
         row = self.params_table.currentRow()
         if row >= 0:
@@ -232,6 +290,20 @@ class AdvancedExpressionDialog(QDialog):
         if 0 <= row < len(MATH_FUNCTIONS):
             _, insert_txt, _ = MATH_FUNCTIONS[row]
             self._insert_text(insert_txt)
+
+    def _resolve_symbol_value(self, sym: str) -> Any:
+        if "." in sym:
+            parts = sym.split(".")
+            curr: Any = self._context
+            for p in parts:
+                if isinstance(curr, dict) and p in curr:
+                    curr = curr[p]
+                elif hasattr(curr, p):
+                    curr = getattr(curr, p)
+                else:
+                    return None
+            return curr
+        return self._context.get(sym)
 
     def _on_expression_changed(self) -> None:
         raw_expr = self.expr_edit.text().strip()
@@ -247,10 +319,14 @@ class AdvancedExpressionDialog(QDialog):
             used_symbols = self._evaluator.extract_symbols(eval_expr)
 
             breakdowns: list[str] = []
-            for sym in used_symbols:
-                if sym in self._context:
-                    sym_val = self._context[sym]
-                    sym_str = f"{sym_val:.4g}" if isinstance(sym_val, (int, float)) else str(sym_val)
+            for sym in sorted(used_symbols):
+                sym_val = self._resolve_symbol_value(sym)
+                if sym_val is not None:
+                    sym_str = (
+                        f"{sym_val:.4g}"
+                        if isinstance(sym_val, (int, float)) and not isinstance(sym_val, bool)
+                        else str(sym_val)
+                    )
                     breakdowns.append(f"<b>{sym}</b> = {sym_str}")
 
             if breakdowns:
