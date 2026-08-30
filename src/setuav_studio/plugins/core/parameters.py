@@ -61,8 +61,9 @@ class ParameterResolver:
         """Build dependency graph mapping each parameter to set of parameters it depends on."""
         graph: dict[str, set[str]] = {}
         for key, val in parameters.items():
-            if self.evaluator.is_expression(val):
-                symbols = self.evaluator.extract_symbols(str(val))
+            raw_val = val.get("value") if isinstance(val, dict) and "value" in val else val
+            if self.evaluator.is_expression(raw_val):
+                symbols = self.evaluator.extract_symbols(str(raw_val))
                 # Only keep symbols that exist in parameters
                 graph[key] = {sym for sym in symbols if sym in parameters}
             else:
@@ -117,16 +118,17 @@ class ParameterResolver:
 
         for key in order:
             val = parameters[key]
-            if self.evaluator.is_expression(val):
+            raw_val = val.get("value") if isinstance(val, dict) and "value" in val else val
+            if self.evaluator.is_expression(raw_val):
                 try:
-                    res = self.evaluator.evaluate(str(val), resolved)
+                    res = self.evaluator.evaluate(str(raw_val), resolved)
                     resolved[key] = res
                 except ExpressionEvaluationError as exc:
                     raise ParameterResolutionError(
                         f"Failed to evaluate parameter '{key}': {exc}"
                     ) from exc
             else:
-                resolved[key] = val
+                resolved[key] = raw_val
 
         return resolved
 

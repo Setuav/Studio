@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from typing import TYPE_CHECKING, Any
 
 from PySide6.QtWidgets import (
@@ -86,6 +87,7 @@ class ParameterPropertyEditor(QWidget):
         self._content_layout.addLayout(form)
         self._content_layout.addStretch()
 
+        self._current_unit: str = ""
         self._load_data()
 
     def _create_header(self, title: str, icon_name: str) -> None:
@@ -120,13 +122,25 @@ class ParameterPropertyEditor(QWidget):
         try:
             raw_params: dict[str, Any] = data.get("parameters", {})
             curr_val = raw_params.get(self._param_key, "")
-            self.val_edit.setText(str(curr_val) if curr_val is not None else "")
+            if isinstance(curr_val, dict):
+                val_raw = curr_val.get("value", "")
+                self._current_unit = str(curr_val.get("unit", ""))
+            else:
+                val_raw = curr_val
+                self._current_unit = ""
+
+            self.val_edit.setText(str(val_raw) if val_raw is not None else "")
 
             cfg_mgr = ConfigurationManager(data, self._resolver)
             with contextlib.suppress(Exception):
                 resolved = cfg_mgr.get_effective_project_parameters()
                 res_val = resolved.get(self._param_key, "—")
-                val_str = f"{res_val:.4g}" if isinstance(res_val, (int, float)) else str(res_val)
+                unit_suffix = f" {self._current_unit}" if self._current_unit else ""
+                val_str = (
+                    f"{res_val:.4g}{unit_suffix}"
+                    if isinstance(res_val, (int, float))
+                    else f"{res_val}{unit_suffix}"
+                )
                 self.resolved_label.setText(val_str)
         finally:
             self._loading = False
@@ -177,8 +191,14 @@ class ParameterPropertyEditor(QWidget):
             except ValueError:
                 parsed = new_val_str
 
+        final_val: Any
+        if self._current_unit:
+            final_val = {"value": parsed, "unit": self._current_unit}
+        else:
+            final_val = parsed
+
         def _apply() -> None:
-            raw_params[self._param_key] = parsed
+            raw_params[self._param_key] = final_val
 
         self._api.edit_project(f"Set parameter '{self._param_key}'", _apply)
         self._load_data()

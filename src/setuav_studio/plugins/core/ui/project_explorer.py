@@ -332,22 +332,53 @@ class ProjectExplorer(QTreeWidget):
         project: ProjectDocument,
     ) -> None:
         raw_params = project.data.get("parameters", {})
-        param_group = QTreeWidgetItem(["Parameters & Constants"])
-        param_group.setIcon(0, get_icon("properties"))
-        param_group.setToolTip(0, "Global Project Parameters and Constants")
-        self._parameters_group_item = param_group
-        project_item.addChild(param_group)
+        constants: dict[str, Any] = {}
+        equations: dict[str, Any] = {}
 
         for k, v in raw_params.items():
-            val_str = str(v) if v is not None else ""
-            item = QTreeWidgetItem([f"{k} = {val_str}"])
-            icon_name = "fa6s.code" if val_str.startswith("=") else "properties"
-            item.setIcon(0, get_icon(icon_name))
-            item.setToolTip(0, f"Parameter: {k}\nValue / Formula: {val_str}")
+            raw_val = v.get("value") if isinstance(v, dict) and "value" in v else v
+            if isinstance(raw_val, str) and raw_val.strip().startswith("="):
+                equations[k] = v
+            else:
+                constants[k] = v
+
+        # 1. Constants Group
+        const_group = QTreeWidgetItem(["Constants"])
+        const_group.setIcon(0, get_icon("properties"))
+        const_group.setToolTip(0, "Project Design Constants")
+        self._parameters_group_item = const_group
+        project_item.addChild(const_group)
+
+        for k, v in constants.items():
+            item = QTreeWidgetItem([str(k)])
+            item.setIcon(0, get_icon("properties"))
+            if isinstance(v, dict):
+                unit_str = f" {v.get('unit')}" if v.get("unit") else ""
+                val_disp = f"{v.get('value', '')}{unit_str}"
+            else:
+                val_disp = str(v)
+            item.setToolTip(0, f"Constant: {k}\nValue: {val_disp}")
             param_payload = {"kind": "parameter", "id": f"param_{k}", "key": k, "value": v}
             self._element_map[item] = param_payload
             self._item_map[f"param_{k}"] = item
-            param_group.addChild(item)
+            const_group.addChild(item)
+
+        # 2. Equations Group (if any exist)
+        if equations:
+            eq_group = QTreeWidgetItem(["Equations"])
+            eq_group.setIcon(0, get_icon("fa6s.code"))
+            eq_group.setToolTip(0, "Project Formulas & Equations")
+            project_item.addChild(eq_group)
+
+            for k, v in equations.items():
+                item = QTreeWidgetItem([str(k)])
+                item.setIcon(0, get_icon("fa6s.code"))
+                raw_val = v.get("value") if isinstance(v, dict) and "value" in v else v
+                item.setToolTip(0, f"Equation: {k}\nFormula: {raw_val}")
+                param_payload = {"kind": "parameter", "id": f"param_{k}", "key": k, "value": v}
+                self._element_map[item] = param_payload
+                self._item_map[f"param_{k}"] = item
+                eq_group.addChild(item)
 
     def _create_constraints_group(
         self,
@@ -851,8 +882,9 @@ class ProjectExplorer(QTreeWidget):
         can_edit = self._can_edit_project()
         menu = QMenu(self)
 
-        if item is self._parameters_group_item:
-            add_param_act = menu.addAction(get_icon("file_new"), "Add Parameter…")
+        if item is self._parameters_group_item or (item and item.text(0) in ("Constants", "Equations")):
+            action_label = "Add Constant…" if (item and item.text(0) == "Constants") else "Add Parameter…"
+            add_param_act = menu.addAction(get_icon("file_new"), action_label)
             add_param_act.setEnabled(can_edit)
             chosen = menu.exec(self.viewport().mapToGlobal(position))
             if chosen is add_param_act:
