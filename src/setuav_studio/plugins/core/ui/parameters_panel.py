@@ -45,6 +45,10 @@ class ProjectParametersPanel(QWidget):
         self.btn_add.clicked.connect(self._add_parameter)
         btn_bar.addWidget(self.btn_add)
 
+        self.btn_fx = QPushButton("fx Equation Assistant…")
+        self.btn_fx.clicked.connect(self._edit_with_fx_assistant)
+        btn_bar.addWidget(self.btn_fx)
+
         self.btn_remove = QPushButton("Remove")
         self.btn_remove.clicked.connect(self._remove_parameter)
         btn_bar.addWidget(self.btn_remove)
@@ -61,6 +65,7 @@ class ProjectParametersPanel(QWidget):
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.itemChanged.connect(self._on_item_changed)
+        self.table.doubleClicked.connect(self._on_table_double_clicked)
         layout.addWidget(self.table)
 
         # Connect API listeners
@@ -221,4 +226,54 @@ class ProjectParametersPanel(QWidget):
                 raw_params.pop(param_name, None)
 
             self._api.edit_project(f"Remove parameter '{param_name}'", _apply)
+            self._refresh()
+
+    def _on_table_double_clicked(self, index) -> None:
+        if index.column() == 1:
+            self._edit_with_fx_assistant()
+
+    def _edit_with_fx_assistant(self) -> None:
+        selected_rows = self.table.selectionModel().selectedRows()
+        if not selected_rows:
+            return
+        row = selected_rows[0].row()
+        key_item = self.table.item(row, 0)
+        val_item = self.table.item(row, 1)
+        if not key_item or not val_item:
+            return
+
+        param_name = key_item.text().strip()
+        curr_val = val_item.text().strip()
+
+        from setuav_studio.plugins.core.ui.expression_dialog import AdvancedExpressionDialog
+
+        dlg = AdvancedExpressionDialog(
+            self._api,
+            initial_expression=curr_val,
+            title=f"Equation Assistant — {param_name}",
+            is_boolean_constraint=False,
+            parent=self,
+        )
+        from PySide6.QtWidgets import QDialog
+
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            new_expr = dlg.get_expression()
+            data = self._get_project_data()
+            if not data:
+                return
+            raw_params: dict[str, Any] = data.setdefault("parameters", {})
+
+            parsed: Any
+            if self._resolver.evaluator.is_expression(new_expr):
+                parsed = new_expr
+            else:
+                try:
+                    parsed = float(new_expr) if "." in new_expr else int(new_expr)
+                except ValueError:
+                    parsed = new_expr
+
+            def _apply() -> None:
+                raw_params[param_name] = parsed
+
+            self._api.edit_project(f"Edit parameter '{param_name}'", _apply)
             self._refresh()

@@ -20,19 +20,37 @@ class PropertiesPanel(QWidget):
     def set_selection(self, selection: Any | None) -> None:
         if not isinstance(selection, dict):
             self._current_selection_id = None
-            self._replace_widget(self._message("Select a component"))
+            self._replace_widget(self._message("Select a component, parameter, or constraint"))
             return
 
         new_id = str(selection.get("id") or "")
+        kind = str(selection.get("kind") or "")
         if (
             self._current_selection_id is not None
             and new_id == self._current_selection_id
             and self._current_widget is not None
         ):
-            # Same component is already selected; keep current editor widget intact
+            # Same item is already selected; keep current editor widget intact
             return
 
         self._current_selection_id = new_id
+
+        if kind == "parameter":
+            from setuav_studio.plugins.core.ui.parameter_property_editor import (
+                ParameterPropertyEditor,
+            )
+
+            self._replace_widget(ParameterPropertyEditor(self._api, selection))
+            return
+
+        if kind == "constraint":
+            from setuav_studio.plugins.core.ui.constraint_property_editor import (
+                ConstraintPropertyEditor,
+            )
+
+            self._replace_widget(ConstraintPropertyEditor(self._api, selection))
+            return
+
         editor = self._api.create_component_editor(selection)
         if editor is not None:
             self._replace_widget(editor)

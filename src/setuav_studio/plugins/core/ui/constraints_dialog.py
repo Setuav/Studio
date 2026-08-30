@@ -41,11 +41,13 @@ class ConstraintEditDialog(QDialog):
         initial_data: dict[str, Any] | None = None,
         checker: ConstraintChecker | None = None,
         project_data: dict[str, Any] | None = None,
+        api: StudioAPI | None = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Edit Constraint" if initial_data else "New Constraint")
-        self.resize(500, 360)
+        self.resize(520, 360)
 
+        self._api = api
         self._checker = checker or ConstraintChecker()
         self._project_data = project_data or {}
         self._initial = initial_data or {}
@@ -58,11 +60,19 @@ class ConstraintEditDialog(QDialog):
         self.name_edit.setPlaceholderText("e.g. Wing Loading Limit")
         form.addRow("Name:", self.name_edit)
 
+        expr_layout = QHBoxLayout()
         self.expr_edit = QLineEdit(self)
         self.expr_edit.setText(self._initial.get("expression", ""))
         self.expr_edit.setPlaceholderText("e.g. mtow / 1000 / wing_area <= 50")
         self.expr_edit.textChanged.connect(self._test_expression)
-        form.addRow("Expression:", self.expr_edit)
+        expr_layout.addWidget(self.expr_edit)
+
+        self.btn_expr_fx = QPushButton("fx", self)
+        self.btn_expr_fx.setToolTip("Open Equation / Expression Assistant")
+        self.btn_expr_fx.setFixedWidth(32)
+        self.btn_expr_fx.clicked.connect(self._open_expression_assistant)
+        expr_layout.addWidget(self.btn_expr_fx)
+        form.addRow("Expression:", expr_layout)
 
         self.severity_combo = QComboBox(self)
         self.severity_combo.addItems(["warning", "error", "info"])
@@ -104,6 +114,21 @@ class ConstraintEditDialog(QDialog):
         self.button_box.accepted.connect(self._validate_and_accept)
         self.button_box.rejected.connect(self.reject)
         layout.addWidget(self.button_box)
+
+    def _open_expression_assistant(self) -> None:
+        if self._api is None:
+            return
+        from setuav_studio.plugins.core.ui.expression_dialog import AdvancedExpressionDialog
+
+        dlg = AdvancedExpressionDialog(
+            self._api,
+            initial_expression=self.expr_edit.text(),
+            title="Constraint Expression Assistant",
+            is_boolean_constraint=True,
+            parent=self,
+        )
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self.expr_edit.setText(dlg.get_expression())
 
     def _test_expression(self) -> None:
         expr = self.expr_edit.text().strip()
@@ -284,7 +309,12 @@ class ManageConstraintsDialog(QDialog):
         self.table.resizeRowsToContents()
 
     def _on_add(self) -> None:
-        dlg = ConstraintEditDialog(self, checker=self._checker, project_data=self._get_project_data())
+        dlg = ConstraintEditDialog(
+            self,
+            checker=self._checker,
+            project_data=self._get_project_data(),
+            api=self._api,
+        )
         if dlg.exec() == QDialog.DialogCode.Accepted:
             data = dlg.get_data()
 
@@ -316,6 +346,7 @@ class ManageConstraintsDialog(QDialog):
             initial_data=target_c,
             checker=self._checker,
             project_data=pdata,
+            api=self._api,
         )
         if dlg.exec() == QDialog.DialogCode.Accepted:
             updated = dlg.get_data()

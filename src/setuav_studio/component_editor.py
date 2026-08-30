@@ -177,9 +177,60 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
                             )
                         else:
                             str_val = str(val if val is not None else "")
-                        self._set_property_value(self.parameters_table, field.key, str_val)
+                        self._set_property_expression(
+                            self.parameters_table,
+                            field.key,
+                            str_val,
+                            on_changed=lambda new_val, k=field.key: self._on_expression_cell_changed(k, new_val),
+                            on_open_assistant=lambda curr_val, f=field: self._open_field_expression_assistant(f, curr_val),
+                        )
         finally:
             self._loading = False
+
+    def _open_field_expression_assistant(self, field: ParameterField, current_val: str) -> None:
+        from PySide6.QtWidgets import QDialog
+
+        from setuav_studio.plugins.core.ui.expression_dialog import AdvancedExpressionDialog
+
+        dlg = AdvancedExpressionDialog(
+            self._api,
+            initial_expression=current_val,
+            title=f"Equation Assistant — {field.label}",
+            is_boolean_constraint=False,
+            parent=self,
+        )
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            new_expr = dlg.get_expression()
+            self._on_expression_cell_changed(field.key, new_expr)
+            self._load_component()
+
+    def _on_expression_cell_changed(self, key: str, val_text: str) -> None:
+        if self._loading:
+            return
+        field = next((f for f in self._fields if f.key == key), None)
+        if field is None:
+            return
+
+        if isinstance(val_text, str) and val_text.strip().startswith("="):
+            final_val: Any = val_text.strip()
+        elif field.field_type is int:
+            parsed_num = self._parse_number(val_text)
+            final_val = int(parsed_num) if parsed_num is not None else field.default
+        elif field.field_type is float:
+            parsed_num = self._parse_number(val_text)
+            final_val = float(parsed_num) if parsed_num is not None else field.default
+        else:
+            final_val = val_text
+
+        def apply_param() -> None:
+            p = self._component.setdefault("parameters", {})
+            p[key] = final_val
+
+        self._api.edit_component(
+            self._component,
+            f"Set {key} of {self._component.get('name', 'component')}",
+            apply_param,
+        )
 
     def _update_general(self, row: int, column: int) -> None:
         if self._loading or column != 1:
