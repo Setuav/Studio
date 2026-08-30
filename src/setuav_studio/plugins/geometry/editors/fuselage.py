@@ -936,27 +936,24 @@ class FuselageEditor(PropertyTableMixin, QWidget):
                     value,
                     editable=False,
                 )
-            elif key in ("corner_radius", "fillet_radius"):
-                self._set_property_spinbox(
+            elif key in (
+                "diameter",
+                "width",
+                "height",
+                "top_width",
+                "bottom_width",
+                "base_width",
+                "corner_radius",
+                "fillet_radius",
+            ):
+                raw_val = profile.get(f"{key}_expression") or profile.get(key, 0.0)
+                self._set_property_expression(
                     self.section_properties_table,
                     key,
-                    float(profile.get(key, 0.0)),
-                    min_val=0.0,
-                    step=1.0,
-                    decimals=2,
-                    suffix="mm",
-                    on_changed=lambda _v, k=key: self._on_property_spin_changed(k, _v),
-                )
-            elif key in ("diameter", "width", "height", "top_width", "bottom_width", "base_width"):
-                self._set_property_spinbox(
-                    self.section_properties_table,
-                    key,
-                    float(profile.get(key, 0.0)),
-                    min_val=0.0,
-                    step=5.0,
-                    decimals=2,
-                    suffix="mm",
-                    on_changed=lambda _v, k=key: self._on_property_spin_changed(k, _v),
+                    raw_val,
+                    on_changed=lambda v, k=key: self._on_property_expression_changed(k, v),
+                    api=self._api,
+                    label=_label,
                 )
             else:
                 self._set_property_value(
@@ -979,6 +976,51 @@ class FuselageEditor(PropertyTableMixin, QWidget):
                 [("up", "Up"), ("down", "Down")],
                 lambda value: self._update_section_choice("orientation", value),
             )
+
+    def _on_property_expression_changed(self, key: str, value: Any) -> None:
+        if self._loading:
+            return
+        section = self._current_section()
+        if section is None:
+            return
+        profile = self._object(section, "profile")
+        val_str = str(value).strip() if value is not None else ""
+
+        num_val: float | None = None
+        if val_str.startswith("=") or not val_str.replace(".", "", 1).replace("-", "", 1).isdigit():
+            # Expression
+            profile[f"{key}_expression"] = val_str
+            if self._api is not None and getattr(self._api, "current_project", None) is not None:
+                try:
+                    from setuav_studio.plugins.core.expressions import ExpressionEvaluator
+
+                    evaluator = ExpressionEvaluator()
+                    scope = self._api.current_project.get_scope(api=self._api)
+                    expr = val_str.lstrip("=").strip()
+                    res = evaluator.evaluate(expr, scope)
+                    if isinstance(res, (int, float)):
+                        num_val = float(res)
+                except Exception:
+                    pass
+        else:
+            profile.pop(f"{key}_expression", None)
+            try:
+                num_val = float(val_str)
+            except ValueError:
+                pass
+
+        if num_val is not None:
+            profile[key] = num_val
+
+            def change() -> None:
+                pass
+
+            self._api.edit_component(
+                self._component,
+                f"Change fuselage section {key}",
+                change,
+            )
+            self._update_sections_table()
         self.vertices_table.setVisible(profile_type == "polygon")
 
     def _on_property_spin_changed(self, key: str, value: float) -> None:
