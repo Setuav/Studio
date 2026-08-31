@@ -195,6 +195,7 @@ class StudioAPI:
 
     def remove_panel(self, panel_id: str) -> None:
         """Remove a previously contributed panel by ID."""
+        self._pending_panels = [p for p in self._pending_panels if p.id != panel_id]
         if self._remove_panel is not None:
             self._remove_panel(panel_id)
 
@@ -289,6 +290,7 @@ class StudioAPI:
 
     def remove_workspace(self, workspace_id: str) -> None:
         """Remove a previously contributed workspace by ID."""
+        self._pending_workspaces = [w for w in self._pending_workspaces if w.id != workspace_id]
         if self._remove_workspace is not None:
             self._remove_workspace(workspace_id)
 
@@ -339,6 +341,9 @@ class StudioAPI:
 
     def remove_action(self, menu: str, title: str) -> None:
         """Remove a contributed menu action by menu path and title."""
+        self._pending_actions = [
+            a for a in self._pending_actions if not (a.menu == menu and a.title == title)
+        ]
         if self._remove_action is not None:
             self._remove_action(menu, title)
 
