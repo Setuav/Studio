@@ -72,21 +72,6 @@
             "type": "string",
             "pattern": "^#[0-9A-Fa-f]{6}$"
           },
-          "components": {
-            "type": "array",
-            "items": {
-              "$ref": "component.schema.json"
-            }
-          },
-          "parameters": {
-            "type": "object"
-          },
-          "assemblies": {
-            "type": "array",
-            "items": {
-              "$ref": "assembly.schema.json"
-            }
-          },
           "parameter_overrides": {
             "type": "object"
           },
