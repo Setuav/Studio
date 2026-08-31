@@ -136,7 +136,12 @@ def _resolve_table_api(table: QTableWidget, explicit_api: Any | None) -> Any | N
     return None
 
 
-def _parse_spinbox_callback_value(new_text: str, api: Any | None) -> Any:
+def _parse_spinbox_callback_value(
+    new_text: str,
+    api: Any | None,
+    min_val: float | None = None,
+    max_val: float | None = None,
+) -> Any:
     clean = new_text.strip()
     if clean.startswith("=") or not clean.replace(".", "", 1).replace("-", "", 1).isdigit():
         if api is not None and getattr(api, "current_project", None) is not None:
@@ -147,12 +152,22 @@ def _parse_spinbox_callback_value(new_text: str, api: Any | None) -> Any:
                 scope = api.current_project.get_scope(api=api)
                 res = evaluator.evaluate(clean.lstrip("=").strip(), scope)
                 if isinstance(res, (int, float)):
-                    return float(res)
+                    num = float(res)
+                    if min_val is not None:
+                        num = max(min_val, num)
+                    if max_val is not None:
+                        num = min(max_val, num)
+                    return num
             except Exception:
                 pass
         return clean
     try:
-        return float(clean)
+        num = float(clean)
+        if min_val is not None:
+            num = max(min_val, num)
+        if max_val is not None:
+            num = min(max_val, num)
+        return num
     except ValueError:
         return clean
 
@@ -197,7 +212,7 @@ def set_table_spinbox(
     def handle_cell_changed(new_text: str) -> None:
         cb = on_changed_ref() if isinstance(on_changed_ref, weakref.WeakMethod) else on_changed_ref
         if cb is not None:
-            cb(_parse_spinbox_callback_value(new_text, resolved_api))
+            cb(_parse_spinbox_callback_value(new_text, resolved_api, min_val, max_val))
 
     init_str = (
         format_engineering_value(value, decimals)
