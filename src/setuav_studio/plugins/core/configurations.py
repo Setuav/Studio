@@ -266,13 +266,16 @@ class ConfigurationManager:
 
     def get_active_id(self) -> str | None:
         """Return currently active configuration ID, or None for base."""
+        if self._active_id is not None and self.get_configuration(self._active_id) is None:
+            self._active_id = None
         return self._active_id
 
     def get_active_configuration(self) -> dict[str, Any] | None:
         """Return currently active configuration dict, or None for base."""
-        if self._active_id is None:
+        aid = self.get_active_id()
+        if aid is None:
             return None
-        return self.get_configuration(self._active_id)
+        return self.get_configuration(aid)
 
     def sync_current_state_to_active(self) -> None:
         """Sync working state back into the active configuration's delta or base snapshot."""
@@ -280,7 +283,7 @@ class ConfigurationManager:
         current_parameters = self.project_data.get("parameters", {})
         current_assemblies = self.project_data.get("assemblies", [])
 
-        if self._active_id is None:
+        if self.get_active_id() is None:
             self._base_state = {
                 "components": copy.deepcopy(current_components),
                 "parameters": copy.deepcopy(current_parameters),

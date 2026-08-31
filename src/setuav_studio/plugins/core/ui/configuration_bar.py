@@ -196,13 +196,12 @@ class ConfigurationToolBar(QToolBar):
         dlg = ConfigurationEditDialog(self)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             data = dlg.get_data()
-
-            def _apply() -> None:
-                assert self._manager is not None
-                new_cfg = self._manager.create_configuration(**data)
-                self._manager.set_active_id(new_cfg["id"])
-
-            self._api.edit_project(f"Create configuration '{data['name']}'", _apply)
+            new_cfg = self._manager.create_configuration(**data)
+            self._manager.set_active_id(new_cfg["id"])
+            if self._api.current_project is not None:
+                stack = getattr(self._api.current_project, "undo_stack", None)
+                if stack is not None and hasattr(stack, "clear"):
+                    stack.clear()
             self._refresh_combo()
             self._api.notify_project_content_changed()
         else:
@@ -213,5 +212,9 @@ class ConfigurationToolBar(QToolBar):
             return
         dlg = ManageConfigurationsDialog(self._manager, self._api, self)
         dlg.exec()
+        if self._api.current_project is not None:
+            stack = getattr(self._api.current_project, "undo_stack", None)
+            if stack is not None and hasattr(stack, "clear"):
+                stack.clear()
         self._refresh_combo()
         self._api.notify_project_content_changed()
