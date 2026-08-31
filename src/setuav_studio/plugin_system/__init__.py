@@ -1,0 +1,53 @@
+"""Plugin management and StudioAPI execution engine."""
+
+from setuav_studio.component_editor import BaseComponentEditor
+from setuav_studio.component_model import BaseComponentModel
+from setuav_studio_sdk.contributions import (
+    ActionContribution,
+    ComponentTreeNodeContribution,
+    PanelContribution,
+    ParameterField,
+    ProjectTreeNodeContribution,
+    SettingsPageContribution,
+    ToolbarContribution,
+    ToolbarMenuItemContribution,
+    ToolContribution,
+    WorkspaceContribution,
+)
+from setuav_studio_sdk.plugin import StudioPlugin
+
+from .api import StudioAPI
+from .host import _StudioHost
+from .manager import PluginManager
+from .requirements import (
+    PluginLoadIssue,
+    _candidate_sort_key,
+    _plugin_sort_key,
+    _version_satisfies,
+)
+from .undo import _ComponentEditCommand, _ProjectEditCommand
+
+__all__ = [
+    "ActionContribution",
+    "BaseComponentEditor",
+    "BaseComponentModel",
+    "ComponentTreeNodeContribution",
+    "PanelContribution",
+    "ParameterField",
+    "PluginLoadIssue",
+    "PluginManager",
+    "ProjectTreeNodeContribution",
+    "SettingsPageContribution",
+    "StudioAPI",
+    "StudioPlugin",
+    "ToolContribution",
+    "ToolbarContribution",
+    "ToolbarMenuItemContribution",
+    "WorkspaceContribution",
+    "_ComponentEditCommand",
+    "_ProjectEditCommand",
+    "_StudioHost",
+    "_candidate_sort_key",
+    "_plugin_sort_key",
+    "_version_satisfies",
+]

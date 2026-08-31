@@ -416,9 +416,12 @@ class PluginSystemEdgeTests(unittest.TestCase):
             return SimpleNamespace(PLUGIN=BadPlugin())
 
         with (
-            patch("setuav_studio.plugin_system.pkgutil.iter_modules", return_value=modules),
-            patch("setuav_studio.plugin_system.import_module", side_effect=import_side_effect),
-            self.assertLogs("setuav_studio.plugin_system", level="WARNING"),
+            patch("setuav_studio.plugin_system.manager.pkgutil.iter_modules", return_value=modules),
+            patch(
+                "setuav_studio.plugin_system.manager.import_module",
+                side_effect=import_side_effect,
+            ),
+            self.assertLogs("setuav_studio.plugin_system.manager", level="WARNING"),
         ):
             issues = manager._discover_bundled()
         self.assertEqual(len(issues), 2)
@@ -431,10 +434,10 @@ class PluginSystemEdgeTests(unittest.TestCase):
         activation_error.load.return_value = BadPlugin()
         with (
             patch(
-                "setuav_studio.plugin_system.metadata.entry_points",
+                "setuav_studio.plugin_system.manager.metadata.entry_points",
                 return_value=[load_error, activation_error],
             ),
-            self.assertLogs("setuav_studio.plugin_system", level="WARNING"),
+            self.assertLogs("setuav_studio.plugin_system.manager", level="WARNING"),
         ):
             issues = manager._discover_entry_points()
         self.assertEqual(len(issues), 2)
@@ -495,7 +498,7 @@ class PluginSystemEdgeTests(unittest.TestCase):
     def test_disabled_plugin_state_is_loaded_and_saved(self) -> None:
         settings = Mock()
         settings.value.return_value = ["com.example.persisted"]
-        with patch("setuav_studio.plugin_system.QSettings", return_value=settings):
+        with patch("setuav_studio.plugin_system.manager.QSettings", return_value=settings):
             manager = PluginManager(self.api)
 
             self.assertTrue(manager.is_disabled("com.example.persisted"))
