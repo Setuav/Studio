@@ -12,7 +12,7 @@ from setuav_studio.plugin_system import (
     ToolContribution,
     WorkspaceContribution,
 )
-from setuav_studio.shell import MainWindow
+from setuav_studio.ui.shell import MainWindow
 from tests._common import get_qapp
 
 

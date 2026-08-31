@@ -9,7 +9,7 @@ from setuav_studio.plugin_system import (
     StudioAPI,
     WorkspaceContribution,
 )
-from setuav_studio.shell import MainWindow
+from setuav_studio.ui.shell import MainWindow
 from tests._common import TEST_PROJECT_PATH, get_qapp
 
 _app = get_qapp()
@@ -92,7 +92,7 @@ class MainTests(unittest.TestCase):
         from types import SimpleNamespace
 
         from setuav_studio.project import ProjectDocument
-        from setuav_studio.shell import apply_runtime_validation
+        from setuav_studio.ui.shell import apply_runtime_validation
 
         valid = ProjectDocument(path=Path("/tmp/x.json"), kind="json", data={})
         issues = [

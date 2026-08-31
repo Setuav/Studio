@@ -20,7 +20,7 @@ from setuav_studio.plugin_system import (
     WorkspaceContribution,
 )
 from setuav_studio.plugins.core.settings import StudioSettings
-from setuav_studio.shell import MainWindow
+from setuav_studio.ui.shell import MainWindow
 from tests._common import get_qapp
 
 
@@ -96,8 +96,10 @@ class ShellContributionTests(unittest.TestCase):
         self.assertFalse(self.window._toolbar_menu_actions["menu"][0][1].icon().isNull())
 
         with (
-            patch("setuav_studio.shell.get_icon", side_effect=RuntimeError("icon failed")),
-            self.assertLogs("setuav_studio.shell", level="DEBUG"),
+            patch(
+                "setuav_studio.ui.shell.actions.get_icon", side_effect=RuntimeError("icon failed")
+            ),
+            self.assertLogs("setuav_studio.ui.shell.actions", level="DEBUG"),
         ):
             self.window._update_all_icons()
 
@@ -128,7 +130,7 @@ class ShellContributionTests(unittest.TestCase):
         self.assertEqual(self.window._help_menu.title(), "&Help")
         self.assertEqual(self.window._about_action.text(), "About")
 
-        with patch("setuav_studio.shell.AboutDialog") as dialog_type:
+        with patch("setuav_studio.ui.shell.actions.AboutDialog") as dialog_type:
             self.window._about_action.trigger()
 
         dialog_type.assert_called_once_with(self.window)
@@ -183,7 +185,7 @@ class ShellContributionTests(unittest.TestCase):
         self.assertIs(self.window._toolbar_actions["save"], self.window._save_action)
         self.assertNotIn("missing", self.window._toolbar_actions)
 
-        with self.assertLogs("setuav_studio.shell", level="ERROR"):
+        with self.assertLogs("setuav_studio.ui.shell.toolbar_manager", level="ERROR"):
             self.window._refresh_toolbar_action_states()
         self.assertFalse(self.window._toolbar_menu_actions["menu"][1][1].isEnabled())
 
@@ -194,7 +196,7 @@ class ShellContributionTests(unittest.TestCase):
             enabled_when=Mock(side_effect=RuntimeError("broken")),
         )
         self.api.add_toolbar_item(broken)
-        with self.assertLogs("setuav_studio.shell", level="ERROR"):
+        with self.assertLogs("setuav_studio.ui.shell.toolbar_manager", level="ERROR"):
             self.window._refresh_toolbar_action_states()
         self.assertFalse(self.window._toolbar_actions["broken"].isEnabled())
 
@@ -285,7 +287,7 @@ class ShellContributionTests(unittest.TestCase):
         self.api.add_workspace(WorkspaceContribution("saved", "Saved"))
         self.api.add_workspace(WorkspaceContribution("studio.workspace.design", "Design"))
         with (
-            patch("setuav_studio.shell.QSettings", _FakeSettings),
+            patch("setuav_studio.ui.shell.layout_manager.QSettings", _FakeSettings),
             patch.object(self.window, "restoreGeometry") as restore_geometry,
             patch.object(self.window, "restore_workspace_layout") as restore_workspace,
         ):
@@ -294,7 +296,7 @@ class ShellContributionTests(unittest.TestCase):
         restore_geometry.assert_called_once_with(b"geometry")
         restore_workspace.assert_called_once()
 
-        with patch("setuav_studio.shell.QSettings", _FakeSettings):
+        with patch("setuav_studio.ui.shell.layout_manager.QSettings", _FakeSettings):
             _FakeSettings.values["active_workspace"] = "saved"
             self.window.restore_workspace_layout()
             self.assertEqual(self.api.current_workspace_id, "saved")
@@ -309,7 +311,7 @@ class ShellContributionTests(unittest.TestCase):
         self.api.add_workspace(WorkspaceContribution("one", "One", order=20))
         self.api.add_workspace(WorkspaceContribution("two", "Two", order=10))
         with (
-            patch("setuav_studio.shell.QSettings", _FakeSettings),
+            patch("setuav_studio.ui.shell.layout_manager.QSettings", _FakeSettings),
             patch.object(self.window, "saveState", return_value=b"state"),
             patch.object(self.window, "restoreState") as restore_state,
             patch.object(self.window, "_apply_default_workspace_layout") as apply_default,
@@ -332,7 +334,7 @@ class ShellContributionTests(unittest.TestCase):
         self.assertTrue(self.window._panels["other"][1].isHidden())
 
     def test_workspace_removal_cleans_string_and_list_scoped_panels(self) -> None:
-        with patch("setuav_studio.shell.QSettings", _FakeSettings):
+        with patch("setuav_studio.ui.shell.toolbar_manager.QSettings", _FakeSettings):
             self.api.add_workspace(WorkspaceContribution("remove", "Remove"))
             self.api.add_workspace(WorkspaceContribution("keep", "Keep"))
             self.api.add_panel(
@@ -375,13 +377,13 @@ class ShellContributionTests(unittest.TestCase):
         self.window._schedule_workspace_layout_save()
         self.window._restoring_workspace_layout = False
 
-        with patch("setuav_studio.shell.QTimer.singleShot") as single_shot:
+        with patch("setuav_studio.ui.shell.layout_manager.QTimer.singleShot") as single_shot:
             self.window._schedule_workspace_layout_save()
             self.window._schedule_workspace_layout_save()
         single_shot.assert_called_once()
 
         with (
-            patch("setuav_studio.shell.QSettings", _FakeSettings),
+            patch("setuav_studio.ui.shell.layout_manager.QSettings", _FakeSettings),
             patch.object(self.window, "saveState", return_value=b"state"),
         ):
             self.window._save_current_workspace_layout()
@@ -471,14 +473,16 @@ class ShellContributionTests(unittest.TestCase):
             (self.window._on_modified_changed, False),
             (self.window._on_project_content_changed, self._project()),
         ):
-            with patch("setuav_studio.shell.shiboken6.isValid", return_value=False):
+            with patch(
+                "setuav_studio.ui.shell.project_controller.shiboken6.isValid", return_value=False
+            ):
                 callback() if argument is None else callback(argument)
             with (
                 patch(
-                    "setuav_studio.shell.shiboken6.isValid",
+                    "setuav_studio.ui.shell.project_controller.shiboken6.isValid",
                     side_effect=RuntimeError("deleted"),
                 ),
-                self.assertLogs("setuav_studio.shell", level="DEBUG"),
+                self.assertLogs("setuav_studio.ui.shell.project_controller", level="DEBUG"),
             ):
                 callback() if argument is None else callback(argument)
 
@@ -491,7 +495,9 @@ class ShellContributionTests(unittest.TestCase):
         accepted.exec.return_value = QDialog.DialogCode.Accepted
         accepted.values.return_value = StudioSettings(theme_mode="light", recent_project_limit=3)
 
-        with patch("setuav_studio.shell.SettingsDialog", side_effect=[cancelled, accepted]):
+        with patch(
+            "setuav_studio.ui.shell.actions.SettingsDialog", side_effect=[cancelled, accepted]
+        ):
             self.window._open_settings()
             with (
                 patch.object(StudioSettings, "save") as save,

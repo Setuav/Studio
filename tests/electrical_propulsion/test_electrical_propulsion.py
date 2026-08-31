@@ -23,7 +23,7 @@ class TestElectricalPropulsion(unittest.TestCase):
         cls.app = get_qapp()
 
     def test_plugin_discovery_and_registration(self) -> None:
-        from setuav_studio.shell import MainWindow
+        from setuav_studio.ui.shell import MainWindow
 
         api = StudioAPI()
         _win = MainWindow(api)
@@ -42,7 +42,7 @@ class TestElectricalPropulsion(unittest.TestCase):
 
     def test_plugin_can_be_deactivated_and_reactivated(self) -> None:
         from setuav_studio.plugins.electrical_propulsion.plugin import ElectricalPropulsionPlugin
-        from setuav_studio.shell import MainWindow
+        from setuav_studio.ui.shell import MainWindow
 
         api = StudioAPI()
         window = MainWindow(api)
@@ -172,7 +172,7 @@ class TestElectricalPropulsion(unittest.TestCase):
     def test_propulsion_controls_and_analysis_run(self) -> None:
         from setuav_studio.plugins.core import CorePlugin
         from setuav_studio.plugins.electrical_propulsion.plugin import ElectricalPropulsionPlugin
-        from setuav_studio.shell import MainWindow
+        from setuav_studio.ui.shell import MainWindow
 
         api = StudioAPI()
         win = MainWindow(api)
@@ -207,7 +207,7 @@ class TestElectricalPropulsion(unittest.TestCase):
     def test_analysis_posts_status_messages(self) -> None:
         from setuav_studio.plugins.core import CorePlugin
         from setuav_studio.plugins.electrical_propulsion.plugin import ElectricalPropulsionPlugin
-        from setuav_studio.shell import MainWindow
+        from setuav_studio.ui.shell import MainWindow
 
         api = StudioAPI()
         win = MainWindow(api)

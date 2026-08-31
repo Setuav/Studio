@@ -315,7 +315,7 @@ class TestFlightPerformance(unittest.TestCase):
         self.assertGreater(len(progress_calls), 0)
 
     def test_flight_performance_plugin_and_ui(self) -> None:
-        from setuav_studio.shell import MainWindow
+        from setuav_studio.ui.shell import MainWindow
 
         api = StudioAPI()
         win = MainWindow(api)

@@ -14,7 +14,7 @@ from PySide6.QtWidgets import QMessageBox
 
 from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.project import ProjectDocument, ProjectOpenError, ProjectSaveError
-from setuav_studio.shell import MainWindow, apply_runtime_validation
+from setuav_studio.ui.shell import MainWindow, apply_runtime_validation
 from tests._common import get_qapp
 
 
@@ -48,7 +48,7 @@ class ShellProjectLifecycleTests(unittest.TestCase):
             SimpleNamespace(path=f"$.item[{index}]", message="invalid") for index in range(12)
         ]
 
-        with patch("setuav_studio.shell.QMessageBox") as message_box:
+        with patch("setuav_studio.ui.shell.validation.QMessageBox") as message_box:
             instance = message_box.return_value
             cancel_button = object()
             read_only_button = object()
@@ -61,7 +61,7 @@ class ShellProjectLifecycleTests(unittest.TestCase):
             self.assertIn("and 2 more", instance.setInformativeText.call_args.args[0])
 
         project.read_only = False
-        with patch("setuav_studio.shell.QMessageBox") as message_box:
+        with patch("setuav_studio.ui.shell.validation.QMessageBox") as message_box:
             instance = message_box.return_value
             instance.addButton.side_effect = [object(), object()]
             instance.clickedButton.return_value = object()
@@ -73,17 +73,26 @@ class ShellProjectLifecycleTests(unittest.TestCase):
 
     def test_open_project_reports_read_errors_and_cancelled_validation(self) -> None:
         with (
-            patch("setuav_studio.shell.open_project", side_effect=ProjectOpenError("broken")),
-            patch("setuav_studio.shell.QMessageBox.critical") as critical,
+            patch(
+                "setuav_studio.ui.shell.project_controller.open_project",
+                side_effect=ProjectOpenError("broken"),
+            ),
+            patch("setuav_studio.ui.shell.project_controller.QMessageBox.critical") as critical,
         ):
             self.assertFalse(self.window.open_project("broken.json"))
         critical.assert_called_once()
 
         project = self._project()
         with (
-            patch("setuav_studio.shell.open_project", return_value=project),
-            patch("setuav_studio.shell.validate_project", return_value=[object()]),
-            patch("setuav_studio.shell.apply_runtime_validation", return_value="cancel"),
+            patch("setuav_studio.ui.shell.project_controller.open_project", return_value=project),
+            patch(
+                "setuav_studio.ui.shell.project_controller.validate_project",
+                return_value=[object()],
+            ),
+            patch(
+                "setuav_studio.ui.shell.project_controller.apply_runtime_validation",
+                return_value="cancel",
+            ),
         ):
             self.assertFalse(self.window.open_project("project.json"))
         self.assertIsNone(self.window._project)
@@ -91,8 +100,8 @@ class ShellProjectLifecycleTests(unittest.TestCase):
     def test_open_project_respects_unsaved_close_decision(self) -> None:
         project = self._project()
         with (
-            patch("setuav_studio.shell.open_project", return_value=project),
-            patch("setuav_studio.shell.validate_project", return_value=[]),
+            patch("setuav_studio.ui.shell.project_controller.open_project", return_value=project),
+            patch("setuav_studio.ui.shell.project_controller.validate_project", return_value=[]),
             patch.object(self.window, "_confirm_project_close", return_value=False),
         ):
             self.assertFalse(self.window.open_project("project.json"))
@@ -101,8 +110,8 @@ class ShellProjectLifecycleTests(unittest.TestCase):
     def test_open_project_updates_normal_read_only_and_degraded_ui(self) -> None:
         project = self._project()
         with (
-            patch("setuav_studio.shell.open_project", return_value=project),
-            patch("setuav_studio.shell.validate_project", return_value=[]),
+            patch("setuav_studio.ui.shell.project_controller.open_project", return_value=project),
+            patch("setuav_studio.ui.shell.project_controller.validate_project", return_value=[]),
             patch.object(self.window, "_add_recent_project") as add_recent,
         ):
             self.assertTrue(self.window.open_project("project.json"))
@@ -114,9 +123,15 @@ class ShellProjectLifecycleTests(unittest.TestCase):
         read_only = self._project("Read Only")
         read_only.read_only = True
         with (
-            patch("setuav_studio.shell.open_project", return_value=read_only),
-            patch("setuav_studio.shell.validate_project", return_value=[object(), object()]),
-            patch("setuav_studio.shell.apply_runtime_validation", return_value="read_only"),
+            patch("setuav_studio.ui.shell.project_controller.open_project", return_value=read_only),
+            patch(
+                "setuav_studio.ui.shell.project_controller.validate_project",
+                return_value=[object(), object()],
+            ),
+            patch(
+                "setuav_studio.ui.shell.project_controller.apply_runtime_validation",
+                return_value="read_only",
+            ),
             patch.object(self.window, "_confirm_project_close", return_value=True),
             patch.object(self.window, "_add_recent_project"),
         ):
@@ -127,8 +142,8 @@ class ShellProjectLifecycleTests(unittest.TestCase):
         degraded = self._project("Degraded")
         self.api._host.bind_project_requirement_checker(lambda _data: ["Missing plugin: example"])
         with (
-            patch("setuav_studio.shell.open_project", return_value=degraded),
-            patch("setuav_studio.shell.validate_project", return_value=[]),
+            patch("setuav_studio.ui.shell.project_controller.open_project", return_value=degraded),
+            patch("setuav_studio.ui.shell.project_controller.validate_project", return_value=[]),
             patch.object(self.window, "_confirm_project_close", return_value=True),
             patch.object(self.window, "_add_recent_project"),
         ):
@@ -137,7 +152,7 @@ class ShellProjectLifecycleTests(unittest.TestCase):
         self.assertIn("Degraded mode", self.window._status_label.text())
 
     def test_degraded_details_and_window_titles_handle_empty_states(self) -> None:
-        with patch("setuav_studio.shell.QMessageBox.warning") as warning:
+        with patch("setuav_studio.ui.shell.project_controller.QMessageBox.warning") as warning:
             self.window._show_degraded_details()
             self.window._project = self._project()
             self.window._show_degraded_details()
@@ -159,14 +174,17 @@ class ShellProjectLifecycleTests(unittest.TestCase):
         self.window._project = self._project()
 
         with (
-            patch("setuav_studio.shell.save_project", side_effect=ProjectSaveError("disk full")),
-            patch("setuav_studio.shell.QMessageBox.critical") as critical,
+            patch(
+                "setuav_studio.ui.shell.project_controller.save_project",
+                side_effect=ProjectSaveError("disk full"),
+            ),
+            patch("setuav_studio.ui.shell.project_controller.QMessageBox.critical") as critical,
         ):
             self.assertFalse(self.window.save_project())
         critical.assert_called_once()
 
         with (
-            patch("setuav_studio.shell.save_project") as save,
+            patch("setuav_studio.ui.shell.project_controller.save_project") as save,
             patch.object(self.window, "_add_recent_project") as add_recent,
             patch.object(self.window._host, "mark_project_saved") as mark_saved,
         ):
@@ -180,26 +198,32 @@ class ShellProjectLifecycleTests(unittest.TestCase):
         self.assertFalse(self.window.save_project_as())
         self.window._project = self._project()
 
-        with patch("setuav_studio.shell.QFileDialog.getSaveFileName", return_value=("", "")):
+        with patch(
+            "setuav_studio.ui.shell.project_controller.QFileDialog.getSaveFileName",
+            return_value=("", ""),
+        ):
             self.assertFalse(self.window.save_project_as())
 
         with (
             patch(
-                "setuav_studio.shell.QFileDialog.getSaveFileName",
+                "setuav_studio.ui.shell.project_controller.QFileDialog.getSaveFileName",
                 return_value=("output.suav", ""),
             ),
-            patch("setuav_studio.shell.save_project", side_effect=ProjectSaveError("failed")),
-            patch("setuav_studio.shell.QMessageBox.critical") as critical,
+            patch(
+                "setuav_studio.ui.shell.project_controller.save_project",
+                side_effect=ProjectSaveError("failed"),
+            ),
+            patch("setuav_studio.ui.shell.project_controller.QMessageBox.critical") as critical,
         ):
             self.assertFalse(self.window.save_project_as())
         critical.assert_called_once()
 
         with (
             patch(
-                "setuav_studio.shell.QFileDialog.getSaveFileName",
+                "setuav_studio.ui.shell.project_controller.QFileDialog.getSaveFileName",
                 return_value=("output.suav", ""),
             ),
-            patch("setuav_studio.shell.save_project") as save,
+            patch("setuav_studio.ui.shell.project_controller.save_project") as save,
             patch.object(self.window, "_add_recent_project"),
         ):
             self.assertTrue(self.window.save_project_as())
@@ -294,7 +318,8 @@ class ShellProjectLifecycleTests(unittest.TestCase):
         with (
             patch.object(self.window, "_collect_unsaved_changes", return_value=[]),
             patch(
-                "setuav_studio.shell.QMessageBox.exec", return_value=QMessageBox.StandardButton.Save
+                "setuav_studio.ui.shell.project_controller.QMessageBox.exec",
+                return_value=QMessageBox.StandardButton.Save,
             ),
             patch.object(self.window, "save_project", return_value=False) as save,
         ):
@@ -305,7 +330,7 @@ class ShellProjectLifecycleTests(unittest.TestCase):
         with (
             patch.object(self.window, "_collect_unsaved_changes", return_value=many_changes),
             patch(
-                "setuav_studio.shell.QMessageBox.exec",
+                "setuav_studio.ui.shell.project_controller.QMessageBox.exec",
                 return_value=QMessageBox.StandardButton.Discard,
             ),
         ):
@@ -313,14 +338,14 @@ class ShellProjectLifecycleTests(unittest.TestCase):
         with (
             patch.object(self.window, "_collect_unsaved_changes", return_value=[]),
             patch(
-                "setuav_studio.shell.QMessageBox.exec",
+                "setuav_studio.ui.shell.project_controller.QMessageBox.exec",
                 return_value=QMessageBox.StandardButton.Cancel,
             ),
         ):
             self.assertFalse(self.window._confirm_project_close())
 
     def test_recent_projects_and_file_dialogs_cover_empty_and_selected_paths(self) -> None:
-        with patch("setuav_studio.shell.QSettings", _FakeSettings):
+        with patch("setuav_studio.ui.shell.project_controller.QSettings", _FakeSettings):
             self.assertEqual(self.window._recent_projects(), [])
             _FakeSettings.values["recent_projects"] = "one.json"
             self.assertEqual(self.window._recent_projects(), ["one.json"])
@@ -340,7 +365,7 @@ class ShellProjectLifecycleTests(unittest.TestCase):
         with (
             patch.object(self.window, "open_project") as open_selected,
             patch(
-                "setuav_studio.shell.QFileDialog.getExistingDirectory",
+                "setuav_studio.ui.shell.project_controller.QFileDialog.getExistingDirectory",
                 side_effect=["", "project-folder"],
             ),
         ):
@@ -356,12 +381,14 @@ class ShellProjectLifecycleTests(unittest.TestCase):
             project_path = Path(temporary_directory) / "new.suav"
             with (
                 patch(
-                    "setuav_studio.shell.QFileDialog.getSaveFileName",
+                    "setuav_studio.ui.shell.project_controller.QFileDialog.getSaveFileName",
                     return_value=(str(project_path), "Setuav Archive (*.suav)"),
                 ),
                 patch.object(self.window, "_confirm_project_close", return_value=True),
                 patch.object(self.window, "_add_recent_project"),
-                patch("setuav_studio.shell.validate_project", return_value=[]),
+                patch(
+                    "setuav_studio.ui.shell.project_controller.validate_project", return_value=[]
+                ),
             ):
                 self.assertTrue(self.window._new_project())
 

@@ -524,7 +524,7 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(received[-1], ("", "info", 0))
 
     def test_remove_panel_and_workspace_via_shell(self) -> None:
-        from setuav_studio.shell import MainWindow
+        from setuav_studio.ui.shell import MainWindow
 
         get_qapp()
         api = StudioAPI()
