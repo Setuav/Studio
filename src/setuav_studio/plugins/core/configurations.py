@@ -480,15 +480,11 @@ class ConfigurationManager:
 
     def get_materialized_components(self, config_id: str | None = None) -> list[dict[str, Any]]:
         """Return the materialized component list for any configuration without switching active state."""
-        if config_id is None:
-            if self._active_id is None:
-                return self.project_data.get("components", [])
-            return copy.deepcopy(self._base_state.get("components", []))
-        if config_id == self._active_id:
+        if config_id is None or config_id == self._active_id:
             return self.project_data.get("components", [])
         cfg = self.get_configuration(config_id)
         if cfg is None:
-            return []
+            return copy.deepcopy(self._base_state.get("components", []))
         comps, _, _ = apply_configuration_delta(
             self._base_state.get("components", []),
             self._base_state.get("parameters", {}),
