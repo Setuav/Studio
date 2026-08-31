@@ -65,8 +65,14 @@ class TestNativePluginModels(unittest.TestCase):
         # 4. Verify AST Expression Evaluations
         evaluator = ExpressionEvaluator()
         self.assertTrue(evaluator.evaluate("main_wing.planform_area > 0", scope))
-        self.assertTrue(evaluator.evaluate("main_wing.wingspan > 1000 and motor_cruise.max_power > 100", scope))
-        self.assertTrue(evaluator.evaluate("round(battery_main.capacity * battery_main.voltage / 1000, 2) == 66.6", scope))
+        self.assertTrue(
+            evaluator.evaluate("main_wing.wingspan > 1000 and motor_cruise.max_power > 100", scope)
+        )
+        self.assertTrue(
+            evaluator.evaluate(
+                "round(battery_main.capacity * battery_main.voltage / 1000, 2) == 66.6", scope
+            )
+        )
         self.assertTrue(evaluator.evaluate("battery_main.energy_wh > 60.0", scope))
 
     def test_constraint_checker_with_native_models(self):

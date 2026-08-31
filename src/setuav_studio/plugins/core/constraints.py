@@ -89,6 +89,7 @@ class ConstraintChecker:
                 severity=severity,
                 message="Disabled",
                 description=description,
+                enabled=False,
             )
 
         if not expr:
@@ -103,7 +104,9 @@ class ConstraintChecker:
             )
 
         eval_ctx = dict(
-            context if context is not None else self.extract_context(project_data, api=api, config_id=config_id)
+            context
+            if context is not None
+            else self.extract_context(project_data, api=api, config_id=config_id)
         )
 
         # Apply explicit variable mappings if specified in constraint

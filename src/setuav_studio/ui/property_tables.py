@@ -20,6 +20,7 @@ copying the implementation:
 
 from __future__ import annotations
 
+import weakref
 from collections.abc import Callable
 from typing import Any
 
@@ -108,7 +109,7 @@ class FocusAwareLineEdit(QLineEdit):
         self.focused_out.emit()
 
 
-def format_engineering_value(val: Any, decimals: int = 2) -> str:
+def format_engineering_value(val: Any, decimals: int | None = 2) -> str:
     """Cleanly formats numbers removing floating-point noise and keeping engineering precision."""
     if val is None or val == "":
         return ""
@@ -117,12 +118,13 @@ def format_engineering_value(val: Any, decimals: int = 2) -> str:
     except (ValueError, TypeError):
         return str(val)
 
-    rounded = round(f_val, decimals)
+    effective_decimals = 2 if decimals is None else decimals
+    rounded = round(f_val, effective_decimals)
     if abs(rounded) < 1e-12:
         return "0.0"
     if abs(rounded - int(rounded)) < 1e-9:
         return f"{rounded:.1f}"
-    formatted = f"{rounded:.{decimals}f}".rstrip("0")
+    formatted = f"{rounded:.{effective_decimals}f}".rstrip("0")
     if formatted.endswith("."):
         formatted += "0"
     return formatted
@@ -144,7 +146,13 @@ class ExpressionPropertyCell(QWidget):
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
-        self._on_changed = on_changed
+        if callable(on_changed):
+            if hasattr(on_changed, "__self__"):
+                self._on_changed = weakref.WeakMethod(on_changed)
+            else:
+                self._on_changed = on_changed
+        else:
+            self._on_changed = None
         self._on_open_assistant = on_open_assistant
         self._api = api
         self._label = label
@@ -158,7 +166,21 @@ class ExpressionPropertyCell(QWidget):
         self._decimals = decimals
         if self._decimals is None:
             lbl = self._label.lower()
-            if any(w in lbl for w in ("eta", "fraction", "taper", "aspect", "ratio", "area", "dm2", "m2", "dm²", "m²")):
+            if any(
+                w in lbl
+                for w in (
+                    "eta",
+                    "fraction",
+                    "taper",
+                    "aspect",
+                    "ratio",
+                    "area",
+                    "dm2",
+                    "m2",
+                    "dm²",
+                    "m²",
+                )
+            ):
                 self._decimals = 3
             else:
                 self._decimals = 2
@@ -192,7 +214,16 @@ class ExpressionPropertyCell(QWidget):
         layout.addWidget(self.fx_button)
 
         get_unit_manager().units_changed.connect(self._refresh_display)
+        self.destroyed.connect(self._disconnect_units_changed)
         self._refresh_display()
+
+    def _disconnect_units_changed(self) -> None:
+        try:
+            from setuav_studio.units import get_unit_manager
+
+            get_unit_manager().units_changed.disconnect(self._refresh_display)
+        except (RuntimeError, TypeError):
+            pass
 
     def _is_formula(self, text: str) -> bool:
         clean = text.strip()
@@ -306,18 +337,29 @@ class ExpressionPropertyCell(QWidget):
             return text
         try:
             disp_num = float(text)
-            base_num = get_unit_manager().to_base(disp_num, self._quantity) if self._quantity else disp_num
+            base_num = (
+                get_unit_manager().to_base(disp_num, self._quantity) if self._quantity else disp_num
+            )
             return str(base_num)
         except ValueError:
             return text
+
+    def _call_on_changed(self, text: str) -> None:
+        if self._on_changed is None:
+            return
+        if isinstance(self._on_changed, weakref.WeakMethod):
+            cb = self._on_changed()
+            if cb is not None:
+                cb(text)
+        else:
+            self._on_changed(text)
 
     def _commit_line_edit(self) -> None:
         new_text = self.line_edit.text().strip()
         new_raw = self._convert_input_to_raw_storage(new_text)
         if new_raw != self._raw_expression:
             self._raw_expression = new_raw
-            if self._on_changed:
-                self._on_changed(self._raw_expression)
+            self._call_on_changed(self._raw_expression)
 
     def _on_focus_out(self) -> None:
         self._is_focused = False
@@ -357,8 +399,7 @@ class ExpressionPropertyCell(QWidget):
                 ):
                     new_expr = f"={new_expr}"
                 self.setText(new_expr)
-                if self._on_changed:
-                    self._on_changed(new_expr)
+                self._call_on_changed(new_expr)
 
     def text(self) -> str:
         return self._raw_expression
@@ -380,8 +421,7 @@ class ExpressionPropertyCell(QWidget):
 
     def setValue(self, val: float | str) -> None:
         self.setText(str(val))
-        if self._on_changed:
-            self._on_changed(str(val))
+        self._call_on_changed(str(val))
 
     def suffix(self) -> str:
         from setuav_studio.units import get_unit_manager

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import weakref
 from collections.abc import Callable
 from typing import Any
 
@@ -53,6 +54,7 @@ class NumericSpinBox(QDoubleSpinBox):
             sym = get_unit_manager().get_unit_symbol(self._quantity)
             self.setSuffix(f" {sym}" if sym else "")
             get_unit_manager().units_changed.connect(self._on_units_changed)
+            self.destroyed.connect(self._disconnect_units_changed)
         elif suffix:
             s = str(suffix).strip()
             self.setSuffix(f" {s}" if s else "")
@@ -61,6 +63,14 @@ class NumericSpinBox(QDoubleSpinBox):
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.UpDownArrows)
         self.setKeyboardTracking(False)
+
+    def _disconnect_units_changed(self) -> None:
+        try:
+            from setuav_studio.units import get_unit_manager
+
+            get_unit_manager().units_changed.disconnect(self._on_units_changed)
+        except (RuntimeError, TypeError):
+            pass
 
     def _on_units_changed(self) -> None:
         if self._quantity:
@@ -115,8 +125,9 @@ def _resolve_table_api(table: QTableWidget, explicit_api: Any | None) -> Any | N
         return explicit_api
     parent = table.parent()
     while parent is not None:
-        if hasattr(parent, "_api"):
-            return parent._api
+        api = getattr(parent, "_api", None)
+        if api is not None:
+            return api
         parent = parent.parent()
     return None
 
@@ -173,9 +184,16 @@ def set_table_spinbox(
 
     resolved_api = _resolve_table_api(table, api)
 
+    on_changed_ref = (
+        weakref.WeakMethod(on_changed)
+        if callable(on_changed) and hasattr(on_changed, "__self__")
+        else on_changed
+    )
+
     def handle_cell_changed(new_text: str) -> None:
-        if on_changed is not None:
-            on_changed(_parse_spinbox_callback_value(new_text, resolved_api))
+        cb = on_changed_ref() if isinstance(on_changed_ref, weakref.WeakMethod) else on_changed_ref
+        if cb is not None:
+            cb(_parse_spinbox_callback_value(new_text, resolved_api))
 
     init_str = (
         format_engineering_value(value, decimals)
@@ -190,7 +208,6 @@ def set_table_spinbox(
         decimals=decimals,
         quantity=quantity,
         unit=unit or suffix.strip(),
-        parent=table,
     )
     table.setCellWidget(row, column, cell)
     return cell

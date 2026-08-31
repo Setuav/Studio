@@ -24,9 +24,11 @@ class PropellerModel(BaseComponentModel):
 
     def get_exposed_properties(self) -> dict[str, Any]:
         props = super().get_exposed_properties()
-        props.update({
-            "diameter": self.diameter,
-            "pitch": self.pitch,
-            "blade_count": self.blade_count,
-        })
+        props.update(
+            {
+                "diameter": self.diameter,
+                "pitch": self.pitch,
+                "blade_count": self.blade_count,
+            }
+        )
         return props

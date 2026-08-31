@@ -134,7 +134,12 @@ class ControlSurfacesMixin:
             root_chord = float(profiles[0].get("chord", 150.0))
             tip_chord = float(profiles[-1].get("chord", 100.0))
             wing_area_dm2 = (semi_span * (root_chord + tip_chord)) / 10000.0
-            return max(semi_span, 1.0), max(root_chord, 1.0), max(tip_chord, 1.0), max(wing_area_dm2, 0.01)
+            return (
+                max(semi_span, 1.0),
+                max(root_chord, 1.0),
+                max(tip_chord, 1.0),
+                max(wing_area_dm2, 0.01),
+            )
         return 400.0, 150.0, 100.0, 10.0
 
     def _sync_control_surfaces_with_wing(self) -> None:
@@ -168,7 +173,9 @@ class ControlSurfacesMixin:
                 defl = float(geom.get("deflection", 0.0))
                 disp_defl = um.to_display(defl, "angle")
                 angle_sym = um.get_unit_symbol("angle")
-                defl_str = f"{disp_defl:+.1f} {angle_sym}" if abs(disp_defl) > 1e-4 else f"0.0 {angle_sym}"
+                defl_str = (
+                    f"{disp_defl:+.1f} {angle_sym}" if abs(disp_defl) > 1e-4 else f"0.0 {angle_sym}"
+                )
 
                 tag_label = str(
                     geom.get("tag") or cs.get("name") or cs.get("id") or f"CS_{row + 1}"
@@ -221,7 +228,9 @@ class ControlSurfacesMixin:
 
             self._cs_spinboxes: dict[str, Any] = {}
 
-            metrics = compute_control_surface_metrics(geom, semi_span, root_chord, tip_chord, wing_area)
+            metrics = compute_control_surface_metrics(
+                geom, semi_span, root_chord, tip_chord, wing_area
+            )
 
             tag_val = str(geom.get("tag") or cs.get("name") or cs.get("id") or "")
             cs_type = str(geom.get("type") or "aileron").lower()
@@ -249,15 +258,81 @@ class ControlSurfacesMixin:
                 lambda val: self._update_cs_choice("sizing_mode", val),
             )
 
-            self._setup_param("area", "Area", metrics["area_dm2"], geom.get("area_expression"), "dm²", 3, driver_keys)
-            self._setup_param("area_ratio", "Area Ratio", metrics["area_ratio"], None, "%", 1, driver_keys)
-            self._setup_param("span_start", "Span start", metrics["span_start"], geom.get("span_start_expression"), "mm", 2, driver_keys)
-            self._setup_param("span_end", "Span end", metrics["span_end"], geom.get("span_end_expression"), "mm", 2, driver_keys)
-            self._setup_param("span_length", "Span length", metrics["span_length"], geom.get("span_length_expression"), "mm", 2, driver_keys)
-            self._setup_param("eta_start", "Span start fraction", metrics["eta_start"], geom.get("eta_start_expression"), "", 3, driver_keys)
-            self._setup_param("eta_end", "Span end fraction", metrics["eta_end"], geom.get("eta_end_expression"), "", 3, driver_keys)
-            self._setup_param("chord_fraction", "Chord fraction", metrics["chord_fraction"], geom.get("chord_fraction_expression"), "c", 3, driver_keys)
-            self._setup_param("chord", "Control chord", metrics["chord"], geom.get("chord_expression"), "mm", 2, driver_keys)
+            self._setup_param(
+                "area",
+                "Area",
+                metrics["area_dm2"],
+                geom.get("area_expression"),
+                "dm²",
+                3,
+                driver_keys,
+            )
+            self._setup_param(
+                "area_ratio", "Area Ratio", metrics["area_ratio"], None, "%", 1, driver_keys
+            )
+            self._setup_param(
+                "span_start",
+                "Span start",
+                metrics["span_start"],
+                geom.get("span_start_expression"),
+                "mm",
+                2,
+                driver_keys,
+            )
+            self._setup_param(
+                "span_end",
+                "Span end",
+                metrics["span_end"],
+                geom.get("span_end_expression"),
+                "mm",
+                2,
+                driver_keys,
+            )
+            self._setup_param(
+                "span_length",
+                "Span length",
+                metrics["span_length"],
+                geom.get("span_length_expression"),
+                "mm",
+                2,
+                driver_keys,
+            )
+            self._setup_param(
+                "eta_start",
+                "Span start fraction",
+                metrics["eta_start"],
+                geom.get("eta_start_expression"),
+                "",
+                3,
+                driver_keys,
+            )
+            self._setup_param(
+                "eta_end",
+                "Span end fraction",
+                metrics["eta_end"],
+                geom.get("eta_end_expression"),
+                "",
+                3,
+                driver_keys,
+            )
+            self._setup_param(
+                "chord_fraction",
+                "Chord fraction",
+                metrics["chord_fraction"],
+                geom.get("chord_fraction_expression"),
+                "c",
+                3,
+                driver_keys,
+            )
+            self._setup_param(
+                "chord",
+                "Control chord",
+                metrics["chord"],
+                geom.get("chord_expression"),
+                "mm",
+                2,
+                driver_keys,
+            )
 
             hs_val = geom.get("hinge_sweep_expression") or hinge_sweep
             self._set_property_expression(
@@ -348,7 +423,9 @@ class ControlSurfacesMixin:
 
         if key == "area":
             driver_mode = str(geometry.get("sizing_mode", "area_chord")).lower()
-            solve_control_surface_from_area(geometry, float(value), semi_span, root_chord, tip_chord, driver_mode)
+            solve_control_surface_from_area(
+                geometry, float(value), semi_span, root_chord, tip_chord, driver_mode
+            )
         elif key in {"span_start", "span_end"}:
             geometry[key] = float(value)
             geometry[key.replace("span", "eta")] = round(float(value) / semi_span, 4)

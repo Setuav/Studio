@@ -454,9 +454,7 @@ class SectionsMixin:
         if field is None:
             return False
         raw_val = (
-            um.from_display(value, "length")
-            if column == 1
-            else um.from_display(value, "angle")
+            um.from_display(value, "length") if column == 1 else um.from_display(value, "angle")
         )
         section[field] = max(raw_val, 1.0) if column == 1 else float(raw_val)
         return True

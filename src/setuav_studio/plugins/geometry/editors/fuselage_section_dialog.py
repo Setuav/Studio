@@ -1340,24 +1340,16 @@ class FuselageSectionDialog(QDialog):
         elif prof_type == "rectangle":
             self._add_prop_row("Width", profile.get("width", 120.0), "width")
             self._add_prop_row("Height", profile.get("height", 80.0), "height")
-            self._add_prop_row(
-                "Corner Radius", profile.get("corner_radius", 10.0), "corner_radius"
-            )
+            self._add_prop_row("Corner Radius", profile.get("corner_radius", 10.0), "corner_radius")
         elif prof_type == "trapezoid":
             self._add_prop_row("Top Width", profile.get("top_width", 80.0), "top_width")
-            self._add_prop_row(
-                "Bottom Width", profile.get("bottom_width", 120.0), "bottom_width"
-            )
+            self._add_prop_row("Bottom Width", profile.get("bottom_width", 120.0), "bottom_width")
             self._add_prop_row("Height", profile.get("height", 80.0), "height")
-            self._add_prop_row(
-                "Corner Radius", profile.get("corner_radius", 5.0), "corner_radius"
-            )
+            self._add_prop_row("Corner Radius", profile.get("corner_radius", 5.0), "corner_radius")
         elif prof_type == "triangle":
             self._add_prop_row("Base Width", profile.get("base_width", 100.0), "base_width")
             self._add_prop_row("Height", profile.get("height", 80.0), "height")
-            self._add_prop_row(
-                "Corner Radius", profile.get("corner_radius", 5.0), "corner_radius"
-            )
+            self._add_prop_row("Corner Radius", profile.get("corner_radius", 5.0), "corner_radius")
             self._add_prop_row("Orientation", profile.get("orientation", "up"), "orientation")
         elif prof_type == "polygon":
             self._populate_vertices_table(profile)

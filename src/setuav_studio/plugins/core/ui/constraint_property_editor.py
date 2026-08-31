@@ -160,9 +160,7 @@ class ConstraintPropertyEditor(PropertyTableMixin, QWidget):
                 status_text = f"⚠ Violated: {res.message or 'Condition evaluated to False'}"
 
             self._set_property_value(self.general_table, "status", status_text, editable=False)
-            self._set_property_value(
-                self.general_table, "description", c.get("description", "")
-            )
+            self._set_property_value(self.general_table, "description", c.get("description", ""))
         finally:
             self._loading = False
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import weakref
 from typing import Any
 
 from PySide6.QtCore import Qt
@@ -53,7 +54,7 @@ class TransformEditor(PropertyTableMixin, QWidget):
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(0, 0, 0, 0)
 
-        content = QWidget(self)
+        content = QWidget()
         self._content_layout = QVBoxLayout(content)
         self._content_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self._content_layout.setContentsMargins(6, 6, 6, 8)
@@ -79,7 +80,7 @@ class TransformEditor(PropertyTableMixin, QWidget):
             set_label_icon(label, icon_name)
 
     def _create_section(self, title: str, icon_name: str) -> QVBoxLayout:
-        section = QWidget(self)
+        section = QWidget()
         section.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Maximum,
@@ -119,7 +120,7 @@ class TransformEditor(PropertyTableMixin, QWidget):
 
     def _create_transform_section(self) -> None:
         layout = self._create_section("Transform", "mdi6.axis-arrow")
-        self.transform_table = QTableWidget(2, 3, self)
+        self.transform_table = QTableWidget(2, 3)
         self.transform_table.setHorizontalHeaderLabels(["X", "Y", "Z"])
         self.transform_table.setVerticalHeaderLabels(["Position", "Rotation"])
         self.transform_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
@@ -175,6 +176,7 @@ class TransformEditor(PropertyTableMixin, QWidget):
         quantity: str,
         suffix: str,
     ) -> NumericSpinBox:
+        self_ref = weakref.ref(self)
         return set_table_spinbox(
             self.transform_table,
             row,
@@ -186,7 +188,9 @@ class TransformEditor(PropertyTableMixin, QWidget):
             decimals=decimals,
             quantity=quantity,
             suffix=suffix,
-            on_changed=lambda _value: self._update_transform(),
+            on_changed=lambda _value: (
+                self_ref()._update_transform() if self_ref() is not None else None
+            ),
         )
 
     def _load_component(self, component: dict[str, Any]) -> None:

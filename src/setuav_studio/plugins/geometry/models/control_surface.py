@@ -84,18 +84,20 @@ class ControlSurfaceModel(BaseComponentModel):
 
     def get_exposed_properties(self) -> dict[str, Any]:
         props = super().get_exposed_properties()
-        props.update({
-            "area": self.area,
-            "area_ratio": self.area_ratio,
-            "span_start": self.span_start,
-            "span_end": self.span_end,
-            "span_length": self.span_length,
-            "eta_start": self.eta_start,
-            "eta_end": self.eta_end,
-            "eta_length": self.eta_length,
-            "chord": self.chord,
-            "chord_fraction": self.chord_fraction,
-            "deflection": self.deflection,
-            "hinge_sweep": self.hinge_sweep,
-        })
+        props.update(
+            {
+                "area": self.area,
+                "area_ratio": self.area_ratio,
+                "span_start": self.span_start,
+                "span_end": self.span_end,
+                "span_length": self.span_length,
+                "eta_start": self.eta_start,
+                "eta_end": self.eta_end,
+                "eta_length": self.eta_length,
+                "chord": self.chord,
+                "chord_fraction": self.chord_fraction,
+                "deflection": self.deflection,
+                "hinge_sweep": self.hinge_sweep,
+            }
+        )
         return props

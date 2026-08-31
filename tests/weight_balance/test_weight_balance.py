@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
+from PySide6.QtCore import QEvent
 from PySide6.QtWidgets import QDockWidget, QMainWindow
 
 from setuav_studio.plugin_system import (
@@ -208,6 +209,11 @@ class WeightBalancePluginTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls._app = get_qapp()
 
+    def tearDown(self) -> None:
+        self._app.processEvents()
+        self._app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        self._app.processEvents()
+
     def test_plugin_registers_workspace_and_panels(self) -> None:
         api = StudioAPI()
         panels: list[PanelContribution] = []
@@ -280,7 +286,11 @@ class WeightBalancePluginTests(unittest.TestCase):
         self.assertEqual(editor.transform_table.rowCount(), 2)
         editor.position_spins["x"].setValue(240.0)
         self.assertEqual(component["transform"]["position"]["x"], 240.0)
-        editor.mass_table.item(0, 1).setText("250")
+        mass_widget = editor.mass_table.cellWidget(0, 1)
+        if hasattr(mass_widget, "setValue"):
+            mass_widget.setValue("250")
+        elif editor.mass_table.item(0, 1) is not None:
+            editor.mass_table.item(0, 1).setText("250")
         self.assertEqual(component["mass"], 250.0)
 
     def test_plugin_publishes_analysis_result(self) -> None:

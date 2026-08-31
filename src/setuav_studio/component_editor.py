@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import weakref
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
@@ -47,7 +48,7 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
         self._content_layout.setContentsMargins(6, 6, 6, 8)
         self._content_layout.setSpacing(10)
 
-        scroll = QScrollArea()
+        scroll = QScrollArea(self)
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         scroll.setWidget(content)
@@ -128,6 +129,7 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
 
     def _load_component(self) -> None:
         self._loading = True
+        self_ref = weakref.ref(self)
         try:
             # Load General
             self._set_property_value(
@@ -175,7 +177,11 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
                             field.key,
                             str(val),
                             formatted_options,
-                            lambda new_val, k=field.key: self._on_combo_changed(k, new_val),
+                            lambda new_val, k=field.key: (
+                                self_ref()._on_combo_changed(k, new_val)
+                                if self_ref() is not None
+                                else None
+                            ),
                         )
                     else:
                         if isinstance(val, str) and val.strip().startswith("="):
@@ -190,8 +196,16 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
                             self.parameters_table,
                             field.key,
                             str_val,
-                            on_changed=lambda new_val, k=field.key: self._on_expression_cell_changed(k, new_val),
-                            on_open_assistant=lambda curr_val, f=field: self._open_field_expression_assistant(f, curr_val),
+                            on_changed=lambda new_val, k=field.key: (
+                                self_ref()._on_expression_cell_changed(k, new_val)
+                                if self_ref() is not None
+                                else None
+                            ),
+                            on_open_assistant=lambda curr_val, f=field: (
+                                self_ref()._open_field_expression_assistant(f, curr_val)
+                                if self_ref() is not None
+                                else None
+                            ),
                             decimals=field.decimals,
                             unit=field.unit,
                             label=field.label,
@@ -271,7 +285,9 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
         def change() -> None:
             if num_val is not None:
                 self._component["mass"] = num_val
-                if "parameters" in self._component and isinstance(self._component["parameters"], dict):
+                if "parameters" in self._component and isinstance(
+                    self._component["parameters"], dict
+                ):
                     self._component["parameters"]["mass"] = num_val
 
         self._api.edit_component(self._component, "Change component mass", change)

@@ -64,9 +64,15 @@ QUANTITIES: dict[str, QuantityDefinition] = {
             "dm2": UnitDefinition("dm2", "dm²", "Square Decimeter (dm²)", 1.0, 1.0, decimals=3),
             "m2": UnitDefinition("m2", "m²", "Square Meter (m²)", 100.0, 0.01, decimals=4),
             "cm2": UnitDefinition("cm2", "cm²", "Square Centimeter (cm²)", 0.01, 100.0, decimals=2),
-            "mm2": UnitDefinition("mm2", "mm²", "Square Millimeter (mm²)", 0.0001, 10000.0, decimals=1),
-            "in2": UnitDefinition("in2", "in²", "Square Inch (in²)", 0.064516, 1.0 / 0.064516, decimals=2),
-            "ft2": UnitDefinition("ft2", "ft²", "Square Foot (ft²)", 9.290304, 1.0 / 9.290304, decimals=3),
+            "mm2": UnitDefinition(
+                "mm2", "mm²", "Square Millimeter (mm²)", 0.0001, 10000.0, decimals=1
+            ),
+            "in2": UnitDefinition(
+                "in2", "in²", "Square Inch (in²)", 0.064516, 1.0 / 0.064516, decimals=2
+            ),
+            "ft2": UnitDefinition(
+                "ft2", "ft²", "Square Foot (ft²)", 9.290304, 1.0 / 9.290304, decimals=3
+            ),
         },
     ),
     "volume": QuantityDefinition(
@@ -78,10 +84,16 @@ QUANTITIES: dict[str, QuantityDefinition] = {
             "dm3": UnitDefinition("dm3", "dm³", "Liter / dm³", 1.0, 1.0, decimals=3),
             "l": UnitDefinition("l", "L", "Liter (L)", 1.0, 1.0, decimals=3),
             "ml": UnitDefinition("ml", "mL", "Milliliter (mL)", 0.001, 1000.0, decimals=1),
-            "cm3": UnitDefinition("cm3", "cm³", "Cubic Centimeter (cm³)", 0.001, 1000.0, decimals=1),
+            "cm3": UnitDefinition(
+                "cm3", "cm³", "Cubic Centimeter (cm³)", 0.001, 1000.0, decimals=1
+            ),
             "m3": UnitDefinition("m3", "m³", "Cubic Meter (m³)", 1000.0, 0.001, decimals=4),
-            "in3": UnitDefinition("in3", "in³", "Cubic Inch (in³)", 0.016387064, 1.0 / 0.016387064, decimals=2),
-            "gal": UnitDefinition("gal", "gal", "US Gallon", 3.785411784, 1.0 / 3.785411784, decimals=3),
+            "in3": UnitDefinition(
+                "in3", "in³", "Cubic Inch (in³)", 0.016387064, 1.0 / 0.016387064, decimals=2
+            ),
+            "gal": UnitDefinition(
+                "gal", "gal", "US Gallon", 3.785411784, 1.0 / 3.785411784, decimals=3
+            ),
         },
     ),
     "mass": QuantityDefinition(
@@ -92,7 +104,9 @@ QUANTITIES: dict[str, QuantityDefinition] = {
         units={
             "g": UnitDefinition("g", "g", "Gram (g)", 1.0, 1.0, decimals=2),
             "kg": UnitDefinition("kg", "kg", "Kilogram (kg)", 1000.0, 0.001, decimals=3),
-            "oz": UnitDefinition("oz", "oz", "Ounce (oz)", 28.349523125, 1.0 / 28.349523125, decimals=2),
+            "oz": UnitDefinition(
+                "oz", "oz", "Ounce (oz)", 28.349523125, 1.0 / 28.349523125, decimals=2
+            ),
             "lb": UnitDefinition("lb", "lb", "Pound (lb)", 453.59237, 1.0 / 453.59237, decimals=3),
         },
     ),
@@ -103,7 +117,9 @@ QUANTITIES: dict[str, QuantityDefinition] = {
         default_decimals=2,
         units={
             "deg": UnitDefinition("deg", "°", "Degree (°)", 1.0, 1.0, decimals=2),
-            "rad": UnitDefinition("rad", "rad", "Radian (rad)", 57.29577951308232, 1.0 / 57.29577951308232, decimals=4),
+            "rad": UnitDefinition(
+                "rad", "rad", "Radian (rad)", 57.29577951308232, 1.0 / 57.29577951308232, decimals=4
+            ),
         },
     ),
     "velocity": QuantityDefinition(
@@ -113,10 +129,23 @@ QUANTITIES: dict[str, QuantityDefinition] = {
         default_decimals=2,
         units={
             "m/s": UnitDefinition("m/s", "m/s", "Meter per second (m/s)", 1.0, 1.0, decimals=2),
-            "km/h": UnitDefinition("km/h", "km/h", "Kilometer per hour (km/h)", 1.0 / 3.6, 3.6, decimals=1),
-            "kts": UnitDefinition("kts", "kts", "Knots (kts)", 0.5144444444444445, 1.0 / 0.5144444444444445, decimals=1),
-            "mph": UnitDefinition("mph", "mph", "Miles per hour (mph)", 0.44704, 1.0 / 0.44704, decimals=1),
-            "ft/s": UnitDefinition("ft/s", "ft/s", "Feet per second (ft/s)", 0.3048, 1.0 / 0.3048, decimals=2),
+            "km/h": UnitDefinition(
+                "km/h", "km/h", "Kilometer per hour (km/h)", 1.0 / 3.6, 3.6, decimals=1
+            ),
+            "kts": UnitDefinition(
+                "kts",
+                "kts",
+                "Knots (kts)",
+                0.5144444444444445,
+                1.0 / 0.5144444444444445,
+                decimals=1,
+            ),
+            "mph": UnitDefinition(
+                "mph", "mph", "Miles per hour (mph)", 0.44704, 1.0 / 0.44704, decimals=1
+            ),
+            "ft/s": UnitDefinition(
+                "ft/s", "ft/s", "Feet per second (ft/s)", 0.3048, 1.0 / 0.3048, decimals=2
+            ),
         },
     ),
     "force": QuantityDefinition(
@@ -126,9 +155,20 @@ QUANTITIES: dict[str, QuantityDefinition] = {
         default_decimals=2,
         units={
             "N": UnitDefinition("N", "N", "Newton (N)", 1.0, 1.0, decimals=2),
-            "kgf": UnitDefinition("kgf", "kgf", "Kilogram-force (kgf)", 9.80665, 1.0 / 9.80665, decimals=3),
-            "gf": UnitDefinition("gf", "gf", "Gram-force (gf)", 0.00980665, 1.0 / 0.00980665, decimals=1),
-            "lbf": UnitDefinition("lbf", "lbf", "Pound-force (lbf)", 4.4482216152605, 1.0 / 4.4482216152605, decimals=2),
+            "kgf": UnitDefinition(
+                "kgf", "kgf", "Kilogram-force (kgf)", 9.80665, 1.0 / 9.80665, decimals=3
+            ),
+            "gf": UnitDefinition(
+                "gf", "gf", "Gram-force (gf)", 0.00980665, 1.0 / 0.00980665, decimals=1
+            ),
+            "lbf": UnitDefinition(
+                "lbf",
+                "lbf",
+                "Pound-force (lbf)",
+                4.4482216152605,
+                1.0 / 4.4482216152605,
+                decimals=2,
+            ),
         },
     ),
     "torque": QuantityDefinition(
@@ -138,10 +178,33 @@ QUANTITIES: dict[str, QuantityDefinition] = {
         default_decimals=3,
         units={
             "N*m": UnitDefinition("N*m", "N·m", "Newton-meter (N·m)", 1.0, 1.0, decimals=3),
-            "N*cm": UnitDefinition("N*cm", "N·cm", "Newton-centimeter (N·cm)", 0.01, 100.0, decimals=2),
-            "kgf*cm": UnitDefinition("kgf*cm", "kgf·cm", "Kilogram-force centimeter (kgf·cm)", 0.0980665, 1.0 / 0.0980665, decimals=2),
-            "lbf*in": UnitDefinition("lbf*in", "lbf·in", "Pound-force inch (lbf·in)", 0.1129848290276167, 1.0 / 0.1129848290276167, decimals=2),
-            "oz*in": UnitDefinition("oz*in", "oz·in", "Ounce-force inch (oz·in)", 0.007061551814226, 1.0 / 0.007061551814226, decimals=2),
+            "N*cm": UnitDefinition(
+                "N*cm", "N·cm", "Newton-centimeter (N·cm)", 0.01, 100.0, decimals=2
+            ),
+            "kgf*cm": UnitDefinition(
+                "kgf*cm",
+                "kgf·cm",
+                "Kilogram-force centimeter (kgf·cm)",
+                0.0980665,
+                1.0 / 0.0980665,
+                decimals=2,
+            ),
+            "lbf*in": UnitDefinition(
+                "lbf*in",
+                "lbf·in",
+                "Pound-force inch (lbf·in)",
+                0.1129848290276167,
+                1.0 / 0.1129848290276167,
+                decimals=2,
+            ),
+            "oz*in": UnitDefinition(
+                "oz*in",
+                "oz·in",
+                "Ounce-force inch (oz·in)",
+                0.007061551814226,
+                1.0 / 0.007061551814226,
+                decimals=2,
+            ),
         },
     ),
     "pressure": QuantityDefinition(
@@ -154,8 +217,17 @@ QUANTITIES: dict[str, QuantityDefinition] = {
             "kPa": UnitDefinition("kPa", "kPa", "Kilopascal (kPa)", 1000.0, 0.001, decimals=3),
             "bar": UnitDefinition("bar", "bar", "Bar", 100000.0, 0.00001, decimals=4),
             "mbar": UnitDefinition("mbar", "mbar", "Millibar / hPa", 100.0, 0.01, decimals=2),
-            "psi": UnitDefinition("psi", "psi", "Pounds per square inch (psi)", 6894.757293168361, 1.0 / 6894.757293168361, decimals=3),
-            "atm": UnitDefinition("atm", "atm", "Standard Atmosphere (atm)", 101325.0, 1.0 / 101325.0, decimals=4),
+            "psi": UnitDefinition(
+                "psi",
+                "psi",
+                "Pounds per square inch (psi)",
+                6894.757293168361,
+                1.0 / 6894.757293168361,
+                decimals=3,
+            ),
+            "atm": UnitDefinition(
+                "atm", "atm", "Standard Atmosphere (atm)", 101325.0, 1.0 / 101325.0, decimals=4
+            ),
         },
     ),
     "power": QuantityDefinition(
@@ -166,7 +238,14 @@ QUANTITIES: dict[str, QuantityDefinition] = {
         units={
             "W": UnitDefinition("W", "W", "Watt (W)", 1.0, 1.0, decimals=1),
             "kW": UnitDefinition("kW", "kW", "Kilowatt (kW)", 1000.0, 0.001, decimals=3),
-            "hp": UnitDefinition("hp", "hp", "Horsepower (hp)", 745.6998715822702, 1.0 / 745.6998715822702, decimals=2),
+            "hp": UnitDefinition(
+                "hp",
+                "hp",
+                "Horsepower (hp)",
+                745.6998715822702,
+                1.0 / 745.6998715822702,
+                decimals=2,
+            ),
         },
     ),
     "voltage": QuantityDefinition(
@@ -201,7 +280,7 @@ QUANTITIES: dict[str, QuantityDefinition] = {
             "Wh": UnitDefinition("Wh", "Wh", "Watt-hour (Wh)", 1.0, 1.0, decimals=1),
         },
     ),
-        "resistance": QuantityDefinition(
+    "resistance": QuantityDefinition(
         id="resistance",
         name="Electrical Resistance",
         base_unit_id="ohm",
@@ -218,10 +297,28 @@ QUANTITIES: dict[str, QuantityDefinition] = {
         base_unit_id="kg*m2",
         default_decimals=6,
         units={
-            "kg*m2": UnitDefinition("kg*m2", "kg·m²", "Kilogram square meter (kg·m²)", 1.0, 1.0, decimals=6),
-            "g*mm2": UnitDefinition("g*mm2", "g·mm²", "Gram square millimeter (g·mm²)", 1e-9, 1e9, decimals=1),
-            "lb*in2": UnitDefinition("lb*in2", "lb·in²", "Pound square inch (lb·in²)", 0.0002926396534292, 1.0 / 0.0002926396534292, decimals=4),
-            "slug*ft2": UnitDefinition("slug*ft2", "slug·ft²", "Slug square foot (slug·ft²)", 1.3558179483314, 1.0 / 1.3558179483314, decimals=6),
+            "kg*m2": UnitDefinition(
+                "kg*m2", "kg·m²", "Kilogram square meter (kg·m²)", 1.0, 1.0, decimals=6
+            ),
+            "g*mm2": UnitDefinition(
+                "g*mm2", "g·mm²", "Gram square millimeter (g·mm²)", 1e-9, 1e9, decimals=1
+            ),
+            "lb*in2": UnitDefinition(
+                "lb*in2",
+                "lb·in²",
+                "Pound square inch (lb·in²)",
+                0.0002926396534292,
+                1.0 / 0.0002926396534292,
+                decimals=4,
+            ),
+            "slug*ft2": UnitDefinition(
+                "slug*ft2",
+                "slug·ft²",
+                "Slug square foot (slug·ft²)",
+                1.3558179483314,
+                1.0 / 1.3558179483314,
+                decimals=6,
+            ),
         },
     ),
 }
@@ -390,6 +487,7 @@ PRESETS: dict[str, dict[str, str]] = {
 # Unit Conversion Utilities
 # ---------------------------------------------------------------------------
 
+
 def convert_value(
     value: float,
     quantity_id: str,
@@ -416,6 +514,7 @@ def convert_value(
 # ---------------------------------------------------------------------------
 # Central Unit Manager with QSettings persistence
 # ---------------------------------------------------------------------------
+
 
 class UnitManager(QObject):
     """Central singleton managing application-wide display units and conversions."""

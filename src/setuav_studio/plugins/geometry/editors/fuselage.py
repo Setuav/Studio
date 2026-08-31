@@ -1,4 +1,5 @@
 import contextlib
+import weakref
 from collections.abc import Callable
 from copy import deepcopy
 from typing import Any
@@ -851,6 +852,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         position: tuple[float, float, float],
         rotation: tuple[float, float, float],
     ) -> None:
+        self_ref = weakref.ref(self)
         for column, value in enumerate(position):
             set_table_spinbox(
                 self.transform_table,
@@ -861,7 +863,9 @@ class FuselageEditor(PropertyTableMixin, QWidget):
                 decimals=2,
                 quantity="length",
                 suffix="mm",
-                on_changed=lambda _v: self._update_section(0, 0),
+                on_changed=lambda _v: (
+                    self_ref()._update_section(0, 0) if self_ref() is not None else None
+                ),
             )
         for column, value in enumerate(rotation):
             set_table_spinbox(
@@ -875,7 +879,9 @@ class FuselageEditor(PropertyTableMixin, QWidget):
                 decimals=2,
                 quantity="angle",
                 suffix="°",
-                on_changed=lambda _v: self._update_section(1, 0),
+                on_changed=lambda _v: (
+                    self_ref()._update_section(1, 0) if self_ref() is not None else None
+                ),
             )
 
     def _transform_values(
@@ -1062,6 +1068,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         self._refresh_section_row()
 
     def _populate_vertices(self, profile: dict[str, Any]) -> None:
+        self_ref = weakref.ref(self)
         vertices = profile.get("vertices")
         if not isinstance(vertices, list):
             vertices = []
@@ -1077,7 +1084,11 @@ class FuselageEditor(PropertyTableMixin, QWidget):
                 step=1.0,
                 decimals=2,
                 suffix="mm",
-                on_changed=lambda val, r=row: self._on_vertex_spin_changed(r, 0, val),
+                on_changed=lambda val, r=row: (
+                    self_ref()._on_vertex_spin_changed(r, 0, val)
+                    if self_ref() is not None
+                    else None
+                ),
             )
             set_table_spinbox(
                 self.vertices_table,
@@ -1087,7 +1098,11 @@ class FuselageEditor(PropertyTableMixin, QWidget):
                 step=1.0,
                 decimals=2,
                 suffix="mm",
-                on_changed=lambda val, r=row: self._on_vertex_spin_changed(r, 1, val),
+                on_changed=lambda val, r=row: (
+                    self_ref()._on_vertex_spin_changed(r, 1, val)
+                    if self_ref() is not None
+                    else None
+                ),
             )
             set_table_spinbox(
                 self.vertices_table,
@@ -1098,7 +1113,11 @@ class FuselageEditor(PropertyTableMixin, QWidget):
                 step=0.5,
                 decimals=2,
                 suffix="mm",
-                on_changed=lambda val, r=row: self._on_vertex_spin_changed(r, 2, val),
+                on_changed=lambda val, r=row: (
+                    self_ref()._on_vertex_spin_changed(r, 2, val)
+                    if self_ref() is not None
+                    else None
+                ),
             )
         self._fit_table_height(self.vertices_table, len(vertices))
 
@@ -1236,7 +1255,9 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         if profile_type == "circle":
             return f"D {_fmt(profile.get('diameter', 0))} {length_sym}"
         if profile_type in {"ellipse", "rectangle"}:
-            return f"{_fmt(profile.get('width', 0))} × {_fmt(profile.get('height', 0))} {length_sym}"
+            return (
+                f"{_fmt(profile.get('width', 0))} × {_fmt(profile.get('height', 0))} {length_sym}"
+            )
         if profile_type == "trapezoid":
             return f"{_fmt(profile.get('top_width', 0))} / {_fmt(profile.get('bottom_width', 0))} {length_sym}"
         if profile_type == "triangle":

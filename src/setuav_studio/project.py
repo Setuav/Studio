@@ -104,7 +104,9 @@ class ProjectDocument:
             self._config_manager_data = self.data
         return self._config_manager
 
-    def get_component_models(self, api: Any | None = None, config_id: str | None = None) -> list[Any]:
+    def get_component_models(
+        self, api: Any | None = None, config_id: str | None = None
+    ) -> list[Any]:
         """Return the list of typed domain model instances for all project components."""
         from setuav_studio.component_model import GenericComponentModel
 
@@ -301,9 +303,7 @@ def _write_json_file(path: Path, data: dict[str, Any]) -> None:
             temporary_path.unlink()
 
 
-def _write_suav(
-    project: ProjectDocument, target: Path, data: dict[str, Any] | None = None
-) -> None:
+def _write_suav(project: ProjectDocument, target: Path, data: dict[str, Any] | None = None) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
     payload = data if data is not None else project.data
     temporary_path: Path | None = None

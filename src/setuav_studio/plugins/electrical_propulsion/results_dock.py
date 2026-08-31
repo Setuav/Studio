@@ -178,14 +178,22 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
             pc = um.to_display(float(data["peak_current"]), "current")
             self._set_property_value(self.summary_table, "peak_current", f"{pc:.1f} {current_sym}")
         if "max_rpm" in data:
-            self._set_property_value(self.summary_table, "max_rpm", f"{float(data['max_rpm']):.0f} RPM")
+            self._set_property_value(
+                self.summary_table, "max_rpm", f"{float(data['max_rpm']):.0f} RPM"
+            )
         if "cruise_thrust" in data:
             ct = um.to_display(float(data["cruise_thrust"]), "force")
             self._set_property_value(self.summary_table, "cruise_thrust", f"{ct:.2f} {force_sym}")
         if "cruise_efficiency" in data:
-            self._set_property_value(self.summary_table, "cruise_efficiency", f"{float(data['cruise_efficiency']) * 100:.1f} %")
+            self._set_property_value(
+                self.summary_table,
+                "cruise_efficiency",
+                f"{float(data['cruise_efficiency']) * 100:.1f} %",
+            )
         if "endurance_min" in data:
-            self._set_property_value(self.summary_table, "endurance", f"{float(data['endurance_min']):.1f} min")
+            self._set_property_value(
+                self.summary_table, "endurance", f"{float(data['endurance_min']):.1f} min"
+            )
 
     @staticmethod
     def _best_efficiency_row(rows: list[dict[str, Any]]) -> int:

@@ -51,13 +51,16 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
         )
         self._loading = False
         self._pending_before: dict[str, Any] | None = None
-        self._commit_scheduled = False
+        self._commit_timer = QTimer(self)
+        self._commit_timer.setSingleShot(True)
+        self._commit_timer.timeout.connect(self._commit_pending)
+        self.destroyed.connect(self._commit_timer.stop)
         self._section_icons: list[tuple[QLabel, str]] = []
 
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(0, 0, 0, 0)
 
-        content = QWidget(self)
+        content = QWidget()
         self._content_layout = QVBoxLayout(content)
         self._content_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self._content_layout.setContentsMargins(6, 6, 6, 8)
@@ -89,7 +92,7 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
             set_label_icon(label, icon_name)
 
     def _create_section(self, title: str, icon_name: str) -> QVBoxLayout:
-        section = QWidget(self)
+        section = QWidget()
         section.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Maximum,
@@ -151,7 +154,7 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
 
     def _create_cg_section(self) -> None:
         layout = self._create_section("Local Center of Gravity", "fa6s.crosshairs")
-        self.cg_table = QTableWidget(1, 3, self)
+        self.cg_table = QTableWidget(1, 3)
         self.cg_table.setHorizontalHeaderLabels(["X", "Y", "Z"])
         self.cg_table.setVerticalHeaderLabels(["Position"])
         self.cg_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
@@ -369,12 +372,10 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
             )
 
         change()
-        if not self._commit_scheduled:
-            self._commit_scheduled = True
-            QTimer.singleShot(0, self._commit_pending)
+        self._commit_timer.start(0)
 
     def _commit_pending(self) -> None:
-        self._commit_scheduled = False
+        self._commit_timer.stop()
         component = self._component
         before = self._pending_before
         if component is None or before is None:

@@ -69,7 +69,8 @@ class ConfigurationToolBar(QToolBar):
     def _on_project_changed(self, project) -> None:
         if project is not None:
             self._manager = project.get_configuration_manager()
-            self._manager.add_change_listener(self._refresh_combo)
+            if self._manager is not None:
+                self._manager.add_change_listener(self._refresh_combo)
         else:
             self._manager = None
         self._refresh_combo()
@@ -77,7 +78,8 @@ class ConfigurationToolBar(QToolBar):
     def _on_project_content_changed(self, project) -> None:
         if project is not None:
             self._manager = project.get_configuration_manager()
-            self._manager.add_change_listener(self._refresh_combo)
+            if self._manager is not None:
+                self._manager.add_change_listener(self._refresh_combo)
         self._refresh_combo()
 
     def _refresh_combo(self) -> None:
@@ -111,9 +113,7 @@ class ConfigurationToolBar(QToolBar):
             # Separator and management actions
             self.config_combo.insertSeparator(self.config_combo.count())
             self.config_combo.addItem(get_icon("add"), "New Configuration…", "__new__")
-            self.config_combo.addItem(
-                get_icon("settings"), "Manage Configurations…", "__manage__"
-            )
+            self.config_combo.addItem(get_icon("settings"), "Manage Configurations…", "__manage__")
 
             self.config_combo.setCurrentIndex(active_idx)
             self.config_combo.setEnabled(True)
@@ -160,6 +160,8 @@ class ConfigurationToolBar(QToolBar):
             data = dlg.get_data()
 
             def _apply() -> None:
+                if self._api.current_project is None:
+                    return
                 pdata = self._api.current_project.data
                 pdata.setdefault("constraints", []).append(data)
 

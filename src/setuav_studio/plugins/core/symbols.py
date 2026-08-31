@@ -87,12 +87,14 @@ def get_available_symbols_metadata(
     for k, v in raw_params.items():
         curr_val = context.get(k, v)
         unit = v.get("unit", "") if isinstance(v, dict) else ""
-        constants_list.append({
-            "key": k,
-            "value": curr_val,
-            "unit": unit,
-            "expression": f"{k}",
-        })
+        constants_list.append(
+            {
+                "key": k,
+                "value": curr_val,
+                "unit": unit,
+                "expression": f"{k}",
+            }
+        )
 
     components = project_data.get("components", [])
     if isinstance(components, list):
@@ -107,18 +109,22 @@ def get_available_symbols_metadata(
             if model is not None and hasattr(model, "get_exposed_properties"):
                 for pkey, pval in model.get_exposed_properties().items():
                     if isinstance(pval, (int, float, str, bool)):
-                        props.append({
-                            "key": pkey,
-                            "value": pval,
-                            "expression": f"{cid}.{pkey}",
-                        })
+                        props.append(
+                            {
+                                "key": pkey,
+                                "value": pval,
+                                "expression": f"{cid}.{pkey}",
+                            }
+                        )
 
-            components_list.append({
-                "id": cid,
-                "name": cname,
-                "type": comp.get("type", ""),
-                "properties": props,
-            })
+            components_list.append(
+                {
+                    "id": cid,
+                    "name": cname,
+                    "type": comp.get("type", ""),
+                    "properties": props,
+                }
+            )
 
     return {
         "constants": constants_list,

@@ -37,7 +37,7 @@
               "tag": "main",
               "loft": {
                 "method": "smooth",
-                "parameterization": "chord_length",
+                "parameterization": "centripetal",
                 "profile_correspondence": "cardinal_quadrants"
               },
               "sections": [
@@ -1397,8 +1397,8 @@
       "transform": {
         "position": {
           "x": 645.0,
-          "y": 40.0,
-          "z": 55.0
+          "y": 38.0,
+          "z": 58.0
         },
         "rotation": {
           "roll": 40.0,
@@ -1427,7 +1427,7 @@
             },
             {
               "position": {
-                "x": 65.52820969989904,
+                "x": 58.996412255372086,
                 "y": 200.4848003542364,
                 "z": 0.0
               },
@@ -1445,8 +1445,7 @@
             "length": 20.0,
             "offset_x": 0.0
           },
-          "sweep_curvature": 0.0,
-          "sweep_location": 1.0
+          "sweep_curvature": 0.0
         }
       },
       "mass": 85.0,
@@ -1483,13 +1482,12 @@
           "type": "ruddervator",
           "span_start": 22.2,
           "span_end": 177.5,
-          "chord": 48.5,
+          "chord": 49.6,
           "deflection": 0.0,
           "hinge_sweep": 1.0,
           "chord_fraction": 0.303,
           "eta_start": 0.1107,
-          "eta_end": 0.8855,
-          "sizing_mode": "ratio"
+          "eta_end": 0.8855
         }
       }
     },

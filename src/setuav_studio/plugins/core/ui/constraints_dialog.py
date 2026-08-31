@@ -204,12 +204,20 @@ class ManageConstraintsDialog(QDialog):
 
         # Table
         self.table = QTableWidget(0, 5, self)
-        self.table.setHorizontalHeaderLabels(["Status", "Name", "Expression", "Severity", "Enabled"])
-        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.setHorizontalHeaderLabels(
+            ["Status", "Name", "Expression", "Severity", "Enabled"]
+        )
+        self.table.horizontalHeader().setSectionResizeMode(
+            0, QHeaderView.ResizeMode.ResizeToContents
+        )
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
         self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(
+            3, QHeaderView.ResizeMode.ResizeToContents
+        )
+        self.table.horizontalHeader().setSectionResizeMode(
+            4, QHeaderView.ResizeMode.ResizeToContents
+        )
         self.table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         self.table.setWordWrap(True)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -284,7 +292,9 @@ class ManageConstraintsDialog(QDialog):
                 color = status_color("success")
 
             status_item = QTableWidgetItem(status_text)
-            status_item.setForeground(Qt.GlobalColor.white if color == "" else Qt.GlobalColor.yellow)
+            status_item.setForeground(
+                Qt.GlobalColor.white if color == "" else Qt.GlobalColor.yellow
+            )
             status_item.setData(Qt.ItemDataRole.UserRole, cid)
             status_item.setFlags(status_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
 

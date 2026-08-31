@@ -41,13 +41,15 @@ class BatteryModel(BaseComponentModel):
 
     def get_exposed_properties(self) -> dict[str, Any]:
         props = super().get_exposed_properties()
-        props.update({
-            "capacity": self.capacity,
-            "voltage": self.voltage,
-            "nominal_voltage": self.nominal_voltage,
-            "cell_count": self.cell_count,
-            "internal_resistance": self.internal_resistance,
-            "max_discharge": self.max_discharge,
-            "energy_wh": self.energy_wh,
-        })
+        props.update(
+            {
+                "capacity": self.capacity,
+                "voltage": self.voltage,
+                "nominal_voltage": self.nominal_voltage,
+                "cell_count": self.cell_count,
+                "internal_resistance": self.internal_resistance,
+                "max_discharge": self.max_discharge,
+                "energy_wh": self.energy_wh,
+            }
+        )
         return props

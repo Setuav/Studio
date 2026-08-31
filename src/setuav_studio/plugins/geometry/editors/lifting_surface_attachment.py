@@ -147,7 +147,9 @@ class AttachmentMixin:
             vals_rot.append(float(w.value()) if hasattr(w, "value") else 0.0)
 
         val_str = str(value).strip() if value is not None else ""
-        is_expr = val_str.startswith("=") or not val_str.replace(".", "", 1).replace("-", "", 1).isdigit()
+        is_expr = (
+            val_str.startswith("=") or not val_str.replace(".", "", 1).replace("-", "", 1).isdigit()
+        )
 
         def change() -> None:
             tf = self._component.get("transform")

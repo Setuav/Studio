@@ -93,8 +93,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
 
     result = unittest.TextTestRunner(verbosity=2 if args.verbose else 1).run(load_suite(args.suite))
-    return 0 if result.wasSuccessful() else 1
+    code = 0 if result.wasSuccessful() else 1
+    os._exit(code)
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    main()

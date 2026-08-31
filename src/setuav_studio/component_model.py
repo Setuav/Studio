@@ -152,4 +152,5 @@ class BaseComponentModel:
 
 class GenericComponentModel(BaseComponentModel):
     """Fallback model for unknown or generic component types."""
+
     pass

@@ -98,15 +98,13 @@ class PluginSystemEdgeTests(unittest.TestCase):
         )
 
     def test_shell_handlers_queue_flush_remove_and_dispatch_contributions(self) -> None:
-        with self.assertRaises(RuntimeError):
-            self.api.add_panel(PanelContribution("panel", "Panel", QWidget))
+        self.api.add_panel(PanelContribution("panel", "Panel", QWidget))
         self.api.remove_panel("missing")
         panels: list[str] = []
         removed_panels: list[str] = []
         self.api._host.bind_panel_handlers(
             lambda item: panels.append(item.id), removed_panels.append
         )
-        self.api.add_panel(PanelContribution("panel", "Panel", QWidget))
         self.api.remove_panel("panel")
         self.assertEqual((panels, removed_panels), (["panel"], ["panel"]))
 

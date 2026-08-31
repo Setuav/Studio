@@ -37,6 +37,11 @@ _GEOMETRY_COMPONENT_ICONS = {
 class _ProjectExplorerBranchStyle(QProxyStyle):
     """Draw classic dotted tree branches with square expand controls."""
 
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__()
+        if parent is not None:
+            self.setParent(parent)
+
     def sizeFromContents(self, contents_type, option, size, widget=None) -> QSize:
         result = super().sizeFromContents(contents_type, option, size, widget)
         if contents_type == QStyle.ContentsType.CT_ItemViewItem:
@@ -189,11 +194,11 @@ class ProjectExplorer(QTreeWidget):
         )
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.setAlternatingRowColors(False)
-        self.setAnimated(True)
+        self.setAnimated(False)
         self.setIndentation(20)
         self.setRootIsDecorated(True)
         self.setUniformRowHeights(True)
-        self._branch_style = _ProjectExplorerBranchStyle()
+        self._branch_style = _ProjectExplorerBranchStyle(self)
         self.setStyle(self._branch_style)
 
         self.currentItemChanged.connect(self._publish_selection)
@@ -881,7 +886,9 @@ class ProjectExplorer(QTreeWidget):
         self.setCurrentItem(item)
         can_edit = self._can_edit_project()
 
-        if item is self._parameters_group_item or (item and item.text(0) in ("Constants", "Equations")):
+        if item is self._parameters_group_item or (
+            item and item.text(0) in ("Constants", "Equations")
+        ):
             self._open_parameters_group_menu(item, position, can_edit)
             return
 
@@ -900,7 +907,9 @@ class ProjectExplorer(QTreeWidget):
 
         self._open_default_context_menu(item, position, can_edit)
 
-    def _open_parameters_group_menu(self, item: QTreeWidgetItem, position: QPoint, can_edit: bool) -> None:
+    def _open_parameters_group_menu(
+        self, item: QTreeWidgetItem, position: QPoint, can_edit: bool
+    ) -> None:
         menu = QMenu(self)
         is_const = item.text(0) == "Constants"
         action_label = "Add Constant…" if is_const else "Add Parameter…"
@@ -955,7 +964,9 @@ class ProjectExplorer(QTreeWidget):
         elif chosen is del_act:
             self._delete_item(item)
 
-    def _open_default_context_menu(self, item: QTreeWidgetItem, position: QPoint, can_edit: bool) -> None:
+    def _open_default_context_menu(
+        self, item: QTreeWidgetItem, position: QPoint, can_edit: bool
+    ) -> None:
         menu = QMenu(self)
         rename_action = menu.addAction(get_icon("edit"), "Rename")
         rename_action.setEnabled(can_edit)

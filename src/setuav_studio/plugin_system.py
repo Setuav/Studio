@@ -703,9 +703,7 @@ class StudioAPI:
 
         component_type = component.get("type")
         factory = (
-            self._component_models.get(component_type)
-            if isinstance(component_type, str)
-            else None
+            self._component_models.get(component_type) if isinstance(component_type, str) else None
         )
         if factory is not None:
             return factory(component)

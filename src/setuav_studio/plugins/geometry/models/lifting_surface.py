@@ -189,19 +189,21 @@ class LiftingSurfaceModel(BaseComponentModel):
 
     def get_exposed_properties(self) -> dict[str, Any]:
         props = super().get_exposed_properties()
-        props.update({
-            "planform_area": self.planform_area,
-            "wingspan": self.wingspan,
-            "aspect_ratio": self.aspect_ratio,
-            "taper_ratio": self.taper_ratio,
-            "root_chord": self.root_chord,
-            "tip_chord": self.tip_chord,
-            "average_chord": self.average_chord,
-            "mac": self.mac,
-            "sweep_angle": self.sweep_angle,
-            "dihedral_angle": self.dihedral_angle,
-            "twist": self.twist,
-        })
+        props.update(
+            {
+                "planform_area": self.planform_area,
+                "wingspan": self.wingspan,
+                "aspect_ratio": self.aspect_ratio,
+                "taper_ratio": self.taper_ratio,
+                "root_chord": self.root_chord,
+                "tip_chord": self.tip_chord,
+                "average_chord": self.average_chord,
+                "mac": self.mac,
+                "sweep_angle": self.sweep_angle,
+                "dihedral_angle": self.dihedral_angle,
+                "twist": self.twist,
+            }
+        )
         for i, sec in enumerate(self.sections):
             for sp_k, sp_v in sec.get_exposed_properties().items():
                 props[f"section_{i}_{sp_k}"] = sp_v

@@ -36,12 +36,14 @@ class MotorModel(BaseComponentModel):
 
     def get_exposed_properties(self) -> dict[str, Any]:
         props = super().get_exposed_properties()
-        props.update({
-            "kv": self.kv,
-            "max_power": self.max_power,
-            "max_thrust": self.max_thrust,
-            "max_current": self.max_current,
-            "no_load_current": self.no_load_current,
-            "resistance": self.resistance,
-        })
+        props.update(
+            {
+                "kv": self.kv,
+                "max_power": self.max_power,
+                "max_thrust": self.max_thrust,
+                "max_current": self.max_current,
+                "no_load_current": self.no_load_current,
+                "resistance": self.resistance,
+            }
+        )
         return props

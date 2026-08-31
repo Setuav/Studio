@@ -89,9 +89,11 @@ class PointMassModel(BaseComponentModel):
 
     def get_exposed_properties(self) -> dict[str, Any]:
         props = super().get_exposed_properties()
-        props.update({
-            "cg_x": self.cg_x,
-            "cg_y": self.cg_y,
-            "cg_z": self.cg_z,
-        })
+        props.update(
+            {
+                "cg_x": self.cg_x,
+                "cg_y": self.cg_y,
+                "cg_z": self.cg_z,
+            }
+        )
         return props

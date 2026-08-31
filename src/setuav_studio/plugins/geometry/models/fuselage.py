@@ -82,7 +82,9 @@ class FuselageModel(BaseComponentModel):
         seg = segments[0] if isinstance(segments[0], dict) else {}
         sections = seg.get("sections", [])
         if isinstance(sections, list):
-            return [FuselageSectionModel(s, i) for i, s in enumerate(sections) if isinstance(s, dict)]
+            return [
+                FuselageSectionModel(s, i) for i, s in enumerate(sections) if isinstance(s, dict)
+            ]
         return []
 
     @property
@@ -129,13 +131,15 @@ class FuselageModel(BaseComponentModel):
 
     def get_exposed_properties(self) -> dict[str, Any]:
         props = super().get_exposed_properties()
-        props.update({
-            "length": self.length,
-            "width": self.width,
-            "height": self.height,
-            "max_width": self.max_width,
-            "max_height": self.max_height,
-        })
+        props.update(
+            {
+                "length": self.length,
+                "width": self.width,
+                "height": self.height,
+                "max_width": self.max_width,
+                "max_height": self.max_height,
+            }
+        )
         for i, sec in enumerate(self.sections):
             for sp_k, sp_v in sec.get_exposed_properties().items():
                 props[f"section_{i}_{sp_k}"] = sp_v

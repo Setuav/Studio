@@ -28,10 +28,12 @@ class ESCModel(BaseComponentModel):
 
     def get_exposed_properties(self) -> dict[str, Any]:
         props = super().get_exposed_properties()
-        props.update({
-            "max_current": self.max_current,
-            "continuous_current": self.continuous_current,
-            "max_voltage": self.max_voltage,
-            "resistance": self.resistance,
-        })
+        props.update(
+            {
+                "max_current": self.max_current,
+                "continuous_current": self.continuous_current,
+                "max_voltage": self.max_voltage,
+                "resistance": self.resistance,
+            }
+        )
         return props

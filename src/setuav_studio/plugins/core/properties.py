@@ -65,6 +65,7 @@ class PropertiesPanel(QWidget):
     def _replace_widget(self, widget: QWidget | None) -> None:
         if self._current_widget is not None:
             self._layout.removeWidget(self._current_widget)
+            self._current_widget.setParent(None)
             self._current_widget.deleteLater()
         self._current_widget = widget
         if widget is not None:

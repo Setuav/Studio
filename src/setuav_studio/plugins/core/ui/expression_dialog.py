@@ -171,7 +171,7 @@ class ExpressionLineEdit(QLineEdit):
             props = self._component_props.get(comp_part) or self._component_props.get(comp_clean)
             if props:
                 prefix_match = f"{sec_part}_"
-                sec_subprops = [p[len(prefix_match):] for p in props if p.startswith(prefix_match)]
+                sec_subprops = [p[len(prefix_match) :] for p in props if p.startswith(prefix_match)]
                 self._update_completer_model(sec_subprops)
                 self._completer.setCompletionPrefix(prop_prefix)
                 return
@@ -302,9 +302,13 @@ class AdvancedExpressionDialog(QDialog):
         # Tab 2: Project Constants
         self.params_table = QTableWidget(0, 3, self)
         self.params_table.setHorizontalHeaderLabels(["Constant", "Current Value", "Unit"])
-        self.params_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        self.params_table.horizontalHeader().setSectionResizeMode(
+            0, QHeaderView.ResizeMode.Interactive
+        )
         self.params_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        self.params_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        self.params_table.horizontalHeader().setSectionResizeMode(
+            2, QHeaderView.ResizeMode.ResizeToContents
+        )
         self.params_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.params_table.doubleClicked.connect(self._insert_selected_parameter)
         self._populate_parameters_table()
@@ -313,7 +317,9 @@ class AdvancedExpressionDialog(QDialog):
         # Tab 3: Math Functions
         self.funcs_table = QTableWidget(0, 2, self)
         self.funcs_table.setHorizontalHeaderLabels(["Function / Constant", "Description"])
-        self.funcs_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.funcs_table.horizontalHeader().setSectionResizeMode(
+            0, QHeaderView.ResizeMode.ResizeToContents
+        )
         self.funcs_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.funcs_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.funcs_table.doubleClicked.connect(self._insert_selected_function)

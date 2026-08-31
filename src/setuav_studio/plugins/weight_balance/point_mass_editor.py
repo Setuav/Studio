@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import weakref
 from typing import Any
 
 from PySide6.QtCore import Qt
@@ -42,7 +43,7 @@ class PointMassEditor(PropertyTableMixin, QWidget):
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
-        content = QWidget(self)
+        content = QWidget()
         self._content_layout = QVBoxLayout(content)
         self._content_layout.setContentsMargins(6, 6, 6, 8)
         self._content_layout.setSpacing(10)
@@ -58,7 +59,7 @@ class PointMassEditor(PropertyTableMixin, QWidget):
         self._load_component()
 
     def _create_section(self, title: str, icon_name: str) -> QVBoxLayout:
-        section = QWidget(self)
+        section = QWidget()
         section.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Maximum,
@@ -86,12 +87,11 @@ class PointMassEditor(PropertyTableMixin, QWidget):
     def _create_mass_section(self) -> None:
         layout = self._create_section("Mass", "fa6s.weight-scale")
         self.mass_table = self._property_table([("mass", "Mass")])
-        self.mass_table.cellChanged.connect(self._mass_changed)
         layout.addWidget(self.mass_table)
 
     def _create_transform_section(self) -> None:
         layout = self._create_section("Transform", "mdi6.axis-arrow")
-        self.transform_table = QTableWidget(2, 3, self)
+        self.transform_table = QTableWidget(2, 3)
         self.transform_table.setHorizontalHeaderLabels(["X", "Y", "Z"])
         self.transform_table.setVerticalHeaderLabels(["Position", "Rotation"])
         self.transform_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -131,7 +131,6 @@ class PointMassEditor(PropertyTableMixin, QWidget):
 
     def _spin(
         self,
-        *,
         row: int,
         column: int,
         minimum: float,
@@ -140,6 +139,7 @@ class PointMassEditor(PropertyTableMixin, QWidget):
         suffix: str,
         label: str = "",
     ) -> Any:
+        self_ref = weakref.ref(self)
         return set_table_spinbox(
             self.transform_table,
             row,
@@ -151,7 +151,9 @@ class PointMassEditor(PropertyTableMixin, QWidget):
             decimals=2,
             quantity=quantity,
             suffix=suffix,
-            on_changed=lambda _value: self._transform_changed(),
+            on_changed=lambda _value: (
+                self_ref()._transform_changed() if self_ref() is not None else None
+            ),
             api=self._api,
             label=label,
         )
@@ -217,13 +219,6 @@ class PointMassEditor(PropertyTableMixin, QWidget):
                 self._component.setdefault("parameters", {})["mass"] = num_val
 
         self._api.edit_component(self._component, "Edit point mass", change)
-
-    def _mass_changed(self, row: int, column: int) -> None:
-        if self._loading or column != 1:
-            return
-        item = self.mass_table.item(row, column)
-        if item is not None:
-            self._on_mass_expression_changed(item.text())
 
     def _transform_changed(self) -> None:
         if self._loading:
