@@ -245,7 +245,7 @@ class AerodynamicsPluginTests(unittest.TestCase):
         dock = AeroResultsDock(self.api)
         dock.display_results(result)
 
-        # In SI / engineering: force is N, velocity is m/s
+        # In SI: force is N, velocity is m/s, length is mm, area is dm2
         lift_col = 14
         drag_col = 15
         self.assertEqual(dock.detail_table.horizontalHeaderItem(lift_col).text(), "Lift (N)")
@@ -253,17 +253,26 @@ class AerodynamicsPluginTests(unittest.TestCase):
         self.assertEqual(dock.detail_table.item(0, lift_col).text(), "50.000")
         self.assertEqual(dock.detail_table.item(0, drag_col).text(), "2.500")
 
-        # Change unit to lbf
+        from setuav_studio.plugins.aerodynamics.results_dock import SUMMARY_ROWS
+
+        ref_span_row = next(r for r, (k, _) in enumerate(SUMMARY_ROWS) if k == "ref_span")
+        # In base mm: 1.2 m span is 1200 mm
+        self.assertIn("1200.000 mm", dock.summary_table.item(ref_span_row, 1).text())
+
+        # Change unit to lbf and m
         um.set_display_unit("force", "lbf")
+        um.set_display_unit("length", "m")
         um.units_changed.emit()
 
         self.assertEqual(dock.detail_table.horizontalHeaderItem(lift_col).text(), "Lift (lbf)")
         self.assertEqual(dock.detail_table.horizontalHeaderItem(drag_col).text(), "Drag (lbf)")
         expected_lift = f"{um.to_display(50.0, 'force'):.3f}"
         self.assertEqual(dock.detail_table.item(0, lift_col).text(), expected_lift)
+        self.assertIn("1.200 m", dock.summary_table.item(ref_span_row, 1).text())
 
         # Restore default unit
         um.set_display_unit("force", "N")
+        um.set_display_unit("length", "mm")
         um.units_changed.emit()
         dock.close()
 

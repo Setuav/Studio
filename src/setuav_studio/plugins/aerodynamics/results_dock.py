@@ -340,14 +340,14 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
         len_sym = um.get_unit_symbol("length")
 
         disp_velocity = um.to_display(cond.velocity, "velocity")
-        disp_altitude = um.to_display(cond.altitude, "length")
+        disp_altitude = um.to_display(cond.altitude * 1000.0, "length")
         disp_q = um.to_display(result.dynamic_pressure, "pressure")
-        disp_span = um.to_display(ref.b_ref, "length")
-        disp_area = um.to_display(ref.s_ref, "area")
-        disp_mac = um.to_display(ref.c_ref, "length")
-        disp_cg_x = um.to_display(ref.xyz_ref[0], "length")
-        disp_cg_y = um.to_display(ref.xyz_ref[1], "length")
-        disp_cg_z = um.to_display(ref.xyz_ref[2], "length")
+        disp_span = um.to_display(ref.b_ref * 1000.0, "length")
+        disp_area = um.to_display(ref.s_ref * 100.0, "area")
+        disp_mac = um.to_display(ref.c_ref * 1000.0, "length")
+        disp_cg_x = um.to_display(ref.xyz_ref[0] * 1000.0, "length")
+        disp_cg_y = um.to_display(ref.xyz_ref[1] * 1000.0, "length")
+        disp_cg_z = um.to_display(ref.xyz_ref[2] * 1000.0, "length")
 
         metrics = {
             "solver_engine": result.engine_name,
