@@ -74,11 +74,21 @@ class AttachmentMixin:
         rot = transform.get("rotation")
         rot = rot if isinstance(rot, dict) else {}
 
+        params = self._component.get("parameters")
+        params = params if isinstance(params, dict) else {}
+        exprs = params.get("transform_expressions")
+        exprs = exprs if isinstance(exprs, dict) else {}
+
         axes = ("x", "y", "z")
         rot_keys = (("roll", "x"), ("pitch", "y"), ("yaw", "z"))
 
         for col, axis in enumerate(axes):
-            raw_pos = pos.get(f"{axis}_expression") or float(pos.get(axis, 0.0))
+            raw_pos = (
+                exprs.get(f"pos.{axis}")
+                or exprs.get(f"position.{axis}")
+                or pos.get(f"{axis}_expression")
+                or float(pos.get(axis, 0.0))
+            )
             set_table_spinbox(
                 self.attachment_table,
                 0,
@@ -95,7 +105,15 @@ class AttachmentMixin:
 
         for col, (rk1, rk2) in enumerate(rot_keys):
             rot_val = float(rot.get(rk1) if rk1 in rot else rot.get(rk2, 0.0))
-            raw_rot = rot.get(f"{rk1}_expression") or rot.get(f"{rk2}_expression") or rot_val
+            raw_rot = (
+                exprs.get(f"rot.{rk1}")
+                or exprs.get(f"rot.{rk2}")
+                or exprs.get(f"rotation.{rk1}")
+                or exprs.get(f"rotation.{rk2}")
+                or rot.get(f"{rk1}_expression")
+                or rot.get(f"{rk2}_expression")
+                or rot_val
+            )
             set_table_spinbox(
                 self.attachment_table,
                 1,

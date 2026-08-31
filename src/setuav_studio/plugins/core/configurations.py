@@ -504,5 +504,25 @@ class ConfigurationManager:
             comp_copy["parameters"] = self.resolver.evaluate_component_parameters(
                 comp_copy["parameters"], effective_params
             )
+            # Apply evaluated transform expressions to comp_copy["transform"]
+            tf_exprs = comp_copy["parameters"].get("transform_expressions")
+            if isinstance(tf_exprs, dict):
+                tf = comp_copy.setdefault("transform", {})
+                pos_dict = tf.setdefault("position", {})
+                rot_dict = tf.setdefault("rotation", {})
+                for k, v in tf_exprs.items():
+                    if isinstance(v, (int, float)):
+                        if k.startswith("pos."):
+                            pos_dict[k[4:]] = float(v)
+                        elif k.startswith("position."):
+                            pos_dict[k[9:]] = float(v)
+                        elif k.startswith("rot."):
+                            rot_dict[k[4:]] = float(v)
+                        elif k.startswith("rotation."):
+                            rot_dict[k[9:]] = float(v)
+            # Apply evaluated mass_expression to comp_copy["mass"]
+            mass_expr = comp_copy["parameters"].get("mass_expression")
+            if isinstance(mass_expr, (int, float)):
+                comp_copy["mass"] = float(mass_expr)
 
         return comp_copy
