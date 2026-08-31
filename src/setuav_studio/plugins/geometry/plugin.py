@@ -7,6 +7,7 @@ from setuav_studio_sdk import (
     SettingsPageContribution,
     StudioAPI,
     WorkspaceContribution,
+    WorkspaceLayoutContext,
 )
 
 from .creation import GeometryCreationController
@@ -24,8 +25,21 @@ from .settings import (
 from .workspace import ViewerWorkspace
 
 
+def _apply_design_workspace_layout(layout: WorkspaceLayoutContext) -> None:
+    """Set the default Design workspace arrangement owned by this plugin."""
+    layout.split("project.explorer", "studio.viewer.opengl")
+    layout.split("studio.viewer.opengl", "studio.properties")
+    layout.show("project.explorer", "studio.viewer.opengl", "studio.properties")
+    layout.raise_dock("studio.viewer.opengl")
+    layout.resize(
+        ("project.explorer", "studio.viewer.opengl", "studio.properties"),
+        (240, 680, 270),
+    )
+
+
 class GeometryPlugin:
     id = "org.setuav.studio.geometry"
+    priority = 80
     provides: ClassVar[dict[str, str]] = {"org.setuav.core": "1.0.0"}
 
     def activate(self, api: StudioAPI) -> None:
@@ -39,6 +53,7 @@ class GeometryPlugin:
                 id="studio.workspace.design",
                 title="Design",
                 order=0,
+                default_layout=_apply_design_workspace_layout,
             )
         )
         api.add_panel(
@@ -71,7 +86,23 @@ class GeometryPlugin:
             )
         )
 
-        # 2. Component Editors
+        # 2. Component Models
+        from .models import ControlSurfaceModel, FuselageModel, LiftingSurfaceModel
+
+        api.register_component_model(
+            "org.setuav.core:lifting-surface",
+            LiftingSurfaceModel,
+        )
+        api.register_component_model(
+            "org.setuav.core:fuselage",
+            FuselageModel,
+        )
+        api.register_component_model(
+            "org.setuav.core:control-surface",
+            ControlSurfaceModel,
+        )
+
+        # 3. Component Editors
         api.register_component_editor(
             "org.setuav.core:fuselage",
             lambda component: FuselageEditor(api, component),
@@ -85,7 +116,7 @@ class GeometryPlugin:
             lambda component: ControlSurfaceEditor(api, component),
         )
 
-        # 3. Component Icons
+        # 4. Component Icons
         api.register_component_icon(
             "org.setuav.core:fuselage",
             "geometry_add_fuselage",
@@ -99,7 +130,7 @@ class GeometryPlugin:
             "geometry_add_control_surface",
         )
 
-        # 4. Geometry Providers
+        # 5. Geometry Providers
         api.register_geometry_provider(
             "org.setuav.core:fuselage",
             build_fuselage_geometry,
@@ -114,6 +145,9 @@ class GeometryPlugin:
         if controller is not None:
             for contribution_id in controller.toolbar_ids:
                 api.remove_toolbar_item(contribution_id)
+        api.remove_component_model("org.setuav.core:lifting-surface")
+        api.remove_component_model("org.setuav.core:fuselage")
+        api.remove_component_model("org.setuav.core:control-surface")
         api.remove_geometry_provider("org.setuav.core:fuselage")
         api.remove_geometry_provider("org.setuav.core:lifting-surface")
         api.remove_component_icon("org.setuav.core:fuselage")

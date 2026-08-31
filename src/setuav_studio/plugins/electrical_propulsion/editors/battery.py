@@ -140,7 +140,7 @@ class BatteryEditor(PropertyTableMixin, QWidget):
             [
                 ("name", "Name"),
                 ("type", "Type"),
-                ("mass", "Total Pack Mass (g) [Calculated]"),
+                ("mass", "Total Pack Mass [Calculated]"),
                 ("manufacturer", "Manufacturer"),
                 ("model", "Model"),
             ]
@@ -154,10 +154,10 @@ class BatteryEditor(PropertyTableMixin, QWidget):
             [
                 ("cell_count", "Series Count (S)"),
                 ("parallel_count", "Parallel Count (P)"),
-                ("capacity", "Pack Capacity (mAh)"),
-                ("nominal_voltage", "Pack Nominal Voltage (V)"),
-                ("internal_resistance", "Pack Internal Resistance (Ω)"),
-                ("packaging_mass", "Packaging & Wiring Mass (g)"),
+                ("capacity", "Pack Capacity"),
+                ("nominal_voltage", "Pack Nominal Voltage"),
+                ("internal_resistance", "Pack Internal Resistance"),
+                ("packaging_mass", "Packaging & Wiring Mass"),
                 ("max_discharge", "Continuous Discharge (C)"),
                 ("burst_discharge", "Burst Discharge (C)"),
             ]
@@ -170,12 +170,12 @@ class BatteryEditor(PropertyTableMixin, QWidget):
         self.cell_table = self._property_table(
             [
                 ("chemistry", "Cell Chemistry"),
-                ("cell_capacity", "Cell Capacity (mAh)"),
-                ("cell_nominal_voltage", "Cell Nominal Voltage (V)"),
-                ("cell_max_voltage", "Cell Max Voltage (V)"),
-                ("cell_min_voltage", "Cell Cut-Off Voltage (V)"),
-                ("cell_resistance", "Cell Resistance (Ω)"),
-                ("cell_mass", "Cell Mass (g)"),
+                ("cell_capacity", "Cell Capacity"),
+                ("cell_nominal_voltage", "Cell Nominal Voltage"),
+                ("cell_max_voltage", "Cell Max Voltage"),
+                ("cell_min_voltage", "Cell Cut-Off Voltage"),
+                ("cell_resistance", "Cell Resistance"),
+                ("cell_mass", "Cell Mass"),
             ]
         )
         self.cell_table.cellChanged.connect(self._update_cell_param)

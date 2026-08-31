@@ -58,8 +58,11 @@ def _project_items(project: Any) -> dict[str, dict[str, Any]] | None:
     components = project_data.get("components") if isinstance(project_data, dict) else None
     if not isinstance(components, list):
         return None
+    from setuav_studio.plugins.core.configurations import ConfigurationManager
+
+    cfg_mgr = ConfigurationManager(project_data)
     return {
-        item["id"]: item
+        item["id"]: cfg_mgr.get_resolved_component(item)
         for item in components
         if isinstance(item, dict) and isinstance(item.get("id"), str)
     }
@@ -261,6 +264,7 @@ def _transform_loft(loft: LoftGeometry, matrix: Matrix4, component_id: str) -> L
         ),
         color=loft.color,
         interpolation=loft.interpolation,
+        parameterization=loft.parameterization,
         station_spacing=loft.station_spacing,
         closed_ends=loft.closed_ends,
     )

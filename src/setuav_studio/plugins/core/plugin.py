@@ -4,6 +4,7 @@ from setuav_studio.plugins.core.envelope import EnvelopeEditor
 from setuav_studio.plugins.core.instance import InstanceEditor
 from setuav_studio.plugins.core.properties import PropertiesPanel
 from setuav_studio.plugins.core.transform import TransformEditor
+from setuav_studio.plugins.core.ui.parameters_panel import ProjectParametersPanel
 from setuav_studio.plugins.core.ui.project_explorer import ProjectExplorerPanel
 from setuav_studio_sdk import (
     ComponentTreeNodeContribution,
@@ -15,23 +16,24 @@ from setuav_studio_sdk import (
 
 class CorePlugin:
     id = "org.setuav.studio.core"
+    priority = 100
 
     _TOOLBAR_ITEMS = (
         ToolbarContribution(
-            id="core.open-project-file",
-            title="Open Project File…",
-            command="core.project.open-file",
-            icon="file_open",
+            id="core.new-project",
+            title="New Project…",
+            command="core.project.new",
+            icon="file_new",
             group="project",
-            order=10,
+            order=5,
         ),
         ToolbarContribution(
             id="core.open-project-folder",
-            title="Open Project Folder…",
+            title="Open Project…",
             command="core.project.open-folder",
             icon="folder_open",
             group="project",
-            order=20,
+            order=10,
         ),
         ToolbarContribution(
             id="core.save-project",
@@ -118,6 +120,22 @@ class CorePlugin:
                 icon="properties",
             )
         )
+        api.add_panel(
+            PanelContribution(
+                id="project.parameters",
+                title="Project Parameters",
+                factory=lambda: ProjectParametersPanel(api),
+                area=Qt.DockWidgetArea.RightDockWidgetArea,
+                workspace_id=[
+                    "studio.workspace.design",
+                    "studio.workspace.weight_balance",
+                    "studio.workspace.propulsion",
+                    "studio.workspace.aerodynamics",
+                    "studio.workspace.flight_performance",
+                ],
+                icon="settings",
+            )
+        )
 
     def deactivate(self, api: StudioAPI) -> None:
         for contribution in self._TOOLBAR_ITEMS:
@@ -128,6 +146,7 @@ class CorePlugin:
         api.remove_component_tree_provider("org.setuav.studio.core.transform")
         api.remove_panel("project.explorer")
         api.remove_panel("studio.properties")
+        api.remove_panel("project.parameters")
 
     @staticmethod
     def _transform_tree_nodes(

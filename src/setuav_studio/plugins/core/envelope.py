@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import weakref
 from typing import Any
 
 from PySide6.QtCore import Qt
@@ -56,7 +57,7 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(0, 0, 0, 0)
 
-        content = QWidget(self)
+        content = QWidget()
         self._content_layout = QVBoxLayout(content)
         self._content_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self._content_layout.setContentsMargins(6, 6, 6, 8)
@@ -83,7 +84,7 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
             set_label_icon(label, icon_name)
 
     def _create_section(self, title: str, icon_name: str) -> QVBoxLayout:
-        section = QWidget(self)
+        section = QWidget()
         section.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Maximum,
@@ -132,7 +133,7 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
 
     def _create_dimensions_section(self) -> None:
         layout = self._create_section("Dimensions", "fa6s.arrows-left-right")
-        self.dimensions_table = self._vector_table("Size (mm)")
+        self.dimensions_table = self._vector_table("Size")
         self.dimension_spins = {
             axis: self._set_vector_spin(self.dimensions_table, column, axis)
             for column, axis in enumerate(("x", "y", "z"))
@@ -141,7 +142,7 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
 
     def _create_offset_section(self) -> None:
         layout = self._create_section("Local Offset", "mdi6.axis-arrow")
-        self.offset_table = self._vector_table("Offset (mm)")
+        self.offset_table = self._vector_table("Offset")
         self.offset_spins = {
             axis: self._set_vector_spin(self.offset_table, column, axis)
             for column, axis in enumerate(("x", "y", "z"))
@@ -173,6 +174,7 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
         column: int,
         _axis: str,
     ) -> NumericSpinBox:
+        self_ref = weakref.ref(self)
         return set_table_spinbox(
             table,
             0,
@@ -183,7 +185,9 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
             step=1.0,
             decimals=3,
             suffix="mm",
-            on_changed=lambda _value: self._update_envelope(),
+            on_changed=lambda _value: (
+                self_ref()._update_envelope() if self_ref() is not None else None
+            ),
         )
 
     def _load_component(self, component: dict[str, Any]) -> None:

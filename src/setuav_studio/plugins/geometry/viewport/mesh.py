@@ -426,14 +426,19 @@ def _tessellated_loops(loft: LoftGeometry) -> list[tuple[Point3D, ...]]:
     spacing = loft.station_spacing
     if spacing <= 0.0:
         return sections
-    parameters = _section_parameters(sections)
+    param_mode = getattr(loft, "parameterization", "centripetal")
+    parameters = _section_parameters(sections, parameterization=param_mode)
     use_spline = loft.interpolation == "smooth" and len(sections) > 2
     splines = _build_splines(sections, parameters) if use_spline else None
+    centres = [
+        tuple(sum(point[axis] for point in section) / len(section) for axis in range(3))
+        for section in sections
+    ]
     result: list[tuple[Point3D, ...]] = []
     for gap in range(len(sections) - 1):
         result.append(sections[gap])
-        gap_length = parameters[gap + 1] - parameters[gap]
-        inserted = _station_count(gap_length, spacing)
+        phys_dist = math.dist(centres[gap], centres[gap + 1])
+        inserted = _station_count(phys_dist, spacing)
         for step in range(1, inserted + 1):
             fraction = step / (inserted + 1)
             if splines is None:
@@ -464,7 +469,13 @@ def _station_count(gap_length: float, spacing: float) -> int:
     return min(max(count, _MIN_STATIONS), _MAX_STATIONS)
 
 
-def _section_parameters(sections: list[tuple[Point3D, ...]]) -> list[float]:
+def _section_parameters(
+    sections: list[tuple[Point3D, ...]],
+    parameterization: str = "centripetal",
+) -> list[float]:
+    if parameterization == "uniform":
+        return [float(index) for index in range(len(sections))]
+
     centres = [
         tuple(sum(point[axis] for point in section) / len(section) for axis in range(3))
         for section in sections
@@ -472,9 +483,14 @@ def _section_parameters(sections: list[tuple[Point3D, ...]]) -> list[float]:
     distances = [math.dist(start, end) for start, end in pairwise(centres)]
     if any(distance < 1e-6 for distance in distances):
         return [float(index) for index in range(len(sections))]
+
     values = [0.0]
     for distance in distances:
-        values.append(values[-1] + distance)
+        if parameterization == "centripetal":
+            step = math.sqrt(max(distance, 1e-9))
+        else:  # "chord_length" / default
+            step = max(distance, 1e-9)
+        values.append(values[-1] + step)
     return values
 
 

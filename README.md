@@ -43,8 +43,7 @@ plugin architecture so design and analysis capabilities can evolve independently
 
 - Parametric fuselage, lifting-surface, and control-surface design.
 - Interactive OpenGL geometry viewer with selection and section editing.
-- Aerodynamic analysis, stability results, polar charts, airfoil tools, and a
-  native AeroSandbox VLM viewer.
+- Aerodynamic analysis, stability results, polar charts, and airfoil tools.
 - Electrical propulsion modeling and result visualization.
 - Flight-performance envelope analysis.
 - Weight-and-balance analysis with component-level mass properties.
@@ -55,7 +54,7 @@ plugin architecture so design and analysis capabilities can evolve independently
 
 Requires Python 3.11 or newer, [`uv`](https://docs.astral.sh/uv/) for locked
 dependency management, and a desktop environment supported by PySide6. The
-aerodynamics extra installs AeroSandbox and PyVista; these dependencies are
+aerodynamics extra installs AeroSandbox; these dependencies are
 included by `--all-extras` in the commands below.
 
 Clone the repository and install the locked runtime environment:

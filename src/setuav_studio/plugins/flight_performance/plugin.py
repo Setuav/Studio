@@ -12,6 +12,7 @@ from setuav_studio_sdk import (
     ProjectTreeNodeContribution,
     StudioAPI,
     WorkspaceContribution,
+    WorkspaceLayoutContext,
 )
 
 from .analysis_store import (
@@ -29,11 +30,34 @@ from .engine.models import FlightEnvelopeResult
 from .results_dock import PerformanceResultsDock
 
 
+def _apply_flight_performance_workspace_layout(layout: WorkspaceLayoutContext) -> None:
+    """Set the default Performance workspace arrangement owned by this plugin."""
+    layout.hide("studio.viewer.opengl", "studio.properties")
+    layout.split("project.explorer", "flight_performance.controls_dock")
+    layout.split("flight_performance.controls_dock", "flight_performance.results_dock")
+    layout.split("flight_performance.results_dock", "flight_performance.charts_dock")
+    layout.show(
+        "project.explorer",
+        "flight_performance.controls_dock",
+        "flight_performance.results_dock",
+        "flight_performance.charts_dock",
+    )
+    layout.resize(
+        (
+            "project.explorer",
+            "flight_performance.controls_dock",
+            "flight_performance.results_dock",
+            "flight_performance.charts_dock",
+        ),
+        (240, 220, 240, 490),
+    )
+
+
 class FlightPerformancePlugin:
     """Plugin providing coupled fixed-wing flight envelope, optimal speeds, climb, range, and endurance analysis."""
 
     id = "org.setuav.studio.flight_performance"
-    priority = 25
+    priority = 50
 
     def __init__(self) -> None:
         self._api: StudioAPI | None = None
@@ -53,6 +77,7 @@ class FlightPerformancePlugin:
                 id="studio.workspace.flight_performance",
                 order=25,
                 title="Performance",
+                default_layout=_apply_flight_performance_workspace_layout,
             )
         )
 

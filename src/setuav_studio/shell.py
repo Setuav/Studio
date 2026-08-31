@@ -22,10 +22,12 @@ from PySide6.QtWidgets import (
 
 from setuav_studio.plugin_system import PluginManager
 from setuav_studio.plugins.core.settings import SettingsDialog, StudioSettings
+from setuav_studio.plugins.core.ui.configuration_bar import ConfigurationToolBar
 from setuav_studio.project import (
     ProjectDocument,
     ProjectOpenError,
     ProjectSaveError,
+    create_project,
     open_project,
     save_project,
 )
@@ -117,8 +119,59 @@ def apply_runtime_validation(
     return "read_only"
 
 
+class _WorkspaceLayoutContext:
+    """Host implementation of the SDK workspace-layout protocol."""
+
+    def __init__(self, window: QMainWindow, workspace_id: str) -> None:
+        self._window = window
+        self.workspace_id = workspace_id
+
+    def show(self, *dock_ids: str) -> None:
+        for dock_id in dock_ids:
+            dock = self._window._dock(dock_id)
+            if dock is not None:
+                dock.show()
+
+    def hide(self, *dock_ids: str) -> None:
+        for dock_id in dock_ids:
+            dock = self._window._dock(dock_id)
+            if dock is not None:
+                dock.hide()
+
+    def split(
+        self,
+        first_dock_id: str,
+        second_dock_id: str,
+        orientation: str = "horizontal",
+    ) -> None:
+        first = self._window._dock(first_dock_id)
+        second = self._window._dock(second_dock_id)
+        if first is None or second is None:
+            return
+        direction = (
+            Qt.Orientation.Vertical
+            if orientation.casefold() == "vertical"
+            else Qt.Orientation.Horizontal
+        )
+        self._window.splitDockWidget(first, second, direction)
+
+    def resize(self, dock_ids: tuple[str, ...], sizes: tuple[int, ...]) -> None:
+        docks = tuple(
+            dock for dock_id in dock_ids if (dock := self._window._dock(dock_id)) is not None
+        )
+        self._window._resize_visible_docks(docks, list(sizes))
+
+    def raise_dock(self, dock_id: str) -> None:
+        dock = self._window._dock(dock_id)
+        if dock is not None:
+            dock.raise_()
+
+
 class MainWindow(QMainWindow):
-    _LAYOUT_VERSION = 10
+    # Bump this whenever the built-in workspace perspectives change. Existing
+    # user perspectives are discarded once so the new defaults take effect.
+    _LAYOUT_VERSION = 12
+    _LAYOUT_DEFAULTS_KEY = "workspace_layout_defaults_version"
 
     def __init__(self, api: StudioAPI) -> None:
         super().__init__()
@@ -154,6 +207,9 @@ class MainWindow(QMainWindow):
         self._workspace_toolbar.workspace_activated.connect(self._api.switch_workspace)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self._workspace_toolbar)
 
+        self._configuration_toolbar = ConfigurationToolBar(self._api, self)
+        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self._configuration_toolbar)
+
         self._host.bind_panel_handlers(self._add_panel, self._remove_panel)
         self._host.bind_workspace_handlers(
             self._add_workspace,
@@ -174,13 +230,12 @@ class MainWindow(QMainWindow):
         self._file_menu = self.menuBar().addMenu("&File")
         self._menus["file"] = self._file_menu
 
-        self._open_file_action = self._file_menu.addAction(
-            get_icon("file_open"), "Open Project File…"
-        )
-        self._open_file_action.triggered.connect(self._open_project_file)
+        self._new_project_action = self._file_menu.addAction(get_icon("file_new"), "New Project…")
+        self._new_project_action.setShortcut(QKeySequence.StandardKey.New)
+        self._new_project_action.triggered.connect(self._new_project)
 
         self._open_folder_action = self._file_menu.addAction(
-            get_icon("folder_open"), "Open Project Folder…"
+            get_icon("folder_open"), "Open Project…"
         )
         self._open_folder_action.triggered.connect(self._open_project_folder)
 
@@ -224,7 +279,7 @@ class MainWindow(QMainWindow):
 
         self._command_actions.update(
             {
-                "core.project.open-file": self._open_file_action,
+                "core.project.new": self._new_project_action,
                 "core.project.open-folder": self._open_folder_action,
                 "core.project.save": self._save_action,
                 "core.project.save-as": self._save_as_action,
@@ -290,6 +345,12 @@ class MainWindow(QMainWindow):
 
         self._tools_menu = self.menuBar().addMenu("&Tools")
         self._menus["tools"] = self._tools_menu
+        self._constraints_action = self._tools_menu.addAction(
+            get_icon("settings"),
+            "Design Constraints…",
+            self._open_constraints,
+        )
+        self._command_actions["core.constraints.manage"] = self._constraints_action
         self._plugin_manager_action = self._tools_menu.addAction("Plugin Manager…")
         self._plugin_manager_action.setEnabled(False)
         self._plugin_manager_action.triggered.connect(self._open_plugin_manager)
@@ -361,7 +422,7 @@ class MainWindow(QMainWindow):
     def _update_all_icons(self) -> None:
         try:
             action_icons = {
-                "_open_file_action": "file_open",
+                "_new_project_action": "file_new",
                 "_open_folder_action": "folder_open",
                 "_recent_menu": "project_folder",
                 "_save_action": "save",
@@ -484,6 +545,7 @@ class MainWindow(QMainWindow):
     def restore_workspace_layout(self) -> None:
         """Restore the active dock perspective after the window is exposed."""
         settings = QSettings()
+        self._reset_outdated_workspace_perspectives(settings)
         active_workspace = settings.value("active_workspace")
         if active_workspace and str(active_workspace) in self._workspaces:
             self._api.switch_workspace(str(active_workspace))
@@ -491,6 +553,15 @@ class MainWindow(QMainWindow):
             self._api.switch_workspace(self._api.current_workspace_id)
         elif "studio.workspace.design" in self._workspaces:
             self._api.switch_workspace("studio.workspace.design")
+
+    def _reset_outdated_workspace_perspectives(self, settings: QSettings) -> None:
+        """Clear saved dock state once when the built-in defaults change."""
+        if str(settings.value(self._LAYOUT_DEFAULTS_KEY, "")) == str(self._LAYOUT_VERSION):
+            return
+        for workspace_id in self._workspaces:
+            settings.remove(f"workspace_perspective/{workspace_id}")
+        self._workspace_states.clear()
+        settings.setValue(self._LAYOUT_DEFAULTS_KEY, self._LAYOUT_VERSION)
 
     def closeEvent(self, event: QCloseEvent) -> None:
         if not self._confirm_project_close():
@@ -521,18 +592,28 @@ class MainWindow(QMainWindow):
         if recent:
             self.open_project(recent[0])
 
-    def _open_project_file(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(
+    def _new_project(self) -> bool:
+        path, _ = QFileDialog.getSaveFileName(
             self,
-            "Open Setuav Project",
-            "",
-            "Setuav Projects (*.suav project.json);;All Files (*)",
+            "New Setuav Project",
+            "untitled.suav",
+            "Setuav Archive (*.suav)",
         )
-        if path:
-            self.open_project(path)
+        if not path or not self._confirm_project_close():
+            return False
+        if not Path(path).suffix:
+            path = f"{path}.suav"
+
+        try:
+            project = create_project(path)
+            save_project(project)
+        except ProjectSaveError as exc:
+            QMessageBox.critical(self, "Cannot Create Project", str(exc))
+            return False
+        return self._activate_project(project, confirm_close=False)
 
     def _open_project_folder(self) -> None:
-        path = QFileDialog.getExistingDirectory(self, "Open Setuav Project Folder")
+        path = QFileDialog.getExistingDirectory(self, "Open Setuav Project")
         if path:
             self.open_project(path)
 
@@ -542,6 +623,11 @@ class MainWindow(QMainWindow):
         except ProjectOpenError as exc:
             QMessageBox.critical(self, "Cannot Open Project", str(exc))
             return False
+
+        return self._activate_project(project)
+
+    def _activate_project(self, project: ProjectDocument, *, confirm_close: bool = True) -> bool:
+        """Validate and make a project the active document in the shell."""
 
         validation_issues = validate_project(project.data)
         settings = StudioSettings.load()
@@ -554,7 +640,7 @@ class MainWindow(QMainWindow):
         if decision == "cancel":
             return False
 
-        if not self._confirm_project_close():
+        if confirm_close and not self._confirm_project_close():
             return False
 
         self._project = project
@@ -849,6 +935,7 @@ class MainWindow(QMainWindow):
         values = dialog.values()
         values.save()
         dialog.apply_plugin_pages()
+        dialog.apply_units()
         self._switch_theme(values.theme_mode)
         self._trim_recent_projects(values.recent_project_limit)
         self._update_recent_menu()
@@ -878,6 +965,22 @@ class MainWindow(QMainWindow):
                     action.setChecked(dock.isVisible())
                     self._update_panel_action_icon(cid)
                     self._view_menu.addAction(action)
+
+        self._view_menu.addSeparator()
+        reset_layout_action = QAction("Reset Workspace Layout", self)
+        reset_layout_action.setIcon(get_icon("fa6s.arrow-rotate-left"))
+        reset_layout_action.triggered.connect(self._reset_current_workspace_layout)
+        self._view_menu.addAction(reset_layout_action)
+
+    def _reset_current_workspace_layout(self) -> None:
+        ws_id = self._current_workspace_id or self._api.current_workspace_id
+        if ws_id is None:
+            return
+        settings = QSettings()
+        settings.remove(f"workspace_perspective/{ws_id}")
+        self._workspace_states.pop(ws_id, None)
+        self._apply_default_workspace_layout(ws_id)
+        self._save_current_workspace_layout()
 
     def _update_panel_action_icon(self, panel_id: str) -> None:
         action = self._panel_actions.get(panel_id)
@@ -939,6 +1042,12 @@ class MainWindow(QMainWindow):
 
     def _open_about(self) -> None:
         AboutDialog(self).exec()
+
+    def _open_constraints(self) -> None:
+        from setuav_studio.plugins.core.ui.constraints_dialog import ManageConstraintsDialog
+
+        dlg = ManageConstraintsDialog(self._api, parent=self)
+        dlg.exec()
 
     def bind_plugin_manager(self, manager: PluginManager) -> None:
         """Attach the application plugin manager to the Plugin Manager action."""
@@ -1247,8 +1356,10 @@ class MainWindow(QMainWindow):
         )
         self._restoring_workspace_layout = True
         try:
-            if saved_state is not None:
-                self.restoreState(saved_state, self._LAYOUT_VERSION)
+            restored = saved_state is not None and self.restoreState(
+                saved_state, self._LAYOUT_VERSION
+            )
+            if restored:
                 # Ensure any dock not belonging to this workspace is hidden
                 for _cid, (panel_contrib, dock) in self._panels.items():
                     if not panel_contrib.is_in_workspace(workspace_id):
@@ -1303,107 +1414,11 @@ class MainWindow(QMainWindow):
         return super().eventFilter(watched, event)
 
     def _apply_default_workspace_layout(self, workspace_id: str) -> None:
-        explorer = self._dock("project.explorer")
-        viewer = self._dock("studio.viewer.opengl")
-        properties = self._dock("studio.properties")
         self._hide_panels_outside_workspace(workspace_id)
-
-        if workspace_id in {"studio.workspace.design", "studio.viewer.opengl"}:
-            self._apply_design_workspace_layout(explorer, viewer, properties)
-        elif workspace_id == "studio.workspace.propulsion":
-            self._apply_analysis_workspace_layout(
-                "propulsion",
-                explorer,
-                viewer,
-                properties,
-                [220, 280, 480, 260],
-            )
-        elif workspace_id == "studio.workspace.aerodynamics":
-            self._apply_analysis_workspace_layout(
-                "aerodynamics",
-                explorer,
-                viewer,
-                properties,
-                [200, 260, 560, 260],
-            )
-        elif workspace_id == "studio.workspace.flight_performance":
-            self._apply_analysis_workspace_layout(
-                "flight_performance",
-                explorer,
-                viewer,
-                properties,
-                [200, 260, 560, 260],
-            )
-        elif workspace_id == "studio.workspace.weight_balance":
-            self._apply_weight_balance_workspace_layout(explorer, viewer, properties)
-        else:
-            self._apply_plugin_workspace_layout(workspace_id)
-
-    def _apply_design_workspace_layout(
-        self,
-        explorer: QDockWidget | None,
-        viewer: QDockWidget | None,
-        properties: QDockWidget | None,
-    ) -> None:
-        self._hide_docks(
-            self._dock("propulsion.controls_dock"),
-            self._dock("propulsion.results_dock"),
-        )
-        if explorer is not None and viewer is not None:
-            self.splitDockWidget(explorer, viewer, Qt.Orientation.Horizontal)
-        if viewer is not None and properties is not None:
-            self.splitDockWidget(viewer, properties, Qt.Orientation.Horizontal)
-        self._show_docks(explorer, viewer, properties)
-        if viewer is not None:
-            viewer.raise_()
-        self._resize_visible_docks((explorer, viewer, properties), [260, 680, 260])
-
-    def _apply_analysis_workspace_layout(
-        self,
-        namespace: str,
-        explorer: QDockWidget | None,
-        viewer: QDockWidget | None,
-        properties: QDockWidget | None,
-        widths: list[int],
-    ) -> None:
-        controls = self._dock(f"{namespace}.controls_dock")
-        charts = self._dock(f"{namespace}.charts_dock")
-        results = self._dock(f"{namespace}.results_dock")
-        self._hide_docks(viewer)
-        if explorer is not None and properties is not None:
-            self.splitDockWidget(explorer, properties, Qt.Orientation.Vertical)
-        if explorer is not None and controls is not None:
-            self.splitDockWidget(explorer, controls, Qt.Orientation.Horizontal)
-        if controls is not None and charts is not None:
-            self.splitDockWidget(controls, charts, Qt.Orientation.Horizontal)
-        if charts is not None and results is not None:
-            self.splitDockWidget(charts, results, Qt.Orientation.Horizontal)
-        elif controls is not None and results is not None:
-            self.splitDockWidget(controls, results, Qt.Orientation.Horizontal)
-        self._show_docks(explorer, properties, controls, charts, results)
-        self._resize_visible_docks((explorer, controls, charts, results), widths)
-
-    def _apply_weight_balance_workspace_layout(
-        self,
-        explorer: QDockWidget | None,
-        viewer: QDockWidget | None,
-        properties: QDockWidget | None,
-    ) -> None:
-        balance_view = self._dock("weight_balance.view_dock")
-        results = self._dock("weight_balance.results_dock")
-        self._hide_docks(viewer)
-        if explorer is not None and properties is not None:
-            self.splitDockWidget(explorer, properties, Qt.Orientation.Vertical)
-        if explorer is not None and balance_view is not None:
-            self.splitDockWidget(explorer, balance_view, Qt.Orientation.Horizontal)
-        if balance_view is not None and results is not None:
-            self.splitDockWidget(balance_view, results, Qt.Orientation.Horizontal)
-        if results is not None and properties is not None:
-            self.splitDockWidget(results, properties, Qt.Orientation.Vertical)
-        self._show_docks(explorer, properties, balance_view, results)
-        self._resize_visible_docks((explorer, balance_view, results), [220, 600, 340])
-
-    def _apply_plugin_workspace_layout(self, workspace_id: str) -> None:
+        workspace = self._workspaces.get(workspace_id)
+        if workspace is not None and workspace.default_layout is not None:
+            workspace.default_layout(_WorkspaceLayoutContext(self, workspace_id))
+            return
         for panel_contribution, dock in self._panels.values():
             dock.setVisible(panel_contribution.is_in_workspace(workspace_id))
 
@@ -1414,18 +1429,6 @@ class MainWindow(QMainWindow):
 
     def _dock(self, panel_id: str) -> QDockWidget | None:
         return self.findChild(QDockWidget, panel_id)
-
-    @staticmethod
-    def _show_docks(*docks: QDockWidget | None) -> None:
-        for dock in docks:
-            if dock is not None:
-                dock.show()
-
-    @staticmethod
-    def _hide_docks(*docks: QDockWidget | None) -> None:
-        for dock in docks:
-            if dock is not None:
-                dock.hide()
 
     def _resize_visible_docks(
         self,

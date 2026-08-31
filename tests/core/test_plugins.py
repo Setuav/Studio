@@ -103,7 +103,7 @@ class PluginTests(unittest.TestCase):
 
         self.assertEqual(
             [panel.id for panel in self.panels],
-            ["project.explorer", "studio.properties"],
+            ["project.explorer", "studio.properties", "project.parameters"],
         )
 
     def test_core_plugin_contributes_transform_tree_node_and_editor(self) -> None:

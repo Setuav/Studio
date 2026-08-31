@@ -23,12 +23,12 @@ dependencies = [
     "numpy>=1.26,<3",
     "scipy>=1.11,<2",
     "setuav-studio-sdk>=0.1,<0.2",
+    "asteval>=1.0.5,<2",
 ]
 
 [project.optional-dependencies]
 aerodynamics = [
     "aerosandbox>=4.2.10,<5",
-    "pyvista>=0.46.4,<1",
 ]
 
 [project.scripts]
@@ -138,6 +138,15 @@ include = [
     "src/setuav_studio/ui/log_window.py",
     "src/setuav_studio/ui/main_toolbar.py",
     "src/setuav_studio/ui/plugin_manager.py",
+    "src/setuav_studio/plugins/core/expressions.py",
+    "src/setuav_studio/plugins/core/parameters.py",
+    "src/setuav_studio/plugins/core/configurations.py",
+    "src/setuav_studio/plugins/core/constraints.py",
+    "src/setuav_studio/plugins/core/ui/configuration_bar.py",
+    "src/setuav_studio/plugins/core/ui/configuration_dialogs.py",
+    "src/setuav_studio/plugins/core/ui/constraints_dialog.py",
+    "src/setuav_studio/plugins/core/ui/constraint_status.py",
+    "src/setuav_studio/plugins/core/ui/parameters_panel.py",
     "src/setuav_studio/ui/numeric_spinbox.py",
     "src/setuav_studio/ui/property_tables.py",
     "src/setuav_studio/ui/theme.py",

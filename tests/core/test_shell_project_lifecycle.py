@@ -337,23 +337,38 @@ class ShellProjectLifecycleTests(unittest.TestCase):
             self.assertEqual(self.window._recent_projects(), [])
             self.assertFalse(self.window._recent_menu.actions()[0].isEnabled())
 
-        with patch.object(self.window, "open_project") as open_selected:
-            with patch(
-                "setuav_studio.shell.QFileDialog.getOpenFileName",
-                side_effect=[("", ""), ("project.json", "")],
-            ):
-                self.window._open_project_file()
-                self.window._open_project_file()
-            with patch(
+        with (
+            patch.object(self.window, "open_project") as open_selected,
+            patch(
                 "setuav_studio.shell.QFileDialog.getExistingDirectory",
                 side_effect=["", "project-folder"],
-            ):
-                self.window._open_project_folder()
-                self.window._open_project_folder()
+            ),
+        ):
+            self.window._open_project_folder()
+            self.window._open_project_folder()
         self.assertEqual(
             [call.args[0] for call in open_selected.call_args_list],
-            ["project.json", "project-folder"],
+            ["project-folder"],
         )
+
+    def test_new_project_creates_and_activates_empty_archive(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            project_path = Path(temporary_directory) / "new.suav"
+            with (
+                patch(
+                    "setuav_studio.shell.QFileDialog.getSaveFileName",
+                    return_value=(str(project_path), "Setuav Archive (*.suav)"),
+                ),
+                patch.object(self.window, "_confirm_project_close", return_value=True),
+                patch.object(self.window, "_add_recent_project"),
+                patch("setuav_studio.shell.validate_project", return_value=[]),
+            ):
+                self.assertTrue(self.window._new_project())
+
+            self.assertTrue(project_path.is_file())
+            self.assertIsNotNone(self.window._project)
+            self.assertEqual(self.window._project.data["components"], [])
+            self.assertIn("new", self.window.windowTitle())
 
     def test_open_last_project_uses_first_recent_entry(self) -> None:
         with (

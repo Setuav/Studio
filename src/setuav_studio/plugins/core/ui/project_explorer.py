@@ -37,6 +37,11 @@ _GEOMETRY_COMPONENT_ICONS = {
 class _ProjectExplorerBranchStyle(QProxyStyle):
     """Draw classic dotted tree branches with square expand controls."""
 
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__()
+        if parent is not None:
+            self.setParent(parent)
+
     def sizeFromContents(self, contents_type, option, size, widget=None) -> QSize:
         result = super().sizeFromContents(contents_type, option, size, widget)
         if contents_type == QStyle.ContentsType.CT_ItemViewItem:
@@ -189,11 +194,11 @@ class ProjectExplorer(QTreeWidget):
         )
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.setAlternatingRowColors(False)
-        self.setAnimated(True)
+        self.setAnimated(False)
         self.setIndentation(20)
         self.setRootIsDecorated(True)
         self.setUniformRowHeights(True)
-        self._branch_style = _ProjectExplorerBranchStyle()
+        self._branch_style = _ProjectExplorerBranchStyle(self)
         self.setStyle(self._branch_style)
 
         self.currentItemChanged.connect(self._publish_selection)
@@ -204,6 +209,8 @@ class ProjectExplorer(QTreeWidget):
         self._element_map: dict[QTreeWidgetItem, dict[str, Any]] = {}
         self._project_root_item: QTreeWidgetItem | None = None
         self._geometry_group_item: QTreeWidgetItem | None = None
+        self._parameters_group_item: QTreeWidgetItem | None = None
+        self._constraints_group_item: QTreeWidgetItem | None = None
         self._virtual_items: set[QTreeWidgetItem] = set()
         self._project_contributions: dict[
             QTreeWidgetItem,
@@ -216,6 +223,7 @@ class ProjectExplorer(QTreeWidget):
         self._saved_components: dict[str, dict[str, Any]] = {}
         self._saved_assemblies: dict[str, dict[str, Any]] = {}
         self._saved_analysis_results: dict[str, dict[str, Any]] = {}
+        self._last_active_config_id: str | None = None
 
         api.on_project_changed(self.set_project)
         api.on_project_content_changed(self.refresh_project)
@@ -223,6 +231,8 @@ class ProjectExplorer(QTreeWidget):
         api.on_modified_changed(self._on_modified_changed)
 
     def set_project(self, project: ProjectDocument) -> None:
+        if hasattr(project, "get_configuration_manager"):
+            self._last_active_config_id = project.get_configuration_manager().get_active_id()
         self._capture_saved_state(project)
         self._rebuild_project(project)
 
@@ -243,6 +253,8 @@ class ProjectExplorer(QTreeWidget):
                 components,
                 component_assemblies,
             )
+            self._create_parameters_group(project_item, project)
+            self._create_constraints_group(project_item, project)
             for contribution in self._api.project_tree_nodes(project):
                 self._append_project_contribution(project_item, contribution)
             self.expandAll()
@@ -275,6 +287,8 @@ class ProjectExplorer(QTreeWidget):
         self._element_map.clear()
         self._project_root_item = None
         self._geometry_group_item = None
+        self._parameters_group_item = None
+        self._constraints_group_item = None
         self._virtual_items.clear()
         self._project_contributions.clear()
         self._component_contributions.clear()
@@ -316,6 +330,109 @@ class ProjectExplorer(QTreeWidget):
         geometry_group.setToolTip(0, "Geometry components")
         self._geometry_group_item = geometry_group
         project_item.addChild(geometry_group)
+
+    def _create_parameters_group(
+        self,
+        project_item: QTreeWidgetItem,
+        project: ProjectDocument,
+    ) -> None:
+        raw_params = project.data.get("parameters", {})
+        constants: dict[str, Any] = {}
+        equations: dict[str, Any] = {}
+
+        for k, v in raw_params.items():
+            raw_val = v.get("value") if isinstance(v, dict) and "value" in v else v
+            if isinstance(raw_val, str) and raw_val.strip().startswith("="):
+                equations[k] = v
+            else:
+                constants[k] = v
+
+        # 1. Constants Group
+        const_group = QTreeWidgetItem(["Constants"])
+        const_group.setIcon(0, get_icon("constant"))
+        const_group.setToolTip(0, "Project Design Constants")
+        self._parameters_group_item = const_group
+        project_item.addChild(const_group)
+
+        for k, v in constants.items():
+            item = QTreeWidgetItem([str(k)])
+            item.setIcon(0, get_icon("constant"))
+            if isinstance(v, dict):
+                unit_str = f" {v.get('unit')}" if v.get("unit") else ""
+                val_disp = f"{v.get('value', '')}{unit_str}"
+            else:
+                val_disp = str(v)
+            item.setToolTip(0, f"Constant: {k}\nValue: {val_disp}")
+            param_payload = {"kind": "parameter", "id": f"param_{k}", "key": k, "value": v}
+            self._element_map[item] = param_payload
+            self._item_map[f"param_{k}"] = item
+            const_group.addChild(item)
+
+        # 2. Equations Group (if any exist)
+        if equations:
+            eq_group = QTreeWidgetItem(["Equations"])
+            eq_group.setIcon(0, get_icon("equation"))
+            eq_group.setToolTip(0, "Project Formulas & Equations")
+            project_item.addChild(eq_group)
+
+            for k, v in equations.items():
+                item = QTreeWidgetItem([str(k)])
+                item.setIcon(0, get_icon("equation"))
+                raw_val = v.get("value") if isinstance(v, dict) and "value" in v else v
+                item.setToolTip(0, f"Equation: {k}\nFormula: {raw_val}")
+                param_payload = {"kind": "parameter", "id": f"param_{k}", "key": k, "value": v}
+                self._element_map[item] = param_payload
+                self._item_map[f"param_{k}"] = item
+                eq_group.addChild(item)
+
+    def _create_constraints_group(
+        self,
+        project_item: QTreeWidgetItem,
+        project: ProjectDocument,
+    ) -> None:
+        constraints = project.data.get("constraints", [])
+        if not isinstance(constraints, list):
+            return
+
+        constraint_group = QTreeWidgetItem(["Design Constraints"])
+        constraint_group.setIcon(0, get_icon("constraint"))
+        constraint_group.setToolTip(0, "Design Rules & Limits")
+        self._constraints_group_item = constraint_group
+        project_item.addChild(constraint_group)
+
+        from setuav_studio.plugins.core.constraints import ConstraintChecker
+
+        checker = ConstraintChecker()
+
+        for c in constraints:
+            if not isinstance(c, dict):
+                continue
+            cid = c.get("id", "")
+            name = c.get("name", cid)
+            enabled = c.get("enabled", True)
+            expr = c.get("expression", "")
+
+            res = checker.check_constraint(c, project.data)
+            if not enabled:
+                status_icon_name = "fa6s.circle"
+                status_tip = "Disabled"
+            elif res.error:
+                status_icon_name = "error"
+                status_tip = f"Error: {res.error}"
+            elif res.passed:
+                status_icon_name = "success"
+                status_tip = "Passed"
+            else:
+                status_icon_name = "warning"
+                status_tip = f"Violated: {res.message or expr}"
+
+            item = QTreeWidgetItem([name])
+            item.setIcon(0, get_icon(status_icon_name))
+            item.setToolTip(0, f"Constraint: {name}\nExpression: {expr}\nStatus: {status_tip}")
+            constraint_payload = {"kind": "constraint", "id": cid, **c}
+            self._element_map[item] = constraint_payload
+            self._item_map[cid] = item
+            constraint_group.addChild(item)
 
     @staticmethod
     def _component_assembly_map(
@@ -511,6 +628,11 @@ class ProjectExplorer(QTreeWidget):
     def refresh_project(self, project: ProjectDocument | None = None) -> None:
         current_project = project or self._api.current_project
         if current_project is not None:
+            if hasattr(current_project, "get_configuration_manager"):
+                curr_active_id = current_project.get_configuration_manager().get_active_id()
+                if curr_active_id != self._last_active_config_id:
+                    self._last_active_config_id = curr_active_id
+                    self._capture_saved_state(current_project)
             self._rebuild_project(current_project)
 
     def _capture_saved_state(self, project: ProjectDocument) -> None:
@@ -582,6 +704,8 @@ class ProjectExplorer(QTreeWidget):
         project = self._api.current_project
         if project is None:
             return
+        if hasattr(project, "get_configuration_manager"):
+            self._last_active_config_id = project.get_configuration_manager().get_active_id()
         self._capture_saved_state(project)
         self._rebuild_project(project)
 
@@ -703,14 +827,22 @@ class ProjectExplorer(QTreeWidget):
         current: QTreeWidgetItem | None,
         _previous: QTreeWidgetItem | None,
     ) -> None:
-        if current is self._geometry_group_item:
+        if current in (
+            self._geometry_group_item,
+            self._parameters_group_item,
+            self._constraints_group_item,
+        ):
             self._api.set_selection(None)
             return
         element = self._element_map.get(current) if current else None
         self._api.set_selection(element)
 
     def _sync_selection(self, selection: object | None) -> None:
-        if selection is None and self.currentItem() is self._geometry_group_item:
+        if selection is None and self.currentItem() in (
+            self._geometry_group_item,
+            self._parameters_group_item,
+            self._constraints_group_item,
+        ):
             return
         project = self._api.current_project
         if project is not None and selection is project.data:
@@ -753,6 +885,88 @@ class ProjectExplorer(QTreeWidget):
 
         self.setCurrentItem(item)
         can_edit = self._can_edit_project()
+
+        if item is self._parameters_group_item or (
+            item and item.text(0) in ("Constants", "Equations")
+        ):
+            self._open_parameters_group_menu(item, position, can_edit)
+            return
+
+        if item is self._constraints_group_item:
+            self._open_constraints_group_menu(position, can_edit)
+            return
+
+        element = self._element_map.get(item)
+        if element and element.get("kind") == "parameter":
+            self._open_parameter_element_menu(item, element, position, can_edit)
+            return
+
+        if element and element.get("kind") == "constraint":
+            self._open_constraint_element_menu(item, element, position, can_edit)
+            return
+
+        self._open_default_context_menu(item, position, can_edit)
+
+    def _open_parameters_group_menu(
+        self, item: QTreeWidgetItem, position: QPoint, can_edit: bool
+    ) -> None:
+        menu = QMenu(self)
+        is_const = item.text(0) == "Constants"
+        action_label = "Add Constant…" if is_const else "Add Parameter…"
+        add_param_act = menu.addAction(get_icon("constant"), action_label)
+        add_param_act.setEnabled(can_edit)
+        chosen = menu.exec(self.viewport().mapToGlobal(position))
+        if chosen is add_param_act:
+            self._add_parameter_action(is_constant=is_const)
+
+    def _open_constraints_group_menu(self, position: QPoint, can_edit: bool) -> None:
+        menu = QMenu(self)
+        add_c_act = menu.addAction(get_icon("constraint"), "Add Constraint…")
+        add_c_act.setEnabled(can_edit)
+        manage_c_act = menu.addAction(get_icon("constraint"), "Manage Constraints…")
+        chosen = menu.exec(self.viewport().mapToGlobal(position))
+        if chosen is add_c_act:
+            self._add_constraint_action()
+        elif chosen is manage_c_act:
+            from setuav_studio.plugins.core.ui.constraints_dialog import ManageConstraintsDialog
+
+            ManageConstraintsDialog(self._api, parent=self).exec()
+
+    def _open_parameter_element_menu(
+        self, item: QTreeWidgetItem, element: dict[str, Any], position: QPoint, can_edit: bool
+    ) -> None:
+        menu = QMenu(self)
+        fx_act = menu.addAction(get_icon("settings"), "Edit with fx Assistant…")
+        fx_act.setEnabled(can_edit)
+        del_act = menu.addAction(get_icon("remove"), "Delete")
+        del_act.setEnabled(can_edit)
+        chosen = menu.exec(self.viewport().mapToGlobal(position))
+        if chosen is fx_act:
+            self._edit_parameter_fx(element)
+        elif chosen is del_act:
+            self._delete_item(item)
+
+    def _open_constraint_element_menu(
+        self, item: QTreeWidgetItem, element: dict[str, Any], position: QPoint, can_edit: bool
+    ) -> None:
+        menu = QMenu(self)
+        fx_act = menu.addAction(get_icon("settings"), "Edit with fx Assistant…")
+        fx_act.setEnabled(can_edit)
+        toggle_act = menu.addAction("Toggle Enabled")
+        toggle_act.setEnabled(can_edit)
+        del_act = menu.addAction(get_icon("remove"), "Delete")
+        del_act.setEnabled(can_edit)
+        chosen = menu.exec(self.viewport().mapToGlobal(position))
+        if chosen is fx_act:
+            self._edit_constraint_fx(element)
+        elif chosen is toggle_act:
+            self._toggle_constraint(element)
+        elif chosen is del_act:
+            self._delete_item(item)
+
+    def _open_default_context_menu(
+        self, item: QTreeWidgetItem, position: QPoint, can_edit: bool
+    ) -> None:
         menu = QMenu(self)
         rename_action = menu.addAction(get_icon("edit"), "Rename")
         rename_action.setEnabled(can_edit)
@@ -860,10 +1074,12 @@ class ProjectExplorer(QTreeWidget):
         if item in self._virtual_items:
             self._delete_virtual_item(item)
             return
-        if item is self._project_root_item:
-            self._api.show_status("The project root cannot be deleted", "warning", 3000)
-            return
-        if item is self._geometry_group_item:
+        if item in (
+            self._project_root_item,
+            self._geometry_group_item,
+            self._parameters_group_item,
+            self._constraints_group_item,
+        ):
             return
         if not self._can_edit_project():
             self._api.show_status("This project is read-only", "warning", 3000)
@@ -872,6 +1088,44 @@ class ProjectExplorer(QTreeWidget):
         element = self._element_map.get(item)
         if element is None:
             return
+
+        kind = element.get("kind")
+        if kind == "parameter":
+            self._delete_parameter_item(element)
+        elif kind == "constraint":
+            self._delete_constraint_item(element)
+        else:
+            self._delete_component_item(element)
+
+    def _delete_parameter_item(self, element: dict[str, Any]) -> None:
+        param_name = str(element.get("key") or "")
+        if not self._confirm_delete(f"Parameter '{param_name}'", []):
+            return
+
+        def _apply_param_del() -> None:
+            pdata = self._api.current_project.data if self._api.current_project else {}
+            pdata.get("parameters", {}).pop(param_name, None)
+
+        self._api.set_selection(None)
+        self._api.edit_project(f"Delete parameter '{param_name}'", _apply_param_del)
+        self._api.show_status(f'Deleted parameter "{param_name}"', "success", 3000)
+
+    def _delete_constraint_item(self, element: dict[str, Any]) -> None:
+        cid = str(element.get("id") or "")
+        cname = str(element.get("name") or cid)
+        if not self._confirm_delete(f"Constraint '{cname}'", []):
+            return
+
+        def _apply_c_del() -> None:
+            pdata = self._api.current_project.data if self._api.current_project else {}
+            constraints = pdata.get("constraints", [])
+            pdata["constraints"] = [c for c in constraints if c.get("id") != cid]
+
+        self._api.set_selection(None)
+        self._api.edit_project(f"Delete constraint '{cname}'", _apply_c_del)
+        self._api.show_status(f'Deleted constraint "{cname}"', "success", 3000)
+
+    def _delete_component_item(self, element: dict[str, Any]) -> None:
         element_id = str(element.get("id") or "")
         if not element_id:
             return
@@ -1132,3 +1386,105 @@ class ProjectExplorer(QTreeWidget):
             item.setText(0, text)
         finally:
             self.blockSignals(previous)
+
+    def _add_parameter_action(self, is_constant: bool = False) -> None:
+        from PySide6.QtWidgets import QDialog
+
+        from setuav_studio.plugins.core.ui.parameters_dialog import AddParameterDialog
+
+        data = self._api.current_project.data if self._api.current_project else {}
+        raw = data.setdefault("parameters", {})
+        dlg = AddParameterDialog(
+            api=self._api,
+            existing_names=set(raw.keys()),
+            is_constant=is_constant,
+            parent=self,
+        )
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            param_name, param_val = dlg.get_data()
+
+            def _apply() -> None:
+                pdata = self._api.current_project.data if self._api.current_project else {}
+                pdata.setdefault("parameters", {})[param_name] = param_val
+
+            action_name = "constant" if is_constant else "parameter"
+            self._api.edit_project(f"Add {action_name} '{param_name}'", _apply)
+
+    def _add_constraint_action(self) -> None:
+        from PySide6.QtWidgets import QDialog
+
+        from setuav_studio.plugins.core.ui.constraints_dialog import ConstraintEditDialog
+
+        dlg = ConstraintEditDialog(
+            self,
+            api=self._api,
+            project_data=self._api.current_project.data if self._api.current_project else {},
+        )
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            data = dlg.get_data()
+
+            def _apply() -> None:
+                pdata = self._api.current_project.data if self._api.current_project else {}
+                pdata.setdefault("constraints", []).append(data)
+
+            self._api.edit_project(f"Add constraint '{data['name']}'", _apply)
+
+    def _edit_parameter_fx(self, element: dict[str, Any]) -> None:
+        from PySide6.QtWidgets import QDialog
+
+        from setuav_studio.plugins.core.ui.expression_dialog import AdvancedExpressionDialog
+
+        param_key = str(element.get("key") or "")
+        val = str(element.get("value") or "")
+        dlg = AdvancedExpressionDialog(
+            self._api,
+            initial_expression=val,
+            title=f"Equation Assistant — {param_key}",
+            is_boolean_constraint=False,
+            parent=self,
+        )
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            new_expr = dlg.get_expression()
+
+            def _apply() -> None:
+                pdata = self._api.current_project.data if self._api.current_project else {}
+                pdata.setdefault("parameters", {})[param_key] = new_expr
+
+            self._api.edit_project(f"Edit parameter '{param_key}'", _apply)
+
+    def _edit_constraint_fx(self, element: dict[str, Any]) -> None:
+        from PySide6.QtWidgets import QDialog
+
+        from setuav_studio.plugins.core.ui.constraints_dialog import ConstraintEditDialog
+
+        cid = str(element.get("id") or "")
+        dlg = ConstraintEditDialog(
+            self,
+            initial_data=element,
+            api=self._api,
+            project_data=self._api.current_project.data if self._api.current_project else {},
+        )
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            updated = dlg.get_data()
+
+            def _apply() -> None:
+                pdata = self._api.current_project.data if self._api.current_project else {}
+                constraints = pdata.get("constraints", [])
+                for i, c in enumerate(constraints):
+                    if c.get("id") == cid:
+                        constraints[i] = updated
+                        break
+
+            self._api.edit_project(f"Edit constraint '{updated['name']}'", _apply)
+
+    def _toggle_constraint(self, element: dict[str, Any]) -> None:
+        cid = str(element.get("id") or "")
+
+        def _apply() -> None:
+            pdata = self._api.current_project.data if self._api.current_project else {}
+            for c in pdata.get("constraints", []):
+                if c.get("id") == cid:
+                    c["enabled"] = not c.get("enabled", True)
+                    break
+
+        self._api.edit_project("Toggle constraint", _apply)

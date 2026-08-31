@@ -35,12 +35,8 @@ class MainTests(unittest.TestCase):
         self.assertIsNone(arguments.project)
 
     def test_accepts_internal_desktop_commands(self) -> None:
-        viewer_arguments = _parse_arguments(["--render-aero-3d", "/tmp/snapshot.json"])
-        viewer_smoke_arguments = _parse_arguments(["--smoke-test-aero-3d", "/tmp/snapshot.json"])
         smoke_arguments = _parse_arguments(["--smoke-test"])
 
-        self.assertEqual(viewer_arguments.render_aero_3d, "/tmp/snapshot.json")
-        self.assertEqual(viewer_smoke_arguments.smoke_test_aero_3d, "/tmp/snapshot.json")
         self.assertTrue(smoke_arguments.smoke_test)
 
     def test_degraded_mode_badge_shown_for_missing_plugins(self) -> None:
@@ -55,6 +51,8 @@ class MainTests(unittest.TestCase):
         self.assertIn("com.example.foo", window._degraded_badge.toolTip())
 
         api._host.bind_project_requirement_checker(lambda data: [])
+        if window._project is not None:
+            window._project.modified = False
         window.open_project(TEST_PROJECT_PATH)
         self.assertFalse(window._degraded_badge.isVisible())
 

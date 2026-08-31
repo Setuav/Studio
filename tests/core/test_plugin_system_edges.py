@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from typing import ClassVar
 from unittest.mock import Mock, patch
 
+from PySide6.QtCore import QEvent
 from PySide6.QtWidgets import QWidget
 
 from setuav_studio.plugin_system import (
@@ -97,15 +98,13 @@ class PluginSystemEdgeTests(unittest.TestCase):
         )
 
     def test_shell_handlers_queue_flush_remove_and_dispatch_contributions(self) -> None:
-        with self.assertRaises(RuntimeError):
-            self.api.add_panel(PanelContribution("panel", "Panel", QWidget))
+        self.api.add_panel(PanelContribution("panel", "Panel", QWidget))
         self.api.remove_panel("missing")
         panels: list[str] = []
         removed_panels: list[str] = []
         self.api._host.bind_panel_handlers(
             lambda item: panels.append(item.id), removed_panels.append
         )
-        self.api.add_panel(PanelContribution("panel", "Panel", QWidget))
         self.api.remove_panel("panel")
         self.assertEqual((panels, removed_panels), (["panel"], ["panel"]))
 
@@ -180,6 +179,17 @@ class PluginSystemEdgeTests(unittest.TestCase):
         self.api.remove_action("File", "Direct")
         self.assertEqual(actions, ["Pending", "Direct"])
         self.assertEqual(removed, [("File", "Direct")])
+
+    def test_qobject_event_subscriber_is_removed_when_owner_is_destroyed(self) -> None:
+        receiver = QWidget()
+        self.api.subscribe("event", receiver.show)
+        self.assertEqual(len(self.api._event_subscribers["event"]), 1)
+
+        receiver.deleteLater()
+        self.app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        self.app.processEvents()
+
+        self.assertEqual(self.api._event_subscribers.get("event"), [])
 
     def test_settings_and_tool_registries_sort_and_remove_entries(self) -> None:
         pages = (

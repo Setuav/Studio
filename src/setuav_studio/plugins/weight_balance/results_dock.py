@@ -54,7 +54,7 @@ class WeightBalanceResultsDock(PropertyTableMixin, QWidget):
         summary_layout.addWidget(self.summary_table)
 
         summary_layout.addWidget(self._section_label("Center of Gravity", "fa6s.crosshairs"))
-        self.cg_table = self._vector_table("Body CG (mm)")
+        self.cg_table = self._vector_table("Body CG")
         summary_layout.addWidget(self.cg_table)
 
         summary_layout.addWidget(self._section_label("Inertia Tensor", "fa6s.cube"))
@@ -82,7 +82,15 @@ class WeightBalanceResultsDock(PropertyTableMixin, QWidget):
         tabs.addTab(self.component_table, get_icon("fa6s.table-list"), "Components")
         layout.addWidget(tabs, 1)
 
+        self._last_result: WeightBalanceResult | None = None
+        from setuav_studio.units import get_unit_manager
+
+        get_unit_manager().units_changed.connect(self._on_units_changed)
         api.subscribe("weight_balance.analysis_completed", self.display_result)
+
+    def _on_units_changed(self) -> None:
+        if self._last_result is not None:
+            self.display_result(self._last_result)
 
     @staticmethod
     def _section_label(title: str, icon_name: str) -> QWidget:
@@ -142,10 +150,10 @@ class WeightBalanceResultsDock(PropertyTableMixin, QWidget):
         table = ContentFitTableWidget(0, 8, self)
         headers = [
             "Component",
-            "Mass (g)",
-            "CG-X (mm)",
-            "CG-Y (mm)",
-            "CG-Z (mm)",
+            "Mass",
+            "CG-X",
+            "CG-Y",
+            "CG-Z",
             "Mass Source",
             "Model Quality",
             "Notes",
@@ -183,32 +191,51 @@ class WeightBalanceResultsDock(PropertyTableMixin, QWidget):
         return table
 
     def display_result(self, result: WeightBalanceResult) -> None:
+        self._last_result = result
         total = result.total
         inertia = total.inertia_cg_kg_m2
+
+        from setuav_studio.units import get_unit_manager
+
+        um = get_unit_manager()
+
+        # 1. Total Mass in active display unit
+        mass_g = total.mass_kg * 1000.0
+        disp_mass = um.to_display(mass_g, "mass")
+        mass_sym = um.get_unit_symbol("mass")
+        mass_dec = 3 if mass_sym in ("kg", "lb") else 1
+
         values = {
-            "mass": f"{total.mass_kg:.4f} kg ({total.mass_kg * 1000.0:.1f} g)",
+            "mass": f"{disp_mass:.{mass_dec}f} {mass_sym}",
             "components": str(len(result.components)),
         }
         for key, value in values.items():
             self._set_property_value(self.summary_table, key, value)
 
+        # 2. Body CG in active length unit
+        len_sym = um.get_unit_symbol("length")
+        len_dec = 2
         for column, value in enumerate(total.cg_body_m):
+            cg_mm = value * 1000.0
+            disp_cg = um.to_display(cg_mm, "length")
             self.cg_table.setItem(
                 0,
                 column,
-                QTableWidgetItem(f"{value * 1000.0:+.2f}"),
+                QTableWidgetItem(f"{disp_cg:+.{len_dec}f} {len_sym}"),
             )
 
+        # 3. Inertia Tensor with derived inertia units
         inertia_values = (
             (inertia.ixx, inertia.iyy, inertia.izz),
             (inertia.ixy, inertia.ixz, inertia.iyz),
         )
         for row, row_values in enumerate(inertia_values):
             for column, value in enumerate(row_values):
+                disp_in, in_sym = um.get_inertia_display(value)
                 self.inertia_table.setItem(
                     row,
                     column,
-                    QTableWidgetItem(f"{value:.6g} kg·m²"),
+                    QTableWidgetItem(f"{disp_in:.6g} {in_sym}"),
                 )
 
         warning_tooltip = self._warning_tooltip(result.warnings)
@@ -223,18 +250,23 @@ class WeightBalanceResultsDock(PropertyTableMixin, QWidget):
         self.warning_icon.setToolTip(warning_tooltip)
         self.component_table.setRowCount(len(result.components))
         for row, item in enumerate(result.components):
+            item_mass_disp = um.to_display(item.mass_kg * 1000.0, "mass")
+            item_cg_x = um.to_display(item.cg_body_m[0] * 1000.0, "length")
+            item_cg_y = um.to_display(item.cg_body_m[1] * 1000.0, "length")
+            item_cg_z = um.to_display(item.cg_body_m[2] * 1000.0, "length")
+
             values = (
                 item.component_name,
-                f"{item.mass_kg * 1000.0:.2f}",
-                f"{item.cg_body_m[0] * 1000.0:+.2f}",
-                f"{item.cg_body_m[1] * 1000.0:+.2f}",
-                f"{item.cg_body_m[2] * 1000.0:+.2f}",
+                f"{item_mass_disp:.{mass_dec}f} {mass_sym}",
+                f"{item_cg_x:+.{len_dec}f} {len_sym}",
+                f"{item_cg_y:+.{len_dec}f} {len_sym}",
+                f"{item_cg_z:+.{len_dec}f} {len_sym}",
                 item.source,
                 item.quality,
                 (f"{len(item.warnings)} warning(s)" if item.warnings else "—"),
             )
-            for column, value in enumerate(values):
-                cell = QTableWidgetItem(value)
+            for column, val_str in enumerate(values):
+                cell = QTableWidgetItem(val_str)
                 if column == 7 and item.warnings:
                     warning_color = status_color("warning")
                     cell.setForeground(QBrush(QColor(warning_color)))

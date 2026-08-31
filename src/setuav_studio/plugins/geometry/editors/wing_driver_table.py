@@ -8,7 +8,9 @@ Provides an 8-row table with:
 
 from __future__ import annotations
 
+import contextlib
 from collections.abc import Callable
+from typing import Any
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -21,7 +23,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.ui.numeric_spinbox import set_table_spinbox
+from setuav_studio.ui.property_tables import ExpressionPropertyCell
 
 from ..engine.wing_driver_solver import (
     PLANFORM_PARAM_KEYS,
@@ -32,19 +34,22 @@ from ..engine.wing_driver_solver import (
 
 
 class DriverPlanformTable(QTableWidget):
-    """8-row Planform Table with 3-Driver Checkbox column and real-time solving."""
+    """8-row Planform Table with 3-Driver Checkbox column and real-time expression/numeric solving."""
 
     def __init__(
         self,
         default_drivers: list[str] | None = None,
         on_values_changed: Callable[[dict[str, float]], None] | None = None,
+        api: Any | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(8, 3, parent)
+        self._api = api
         self._active_drivers: list[str] = list(
             default_drivers or ["span", "root_chord", "tip_chord"]
         )
         self._on_values_changed = on_values_changed
+        self._driver_expressions: dict[str, str] = {}
         self._current_values: dict[str, float] = {
             "area": 200000.0,
             "span": 1200.0,
@@ -64,7 +69,7 @@ class DriverPlanformTable(QTableWidget):
     def _setup_ui(self) -> None:
         self.setHorizontalHeaderLabels(["Driver", "Parameter", "Value"])
         self.verticalHeader().setVisible(False)
-        self.verticalHeader().setDefaultSectionSize(22)
+        self.verticalHeader().setDefaultSectionSize(24)
         self.horizontalHeader().setFixedHeight(23)
         self.setAlternatingRowColors(True)
 
@@ -75,7 +80,7 @@ class DriverPlanformTable(QTableWidget):
         self.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.setFixedHeight(23 + 22 * 8 + 2)
+        self.setFixedHeight(23 + 24 * 8 + 2)
 
         for row, key in enumerate(PLANFORM_PARAM_KEYS):
             # 1. Driver Checkbox (Col 0)
@@ -99,23 +104,34 @@ class DriverPlanformTable(QTableWidget):
             val_item.setFlags(val_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             self.setItem(row, 2, val_item)
 
+        from setuav_studio.units import get_unit_manager
+
+        get_unit_manager().units_changed.connect(self._refresh_table_widgets)
         self._update_checkbox_states()
 
     def set_parameters(
         self,
         values: dict[str, float],
         *,
+        expressions: dict[str, str] | None = None,
         is_symmetric: bool = True,
         y_offset: float = 0.0,
     ) -> None:
-        """Update table with full 8 parameters and refresh spinboxes/labels."""
+        """Update table with full 8 parameters and refresh input cells/labels."""
         self._is_symmetric = is_symmetric
         self._y_offset = y_offset
         self._current_values.update(values)
+        if expressions is not None:
+            self._driver_expressions = {
+                k: v for k, v in expressions.items() if k in self._active_drivers
+            }
         self._refresh_table_widgets()
 
     def get_active_drivers(self) -> list[str]:
         return list(self._active_drivers)
+
+    def get_driver_expressions(self) -> dict[str, str]:
+        return dict(self._driver_expressions)
 
     def get_current_values(self) -> dict[str, float]:
         return dict(self._current_values)
@@ -129,14 +145,16 @@ class DriverPlanformTable(QTableWidget):
                 if len(self._active_drivers) < 3:
                     self._active_drivers.append(key)
                 else:
-                    # Max 3 reached: revert the checkbox check
                     self._update_checkbox_ui(key, False)
                     return
         else:
             if key in self._active_drivers:
                 self._active_drivers.remove(key)
+            self._driver_expressions.pop(key, None)
 
         self._refresh_table_widgets()
+        if self._on_values_changed:
+            self._on_values_changed(self._current_values)
 
     def _update_checkbox_ui(self, key: str, checked: bool) -> None:
         row = PLANFORM_PARAM_KEYS.index(key)
@@ -169,6 +187,9 @@ class DriverPlanformTable(QTableWidget):
         self._updating = True
         try:
             self._update_checkbox_states()
+            from setuav_studio.units import get_quantity_for_unit, get_unit_manager
+
+            um = get_unit_manager()
 
             for row, key in enumerate(PLANFORM_PARAM_KEYS):
                 is_driver = key in self._active_drivers
@@ -183,49 +204,49 @@ class DriverPlanformTable(QTableWidget):
                     label_item.setFont(font)
 
                 if is_driver:
-                    step_map = {
-                        "area": 0.1,
-                        "span": 10.0,
-                        "aspect_ratio": 0.1,
-                        "taper_ratio": 0.05,
-                        "root_chord": 5.0,
-                        "tip_chord": 5.0,
-                        "ave_chord": 5.0,
-                        "mac": 5.0,
-                    }
-                    decimals_map = {
-                        "area": 2,
-                        "span": 1,
-                        "aspect_ratio": 2,
-                        "taper_ratio": 3,
-                        "root_chord": 1,
-                        "tip_chord": 1,
-                        "ave_chord": 1,
-                        "mac": 1,
-                    }
-                    min_val = 0.01 if key in ("area", "aspect_ratio", "taper_ratio") else 1.0
+                    # Clear underlying item text to prevent ghosting behind the cell widget
+                    item = self.item(row, 2)
+                    if item:
+                        item.setText("")
+                    else:
+                        self.setItem(row, 2, QTableWidgetItem(""))
 
-                    set_table_spinbox(
-                        self,
-                        row,
-                        2,
-                        val,
-                        min_val=min_val,
-                        step=step_map.get(key, 1.0),
-                        decimals=decimals_map.get(key, 2),
-                        suffix=f" {unit}".rstrip(),
-                        on_changed=lambda v, k=key: self._on_spinbox_value_changed(k, v),
+                    raw_expr = self._driver_expressions.get(key)
+                    dec = 3 if key in ("area", "taper_ratio", "aspect_ratio") else 2
+                    if raw_expr:
+                        init_str = raw_expr
+                    else:
+                        from setuav_studio.ui.property_tables import format_engineering_value
+
+                        q_id = get_quantity_for_unit(unit)
+                        disp_val = um.to_display(val, q_id) if q_id else val
+                        init_str = format_engineering_value(disp_val, dec)
+
+                    label_name = PLANFORM_PARAM_LABELS[key]
+                    cell = ExpressionPropertyCell(
+                        initial_value=init_str,
+                        on_changed=lambda s, k=key: self._on_expression_cell_changed(k, s),
+                        api=self._api,
+                        label=label_name,
+                        decimals=dec,
+                        unit=unit,
+                        parent=self,
                     )
+                    self.setCellWidget(row, 2, cell)
                 else:
                     self.removeCellWidget(row, 2)
-                    dec = (
-                        2
-                        if key == "area"
-                        else (3 if key == "taper_ratio" else (2 if key == "aspect_ratio" else 1))
-                    )
-                    val_str = f"{val:.{dec}f}"
-                    if unit:
-                        val_str += f" {unit}"
+                    dec = 3 if key in ("area", "taper_ratio", "aspect_ratio") else 2
+                    q_id = get_quantity_for_unit(unit)
+                    if q_id:
+                        disp_val = um.to_display(val, q_id)
+                        sym = um.get_unit_symbol(q_id)
+                    else:
+                        disp_val = val
+                        sym = unit or ""
+
+                    val_str = f"{disp_val:.{dec}f}"
+                    if sym:
+                        val_str += f" {sym}"
                     val_item = self.item(row, 2)
                     if not val_item:
                         val_item = QTableWidgetItem(val_str)
@@ -238,10 +259,38 @@ class DriverPlanformTable(QTableWidget):
         finally:
             self._updating = was
 
-    def _on_spinbox_value_changed(self, edited_key: str, value: float) -> None:
+    def _on_expression_cell_changed(self, edited_key: str, text: str) -> None:
         if self._updating:
             return
+        clean = text.strip()
+        if not clean:
+            return
 
+        eval_val: float | None = None
+        if clean.startswith("=") or not clean.replace(".", "", 1).replace("-", "", 1).isdigit():
+            # Formula
+            self._driver_expressions[edited_key] = clean
+            if self._api is not None and getattr(self._api, "current_project", None) is not None:
+                try:
+                    from setuav_studio.plugins.core.expressions import ExpressionEvaluator
+
+                    evaluator = ExpressionEvaluator()
+                    scope = self._api.current_project.get_scope(api=self._api)
+                    expr = clean.lstrip("=").strip()
+                    res = evaluator.evaluate(expr, scope)
+                    if isinstance(res, (int, float)):
+                        eval_val = float(res)
+                except Exception:
+                    pass
+        else:
+            self._driver_expressions.pop(edited_key, None)
+            with contextlib.suppress(ValueError):
+                eval_val = float(clean)
+
+        if eval_val is not None:
+            self._on_spinbox_value_changed(edited_key, eval_val)
+
+    def _on_spinbox_value_changed(self, edited_key: str, value: float) -> None:
         inputs = dict(self._current_values)
         inputs[edited_key] = float(value)
 

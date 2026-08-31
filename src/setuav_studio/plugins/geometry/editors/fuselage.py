@@ -1,3 +1,5 @@
+import contextlib
+import weakref
 from collections.abc import Callable
 from copy import deepcopy
 from typing import Any
@@ -26,14 +28,13 @@ from setuav_studio.ui.numeric_spinbox import (
     NumericSpinBox,
     set_table_spinbox,
 )
-from setuav_studio.ui.property_tables import PropertyTableMixin
+from setuav_studio.ui.property_tables import ExpressionPropertyCell, PropertyTableMixin
 from setuav_studio_sdk import StudioAPI
 
 from ..engine.fuselage_geometry import (
     FUSELAGE_PROFILE_TYPES,
     create_default_section,
     create_default_segment,
-    format_profile_size,
     get_default_profile,
 )
 from .fuselage_section_dialog import FuselageSectionDialog
@@ -73,7 +74,19 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         self._create_segments_section()
         self._create_sections_section()
         self._content_layout.addStretch()
+
+        from setuav_studio.units import get_unit_manager
+
+        get_unit_manager().units_changed.connect(self._on_units_changed)
+
         self._load_component()
+
+    def _on_units_changed(self) -> None:
+        if not hasattr(self, "sections_table"):
+            return
+        self._populate_sections()
+        if self._section_index >= 0:
+            self._load_section(self._section_index)
 
     def _create_general_section(self) -> None:
         layout = self._create_section("General", "fa6s.circle-info")
@@ -168,7 +181,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         transform_layout = self._create_section("Transform", "mdi6.axis-arrow")
         self.transform_table = QTableWidget(2, 3)
         self.transform_table.setHorizontalHeaderLabels(["X", "Y", "Z"])
-        self.transform_table.setVerticalHeaderLabels(["Position (mm)", "Rotation (°)"])
+        self.transform_table.setVerticalHeaderLabels(["Position", "Rotation"])
         self.transform_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.transform_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
         self.transform_table.setEditTriggers(
@@ -337,6 +350,10 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         self._update_segment_actions()
 
     def _populate_sections(self) -> None:
+        from setuav_studio.units import get_unit_manager
+
+        um = get_unit_manager()
+        length_sym = um.get_unit_symbol("length")
         sections = self._sections()
         self.sections_table.setRowCount(len(sections))
         for row, section in enumerate(sections):
@@ -346,10 +363,17 @@ class FuselageEditor(PropertyTableMixin, QWidget):
             position = section.get("position")
             if not isinstance(position, dict):
                 position = {}
+            x_raw = float(position.get("x") or 0.0)
+            disp_x = um.to_display(x_raw, "length")
+            disp_x_str = (
+                f"{disp_x:.1f} {length_sym}"
+                if abs(disp_x - round(disp_x)) > 1e-4
+                else f"{disp_x:.0f} {length_sym}"
+            )
             values = (
                 str(row + 1),
                 str(profile.get("type") or ""),
-                str(position.get("x") or 0),
+                disp_x_str,
                 self._profile_size(profile),
             )
             for column, value in enumerate(values):
@@ -828,6 +852,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         position: tuple[float, float, float],
         rotation: tuple[float, float, float],
     ) -> None:
+        self_ref = weakref.ref(self)
         for column, value in enumerate(position):
             set_table_spinbox(
                 self.transform_table,
@@ -836,8 +861,11 @@ class FuselageEditor(PropertyTableMixin, QWidget):
                 value,
                 step=5.0,
                 decimals=2,
+                quantity="length",
                 suffix="mm",
-                on_changed=lambda _v: self._update_section(0, 0),
+                on_changed=lambda _v: (
+                    self_ref()._update_section(0, 0) if self_ref() is not None else None
+                ),
             )
         for column, value in enumerate(rotation):
             set_table_spinbox(
@@ -849,8 +877,11 @@ class FuselageEditor(PropertyTableMixin, QWidget):
                 max_val=360.0,
                 step=1.0,
                 decimals=2,
+                quantity="angle",
                 suffix="°",
-                on_changed=lambda _v: self._update_section(1, 0),
+                on_changed=lambda _v: (
+                    self_ref()._update_section(1, 0) if self_ref() is not None else None
+                ),
             )
 
     def _transform_values(
@@ -861,7 +892,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
             vals: list[float] = []
             for column in range(3):
                 w = self.transform_table.cellWidget(row, column)
-                if isinstance(w, QDoubleSpinBox):
+                if isinstance(w, (QDoubleSpinBox, ExpressionPropertyCell)):
                     vals.append(float(w.value()))
                 else:
                     item = self.transform_table.item(row, column)
@@ -883,7 +914,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         if not isinstance(vertices, list) or not 0 <= row < len(vertices):
             return
         w = self.vertices_table.cellWidget(row, column)
-        if isinstance(w, QDoubleSpinBox):
+        if isinstance(w, (QDoubleSpinBox, ExpressionPropertyCell)):
             value = float(w.value())
         else:
             item = self.vertices_table.item(row, column)
@@ -902,24 +933,24 @@ class FuselageEditor(PropertyTableMixin, QWidget):
     def _populate_section_properties(self, profile: dict[str, Any]) -> None:
         profile_type = str(profile.get("type") or "circle")
         fields: dict[str, list[tuple[str, str]]] = {
-            "circle": [("diameter", "Diameter (mm)")],
-            "ellipse": [("width", "Width (mm)"), ("height", "Height (mm)")],
+            "circle": [("diameter", "Diameter")],
+            "ellipse": [("width", "Width"), ("height", "Height")],
             "rectangle": [
-                ("width", "Width (mm)"),
-                ("height", "Height (mm)"),
-                ("corner_radius", "Corner radius (mm)"),
+                ("width", "Width"),
+                ("height", "Height"),
+                ("corner_radius", "Corner radius"),
             ],
             "trapezoid": [
-                ("top_width", "Top width (mm)"),
-                ("bottom_width", "Bottom width (mm)"),
-                ("height", "Height (mm)"),
-                ("corner_radius", "Corner radius (mm)"),
+                ("top_width", "Top width"),
+                ("bottom_width", "Bottom width"),
+                ("height", "Height"),
+                ("corner_radius", "Corner radius"),
             ],
             "triangle": [
-                ("base_width", "Base width (mm)"),
-                ("height", "Height (mm)"),
+                ("base_width", "Base width"),
+                ("height", "Height"),
                 ("orientation", "Orientation"),
-                ("corner_radius", "Corner radius (mm)"),
+                ("corner_radius", "Corner radius"),
             ],
             "polygon": [("vertices", "Vertices")],
         }
@@ -933,30 +964,28 @@ class FuselageEditor(PropertyTableMixin, QWidget):
                 self._set_property_value(
                     self.section_properties_table,
                     key,
-                    value,
+                    str(value),
                     editable=False,
                 )
-            elif key in ("corner_radius", "fillet_radius"):
-                self._set_property_spinbox(
+            elif key in (
+                "diameter",
+                "width",
+                "height",
+                "top_width",
+                "bottom_width",
+                "base_width",
+                "corner_radius",
+                "fillet_radius",
+            ):
+                raw_val = profile.get(f"{key}_expression") or profile.get(key, 0.0)
+                self._set_property_expression(
                     self.section_properties_table,
                     key,
-                    float(profile.get(key, 0.0)),
-                    min_val=0.0,
-                    step=1.0,
-                    decimals=2,
-                    suffix="mm",
-                    on_changed=lambda _v, k=key: self._on_property_spin_changed(k, _v),
-                )
-            elif key in ("diameter", "width", "height", "top_width", "bottom_width", "base_width"):
-                self._set_property_spinbox(
-                    self.section_properties_table,
-                    key,
-                    float(profile.get(key, 0.0)),
-                    min_val=0.0,
-                    step=5.0,
-                    decimals=2,
-                    suffix="mm",
-                    on_changed=lambda _v, k=key: self._on_property_spin_changed(k, _v),
+                    raw_val,
+                    on_changed=lambda v, k=key: self._on_property_expression_changed(k, v),
+                    api=self._api,
+                    label=_label,
+                    unit="mm",
                 )
             else:
                 self._set_property_value(
@@ -979,7 +1008,50 @@ class FuselageEditor(PropertyTableMixin, QWidget):
                 [("up", "Up"), ("down", "Down")],
                 lambda value: self._update_section_choice("orientation", value),
             )
-        self.vertices_table.setVisible(profile_type == "polygon")
+
+    def _on_property_expression_changed(self, key: str, value: Any) -> None:
+        if self._loading:
+            return
+        section = self._current_section()
+        if section is None:
+            return
+        profile = self._object(section, "profile")
+        val_str = str(value).strip() if value is not None else ""
+
+        num_val: float | None = None
+        if val_str.startswith("=") or not val_str.replace(".", "", 1).replace("-", "", 1).isdigit():
+            # Expression
+            profile[f"{key}_expression"] = val_str
+            if self._api is not None and getattr(self._api, "current_project", None) is not None:
+                try:
+                    from setuav_studio.plugins.core.expressions import ExpressionEvaluator
+
+                    evaluator = ExpressionEvaluator()
+                    scope = self._api.current_project.get_scope(api=self._api)
+                    expr = val_str.lstrip("=").strip()
+                    res = evaluator.evaluate(expr, scope)
+                    if isinstance(res, (int, float)):
+                        num_val = float(res)
+                except Exception:
+                    pass
+        else:
+            profile.pop(f"{key}_expression", None)
+            with contextlib.suppress(ValueError):
+                num_val = float(val_str)
+
+        if num_val is not None:
+            profile[key] = num_val
+
+            def change() -> None:
+                pass
+
+            self._api.edit_component(
+                self._component,
+                f"Change fuselage section {key}",
+                change,
+            )
+            self._update_sections_table()
+        self.vertices_table.setVisible(profile.get("type") == "polygon")
 
     def _on_property_spin_changed(self, key: str, value: float) -> None:
         if self._loading:
@@ -996,6 +1068,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         self._refresh_section_row()
 
     def _populate_vertices(self, profile: dict[str, Any]) -> None:
+        self_ref = weakref.ref(self)
         vertices = profile.get("vertices")
         if not isinstance(vertices, list):
             vertices = []
@@ -1011,7 +1084,11 @@ class FuselageEditor(PropertyTableMixin, QWidget):
                 step=1.0,
                 decimals=2,
                 suffix="mm",
-                on_changed=lambda val, r=row: self._on_vertex_spin_changed(r, 0, val),
+                on_changed=lambda val, r=row: (
+                    self_ref()._on_vertex_spin_changed(r, 0, val)
+                    if self_ref() is not None
+                    else None
+                ),
             )
             set_table_spinbox(
                 self.vertices_table,
@@ -1021,7 +1098,11 @@ class FuselageEditor(PropertyTableMixin, QWidget):
                 step=1.0,
                 decimals=2,
                 suffix="mm",
-                on_changed=lambda val, r=row: self._on_vertex_spin_changed(r, 1, val),
+                on_changed=lambda val, r=row: (
+                    self_ref()._on_vertex_spin_changed(r, 1, val)
+                    if self_ref() is not None
+                    else None
+                ),
             )
             set_table_spinbox(
                 self.vertices_table,
@@ -1032,7 +1113,11 @@ class FuselageEditor(PropertyTableMixin, QWidget):
                 step=0.5,
                 decimals=2,
                 suffix="mm",
-                on_changed=lambda val, r=row: self._on_vertex_spin_changed(r, 2, val),
+                on_changed=lambda val, r=row: (
+                    self_ref()._on_vertex_spin_changed(r, 2, val)
+                    if self_ref() is not None
+                    else None
+                ),
             )
         self._fit_table_height(self.vertices_table, len(vertices))
 
@@ -1058,11 +1143,22 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         section = self._current_section()
         if section is None:
             return
+        from setuav_studio.units import get_unit_manager
+
+        um = get_unit_manager()
+        length_sym = um.get_unit_symbol("length")
         position = section.get("position") if isinstance(section.get("position"), dict) else {}
         profile = section.get("profile") if isinstance(section.get("profile"), dict) else {}
         row = self._section_index
+        x_raw = float(position.get("x") or 0.0)
+        disp_x = um.to_display(x_raw, "length")
+        disp_x_str = (
+            f"{disp_x:.1f} {length_sym}"
+            if abs(disp_x - round(disp_x)) > 1e-4
+            else f"{disp_x:.0f} {length_sym}"
+        )
         self.sections_table.item(row, 1).setText(str(profile.get("type") or ""))
-        self.sections_table.item(row, 2).setText(str(position.get("x") or 0))
+        self.sections_table.item(row, 2).setText(disp_x_str)
         self.sections_table.item(row, 3).setText(self._profile_size(profile))
 
     def _parameters(self) -> dict[str, Any]:
@@ -1142,7 +1238,33 @@ class FuselageEditor(PropertyTableMixin, QWidget):
 
     @staticmethod
     def _profile_size(profile: dict[str, Any]) -> str:
-        return format_profile_size(profile)
+        from setuav_studio.units import get_unit_manager
+
+        um = get_unit_manager()
+        profile_type = profile.get("type")
+        length_sym = um.get_unit_symbol("length")
+
+        def _fmt(val: Any) -> str:
+            try:
+                num = float(val or 0.0)
+                disp = um.to_display(num, "length")
+                return f"{disp:.1f}" if abs(disp - round(disp)) > 1e-4 else f"{disp:.0f}"
+            except (ValueError, TypeError):
+                return str(val)
+
+        if profile_type == "circle":
+            return f"D {_fmt(profile.get('diameter', 0))} {length_sym}"
+        if profile_type in {"ellipse", "rectangle"}:
+            return (
+                f"{_fmt(profile.get('width', 0))} × {_fmt(profile.get('height', 0))} {length_sym}"
+            )
+        if profile_type == "trapezoid":
+            return f"{_fmt(profile.get('top_width', 0))} / {_fmt(profile.get('bottom_width', 0))} {length_sym}"
+        if profile_type == "triangle":
+            return f"{_fmt(profile.get('base_width', 0))} × {_fmt(profile.get('height', 0))} {length_sym}"
+        if profile_type == "polygon":
+            return f"{len(profile.get('vertices') or [])} vertices"
+        return ""
 
     @staticmethod
     def _default_profile(profile_type: str) -> dict[str, Any]:

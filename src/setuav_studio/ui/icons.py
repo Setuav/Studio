@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import qtawesome as qta
-from PySide6.QtCore import QRect, QSize
+from PySide6.QtCore import QRect, QSize, Qt
 from PySide6.QtGui import QIcon, QIconEngine, QPainter, QPalette, QPixmap
 from PySide6.QtWidgets import QApplication, QLabel
 
@@ -13,10 +13,14 @@ logger = logging.getLogger(__name__)
 
 _ASSET_ROOT = Path(__file__).resolve().parent.parent / "assets" / "icons"
 _ICON_MANIFEST = _ASSET_ROOT / "manifest.toml"
+# Use the librsvg-rendered fallback at runtime. Qt's SVG renderer does not
+# preserve the logo's clip paths, while this PNG is generated from the same
+# canonical SVG and retains the complete typography artwork.
 _APPLICATION_ICON = _ASSET_ROOT / "studio.png"
 
 _ICON_MAP = {
     # File / Project actions
+    "file_new": "fa6s.file",
     "file_open": "fa6s.file-code",
     "folder_open": "fa6s.folder-open",
     "project_folder": "fa6s.folder",
@@ -36,6 +40,7 @@ _ICON_MAP = {
     # Toolbar & General actions
     "add": "fa6s.plus",
     "remove": "fa6s.trash-can",
+    "delete": "fa6s.trash-can",
     "edit": "fa6s.pen-to-square",
     "pencil": "mdi6.pencil",
     "pen": "fa6s.pen",
@@ -44,6 +49,13 @@ _ICON_MAP = {
     "fit": "fa6s.expand",
     "log": "mdi6.message-text-outline",
     "export_csv": "fa6s.file-export",
+    "success": "fa6s.check",
+    "check": "fa6s.check",
+    "warning": "fa6s.triangle-exclamation",
+    "error": "fa6s.circle-xmark",
+    "constant": "mdi6.pi",
+    "constraint": "mdi6.link-variant",
+    "equation": "fa6s.code",
     # QtAwesome controls intentionally used inside 3D viewers
     "view_colored": "fa6s.palette",
     "view_grid": "mdi6.grid",
@@ -57,6 +69,8 @@ _ICON_MAP = {
     "component_lifting_surface": "fa6s.plane",
     "component_control_surface": "fa6s.sliders",
     "component_propulsion_system": "fa6s.bolt",
+    "component_point_mass": "fa6s.weight-hanging",
+    "point_mass": "fa6s.weight-hanging",
 }
 
 _LABEL_ICON_SOURCE = "setuavThemeIconSource"
@@ -147,15 +161,20 @@ class _ThemeIconEngine(QIconEngine):
             QPalette.ColorGroup.Active,
             QPalette.ColorRole.HighlightedText,
         ).name()
-        icon = qta.icon(
-            self._specifier,
-            color=normal,
-            color_active=normal,
-            color_disabled=disabled,
-            color_selected=selected,
-            **self._options,
-        )
-        return icon.pixmap(size, mode, state)
+        try:
+            icon = qta.icon(
+                self._specifier,
+                color=normal,
+                color_active=normal,
+                color_disabled=disabled,
+                color_selected=selected,
+                **self._options,
+            )
+            return icon.pixmap(size, mode, state)
+        except Exception:
+            pixmap = QPixmap(size)
+            pixmap.fill(Qt.GlobalColor.transparent)
+            return pixmap
 
     def paint(
         self,
@@ -226,3 +245,20 @@ def refresh_label_icon(label: QLabel) -> None:
     size = label.property(_LABEL_ICON_SIZE)
     icon_size = int(size) if isinstance(size, int) and size > 0 else 14
     label.setPixmap(get_icon(icon_source).pixmap(icon_size, icon_size))
+
+
+def create_color_badge_icon(color_hex: str, size: int = 16) -> QIcon:
+    """Create a crisp circular color dot icon for configurations and tags."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QColor, QPainter, QPixmap
+
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    col = QColor(color_hex) if color_hex else QColor("#2196F3")
+    painter.setBrush(col)
+    painter.setPen(col.darker(130))
+    painter.drawEllipse(2, 2, size - 4, size - 4)
+    painter.end()
+    return QIcon(pixmap)

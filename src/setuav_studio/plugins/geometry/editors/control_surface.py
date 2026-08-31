@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import contextlib
 from collections.abc import Callable
 from typing import Any
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -13,6 +15,7 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSizePolicy,
     QTableWidget,
+    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -21,8 +24,6 @@ from setuav_studio.ui.icons import set_label_icon
 from setuav_studio.ui.numeric_spinbox import NumericSpinBox, set_table_spinbox
 from setuav_studio.ui.property_tables import PropertyTableMixin
 from setuav_studio_sdk import StudioAPI
-
-from .control_surface_values import resolve_chord_values, resolve_span_values
 
 CONTROL_SURFACE_TYPES = [
     ("aileron", "Aileron"),
@@ -33,14 +34,11 @@ CONTROL_SURFACE_TYPES = [
     ("ruddervator", "Ruddervator"),
 ]
 
-SPAN_SIZING_MODES = [
-    ("ratio", "Preserve Ratio (Eta)"),
-    ("dimension", "Preserve Length (mm)"),
-]
-
-CHORD_SIZING_MODES = [
-    ("ratio", "Preserve Ratio (% Chord)"),
-    ("dimension", "Preserve Depth (mm)"),
+SIZING_DRIVER_MODES = [
+    ("ratio", "Preserve Ratio (Eta & %c)"),
+    ("dimension", "Preserve Dimension (Span & Depth mm)"),
+    ("area_chord", "Area + Chord Fraction Driven"),
+    ("area_span", "Area + Span Extent Driven"),
 ]
 
 SYMMETRY_MODES = [
@@ -60,7 +58,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
         self._api = api
         self._component = component
         self._loading = False
-        self._cs_spinboxes: dict[str, NumericSpinBox] = {}
+        self._cs_spinboxes: dict[str, Any] = {}
 
         scroll = QScrollArea(self)
         scroll.setWidgetResizable(True)
@@ -80,7 +78,15 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.addWidget(scroll)
 
+        from setuav_studio.units import get_unit_manager
+
+        get_unit_manager().units_changed.connect(self._on_units_changed)
+
         self.load_component(component)
+
+    def _on_units_changed(self) -> None:
+        if self._component is not None:
+            self._load_properties()
 
     def load_component(self, component: dict[str, Any]) -> None:
         self._loading = True
@@ -132,29 +138,31 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
         layout.addWidget(self.general_table)
 
     def _create_properties_section(self) -> None:
-        layout = self._create_section("Control Surface Geometry", "fa6s.sliders")
+        layout = self._create_section("Control Surfaces", "geometry_add_control_surface")
         self.properties_table = self._property_table(
             [
                 ("tag", "Tag / Label"),
                 ("type", "Type"),
-                ("span_mode", "Span Sizing"),
-                ("span_start", "Span Start (mm)"),
-                ("span_end", "Span End (mm)"),
-                ("eta_start", "Eta Start (0 - 1)"),
-                ("eta_end", "Eta End (0 - 1)"),
-                ("chord_mode", "Chord Sizing"),
-                ("chord_fraction", "Chord Fraction (c_f / c)"),
-                ("chord", "Control Chord (mm)"),
-                ("hinge_sweep", "Hinge Sweep (°)"),
-                ("deflection", "Deflection Angle (°)"),
+                ("sizing_mode", "Sizing Driver Mode"),
+                ("area", "Area"),
+                ("area_ratio", "Area Ratio"),
+                ("span_start", "Span Start"),
+                ("span_end", "Span End"),
+                ("span_length", "Span Length"),
+                ("eta_start", "Eta Start"),
+                ("eta_end", "Eta End"),
+                ("chord_fraction", "Chord Fraction"),
+                ("chord", "Control Chord"),
+                ("hinge_sweep", "Hinge Sweep"),
+                ("deflection", "Deflection Angle"),
                 ("symmetry_mode", "Symmetry Mode"),
             ]
         )
         self.properties_table.cellChanged.connect(self._update_property_cell)
         layout.addWidget(self.properties_table)
 
-    def _parent_wing_info(self) -> tuple[float, float]:
-        """Return (semi_span, root_chord) for the parent lifting surface."""
+    def _parent_wing_info(self) -> tuple[float, float, float, float]:
+        """Return (semi_span, root_chord, tip_chord, parent_wing_area_dm2) for parent lifting surface."""
         parent_id = str(self._component.get("parent") or self._component.get("attach_to") or "")
         project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
         if project and isinstance(project.data.get("components"), list):
@@ -173,8 +181,15 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
                         y1 = span_values[-1] if span_values else 0.0
                         semi_span = abs(y1 - y0) if len(span_values) >= 2 else 400.0
                         root_chord = float(profs[0].get("chord", 150.0))
-                        return max(semi_span, 1.0), max(root_chord, 1.0)
-        return 400.0, 150.0
+                        tip_chord = float(profs[-1].get("chord", 100.0))
+                        wing_area_dm2 = (semi_span * (root_chord + tip_chord)) / 10000.0
+                        return (
+                            max(semi_span, 1.0),
+                            max(root_chord, 1.0),
+                            max(tip_chord, 1.0),
+                            max(wing_area_dm2, 0.01),
+                        )
+        return 400.0, 150.0, 100.0, 10.0
 
     def _load_general(self) -> None:
         name = str(self._component.get("name") or self._component.get("id") or "")
@@ -184,7 +199,6 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
         self._set_property_value(self.general_table, "name", name)
         self._set_property_value(self.general_table, "type", comp_type, editable=False)
 
-        # Parent combo (find all lifting surface components)
         project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
         options: list[tuple[str, str]] = [("", "-- None --")]
         if project and isinstance(project.data.get("components"), list):
@@ -203,168 +217,193 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
         )
 
     def _load_properties(self) -> None:
-        geom = self._geometry()
-        semi_span, root_chord = self._parent_wing_info()
-        self._cs_spinboxes = {}
+        from .control_surface_values import compute_control_surface_metrics
 
-        tag_val = str(
-            geom.get("tag") or self._component.get("name") or self._component.get("id") or ""
-        )
-        cs_type = str(geom.get("type") or "aileron").lower()
-        span_mode = str(geom.get("span_mode", "ratio")).lower()
-        chord_mode = str(geom.get("chord_mode", "ratio")).lower()
+        was_loading = self._loading
+        self._loading = True
+        try:
+            geom = self._geometry()
+            semi_span, root_chord, tip_chord, wing_area = self._parent_wing_info()
+            self._cs_spinboxes = {}
 
-        span_start, eta_start, span_end, eta_end = resolve_span_values(geom, semi_span)
-        chord, chord_fraction = resolve_chord_values(geom, root_chord)
+            metrics = compute_control_surface_metrics(
+                geom, semi_span, root_chord, tip_chord, wing_area
+            )
 
-        hinge_sweep = float(geom.get("hinge_sweep", 0.0))
-        deflection = float(geom.get("deflection", 0.0))
-        sym_mode = str(geom.get("symmetry_mode", "auto")).lower()
+            tag_val = str(
+                geom.get("tag") or self._component.get("name") or self._component.get("id") or ""
+            )
+            cs_type = str(geom.get("type") or "aileron").lower()
+            sizing_mode = str(geom.get("sizing_mode", geom.get("span_mode", "ratio"))).lower()
 
-        self._set_property_value(self.properties_table, "tag", tag_val)
-        self._set_property_combo(
-            self.properties_table,
-            "type",
-            cs_type,
-            CONTROL_SURFACE_TYPES,
-            lambda val: self._on_prop_combo_changed("type", val),
-        )
-        self._set_property_combo(
-            self.properties_table,
-            "span_mode",
-            span_mode,
-            SPAN_SIZING_MODES,
-            lambda val: self._on_prop_combo_changed("span_mode", val),
-        )
-        sb_ss = self._set_property_spinbox(
-            self.properties_table,
-            "span_start",
-            span_start,
-            min_val=0.0,
-            max_val=20000.0,
-            step=5.0,
-            decimals=1,
-            suffix=" mm",
-            on_changed=lambda val: self._on_prop_spinbox_changed("span_start", val),
-        )
-        if sb_ss:
-            self._cs_spinboxes["span_start"] = sb_ss
+            hinge_sweep = float(geom.get("hinge_sweep", 0.0))
+            deflection = float(geom.get("deflection", 0.0))
+            sym_mode = str(geom.get("symmetry_mode", "auto")).lower()
 
-        sb_se = self._set_property_spinbox(
-            self.properties_table,
-            "span_end",
-            span_end,
-            min_val=0.0,
-            max_val=20000.0,
-            step=5.0,
-            decimals=1,
-            suffix=" mm",
-            on_changed=lambda val: self._on_prop_spinbox_changed("span_end", val),
-        )
-        if sb_se:
-            self._cs_spinboxes["span_end"] = sb_se
+            driver_keys = self._get_driver_keys_for_mode(sizing_mode)
 
-        sb_es = self._set_property_spinbox(
-            self.properties_table,
-            "eta_start",
-            eta_start,
-            min_val=0.0,
-            max_val=1.0,
-            step=0.01,
-            decimals=3,
-            on_changed=lambda val: self._on_prop_spinbox_changed("eta_start", val),
-        )
-        if sb_es:
-            self._cs_spinboxes["eta_start"] = sb_es
+            self._set_property_value(self.properties_table, "tag", tag_val)
+            self._set_property_combo(
+                self.properties_table,
+                "type",
+                cs_type,
+                CONTROL_SURFACE_TYPES,
+                lambda val: self._on_prop_combo_changed("type", val),
+            )
+            self._set_property_combo(
+                self.properties_table,
+                "sizing_mode",
+                sizing_mode,
+                SIZING_DRIVER_MODES,
+                lambda val: self._on_prop_combo_changed("sizing_mode", val),
+            )
 
-        sb_ee = self._set_property_spinbox(
-            self.properties_table,
-            "eta_end",
-            eta_end,
-            min_val=0.0,
-            max_val=1.0,
-            step=0.01,
-            decimals=3,
-            on_changed=lambda val: self._on_prop_spinbox_changed("eta_end", val),
-        )
-        if sb_ee:
-            self._cs_spinboxes["eta_end"] = sb_ee
+            self._setup_param(
+                "area",
+                "Area",
+                metrics["area_dm2"],
+                geom.get("area_expression"),
+                "dm²",
+                3,
+                driver_keys,
+            )
+            self._setup_param(
+                "area_ratio", "Area Ratio", metrics["area_ratio"], None, "%", 1, driver_keys
+            )
+            self._setup_param(
+                "span_start",
+                "Span start",
+                metrics["span_start"],
+                geom.get("span_start_expression"),
+                "mm",
+                2,
+                driver_keys,
+            )
+            self._setup_param(
+                "span_end",
+                "Span end",
+                metrics["span_end"],
+                geom.get("span_end_expression"),
+                "mm",
+                2,
+                driver_keys,
+            )
+            self._setup_param(
+                "span_length",
+                "Span length",
+                metrics["span_length"],
+                geom.get("span_length_expression"),
+                "mm",
+                2,
+                driver_keys,
+            )
+            self._setup_param(
+                "eta_start",
+                "Span start fraction",
+                metrics["eta_start"],
+                geom.get("eta_start_expression"),
+                "",
+                3,
+                driver_keys,
+            )
+            self._setup_param(
+                "eta_end",
+                "Span end fraction",
+                metrics["eta_end"],
+                geom.get("eta_end_expression"),
+                "",
+                3,
+                driver_keys,
+            )
+            self._setup_param(
+                "chord_fraction",
+                "Chord fraction",
+                metrics["chord_fraction"],
+                geom.get("chord_fraction_expression"),
+                "c",
+                3,
+                driver_keys,
+            )
+            self._setup_param(
+                "chord",
+                "Control chord",
+                metrics["chord"],
+                geom.get("chord_expression"),
+                "mm",
+                2,
+                driver_keys,
+            )
 
-        self._set_property_combo(
-            self.properties_table,
-            "chord_mode",
-            chord_mode,
-            CHORD_SIZING_MODES,
-            lambda val: self._on_prop_combo_changed("chord_mode", val),
-        )
-        sb_cf = self._set_property_spinbox(
-            self.properties_table,
-            "chord_fraction",
-            chord_fraction,
-            min_val=0.02,
-            max_val=0.95,
-            step=0.01,
-            decimals=3,
-            suffix=" c",
-            on_changed=lambda val: self._on_prop_spinbox_changed("chord_fraction", val),
-        )
-        if sb_cf:
-            self._cs_spinboxes["chord_fraction"] = sb_cf
+            hs_val = geom.get("hinge_sweep_expression") or hinge_sweep
+            self._set_property_expression(
+                self.properties_table,
+                "hinge_sweep",
+                hs_val,
+                on_changed=lambda val: self._on_prop_spinbox_changed("hinge_sweep", val),
+                api=self._api,
+                label="Hinge sweep angle",
+                unit="°",
+                decimals=2,
+            )
 
-        sb_c = self._set_property_spinbox(
-            self.properties_table,
-            "chord",
-            chord,
-            min_val=1.0,
-            max_val=5000.0,
-            step=1.0,
-            decimals=1,
-            suffix=" mm",
-            on_changed=lambda val: self._on_prop_spinbox_changed("chord", val),
-        )
-        if sb_c:
-            self._cs_spinboxes["chord"] = sb_c
+            def_val = geom.get("deflection_expression") or deflection
+            self._set_property_expression(
+                self.properties_table,
+                "deflection",
+                def_val,
+                on_changed=lambda val: self._on_prop_spinbox_changed("deflection", val),
+                api=self._api,
+                label="Deflection angle",
+                unit="°",
+                decimals=2,
+            )
 
-        self._set_property_spinbox(
-            self.properties_table,
-            "hinge_sweep",
-            hinge_sweep,
-            min_val=-85.0,
-            max_val=85.0,
-            step=0.5,
-            decimals=1,
-            suffix="°",
-            on_changed=lambda val: self._on_prop_spinbox_changed("hinge_sweep", val),
-        )
-        self._set_property_spinbox(
-            self.properties_table,
-            "deflection",
-            deflection,
-            min_val=-90.0,
-            max_val=90.0,
-            step=1.0,
-            decimals=1,
-            suffix="°",
-            on_changed=lambda val: self._on_prop_spinbox_changed("deflection", val),
-        )
-        self._set_property_combo(
-            self.properties_table,
-            "symmetry_mode",
-            sym_mode,
-            SYMMETRY_MODES,
-            lambda val: self._on_prop_combo_changed("symmetry_mode", val),
-        )
+            self._set_property_combo(
+                self.properties_table,
+                "symmetry_mode",
+                sym_mode,
+                SYMMETRY_MODES,
+                lambda val: self._on_prop_combo_changed("symmetry_mode", val),
+            )
+        finally:
+            self._loading = was_loading
 
-    def _on_prop_spinbox_changed(self, key: str, value: float) -> None:
+    def _on_prop_spinbox_changed(self, key: str, value: Any) -> None:
         if self._loading:
             return
         geom = self._geometry()
-        semi_span, root_chord = self._parent_wing_info()
+        semi_span, root_chord, tip_chord, _wing_area = self._parent_wing_info()
+
+        val_str = str(value).strip() if value is not None else ""
+        num_val: float | None = None
+        if val_str.startswith("=") or not val_str.replace(".", "", 1).replace("-", "", 1).isdigit():
+            # Expression formula
+            geom[f"{key}_expression"] = val_str
+            if self._api is not None and getattr(self._api, "current_project", None) is not None:
+                try:
+                    from setuav_studio.plugins.core.expressions import ExpressionEvaluator
+
+                    evaluator = ExpressionEvaluator()
+                    scope = self._api.current_project.get_scope(api=self._api)
+                    expr = val_str.lstrip("=").strip()
+                    res = evaluator.evaluate(expr, scope)
+                    if isinstance(res, (int, float)):
+                        num_val = float(res)
+                except Exception:
+                    pass
+        else:
+            geom.pop(f"{key}_expression", None)
+            with contextlib.suppress(ValueError):
+                num_val = float(val_str)
+
+        if num_val is None:
+            return
 
         def change() -> None:
-            self._apply_spinbox_change(geom, key, value, semi_span, root_chord)
+            self._apply_spinbox_change(geom, key, num_val, semi_span, root_chord, tip_chord)
 
         self._edit_component(f"Edit control surface {key}", change)
+        self._load_properties()
 
     def _apply_spinbox_change(
         self,
@@ -373,27 +412,113 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
         value: float,
         semi_span: float,
         root_chord: float,
+        tip_chord: float = 100.0,
     ) -> None:
-        linked: tuple[str, float] | None = None
-        if key in {"span_start", "span_end"}:
+        from .control_surface_values import solve_control_surface_from_area
+
+        if key == "area":
+            driver_mode = str(geometry.get("sizing_mode", "area_chord")).lower()
+            solve_control_surface_from_area(
+                geometry, float(value), semi_span, root_chord, tip_chord, driver_mode
+            )
+        elif key in {"span_start", "span_end"}:
             geometry[key] = float(value)
-            linked = (key.replace("span", "eta"), round(float(value) / semi_span, 4))
+            geometry[key.replace("span", "eta")] = round(float(value) / semi_span, 4)
+        elif key == "span_length":
+            start = float(geometry.get("span_start", 0.0))
+            end = min(start + float(value), semi_span)
+            geometry["span_end"] = round(end, 1)
+            geometry["eta_end"] = round(end / semi_span, 4)
         elif key in {"eta_start", "eta_end"}:
             geometry[key] = float(value)
-            linked = (key.replace("eta", "span"), round(float(value) * semi_span, 1))
+            geometry[key.replace("eta", "span")] = round(float(value) * semi_span, 1)
         elif key == "chord_fraction":
             geometry[key] = float(value)
-            linked = ("chord", round(float(value) * root_chord, 1))
+            geometry["chord"] = round(float(value) * root_chord, 1)
         elif key == "chord":
             geometry[key] = max(float(value), 1.0)
-            linked = ("chord_fraction", round(float(value) / root_chord, 3))
+            geometry["chord_fraction"] = round(float(value) / root_chord, 3)
         elif key in {"hinge_sweep", "deflection"}:
             geometry[key] = float(value)
 
-        if linked is not None:
-            linked_key, linked_value = linked
-            geometry[linked_key] = linked_value
-            self._set_linked_spinbox_value(linked_key, linked_value)
+    @staticmethod
+    def _get_driver_keys_for_mode(sizing_mode: str) -> set[str]:
+        if sizing_mode == "dimension":
+            return {"span_start", "span_end", "chord"}
+        if sizing_mode == "area_chord":
+            return {"area", "span_start", "eta_start", "chord_fraction"}
+        if sizing_mode == "area_span":
+            return {"area", "span_start", "span_end", "eta_start", "eta_end"}
+        return {"eta_start", "eta_end", "chord_fraction"}
+
+    def _setup_param(
+        self,
+        key: str,
+        label_text: str,
+        current_val: float,
+        raw_expr: str | None,
+        unit: str,
+        dec: int,
+        driver_keys: set[str],
+    ) -> None:
+        is_driver = key in driver_keys
+        target_row = -1
+        for r in range(self.properties_table.rowCount()):
+            if self._property_key(self.properties_table, r) == key:
+                target_row = r
+                break
+        if target_row < 0:
+            return
+
+        label_item = self.properties_table.item(target_row, 0)
+        if label_item:
+            font = label_item.font()
+            font.setBold(is_driver)
+            label_item.setFont(font)
+            if is_driver:
+                label_item.setForeground(QApplication.palette().text())
+            else:
+                label_item.setForeground(QColor(130, 130, 130))
+
+        if is_driver:
+            val_to_pass = raw_expr if raw_expr else current_val
+            self._set_property_expression(
+                self.properties_table,
+                key,
+                val_to_pass,
+                on_changed=lambda val, k=key: self._on_prop_spinbox_changed(k, val),
+                api=self._api,
+                label=label_text,
+                unit=unit,
+                decimals=dec,
+            )
+        else:
+            from setuav_studio.ui.property_tables import format_engineering_value
+            from setuav_studio.units import get_quantity_for_unit, get_unit_manager
+
+            um = get_unit_manager()
+            self.properties_table.removeCellWidget(target_row, 1)
+
+            q_id = get_quantity_for_unit(unit)
+            if q_id:
+                disp_val = um.to_display(current_val, q_id)
+                sym = um.get_unit_symbol(q_id)
+            else:
+                disp_val = current_val
+                sym = unit or ""
+
+            val_str = format_engineering_value(disp_val, dec)
+            if sym:
+                val_str += f" {sym}"
+            val_item = self.properties_table.item(target_row, 1)
+            if not val_item:
+                val_item = QTableWidgetItem(val_str)
+                self.properties_table.setItem(target_row, 1, val_item)
+            else:
+                val_item.setText(val_str)
+            val_item.setForeground(QColor(130, 130, 130))
+            val_item.setFlags(val_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            val_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
     def _set_linked_spinbox_value(self, key: str, value: float) -> None:
         spinbox = getattr(self, "_cs_spinboxes", {}).get(key)
@@ -412,6 +537,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
             geom[key] = value
 
         self._edit_component(f"Edit control surface {key}", change)
+        self._load_properties()
 
     def _update_property_cell(self, row: int, column: int) -> None:
         if self._loading or column != 1:

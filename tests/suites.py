@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import sys
 import tempfile
 import unittest
 from collections.abc import Sequence
@@ -11,8 +12,15 @@ from collections.abc import Sequence
 CORE_MODULES = (
     "tests.core.test_about_dialog",
     "tests.core.test_component_editor",
+    "tests.core.test_configurations",
+    "tests.core.test_configuration_ui",
+    "tests.core.test_constraints",
+    "tests.core.test_expressions",
     "tests.core.test_instance",
     "tests.core.test_main",
+    "tests.core.test_native_models",
+    "tests.core.test_parameters",
+    "tests.core.test_parameters_panel",
     "tests.core.test_plugin_system_edges",
     "tests.core.test_plugins",
     "tests.core.test_project",
@@ -36,7 +44,6 @@ AERODYNAMICS_FAST_MODULES = (
     "tests.aerodynamics.test_aero_plugin",
 )
 AERODYNAMICS_INTEGRATION_MODULES = (
-    "tests.aerodynamics.integration.test_aero_3d_tool",
     "tests.aerodynamics.integration.test_aerosandbox_engine",
     "tests.aerodynamics.integration.test_airfoil_engine",
     "tests.aerodynamics.integration.test_stability_engine",
@@ -92,4 +99,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    sys.exit(main())

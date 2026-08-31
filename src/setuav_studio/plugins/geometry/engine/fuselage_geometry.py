@@ -1,5 +1,5 @@
 import math
-from typing import Any
+from typing import Any, Literal, cast
 
 from ..viewport.palettes import segment_colors
 from .data import LoftGeometry, Section
@@ -33,12 +33,19 @@ def build_fuselage_geometry(component: dict[str, Any]) -> tuple[LoftGeometry, ..
             continue
         loft = segment.get("loft")
         loft = loft if isinstance(loft, dict) else {}
+        raw_mode = str(loft.get("parameterization") or "centripetal").lower()
+        param_mode: Literal["uniform", "chord_length", "centripetal"] = (
+            cast(Literal["uniform", "chord_length", "centripetal"], raw_mode)
+            if raw_mode in {"uniform", "chord_length", "centripetal"}
+            else "centripetal"
+        )
         lofts.append(
             LoftGeometry(
                 component_id=component_id,
                 sections=sections,
                 color=colors[index % len(colors)],
                 interpolation="linear" if loft.get("method") == "ruled" else "smooth",
+                parameterization=param_mode,
                 station_spacing=10.0,
             )
         )

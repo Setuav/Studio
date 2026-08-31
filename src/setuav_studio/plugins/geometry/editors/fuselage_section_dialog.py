@@ -49,6 +49,7 @@ from setuav_studio.ui.numeric_spinbox import (
     NoWheelComboBox,
     set_table_spinbox,
 )
+from setuav_studio.ui.property_tables import ExpressionPropertyCell
 from setuav_studio.ui.theme import accent_color, tokens
 from setuav_studio_sdk import StudioAPI
 
@@ -1012,7 +1013,7 @@ class FuselageSectionDialog(QDialog):
         poly_layout.addWidget(QLabel("Polygon Vertices (Interactive on Canvas):"))
 
         self.vertices_table = QTableWidget(0, 3)
-        self.vertices_table.setHorizontalHeaderLabels(["Y (mm)", "Z (mm)", "Radius (mm)"])
+        self.vertices_table.setHorizontalHeaderLabels(["Y", "Z", "Radius"])
         self.vertices_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.vertices_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.vertices_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
@@ -1041,8 +1042,8 @@ class FuselageSectionDialog(QDialog):
         trans_box = QGroupBox("Section Transform")
         trans_layout = QVBoxLayout(trans_box)
         self.trans_table = QTableWidget(2, 3)
-        self.trans_table.setHorizontalHeaderLabels(["X (mm)", "Y (mm)", "Z (mm)"])
-        self.trans_table.setVerticalHeaderLabels(["Position", "Rotation (°)"])
+        self.trans_table.setHorizontalHeaderLabels(["X", "Y", "Z"])
+        self.trans_table.setVerticalHeaderLabels(["Position", "Rotation"])
         self.trans_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.trans_table.verticalHeader().setDefaultSectionSize(24)
         self.trans_table.setFixedHeight(75)
@@ -1283,10 +1284,15 @@ class FuselageSectionDialog(QDialog):
         self._section_index = max(0, min(self._section_index, num_secs - 1))
         sec = secs[self._section_index]
 
+        from setuav_studio.units import get_unit_manager
+
+        um = get_unit_manager()
         pos = sec.get("position", {}) if isinstance(sec.get("position"), dict) else {}
         x_val = float(pos.get("x", 0.0))
+        disp_x = um.to_display(x_val, "length")
+        l_sym = um.get_unit_symbol("length")
         self.section_label.setText(
-            f"Section {self._section_index + 1} of {num_secs} (X = {x_val:.1f} mm)"
+            f"Section {self._section_index + 1} of {num_secs} (X = {disp_x:.1f} {l_sym})"
         )
 
         self.prev_btn.setEnabled(self._section_index > 0)
@@ -1327,31 +1333,23 @@ class FuselageSectionDialog(QDialog):
         self.props_table.setVisible(not is_polygon)
 
         if prof_type == "circle":
-            self._add_prop_row("Diameter (mm)", profile.get("diameter", 100.0), "diameter")
+            self._add_prop_row("Diameter", profile.get("diameter", 100.0), "diameter")
         elif prof_type == "ellipse":
-            self._add_prop_row("Width (mm)", profile.get("width", 120.0), "width")
-            self._add_prop_row("Height (mm)", profile.get("height", 80.0), "height")
+            self._add_prop_row("Width", profile.get("width", 120.0), "width")
+            self._add_prop_row("Height", profile.get("height", 80.0), "height")
         elif prof_type == "rectangle":
-            self._add_prop_row("Width (mm)", profile.get("width", 120.0), "width")
-            self._add_prop_row("Height (mm)", profile.get("height", 80.0), "height")
-            self._add_prop_row(
-                "Corner Radius (mm)", profile.get("corner_radius", 10.0), "corner_radius"
-            )
+            self._add_prop_row("Width", profile.get("width", 120.0), "width")
+            self._add_prop_row("Height", profile.get("height", 80.0), "height")
+            self._add_prop_row("Corner Radius", profile.get("corner_radius", 10.0), "corner_radius")
         elif prof_type == "trapezoid":
-            self._add_prop_row("Top Width (mm)", profile.get("top_width", 80.0), "top_width")
-            self._add_prop_row(
-                "Bottom Width (mm)", profile.get("bottom_width", 120.0), "bottom_width"
-            )
-            self._add_prop_row("Height (mm)", profile.get("height", 80.0), "height")
-            self._add_prop_row(
-                "Corner Radius (mm)", profile.get("corner_radius", 5.0), "corner_radius"
-            )
+            self._add_prop_row("Top Width", profile.get("top_width", 80.0), "top_width")
+            self._add_prop_row("Bottom Width", profile.get("bottom_width", 120.0), "bottom_width")
+            self._add_prop_row("Height", profile.get("height", 80.0), "height")
+            self._add_prop_row("Corner Radius", profile.get("corner_radius", 5.0), "corner_radius")
         elif prof_type == "triangle":
-            self._add_prop_row("Base Width (mm)", profile.get("base_width", 100.0), "base_width")
-            self._add_prop_row("Height (mm)", profile.get("height", 80.0), "height")
-            self._add_prop_row(
-                "Corner Radius (mm)", profile.get("corner_radius", 5.0), "corner_radius"
-            )
+            self._add_prop_row("Base Width", profile.get("base_width", 100.0), "base_width")
+            self._add_prop_row("Height", profile.get("height", 80.0), "height")
+            self._add_prop_row("Corner Radius", profile.get("corner_radius", 5.0), "corner_radius")
             self._add_prop_row("Orientation", profile.get("orientation", "up"), "orientation")
         elif prof_type == "polygon":
             self._populate_vertices_table(profile)
@@ -1387,6 +1385,7 @@ class FuselageSectionDialog(QDialog):
                 min_val=0.0,
                 step=step_val,
                 decimals=2,
+                quantity="length",
                 suffix="mm",
                 on_changed=lambda _v, k=key: self._on_prop_spin_changed(k, _v),
             )
@@ -1425,6 +1424,7 @@ class FuselageSectionDialog(QDialog):
                 float(v.get("y", 0.0)),
                 step=1.0,
                 decimals=2,
+                quantity="length",
                 suffix="mm",
                 on_changed=lambda val, row_idx=row: self._on_vertex_cell_spin_changed(
                     row_idx, "y", val
@@ -1437,6 +1437,7 @@ class FuselageSectionDialog(QDialog):
                 float(v.get("z", 0.0)),
                 step=1.0,
                 decimals=2,
+                quantity="length",
                 suffix="mm",
                 on_changed=lambda val, row_idx=row: self._on_vertex_cell_spin_changed(
                     row_idx, "z", val
@@ -1450,6 +1451,7 @@ class FuselageSectionDialog(QDialog):
                 min_val=0.0,
                 step=0.5,
                 decimals=2,
+                quantity="length",
                 suffix="mm",
                 on_changed=lambda val, row_idx=row: self._on_vertex_cell_spin_changed(
                     row_idx, "radius", val
@@ -1494,6 +1496,7 @@ class FuselageSectionDialog(QDialog):
                 float(pos.get(axis, 0.0)),
                 step=5.0,
                 decimals=2,
+                quantity="length",
                 suffix="mm",
                 on_changed=lambda _v: self._on_transform_spinbox_changed(),
             )
@@ -1506,6 +1509,7 @@ class FuselageSectionDialog(QDialog):
                 max_val=360.0,
                 step=1.0,
                 decimals=2,
+                quantity="angle",
                 suffix="°",
                 on_changed=lambda _v: self._on_transform_spinbox_changed(),
             )
@@ -1521,34 +1525,48 @@ class FuselageSectionDialog(QDialog):
 
         for col, axis in enumerate(("x", "y", "z")):
             w_pos = self.trans_table.cellWidget(0, col)
-            if isinstance(w_pos, QDoubleSpinBox):
+            if isinstance(w_pos, (QDoubleSpinBox, ExpressionPropertyCell)):
                 pos[axis] = float(w_pos.value())
             w_rot = self.trans_table.cellWidget(1, col)
-            if isinstance(w_rot, QDoubleSpinBox):
+            if isinstance(w_rot, (QDoubleSpinBox, ExpressionPropertyCell)):
                 rotation[axis] = float(w_rot.value())
         sec["position"] = pos
         sec["rotation"] = rotation
         self._refresh_canvas_and_metrics()
 
     def _update_metrics_labels(self) -> None:
+        from setuav_studio.units import get_unit_manager
+
+        um = get_unit_manager()
+        l_sym = um.get_unit_symbol("length")
+        a_sym = um.get_unit_symbol("area")
+
         m = self.canvas._metrics
         if not m or m.get("area", 0) <= 0:
-            self.lbl_area.setText("Area: 0.0 mm²")
-            self.lbl_perim.setText("Perimeter: 0.0 mm")
-            self.lbl_dims.setText("Dimensions (W × H): 0.0 × 0.0 mm")
+            self.lbl_area.setText(f"Area: 0.0 {a_sym}")
+            self.lbl_perim.setText(f"Perimeter: 0.0 {l_sym}")
+            self.lbl_dims.setText(f"Dimensions (W × H): 0.0 × 0.0 {l_sym}")
             self.lbl_aspect.setText("Aspect Ratio (W/H): 0.00")
-            self.lbl_cg.setText("Centroid (Y, Z): (0.0, 0.0) mm")
-            self.lbl_dh.setText("Hydraulic Diameter (Dh): 0.0 mm")
+            self.lbl_cg.setText(f"Centroid (Y, Z): (0.0, 0.0) {l_sym}")
+            self.lbl_dh.setText(f"Hydraulic Diameter (Dh): 0.0 {l_sym}")
             return
 
         area_mm2 = m["area"]
         area_dm2 = area_mm2 / 10000.0
-        self.lbl_area.setText(f"Area: {area_mm2:,.1f} mm² ({area_dm2:.3f} dm²)")
-        self.lbl_perim.setText(f"Perimeter: {m['perimeter']:,.1f} mm")
-        self.lbl_dims.setText(f"Dimensions (W × H): {m['width']:.1f} × {m['height']:.1f} mm")
+        disp_area = um.to_display(area_dm2, "area")
+        disp_perim = um.to_display(m["perimeter"], "length")
+        disp_w = um.to_display(m["width"], "length")
+        disp_h = um.to_display(m["height"], "length")
+        disp_ycg = um.to_display(m["y_cg"], "length")
+        disp_zcg = um.to_display(m["z_cg"], "length")
+        disp_dh = um.to_display(m["hydraulic_diam"], "length")
+
+        self.lbl_area.setText(f"Area: {disp_area:,.3f} {a_sym}")
+        self.lbl_perim.setText(f"Perimeter: {disp_perim:,.1f} {l_sym}")
+        self.lbl_dims.setText(f"Dimensions (W × H): {disp_w:.1f} × {disp_h:.1f} {l_sym}")
         self.lbl_aspect.setText(f"Aspect Ratio (W/H): {m['aspect_ratio']:.2f}")
-        self.lbl_cg.setText(f"Centroid (Y, Z): ({m['y_cg']:.1f}, {m['z_cg']:.1f}) mm")
-        self.lbl_dh.setText(f"Hydraulic Diameter (Dh): {m['hydraulic_diam']:.1f} mm")
+        self.lbl_cg.setText(f"Centroid (Y, Z): ({disp_ycg:.1f}, {disp_zcg:.1f}) {l_sym}")
+        self.lbl_dh.setText(f"Hydraulic Diameter (Dh): {disp_dh:.1f} {l_sym}")
 
     # -------------------------------------------------------------------------
     # Undo / Redo Internal Application Methods
@@ -1567,10 +1585,10 @@ class FuselageSectionDialog(QDialog):
             self._loading = True
             if vertex_idx < self.vertices_table.rowCount():
                 wy = self.vertices_table.cellWidget(vertex_idx, 0)
-                if isinstance(wy, QDoubleSpinBox):
+                if isinstance(wy, (QDoubleSpinBox, ExpressionPropertyCell)):
                     wy.setValue(y)
                 wz = self.vertices_table.cellWidget(vertex_idx, 1)
-                if isinstance(wz, QDoubleSpinBox):
+                if isinstance(wz, (QDoubleSpinBox, ExpressionPropertyCell)):
                     wz.setValue(z)
             self._loading = False
             self._refresh_canvas_and_metrics()
@@ -1644,10 +1662,10 @@ class FuselageSectionDialog(QDialog):
         if 0 <= index < self.vertices_table.rowCount():
             self._loading = True
             wy = self.vertices_table.cellWidget(index, 0)
-            if isinstance(wy, QDoubleSpinBox):
+            if isinstance(wy, (QDoubleSpinBox, ExpressionPropertyCell)):
                 wy.setValue(y)
             wz = self.vertices_table.cellWidget(index, 1)
-            if isinstance(wz, QDoubleSpinBox):
+            if isinstance(wz, (QDoubleSpinBox, ExpressionPropertyCell)):
                 wz.setValue(z)
             self._loading = False
             self._update_metrics_labels()

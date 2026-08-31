@@ -166,9 +166,9 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
         layout = self._create_section("Atmosphere", "fa6s.cloud")
         self.atmosphere_table = self._property_table(
             [
-                ("altitude", "Altitude (m)"),
-                ("temperature", "Temperature (°C)"),
-                ("density", "Air Density (kg/m³)"),
+                ("altitude", "Altitude"),
+                ("temperature", "Temperature"),
+                ("density", "Air Density"),
             ]
         )
         self.atmosphere_table.cellChanged.connect(self._on_atmosphere_cell_changed)
@@ -286,10 +286,10 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
         self._loading = True
         if mode == "airspeed_sweep":
             defs = [
-                ("throttle", "Throttle (%)"),
-                ("v_min", "Min Airspeed (m/s)"),
-                ("v_max", "Max Airspeed (m/s)"),
-                ("v_step", "Airspeed Step (m/s)"),
+                ("throttle", "Throttle"),
+                ("v_min", "Min Airspeed"),
+                ("v_max", "Max Airspeed"),
+                ("v_step", "Airspeed Step"),
             ]
             self._configure_property_table(self.parameters_table, defs)
             self._set_property_value(self.parameters_table, "throttle", "100")
@@ -298,10 +298,10 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
             self._set_property_value(self.parameters_table, "v_step", "1.0")
         elif mode == "throttle_sweep":
             defs = [
-                ("airspeed", "Airspeed (m/s)"),
-                ("t_min", "Min Throttle (%)"),
-                ("t_max", "Max Throttle (%)"),
-                ("t_step", "Throttle Step (%)"),
+                ("airspeed", "Airspeed"),
+                ("t_min", "Min Throttle"),
+                ("t_max", "Max Throttle"),
+                ("t_step", "Throttle Step"),
             ]
             self._configure_property_table(self.parameters_table, defs)
             self._set_property_value(self.parameters_table, "airspeed", "0.0")
@@ -310,8 +310,8 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
             self._set_property_value(self.parameters_table, "t_step", "5")
         elif mode == "operating_point":
             defs = [
-                ("airspeed", "Airspeed (m/s)"),
-                ("throttle", "Throttle (%)"),
+                ("airspeed", "Airspeed"),
+                ("throttle", "Throttle"),
             ]
             self._configure_property_table(self.parameters_table, defs)
             self._set_property_value(self.parameters_table, "airspeed", "18.0")

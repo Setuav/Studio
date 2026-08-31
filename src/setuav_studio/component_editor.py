@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
+import weakref
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
@@ -15,7 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.ui.icons import set_label_icon
-from setuav_studio.ui.property_tables import PropertyTableMixin
+from setuav_studio.ui.property_tables import ExpressionPropertyCell, PropertyTableMixin
 from setuav_studio_sdk import ParameterField
 
 if TYPE_CHECKING:
@@ -46,7 +48,7 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
         self._content_layout.setContentsMargins(6, 6, 6, 8)
         self._content_layout.setSpacing(10)
 
-        scroll = QScrollArea()
+        scroll = QScrollArea(self)
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         scroll.setWidget(content)
@@ -107,7 +109,7 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
             [
                 ("name", "Name"),
                 ("type", "Type"),
-                ("mass", "Mass (g)"),
+                ("mass", "Mass"),
                 ("manufacturer", "Manufacturer"),
                 ("model", "Model"),
             ]
@@ -119,8 +121,7 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
         layout = self._create_section("Parameters", "fa6s.sliders")
         defs: list[tuple[str, str]] = []
         for f in self._fields:
-            display_label = f"{f.label} ({f.unit})" if f.unit else f.label
-            defs.append((f.key, display_label))
+            defs.append((f.key, f.label))
 
         self.parameters_table = self._property_table(defs)
         self.parameters_table.cellChanged.connect(self._update_parameter_cell)
@@ -128,6 +129,7 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
 
     def _load_component(self) -> None:
         self._loading = True
+        self_ref = weakref.ref(self)
         try:
             # Load General
             self._set_property_value(
@@ -140,8 +142,17 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
                 editable=False,
             )
             params = self._component.get("parameters", {})
-            mass = self._component.get("mass", params.get("mass", 0))
-            self._set_property_value(self.general_table, "mass", mass)
+            mass_val = self._component.get("mass_expression") or self._component.get(
+                "mass", params.get("mass", 0.0)
+            )
+            self._set_property_expression(
+                self.general_table,
+                "mass",
+                mass_val,
+                on_changed=self._on_mass_changed,
+                label="Mass",
+                unit="g",
+            )
             self._set_property_value(
                 self.general_table, "manufacturer", str(self._component.get("manufacturer") or "")
             )
@@ -153,6 +164,7 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
             if hasattr(self, "parameters_table"):
                 for field in self._fields:
                     val = params.get(field.key, field.default)
+
                     if field.options:
                         formatted_options: list[tuple[str, str]] = []
                         for opt in field.options:
@@ -165,18 +177,120 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
                             field.key,
                             str(val),
                             formatted_options,
-                            lambda new_val, k=field.key: self._on_combo_changed(k, new_val),
+                            lambda new_val, k=field.key: (
+                                self_ref()._on_combo_changed(k, new_val)
+                                if self_ref() is not None
+                                else None
+                            ),
                         )
                     else:
-                        if field.field_type is float:
+                        if isinstance(val, str) and val.strip().startswith("="):
+                            str_val = val.strip()
+                        elif field.field_type is float:
                             str_val = (
                                 f"{float(val):.{field.decimals}f}" if val is not None else "0.0"
                             )
                         else:
                             str_val = str(val if val is not None else "")
-                        self._set_property_value(self.parameters_table, field.key, str_val)
+                        self._set_property_expression(
+                            self.parameters_table,
+                            field.key,
+                            str_val,
+                            on_changed=lambda new_val, k=field.key: (
+                                self_ref()._on_expression_cell_changed(k, new_val)
+                                if self_ref() is not None
+                                else None
+                            ),
+                            on_open_assistant=lambda curr_val, f=field: (
+                                self_ref()._open_field_expression_assistant(f, curr_val)
+                                if self_ref() is not None
+                                else None
+                            ),
+                            decimals=field.decimals,
+                            unit=field.unit,
+                            label=field.label,
+                        )
         finally:
             self._loading = False
+
+    def _open_field_expression_assistant(self, field: ParameterField, current_val: str) -> None:
+        from PySide6.QtWidgets import QDialog
+
+        from setuav_studio.plugins.core.ui.expression_dialog import AdvancedExpressionDialog
+
+        dlg = AdvancedExpressionDialog(
+            self._api,
+            initial_expression=current_val,
+            title=f"Equation Assistant — {field.label}",
+            is_boolean_constraint=False,
+            parent=self,
+        )
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            new_expr = dlg.get_expression()
+            self._on_expression_cell_changed(field.key, new_expr)
+            self._load_component()
+
+    def _on_expression_cell_changed(self, key: str, val_text: str) -> None:
+        if self._loading:
+            return
+        field = next((f for f in self._fields if f.key == key), None)
+        if field is None:
+            return
+
+        if isinstance(val_text, str) and val_text.strip().startswith("="):
+            final_val: Any = val_text.strip()
+        elif field.field_type is int:
+            parsed_num = self._parse_number(val_text)
+            final_val = int(parsed_num) if parsed_num is not None else field.default
+        elif field.field_type is float:
+            parsed_num = self._parse_number(val_text)
+            final_val = float(parsed_num) if parsed_num is not None else field.default
+        else:
+            final_val = val_text
+
+        def apply_param() -> None:
+            p = self._component.setdefault("parameters", {})
+            p[key] = final_val
+
+        self._api.edit_component(
+            self._component,
+            f"Set {key} of {self._component.get('name', 'component')}",
+            apply_param,
+        )
+
+    def _on_mass_changed(self, val_text: str) -> None:
+        if self._loading:
+            return
+        clean = val_text.strip()
+        num_val: float | None = None
+        if clean.startswith("=") or not clean.replace(".", "", 1).replace("-", "", 1).isdigit():
+            self._component["mass_expression"] = clean
+            if self._api is not None and getattr(self._api, "current_project", None) is not None:
+                try:
+                    from setuav_studio.plugins.core.expressions import ExpressionEvaluator
+
+                    evaluator = ExpressionEvaluator()
+                    scope = self._api.current_project.get_scope(api=self._api)
+                    expr = clean.lstrip("=").strip()
+                    res = evaluator.evaluate(expr, scope)
+                    if isinstance(res, (int, float)):
+                        num_val = float(res)
+                except Exception:
+                    pass
+        else:
+            self._component.pop("mass_expression", None)
+            with contextlib.suppress(ValueError):
+                num_val = float(clean)
+
+        def change() -> None:
+            if num_val is not None:
+                self._component["mass"] = num_val
+                if "parameters" in self._component and isinstance(
+                    self._component["parameters"], dict
+                ):
+                    self._component["parameters"]["mass"] = num_val
+
+        self._api.edit_component(self._component, "Change component mass", change)
 
     def _update_general(self, row: int, column: int) -> None:
         if self._loading or column != 1:
@@ -210,14 +324,23 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
             return
 
         key = self._property_key(self.parameters_table, row)
-        val_text = self._property_text(self.parameters_table, row)
+        item = self.parameters_table.item(row, column)
+        cell_widget = self.parameters_table.cellWidget(row, column)
+        if item is not None and item.text():
+            val_text = item.text()
+            if isinstance(cell_widget, ExpressionPropertyCell):
+                cell_widget.setText(val_text)
+        else:
+            val_text = self._property_text(self.parameters_table, row)
         field = next((f for f in self._fields if f.key == key), None)
         if field is None:
             return
 
-        if field.field_type is int:
+        if isinstance(val_text, str) and val_text.strip().startswith("="):
+            final_val: Any = val_text.strip()
+        elif field.field_type is int:
             parsed_num = self._parse_number(val_text)
-            final_val: Any = int(parsed_num) if parsed_num is not None else field.default
+            final_val = int(parsed_num) if parsed_num is not None else field.default
         elif field.field_type is float:
             parsed_num = self._parse_number(val_text)
             final_val = float(parsed_num) if parsed_num is not None else field.default

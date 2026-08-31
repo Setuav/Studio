@@ -44,7 +44,103 @@
       }
     },
     "configurations": {
-      "type": "array"
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "tag"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "definitions.schema.json#/$defs/localId"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "tag": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 6
+          },
+          "description": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string",
+            "pattern": "^#[0-9A-Fa-f]{6}$"
+          },
+          "parameter_overrides": {
+            "type": "object"
+          },
+          "excluded_components": {
+            "type": "array",
+            "items": {
+              "$ref": "definitions.schema.json#/$defs/localId"
+            }
+          },
+          "added_components": {
+            "type": "array",
+            "items": {
+              "$ref": "component.schema.json"
+            }
+          },
+          "component_overrides": {
+            "type": "object"
+          },
+          "is_default": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "constraints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "expression"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "definitions.schema.json#/$defs/localId"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "expression": {
+            "type": "string",
+            "minLength": 1
+          },
+          "variables": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["warning", "error", "info"],
+            "default": "warning"
+          },
+          "message": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      }
     },
     "driver_groups": {
       "type": "array"

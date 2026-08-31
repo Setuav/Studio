@@ -85,7 +85,7 @@ class PropellerEditor(BaseComponentEditor):
             [
                 ("name", "Name"),
                 ("type", "Type"),
-                ("mass", "Mass (g)"),
+                ("mass", "Mass"),
                 ("manufacturer", "Manufacturer"),
                 ("model", "Model"),
             ]

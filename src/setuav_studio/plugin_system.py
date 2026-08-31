@@ -9,11 +9,12 @@ from pathlib import Path
 from typing import Any
 
 from packaging.version import InvalidVersion, Version
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QObject, QSettings
 from PySide6.QtGui import QIcon, QUndoCommand, QUndoStack
 from PySide6.QtWidgets import QWidget
 
 from setuav_studio.component_editor import BaseComponentEditor
+from setuav_studio.component_model import BaseComponentModel
 from setuav_studio.project import ProjectDocument
 from setuav_studio.ui.icons import get_icon
 from setuav_studio_sdk.api import (
@@ -37,6 +38,7 @@ from setuav_studio_sdk.plugin import StudioPlugin
 
 __all__ = [
     "BaseComponentEditor",
+    "BaseComponentModel",
     "ComponentTreeNodeContribution",
     "PanelContribution",
     "ParameterField",
@@ -123,9 +125,9 @@ class StudioAPI:
     the Qt UI thread; long-running work must be delegated to a worker thread.
 
     Registration identifiers must be globally unique and should use the
-    plugin's reverse-domain namespace. Every listener and contribution should
-    be removed during plugin deactivation until automatic lifecycle ownership
-    is introduced.
+    plugin's reverse-domain namespace. QObject-bound event subscribers are
+    removed automatically when their owner is destroyed; other listeners and
+    contributions should still be removed during plugin deactivation.
     """
 
     def __init__(self) -> None:
@@ -135,6 +137,7 @@ class StudioAPI:
         self.current_workspace_id: str | None = None
         self._add_panel: Callable[[PanelContribution], None] | None = None
         self._remove_panel: Callable[[str], None] | None = None
+        self._pending_panels: list[PanelContribution] = []
         self._add_workspace: Callable[[WorkspaceContribution], None] | None = None
         self._remove_workspace: Callable[[str], None] | None = None
         self._switch_workspace_handler: Callable[[str], None] | None = None
@@ -165,6 +168,7 @@ class StudioAPI:
         ] = {}
         self._component_icons: dict[str, str | Path | QIcon] = {}
         self._kind_icons: dict[str, str | Path | QIcon] = {}
+        self._component_models: dict[str, Any] = {}
         self._geometry_providers: dict[str, GeometryProvider] = {}
         self._component_tree_providers: dict[str, ComponentTreeProvider] = {}
         self._project_tree_providers: dict[str, ProjectTreeProvider] = {}
@@ -183,14 +187,15 @@ class StudioAPI:
         """Add a dock panel to the application shell.
 
         @param contribution Panel descriptor with a globally unique ID.
-        @exception RuntimeError If the shell is not ready to accept panels.
         """
-        if self._add_panel is None:
-            raise RuntimeError("The Studio shell is not ready for panel contributions")
-        self._add_panel(contribution)
+        if self._add_panel is not None:
+            self._add_panel(contribution)
+        else:
+            self._pending_panels.append(contribution)
 
     def remove_panel(self, panel_id: str) -> None:
         """Remove a previously contributed panel by ID."""
+        self._pending_panels = [p for p in self._pending_panels if p.id != panel_id]
         if self._remove_panel is not None:
             self._remove_panel(panel_id)
 
@@ -228,8 +233,22 @@ class StudioAPI:
         self.report_progress(1, 1, "")
 
     def subscribe(self, event_name: str, handler: Callable[[Any], None]) -> None:
-        """Subscribe a callback handler to a named studio event (Event Bus)."""
+        """Subscribe a callback handler to a named studio event (Event Bus).
+
+        Bound methods owned by a QObject are removed automatically when that
+        QObject is destroyed.
+        """
         self._event_subscribers.setdefault(event_name, []).append(handler)
+        owner = getattr(handler, "__self__", None)
+        if isinstance(owner, QObject):
+            # Panel callbacks commonly belong to widgets that are destroyed
+            # when their plugin is deactivated. Remove the callback with the
+            # QObject so a later event cannot target a deleted C++ object.
+            owner.destroyed.connect(
+                lambda _object=None, event=event_name, callback=handler: self.unsubscribe(
+                    event, callback
+                )
+            )
 
     def unsubscribe(self, event_name: str, handler: Callable[[Any], None]) -> None:
         """Unsubscribe a callback handler from a named studio event."""
@@ -243,6 +262,20 @@ class StudioAPI:
         for handler in handlers:
             try:
                 handler(payload)
+            except RuntimeError as exc:
+                if "already deleted" in str(exc):
+                    # QObject destruction can race with queued events. Drop
+                    # the stale callback and keep the event bus healthy.
+                    self.unsubscribe(event_name, handler)
+                    logger.debug(
+                        "Removed stale subscriber for event '%s': %s",
+                        event_name,
+                        exc,
+                    )
+                    continue
+                logger.error(
+                    "Error executing subscriber for event '%s': %s", event_name, exc, exc_info=True
+                )
             except Exception as exc:
                 logger.error(
                     "Error executing subscriber for event '%s': %s", event_name, exc, exc_info=True
@@ -257,6 +290,7 @@ class StudioAPI:
 
     def remove_workspace(self, workspace_id: str) -> None:
         """Remove a previously contributed workspace by ID."""
+        self._pending_workspaces = [w for w in self._pending_workspaces if w.id != workspace_id]
         if self._remove_workspace is not None:
             self._remove_workspace(workspace_id)
 
@@ -307,6 +341,9 @@ class StudioAPI:
 
     def remove_action(self, menu: str, title: str) -> None:
         """Remove a contributed menu action by menu path and title."""
+        self._pending_actions = [
+            a for a in self._pending_actions if not (a.menu == menu and a.title == title)
+        ]
         if self._remove_action is not None:
             self._remove_action(menu, title)
 
@@ -650,6 +687,33 @@ class StudioAPI:
 
         return get_icon("component")
 
+    def register_component_model(
+        self,
+        component_type: str,
+        model_factory: Any,
+    ) -> None:
+        """Register a domain model class or factory for a component type."""
+        self._component_models[component_type] = model_factory
+
+    def remove_component_model(self, component_type: str) -> None:
+        """Remove a registered component model by component type."""
+        self._component_models.pop(component_type, None)
+
+    def create_component_model(
+        self,
+        component: dict[str, Any],
+    ) -> Any:
+        """Instantiate the domain model object for a given component dictionary."""
+        from setuav_studio.component_model import GenericComponentModel
+
+        component_type = component.get("type")
+        factory = (
+            self._component_models.get(component_type) if isinstance(component_type, str) else None
+        )
+        if factory is not None:
+            return factory(component)
+        return GenericComponentModel(component)
+
     def register_geometry_provider(
         self,
         component_type: str,
@@ -786,6 +850,9 @@ class _StudioHost:
     ) -> None:
         self._api._add_panel = add_handler
         self._api._remove_panel = remove_handler
+        for panel in self._api._pending_panels:
+            add_handler(panel)
+        self._api._pending_panels.clear()
 
     def bind_status_handler(self, handler: Callable[[str, str, int], None]) -> None:
         self._api._status_handler = handler
@@ -851,6 +918,7 @@ class _StudioHost:
 
     def mark_project_saved(self) -> None:
         self._api._undo_stack.setClean()
+        self._api._on_clean_changed(True)
 
     def bind_project_requirement_checker(
         self,

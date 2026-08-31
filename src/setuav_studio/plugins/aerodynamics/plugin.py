@@ -13,6 +13,7 @@ from setuav_studio_sdk import (
     StudioAPI,
     ToolContribution,
     WorkspaceContribution,
+    WorkspaceLayoutContext,
 )
 
 from .analysis_store import (
@@ -35,20 +36,42 @@ from .engine.base import AeroResult
 from .results_dock import AeroResultsDock
 
 if TYPE_CHECKING:
-    from .aero_3d_tool import Aero3DToolWindow
     from .airfoil_analysis_tool import AirfoilAnalysisToolWindow
+
+
+def _apply_aerodynamics_workspace_layout(layout: WorkspaceLayoutContext) -> None:
+    """Set the default Aerodynamics workspace arrangement owned by this plugin."""
+    layout.hide("studio.viewer.opengl", "studio.properties")
+    layout.split("project.explorer", "aerodynamics.controls_dock")
+    layout.split("aerodynamics.controls_dock", "aerodynamics.results_dock")
+    layout.split("aerodynamics.results_dock", "aerodynamics.charts_dock")
+    layout.show(
+        "project.explorer",
+        "aerodynamics.controls_dock",
+        "aerodynamics.results_dock",
+        "aerodynamics.charts_dock",
+    )
+    layout.resize(
+        (
+            "project.explorer",
+            "aerodynamics.controls_dock",
+            "aerodynamics.results_dock",
+            "aerodynamics.charts_dock",
+        ),
+        (240, 220, 240, 490),
+    )
 
 
 class AerodynamicsPlugin:
     """Plugin providing aerodynamic analysis, persisted results, and curves."""
 
     id = "org.setuav.studio.aerodynamics"
-    priority = 20
+    priority = 70
 
     def __init__(self) -> None:
         self._api: StudioAPI | None = None
         self._latest_result: AeroResult | None = None
-        self._tool_windows: set[Aero3DToolWindow | AirfoilAnalysisToolWindow] = set()
+        self._tool_windows: set[AirfoilAnalysisToolWindow] = set()
 
     def activate(self, api: StudioAPI) -> None:
         self._api = api
@@ -63,6 +86,7 @@ class AerodynamicsPlugin:
                 id="studio.workspace.aerodynamics",
                 title="Aerodynamics",
                 order=15,
+                default_layout=_apply_aerodynamics_workspace_layout,
             )
         )
 
@@ -80,14 +104,6 @@ class AerodynamicsPlugin:
             )
         )
 
-        api.register_tool(
-            ToolContribution(
-                group="Aerodynamics",
-                title="AeroSandbox 3D Snapshot…",
-                callback=self._open_aero_3d_tool,
-                icon="fa6s.cube",
-            )
-        )
         api.register_tool(
             ToolContribution(
                 group="Aerodynamics",
@@ -263,23 +279,6 @@ class AerodynamicsPlugin:
         ):
             self._api.set_selection(None)
         self._api.show_status("Deleted all aerodynamic analysis results", "success", 3000)
-
-    def _open_aero_3d_tool(self) -> None:
-        if self._api is None:
-            return
-        # Keep the module unloaded until the UI tool is requested. The
-        # detached renderer executes this module with ``python -m``; importing
-        # it during package initialization makes runpy execute it a second time.
-        from .aero_3d_tool import Aero3DToolWindow
-
-        window = Aero3DToolWindow(self._api, defaults=self._latest_result)
-        self._tool_windows.add(window)
-        window.destroyed.connect(
-            lambda _object=None, tool_window=window: self._tool_windows.discard(tool_window)
-        )
-        window.show()
-        window.raise_()
-        window.activateWindow()
 
     def _open_airfoil_analysis_tool(self) -> None:
         if self._api is None:

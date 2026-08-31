@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import subprocess
 import tempfile
@@ -17,11 +16,6 @@ SMOKE_TEST_TIMEOUT_SECONDS = int(os.environ.get("SETUAV_DESKTOP_SMOKE_TIMEOUT", 
 def _parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("bundle", type=Path, help="PyInstaller desktop bundle")
-    parser.add_argument(
-        "--skip-aero-3d",
-        action="store_true",
-        help="skip the native AeroSandbox/PyVista smoke test",
-    )
     return parser.parse_args()
 
 
@@ -49,30 +43,6 @@ def _run_command(executable: Path, arguments: list[str], environment: dict[str, 
         )
 
 
-def _viewer_payload_path() -> Path:
-    project = json.loads(TEST_PROJECT.read_text(encoding="utf-8"))
-    payload = {
-        "components": project["components"],
-        "condition": {
-            "velocity": 25.0,
-            "altitude": 100.0,
-            "alpha": 4.0,
-            "beta": 0.0,
-            "control_deflections": {},
-        },
-        "mesh": {"spanwise_resolution": 4, "chordwise_resolution": 2},
-    }
-    with tempfile.NamedTemporaryFile(
-        "w",
-        encoding="utf-8",
-        prefix="setuav-viewer-smoke-",
-        suffix=".json",
-        delete=False,
-    ) as stream:
-        json.dump(payload, stream)
-        return Path(stream.name)
-
-
 def main() -> int:
     arguments = _parse_arguments()
     bundle = arguments.bundle.resolve()
@@ -85,7 +55,6 @@ def main() -> int:
         environment.update(
             {
                 "MPLCONFIGDIR": str(Path(temporary_directory) / "matplotlib"),
-                "PYVISTA_OFF_SCREEN": "true",
                 "QT_QPA_PLATFORM": "offscreen",
                 "XDG_CACHE_HOME": str(Path(temporary_directory) / "cache"),
                 "XDG_CONFIG_HOME": str(Path(temporary_directory) / "config"),
@@ -93,21 +62,8 @@ def main() -> int:
             }
         )
         _run_command(executable, ["--smoke-test"], environment)
-        if not arguments.skip_aero_3d:
-            viewer_payload = _viewer_payload_path()
-            try:
-                _run_command(
-                    executable,
-                    ["--smoke-test-aero-3d", str(viewer_payload)],
-                    environment,
-                )
-            finally:
-                viewer_payload.unlink(missing_ok=True)
 
-    if arguments.skip_aero_3d:
-        print(f"Desktop startup smoke test passed (AeroSandbox 3D skipped): {executable}")
-    else:
-        print(f"Desktop startup and VLM viewer smoke tests passed: {executable}")
+    print(f"Desktop startup smoke test passed: {executable}")
     return 0
 
 

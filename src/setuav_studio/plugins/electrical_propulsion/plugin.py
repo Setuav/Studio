@@ -9,6 +9,7 @@ from setuav_studio_sdk import (
     StudioAPI,
     ToolContribution,
     WorkspaceContribution,
+    WorkspaceLayoutContext,
 )
 
 from .catalog_dialog import ComponentCatalogDialog
@@ -23,15 +24,48 @@ from .editors.propeller import PropellerEditor
 from .results_dock import PropulsionResultsDock
 
 
+def _apply_propulsion_workspace_layout(layout: WorkspaceLayoutContext) -> None:
+    """Set the default Propulsion workspace arrangement owned by this plugin."""
+    layout.hide("studio.viewer.opengl", "studio.properties")
+    layout.split("project.explorer", "propulsion.controls_dock")
+    layout.split("propulsion.controls_dock", "propulsion.results_dock")
+    layout.split("propulsion.results_dock", "propulsion.charts_dock")
+    layout.show(
+        "project.explorer",
+        "propulsion.controls_dock",
+        "propulsion.results_dock",
+        "propulsion.charts_dock",
+    )
+    layout.resize(
+        (
+            "project.explorer",
+            "propulsion.controls_dock",
+            "propulsion.results_dock",
+            "propulsion.charts_dock",
+        ),
+        (240, 230, 230, 490),
+    )
+
+
 class ElectricalPropulsionPlugin:
     """Plugin providing electrical propulsion component editors, icons, database, and assemblies."""
 
     id = "org.setuav.studio.electrical_propulsion"
+    priority = 70
 
     def activate(self, api: StudioAPI) -> None:
         self._creation_controller = PropulsionCreationController(api)
         for contribution in self._creation_controller.contributions():
             api.add_toolbar_item(contribution)
+
+        # Register Component Models
+        from .models import BatteryModel, ESCModel, MotorModel, PropellerModel
+
+        api.register_component_model("org.setuav.core:motor", MotorModel)
+        api.register_component_model("org.setuav.core:battery", BatteryModel)
+        api.register_component_model("org.setuav.core:esc", ESCModel)
+        api.register_component_model("org.setuav.core:propeller", PropellerModel)
+        api.register_component_model("org.setuav.core:rotor", PropellerModel)
 
         # Register Component Editors
         api.register_component_editor(
@@ -76,6 +110,7 @@ class ElectricalPropulsionPlugin:
                 id="studio.workspace.propulsion",
                 title="Propulsion",
                 order=20,
+                default_layout=_apply_propulsion_workspace_layout,
             )
         )
 
@@ -95,7 +130,7 @@ class ElectricalPropulsionPlugin:
         api.add_panel(
             PanelContribution(
                 id="propulsion.charts_dock",
-                title="Performance Charts",
+                title="Propulsion Charts",
                 factory=lambda: PropulsionChartsDock(api),
                 workspace_id="studio.workspace.propulsion",
                 area=Qt.DockWidgetArea.RightDockWidgetArea,
@@ -103,7 +138,7 @@ class ElectricalPropulsionPlugin:
             )
         )
 
-        # Register Propulsion Results Dock (Right dock in Propulsion workspace)
+        # Register Propulsion Results Dock (Bottom-Right dock in Propulsion workspace)
         api.add_panel(
             PanelContribution(
                 id="propulsion.results_dock",
@@ -111,11 +146,11 @@ class ElectricalPropulsionPlugin:
                 factory=lambda: PropulsionResultsDock(api),
                 workspace_id="studio.workspace.propulsion",
                 area=Qt.DockWidgetArea.RightDockWidgetArea,
-                icon="fa6s.table-list",
+                icon="fa6s.table",
             )
         )
 
-        # Register Tools in Tools menu
+        # Register Tools menu item
         def open_component_database() -> None:
             dialog = ComponentCatalogDialog(component_type="all")
             dialog.exec()
@@ -142,6 +177,7 @@ class ElectricalPropulsionPlugin:
             "org.setuav.core:battery",
             "org.setuav.core:electric-propulsion-system",
         ):
+            api.remove_component_model(component_type)
             api.remove_component_editor(component_type)
             api.remove_component_icon(component_type)
         api.remove_panel("propulsion.controls_dock")

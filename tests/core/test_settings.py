@@ -68,7 +68,7 @@ class CoreSettingsTests(unittest.TestCase):
         dialog = SettingsDialog(StudioSettings(True, 12, " /pythrust ", "off", "github_light"))
         self.addCleanup(dialog.deleteLater)
 
-        self.assertEqual(dialog.category_tree.topLevelItemCount(), 3)
+        self.assertEqual(dialog.category_tree.topLevelItemCount(), 4)
         self.assertEqual(dialog.page_stack.currentIndex(), 0)
         self.assertEqual(
             dialog.values(),

@@ -40,6 +40,7 @@ class ExamplePluginTests(unittest.TestCase):
         panel = api.added_panels[0]
         self.assertEqual(workspace.id, "com.example.hello.workspace")
         self.assertEqual(workspace.title, "Hello")
+        self.assertIsNotNone(workspace.default_layout)
         self.assertEqual(panel.id, "com.example.hello.panel")
         self.assertEqual(panel.workspace_id, workspace.id)
 

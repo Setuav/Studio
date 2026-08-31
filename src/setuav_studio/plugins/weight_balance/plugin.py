@@ -12,6 +12,7 @@ from setuav_studio_sdk import (
     StudioAPI,
     ToolbarContribution,
     WorkspaceContribution,
+    WorkspaceLayoutContext,
 )
 
 from .balance_view_dock import WeightBalanceViewDock
@@ -24,9 +25,27 @@ from .results_dock import WeightBalanceResultsDock
 POINT_MASS_ICON = "fa6s.weight-scale"
 
 
+def _apply_weight_balance_workspace_layout(layout: WorkspaceLayoutContext) -> None:
+    """Set the default Weight-Balance workspace arrangement owned by this plugin."""
+    layout.hide("studio.viewer.opengl")
+    layout.split("project.explorer", "weight_balance.view_dock")
+    layout.split("weight_balance.view_dock", "weight_balance.results_dock")
+    layout.split("weight_balance.results_dock", "studio.properties", "vertical")
+    layout.show(
+        "project.explorer",
+        "weight_balance.view_dock",
+        "weight_balance.results_dock",
+        "studio.properties",
+    )
+    layout.resize(
+        ("project.explorer", "weight_balance.view_dock", "weight_balance.results_dock"),
+        (240, 550, 400),
+    )
+
+
 class WeightBalancePlugin:
     id = "org.setuav.studio.weight_balance"
-    priority = 25
+    priority = 50
     provides: ClassVar[dict[str, str]] = {EXTENSION_ID: "1.0.0"}
 
     def __init__(self) -> None:
@@ -47,6 +66,13 @@ class WeightBalancePlugin:
                 workspace_id="studio.workspace.weight_balance",
             )
         )
+        # Register Component Model
+        from .models import PointMassModel
+
+        api.register_component_model(
+            "org.setuav.core:point-mass",
+            PointMassModel,
+        )
         api.register_component_icon(
             "org.setuav.core:point-mass",
             POINT_MASS_ICON,
@@ -65,6 +91,7 @@ class WeightBalancePlugin:
                 id="studio.workspace.weight_balance",
                 title="Weight-Balance",
                 order=10,
+                default_layout=_apply_weight_balance_workspace_layout,
             )
         )
         api.add_panel(
@@ -98,6 +125,7 @@ class WeightBalancePlugin:
         api.remove_project_listener(self._project_changed)
         api.remove_project_content_listener(self._project_changed)
         api.remove_kind_editor("mass-properties")
+        api.remove_component_model("org.setuav.core:point-mass")
         api.remove_component_editor("org.setuav.core:point-mass")
         api.remove_component_icon("org.setuav.core:point-mass")
         api.remove_component_tree_provider(EXTENSION_ID)

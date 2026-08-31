@@ -43,6 +43,11 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
         if self._api is not None:
             self._api.subscribe("propulsion.results_updated", self.set_results)
 
+        from setuav_studio.units import get_unit_manager
+
+        get_unit_manager().units_changed.connect(self._on_units_changed)
+        self.destroyed.connect(self._disconnect_units_changed)
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(4)
@@ -101,19 +106,44 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
         layout.addLayout(bottom_bar)
         self.clear_results()
 
-    def _create_detail_table(self) -> QTableWidget:
-        headers = [
-            "Operating Pt",
+    def _disconnect_units_changed(self) -> None:
+        try:
+            from setuav_studio.units import get_unit_manager
+
+            get_unit_manager().units_changed.disconnect(self._on_units_changed)
+        except (RuntimeError, TypeError):
+            pass
+
+    def closeEvent(self, event: Any) -> None:
+        self._disconnect_units_changed()
+        if self._api is not None:
+            self._api.unsubscribe("propulsion.results_updated", self.set_results)
+        super().closeEvent(event)
+
+    @staticmethod
+    def _detail_headers() -> list[str]:
+        from setuav_studio.units import get_unit_manager
+
+        um = get_unit_manager()
+        speed_sym = um.get_unit_symbol("velocity")
+        force_sym = um.get_unit_symbol("force")
+        power_sym = um.get_unit_symbol("power")
+        curr_sym = um.get_unit_symbol("current")
+        return [
+            f"Operating Pt ({speed_sym})" if speed_sym else "Operating Pt",
             "RPM",
-            "Thrust (N)",
-            "Power (W)",
-            "Current (A)",
+            f"Thrust ({force_sym})" if force_sym else "Thrust",
+            f"Power ({power_sym})" if power_sym else "Power",
+            f"Current ({curr_sym})" if curr_sym else "Current",
             "Total η",
             "Prop ηp",
             "Motor ηm",
-            "Advance (J)",
+            "Advance Ratio",
             "Status",
         ]
+
+    def _create_detail_table(self) -> QTableWidget:
+        headers = self._detail_headers()
         table = ContentFitTableWidget(0, len(headers))
         table.setHorizontalHeaderLabels(headers)
         table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -138,6 +168,7 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
         self._update_summary(data)
         sweep_rows: list[dict[str, Any]] = data.get("sweep_table", [])
         self.detail_table.setRowCount(0)
+        self.detail_table.setHorizontalHeaderLabels(self._detail_headers())
         if not sweep_rows:
             return
 
@@ -152,19 +183,45 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
         if hasattr(self, "btn_export_csv"):
             self.btn_export_csv.setEnabled(bool(sweep_rows))
 
+    def _on_units_changed(self) -> None:
+        self.detail_table.setHorizontalHeaderLabels(self._detail_headers())
+        if self._last_data is not None:
+            self.set_results(self._last_data)
+
     def _update_summary(self, data: dict[str, Any]) -> None:
-        summary_values = (
-            ("static_thrust", "static_thrust", lambda value: f"{value:.2f} N"),
-            ("peak_power", "peak_power", lambda value: f"{value:.1f} W"),
-            ("peak_current", "peak_current", lambda value: f"{value:.1f} A"),
-            ("max_rpm", "max_rpm", lambda value: f"{value:.0f} RPM"),
-            ("cruise_thrust", "cruise_thrust", lambda value: f"{value:.2f} N"),
-            ("cruise_efficiency", "cruise_efficiency", lambda value: f"{value * 100:.1f} %"),
-            ("endurance_min", "endurance", lambda value: f"{value:.1f} min"),
-        )
-        for data_key, table_key, formatter in summary_values:
-            if data_key in data:
-                self._set_property_value(self.summary_table, table_key, formatter(data[data_key]))
+        from setuav_studio.units import get_unit_manager
+
+        um = get_unit_manager()
+        force_sym = um.get_unit_symbol("force")
+        power_sym = um.get_unit_symbol("power")
+        current_sym = um.get_unit_symbol("current")
+
+        if "static_thrust" in data:
+            st = um.to_display(float(data["static_thrust"]), "force")
+            self._set_property_value(self.summary_table, "static_thrust", f"{st:.2f} {force_sym}")
+        if "peak_power" in data:
+            pp = um.to_display(float(data["peak_power"]), "power")
+            self._set_property_value(self.summary_table, "peak_power", f"{pp:.1f} {power_sym}")
+        if "peak_current" in data:
+            pc = um.to_display(float(data["peak_current"]), "current")
+            self._set_property_value(self.summary_table, "peak_current", f"{pc:.1f} {current_sym}")
+        if "max_rpm" in data:
+            self._set_property_value(
+                self.summary_table, "max_rpm", f"{float(data['max_rpm']):.0f} RPM"
+            )
+        if "cruise_thrust" in data:
+            ct = um.to_display(float(data["cruise_thrust"]), "force")
+            self._set_property_value(self.summary_table, "cruise_thrust", f"{ct:.2f} {force_sym}")
+        if "cruise_efficiency" in data:
+            self._set_property_value(
+                self.summary_table,
+                "cruise_efficiency",
+                f"{float(data['cruise_efficiency']) * 100:.1f} %",
+            )
+        if "endurance_min" in data:
+            self._set_property_value(
+                self.summary_table, "endurance", f"{float(data['endurance_min']):.1f} min"
+            )
 
     @staticmethod
     def _best_efficiency_row(rows: list[dict[str, Any]]) -> int:
@@ -196,16 +253,27 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
 
     @staticmethod
     def _detail_values(row: dict[str, Any], is_best: bool, is_overcurrent: bool) -> tuple[str, ...]:
+        from setuav_studio.units import get_unit_manager
+
+        um = get_unit_manager()
         x_value = float(row.get("x_val", 0.0))
         is_throttle = "Throttle" in str(row.get("x_label", ""))
-        operation = f"{x_value:.0f}%" if is_throttle else f"{x_value:.1f} m/s"
+        if is_throttle:
+            operation = f"{x_value:.0f}%"
+        else:
+            disp_speed = um.to_display(x_value, "velocity")
+            operation = f"{disp_speed:.1f}"
+
+        disp_thrust = um.to_display(float(row.get("thrust", 0.0)), "force")
+        disp_power = um.to_display(float(row.get("power", 0.0)), "power")
+        disp_current = um.to_display(float(row.get("current", 0.0)), "current")
         efficiency = f"{float(row.get('eta_sys', 0.0)) * 100:.1f}%"
         return (
             operation,
             f"{float(row.get('rpm', 0.0)):,.0f}",
-            f"{float(row.get('thrust', 0.0)):.2f}",
-            f"{float(row.get('power', 0.0)):.1f}",
-            f"{float(row.get('current', 0.0)):.1f}",
+            f"{disp_thrust:.2f}",
+            f"{disp_power:.1f}",
+            f"{disp_current:.1f}",
             f"★ {efficiency}" if is_best else efficiency,
             f"{float(row.get('eta_p', 0.0)) * 100:.1f}%",
             f"{float(row.get('eta_m', 0.0)) * 100:.1f}%",

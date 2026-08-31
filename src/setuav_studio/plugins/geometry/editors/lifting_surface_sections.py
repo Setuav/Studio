@@ -45,12 +45,9 @@ class SectionsMixin:
         self.sections_table = self._table(
             [
                 "#",
-                "Span (mm)",
-                "Root C (mm)",
-                "Tip C (mm)",
-                "Sweep (°)",
-                "Dihedral (°)",
-                "Twist (°)",
+                "Span",
+                "Sweep",
+                "Dihedral",
             ]
         )
         self.sections_table.setEditTriggers(
@@ -102,10 +99,10 @@ class SectionsMixin:
         props_layout = self._create_section("Section Properties", "fa6s.sliders")
         self.section_properties_table = self._property_table(
             [
-                ("sweep", "Sweep Angle (°)"),
+                ("sweep", "Sweep Angle"),
                 ("sweep_loc", "Sweep Location"),
-                ("dihedral", "Dihedral Angle (°)"),
-                ("twist", "Twist Angle (°)"),
+                ("dihedral", "Dihedral Angle"),
+                ("twist", "Twist Angle"),
                 ("root_airfoil", "Root Airfoil"),
                 ("tip_airfoil", "Tip Airfoil"),
             ]
@@ -130,7 +127,7 @@ class SectionsMixin:
         self.airfoil_shaping_table = self._property_table(
             [
                 ("section_align", "Section Alignment"),
-                ("te_thickness", "TE Thickness (t/c)"),
+                ("te_thickness", "TE Thickness"),
                 ("thickness_scale", "Thickness Scale"),
                 ("camber_scale", "Camber Scale"),
             ]
@@ -143,13 +140,20 @@ class SectionsMixin:
 
     def _get_sections(self) -> list[dict[str, Any]]:
         profiles = self._profiles()
-        sw_loc = getattr(self, "_sweep_loc", 0.25)
+        geom = self._geometry()
+        sw_loc = float(geom.get("sweep_location", getattr(self, "_sweep_loc", 0.25)))
+        self._sweep_loc = sw_loc
         return profiles_to_sections(profiles, sw_loc)
 
     def _populate_sections(self) -> None:
         was_loading = self._loading
         self._loading = True
         try:
+            from setuav_studio.units import get_unit_manager
+
+            um = get_unit_manager()
+            length_sym = um.get_unit_symbol("length")
+            angle_sym = um.get_unit_symbol("angle")
             sections = self._get_sections()
             self.sections_table.setRowCount(len(sections))
 
@@ -159,52 +163,37 @@ class SectionsMixin:
                 num_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.sections_table.setItem(r, 0, num_item)
 
-                span_item = QTableWidgetItem(f"{sec['span']:.1f}")
+                disp_span = um.to_display(sec["span"], "length")
+                span_item = QTableWidgetItem(f"{disp_span:.1f} {length_sym}")
                 span_item.setTextAlignment(
                     Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
                 )
                 self.sections_table.setItem(r, 1, span_item)
 
-                rc_item = QTableWidgetItem(f"{sec['root_chord']:.1f}")
-                rc_item.setTextAlignment(
-                    Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-                )
-                if r > 0:
-                    rc_item.setFlags(rc_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                    rc_item.setToolTip("Shared with preceding section tip chord")
-                self.sections_table.setItem(r, 2, rc_item)
-
-                tc_item = QTableWidgetItem(f"{sec['tip_chord']:.1f}")
-                tc_item.setTextAlignment(
-                    Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-                )
-                self.sections_table.setItem(r, 3, tc_item)
-
-                sw_item = QTableWidgetItem(f"{sec['sweep']:.1f}")
+                disp_sw = um.to_display(sec["sweep"], "angle")
+                sw_item = QTableWidgetItem(f"{disp_sw:.1f} {angle_sym}")
                 sw_item.setTextAlignment(
                     Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
                 )
-                self.sections_table.setItem(r, 4, sw_item)
+                self.sections_table.setItem(r, 2, sw_item)
 
-                dih_item = QTableWidgetItem(f"{sec['dihedral']:.1f}")
+                disp_dih = um.to_display(sec["dihedral"], "angle")
+                dih_item = QTableWidgetItem(f"{disp_dih:.1f} {angle_sym}")
                 dih_item.setTextAlignment(
                     Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
                 )
-                self.sections_table.setItem(r, 5, dih_item)
-
-                tw_item = QTableWidgetItem(f"{sec['twist']:.1f}")
-                tw_item.setTextAlignment(
-                    Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-                )
-                self.sections_table.setItem(r, 6, tw_item)
+                self.sections_table.setItem(r, 3, dih_item)
 
             self._fit_table_height(self.sections_table, len(sections))
 
-            # Enable/disable buttons based on section count
-            can_delete = len(sections) > 1
-            self.delete_section_button.setEnabled(can_delete)
+            self._update_section_actions()
         finally:
             self._loading = was_loading
+
+    def _update_section_actions(self) -> None:
+        can_delete = len(self._get_sections()) > 1
+        if hasattr(self, "delete_section_button"):
+            self.delete_section_button.setEnabled(can_delete)
 
     def _on_sections_selection_changed(self) -> None:
         row = self.sections_table.currentRow()
@@ -453,20 +442,21 @@ class SectionsMixin:
     def _apply_section_cell(
         sections: list[dict[str, Any]], row: int, column: int, value: float
     ) -> bool:
+        from setuav_studio.units import get_unit_manager
+
+        um = get_unit_manager()
         section = sections[row]
         field = {
             1: "span",
-            2: "root_chord",
-            3: "tip_chord",
-            4: "sweep",
-            5: "dihedral",
-            6: "twist",
+            2: "sweep",
+            3: "dihedral",
         }.get(column)
-        if field is None or (column == 2 and row != 0):
+        if field is None:
             return False
-        section[field] = max(value, 1.0) if column in {1, 2, 3} else float(value)
-        if column == 3 and row + 1 < len(sections):
-            sections[row + 1]["root_chord"] = section["tip_chord"]
+        raw_val = (
+            um.from_display(value, "length") if column == 1 else um.from_display(value, "angle")
+        )
+        section[field] = max(raw_val, 1.0) if column == 1 else float(raw_val)
         return True
 
     def _on_section_planform_changed(self, new_metrics: dict[str, float]) -> None:

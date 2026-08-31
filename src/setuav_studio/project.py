@@ -92,6 +92,124 @@ class ProjectDocument:
         comp["extensions"][namespace] = value
         self.modified = True
 
+    def get_configuration_manager(self) -> Any:
+        """Return the shared ConfigurationManager instance for this project."""
+        if (
+            not hasattr(self, "_config_manager")
+            or getattr(self, "_config_manager_data", None) is not self.data
+        ):
+            from setuav_studio.plugins.core.configurations import ConfigurationManager
+
+            self._config_manager = ConfigurationManager(self.data)
+            self._config_manager_data = self.data
+        return self._config_manager
+
+    def get_component_models(
+        self, api: Any | None = None, config_id: str | None = None
+    ) -> list[Any]:
+        """Return the list of typed domain model instances for all project components."""
+        from setuav_studio.component_model import GenericComponentModel
+
+        cfg_mgr = self.get_configuration_manager()
+        components = cfg_mgr.get_materialized_components(config_id)
+        models: list[Any] = []
+        if not isinstance(components, list):
+            return models
+
+        for comp in components:
+            if not isinstance(comp, dict):
+                continue
+            resolved_comp = cfg_mgr.get_resolved_component(comp, config_id)
+            if api is not None and hasattr(api, "create_component_model"):
+                model = api.create_component_model(resolved_comp)
+            else:
+                model = GenericComponentModel(resolved_comp)
+            models.append(model)
+
+        # Link children (such as control surfaces) to their parent models
+        model_by_id = {getattr(m, "id", ""): m for m in models if getattr(m, "id", "")}
+        for model in models:
+            parent_id = getattr(model, "attach_to", None) or (
+                model.raw_data.get("attach_to") or model.raw_data.get("parent")
+                if hasattr(model, "raw_data") and isinstance(model.raw_data, dict)
+                else None
+            )
+            if parent_id and parent_id in model_by_id and hasattr(model, "set_parent_model"):
+                model.set_parent_model(model_by_id[parent_id])
+
+        return models
+
+    def get_scope(self, api: Any | None = None, config_id: str | None = None) -> dict[str, Any]:
+        """Return the complete runtime evaluation scope containing resolved parameters and live component models."""
+        cfg_mgr = self.get_configuration_manager()
+        scope: dict[str, Any] = {}
+
+        # 1. Project Parameters & Constants
+        resolved_params = cfg_mgr.get_effective_project_parameters(config_id)
+        for k, v in resolved_params.items():
+            scope[k] = v
+
+        # 2. Live Component Models
+        models = self.get_component_models(api, config_id)
+        total_mass = 0.0
+
+        for model in models:
+            raw_cid = model.id
+            if not raw_cid:
+                continue
+            clean_cid = raw_cid.replace("-", "_")
+            scope[clean_cid] = model
+            if raw_cid != clean_cid:
+                scope[raw_cid] = model
+
+            # Flat aliases for compatibility (e.g. main_wing_planform_area)
+            if hasattr(model, "get_exposed_properties"):
+                for prop_name, prop_val in model.get_exposed_properties().items():
+                    if isinstance(prop_val, (int, float, bool, str)):
+                        scope[f"{clean_cid}_{prop_name}"] = prop_val
+
+            total_mass += model.mass
+
+        scope["total_mass"] = total_mass
+        scope["mtow"] = resolved_params.get("mtow", total_mass)
+        return scope
+
+
+def create_project(path: str | Path) -> ProjectDocument:
+    """Create a new, empty project document at ``path``.
+
+    New projects always start with the core plugin requirement and empty
+    collections. The document is marked modified until the caller saves it.
+    """
+    selected_path = Path(path).expanduser().resolve()
+    if selected_path.suffix.lower() == ".suav":
+        kind: Literal["json", "archive"] = "archive"
+    elif selected_path.name == "project.json":
+        kind = "json"
+    else:
+        raise ProjectSaveError("Expected a project.json or a .suav file")
+
+    project_name = selected_path.stem
+    if selected_path.name == "project.json":
+        project_name = selected_path.parent.name or "Untitled Project"
+    if not project_name:
+        project_name = "Untitled Project"
+
+    return ProjectDocument(
+        path=selected_path,
+        kind=kind,
+        data={
+            "$schema": "https://schemas.setuav.org/core/project.schema.json",
+            "name": project_name,
+            "plugins": [{"id": "org.setuav.core", "version": "^1.0.0"}],
+            "components": [],
+            "assemblies": [],
+            "parameters": {},
+            "extensions": {},
+        },
+        modified=True,
+    )
+
 
 def open_project(path: str | Path) -> ProjectDocument:
     selected_path = Path(path).expanduser().resolve()
@@ -121,13 +239,25 @@ def save_project(
     target = project.path if path is None else Path(path).expanduser().resolve()
     logger.info("Saving project: %s", target)
 
+    save_data = project.data
+    if hasattr(project, "get_configuration_manager"):
+        import copy
+
+        cfg_mgr = project.get_configuration_manager()
+        cfg_mgr.sync_current_state_to_active()
+        if cfg_mgr.get_active_id() is not None:
+            save_data = copy.deepcopy(project.data)
+            save_data["components"] = copy.deepcopy(cfg_mgr._base_state["components"])
+            save_data["parameters"] = copy.deepcopy(cfg_mgr._base_state["parameters"])
+            save_data["assemblies"] = copy.deepcopy(cfg_mgr._base_state["assemblies"])
+
     try:
         if target.suffix.lower() == ".suav":
-            _write_suav(project, target)
+            _write_suav(project, target, data=save_data)
             project.path = target
             project.kind = "archive"
         elif target.name == "project.json":
-            _write_json_file(target, project.data)
+            _write_json_file(target, save_data)
             project.path = target
             if path is not None or project.kind != "folder":
                 project.kind = "json"
@@ -185,8 +315,9 @@ def _write_json_file(path: Path, data: dict[str, Any]) -> None:
             temporary_path.unlink()
 
 
-def _write_suav(project: ProjectDocument, target: Path) -> None:
+def _write_suav(project: ProjectDocument, target: Path, data: dict[str, Any] | None = None) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
+    payload = data if data is not None else project.data
     temporary_path: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(
@@ -201,7 +332,7 @@ def _write_suav(project: ProjectDocument, target: Path) -> None:
             _copy_project_files_to_archive(project, destination)
             destination.writestr(
                 "project.json",
-                json.dumps(project.data, ensure_ascii=False, indent=2) + "\n",
+                json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
             )
         os.replace(temporary_path, target)
     finally:
