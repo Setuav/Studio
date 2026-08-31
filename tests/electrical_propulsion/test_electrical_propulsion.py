@@ -377,6 +377,73 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertGreater(pt.current, 0.0)
         self.assertTrue(0.0 <= pt.eta_sys <= 1.0)
 
+    def test_propulsion_results_dock_unit_conversion(self) -> None:
+        from setuav_studio.plugin_system import StudioAPI
+        from setuav_studio.plugins.electrical_propulsion.results_dock import PropulsionResultsDock
+        from setuav_studio.units import get_unit_manager
+
+        um = get_unit_manager()
+        um.set_display_unit("force", "N")
+        um.set_display_unit("velocity", "m/s")
+        um.units_changed.emit()
+
+        api = StudioAPI()
+        dock = PropulsionResultsDock(api)
+        data = {
+            "static_thrust": 25.0,
+            "peak_power": 500.0,
+            "peak_current": 30.0,
+            "max_rpm": 8500.0,
+            "cruise_thrust": 15.0,
+            "cruise_efficiency": 0.72,
+            "endurance_min": 25.5,
+            "motor_max_current": 40.0,
+            "sweep_table": [
+                {
+                    "x_val": 15.0,
+                    "x_label": "Airspeed (m/s)",
+                    "rpm": 7200.0,
+                    "thrust": 18.5,
+                    "power": 320.0,
+                    "current": 21.0,
+                    "eta_sys": 0.68,
+                    "eta_p": 0.78,
+                    "eta_m": 0.87,
+                    "j": 0.55,
+                    "feasible": True,
+                }
+            ],
+        }
+        dock.set_results(data)
+
+        # In SI / engineering: speed is m/s, thrust is N, power is W, current is A
+        self.assertEqual(dock.detail_table.horizontalHeaderItem(0).text(), "Operating Pt (m/s)")
+        self.assertEqual(dock.detail_table.horizontalHeaderItem(2).text(), "Thrust (N)")
+        self.assertEqual(dock.detail_table.horizontalHeaderItem(3).text(), "Power (W)")
+        self.assertEqual(dock.detail_table.horizontalHeaderItem(4).text(), "Current (A)")
+        self.assertEqual(dock.detail_table.item(0, 0).text(), "15.0")
+        self.assertEqual(dock.detail_table.item(0, 2).text(), "18.50")
+        self.assertEqual(dock.detail_table.item(0, 3).text(), "320.0")
+        self.assertEqual(dock.detail_table.item(0, 4).text(), "21.0")
+
+        # Change unit to ft/s and lbf
+        um.set_display_unit("velocity", "ft/s")
+        um.set_display_unit("force", "lbf")
+        um.units_changed.emit()
+
+        self.assertEqual(dock.detail_table.horizontalHeaderItem(0).text(), "Operating Pt (ft/s)")
+        self.assertEqual(dock.detail_table.horizontalHeaderItem(2).text(), "Thrust (lbf)")
+        expected_speed = f"{um.to_display(15.0, 'velocity'):.1f}"
+        expected_thrust = f"{um.to_display(18.5, 'force'):.2f}"
+        self.assertEqual(dock.detail_table.item(0, 0).text(), expected_speed)
+        self.assertEqual(dock.detail_table.item(0, 2).text(), expected_thrust)
+
+        # Restore default units
+        um.set_display_unit("velocity", "m/s")
+        um.set_display_unit("force", "N")
+        um.units_changed.emit()
+        dock.close()
+
     def _drain_events(self, iterations: int = 15) -> None:
         from PySide6.QtCore import QThreadPool
 

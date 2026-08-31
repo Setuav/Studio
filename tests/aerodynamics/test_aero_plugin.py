@@ -207,6 +207,66 @@ class AerodynamicsPluginTests(unittest.TestCase):
         metrics = AeroResultsDock._stability_metrics(result)
         self.assertEqual(metrics["pitch_status"], "MARGINAL")
 
+    def test_aero_results_dock_unit_conversion(self) -> None:
+        from setuav_studio.plugins.aerodynamics.engine.base import (
+            AeroForcesMoments,
+            FlightCondition,
+            PolarPoint,
+            ReferenceValues,
+        )
+        from setuav_studio.units import get_unit_manager
+
+        um = get_unit_manager()
+        um.set_display_unit("force", "N")
+        um.set_display_unit("velocity", "m/s")
+        um.units_changed.emit()
+
+        result = AeroResult(
+            method=AnalysisMethod.AERO_BUILDUP,
+            engine_name="AeroSandbox",
+            reference=ReferenceValues(
+                b_ref=1.2, s_ref=0.24, c_ref=0.2, x_cg=0.1, y_cg=0.0, z_cg=0.0
+            ),
+            condition=FlightCondition(velocity=20.0, altitude=100.0),
+            polar_points=[
+                PolarPoint(
+                    alpha=2.0,
+                    beta=0.0,
+                    cl=0.5,
+                    cd=0.025,
+                    cm=-0.04,
+                    forces_moments=AeroForcesMoments(lift=50.0, drag=2.5),
+                    converged=True,
+                )
+            ],
+            dynamic_pressure=245.0,
+        )
+
+        dock = AeroResultsDock(self.api)
+        dock.display_results(result)
+
+        # In SI / engineering: force is N, velocity is m/s
+        lift_col = 14
+        drag_col = 15
+        self.assertEqual(dock.detail_table.horizontalHeaderItem(lift_col).text(), "Lift (N)")
+        self.assertEqual(dock.detail_table.horizontalHeaderItem(drag_col).text(), "Drag (N)")
+        self.assertEqual(dock.detail_table.item(0, lift_col).text(), "50.000")
+        self.assertEqual(dock.detail_table.item(0, drag_col).text(), "2.500")
+
+        # Change unit to lbf
+        um.set_display_unit("force", "lbf")
+        um.units_changed.emit()
+
+        self.assertEqual(dock.detail_table.horizontalHeaderItem(lift_col).text(), "Lift (lbf)")
+        self.assertEqual(dock.detail_table.horizontalHeaderItem(drag_col).text(), "Drag (lbf)")
+        expected_lift = f"{um.to_display(50.0, 'force'):.3f}"
+        self.assertEqual(dock.detail_table.item(0, lift_col).text(), expected_lift)
+
+        # Restore default unit
+        um.set_display_unit("force", "N")
+        um.units_changed.emit()
+        dock.close()
+
     def test_airfoil_analysis_tool_is_standalone(self) -> None:
         tool = AirfoilAnalysisToolWindow(self.api)
         self.assertEqual(tool.airfoil_combo.currentText(), "NACA 2412")

@@ -106,6 +106,26 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
         self._api.on_project_changed(self._on_project_changed)
         self._api.on_selection_changed(self._on_selection_changed)
 
+        from setuav_studio.units import get_unit_manager
+
+        get_unit_manager().units_changed.connect(self._on_units_changed)
+        self.destroyed.connect(self._disconnect_units_changed)
+
+    def _on_units_changed(self) -> None:
+        if self._current_result is not None:
+            self._populate_summary(self._current_result)
+            self._populate_details(self._current_result)
+        else:
+            self.detail_table.setHorizontalHeaderLabels(self._detail_headers())
+
+    def _disconnect_units_changed(self) -> None:
+        try:
+            from setuav_studio.units import get_unit_manager
+
+            get_unit_manager().units_changed.disconnect(self._on_units_changed)
+        except (RuntimeError, TypeError):
+            pass
+
     @property
     def current_result(self) -> AeroResult | None:
         return self._current_result
@@ -165,10 +185,14 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
         self._clear_tables()
 
     @staticmethod
-    def _create_detail_table() -> ContentFitTableWidget:
-        headers = [
-            "α",
-            "β",
+    def _detail_headers() -> list[str]:
+        from setuav_studio.units import get_unit_manager
+
+        um = get_unit_manager()
+        force_sym = um.get_unit_symbol("force")
+        return [
+            "α (°)",
+            "β (°)",
             "Controls",
             "CL",
             "CD",
@@ -181,10 +205,13 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
             "CZ",
             "Cl",
             "Cn",
-            "Lift",
-            "Drag",
+            f"Lift ({force_sym})" if force_sym else "Lift",
+            f"Drag ({force_sym})" if force_sym else "Drag",
             "Status",
         ]
+
+    def _create_detail_table(self) -> ContentFitTableWidget:
+        headers = self._detail_headers()
         table = ContentFitTableWidget(0, len(headers))
         table.setHorizontalHeaderLabels(headers)
         table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -303,6 +330,25 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
                 f"{cond.sweep_min:+g}…{cond.sweep_max:+g}° ({cond.sweep_steps})"
             )
 
+        from setuav_studio.units import get_unit_manager
+
+        um = get_unit_manager()
+        speed_sym = um.get_unit_symbol("velocity")
+        alt_sym = um.get_unit_symbol("length")
+        press_sym = um.get_unit_symbol("pressure")
+        area_sym = um.get_unit_symbol("area")
+        len_sym = um.get_unit_symbol("length")
+
+        disp_velocity = um.to_display(cond.velocity, "velocity")
+        disp_altitude = um.to_display(cond.altitude, "length")
+        disp_q = um.to_display(result.dynamic_pressure, "pressure")
+        disp_span = um.to_display(ref.b_ref, "length")
+        disp_area = um.to_display(ref.s_ref, "area")
+        disp_mac = um.to_display(ref.c_ref, "length")
+        disp_cg_x = um.to_display(ref.xyz_ref[0], "length")
+        disp_cg_y = um.to_display(ref.xyz_ref[1], "length")
+        disp_cg_z = um.to_display(ref.xyz_ref[2], "length")
+
         metrics = {
             "solver_engine": result.engine_name,
             "analysis_method": result.method.value.replace("_", " ").title(),
@@ -319,16 +365,16 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
             "cd_ind_cruise": f"{cd_i:.5f}" if cd_i is not None else "N/A",
             "cd_prof_cruise": f"{cd_p:.5f}" if cd_p is not None else "N/A",
             "drag_ratio": drag_ratio,
-            "velocity": f"{cond.velocity:.2f} m/s",
-            "altitude": f"{cond.altitude:.1f} m",
+            "velocity": f"{disp_velocity:.2f} {speed_sym}",
+            "altitude": f"{disp_altitude:.1f} {alt_sym}",
             "mach": f"{result.mach:.3f}",
-            "dynamic_pressure": f"{result.dynamic_pressure:.1f} Pa",
+            "dynamic_pressure": f"{disp_q:.1f} {press_sym}",
             "reynolds": f"{result.reynolds:,.0f}" if result.reynolds > 0 else "N/A",
-            "ref_span": f"{ref.b_ref * 1000.0:.1f} mm ({ref.b_ref:.3f} m)",
-            "ref_area": f"{ref.s_ref * 1e4:.1f} cm² ({ref.s_ref:.4f} m²)",
+            "ref_span": f"{disp_span:.3f} {len_sym}",
+            "ref_area": f"{disp_area:.4f} {area_sym}",
             "ref_ar": f"{aspect_ratio:.2f}",
-            "ref_mac": f"{ref.c_ref * 1000.0:.1f} mm",
-            "ref_cg": f"[{ref.xyz_ref[0] * 1000.0:.1f}, {ref.xyz_ref[1] * 1000.0:.1f}, {ref.xyz_ref[2] * 1000.0:.1f}] mm",
+            "ref_mac": f"{disp_mac:.3f} {len_sym}",
+            "ref_cg": f"[{disp_cg_x:.3f}, {disp_cg_y:.3f}, {disp_cg_z:.3f}] {len_sym}",
             "oswald_e": f"{result.oswald_efficiency:.3f}"
             if result.oswald_efficiency is not None
             else "N/A",
@@ -438,6 +484,10 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
         }
 
     def _populate_details(self, result: AeroResult) -> None:
+        from setuav_studio.units import get_unit_manager
+
+        um = get_unit_manager()
+        self.detail_table.setHorizontalHeaderLabels(self._detail_headers())
         points = result.polar_points
         self.detail_table.setUpdatesEnabled(False)
         self.detail_table.blockSignals(True)
@@ -451,6 +501,8 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
                     )
                     or "—"
                 )
+                disp_lift = um.to_display(point.lift, "force")
+                disp_drag = um.to_display(point.drag, "force")
                 values = [
                     f"{point.alpha:+.2f}",
                     f"{point.beta:+.2f}",
@@ -466,8 +518,8 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
                     f"{point.cz:+.4f}",
                     f"{point.cl_roll:+.5f}",
                     f"{point.cn:+.5f}",
-                    f"{point.lift:.3f}",
-                    f"{point.drag:.3f}",
+                    f"{disp_lift:.3f}",
+                    f"{disp_drag:.3f}",
                     "OK" if point.converged else f"FAILED: {point.notes}",
                 ]
                 for column, value in enumerate(values):
@@ -541,6 +593,7 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
         refresh_button_role(self.btn_export_csv)
 
     def closeEvent(self, event: QCloseEvent) -> None:
+        self._disconnect_units_changed()
         self._api.unsubscribe("aerodynamics.analysis_completed", self.display_results)
         self._api.remove_project_listener(self._on_project_changed)
         self._api.remove_selection_listener(self._on_selection_changed)
