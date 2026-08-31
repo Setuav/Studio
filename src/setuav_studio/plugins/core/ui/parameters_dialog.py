@@ -27,6 +27,11 @@ if TYPE_CHECKING:
     from setuav_studio_sdk import StudioAPI
 
 
+import re
+
+PARAMETER_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_-]*$")
+
+
 class AddParameterDialog(QDialog):
     """Dialog to create a new project constant or parameter with a quantity type selector."""
 
@@ -130,6 +135,14 @@ class AddParameterDialog(QDialog):
         name = self.name_edit.text().strip()
         if not name:
             QMessageBox.warning(self, "Invalid Name", "Parameter name cannot be empty.")
+            return
+        if not PARAMETER_NAME_PATTERN.match(name):
+            QMessageBox.warning(
+                self,
+                "Invalid Name",
+                "Parameter name must start with a letter or underscore and contain only "
+                "letters, digits, underscores, or hyphens (e.g. 'wing_span', 'v_cruise').",
+            )
             return
         if name in self._existing_names:
             QMessageBox.warning(self, "Duplicate Name", f"Parameter '{name}' already exists.")
