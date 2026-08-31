@@ -239,7 +239,7 @@ class AirfoilAnalysisToolWindow(QDialog):
 
         self.results_table = QTableWidget(0, 7, results_tabs)
         self.results_table.setHorizontalHeaderLabels(
-            ["α", "CL", "CD", "CM", "L/D", "Top Xtr", "Bottom Xtr"]
+            ["α (°)", "CL", "CD", "CM", "L/D", "Top Xtr", "Bottom Xtr"]
         )
         self.results_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.results_table.setAlternatingRowColors(True)
