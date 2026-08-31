@@ -91,12 +91,6 @@ class AerodynamicsPluginTests(unittest.TestCase):
         self.assertNotIn("aerodynamics.aero_3d", panel_ids)
         self.assertTrue(
             any(
-                action.menu == "Tools/Aerodynamics" and action.title == "AeroSandbox 3D Snapshot…"
-                for action in self.actions
-            )
-        )
-        self.assertTrue(
-            any(
                 action.menu == "Tools/Aerodynamics" and action.title == "Airfoil Analysis…"
                 for action in self.actions
             )

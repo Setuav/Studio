@@ -42,7 +42,6 @@ AERODYNAMICS_FAST_MODULES = (
     "tests.aerodynamics.test_aero_plugin",
 )
 AERODYNAMICS_INTEGRATION_MODULES = (
-    "tests.aerodynamics.integration.test_aero_3d_tool",
     "tests.aerodynamics.integration.test_aerosandbox_engine",
     "tests.aerodynamics.integration.test_airfoil_engine",
     "tests.aerodynamics.integration.test_stability_engine",

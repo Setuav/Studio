@@ -41,17 +41,6 @@ def _parse_arguments(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help="enable debug-level logging",
     )
-    internal_commands = parser.add_mutually_exclusive_group()
-    internal_commands.add_argument(
-        "--render-aero-3d",
-        metavar="PAYLOAD",
-        help=argparse.SUPPRESS,
-    )
-    internal_commands.add_argument(
-        "--smoke-test-aero-3d",
-        metavar="PAYLOAD",
-        help=argparse.SUPPRESS,
-    )
     parser.add_argument(
         "--smoke-test",
         action="store_true",
@@ -60,19 +49,8 @@ def _parse_arguments(argv: list[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _run_internal_command(arguments: argparse.Namespace) -> int | None:
-    payload_path = arguments.render_aero_3d or arguments.smoke_test_aero_3d
-    if payload_path is None:
-        return None
-
-    from setuav_studio.plugins.aerodynamics.aero_3d_tool import render_native_snapshot
-
-    render_native_snapshot(payload_path, show=arguments.render_aero_3d is not None)
-    return 0
-
-
 def _configure_opengl() -> None:
-    """Configure one conservative shared format for Qt and VTK viewers."""
+    """Configure one conservative shared format for OpenGL viewers."""
     from PySide6.QtCore import Qt
     from PySide6.QtGui import QSurfaceFormat
     from PySide6.QtWidgets import QApplication
@@ -94,9 +72,6 @@ def _configure_opengl() -> None:
 
 def main() -> int:
     arguments = _parse_arguments(sys.argv[1:])
-    internal_result = _run_internal_command(arguments)
-    if internal_result is not None:
-        return internal_result
 
     from PySide6.QtCore import QTimer
     from PySide6.QtWidgets import QApplication
