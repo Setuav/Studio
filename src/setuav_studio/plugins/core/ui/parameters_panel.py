@@ -83,6 +83,16 @@ class ProjectParametersPanel(QWidget):
             return None
         return self._api.current_project.data
 
+    def _get_active_cfg_manager(self, data: dict[str, Any]) -> ConfigurationManager:
+        proj = self._api.current_project
+        if proj is not None and hasattr(proj, "get_configuration_manager"):
+            getter = getattr(proj, "get_configuration_manager", None)
+            if callable(getter):
+                mgr = getter()
+                if isinstance(mgr, ConfigurationManager):
+                    return mgr
+        return ConfigurationManager(data, self._resolver)
+
     def _refresh(self) -> None:
         if self._loading:
             return
@@ -99,12 +109,7 @@ class ProjectParametersPanel(QWidget):
             self.btn_remove.setEnabled(True)
 
             raw_params: dict[str, Any] = data.setdefault("parameters", {})
-            if self._api.current_project is not None and hasattr(
-                self._api.current_project, "get_configuration_manager"
-            ):
-                cfg_mgr = self._api.current_project.get_configuration_manager()
-            else:
-                cfg_mgr = ConfigurationManager(data, self._resolver)
+            cfg_mgr = self._get_active_cfg_manager(data)
             try:
                 resolved_params = cfg_mgr.get_effective_project_parameters()
             except Exception:

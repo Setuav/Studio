@@ -283,14 +283,15 @@ class ConfigurationManager:
         current_parameters = self.project_data.get("parameters", {})
         current_assemblies = self.project_data.get("assemblies", [])
 
-        if self.get_active_id() is None:
+        active_id = self.get_active_id()
+        if active_id is None:
             self._base_state = {
                 "components": copy.deepcopy(current_components),
                 "parameters": copy.deepcopy(current_parameters),
                 "assemblies": copy.deepcopy(current_assemblies),
             }
         else:
-            cfg = self.get_configuration(self._active_id)
+            cfg = self.get_configuration(active_id)
             if cfg is not None:
                 delta = compute_configuration_delta(
                     self._base_state["components"],
