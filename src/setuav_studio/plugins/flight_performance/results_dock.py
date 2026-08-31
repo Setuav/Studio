@@ -46,6 +46,11 @@ class PerformanceResultsDock(PropertyTableMixin, QWidget):
         if self._api is not None:
             self._api.subscribe("flight_performance.analysis_completed", self.set_results)
 
+        from setuav_studio.units import get_unit_manager
+
+        get_unit_manager().units_changed.connect(self._on_units_changed)
+        self.destroyed.connect(self._disconnect_units_changed)
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(4)
@@ -112,21 +117,51 @@ class PerformanceResultsDock(PropertyTableMixin, QWidget):
         layout.addLayout(bottom_bar)
         self.clear_results()
 
-    def _create_detail_table(self) -> ContentFitTableWidget:
-        headers = [
-            "Airspeed",
-            "P_req",
-            "P_avail",
-            "T_req",
-            "T_avail",
-            "ROC",
-            "γ",
-            "P_elec",
-            "Current",
-            "Throttle",
-            "Range",
-            "Endurance",
+    def _disconnect_units_changed(self) -> None:
+        try:
+            from setuav_studio.units import get_unit_manager
+
+            get_unit_manager().units_changed.disconnect(self._on_units_changed)
+        except (RuntimeError, TypeError):
+            pass
+
+    def closeEvent(self, event: Any) -> None:
+        self._disconnect_units_changed()
+        if self._api is not None:
+            self._api.unsubscribe("flight_performance.analysis_completed", self.set_results)
+        super().closeEvent(event)
+
+    def _on_units_changed(self) -> None:
+        self.detail_table.setHorizontalHeaderLabels(self._detail_headers())
+        if self._last_result is not None:
+            self.set_results(self._last_result)
+
+    @staticmethod
+    def _detail_headers() -> list[str]:
+        from setuav_studio.units import get_unit_manager
+
+        um = get_unit_manager()
+        speed_sym = um.get_unit_symbol("velocity")
+        power_sym = um.get_unit_symbol("power")
+        force_sym = um.get_unit_symbol("force")
+        curr_sym = um.get_unit_symbol("current")
+        return [
+            f"Airspeed ({speed_sym})" if speed_sym else "Airspeed",
+            f"P_req ({power_sym})" if power_sym else "P_req",
+            f"P_avail ({power_sym})" if power_sym else "P_avail",
+            f"T_req ({force_sym})" if force_sym else "T_req",
+            f"T_avail ({force_sym})" if force_sym else "T_avail",
+            f"ROC ({speed_sym})" if speed_sym else "ROC",
+            "γ (°)",
+            f"P_elec ({power_sym})" if power_sym else "P_elec",
+            f"Current ({curr_sym})" if curr_sym else "Current",
+            "Throttle (%)",
+            "Range (km)",
+            "Endurance (h)",
         ]
+
+    def _create_detail_table(self) -> ContentFitTableWidget:
+        headers = self._detail_headers()
         table = ContentFitTableWidget(0, len(headers))
         table.setHorizontalHeaderLabels(headers)
         table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -254,16 +289,30 @@ class PerformanceResultsDock(PropertyTableMixin, QWidget):
 
         self._update_endurance(res)
 
-        self._set_property_value(self.summary_table, "min_power", f"{met.min_power_required:.1f} W")
+        p_sym = um.get_unit_symbol("power")
+        i_sym = um.get_unit_symbol("current")
+        disp_min_p = um.to_display(met.min_power_required, "power")
+        disp_cru_p = um.to_display(cru.power, "power")
+        disp_cru_i = um.to_display(cru.current, "current")
+
+        self._set_property_value(
+            self.summary_table,
+            "min_power",
+            f"{disp_min_p:.1f} {p_sym}" if p_sym else f"{disp_min_p:.1f}",
+        )
         self._set_property_value(
             self.summary_table,
             "cruise_power",
-            f"{cru.power:.1f} W" if res.propulsion_available and cru.power > 0 else "N/A",
+            (f"{disp_cru_p:.1f} {p_sym}" if p_sym else f"{disp_cru_p:.1f}")
+            if res.propulsion_available and cru.power > 0
+            else "N/A",
         )
         self._set_property_value(
             self.summary_table,
             "cruise_current",
-            f"{cru.current:.2f} A" if res.propulsion_available and cru.current > 0 else "N/A",
+            (f"{disp_cru_i:.2f} {i_sym}" if i_sym else f"{disp_cru_i:.2f}")
+            if res.propulsion_available and cru.current > 0
+            else "N/A",
         )
         self._set_property_value(
             self.summary_table,
@@ -273,6 +322,11 @@ class PerformanceResultsDock(PropertyTableMixin, QWidget):
         self._update_propulsion_status(res)
 
     def _populate_detail_table(self, res: FlightEnvelopeResult) -> None:
+        from setuav_studio.units import get_unit_manager
+
+        um = get_unit_manager()
+        self.detail_table.setHorizontalHeaderLabels(self._detail_headers())
+
         c = res.curves
         n_rows = len(c.velocities)
         self.detail_table.setRowCount(n_rows)
@@ -324,16 +378,25 @@ class PerformanceResultsDock(PropertyTableMixin, QWidget):
             )
             feas = c.feasible[row] if row < len(c.feasible) else True
 
+            disp_v = um.to_display(v_val, "velocity")
+            disp_p_req = um.to_display(p_req, "power")
+            disp_p_av = um.to_display(p_av, "power") if p_av is not None else None
+            disp_t_req = um.to_display(t_req, "force")
+            disp_t_av = um.to_display(t_av, "force") if t_av is not None else None
+            disp_roc = um.to_display(roc_v, "velocity") if roc_v is not None else None
+            disp_p_el = um.to_display(p_el, "power") if p_el is not None else None
+            disp_i_el = um.to_display(i_el, "current") if i_el is not None else None
+
             vals = [
-                f"{v_val:.1f}",
-                f"{p_req:.1f}",
-                f"{p_av:.1f}" if p_av is not None else "—",
-                f"{t_req:.2f}",
-                f"{t_av:.2f}" if t_av is not None else "—",
-                f"{roc_v:.2f}" if roc_v is not None else "—",
+                f"{disp_v:.1f}",
+                f"{disp_p_req:.1f}",
+                f"{disp_p_av:.1f}" if disp_p_av is not None else "—",
+                f"{disp_t_req:.2f}",
+                f"{disp_t_av:.2f}" if disp_t_av is not None else "—",
+                f"{disp_roc:.2f}" if disp_roc is not None else "—",
                 f"{gamma_v:.1f}" if gamma_v is not None else "—",
-                f"{p_el:.1f}" if p_el is not None else "—",
-                f"{i_el:.2f}" if i_el is not None else "—",
+                f"{disp_p_el:.1f}" if disp_p_el is not None else "—",
+                f"{disp_i_el:.2f}" if disp_i_el is not None else "—",
                 f"{thr:.0f}" if thr is not None else "—",
                 f"{rng:.1f}" if rng is not None else "—",
                 f"{end:.2f}" if end is not None else "—",

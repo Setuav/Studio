@@ -111,7 +111,7 @@ class ProjectDocument:
         from setuav_studio.component_model import GenericComponentModel
 
         cfg_mgr = self.get_configuration_manager()
-        components = self.data.get("components", [])
+        components = cfg_mgr.get_materialized_components(config_id)
         models: list[Any] = []
         if not isinstance(components, list):
             return models

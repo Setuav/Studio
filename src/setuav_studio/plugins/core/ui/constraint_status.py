@@ -67,7 +67,7 @@ class ConstraintStatusWidget(QWidget):
             self.btn.setStyleSheet("")
             return
 
-        results = self._checker.check_all(project_data)
+        results = self._checker.check_all(project_data, api=self._api)
         violations = [r for r in results if r.enabled and (not r.passed or r.error)]
 
         if not violations:

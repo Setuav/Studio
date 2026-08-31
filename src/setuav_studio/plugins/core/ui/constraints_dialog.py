@@ -262,7 +262,7 @@ class ManageConstraintsDialog(QDialog):
         if not isinstance(constraints, list):
             return
 
-        results = self._checker.check_all(project_data)
+        results = self._checker.check_all(project_data, api=self._api)
         res_map: dict[str, ConstraintResult] = {r.id: r for r in results}
 
         for row, c in enumerate(constraints):

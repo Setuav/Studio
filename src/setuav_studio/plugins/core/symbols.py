@@ -40,7 +40,7 @@ def build_evaluation_context(
         context[k] = v
 
     # 2. Live Component Models
-    components = project_data.get("components", [])
+    components = cfg_mgr.get_materialized_components(config_id)
     total_mass = 0.0
 
     if isinstance(components, list):

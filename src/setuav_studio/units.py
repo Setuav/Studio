@@ -627,27 +627,9 @@ class UnitManager(QObject):
     from_display = to_base
 
     def get_inertia_display(self, base_val_kg_m2: float) -> tuple[float, str]:
-        """Convert standard kg*m^2 inertia tensor value based on active mass & length units."""
-        mass_u_id = self.get_display_unit("mass")
-        len_u_id = self.get_display_unit("length")
-
-        mass_u = QUANTITIES["mass"].units.get(mass_u_id)
-        len_u = QUANTITIES["length"].units.get(len_u_id)
-
-        if not mass_u or not len_u:
-            return base_val_kg_m2, "kg·m²"
-
-        # Base mass is g, so 1 kg = 1000 g -> scale from kg to display mass
-        mass_from_kg = mass_u.from_base * 1000.0 if not callable(mass_u.from_base) else 1.0
-        # Base length is mm, so 1 m = 1000 mm -> scale from m to display length
-        len_from_m = len_u.from_base * 1000.0 if not callable(len_u.from_base) else 1.0
-
-        scale = mass_from_kg * (len_from_m**2)
-        disp_val = base_val_kg_m2 * scale
-
-        mass_sym = mass_u.symbol
-        len_sym = len_u.symbol
-        symbol = f"{mass_sym}·{len_sym}²"
+        """Convert standard kg*m^2 inertia tensor value based on active inertia unit."""
+        disp_val = self.to_display(base_val_kg_m2, "inertia")
+        symbol = self.get_unit_symbol("inertia")
         return disp_val, symbol
 
     def get_wing_loading_display(self, base_val_g_dm2: float) -> tuple[float, str]:

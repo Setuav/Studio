@@ -155,7 +155,10 @@ class AddParameterDialog(QDialog):
         desc = self.desc_edit.text().strip()
         if q_id or desc:
             um = get_unit_manager()
-            res_dict: dict[str, Any] = {"value": parsed}
+            stored_val = parsed
+            if q_id and isinstance(parsed, (int, float)):
+                stored_val = um.to_base(float(parsed), q_id)
+            res_dict: dict[str, Any] = {"value": stored_val}
             if q_id:
                 res_dict["quantity"] = q_id
                 res_dict["unit"] = um.get_unit_symbol(q_id)

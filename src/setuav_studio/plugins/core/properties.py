@@ -14,26 +14,27 @@ class PropertiesPanel(QWidget):
         self._layout.setContentsMargins(6, 4, 6, 6)
         self._layout.setSpacing(4)
         self._current_widget: QWidget | None = None
-        self._current_selection_id: str | None = None
+        self._current_selection_key: tuple[str, str] | None = None
         api.on_selection_changed(self.set_selection)
 
     def set_selection(self, selection: Any | None) -> None:
         if not isinstance(selection, dict):
-            self._current_selection_id = None
+            self._current_selection_key = None
             self._replace_widget(self._message("Select a component, parameter, or constraint"))
             return
 
         new_id = str(selection.get("id") or "")
         kind = str(selection.get("kind") or "")
+        new_key = (kind, new_id)
         if (
-            self._current_selection_id is not None
-            and new_id == self._current_selection_id
+            self._current_selection_key is not None
+            and new_key == self._current_selection_key
             and self._current_widget is not None
         ):
             # Same item is already selected; keep current editor widget intact
             return
 
-        self._current_selection_id = new_id
+        self._current_selection_key = new_key
 
         if kind == "parameter":
             from setuav_studio.plugins.core.ui.parameter_property_editor import (

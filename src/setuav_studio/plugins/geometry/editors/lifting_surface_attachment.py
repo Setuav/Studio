@@ -167,16 +167,16 @@ class AttachmentMixin:
             rot_dict["pitch"] = vals_rot[1]
             rot_dict["yaw"] = vals_rot[2]
 
-            if kind == "pos":
-                if is_expr:
-                    pos_dict[f"{axis}_expression"] = val_str
-                else:
-                    pos_dict.pop(f"{axis}_expression", None)
-            elif kind == "rot":
-                if is_expr:
-                    rot_dict[f"{axis}_expression"] = val_str
-                else:
-                    rot_dict.pop(f"{axis}_expression", None)
+            exprs = self._component.setdefault("parameters", {}).setdefault(
+                "transform_expressions", {}
+            )
+            expr_key = f"{kind}.{axis}"
+            if is_expr:
+                exprs[expr_key] = val_str
+            else:
+                exprs.pop(expr_key, None)
+            if not exprs and "parameters" in self._component:
+                self._component["parameters"].pop("transform_expressions", None)
 
         self._edit_component("Edit wing attachment transform", change)
         self._refresh_planform_table()

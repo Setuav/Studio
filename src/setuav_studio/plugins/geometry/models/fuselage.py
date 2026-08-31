@@ -75,17 +75,18 @@ class FuselageModel(BaseComponentModel):
 
     @property
     def sections(self) -> list[FuselageSectionModel]:
-        """List of typed domain models for each fuselage section."""
-        segments = self.segments
-        if not segments:
-            return []
-        seg = segments[0] if isinstance(segments[0], dict) else {}
-        sections = seg.get("sections", [])
-        if isinstance(sections, list):
-            return [
-                FuselageSectionModel(s, i) for i, s in enumerate(sections) if isinstance(s, dict)
-            ]
-        return []
+        """List of typed domain models for each fuselage section across all segments."""
+        all_sections: list[FuselageSectionModel] = []
+        idx = 0
+        for seg in self.segments:
+            if isinstance(seg, dict):
+                secs = seg.get("sections", [])
+                if isinstance(secs, list):
+                    for s in secs:
+                        if isinstance(s, dict):
+                            all_sections.append(FuselageSectionModel(s, idx))
+                            idx += 1
+        return all_sections
 
     @property
     def nose_section(self) -> FuselageSectionModel | None:

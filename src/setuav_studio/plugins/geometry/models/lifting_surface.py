@@ -94,7 +94,7 @@ class LiftingSurfaceModel(BaseComponentModel):
 
     @property
     def mirror(self) -> bool:
-        return bool(self.geometry.get("mirror", self.geometry.get("symmetric", True)))
+        return bool(self.geometry.get("mirror", self.geometry.get("symmetric", False)))
 
     @property
     def symmetric(self) -> bool:

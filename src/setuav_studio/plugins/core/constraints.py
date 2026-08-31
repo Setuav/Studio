@@ -159,15 +159,18 @@ class ConstraintChecker:
         self,
         project_data: dict[str, Any],
         config_id: str | None = None,
+        api: Any | None = None,
     ) -> list[ConstraintResult]:
         """Evaluate all constraints defined in project."""
         constraints = project_data.get("constraints", [])
         if not isinstance(constraints, list):
             return []
 
-        context = self.extract_context(project_data, config_id)
+        context = self.extract_context(project_data, api=api, config_id=config_id)
         results: list[ConstraintResult] = []
         for c in constraints:
             if isinstance(c, dict):
-                results.append(self.check_constraint(c, project_data, context))
+                results.append(
+                    self.check_constraint(c, project_data, context, api=api, config_id=config_id)
+                )
         return results

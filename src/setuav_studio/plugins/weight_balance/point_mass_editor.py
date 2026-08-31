@@ -194,8 +194,9 @@ class PointMassEditor(PropertyTableMixin, QWidget):
             return
         clean = val_text.strip()
         num_val: float | None = None
+        params = self._component.setdefault("parameters", {})
         if clean.startswith("=") or not clean.replace(".", "", 1).replace("-", "", 1).isdigit():
-            self._component["mass_expression"] = clean
+            params["mass_expression"] = clean
             if self._api is not None and getattr(self._api, "current_project", None) is not None:
                 try:
                     from setuav_studio.plugins.core.expressions import ExpressionEvaluator
@@ -209,7 +210,7 @@ class PointMassEditor(PropertyTableMixin, QWidget):
                 except Exception:
                     pass
         else:
-            self._component.pop("mass_expression", None)
+            params.pop("mass_expression", None)
             with contextlib.suppress(ValueError):
                 num_val = float(clean)
 
@@ -230,14 +231,20 @@ class PointMassEditor(PropertyTableMixin, QWidget):
             tf = self._component.setdefault("transform", {})
             tf["position"] = position
             tf["rotation"] = rotation
+            # Store any transform expression strings safely in component parameters
+            exprs: dict[str, str] = {}
             for axis, spin in self.position_spins.items():
                 txt = spin.text().strip()
                 if txt.startswith("="):
-                    position[f"{axis}_expression"] = txt
+                    exprs[f"position.{axis}"] = txt
             for axis, spin in self.rotation_spins.items():
                 txt = spin.text().strip()
                 if txt.startswith("="):
-                    rotation[f"{axis}_expression"] = txt
+                    exprs[f"rotation.{axis}"] = txt
+            if exprs:
+                self._component.setdefault("parameters", {})["transform_expressions"] = exprs
+            elif "parameters" in self._component:
+                self._component["parameters"].pop("transform_expressions", None)
 
         self._api.edit_component(self._component, "Edit point-mass transform", change)
 

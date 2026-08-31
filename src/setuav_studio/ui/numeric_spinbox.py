@@ -63,6 +63,16 @@ class NumericSpinBox(QDoubleSpinBox):
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.UpDownArrows)
         self.setKeyboardTracking(False)
+        self._setup_focus_and_filter()
+
+    def _setup_focus_and_filter(self) -> None:
+        # By default QAbstractSpinBox uses WheelFocus (which steals focus & scrolls on mouse hover).
+        # We enforce StrongFocus so wheel never focuses the widget during casual page scrolling.
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        line_edit = self.lineEdit()
+        if line_edit is not None:
+            line_edit.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+            line_edit.installEventFilter(self)
 
     def _disconnect_units_changed(self) -> None:
         try:
@@ -79,13 +89,7 @@ class NumericSpinBox(QDoubleSpinBox):
             sym = get_unit_manager().get_unit_symbol(self._quantity)
             self.setSuffix(f" {sym}" if sym else "")
 
-        # By default QAbstractSpinBox uses WheelFocus (which steals focus & scrolls on mouse hover).
-        # We enforce StrongFocus so wheel never focuses the widget during casual page scrolling.
-        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        line_edit = self.lineEdit()
-        if line_edit is not None:
-            line_edit.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-            line_edit.installEventFilter(self)
+        self._setup_focus_and_filter()
 
     def _is_active_focus(self) -> bool:
         return self.hasFocus() or (self.lineEdit() is not None and self.lineEdit().hasFocus())

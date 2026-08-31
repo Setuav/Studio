@@ -163,9 +163,12 @@ def compute_configuration_delta(
     parameter_overrides: dict[str, Any] = {}
 
     # Check project parameter differences
-    for k, v in current_parameters.items():
-        if k not in base_parameters or base_parameters[k] != v:
-            parameter_overrides[f"project.parameters.{k}"] = v
+    _diff_dict_paths(
+        base_parameters,
+        current_parameters,
+        prefix="project.parameters",
+        out=parameter_overrides,
+    )
 
     # Check common components
     for cid in base_comp_map:
@@ -466,11 +469,33 @@ class ConfigurationManager:
                 for path, val in cfg.get("parameter_overrides", {}).items():
                     if path.startswith("project.parameters."):
                         k = path[len("project.parameters.") :]
-                        params[k] = copy.deepcopy(val)
+                        if val is None:
+                            params.pop(k, None)
+                        else:
+                            params[k] = copy.deepcopy(val)
         else:
             params = copy.deepcopy(self.project_data.get("parameters", {}))
 
         return self.resolver.resolve_all(params)
+
+    def get_materialized_components(self, config_id: str | None = None) -> list[dict[str, Any]]:
+        """Return the materialized component list for any configuration without switching active state."""
+        if config_id is None:
+            if self._active_id is None:
+                return self.project_data.get("components", [])
+            return copy.deepcopy(self._base_state.get("components", []))
+        if config_id == self._active_id:
+            return self.project_data.get("components", [])
+        cfg = self.get_configuration(config_id)
+        if cfg is None:
+            return []
+        comps, _, _ = apply_configuration_delta(
+            self._base_state.get("components", []),
+            self._base_state.get("parameters", {}),
+            self._base_state.get("assemblies", []),
+            cfg,
+        )
+        return comps
 
     def get_resolved_component(
         self, component: dict[str, Any], config_id: str | None = None

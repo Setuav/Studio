@@ -180,9 +180,16 @@ class ParameterResolver:
                 ) from exc
 
         if isinstance(value, dict):
-            return {
+            res_dict = {
                 k: self.evaluate_component_value(v, resolved_parameters) for k, v in value.items()
             }
+            # When resolving a *_expression entry, also assign its evaluated value to the base key
+            for k, evaluated_val in list(res_dict.items()):
+                if k.endswith("_expression"):
+                    base_key = k[:-11]  # len("_expression") == 11
+                    if base_key:
+                        res_dict[base_key] = evaluated_val
+            return res_dict
 
         if isinstance(value, list):
             return [self.evaluate_component_value(elem, resolved_parameters) for elem in value]

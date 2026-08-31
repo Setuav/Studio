@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import sys
 import tempfile
 import unittest
 from collections.abc import Sequence
@@ -17,6 +18,7 @@ CORE_MODULES = (
     "tests.core.test_expressions",
     "tests.core.test_instance",
     "tests.core.test_main",
+    "tests.core.test_native_models",
     "tests.core.test_parameters",
     "tests.core.test_parameters_panel",
     "tests.core.test_plugin_system_edges",
@@ -93,9 +95,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
 
     result = unittest.TextTestRunner(verbosity=2 if args.verbose else 1).run(load_suite(args.suite))
-    code = 0 if result.wasSuccessful() else 1
-    os._exit(code)
+    return 0 if result.wasSuccessful() else 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

@@ -345,7 +345,7 @@ class SettingsDialog(QDialog):
         current_map = {q_id: str(c.currentData()) for q_id, c in self._unit_combos.items()}
         matched_preset = "custom"
         for p_id, p_map in PRESETS.items():
-            if all(current_map.get(k) == v for k, v in p_map.items()):
+            if all(current_map.get(k) == v for k, v in p_map.items() if k != "name"):
                 matched_preset = p_id
                 break
 

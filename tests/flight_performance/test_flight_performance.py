@@ -487,6 +487,88 @@ class TestFlightPerformance(unittest.TestCase):
             1,
         )
 
+    def test_flight_performance_results_dock_unit_conversion(self) -> None:
+        from setuav_studio.plugins.flight_performance.results_dock import PerformanceResultsDock
+        from setuav_studio.units import get_unit_manager
+
+        um = get_unit_manager()
+        um.set_display_unit("velocity", "m/s")
+        um.set_display_unit("force", "N")
+        um.set_display_unit("power", "W")
+        um.units_changed.emit()
+
+        api = StudioAPI()
+        dock = PerformanceResultsDock(api)
+
+        curves = FlightCurves(
+            velocities=[15.0],
+            power_required=[50.0],
+            power_available=[120.0],
+            thrust_required=[5.0],
+            thrust_available=[12.0],
+            rate_of_climb=[3.5],
+            climb_angle_deg=[15.0],
+            range_km=[30.0],
+            endurance_hours=[0.8],
+            electrical_power=[75.0],
+            current_draw=[5.0],
+            throttle_pct=[45.0],
+            feasible=[True],
+        )
+        res = FlightEnvelopeResult(
+            optimal_speeds=OptimalSpeeds(
+                best_endurance=12.0, best_range=15.0, best_climb=14.0, best_ld=16.0
+            ),
+            metrics=PerformanceMetrics(
+                stall_speed=9.5,
+                max_speed=30.0,
+                max_ld_ratio=13.5,
+                glide_ratio=13.5,
+                best_climb_angle_deg=12.0,
+                min_power_required=45.0,
+                max_range_km=42.0,
+                max_endurance_hours=1.2,
+                max_rate_of_climb=4.5,
+            ),
+            cruise=CruisePerformance(
+                speed=15.0,
+                power=60.0,
+                current=4.0,
+                throttle=55.0,
+                endurance=1.1,
+                range=38.0,
+                feasible=True,
+            ),
+            curves=curves,
+            propulsion_available=True,
+            feasible=True,
+        )
+
+        dock.set_results(res)
+
+        # Check headers in SI
+        self.assertEqual(dock.detail_table.horizontalHeaderItem(0).text(), "Airspeed (m/s)")
+        self.assertEqual(dock.detail_table.horizontalHeaderItem(1).text(), "P_req (W)")
+        self.assertEqual(dock.detail_table.horizontalHeaderItem(3).text(), "T_req (N)")
+
+        # Switch to Imperial
+        um.set_display_unit("velocity", "ft/s")
+        um.set_display_unit("force", "lbf")
+        um.units_changed.emit()
+
+        self.assertEqual(dock.detail_table.horizontalHeaderItem(0).text(), "Airspeed (ft/s)")
+        self.assertEqual(dock.detail_table.horizontalHeaderItem(3).text(), "T_req (lbf)")
+        expected_v = f"{um.to_display(15.0, 'velocity'):.1f}"
+        expected_t = f"{um.to_display(5.0, 'force'):.2f}"
+        self.assertEqual(dock.detail_table.item(0, 0).text(), expected_v)
+        self.assertEqual(dock.detail_table.item(0, 3).text(), expected_t)
+
+        # Restore units
+        um.set_display_unit("velocity", "m/s")
+        um.set_display_unit("force", "N")
+        um.units_changed.emit()
+        dock.close()
+
 
 if __name__ == "__main__":
     unittest.main()

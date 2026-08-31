@@ -183,6 +183,10 @@ class ConfigurationToolBar(QToolBar):
 
         # Normal configuration switch
         self._manager.set_active_id(data)
+        if self._api.current_project is not None:
+            stack = getattr(self._api.current_project, "undo_stack", None)
+            if stack is not None and hasattr(stack, "clear"):
+                stack.clear()
         self.configuration_changed.emit(data)
         self._api.notify_project_content_changed()
 

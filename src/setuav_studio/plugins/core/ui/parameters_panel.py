@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import Qt
@@ -111,10 +112,17 @@ class ProjectParametersPanel(QWidget):
                 key_item.setData(Qt.ItemDataRole.UserRole, k)
 
                 # Col 1: Formula / Raw Value
-                val_str = str(val) if val is not None else ""
+                if isinstance(val, dict) and "value" in val:
+                    val_str = str(val.get("value", ""))
+                else:
+                    val_str = str(val) if val is not None else ""
                 val_item = QTableWidgetItem(val_str)
                 if self._resolver.evaluator.is_expression(val_str):
                     val_item.setToolTip("Formula expression")
+                elif isinstance(val, dict):
+                    q_info = val.get("quantity") or val.get("unit") or ""
+                    if q_info:
+                        val_item.setToolTip(f"Quantity: {q_info}")
 
                 # Col 2: Resolved Value
                 res_val = resolved_params.get(k, "Error")
@@ -167,11 +175,18 @@ class ProjectParametersPanel(QWidget):
             except ValueError:
                 parsed_val = val_text
 
+        existing_val = raw_params.get(old_key or new_key)
+        if isinstance(existing_val, dict):
+            target_val: Any = copy.deepcopy(existing_val)
+            target_val["value"] = parsed_val
+        else:
+            target_val = parsed_val
+
         def _apply() -> None:
             if old_key and old_key != new_key and old_key in raw_params:
                 del raw_params[old_key]
             if new_key:
-                raw_params[new_key] = parsed_val
+                raw_params[new_key] = target_val
 
         self._api.edit_project("Edit project parameters", _apply)
         self._refresh()
