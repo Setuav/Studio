@@ -125,6 +125,18 @@ class ProjectDocument:
             else:
                 model = GenericComponentModel(resolved_comp)
             models.append(model)
+
+        # Link children (such as control surfaces) to their parent models
+        model_by_id = {getattr(m, "id", ""): m for m in models if getattr(m, "id", "")}
+        for model in models:
+            parent_id = getattr(model, "attach_to", None) or (
+                model.raw_data.get("attach_to") or model.raw_data.get("parent")
+                if hasattr(model, "raw_data") and isinstance(model.raw_data, dict)
+                else None
+            )
+            if parent_id and parent_id in model_by_id and hasattr(model, "set_parent_model"):
+                model.set_parent_model(model_by_id[parent_id])
+
         return models
 
     def get_scope(self, api: Any | None = None, config_id: str | None = None) -> dict[str, Any]:
