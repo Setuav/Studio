@@ -22,6 +22,7 @@ class LoftGeometry:
     sections: tuple[Section, ...]
     color: ColorRGB = (0.50, 0.77, 0.82)
     interpolation: Literal["linear", "smooth"] = "smooth"
+    parameterization: Literal["uniform", "chord_length", "centripetal"] = "centripetal"
     station_spacing: float = 10.0
     closed_ends: bool = True
 

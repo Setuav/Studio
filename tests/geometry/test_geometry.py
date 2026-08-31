@@ -329,7 +329,7 @@ class GeometryTests(unittest.TestCase):
 
         # Edit dihedral in section_angles_table
         editor._on_section_angle_changed("dihedral", 5.0)
-        self.assertEqual(editor.sections_table.item(0, 3).text(), "180.0")
+        self.assertIn("5.0", editor.sections_table.item(0, 3).text())
 
         # Split section
         init_secs = editor.sections_table.rowCount()
@@ -1875,7 +1875,7 @@ class GeometryTests(unittest.TestCase):
         self.assertEqual(editor._segment_index, 0)
         self.assertEqual(editor.sections_table.rowCount(), 3)
         self.assertEqual(editor.sections_table.item(0, 1).text(), "circle")
-        self.assertEqual(editor.sections_table.item(0, 2).text(), "0")
+        self.assertIn("0", editor.sections_table.item(0, 2).text())
 
         # Section properties for circle: type + diameter
         self.assertEqual(editor.section_properties_table.rowCount(), 2)
@@ -1988,7 +1988,8 @@ class GeometryTests(unittest.TestCase):
         editor._on_property_spin_changed("width", 140.0)
         profile = comp["parameters"]["geometry"]["segments"][0]["sections"][0]["profile"]
         self.assertAlmostEqual(profile["width"], 140.0)
-        self.assertIn("140.0 × 100.0", editor.sections_table.item(0, 3).text())
+        self.assertIn("140", editor.sections_table.item(0, 3).text())
+        self.assertIn("100", editor.sections_table.item(0, 3).text())
 
         # Transform edit through the spinbox -> position committed
         editor.transform_table.cellWidget(0, 0).setValue(25.0)

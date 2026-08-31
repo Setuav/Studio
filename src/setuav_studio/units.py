@@ -525,6 +525,8 @@ class UnitManager(QObject):
         current_unit = self.get_display_unit(q_id)
         return convert_value(display_value, q_id, current_unit, qty.base_unit_id)
 
+    from_display = to_base
+
     def get_inertia_display(self, base_val_kg_m2: float) -> tuple[float, str]:
         """Convert standard kg*m^2 inertia tensor value based on active mass & length units."""
         mass_u_id = self.get_display_unit("mass")

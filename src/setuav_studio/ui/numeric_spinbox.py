@@ -36,21 +36,38 @@ class NumericSpinBox(QDoubleSpinBox):
         step: float = 1.0,
         decimals: int = 2,
         suffix: str = "",
+        quantity: str | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
+        self._quantity = quantity
         self.setFont(QApplication.font())
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setRange(float(min_value), float(max_value))
         self.setSingleStep(float(step))
         self.setDecimals(int(decimals))
-        if suffix:
+
+        from setuav_studio.units import get_unit_manager
+
+        if self._quantity:
+            sym = get_unit_manager().get_unit_symbol(self._quantity)
+            self.setSuffix(f" {sym}" if sym else "")
+            get_unit_manager().units_changed.connect(self._on_units_changed)
+        elif suffix:
             s = str(suffix).strip()
             self.setSuffix(f" {s}" if s else "")
+
         self.setValue(float(value))
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.UpDownArrows)
         self.setKeyboardTracking(False)
+
+    def _on_units_changed(self) -> None:
+        if self._quantity:
+            from setuav_studio.units import get_unit_manager
+
+            sym = get_unit_manager().get_unit_symbol(self._quantity)
+            self.setSuffix(f" {sym}" if sym else "")
 
         # By default QAbstractSpinBox uses WheelFocus (which steals focus & scrolls on mouse hover).
         # We enforce StrongFocus so wheel never focuses the widget during casual page scrolling.

@@ -264,6 +264,7 @@ def _transform_loft(loft: LoftGeometry, matrix: Matrix4, component_id: str) -> L
         ),
         color=loft.color,
         interpolation=loft.interpolation,
+        parameterization=loft.parameterization,
         station_spacing=loft.station_spacing,
         closed_ends=loft.closed_ends,
     )

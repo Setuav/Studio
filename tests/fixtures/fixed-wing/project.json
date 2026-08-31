@@ -37,7 +37,7 @@
               "tag": "main",
               "loft": {
                 "method": "smooth",
-                "parameterization": "centripetal",
+                "parameterization": "chord_length",
                 "profile_correspondence": "cardinal_quadrants"
               },
               "sections": [
