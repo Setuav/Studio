@@ -810,7 +810,7 @@ class AerodynamicsPluginTests(unittest.TestCase):
             def exec(self, *args, **kwargs):
                 return None
 
-        with patch("setuav_studio.plugins.core.ui.project_explorer.QMenu", MockMenu):
+        with patch("setuav_studio.plugins.core.ui.project_explorer.context_menu.QMenu", MockMenu):
             explorer._open_context_menu(explorer.visualItemRect(result_item).center())
 
         self.assertIn("Rename", menu_actions)
