@@ -18,6 +18,7 @@ from setuav_studio_sdk import PanelContribution
 
 from .actions import ActionManager
 from .layout_manager import LayoutManager
+from .native_registrations import register_native_contributions
 from .project_controller import ProjectController
 from .status_bar import StatusBarManager
 from .toolbar_manager import ToolbarManager
@@ -49,6 +50,9 @@ class MainWindow(QMainWindow):
         self._project: ProjectDocument | None = None
         self._panels: dict[str, tuple[PanelContribution, QDockWidget]] = {}
         self._current_workspace_id: str | None = None
+
+        # Register built-in native UI contributions (Explorer, Properties, Parameters, Editors, Settings)
+        register_native_contributions(api)
 
         self.setDockNestingEnabled(True)
         central_anchor = QWidget(self)
