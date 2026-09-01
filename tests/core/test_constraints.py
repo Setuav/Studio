@@ -6,10 +6,10 @@ import unittest
 from pathlib import Path
 
 from setuav_studio.plugin_system import StudioAPI
+from setuav_studio.project import ProjectDocument
 from setuav_studio.project.constraints import ConstraintChecker
 from setuav_studio.ui.constraints.constraint_status import ConstraintStatusWidget
 from setuav_studio.ui.constraints.constraints_dialog import ConstraintEditDialog
-from setuav_studio.project import ProjectDocument
 from tests._common import get_qapp
 
 

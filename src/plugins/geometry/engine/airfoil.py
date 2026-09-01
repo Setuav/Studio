@@ -12,7 +12,9 @@ logger = logging.getLogger(__name__)
 
 
 AIRFOIL_SAMPLES = 64
-AIRFOILS_DATA_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data" / "airfoils"
+AIRFOILS_DATA_DIR = (
+    Path(__file__).resolve().parent.parent.parent.parent / "setuav_studio" / "data" / "airfoils"
+)
 
 
 def naca4(code: str, samples: int = AIRFOIL_SAMPLES) -> tuple[tuple[float, float], ...]:

@@ -9,7 +9,6 @@ import shiboken6
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QFileDialog, QMainWindow, QMessageBox
 
-from setuav_studio.ui.settings.settings_pages import StudioSettings
 from setuav_studio.project import (
     ProjectDocument,
     ProjectOpenError,
@@ -19,6 +18,7 @@ from setuav_studio.project import (
     save_project,
 )
 from setuav_studio.schema_validation import validate_project
+from setuav_studio.ui.settings.settings_pages import StudioSettings
 
 from .validation import (
     _append_entity_changes,

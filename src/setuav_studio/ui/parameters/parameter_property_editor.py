@@ -16,8 +16,8 @@ from PySide6.QtWidgets import (
 
 from setuav_studio.project.configurations import ConfigurationManager
 from setuav_studio.project.parameters import ParameterResolver
-from setuav_studio.ui.parameters.expression_dialog import AdvancedExpressionDialog
 from setuav_studio.ui.icons import set_label_icon
+from setuav_studio.ui.parameters.expression_dialog import AdvancedExpressionDialog
 from setuav_studio.ui.property_tables import PropertyTableMixin
 
 if TYPE_CHECKING:

@@ -6,11 +6,18 @@ from pathlib import Path
 from PySide6.QtCore import QEvent
 from PySide6.QtWidgets import QDockWidget, QMainWindow
 
+from plugins.weight_balance import WeightBalancePlugin
+from plugins.weight_balance.engine.base import WeightBalanceError
+from plugins.weight_balance.engine.solver import EXTENSION_ID, WeightBalanceSolver
+from plugins.weight_balance.mass_definition_dock import MassPropertiesEditor
+from plugins.weight_balance.point_mass_editor import PointMassEditor
 from setuav_studio.plugin_system import (
     PanelContribution,
     PluginManager,
     StudioAPI,
     WorkspaceContribution,
+)
+from setuav_studio.project import ProjectDocument, open_project
 from setuav_studio.project.derived_geometry import derive_project_component_geometry
 from setuav_studio.ui.project_explorer import (
     ProjectExplorer,
@@ -18,12 +25,6 @@ from setuav_studio.ui.project_explorer import (
 )
 from setuav_studio.ui.properties.properties_panel import PropertiesPanel
 from setuav_studio.ui.shell.native_registrations import register_native_contributions
-from plugins.weight_balance import WeightBalancePlugin
-from plugins.weight_balance.engine.base import WeightBalanceError
-from plugins.weight_balance.engine.solver import EXTENSION_ID, WeightBalanceSolver
-from plugins.weight_balance.mass_definition_dock import MassPropertiesEditor
-from plugins.weight_balance.point_mass_editor import PointMassEditor
-from setuav_studio.project import ProjectDocument, open_project
 from tests._common import TEST_PROJECT_PATH, get_qapp
 
 

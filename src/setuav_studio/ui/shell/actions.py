@@ -7,10 +7,10 @@ import shiboken6
 from PySide6.QtGui import QAction, QActionGroup, QKeySequence
 from PySide6.QtWidgets import QApplication, QDialog, QMainWindow, QMenu
 
-from setuav_studio.ui.settings.settings_pages import SettingsDialog, StudioSettings
 from setuav_studio.ui.about_dialog import AboutDialog
 from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.plugin_manager import PluginManagerDialog
+from setuav_studio.ui.settings.settings_pages import SettingsDialog, StudioSettings
 from setuav_studio_sdk import ActionContribution
 
 if TYPE_CHECKING:

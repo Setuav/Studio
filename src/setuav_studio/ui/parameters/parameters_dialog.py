@@ -19,8 +19,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.ui.parameters.expression_dialog import AdvancedExpressionDialog
 from setuav_studio.ui.icons import get_icon
+from setuav_studio.ui.parameters.expression_dialog import AdvancedExpressionDialog
 from setuav_studio.units import get_quantity_choices, get_unit_manager
 
 if TYPE_CHECKING:

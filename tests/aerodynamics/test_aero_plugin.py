@@ -11,12 +11,6 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import QMenu, QMessageBox
 
-from setuav_studio.plugin_system import (
-    ActionContribution,
-    PanelContribution,
-    StudioAPI,
-    WorkspaceContribution,
-)
 from plugins.aerodynamics.airfoil_analysis_tool import (
     AirfoilAnalysisToolWindow,
 )
@@ -42,8 +36,14 @@ from plugins.aerodynamics.engine.stability_models import (
 )
 from plugins.aerodynamics.plugin import AerodynamicsPlugin
 from plugins.aerodynamics.results_dock import AeroResultsDock
-from setuav_studio.ui.project_explorer import ProjectExplorer
+from setuav_studio.plugin_system import (
+    ActionContribution,
+    PanelContribution,
+    StudioAPI,
+    WorkspaceContribution,
+)
 from setuav_studio.project import ProjectDocument
+from setuav_studio.ui.project_explorer import ProjectExplorer
 from tests._common import get_qapp
 
 

@@ -6,13 +6,13 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from setuav_studio.plugin_system import StudioAPI
 from plugins.geometry.creation import (
     _CONTROL_SURFACE_TYPE,
     _FUSELAGE_TYPE,
     _LIFTING_SURFACE_TYPE,
     GeometryCreationController,
 )
+from setuav_studio.plugin_system import StudioAPI
 from setuav_studio.project import ProjectDocument
 from tests._common import get_qapp
 

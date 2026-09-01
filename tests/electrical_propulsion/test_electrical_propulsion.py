@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import unittest
 
-from setuav_studio.plugin_system import PluginManager, StudioAPI
 from plugins.electrical_propulsion.editors import (
     BatteryEditor,
     ElectricPropulsionSystemEditor,
@@ -12,6 +11,7 @@ from plugins.electrical_propulsion.editors import (
     MotorEditor,
     PropellerEditor,
 )
+from setuav_studio.plugin_system import PluginManager, StudioAPI
 from setuav_studio.project import open_project
 from tests._common import TEST_PROJECT_PATH, get_qapp
 
@@ -167,7 +167,6 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertLessEqual(dialog.motor_table.rowCount(), 400)
 
     def test_propulsion_controls_and_analysis_run(self) -> None:
-    def test_propulsion_controls_and_analysis_run(self) -> None:
         from plugins.electrical_propulsion.plugin import ElectricalPropulsionPlugin
         from setuav_studio.ui.shell import MainWindow
 
@@ -296,8 +295,8 @@ class TestElectricalPropulsion(unittest.TestCase):
 
         from PySide6.QtCore import QSettings
 
-        from setuav_studio.ui.settings.settings_pages import StudioSettings
         from plugins.electrical_propulsion import database as db_module
+        from setuav_studio.ui.settings.settings_pages import StudioSettings
 
         # 1. Hardcoded user-home absolute path is gone.
         source = Path(db_module.__file__).read_text(encoding="utf-8")
@@ -372,8 +371,8 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertTrue(0.0 <= pt.eta_sys <= 1.0)
 
     def test_propulsion_results_dock_unit_conversion(self) -> None:
-        from setuav_studio.plugin_system import StudioAPI
         from plugins.electrical_propulsion.results_dock import PropulsionResultsDock
+        from setuav_studio.plugin_system import StudioAPI
         from setuav_studio.units import get_unit_manager
 
         um = get_unit_manager()

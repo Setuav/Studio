@@ -6,6 +6,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import QTreeWidgetItem
 
+from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.project_explorer.style import (
     format_assembly_icon,
     format_assembly_type,
@@ -13,11 +14,10 @@ from setuav_studio.ui.project_explorer.style import (
     format_component_type,
     get_geometry_icon_source,
 )
-from setuav_studio.ui.icons import get_icon
 
 if TYPE_CHECKING:
-    from setuav_studio.ui.project_explorer.tree import ProjectExplorer
     from setuav_studio.project import ProjectDocument
+    from setuav_studio.ui.project_explorer.tree import ProjectExplorer
     from setuav_studio_sdk import (
         ProjectTreeNodeContribution,
         StudioAPI,
@@ -105,8 +105,7 @@ class ProjectTreeBuilder:
         components: list[dict[str, Any]],
     ) -> None:
         if not any(
-            get_geometry_icon_source(component, components) is not None
-            for component in components
+            get_geometry_icon_source(component, components) is not None for component in components
         ):
             return
         geometry_group = QTreeWidgetItem(["Geometry"])
@@ -375,9 +374,7 @@ class ProjectTreeBuilder:
         )
         if analysis_id:
             project = self._api.current_project
-            current_entries = (
-                self._tree._snapshot_analysis_results(project) if project else {}
-            )
+            current_entries = self._tree._snapshot_analysis_results(project) if project else {}
             current_entry = current_entries.get(analysis_id)
             saved_entry = self._tree._saved_analysis_results.get(analysis_id)
             if saved_entry != current_entry:

@@ -1,8 +1,8 @@
-"""Core settings pages."""
+"""Settings dialog and persistent settings model."""
 
 from setuav_studio.ui.settings.settings_pages import (
-    GeneralSettingsPage,
-    UnitsSettingsPage,
+    SettingsDialog,
+    StudioSettings,
 )
 
-__all__ = ["GeneralSettingsPage", "UnitsSettingsPage"]
+__all__ = ["SettingsDialog", "StudioSettings"]

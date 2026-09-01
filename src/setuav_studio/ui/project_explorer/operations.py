@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtWidgets import QDialog, QMessageBox, QTreeWidgetItem, QWidget
+from PySide6.QtWidgets import QMessageBox, QTreeWidgetItem, QWidget
 
 from setuav_studio.ui.project_explorer.style import (
     format_component_name,
@@ -409,7 +409,9 @@ class ProjectExplorerOperations:
         finally:
             self._tree.blockSignals(previous)
 
-    def add_parameter_action(self, is_constant: bool = False, parent: QWidget | None = None) -> None:
+    def add_parameter_action(
+        self, is_constant: bool = False, parent: QWidget | None = None
+    ) -> None:
         from setuav_studio.ui.project_explorer.dialog_actions import (
             add_parameter_action,
         )
@@ -443,4 +445,3 @@ class ProjectExplorerOperations:
         )
 
         toggle_constraint(self._api, self._tree, element)
-

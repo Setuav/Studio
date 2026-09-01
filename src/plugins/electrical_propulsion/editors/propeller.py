@@ -6,8 +6,8 @@ from typing import Any
 
 from PySide6.QtWidgets import QDialog, QPushButton, QWidget
 
-from setuav_studio.component_editor import BaseComponentEditor
 from plugins.electrical_propulsion.catalog_dialog import ComponentCatalogDialog
+from setuav_studio.component_editor import BaseComponentEditor
 from setuav_studio.ui.buttons import set_native_button
 from setuav_studio_sdk import ParameterField, StudioAPI
 

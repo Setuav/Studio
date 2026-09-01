@@ -5,7 +5,6 @@ from copy import deepcopy
 from pathlib import Path
 from unittest import mock
 
-from PySide6.QtCore import Qt
 from plugins.geometry.data import GeometryData, LoftGeometry, Section
 from plugins.geometry.fuselage_geometry import (
     SECTION_SAMPLES,
@@ -17,6 +16,7 @@ from plugins.geometry.lifting_surface_geometry import (
 )
 from plugins.geometry.mesh import build_loft_solid_vertices
 from plugins.geometry.scene import build_project_geometry
+from PySide6.QtCore import Qt
 
 from setuav_studio.project import ProjectDocument, open_project
 from tests._common import TEST_PROJECT_PATH, get_qapp
@@ -1789,8 +1789,8 @@ class GeometryTests(unittest.TestCase):
 
     def test_airfoil_dialog_dat_import(self) -> None:
         """Verify .dat import populates coordinates table, canvas, and spec."""
-        from PySide6.QtWidgets import QFileDialog
         from plugins.geometry.airfoil_dialog import AirfoilDialog
+        from PySide6.QtWidgets import QFileDialog
 
         with tempfile.TemporaryDirectory() as tmp:
             dat_path = Path(tmp) / "custom.dat"
@@ -2197,9 +2197,7 @@ def _build_fuselage_component() -> dict:
 
         with (
             mock.patch.object(workspace.viewer, "capture_screenshot") as mock_capture,
-            mock.patch(
-                "plugins.geometry.workspace.QMessageBox.warning"
-            ) as mock_warning,
+            mock.patch("plugins.geometry.workspace.QMessageBox.warning") as mock_warning,
         ):
             mock_capture.return_value = None
 

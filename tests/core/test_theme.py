@@ -3,8 +3,8 @@ from importlib import resources
 
 from PySide6.QtGui import QPalette
 
-from setuav_studio.ui.settings.settings_pages import StudioSettings
 from setuav_studio.ui.icons import application_icon, get_icon
+from setuav_studio.ui.settings.settings_pages import StudioSettings
 from setuav_studio.ui.theme import (
     ACCENT_COLOR,
     DEFAULT_FONT_SIZE,

@@ -11,8 +11,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.ui.project_explorer.tree import ProjectExplorer
 from setuav_studio.ui.icons import get_icon
+from setuav_studio.ui.project_explorer.tree import ProjectExplorer
 
 if TYPE_CHECKING:
     from setuav_studio_sdk import StudioAPI

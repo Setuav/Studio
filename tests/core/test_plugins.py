@@ -2,22 +2,11 @@ import unittest
 from pathlib import Path
 from typing import ClassVar
 
-from PySide6.QtWidgets import QWidget
 from plugins.geometry.data import GeometryData, LoftGeometry, Section
 from plugins.geometry.fuselage import FuselageEditor
 from plugins.geometry.mesh import build_loft_wire_vertices
+from PySide6.QtWidgets import QWidget
 
-from setuav_studio.plugin_system import (
-    PanelContribution,
-    PluginManager,
-    StudioAPI,
-    WorkspaceContribution,
-    _candidate_sort_key,
-)
-from setuav_studio.ui.editors.envelope import PHYSICAL_EXTENSION_ID, EnvelopeEditor
-from setuav_studio.ui.editors.transform import TransformEditor
-from setuav_studio.ui.project_explorer import ProjectExplorer
-from setuav_studio.ui.shell.native_registrations import register_native_contributions
 from plugins.geometry import GeometryPlugin
 from plugins.view2d import (
     View2DCanvas,
@@ -25,7 +14,18 @@ from plugins.view2d import (
     View2DPlugin,
     View2DScene,
 )
+from setuav_studio.plugin_system import (
+    PanelContribution,
+    PluginManager,
+    StudioAPI,
+    WorkspaceContribution,
+    _candidate_sort_key,
+)
 from setuav_studio.project import ProjectDocument
+from setuav_studio.ui.editors.envelope import PHYSICAL_EXTENSION_ID, EnvelopeEditor
+from setuav_studio.ui.editors.transform import TransformEditor
+from setuav_studio.ui.project_explorer import ProjectExplorer
+from setuav_studio.ui.shell.native_registrations import register_native_contributions
 from tests._common import get_qapp
 
 

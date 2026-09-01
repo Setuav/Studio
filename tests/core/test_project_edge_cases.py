@@ -123,7 +123,9 @@ class ProjectEdgeCaseTests(unittest.TestCase):
     def test_save_wraps_os_errors(self) -> None:
         project = ProjectDocument(self.root / "project.json", "json", self.data)
         with (
-            patch("setuav_studio.project._write_json_file", side_effect=OSError("disk full")),
+            patch(
+                "setuav_studio.project.document._write_json_file", side_effect=OSError("disk full")
+            ),
             self.assertRaisesRegex(ProjectSaveError, "Cannot save project"),
         ):
             save_project(project)
@@ -131,7 +133,9 @@ class ProjectEdgeCaseTests(unittest.TestCase):
     def test_atomic_json_writer_removes_temporary_file_after_replace_failure(self) -> None:
         target = self.root / "project.json"
         with (
-            patch("setuav_studio.project.os.replace", side_effect=OSError("replace failed")),
+            patch(
+                "setuav_studio.project.document.os.replace", side_effect=OSError("replace failed")
+            ),
             self.assertRaises(OSError),
         ):
             _write_json_file(target, self.data)
@@ -142,7 +146,9 @@ class ProjectEdgeCaseTests(unittest.TestCase):
         target = self.root / "project.suav"
         project = ProjectDocument(self.root / "project.json", "json", self.data)
         with (
-            patch("setuav_studio.project.os.replace", side_effect=OSError("replace failed")),
+            patch(
+                "setuav_studio.project.document.os.replace", side_effect=OSError("replace failed")
+            ),
             self.assertRaises(OSError),
         ):
             _write_suav(project, target)
