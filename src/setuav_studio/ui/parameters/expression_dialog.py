@@ -26,10 +26,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.project.constraints import ConstraintChecker
-from setuav_studio.project.expressions import ExpressionEvaluator
-from setuav_studio.project.parameters import ParameterResolver
-from setuav_studio.project.symbols import (
+from setuav_studio.model.constraints import ConstraintChecker
+from setuav_studio.model.expressions import ExpressionEvaluator
+from setuav_studio.model.parameters import ParameterResolver
+from setuav_studio.model.symbols import (
     get_available_symbols_metadata,
 )
 from setuav_studio.ui.theme import status_color

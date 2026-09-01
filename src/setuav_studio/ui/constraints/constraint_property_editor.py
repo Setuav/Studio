@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.project.constraints import ConstraintChecker
+from setuav_studio.model.constraints import ConstraintChecker
 from setuav_studio.ui.icons import set_label_icon
 from setuav_studio.ui.parameters.expression_dialog import AdvancedExpressionDialog
 from setuav_studio.ui.property_tables import PropertyTableMixin

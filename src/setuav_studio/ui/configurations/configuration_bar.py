@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtWidgets import QComboBox, QDialog, QToolBar
 
-from setuav_studio.project.configurations import ConfigurationManager
+from setuav_studio.model.configurations import ConfigurationManager
 from setuav_studio.ui.configurations.configuration_dialogs import (
     ConfigurationEditDialog,
     ManageConfigurationsDialog,

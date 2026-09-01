@@ -623,7 +623,7 @@ class StudioAPI:
         component: dict[str, Any],
     ) -> Any:
         """Instantiate the domain model object for a given component dictionary."""
-        from setuav_studio.component_model import GenericComponentModel
+        from setuav_studio.model import GenericComponent
 
         component_type = component.get("type")
         factory = (
@@ -631,7 +631,7 @@ class StudioAPI:
         )
         if factory is not None:
             return factory(component)
-        return GenericComponentModel(component)
+        return GenericComponent(component)
 
     def register_geometry_provider(
         self,

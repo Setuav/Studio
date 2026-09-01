@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHBoxLayout, QToolButton, QWidget
 
-from setuav_studio.project.constraints import ConstraintChecker
+from setuav_studio.model.constraints import ConstraintChecker
 from setuav_studio.ui.constraints.constraints_dialog import ManageConstraintsDialog
 from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.theme import status_color

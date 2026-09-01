@@ -18,8 +18,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.project.configurations import ConfigurationManager
-from setuav_studio.project.parameters import ParameterResolver
+from setuav_studio.model.configurations import ConfigurationManager
+from setuav_studio.model.parameters import ParameterResolver
 from setuav_studio.ui.icons import get_icon
 
 if TYPE_CHECKING:

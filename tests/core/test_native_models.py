@@ -7,12 +7,12 @@ import unittest
 
 from PySide6.QtWidgets import QApplication
 
+from setuav_studio.model.constraints import ConstraintChecker
+from setuav_studio.model.expressions import ExpressionEvaluator
+from setuav_studio.model.parameters import ParameterResolver
+from setuav_studio.model.symbols import get_available_symbols_metadata
 from setuav_studio.plugin_system import PluginManager, StudioAPI
 from setuav_studio.project import open_project
-from setuav_studio.project.constraints import ConstraintChecker
-from setuav_studio.project.expressions import ExpressionEvaluator
-from setuav_studio.project.parameters import ParameterResolver
-from setuav_studio.project.symbols import get_available_symbols_metadata
 
 
 class TestNativePluginModels(unittest.TestCase):
