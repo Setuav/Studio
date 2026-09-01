@@ -270,10 +270,12 @@ class ActionManager:
             self._window._refresh_toolbar_action_states()
 
     def set_undo_text(self, text: str) -> None:
-        self.undo_action.setText(f"Undo {text}" if text else "Undo")
+        if hasattr(self, "undo_action") and shiboken6.isValid(self.undo_action):
+            self.undo_action.setText(f"Undo {text}" if text else "Undo")
 
     def set_redo_text(self, text: str) -> None:
-        self.redo_action.setText(f"Redo {text}" if text else "Redo")
+        if hasattr(self, "redo_action") and shiboken6.isValid(self.redo_action):
+            self.redo_action.setText(f"Redo {text}" if text else "Redo")
 
     def update_recent_menu(self) -> None:
         if not hasattr(self, "recent_menu") or not shiboken6.isValid(self.recent_menu):

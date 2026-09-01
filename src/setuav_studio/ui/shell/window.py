@@ -56,13 +56,22 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central_anchor)
 
         # Initialize sub-managers
+        self._project_controller = ProjectController(self, api)
         self._toolbar_manager = ToolbarManager(self, api)
         self._layout_manager = LayoutManager(self, api)
-        self._project_controller = ProjectController(self, api)
-        self._action_manager = ActionManager(self, api)
         self._status_manager = StatusBarManager(self, api)
+        self._action_manager = ActionManager(self, api)
+        self._toolbar_manager.setup_standard_actions(
+            self._action_manager.new_project_action,
+            self._action_manager.open_folder_action,
+            self._action_manager.save_action,
+            self._action_manager.save_as_action,
+            self._action_manager.undo_action,
+            self._action_manager.redo_action,
+        )
 
         # Expose sub-manager properties for backward-compatibility & inspection
+        self._standard_toolbar = self._toolbar_manager.standard_toolbar
         self._workspaces = self._toolbar_manager.workspaces
         self._toolbar_contributions = self._toolbar_manager.toolbar_contributions
         self._toolbar_actions = self._toolbar_manager.toolbar_actions
@@ -243,7 +252,9 @@ class MainWindow(QMainWindow):
         current_entries: list[dict[str, Any]],
         fallback_name: str,
     ) -> None:
-        ProjectController.append_unsaved_analyses(changes, disk_entries, current_entries, fallback_name)
+        ProjectController.append_unsaved_analyses(
+            changes, disk_entries, current_entries, fallback_name
+        )
 
     def open_last_project(self) -> None:
         self._project_controller.open_last_project()
@@ -264,7 +275,9 @@ class MainWindow(QMainWindow):
         self._project_controller.update_window_title()
 
     def _recent_projects(self) -> list[str]:
-        return self._project_controller.recent_projects()
+        if hasattr(self, "_project_controller"):
+            return self._project_controller.recent_projects()
+        return []
 
     def _add_recent_project(self, path: Path) -> None:
         self._project_controller.add_recent_project(path)

@@ -529,6 +529,16 @@ class ShellContributionTests(unittest.TestCase):
         self.window._update_actions()
         self.assertTrue(self.window._save_action.isEnabled())
 
+    def test_standard_toolbar_contains_native_actions(self) -> None:
+        self.assertIsNotNone(self.window._standard_toolbar)
+        actions = self.window._standard_toolbar.actions()
+        self.assertIn(self.window._new_project_action, actions)
+        self.assertIn(self.window._open_folder_action, actions)
+        self.assertIn(self.window._save_action, actions)
+        self.assertIn(self.window._save_as_action, actions)
+        self.assertIn(self.window._undo_action, actions)
+        self.assertIn(self.window._redo_action, actions)
+
     @staticmethod
     def _project() -> object:
         from setuav_studio.project import ProjectDocument

@@ -106,4 +106,13 @@ class ToolSetBar(QToolBar):
                 button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
 
 
-__all__ = ["ToolSetBar", "WorkspaceToolBar"]
+class StandardToolBar(QToolBar):
+    """Movable toolbar containing standard project and edit actions."""
+
+    def __init__(self, parent=None) -> None:
+        super().__init__("Standard", parent)
+        self.setObjectName("studio.standard_toolbar")
+        _configure_toolbar(self)
+
+
+__all__ = ["StandardToolBar", "ToolSetBar", "WorkspaceToolBar"]

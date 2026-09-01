@@ -10,7 +10,6 @@ from setuav_studio_sdk import (
     ComponentTreeNodeContribution,
     PanelContribution,
     StudioAPI,
-    ToolbarContribution,
 )
 
 
@@ -18,61 +17,7 @@ class CorePlugin:
     id = "org.setuav.studio.core"
     priority = 100
 
-    _TOOLBAR_ITEMS = (
-        ToolbarContribution(
-            id="core.new-project",
-            title="New Project…",
-            command="core.project.new",
-            icon="file_new",
-            group="project",
-            order=5,
-        ),
-        ToolbarContribution(
-            id="core.open-project-folder",
-            title="Open Project…",
-            command="core.project.open-folder",
-            icon="folder_open",
-            group="project",
-            order=10,
-        ),
-        ToolbarContribution(
-            id="core.save-project",
-            title="Save Project",
-            command="core.project.save",
-            icon="save",
-            group="project",
-            order=30,
-        ),
-        ToolbarContribution(
-            id="core.save-project-as",
-            title="Save Project As…",
-            command="core.project.save-as",
-            icon="save_as",
-            group="project",
-            order=40,
-        ),
-        ToolbarContribution(
-            id="core.undo",
-            title="Undo",
-            command="core.edit.undo",
-            icon="undo",
-            group="edit",
-            order=50,
-        ),
-        ToolbarContribution(
-            id="core.redo",
-            title="Redo",
-            command="core.edit.redo",
-            icon="redo",
-            group="edit",
-            order=60,
-        ),
-    )
-
     def activate(self, api: StudioAPI) -> None:
-        for contribution in self._TOOLBAR_ITEMS:
-            api.add_toolbar_item(contribution)
-
         api.register_kind_editor(
             "instance",
             lambda instance: InstanceEditor(api, instance),

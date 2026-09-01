@@ -9,7 +9,7 @@ from PySide6.QtWidgets import QMainWindow, QMenu
 
 from setuav_studio.plugins.core.ui.configuration_bar import ConfigurationToolBar
 from setuav_studio.ui.icons import get_icon
-from setuav_studio.ui.main_toolbar import ToolSetBar, WorkspaceToolBar
+from setuav_studio.ui.main_toolbar import StandardToolBar, ToolSetBar, WorkspaceToolBar
 from setuav_studio_sdk import (
     ToolbarContribution,
     ToolbarMenuItemContribution,
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 class ToolbarManager:
-    """Manages workspace switcher, configuration bar, and dynamic toolbars."""
+    """Manages workspace switcher, configuration bar, standard and dynamic toolbars."""
 
     def __init__(self, window: QMainWindow, api: StudioAPI) -> None:
         self._window = window
@@ -38,6 +38,9 @@ class ToolbarManager:
         self.owned_toolbar_actions: set[str] = set()
         self.toolset_bars: dict[str, ToolSetBar] = {}
 
+        self.standard_toolbar = StandardToolBar(self._window)
+        self._window.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.standard_toolbar)
+
         self.workspace_toolbar = WorkspaceToolBar(self._window)
         self.workspace_toolbar.workspace_activated.connect(self._api.switch_workspace)
         self._window.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.workspace_toolbar)
@@ -45,7 +48,25 @@ class ToolbarManager:
         self.configuration_toolbar = ConfigurationToolBar(self._api, self._window)
         self._window.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.configuration_toolbar)
 
+    def setup_standard_actions(
+        self,
+        new_project_action: QAction,
+        open_folder_action: QAction,
+        save_action: QAction,
+        save_as_action: QAction,
+        undo_action: QAction,
+        redo_action: QAction,
+    ) -> None:
+        self.standard_toolbar.addAction(new_project_action)
+        self.standard_toolbar.addAction(open_folder_action)
+        self.standard_toolbar.addAction(save_action)
+        self.standard_toolbar.addAction(save_as_action)
+        self.standard_toolbar.addSeparator()
+        self.standard_toolbar.addAction(undo_action)
+        self.standard_toolbar.addAction(redo_action)
+
     def update_main_toolbar_style(self) -> None:
+        self.standard_toolbar.setStyleSheet("")
         self.workspace_toolbar.setStyleSheet("")
         for toolbar in self.toolset_bars.values():
             toolbar.setStyleSheet("")
