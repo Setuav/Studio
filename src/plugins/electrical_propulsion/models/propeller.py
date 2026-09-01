@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from setuav_studio.component_model import BaseComponentModel
+from setuav_studio.model import Component
 
 
-class PropellerModel(BaseComponentModel):
+class PropellerModel(Component):
     """Domain model for Propeller / Rotor."""
 
     @property

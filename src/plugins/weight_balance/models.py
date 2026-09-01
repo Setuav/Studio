@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from setuav_studio.component_model import BaseComponentModel
+from setuav_studio.model import Component
 
 Vector3 = tuple[float, float, float]
 
@@ -72,7 +72,7 @@ class WeightBalanceResult:
     warnings: list[str] = field(default_factory=list)
 
 
-class PointMassModel(BaseComponentModel):
+class PointMassModel(Component):
     """Domain entity model for Point Mass with live CG coordinates."""
 
     @property

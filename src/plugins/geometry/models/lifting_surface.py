@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from plugins.geometry.engine.wing_planform_engine import compute_planform_metrics
-from setuav_studio.component_model import BaseComponentModel
+from setuav_studio.model import Component
 
 
 class WingSectionModel:
@@ -65,7 +65,7 @@ class WingSectionModel:
         raise AttributeError(f"'WingSectionModel' object has no attribute '{name}'")
 
 
-class LiftingSurfaceModel(BaseComponentModel):
+class LiftingSurfaceModel(Component):
     """Domain model for LiftingSurface (Wing / Tail / Fin) with live geometric properties and station sections."""
 
     @property

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from setuav_studio.component_model import BaseComponentModel
+from setuav_studio.model import Component
 
 
 class FuselageSectionModel:
@@ -62,7 +62,7 @@ class FuselageSectionModel:
         raise AttributeError(f"'FuselageSectionModel' object has no attribute '{name}'")
 
 
-class FuselageModel(BaseComponentModel):
+class FuselageModel(Component):
     """Domain model for Fuselage with live length, dimensions, and shape metrics."""
 
     @property

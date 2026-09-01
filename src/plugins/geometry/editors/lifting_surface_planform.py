@@ -213,7 +213,7 @@ class PlanformMixin:
             api = getattr(self, "_api", None)
             if api is not None and getattr(api, "current_project", None) is not None:
                 try:
-                    from setuav_studio.project.expressions import ExpressionEvaluator
+                    from setuav_studio.model.expressions import ExpressionEvaluator
 
                     evaluator = ExpressionEvaluator()
                     scope = api.current_project.get_scope(api=api)
