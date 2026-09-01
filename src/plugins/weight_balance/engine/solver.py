@@ -5,11 +5,11 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any, cast
 
-from setuav_studio.project import ProjectDocument
-from setuav_studio.project.derived_geometry import (
+from plugins.geometry.engine.derived_geometry import (
     DerivedComponentGeometry,
     derive_project_component_geometry,
 )
+from setuav_studio.project import ProjectDocument
 
 from ..models import (
     ComponentMassProperties,

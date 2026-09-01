@@ -726,7 +726,7 @@ class StudioAPI:
 
     def register_schema(self, schema_id: str, schema_dict: dict[str, Any]) -> None:
         """Register a custom JSON schema dynamically (for 3rd-party plugins)."""
-        from setuav_studio.schema_validation import get_catalog
+        from setuav_studio.project.validation import get_catalog
 
         get_catalog().register_schema(schema_dict, schema_id)
 
@@ -737,7 +737,7 @@ class StudioAPI:
         plugin_id: str | None = None,
     ) -> None:
         """Register a custom component type schema dynamically under a plugin."""
-        from setuav_studio.schema_validation import get_catalog
+        from setuav_studio.project.validation import get_catalog
 
         get_catalog().register_component_type_schema(
             component_type, schema_dict, plugin_id=plugin_id

@@ -569,7 +569,7 @@ class PluginSystemEdgeTests(unittest.TestCase):
         self.assertEqual(workspace_changes, ["design"])
 
         catalog = Mock()
-        with patch("setuav_studio.schema_validation.get_catalog", return_value=catalog):
+        with patch("setuav_studio.project.validation.get_catalog", return_value=catalog):
             empty_api.register_schema("example", {"type": "object"})
         catalog.register_schema.assert_called_once_with({"type": "object"}, "example")
 

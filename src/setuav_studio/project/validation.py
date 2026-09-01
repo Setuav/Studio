@@ -17,7 +17,7 @@ from jsonschema import FormatChecker
 from jsonschema.validators import validator_for
 from referencing import Registry, Resource
 
-SCHEMAS_ROOT = Path(__file__).parent / "schemas"
+SCHEMAS_ROOT = Path(__file__).resolve().parent.parent / "schemas"
 
 SCHEMA_IDS = {
     "project": "https://schemas.setuav.org/core/project.schema.json",

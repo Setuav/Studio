@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.project.derived_geometry import derive_component_geometry
+from plugins.geometry.engine.derived_geometry import derive_component_geometry
 from setuav_studio.ui.icons import set_label_icon
 from setuav_studio.ui.numeric_spinbox import NumericSpinBox, set_table_spinbox
 from setuav_studio.ui.property_tables import PropertyTableMixin

@@ -173,8 +173,10 @@ def _fuselage(component: dict[str, Any], density: float) -> DerivedComponentGeom
         for section in segment.get("sections", []) if isinstance(segment, dict) else []:
             if not isinstance(section, dict):
                 continue
-            pos = section.get("position") if isinstance(section.get("position"), dict) else {}
-            profile = section.get("profile") if isinstance(section.get("profile"), dict) else {}
+            pos_val = section.get("position")
+            pos = pos_val if isinstance(pos_val, dict) else {}
+            prof_val = section.get("profile")
+            profile = prof_val if isinstance(prof_val, dict) else {}
             points.append(
                 (
                     _number(pos.get("x")),
@@ -264,13 +266,19 @@ def _interpolate_profile(
     for left, right in pairwise(values):
         if left[1] <= y <= right[1]:
             t = (y - left[1]) / max(right[1] - left[1], 1e-9)
-            rotation = tuple(
-                left[5][axis] + t * (right[5][axis] - left[5][axis]) for axis in range(3)
+            rotation = (
+                float(left[5][0]) + t * (float(right[5][0]) - float(left[5][0])),
+                float(left[5][1]) + t * (float(right[5][1]) - float(left[5][1])),
+                float(left[5][2]) + t * (float(right[5][2]) - float(left[5][2])),
             )
-            interpolated = tuple(
-                left[index] + t * (right[index] - left[index]) for index in range(5)
+            interpolated = (
+                float(left[0]) + t * (float(right[0]) - float(left[0])),
+                float(left[1]) + t * (float(right[1]) - float(left[1])),
+                float(left[2]) + t * (float(right[2]) - float(left[2])),
+                float(left[3]) + t * (float(right[3]) - float(left[3])),
+                float(left[4]) + t * (float(right[4]) - float(left[4])),
             )
-            return (*interpolated, rotation)  # type: ignore[return-value]
+            return (*interpolated, rotation)
     return values[0]
 
 
@@ -385,13 +393,15 @@ def _density(parameters: dict[str, Any]) -> float:
 
 
 def _declared_mass(component: dict[str, Any]) -> float | None:
-    params = component.get("parameters") if isinstance(component.get("parameters"), dict) else {}
+    raw_params = component.get("parameters")
+    params = raw_params if isinstance(raw_params, dict) else {}
     value = component.get("mass", params.get("mass"))
     return _number(value) if value is not None else None
 
 
 def _geometry(component: dict[str, Any]) -> dict[str, Any]:
-    params = component.get("parameters") if isinstance(component.get("parameters"), dict) else {}
+    raw_params = component.get("parameters")
+    params = raw_params if isinstance(raw_params, dict) else {}
     value = params.get("geometry")
     return value if isinstance(value, dict) else {}
 
@@ -416,8 +426,10 @@ def _empty_envelope() -> dict[str, Any]:
     }
 
 
-def _number(value: object) -> float:
+def _number(value: Any) -> float:
+    if value is None:
+        return 0.0
     try:
-        return float(value or 0.0)
+        return float(value)
     except (TypeError, ValueError):
         return 0.0

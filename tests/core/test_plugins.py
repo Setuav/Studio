@@ -551,7 +551,7 @@ class PluginTests(unittest.TestCase):
 
     def test_dynamic_schema_registration_and_validation(self) -> None:
         """Verify 3rd party plugins can dynamically register schemas and validate component types."""
-        from setuav_studio.schema_validation import validate_project
+        from setuav_studio.project.validation import validate_project
 
         api = StudioAPI()
 

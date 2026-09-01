@@ -6,6 +6,7 @@ from pathlib import Path
 from PySide6.QtCore import QEvent
 from PySide6.QtWidgets import QDockWidget, QMainWindow
 
+from plugins.geometry.engine.derived_geometry import derive_project_component_geometry
 from plugins.weight_balance import WeightBalancePlugin
 from plugins.weight_balance.engine.base import WeightBalanceError
 from plugins.weight_balance.engine.solver import EXTENSION_ID, WeightBalanceSolver
@@ -18,7 +19,6 @@ from setuav_studio.api import (
     WorkspaceContribution,
 )
 from setuav_studio.project import ProjectDocument, open_project
-from setuav_studio.project.derived_geometry import derive_project_component_geometry
 from setuav_studio.ui.project_explorer import (
     ProjectExplorer,
     ProjectExplorerPanel,

@@ -17,7 +17,7 @@ from setuav_studio.project import (
     open_project,
     save_project,
 )
-from setuav_studio.schema_validation import validate_project
+from setuav_studio.project.validation import validate_project
 from setuav_studio.ui.settings.settings_pages import StudioSettings
 
 from .validation import (

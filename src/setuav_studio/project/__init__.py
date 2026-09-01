@@ -1,27 +1,7 @@
-"""Project document lifecycle and model re-exports."""
+"""Project document lifecycle, persistence, archive packaging, and schema validation."""
 
-from setuav_studio.model import (
-    CircularDependencyError,
-    Component,
-    ConfigurationError,
-    ConfigurationManager,
-    ConstraintChecker,
-    ConstraintResult,
-    Data,
-    Environment,
-    ExpressionEvaluationError,
-    ExpressionEvaluator,
-    GenericComponent,
-    ParameterResolutionError,
-    ParameterResolver,
-    State,
-    System,
-    Vehicle,
-    build_evaluation_context,
-    create_model_for_component,
-    get_available_symbols_metadata,
-)
-from setuav_studio.project.derived_geometry import derive_component_geometry
+from __future__ import annotations
+
 from setuav_studio.project.document import (
     ProjectDocument,
     ProjectOpenError,
@@ -32,34 +12,26 @@ from setuav_studio.project.document import (
     open_project,
     save_project,
 )
+from setuav_studio.project.validation import (
+    Issue,
+    PluginInfo,
+    SchemaCatalog,
+    get_catalog,
+    validate_project,
+)
 
 __all__ = [
-    "CircularDependencyError",
-    "Component",
-    "ConfigurationError",
-    "ConfigurationManager",
-    "ConstraintChecker",
-    "ConstraintResult",
-    "Data",
-    "Environment",
-    "ExpressionEvaluationError",
-    "ExpressionEvaluator",
-    "GenericComponent",
-    "ParameterResolutionError",
-    "ParameterResolver",
+    "Issue",
+    "PluginInfo",
     "ProjectDocument",
     "ProjectOpenError",
     "ProjectSaveError",
-    "State",
-    "System",
-    "Vehicle",
+    "SchemaCatalog",
     "_write_json_file",
     "_write_suav",
-    "build_evaluation_context",
-    "create_model_for_component",
     "create_project",
-    "derive_component_geometry",
-    "get_available_symbols_metadata",
+    "get_catalog",
     "open_project",
     "save_project",
+    "validate_project",
 ]
