@@ -188,6 +188,34 @@ class ProjectTests(unittest.TestCase):
         api.undo()
         self.assertIsNone(project.get_component_extension("c1", "com.example.comp_ext"))
 
+    def test_plugin_data_access_and_mutation(self) -> None:
+        """Verify get_plugin_data / set_plugin_data / get_component_plugin_data methods."""
+        self.project_data["components"] = [
+            {
+                "id": "c1",
+                "name": "Test Comp",
+                "type": "org.setuav.core:generic",
+                "plugins": {"aero": {"cl": 1.2}},
+            }
+        ]
+        self.project_data["plugins"] = {"flight_plan": {"waypoints": [1, 2, 3]}}
+        project = open_project(self._write_project_json())
+
+        # Root level plugin data
+        self.assertEqual(project.get_plugin("flight_plan")["waypoints"], [1, 2, 3])
+        project.set_plugin("flight_plan", {"waypoints": [1, 2, 3, 4]})
+        self.assertEqual(project.get_plugin_data("flight_plan")["waypoints"], [1, 2, 3, 4])
+        self.assertTrue(project.modified)
+
+        # Component level plugin data
+        self.assertEqual(project.get_component_plugin("c1", "aero")["cl"], 1.2)
+        project.set_component_plugin("c1", "aero", {"cl": 1.5})
+        self.assertEqual(project.get_component_plugin_data("c1", "aero")["cl"], 1.5)
+
+        # Remove plugin data
+        project.remove_plugin_data("flight_plan")
+        self.assertIsNone(project.get_plugin("flight_plan"))
+
     def _write_project_json(self) -> Path:
         project_file = self.root / "project.json"
         project_file.write_text(json.dumps(self.project_data), encoding="utf-8")
