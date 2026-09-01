@@ -11,7 +11,7 @@ from plugins.electrical_propulsion.editors import (
     MotorEditor,
     PropellerEditor,
 )
-from setuav_studio.plugin_system import PluginManager, StudioAPI
+from setuav_studio.api import PluginManager, StudioAPI
 from setuav_studio.project import open_project
 from tests._common import TEST_PROJECT_PATH, get_qapp
 
@@ -372,7 +372,7 @@ class TestElectricalPropulsion(unittest.TestCase):
 
     def test_propulsion_results_dock_unit_conversion(self) -> None:
         from plugins.electrical_propulsion.results_dock import PropulsionResultsDock
-        from setuav_studio.plugin_system import StudioAPI
+        from setuav_studio.api import StudioAPI
         from setuav_studio.units import get_unit_manager
 
         um = get_unit_manager()

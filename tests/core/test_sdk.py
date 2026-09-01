@@ -3,15 +3,15 @@
 import unittest
 
 import setuav_studio_sdk as sdk
-from setuav_studio import plugin_system
+from setuav_studio import api
 
 
 class PluginSDKTests(unittest.TestCase):
     def test_public_api_owns_plugin_contracts(self) -> None:
-        self.assertIsNot(sdk.StudioAPI, plugin_system.StudioAPI)
-        self.assertIs(sdk.StudioPlugin, plugin_system.StudioPlugin)
-        self.assertIs(sdk.PanelContribution, plugin_system.PanelContribution)
-        self.assertIs(sdk.ActionContribution, plugin_system.ActionContribution)
+        self.assertIsNot(sdk.StudioAPI, api.StudioAPI)
+        self.assertIs(sdk.StudioPlugin, api.StudioPlugin)
+        self.assertIs(sdk.PanelContribution, api.PanelContribution)
+        self.assertIs(sdk.ActionContribution, api.ActionContribution)
 
         public_methods = {
             name
@@ -19,9 +19,7 @@ class PluginSDKTests(unittest.TestCase):
             if callable(value) and not name.startswith("_")
         }
         implementation_methods = {
-            name
-            for name in dir(plugin_system.StudioAPI)
-            if callable(getattr(plugin_system.StudioAPI, name))
+            name for name in dir(api.StudioAPI) if callable(getattr(api.StudioAPI, name))
         }
         self.assertLessEqual(public_methods, implementation_methods)
 

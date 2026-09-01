@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-from setuav_studio.plugin_system import (
+from setuav_studio.api import (
     BaseComponentEditor,
     ParameterField,
     StudioAPI,

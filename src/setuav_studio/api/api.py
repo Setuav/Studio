@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
-from contextlib import suppress
+from collections.abc import Callable, Generator
+from contextlib import contextmanager, suppress
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -11,6 +11,7 @@ from PySide6.QtCore import QObject
 from PySide6.QtGui import QIcon, QUndoStack
 from PySide6.QtWidgets import QWidget
 
+from setuav_studio.api.hooks import HookRegistry
 from setuav_studio.project import ProjectDocument
 from setuav_studio.ui.icons import get_icon
 from setuav_studio_sdk.api import (
@@ -93,9 +94,15 @@ class StudioAPI:
         self._project_tree_providers: dict[str, ProjectTreeProvider] = {}
         self._project_requirement_checker: Callable[[dict[str, Any]], list[str]] | None = None
         self._event_subscribers: dict[str, list[Callable[[Any], None]]] = {}
+        self._hooks = HookRegistry()
         self._undo_stack = QUndoStack()
         self._undo_stack.cleanChanged.connect(self._on_clean_changed)
         self._host = _StudioHost(self)
+
+    @property
+    def hooks(self) -> HookRegistry:
+        """Central extensible lifecycle hooks registry."""
+        return self._hooks
 
     @property
     def project(self) -> ProjectDocument | None:
@@ -422,6 +429,26 @@ class StudioAPI:
             change(ext)
 
         self.edit_component(comp, description, wrapper)
+
+    edit_project_plugin = edit_project_extension
+    edit_component_plugin = edit_component_extension
+
+    @contextmanager
+    def transaction(self, description: str) -> Generator[None, None, None]:
+        """Context manager to group multiple edits into a single atomic Undo/Redo command."""
+        self.begin_macro(description)
+        try:
+            yield
+        finally:
+            self.end_macro()
+
+    def begin_macro(self, description: str) -> None:
+        """Begin a compound Undo macro."""
+        self._undo_stack.beginMacro(description)
+
+    def end_macro(self) -> None:
+        """End the current compound Undo macro."""
+        self._undo_stack.endMacro()
 
     def undo(self) -> None:
         """Undo the most recent project or component edit when available."""

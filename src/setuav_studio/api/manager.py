@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import pkgutil
 from importlib import import_module, metadata
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from PySide6.QtCore import QSettings
 
@@ -70,7 +70,7 @@ class PluginManager:
         self._disabled_plugins.discard(plugin.id)
         logger.info("Activating plugin: %s", plugin.id)
         try:
-            plugin.activate(self._api)
+            plugin.activate(cast(Any, self._api))
         except Exception:
             if was_disabled:
                 self._disabled_plugins.add(plugin.id)
@@ -192,7 +192,7 @@ class PluginManager:
                 issues.append(PluginLoadIssue("plugin", str(exc)))
 
     def _activate_candidate(self, candidate: object) -> None:
-        plugin = candidate() if isinstance(candidate, type) else candidate
+        plugin: Any = candidate() if isinstance(candidate, type) else candidate
         plugin_id = getattr(plugin, "id", None)
         if isinstance(plugin_id, str) and plugin_id in self._plugins:
             return

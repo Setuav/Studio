@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-from setuav_studio.plugin_system import StudioAPI
+from setuav_studio.api import StudioAPI
 from setuav_studio.project import ProjectDocument
 from setuav_studio.ui.configurations.configuration_bar import ConfigurationToolBar
 from setuav_studio.ui.configurations.configuration_dialogs import ConfigurationEditDialog

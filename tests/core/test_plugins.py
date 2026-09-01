@@ -14,7 +14,7 @@ from plugins.view2d import (
     View2DPlugin,
     View2DScene,
 )
-from setuav_studio.plugin_system import (
+from setuav_studio.api import (
     PanelContribution,
     PluginManager,
     StudioAPI,
@@ -313,7 +313,7 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(missing, ["Missing plugin: example.missing"])
 
     def test_version_satisfies_pep440_pre_release_and_build_metadata(self) -> None:
-        from setuav_studio.plugin_system import _version_satisfies
+        from setuav_studio.api.requirements import _version_satisfies
 
         self.assertTrue(_version_satisfies("1.2.3-rc1", "^1.2.0"))
         self.assertTrue(_version_satisfies("1.2.3.4", "^1.2.0"))

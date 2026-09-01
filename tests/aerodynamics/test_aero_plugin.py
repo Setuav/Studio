@@ -36,7 +36,7 @@ from plugins.aerodynamics.engine.stability_models import (
 )
 from plugins.aerodynamics.plugin import AerodynamicsPlugin
 from plugins.aerodynamics.results_dock import AeroResultsDock
-from setuav_studio.plugin_system import (
+from setuav_studio.api import (
     ActionContribution,
     PanelContribution,
     StudioAPI,

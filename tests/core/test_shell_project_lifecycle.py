@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 from PySide6.QtWidgets import QMessageBox
 
-from setuav_studio.plugin_system import StudioAPI
+from setuav_studio.api import StudioAPI
 from setuav_studio.project import ProjectDocument, ProjectOpenError, ProjectSaveError
 from setuav_studio.ui.shell import MainWindow, apply_runtime_validation
 from tests._common import get_qapp

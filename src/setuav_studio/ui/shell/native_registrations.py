@@ -18,7 +18,7 @@ from setuav_studio_sdk import (
 )
 
 if TYPE_CHECKING:
-    from setuav_studio.plugin_system import StudioAPI
+    from setuav_studio.api import StudioAPI
 
 
 def _transform_tree_nodes(

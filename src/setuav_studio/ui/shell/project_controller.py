@@ -27,7 +27,7 @@ from .validation import (
 )
 
 if TYPE_CHECKING:
-    from setuav_studio.plugin_system import StudioAPI
+    from setuav_studio.api import StudioAPI
 
 logger = logging.getLogger(__name__)
 
@@ -198,6 +198,7 @@ class ProjectController:
                 _items_by_id(curr_data, "assemblies"),
                 "Assembly",
             )
+            self.append_unsaved_plugin_entries(changes, disk_data, curr_data)
             self.append_unsaved_aerodynamic_analyses(changes, disk_doc)
             self.append_unsaved_performance_analyses(changes, disk_doc)
 
@@ -243,10 +244,40 @@ class ProjectController:
         current_entries: list[dict[str, Any]],
         fallback_name: str,
     ) -> None:
-        disk_ids = {entry.get("id") for entry in disk_entries}
+        disk_ids = {entry.get("id") for entry in disk_entries if isinstance(entry, dict)}
         for entry in current_entries:
-            if entry.get("id") not in disk_ids:
+            if isinstance(entry, dict) and entry.get("id") not in disk_ids:
                 changes.append(f"Unsaved {fallback_name}: {entry.get('name') or fallback_name}")
+
+    @staticmethod
+    def append_unsaved_plugin_entries(
+        changes: list[str],
+        disk_data: dict[str, Any],
+        curr_data: dict[str, Any],
+    ) -> None:
+        """Inspect all plugin/extension namespaces for unsaved analytical entries."""
+        disk_plugins = disk_data.get("plugins") or disk_data.get("extensions") or {}
+        curr_plugins = curr_data.get("plugins") or curr_data.get("extensions") or {}
+        if not isinstance(disk_plugins, dict) or not isinstance(curr_plugins, dict):
+            return
+        for namespace, curr_val in curr_plugins.items():
+            if not isinstance(curr_val, dict):
+                continue
+            disk_val = (
+                disk_plugins.get(namespace, {})
+                if isinstance(disk_plugins.get(namespace), dict)
+                else {}
+            )
+            for list_key in ("analysis_runs", "results", "entries"):
+                curr_list = curr_val.get(list_key, [])
+                disk_list = disk_val.get(list_key, []) if isinstance(disk_val, dict) else []
+                if isinstance(curr_list, list) and isinstance(disk_list, list):
+                    disk_ids = {e.get("id") for e in disk_list if isinstance(e, dict)}
+                    for e in curr_list:
+                        if isinstance(e, dict) and e.get("id") and e.get("id") not in disk_ids:
+                            title = e.get("name") or e.get("id")
+                            short_ns = namespace.split(".")[-1].replace("_", " ").title()
+                            changes.append(f"Unsaved {short_ns} entry: {title}")
 
     def confirm_project_close(self) -> bool:
         if self.project is None or not self.project.modified:

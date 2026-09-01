@@ -11,7 +11,7 @@ from unittest.mock import Mock, patch
 from PySide6.QtCore import QEvent
 from PySide6.QtWidgets import QWidget
 
-from setuav_studio.plugin_system import (
+from setuav_studio.api import (
     ActionContribution,
     ComponentTreeNodeContribution,
     PanelContribution,
@@ -161,7 +161,7 @@ class PluginSystemEdgeTests(unittest.TestCase):
 
         self.api.subscribe("event", broken)
         self.api.subscribe("event", received.append)
-        with self.assertLogs("setuav_studio.plugin_system", level="ERROR"):
+        with self.assertLogs("setuav_studio.api", level="ERROR"):
             self.api.publish("event", 42)
         self.api.unsubscribe("event", broken)
         self.api.unsubscribe("event", broken)
@@ -416,12 +416,12 @@ class PluginSystemEdgeTests(unittest.TestCase):
             return SimpleNamespace(PLUGIN=BadPlugin())
 
         with (
-            patch("setuav_studio.plugin_system.manager.pkgutil.iter_modules", return_value=modules),
+            patch("setuav_studio.api.manager.pkgutil.iter_modules", return_value=modules),
             patch(
-                "setuav_studio.plugin_system.manager.import_module",
+                "setuav_studio.api.manager.import_module",
                 side_effect=import_side_effect,
             ),
-            self.assertLogs("setuav_studio.plugin_system.manager", level="WARNING"),
+            self.assertLogs("setuav_studio.api.manager", level="WARNING"),
         ):
             issues = manager._discover_bundled()
         self.assertEqual(len(issues), 2)
@@ -434,10 +434,10 @@ class PluginSystemEdgeTests(unittest.TestCase):
         activation_error.load.return_value = BadPlugin()
         with (
             patch(
-                "setuav_studio.plugin_system.manager.metadata.entry_points",
+                "setuav_studio.api.manager.metadata.entry_points",
                 return_value=[load_error, activation_error],
             ),
-            self.assertLogs("setuav_studio.plugin_system.manager", level="WARNING"),
+            self.assertLogs("setuav_studio.api.manager", level="WARNING"),
         ):
             issues = manager._discover_entry_points()
         self.assertEqual(len(issues), 2)
@@ -498,7 +498,7 @@ class PluginSystemEdgeTests(unittest.TestCase):
     def test_disabled_plugin_state_is_loaded_and_saved(self) -> None:
         settings = Mock()
         settings.value.return_value = ["com.example.persisted"]
-        with patch("setuav_studio.plugin_system.manager.QSettings", return_value=settings):
+        with patch("setuav_studio.api.manager.QSettings", return_value=settings):
             manager = PluginManager(self.api)
 
             self.assertTrue(manager.is_disabled("com.example.persisted"))
@@ -631,6 +631,60 @@ class PluginSystemEdgeTests(unittest.TestCase):
         api._on_clean_changed(False)
         api.set_selection("wing")
         api.set_section_selection(("wing", 0, 0))
+
+    def test_api_transaction_groups_undo_commands(self) -> None:
+        """Verify that api.transaction() collapses multiple edits into a single Undo action."""
+        comp = {"id": "c1", "name": "Initial Name", "mass": 1.0}
+        self.project.data["components"] = [comp]
+        self.api._host.set_project(self.project)
+
+        with self.api.transaction("Bulk update"):
+            self.api.edit_component(comp, "Change name", lambda: comp.update({"name": "New Name"}))
+            self.api.edit_component(comp, "Change mass", lambda: comp.update({"mass": 2.5}))
+
+        self.assertEqual(comp["name"], "New Name")
+        self.assertEqual(comp["mass"], 2.5)
+
+        # Single undo reverses both operations
+        self.api.undo()
+        self.assertEqual(comp["name"], "Initial Name")
+        self.assertEqual(comp["mass"], 1.0)
+
+        # Single redo re-applies both
+        self.api.redo()
+        self.assertEqual(comp["name"], "New Name")
+        self.assertEqual(comp["mass"], 2.5)
+
+    def test_hook_registry_lifecycle(self) -> None:
+        """Verify HookRegistry before-save and unsaved-changes hooks."""
+        hooks = self.api.hooks
+        save_calls: list[str] = []
+
+        def save_hook(data: dict) -> None:
+            save_calls.append(data.get("name", ""))
+
+        hooks.register_before_save_hook(save_hook)
+        hooks.trigger_before_save({"name": "Test UAV"})
+        self.assertEqual(save_calls, ["Test UAV"])
+
+        hooks.unregister_before_save_hook(save_hook)
+        hooks.trigger_before_save({"name": "Another UAV"})
+        self.assertEqual(save_calls, ["Test UAV"])
+
+        # Unsaved changes checker
+        checker_state = False
+
+        def unsaved_checker() -> bool:
+            return checker_state
+
+        hooks.register_unsaved_changes_checker(unsaved_checker)
+        self.assertFalse(hooks.has_plugin_unsaved_changes())
+
+        checker_state = True
+        self.assertTrue(hooks.has_plugin_unsaved_changes())
+
+        hooks.unregister_unsaved_changes_checker(unsaved_checker)
+        self.assertFalse(hooks.has_plugin_unsaved_changes())
 
 
 if __name__ == "__main__":

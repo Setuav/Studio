@@ -17,6 +17,7 @@ from setuav_studio_sdk.contributions import (
 from setuav_studio_sdk.plugin import StudioPlugin
 
 from .api import StudioAPI
+from .hooks import HookRegistry
 from .host import _StudioHost
 from .manager import PluginManager
 from .requirements import (
@@ -32,6 +33,7 @@ __all__ = [
     "BaseComponentEditor",
     "Component",
     "ComponentTreeNodeContribution",
+    "HookRegistry",
     "PanelContribution",
     "ParameterField",
     "PluginLoadIssue",

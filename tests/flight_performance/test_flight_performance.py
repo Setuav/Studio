@@ -30,7 +30,7 @@ from plugins.flight_performance.engine.models import (
 from plugins.flight_performance.engine.solver import FlightPerformanceSolver
 from plugins.flight_performance.plugin import FlightPerformancePlugin
 from plugins.flight_performance.worker import FlightPerformanceWorker
-from setuav_studio.plugin_system import PluginManager, StudioAPI
+from setuav_studio.api import PluginManager, StudioAPI
 from setuav_studio.project import open_project
 from tests._common import TEST_PROJECT_PATH, get_qapp
 

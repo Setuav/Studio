@@ -12,7 +12,7 @@ from plugins.geometry.creation import (
     _LIFTING_SURFACE_TYPE,
     GeometryCreationController,
 )
-from setuav_studio.plugin_system import StudioAPI
+from setuav_studio.api import StudioAPI
 from setuav_studio.project import ProjectDocument
 from tests._common import get_qapp
 

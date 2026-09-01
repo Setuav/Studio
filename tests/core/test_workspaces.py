@@ -6,7 +6,7 @@ import unittest
 
 from PySide6.QtWidgets import QLabel
 
-from setuav_studio.plugin_system import (
+from setuav_studio.api import (
     PanelContribution,
     StudioAPI,
     ToolContribution,

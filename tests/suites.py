@@ -22,7 +22,7 @@ CORE_MODULES = (
     "tests.core.test_native_models",
     "tests.core.test_parameters",
     "tests.core.test_parameters_panel",
-    "tests.core.test_plugin_system_edges",
+    "tests.core.test_api_edges",
     "tests.core.test_plugins",
     "tests.core.test_project",
     "tests.core.test_project_edge_cases",

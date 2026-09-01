@@ -148,7 +148,7 @@ class ProjectTests(unittest.TestCase):
 
     def test_undo_redo_extension_edits_via_studio_api(self) -> None:
         """Verify StudioAPI.edit_project_extension and edit_component_extension support Undo/Redo."""
-        from setuav_studio.plugin_system import StudioAPI
+        from setuav_studio.api import StudioAPI
 
         self.project_data["components"] = [
             {"id": "c1", "name": "Test Comp", "type": "org.setuav.core:generic", "extensions": {}}

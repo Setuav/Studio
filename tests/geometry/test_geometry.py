@@ -199,7 +199,7 @@ class GeometryTests(unittest.TestCase):
     def test_lifting_surface_editor_population_and_metrics(self) -> None:
         from plugins.geometry.lifting_surface import LiftingSurfaceEditor
 
-        from setuav_studio.plugin_system import StudioAPI
+        from setuav_studio.api import StudioAPI
 
         get_qapp()
         api = StudioAPI()
@@ -886,7 +886,7 @@ class GeometryTests(unittest.TestCase):
     def test_control_surface_editor(self) -> None:
         from plugins.geometry.control_surface import ControlSurfaceEditor
 
-        from setuav_studio.plugin_system import StudioAPI
+        from setuav_studio.api import StudioAPI
 
         api = StudioAPI()
         cs_comp = {
@@ -934,7 +934,7 @@ class GeometryTests(unittest.TestCase):
     def test_control_surface_sizing_modes_and_live_sync(self) -> None:
         from plugins.geometry.lifting_surface import LiftingSurfaceEditor
 
-        from setuav_studio.plugin_system import StudioAPI
+        from setuav_studio.api import StudioAPI
         from setuav_studio.project import ProjectDocument
 
         wing_comp = {
@@ -1011,7 +1011,7 @@ class GeometryTests(unittest.TestCase):
         )
         from plugins.geometry.scene import build_project_geometry
 
-        from setuav_studio.plugin_system import StudioAPI
+        from setuav_studio.api import StudioAPI
         from setuav_studio.project import ProjectDocument
 
         doc_data = {
@@ -1273,7 +1273,7 @@ class GeometryTests(unittest.TestCase):
         """Verify LiftingSurfaceEditor tip caps table interactions and project mutation."""
         from plugins.geometry.lifting_surface import LiftingSurfaceEditor
 
-        from setuav_studio.plugin_system import StudioAPI
+        from setuav_studio.api import StudioAPI
 
         api = StudioAPI()
         wing_comp = {
@@ -1437,7 +1437,7 @@ class GeometryTests(unittest.TestCase):
             compute_section_metrics,
         )
 
-        from setuav_studio.plugin_system import StudioAPI
+        from setuav_studio.api import StudioAPI
 
         # 1. Test geometric metrics calculation
         circle_pts = sample_profile({"type": "circle", "diameter": 100.0})
@@ -1853,7 +1853,7 @@ class GeometryTests(unittest.TestCase):
         """Verify FuselageEditor loads general info, segments, sections, and transforms."""
         from plugins.geometry.fuselage import FuselageEditor
 
-        from setuav_studio.plugin_system import StudioAPI
+        from setuav_studio.api import StudioAPI
 
         api = StudioAPI()
         comp = _build_fuselage_component()
@@ -1895,7 +1895,7 @@ class GeometryTests(unittest.TestCase):
         """Verify add/duplicate/move/delete segment mutations."""
         from plugins.geometry.fuselage import FuselageEditor
 
-        from setuav_studio.plugin_system import StudioAPI
+        from setuav_studio.api import StudioAPI
 
         api = StudioAPI()
         comp = _build_fuselage_component()
@@ -1932,7 +1932,7 @@ class GeometryTests(unittest.TestCase):
         """Verify add/duplicate/move/delete section mutations and x interpolation."""
         from plugins.geometry.fuselage import FuselageEditor
 
-        from setuav_studio.plugin_system import StudioAPI
+        from setuav_studio.api import StudioAPI
 
         api = StudioAPI()
         comp = _build_fuselage_component()
@@ -1974,7 +1974,7 @@ class GeometryTests(unittest.TestCase):
         """Verify profile type change, numeric property, transform, and polygon vertex edits."""
         from plugins.geometry.fuselage import FuselageEditor
 
-        from setuav_studio.plugin_system import StudioAPI
+        from setuav_studio.api import StudioAPI
 
         api = StudioAPI()
         comp = _build_fuselage_component()
@@ -2025,7 +2025,7 @@ class GeometryTests(unittest.TestCase):
         """Verify general name/mass edits and segment tag/loft choice edits."""
         from plugins.geometry.fuselage import FuselageEditor
 
-        from setuav_studio.plugin_system import StudioAPI
+        from setuav_studio.api import StudioAPI
 
         api = StudioAPI()
         comp = _build_fuselage_component()

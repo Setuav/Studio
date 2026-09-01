@@ -11,7 +11,7 @@ from PySide6.QtCore import QEvent
 from PySide6.QtGui import QAction, QCloseEvent
 from PySide6.QtWidgets import QDialog, QDockWidget, QWidget
 
-from setuav_studio.plugin_system import (
+from setuav_studio.api import (
     ActionContribution,
     PanelContribution,
     StudioAPI,

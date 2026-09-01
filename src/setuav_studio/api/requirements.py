@@ -43,9 +43,10 @@ def _version_satisfies(installed: str, requirement: str) -> bool:
             maximum = f"0.{minor + 1}.0"
         else:
             maximum = f"0.0.{patch + 1}"
-        return installed_version < _parse_version(maximum)
+        max_v = _parse_version(maximum)
+        return max_v is not None and installed_version < max_v
     expected = _parse_version(requirement)
-    return expected == installed_version
+    return expected is not None and expected == installed_version
 
 
 def _parse_version(value: str) -> Version | None:

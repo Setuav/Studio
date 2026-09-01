@@ -9,7 +9,7 @@ from unittest.mock import patch
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QTreeWidgetItem, QWidget
 
-from setuav_studio.plugin_system import SettingsPageContribution
+from setuav_studio.api import SettingsPageContribution
 from setuav_studio.ui.settings.settings_pages import SettingsDialog, StudioSettings, _as_bool
 from tests._common import get_qapp
 

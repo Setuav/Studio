@@ -76,7 +76,7 @@ def main() -> int:
     from PySide6.QtCore import QTimer
     from PySide6.QtWidgets import QApplication
 
-    from setuav_studio.plugin_system import PluginManager, StudioAPI
+    from setuav_studio.api import PluginManager, StudioAPI
     from setuav_studio.ui.icons import application_icon
     from setuav_studio.ui.log_buffer import install_log_buffer
     from setuav_studio.ui.settings.settings_pages import StudioSettings

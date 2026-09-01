@@ -14,7 +14,7 @@ from setuav_studio.ui.settings.settings_pages import SettingsDialog, StudioSetti
 from setuav_studio_sdk import ActionContribution
 
 if TYPE_CHECKING:
-    from setuav_studio.plugin_system import PluginManager, StudioAPI
+    from setuav_studio.api import PluginManager, StudioAPI
 
 logger = logging.getLogger(__name__)
 

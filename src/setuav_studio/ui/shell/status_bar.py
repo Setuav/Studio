@@ -18,7 +18,7 @@ from setuav_studio.ui.log_buffer import install_log_buffer
 from setuav_studio.ui.theme import status_color
 
 if TYPE_CHECKING:
-    from setuav_studio.plugin_system import StudioAPI
+    from setuav_studio.api import StudioAPI
     from setuav_studio.project import ProjectDocument
 
 

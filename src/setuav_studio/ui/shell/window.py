@@ -26,7 +26,7 @@ from .toolbar_manager import ToolbarManager
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from setuav_studio.plugin_system import PluginManager, StudioAPI
+    from setuav_studio.api import PluginManager, StudioAPI
     from setuav_studio.project import ProjectDocument
     from setuav_studio_sdk import (
         ActionContribution,

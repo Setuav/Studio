@@ -3,7 +3,7 @@ import unittest
 from PySide6.QtWidgets import QDockWidget, QWidget
 
 from setuav_studio.__main__ import _parse_arguments
-from setuav_studio.plugin_system import (
+from setuav_studio.api import (
     PanelContribution,
     PluginManager,
     StudioAPI,

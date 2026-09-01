@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QDockWidget, QMainWindow
 from .layout import _WorkspaceLayoutContext
 
 if TYPE_CHECKING:
-    from setuav_studio.plugin_system import StudioAPI
+    from setuav_studio.api import StudioAPI
 
 
 class LayoutManager:

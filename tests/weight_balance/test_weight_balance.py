@@ -11,7 +11,7 @@ from plugins.weight_balance.engine.base import WeightBalanceError
 from plugins.weight_balance.engine.solver import EXTENSION_ID, WeightBalanceSolver
 from plugins.weight_balance.mass_definition_dock import MassPropertiesEditor
 from plugins.weight_balance.point_mass_editor import PointMassEditor
-from setuav_studio.plugin_system import (
+from setuav_studio.api import (
     PanelContribution,
     PluginManager,
     StudioAPI,
