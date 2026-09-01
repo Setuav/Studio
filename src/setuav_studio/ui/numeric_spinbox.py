@@ -146,7 +146,7 @@ def _parse_spinbox_callback_value(
     if clean.startswith("=") or not clean.replace(".", "", 1).replace("-", "", 1).isdigit():
         if api is not None and getattr(api, "current_project", None) is not None:
             try:
-                from setuav_studio.plugins.core.expressions import ExpressionEvaluator
+                from setuav_studio.project.expressions import ExpressionEvaluator
 
                 evaluator = ExpressionEvaluator()
                 scope = api.current_project.get_scope(api=api)

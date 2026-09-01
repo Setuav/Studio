@@ -78,7 +78,7 @@ def main() -> int:
 
     from setuav_studio.plugin_system import PluginManager, StudioAPI
     from setuav_studio.plugins.core import CorePlugin
-    from setuav_studio.plugins.core.settings import StudioSettings
+    from setuav_studio.ui.settings.settings_pages import StudioSettings
     from setuav_studio.ui.icons import application_icon
     from setuav_studio.ui.log_buffer import install_log_buffer
     from setuav_studio.ui.shell import MainWindow

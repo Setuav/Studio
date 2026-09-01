@@ -9,7 +9,7 @@ import shiboken6
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QFileDialog, QMainWindow, QMessageBox
 
-from setuav_studio.plugins.core.settings import StudioSettings
+from setuav_studio.ui.settings.settings_pages import StudioSettings
 from setuav_studio.project import (
     ProjectDocument,
     ProjectOpenError,

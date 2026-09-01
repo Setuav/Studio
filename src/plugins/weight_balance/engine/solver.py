@@ -5,7 +5,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any, cast
 
-from setuav_studio.plugins.core.derived_geometry import (
+from setuav_studio.project.derived_geometry import (
     DerivedComponentGeometry,
     derive_project_component_geometry,
 )

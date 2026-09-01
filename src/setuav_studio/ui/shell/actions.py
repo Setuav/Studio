@@ -7,7 +7,7 @@ import shiboken6
 from PySide6.QtGui import QAction, QActionGroup, QKeySequence
 from PySide6.QtWidgets import QApplication, QDialog, QMainWindow, QMenu
 
-from setuav_studio.plugins.core.settings import SettingsDialog, StudioSettings
+from setuav_studio.ui.settings.settings_pages import SettingsDialog, StudioSettings
 from setuav_studio.ui.about_dialog import AboutDialog
 from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.plugin_manager import PluginManagerDialog
@@ -324,7 +324,7 @@ class ActionManager:
         AboutDialog(self._window).exec()
 
     def open_constraints(self) -> None:
-        from setuav_studio.plugins.core.ui.constraints_dialog import ManageConstraintsDialog
+        from setuav_studio.ui.constraints.constraints_dialog import ManageConstraintsDialog
 
         dlg = ManageConstraintsDialog(self._api, parent=self._window)
         dlg.exec()

@@ -236,7 +236,7 @@ class ExpressionPropertyCell(QWidget):
         """Evaluate expression against current project scope."""
         if self._api is not None and getattr(self._api, "current_project", None) is not None:
             try:
-                from setuav_studio.plugins.core.expressions import ExpressionEvaluator
+                from setuav_studio.project.expressions import ExpressionEvaluator
 
                 evaluator = ExpressionEvaluator()
                 scope = self._api.current_project.get_scope(api=self._api)
@@ -380,7 +380,7 @@ class ExpressionPropertyCell(QWidget):
         if self._on_open_assistant:
             self._on_open_assistant(self._raw_expression)
         elif self._api is not None:
-            from setuav_studio.plugins.core.ui.expression_dialog import AdvancedExpressionDialog
+            from setuav_studio.ui.parameters.expression_dialog import AdvancedExpressionDialog
 
             curr_text = self._raw_expression.strip()
             dlg = AdvancedExpressionDialog(

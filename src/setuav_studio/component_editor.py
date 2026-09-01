@@ -216,7 +216,7 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
     def _open_field_expression_assistant(self, field: ParameterField, current_val: str) -> None:
         from PySide6.QtWidgets import QDialog
 
-        from setuav_studio.plugins.core.ui.expression_dialog import AdvancedExpressionDialog
+        from setuav_studio.ui.parameters.expression_dialog import AdvancedExpressionDialog
 
         dlg = AdvancedExpressionDialog(
             self._api,
@@ -267,7 +267,7 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
             self._component["mass_expression"] = clean
             if self._api is not None and getattr(self._api, "current_project", None) is not None:
                 try:
-                    from setuav_studio.plugins.core.expressions import ExpressionEvaluator
+                    from setuav_studio.project.expressions import ExpressionEvaluator
 
                     evaluator = ExpressionEvaluator()
                     scope = self._api.current_project.get_scope(api=self._api)
