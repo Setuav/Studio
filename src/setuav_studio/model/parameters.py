@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 from typing import Any
 
-from setuav_studio.project.expressions import ExpressionEvaluationError, ExpressionEvaluator
+from setuav_studio.model.expressions import ExpressionEvaluationError, ExpressionEvaluator
 
 
 class ParameterResolutionError(Exception):

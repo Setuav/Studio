@@ -6,9 +6,9 @@ import contextlib
 from dataclasses import dataclass, field
 from typing import Any
 
-from setuav_studio.project.configurations import get_by_path
-from setuav_studio.project.expressions import ExpressionEvaluator
-from setuav_studio.project.parameters import ParameterResolver
+from setuav_studio.model.configurations import get_by_path
+from setuav_studio.model.expressions import ExpressionEvaluator
+from setuav_studio.model.parameters import ParameterResolver
 
 
 @dataclass
@@ -45,7 +45,7 @@ class ConstraintChecker:
         config_id: str | None = None,
     ) -> dict[str, Any]:
         """Build evaluation context containing resolved parameters and component values."""
-        from setuav_studio.project.symbols import build_evaluation_context
+        from setuav_studio.model.symbols import build_evaluation_context
 
         return build_evaluation_context(project_data, api=api, config_id=config_id)
 

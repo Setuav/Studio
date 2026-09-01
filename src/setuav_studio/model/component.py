@@ -1,4 +1,4 @@
-"""Base domain entity model for all UAV components."""
+"""Universal Component model for UAV entities."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ from copy import deepcopy
 from typing import Any
 
 
-class BaseComponentModel:
-    """Base class for all typed component domain entities."""
+class Component:
+    """Core domain entity model for a UAV component."""
 
     def __init__(self, data: dict[str, Any] | None = None) -> None:
         self._raw_data: dict[str, Any] = data if data is not None else {}
@@ -40,6 +40,17 @@ class BaseComponentModel:
     @type.setter
     def type(self, value: str) -> None:
         self._raw_data["type"] = value
+
+    @property
+    def parent_id(self) -> str | None:
+        """ID of the parent component to which this component attaches."""
+        val = self._raw_data.get("parent") or self._raw_data.get("attach_to")
+        return str(val) if val else None
+
+    @parent_id.setter
+    def parent_id(self, value: str | None) -> None:
+        self._raw_data["parent"] = value
+        self._raw_data["attach_to"] = value
 
     @property
     def mass(self) -> float:
@@ -106,8 +117,18 @@ class BaseComponentModel:
         return self._raw_data.setdefault("parameters", {})
 
     @property
+    def plugins(self) -> dict[str, Any]:
+        """Plugin-specific namespaced storage."""
+        if "plugins" in self._raw_data and isinstance(self._raw_data["plugins"], dict):
+            return self._raw_data["plugins"]
+        if "extensions" in self._raw_data and isinstance(self._raw_data["extensions"], dict):
+            return self._raw_data["extensions"]
+        return self._raw_data.setdefault("plugins", {})
+
+    @property
     def extensions(self) -> dict[str, Any]:
-        return self._raw_data.setdefault("extensions", {})
+        """Backward compatibility alias for plugins storage."""
+        return self.plugins
 
     def get_exposed_properties(self) -> dict[str, Any]:
         """Return a dictionary of all property names and their current values."""
@@ -133,7 +154,7 @@ class BaseComponentModel:
         return deepcopy(self._raw_data)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> BaseComponentModel:
+    def from_dict(cls, data: dict[str, Any]) -> Component:
         """Instantiate model from dictionary."""
         return cls(data)
 
@@ -149,8 +170,17 @@ class BaseComponentModel:
     def __getitem__(self, key: str) -> Any:
         return getattr(self, key)
 
+    def __repr__(self) -> str:
+        return f"<Component id='{self.id}' name='{self.name}' type='{self.type}'>"
 
-class GenericComponentModel(BaseComponentModel):
-    """Fallback model for unknown or generic component types."""
+
+class GenericComponent(Component):
+    """Fallback component model for types with no specialized domain class."""
 
     pass
+
+
+__all__ = [
+    "Component",
+    "GenericComponent",
+]

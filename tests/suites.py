@@ -18,6 +18,7 @@ CORE_MODULES = (
     "tests.core.test_expressions",
     "tests.core.test_instance",
     "tests.core.test_main",
+    "tests.core.test_model",
     "tests.core.test_native_models",
     "tests.core.test_parameters",
     "tests.core.test_parameters_panel",

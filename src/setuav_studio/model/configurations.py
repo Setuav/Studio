@@ -15,7 +15,11 @@ import re
 from collections.abc import Callable
 from typing import Any
 
-from setuav_studio.project.parameters import ParameterResolver
+from setuav_studio.model.parameters import ParameterResolver
+
+
+class ConfigurationError(Exception):
+    """Raised when configuration operations fail."""
 
 
 def parse_path_segments(path: str) -> list[str | int]:

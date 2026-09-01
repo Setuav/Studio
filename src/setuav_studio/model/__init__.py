@@ -1,37 +1,36 @@
-"""Project document lifecycle and model re-exports."""
+"""Core Vehicle, System, Component, State, and Parameter Models (Pure Python)."""
 
-from setuav_studio.model import (
-    CircularDependencyError,
+from setuav_studio.model.component import (
     Component,
+    GenericComponent,
+)
+from setuav_studio.model.configurations import (
     ConfigurationError,
     ConfigurationManager,
+)
+from setuav_studio.model.constraints import (
     ConstraintChecker,
     ConstraintResult,
-    Data,
-    Environment,
+)
+from setuav_studio.model.data import Data
+from setuav_studio.model.environment import Environment
+from setuav_studio.model.expressions import (
     ExpressionEvaluationError,
     ExpressionEvaluator,
-    GenericComponent,
+)
+from setuav_studio.model.parameters import (
+    CircularDependencyError,
     ParameterResolutionError,
     ParameterResolver,
-    State,
-    System,
-    Vehicle,
+)
+from setuav_studio.model.state import State
+from setuav_studio.model.symbols import (
     build_evaluation_context,
     create_model_for_component,
     get_available_symbols_metadata,
 )
-from setuav_studio.project.derived_geometry import derive_component_geometry
-from setuav_studio.project.document import (
-    ProjectDocument,
-    ProjectOpenError,
-    ProjectSaveError,
-    _write_json_file,
-    _write_suav,
-    create_project,
-    open_project,
-    save_project,
-)
+from setuav_studio.model.system import System
+from setuav_studio.model.vehicle import Vehicle
 
 __all__ = [
     "CircularDependencyError",
@@ -47,19 +46,10 @@ __all__ = [
     "GenericComponent",
     "ParameterResolutionError",
     "ParameterResolver",
-    "ProjectDocument",
-    "ProjectOpenError",
-    "ProjectSaveError",
     "State",
     "System",
     "Vehicle",
-    "_write_json_file",
-    "_write_suav",
     "build_evaluation_context",
     "create_model_for_component",
-    "create_project",
-    "derive_component_geometry",
     "get_available_symbols_metadata",
-    "open_project",
-    "save_project",
 ]

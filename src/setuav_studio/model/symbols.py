@@ -8,19 +8,19 @@ from __future__ import annotations
 
 from typing import Any
 
-from setuav_studio.component_model import BaseComponentModel, GenericComponentModel
-from setuav_studio.project.configurations import ConfigurationManager
-from setuav_studio.project.parameters import ParameterResolver
+from setuav_studio.model.component import Component, GenericComponent
+from setuav_studio.model.configurations import ConfigurationManager
+from setuav_studio.model.parameters import ParameterResolver
 
 
 def create_model_for_component(
     component: dict[str, Any],
     api: Any | None = None,
-) -> BaseComponentModel:
+) -> Component:
     """Instantiate the registered domain model for a component."""
     if api is not None and hasattr(api, "create_component_model"):
         return api.create_component_model(component)
-    return GenericComponentModel(component)
+    return GenericComponent(component)
 
 
 def build_evaluation_context(

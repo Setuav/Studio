@@ -98,7 +98,7 @@ class ProjectDocument:
             not hasattr(self, "_config_manager")
             or getattr(self, "_config_manager_data", None) is not self.data
         ):
-            from setuav_studio.project.configurations import ConfigurationManager
+            from setuav_studio.model.configurations import ConfigurationManager
 
             self._config_manager = ConfigurationManager(self.data)
             self._config_manager_data = self.data
@@ -108,7 +108,7 @@ class ProjectDocument:
         self, api: Any | None = None, config_id: str | None = None
     ) -> list[Any]:
         """Return the list of typed domain model instances for all project components."""
-        from setuav_studio.component_model import GenericComponentModel
+        from setuav_studio.model import GenericComponent
 
         cfg_mgr = self.get_configuration_manager()
         components = cfg_mgr.get_materialized_components(config_id)
@@ -123,7 +123,7 @@ class ProjectDocument:
             if api is not None and hasattr(api, "create_component_model"):
                 model = api.create_component_model(resolved_comp)
             else:
-                model = GenericComponentModel(resolved_comp)
+                model = GenericComponent(resolved_comp)
             models.append(model)
 
         # Link children (such as control surfaces) to their parent models
