@@ -6,17 +6,17 @@ from pathlib import Path
 from unittest import mock
 
 from PySide6.QtCore import Qt
-from setuav_studio.plugins.geometry.data import GeometryData, LoftGeometry, Section
-from setuav_studio.plugins.geometry.fuselage_geometry import (
+from plugins.geometry.data import GeometryData, LoftGeometry, Section
+from plugins.geometry.fuselage_geometry import (
     SECTION_SAMPLES,
     build_fuselage_geometry,
     sample_profile,
 )
-from setuav_studio.plugins.geometry.lifting_surface_geometry import (
+from plugins.geometry.lifting_surface_geometry import (
     build_lifting_surface_geometry,
 )
-from setuav_studio.plugins.geometry.mesh import build_loft_solid_vertices
-from setuav_studio.plugins.geometry.scene import build_project_geometry
+from plugins.geometry.mesh import build_loft_solid_vertices
+from plugins.geometry.scene import build_project_geometry
 
 from setuav_studio.project import ProjectDocument, open_project
 from tests._common import TEST_PROJECT_PATH, get_qapp
@@ -95,7 +95,7 @@ class GeometryTests(unittest.TestCase):
         self.assertEqual(len(lofts[0].sections), 3)
 
     def test_palettes_are_complete_and_switchable(self) -> None:
-        from setuav_studio.plugins.geometry.palettes import (
+        from plugins.geometry.palettes import (
             DEFAULT_PALETTE,
             active_palette,
             palette_names,
@@ -197,7 +197,7 @@ class GeometryTests(unittest.TestCase):
         self.assertEqual((len(vertices) // 9) % 3, 0)
 
     def test_lifting_surface_editor_population_and_metrics(self) -> None:
-        from setuav_studio.plugins.geometry.lifting_surface import LiftingSurfaceEditor
+        from plugins.geometry.lifting_surface import LiftingSurfaceEditor
 
         from setuav_studio.plugin_system import StudioAPI
 
@@ -342,7 +342,7 @@ class GeometryTests(unittest.TestCase):
         self.assertEqual(editor.sections_table.rowCount(), init_secs)
 
     def test_wing_planform_engine_modes(self) -> None:
-        from setuav_studio.plugins.geometry.wing_planform_engine import (
+        from plugins.geometry.wing_planform_engine import (
             calc_tan_sweep_at,
             compute_planform_metrics,
             solve_wing_planform,
@@ -419,7 +419,7 @@ class GeometryTests(unittest.TestCase):
         self.assertAlmostEqual(sw_qc, 27.55, places=1)
 
     def test_wing_sections_engine_kinematics(self) -> None:
-        from setuav_studio.plugins.geometry.wing_sections_engine import (
+        from plugins.geometry.wing_sections_engine import (
             delete_section,
             insert_section,
             profiles_to_sections,
@@ -478,7 +478,7 @@ class GeometryTests(unittest.TestCase):
         self.assertEqual(len(del_profs), 2)
 
     def test_airfoil_generators_and_dat_parser(self) -> None:
-        from setuav_studio.plugins.geometry.airfoil import (
+        from plugins.geometry.airfoil import (
             PRESET_AIRFOILS,
             biconvex,
             compute_airfoil_metrics,
@@ -527,7 +527,7 @@ class GeometryTests(unittest.TestCase):
         self.assertGreater(m_selig["max_camber"], 0.05)
 
     def test_control_surface_cutouts_and_deflection(self) -> None:
-        from setuav_studio.plugins.geometry.lifting_surface_geometry import (
+        from plugins.geometry.lifting_surface_geometry import (
             build_lifting_surface_geometry,
         )
 
@@ -713,11 +713,11 @@ class GeometryTests(unittest.TestCase):
         self.assertAlmostEqual(hinge_sec1_x, 150.0, delta=0.1)
 
     def test_fuselage_wing_root_stub_geometry(self) -> None:
-        from setuav_studio.plugins.geometry.fuselage_geometry import build_fuselage_geometry
-        from setuav_studio.plugins.geometry.lifting_surface_geometry import (
+        from plugins.geometry.fuselage_geometry import build_fuselage_geometry
+        from plugins.geometry.lifting_surface_geometry import (
             build_lifting_surface_geometry,
         )
-        from setuav_studio.plugins.geometry.scene import build_project_geometry
+        from plugins.geometry.scene import build_project_geometry
 
         mock_project = {
             "components": [
@@ -783,7 +783,7 @@ class GeometryTests(unittest.TestCase):
         wing_loft = wing_lofts[0]
         self.assertEqual(len(wing_loft.sections), 2)
 
-        from setuav_studio.plugins.geometry.mesh import (
+        from plugins.geometry.mesh import (
             WIRE_FEATURE,
             WIRE_FULL,
             build_loft_solid_vertices,
@@ -864,7 +864,7 @@ class GeometryTests(unittest.TestCase):
             self.assertGreater(len(cap_wire_feature), 0)
 
         # Test control surface vs wing selection matching
-        from setuav_studio.plugins.geometry.mesh import _is_matching_component
+        from plugins.geometry.mesh import _is_matching_component
 
         # When aileron-1 is selected, only aileron-1 matches
         self.assertTrue(_is_matching_component("main-wing:aileron-1", "aileron-1"))
@@ -884,7 +884,7 @@ class GeometryTests(unittest.TestCase):
         self.assertFalse(_is_matching_component("fuselage", "main-wing"))
 
     def test_control_surface_editor(self) -> None:
-        from setuav_studio.plugins.geometry.control_surface import ControlSurfaceEditor
+        from plugins.geometry.control_surface import ControlSurfaceEditor
 
         from setuav_studio.plugin_system import StudioAPI
 
@@ -932,7 +932,7 @@ class GeometryTests(unittest.TestCase):
         self.assertEqual(cs_comp["parameters"]["geometry"]["symmetry_mode"], "symmetric")
 
     def test_control_surface_sizing_modes_and_live_sync(self) -> None:
-        from setuav_studio.plugins.geometry.lifting_surface import LiftingSurfaceEditor
+        from plugins.geometry.lifting_surface import LiftingSurfaceEditor
 
         from setuav_studio.plugin_system import StudioAPI
         from setuav_studio.project import ProjectDocument
@@ -1004,12 +1004,12 @@ class GeometryTests(unittest.TestCase):
         self.assertAlmostEqual(geom1["eta_end"], 0.20)
 
     def test_control_surface_add_delete_no_duplication(self) -> None:
-        from setuav_studio.plugins.geometry.fuselage_geometry import build_fuselage_geometry
-        from setuav_studio.plugins.geometry.lifting_surface import LiftingSurfaceEditor
-        from setuav_studio.plugins.geometry.lifting_surface_geometry import (
+        from plugins.geometry.fuselage_geometry import build_fuselage_geometry
+        from plugins.geometry.lifting_surface import LiftingSurfaceEditor
+        from plugins.geometry.lifting_surface_geometry import (
             build_lifting_surface_geometry,
         )
-        from setuav_studio.plugins.geometry.scene import build_project_geometry
+        from plugins.geometry.scene import build_project_geometry
 
         from setuav_studio.plugin_system import StudioAPI
         from setuav_studio.project import ProjectDocument
@@ -1129,7 +1129,7 @@ class GeometryTests(unittest.TestCase):
 
     def test_twist_location_pivot_rotation(self) -> None:
         """Verify that section transform rotates exactly around the chosen twist_location chord fraction."""
-        from setuav_studio.plugins.geometry.transforms import section_transform, transform_point
+        from plugins.geometry.transforms import section_transform, transform_point
 
         pos = {"x": 100.0, "y": 200.0, "z": 50.0}
         chord = 200.0
@@ -1168,7 +1168,7 @@ class GeometryTests(unittest.TestCase):
 
     def test_wing_planform_washout_and_twist_location(self) -> None:
         """Verify planform engine distributes washout linearly and computes metrics correctly."""
-        from setuav_studio.plugins.geometry.wing_planform_engine import (
+        from plugins.geometry.wing_planform_engine import (
             compute_planform_metrics,
             solve_wing_planform,
         )
@@ -1271,7 +1271,7 @@ class GeometryTests(unittest.TestCase):
 
     def test_lifting_surface_editor_tip_caps_ui(self) -> None:
         """Verify LiftingSurfaceEditor tip caps table interactions and project mutation."""
-        from setuav_studio.plugins.geometry.lifting_surface import LiftingSurfaceEditor
+        from plugins.geometry.lifting_surface import LiftingSurfaceEditor
 
         from setuav_studio.plugin_system import StudioAPI
 
@@ -1346,7 +1346,7 @@ class GeometryTests(unittest.TestCase):
 
     def test_winglet_geometry(self) -> None:
         """Verify _build_winglet_loft generates correct curved/scimitar geometry."""
-        from setuav_studio.plugins.geometry.lifting_surface_geometry import _build_winglet_loft
+        from plugins.geometry.lifting_surface_geometry import _build_winglet_loft
 
         tip_profile = {
             "chord": 100.0,
@@ -1430,8 +1430,8 @@ class GeometryTests(unittest.TestCase):
 
     def test_fuselage_section_dialog_and_metrics(self) -> None:
         """Verify 2D fuselage section metrics calculation and dialog functionality."""
-        from setuav_studio.plugins.geometry.fuselage_geometry import sample_profile
-        from setuav_studio.plugins.geometry.fuselage_section_dialog import (
+        from plugins.geometry.fuselage_geometry import sample_profile
+        from plugins.geometry.fuselage_section_dialog import (
             FuselageCanvasWidget,
             FuselageSectionDialog,
             compute_section_metrics,
@@ -1711,7 +1711,7 @@ class GeometryTests(unittest.TestCase):
 
     def test_airfoil_dialog_initial_selection(self) -> None:
         """Verify initial selection resolves preset names, NACA codes, and dict specs."""
-        from setuav_studio.plugins.geometry.airfoil_dialog import AirfoilDialog
+        from plugins.geometry.airfoil_dialog import AirfoilDialog
 
         # Full preset name -> preset row selected on library tab
         dlg = AirfoilDialog("NACA 0012")
@@ -1734,8 +1734,8 @@ class GeometryTests(unittest.TestCase):
 
     def test_airfoil_dialog_preset_selection_and_metrics(self) -> None:
         """Verify preset selection updates canvas, metrics, and selected spec."""
-        from setuav_studio.plugins.geometry.airfoil import PRESET_AIRFOILS
-        from setuav_studio.plugins.geometry.airfoil_dialog import AirfoilDialog
+        from plugins.geometry.airfoil import PRESET_AIRFOILS
+        from plugins.geometry.airfoil_dialog import AirfoilDialog
 
         dialog = AirfoilDialog("NACA 2412")
         # naca-type preset selected -> spec is the code string
@@ -1764,7 +1764,7 @@ class GeometryTests(unittest.TestCase):
 
     def test_airfoil_dialog_naca_generation(self) -> None:
         """Verify 4/5-digit NACA generation, radio swapping, and desc label."""
-        from setuav_studio.plugins.geometry.airfoil_dialog import AirfoilDialog
+        from plugins.geometry.airfoil_dialog import AirfoilDialog
 
         dialog = AirfoilDialog("2412")
         self.assertEqual(dialog.tabs.currentIndex(), 1)
@@ -1790,7 +1790,7 @@ class GeometryTests(unittest.TestCase):
     def test_airfoil_dialog_dat_import(self) -> None:
         """Verify .dat import populates coordinates table, canvas, and spec."""
         from PySide6.QtWidgets import QFileDialog
-        from setuav_studio.plugins.geometry.airfoil_dialog import AirfoilDialog
+        from plugins.geometry.airfoil_dialog import AirfoilDialog
 
         with tempfile.TemporaryDirectory() as tmp:
             dat_path = Path(tmp) / "custom.dat"
@@ -1819,8 +1819,8 @@ class GeometryTests(unittest.TestCase):
 
     def test_airfoil_dialog_category_filter_and_apply_semantics(self) -> None:
         """Verify category filtering and apply/apply-all result semantics."""
-        from setuav_studio.plugins.geometry.airfoil import PRESET_AIRFOILS
-        from setuav_studio.plugins.geometry.airfoil_dialog import AirfoilDialog
+        from plugins.geometry.airfoil import PRESET_AIRFOILS
+        from plugins.geometry.airfoil_dialog import AirfoilDialog
 
         dialog = AirfoilDialog("2412")
         self.assertEqual(dialog.preset_list.count(), len(PRESET_AIRFOILS))
@@ -1851,7 +1851,7 @@ class GeometryTests(unittest.TestCase):
 
     def test_fuselage_editor_population(self) -> None:
         """Verify FuselageEditor loads general info, segments, sections, and transforms."""
-        from setuav_studio.plugins.geometry.fuselage import FuselageEditor
+        from plugins.geometry.fuselage import FuselageEditor
 
         from setuav_studio.plugin_system import StudioAPI
 
@@ -1893,7 +1893,7 @@ class GeometryTests(unittest.TestCase):
 
     def test_fuselage_editor_segment_actions(self) -> None:
         """Verify add/duplicate/move/delete segment mutations."""
-        from setuav_studio.plugins.geometry.fuselage import FuselageEditor
+        from plugins.geometry.fuselage import FuselageEditor
 
         from setuav_studio.plugin_system import StudioAPI
 
@@ -1930,7 +1930,7 @@ class GeometryTests(unittest.TestCase):
 
     def test_fuselage_editor_section_actions(self) -> None:
         """Verify add/duplicate/move/delete section mutations and x interpolation."""
-        from setuav_studio.plugins.geometry.fuselage import FuselageEditor
+        from plugins.geometry.fuselage import FuselageEditor
 
         from setuav_studio.plugin_system import StudioAPI
 
@@ -1972,7 +1972,7 @@ class GeometryTests(unittest.TestCase):
 
     def test_fuselage_editor_profile_transform_and_vertices(self) -> None:
         """Verify profile type change, numeric property, transform, and polygon vertex edits."""
-        from setuav_studio.plugins.geometry.fuselage import FuselageEditor
+        from plugins.geometry.fuselage import FuselageEditor
 
         from setuav_studio.plugin_system import StudioAPI
 
@@ -2023,7 +2023,7 @@ class GeometryTests(unittest.TestCase):
 
     def test_fuselage_editor_general_and_segment_edits(self) -> None:
         """Verify general name/mass edits and segment tag/loft choice edits."""
-        from setuav_studio.plugins.geometry.fuselage import FuselageEditor
+        from plugins.geometry.fuselage import FuselageEditor
 
         from setuav_studio.plugin_system import StudioAPI
 
@@ -2056,11 +2056,11 @@ class GeometryTests(unittest.TestCase):
 
     def test_3d_section_and_control_surface_selection_highlight(self) -> None:
         """Verify 3D section ring vertices highlight both bounding stations and control surfaces."""
-        from setuav_studio.plugins.geometry.lifting_surface_geometry import (
+        from plugins.geometry.lifting_surface_geometry import (
             build_lifting_surface_geometry,
         )
-        from setuav_studio.plugins.geometry.mesh import build_section_ring_vertices
-        from setuav_studio.plugins.geometry.scene import build_project_geometry
+        from plugins.geometry.mesh import build_section_ring_vertices
+        from plugins.geometry.scene import build_project_geometry
 
         doc = open_project(TEST_PROJECT_PATH)
         providers = {"org.setuav.core:lifting-surface": build_lifting_surface_geometry}
@@ -2146,7 +2146,7 @@ def _build_fuselage_component() -> dict:
 
     def test_fuselage_engine_helpers_and_metrics(self) -> None:
         """Verify fuselage engine calculation and data template helpers."""
-        from setuav_studio.plugins.geometry.engine.fuselage_geometry import (
+        from plugins.geometry.engine.fuselage_geometry import (
             compute_section_metrics,
             create_default_section,
             create_default_segment,
@@ -2185,7 +2185,7 @@ def _build_fuselage_component() -> dict:
 
     def test_geometry_screenshot_transparent_background(self) -> None:
         """Verify screenshot transparent background action and capture parameter."""
-        from setuav_studio.plugins.geometry.workspace import GeometryWorkspace
+        from plugins.geometry.workspace import GeometryWorkspace
         from setuav_studio_sdk import StudioAPI
 
         api = StudioAPI()
@@ -2198,7 +2198,7 @@ def _build_fuselage_component() -> dict:
         with (
             mock.patch.object(workspace.viewer, "capture_screenshot") as mock_capture,
             mock.patch(
-                "setuav_studio.plugins.geometry.workspace.QMessageBox.warning"
+                "plugins.geometry.workspace.QMessageBox.warning"
             ) as mock_warning,
         ):
             mock_capture.return_value = None

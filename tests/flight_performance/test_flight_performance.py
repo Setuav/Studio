@@ -15,23 +15,22 @@ from pythrust.propulsion.models.motor import MotorSpec
 from pythrust.propulsion.models.propeller import PropellerSpec
 
 from setuav_studio.plugin_system import PluginManager, StudioAPI
-from setuav_studio.plugins.core import CorePlugin
-from setuav_studio.plugins.electrical_propulsion.engine.solver import PropulsionSolverEngine
-from setuav_studio.plugins.electrical_propulsion.plugin import ElectricalPropulsionPlugin
-from setuav_studio.plugins.flight_performance.analysis_store import (
+from plugins.electrical_propulsion.engine.solver import PropulsionSolverEngine
+from plugins.electrical_propulsion.plugin import ElectricalPropulsionPlugin
+from plugins.flight_performance.analysis_store import (
     get_stored_performance_result,
     store_performance_result,
 )
-from setuav_studio.plugins.flight_performance.engine.models import (
+from plugins.flight_performance.engine.models import (
     CruisePerformance,
     FlightCurves,
     FlightEnvelopeResult,
     OptimalSpeeds,
     PerformanceMetrics,
 )
-from setuav_studio.plugins.flight_performance.engine.solver import FlightPerformanceSolver
-from setuav_studio.plugins.flight_performance.plugin import FlightPerformancePlugin
-from setuav_studio.plugins.flight_performance.worker import FlightPerformanceWorker
+from plugins.flight_performance.engine.solver import FlightPerformanceSolver
+from plugins.flight_performance.plugin import FlightPerformancePlugin
+from plugins.flight_performance.worker import FlightPerformanceWorker
 from setuav_studio.project import open_project
 from tests._common import TEST_PROJECT_PATH, get_qapp
 
@@ -320,7 +319,6 @@ class TestFlightPerformance(unittest.TestCase):
         api = StudioAPI()
         win = MainWindow(api)
         pm = PluginManager(api)
-        pm.activate(CorePlugin())
         pm.activate(ElectricalPropulsionPlugin())
         pm.activate(FlightPerformancePlugin())
         pm.discover()
@@ -364,7 +362,7 @@ class TestFlightPerformance(unittest.TestCase):
         from unittest.mock import patch
 
         api = StudioAPI()
-        from setuav_studio.plugins.flight_performance.results_dock import PerformanceResultsDock
+        from plugins.flight_performance.results_dock import PerformanceResultsDock
 
         dock = PerformanceResultsDock(api)
         res = FlightEnvelopeResult(
@@ -488,7 +486,7 @@ class TestFlightPerformance(unittest.TestCase):
         )
 
     def test_flight_performance_results_dock_unit_conversion(self) -> None:
-        from setuav_studio.plugins.flight_performance.results_dock import PerformanceResultsDock
+        from plugins.flight_performance.results_dock import PerformanceResultsDock
         from setuav_studio.units import get_unit_manager
 
         um = get_unit_manager()

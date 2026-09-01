@@ -10,7 +10,7 @@ from PySide6.QtCore import QSignalBlocker
 from PySide6.QtWidgets import QComboBox
 
 from setuav_studio.plugin_system import StudioAPI
-from setuav_studio.plugins.core.instance import InstanceEditor
+from setuav_studio.ui.editors.instance import InstanceEditor
 from setuav_studio.project import ProjectDocument
 from tests._common import get_qapp
 

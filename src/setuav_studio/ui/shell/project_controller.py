@@ -210,7 +210,7 @@ class ProjectController:
         self, changes: list[str], disk_document: ProjectDocument | None
     ) -> None:
         try:
-            from setuav_studio.plugins.aerodynamics.analysis_store import analysis_entries
+            from plugins.aerodynamics.analysis_store import analysis_entries
 
             self.append_unsaved_analyses(
                 changes,
@@ -225,7 +225,7 @@ class ProjectController:
         self, changes: list[str], disk_document: ProjectDocument | None
     ) -> None:
         try:
-            from setuav_studio.plugins.flight_performance.analysis_store import analysis_entries
+            from plugins.flight_performance.analysis_store import analysis_entries
 
             self.append_unsaved_analyses(
                 changes,

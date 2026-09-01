@@ -3,7 +3,7 @@ from importlib import resources
 
 from PySide6.QtGui import QPalette
 
-from setuav_studio.plugins.core.settings import StudioSettings
+from setuav_studio.ui.settings.settings_pages import StudioSettings
 from setuav_studio.ui.icons import application_icon, get_icon
 from setuav_studio.ui.theme import (
     ACCENT_COLOR,
@@ -103,7 +103,7 @@ class ThemeTests(unittest.TestCase):
         apply_theme(app, "dark")
 
     def test_chart_series_and_axes_are_rethemed(self) -> None:
-        from setuav_studio.plugins.aerodynamics.charts_dock import SingleChartWidget
+        from plugins.aerodynamics.charts_dock import SingleChartWidget
         from setuav_studio.ui.theme import apply_theme, chart_color, tokens
 
         app = get_qapp()

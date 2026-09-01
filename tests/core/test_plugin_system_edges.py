@@ -349,7 +349,7 @@ class PluginSystemEdgeTests(unittest.TestCase):
 
         sentinel = object()
         with patch(
-            "setuav_studio.plugins.geometry.viewport.scene.build_project_geometry",
+            "plugins.geometry.viewport.scene.build_project_geometry",
             return_value=sentinel,
         ) as build:
             self.assertIs(self.api.build_geometry_data(self.project), sentinel)
@@ -409,7 +409,7 @@ class PluginSystemEdgeTests(unittest.TestCase):
         modules = [SimpleNamespace(name="load-fail"), SimpleNamespace(name="bad")]
 
         def import_side_effect(name: str) -> object:
-            if name == "setuav_studio.plugins":
+            if name == "plugins":
                 return package
             if name.endswith("load-fail"):
                 raise ImportError("load failed")

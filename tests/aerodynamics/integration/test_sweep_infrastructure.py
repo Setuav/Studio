@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import unittest
 
-from setuav_studio.plugins.aerodynamics.engine.aerosandbox_engine import (
+from plugins.aerodynamics.engine.aerosandbox_engine import (
     HAS_AEROSANDBOX,
     AeroSandboxEngine,
 )
-from setuav_studio.plugins.aerodynamics.engine.base import (
+from plugins.aerodynamics.engine.base import (
     AnalysisMethod,
     FlightCondition,
     SweepType,

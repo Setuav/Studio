@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import unittest
 
-from setuav_studio.plugins.aerodynamics.engine.airfoil_cache import (
+from plugins.aerodynamics.engine.airfoil_cache import (
     AirfoilPolarCache,
     _compute_cache_key,
 )
-from setuav_studio.plugins.aerodynamics.engine.airfoil_engine import (
+from plugins.aerodynamics.engine.airfoil_engine import (
     HAS_AEROSANDBOX,
     AirfoilAnalysisEngine,
 )
-from setuav_studio.plugins.aerodynamics.engine.airfoil_models import (
+from plugins.aerodynamics.engine.airfoil_models import (
     AirfoilPolar,
     AirfoilPolarPoint,
 )

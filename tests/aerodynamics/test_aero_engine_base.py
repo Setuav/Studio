@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from setuav_studio.plugins.aerodynamics.engine.base import (
+from plugins.aerodynamics.engine.base import (
     AeroEngine,
     AeroForcesMoments,
     AeroResult,

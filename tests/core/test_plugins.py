@@ -3,9 +3,9 @@ from pathlib import Path
 from typing import ClassVar
 
 from PySide6.QtWidgets import QWidget
-from setuav_studio.plugins.geometry.data import GeometryData, LoftGeometry, Section
-from setuav_studio.plugins.geometry.fuselage import FuselageEditor
-from setuav_studio.plugins.geometry.mesh import build_loft_wire_vertices
+from plugins.geometry.data import GeometryData, LoftGeometry, Section
+from plugins.geometry.fuselage import FuselageEditor
+from plugins.geometry.mesh import build_loft_wire_vertices
 
 from setuav_studio.plugin_system import (
     PanelContribution,
@@ -14,12 +14,12 @@ from setuav_studio.plugin_system import (
     WorkspaceContribution,
     _candidate_sort_key,
 )
-from setuav_studio.plugins.core import CorePlugin
-from setuav_studio.plugins.core.envelope import PHYSICAL_EXTENSION_ID, EnvelopeEditor
-from setuav_studio.plugins.core.project import ProjectExplorer
-from setuav_studio.plugins.core.transform import TransformEditor
-from setuav_studio.plugins.geometry import GeometryPlugin
-from setuav_studio.plugins.view2d import (
+from setuav_studio.ui.editors.envelope import PHYSICAL_EXTENSION_ID, EnvelopeEditor
+from setuav_studio.ui.editors.transform import TransformEditor
+from setuav_studio.ui.project_explorer import ProjectExplorer
+from setuav_studio.ui.shell.native_registrations import register_native_contributions
+from plugins.geometry import GeometryPlugin
+from plugins.view2d import (
     View2DCanvas,
     View2DGeometrySource,
     View2DPlugin,
@@ -98,16 +98,16 @@ class PluginTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.api.register_component_icon("custom:sensor", "fa6s.camera")
 
-    def test_core_plugin_contributes_properties_panel(self) -> None:
-        self.manager.activate(CorePlugin())
+    def test_native_contributions_registers_panels(self) -> None:
+        register_native_contributions(self.api)
 
         self.assertEqual(
             [panel.id for panel in self.panels],
-            ["project.explorer", "studio.properties", "project.parameters"],
+            ["core:project-explorer", "core:properties", "core:parameters"],
         )
 
     def test_core_plugin_contributes_transform_tree_node_and_editor(self) -> None:
-        self.manager.activate(CorePlugin())
+        register_native_contributions(self.api)
         component = {
             "id": "motor",
             "name": "Motor",
@@ -231,8 +231,6 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(segment["loft"]["method"], "smooth")
 
     def test_discovers_bundled_geometry_plugin(self) -> None:
-        self.manager.activate(CorePlugin())
-
         issues = self.manager.discover()
 
         self.assertEqual(issues, [])
@@ -354,10 +352,10 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(component["name"], "After")
 
     def test_rejects_duplicate_plugin_activation(self) -> None:
-        self.manager.activate(CorePlugin())
+        self.manager.activate(GeometryPlugin())
 
         with self.assertRaises(ValueError):
-            self.manager.activate(CorePlugin())
+            self.manager.activate(GeometryPlugin())
 
     def test_active_plugins_are_sorted_for_management_views(self) -> None:
         class LaterPlugin:

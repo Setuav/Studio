@@ -5,8 +5,7 @@ from __future__ import annotations
 import unittest
 
 from setuav_studio.plugin_system import PluginManager, StudioAPI
-from setuav_studio.plugins.core import CorePlugin
-from setuav_studio.plugins.electrical_propulsion.editors import (
+from plugins.electrical_propulsion.editors import (
     BatteryEditor,
     ElectricPropulsionSystemEditor,
     EscEditor,
@@ -28,7 +27,6 @@ class TestElectricalPropulsion(unittest.TestCase):
         api = StudioAPI()
         _win = MainWindow(api)
         pm = PluginManager(api)
-        pm.activate(CorePlugin())
         issues = pm.discover()
         self.assertEqual(len(issues), 0)
         self.assertIn("org.setuav.studio.electrical_propulsion", pm._plugins)
@@ -41,28 +39,27 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertIn("org.setuav.core:electric-propulsion-system", api._component_editors)
 
     def test_plugin_can_be_deactivated_and_reactivated(self) -> None:
-        from setuav_studio.plugins.electrical_propulsion.plugin import ElectricalPropulsionPlugin
+        from plugins.electrical_propulsion.plugin import ElectricalPropulsionPlugin
         from setuav_studio.ui.shell import MainWindow
 
         api = StudioAPI()
         window = MainWindow(api)
         manager = PluginManager(api)
-        manager.activate(CorePlugin())
         plugin = ElectricalPropulsionPlugin()
         manager.activate(plugin)
 
         self.assertIn("org.setuav.core:motor", api._component_editors)
         self.assertIn("tools/electrical propulsion", window._menus)
-        self.assertIn("project.explorer", window._panels)
-        self.assertIn("studio.properties", window._panels)
+        self.assertIn("core:project-explorer", window._panels)
+        self.assertIn("core:properties", window._panels)
 
         manager.deactivate(plugin.id)
 
         self.assertNotIn("org.setuav.core:motor", api._component_editors)
         self.assertNotIn("org.setuav.core:motor", api._component_icons)
         self.assertNotIn("tools/electrical propulsion", window._menus)
-        self.assertIn("project.explorer", window._panels)
-        self.assertIn("studio.properties", window._panels)
+        self.assertIn("core:project-explorer", window._panels)
+        self.assertIn("core:properties", window._panels)
 
         manager.activate_plugin(plugin.id)
         self.assertIn("org.setuav.core:motor", api._component_editors)
@@ -150,10 +147,10 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertEqual(editor._property_text(editor.members_table, 3), "propeller-cruise")
 
     def test_catalog_database_and_dialog(self) -> None:
-        from setuav_studio.plugins.electrical_propulsion.catalog_dialog import (
+        from plugins.electrical_propulsion.catalog_dialog import (
             ComponentCatalogDialog,
         )
-        from setuav_studio.plugins.electrical_propulsion.database import (
+        from plugins.electrical_propulsion.database import (
             get_motor_database,
             get_propeller_database,
         )
@@ -170,14 +167,13 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertLessEqual(dialog.motor_table.rowCount(), 400)
 
     def test_propulsion_controls_and_analysis_run(self) -> None:
-        from setuav_studio.plugins.core import CorePlugin
-        from setuav_studio.plugins.electrical_propulsion.plugin import ElectricalPropulsionPlugin
+    def test_propulsion_controls_and_analysis_run(self) -> None:
+        from plugins.electrical_propulsion.plugin import ElectricalPropulsionPlugin
         from setuav_studio.ui.shell import MainWindow
 
         api = StudioAPI()
         win = MainWindow(api)
         pm = PluginManager(api)
-        pm.activate(CorePlugin())
         pm.activate(ElectricalPropulsionPlugin())
         pm.discover()
         win.restore_window_layout()
@@ -205,14 +201,12 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertGreater(len(charts.chart_efficiency.series()), 0)
 
     def test_analysis_posts_status_messages(self) -> None:
-        from setuav_studio.plugins.core import CorePlugin
-        from setuav_studio.plugins.electrical_propulsion.plugin import ElectricalPropulsionPlugin
+        from plugins.electrical_propulsion.plugin import ElectricalPropulsionPlugin
         from setuav_studio.ui.shell import MainWindow
 
         api = StudioAPI()
         win = MainWindow(api)
         pm = PluginManager(api)
-        pm.activate(CorePlugin())
         pm.activate(ElectricalPropulsionPlugin())
         pm.discover()
         win.restore_window_layout()
@@ -238,8 +232,8 @@ class TestElectricalPropulsion(unittest.TestCase):
         from pythrust.propulsion.models.motor import MotorSpec
         from pythrust.propulsion.models.propeller import PropellerSpec
 
-        from setuav_studio.plugins.electrical_propulsion.engine import PropulsionSolverEngine
-        from setuav_studio.plugins.electrical_propulsion.worker import PropulsionWorker
+        from plugins.electrical_propulsion.engine import PropulsionSolverEngine
+        from plugins.electrical_propulsion.worker import PropulsionWorker
 
         motor_spec = MotorSpec(
             kv_rpm_per_v=900.0, resistance_ohm=0.035, no_load_current_a=1.2, current_max_a=45.0
@@ -302,8 +296,8 @@ class TestElectricalPropulsion(unittest.TestCase):
 
         from PySide6.QtCore import QSettings
 
-        from setuav_studio.plugins.core.settings import StudioSettings
-        from setuav_studio.plugins.electrical_propulsion import database as db_module
+        from setuav_studio.ui.settings.settings_pages import StudioSettings
+        from plugins.electrical_propulsion import database as db_module
 
         # 1. Hardcoded user-home absolute path is gone.
         source = Path(db_module.__file__).read_text(encoding="utf-8")
@@ -348,7 +342,7 @@ class TestElectricalPropulsion(unittest.TestCase):
         from pythrust.propulsion.models.motor import MotorSpec
         from pythrust.propulsion.models.propeller import PropellerSpec
 
-        from setuav_studio.plugins.electrical_propulsion.engine import (
+        from plugins.electrical_propulsion.engine import (
             PropulsionPoint,
             PropulsionSolverEngine,
         )
@@ -379,7 +373,7 @@ class TestElectricalPropulsion(unittest.TestCase):
 
     def test_propulsion_results_dock_unit_conversion(self) -> None:
         from setuav_studio.plugin_system import StudioAPI
-        from setuav_studio.plugins.electrical_propulsion.results_dock import PropulsionResultsDock
+        from plugins.electrical_propulsion.results_dock import PropulsionResultsDock
         from setuav_studio.units import get_unit_manager
 
         um = get_unit_manager()

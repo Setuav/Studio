@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from setuav_studio.plugins.geometry.engine.wing_driver_solver import (
+from plugins.geometry.engine.wing_driver_solver import (
     PLANFORM_PARAM_KEYS,
     compute_all_8_parameters,
     solve_8_parameter_driver,

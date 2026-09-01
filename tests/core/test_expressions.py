@@ -1,7 +1,7 @@
 import math
 import unittest
 
-from setuav_studio.plugins.core.expressions import (
+from setuav_studio.project.expressions import (
     ExpressionEvaluationError,
     ExpressionEvaluator,
 )

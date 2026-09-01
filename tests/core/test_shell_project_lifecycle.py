@@ -260,13 +260,13 @@ class ShellProjectLifecycleTests(unittest.TestCase):
             )
             with (
                 patch(
-                    "setuav_studio.plugins.aerodynamics.analysis_store.analysis_entries",
+                    "plugins.aerodynamics.analysis_store.analysis_entries",
                     side_effect=lambda doc: (
                         [] if doc is not self.window._project else [{"id": "aero", "name": "Aero"}]
                     ),
                 ),
                 patch(
-                    "setuav_studio.plugins.flight_performance.analysis_store.analysis_entries",
+                    "plugins.flight_performance.analysis_store.analysis_entries",
                     side_effect=lambda doc: (
                         []
                         if doc is not self.window._project
@@ -298,11 +298,11 @@ class ShellProjectLifecycleTests(unittest.TestCase):
             with (
                 patch("setuav_studio.project.open_project", side_effect=RuntimeError("failed")),
                 patch(
-                    "setuav_studio.plugins.aerodynamics.analysis_store.analysis_entries",
+                    "plugins.aerodynamics.analysis_store.analysis_entries",
                     side_effect=RuntimeError("aero failed"),
                 ),
                 patch(
-                    "setuav_studio.plugins.flight_performance.analysis_store.analysis_entries",
+                    "plugins.flight_performance.analysis_store.analysis_entries",
                     side_effect=RuntimeError("performance failed"),
                 ),
             ):

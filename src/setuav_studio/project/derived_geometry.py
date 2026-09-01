@@ -133,7 +133,7 @@ def _control_surface(
     # Match the geometry engine's section frame, including sweep, twist and
     # dihedral. The control component's origin is the centre of the flap bay.
     try:
-        from setuav_studio.plugins.geometry.engine.transforms import (
+        from plugins.geometry.engine.transforms import (
             section_transform,
             transform_point,
         )

@@ -154,7 +154,7 @@ class ProjectExplorer(QTreeWidget):
     ) -> dict[str, dict[str, Any]]:
         results: dict[str, dict[str, Any]] = {}
         try:
-            from setuav_studio.plugins.aerodynamics.analysis_store import (
+            from plugins.aerodynamics.analysis_store import (
                 analysis_entries as aero_entries,
             )
 
@@ -165,7 +165,7 @@ class ProjectExplorer(QTreeWidget):
             pass
 
         try:
-            from setuav_studio.plugins.flight_performance.analysis_store import (
+            from plugins.flight_performance.analysis_store import (
                 analysis_entries as perf_entries,
             )
 

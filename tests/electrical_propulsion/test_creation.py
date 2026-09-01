@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from setuav_studio.plugin_system import StudioAPI
-from setuav_studio.plugins.electrical_propulsion.creation import (
+from plugins.electrical_propulsion.creation import (
     _ASSEMBLY_TYPE,
     PropulsionCreationController,
 )
@@ -145,12 +145,12 @@ class PropulsionCreationTests(unittest.TestCase):
 
         self.api.set_selection(None)
         with patch(
-            "setuav_studio.plugins.electrical_propulsion.creation.QInputDialog.getItem",
+            "plugins.electrical_propulsion.creation.QInputDialog.getItem",
             return_value=("Second (second)", True),
         ):
             self.assertIs(self.controller._choose_target_assembly(), second)
         with patch(
-            "setuav_studio.plugins.electrical_propulsion.creation.QInputDialog.getItem",
+            "plugins.electrical_propulsion.creation.QInputDialog.getItem",
             return_value=("", False),
         ):
             self.assertIsNone(self.controller._choose_target_assembly())

@@ -19,7 +19,7 @@ from setuav_studio.plugin_system import (
     ToolbarMenuItemContribution,
     WorkspaceContribution,
 )
-from setuav_studio.plugins.core.settings import StudioSettings
+from setuav_studio.ui.settings.settings_pages import StudioSettings
 from setuav_studio.ui.shell import MainWindow
 from tests._common import get_qapp
 

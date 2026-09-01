@@ -11,19 +11,18 @@ from setuav_studio.plugin_system import (
     PluginManager,
     StudioAPI,
     WorkspaceContribution,
-)
-from setuav_studio.plugins.core import CorePlugin
-from setuav_studio.plugins.core.derived_geometry import derive_project_component_geometry
-from setuav_studio.plugins.core.properties import PropertiesPanel
-from setuav_studio.plugins.core.ui.project_explorer import (
+from setuav_studio.project.derived_geometry import derive_project_component_geometry
+from setuav_studio.ui.project_explorer import (
     ProjectExplorer,
     ProjectExplorerPanel,
 )
-from setuav_studio.plugins.weight_balance import WeightBalancePlugin
-from setuav_studio.plugins.weight_balance.engine.base import WeightBalanceError
-from setuav_studio.plugins.weight_balance.engine.solver import EXTENSION_ID, WeightBalanceSolver
-from setuav_studio.plugins.weight_balance.mass_definition_dock import MassPropertiesEditor
-from setuav_studio.plugins.weight_balance.point_mass_editor import PointMassEditor
+from setuav_studio.ui.properties.properties_panel import PropertiesPanel
+from setuav_studio.ui.shell.native_registrations import register_native_contributions
+from plugins.weight_balance import WeightBalancePlugin
+from plugins.weight_balance.engine.base import WeightBalanceError
+from plugins.weight_balance.engine.solver import EXTENSION_ID, WeightBalanceSolver
+from plugins.weight_balance.mass_definition_dock import MassPropertiesEditor
+from plugins.weight_balance.point_mass_editor import PointMassEditor
 from setuav_studio.project import ProjectDocument, open_project
 from tests._common import TEST_PROJECT_PATH, get_qapp
 
@@ -263,7 +262,7 @@ class WeightBalancePluginTests(unittest.TestCase):
         api._host.bind_panel_handlers(lambda _panel: None)
         api._host.bind_workspace_handlers(lambda _workspace: None)
         manager = PluginManager(api)
-        manager.activate(CorePlugin())
+        register_native_contributions(api)
         manager.activate(WeightBalancePlugin())
         component = {
             "id": "payload-mass",
@@ -494,8 +493,8 @@ class WeightBalancePluginTests(unittest.TestCase):
         self.assertTrue(root.isExpanded())
 
     def test_cg_view_marker_click_selects_mass_properties(self) -> None:
-        from setuav_studio.plugins.weight_balance.balance_view_dock import WeightBalanceViewDock
-        from setuav_studio.plugins.weight_balance.models import (
+        from plugins.weight_balance.balance_view_dock import WeightBalanceViewDock
+        from plugins.weight_balance.models import (
             ComponentMassProperties,
             InertiaTensor,
             MassProperties,
@@ -546,7 +545,7 @@ class WeightBalancePluginTests(unittest.TestCase):
         self.assertIsInstance(properties._current_widget, MassPropertiesEditor)
 
         # Verify point mass color and legend bar entry
-        from setuav_studio.plugins.weight_balance.balance_view_dock import (
+        from plugins.weight_balance.balance_view_dock import (
             POINT_MASS_COLOR,
             _BalanceProjectionCanvas,
         )

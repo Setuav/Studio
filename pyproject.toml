@@ -57,7 +57,7 @@ security = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/setuav_studio"]
+packages = ["src/setuav_studio", "src/plugins"]
 
 [tool.uv.sources]
 setuav-studio-sdk = { path = "packages/setuav-studio-sdk", editable = true }
@@ -93,7 +93,7 @@ line-ending = "lf"
 
 [tool.coverage.run]
 branch = true
-source = ["setuav_studio"]
+source = ["setuav_studio", "plugins"]
 
 [tool.coverage.report]
 fail_under = 68
@@ -106,47 +106,47 @@ directory = "htmlcov"
 title = "Setuav Studio Coverage"
 
 [tool.pyright]
-extraPaths = ["packages/setuav-studio-sdk/src"]
+extraPaths = ["packages/setuav-studio-sdk/src", "src"]
 include = [
     "packages/setuav-studio-sdk/src/setuav_studio_sdk",
     "src/setuav_studio/ui/about_dialog.py",
-    "src/setuav_studio/plugins/aerodynamics/engine/base.py",
-    "src/setuav_studio/plugins/aerodynamics/engine/aerosandbox_engine.py",
-    "src/setuav_studio/plugins/aerodynamics/engine/airfoil_cache.py",
-    "src/setuav_studio/plugins/aerodynamics/engine/airfoil_engine.py",
-    "src/setuav_studio/plugins/aerodynamics/engine/airfoil_models.py",
-    "src/setuav_studio/plugins/aerodynamics/engine/stability_engine.py",
-    "src/setuav_studio/plugins/aerodynamics/engine/stability_models.py",
-    "src/setuav_studio/plugins/electrical_propulsion/engine/base.py",
-    "src/setuav_studio/plugins/electrical_propulsion/engine/solver.py",
-    "src/setuav_studio/plugins/flight_performance/engine/models.py",
-    "src/setuav_studio/plugins/flight_performance/engine/solver.py",
-    "src/setuav_studio/plugins/geometry/engine/airfoil.py",
-    "src/setuav_studio/plugins/geometry/engine/data.py",
-    "src/setuav_studio/plugins/geometry/engine/fuselage_geometry.py",
-    "src/setuav_studio/plugins/geometry/engine/lifting_surface_geometry.py",
-    "src/setuav_studio/plugins/geometry/engine/transforms.py",
-    "src/setuav_studio/plugins/geometry/engine/wing_driver_solver.py",
-    "src/setuav_studio/plugins/geometry/engine/wing_planform_engine.py",
-    "src/setuav_studio/plugins/geometry/engine/wing_sections_engine.py",
-    "src/setuav_studio/plugins/weight_balance/engine/base.py",
-    "src/setuav_studio/plugins/weight_balance/engine/solver.py",
-    "src/setuav_studio/plugins/weight_balance/engine/spatial.py",
+    "src/plugins/aerodynamics/engine/base.py",
+    "src/plugins/aerodynamics/engine/aerosandbox_engine.py",
+    "src/plugins/aerodynamics/engine/airfoil_cache.py",
+    "src/plugins/aerodynamics/engine/airfoil_engine.py",
+    "src/plugins/aerodynamics/engine/airfoil_models.py",
+    "src/plugins/aerodynamics/engine/stability_engine.py",
+    "src/plugins/aerodynamics/engine/stability_models.py",
+    "src/plugins/electrical_propulsion/engine/base.py",
+    "src/plugins/electrical_propulsion/engine/solver.py",
+    "src/plugins/flight_performance/engine/models.py",
+    "src/plugins/flight_performance/engine/solver.py",
+    "src/plugins/geometry/engine/airfoil.py",
+    "src/plugins/geometry/engine/data.py",
+    "src/plugins/geometry/engine/fuselage_geometry.py",
+    "src/plugins/geometry/engine/lifting_surface_geometry.py",
+    "src/plugins/geometry/engine/transforms.py",
+    "src/plugins/geometry/engine/wing_driver_solver.py",
+    "src/plugins/geometry/engine/wing_planform_engine.py",
+    "src/plugins/geometry/engine/wing_sections_engine.py",
+    "src/plugins/weight_balance/engine/base.py",
+    "src/plugins/weight_balance/engine/solver.py",
+    "src/plugins/weight_balance/engine/spatial.py",
     "src/setuav_studio/ui/buttons.py",
     "src/setuav_studio/ui/icons.py",
     "src/setuav_studio/ui/log_buffer.py",
     "src/setuav_studio/ui/log_window.py",
     "src/setuav_studio/ui/main_toolbar.py",
     "src/setuav_studio/ui/plugin_manager.py",
-    "src/setuav_studio/plugins/core/expressions.py",
-    "src/setuav_studio/plugins/core/parameters.py",
-    "src/setuav_studio/plugins/core/configurations.py",
-    "src/setuav_studio/plugins/core/constraints.py",
-    "src/setuav_studio/plugins/core/ui/configuration_bar.py",
-    "src/setuav_studio/plugins/core/ui/configuration_dialogs.py",
-    "src/setuav_studio/plugins/core/ui/constraints_dialog.py",
-    "src/setuav_studio/plugins/core/ui/constraint_status.py",
-    "src/setuav_studio/plugins/core/ui/parameters_panel.py",
+    "src/setuav_studio/project/expressions.py",
+    "src/setuav_studio/project/parameters.py",
+    "src/setuav_studio/project/configurations.py",
+    "src/setuav_studio/project/constraints.py",
+    "src/setuav_studio/ui/configurations/configuration_bar.py",
+    "src/setuav_studio/ui/configurations/configuration_dialogs.py",
+    "src/setuav_studio/ui/constraints/constraints_dialog.py",
+    "src/setuav_studio/ui/constraints/constraint_status.py",
+    "src/setuav_studio/ui/parameters/parameters_panel.py",
     "src/setuav_studio/ui/numeric_spinbox.py",
     "src/setuav_studio/ui/property_tables.py",
     "src/setuav_studio/ui/theme.py",

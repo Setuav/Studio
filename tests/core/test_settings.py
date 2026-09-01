@@ -10,7 +10,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QTreeWidgetItem, QWidget
 
 from setuav_studio.plugin_system import SettingsPageContribution
-from setuav_studio.plugins.core.settings import SettingsDialog, StudioSettings, _as_bool
+from setuav_studio.ui.settings.settings_pages import SettingsDialog, StudioSettings, _as_bool
 from tests._common import get_qapp
 
 
@@ -104,7 +104,7 @@ class CoreSettingsTests(unittest.TestCase):
             SettingsPageContribution("bad", "Bad", fail_factory, order=40, apply=fail_apply),
             SettingsPageContribution("wrong", "Wrong", lambda: object(), order=50),
         )
-        with self.assertLogs("setuav_studio.plugins.core.settings", level="ERROR"):
+        with self.assertLogs("setuav_studio.ui.settings.settings_pages", level="ERROR"):
             dialog = SettingsDialog(StudioSettings(), pages=pages)
             dialog.apply_plugin_pages()
         self.addCleanup(dialog.deleteLater)

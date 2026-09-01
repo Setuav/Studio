@@ -17,16 +17,16 @@ from setuav_studio.plugin_system import (
     StudioAPI,
     WorkspaceContribution,
 )
-from setuav_studio.plugins.aerodynamics.airfoil_analysis_tool import (
+from plugins.aerodynamics.airfoil_analysis_tool import (
     AirfoilAnalysisToolWindow,
 )
-from setuav_studio.plugins.aerodynamics.analysis_store import (
+from plugins.aerodynamics.analysis_store import (
     RESULTS_VERSION,
     analysis_entries,
     load_analysis_result,
     migrate_analysis_extension,
 )
-from setuav_studio.plugins.aerodynamics.engine.base import (
+from plugins.aerodynamics.engine.base import (
     AeroResult,
     AnalysisMethod,
     ControlChannelAnalysis,
@@ -37,12 +37,12 @@ from setuav_studio.plugins.aerodynamics.engine.base import (
     SweepType,
     SweepVariable,
 )
-from setuav_studio.plugins.aerodynamics.engine.stability_models import (
+from plugins.aerodynamics.engine.stability_models import (
     StabilityDerivatives,
 )
-from setuav_studio.plugins.aerodynamics.plugin import AerodynamicsPlugin
-from setuav_studio.plugins.aerodynamics.results_dock import AeroResultsDock
-from setuav_studio.plugins.core.ui.project_explorer import ProjectExplorer
+from plugins.aerodynamics.plugin import AerodynamicsPlugin
+from plugins.aerodynamics.results_dock import AeroResultsDock
+from setuav_studio.ui.project_explorer import ProjectExplorer
 from setuav_studio.project import ProjectDocument
 from tests._common import get_qapp
 
@@ -208,7 +208,7 @@ class AerodynamicsPluginTests(unittest.TestCase):
         self.assertEqual(metrics["pitch_status"], "MARGINAL")
 
     def test_aero_results_dock_unit_conversion(self) -> None:
-        from setuav_studio.plugins.aerodynamics.engine.base import (
+        from plugins.aerodynamics.engine.base import (
             AeroForcesMoments,
             FlightCondition,
             PolarPoint,
@@ -253,7 +253,7 @@ class AerodynamicsPluginTests(unittest.TestCase):
         self.assertEqual(dock.detail_table.item(0, lift_col).text(), "50.000")
         self.assertEqual(dock.detail_table.item(0, drag_col).text(), "2.500")
 
-        from setuav_studio.plugins.aerodynamics.results_dock import SUMMARY_ROWS
+        from plugins.aerodynamics.results_dock import SUMMARY_ROWS
 
         ref_span_row = next(r for r, (k, _) in enumerate(SUMMARY_ROWS) if k == "ref_span")
         # In base mm: 1.2 m span is 1200 mm
@@ -810,7 +810,7 @@ class AerodynamicsPluginTests(unittest.TestCase):
             def exec(self, *args, **kwargs):
                 return None
 
-        with patch("setuav_studio.plugins.core.ui.project_explorer.context_menu.QMenu", MockMenu):
+        with patch("setuav_studio.ui.project_explorer.context_menu.QMenu", MockMenu):
             explorer._open_context_menu(explorer.visualItemRect(result_item).center())
 
         self.assertIn("Rename", menu_actions)
