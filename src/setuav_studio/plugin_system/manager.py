@@ -140,19 +140,23 @@ class PluginManager:
     def _collect_bundled_candidates(
         self,
     ) -> tuple[list[PluginLoadIssue], list[tuple[int, str, object]]]:
-        package = import_module("setuav_studio.plugins")
         issues: list[PluginLoadIssue] = []
         candidates: list[tuple[int, str, object]] = []
-        for module_info in pkgutil.iter_modules(package.__path__):
-            source = f"setuav_studio.plugins.{module_info.name}"
-            try:
-                module = import_module(source)
-                candidate = getattr(module, "PLUGIN", None)
-                if candidate is not None:
-                    candidates.append(_candidate_sort_key(candidate, source))
-            except Exception as exc:
-                logger.warning("Failed to load bundled plugin %s: %s", source, exc)
-                issues.append(PluginLoadIssue(source, str(exc)))
+        try:
+            package = import_module("plugins")
+            for module_info in pkgutil.iter_modules(package.__path__):
+                source = f"plugins.{module_info.name}"
+                try:
+                    module = import_module(source)
+                    candidate = getattr(module, "PLUGIN", None)
+                    if candidate is not None:
+                        candidates.append(_candidate_sort_key(candidate, source))
+                except Exception as exc:
+                    logger.warning("Failed to load bundled plugin %s: %s", source, exc)
+                    issues.append(PluginLoadIssue(source, str(exc)))
+        except Exception as exc:
+            logger.warning("Failed to load plugins package: %s", exc)
+            issues.append(PluginLoadIssue("plugins", str(exc)))
         return issues, candidates
 
     def _discover_entry_points(self) -> list[PluginLoadIssue]:

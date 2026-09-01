@@ -32,7 +32,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.plugins.geometry.engine.airfoil import (
+from plugins.geometry.engine.airfoil import (
     PRESET_AIRFOILS,
     parse_airfoil_dat,
 )

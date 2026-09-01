@@ -27,7 +27,7 @@ from PySide6.QtWidgets import (
 from pythrust.motors.database import MotorEntry
 from pythrust.propellers.database import PropellerEntry
 
-from setuav_studio.plugins.electrical_propulsion.database import (
+from plugins.electrical_propulsion.database import (
     get_motor_database,
     get_propeller_database,
 )

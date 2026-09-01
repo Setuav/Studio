@@ -21,9 +21,9 @@ from PySide6.QtWidgets import (
 from pythrust.propulsion.models.motor import MotorSpec
 from pythrust.propulsion.models.propeller import PropellerSpec
 
-from setuav_studio.plugins.electrical_propulsion.database import get_propeller_database
-from setuav_studio.plugins.electrical_propulsion.engine.solver import PropulsionSolverEngine
-from setuav_studio.plugins.weight_balance.engine.solver import WeightBalanceSolver
+from plugins.electrical_propulsion.database import get_propeller_database
+from plugins.electrical_propulsion.engine.solver import PropulsionSolverEngine
+from plugins.weight_balance.engine.solver import WeightBalanceSolver
 from setuav_studio.ui.buttons import refresh_button_role, set_button_role
 from setuav_studio.ui.icons import set_label_icon
 from setuav_studio.ui.numeric_spinbox import NumericSpinBox

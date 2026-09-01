@@ -8,7 +8,7 @@ import re
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any
 
-from setuav_studio.plugins.geometry.engine.airfoil import (
+from plugins.geometry.engine.airfoil import (
     apply_airfoil_shaping,
     sample_airfoil_points,
 )

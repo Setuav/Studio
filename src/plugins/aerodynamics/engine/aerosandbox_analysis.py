@@ -504,7 +504,7 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
     ) -> tuple[tuple[float, float, float] | None, str]:
         """Resolve the aircraft CG from the shared Weight-Balance model."""
         try:
-            from setuav_studio.plugins.weight_balance.engine.solver import WeightBalanceSolver
+            from plugins.weight_balance.engine.solver import WeightBalanceSolver
 
             project = ProjectDocument(
                 path=Path("<aerodynamics>"),

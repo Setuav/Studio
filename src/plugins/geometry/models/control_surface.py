@@ -87,7 +87,7 @@ class ControlSurfaceModel(BaseComponentModel):
     @property
     def area(self) -> float:
         """Area in dm^2."""
-        from setuav_studio.plugins.geometry.editors.control_surface_values import (
+        from plugins.geometry.editors.control_surface_values import (
             compute_control_surface_metrics,
         )
 
@@ -104,7 +104,7 @@ class ControlSurfaceModel(BaseComponentModel):
     @property
     def area_ratio(self) -> float:
         """Area percentage relative to parent wing."""
-        from setuav_studio.plugins.geometry.editors.control_surface_values import (
+        from plugins.geometry.editors.control_surface_values import (
             compute_control_surface_metrics,
         )
 

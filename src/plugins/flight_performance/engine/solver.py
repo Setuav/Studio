@@ -13,7 +13,7 @@ from pythrust.propulsion.models.motor import MotorSpec
 from pythrust.propulsion.models.propeller import PropellerSpec
 from scipy.optimize import root_scalar
 
-from setuav_studio.plugins.electrical_propulsion.engine.solver import PropulsionSolverEngine
+from plugins.electrical_propulsion.engine.solver import PropulsionSolverEngine
 
 from .analysis_pipeline import FlightPerformanceAnalysisPipeline
 from .models import FlightEnvelopeResult

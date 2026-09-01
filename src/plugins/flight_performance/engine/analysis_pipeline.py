@@ -13,13 +13,13 @@ from pythrust.propellers.database import PropellerEntry
 from pythrust.propulsion.models.motor import MotorSpec
 from pythrust.propulsion.models.propeller import PropellerSpec
 
-from setuav_studio.plugins.aerodynamics.engine.aerosandbox_engine import (
+from plugins.aerodynamics.engine.aerosandbox_engine import (
     AeroSandboxEngine,
     AnalysisMethod,
     FlightCondition,
 )
-from setuav_studio.plugins.electrical_propulsion.engine.solver import PropulsionSolverEngine
-from setuav_studio.plugins.weight_balance.engine.solver import WeightBalanceSolver
+from plugins.electrical_propulsion.engine.solver import PropulsionSolverEngine
+from plugins.weight_balance.engine.solver import WeightBalanceSolver
 
 from .analysis_results import FlightPerformanceResultBuilder
 from .models import FlightEnvelopeResult
