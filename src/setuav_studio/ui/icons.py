@@ -56,6 +56,8 @@ _ICON_MAP = {
     "constant": "mdi6.pi",
     "constraint": "mdi6.link-variant",
     "equation": "fa6s.code",
+    "package": "fa6s.box-open",
+    "plugin": "fa6s.box-open",
     # QtAwesome controls intentionally used inside 3D viewers
     "view_colored": "fa6s.palette",
     "view_grid": "mdi6.grid",

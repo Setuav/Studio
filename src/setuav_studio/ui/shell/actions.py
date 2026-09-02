@@ -136,9 +136,13 @@ class ActionManager:
             self.open_constraints,
         )
         self.command_actions["core.constraints.manage"] = self.constraints_action
-        self.plugin_manager_action = self.tools_menu.addAction("Plugin Manager…")
+        self.plugin_manager_action = self.tools_menu.addAction(
+            get_icon("package"),
+            "Plugin Manager…",
+            self.open_plugin_manager,
+        )
+        self.plugin_manager_action.setShortcut("Ctrl+P")
         self.plugin_manager_action.setEnabled(False)
-        self.plugin_manager_action.triggered.connect(self.open_plugin_manager)
         self.command_actions["core.plugins.manage"] = self.plugin_manager_action
 
         # Help Menu
