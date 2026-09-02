@@ -438,6 +438,9 @@ class MainWindow(QMainWindow):
     def open_task_monitor_window(self) -> None:
         self._status_manager.open_task_monitor_window()
 
+    def open_command_palette(self) -> None:
+        self._action_manager.open_command_palette()
+
     def _show_degraded_details(self) -> None:
         self._status_manager.show_degraded_details()
 

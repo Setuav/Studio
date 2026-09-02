@@ -4,13 +4,14 @@ import logging
 from typing import TYPE_CHECKING
 
 import shiboken6
-from PySide6.QtGui import QAction, QActionGroup, QKeySequence
+from PySide6.QtGui import QAction, QActionGroup, QKeySequence, QShortcut
 from PySide6.QtWidgets import QApplication, QDialog, QMainWindow, QMenu
 
 from setuav_studio.ui.dialog.about import AboutDialog
 from setuav_studio.ui.dialog.plugin_manager import PluginManagerDialog
 from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.settings.settings_pages import SettingsDialog, StudioSettings
+from setuav_studio.ui.shell.command_palette import CommandPaletteDialog
 from setuav_studio_sdk import ActionContribution
 
 if TYPE_CHECKING:
@@ -31,6 +32,7 @@ class ActionManager:
         self.panel_actions: dict[str, QAction] = {}
         self.plugin_manager: PluginManager | None = None
         self._plugin_manager_dialog: PluginManagerDialog | None = None
+        self._command_palette_dialog: CommandPaletteDialog | None = None
 
         self._setup_menus()
 
@@ -99,6 +101,17 @@ class ActionManager:
         # View Menu
         self.view_menu = menu_bar.addMenu("&View")
         self.menus["view"] = self.view_menu
+
+        self.command_palette_action = QAction(
+            get_icon("fa6s.terminal"),
+            "Command Palette…",
+            self._window,
+        )
+        self.command_palette_action.setShortcut("Ctrl+Shift+P")
+        self.command_palette_action.triggered.connect(self.open_command_palette)
+        self._f1_shortcut = QShortcut(QKeySequence("F1"), self._window)
+        self._f1_shortcut.activated.connect(self.open_command_palette)
+        self.command_actions["core.command_palette.open"] = self.command_palette_action
 
         from setuav_studio.ui.theme import current_theme_mode
 
@@ -229,6 +242,8 @@ class ActionManager:
 
     def populate_view_menu(self, workspace_id: str | None = None) -> None:
         self.view_menu.clear()
+        self.view_menu.addAction(self.command_palette_action)
+        self.view_menu.addSeparator()
         theme_menu = self.view_menu.addMenu("Theme")
         theme_menu.addAction(self.dark_theme_action)
         theme_menu.addAction(self.light_theme_action)
@@ -330,6 +345,11 @@ class ActionManager:
             self._window._update_recent_menu()
         else:
             self.update_recent_menu()
+
+    def open_command_palette(self) -> None:
+        if self._command_palette_dialog is None:
+            self._command_palette_dialog = CommandPaletteDialog(self._window, self._api)
+        self._command_palette_dialog.populate_and_show(self)
 
     def open_about(self) -> None:
         AboutDialog(self._window).exec()

@@ -11,6 +11,7 @@ from collections.abc import Sequence
 
 CORE_MODULES = (
     "tests.core.test_about_dialog",
+    "tests.core.test_command_palette",
     "tests.core.test_component_editor",
     "tests.core.test_configuration",
     "tests.core.test_configuration_ui",
