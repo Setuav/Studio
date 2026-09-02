@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
 from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.widget.button import refresh_button_role, set_native_button
 from setuav_studio.ui.widget.table import ContentFitTableWidget, PropertyTableMixin
-from setuav_studio_sdk import StudioAPI
+from setuav_studio_sdk import StudioAPI, StudioEvents
 
 from .analysis_store import (
     EXTENSION_ID,
@@ -102,7 +102,7 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
         self._current_result_id: str | None = None
         self._init_ui()
 
-        self._api.subscribe("aerodynamics.analysis_completed", self.display_results)
+        self._api.subscribe(StudioEvents.AERODYNAMICS_ANALYSIS_COMPLETED, self.display_results)
         self._api.on_project_changed(self._on_project_changed)
         self._api.on_selection_changed(self._on_selection_changed)
 
@@ -288,7 +288,7 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
         self.delete_result_button.setEnabled(
             self._current_result_id is not None and project is not None and not project.read_only
         )
-        self._api.publish("aerodynamics.result_selected", result)
+        self._api.publish(StudioEvents.AERODYNAMICS_RESULT_SELECTED, result)
 
     def _populate_summary(self, result: AeroResult) -> None:
         ref = result.reference
@@ -542,7 +542,7 @@ class AeroResultsDock(PropertyTableMixin, QWidget):
         self._current_result_id = None
         self._clear_tables()
         self.delete_result_button.setEnabled(False)
-        self._api.publish("aerodynamics.result_selected", None)
+        self._api.publish(StudioEvents.AERODYNAMICS_RESULT_SELECTED, None)
 
     def _on_project_changed(self, _project: object) -> None:
         self.clear_results()

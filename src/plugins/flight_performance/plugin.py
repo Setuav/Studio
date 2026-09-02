@@ -11,6 +11,7 @@ from setuav_studio_sdk import (
     PanelContribution,
     ProjectTreeNodeContribution,
     StudioAPI,
+    StudioEvents,
     WorkspaceContribution,
     WorkspaceLayoutContext,
 )
@@ -141,7 +142,7 @@ class FlightPerformancePlugin:
                 if isinstance(payload, dict):
                     try:
                         res = FlightEnvelopeResult.from_dict(payload)
-                        self._api.publish("flight_performance.analysis_completed", res)
+                        self._api.publish(StudioEvents.FLIGHT_PERFORMANCE_ANALYSIS_COMPLETED, res)
                     except Exception:
                         pass
                 return

@@ -11,6 +11,7 @@ from setuav_studio_sdk import (
     PanelContribution,
     ProjectTreeNodeContribution,
     StudioAPI,
+    StudioEvents,
     ToolContribution,
     WorkspaceContribution,
     WorkspaceLayoutContext,
@@ -185,7 +186,7 @@ class AerodynamicsPlugin:
                     f"Store aerodynamic analysis: {entry['name']}",
                     lambda extension: append_analysis_entry(extension, entry),
                 )
-            self._api.publish("aerodynamics.analysis_completed", result)
+            self._api.publish(StudioEvents.AERODYNAMICS_ANALYSIS_COMPLETED, result)
             if entry is not None:
                 self._api.set_selection(analysis_selection(str(entry["id"])))
 

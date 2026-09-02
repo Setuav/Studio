@@ -22,7 +22,7 @@ from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.theme import tokens
 from setuav_studio.ui.widget.button import refresh_button_role, set_native_button
 from setuav_studio.ui.widget.table import ContentFitTableWidget, PropertyTableMixin
-from setuav_studio_sdk import StudioAPI
+from setuav_studio_sdk import StudioAPI, StudioEvents
 
 
 class PropulsionResultsDock(PropertyTableMixin, QWidget):
@@ -41,7 +41,7 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
         self._last_data: dict[str, Any] | None = None
 
         if self._api is not None:
-            self._api.subscribe("propulsion.results_updated", self.set_results)
+            self._api.subscribe(StudioEvents.PROPULSION_RESULTS_UPDATED, self.set_results)
 
         from setuav_studio.units import get_unit_manager
 

@@ -28,7 +28,7 @@ from setuav_studio.ui.icons import set_label_icon
 from setuav_studio.ui.widget.button import refresh_button_role, set_button_role
 from setuav_studio.ui.widget.spinbox import NumericSpinBox
 from setuav_studio.ui.widget.table import PropertyTableMixin
-from setuav_studio_sdk import StudioAPI
+from setuav_studio_sdk import StudioAPI, StudioEvents
 
 from .analysis_store import (
     EXTENSION_ID,
@@ -82,7 +82,9 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
         if self._api:
             self._api.on_project_changed(self._on_project_changed)
             self._api.on_project_content_changed(self._on_project_content_changed)
-            self._api.subscribe("weight_balance.analysis_completed", self._on_wb_completed)
+            self._api.subscribe(
+                StudioEvents.WEIGHT_BALANCE_ANALYSIS_COMPLETED, self._on_wb_completed
+            )
 
         self._refresh_sources()
 
@@ -268,7 +270,7 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
         self._refresh_sources()
         stored = get_stored_performance_result(project)
         if stored is not None and self._api:
-            self._api.publish("flight_performance.analysis_completed", stored)
+            self._api.publish(StudioEvents.FLIGHT_PERFORMANCE_ANALYSIS_COMPLETED, stored)
 
     def _on_project_content_changed(self, project: Any) -> None:
         self._refresh_sources()
@@ -532,7 +534,7 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
                     lambda ext: append_analysis_entry(ext, entry),
                 )
 
-            self._api.publish("flight_performance.analysis_completed", result)
+            self._api.publish(StudioEvents.FLIGHT_PERFORMANCE_ANALYSIS_COMPLETED, result)
             if entry is not None:
                 self._api.set_selection(performance_selection(str(entry["id"])))
 

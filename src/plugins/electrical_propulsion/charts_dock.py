@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.ui.widget import StudioChartWidget, StudioSplitterGrid
-from setuav_studio_sdk import StudioAPI
+from setuav_studio_sdk import StudioAPI, StudioEvents
 
 
 class SinglePropulsionChartWidget(StudioChartWidget):
@@ -371,8 +371,10 @@ class PropulsionChartsDock(QWidget):
         self._api = api
 
         if self._api is not None:
-            self._api.subscribe("propulsion.plot_sweep", self._on_plot_sweep)
-            self._api.subscribe("propulsion.clear_charts", lambda _p=None: self.clear_charts())
+            self._api.subscribe(StudioEvents.PROPULSION_PLOT_SWEEP, self._on_plot_sweep)
+            self._api.subscribe(
+                StudioEvents.PROPULSION_CLEAR_CHARTS, lambda _p=None: self.clear_charts()
+            )
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(1, 1, 1, 1)

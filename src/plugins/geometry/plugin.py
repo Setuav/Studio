@@ -6,6 +6,7 @@ from setuav_studio_sdk import (
     PanelContribution,
     SettingsPageContribution,
     StudioAPI,
+    StudioEvents,
     WorkspaceContribution,
     WorkspaceLayoutContext,
 )
@@ -164,4 +165,4 @@ class GeometryPlugin:
     @staticmethod
     def _apply_viewer_settings(api: StudioAPI, page: QWidget) -> None:
         apply_viewer_settings(page)
-        api.publish("geometry.viewer.settings.changed")
+        api.publish(StudioEvents.GEOMETRY_VIEWER_SETTINGS_CHANGED)

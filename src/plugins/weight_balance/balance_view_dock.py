@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QDockWidget, QHBoxLayout, QLabel, QMainWindow, QSt
 
 from plugins.view2d import View2DCanvas, View2DGeometrySource, View2DScene
 from setuav_studio.ui.theme import chart_color, tokens
-from setuav_studio_sdk import StudioAPI
+from setuav_studio_sdk import StudioAPI, StudioEvents
 
 from .models import WeightBalanceResult
 
@@ -219,7 +219,7 @@ class WeightBalanceViewDock(QMainWindow):
         self._restore_internal_layout()
         self._restoring_layout = False
 
-        api.subscribe("weight_balance.analysis_completed", self._set_result)
+        api.subscribe(StudioEvents.WEIGHT_BALANCE_ANALYSIS_COMPLETED, self._set_result)
 
     def _restore_internal_layout(self) -> None:
         state = QSettings().value(self._LAYOUT_KEY)

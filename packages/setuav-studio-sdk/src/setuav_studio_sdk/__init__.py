@@ -23,6 +23,7 @@ from .contributions import (
     WorkspaceContribution,
     WorkspaceLayoutContext,
 )
+from .events import StudioEvents
 from .models import ProjectDocument
 from .plugin import PLUGIN_ENTRY_POINT_GROUP, StudioPlugin
 from .version import PLUGIN_API_VERSION
@@ -41,6 +42,7 @@ __all__ = [
     "ProjectTreeProvider",
     "SettingsPageContribution",
     "StudioAPI",
+    "StudioEvents",
     "StudioPlugin",
     "ToolContribution",
     "ToolbarContribution",

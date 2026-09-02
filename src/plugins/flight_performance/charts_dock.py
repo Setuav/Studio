@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.ui.widget import StudioChartWidget, StudioSplitterGrid
-from setuav_studio_sdk import StudioAPI
+from setuav_studio_sdk import StudioAPI, StudioEvents
 
 from .engine.models import FlightEnvelopeResult
 
@@ -337,7 +337,9 @@ class PerformanceChartsDock(QWidget):
         self.grid.restore_state("flight_charts")
 
         if self._api:
-            self._api.subscribe("flight_performance.analysis_completed", self.set_results)
+            self._api.subscribe(
+                StudioEvents.FLIGHT_PERFORMANCE_ANALYSIS_COMPLETED, self.set_results
+            )
 
     def update_theme_style(self) -> None:
         self.chart_power.update_theme_style()

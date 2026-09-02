@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 
 from setuav_studio.project import ProjectDocument
 from setuav_studio.ui.icons import get_icon
-from setuav_studio_sdk import StudioAPI
+from setuav_studio_sdk import StudioAPI, StudioEvents
 
 from .settings import (
     _VIEWER_GRID_KEY,
@@ -59,7 +59,7 @@ class ViewerWorkspace(QWidget):
         super().__init__()
         self._api = api
         self._api.subscribe(
-            "geometry.viewer.settings.changed",
+            StudioEvents.GEOMETRY_VIEWER_SETTINGS_CHANGED,
             self._on_viewer_settings_changed,
         )
         layout = QGridLayout(self)

@@ -27,7 +27,7 @@ from pythrust.propulsion.models.propeller import PropellerSpec
 from setuav_studio.ui.icons import get_icon, set_label_icon
 from setuav_studio.ui.widget.button import refresh_button_role, set_button_role, set_native_button
 from setuav_studio.ui.widget.table import PropertyTableMixin
-from setuav_studio_sdk import StudioAPI
+from setuav_studio_sdk import StudioAPI, StudioEvents
 
 from .database import get_propeller_database
 from .engine.solver import PropulsionSolverEngine
@@ -661,9 +661,9 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
 
     def _render_results(self, res: dict[str, Any]) -> None:
         # Decoupled event emission via StudioAPI Event Bus
-        self._api.publish("propulsion.results_updated", res)
+        self._api.publish(StudioEvents.PROPULSION_RESULTS_UPDATED, res)
         self._api.publish(
-            "propulsion.plot_sweep",
+            StudioEvents.PROPULSION_PLOT_SWEEP,
             {
                 "x_label": res.get("x_label", ""),
                 "x_values": res.get("x_values", []),

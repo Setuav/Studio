@@ -23,7 +23,7 @@ from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.theme import status_color, tokens
 from setuav_studio.ui.widget.button import set_native_button
 from setuav_studio.ui.widget.table import ContentFitTableWidget, PropertyTableMixin
-from setuav_studio_sdk import StudioAPI
+from setuav_studio_sdk import StudioAPI, StudioEvents
 
 from .engine.models import FlightEnvelopeResult
 
@@ -44,7 +44,9 @@ class PerformanceResultsDock(PropertyTableMixin, QWidget):
         self._last_result: FlightEnvelopeResult | None = None
 
         if self._api is not None:
-            self._api.subscribe("flight_performance.analysis_completed", self.set_results)
+            self._api.subscribe(
+                StudioEvents.FLIGHT_PERFORMANCE_ANALYSIS_COMPLETED, self.set_results
+            )
 
         from setuav_studio.units import get_unit_manager
 

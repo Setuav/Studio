@@ -10,6 +10,7 @@ from setuav_studio_sdk import (
     ComponentTreeNodeContribution,
     PanelContribution,
     StudioAPI,
+    StudioEvents,
     ToolbarContribution,
     WorkspaceContribution,
     WorkspaceLayoutContext,
@@ -232,7 +233,7 @@ class WeightBalancePlugin:
         except WeightBalanceError as exc:
             self._api.show_status(str(exc), "error", 8000)
             return
-        self._api.publish("weight_balance.analysis_completed", result)
+        self._api.publish(StudioEvents.WEIGHT_BALANCE_ANALYSIS_COMPLETED, result)
         level = "warning" if result.warnings else "success"
         self._api.show_status(
             f"Weight-Balance complete: {result.total.mass_kg:.3f} kg, "

@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
 from setuav_studio.ui.icons import get_icon, set_label_icon
 from setuav_studio.ui.theme import status_color
 from setuav_studio.ui.widget.table import ContentFitTableWidget, PropertyTableMixin
-from setuav_studio_sdk import StudioAPI
+from setuav_studio_sdk import StudioAPI, StudioEvents
 
 from .models import WeightBalanceResult
 
@@ -86,7 +86,7 @@ class WeightBalanceResultsDock(PropertyTableMixin, QWidget):
         from setuav_studio.units import get_unit_manager
 
         get_unit_manager().units_changed.connect(self._on_units_changed)
-        api.subscribe("weight_balance.analysis_completed", self.display_result)
+        api.subscribe(StudioEvents.WEIGHT_BALANCE_ANALYSIS_COMPLETED, self.display_result)
 
     def _on_units_changed(self) -> None:
         if self._last_result is not None:

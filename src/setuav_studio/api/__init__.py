@@ -14,6 +14,7 @@ from setuav_studio_sdk.contributions import (
     ToolContribution,
     WorkspaceContribution,
 )
+from setuav_studio_sdk.events import StudioEvents
 from setuav_studio_sdk.plugin import StudioPlugin
 
 from .api import StudioAPI
@@ -41,6 +42,7 @@ __all__ = [
     "ProjectTreeNodeContribution",
     "SettingsPageContribution",
     "StudioAPI",
+    "StudioEvents",
     "StudioPlugin",
     "ToolContribution",
     "ToolbarContribution",

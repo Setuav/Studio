@@ -32,6 +32,24 @@ class PluginSDKTests(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertTrue(hasattr(sdk, name))
 
+    def test_studio_events_enum_contract(self) -> None:
+        self.assertEqual(
+            sdk.StudioEvents.AERODYNAMICS_ANALYSIS_COMPLETED, "aerodynamics.analysis_completed"
+        )
+        self.assertEqual(
+            sdk.StudioEvents.FLIGHT_PERFORMANCE_ANALYSIS_COMPLETED,
+            "flight_performance.analysis_completed",
+        )
+        self.assertEqual(
+            sdk.StudioEvents.WEIGHT_BALANCE_ANALYSIS_COMPLETED, "weight_balance.analysis_completed"
+        )
+        self.assertEqual(sdk.StudioEvents.PROPULSION_RESULTS_UPDATED, "propulsion.results_updated")
+        self.assertEqual(
+            sdk.StudioEvents.GEOMETRY_VIEWER_SETTINGS_CHANGED, "geometry.viewer.settings.changed"
+        )
+        # Subclass of str
+        self.assertIsInstance(sdk.StudioEvents.PROJECT_OPENED, str)
+
 
 if __name__ == "__main__":
     unittest.main()

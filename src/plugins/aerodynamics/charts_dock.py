@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.ui.widget import StudioChartWidget, StudioSplitterGrid
-from setuav_studio_sdk import StudioAPI
+from setuav_studio_sdk import StudioAPI, StudioEvents
 
 from .engine.base import AeroResult, PolarPoint, SweepType
 
@@ -184,7 +184,7 @@ class AeroChartsDock(QWidget):
         self._cached_points: dict[str, list[PolarPoint]] = {}
 
         if self._api is not None:
-            self._api.subscribe("aerodynamics.result_selected", self.plot_results)
+            self._api.subscribe(StudioEvents.AERODYNAMICS_RESULT_SELECTED, self.plot_results)
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(1, 1, 1, 1)
