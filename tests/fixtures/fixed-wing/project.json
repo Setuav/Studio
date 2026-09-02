@@ -1738,6 +1738,18 @@
   ],
   "assemblies": [
     {
+      "id": "airframe-main",
+      "name": "Main Airframe",
+      "type": "org.setuav.core:structural-system",
+      "members": {
+        "fuselage": "fuselage",
+        "wings": [
+          "main-wing",
+          "v-tail"
+        ]
+      }
+    },
+    {
       "id": "propulsion-main",
       "name": "Main Propulsion",
       "type": "org.setuav.core:electric-propulsion-system",

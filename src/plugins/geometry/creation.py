@@ -147,7 +147,7 @@ class GeometryCreationController:
 
     def _build_structural_members(
         self, components: list[dict[str, Any]], project: Any
-    ) -> tuple[dict[str, str], list[dict[str, Any]]]:
+    ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
         assigned_cids = self._collect_assigned_component_ids(project)
         unassigned_fuse = [
             c["id"]
@@ -160,15 +160,11 @@ class GeometryCreationController:
             if c.get("type") == _LIFTING_SURFACE_TYPE and c.get("id") not in assigned_cids
         ]
 
-        members: dict[str, str] = {}
+        members: dict[str, Any] = {}
         if unassigned_fuse:
             members["fuselage"] = unassigned_fuse[0]
         if unassigned_wings:
-            members["main_wing"] = unassigned_wings[0]
-            if len(unassigned_wings) > 1:
-                members["horizontal_tail"] = unassigned_wings[1]
-            if len(unassigned_wings) > 2:
-                members["vertical_tail"] = unassigned_wings[2]
+            members["wings"] = unassigned_wings
 
         if not members and not components:
             return self._create_starter_airframe()
@@ -190,7 +186,7 @@ class GeometryCreationController:
                                 assigned.add(str(v))
         return assigned
 
-    def _create_starter_airframe(self) -> tuple[dict[str, str], list[dict[str, Any]]]:
+    def _create_starter_airframe(self) -> tuple[dict[str, Any], list[dict[str, Any]]]:
         fuse_id, fuse_name = self._unique_identity("fuselage", "Fuselage")
         fuse_sections = [
             create_default_section(0.0, "circle"),
@@ -249,7 +245,7 @@ class GeometryCreationController:
                 },
             },
         }
-        return {"fuselage": fuse_id, "main_wing": wing_id}, [fuse_comp, wing_comp]
+        return {"fuselage": fuse_id, "wings": [wing_id]}, [fuse_comp, wing_comp]
 
     def add_fuselage(self) -> None:
         if not self._require_editable_project():

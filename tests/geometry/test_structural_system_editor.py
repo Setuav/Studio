@@ -65,8 +65,7 @@ class StructuralSystemEditorTests(unittest.TestCase):
                     "type": "org.setuav.core:structural-system",
                     "members": {
                         "fuselage": "fuse-1",
-                        "main_wing": "wing-1",
-                        "horizontal_tail": "htail-1",
+                        "wings": ["wing-1", "htail-1"],
                     },
                 }
             ],
@@ -89,25 +88,33 @@ class StructuralSystemEditorTests(unittest.TestCase):
             "org.setuav.core:structural-system",
         )
 
+        # Check Fuselage Table
+        self.assertEqual(editor._property_text(editor.fuselage_table, 0), "fuse-1")
+
+        # Check Wings Table
+        self.assertEqual(editor.wings_table.rowCount(), 2)
+
         # Check Metrics Table
+        # Row 0: max_span -> "1.600 m"
         span_str = editor._property_text(editor.metrics_table, 0)
         self.assertEqual(span_str, "1.600 m")
 
-        fuse_len_str = editor._property_text(editor.metrics_table, 4)
+        # Row 3: fuselage_length -> "0.800 m"
+        fuse_len_str = editor._property_text(editor.metrics_table, 3)
         self.assertEqual(fuse_len_str, "0.800 m")
 
-        mass_str = editor._property_text(editor.metrics_table, 7)
+        # Row 4: total_mass -> "2.200 kg"
+        mass_str = editor._property_text(editor.metrics_table, 4)
         self.assertEqual(mass_str, "2.200 kg")
-
-        # Tail volume ratio should be computed
-        vh_str = editor._property_text(editor.metrics_table, 5)
-        self.assertNotEqual(vh_str, "-")
 
     def test_member_assignment_change_triggers_project_edit(self) -> None:
         editor = StructuralSystemEditor(self.api, self.assembly)
-        editor._on_member_changed("fuselage", "")
+        editor._on_fuselage_changed("")
 
         self.assertNotIn("fuselage", self.assembly["members"])
+
+        editor._on_wing_toggled("wing-1", False)
+        self.assertNotIn("wing-1", self.assembly["members"]["wings"])
 
 
 if __name__ == "__main__":

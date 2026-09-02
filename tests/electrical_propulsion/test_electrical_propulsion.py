@@ -138,7 +138,11 @@ class TestElectricalPropulsion(unittest.TestCase):
         doc = open_project(TEST_PROJECT_PATH)
         api._host.set_project(doc)
 
-        asm = doc.data["assemblies"][0]
+        asm = next(
+            a
+            for a in doc.data["assemblies"]
+            if a.get("type") == "org.setuav.core:electric-propulsion-system"
+        )
         editor = ElectricPropulsionSystemEditor(api, asm)
 
         self.assertEqual(editor._property_text(editor.general_table, 0), "Main Propulsion")

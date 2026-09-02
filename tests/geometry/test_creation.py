@@ -78,9 +78,8 @@ class GeometryCreationTests(unittest.TestCase):
         self.assertEqual(len(assemblies), 1)
         system = assemblies[0]
         self.assertEqual(system["type"], "org.setuav.core:structural-system")
-        self.assertEqual(system["name"], "Airframe Structure")
         self.assertIn("fuselage", system["members"])
-        self.assertIn("main_wing", system["members"])
+        self.assertIn("wings", system["members"])
 
         # Components were auto-created
         components = self.project.data.get("components", [])

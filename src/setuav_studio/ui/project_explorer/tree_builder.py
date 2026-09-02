@@ -297,7 +297,7 @@ class ProjectTreeBuilder:
             item = self._tree._item_map.get(component_id)
             if item is None:
                 continue
-            parent_id = str(component.get("parent") or "")
+            parent_id = str(component.get("parent") or component.get("attach_to") or "")
             parent_item = self._tree._item_map.get(parent_id) if parent_id else None
             target = self.component_tree_parent(
                 project_item,
@@ -320,10 +320,10 @@ class ProjectTreeBuilder:
         component_assemblies: dict[str, str],
         components: list[dict[str, Any]],
     ) -> QTreeWidgetItem:
-        if parent_item is not None and parent_item is not item:
-            return parent_item
         if component_id in component_assemblies:
             return self._tree._item_map.get(component_assemblies[component_id]) or project_item
+        if parent_item is not None and parent_item is not item:
+            return parent_item
         return project_item
 
     def append_project_contribution(
