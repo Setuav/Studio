@@ -1,4 +1,3 @@
-import contextlib
 import weakref
 from collections.abc import Callable
 from copy import deepcopy
@@ -36,6 +35,11 @@ from ..engine.fuselage_geometry import (
     create_default_section,
     create_default_segment,
     get_default_profile,
+)
+from .fuselage_profile_editor import (
+    PROFILE_FIELDS,
+    evaluate_expression_or_number,
+    format_profile_size,
 )
 from .fuselage_section_dialog import FuselageSectionDialog
 
@@ -932,29 +936,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
 
     def _populate_section_properties(self, profile: dict[str, Any]) -> None:
         profile_type = str(profile.get("type") or "circle")
-        fields: dict[str, list[tuple[str, str]]] = {
-            "circle": [("diameter", "Diameter")],
-            "ellipse": [("width", "Width"), ("height", "Height")],
-            "rectangle": [
-                ("width", "Width"),
-                ("height", "Height"),
-                ("corner_radius", "Corner radius"),
-            ],
-            "trapezoid": [
-                ("top_width", "Top width"),
-                ("bottom_width", "Bottom width"),
-                ("height", "Height"),
-                ("corner_radius", "Corner radius"),
-            ],
-            "triangle": [
-                ("base_width", "Base width"),
-                ("height", "Height"),
-                ("orientation", "Orientation"),
-                ("corner_radius", "Corner radius"),
-            ],
-            "polygon": [("vertices", "Vertices")],
-        }
-        definitions = [("type", "Profile"), *fields.get(profile_type, [])]
+        definitions = [("type", "Profile"), *PROFILE_FIELDS.get(profile_type, [])]
         self._configure_property_table(self.section_properties_table, definitions)
         for key, _label in definitions:
             if key == "type":
@@ -1018,37 +1000,18 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         profile = self._object(section, "profile")
         val_str = str(value).strip() if value is not None else ""
 
-        num_val: float | None = None
-        if val_str.startswith("=") or not val_str.replace(".", "", 1).replace("-", "", 1).isdigit():
-            # Expression
+        num_val, is_expr = evaluate_expression_or_number(val_str, self._api)
+        if is_expr:
             profile[f"{key}_expression"] = val_str
-            if self._api is not None and getattr(self._api, "current_project", None) is not None:
-                try:
-                    from setuav_studio.model.expression import ExpressionEvaluator
-
-                    evaluator = ExpressionEvaluator()
-                    scope = self._api.current_project.get_scope(api=self._api)
-                    expr = val_str.lstrip("=").strip()
-                    res = evaluator.evaluate(expr, scope)
-                    if isinstance(res, (int, float)):
-                        num_val = float(res)
-                except Exception:
-                    pass
         else:
             profile.pop(f"{key}_expression", None)
-            with contextlib.suppress(ValueError):
-                num_val = float(val_str)
 
         if num_val is not None:
             profile[key] = num_val
-
-            def change() -> None:
-                pass
-
             self._api.edit_component(
                 self._component,
                 f"Change fuselage section {key}",
-                change,
+                lambda: None,
             )
             self._update_sections_table()
         self.vertices_table.setVisible(profile.get("type") == "polygon")
@@ -1238,33 +1201,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
 
     @staticmethod
     def _profile_size(profile: dict[str, Any]) -> str:
-        from setuav_studio.units import get_unit_manager
-
-        um = get_unit_manager()
-        profile_type = profile.get("type")
-        length_sym = um.get_unit_symbol("length")
-
-        def _fmt(val: Any) -> str:
-            try:
-                num = float(val or 0.0)
-                disp = um.to_display(num, "length")
-                return f"{disp:.1f}" if abs(disp - round(disp)) > 1e-4 else f"{disp:.0f}"
-            except (ValueError, TypeError):
-                return str(val)
-
-        if profile_type == "circle":
-            return f"D {_fmt(profile.get('diameter', 0))} {length_sym}"
-        if profile_type in {"ellipse", "rectangle"}:
-            return (
-                f"{_fmt(profile.get('width', 0))} × {_fmt(profile.get('height', 0))} {length_sym}"
-            )
-        if profile_type == "trapezoid":
-            return f"{_fmt(profile.get('top_width', 0))} / {_fmt(profile.get('bottom_width', 0))} {length_sym}"
-        if profile_type == "triangle":
-            return f"{_fmt(profile.get('base_width', 0))} × {_fmt(profile.get('height', 0))} {length_sym}"
-        if profile_type == "polygon":
-            return f"{len(profile.get('vertices') or [])} vertices"
-        return ""
+        return format_profile_size(profile)
 
     @staticmethod
     def _default_profile(profile_type: str) -> dict[str, Any]:
