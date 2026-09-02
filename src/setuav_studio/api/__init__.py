@@ -1,6 +1,7 @@
 """Plugin management and StudioAPI execution engine."""
 
 from setuav_studio.model.component import Component
+from setuav_studio.task.manager import TaskManager
 from setuav_studio.ui.editor.component import BaseComponentEditor
 from setuav_studio_sdk.contributions import (
     ActionContribution,
@@ -44,6 +45,7 @@ __all__ = [
     "StudioAPI",
     "StudioEvents",
     "StudioPlugin",
+    "TaskManager",
     "ToolContribution",
     "ToolbarContribution",
     "ToolbarMenuItemContribution",

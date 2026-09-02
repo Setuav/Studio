@@ -31,6 +31,7 @@ CORE_MODULES = (
     "tests.core.test_settings",
     "tests.core.test_shell_contributions",
     "tests.core.test_shell_project_lifecycle",
+    "tests.core.test_tasks",
     "tests.core.test_theme",
     "tests.core.test_units",
     "tests.core.test_workspaces",

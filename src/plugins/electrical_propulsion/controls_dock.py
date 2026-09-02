@@ -6,7 +6,7 @@ import logging
 import math
 from typing import Any
 
-from PySide6.QtCore import Qt, QThreadPool
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QPalette
 from PySide6.QtWidgets import (
     QComboBox,
@@ -31,7 +31,6 @@ from setuav_studio_sdk import StudioAPI, StudioEvents
 
 from .database import get_propeller_database
 from .engine.solver import PropulsionSolverEngine
-from .worker import PropulsionWorker
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +82,8 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
             set_label_icon(lbl, name)
         if hasattr(self, "run_button"):
             refresh_button_role(self.run_button)
+        if hasattr(self, "cancel_button"):
+            refresh_button_role(self.cancel_button)
         if hasattr(self, "reset_button"):
             refresh_button_role(self.reset_button)
         if hasattr(self, "alert_box") and self.alert_box.isVisible():
@@ -210,6 +211,13 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
         self.run_button.setFixedHeight(28)
         self.run_button.clicked.connect(self._on_run_analysis)
         actions_layout.addWidget(self.run_button, 2)
+
+        self.cancel_button = QPushButton("Cancel", self)
+        set_button_role(self.cancel_button, "destructive", "mdi6.close-circle")
+        self.cancel_button.setFixedHeight(28)
+        self.cancel_button.setEnabled(False)
+        self.cancel_button.clicked.connect(self._on_cancel_analysis)
+        actions_layout.addWidget(self.cancel_button, 1)
 
         self.reset_button = QPushButton("Reset", self)
         set_native_button(self.reset_button, "fa6s.arrow-rotate-left")
@@ -461,6 +469,10 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
             },
         }
 
+    def _on_cancel_analysis(self) -> None:
+        if hasattr(self, "_task_handle") and self._task_handle is not None:
+            self._task_handle.cancel()
+
     def _on_run_analysis(self) -> None:
         if self._is_running:
             return
@@ -478,34 +490,59 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
 
         self._is_running = True
         self.run_button.setEnabled(False)
+        self.cancel_button.setEnabled(True)
         self._api.show_status(f"Running {mode_label} in background…", "info", 0)
         self._api.report_progress(0, 100, "Propulsion")
 
-        self._worker = PropulsionWorker(context)
-        self._worker.signals.progress.connect(self._on_analysis_progress)
-        self._worker.signals.finished.connect(
-            lambda res, ctx=context: self._on_analysis_finished(ctx, res)
-        )
-        self._worker.signals.error.connect(self._on_analysis_error)
+        from .engine.solver import PropulsionSolverEngine
 
-        QThreadPool.globalInstance().start(self._worker)
+        def run_target(token: Any) -> dict[str, Any]:
+            def on_progress(curr: int, total: int, msg: str) -> None:
+                token.check_cancelled()
+                token.report_progress(curr, total, msg)
+
+            token.report_progress(0, 100, "Starting...")
+            return PropulsionSolverEngine.run_analysis(
+                context,
+                progress_callback=on_progress,
+            )
+
+        self._task_handle = self._api.tasks.submit(
+            name=f"Propulsion ({mode_label})",
+            target=run_target,
+            on_finished=lambda res, ctx=context: self._on_analysis_finished(ctx, res),
+            on_error=self._on_analysis_error,
+            on_progress=lambda p: self._on_analysis_progress(p.current, p.total, p.message),
+            on_cancelled=self._on_analysis_cancelled,
+        )
 
     def _on_analysis_progress(self, current: int, total: int, msg: str) -> None:
         self._api.report_progress(current, total, msg or "Solving")
 
     def _on_analysis_finished(self, context: dict[str, Any], res: dict[str, Any]) -> None:
         self._is_running = False
-        self._worker = None
+        self._task_handle = None
         self.run_button.setEnabled(True)
+        self.cancel_button.setEnabled(False)
         self._api.clear_progress()
         self._render_results(res)
         self._show_feasibility_alert(context, res)
 
-    def _on_analysis_error(self, err_msg: str) -> None:
+    def _on_analysis_cancelled(self) -> None:
         self._is_running = False
-        self._worker = None
+        self._task_handle = None
         self.run_button.setEnabled(True)
+        self.cancel_button.setEnabled(False)
         self._api.clear_progress()
+        self._api.show_status("Propulsion analysis cancelled by user", "warning", 5000)
+
+    def _on_analysis_error(self, err: object) -> None:
+        self._is_running = False
+        self._task_handle = None
+        self.run_button.setEnabled(True)
+        self.cancel_button.setEnabled(False)
+        self._api.clear_progress()
+        err_msg = str(err)
         self._api.show_status(f"Propulsion analysis failed: {err_msg}", "error", 8000)
         QMessageBox.critical(
             self,

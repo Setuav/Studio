@@ -61,6 +61,17 @@ class StatusBarManager:
         self.progress_bar.hide()
         status_bar.addPermanentWidget(self.progress_bar)
 
+        self.cancel_button = QToolButton(self._window)
+        self.cancel_button.setObjectName("studioStatusCancelTask")
+        self.cancel_button.setIcon(get_icon("mdi6.close-circle"))
+        self.cancel_button.setToolTip("Cancel background task")
+        self.cancel_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.cancel_button.setAutoRaise(True)
+        self.cancel_button.setFixedSize(18, 18)
+        self.cancel_button.hide()
+        self.cancel_button.clicked.connect(self._on_cancel_tasks_clicked)
+        status_bar.addPermanentWidget(self.cancel_button)
+
         self.status_label = QLabel(self._window)
         self.status_label.setObjectName("studioStatusMessage")
         status_bar.addWidget(self.log_button)
@@ -74,6 +85,54 @@ class StatusBarManager:
         self._host.bind_status_handler(self.show_status_message)
         self._api.show_status("Ready", "info", 0)
         install_log_buffer()
+
+        if hasattr(self._api, "tasks"):
+            self._connect_task_manager()
+
+    def _connect_task_manager(self) -> None:
+        tm = self._api.tasks
+        tm.task_started.connect(self._on_task_started)
+        tm.task_progress.connect(self._on_task_progress)
+        tm.task_finished.connect(self._on_task_finished)
+        tm.task_cancelled.connect(self._on_task_cancelled)
+        tm.task_error.connect(self._on_task_error)
+        tm.tasks_count_changed.connect(self._on_tasks_count_changed)
+
+    def _on_cancel_tasks_clicked(self) -> None:
+        if hasattr(self._api, "tasks"):
+            self._api.tasks.cancel_all()
+
+    def _on_task_started(self, _task_id: str, name: str) -> None:
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setFormat(f"{name}: Starting...")
+        self.progress_bar.show()
+        self.cancel_button.show()
+        self.show_status_message(f"Running task: {name}...", level="info", timeout_ms=0)
+
+    def _on_task_progress(self, _task_id: str, current: int, total: int, message: str) -> None:
+        self.progress_bar.setRange(0, total)
+        self.progress_bar.setValue(current)
+        if message:
+            self.progress_bar.setFormat(f"{message} (%p%)")
+        else:
+            self.progress_bar.setFormat("%p%")
+        self.progress_bar.show()
+        self.cancel_button.show()
+
+    def _on_task_finished(self, _task_id: str, _result: object) -> None:
+        self.show_status_message("Task completed successfully", level="info", timeout_ms=4000)
+
+    def _on_task_cancelled(self, _task_id: str) -> None:
+        self.show_status_message("Task cancelled", level="warning", timeout_ms=4000)
+
+    def _on_task_error(self, _task_id: str, exc: object) -> None:
+        self.show_status_message(f"Task failed: {exc}", level="error", timeout_ms=6000)
+
+    def _on_tasks_count_changed(self, count: int) -> None:
+        if count <= 0:
+            self.progress_bar.hide()
+            self.cancel_button.hide()
 
     def show_status_message(
         self,

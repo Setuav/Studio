@@ -34,6 +34,13 @@ class StudioEvents(StrEnum):
     # Geometry
     GEOMETRY_VIEWER_SETTINGS_CHANGED = "geometry.viewer.settings.changed"
 
+    # Tasks / Background Jobs
+    TASK_STARTED = "task.started"
+    TASK_PROGRESS = "task.progress"
+    TASK_FINISHED = "task.finished"
+    TASK_CANCELLED = "task.cancelled"
+    TASK_ERROR = "task.error"
+
     def __str__(self) -> str:
         return self.value
 

@@ -13,6 +13,7 @@ from PySide6.QtWidgets import QWidget
 
 from setuav_studio.api.hooks import HookRegistry
 from setuav_studio.project import ProjectDocument
+from setuav_studio.task.manager import TaskManager
 from setuav_studio.ui.icons import get_icon
 from setuav_studio_sdk.api import (
     ComponentTreeProvider,
@@ -95,6 +96,7 @@ class StudioAPI:
         self._project_requirement_checker: Callable[[dict[str, Any]], list[str]] | None = None
         self._event_subscribers: dict[str, list[Callable[[Any], None]]] = {}
         self._hooks = HookRegistry()
+        self._tasks = TaskManager(self)
         self._undo_stack = QUndoStack()
         self._undo_stack.cleanChanged.connect(self._on_clean_changed)
         self._host = _StudioHost(self)
@@ -103,6 +105,11 @@ class StudioAPI:
     def hooks(self) -> HookRegistry:
         """Central extensible lifecycle hooks registry."""
         return self._hooks
+
+    @property
+    def tasks(self) -> TaskManager:
+        """Central background task manager for asynchronous jobs."""
+        return self._tasks
 
     @property
     def project(self) -> ProjectDocument | None:

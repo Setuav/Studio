@@ -47,6 +47,11 @@ class PluginSDKTests(unittest.TestCase):
         self.assertEqual(
             sdk.StudioEvents.GEOMETRY_VIEWER_SETTINGS_CHANGED, "geometry.viewer.settings.changed"
         )
+        self.assertEqual(sdk.StudioEvents.TASK_STARTED, "task.started")
+        self.assertEqual(sdk.StudioEvents.TASK_PROGRESS, "task.progress")
+        self.assertEqual(sdk.StudioEvents.TASK_FINISHED, "task.finished")
+        self.assertEqual(sdk.StudioEvents.TASK_CANCELLED, "task.cancelled")
+        self.assertEqual(sdk.StudioEvents.TASK_ERROR, "task.error")
         # Subclass of str
         self.assertIsInstance(sdk.StudioEvents.PROJECT_OPENED, str)
 

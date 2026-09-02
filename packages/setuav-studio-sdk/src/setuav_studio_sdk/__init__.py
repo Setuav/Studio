@@ -26,12 +26,21 @@ from .contributions import (
 from .events import StudioEvents
 from .models import ProjectDocument
 from .plugin import PLUGIN_ENTRY_POINT_GROUP, StudioPlugin
+from .tasks import (
+    CancellationToken,
+    TaskCancelledError,
+    TaskHandle,
+    TaskManagerProtocol,
+    TaskProgress,
+    TaskStatus,
+)
 from .version import PLUGIN_API_VERSION
 
 __all__ = [
     "PLUGIN_API_VERSION",
     "PLUGIN_ENTRY_POINT_GROUP",
     "ActionContribution",
+    "CancellationToken",
     "ComponentTreeNodeContribution",
     "ComponentTreeProvider",
     "GeometryProvider",
@@ -44,6 +53,11 @@ __all__ = [
     "StudioAPI",
     "StudioEvents",
     "StudioPlugin",
+    "TaskCancelledError",
+    "TaskHandle",
+    "TaskManagerProtocol",
+    "TaskProgress",
+    "TaskStatus",
     "ToolContribution",
     "ToolbarContribution",
     "ToolbarMenuItemContribution",

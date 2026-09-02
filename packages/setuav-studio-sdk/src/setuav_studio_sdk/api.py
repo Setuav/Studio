@@ -407,3 +407,8 @@ class StudioAPI(Protocol):
     ) -> None:
         """Register a JSON Schema for a fully qualified component type."""
         ...
+
+    @property
+    def tasks(self) -> Any:
+        """Centralized background task manager for asynchronous analysis jobs."""
+        ...

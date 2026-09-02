@@ -228,13 +228,20 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
 
     def _create_actions_section(self) -> None:
         section = QWidget()
-        layout = QVBoxLayout(section)
+        layout = QHBoxLayout(section)
         layout.setContentsMargins(4, 8, 4, 4)
+        layout.setSpacing(6)
 
-        self.btn_run = QPushButton("Run Flight Performance Analysis", self)
+        self.btn_run = QPushButton("Run Analysis", self)
         set_button_role(self.btn_run, "primary", "fa6s.play")
         self.btn_run.clicked.connect(self._on_run_analysis)
-        layout.addWidget(self.btn_run)
+        layout.addWidget(self.btn_run, 2)
+
+        self.btn_cancel = QPushButton("Cancel", self)
+        set_button_role(self.btn_cancel, "destructive", "mdi6.close-circle")
+        self.btn_cancel.setEnabled(False)
+        self.btn_cancel.clicked.connect(self._on_cancel_analysis)
+        layout.addWidget(self.btn_cancel, 1)
 
         self._content_layout.addWidget(section)
 
@@ -243,6 +250,8 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
             set_label_icon(lbl, name)
         if hasattr(self, "btn_run"):
             refresh_button_role(self.btn_run)
+        if hasattr(self, "btn_cancel"):
+            refresh_button_role(self.btn_cancel)
 
     def _update_takeoff_mass(self) -> None:
         empty_g = self._empty_mass_kg * 1000.0
@@ -492,6 +501,10 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
                 battery = component
         return motor, propulsor, battery
 
+    def _on_cancel_analysis(self) -> None:
+        if hasattr(self, "_task_handle") and self._task_handle is not None:
+            self._task_handle.cancel()
+
     def _on_run_analysis(self) -> None:
         if self._is_running:
             return
@@ -502,16 +515,39 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
 
         self._is_running = True
         self.btn_run.setEnabled(False)
+        self.btn_cancel.setEnabled(True)
         if self._api:
             self._api.show_status("Analyzing performance…", "info", 0)
             self._api.report_progress(0, 100, "Performance")
 
-        self._worker = FlightPerformanceWorker(context)
-        self._worker.signals.progress.connect(self._on_analysis_progress)
-        self._worker.signals.finished.connect(self._on_analysis_finished)
-        self._worker.signals.error.connect(self._on_analysis_error)
+        from .engine.solver import FlightPerformanceSolver
 
-        QThreadPool.globalInstance().start(self._worker)
+        def run_target(token: Any) -> FlightEnvelopeResult:
+            def on_progress(curr: int, total: int, msg: str) -> None:
+                token.check_cancelled()
+                token.report_progress(curr, total, msg)
+
+            token.report_progress(0, 100, "Starting flight performance analysis...")
+            return FlightPerformanceSolver.run_analysis(
+                context,
+                progress_callback=on_progress,
+            )
+
+        if self._api and hasattr(self._api, "tasks"):
+            self._task_handle = self._api.tasks.submit(
+                name="Flight Performance",
+                target=run_target,
+                on_finished=self._on_analysis_finished,
+                on_error=self._on_analysis_error,
+                on_progress=lambda p: self._on_analysis_progress(p.current, p.total, p.message),
+                on_cancelled=self._on_analysis_cancelled,
+            )
+        else:
+            self._worker = FlightPerformanceWorker(context)
+            self._worker.signals.progress.connect(self._on_analysis_progress)
+            self._worker.signals.finished.connect(self._on_analysis_finished)
+            self._worker.signals.error.connect(self._on_analysis_error)
+            QThreadPool.globalInstance().start(self._worker)
 
     def _on_analysis_progress(self, current: int, total: int, msg: str) -> None:
         if self._api:
@@ -519,8 +555,9 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
 
     def _on_analysis_finished(self, result: FlightEnvelopeResult) -> None:
         self._is_running = False
-        self._worker = None
+        self._task_handle = None
         self.btn_run.setEnabled(True)
+        self.btn_cancel.setEnabled(False)
 
         if self._api:
             self._api.clear_progress()
@@ -548,10 +585,21 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
                 8000,
             )
 
-    def _on_analysis_error(self, err_msg: str) -> None:
+    def _on_analysis_cancelled(self) -> None:
         self._is_running = False
-        self._worker = None
+        self._task_handle = None
         self.btn_run.setEnabled(True)
+        self.btn_cancel.setEnabled(False)
+        if self._api:
+            self._api.clear_progress()
+            self._api.show_status("Flight performance analysis cancelled by user", "warning", 5000)
+
+    def _on_analysis_error(self, err: object) -> None:
+        self._is_running = False
+        self._task_handle = None
+        self.btn_run.setEnabled(True)
+        self.btn_cancel.setEnabled(False)
+        err_msg = str(err)
         if self._api:
             self._api.clear_progress()
             self._api.show_status(f"Flight performance analysis failed: {err_msg}", "error", 8000)

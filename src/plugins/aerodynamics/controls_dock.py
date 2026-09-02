@@ -5,8 +5,9 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
-from PySide6.QtCore import Qt, QThreadPool
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QCloseEvent, QFont
 from PySide6.QtWidgets import (
     QComboBox,
@@ -37,7 +38,6 @@ from .engine.base import (
     SweepType,
     control_channels_for_components,
 )
-from .worker import AnalysisWorker
 
 
 class AeroControlsDock(PropertyTableMixin, QWidget):
@@ -96,6 +96,8 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
             set_label_icon(lbl, name)
         if hasattr(self, "btn_run"):
             refresh_button_role(self.btn_run)
+        if hasattr(self, "btn_cancel"):
+            refresh_button_role(self.btn_cancel)
         if hasattr(self, "btn_save_config"):
             refresh_button_role(self.btn_save_config)
 
@@ -430,12 +432,24 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         self.btn_run.clicked.connect(self.run_analysis)
         btn_layout.addWidget(self.btn_run)
 
+        self.btn_cancel = QPushButton(" Cancel")
+        set_button_role(self.btn_cancel, "destructive", "mdi6.close-circle")
+        self.btn_cancel.setEnabled(False)
+        self.btn_cancel.clicked.connect(self.cancel_analysis)
+        btn_layout.addWidget(self.btn_cancel)
+
         self.btn_save_config = QPushButton(" Save Configuration")
         set_native_button(self.btn_save_config, "fa6s.floppy-disk")
         self.btn_save_config.clicked.connect(self._save_configuration)
         btn_layout.addWidget(self.btn_save_config)
 
         layout.addLayout(btn_layout)
+
+    def cancel_analysis(self) -> None:
+        if self._task_handle is not None:
+            self._task_handle.cancel()
+        elif hasattr(self, "_worker") and self._worker is not None:
+            pass
 
     def run_analysis(self) -> None:
         if self._is_running:
@@ -535,21 +549,37 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
 
         self._is_running = True
         self.btn_run.setEnabled(False)
+        self.btn_cancel.setEnabled(True)
         self._api.report_progress(1, 100, "Aerodynamics")
         self._api.show_status("Running aerodynamic analysis in background...", "info")
 
-        self._worker = AnalysisWorker(
-            engine=engine,
-            components=components,
-            condition=condition,
-            method=method,
-            settings=settings,
-        )
-        self._worker.signals.finished.connect(self._on_analysis_finished)
-        self._worker.signals.error.connect(self._on_analysis_error)
-        self._worker.signals.progress.connect(self._on_analysis_progress)
+        def run_target(token: Any) -> AeroResult:
+            def on_step(curr: int, total: int, msg: str) -> None:
+                token.check_cancelled()
+                token.report_progress(curr, total, msg)
 
-        QThreadPool.globalInstance().start(self._worker)
+            token.report_progress(0, 100, "Starting...")
+            result = engine.analyze(
+                components=components,
+                condition=condition,
+                method=method,
+                settings=settings,
+                progress_callback=on_step,
+            )
+            if not result.polar_points or result.converged_point_count == 0:
+                from .engine.base import AeroAnalysisError
+
+                raise AeroAnalysisError("Aerodynamic solver returned no converged operating points")
+            return result
+
+        self._task_handle = self._api.tasks.submit(
+            name="Aerodynamics Analysis",
+            target=run_target,
+            on_finished=self._on_analysis_finished,
+            on_error=self._on_analysis_error,
+            on_progress=lambda p: self._on_analysis_progress(p.current, p.total, p.message),
+            on_cancelled=self._on_analysis_cancelled,
+        )
 
     def _resolve_sweep(self, value: object) -> tuple[SweepType, str, str | None] | None:
         if value in {SweepType.MULTI_GRID, SweepType.DUAL_ALPHA_BETA}:
@@ -573,8 +603,9 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
 
     def _on_analysis_finished(self, result: AeroResult) -> None:
         self._is_running = False
-        self._worker = None
+        self._task_handle = None
         self.btn_run.setEnabled(True)
+        self.btn_cancel.setEnabled(False)
         self._api.clear_progress()
         stability_error = result.raw.get("stability_error")
         if result.failed_point_count or stability_error:
@@ -599,11 +630,21 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         if self._on_result_callback:
             self._on_result_callback(result)
 
-    def _on_analysis_error(self, err_msg: str) -> None:
+    def _on_analysis_cancelled(self) -> None:
         self._is_running = False
-        self._worker = None
+        self._task_handle = None
         self.btn_run.setEnabled(True)
+        self.btn_cancel.setEnabled(False)
         self._api.clear_progress()
+        self._api.show_status("Aerodynamic analysis cancelled by user", "warning")
+
+    def _on_analysis_error(self, err: object) -> None:
+        self._is_running = False
+        self._task_handle = None
+        self.btn_run.setEnabled(True)
+        self.btn_cancel.setEnabled(False)
+        self._api.clear_progress()
+        err_msg = str(err)
         self._api.show_status(f"Aerodynamic analysis failed: {err_msg}", "error")
         QMessageBox.critical(
             self,
