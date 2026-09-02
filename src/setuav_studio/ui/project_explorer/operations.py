@@ -245,7 +245,6 @@ class ProjectExplorerOperations:
             return
         if item in (
             self._tree._project_root_item,
-            self._tree._geometry_group_item,
             self._tree._parameters_group_item,
             self._tree._constraints_group_item,
         ):

@@ -30,7 +30,7 @@ class ProjectExplorerContextMenu:
 
     def open_context_menu(self, position: QPoint) -> None:
         item = self._tree.itemAt(position)
-        if item is None or item is self._tree._geometry_group_item:
+        if item is None:
             return
 
         if item in self._tree._virtual_items:

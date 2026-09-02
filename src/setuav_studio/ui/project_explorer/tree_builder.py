@@ -39,7 +39,6 @@ class ProjectTreeBuilder:
             self.reset_project_tree()
             project_item = self.create_project_item(project)
             components, assemblies = self.project_elements(project)
-            self.create_geometry_group(project_item, components)
             component_assemblies = self.component_assembly_map(assemblies)
             self.create_assembly_items(project_item, assemblies, project.read_only)
             self.create_component_items(components, project.read_only)
@@ -61,7 +60,7 @@ class ProjectTreeBuilder:
         finally:
             self._tree.blockSignals(False)
 
-        current_selection_id = selection_state[2]
+        current_selection_id = selection_state[1]
         if current_selection_id and self._api.current_selection is not fresh_selection:
             self._api.set_selection(fresh_selection)
 
@@ -70,7 +69,6 @@ class ProjectTreeBuilder:
         self._tree._item_map.clear()
         self._tree._element_map.clear()
         self._tree._project_root_item = None
-        self._tree._geometry_group_item = None
         self._tree._parameters_group_item = None
         self._tree._constraints_group_item = None
         self._tree._virtual_items.clear()
@@ -98,21 +96,6 @@ class ProjectTreeBuilder:
             [item for item in components if isinstance(item, dict)],
             [item for item in assemblies if isinstance(item, dict)],
         )
-
-    def create_geometry_group(
-        self,
-        project_item: QTreeWidgetItem,
-        components: list[dict[str, Any]],
-    ) -> None:
-        if not any(
-            get_geometry_icon_source(component, components) is not None for component in components
-        ):
-            return
-        geometry_group = QTreeWidgetItem(["Geometry"])
-        geometry_group.setIcon(0, get_icon("fa6s.shapes"))
-        geometry_group.setToolTip(0, "Geometry components")
-        self._tree._geometry_group_item = geometry_group
-        project_item.addChild(geometry_group)
 
     def create_parameters_group(
         self,
@@ -341,11 +324,6 @@ class ProjectTreeBuilder:
             return parent_item
         if component_id in component_assemblies:
             return self._tree._item_map.get(component_assemblies[component_id]) or project_item
-        if (
-            self._tree._geometry_group_item is not None
-            and get_geometry_icon_source(component, components) is not None
-        ):
-            return self._tree._geometry_group_item
         return project_item
 
     def append_project_contribution(

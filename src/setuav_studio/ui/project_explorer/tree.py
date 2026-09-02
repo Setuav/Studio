@@ -64,7 +64,6 @@ class ProjectExplorer(QTreeWidget):
         self._item_map: dict[str, QTreeWidgetItem] = {}
         self._element_map: dict[QTreeWidgetItem, dict[str, Any]] = {}
         self._project_root_item: QTreeWidgetItem | None = None
-        self._geometry_group_item: QTreeWidgetItem | None = None
         self._parameters_group_item: QTreeWidgetItem | None = None
         self._constraints_group_item: QTreeWidgetItem | None = None
         self._virtual_items: set[QTreeWidgetItem] = set()
@@ -116,11 +115,10 @@ class ProjectExplorer(QTreeWidget):
     def _tree_selection_state(
         self,
         project: ProjectDocument,
-    ) -> tuple[bool, bool, str | None]:
+    ) -> tuple[bool, str | None]:
         current_selection = self._api.current_selection
         return (
             current_selection is project.data,
-            self.currentItem() is self._geometry_group_item,
             (current_selection.get("id") if isinstance(current_selection, dict) else None),
         )
 
@@ -128,15 +126,12 @@ class ProjectExplorer(QTreeWidget):
         self,
         project: ProjectDocument,
         project_item: QTreeWidgetItem,
-        selection_state: tuple[bool, bool, str | None],
+        selection_state: tuple[bool, str | None],
     ) -> dict[str, Any] | None:
-        project_selected, geometry_selected, selection_id = selection_state
+        project_selected, selection_id = selection_state
         if project_selected:
             self.setCurrentItem(project_item)
             return project.data
-        if geometry_selected and self._geometry_group_item is not None:
-            self.setCurrentItem(self._geometry_group_item)
-            return None
         if selection_id and selection_id in self._item_map:
             selected_item = self._item_map[selection_id]
             self.setCurrentItem(selected_item)
@@ -247,7 +242,6 @@ class ProjectExplorer(QTreeWidget):
         _previous: QTreeWidgetItem | None,
     ) -> None:
         if current in (
-            self._geometry_group_item,
             self._parameters_group_item,
             self._constraints_group_item,
         ):
@@ -258,7 +252,6 @@ class ProjectExplorer(QTreeWidget):
 
     def _sync_selection(self, selection: object | None) -> None:
         if selection is None and self.currentItem() in (
-            self._geometry_group_item,
             self._parameters_group_item,
             self._constraints_group_item,
         ):
