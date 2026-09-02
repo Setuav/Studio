@@ -103,7 +103,9 @@ class GeometryPlugin:
             ControlSurfaceModel,
         )
 
-        # 3. Component Editors
+        # 3. Component & Assembly Editors
+        from .editors.structural_system import StructuralSystemEditor
+
         api.register_component_editor(
             "org.setuav.core:fuselage",
             lambda component: FuselageEditor(api, component),
@@ -116,8 +118,12 @@ class GeometryPlugin:
             "org.setuav.core:control-surface",
             lambda component: ControlSurfaceEditor(api, component),
         )
+        api.register_component_editor(
+            "org.setuav.core:structural-system",
+            lambda assembly: StructuralSystemEditor(api, assembly),
+        )
 
-        # 4. Component Icons
+        # 4. Component & Assembly Icons
         api.register_component_icon(
             "org.setuav.core:fuselage",
             "geometry_add_fuselage",
@@ -129,6 +135,10 @@ class GeometryPlugin:
         api.register_component_icon(
             "org.setuav.core:control-surface",
             "geometry_add_control_surface",
+        )
+        api.register_component_icon(
+            "org.setuav.core:structural-system",
+            "component_structural_system",
         )
 
         # 5. Geometry Providers
@@ -154,9 +164,11 @@ class GeometryPlugin:
         api.remove_component_icon("org.setuav.core:fuselage")
         api.remove_component_icon("org.setuav.core:lifting-surface")
         api.remove_component_icon("org.setuav.core:control-surface")
+        api.remove_component_icon("org.setuav.core:structural-system")
         api.remove_component_editor("org.setuav.core:fuselage")
         api.remove_component_editor("org.setuav.core:lifting-surface")
         api.remove_component_editor("org.setuav.core:control-surface")
+        api.remove_component_editor("org.setuav.core:structural-system")
         api.remove_panel("studio.viewer.opengl")
         api.remove_workspace("studio.workspace.design")
         api.remove_settings_page("geometry.settings.viewer")

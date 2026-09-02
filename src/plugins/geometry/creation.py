@@ -15,6 +15,7 @@ from .engine.fuselage_geometry import create_default_section
 _FUSELAGE_TYPE = "org.setuav.core:fuselage"
 _LIFTING_SURFACE_TYPE = "org.setuav.core:lifting-surface"
 _CONTROL_SURFACE_TYPE = "org.setuav.core:control-surface"
+_STRUCTURAL_SYSTEM_TYPE = "org.setuav.core:structural-system"
 _DESIGN_WORKSPACE = "studio.workspace.design"
 
 
@@ -22,6 +23,7 @@ class GeometryCreationController:
     """Create valid starter geometry and publish it through the Studio API."""
 
     toolbar_ids = (
+        "geometry.create-structural-system",
         "geometry.create-fuselage",
         "geometry.create-lifting-surface",
         "geometry.create-control-surface",
@@ -34,6 +36,16 @@ class GeometryCreationController:
         return (
             ToolbarContribution(
                 id=self.toolbar_ids[0],
+                title="New Airframe Structure",
+                callback=self.add_structural_system,
+                icon="component_structural_system",
+                enabled_when=self._can_edit_project,
+                group="geometry-creation",
+                order=90,
+                workspace_id=_DESIGN_WORKSPACE,
+            ),
+            ToolbarContribution(
+                id=self.toolbar_ids[1],
                 title="Add Fuselage",
                 callback=self.add_fuselage,
                 icon="geometry_add_fuselage",
@@ -43,7 +55,7 @@ class GeometryCreationController:
                 workspace_id=_DESIGN_WORKSPACE,
             ),
             ToolbarContribution(
-                id=self.toolbar_ids[1],
+                id=self.toolbar_ids[2],
                 title="Add Lifting Surface",
                 icon="geometry_add_lifting_surface",
                 menu_items=(
@@ -64,7 +76,7 @@ class GeometryCreationController:
                 workspace_id=_DESIGN_WORKSPACE,
             ),
             ToolbarContribution(
-                id=self.toolbar_ids[2],
+                id=self.toolbar_ids[3],
                 title="Add Control Surface",
                 icon="geometry_add_control_surface",
                 menu_items=tuple(
@@ -88,6 +100,156 @@ class GeometryCreationController:
                 workspace_id=_DESIGN_WORKSPACE,
             ),
         )
+
+    def add_structural_system(self) -> None:
+        if not self._require_editable_project():
+            return
+        project = self._api.current_project
+        if project is None:
+            return
+
+        assembly_id, assembly_name = self._unique_identity(
+            "airframe-structure", "Airframe Structure", include_assemblies=True
+        )
+
+        components = self._components()
+        members, new_components = self._build_structural_members(components, project)
+
+        assembly_dict: dict[str, Any] = {
+            "kind": "assembly",
+            "id": assembly_id,
+            "name": assembly_name,
+            "type": _STRUCTURAL_SYSTEM_TYPE,
+            "members": members,
+        }
+
+        def change() -> None:
+            if new_components:
+                comps = project.data.setdefault("components", [])
+                if isinstance(comps, list):
+                    comps.extend(new_components)
+            asms = project.data.setdefault("assemblies", [])
+            if isinstance(asms, list):
+                asms.append(assembly_dict)
+
+        self._api.edit_project(f"Create structural system {assembly_name}", change)
+        created = next(
+            (
+                item
+                for item in project.data.get("assemblies", [])
+                if isinstance(item, dict) and item.get("id") == assembly_id
+            ),
+            None,
+        )
+        if created is not None:
+            self._api.set_selection(created)
+            self._api.show_status(f"Created {assembly_name}", "success", 3000)
+
+    def _build_structural_members(
+        self, components: list[dict[str, Any]], project: Any
+    ) -> tuple[dict[str, str], list[dict[str, Any]]]:
+        assigned_cids = self._collect_assigned_component_ids(project)
+        unassigned_fuse = [
+            c["id"]
+            for c in components
+            if c.get("type") == _FUSELAGE_TYPE and c.get("id") not in assigned_cids
+        ]
+        unassigned_wings = [
+            c["id"]
+            for c in components
+            if c.get("type") == _LIFTING_SURFACE_TYPE and c.get("id") not in assigned_cids
+        ]
+
+        members: dict[str, str] = {}
+        if unassigned_fuse:
+            members["fuselage"] = unassigned_fuse[0]
+        if unassigned_wings:
+            members["main_wing"] = unassigned_wings[0]
+            if len(unassigned_wings) > 1:
+                members["horizontal_tail"] = unassigned_wings[1]
+            if len(unassigned_wings) > 2:
+                members["vertical_tail"] = unassigned_wings[2]
+
+        if not members and not components:
+            return self._create_starter_airframe()
+
+        return members, []
+
+    def _collect_assigned_component_ids(self, project: Any) -> set[str]:
+        assigned: set[str] = set()
+        existing_assemblies = project.data.get("assemblies", [])
+        if isinstance(existing_assemblies, list):
+            for asm in existing_assemblies:
+                if isinstance(asm, dict):
+                    members_dict = asm.get("members", {})
+                    if isinstance(members_dict, dict):
+                        for v in members_dict.values():
+                            if isinstance(v, list):
+                                assigned.update(str(x) for x in v)
+                            elif v:
+                                assigned.add(str(v))
+        return assigned
+
+    def _create_starter_airframe(self) -> tuple[dict[str, str], list[dict[str, Any]]]:
+        fuse_id, fuse_name = self._unique_identity("fuselage", "Fuselage")
+        fuse_sections = [
+            create_default_section(0.0, "circle"),
+            create_default_section(140.0, "circle"),
+            create_default_section(600.0, "circle"),
+        ]
+        for section, diameter in zip(fuse_sections, (25.0, 120.0, 35.0), strict=True):
+            profile_dict = section.get("profile")
+            if isinstance(profile_dict, dict):
+                profile_dict["diameter"] = diameter
+
+        fuse_comp = {
+            "kind": "component",
+            "id": fuse_id,
+            "name": fuse_name,
+            "type": _FUSELAGE_TYPE,
+            "parent": None,
+            "transform": {},
+            "parameters": {
+                "geometry": {
+                    "segments": [
+                        {
+                            "tag": "main",
+                            "loft": {
+                                "method": "smooth",
+                                "parameterization": "centripetal",
+                                "profile_correspondence": "cardinal_quadrants",
+                                "skin_interpolation": "cubic",
+                            },
+                        }
+                    ],
+                    "sections": fuse_sections,
+                }
+            },
+        }
+        wing_id, wing_name = self._unique_identity("main-wing", "Main Wing")
+        wing_comp = {
+            "kind": "component",
+            "id": wing_id,
+            "name": wing_name,
+            "type": _LIFTING_SURFACE_TYPE,
+            "parent": fuse_id,
+            "transform": {"translation": [180.0, 0.0, 30.0]},
+            "parameters": {
+                "is_symmetric": True,
+                "wingspan": 1400.0,
+                "root_chord": 200.0,
+                "tip_chord": 140.0,
+                "sweep_angle": 3.0,
+                "dihedral_angle": 2.0,
+                "geometry": {
+                    "profiles": [
+                        self._wing_profile(0.0, 200.0, "naca2412"),
+                        self._wing_profile(700.0, 140.0, "naca2412"),
+                    ]
+                },
+            },
+        }
+        return {"fuselage": fuse_id, "main_wing": wing_id}, [fuse_comp, wing_comp]
 
     def add_fuselage(self) -> None:
         if not self._require_editable_project():
@@ -304,10 +466,22 @@ class GeometryCreationController:
             self._api.set_selection(created)
             self._api.show_status(f"Created {component['name']}", "success", 3000)
 
-    def _unique_identity(self, base_id: str, base_name: str) -> tuple[str, str]:
-        components = self._components()
-        ids = {str(item.get("id") or "") for item in components}
-        names = {str(item.get("name") or "") for item in components}
+    def _unique_identity(
+        self,
+        base_id: str,
+        base_name: str,
+        *,
+        include_assemblies: bool = False,
+    ) -> tuple[str, str]:
+        elements: list[dict[str, Any]] = list(self._components())
+        if include_assemblies:
+            project = self._api.current_project
+            if project is not None:
+                asms = project.data.get("assemblies", [])
+                if isinstance(asms, list):
+                    elements.extend(item for item in asms if isinstance(item, dict))
+        ids = {str(item.get("id") or "") for item in elements}
+        names = {str(item.get("name") or "") for item in elements}
         if base_id not in ids and base_name not in names:
             return base_id, base_name
         suffix = 2

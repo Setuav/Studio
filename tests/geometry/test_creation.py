@@ -37,12 +37,23 @@ class GeometryCreationTests(unittest.TestCase):
         self.controller = GeometryCreationController(self.api)
 
     def test_toolbar_contributions_dispatch_all_presets(self) -> None:
-        fuselage_action, lifting_action, control_action = self.controller.contributions()
+        (
+            struct_action,
+            fuselage_action,
+            lifting_action,
+            control_action,
+        ) = self.controller.contributions()
 
         self.assertEqual(
-            (fuselage_action.id, lifting_action.id, control_action.id),
+            (
+                struct_action.id,
+                fuselage_action.id,
+                lifting_action.id,
+                control_action.id,
+            ),
             GeometryCreationController.toolbar_ids,
         )
+        self.assertTrue(struct_action.enabled_when())
         self.assertTrue(fuselage_action.enabled_when())
         self.assertFalse(control_action.enabled_when())
         with patch.object(self.controller, "add_lifting_surface") as add_lifting_surface:
@@ -59,6 +70,23 @@ class GeometryCreationTests(unittest.TestCase):
             [call.args[0] for call in add_control_surface.call_args_list],
             ["aileron", "elevator", "rudder", "flap"],
         )
+
+    def test_add_structural_system_creates_assembly_and_starter_airframe(self) -> None:
+        self.controller.add_structural_system()
+
+        assemblies = self.project.data.get("assemblies", [])
+        self.assertEqual(len(assemblies), 1)
+        system = assemblies[0]
+        self.assertEqual(system["type"], "org.setuav.core:structural-system")
+        self.assertEqual(system["name"], "Airframe Structure")
+        self.assertIn("fuselage", system["members"])
+        self.assertIn("main_wing", system["members"])
+
+        # Components were auto-created
+        components = self.project.data.get("components", [])
+        self.assertEqual(len(components), 2)
+        c_types = {c["type"] for c in components}
+        self.assertEqual(c_types, {_FUSELAGE_TYPE, _LIFTING_SURFACE_TYPE})
 
     def test_add_fuselage_creates_default_loft_and_is_undoable(self) -> None:
         self.controller.add_fuselage()
