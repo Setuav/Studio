@@ -14,6 +14,10 @@ from tests._common import get_qapp
 
 
 class ThemeTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls._app = get_qapp()
+
     def test_inter_font_is_applied_globally(self) -> None:
         self.assertEqual(FONT_FAMILY, "Inter")
         self.assertEqual(DEFAULT_FONT_SIZE, 10)

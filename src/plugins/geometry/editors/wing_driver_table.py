@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.ui.property_tables import ExpressionPropertyCell
+from setuav_studio.ui.widget.table import ExpressionPropertyCell
 
 from ..engine.wing_driver_solver import (
     PLANFORM_PARAM_KEYS,
@@ -216,7 +216,7 @@ class DriverPlanformTable(QTableWidget):
                     if raw_expr:
                         init_str = raw_expr
                     else:
-                        from setuav_studio.ui.property_tables import format_engineering_value
+                        from setuav_studio.ui.widget.table import format_engineering_value
 
                         q_id = get_quantity_for_unit(unit)
                         disp_val = um.to_display(val, q_id) if q_id else val

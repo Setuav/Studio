@@ -190,7 +190,7 @@ def set_table_spinbox(
     label: str = "",
 ) -> Any:
     """Helper to cleanly place an ExpressionPropertyCell with fx assistant into a QTableWidget cell."""
-    from setuav_studio.ui.property_tables import ExpressionPropertyCell, format_engineering_value
+    from setuav_studio.ui.widget.table import ExpressionPropertyCell, format_engineering_value
 
     item = table.item(row, column)
     if item is not None:

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import weakref
 from typing import Any
 
 from PySide6.QtCore import Qt
@@ -20,8 +19,8 @@ from PySide6.QtWidgets import (
 
 from plugins.geometry.engine.derived_geometry import derive_component_geometry
 from setuav_studio.ui.icons import set_label_icon
-from setuav_studio.ui.numeric_spinbox import NumericSpinBox, set_table_spinbox
-from setuav_studio.ui.property_tables import PropertyTableMixin
+from setuav_studio.ui.widget.spinbox import NumericSpinBox, set_table_spinbox
+from setuav_studio.ui.widget.table import PropertyTableMixin
 from setuav_studio_sdk import StudioAPI
 
 
@@ -175,7 +174,6 @@ class TransformEditor(PropertyTableMixin, QWidget):
         quantity: str,
         suffix: str,
     ) -> NumericSpinBox:
-        self_ref = weakref.ref(self)
         return set_table_spinbox(
             self.transform_table,
             row,
@@ -187,9 +185,7 @@ class TransformEditor(PropertyTableMixin, QWidget):
             decimals=decimals,
             quantity=quantity,
             suffix=suffix,
-            on_changed=lambda _value: (
-                self_ref()._update_transform() if self_ref() is not None else None
-            ),
+            on_changed=lambda _value: self._update_transform(),
         )
 
     def _load_component(self, component: dict[str, Any]) -> None:
@@ -236,18 +232,19 @@ class TransformEditor(PropertyTableMixin, QWidget):
     def _update_transform(self) -> None:
         if self._loading or self._component is None:
             return
+        component = self._component
         position = {axis: spin.value() for axis, spin in self.position_spins.items()}
         rotation = {axis: spin.value() for axis, spin in self.rotation_spins.items()}
 
         def change() -> None:
-            self._component["transform"] = {
+            component["transform"] = {
                 "position": position,
                 "rotation": rotation,
             }
 
         self._api.edit_component(
-            self._component,
-            f"Edit transform of {self._component.get('name') or 'component'}",
+            component,
+            f"Edit transform of {component.get('name') or 'component'}",
             change,
         )
 
@@ -267,7 +264,9 @@ class TransformEditor(PropertyTableMixin, QWidget):
 
 
 def _number(value: object) -> float:
-    try:
-        return float(value or 0.0)
-    except (TypeError, ValueError):
-        return 0.0
+    if isinstance(value, (int, float, str)):
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return 0.0
+    return 0.0

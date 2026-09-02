@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import contextlib
-import weakref
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
@@ -17,7 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.ui.icons import set_label_icon
-from setuav_studio.ui.property_tables import ExpressionPropertyCell, PropertyTableMixin
+from setuav_studio.ui.widget.table import ExpressionPropertyCell, PropertyTableMixin
 from setuav_studio_sdk import ParameterField
 
 if TYPE_CHECKING:
@@ -129,7 +128,6 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
 
     def _load_component(self) -> None:
         self._loading = True
-        self_ref = weakref.ref(self)
         try:
             # Load General
             self._set_property_value(
@@ -177,11 +175,7 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
                             field.key,
                             str(val),
                             formatted_options,
-                            lambda new_val, k=field.key: (
-                                self_ref()._on_combo_changed(k, new_val)
-                                if self_ref() is not None
-                                else None
-                            ),
+                            lambda new_val, k=field.key: self._on_combo_changed(k, new_val),
                         )
                     else:
                         if isinstance(val, str) and val.strip().startswith("="):
@@ -197,14 +191,10 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
                             field.key,
                             str_val,
                             on_changed=lambda new_val, k=field.key: (
-                                self_ref()._on_expression_cell_changed(k, new_val)
-                                if self_ref() is not None
-                                else None
+                                self._on_expression_cell_changed(k, new_val)
                             ),
                             on_open_assistant=lambda curr_val, f=field: (
-                                self_ref()._open_field_expression_assistant(f, curr_val)
-                                if self_ref() is not None
-                                else None
+                                self._open_field_expression_assistant(f, curr_val)
                             ),
                             decimals=field.decimals,
                             unit=field.unit,
@@ -216,7 +206,7 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
     def _open_field_expression_assistant(self, field: ParameterField, current_val: str) -> None:
         from PySide6.QtWidgets import QDialog
 
-        from setuav_studio.ui.parameters.expression_dialog import AdvancedExpressionDialog
+        from setuav_studio.ui.parameter.expression_dialog import AdvancedExpressionDialog
 
         dlg = AdvancedExpressionDialog(
             self._api,
@@ -268,9 +258,15 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
             if self._api is not None and getattr(self._api, "current_project", None) is not None:
                 try:
                     from setuav_studio.model.expression import ExpressionEvaluator
+                    from setuav_studio.model.symbol import build_evaluation_context
 
                     evaluator = ExpressionEvaluator()
-                    scope = self._api.current_project.get_scope(api=self._api)
+                    project = self._api.current_project
+                    scope = (
+                        build_evaluation_context(project.data, api=self._api)
+                        if project is not None
+                        else {}
+                    )
                     expr = clean.lstrip("=").strip()
                     res = evaluator.evaluate(expr, scope)
                     if isinstance(res, (int, float)):

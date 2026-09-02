@@ -4,12 +4,12 @@ from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import Qt
 
-from setuav_studio.ui.editors import (
+from setuav_studio.ui.editor import (
     EnvelopeEditor,
     InstanceEditor,
     TransformEditor,
 )
-from setuav_studio.ui.parameters import ProjectParametersPanel
+from setuav_studio.ui.parameter import ProjectParametersPanel
 from setuav_studio.ui.project_explorer import ProjectExplorerPanel
 from setuav_studio.ui.properties import PropertiesPanel
 from setuav_studio_sdk import (

@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
 )
 
-from setuav_studio.ui.numeric_spinbox import set_table_spinbox
+from setuav_studio.ui.widget.spinbox import set_table_spinbox
 
 
 class AttachmentMixin:

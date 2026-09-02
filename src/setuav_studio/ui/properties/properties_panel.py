@@ -37,7 +37,7 @@ class PropertiesPanel(QWidget):
         self._current_selection_key = new_key
 
         if kind == "parameter":
-            from setuav_studio.ui.parameters.parameter_property_editor import (
+            from setuav_studio.ui.parameter.editor import (
                 ParameterPropertyEditor,
             )
 
@@ -45,7 +45,7 @@ class PropertiesPanel(QWidget):
             return
 
         if kind == "constraint":
-            from setuav_studio.ui.constraints.constraint_property_editor import (
+            from setuav_studio.ui.constraint.editor import (
                 ConstraintPropertyEditor,
             )
 

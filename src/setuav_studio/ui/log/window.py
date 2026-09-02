@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from setuav_studio.ui.log_buffer import LogEntry, log_buffer_entries, log_signal
+from setuav_studio.ui.log.buffer import LogEntry, log_buffer_entries, log_signal
 from setuav_studio.ui.theme import status_color, tokens
 
 

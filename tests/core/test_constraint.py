@@ -8,8 +8,8 @@ from pathlib import Path
 from setuav_studio.api import StudioAPI
 from setuav_studio.model.constraint import ConstraintChecker
 from setuav_studio.project import ProjectDocument
-from setuav_studio.ui.constraints.constraint_status import ConstraintStatusWidget
-from setuav_studio.ui.constraints.constraints_dialog import ConstraintEditDialog
+from setuav_studio.ui.constraint.constraints_dialog import ConstraintEditDialog
+from setuav_studio.ui.constraint.status import ConstraintStatusWidget
 from tests._common import get_qapp
 
 

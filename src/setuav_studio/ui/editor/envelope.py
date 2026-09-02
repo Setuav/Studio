@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import weakref
 from typing import Any
 
 from PySide6.QtCore import Qt
@@ -21,8 +20,8 @@ from PySide6.QtWidgets import (
 
 from plugins.geometry.engine.derived_geometry import derive_component_geometry
 from setuav_studio.ui.icons import set_label_icon
-from setuav_studio.ui.numeric_spinbox import NumericSpinBox, set_table_spinbox
-from setuav_studio.ui.property_tables import PropertyTableMixin
+from setuav_studio.ui.widget.spinbox import NumericSpinBox, set_table_spinbox
+from setuav_studio.ui.widget.table import PropertyTableMixin
 from setuav_studio_sdk import StudioAPI
 
 PHYSICAL_EXTENSION_ID = "org.setuav.core.physical"
@@ -173,7 +172,6 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
         column: int,
         _axis: str,
     ) -> NumericSpinBox:
-        self_ref = weakref.ref(self)
         return set_table_spinbox(
             table,
             0,
@@ -184,9 +182,7 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
             step=1.0,
             decimals=3,
             suffix="mm",
-            on_changed=lambda _value: (
-                self_ref()._update_envelope() if self_ref() is not None else None
-            ),
+            on_changed=lambda _value: self._update_envelope(),
         )
 
     def _load_component(self, component: dict[str, Any]) -> None:
@@ -234,7 +230,9 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
     def _update_envelope(self) -> None:
         if self._loading or self._component is None:
             return
-        shape = str(self.shape_combo.currentData() or "box")
+        shape = (
+            str(self.shape_combo.currentData() or "box") if self.shape_combo is not None else "box"
+        )
         size = {axis: spin.value() for axis, spin in self.dimension_spins.items()}
         offset = {axis: spin.value() for axis, spin in self.offset_spins.items()}
 
@@ -292,7 +290,8 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
     @staticmethod
     def _find_combo(table: QTableWidget, key: str) -> QComboBox | None:
         for row in range(table.rowCount()):
-            if str(table.item(row, 0).data(Qt.ItemDataRole.UserRole) or "") != key:
+            item = table.item(row, 0)
+            if item is None or str(item.data(Qt.ItemDataRole.UserRole) or "") != key:
                 continue
             widget = table.cellWidget(row, 1)
             return widget if isinstance(widget, QComboBox) else None
@@ -305,7 +304,9 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
 
 
 def _number(value: object) -> float:
-    try:
-        return float(value or 0.0)
-    except (TypeError, ValueError):
-        return 0.0
+    if isinstance(value, (int, float, str)):
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return 0.0
+    return 0.0

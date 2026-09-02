@@ -1,7 +1,7 @@
 """Plugin management and StudioAPI execution engine."""
 
-from setuav_studio.component_editor import BaseComponentEditor
 from setuav_studio.model.component import Component
+from setuav_studio.ui.editor.component import BaseComponentEditor
 from setuav_studio_sdk.contributions import (
     ActionContribution,
     ComponentTreeNodeContribution,

@@ -24,10 +24,10 @@ from pythrust.propulsion.models.propeller import PropellerSpec
 from plugins.electrical_propulsion.database import get_propeller_database
 from plugins.electrical_propulsion.engine.solver import PropulsionSolverEngine
 from plugins.weight_balance.engine.solver import WeightBalanceSolver
-from setuav_studio.ui.buttons import refresh_button_role, set_button_role
 from setuav_studio.ui.icons import set_label_icon
-from setuav_studio.ui.numeric_spinbox import NumericSpinBox
-from setuav_studio.ui.property_tables import PropertyTableMixin
+from setuav_studio.ui.widget.button import refresh_button_role, set_button_role
+from setuav_studio.ui.widget.spinbox import NumericSpinBox
+from setuav_studio.ui.widget.table import PropertyTableMixin
 from setuav_studio_sdk import StudioAPI
 
 from .analysis_store import (

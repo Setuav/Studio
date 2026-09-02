@@ -118,7 +118,7 @@ class ConstraintEditDialog(QDialog):
     def _open_expression_assistant(self) -> None:
         if self._api is None:
             return
-        from setuav_studio.ui.parameters.expression_dialog import AdvancedExpressionDialog
+        from setuav_studio.ui.parameter.expression_dialog import AdvancedExpressionDialog
 
         dlg = AdvancedExpressionDialog(
             self._api,

@@ -380,7 +380,7 @@ class ExpressionPropertyCell(QWidget):
         if self._on_open_assistant:
             self._on_open_assistant(self._raw_expression)
         elif self._api is not None:
-            from setuav_studio.ui.parameters.expression_dialog import AdvancedExpressionDialog
+            from setuav_studio.ui.parameter.expression_dialog import AdvancedExpressionDialog
 
             curr_text = self._raw_expression.strip()
             dlg = AdvancedExpressionDialog(
@@ -597,7 +597,7 @@ class PropertyTableMixin:
         for row in range(table.rowCount()):
             if self._property_key(table, row) != key:
                 continue
-            from setuav_studio.ui.numeric_spinbox import set_table_spinbox
+            from setuav_studio.ui.widget.spinbox import set_table_spinbox
 
             resolved_label = label
             if not resolved_label:

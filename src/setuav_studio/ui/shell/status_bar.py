@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.ui.icons import get_icon
-from setuav_studio.ui.log_buffer import install_log_buffer
+from setuav_studio.ui.log.buffer import install_log_buffer
 from setuav_studio.ui.theme import status_color
 
 if TYPE_CHECKING:
@@ -108,7 +108,7 @@ class StatusBarManager:
 
     def open_log_window(self) -> None:
         if self._log_window is None:
-            from setuav_studio.ui.log_window import LogWindow
+            from setuav_studio.ui.log.window import LogWindow
 
             self._log_window = LogWindow(self._window)
         self._log_window.show()

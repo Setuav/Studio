@@ -149,7 +149,7 @@ class TestWorkspacesAndTools(unittest.TestCase):
     def test_log_button_opens_log_window(self) -> None:
         import logging
 
-        from setuav_studio.ui.log_buffer import clear_log_buffer, install_log_buffer
+        from setuav_studio.ui.log.buffer import clear_log_buffer, install_log_buffer
 
         clear_log_buffer()
         install_log_buffer()

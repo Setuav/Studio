@@ -21,8 +21,8 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.ui.icons import set_label_icon
-from setuav_studio.ui.numeric_spinbox import NumericSpinBox, set_table_spinbox
-from setuav_studio.ui.property_tables import PropertyTableMixin
+from setuav_studio.ui.widget.spinbox import NumericSpinBox, set_table_spinbox
+from setuav_studio.ui.widget.table import PropertyTableMixin
 from setuav_studio_sdk import StudioAPI
 
 CONTROL_SURFACE_TYPES = [
@@ -493,7 +493,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
                 decimals=dec,
             )
         else:
-            from setuav_studio.ui.property_tables import format_engineering_value
+            from setuav_studio.ui.widget.table import format_engineering_value
             from setuav_studio.units import get_quantity_for_unit, get_unit_manager
 
             um = get_unit_manager()

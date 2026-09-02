@@ -22,8 +22,8 @@ from setuav_studio.api import (
     _candidate_sort_key,
 )
 from setuav_studio.project import ProjectDocument
-from setuav_studio.ui.editors.envelope import PHYSICAL_EXTENSION_ID, EnvelopeEditor
-from setuav_studio.ui.editors.transform import TransformEditor
+from setuav_studio.ui.editor.envelope import PHYSICAL_EXTENSION_ID, EnvelopeEditor
+from setuav_studio.ui.editor.transform import TransformEditor
 from setuav_studio.ui.project_explorer import ProjectExplorer
 from setuav_studio.ui.shell.native_registrations import register_native_contributions
 from tests._common import get_qapp
@@ -132,6 +132,7 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(envelope_contribution.icon, "fa6s.ruler-combined")
         editor = self.api.create_component_editor(contribution.selection)
         self.assertIsInstance(editor, TransformEditor)
+        self.addCleanup(editor.deleteLater)
         self.assertEqual(editor.position_spins["x"].value(), 100.0)
         self.assertEqual(editor.rotation_spins["yaw"].value(), 3.0)
 
@@ -142,6 +143,7 @@ class PluginTests(unittest.TestCase):
 
         envelope_editor = self.api.create_component_editor(envelope_contribution.selection)
         self.assertIsInstance(envelope_editor, EnvelopeEditor)
+        self.addCleanup(envelope_editor.deleteLater)
         envelope_editor.dimension_spins["x"].setValue(60)
         envelope_editor.dimension_spins["y"].setValue(30)
         envelope_editor.dimension_spins["z"].setValue(15)

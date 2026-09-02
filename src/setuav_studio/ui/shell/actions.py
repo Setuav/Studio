@@ -7,9 +7,9 @@ import shiboken6
 from PySide6.QtGui import QAction, QActionGroup, QKeySequence
 from PySide6.QtWidgets import QApplication, QDialog, QMainWindow, QMenu
 
-from setuav_studio.ui.about_dialog import AboutDialog
+from setuav_studio.ui.dialog.about import AboutDialog
+from setuav_studio.ui.dialog.plugin_manager import PluginManagerDialog
 from setuav_studio.ui.icons import get_icon
-from setuav_studio.ui.plugin_manager import PluginManagerDialog
 from setuav_studio.ui.settings.settings_pages import SettingsDialog, StudioSettings
 from setuav_studio_sdk import ActionContribution
 
@@ -159,8 +159,8 @@ class ActionManager:
         return action
 
     def switch_theme(self, mode: str) -> None:
-        from setuav_studio.ui.buttons import refresh_all_button_roles
         from setuav_studio.ui.theme import apply_theme
+        from setuav_studio.ui.widget.button import refresh_all_button_roles
 
         app = QApplication.instance()
         if isinstance(app, QApplication):
@@ -324,7 +324,7 @@ class ActionManager:
         AboutDialog(self._window).exec()
 
     def open_constraints(self) -> None:
-        from setuav_studio.ui.constraints.constraints_dialog import ManageConstraintsDialog
+        from setuav_studio.ui.constraint.constraints_dialog import ManageConstraintsDialog
 
         dlg = ManageConstraintsDialog(self._api, parent=self._window)
         dlg.exec()

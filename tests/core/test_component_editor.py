@@ -52,6 +52,7 @@ class TestComponentEditor(unittest.TestCase):
         ]
 
         editor = BaseComponentEditor(api, comp, parameter_fields=fields)
+        self.addCleanup(editor.deleteLater)
 
         # Check loaded values in general_table and parameters_table
         self.assertEqual(editor._property_text(editor.general_table, 0), "Brushless Motor")

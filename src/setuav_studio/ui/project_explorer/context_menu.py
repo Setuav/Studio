@@ -85,7 +85,7 @@ class ProjectExplorerContextMenu:
         if chosen is add_c_act:
             self._ops.add_constraint_action()
         elif chosen is manage_c_act:
-            from setuav_studio.ui.constraints.constraints_dialog import ManageConstraintsDialog
+            from setuav_studio.ui.constraint.constraints_dialog import ManageConstraintsDialog
 
             ManageConstraintsDialog(self._api, parent=self._tree).exec()
 

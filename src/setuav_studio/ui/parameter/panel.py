@@ -208,7 +208,7 @@ class ProjectParametersPanel(QWidget):
 
         from PySide6.QtWidgets import QDialog
 
-        from setuav_studio.ui.parameters.parameters_dialog import AddParameterDialog
+        from setuav_studio.ui.parameter.parameters_dialog import AddParameterDialog
 
         raw_params: dict[str, Any] = data.setdefault("parameters", {})
         dlg = AddParameterDialog(
@@ -272,7 +272,7 @@ class ProjectParametersPanel(QWidget):
         param_name = key_item.text().strip()
         curr_val = val_item.text().strip()
 
-        from setuav_studio.ui.parameters.expression_dialog import AdvancedExpressionDialog
+        from setuav_studio.ui.parameter.expression_dialog import AdvancedExpressionDialog
 
         dlg = AdvancedExpressionDialog(
             self._api,

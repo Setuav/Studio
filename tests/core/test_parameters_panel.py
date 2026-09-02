@@ -7,7 +7,7 @@ from pathlib import Path
 
 from setuav_studio.api import StudioAPI
 from setuav_studio.project import ProjectDocument
-from setuav_studio.ui.parameters.parameters_panel import ProjectParametersPanel
+from setuav_studio.ui.parameter.panel import ProjectParametersPanel
 from tests._common import get_qapp
 
 

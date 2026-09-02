@@ -43,14 +43,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.ui.buttons import set_button_role, set_native_button
 from setuav_studio.ui.icons import get_icon
-from setuav_studio.ui.numeric_spinbox import (
+from setuav_studio.ui.theme import accent_color, tokens
+from setuav_studio.ui.widget.button import set_button_role, set_native_button
+from setuav_studio.ui.widget.spinbox import (
     NoWheelComboBox,
     set_table_spinbox,
 )
-from setuav_studio.ui.property_tables import ExpressionPropertyCell
-from setuav_studio.ui.theme import accent_color, tokens
+from setuav_studio.ui.widget.table import ExpressionPropertyCell
 from setuav_studio_sdk import StudioAPI
 
 from ..engine.fuselage_geometry import compute_section_metrics, sample_profile

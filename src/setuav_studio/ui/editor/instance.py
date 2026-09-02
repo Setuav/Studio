@@ -231,9 +231,13 @@ class InstanceEditor(QWidget):
         values: list[list[float]] = []
         try:
             for row in range(2):
-                values.append(
-                    [float(self.transform_table.item(row, column).text()) for column in range(3)]
-                )
+                row_vals: list[float] = []
+                for column in range(3):
+                    item = self.transform_table.item(row, column)
+                    if item is None:
+                        raise ValueError("Missing table item")
+                    row_vals.append(float(item.text()))
+                values.append(row_vals)
         except (AttributeError, ValueError):
             self._refresh()
             return

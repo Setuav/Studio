@@ -14,7 +14,7 @@ def add_parameter_action(
     is_constant: bool = False,
     parent: QWidget | None = None,
 ) -> None:
-    from setuav_studio.ui.parameters.parameters_dialog import AddParameterDialog
+    from setuav_studio.ui.parameter.parameters_dialog import AddParameterDialog
 
     data = api.current_project.data if api.current_project else {}
     raw = data.setdefault("parameters", {})
@@ -40,7 +40,7 @@ def add_constraint_action(
     tree: QWidget,
     parent: QWidget | None = None,
 ) -> None:
-    from setuav_studio.ui.constraints.constraints_dialog import ConstraintEditDialog
+    from setuav_studio.ui.constraint.constraints_dialog import ConstraintEditDialog
 
     dlg = ConstraintEditDialog(
         parent or tree,
@@ -63,7 +63,7 @@ def edit_parameter_fx(
     element: dict[str, Any],
     parent: QWidget | None = None,
 ) -> None:
-    from setuav_studio.ui.parameters.expression_dialog import AdvancedExpressionDialog
+    from setuav_studio.ui.parameter.expression_dialog import AdvancedExpressionDialog
 
     param_key = str(element.get("key") or "")
     val = str(element.get("value") or "")

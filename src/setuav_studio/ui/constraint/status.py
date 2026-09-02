@@ -8,7 +8,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHBoxLayout, QToolButton, QWidget
 
 from setuav_studio.model.constraint import ConstraintChecker
-from setuav_studio.ui.constraints.constraints_dialog import ManageConstraintsDialog
+from setuav_studio.ui.constraint.constraints_dialog import ManageConstraintsDialog
 from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.theme import status_color
 

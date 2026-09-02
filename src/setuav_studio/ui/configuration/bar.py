@@ -8,7 +8,7 @@ from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtWidgets import QComboBox, QDialog, QToolBar
 
 from setuav_studio.model.configuration import ConfigurationManager
-from setuav_studio.ui.configurations.configuration_dialogs import (
+from setuav_studio.ui.configuration.dialog import (
     ConfigurationEditDialog,
     ManageConfigurationsDialog,
 )
@@ -149,7 +149,7 @@ class ConfigurationToolBar(QToolBar):
     def _add_constraint(self) -> None:
         if self._api.current_project is None:
             return
-        from setuav_studio.ui.constraints.constraints_dialog import ConstraintEditDialog
+        from setuav_studio.ui.constraint.constraints_dialog import ConstraintEditDialog
 
         dlg = ConstraintEditDialog(
             self,

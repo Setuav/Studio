@@ -58,7 +58,7 @@ class ShellContributionTests(unittest.TestCase):
 
         with (
             patch("setuav_studio.ui.theme.apply_theme") as apply_theme,
-            patch("setuav_studio.ui.buttons.refresh_all_button_roles") as refresh_roles,
+            patch("setuav_studio.ui.widget.button.refresh_all_button_roles") as refresh_roles,
             patch.object(StudioSettings, "load", return_value=StudioSettings(theme_mode="dark")),
             patch.object(StudioSettings, "save") as save_settings,
         ):
@@ -72,7 +72,7 @@ class ShellContributionTests(unittest.TestCase):
 
         with (
             patch("setuav_studio.ui.theme.apply_theme"),
-            patch("setuav_studio.ui.buttons.refresh_all_button_roles"),
+            patch("setuav_studio.ui.widget.button.refresh_all_button_roles"),
             patch.object(StudioSettings, "load", return_value=StudioSettings(theme_mode="nord")),
             patch.object(StudioSettings, "save") as unchanged_save,
         ):

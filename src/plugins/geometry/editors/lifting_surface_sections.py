@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.ui.buttons import set_native_button
+from setuav_studio.ui.widget.button import set_native_button
 
 from ..engine.wing_driver_solver import compute_all_8_parameters
 from ..engine.wing_planform_engine import SWEEP_LOCATIONS

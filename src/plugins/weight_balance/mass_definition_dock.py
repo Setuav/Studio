@@ -21,8 +21,8 @@ from PySide6.QtWidgets import (
 
 from plugins.geometry.engine.derived_geometry import derive_component_geometry
 from setuav_studio.ui.icons import get_icon, set_label_icon
-from setuav_studio.ui.numeric_spinbox import NumericSpinBox, set_table_spinbox
-from setuav_studio.ui.property_tables import PropertyTableMixin
+from setuav_studio.ui.widget.spinbox import NumericSpinBox, set_table_spinbox
+from setuav_studio.ui.widget.table import PropertyTableMixin
 from setuav_studio_sdk import StudioAPI
 
 from .engine.solver import EXTENSION_ID
