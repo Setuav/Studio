@@ -123,6 +123,13 @@ class ActionManager:
         # Tools Menu
         self.tools_menu = menu_bar.addMenu("&Tools")
         self.menus["tools"] = self.tools_menu
+        self.task_monitor_action = self.tools_menu.addAction(
+            get_icon("fa6s.list-check"),
+            "Background Tasks…",
+            self.open_task_monitor,
+        )
+        self.task_monitor_action.setShortcut("Ctrl+T")
+        self.command_actions["core.tasks.manage"] = self.task_monitor_action
         self.constraints_action = self.tools_menu.addAction(
             get_icon("settings"),
             "Design Constraints…",
@@ -322,6 +329,14 @@ class ActionManager:
 
     def open_about(self) -> None:
         AboutDialog(self._window).exec()
+
+    def open_task_monitor(self) -> None:
+        if hasattr(self._window, "open_task_monitor_window"):
+            self._window.open_task_monitor_window()
+        elif hasattr(self._window, "_status_bar_manager") and hasattr(
+            self._window._status_bar_manager, "open_task_monitor_window"
+        ):
+            self._window._status_bar_manager.open_task_monitor_window()
 
     def open_constraints(self) -> None:
         from setuav_studio.ui.constraint.constraints_dialog import ManageConstraintsDialog
