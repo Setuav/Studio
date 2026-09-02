@@ -8,6 +8,10 @@ from setuav_studio.ui.widget.button import (
     set_button_role,
     set_native_button,
 )
+from setuav_studio.ui.widget.chart import (
+    StudioChartWidget,
+    StudioSplitterGrid,
+)
 from setuav_studio.ui.widget.spinbox import (
     NoWheelComboBox,
     NumericSpinBox,
@@ -28,6 +32,8 @@ __all__ = [
     "NoWheelComboBox",
     "NumericSpinBox",
     "PropertyTableMixin",
+    "StudioChartWidget",
+    "StudioSplitterGrid",
     "format_engineering_value",
     "refresh_all_button_roles",
     "refresh_button_role",

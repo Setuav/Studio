@@ -3,111 +3,38 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any
 
 from PySide6.QtCharts import (
     QAreaSeries,
-    QChart,
-    QChartView,
     QLineSeries,
     QValueAxis,
 )
-from PySide6.QtCore import QPointF, QSettings, Qt
-from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen
+from PySide6.QtCore import QPointF, Qt
+from PySide6.QtGui import QBrush, QColor, QFont, QPen
 from PySide6.QtWidgets import (
-    QSplitter,
     QVBoxLayout,
     QWidget,
 )
 
+from setuav_studio.ui.widget import StudioChartWidget, StudioSplitterGrid
 from setuav_studio_sdk import StudioAPI
 
 from .engine.models import FlightEnvelopeResult
 
 
-class SinglePerformanceChartWidget(QWidget):
+class SinglePerformanceChartWidget(StudioChartWidget):
     """Sub-chart widget providing themed QtCharts plotting capabilities with dual-axis & infeasible region shading."""
 
     def __init__(self, title: str, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self._overlay_refs: list[Any] = []
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(2, 2, 2, 2)
-        layout.setSpacing(0)
-
-        self.chart = QChart()
-        self.chart.setTitle(title)
-        self.chart.setTitleFont(QFont("Inter", 9, QFont.Weight.Bold))
-        self.chart.setPlotAreaBackgroundVisible(True)
-        self.chart.legend().setVisible(True)
-        self.chart.legend().setAlignment(Qt.AlignmentFlag.AlignTop)
-        self.chart.legend().setFont(QFont("Inter", 8))
-        self.chart.layout().setContentsMargins(0, 0, 0, 0)
-        self.chart.setMargins(QChart.margins(self.chart))
-
-        self.view = QChartView(self.chart)
-        self.view.setRenderHint(QPainter.RenderHint.Antialiasing)
-        layout.addWidget(self.view)
-
-        self.update_theme_style()
-
-    def update_theme_style(self) -> None:
-        from setuav_studio.ui.theme import chart_color, is_light_theme, tokens
-
-        tok = tokens()
-        is_light = is_light_theme()
-        text_col = QColor(tok.get("text", "#1e1e1e" if is_light else "#e0e0e0"))
-        dim_col = QColor(tok.get("text_dim", "#666666" if is_light else "#888888"))
-        bg_col = QColor(tok.get("surface", "#ffffff" if is_light else "#1e1e1e"))
-        plot_bg_col = QColor(tok.get("plot", "#ffffff" if is_light else "#141414"))
-        grid_col = QColor(tok.get("grid", "#e0e0e0" if is_light else "#333333"))
-        border_col = QColor(tok.get("border", "#dddddd" if is_light else "#282828"))
-
-        self.chart.setTitleBrush(text_col)
-        self.chart.setBackgroundBrush(bg_col)
-        self.chart.setBackgroundPen(QPen(border_col))
-        self.chart.setPlotAreaBackgroundBrush(plot_bg_col)
-        self.chart.setDropShadowEnabled(False)
-        self.chart.legend().setLabelBrush(dim_col)
-
-        for axis in list(self.chart.axes()):
-            if isinstance(axis, QValueAxis):
-                axis.setTitleBrush(dim_col)
-                axis.setLabelsBrush(dim_col)
-                if axis.isGridLineVisible():
-                    axis.setGridLineColor(grid_col)
-                axis.setMinorGridLineColor(grid_col)
-                axis.setLinePenColor(dim_col)
-
-        for series in self.chart.series():
-            if isinstance(series, QLineSeries):
-                role = series.property("themeColorRole")
-                if isinstance(role, str) and role:
-                    pen = series.pen()
-                    pen.setColor(QColor(chart_color(role)))
-                    series.setPen(pen)
+        super().__init__(
+            title=title,
+            parent=parent,
+            legend_visible=True,
+            legend_alignment=Qt.AlignmentFlag.AlignTop,
+        )
 
     def _get_theme_colors(self) -> tuple[QColor, QColor]:
-        from setuav_studio.ui.theme import is_light_theme, tokens
-
-        tok = tokens()
-        is_light = is_light_theme()
-        dim_col = QColor(tok.get("text_dim", "#555555" if is_light else "#888888"))
-        grid_col = QColor(tok.get("grid", "#e2e4e8" if is_light else "#2d2d35"))
-        return grid_col, dim_col
-
-    def clear(self) -> None:
-        self._overlay_refs.clear()
-        self.chart.removeAllSeries()
-        for axis in list(self.chart.axes()):
-            self.chart.removeAxis(axis)
-
-    def series(self) -> list:
-        return self.chart.series()
-
-    def axes(self) -> list:
-        return self.chart.axes()
+        return self.get_theme_colors()
 
     def _create_axis(
         self,
@@ -390,55 +317,27 @@ class PerformanceChartsDock(QWidget):
         self.chart_mission = SinglePerformanceChartWidget("Mission Range & Endurance", self)
         self.chart_electrical = SinglePerformanceChartWidget("Electrical Power & Throttle", self)
 
-        # Main Vertical Splitter
-        self.main_splitter = QSplitter(Qt.Orientation.Vertical, self)
-        self.main_splitter.setChildrenCollapsible(False)
-        self.main_splitter.setHandleWidth(4)
+        # Grid of 4 subcharts
+        self.grid = StudioSplitterGrid(
+            self.chart_power,
+            self.chart_climb,
+            self.chart_mission,
+            self.chart_electrical,
+            self,
+        )
+        self.main_splitter = self.grid.main_splitter
+        self.top_splitter = self.grid.top_splitter
+        self.bottom_splitter = self.grid.bottom_splitter
 
-        # Top Row Horizontal Splitter (Power | Climb)
-        self.top_splitter = QSplitter(Qt.Orientation.Horizontal, self.main_splitter)
-        self.top_splitter.setChildrenCollapsible(False)
-        self.top_splitter.setHandleWidth(4)
-        self.top_splitter.addWidget(self.chart_power)
-        self.top_splitter.addWidget(self.chart_climb)
+        self.main_splitter.splitterMoved.connect(lambda: self.grid.save_state("flight_charts"))
+        self.top_splitter.splitterMoved.connect(lambda: self.grid.save_state("flight_charts"))
+        self.bottom_splitter.splitterMoved.connect(lambda: self.grid.save_state("flight_charts"))
 
-        # Bottom Row Horizontal Splitter (Mission | Electrical)
-        self.bottom_splitter = QSplitter(Qt.Orientation.Horizontal, self.main_splitter)
-        self.bottom_splitter.setChildrenCollapsible(False)
-        self.bottom_splitter.setHandleWidth(4)
-        self.bottom_splitter.addWidget(self.chart_mission)
-        self.bottom_splitter.addWidget(self.chart_electrical)
-
-        self.main_splitter.addWidget(self.top_splitter)
-        self.main_splitter.addWidget(self.bottom_splitter)
-
-        self.main_splitter.splitterMoved.connect(self._save_splitter_state)
-        self.top_splitter.splitterMoved.connect(self._save_splitter_state)
-        self.bottom_splitter.splitterMoved.connect(self._save_splitter_state)
-
-        main_layout.addWidget(self.main_splitter)
-        self._restore_splitter_state()
+        main_layout.addWidget(self.grid)
+        self.grid.restore_state("flight_charts")
 
         if self._api:
             self._api.subscribe("flight_performance.analysis_completed", self.set_results)
-
-    def _save_splitter_state(self) -> None:
-        settings = QSettings("Setware", "SetuavStudio")
-        settings.setValue("flight_charts/main_splitter", self.main_splitter.saveState())
-        settings.setValue("flight_charts/top_splitter", self.top_splitter.saveState())
-        settings.setValue("flight_charts/bottom_splitter", self.bottom_splitter.saveState())
-
-    def _restore_splitter_state(self) -> None:
-        settings = QSettings("Setware", "SetuavStudio")
-        ms = settings.value("flight_charts/main_splitter")
-        ts = settings.value("flight_charts/top_splitter")
-        bs = settings.value("flight_charts/bottom_splitter")
-        if ms:
-            self.main_splitter.restoreState(ms)
-        if ts:
-            self.top_splitter.restoreState(ts)
-        if bs:
-            self.bottom_splitter.restoreState(bs)
 
     def update_theme_style(self) -> None:
         self.chart_power.update_theme_style()

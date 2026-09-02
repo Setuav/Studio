@@ -7,121 +7,38 @@ from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 
 from PySide6.QtCharts import (
-    QChart,
-    QChartView,
     QLineSeries,
     QValueAxis,
 )
-from PySide6.QtCore import QPointF, QSettings, Qt
-from PySide6.QtGui import QCloseEvent, QColor, QFont, QPainter, QPen
+from PySide6.QtCore import QPointF, Qt
+from PySide6.QtGui import QCloseEvent, QColor, QFont, QPen
 from PySide6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
     QLabel,
-    QSplitter,
     QVBoxLayout,
     QWidget,
 )
 
+from setuav_studio.ui.widget import StudioChartWidget, StudioSplitterGrid
 from setuav_studio_sdk import StudioAPI
 
 from .engine.base import AeroResult, PolarPoint, SweepType
 
 
-class SingleChartWidget(QWidget):
+class SingleChartWidget(StudioChartWidget):
     """Sub-chart widget providing themed QtCharts plotting capabilities."""
 
     def __init__(self, title: str, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(2, 2, 2, 2)
-        layout.setSpacing(0)
-
-        self.chart = QChart()
-        self.chart.setTitle(title)
-        self.chart.setTitleFont(QFont("Inter", 9, QFont.Weight.Bold))
-        self.chart.setPlotAreaBackgroundVisible(True)
-        self.chart.legend().setVisible(False)
-        self.chart.setAnimationOptions(QChart.AnimationOption.NoAnimation)
-        self.chart.layout().setContentsMargins(0, 0, 0, 0)
-        self.chart.setMargins(QChart.margins(self.chart))
-
-        self.view = QChartView(self.chart)
-        self.view.setRenderHint(QPainter.RenderHint.Antialiasing)
-        layout.addWidget(self.view)
-
-        self.update_theme_style()
-
-    def setTitle(self, title: str) -> None:
-        self.chart.setTitle(title)
-
-    def update_theme_style(self) -> None:
-        from setuav_studio.ui.theme import chart_color, is_light_theme, tokens
-
-        tok = tokens()
-        is_light = is_light_theme()
-        text_col = QColor(tok.get("text", "#1e1e1e" if is_light else "#e0e0e0"))
-        dim_col = QColor(tok.get("text_dim", "#666666" if is_light else "#888888"))
-        bg_col = QColor(tok.get("surface", "#ffffff" if is_light else "#1e1e1e"))
-        plot_bg_col = QColor(tok.get("plot", "#ffffff" if is_light else "#141414"))
-        grid_col = QColor(tok.get("grid", "#e0e0e0" if is_light else "#333333"))
-        border_col = QColor(tok.get("border", "#dddddd" if is_light else "#282828"))
-
-        self.chart.setTitleBrush(text_col)
-        self.chart.setBackgroundBrush(bg_col)
-        self.chart.setBackgroundPen(QPen(border_col))
-        self.chart.setPlotAreaBackgroundBrush(plot_bg_col)
-        self.chart.setDropShadowEnabled(False)
-        legend = self.chart.legend()
-        if hasattr(legend, "setLabelColor"):
-            legend.setLabelColor(text_col)
-
-        for axis in list(self.chart.axes()):
-            if isinstance(axis, QValueAxis):
-                axis.setTitleBrush(dim_col)
-                axis.setLabelsBrush(dim_col)
-                axis.setGridLineColor(grid_col)
-                axis.setMinorGridLineColor(grid_col)
-                axis.setLinePenColor(dim_col)
-
-        for series in self.chart.series():
-            role = series.property("themeColorRole")
-            if isinstance(role, str) and role:
-                pen = series.pen()
-                pen.setColor(QColor(chart_color(role)))
-                series.setPen(pen)
-
-    def clear(self) -> None:
-        self.chart.removeAllSeries()
-        self.chart.legend().setVisible(False)
-        for axis in list(self.chart.axes()):
-            self.chart.removeAxis(axis)
-
-    def series(self) -> list:
-        return self.chart.series()
-
-    def axes(self) -> list:
-        return self.chart.axes()
+        super().__init__(
+            title=title,
+            parent=parent,
+            legend_visible=False,
+            animated=False,
+        )
 
     def _create_axis(self, title: str = "") -> QValueAxis:
-        from setuav_studio.ui.theme import is_light_theme, tokens
-
-        tok = tokens()
-        is_light = is_light_theme()
-        dim_col = QColor(tok.get("text_dim", "#555555" if is_light else "#888888"))
-        grid_col = QColor(tok.get("grid", "#e2e4e8" if is_light else "#2d2d35"))
-
-        axis = QValueAxis()
-        if title:
-            axis.setTitleText(title)
-            axis.setTitleBrush(dim_col)
-            axis.setTitleFont(QFont("Inter", 8))
-        axis.setLabelsBrush(dim_col)
-        axis.setLabelsFont(QFont("Inter", 8))
-        axis.setGridLineColor(grid_col)
-        axis.setMinorGridLineColor(grid_col)
-        axis.setLinePenColor(dim_col)
-        return axis
+        return self.create_axis(title=title)
 
     @staticmethod
     def _padded_range(values: Sequence[float]) -> tuple[float, float]:
@@ -297,52 +214,24 @@ class AeroChartsDock(QWidget):
         self.chart_moment = SingleChartWidget("Pitching Moment (Cm vs α)", self)
         self.chart_ld = SingleChartWidget("Aerodynamic Efficiency (L/D vs α)", self)
 
-        # Main Vertical Splitter
-        self.main_splitter = QSplitter(Qt.Orientation.Vertical, self)
-        self.main_splitter.setChildrenCollapsible(False)
-        self.main_splitter.setHandleWidth(4)
+        # Grid of 4 subcharts
+        self.grid = StudioSplitterGrid(
+            self.chart_lift,
+            self.chart_polar,
+            self.chart_moment,
+            self.chart_ld,
+            self,
+        )
+        self.main_splitter = self.grid.main_splitter
+        self.top_splitter = self.grid.top_splitter
+        self.bottom_splitter = self.grid.bottom_splitter
 
-        # Top Row Horizontal Splitter (Lift | Polar)
-        self.top_splitter = QSplitter(Qt.Orientation.Horizontal, self.main_splitter)
-        self.top_splitter.setChildrenCollapsible(False)
-        self.top_splitter.setHandleWidth(4)
-        self.top_splitter.addWidget(self.chart_lift)
-        self.top_splitter.addWidget(self.chart_polar)
+        self.main_splitter.splitterMoved.connect(lambda: self.grid.save_state("aero_charts"))
+        self.top_splitter.splitterMoved.connect(lambda: self.grid.save_state("aero_charts"))
+        self.bottom_splitter.splitterMoved.connect(lambda: self.grid.save_state("aero_charts"))
 
-        # Bottom Row Horizontal Splitter (Moment | Efficiency)
-        self.bottom_splitter = QSplitter(Qt.Orientation.Horizontal, self.main_splitter)
-        self.bottom_splitter.setChildrenCollapsible(False)
-        self.bottom_splitter.setHandleWidth(4)
-        self.bottom_splitter.addWidget(self.chart_moment)
-        self.bottom_splitter.addWidget(self.chart_ld)
-
-        self.main_splitter.addWidget(self.top_splitter)
-        self.main_splitter.addWidget(self.bottom_splitter)
-
-        self.main_splitter.splitterMoved.connect(self._save_splitter_state)
-        self.top_splitter.splitterMoved.connect(self._save_splitter_state)
-        self.bottom_splitter.splitterMoved.connect(self._save_splitter_state)
-
-        main_layout.addWidget(self.main_splitter)
-        self._restore_splitter_state()
-
-    def _save_splitter_state(self) -> None:
-        settings = QSettings("Setware", "SetuavStudio")
-        settings.setValue("aero_charts/main_splitter", self.main_splitter.saveState())
-        settings.setValue("aero_charts/top_splitter", self.top_splitter.saveState())
-        settings.setValue("aero_charts/bottom_splitter", self.bottom_splitter.saveState())
-
-    def _restore_splitter_state(self) -> None:
-        settings = QSettings("Setware", "SetuavStudio")
-        ms = settings.value("aero_charts/main_splitter")
-        if ms:
-            self.main_splitter.restoreState(ms)
-        ts = settings.value("aero_charts/top_splitter")
-        if ts:
-            self.top_splitter.restoreState(ts)
-        bs = settings.value("aero_charts/bottom_splitter")
-        if bs:
-            self.bottom_splitter.restoreState(bs)
+        main_layout.addWidget(self.grid)
+        self.grid.restore_state("aero_charts")
 
     def _on_view_mode_changed(self, _index: int) -> None:
         active_key = self.combo_view_mode.currentData()
