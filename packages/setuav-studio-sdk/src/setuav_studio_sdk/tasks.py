@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from enum import StrEnum
+from enum import IntEnum, StrEnum
 from typing import Any, Protocol, TypeVar
 
 T = TypeVar("T")
@@ -19,6 +19,15 @@ class TaskStatus(StrEnum):
     SUCCESS = "success"
     CANCELLED = "cancelled"
     ERROR = "error"
+
+
+class TaskPriority(IntEnum):
+    """Execution priority of a background task."""
+
+    LOW = -10
+    NORMAL = 0
+    HIGH = 10
+    CRITICAL = 20
 
 
 @dataclass(frozen=True)
@@ -72,6 +81,11 @@ class TaskHandle(Protocol[T_co]):
         ...
 
     @property
+    def priority(self) -> TaskPriority:
+        """Task priority."""
+        ...
+
+    @property
     def status(self) -> TaskStatus:
         """Current lifecycle status."""
         ...
@@ -81,7 +95,42 @@ class TaskHandle(Protocol[T_co]):
         """True if cancellation was requested."""
         ...
 
-    def cancel(self) -> None:
+    @property
+    def created_at(self) -> float:
+        """Epoch timestamp when the task was created."""
+        ...
+
+    @property
+    def started_at(self) -> float | None:
+        """Epoch timestamp when the task started running."""
+        ...
+
+    @property
+    def completed_at(self) -> float | None:
+        """Epoch timestamp when the task finished/failed/cancelled."""
+        ...
+
+    @property
+    def duration_seconds(self) -> float:
+        """Total execution duration in seconds."""
+        ...
+
+    @property
+    def progress(self) -> TaskProgress | None:
+        """Current progress snapshot."""
+        ...
+
+    @property
+    def result(self) -> Any | None:
+        """Result returned by successful task execution."""
+        ...
+
+    @property
+    def error(self) -> Exception | None:
+        """Exception raised during task execution, if any."""
+        ...
+
+    def cancel(self) -> bool:
         """Request cancellation."""
         ...
 
@@ -94,6 +143,7 @@ class TaskManagerProtocol(Protocol):
         name: str,
         target: Callable[[CancellationToken], T],
         *,
+        priority: TaskPriority = TaskPriority.NORMAL,
         on_finished: Callable[[T], None] | None = None,
         on_error: Callable[[Exception], None] | None = None,
         on_progress: Callable[[TaskProgress], None] | None = None,
@@ -110,9 +160,21 @@ class TaskManagerProtocol(Protocol):
         """Cancel all running and pending tasks."""
         ...
 
+    def get_task(self, task_id: str) -> TaskHandle[Any] | None:
+        """Retrieve task handle by ID."""
+        ...
+
     @property
     def active_tasks(self) -> tuple[TaskHandle[Any], ...]:
         """Tuple of active running and pending tasks."""
+        ...
+
+    def recent_tasks(self, limit: int = 50) -> tuple[TaskHandle[Any], ...]:
+        """Tuple of recent tasks including finished, failed and cancelled."""
+        ...
+
+    def clear_history(self) -> None:
+        """Clear finished, failed and cancelled tasks from history."""
         ...
 
 
@@ -121,6 +183,7 @@ __all__ = [
     "TaskCancelledError",
     "TaskHandle",
     "TaskManagerProtocol",
+    "TaskPriority",
     "TaskProgress",
     "TaskStatus",
 ]

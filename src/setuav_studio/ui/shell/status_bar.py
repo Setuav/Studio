@@ -23,13 +23,14 @@ if TYPE_CHECKING:
 
 
 class StatusBarManager:
-    """Manages status messages, progress indicator, logs button, and degraded badge."""
+    """Manages status messages, progress indicator, logs button, task monitor, and degraded badge."""
 
     def __init__(self, window: QMainWindow, api: StudioAPI) -> None:
         self._window = window
         self._api = api
         self._host = api._host
         self._log_window: QDialog | None = None
+        self._task_monitor_window: QDialog | None = None
         self._status_level = "info"
 
         status_bar = self._window.statusBar()
@@ -42,6 +43,16 @@ class StatusBarManager:
         self.degraded_badge.hide()
         self.degraded_badge.clicked.connect(self.show_degraded_details)
         status_bar.addPermanentWidget(self.degraded_badge)
+
+        self.tasks_button = QToolButton(self._window)
+        self.tasks_button.setObjectName("studioStatusTasksButton")
+        self.tasks_button.setIcon(get_icon("fa6s.list-check"))
+        self.tasks_button.setToolTip("Background Tasks Manager")
+        self.tasks_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.tasks_button.setAutoRaise(True)
+        self.tasks_button.setFixedSize(22, 22)
+        self.tasks_button.clicked.connect(self.open_task_monitor_window)
+        status_bar.addPermanentWidget(self.tasks_button)
 
         self.log_button = QToolButton(self._window)
         self.log_button.setObjectName("studioStatusLogButton")
@@ -133,6 +144,9 @@ class StatusBarManager:
         if count <= 0:
             self.progress_bar.hide()
             self.cancel_button.hide()
+            self.tasks_button.setToolTip("Background Tasks Manager (Idle)")
+        else:
+            self.tasks_button.setToolTip(f"Background Tasks Manager ({count} active)")
 
     def show_status_message(
         self,
@@ -173,6 +187,15 @@ class StatusBarManager:
         self._log_window.show()
         self._log_window.raise_()
         self._log_window.activateWindow()
+
+    def open_task_monitor_window(self) -> None:
+        if self._task_monitor_window is None:
+            from setuav_studio.ui.task_monitor import TaskMonitorDialog
+
+            self._task_monitor_window = TaskMonitorDialog(self._api, self._window)
+        self._task_monitor_window.show()
+        self._task_monitor_window.raise_()
+        self._task_monitor_window.activateWindow()
 
     def show_degraded_details(self, project: ProjectDocument | None = None) -> None:
         proj = project or getattr(self._window, "_project", None)

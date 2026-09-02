@@ -5,6 +5,7 @@ from setuav_studio_sdk.tasks import (
     TaskCancelledError,
     TaskHandle,
     TaskManagerProtocol,
+    TaskPriority,
     TaskProgress,
     TaskStatus,
 )
@@ -18,6 +19,7 @@ __all__ = [
     "TaskHandleImpl",
     "TaskManager",
     "TaskManagerProtocol",
+    "TaskPriority",
     "TaskProgress",
     "TaskStatus",
 ]
