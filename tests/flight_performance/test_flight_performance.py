@@ -40,6 +40,9 @@ class TestFlightPerformance(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.app = get_qapp()
 
+    def tearDown(self) -> None:
+        self._drain_events()
+
     def _drain_events(self, iterations: int = 15) -> None:
         QThreadPool.globalInstance().waitForDone()
         for _ in range(iterations):
@@ -318,10 +321,10 @@ class TestFlightPerformance(unittest.TestCase):
 
         api = StudioAPI()
         win = MainWindow(api)
+        self.addCleanup(win.deleteLater)
         pm = PluginManager(api)
         pm.activate(ElectricalPropulsionPlugin())
         pm.activate(FlightPerformancePlugin())
-        pm.discover()
         win.restore_window_layout()
 
         doc = open_project(self._temporary_project_copy())
@@ -365,6 +368,7 @@ class TestFlightPerformance(unittest.TestCase):
         from plugins.flight_performance.results_dock import PerformanceResultsDock
 
         dock = PerformanceResultsDock(api)
+        self.addCleanup(dock.deleteLater)
         res = FlightEnvelopeResult(
             mass_kg=2.0,
             area_m2=0.5,

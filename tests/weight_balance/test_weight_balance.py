@@ -335,6 +335,8 @@ class WeightBalancePluginTests(unittest.TestCase):
         by_id = {panel.id: panel for panel in panels}
         view = by_id["weight_balance.view_dock"].factory()
         results = by_id["weight_balance.results_dock"].factory()
+        self.addCleanup(view.deleteLater)
+        self.addCleanup(results.deleteLater)
 
         self.assertIsInstance(view, QMainWindow)
         self.assertEqual(view.top_dock.windowTitle(), "Top View · X / Y")

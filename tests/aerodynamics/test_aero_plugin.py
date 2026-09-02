@@ -76,6 +76,9 @@ class AerodynamicsPluginTests(unittest.TestCase):
 
         self.plugin = AerodynamicsPlugin()
 
+    def tearDown(self) -> None:
+        self._app.processEvents()
+
     def test_activation_registers_workspace_and_panels(self) -> None:
         self.plugin.activate(self.api)
 

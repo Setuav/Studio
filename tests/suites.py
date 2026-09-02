@@ -96,6 +96,31 @@ def main(argv: Sequence[str] | None = None) -> int:
         os.path.join(tempfile.gettempdir(), "setuav-studio-matplotlib"),
     )
 
+    if args.suite == "all":
+        import subprocess
+
+        sub_suites = [
+            "core",
+            "geometry",
+            "aerodynamics-fast",
+            "aerodynamics-integration",
+            "electrical-propulsion",
+            "flight-performance",
+            "weight-balance",
+        ]
+        total_was_successful = True
+        for s in sub_suites:
+            cmd = [sys.executable, "-m", "tests.suites", s]
+            if args.verbose:
+                cmd.append("-v")
+            print("\n========================================================")
+            print(f"=== Running Test Suite: {s}")
+            print("========================================================")
+            res = subprocess.run(cmd)
+            if res.returncode != 0:
+                total_was_successful = False
+        return 0 if total_was_successful else 1
+
     result = unittest.TextTestRunner(verbosity=2 if args.verbose else 1).run(load_suite(args.suite))
     return 0 if result.wasSuccessful() else 1
 

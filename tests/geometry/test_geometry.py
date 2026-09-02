@@ -2190,6 +2190,7 @@ def _build_fuselage_component() -> dict:
 
         api = StudioAPI()
         workspace = GeometryWorkspace(api)
+        self.addCleanup(get_qapp().processEvents)
         self.addCleanup(workspace.deleteLater)
 
         self.assertTrue(hasattr(workspace, "_action_transparent_bg"))
