@@ -131,7 +131,7 @@ class ActionManager:
         self.task_monitor_action.setShortcut("Ctrl+T")
         self.command_actions["core.tasks.manage"] = self.task_monitor_action
         self.constraints_action = self.tools_menu.addAction(
-            get_icon("settings"),
+            get_icon("constraint"),
             "Design Constraints…",
             self.open_constraints,
         )
