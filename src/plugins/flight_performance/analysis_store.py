@@ -47,7 +47,7 @@ def append_analysis_entry(extension: dict[str, Any], entry: dict[str, Any]) -> N
 def analysis_entries(project: ProjectDocument | None) -> tuple[dict[str, Any], ...]:
     if project is None:
         return ()
-    extension = project.get_extension(EXTENSION_ID, {})
+    extension = project.get_plugin_data(EXTENSION_ID, {})
     if not isinstance(extension, dict):
         return ()
     results = extension.get("results")
@@ -77,10 +77,10 @@ def store_performance_result(
     label: str = "Flight Performance Envelope",
 ) -> dict[str, Any]:
     """Store a flight performance envelope result in the project document extension."""
-    ext = project.get_extension(EXTENSION_ID)
+    ext = project.get_plugin_data(EXTENSION_ID)
     if not isinstance(ext, dict):
         ext = {"results_version": RESULTS_VERSION, "results": []}
-        project.set_extension(EXTENSION_ID, ext)
+        project.set_plugin_data(EXTENSION_ID, ext)
 
     entry = make_analysis_entry(result, label)
     append_analysis_entry(ext, entry)

@@ -155,7 +155,7 @@ class AerodynamicsPlugin:
     def _migrate_project_results(self, project: ProjectDocument) -> None:
         if self._api is None or project.read_only:
             return
-        extension = project.get_extension(EXTENSION_ID)
+        extension = project.get_plugin_data(EXTENSION_ID)
         if not isinstance(extension, dict) or not isinstance(extension.get("results"), list):
             return
         if extension.get("results_version") == RESULTS_VERSION:

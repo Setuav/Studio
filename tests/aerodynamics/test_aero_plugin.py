@@ -158,7 +158,7 @@ class AerodynamicsPluginTests(unittest.TestCase):
             },
         )
         self.api._host.set_project(project)
-        persisted = project.get_extension("org.setuav.studio.aerodynamics")
+        persisted = project.get_plugin_data("org.setuav.studio.aerodynamics")
         self.assertEqual(persisted["results_version"], RESULTS_VERSION)
         self.assertEqual(persisted["results"][0]["result"]["method"], "aero_buildup")
 

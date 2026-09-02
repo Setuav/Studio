@@ -1430,11 +1430,10 @@ class GeometryTests(unittest.TestCase):
 
     def test_fuselage_section_dialog_and_metrics(self) -> None:
         """Verify 2D fuselage section metrics calculation and dialog functionality."""
-        from plugins.geometry.fuselage_geometry import sample_profile
+        from plugins.geometry.fuselage_geometry import compute_section_metrics, sample_profile
         from plugins.geometry.fuselage_section_dialog import (
             FuselageCanvasWidget,
             FuselageSectionDialog,
-            compute_section_metrics,
         )
 
         from setuav_studio.api import StudioAPI

@@ -111,7 +111,7 @@ def append_analysis_entry(extension: dict[str, Any], entry: dict[str, Any]) -> N
 def analysis_entries(project: ProjectDocument | None) -> tuple[dict[str, Any], ...]:
     if project is None:
         return ()
-    extension = project.get_extension(EXTENSION_ID, {})
+    extension = project.get_plugin_data(EXTENSION_ID, {})
     if not isinstance(extension, dict):
         return ()
     results = extension.get("results")

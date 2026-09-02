@@ -125,25 +125,25 @@ class ProjectTests(unittest.TestCase):
         project = open_project(project_file)
 
         # 1. Read extensions via helpers
-        self.assertEqual(project.get_extension("com.thirdparty.mission"), {"waypoint_count": 12})
+        self.assertEqual(project.get_plugin_data("com.thirdparty.mission"), {"waypoint_count": 12})
         self.assertEqual(
-            project.get_component_extension("wing_1", "com.thirdparty.solar"),
+            project.get_component_plugin_data("wing_1", "com.thirdparty.solar"),
             {"cell_count": 36, "efficiency": 0.22},
         )
-        self.assertIsNone(project.get_extension("nonexistent"))
+        self.assertIsNone(project.get_plugin_data("nonexistent"))
 
         # 2. Modify extensions via helpers
-        project.set_extension("com.thirdparty.mission", {"waypoint_count": 24})
-        project.set_component_extension(
+        project.set_plugin_data("com.thirdparty.mission", {"waypoint_count": 24})
+        project.set_component_plugin_data(
             "wing_1", "com.thirdparty.solar", {"cell_count": 48, "efficiency": 0.24}
         )
         save_project(project)
 
         # 3. Reload from disk and verify lossless preservation
         reloaded = open_project(project_file)
-        self.assertEqual(reloaded.get_extension("com.thirdparty.mission")["waypoint_count"], 24)
+        self.assertEqual(reloaded.get_plugin_data("com.thirdparty.mission")["waypoint_count"], 24)
         self.assertEqual(
-            reloaded.get_component_extension("wing_1", "com.thirdparty.solar")["cell_count"], 48
+            reloaded.get_component_plugin_data("wing_1", "com.thirdparty.solar")["cell_count"], 48
         )
 
     def test_undo_redo_extension_edits_via_studio_api(self) -> None:
@@ -165,15 +165,15 @@ class ProjectTests(unittest.TestCase):
             "Set test config",
             lambda ext: ext.update({"alpha": 10}),
         )
-        self.assertEqual(project.get_extension("com.example.test")["alpha"], 10)
+        self.assertEqual(project.get_plugin_data("com.example.test")["alpha"], 10)
 
         # 2. Undo project extension edit
         api.undo()
-        self.assertIsNone(project.get_extension("com.example.test"))
+        self.assertIsNone(project.get_plugin_data("com.example.test"))
 
         # 3. Redo project extension edit
         api._host.undo_stack.redo()
-        self.assertEqual(project.get_extension("com.example.test")["alpha"], 10)
+        self.assertEqual(project.get_plugin_data("com.example.test")["alpha"], 10)
 
         # 4. Edit component extension
         api.edit_component_extension(
@@ -182,11 +182,13 @@ class ProjectTests(unittest.TestCase):
             "Set comp prop",
             lambda ext: ext.update({"gain": 1.5}),
         )
-        self.assertEqual(project.get_component_extension("c1", "com.example.comp_ext")["gain"], 1.5)
+        self.assertEqual(
+            project.get_component_plugin_data("c1", "com.example.comp_ext")["gain"], 1.5
+        )
 
         # 5. Undo component extension edit
         api.undo()
-        self.assertIsNone(project.get_component_extension("c1", "com.example.comp_ext"))
+        self.assertIsNone(project.get_component_plugin_data("c1", "com.example.comp_ext"))
 
     def test_plugin_data_access_and_mutation(self) -> None:
         """Verify get_plugin_data / set_plugin_data / get_component_plugin_data methods."""
@@ -202,19 +204,36 @@ class ProjectTests(unittest.TestCase):
         project = open_project(self._write_project_json())
 
         # Root level plugin data
-        self.assertEqual(project.get_plugin("flight_plan")["waypoints"], [1, 2, 3])
-        project.set_plugin("flight_plan", {"waypoints": [1, 2, 3, 4]})
+        self.assertEqual(project.get_plugin_data("flight_plan")["waypoints"], [1, 2, 3])
+        project.set_plugin_data("flight_plan", {"waypoints": [1, 2, 3, 4]})
         self.assertEqual(project.get_plugin_data("flight_plan")["waypoints"], [1, 2, 3, 4])
         self.assertTrue(project.modified)
 
         # Component level plugin data
-        self.assertEqual(project.get_component_plugin("c1", "aero")["cl"], 1.2)
-        project.set_component_plugin("c1", "aero", {"cl": 1.5})
+        self.assertEqual(project.get_component_plugin_data("c1", "aero")["cl"], 1.2)
+        project.set_component_plugin_data("c1", "aero", {"cl": 1.5})
         self.assertEqual(project.get_component_plugin_data("c1", "aero")["cl"], 1.5)
 
         # Remove plugin data
         project.remove_plugin_data("flight_plan")
-        self.assertIsNone(project.get_plugin("flight_plan"))
+        self.assertIsNone(project.get_plugin_data("flight_plan"))
+
+    def test_typed_vehicle_domain_model_access(self) -> None:
+        """Verify project.vehicle and project.get_typed_component bridge."""
+        self.project_data["components"] = [
+            {
+                "id": "main_wing",
+                "name": "Main Wing",
+                "type": "org.setuav.geometry:wing",
+                "parameters": {"span": 2.5},
+            }
+        ]
+        project = open_project(self._write_project_json())
+        vehicle = project.vehicle
+        self.assertEqual(vehicle.name, project.data.get("name", "Unnamed Vehicle"))
+        comp = project.get_typed_component("main_wing")
+        self.assertIsNotNone(comp)
+        self.assertEqual(comp.name, "Main Wing")
 
     def _write_project_json(self) -> Path:
         project_file = self.root / "project.json"

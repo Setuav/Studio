@@ -38,28 +38,30 @@ class ProjectEdgeCaseTests(unittest.TestCase):
         folder_document.plugin_issues.append("missing plugin")
         self.assertTrue(folder_document.degraded)
 
-        self.assertEqual(folder_document.get_extension("missing", "fallback"), "fallback")
+        self.assertEqual(folder_document.get_plugin_data("missing", "fallback"), "fallback")
         folder_document.data["extensions"] = "invalid"
-        folder_document.set_extension("plugin", {"enabled": True})
-        self.assertEqual(folder_document.get_extension("plugin"), {"enabled": True})
-        folder_document.remove_extension("missing")
-        folder_document.remove_extension("plugin")
-        self.assertIsNone(folder_document.get_extension("plugin"))
+        folder_document.set_plugin_data("plugin", {"enabled": True})
+        self.assertEqual(folder_document.get_plugin_data("plugin"), {"enabled": True})
+        folder_document.remove_plugin_data("missing")
+        folder_document.remove_plugin_data("plugin")
+        self.assertIsNone(folder_document.get_plugin_data("plugin"))
         folder_document.data["extensions"] = "invalid"
-        folder_document.remove_extension("plugin")
+        folder_document.remove_plugin_data("plugin")
 
     def test_component_extension_helpers_handle_invalid_and_missing_components(self) -> None:
         document = ProjectDocument(self.root / "project.json", "json", {"components": "invalid"})
         self.assertIsNone(document.get_component("missing"))
-        self.assertEqual(document.get_component_extension("missing", "ext", "fallback"), "fallback")
+        self.assertEqual(
+            document.get_component_plugin_data("missing", "ext", "fallback"), "fallback"
+        )
         with self.assertRaises(KeyError):
-            document.set_component_extension("missing", "ext", {})
+            document.set_component_plugin_data("missing", "ext", {})
 
         component = {"id": "wing", "extensions": "invalid"}
         document.data["components"] = ["invalid", component]
-        self.assertEqual(document.get_component_extension("wing", "ext", "fallback"), "fallback")
-        document.set_component_extension("wing", "ext", {"value": 1})
-        self.assertEqual(document.get_component_extension("wing", "ext"), {"value": 1})
+        self.assertEqual(document.get_component_plugin_data("wing", "ext", "fallback"), "fallback")
+        document.set_component_plugin_data("wing", "ext", {"value": 1})
+        self.assertEqual(document.get_component_plugin_data("wing", "ext"), {"value": 1})
 
     def test_open_rejects_unsupported_invalid_and_non_object_json(self) -> None:
         with self.assertRaisesRegex(ProjectOpenError, "Expected a project"):

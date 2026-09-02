@@ -72,11 +72,22 @@ class ProjectDocument:
             del extensions[namespace]
             self.modified = True
 
-    get_plugin = get_plugin_data
-    set_plugin = set_plugin_data
-    get_extension = get_plugin_data
-    set_extension = set_plugin_data
-    remove_extension = remove_plugin_data
+    @property
+    def vehicle(self) -> Any:
+        """Return the typed domain Vehicle model constructed from project data."""
+        from setuav_studio.model.vehicle import Vehicle
+
+        return Vehicle.from_dict(self.data)
+
+    def set_vehicle(self, vehicle: Any) -> None:
+        """Update the underlying project dictionary from a Vehicle domain model."""
+        self.data.clear()
+        self.data.update(vehicle.to_dict())
+        self.modified = True
+
+    def get_typed_component(self, comp_id: str) -> Any:
+        """Find a component by ID and return its typed Component model."""
+        return self.vehicle.get_component(comp_id)
 
     def get_component(self, comp_id: str) -> dict[str, Any] | None:
         """Find a component by its ID."""
@@ -107,11 +118,6 @@ class ProjectDocument:
             comp["plugins"] = {}
         comp["plugins"][namespace] = value
         self.modified = True
-
-    get_component_plugin = get_component_plugin_data
-    set_component_plugin = set_component_plugin_data
-    get_component_extension = get_component_plugin_data
-    set_component_extension = set_component_plugin_data
 
     def get_configuration_manager(self) -> Any:
         """Return the shared ConfigurationManager instance for this project."""
