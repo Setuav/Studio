@@ -9,8 +9,8 @@ from __future__ import annotations
 from typing import Any
 
 from setuav_studio.model.component import Component, GenericComponent
-from setuav_studio.model.configurations import ConfigurationManager
-from setuav_studio.model.parameters import ParameterResolver
+from setuav_studio.model.configuration import ConfigurationManager
+from setuav_studio.model.parameter import ParameterResolver
 
 
 def create_model_for_component(

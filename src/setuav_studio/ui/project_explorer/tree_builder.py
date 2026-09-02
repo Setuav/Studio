@@ -183,7 +183,7 @@ class ProjectTreeBuilder:
         self._tree._constraints_group_item = constraint_group
         project_item.addChild(constraint_group)
 
-        from setuav_studio.model.constraints import ConstraintChecker
+        from setuav_studio.model.constraint import ConstraintChecker
 
         checker = ConstraintChecker()
 

@@ -15,7 +15,7 @@ import re
 from collections.abc import Callable
 from typing import Any
 
-from setuav_studio.model.parameters import ParameterResolver
+from setuav_studio.model.parameter import ParameterResolver
 
 
 class ConfigurationError(Exception):

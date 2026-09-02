@@ -199,7 +199,7 @@ class PointMassEditor(PropertyTableMixin, QWidget):
             params["mass_expression"] = clean
             if self._api is not None and getattr(self._api, "current_project", None) is not None:
                 try:
-                    from setuav_studio.model.expressions import ExpressionEvaluator
+                    from setuav_studio.model.expression import ExpressionEvaluator
 
                     evaluator = ExpressionEvaluator()
                     scope = self._api.current_project.get_scope(api=self._api)

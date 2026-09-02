@@ -1,6 +1,6 @@
 import unittest
 
-from setuav_studio.model.parameters import (
+from setuav_studio.model.parameter import (
     CircularDependencyError,
     ParameterResolver,
 )

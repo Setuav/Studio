@@ -1,6 +1,6 @@
 import unittest
 
-from setuav_studio.model.configurations import (
+from setuav_studio.model.configuration import (
     ConfigurationManager,
     apply_configuration_delta,
     compute_configuration_delta,

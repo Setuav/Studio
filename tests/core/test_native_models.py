@@ -8,10 +8,10 @@ import unittest
 from PySide6.QtWidgets import QApplication
 
 from setuav_studio.api import PluginManager, StudioAPI
-from setuav_studio.model.constraints import ConstraintChecker
-from setuav_studio.model.expressions import ExpressionEvaluator
-from setuav_studio.model.parameters import ParameterResolver
-from setuav_studio.model.symbols import get_available_symbols_metadata
+from setuav_studio.model.constraint import ConstraintChecker
+from setuav_studio.model.expression import ExpressionEvaluator
+from setuav_studio.model.parameter import ParameterResolver
+from setuav_studio.model.symbol import get_available_symbols_metadata
 from setuav_studio.project import open_project
 
 

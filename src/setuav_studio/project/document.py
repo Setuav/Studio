@@ -119,7 +119,7 @@ class ProjectDocument:
             not hasattr(self, "_config_manager")
             or getattr(self, "_config_manager_data", None) is not self.data
         ):
-            from setuav_studio.model.configurations import ConfigurationManager
+            from setuav_studio.model.configuration import ConfigurationManager
 
             self._config_manager = ConfigurationManager(self.data)
             self._config_manager_data = self.data

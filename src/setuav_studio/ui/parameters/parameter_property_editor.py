@@ -14,8 +14,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.model.configurations import ConfigurationManager
-from setuav_studio.model.parameters import ParameterResolver
+from setuav_studio.model.configuration import ConfigurationManager
+from setuav_studio.model.parameter import ParameterResolver
 from setuav_studio.ui.icons import set_label_icon
 from setuav_studio.ui.parameters.expression_dialog import AdvancedExpressionDialog
 from setuav_studio.ui.property_tables import PropertyTableMixin

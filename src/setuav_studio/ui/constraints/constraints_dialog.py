@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.model.constraints import ConstraintChecker, ConstraintResult
+from setuav_studio.model.constraint import ConstraintChecker, ConstraintResult
 from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.theme import status_color
 

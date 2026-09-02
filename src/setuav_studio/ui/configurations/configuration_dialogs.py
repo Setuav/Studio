@@ -27,7 +27,7 @@ from PySide6.QtWidgets import (
 from setuav_studio.ui.icons import create_color_badge_icon, get_icon
 
 if TYPE_CHECKING:
-    from setuav_studio.model.configurations import ConfigurationManager
+    from setuav_studio.model.configuration import ConfigurationManager
     from setuav_studio_sdk import StudioAPI
 
 
