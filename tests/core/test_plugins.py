@@ -1,6 +1,6 @@
 import unittest
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from plugins.geometry.data import GeometryData, LoftGeometry, Section
 from plugins.geometry.fuselage import FuselageEditor
@@ -551,26 +551,24 @@ class PluginTests(unittest.TestCase):
         self.assertNotIn("test.removable", window._panels)
         self.assertNotIn("test.removable-ws", window._workspaces)
 
-    def test_dynamic_schema_registration_and_validation(self) -> None:
-        """Verify 3rd party plugins can dynamically register schemas and validate component types."""
+    def test_dynamic_component_validator_registration(self) -> None:
+        """Verify 3rd party plugins can dynamically register component validators."""
         from setuav_studio.project.validation import validate_project
 
         api = StudioAPI()
 
-        # 1. Custom 3rd-party component schema
-        custom_schema = {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "type": "object",
-            "required": ["frequency_ghz"],
-            "properties": {
-                "frequency_ghz": {"type": "number", "minimum": 1.0, "maximum": 100.0},
-            },
-        }
+        def validate_radar(params: dict[str, Any]) -> list[str] | None:
+            freq = params.get("frequency_ghz")
+            if freq is None:
+                return ["frequency_ghz is required"]
+            if not (1.0 <= freq <= 100.0):
+                return ["frequency_ghz must be between 1.0 and 100.0 GHz"]
+            return None
 
-        # 2. Register via StudioAPI
-        api.register_component_type_schema("com.custom:radar-sensor", custom_schema)
+        # 1. Register via StudioAPI
+        api.register_component_validator("com.custom:radar-sensor", validate_radar)
 
-        # 3. Valid project with custom component
+        # 2. Valid project with custom component
         valid_project = {
             "name": "Radar Drone",
             "plugins": [],
@@ -586,7 +584,7 @@ class PluginTests(unittest.TestCase):
         issues = validate_project(valid_project)
         self.assertEqual(len(issues), 0)
 
-        # 4. Invalid project (frequency out of bounds)
+        # 3. Invalid project (frequency out of bounds)
         invalid_project = {
             "name": "Radar Drone",
             "plugins": [],

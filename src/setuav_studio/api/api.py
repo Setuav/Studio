@@ -731,24 +731,15 @@ class StudioAPI:
             nodes.extend(provider(project))
         return tuple(nodes)
 
-    def register_schema(self, schema_id: str, schema_dict: dict[str, Any]) -> None:
-        """Register a custom JSON schema dynamically (for 3rd-party plugins)."""
-        from setuav_studio.project.validation import get_catalog
-
-        get_catalog().register_schema(schema_dict, schema_id)
-
-    def register_component_type_schema(
+    def register_component_validator(
         self,
         component_type: str,
-        schema_dict: dict[str, Any],
-        plugin_id: str | None = None,
+        validator: Callable[[dict[str, Any]], list[Any] | None],
     ) -> None:
-        """Register a custom component type schema dynamically under a plugin."""
-        from setuav_studio.project.validation import get_catalog
+        """Register a custom validation callable for a component type."""
+        from setuav_studio.project.validation import register_component_validator
 
-        get_catalog().register_component_type_schema(
-            component_type, schema_dict, plugin_id=plugin_id
-        )
+        register_component_validator(component_type, validator)
 
     def build_geometry_data(
         self,

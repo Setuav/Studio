@@ -568,10 +568,10 @@ class PluginSystemEdgeTests(unittest.TestCase):
         empty_api.remove_project_listener(lambda _project: None)
         self.assertEqual(workspace_changes, ["design"])
 
-        catalog = Mock()
-        with patch("setuav_studio.project.validation.get_catalog", return_value=catalog):
-            empty_api.register_schema("example", {"type": "object"})
-        catalog.register_schema.assert_called_once_with({"type": "object"}, "example")
+        validator_mock = Mock()
+        with patch("setuav_studio.project.validation.register_component_validator") as mock_reg:
+            empty_api.register_component_validator("example", validator_mock)
+        mock_reg.assert_called_once_with("example", validator_mock)
 
     def test_workspace_listener_can_be_removed(self) -> None:
         api = StudioAPI()

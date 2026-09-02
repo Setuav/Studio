@@ -395,17 +395,12 @@ class StudioAPI(Protocol):
         """Collect plugin-owned nodes for the project root."""
         ...
 
-    def register_schema(self, schema_id: str, schema_dict: dict[str, Any]) -> None:
-        """Register a reusable JSON Schema document."""
-        ...
-
-    def register_component_type_schema(
+    def register_component_validator(
         self,
         component_type: str,
-        schema_dict: dict[str, Any],
-        plugin_id: str | None = None,
+        validator: Callable[[dict[str, Any]], list[Any] | None],
     ) -> None:
-        """Register a JSON Schema for a fully qualified component type."""
+        """Register a custom validation callable for a component type."""
         ...
 
     @property

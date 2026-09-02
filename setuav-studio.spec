@@ -25,7 +25,6 @@ PACKAGE_DATA = [
     (str(PROJECT_ROOT / "LICENSE"), "."),
     *copy_metadata("setuav-studio"),
     *collect_data_files("setuav_studio", subdir="assets"),
-    *collect_data_files("setuav_studio", subdir="schemas"),
     *collect_data_files("setuav_studio", subdir="data"),
     *collect_data_files("aerosandbox"),
     *collect_data_files("neuralfoil", subdir="nn_weights_and_biases"),

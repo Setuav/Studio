@@ -226,7 +226,6 @@ def create_project(path: str | Path) -> ProjectDocument:
         path=selected_path,
         kind=kind,
         data={
-            "$schema": "https://schemas.setuav.org/core/project.schema.json",
             "name": project_name,
             "plugins": [{"id": "org.setuav.core", "version": "^1.0.0"}],
             "components": [],

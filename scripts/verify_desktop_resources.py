@@ -7,7 +7,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SOURCE_PACKAGE_ROOT = PROJECT_ROOT / "src" / "setuav_studio"
-RESOURCE_DIRECTORIES = ("assets", "schemas", "data")
+RESOURCE_DIRECTORIES = ("assets", "data")
 
 
 def _parse_arguments() -> argparse.Namespace:

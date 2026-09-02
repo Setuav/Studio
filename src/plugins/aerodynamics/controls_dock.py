@@ -665,7 +665,6 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         clean_name = "".join(c if c.isalnum() or c in ("_", "-") else "_" for c in name.strip())
 
         config_data = {
-            "$schema": "https://schemas.setuav.org/core/analysis.schema.json",
             "name": name.strip(),
             "type": "org.setuav.aerosandbox:steady-aero",
             "plugin": {
