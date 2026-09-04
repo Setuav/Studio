@@ -13,7 +13,9 @@ from setuav_studio_sdk import (
 )
 
 _ASSEMBLY_TYPE = "org.setuav.core:electric-propulsion-system"
-_WORKSPACE = "studio.workspace.propulsion"
+_DESIGN_WORKSPACE = "studio.workspace.design"
+_PROPULSION_WORKSPACE = "studio.workspace.propulsion"
+_WORKSPACES = (_PROPULSION_WORKSPACE, _DESIGN_WORKSPACE)
 
 _COMPONENT_SPECS: dict[str, tuple[str, str, str]] = {
     "battery": ("org.setuav.core:battery", "Battery", "component"),
@@ -49,7 +51,7 @@ class PropulsionCreationController:
                 enabled_when=self._can_edit_project,
                 group="propulsion-creation",
                 order=100,
-                workspace_id=_WORKSPACE,
+                workspace_id=_WORKSPACES,
             ),
             ToolbarContribution(
                 id=self.toolbar_ids[1],
@@ -73,7 +75,7 @@ class PropulsionCreationController:
                 enabled_when=self._can_edit_project,
                 group="propulsion-creation",
                 order=110,
-                workspace_id=_WORKSPACE,
+                workspace_id=_WORKSPACES,
             ),
         )
 

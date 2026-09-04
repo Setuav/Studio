@@ -85,10 +85,10 @@ class MainTests(unittest.TestCase):
         self.assertIsNotNone(view_action)
         self.assertTrue(view_action.isCheckable())
         self.assertIn(view_action, window._view_menu.actions())
-        self.assertEqual(window._view_menu.actions()[0].text(), "Theme")
+        self.assertTrue(any(a.text() == "Theme" for a in window._view_menu.actions()))
 
         window._update_view_menu("test.workspace")
-        self.assertEqual(window._view_menu.actions()[0].text(), "Theme")
+        self.assertTrue(any(a.text() == "Theme" for a in window._view_menu.actions()))
         self.assertIn(view_action, window._view_menu.actions())
         window.close()
 

@@ -61,8 +61,9 @@ _ICON_MAP = {
     # QtAwesome controls intentionally used inside 3D viewers
     "view_colored": "fa6s.palette",
     "view_grid": "mdi6.grid",
-    "view_palette": "fa6s.eye-dropper",
+    "view_palette": "fa6s.palette",
     "view_fit": "fa6s.expand",
+    "screenshot": "fa6s.camera",
     # Default Component Types
     "component": "fa6s.cube",
     "instance": "fa6s.clone",

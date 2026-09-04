@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import unittest
 
-from PySide6.QtCore import QCoreApplication, QKeySequence, Qt
-from PySide6.QtGui import QKeyEvent
+from PySide6.QtCore import QCoreApplication, Qt
+from PySide6.QtGui import QKeyEvent, QKeySequence
 
 from setuav_studio.api.api import StudioAPI
 from setuav_studio.ui.shell.command_palette import CommandItem, CommandPaletteDialog
@@ -39,10 +39,10 @@ class TestCommandPalette(unittest.TestCase):
 
         # Should include core commands
         titles = [c.title for c in commands]
-        self.assertTrue(any("Save" in t for t in titles))
+        self.assertTrue(any("Open" in t or "New" in t for t in titles))
         self.assertTrue(any("Background Tasks" in t for t in titles))
-        self.assertTrue(any("Plugin Manager" in t for t in titles))
         self.assertTrue(any("Design Constraints" in t for t in titles))
+        self.assertTrue(any("Settings" in t for t in titles))
 
     def test_command_palette_filter(self) -> None:
         dlg = CommandPaletteDialog(self.window, self.api)

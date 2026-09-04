@@ -104,13 +104,24 @@ class ViewerWorkspace(QWidget):
         self._build_wire_menu()
         hud_layout.addWidget(self.wire_button)
 
+        # Transparency Toggle (Independent)
+        self.trans_button = QToolButton(self.hud)
+        self.trans_button.setCheckable(True)
+        self.trans_button.setChecked(False)
+        self.trans_button.setIcon(get_icon("view_transparent"))
+        self.trans_button.setToolTip("Toggle Transparency (X-Ray)")
+        self.trans_button.setFixedSize(24, 24)
+        self.trans_button.setAutoRaise(True)
+        self.trans_button.toggled.connect(self.viewer.set_transparent)
+        hud_layout.addWidget(self.trans_button)
+
         sep1 = QFrame(self.hud)
         sep1.setObjectName("hudSep")
         sep1.setFrameShape(QFrame.Shape.VLine)
         sep1.setFrameShadow(QFrame.Shadow.Plain)
         hud_layout.addWidget(sep1)
 
-        # Shading / Surface Style Group (Exclusive: Colored / Monochrome / Transparent)
+        # Shading / Surface Style Group (Exclusive: Colored / Monochrome)
         self.style_group = QButtonGroup(self)
         self.style_group.setExclusive(True)
 
@@ -123,6 +134,18 @@ class ViewerWorkspace(QWidget):
         self.colored_button.setAutoRaise(True)
         self.style_group.addButton(self.colored_button)
         hud_layout.addWidget(self.colored_button)
+
+        # Color Palette Selector (between Colored and Monochrome)
+        self.palette_button = QToolButton(self.hud)
+        self.palette_button.setIcon(get_icon("view_palette"))
+        self.palette_button.setToolTip("Color Palette")
+        self.palette_button.setFixedSize(24, 24)
+        self.palette_button.setAutoRaise(True)
+        self.palette_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self._palette_menu = QMenu(self.palette_button)
+        self.palette_button.setMenu(self._palette_menu)
+        self._build_palette_menu()
+        hud_layout.addWidget(self.palette_button)
 
         self.mono_button = QToolButton(self.hud)
         self.mono_button.setCheckable(True)
@@ -139,17 +162,6 @@ class ViewerWorkspace(QWidget):
         sep2.setFrameShadow(QFrame.Shadow.Plain)
         hud_layout.addWidget(sep2)
 
-        # Transparency Toggle (Independent)
-        self.trans_button = QToolButton(self.hud)
-        self.trans_button.setCheckable(True)
-        self.trans_button.setChecked(False)
-        self.trans_button.setIcon(get_icon("view_transparent"))
-        self.trans_button.setToolTip("Toggle Transparency (X-Ray)")
-        self.trans_button.setFixedSize(24, 24)
-        self.trans_button.setAutoRaise(True)
-        self.trans_button.toggled.connect(self.viewer.set_transparent)
-        hud_layout.addWidget(self.trans_button)
-
         self.grid_button = QToolButton(self.hud)
         self.grid_button.setCheckable(True)
         self.grid_button.setChecked(self._default_show_grid)
@@ -163,36 +175,17 @@ class ViewerWorkspace(QWidget):
         self.projection_button = QToolButton(self.hud)
         self.projection_button.setCheckable(True)
         self.projection_button.setChecked(self._default_orthographic)
-        self.projection_button.setIcon(get_icon("fa6s.ruler-combined"))
         self.projection_button.setFixedSize(24, 24)
         self.projection_button.setAutoRaise(True)
         self.projection_button.toggled.connect(self._on_projection_toggled)
         hud_layout.addWidget(self.projection_button)
-        self._update_projection_tooltip()
+        self._update_projection_state()
 
         sep3 = QFrame(self.hud)
         sep3.setObjectName("hudSep")
         sep3.setFrameShape(QFrame.Shape.VLine)
         sep3.setFrameShadow(QFrame.Shadow.Plain)
         hud_layout.addWidget(sep3)
-
-        # Color Palette Selector
-        self.palette_button = QToolButton(self.hud)
-        self.palette_button.setIcon(get_icon("view_palette"))
-        self.palette_button.setToolTip("Color Palette")
-        self.palette_button.setFixedSize(24, 24)
-        self.palette_button.setAutoRaise(True)
-        self.palette_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        self._palette_menu = QMenu(self.palette_button)
-        self.palette_button.setMenu(self._palette_menu)
-        self._build_palette_menu()
-        hud_layout.addWidget(self.palette_button)
-
-        sep4 = QFrame(self.hud)
-        sep4.setObjectName("hudSep")
-        sep4.setFrameShape(QFrame.Shape.VLine)
-        sep4.setFrameShadow(QFrame.Shadow.Plain)
-        hud_layout.addWidget(sep4)
 
         # Standard View Presets
         self._cam_buttons: list[tuple[QToolButton, str]] = []
@@ -231,7 +224,7 @@ class ViewerWorkspace(QWidget):
 
         # Screenshot Button with Resolution Menu
         self.screenshot_button = QToolButton(self.hud)
-        self.screenshot_button.setIcon(get_icon("fa6s.camera"))
+        self.screenshot_button.setIcon(get_icon("screenshot"))
         self.screenshot_button.setToolTip("Capture Screenshot")
         self.screenshot_button.setFixedSize(24, 24)
         self.screenshot_button.setAutoRaise(True)
@@ -299,13 +292,12 @@ class ViewerWorkspace(QWidget):
         self.mono_button.setIcon(get_icon("view_monochrome"))
         self.trans_button.setIcon(get_icon("view_transparent"))
         self.grid_button.setIcon(get_icon("view_grid"))
-        self.projection_button.setIcon(get_icon("fa6s.ruler-combined"))
-        self._update_projection_tooltip()
+        self._update_projection_state()
         self.palette_button.setIcon(get_icon("view_palette"))
         for btn, icon_name in self._cam_buttons:
             btn.setIcon(get_icon(icon_name))
         self.fit_button.setIcon(get_icon("view_fit"))
-        self.screenshot_button.setIcon(get_icon("fa6s.camera"))
+        self.screenshot_button.setIcon(get_icon("screenshot"))
         self.viewer.update_theme_style()
 
     def _build_palette_menu(self) -> None:
@@ -382,11 +374,15 @@ class ViewerWorkspace(QWidget):
             _VIEWER_PROJECTION_KEY,
             "orthographic" if checked else "perspective",
         )
-        self._update_projection_tooltip()
+        self._update_projection_state()
 
-    def _update_projection_tooltip(self) -> None:
-        mode = "Orthographic" if self.projection_button.isChecked() else "Perspective"
-        next_mode = "Perspective" if self.projection_button.isChecked() else "Orthographic"
+    def _update_projection_state(self) -> None:
+        is_ortho = self.projection_button.isChecked()
+        mode = "Orthographic" if is_ortho else "Perspective"
+        next_mode = "Perspective" if is_ortho else "Orthographic"
+        self.projection_button.setIcon(
+            get_icon("view_isometric" if is_ortho else "view_perspective")
+        )
         self.projection_button.setToolTip(f"Projection: {mode} (click for {next_mode})")
 
     def _update_wire_tooltip(self) -> None:
