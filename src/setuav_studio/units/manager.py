@@ -49,9 +49,11 @@ class UnitManager(QObject):
         preset_defaults = PRESETS.get(self._active_preset, PRESETS["si"])
         for q_id, q_def in QUANTITIES.items():
             fallback = preset_defaults.get(q_id, q_def.base_unit_id)
-            saved_unit = str(settings.value(f"{self._SETTINGS_PREFIX}{q_id}", fallback)).lower()
+            saved_unit = str(settings.value(f"{self._SETTINGS_PREFIX}{q_id}", fallback))
             if saved_unit in q_def.units:
                 self._display_units[q_id] = saved_unit
+            elif saved_unit.lower() in q_def.units:
+                self._display_units[q_id] = saved_unit.lower()
             else:
                 self._display_units[q_id] = fallback
 

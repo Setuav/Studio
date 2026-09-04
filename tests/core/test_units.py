@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
 from setuav_studio.units import (
     AREA,
@@ -16,6 +17,20 @@ from setuav_studio.units import (
     get_quantity_for_unit,
     get_unit_manager,
 )
+
+
+class _FakeSettings:
+    def __init__(self, values: dict[str, object]) -> None:
+        self.values = values
+
+    def value(self, key: str, fallback: object = None) -> object:
+        return self.values.get(key, fallback)
+
+    def setValue(self, key: str, value: object) -> None:
+        self.values[key] = value
+
+    def sync(self) -> None:
+        pass
 
 
 class TestPhysicalUnitsAndDimensions(unittest.TestCase):
@@ -67,6 +82,37 @@ class TestPhysicalUnitsAndDimensions(unittest.TestCase):
         self.assertEqual(get_quantity_for_unit("kts"), "velocity")
         self.assertEqual(get_quantity_for_unit("dm²"), "area")
         self.assertEqual(get_quantity_for_unit("N*m"), "torque")
+
+    def test_schema_unit_lookup_extended(self) -> None:
+        self.assertEqual(get_quantity_for_unit("atm"), "pressure")
+        self.assertEqual(get_quantity_for_unit("rad/s"), "frequency")
+        self.assertEqual(get_quantity_for_unit("oz·in"), "torque")
+        self.assertEqual(get_quantity_for_unit("Ω"), "resistance")
+
+    def test_unit_manager_loads_case_sensitive_units(self) -> None:
+        from setuav_studio.units.manager import UnitManager
+
+        values: dict[str, object] = {
+            "units/force": "N",
+            "units/pressure": "Pa",
+            "units/length": "MM",
+        }
+        with patch("setuav_studio.units.manager.QSettings", lambda: _FakeSettings(values)):
+            manager = UnitManager()
+        self.assertEqual(manager.get_display_unit("force"), "N")
+        self.assertEqual(manager.get_display_unit("pressure"), "Pa")
+        self.assertEqual(manager.get_display_unit("length"), "mm")
+
+    def test_unit_manager_save_load_roundtrip(self) -> None:
+        from setuav_studio.units.manager import UnitManager
+
+        values: dict[str, object] = {}
+        with patch("setuav_studio.units.manager.QSettings", lambda: _FakeSettings(values)):
+            manager = UnitManager()
+            manager.set_display_unit("force", "kgf")
+            manager.save_to_settings()
+            reloaded = UnitManager()
+        self.assertEqual(reloaded.get_display_unit("force"), "kgf")
 
 
 if __name__ == "__main__":
