@@ -17,6 +17,17 @@ geometry_add_fuselage = "geometry-add-fuselage.png"
 geometry_add_lifting_surface = "geometry-add-lifting-surface.png"
 geometry_add_control_surface = "geometry-add-control-surface.png"
 
+# Transform & Envelope
+transform = "transform.svg"
+coordinate_system = "transform.svg"
+envelope = "envelope.svg"
+physical_envelope = "envelope.svg"
+
+# Weight & Balance / Mass
+mass = "mass.svg"
+point_mass = "mass.svg"
+component_point_mass = "mass.svg"
+
 # View menu 3D panel
 viewer_3d = "view-isometric.png"
 

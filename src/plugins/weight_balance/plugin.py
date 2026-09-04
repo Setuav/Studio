@@ -23,7 +23,7 @@ from .mass_definition_dock import MassPropertiesEditor
 from .point_mass_editor import PointMassEditor
 from .results_dock import WeightBalanceResultsDock
 
-POINT_MASS_ICON = "fa6s.weight-scale"
+POINT_MASS_ICON = "point_mass"
 
 
 def _apply_weight_balance_workspace_layout(layout: WorkspaceLayoutContext) -> None:
@@ -220,7 +220,7 @@ class WeightBalancePlugin:
                     "kind": "mass-properties",
                     "component_id": component_id,
                 },
-                icon="fa6s.cubes-stacked",
+                icon="mass",
                 tooltip=f"Mass, local CG and inertia for {component.get('name') or component_id}",
             ),
         )

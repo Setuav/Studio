@@ -234,7 +234,7 @@ class WeightBalancePluginTests(unittest.TestCase):
         self.assertEqual(len(panels), 2)
         self.assertEqual(len(toolbar), 1)
         self.assertEqual(toolbar[0].id, "weight_balance.add_point_mass")
-        self.assertEqual(toolbar[0].icon, "fa6s.weight-scale")
+        self.assertEqual(toolbar[0].icon, "point_mass")
         self.assertFalse(api.get_component_icon({"type": "org.setuav.core:point-mass"}).isNull())
 
         manager.deactivate("org.setuav.studio.weight_balance")
@@ -386,7 +386,7 @@ class WeightBalancePluginTests(unittest.TestCase):
         project = _project({"components": [component]})
         api._host.set_project(project)
         contribution = api.component_tree_nodes(component)[0]
-        self.assertEqual(contribution.icon, "fa6s.cubes-stacked")
+        self.assertEqual(contribution.icon, "mass")
         definition = api.create_component_editor(contribution.selection)
         self.assertIsInstance(definition, MassPropertiesEditor)
         self.assertEqual(definition.mass_table.rowCount(), 2)

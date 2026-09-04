@@ -107,7 +107,7 @@ class TransformEditor(PropertyTableMixin, QWidget):
         return layout
 
     def _create_reference_section(self) -> None:
-        layout = self._create_section("Reference Frame", "mdi6.axis-arrow")
+        layout = self._create_section("Reference Frame", "transform")
         self.reference_table = self._property_table(
             [
                 ("component", "Component"),
@@ -117,7 +117,7 @@ class TransformEditor(PropertyTableMixin, QWidget):
         layout.addWidget(self.reference_table)
 
     def _create_transform_section(self) -> None:
-        layout = self._create_section("Transform", "mdi6.axis-arrow")
+        layout = self._create_section("Transform", "transform")
         self.transform_table = QTableWidget(2, 3)
         self.transform_table.setHorizontalHeaderLabels(["X", "Y", "Z"])
         self.transform_table.setVerticalHeaderLabels(["Position", "Rotation"])

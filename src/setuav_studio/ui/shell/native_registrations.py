@@ -39,7 +39,7 @@ def _transform_tree_nodes(
                 "kind": "transform",
                 "component_id": component_id,
             },
-            icon="mdi6.axis-arrow",
+            icon="transform",
             tooltip="Position and rotation relative to the parent frame",
         ),
     ]
@@ -56,7 +56,7 @@ def _transform_tree_nodes(
                     "kind": "physical-envelope",
                     "component_id": component_id,
                 },
-                icon="fa6s.ruler-combined",
+                icon="envelope",
                 tooltip="Local dimensions, offset and occupied volume",
             )
         )

@@ -111,7 +111,7 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
         return layout
 
     def _create_definition_section(self) -> None:
-        layout = self._create_section("Envelope", "fa6s.ruler-combined")
+        layout = self._create_section("Envelope", "envelope")
         self.definition_table = self._property_table(
             [
                 ("component", "Component"),
