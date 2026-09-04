@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -42,34 +41,12 @@ class Environment:
         wind: tuple[float, float, float] = (0.0, 0.0, 0.0),
     ) -> Environment:
         """Compute standard ISA atmospheric conditions for a given altitude."""
-        h = max(altitude_m, -500.0)
-        if h <= 11000.0:
-            # Troposphere
-            temp = _T0 - _LAPSE_RATE * h + temperature_offset_k
-            pressure = _P0 * ((temp - temperature_offset_k) / _T0) ** (_G0 / (_R_AIR * _LAPSE_RATE))
-        else:
-            # Lower Stratosphere (isothermal region up to 20km)
-            temp_tropo = _T0 - _LAPSE_RATE * 11000.0
-            p_tropo = _P0 * (temp_tropo / _T0) ** (_G0 / (_R_AIR * _LAPSE_RATE))
-            temp = temp_tropo + temperature_offset_k
-            pressure = p_tropo * math.exp(-_G0 * (h - 11000.0) / (_R_AIR * temp_tropo))
+        from setuav_studio.model.atmosphere import Atmosphere
 
-        density = pressure / (_R_AIR * temp)
-        speed_of_sound = math.sqrt(_GAMMA * _R_AIR * temp)
-
-        # Sutherland's law for dynamic viscosity
-        mu = _MU0 * ((temp / _T0) ** 1.5) * ((_T0 + _S_SUTHERLAND) / (temp + _S_SUTHERLAND))
-
-        return cls(
-            altitude_m=float(altitude_m),
-            temperature_k=float(temp),
-            pressure_pa=float(pressure),
-            density_kg_m3=float(density),
-            speed_of_sound_mps=float(speed_of_sound),
-            dynamic_viscosity=float(mu),
-            gravity_mps2=_G0,
-            wind_vector_mps=wind,
-        )
+        return Atmosphere.isa(
+            altitude_m=altitude_m,
+            temperature_offset_k=temperature_offset_k,
+        ).to_environment(wind_vector_mps=wind)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize environment properties to dictionary."""

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from setuav_studio.model.atmosphere import Atmosphere
 from setuav_studio.model.component import (
     Component,
     GenericComponent,
@@ -35,6 +36,7 @@ from setuav_studio.model.system import System
 from setuav_studio.model.vehicle import Vehicle
 
 __all__ = [
+    "Atmosphere",
     "CircularDependencyError",
     "Component",
     "ConfigurationError",
