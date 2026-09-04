@@ -7,7 +7,6 @@ from PySide6.QtCore import QSettings, Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QMainWindow, QMenu
 
-from setuav_studio.ui.configuration.bar import ConfigurationToolBar
 from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.shell.toolbar import StandardToolBar, ToolSetBar, WorkspaceToolBar
 from setuav_studio_sdk import (
@@ -44,9 +43,6 @@ class ToolbarManager:
         self.workspace_toolbar = WorkspaceToolBar(self._window)
         self.workspace_toolbar.workspace_activated.connect(self._api.switch_workspace)
         self._window.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.workspace_toolbar)
-
-        self.configuration_toolbar = ConfigurationToolBar(self._api, self._window)
-        self._window.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.configuration_toolbar)
 
     def setup_standard_actions(
         self,

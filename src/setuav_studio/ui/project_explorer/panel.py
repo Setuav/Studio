@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from setuav_studio.ui.configuration.bar import ConfigurationSelectorWidget
 from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.project_explorer.tree import ProjectExplorer
 
@@ -19,7 +20,7 @@ if TYPE_CHECKING:
 
 
 class ProjectExplorerPanel(QWidget):
-    """Panel containing search box and the clean model tree."""
+    """Panel containing search box, configuration selector, and the model tree."""
 
     def __init__(self, api: StudioAPI) -> None:
         super().__init__()
@@ -27,7 +28,11 @@ class ProjectExplorerPanel(QWidget):
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(4)
 
-        # Search bar
+        # 1. Configuration selector
+        self.config_selector = ConfigurationSelectorWidget(api, self)
+        layout.addWidget(self.config_selector)
+
+        # 2. Search bar
         search_box = QWidget()
         s_layout = QHBoxLayout(search_box)
         s_layout.setContentsMargins(2, 2, 2, 2)

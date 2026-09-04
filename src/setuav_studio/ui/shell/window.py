@@ -83,7 +83,6 @@ class MainWindow(QMainWindow):
         self._owned_toolbar_actions = self._toolbar_manager.owned_toolbar_actions
         self._toolset_bars = self._toolbar_manager.toolset_bars
         self._workspace_toolbar = self._toolbar_manager.workspace_toolbar
-        self._configuration_toolbar = self._toolbar_manager.configuration_toolbar
 
         self._menus = self._action_manager.menus
         self._command_actions = self._action_manager.command_actions

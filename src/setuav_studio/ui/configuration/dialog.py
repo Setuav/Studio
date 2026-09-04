@@ -5,16 +5,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
-    QColorDialog,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
     QHBoxLayout,
     QHeaderView,
-    QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
@@ -24,7 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.ui.icons import create_color_badge_icon, get_icon
+from setuav_studio.ui.icons import get_icon
 
 if TYPE_CHECKING:
     from setuav_studio.model.configuration import ConfigurationManager
@@ -41,7 +38,7 @@ class ConfigurationEditDialog(QDialog):
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Edit Configuration" if config else "New Configuration")
-        self.resize(420, 260)
+        self.resize(380, 200)
 
         self._config = config or {}
         layout = QVBoxLayout(self)
@@ -62,20 +59,6 @@ class ConfigurationEditDialog(QDialog):
         self.desc_edit.setPlaceholderText("Optional description")
         form.addRow("Description:", self.desc_edit)
 
-        # Color picker
-        color_layout = QHBoxLayout()
-        self._color = self._config.get("color", "#2196F3")
-        self.color_preview = QPushButton()
-        self.color_preview.setFixedSize(28, 24)
-        self._update_color_preview()
-        self.color_preview.clicked.connect(self._pick_color)
-
-        self.color_label = QLabel(self._color)
-        color_layout.addWidget(self.color_preview)
-        color_layout.addWidget(self.color_label)
-        color_layout.addStretch()
-        form.addRow("Color:", color_layout)
-
         layout.addLayout(form)
 
         button_box = QDialogButtonBox(
@@ -84,18 +67,6 @@ class ConfigurationEditDialog(QDialog):
         button_box.accepted.connect(self._validate_and_accept)
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
-
-    def _update_color_preview(self) -> None:
-        self.color_preview.setStyleSheet(
-            f"background-color: {self._color}; border: 1px solid #555; border-radius: 3px;"
-        )
-
-    def _pick_color(self) -> None:
-        col = QColorDialog.getColor(QColor(self._color), self, "Select Configuration Color")
-        if col.isValid():
-            self._color = col.name()
-            self.color_label.setText(self._color)
-            self._update_color_preview()
 
     def _validate_and_accept(self) -> None:
         name = self.name_edit.text().strip()
@@ -115,7 +86,6 @@ class ConfigurationEditDialog(QDialog):
             "name": self.name_edit.text().strip(),
             "tag": self.tag_edit.text().strip().upper(),
             "description": self.desc_edit.text().strip(),
-            "color": self._color,
         }
 
 
@@ -132,21 +102,18 @@ class ManageConfigurationsDialog(QDialog):
         self.manager = manager
         self.api = api
         self.setWindowTitle("Manage Configurations")
-        self.resize(650, 380)
+        self.resize(560, 340)
 
         layout = QVBoxLayout(self)
 
         # Table of configurations
-        self.table = QTableWidget(0, 4)
-        self.table.setHorizontalHeaderLabels(["Tag", "Name", "Description", "Color"])
+        self.table = QTableWidget(0, 3)
+        self.table.setHorizontalHeaderLabels(["Tag", "Name", "Description"])
         self.table.horizontalHeader().setSectionResizeMode(
             0, QHeaderView.ResizeMode.ResizeToContents
         )
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
         self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        self.table.horizontalHeader().setSectionResizeMode(
-            3, QHeaderView.ResizeMode.ResizeToContents
-        )
         self.table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         self.table.setWordWrap(True)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -182,10 +149,7 @@ class ManageConfigurationsDialog(QDialog):
         configs = self.manager.get_configurations()
         self.table.setRowCount(len(configs))
         for row, cfg in enumerate(configs):
-            color = cfg.get("color", "#2196F3")
-            icon = create_color_badge_icon(color)
-
-            tag_item = QTableWidgetItem(icon, cfg.get("tag", ""))
+            tag_item = QTableWidgetItem(cfg.get("tag", ""))
             tag_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             tag_item.setFlags(tag_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
 
@@ -195,14 +159,9 @@ class ManageConfigurationsDialog(QDialog):
             desc_item = QTableWidgetItem(cfg.get("description", ""))
             desc_item.setFlags(desc_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
 
-            color_item = QTableWidgetItem(color)
-            color_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            color_item.setFlags(color_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-
             self.table.setItem(row, 0, tag_item)
             self.table.setItem(row, 1, name_item)
             self.table.setItem(row, 2, desc_item)
-            self.table.setItem(row, 3, color_item)
 
         self.table.resizeRowsToContents()
         self._update_button_states()
@@ -218,20 +177,17 @@ class ManageConfigurationsDialog(QDialog):
         return None
 
     def _update_button_states(self) -> None:
-        has_sel = self._selected_config_id() is not None
-        self.btn_edit.setEnabled(has_sel)
-        self.btn_delete.setEnabled(has_sel)
+        has_selection = len(self.table.selectionModel().selectedRows()) > 0
+        self.btn_edit.setEnabled(has_selection)
+        self.btn_delete.setEnabled(has_selection)
 
     def _create_new(self) -> None:
         dlg = ConfigurationEditDialog(self)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             data = dlg.get_data()
-
-            def _apply() -> None:
-                self.manager.create_configuration(**data)
-
-            self.api.edit_project(f"Create configuration '{data['name']}'", _apply)
+            self.manager.create_configuration(**data)
             self._refresh_table()
+            self.api.notify_project_content_changed()
 
     def _edit_selected(self) -> None:
         cid = self._selected_config_id()
@@ -240,16 +196,12 @@ class ManageConfigurationsDialog(QDialog):
         cfg = self.manager.get_configuration(cid)
         if not cfg:
             return
-
-        dlg = ConfigurationEditDialog(self, cfg)
+        dlg = ConfigurationEditDialog(self, config=cfg)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             data = dlg.get_data()
-
-            def _apply() -> None:
-                self.manager.update_configuration(cid, **data)
-
-            self.api.edit_project(f"Update configuration '{data['name']}'", _apply)
+            self.manager.update_configuration(cid, **data)
             self._refresh_table()
+            self.api.notify_project_content_changed()
 
     def _delete_selected(self) -> None:
         cid = self._selected_config_id()
@@ -258,16 +210,14 @@ class ManageConfigurationsDialog(QDialog):
         cfg = self.manager.get_configuration(cid)
         name = cfg.get("name", cid) if cfg else cid
 
-        reply = QMessageBox.question(
+        ans = QMessageBox.question(
             self,
             "Delete Configuration",
-            f"Are you sure you want to delete configuration '{name}'?",
+            f"Are you sure you want to delete configuration '{name}'?\nThis cannot be undone.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
         )
-        if reply == QMessageBox.StandardButton.Yes:
-
-            def _apply() -> None:
-                self.manager.delete_configuration(cid)
-
-            self.api.edit_project(f"Delete configuration '{name}'", _apply)
+        if ans == QMessageBox.StandardButton.Yes:
+            self.manager.delete_configuration(cid)
             self._refresh_table()
+            self.api.notify_project_content_changed()
