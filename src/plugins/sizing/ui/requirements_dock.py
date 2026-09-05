@@ -5,7 +5,6 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
-    QComboBox,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -55,7 +54,7 @@ class SizingRequirementsDock(PropertyTableMixin, QWidget):
         layout.addWidget(scroll)
 
         # Build sections
-        self._create_preset_section()
+        self._create_concept_wizard_section()
         self._create_mission_section()
         self._create_field_section()
         self._create_aero_section()
@@ -98,14 +97,13 @@ class SizingRequirementsDock(PropertyTableMixin, QWidget):
         self,
         table: QTableWidget,
         row: int,
-        key: str,
+        prop_id: str,
         label: str,
-        value: float,
-        *,
+        val: float,
         quantity: str | None = None,
-        suffix: str = "",
-        min_val: float = -1e6,
-        max_val: float = 1e6,
+        suffix: str | None = None,
+        min_val: float = 0.0,
+        max_val: float = 10000.0,
         step: float = 1.0,
         decimals: int = 2,
     ) -> ExpressionPropertyCell:
@@ -114,50 +112,39 @@ class SizingRequirementsDock(PropertyTableMixin, QWidget):
             table,
             row,
             1,
-            value,
+            val,
             min_val=min_val,
             max_val=max_val,
             step=step,
             decimals=decimals,
             quantity=quantity,
-            suffix=suffix,
+            suffix=suffix or "",
             on_changed=lambda _v: self._emit_changes(),
             api=self._api,
             label=label,
         )
-        if quantity is None and suffix:
-            cell._quantity = None
-            cell._suffix = suffix
-            cell._refresh_display()
         return cell
 
-    def _create_preset_section(self) -> None:
-        sec_layout = self._create_section("Design Preset", "fa6s.layer-group")
+    def _create_concept_wizard_section(self) -> None:
+        sec_layout = self._create_section("Concept Sizing", "fa6s.wand-magic-sparkles")
 
-        combo_row = QHBoxLayout()
-        combo_row.setSpacing(6)
+        self.concept_wizard_btn = QPushButton("Concept Wizard...")
+        self.concept_wizard_btn.setToolTip("Open Interactive UAV Concept Sizing Wizard")
+        set_button_role(self.concept_wizard_btn, "primary", icon_source="fa6s.wand-magic-sparkles")
+        self.concept_wizard_btn.clicked.connect(self._open_concept_wizard)
+        self.wizard_btn = self.concept_wizard_btn
 
-        self.preset_combo = QComboBox()
-        for preset_id, preset in PRESETS.items():
-            self.preset_combo.addItem(preset.name, preset_id)
-        self.preset_combo.currentIndexChanged.connect(self._on_preset_combo_changed)
-        combo_row.addWidget(self.preset_combo, 1)
+        sec_layout.addWidget(self.concept_wizard_btn)
 
-        self.wizard_btn = QPushButton("Wizard...")
-        self.wizard_btn.setToolTip("Open Visual UAV Preliminary Sizing Wizard")
-        set_button_role(self.wizard_btn, "secondary", icon_source="fa6s.wand-magic-sparkles")
-        self.wizard_btn.clicked.connect(self._open_sizing_wizard)
-        combo_row.addWidget(self.wizard_btn)
+    def _open_concept_wizard(self) -> None:
+        """Open the interactive concept sizing wizard dialog."""
+        from plugins.sizing.ui.wizard_dialog import ConceptWizardDialog
 
-        sec_layout.addLayout(combo_row)
-
-    def _open_sizing_wizard(self) -> None:
-        """Open the preliminary sizing wizard dialog."""
-        from plugins.sizing.ui.wizard_dialog import SizingWizardDialog
-
-        dlg = SizingWizardDialog(parent=self.window() or self, api=self._api)
+        dlg = ConceptWizardDialog(parent=self.window() or self, api=self._api)
         if dlg.exec():
             self._apply_wizard_state(dlg.state)
+
+    _open_sizing_wizard = _open_concept_wizard
 
     def _apply_wizard_state(self, state: dict[str, Any]) -> None:
         """Populate requirements dock inputs from wizard choices."""
@@ -521,11 +508,6 @@ class SizingRequirementsDock(PropertyTableMixin, QWidget):
         set_button_role(btn_calc, "primary")
         btn_calc.clicked.connect(self._emit_changes)
         self._content_layout.addWidget(btn_calc)
-
-    def _on_preset_combo_changed(self, index: int) -> None:
-        preset_id = self.preset_combo.itemData(index)
-        if isinstance(preset_id, str):
-            self._apply_preset(preset_id)
 
     def _apply_preset(self, preset_id: str) -> None:
         preset = PRESETS.get(preset_id)

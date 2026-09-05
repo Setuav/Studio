@@ -252,8 +252,8 @@ class WizardCardGrid(QWidget):
         self.select(option_id)
 
 
-class SizingWizardDialog(QDialog, PropertyTableMixin):
-    """Interactive multi-step visual wizard for preliminary UAV sizing."""
+class ConceptWizardDialog(QDialog, PropertyTableMixin):
+    """Interactive multi-step visual concept wizard for UAV design."""
 
     def __init__(
         self,
@@ -262,8 +262,8 @@ class SizingWizardDialog(QDialog, PropertyTableMixin):
     ) -> None:
         super().__init__(parent)
         self._api = api
-        self.setObjectName("sizing.wizard_dialog")
-        self.setWindowTitle("UAV Preliminary Sizing Wizard — SetUAV Studio")
+        self.setObjectName("sizing.concept_wizard_dialog")
+        self.setWindowTitle("UAV Concept Wizard — SetUAV Studio")
         self.resize(1080, 720)
         self.setMinimumSize(900, 600)
 
@@ -961,7 +961,7 @@ class SizingWizardDialog(QDialog, PropertyTableMixin):
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(8)
 
-        side_title = QLabel("Selection Summary")
+        side_title = QLabel("Concept Summary")
         side_font = QFont()
         side_font.setBold(True)
         side_font.setPointSize(11)
@@ -1148,7 +1148,7 @@ class SizingWizardDialog(QDialog, PropertyTableMixin):
         # Update navigation buttons
         self.btn_back.setEnabled(step_idx > 0)
         if step_idx == total_steps - 1:
-            self.btn_next.setText("Apply to Sizing")
+            self.btn_next.setText("Apply Concept")
             set_button_role(self.btn_next, "primary", icon_source="fa6s.check")
         else:
             self.btn_next.setText("Next")
@@ -1165,3 +1165,7 @@ class SizingWizardDialog(QDialog, PropertyTableMixin):
         current = self.stack.currentIndex()
         if current > 0:
             self.go_to_step(current - 1)
+
+
+# Backward-compatible alias
+SizingWizardDialog = ConceptWizardDialog

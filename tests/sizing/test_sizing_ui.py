@@ -168,9 +168,10 @@ class TestSizingUI(unittest.TestCase):
         self.assertIn("opt2", received)
 
     def test_sizing_wizard_dialog_flow(self) -> None:
-        from plugins.sizing.ui.wizard_dialog import SizingWizardDialog
+        from plugins.sizing.ui.wizard_dialog import ConceptWizardDialog, SizingWizardDialog
 
-        dlg = SizingWizardDialog()
+        self.assertIs(SizingWizardDialog, ConceptWizardDialog)
+        dlg = ConceptWizardDialog()
         self.assertEqual(dlg.stack.currentIndex(), 0)
         self.assertFalse(dlg.btn_back.isEnabled())
 
@@ -185,7 +186,7 @@ class TestSizingUI(unittest.TestCase):
             self.assertEqual(dlg.stack.currentIndex(), step)
 
         # On last step, button text changes
-        self.assertIn("Apply", dlg.btn_next.text())
+        self.assertIn("Apply Concept", dlg.btn_next.text())
 
         # Step back
         dlg.prev_step()
@@ -227,7 +228,9 @@ class TestSizingUI(unittest.TestCase):
 
     def test_requirements_dock_apply_wizard_state(self) -> None:
         dock = SizingRequirementsDock()
+        self.assertIsNotNone(dock.concept_wizard_btn)
         self.assertIsNotNone(dock.wizard_btn)
+        self.assertFalse(hasattr(dock, "preset_combo"))
 
         state = {
             "payload_kg": 2.5,
