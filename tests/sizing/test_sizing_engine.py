@@ -190,6 +190,20 @@ class TestSizingEngine(unittest.TestCase):
         )
         self.assertAlmostEqual(total_frac, 1.0, places=3)
 
+    def test_weight_convergence_extreme_bounds(self) -> None:
+        """Ensure converge_sizing never raises OverflowError on extreme boundary inputs."""
+        for ws in (1.0, 5.0, 10.0, 500.0):
+            for pw in (0.1, 50.0, 200.0):
+                res = converge_sizing(
+                    mission=self.mission,
+                    aero=self.aero,
+                    design_wing_loading_pa=ws,
+                    design_power_loading_wn=pw,
+                )
+                self.assertIsNotNone(res)
+                self.assertGreater(res.weights.mtow_kg, 0.0)
+                self.assertLessEqual(res.weights.mtow_kg, 150.0)
+
     def test_matching_chart_pipeline(self) -> None:
         chart, sizing = solve_sizing_for_mission(
             mission=self.mission,

@@ -60,7 +60,10 @@ ELECTRICAL_PROPULSION_MODULES = (
 )
 FLIGHT_PERFORMANCE_MODULES = ("tests.flight_performance.test_flight_performance",)
 WEIGHT_BALANCE_MODULES = ("tests.weight_balance.test_weight_balance",)
-SIZING_MODULES = ("tests.sizing.test_sizing_engine",)
+SIZING_MODULES = (
+    "tests.sizing.test_sizing_engine",
+    "tests.sizing.test_sizing_ui",
+)
 
 SUITES: dict[str, tuple[str, ...]] = {
     "core": CORE_MODULES,

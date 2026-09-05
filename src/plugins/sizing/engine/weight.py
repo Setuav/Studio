@@ -83,8 +83,8 @@ def estimate_airframe_mass_noth(wing_area_m2: float, aspect_ratio: float) -> flo
 
     Reference: Noth, A. (ETH Zurich, 2008), validated on >400 small UAVs.
     """
-    s = max(float(wing_area_m2), 0.01)
-    ar = max(float(aspect_ratio), 2.0)
+    s = min(max(float(wing_area_m2), 0.01), 50.0)
+    ar = min(max(float(aspect_ratio), 2.0), 35.0)
     w_af_n = 5.58 * (s**1.59) * (ar**0.71)
     return max(w_af_n / G0, 0.05)
 
@@ -137,7 +137,7 @@ def converge_sizing(
     for step in range(1, max_iterations + 1):
         completed_iterations = step
         # 1. Wing reference area from wing loading: S = W / (W/S)
-        s_ref = (mtow * G0) / ws
+        s_ref = min(max((mtow * G0) / ws, 0.01), 50.0)
 
         # 2. Cruise aerodynamics
         # Lift coefficient in cruise: CL = (W/S) / q_cruise
@@ -189,6 +189,12 @@ def converge_sizing(
             + m_prop
             + bat_res.mass_kg
         )
+
+        # Divergence guard: if MTOW grows beyond plausible physical limit for small UAV sizing
+        if mtow_new > 150.0:
+            mtow = 150.0
+            converged = False
+            break
 
         # 9. Convergence check
         rel_diff = abs(mtow_new - mtow) / max(mtow, 0.01)
