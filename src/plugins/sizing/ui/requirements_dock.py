@@ -134,11 +134,63 @@ class SizingRequirementsDock(PropertyTableMixin, QWidget):
     def _create_preset_section(self) -> None:
         sec_layout = self._create_section("Design Preset", "fa6s.layer-group")
 
+        combo_row = QHBoxLayout()
+        combo_row.setSpacing(6)
+
         self.preset_combo = QComboBox()
         for preset_id, preset in PRESETS.items():
             self.preset_combo.addItem(preset.name, preset_id)
         self.preset_combo.currentIndexChanged.connect(self._on_preset_combo_changed)
-        sec_layout.addWidget(self.preset_combo)
+        combo_row.addWidget(self.preset_combo, 1)
+
+        self.wizard_btn = QPushButton("Sihirbaz...")
+        self.wizard_btn.setToolTip("Görsel İHA Boyutlandırma Sihirbazını Aç")
+        set_button_role(self.wizard_btn, "secondary")
+        self.wizard_btn.clicked.connect(self._open_sizing_wizard)
+        combo_row.addWidget(self.wizard_btn)
+
+        sec_layout.addLayout(combo_row)
+
+    def _open_sizing_wizard(self) -> None:
+        """Open the preliminary sizing wizard dialog."""
+        from plugins.sizing.ui.wizard_dialog import SizingWizardDialog
+
+        dlg = SizingWizardDialog(parent=self.window() or self)
+        if dlg.exec():
+            self._apply_wizard_state(dlg.state)
+
+    def _apply_wizard_state(self, state: dict[str, Any]) -> None:
+        """Populate requirements dock inputs from wizard choices."""
+        self._updating = True
+        try:
+            if "payload_kg" in state and hasattr(self, "cell_payload"):
+                self.cell_payload.setValue(float(state["payload_kg"]) * 1000.0)
+            if "endurance_min" in state and hasattr(self, "cell_endurance"):
+                self.cell_endurance.setValue(float(state["endurance_min"]))
+            if "cruise_speed_ms" in state and hasattr(self, "cell_v_cruise"):
+                self.cell_v_cruise.setValue(float(state["cruise_speed_ms"]))
+            if "stall_speed_ms" in state and hasattr(self, "cell_v_stall"):
+                self.cell_v_stall.setValue(float(state["stall_speed_ms"]))
+            if "climb_rate_ms" in state and hasattr(self, "cell_roc"):
+                self.cell_roc.setValue(float(state["climb_rate_ms"]))
+            if "cruise_alt_m" in state and hasattr(self, "cell_altitude"):
+                self.cell_altitude.setValue(float(state["cruise_alt_m"]))
+            if "takeoff_run_m" in state and hasattr(self, "cell_takeoff_run"):
+                self.cell_takeoff_run.setValue(float(state["takeoff_run_m"]))
+
+            bat_densities = {
+                "lipo": 160.0,
+                "lihv": 195.0,
+                "li_ion_18650": 230.0,
+                "li_ion_21700": 260.0,
+                "solid_state": 350.0,
+            }
+            bat_chem = state.get("battery_chemistry")
+            if bat_chem in bat_densities and hasattr(self, "cell_specific_energy"):
+                self.cell_specific_energy.setValue(bat_densities[bat_chem])
+        finally:
+            self._updating = False
+        self._emit_changes()
 
     def _create_mission_section(self) -> None:
         sec_layout = self._create_section("Mission Requirements", "fa6s.crosshairs")
