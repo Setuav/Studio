@@ -5,21 +5,20 @@ through high-level mission and architectural decisions:
 1. Mission & Performance Requirements
 2. Aircraft Architecture (Configuration)
 3. Wing Vertical Placement
-4. Wing Planform Shape
+4. Wing Planform Geometry
 5. Tail Configuration
-6. Propulsion Layout
-7. Battery Chemistry
-8. Summary & Sizing Requirements Export
+6. Propulsion Architecture
+7. Battery Technology
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import QSize, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QMouseEvent, QPixmap
+from PySide6.QtGui import QFont, QMouseEvent, QPixmap
 from PySide6.QtWidgets import (
     QDialog,
     QFrame,
@@ -27,17 +26,22 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QPushButton,
     QScrollArea,
     QSizePolicy,
     QStackedWidget,
+    QTableWidget,
     QVBoxLayout,
     QWidget,
 )
 
-from setuav_studio.ui.theme import tokens
+from setuav_studio.ui.icons import get_icon
+from setuav_studio.ui.theme import rgba, tokens
 from setuav_studio.ui.widget.button import set_button_role
+from setuav_studio.ui.widget.table import ExpressionPropertyCell, PropertyTableMixin
+
+if TYPE_CHECKING:
+    from setuav_studio_sdk import StudioAPI
 
 ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets" / "wizard"
 
@@ -55,7 +59,7 @@ class WizardOption:
 
 
 class WizardOptionCard(QFrame):
-    """Interactive visual option card with thumbnail, title, and pros/cons."""
+    """Interactive visual option card with thumbnail, title, badge, and pros/cons."""
 
     clicked = Signal(str)  # option_id
 
@@ -73,6 +77,12 @@ class WizardOptionCard(QFrame):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         self.setMinimumWidth(200)
+
+        tok = tokens()
+        accent = tok.get("accent", "#4772b3")
+        text = tok.get("text", "#ffffff")
+        text_muted = tok.get("text_muted", "#b9b9b9")
+        text_dim = tok.get("text_dim", "#848484")
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 10)
@@ -110,6 +120,7 @@ class WizardOptionCard(QFrame):
         title_font.setBold(True)
         title_font.setPointSize(10)
         title_lbl.setFont(title_font)
+        title_lbl.setStyleSheet(f"color: {text};")
         title_lbl.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         header_row.addWidget(title_lbl)
 
@@ -120,8 +131,11 @@ class WizardOptionCard(QFrame):
             badge_font.setBold(True)
             badge_lbl.setFont(badge_font)
             badge_lbl.setStyleSheet(
-                "background-color: rgba(71, 114, 179, 0.25); "
-                "color: #5db6ea; border-radius: 4px; padding: 2px 4px;"
+                f"background-color: {rgba(accent, 0.18)}; "
+                f"color: {accent}; "
+                f"border: 1px solid {rgba(accent, 0.35)}; "
+                f"border-radius: 3px; "
+                f"padding: 1px 5px;"
             )
             header_row.addWidget(badge_lbl)
 
@@ -133,18 +147,18 @@ class WizardOptionCard(QFrame):
         sub_font = QFont()
         sub_font.setPointSize(9)
         sub_lbl.setFont(sub_font)
-        sub_lbl.setStyleSheet("color: #b9b9b9;")
+        sub_lbl.setStyleSheet(f"color: {text_muted};")
         layout.addWidget(sub_lbl)
 
         # Details / bullets
         if option.details:
-            details_text = "\n".join(f"• {d}" for d in option.details)
+            details_text = "\n".join(f"•  {d}" for d in option.details)
             det_lbl = QLabel(details_text)
             det_lbl.setWordWrap(True)
             det_font = QFont()
             det_font.setPointSize(8)
             det_lbl.setFont(det_font)
-            det_lbl.setStyleSheet("color: #848484; margin-top: 2px;")
+            det_lbl.setStyleSheet(f"color: {text_dim}; margin-top: 2px;")
             layout.addWidget(det_lbl)
 
         layout.addStretch(1)
@@ -166,32 +180,34 @@ class WizardOptionCard(QFrame):
     def _update_style(self) -> None:
         tok = tokens()
         surface = tok.get("surface", "#282828")
+        surface_alt = tok.get("surface_alt", "#3d3d3d")
         accent = tok.get("accent", "#4772b3")
-        border = tok.get("border_strong", "#6c6c6c")
+        border_strong = tok.get("border_strong", "#6c6c6c")
 
         if self._selected:
             self.setStyleSheet(
                 f"WizardOptionCard {{"
                 f"  background-color: {surface};"
                 f"  border: 2px solid {accent};"
-                f"  border-radius: 8px;"
+                f"  border-radius: 6px;"
                 f"}}"
             )
         else:
             self.setStyleSheet(
                 f"WizardOptionCard {{"
                 f"  background-color: {surface};"
-                f"  border: 1px solid {border};"
-                f"  border-radius: 8px;"
+                f"  border: 1px solid {border_strong};"
+                f"  border-radius: 6px;"
                 f"}}"
                 f"WizardOptionCard:hover {{"
+                f"  background-color: {surface_alt};"
                 f"  border: 1px solid {accent};"
                 f"}}"
             )
 
 
 class WizardCardGrid(QWidget):
-    """Grid container for selectable visual cards with single-selection."""
+    """Grid container for selectable visual cards with single selection."""
 
     selection_changed = Signal(str)
 
@@ -236,11 +252,16 @@ class WizardCardGrid(QWidget):
         self.select(option_id)
 
 
-class SizingWizardDialog(QDialog):
+class SizingWizardDialog(QDialog, PropertyTableMixin):
     """Interactive multi-step visual wizard for preliminary UAV sizing."""
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        api: StudioAPI | None = None,
+    ) -> None:
         super().__init__(parent)
+        self._api = api
         self.setObjectName("sizing.wizard_dialog")
         self.setWindowTitle("UAV Preliminary Sizing Wizard — SetUAV Studio")
         self.resize(1080, 720)
@@ -266,6 +287,7 @@ class SizingWizardDialog(QDialog):
         self._init_ui()
 
     def _init_ui(self) -> None:
+        tok = tokens()
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(12, 12, 12, 12)
         main_layout.setSpacing(10)
@@ -273,24 +295,39 @@ class SizingWizardDialog(QDialog):
         # 1. Header Banner & Step Title
         header_frame = QFrame()
         header_frame.setObjectName("wizard_header")
+        header_frame.setStyleSheet(
+            f"QFrame#wizard_header {{"
+            f"  background-color: {tok.get('surface', '#282828')};"
+            f"  border: 1px solid {tok.get('border', '#3d3d3d')};"
+            f"  border-radius: 6px;"
+            f"  padding: 8px 12px;"
+            f"}}"
+        )
         header_layout = QHBoxLayout(header_frame)
-        header_layout.setContentsMargins(12, 10, 12, 10)
+        header_layout.setContentsMargins(8, 6, 8, 6)
 
         title_vbox = QVBoxLayout()
         title_vbox.setSpacing(2)
-        self.step_counter_lbl = QLabel("ADIM 1 / 7")
-        self.step_counter_lbl.setStyleSheet("color: #5db6ea; font-size: 11px; font-weight: bold;")
+        self.step_counter_lbl = QLabel("STEP 1 OF 7")
+        self.step_counter_lbl.setStyleSheet(
+            f"color: {tok.get('accent', '#4772b3')}; font-size: 11px; font-weight: bold;"
+        )
         title_vbox.addWidget(self.step_counter_lbl)
 
-        self.step_title_lbl = QLabel("Görev ve Performans Gereksinimleri")
+        self.step_title_lbl = QLabel("Mission & Performance Requirements")
         step_title_font = QFont()
         step_title_font.setPointSize(13)
         step_title_font.setBold(True)
         self.step_title_lbl.setFont(step_title_font)
+        self.step_title_lbl.setStyleSheet(f"color: {tok.get('text', '#ffffff')};")
         title_vbox.addWidget(self.step_title_lbl)
 
-        self.step_desc_lbl = QLabel("İHA'nın taşıyacağı faydalı yük ve hedef uçuş performans hedefleri.")
-        self.step_desc_lbl.setStyleSheet("color: #b9b9b9; font-size: 10px;")
+        self.step_desc_lbl = QLabel(
+            "Define payload capacity and primary mission flight envelope requirements."
+        )
+        self.step_desc_lbl.setStyleSheet(
+            f"color: {tok.get('text_muted', '#b9b9b9')}; font-size: 11px;"
+        )
         title_vbox.addWidget(self.step_desc_lbl)
 
         header_layout.addLayout(title_vbox, 1)
@@ -299,16 +336,38 @@ class SizingWizardDialog(QDialog):
         self.step_pill_layout = QHBoxLayout()
         self.step_pill_layout.setSpacing(4)
         self._step_buttons: list[QPushButton] = []
-        step_short_names = ["Görev", "Gövde", "Kanat Düşey", "Kanat Form", "Kuyruk", "İtki", "Batarya"]
+        step_short_names = [
+            "1. Mission",
+            "2. Architecture",
+            "3. Wing Pos",
+            "4. Planform",
+            "5. Tail",
+            "6. Propulsion",
+            "7. Battery",
+        ]
         for idx, name in enumerate(step_short_names):
-            btn = QPushButton(f"{idx+1}. {name}")
+            btn = QPushButton(name)
             btn.setCheckable(True)
-            btn.setFixedHeight(26)
+            btn.setFixedHeight(28)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.setStyleSheet(
-                "QPushButton { background-color: #282828; color: #848484; border: 1px solid #3d3d3d; border-radius: 4px; padding: 2px 8px; font-size: 9px; }"
-                "QPushButton:checked { background-color: #4772b3; color: #ffffff; border: 1px solid #5db6ea; font-weight: bold; }"
-                "QPushButton:hover { border: 1px solid #5db6ea; }"
+                f"QPushButton {{"
+                f"  background-color: {tok.get('surface', '#282828')};"
+                f"  color: {tok.get('text_muted', '#b9b9b9')};"
+                f"  border: 1px solid {tok.get('border', '#3d3d3d')};"
+                f"  border-radius: 4px;"
+                f"  padding: 3px 8px;"
+                f"  font-size: 11px;"
+                f"}}"
+                f"QPushButton:checked {{"
+                f"  background-color: {tok.get('accent', '#4772b3')};"
+                f"  color: {tok.get('accent_text', '#ffffff')};"
+                f"  border: 1px solid {tok.get('accent', '#4772b3')};"
+                f"  font-weight: bold;"
+                f"}}"
+                f"QPushButton:hover {{"
+                f"  border: 1px solid {tok.get('accent', '#4772b3')};"
+                f"}}"
             )
             btn.clicked.connect(lambda _c, i=idx: self.go_to_step(i))
             self.step_pill_layout.addWidget(btn)
@@ -340,19 +399,23 @@ class SizingWizardDialog(QDialog):
         # 3. Bottom Navigation Bar
         nav_frame = QFrame()
         nav_layout = QHBoxLayout(nav_frame)
-        nav_layout.setContentsMargins(6, 6, 6, 6)
+        nav_layout.setContentsMargins(4, 4, 4, 4)
 
-        self.btn_cancel = QPushButton("İptal")
+        self.btn_cancel = QPushButton("Cancel")
+        set_button_role(self.btn_cancel, "neutral")
         self.btn_cancel.clicked.connect(self.reject)
         nav_layout.addWidget(self.btn_cancel)
 
         nav_layout.addStretch(1)
 
-        self.btn_back = QPushButton("◀ Geri")
+        self.btn_back = QPushButton("Back")
+        self.btn_back.setIcon(get_icon("fa6s.chevron-left"))
+        set_button_role(self.btn_back, "secondary")
         self.btn_back.clicked.connect(self.prev_step)
         nav_layout.addWidget(self.btn_back)
 
-        self.btn_next = QPushButton("İleri ▶")
+        self.btn_next = QPushButton("Next")
+        self.btn_next.setIcon(get_icon("fa6s.chevron-right"))
         set_button_role(self.btn_next, "primary")
         self.btn_next.clicked.connect(self.next_step)
         nav_layout.addWidget(self.btn_next)
@@ -363,89 +426,174 @@ class SizingWizardDialog(QDialog):
 
     def _build_pages(self) -> None:
         """Create all wizard pages."""
-        # Page 0: Mission Requirements
         self.page_mission = self._create_mission_page()
         self.stack.addWidget(self.page_mission)
 
-        # Page 1: Architecture
         self.page_arch = self._create_architecture_page()
         self.stack.addWidget(self.page_arch)
 
-        # Page 2: Wing Location
         self.page_wing_loc = self._create_wing_location_page()
         self.stack.addWidget(self.page_wing_loc)
 
-        # Page 3: Wing Planform
         self.page_wing_plan = self._create_wing_planform_page()
         self.stack.addWidget(self.page_wing_plan)
 
-        # Page 4: Tail Configuration
         self.page_tail = self._create_tail_page()
         self.stack.addWidget(self.page_tail)
 
-        # Page 5: Propulsion Layout
         self.page_prop = self._create_propulsion_page()
         self.stack.addWidget(self.page_prop)
 
-        # Page 6: Battery Chemistry
         self.page_battery = self._create_battery_page()
         self.stack.addWidget(self.page_battery)
+
+    def _create_cell(
+        self,
+        table: QTableWidget,
+        row: int,
+        label: str,
+        val: float,
+        quantity: str | None = None,
+        suffix: str | None = None,
+        min_val: float = 0.0,
+        max_val: float = 100000.0,
+        step: float = 1.0,
+        decimals: int = 2,
+    ) -> ExpressionPropertyCell:
+        from setuav_studio.ui.widget.spinbox import set_table_spinbox
+
+        cell: ExpressionPropertyCell = set_table_spinbox(
+            table,
+            row,
+            1,
+            val,
+            min_val=min_val,
+            max_val=max_val,
+            step=step,
+            decimals=decimals,
+            quantity=quantity,
+            suffix=suffix or "",
+            on_changed=lambda _v: self._on_mission_cell_changed(),
+            api=self._api,
+            label=label,
+        )
+        return cell
 
     def _create_mission_page(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(14)
+        layout.setSpacing(10)
 
+        tok = tokens()
         intro = QLabel(
-            "Hedeflediğiniz İHA görevinin sayısal temel isterlerini giriniz. "
-            "Bu parametreler Eşleme Diyagramı (Matching Chart) kısıt analizinin sınır çizgilerini belirler."
+            "Specify key mission requirements and target flight envelope parameters. "
+            "These inputs define the constraint boundary lines on the Matching Chart."
         )
         intro.setWordWrap(True)
-        intro.setStyleSheet("color: #b9b9b9; font-size: 11px;")
+        intro.setStyleSheet(f"color: {tok.get('text_muted', '#b9b9b9')}; font-size: 11px;")
         layout.addWidget(intro)
 
-        grid = QGridLayout()
-        grid.setSpacing(12)
-
-        # Input fields
-        self.input_payload = QLineEdit(str(self.state["payload_kg"] * 1000.0))
-        self.input_endurance = QLineEdit(str(self.state["endurance_min"]))
-        self.input_cruise_speed = QLineEdit(str(self.state["cruise_speed_ms"]))
-        self.input_altitude = QLineEdit(str(self.state["cruise_alt_m"]))
-        self.input_stall_speed = QLineEdit(str(self.state["stall_speed_ms"]))
-        self.input_takeoff_run = QLineEdit(str(self.state["takeoff_run_m"]))
-        self.input_climb_rate = QLineEdit(str(self.state["climb_rate_ms"]))
-
-        fields = [
-            ("Faydalı Yük Kütlesi (Payload)", self.input_payload, "gram (g)", "Kamera, gimbal, sensör veya kargo ağırlığı"),
-            ("Hedef Uçuş Süresi (Endurance)", self.input_endurance, "dakika (dk)", "Batarya ile hedeflenen havada kalış süresi"),
-            ("Seyir Hızı (Cruise Speed)", self.input_cruise_speed, "m/s", "Ekonomik seyir uçuşu operasyon hızı"),
-            ("Seyir İrtifası (Altitude)", self.input_altitude, "metre (m)", "Operasyon irtifası (hava yoğunluğu hesabı için)"),
-            ("Maksimum Stall Hızı (Vs)", self.input_stall_speed, "m/s", "Güvenli tutunma alt hız sınırı"),
-            ("Kalkış Mesafesi (Takeoff Run)", self.input_takeoff_run, "metre (m)", "Yerden teker kesme pist uzunluğu"),
-            ("Tırmanma Hızı (Climb Rate)", self.input_climb_rate, "m/s", "Deniz seviyesinde dikey tırmanma varyosu"),
+        mission_definitions = [
+            ("payload", "Payload Mass"),
+            ("endurance", "Flight Endurance"),
+            ("v_cruise", "Cruise Speed"),
+            ("cruise_alt", "Cruise Altitude"),
+            ("v_stall", "Max Stall Speed"),
+            ("takeoff_run", "Takeoff Ground Roll"),
+            ("climb_rate", "Rate of Climb"),
         ]
 
-        for row, (label_text, edit, unit, hint) in enumerate(fields):
-            lbl = QLabel(label_text)
-            lbl.setStyleSheet("font-weight: bold; color: #ffffff;")
-            grid.addWidget(lbl, row, 0)
+        self.mission_table = self._property_table(mission_definitions)
 
-            edit.setFixedHeight(28)
-            edit.setStyleSheet("background-color: #1d1d1d; border: 1px solid #3d3d3d; border-radius: 4px; padding: 2px 6px; color: #ffffff;")
-            edit.textChanged.connect(self._on_mission_input_changed)
-            grid.addWidget(edit, row, 1)
+        self.cell_payload = self._create_cell(
+            self.mission_table,
+            0,
+            "Payload Mass",
+            self.state["payload_kg"] * 1000.0,
+            quantity="mass",
+            min_val=10.0,
+            max_val=100000.0,
+            step=50.0,
+            decimals=1,
+        )
+        self.cell_endurance = self._create_cell(
+            self.mission_table,
+            1,
+            "Flight Endurance",
+            self.state["endurance_min"],
+            suffix="min",
+            min_val=1.0,
+            max_val=1000.0,
+            step=5.0,
+            decimals=1,
+        )
+        self.cell_cruise_speed = self._create_cell(
+            self.mission_table,
+            2,
+            "Cruise Speed",
+            self.state["cruise_speed_ms"],
+            quantity="velocity",
+            min_val=5.0,
+            max_val=100.0,
+            step=1.0,
+            decimals=1,
+        )
+        self.cell_altitude = self._create_cell(
+            self.mission_table,
+            3,
+            "Cruise Altitude",
+            self.state["cruise_alt_m"],
+            quantity="length",
+            min_val=0.0,
+            max_val=10000.0,
+            step=50.0,
+            decimals=0,
+        )
+        self.cell_stall_speed = self._create_cell(
+            self.mission_table,
+            4,
+            "Max Stall Speed",
+            self.state["stall_speed_ms"],
+            quantity="velocity",
+            min_val=3.0,
+            max_val=50.0,
+            step=0.5,
+            decimals=1,
+        )
+        self.cell_takeoff_run = self._create_cell(
+            self.mission_table,
+            5,
+            "Takeoff Ground Roll",
+            self.state["takeoff_run_m"],
+            quantity="length",
+            min_val=1.0,
+            max_val=500.0,
+            step=5.0,
+            decimals=1,
+        )
+        self.cell_climb_rate = self._create_cell(
+            self.mission_table,
+            6,
+            "Rate of Climb",
+            self.state["climb_rate_ms"],
+            quantity="velocity",
+            min_val=0.5,
+            max_val=30.0,
+            step=0.5,
+            decimals=1,
+        )
 
-            unit_lbl = QLabel(unit)
-            unit_lbl.setStyleSheet("color: #5db6ea; font-size: 10px; font-weight: bold;")
-            grid.addWidget(unit_lbl, row, 2)
+        # Expose convenient aliases
+        self.input_payload = self.cell_payload
+        self.input_endurance = self.cell_endurance
+        self.input_cruise_speed = self.cell_cruise_speed
+        self.input_altitude = self.cell_altitude
+        self.input_stall_speed = self.cell_stall_speed
+        self.input_takeoff_run = self.cell_takeoff_run
+        self.input_climb_rate = self.cell_climb_rate
 
-            hint_lbl = QLabel(hint)
-            hint_lbl.setStyleSheet("color: #848484; font-size: 9px;")
-            grid.addWidget(hint_lbl, row, 3)
-
-        layout.addLayout(grid)
+        layout.addWidget(self.mission_table)
         layout.addStretch(1)
         return page
 
@@ -457,56 +605,58 @@ class SizingWizardDialog(QDialog):
         options = [
             WizardOption(
                 id="conventional",
-                title="Konvansiyonel (Conventional)",
-                subtitle="Geleneksel gövde, kanat ve kuyruk mimarisi.",
+                title="Conventional",
+                subtitle="Standard fuselage, wing, and tail architecture.",
                 image_filename="config_conventional.jpg",
-                badge="En Yaygın",
+                badge="Standard",
                 details=[
-                    "Yüksek stabilite ve kolay üretim",
-                    "İç hacim geniştir, aviyonik yerleşimi basittir",
-                    "Orta seviye aerodinamik girişim direnci",
+                    "High longitudinal stability and straightforward build",
+                    "Spacious internal volume for avionics packaging",
+                    "Moderate aerodynamic interference drag",
                 ],
             ),
             WizardOption(
                 id="pod_boom",
-                title="Kapsül ve Boru Kuyruk (Pod-and-Boom)",
-                subtitle="Kompakt gövde podu ve ince karbon kuyruk borusu.",
+                title="Pod-and-Boom",
+                subtitle="Compact fuselage pod with a slender tail boom.",
                 image_filename="config_pod_boom.jpg",
-                badge="Hafif Gövde",
+                badge="Lightweight",
                 details=[
-                    "Minimum ıslak alan ve düşük parazit direnç",
-                    "Hafif karbon boru yapı ile ağırlık tasarrufu",
-                    "Burunda veya arkada itici motor yerleşimi",
+                    "Reduced wetted area and low parasite drag",
+                    "Rigid carbon tail boom saves structural mass",
+                    "Well-suited for both tractor and pusher layouts",
                 ],
             ),
             WizardOption(
                 id="twin_boom",
-                title="İkiz Kirişli (Twin-Boom)",
-                subtitle="Kanatlardan geriye uzanan çift kuyruk kirişi.",
+                title="Twin-Boom",
+                subtitle="Twin tail booms extending aft from the wing.",
                 image_filename="config_twin_boom.jpg",
-                badge="İticiye Uygun",
+                badge="Pusher Friendly",
                 details=[
-                    "Gövde arkasına itici motor yerleşiminde pervaneyi korur",
-                    "Kamera için temiz ve titreşimsiz burun hacmi",
-                    "Geniş faydalı yük ve batarya bölmesi",
+                    "Protects aft-mounted pusher propeller",
+                    "Clean, unobstructed nose bay for sensor payloads",
+                    "Large central payload and battery capacity",
                 ],
             ),
             WizardOption(
                 id="flying_wing",
-                title="Uçan Kanat (Flying Wing / Tailless)",
-                subtitle="Ayrı gövde ve kuyruk taşımayan aerodinamik delta form.",
+                title="Flying Wing / Tailless",
+                subtitle="Integrated aerodynamic wing without separate fuselage or tail.",
                 image_filename="config_flying_wing.jpg",
-                badge="Maksimum Verim",
+                badge="Max L/D",
                 details=[
-                    "Kuyruk olmadığı için minimum parazit sürtünme",
-                    "En yüksek süzülme oranı (L/D) ve yüksek menzil",
-                    "Boyuna stabilite için refleks profil veya ok açısı gerektirir",
+                    "No fuselage/tail wetted area yields minimal parasite drag",
+                    "High lift-to-drag ratio and superior cruise range",
+                    "Requires reflex airfoil or wing sweep for longitudinal trim",
                 ],
             ),
         ]
 
         self.grid_arch = WizardCardGrid(options, columns=2, parent=page, image_height=140)
-        self.grid_arch.selection_changed.connect(lambda cid: self._on_selection_changed("config_type", cid))
+        self.grid_arch.selection_changed.connect(
+            lambda cid: self._on_selection_changed("config_type", cid)
+        )
         layout.addWidget(self.grid_arch)
         return page
 
@@ -518,44 +668,46 @@ class SizingWizardDialog(QDialog):
         options = [
             WizardOption(
                 id="high",
-                title="Üstten Kanat (High-Wing)",
-                subtitle="Kanat gövdenin en üst çatısına monte edilir.",
+                title="High-Wing",
+                subtitle="Wing mounted atop the fuselage upper deck.",
                 image_filename="wing_loc_high.png",
-                badge="Doğal Kararlılık",
+                badge="Inherent Stability",
                 details=[
-                    "Sarkaç etkisi (pendulum effect) ile yüksek yanal kararlılık",
-                    "Gövde altı yer açıklığı yüksektir (çim inişi ve kamera koruması)",
-                    "Kesintisiz kargo ve batarya iç hacmi",
+                    "Pendulum effect provides positive lateral stability",
+                    "Generous ground clearance for payloads and rough-field landings",
+                    "Continuous internal fuselage cargo and battery bay",
                 ],
             ),
             WizardOption(
                 id="mid",
-                title="Ortadan Kanat (Mid-Wing)",
-                subtitle="Kanat gövdenin tam yatay simetri ekseninden geçer.",
+                title="Mid-Wing",
+                subtitle="Wing mounted along the fuselage horizontal centerline.",
                 image_filename="wing_loc_mid.png",
-                badge="En Düşük Direnç",
+                badge="Lowest Drag",
                 details=[
-                    "En düşük aerodinamik girişim direnci (interference drag)",
-                    "Simetrik yalpa ve yuvarlanma tepkisi (akrobasi/yüksek manevra)",
-                    "Kanat ana kirişi gövde iç hacmini ortadan böler",
+                    "Lowest aerodynamic interference drag",
+                    "Symmetric roll and pitch response for high maneuverability",
+                    "Wing carry-through structure passes through fuselage bay",
                 ],
             ),
             WizardOption(
                 id="low",
-                title="Alttan Kanat (Low-Wing)",
-                subtitle="Kanat gövdenin tabanına monte edilir.",
+                title="Low-Wing",
+                subtitle="Wing mounted at the fuselage bottom.",
                 image_filename="wing_loc_low.png",
-                badge="Yer Etkisi",
+                badge="Ground Effect",
                 details=[
-                    "Kalkış ve inişte yer etkisi (ground effect) belirgindir",
-                    "Yanal kararlılık için pozitif dihedral açısı gerektirir",
-                    "Üstten kargo ve batarya kapağıyla çok kolay erişim",
+                    "Favorable ground effect cushioning during takeoff and landing",
+                    "Requires dihedral angle for lateral stability",
+                    "Convenient top access to payload and battery compartment",
                 ],
             ),
         ]
 
         self.grid_wing_loc = WizardCardGrid(options, columns=3, parent=page, image_height=130)
-        self.grid_wing_loc.selection_changed.connect(lambda cid: self._on_selection_changed("wing_location", cid))
+        self.grid_wing_loc.selection_changed.connect(
+            lambda cid: self._on_selection_changed("wing_location", cid)
+        )
         layout.addWidget(self.grid_wing_loc)
         return page
 
@@ -567,56 +719,58 @@ class SizingWizardDialog(QDialog):
         options = [
             WizardOption(
                 id="rectangular",
-                title="Dikdörtgen (Rectangular)",
-                subtitle="Sabit veterli düz kanat geometrisi.",
+                title="Rectangular",
+                subtitle="Constant-chord wing across the entire span.",
                 image_filename="planform_rectangular.png",
-                badge="Kolay Üretim",
+                badge="Simple Build",
                 details=[
-                    "Üretimi ve kaplaması en basit kanat formu",
-                    "Kökten uca doğru perdövites (stall) eğilimi güvenlidir",
-                    "Uçlarda indüklenmiş direnç biraz daha yüksektir",
+                    "Easiest planform to manufacture and cover",
+                    "Root-first stall progression maintains roll authority",
+                    "Higher induced drag due to non-elliptical lift distribution",
                 ],
             ),
             WizardOption(
                 id="tapered",
-                title="Trapez / Sivrilen (Tapered)",
-                subtitle="Uçlara doğru sivrilen veter dağılımı (lambda ~ 0.4 - 0.6).",
+                title="Tapered",
+                subtitle="Linear chord taper towards wingtips (taper ratio 0.4 - 0.6).",
                 image_filename="planform_tapered.png",
-                badge="Optimum L/D",
+                badge="Optimal L/D",
                 details=[
-                    "Eliptik yük dağılımına en yakın pratik form",
-                    "Düşük indüklenmiş sürtünme ve yüksek yapısal verim",
-                    "Hafif kanat yapısı ile uzun menzil uçuşu",
+                    "Close approximation to ideal elliptical lift distribution",
+                    "Low induced drag with high structural efficiency",
+                    "Lighter wing structure for extended cruise endurance",
                 ],
             ),
             WizardOption(
                 id="swept",
-                title="Geriye Ok Açılı (Swept-Tapered)",
-                subtitle="Hücum kenarı geriye doğru açılı kanat.",
+                title="Swept-Tapered",
+                subtitle="Wing with aft sweep on the leading edge.",
                 image_filename="planform_swept.png",
-                badge="Yüksek Hız",
+                badge="High Speed",
                 details=[
-                    "Kritik Mach sayısını artırır ve dalga direncini öteler",
-                    "Uçan kanatlarda boyuna kararlılık ve yapay dihedral sağlar",
-                    "Uç perdövitesi (tip stall) eğilimine dikkat edilmelidir",
+                    "Delays compressibility drag rise at higher airspeeds",
+                    "Provides longitudinal stability for tailless configurations",
+                    "Requires aerodynamic washout to mitigate tip stall",
                 ],
             ),
             WizardOption(
                 id="delta",
-                title="Delta (Delta Wing)",
-                subtitle="Geniş kök veterli üçgen kanat formu.",
+                title="Delta Wing",
+                subtitle="Triangular wing planform with large root chord.",
                 image_filename="planform_delta.png",
-                badge="Yüksek Mukavemet",
+                badge="Structural Volume",
                 details=[
-                    "Geniş kanat alanı ve devasa iç batarya hacmi",
-                    "Yüksek hücum açılarında girdap taşıması (vortex lift)",
-                    "Düşük açıklık oranı nedeniyle yüksek indüklenmiş direnç",
+                    "Large wing area with substantial internal battery volume",
+                    "Vortex lift generation at high angles of attack",
+                    "Low aspect ratio increases induced drag during climb/turn",
                 ],
             ),
         ]
 
         self.grid_wing_plan = WizardCardGrid(options, columns=2, parent=page, image_height=130)
-        self.grid_wing_plan.selection_changed.connect(lambda cid: self._on_selection_changed("wing_planform", cid))
+        self.grid_wing_plan.selection_changed.connect(
+            lambda cid: self._on_selection_changed("wing_planform", cid)
+        )
         layout.addWidget(self.grid_wing_plan)
         return page
 
@@ -628,44 +782,46 @@ class SizingWizardDialog(QDialog):
         options = [
             WizardOption(
                 id="conventional",
-                title="Konvansiyonel Kuyruk (Conventional)",
-                subtitle="Ayrı dikey fin ve gövdeye bağlı yatay kuyruk.",
+                title="Conventional Tail",
+                subtitle="Separate horizontal stabilizer and vertical fin.",
                 image_filename="tail_conventional.jpg",
-                badge="Klasik & Güvenilir",
+                badge="Classic & Reliable",
                 details=[
-                    "İrtifa ve istikamet kontrolü tamamen bağımsızdır",
-                    "Tasarımı, trimi ve kontrol yüzeyi ayrımı kolaydır",
-                    "Düşük yapısal ağırlık ve basit menteşe mekaniği",
+                    "Independent pitch and yaw aerodynamic trim",
+                    "Straightforward hinge geometry and control linkage",
+                    "Low structural risk and simple analysis",
                 ],
             ),
             WizardOption(
                 id="t_tail",
-                title="T-Kuyruk (T-Tail)",
-                subtitle="Yatay stabilize dikey finin en tepesine montelidir.",
+                title="T-Tail",
+                subtitle="Horizontal stabilizer mounted atop the vertical fin.",
                 image_filename="tail_t_tail.jpg",
-                badge="Temiz Akış",
+                badge="Clean Flow",
                 details=[
-                    "Kanat ve pervane girdabından (wake) uzakta temiz akışta çalışır",
-                    "Yüksek kontrol otoritesi ve daha küçük gerekli kuyruk alanı",
-                    "Dikey fin kökünde yüksek burulma yükü taşır",
+                    "Operates in clean freestream air above wing/prop wash",
+                    "High control authority allowing smaller stabilizer area",
+                    "Imposes strong bending and torsional loads on vertical fin",
                 ],
             ),
             WizardOption(
                 id="v_tail",
-                title="V-Kuyruk (V-Tail / Ruddervators)",
-                subtitle="İki açılı stabilize yüzeyinin kontrolü birleştirmesi.",
+                title="V-Tail / Ruddervators",
+                subtitle="Two angled surfaces combining elevator and rudder functions.",
                 image_filename="tail_v_tail.jpg",
-                badge="Düşük Direnç",
+                badge="Low Drag",
                 details=[
-                    "İki yüzey ile hem pitch hem yaw kontrolü (mikserli kontrol)",
-                    "Daha az birleşim noktası ile düşük girişim direnci",
-                    "Gövde arkası itici pervane açıklığı için elverişlidir",
+                    "Combines pitch and yaw control via mixer software",
+                    "Fewer surface intersections reduce interference drag",
+                    "Provides propeller clearance for aft-mounted pusher motors",
                 ],
             ),
         ]
 
         self.grid_tail = WizardCardGrid(options, columns=3, parent=page, image_height=130)
-        self.grid_tail.selection_changed.connect(lambda cid: self._on_selection_changed("tail_type", cid))
+        self.grid_tail.selection_changed.connect(
+            lambda cid: self._on_selection_changed("tail_type", cid)
+        )
         layout.addWidget(self.grid_tail)
         return page
 
@@ -677,44 +833,46 @@ class SizingWizardDialog(QDialog):
         options = [
             WizardOption(
                 id="tractor",
-                title="Çekici Motor (Tractor — Burun)",
-                subtitle="Pervane uçağın en ön burnunda çekici konumdadır.",
+                title="Tractor (Nose)",
+                subtitle="Single propeller mounted on the forward fuselage nose.",
                 image_filename="prop_tractor.jpg",
-                badge="Yüksek Verim",
+                badge="High Efficiency",
                 details=[
-                    "Pervane temiz havada çalışır (yüksek pervane verimi: %80-82)",
-                    "Motor ve ESC doğrudan pervane rüzgarıyla mükemmel soğur",
-                    "Burundaki kamera veya sensör görüşünü pervane bölebilir",
+                    "Propeller operates in clean, undisturbed incoming air",
+                    "Slipstream provides excellent motor and ESC cooling",
+                    "Nose camera or forward sensor view may be obstructed",
                 ],
             ),
             WizardOption(
                 id="pusher",
-                title="İtici Motor (Pusher — Kanat Arkası/Gövde)",
-                subtitle="Pervane gövdenin arkasında veya kanat üstü pilonda iter.",
+                title="Pusher (Aft / Pylon)",
+                subtitle="Propeller mounted aft of fuselage or on an over-wing pylon.",
                 image_filename="prop_pusher.jpg",
-                badge="Temiz Burun",
+                badge="Clear Nose",
                 details=[
-                    "Burun tamamen boştur; gimbal ve kamera için kesintisiz görüş",
-                    "Gövde üzerinde laminer hava akışı (düşük sürtünme)",
-                    "Pervane gövde izinde çalıştığı için verim %3-5 daha düşüktür",
+                    "Unobstructed forward view for optical payloads and gimbals",
+                    "Laminar airflow over forward fuselage reduces body drag",
+                    "Slightly reduced propeller efficiency (~3-5%) in body wake",
                 ],
             ),
             WizardOption(
                 id="twin",
-                title="Çift Motor (Twin Engine — Kanat Önü)",
-                subtitle="Kanat hücum kenarına simetrik monte edilmiş iki motor.",
+                title="Twin Tractor (Wing)",
+                subtitle="Dual motors mounted on the wing leading edge.",
                 image_filename="prop_twin.jpg",
-                badge="Yedekli & Güçlü",
+                badge="Redundant & Powerful",
                 details=[
-                    "Motor arızasında tek motorla uçuş güvenliği (yedeklilik)",
-                    "Kanat üstü akış üflemesi (blown wing) ile ilave kaldırma",
-                    "Burun boştur; iki kat motor/ESC ağırlığı ve kablo tesisatı",
+                    "Engine-out redundancy for critical mission safety",
+                    "Propwash over wing enhances local dynamic lift",
+                    "Clear nose compartment; increased motor/ESC wiring mass",
                 ],
             ),
         ]
 
         self.grid_prop = WizardCardGrid(options, columns=3, parent=page, image_height=130)
-        self.grid_prop.selection_changed.connect(lambda cid: self._on_selection_changed("propulsion_layout", cid))
+        self.grid_prop.selection_changed.connect(
+            lambda cid: self._on_selection_changed("propulsion_layout", cid)
+        )
         layout.addWidget(self.grid_prop)
         return page
 
@@ -726,112 +884,120 @@ class SizingWizardDialog(QDialog):
         options = [
             WizardOption(
                 id="lipo",
-                title="Lityum Polimer (LiPo)",
-                subtitle="Standart RC ve İHA bataryası.",
+                title="Lithium Polymer (LiPo)",
+                subtitle="Standard pouch cell RC / UAV pack.",
                 badge="160 Wh/kg",
                 details=[
-                    "Yüksek anlık akım verme (C-rate: 25C - 100C)",
-                    "Kalkış ve tırmanmada yüksek güç ihtiyacı için ideal",
-                    "Düşük özgül enerji nedeniyle orta seviye uçuş süresi",
+                    "High continuous discharge rates (25C - 100C)",
+                    "Optimal for high-thrust takeoff and aggressive maneuvers",
+                    "Moderate specific energy limits long-range endurance",
                 ],
             ),
             WizardOption(
                 id="lihv",
-                title="Yüksek Voltajlı LiPo (LiHV)",
-                subtitle="Hücre başı 4.35V şarj edilen polimer batarya.",
+                title="High-Voltage LiPo (LiHV)",
+                subtitle="Polymer cells charged to 4.35V per cell.",
                 badge="195 Wh/kg",
                 details=[
-                    "Standart LiPo'ya kıyasla %15 daha fazla enerji depolama",
-                    "Yüksek güç deşarj kabiliyeti",
-                    "Orta-uzun menzil görevler için dengeli seçenek",
+                    "~15% greater capacity than standard LiPo",
+                    "Strong burst power discharge capability",
+                    "Balanced choice for medium-endurance missions",
                 ],
             ),
             WizardOption(
                 id="li_ion_18650",
-                title="Lityum İyon 18650 (Li-Ion)",
-                subtitle="Standart silindirik çelik kılıflı hücreler.",
+                title="Lithium-Ion 18650",
+                subtitle="Standard cylindrical metal-cased cells.",
                 badge="230 Wh/kg",
                 details=[
-                    "Yüksek enerji yoğunluğu, uzun menzil seyir uçuşu için ideal",
-                    "Daha düşük anlık C deşarj oranı (2C - 5C)",
-                    "Ekonomik ve yaygın hücre mimarisi",
+                    "High energy density for extended cruise missions",
+                    "Lower continuous discharge rate (2C - 5C)",
+                    "Cost-effective, mature, and widely available",
                 ],
             ),
             WizardOption(
                 id="li_ion_21700",
-                title="Lityum İyon 21700 (Li-Ion)",
-                subtitle="Yeni nesil yüksek kapasiteli silindirik hücreler (Molicel P42A/P45B vb.).",
+                title="Lithium-Ion 21700",
+                subtitle="High-capacity cylindrical cells (e.g. Molicel P42A/P45B).",
                 badge="260 Wh/kg",
                 details=[
-                    "Mükemmel enerji yoğunluğu ve 10C-15C akım kapasitesi",
-                    "Uzun menzilli keşif İHA'larında güncel endüstri standardı",
-                    "Ağırlık başına maksimum uçuş süresi",
+                    "Excellent energy density with 10C - 15C discharge current",
+                    "Modern benchmark for long-range surveillance UAVs",
+                    "Maximizes cruise flight time per unit battery weight",
                 ],
             ),
             WizardOption(
                 id="solid_state",
-                title="Katı Hal Batarya (Solid-State)",
-                subtitle="Gelecek nesil katı elektrolitli lityum hücre teknolojisi.",
+                title="Solid-State Battery",
+                subtitle="Next-generation solid electrolyte lithium chemistry.",
                 badge="350 Wh/kg",
                 details=[
-                    "Devasa enerji yoğunluğu ile 2-3 kat uçuş süresi potansiyeli",
-                    "Yüksek termal güvenlik ve alev almaz yapı",
-                    "Yüksek maliyet ve sınırlı piyasa temini",
+                    "Very high energy density for 2-3x endurance potential",
+                    "Enhanced thermal safety with non-flammable electrolyte",
+                    "Emerging technology with premium cost and limited sourcing",
                 ],
             ),
         ]
 
         self.grid_battery = WizardCardGrid(options, columns=2, parent=page, image_height=50)
-        self.grid_battery.selection_changed.connect(lambda cid: self._on_selection_changed("battery_chemistry", cid))
+        self.grid_battery.selection_changed.connect(
+            lambda cid: self._on_selection_changed("battery_chemistry", cid)
+        )
         layout.addWidget(self.grid_battery)
         return page
 
     def _build_summary_sidebar(self) -> QWidget:
+        tok = tokens()
         sidebar = QFrame()
         sidebar.setObjectName("wizard_sidebar")
         sidebar.setStyleSheet(
-            "QFrame#wizard_sidebar { background-color: #242424; border: 1px solid #333333; border-radius: 8px; padding: 10px; }"
+            f"QFrame#wizard_sidebar {{"
+            f"  background-color: {tok.get('surface', '#282828')};"
+            f"  border: 1px solid {tok.get('border', '#3d3d3d')};"
+            f"  border-radius: 6px;"
+            f"}}"
         )
         layout = QVBoxLayout(sidebar)
         layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(10)
+        layout.setSpacing(8)
 
-        side_title = QLabel("Seçim Özeti")
+        side_title = QLabel("Selection Summary")
         side_font = QFont()
         side_font.setBold(True)
         side_font.setPointSize(11)
         side_title.setFont(side_font)
-        side_title.setStyleSheet("color: #ffffff;")
+        side_title.setStyleSheet(f"color: {tok.get('text', '#ffffff')};")
         layout.addWidget(side_title)
 
-        # Labels for summary items
-        self.sum_payload = QLabel("0.5 kg")
-        self.sum_endurance = QLabel("45 dk")
-        self.sum_speed = QLabel("18 m/s")
-        self.sum_config = QLabel("Konvansiyonel")
-        self.sum_wing_loc = QLabel("Üstten Kanat")
-        self.sum_planform = QLabel("Trapez")
-        self.sum_tail = QLabel("Konvansiyonel")
-        self.sum_prop = QLabel("Çekici Motor")
+        self.sum_payload = QLabel("0.50 kg")
+        self.sum_endurance = QLabel("45 min")
+        self.sum_speed = QLabel("18.0 m/s")
+        self.sum_config = QLabel("Conventional")
+        self.sum_wing_loc = QLabel("High-Wing")
+        self.sum_planform = QLabel("Tapered")
+        self.sum_tail = QLabel("Conventional")
+        self.sum_prop = QLabel("Tractor")
         self.sum_battery = QLabel("Li-Ion 21700")
 
         items = [
-            ("Faydalı Yük:", self.sum_payload),
-            ("Uçuş Süresi:", self.sum_endurance),
-            ("Seyir Hızı:", self.sum_speed),
-            ("Gövde Tipi:", self.sum_config),
-            ("Kanat Yüksekliği:", self.sum_wing_loc),
-            ("Kanat Formu:", self.sum_planform),
-            ("Kuyruk Tipi:", self.sum_tail),
-            ("İtki Yerleşimi:", self.sum_prop),
-            ("Batarya:", self.sum_battery),
+            ("Payload Mass:", self.sum_payload),
+            ("Flight Endurance:", self.sum_endurance),
+            ("Cruise Speed:", self.sum_speed),
+            ("Configuration:", self.sum_config),
+            ("Wing Placement:", self.sum_wing_loc),
+            ("Wing Planform:", self.sum_planform),
+            ("Tail Type:", self.sum_tail),
+            ("Propulsion:", self.sum_prop),
+            ("Battery:", self.sum_battery),
         ]
 
         for title, val_lbl in items:
             row = QHBoxLayout()
             t_lbl = QLabel(title)
-            t_lbl.setStyleSheet("color: #848484; font-size: 10px;")
-            val_lbl.setStyleSheet("color: #5db6ea; font-size: 10px; font-weight: bold;")
+            t_lbl.setStyleSheet(f"color: {tok.get('text_muted', '#b9b9b9')}; font-size: 11px;")
+            val_lbl.setStyleSheet(
+                f"color: {tok.get('accent', '#4772b3')}; font-size: 11px; font-weight: bold;"
+            )
             row.addWidget(t_lbl)
             row.addStretch(1)
             row.addWidget(val_lbl)
@@ -839,19 +1005,29 @@ class SizingWizardDialog(QDialog):
 
         layout.addStretch(1)
 
-        # Estimated coefficients preview box
-        est_box = QGroupBox("Tahmini Katsayılar")
-        est_box.setStyleSheet("QGroupBox { color: #b9b9b9; font-size: 10px; font-weight: bold; border: 1px solid #3d3d3d; border-radius: 6px; margin-top: 8px; padding-top: 10px; }")
+        # Estimated parameters preview box
+        est_box = QGroupBox("Estimated Parameters")
+        est_box.setStyleSheet(
+            f"QGroupBox {{"
+            f"  color: {tok.get('text_muted', '#b9b9b9')};"
+            f"  font-size: 11px;"
+            f"  font-weight: bold;"
+            f"  border: 1px solid {tok.get('border', '#3d3d3d')};"
+            f"  border-radius: 6px;"
+            f"  margin-top: 10px;"
+            f"  padding-top: 12px;"
+            f"}}"
+        )
         est_layout = QVBoxLayout(est_box)
         est_layout.setSpacing(4)
 
         self.lbl_est_cd0 = QLabel("CD0: ~0.027")
         self.lbl_est_e = QLabel("Oswald e: ~0.82")
-        self.lbl_est_prop_eta = QLabel("Pervane Verimi: ~80%")
-        self.lbl_est_bat_wh = QLabel("Enerji Yoğunluğu: ~260 Wh/kg")
+        self.lbl_est_prop_eta = QLabel("Propeller Efficiency: ~80%")
+        self.lbl_est_bat_wh = QLabel("Energy Density: ~260 Wh/kg")
 
         for lbl in (self.lbl_est_cd0, self.lbl_est_e, self.lbl_est_prop_eta, self.lbl_est_bat_wh):
-            lbl.setStyleSheet("color: #ffffff; font-size: 9px;")
+            lbl.setStyleSheet(f"color: {tok.get('text', '#ffffff')}; font-size: 11px;")
             est_layout.addWidget(lbl)
 
         layout.addWidget(est_box)
@@ -861,42 +1037,56 @@ class SizingWizardDialog(QDialog):
         self.state[key] = value
         self._update_summary()
 
-    def _on_mission_input_changed(self) -> None:
-        try:
-            self.state["payload_kg"] = float(self.input_payload.text()) / 1000.0
-            self.state["endurance_min"] = float(self.input_endurance.text())
-            self.state["cruise_speed_ms"] = float(self.input_cruise_speed.text())
-            self.state["cruise_alt_m"] = float(self.input_altitude.text())
-            self.state["stall_speed_ms"] = float(self.input_stall_speed.text())
-            self.state["takeoff_run_m"] = float(self.input_takeoff_run.text())
-            self.state["climb_rate_ms"] = float(self.input_climb_rate.text())
-        except ValueError:
-            pass
+    def _on_mission_cell_changed(self) -> None:
+        self.state["payload_kg"] = self.cell_payload.value() / 1000.0
+        self.state["endurance_min"] = self.cell_endurance.value()
+        self.state["cruise_speed_ms"] = self.cell_cruise_speed.value()
+        self.state["cruise_alt_m"] = self.cell_altitude.value()
+        self.state["stall_speed_ms"] = self.cell_stall_speed.value()
+        self.state["takeoff_run_m"] = self.cell_takeoff_run.value()
+        self.state["climb_rate_ms"] = self.cell_climb_rate.value()
         self._update_summary()
 
     def _update_summary(self) -> None:
         self.sum_payload.setText(f"{self.state.get('payload_kg', 0.5):.2f} kg")
-        self.sum_endurance.setText(f"{self.state.get('endurance_min', 45.0):.0f} dk")
+        self.sum_endurance.setText(f"{self.state.get('endurance_min', 45.0):.0f} min")
         self.sum_speed.setText(f"{self.state.get('cruise_speed_ms', 18.0):.1f} m/s")
 
         cfg_names = {
-            "conventional": "Konvansiyonel",
-            "pod_boom": "Pod & Boru",
-            "twin_boom": "İkiz Kirişli",
-            "flying_wing": "Uçan Kanat",
+            "conventional": "Conventional",
+            "pod_boom": "Pod-and-Boom",
+            "twin_boom": "Twin-Boom",
+            "flying_wing": "Flying Wing",
         }
         self.sum_config.setText(cfg_names.get(self.state.get("config_type", ""), "-"))
 
-        loc_names = {"high": "Üstten", "mid": "Ortadan", "low": "Alttan"}
+        loc_names = {
+            "high": "High-Wing",
+            "mid": "Mid-Wing",
+            "low": "Low-Wing",
+        }
         self.sum_wing_loc.setText(loc_names.get(self.state.get("wing_location", ""), "-"))
 
-        plan_names = {"rectangular": "Dikdörtgen", "tapered": "Trapez", "swept": "Ok Açılı", "delta": "Delta"}
+        plan_names = {
+            "rectangular": "Rectangular",
+            "tapered": "Tapered",
+            "swept": "Swept-Tapered",
+            "delta": "Delta",
+        }
         self.sum_planform.setText(plan_names.get(self.state.get("wing_planform", ""), "-"))
 
-        tail_names = {"conventional": "Konvansiyonel", "t_tail": "T-Kuyruk", "v_tail": "V-Kuyruk"}
+        tail_names = {
+            "conventional": "Conventional",
+            "t_tail": "T-Tail",
+            "v_tail": "V-Tail",
+        }
         self.sum_tail.setText(tail_names.get(self.state.get("tail_type", ""), "-"))
 
-        prop_names = {"tractor": "Çekici (Burun)", "pusher": "İtici (Pilon)", "twin": "Çift Motor"}
+        prop_names = {
+            "tractor": "Tractor",
+            "pusher": "Pusher",
+            "twin": "Twin Tractor",
+        }
         self.sum_prop.setText(prop_names.get(self.state.get("propulsion_layout", ""), "-"))
 
         bat_names = {
@@ -920,15 +1110,36 @@ class SizingWizardDialog(QDialog):
             btn.setChecked(idx == step_idx)
 
         # Update counter & headers
-        self.step_counter_lbl.setText(f"ADIM {step_idx + 1} / {total_steps}")
+        self.step_counter_lbl.setText(f"STEP {step_idx + 1} OF {total_steps}")
         step_meta = [
-            ("Görev ve Performans Gereksinimleri", "İHA'nın taşıyacağı faydalı yük ve hedef uçuş performans hedefleri."),
-            ("Genel Konfigürasyon Tipi (Architecture)", "Uçağın temel gövde mimarisi ve aerodinamik düzeni."),
-            ("Kanat Konumu ve Düşey Yerleşimi", "Gövde-kanat birleşim yüksekliği ve girişim direnci özellikleri."),
-            ("Kanat Planform Şekli", "Kanadın üstten görünüşü, veter dağılımı ve indüklenmiş direnç formu."),
-            ("Kuyruk Tipi (Tail Configuration)", "Kuyruk kontrol yüzeyleri yerleşimi ve hava akışı verimi."),
-            ("İtki ve Motor Yerleşimi", "Pervane konumu, motor sayısı ve aerodinamik etkileşim."),
-            ("Batarya Teknolojisi", "Kimyasal hücre tipi, özgül enerji yoğunluğu ve ağırlık payı."),
+            (
+                "Mission & Performance Requirements",
+                "Define payload capacity and primary mission flight envelope requirements.",
+            ),
+            (
+                "Aircraft Configuration",
+                "Select overall fuselage, wing, and tail architecture concept.",
+            ),
+            (
+                "Wing Vertical Placement",
+                "Select wing-to-fuselage vertical mounting height and interference drag profile.",
+            ),
+            (
+                "Wing Planform Shape",
+                "Select wing planform geometry, taper ratio, and lift distribution.",
+            ),
+            (
+                "Tail Configuration",
+                "Select empennage layout and aerodynamic control surface arrangement.",
+            ),
+            (
+                "Propulsion Architecture",
+                "Select motor arrangement and propeller installation location.",
+            ),
+            (
+                "Battery Technology",
+                "Select battery cell chemistry and nominal specific energy density.",
+            ),
         ]
         if step_idx < len(step_meta):
             self.step_title_lbl.setText(step_meta[step_idx][0])
@@ -937,9 +1148,11 @@ class SizingWizardDialog(QDialog):
         # Update navigation buttons
         self.btn_back.setEnabled(step_idx > 0)
         if step_idx == total_steps - 1:
-            self.btn_next.setText("✨ Boyutlandırmayı Başlat")
+            self.btn_next.setText("Apply to Sizing")
+            set_button_role(self.btn_next, "primary", icon_source="fa6s.check")
         else:
-            self.btn_next.setText("İleri ▶")
+            self.btn_next.setText("Next")
+            set_button_role(self.btn_next, "primary", icon_source="fa6s.chevron-right")
 
     def next_step(self) -> None:
         current = self.stack.currentIndex()

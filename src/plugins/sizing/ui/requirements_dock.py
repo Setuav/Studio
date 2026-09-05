@@ -143,9 +143,9 @@ class SizingRequirementsDock(PropertyTableMixin, QWidget):
         self.preset_combo.currentIndexChanged.connect(self._on_preset_combo_changed)
         combo_row.addWidget(self.preset_combo, 1)
 
-        self.wizard_btn = QPushButton("Sihirbaz...")
-        self.wizard_btn.setToolTip("Görsel İHA Boyutlandırma Sihirbazını Aç")
-        set_button_role(self.wizard_btn, "secondary")
+        self.wizard_btn = QPushButton("Wizard...")
+        self.wizard_btn.setToolTip("Open Visual UAV Preliminary Sizing Wizard")
+        set_button_role(self.wizard_btn, "secondary", icon_source="fa6s.wand-magic-sparkles")
         self.wizard_btn.clicked.connect(self._open_sizing_wizard)
         combo_row.addWidget(self.wizard_btn)
 
@@ -155,7 +155,7 @@ class SizingRequirementsDock(PropertyTableMixin, QWidget):
         """Open the preliminary sizing wizard dialog."""
         from plugins.sizing.ui.wizard_dialog import SizingWizardDialog
 
-        dlg = SizingWizardDialog(parent=self.window() or self)
+        dlg = SizingWizardDialog(parent=self.window() or self, api=self._api)
         if dlg.exec():
             self._apply_wizard_state(dlg.state)
 

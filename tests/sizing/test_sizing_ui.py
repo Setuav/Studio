@@ -185,7 +185,7 @@ class TestSizingUI(unittest.TestCase):
             self.assertEqual(dlg.stack.currentIndex(), step)
 
         # On last step, button text changes
-        self.assertIn("Başlat", dlg.btn_next.text())
+        self.assertIn("Apply", dlg.btn_next.text())
 
         # Step back
         dlg.prev_step()
@@ -193,33 +193,33 @@ class TestSizingUI(unittest.TestCase):
 
         # Test changing inputs
         dlg.go_to_step(0)
-        dlg.input_payload.setText("1200")
+        dlg.input_payload.setValue(1200)
         self.assertAlmostEqual(dlg.state["payload_kg"], 1.2)
         self.assertEqual(dlg.sum_payload.text(), "1.20 kg")
 
-        dlg.input_endurance.setText("60")
+        dlg.input_endurance.setValue(60)
         self.assertAlmostEqual(dlg.state["endurance_min"], 60.0)
 
         # Test card selections
         dlg.grid_arch.select("flying_wing")
         self.assertEqual(dlg.state["config_type"], "flying_wing")
-        self.assertEqual(dlg.sum_config.text(), "Uçan Kanat")
+        self.assertEqual(dlg.sum_config.text(), "Flying Wing")
 
         dlg.grid_wing_loc.select("low")
         self.assertEqual(dlg.state["wing_location"], "low")
-        self.assertEqual(dlg.sum_wing_loc.text(), "Alttan")
+        self.assertEqual(dlg.sum_wing_loc.text(), "Low-Wing")
 
         dlg.grid_wing_plan.select("swept")
         self.assertEqual(dlg.state["wing_planform"], "swept")
-        self.assertEqual(dlg.sum_planform.text(), "Ok Açılı")
+        self.assertEqual(dlg.sum_planform.text(), "Swept-Tapered")
 
         dlg.grid_tail.select("v_tail")
         self.assertEqual(dlg.state["tail_type"], "v_tail")
-        self.assertEqual(dlg.sum_tail.text(), "V-Kuyruk")
+        self.assertEqual(dlg.sum_tail.text(), "V-Tail")
 
         dlg.grid_prop.select("twin")
         self.assertEqual(dlg.state["propulsion_layout"], "twin")
-        self.assertEqual(dlg.sum_prop.text(), "Çift Motor")
+        self.assertEqual(dlg.sum_prop.text(), "Twin Tractor")
 
         dlg.grid_battery.select("li_ion_18650")
         self.assertEqual(dlg.state["battery_chemistry"], "li_ion_18650")
