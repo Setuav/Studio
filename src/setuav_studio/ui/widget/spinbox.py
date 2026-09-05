@@ -144,22 +144,23 @@ def _parse_spinbox_callback_value(
 ) -> Any:
     clean = new_text.strip()
     if clean.startswith("=") or not clean.replace(".", "", 1).replace("-", "", 1).isdigit():
-        if api is not None and getattr(api, "current_project", None) is not None:
-            try:
-                from setuav_studio.model.expression import ExpressionEvaluator
+        try:
+            from setuav_studio.model.expression import ExpressionEvaluator
 
-                evaluator = ExpressionEvaluator()
+            evaluator = ExpressionEvaluator()
+            scope = {}
+            if api is not None and getattr(api, "current_project", None) is not None:
                 scope = api.current_project.get_scope(api=api)
-                res = evaluator.evaluate(clean.lstrip("=").strip(), scope)
-                if isinstance(res, (int, float)):
-                    num = float(res)
-                    if min_val is not None:
-                        num = max(min_val, num)
-                    if max_val is not None:
-                        num = min(max_val, num)
-                    return num
-            except Exception:
-                pass
+            res = evaluator.evaluate(clean.lstrip("=").strip(), scope)
+            if isinstance(res, (int, float)):
+                num = float(res)
+                if min_val is not None:
+                    num = max(min_val, num)
+                if max_val is not None:
+                    num = min(max_val, num)
+                return num
+        except Exception:
+            pass
         return clean
     try:
         num = float(clean)

@@ -102,6 +102,7 @@ PRESSURE = FORCE / AREA  # Pressure / Dynamic Pressure
 DENSITY = MASS / VOLUME  # Air density
 WING_LOADING = MASS / AREA  # Wing area loading
 ENERGY = FORCE * LENGTH  # Energy (Joules / Watt-hours)
+SPECIFIC_ENERGY = ENERGY / MASS  # Specific energy (Wh/kg, J/kg)
 POWER = ENERGY / TIME  # Mechanical / Electrical Power
 VOLTAGE = POWER / CURRENT  # Electric Potential
 FREQUENCY = DIMENSIONLESS / TIME  # Rotational speed (RPM, Hz)
@@ -122,6 +123,7 @@ __all__ = [
     "MOMENT",
     "POWER",
     "PRESSURE",
+    "SPECIFIC_ENERGY",
     "TEMPERATURE",
     "TIME",
     "VELOCITY",

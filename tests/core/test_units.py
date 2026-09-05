@@ -88,6 +88,17 @@ class TestPhysicalUnitsAndDimensions(unittest.TestCase):
         self.assertEqual(get_quantity_for_unit("rad/s"), "frequency")
         self.assertEqual(get_quantity_for_unit("oz·in"), "torque")
         self.assertEqual(get_quantity_for_unit("Ω"), "resistance")
+        self.assertEqual(get_quantity_for_unit("Wh"), "energy")
+        self.assertEqual(get_quantity_for_unit("kWh"), "energy")
+        self.assertEqual(get_quantity_for_unit("J"), "energy")
+        self.assertEqual(get_quantity_for_unit("Wh/kg"), "specific_energy")
+        self.assertEqual(get_quantity_for_unit("kJ/kg"), "specific_energy")
+
+    def test_energy_conversions(self) -> None:
+        self.assertAlmostEqual(convert_value(100.0, "energy", "Wh", "J"), 360000.0)
+        self.assertAlmostEqual(convert_value(360000.0, "energy", "J", "Wh"), 100.0)
+        self.assertAlmostEqual(convert_value(1000.0, "energy", "Wh", "kWh"), 1.0)
+        self.assertAlmostEqual(convert_value(180.0, "specific_energy", "Wh/kg", "kJ/kg"), 648.0)
 
     def test_unit_manager_loads_case_sensitive_units(self) -> None:
         from setuav_studio.units.manager import UnitManager

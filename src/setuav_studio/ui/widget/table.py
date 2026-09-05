@@ -233,19 +233,19 @@ class ExpressionPropertyCell(QWidget):
         )
 
     def _evaluate_expression(self, expr_text: str) -> tuple[bool, Any]:
-        """Evaluate expression against current project scope."""
-        if self._api is not None and getattr(self._api, "current_project", None) is not None:
-            try:
-                from setuav_studio.model.expression import ExpressionEvaluator
+        """Evaluate expression against current project scope (or math fallback)."""
+        try:
+            from setuav_studio.model.expression import ExpressionEvaluator
 
-                evaluator = ExpressionEvaluator()
+            evaluator = ExpressionEvaluator()
+            scope = {}
+            if self._api is not None and getattr(self._api, "current_project", None) is not None:
                 scope = self._api.current_project.get_scope(api=self._api)
-                expr = expr_text.lstrip("=").strip()
-                val = evaluator.evaluate(expr, scope)
-                return True, val
-            except Exception:
-                return False, None
-        return False, None
+            expr = expr_text.lstrip("=").strip()
+            val = evaluator.evaluate(expr, scope)
+            return True, val
+        except Exception:
+            return False, None
 
     def _display_number(self, base_val: float) -> tuple[str, str]:
         from setuav_studio.units import get_unit_manager

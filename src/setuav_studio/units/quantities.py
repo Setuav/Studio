@@ -10,6 +10,7 @@ from setuav_studio.units.dimension import (
     CURRENT,
     DENSITY,
     DIMENSIONLESS,
+    ENERGY,
     FORCE,
     FREQUENCY,
     LENGTH,
@@ -17,6 +18,7 @@ from setuav_studio.units.dimension import (
     MOMENT,
     POWER,
     PRESSURE,
+    SPECIFIC_ENERGY,
     TIME,
     VELOCITY,
     VOLTAGE,
@@ -430,6 +432,81 @@ QUANTITIES: dict[str, QuantityDefinition] = {
             "Ah": UnitDefinition("Ah", "Ah", "Ampere-hour (Ah)", 1000.0, 0.001, decimals=2),
         },
     ),
+    "energy": QuantityDefinition(
+        id="energy",
+        name="Energy / Work",
+        base_unit_id="Wh",
+        default_decimals=1,
+        dimension=ENERGY,
+        units={
+            "Wh": UnitDefinition(
+                "Wh", "Wh", "Watt-hour (Wh)", 1.0, 1.0, decimals=1, dimension=ENERGY
+            ),
+            "kWh": UnitDefinition(
+                "kWh", "kWh", "Kilowatt-hour (kWh)", 1000.0, 0.001, decimals=3, dimension=ENERGY
+            ),
+            "mWh": UnitDefinition(
+                "mWh", "mWh", "Milliwatt-hour (mWh)", 0.001, 1000.0, decimals=1, dimension=ENERGY
+            ),
+            "J": UnitDefinition(
+                "J", "J", "Joule (J)", 1.0 / 3600.0, 3600.0, decimals=1, dimension=ENERGY
+            ),
+            "kJ": UnitDefinition(
+                "kJ",
+                "kJ",
+                "Kilojoule (kJ)",
+                1000.0 / 3600.0,
+                3600.0 / 1000.0,
+                decimals=2,
+                dimension=ENERGY,
+            ),
+            "MJ": UnitDefinition(
+                "MJ",
+                "MJ",
+                "Megajoule (MJ)",
+                1e6 / 3600.0,
+                3600.0 / 1e6,
+                decimals=3,
+                dimension=ENERGY,
+            ),
+        },
+    ),
+    "specific_energy": QuantityDefinition(
+        id="specific_energy",
+        name="Specific Energy / Energy Density",
+        base_unit_id="Wh/kg",
+        default_decimals=1,
+        dimension=SPECIFIC_ENERGY,
+        units={
+            "Wh/kg": UnitDefinition(
+                "Wh/kg",
+                "Wh/kg",
+                "Watt-hour per kilogram (Wh/kg)",
+                1.0,
+                1.0,
+                decimals=1,
+                dimension=SPECIFIC_ENERGY,
+            ),
+            "kJ/kg": UnitDefinition(
+                "kJ/kg",
+                "kJ/kg",
+                "Kilojoule per kilogram (kJ/kg)",
+                1000.0 / 3600.0,
+                3.6,
+                decimals=1,
+                dimension=SPECIFIC_ENERGY,
+            ),
+            "J/g": UnitDefinition(
+                "J/g",
+                "J/g",
+                "Joule per gram (J/g)",
+                1000.0 / 3600.0,
+                3.6,
+                decimals=1,
+                dimension=SPECIFIC_ENERGY,
+            ),
+        },
+    ),
     "resistance": QuantityDefinition(
         id="resistance",
         name="Electrical Resistance",
@@ -611,6 +688,15 @@ SCHEMA_UNIT_TO_QUANTITY: dict[str, str] = {
     "ma": "current",
     "mah": "capacity",
     "ah": "capacity",
+    "wh": "energy",
+    "kwh": "energy",
+    "mwh": "energy",
+    "j": "energy",
+    "kj": "energy",
+    "mj": "energy",
+    "wh/kg": "specific_energy",
+    "kj/kg": "specific_energy",
+    "j/g": "specific_energy",
     "ohm": "resistance",
     "mohm": "resistance",
     "kohm": "resistance",
