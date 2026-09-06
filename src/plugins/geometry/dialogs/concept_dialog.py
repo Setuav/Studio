@@ -1,32 +1,26 @@
 """Vehicle Concept Generator Dialog for SetUAV Studio Design Workspace.
 
-Provides visual presets (Talon Pusher, Conventional Tractor, Twin-Boom Pusher, Flying Wing)
-and geometric dimension controls for rapid UAV airframe instantiation.
+Provides clean visual concept presets (Talon Pusher, Conventional Tractor,
+Twin-Boom Pusher, Flying Wing) and geometric dimension controls for rapid UAV
+airframe instantiation.
 """
 
 from __future__ import annotations
 
-import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QFont, QPixmap
 from PySide6.QtWidgets import (
-    QAbstractItemView,
     QComboBox,
     QDialog,
     QFrame,
-    QGridLayout,
-    QGroupBox,
     QHBoxLayout,
-    QHeaderView,
     QLabel,
     QPushButton,
-    QScrollArea,
     QSizePolicy,
-    QSplitter,
     QTabWidget,
     QTableWidget,
     QVBoxLayout,
@@ -37,9 +31,7 @@ from setuav_studio.ui.icons import get_icon, set_label_icon
 from setuav_studio.ui.theme import rgba, tokens
 from setuav_studio.ui.widget.button import set_button_role
 from setuav_studio.ui.widget.spinbox import (
-    NoWheelComboBox,
     NumericSpinBox,
-    set_table_spinbox,
 )
 from setuav_studio.ui.widget.table import PropertyTableMixin
 from setuav_studio_sdk import StudioAPI
@@ -53,10 +45,7 @@ class ConceptPreset:
 
     id: str
     title: str
-    badge: str
-    subtitle: str
     image_filename: str
-    details: list[str] = field(default_factory=list)
 
     # Wing defaults (mm, deg)
     wingspan_mm: float = 1400.0
@@ -92,14 +81,7 @@ PRESETS: dict[str, ConceptPreset] = {
     "talon_pusher": ConceptPreset(
         id="talon_pusher",
         title="Talon Pusher",
-        badge="PUSHER V-TAIL",
-        subtitle="Pod fuselage with rear pusher motor, shoulder wing, and V-tail empennage.",
         image_filename="config_pod_boom.jpg",
-        details=[
-            "Protected nose bay for forward FPV / mapping camera",
-            "Unobstructed pusher propeller with minimal prop-strike risk",
-            "Compact 110-deg V-tail reduces drag and tail-boom snagging",
-        ],
         wingspan_mm=1400.0,
         wing_root_chord_mm=210.0,
         wing_tip_chord_mm=130.0,
@@ -125,14 +107,7 @@ PRESETS: dict[str, ConceptPreset] = {
     "conventional_tractor": ConceptPreset(
         id="conventional_tractor",
         title="Conventional Tractor",
-        badge="TRACTOR CONVENTIONAL",
-        subtitle="Standard airplane layout with nose motor and horizontal + vertical stabilizers.",
         image_filename="config_conventional.jpg",
-        details=[
-            "Proven baseline with excellent pitch and yaw dynamic stability",
-            "Generous internal fuselage volume for payload and battery",
-            "Simple hand-launch or runway landing characteristics",
-        ],
         wingspan_mm=1600.0,
         wing_root_chord_mm=220.0,
         wing_tip_chord_mm=150.0,
@@ -158,14 +133,7 @@ PRESETS: dict[str, ConceptPreset] = {
     "twin_boom_pusher": ConceptPreset(
         id="twin_boom_pusher",
         title="Twin-Boom Pusher",
-        badge="TWIN-BOOM PUSHER",
-        subtitle="Pod fuselage with pusher motor, twin wing-mounted tail booms, and twin fins.",
         image_filename="config_twin_boom.jpg",
-        details=[
-            "Dedicated central pod for unobstructed gimbal & sensor payload",
-            "Pusher propeller safely isolated between dual tail booms",
-            "High torsional rigidity and large empennage control authority",
-        ],
         wingspan_mm=1800.0,
         wing_root_chord_mm=240.0,
         wing_tip_chord_mm=160.0,
@@ -191,14 +159,7 @@ PRESETS: dict[str, ConceptPreset] = {
     "flying_wing": ConceptPreset(
         id="flying_wing",
         title="Flying Wing",
-        badge="TAILLESS SWEPT",
-        subtitle="Tailless swept flying wing configuration with elevon control and winglets.",
         image_filename="config_flying_wing.jpg",
-        details=[
-            "Minimum wetted parasite drag and maximum aerodynamic efficiency",
-            "Durable, low-maintenance airframe with no tail assembly",
-            "High cruise speed and compact transport footprint",
-        ],
         wingspan_mm=1200.0,
         wing_root_chord_mm=300.0,
         wing_tip_chord_mm=160.0,
@@ -224,8 +185,8 @@ PRESETS: dict[str, ConceptPreset] = {
 }
 
 
-class ConceptOptionCard(QFrame):
-    """Interactive selectable visual card representing an aircraft concept preset."""
+class ConceptThumbnailCard(QFrame):
+    """Compact visual card showing aircraft thumbnail and title."""
 
     clicked = Signal(str)
 
@@ -233,7 +194,7 @@ class ConceptOptionCard(QFrame):
         self,
         preset: ConceptPreset,
         parent: QWidget | None = None,
-        image_height: int = 120,
+        image_height: int = 85,
     ) -> None:
         super().__init__(parent)
         self.preset = preset
@@ -242,14 +203,14 @@ class ConceptOptionCard(QFrame):
         self._image_height = image_height
 
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._init_ui()
         self._update_style()
 
     def _init_ui(self) -> None:
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 8, 10, 8)
-        layout.setSpacing(6)
+        layout.setContentsMargins(6, 6, 6, 6)
+        layout.setSpacing(4)
 
         # Image thumbnail
         self.img_label = QLabel()
@@ -261,56 +222,24 @@ class ConceptOptionCard(QFrame):
         if img_path.exists():
             pix = QPixmap(str(img_path))
             scaled = pix.scaled(
-                QSize(280, self._image_height),
+                QSize(200, self._image_height),
                 Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation,
             )
             self.img_label.setPixmap(scaled)
         else:
-            self.img_label.setText(self.preset.badge or self.preset.title)
+            self.img_label.setText(self.preset.title)
 
         layout.addWidget(self.img_label)
 
-        # Header: Title + Badge
-        header_row = QHBoxLayout()
-        header_row.setSpacing(6)
-
-        title_lbl = QLabel(self.preset.title)
+        # Title label
+        self.title_lbl = QLabel(self.preset.title)
+        self.title_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_font = QFont()
         title_font.setBold(True)
-        title_font.setPointSize(10)
-        title_lbl.setFont(title_font)
-        title_lbl.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        header_row.addWidget(title_lbl)
-
-        if self.preset.badge:
-            tok = tokens()
-            accent = tok.get("accent", "#4772b3")
-            badge_lbl = QLabel(f" {self.preset.badge} ")
-            badge_font = QFont()
-            badge_font.setPointSize(8)
-            badge_font.setBold(True)
-            badge_lbl.setFont(badge_font)
-            badge_lbl.setStyleSheet(
-                f"background-color: {rgba(accent, 0.18)}; "
-                f"color: {accent}; "
-                f"border: 1px solid {rgba(accent, 0.35)}; "
-                f"border-radius: 3px; "
-                f"padding: 1px 4px;"
-            )
-            header_row.addWidget(badge_lbl)
-
-        layout.addLayout(header_row)
-
-        # Subtitle
-        sub_lbl = QLabel(self.preset.subtitle)
-        sub_lbl.setWordWrap(True)
-        sub_font = QFont()
-        sub_font.setPointSize(9)
-        sub_lbl.setFont(sub_font)
-        tok = tokens()
-        sub_lbl.setStyleSheet(f"color: {tok.get('text_muted', '#b9b9b9')};")
-        layout.addWidget(sub_lbl)
+        title_font.setPointSize(9)
+        self.title_lbl.setFont(title_font)
+        layout.addWidget(self.title_lbl)
 
     def set_selected(self, selected: bool) -> None:
         self._selected = selected
@@ -327,31 +256,34 @@ class ConceptOptionCard(QFrame):
         accent = tok.get("accent", "#4772b3")
         surface = tok.get("surface", "#282828")
         surface_alt = tok.get("surface_alt", "#323232")
+        text_color = tok.get("text", "#ffffff")
 
         if self._selected:
             self.setStyleSheet(
-                f"ConceptOptionCard {{"
+                f"ConceptThumbnailCard {{"
                 f"  background-color: {rgba(accent, 0.12)};"
                 f"  border: 2px solid {accent};"
-                f"  border-radius: 6px;"
+                f"  border-radius: 4px;"
                 f"}}"
             )
+            self.title_lbl.setStyleSheet(f"color: {accent}; font-weight: bold;")
         else:
             self.setStyleSheet(
-                f"ConceptOptionCard {{"
+                f"ConceptThumbnailCard {{"
                 f"  background-color: {surface};"
                 f"  border: 1px solid {border};"
-                f"  border-radius: 6px;"
+                f"  border-radius: 4px;"
                 f"}}"
-                f"ConceptOptionCard:hover {{"
+                f"ConceptThumbnailCard:hover {{"
                 f"  background-color: {surface_alt};"
                 f"  border: 1px solid {accent};"
                 f"}}"
             )
+            self.title_lbl.setStyleSheet(f"color: {text_color}; font-weight: bold;")
 
 
 class ConceptGeneratorDialog(QDialog, PropertyTableMixin):
-    """Interactive concept-to-geometry wizard dialog for generating 3D airframes."""
+    """Native SetUAV Studio concept-to-geometry wizard dialog for generating 3D airframes."""
 
     concept_generated = Signal(dict)
 
@@ -363,121 +295,66 @@ class ConceptGeneratorDialog(QDialog, PropertyTableMixin):
         super().__init__(parent)
         self._api = api
         self.setObjectName("geometry.concept_generator_dialog")
-        self.setWindowTitle("Vehicle Concept Generator — SetUAV Studio")
-        self.resize(1040, 700)
-        self.setMinimumSize(920, 600)
+        self.setWindowTitle("Airframe Concept Generator — SetUAV Studio")
+        self.resize(860, 560)
+        self.setMinimumSize(780, 500)
 
-        self._cards: dict[str, ConceptOptionCard] = {}
+        self._cards: dict[str, ConceptThumbnailCard] = {}
         self._selected_id: str = "talon_pusher"
         self._loading: bool = False
 
-        # Current working parameters (copy of selected preset)
+        # Current working parameters
         self.params: dict[str, Any] = {}
 
         self._init_ui()
         self.select_preset("talon_pusher")
 
-    def _init_ui(self) -> None:
-        tok = tokens()
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(12, 12, 12, 12)
-        main_layout.setSpacing(10)
+    def _create_section_header(self, title: str, icon_name: str | None = None) -> QWidget:
+        header = QWidget()
+        header.setProperty("sectionHeader", True)
+        header.setFixedHeight(22)
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(6)
 
-        # 1. Header Banner
-        header_frame = QFrame()
-        header_frame.setObjectName("concept_header")
-        header_frame.setStyleSheet(
-            f"QFrame#concept_header {{"
-            f"  background-color: {tok.get('surface', '#282828')};"
-            f"  border: 1px solid {tok.get('border', '#3d3d3d')};"
-            f"  border-radius: 6px;"
-            f"  padding: 8px 12px;"
-            f"}}"
-        )
-        header_layout = QHBoxLayout(header_frame)
-        header_layout.setContentsMargins(8, 6, 8, 6)
+        if icon_name:
+            icon_lbl = QLabel()
+            set_label_icon(icon_lbl, icon_name)
+            icon_lbl.setFixedSize(14, 14)
+            header_layout.addWidget(icon_lbl)
 
-        title_vbox = QVBoxLayout()
-        title_vbox.setSpacing(2)
-
-        badge_lbl = QLabel("CONCEPT TO GEOMETRY GENERATOR")
-        badge_lbl.setStyleSheet(
-            f"color: {tok.get('accent', '#4772b3')}; font-size: 11px; font-weight: bold;"
-        )
-        title_vbox.addWidget(badge_lbl)
-
-        title_lbl = QLabel("Airframe Concept Generator")
+        title_lbl = QLabel(title)
         title_font = QFont()
-        title_font.setPointSize(13)
         title_font.setBold(True)
         title_lbl.setFont(title_font)
-        title_lbl.setStyleSheet(f"color: {tok.get('text', '#ffffff')};")
-        title_vbox.addWidget(title_lbl)
+        header_layout.addWidget(title_lbl)
+        header_layout.addStretch()
+        return header
 
-        desc_lbl = QLabel(
-            "Select an aircraft architecture and tailor primary dimensions to rapidly generate a complete 3D UAV model."
-        )
-        desc_lbl.setStyleSheet(f"color: {tok.get('text_muted', '#b9b9b9')}; font-size: 11px;")
-        title_vbox.addWidget(desc_lbl)
+    def _init_ui(self) -> None:
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setSpacing(10)
 
-        header_layout.addLayout(title_vbox, 1)
+        # 1. Top Section: Aircraft Architecture Presets
+        arch_header = self._create_section_header("Aircraft Architecture Preset", "fa6s.shapes")
+        main_layout.addWidget(arch_header)
 
-        icon_lbl = QLabel()
-        set_label_icon(icon_lbl, "fa6s.wand-magic-sparkles")
-        icon_lbl.setFixedSize(36, 36)
-        header_layout.addWidget(icon_lbl)
-
-        main_layout.addWidget(header_frame)
-
-        # 2. Main Content Splitter (Left: Concept Cards, Right: Parameter Tabs)
-        content_splitter = QSplitter(Qt.Orientation.Horizontal)
-        content_splitter.setChildrenCollapsible(False)
-
-        # Left Column: Concept Presets
-        left_widget = QWidget()
-        left_layout = QVBoxLayout(left_widget)
-        left_layout.setContentsMargins(0, 0, 4, 0)
-        left_layout.setSpacing(6)
-
-        left_header = QLabel("Select Aircraft Concept")
-        left_header_font = QFont()
-        left_header_font.setBold(True)
-        left_header.setFont(left_header_font)
-        left_layout.addWidget(left_header)
-
-        cards_scroll = QScrollArea()
-        cards_scroll.setWidgetResizable(True)
-        cards_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        cards_container = QWidget()
-        cards_layout = QVBoxLayout(cards_container)
-        cards_layout.setContentsMargins(2, 2, 4, 2)
-        cards_layout.setSpacing(8)
+        cards_row = QHBoxLayout()
+        cards_row.setContentsMargins(0, 0, 0, 0)
+        cards_row.setSpacing(8)
 
         for pid, preset in PRESETS.items():
-            card = ConceptOptionCard(preset, parent=self)
+            card = ConceptThumbnailCard(preset, parent=self)
             card.clicked.connect(self.select_preset)
-            cards_layout.addWidget(card)
+            cards_row.addWidget(card)
             self._cards[pid] = card
 
-        cards_layout.addStretch()
-        cards_scroll.setWidget(cards_container)
-        left_layout.addWidget(cards_scroll)
+        main_layout.addLayout(cards_row)
 
-        left_widget.setMinimumWidth(340)
-        left_widget.setMaximumWidth(400)
-        content_splitter.addWidget(left_widget)
-
-        # Right Column: Geometric Parameters & Metrics
-        right_widget = QWidget()
-        right_layout = QVBoxLayout(right_widget)
-        right_layout.setContentsMargins(4, 0, 0, 0)
-        right_layout.setSpacing(6)
-
-        right_header = QLabel("Geometric Dimensions & Configuration")
-        right_header_font = QFont()
-        right_header_font.setBold(True)
-        right_header.setFont(right_header_font)
-        right_layout.addWidget(right_header)
+        # 2. Middle Section: Geometric Parameters & Metrics
+        param_header = self._create_section_header("Geometry Parameters & Configuration", "fa6s.sliders")
+        main_layout.addWidget(param_header)
 
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
@@ -564,17 +441,12 @@ class ConceptGeneratorDialog(QDialog, PropertyTableMixin):
         met_layout.addStretch()
         self.tabs.addTab(tab_metrics, "Planform Metrics")
 
-        right_layout.addWidget(self.tabs)
-        content_splitter.addWidget(right_widget)
-        content_splitter.setStretchFactor(0, 4)
-        content_splitter.setStretchFactor(1, 6)
-
-        main_layout.addWidget(content_splitter, 1)
+        main_layout.addWidget(self.tabs, 1)
 
         # 3. Bottom Action Bar
         action_bar = QWidget()
         action_layout = QHBoxLayout(action_bar)
-        action_layout.setContentsMargins(0, 6, 0, 0)
+        action_layout.setContentsMargins(0, 4, 0, 0)
         action_layout.setSpacing(8)
 
         self.btn_reset = QPushButton("Reset to Defaults")
@@ -667,6 +539,57 @@ class ConceptGeneratorDialog(QDialog, PropertyTableMixin):
             lambda val: self._update_param("tail_airfoil", val),
         )
 
+    def _property_row_index(self, table: QTableWidget, key: str) -> int | None:
+        for row in range(table.rowCount()):
+            if self._property_key(table, row) == key:
+                return row
+        return None
+
+    def _find_combo(self, table: QTableWidget, key: str) -> QComboBox | None:
+        for row in range(table.rowCount()):
+            if self._property_key(table, row) == key:
+                widget = table.cellWidget(row, 1)
+                if isinstance(widget, QComboBox):
+                    return widget
+        return None
+
+    def _set_combo_value(self, table: QTableWidget, key: str, value: str) -> None:
+        combo = self._find_combo(table, key)
+        if combo:
+            combo.blockSignals(True)
+            idx = combo.findData(value)
+            if idx >= 0:
+                combo.setCurrentIndex(idx)
+            else:
+                idx = combo.findText(value)
+                if idx >= 0:
+                    combo.setCurrentIndex(idx)
+            combo.blockSignals(False)
+
+    def _set_spin(
+        self,
+        table: QTableWidget,
+        key: str,
+        val: float,
+        min_v: float,
+        max_v: float,
+        step: float,
+        decimals: int,
+        suffix: str,
+        on_change,
+    ) -> NumericSpinBox | None:
+        return self._set_property_spinbox(
+            table,
+            key,
+            val,
+            min_val=min_v,
+            max_val=max_v,
+            step=step,
+            decimals=decimals,
+            suffix=suffix,
+            on_changed=on_change,
+        )
+
     def select_preset(self, preset_id: str) -> None:
         if preset_id not in PRESETS:
             return
@@ -742,57 +665,6 @@ class ConceptGeneratorDialog(QDialog, PropertyTableMixin):
         finally:
             self._loading = False
 
-    def _property_row_index(self, table: QTableWidget, key: str) -> int | None:
-        for row in range(table.rowCount()):
-            if self._property_key(table, row) == key:
-                return row
-        return None
-
-    def _find_combo(self, table: QTableWidget, key: str) -> QComboBox | None:
-        for row in range(table.rowCount()):
-            if self._property_key(table, row) == key:
-                widget = table.cellWidget(row, 1)
-                if isinstance(widget, QComboBox):
-                    return widget
-        return None
-
-    def _set_combo_value(self, table: QTableWidget, key: str, value: str) -> None:
-        combo = self._find_combo(table, key)
-        if combo:
-            combo.blockSignals(True)
-            idx = combo.findData(value)
-            if idx >= 0:
-                combo.setCurrentIndex(idx)
-            else:
-                idx = combo.findText(value)
-                if idx >= 0:
-                    combo.setCurrentIndex(idx)
-            combo.blockSignals(False)
-
-    def _set_spin(
-        self,
-        table: QTableWidget,
-        key: str,
-        val: float,
-        min_v: float,
-        max_v: float,
-        step: float,
-        decimals: int,
-        suffix: str,
-        on_change,
-    ) -> NumericSpinBox | None:
-        return self._set_property_spinbox(
-            table,
-            key,
-            val,
-            min_val=min_v,
-            max_val=max_v,
-            step=step,
-            decimals=decimals,
-            suffix=suffix,
-            on_changed=on_change,
-        )
-
     def _update_param(self, key: str, value: Any) -> None:
         if self._loading:
             return
@@ -802,9 +674,7 @@ class ConceptGeneratorDialog(QDialog, PropertyTableMixin):
     def _on_tail_type_changed(self, tail_type: str) -> None:
         self._update_param("tail_type", tail_type)
         is_vtail = tail_type in ("V-Tail", "Inverted V-Tail")
-        is_tailless = tail_type == "Winglets Only"
 
-        # Auto-adjust angles or dimensions based on tail selection
         if is_vtail and self.params["tail_v_angle_deg"] < 45.0:
             self.params["tail_v_angle_deg"] = 110.0
             self._set_spin(self.tail_table, "tail_v_angle", 110.0, 0.0, 180.0, 1.0, 0, " °", lambda v: self._update_param("tail_v_angle_deg", v))
