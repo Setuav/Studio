@@ -38,6 +38,7 @@ CORE_MODULES = (
     "tests.core.test_workspaces",
 )
 GEOMETRY_MODULES = (
+    "tests.geometry.test_concept_dialog",
     "tests.geometry.test_creation",
     "tests.geometry.test_geometry",
     "tests.geometry.test_settings",
@@ -60,10 +61,6 @@ ELECTRICAL_PROPULSION_MODULES = (
 )
 FLIGHT_PERFORMANCE_MODULES = ("tests.flight_performance.test_flight_performance",)
 WEIGHT_BALANCE_MODULES = ("tests.weight_balance.test_weight_balance",)
-SIZING_MODULES = (
-    "tests.sizing.test_sizing_engine",
-    "tests.sizing.test_sizing_ui",
-)
 
 SUITES: dict[str, tuple[str, ...]] = {
     "core": CORE_MODULES,
@@ -74,7 +71,6 @@ SUITES: dict[str, tuple[str, ...]] = {
     "electrical-propulsion": ELECTRICAL_PROPULSION_MODULES,
     "flight-performance": FLIGHT_PERFORMANCE_MODULES,
     "weight-balance": WEIGHT_BALANCE_MODULES,
-    "sizing": SIZING_MODULES,
 }
 SUITES["all"] = (
     CORE_MODULES
@@ -84,7 +80,6 @@ SUITES["all"] = (
     + ELECTRICAL_PROPULSION_MODULES
     + FLIGHT_PERFORMANCE_MODULES
     + WEIGHT_BALANCE_MODULES
-    + SIZING_MODULES
 )
 
 

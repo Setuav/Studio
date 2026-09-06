@@ -23,6 +23,7 @@ class GeometryCreationController:
     """Create valid starter geometry and publish it through the Studio API."""
 
     toolbar_ids = (
+        "geometry.generate-concept",
         "geometry.create-structural-system",
         "geometry.create-fuselage",
         "geometry.create-lifting-surface",
@@ -36,6 +37,16 @@ class GeometryCreationController:
         return (
             ToolbarContribution(
                 id=self.toolbar_ids[0],
+                title="Concept Generator...",
+                callback=self.open_concept_generator,
+                icon="fa6s.wand-magic-sparkles",
+                enabled_when=self._can_edit_project,
+                group="geometry-creation",
+                order=80,
+                workspace_id=_DESIGN_WORKSPACE,
+            ),
+            ToolbarContribution(
+                id=self.toolbar_ids[1],
                 title="New Airframe Structure",
                 callback=self.add_structural_system,
                 icon="component_structural_system",
@@ -45,7 +56,7 @@ class GeometryCreationController:
                 workspace_id=_DESIGN_WORKSPACE,
             ),
             ToolbarContribution(
-                id=self.toolbar_ids[1],
+                id=self.toolbar_ids[2],
                 title="Add Fuselage",
                 callback=self.add_fuselage,
                 icon="geometry_add_fuselage",
@@ -55,7 +66,7 @@ class GeometryCreationController:
                 workspace_id=_DESIGN_WORKSPACE,
             ),
             ToolbarContribution(
-                id=self.toolbar_ids[2],
+                id=self.toolbar_ids[3],
                 title="Add Lifting Surface",
                 icon="geometry_add_lifting_surface",
                 menu_items=(
@@ -76,7 +87,7 @@ class GeometryCreationController:
                 workspace_id=_DESIGN_WORKSPACE,
             ),
             ToolbarContribution(
-                id=self.toolbar_ids[3],
+                id=self.toolbar_ids[4],
                 title="Add Control Surface",
                 icon="geometry_add_control_surface",
                 menu_items=tuple(
@@ -100,6 +111,21 @@ class GeometryCreationController:
                 workspace_id=_DESIGN_WORKSPACE,
             ),
         )
+
+    def open_concept_generator(self) -> None:
+        """Open the Vehicle Concept Generator dialog to instantiate an airframe."""
+        if not self._require_editable_project():
+            return
+        from .dialogs import ConceptGeneratorDialog
+
+        dialog = ConceptGeneratorDialog(api=self._api)
+        dialog.concept_generated.connect(self._on_concept_generated)
+        dialog.exec()
+
+    def _on_concept_generated(self, config: dict[str, Any]) -> None:
+        """Handle concept generation from dialog parameters."""
+        # Will be connected to airframe geometry generator in the next step
+        pass
 
     def add_structural_system(self) -> None:
         if not self._require_editable_project():

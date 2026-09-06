@@ -38,6 +38,7 @@ class GeometryCreationTests(unittest.TestCase):
 
     def test_toolbar_contributions_dispatch_all_presets(self) -> None:
         (
+            concept_action,
             struct_action,
             fuselage_action,
             lifting_action,
@@ -46,6 +47,7 @@ class GeometryCreationTests(unittest.TestCase):
 
         self.assertEqual(
             (
+                concept_action.id,
                 struct_action.id,
                 fuselage_action.id,
                 lifting_action.id,
@@ -53,6 +55,7 @@ class GeometryCreationTests(unittest.TestCase):
             ),
             GeometryCreationController.toolbar_ids,
         )
+        self.assertTrue(concept_action.enabled_when())
         self.assertTrue(struct_action.enabled_when())
         self.assertTrue(fuselage_action.enabled_when())
         self.assertFalse(control_action.enabled_when())
