@@ -177,6 +177,7 @@ class WeightBalancePlugin:
             "name": component_name,
             "type": "org.setuav.core:point-mass",
             "parent": None,
+            "mass": 100.0,
             "transform": {
                 "position": {"x": 0.0, "y": 0.0, "z": 0.0},
                 "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
@@ -192,7 +193,6 @@ class WeightBalancePlugin:
                     "iyz": 0.0,
                 },
             },
-            "mass": 100.0,
         }
 
         def change() -> None:

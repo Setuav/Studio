@@ -73,11 +73,40 @@ class PropulsionCreationTests(unittest.TestCase):
         self.assertIs(self.api.current_selection, assembly)
         self.assertEqual(self.statuses[-1], ("Created Propulsion System", "success", 3000))
 
+        for comp in components:
+            self.assertIn("mass", comp)
+            self.assertGreater(comp["mass"], 0.0)
+            self.assertIn("transform", comp)
+            self.assertIn("position", comp["transform"])
+            self.assertIn("envelope", comp)
+            self.assertIn("size_mm", comp["envelope"])
+
         self.api.undo()
         self.assertEqual(self.project.data["components"], [])
         self.assertNotIn("assemblies", self.project.data)
         self.api.redo()
         self.assertEqual(len(self.project.data["components"]), 4)
+
+    def test_created_components_have_mass_transform_envelope(self) -> None:
+        self.controller.add_assembly()
+        for kind in ("battery", "esc", "motor", "propeller", "rotor"):
+            self.controller.add_component(kind)
+
+        for comp in self.project.data["components"]:
+            self.assertIn("mass", comp)
+            self.assertIsInstance(comp["mass"], (int, float))
+            self.assertGreater(comp["mass"], 0.0)
+
+            self.assertIn("transform", comp)
+            self.assertIsInstance(comp["transform"], dict)
+            self.assertIn("position", comp["transform"])
+            self.assertIn("rotation", comp["transform"])
+
+            self.assertIn("envelope", comp)
+            self.assertIsInstance(comp["envelope"], dict)
+            self.assertIn(comp["envelope"]["shape"], {"box", "cylinder"})
+            self.assertIn("size_mm", comp["envelope"])
+            self.assertIn("offset_mm", comp["envelope"])
 
     def test_duplicate_assembly_gets_unique_ids_and_names(self) -> None:
         self.controller.add_assembly()

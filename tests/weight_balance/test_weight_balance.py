@@ -256,6 +256,7 @@ class WeightBalancePluginTests(unittest.TestCase):
         self.assertEqual(component["type"], "org.setuav.core:point-mass")
         self.assertEqual(component["name"], "Point Mass")
         self.assertEqual(component["mass"], 100.0)
+        self.assertEqual(component["transform"]["position"], {"x": 0.0, "y": 0.0, "z": 0.0})
         self.assertEqual(api.current_selection, component)
 
     def test_point_mass_has_mass_transform_and_no_envelope(self) -> None:

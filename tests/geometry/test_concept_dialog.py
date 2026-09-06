@@ -6,8 +6,8 @@ import unittest
 from pathlib import Path
 
 from plugins.geometry.dialogs.concept_dialog import (
-    ConceptGeneratorDialog,
     PRESETS,
+    ConceptGeneratorDialog,
 )
 from setuav_studio.api import StudioAPI
 from setuav_studio.project import ProjectDocument

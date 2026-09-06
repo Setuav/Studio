@@ -241,12 +241,60 @@ class PropulsionCreationController:
             "name": component_name or base_name,
             "type": component_type,
             "parent": None,
-            "transform": {},
+            "mass": self._default_mass(component_kind),
+            "transform": {
+                "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+                "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
+            },
+            "envelope": self._default_envelope(component_kind),
             "parameters": self._default_parameters(component_kind),
         }
         if attach_to:
             component["attach_to"] = attach_to
         return component
+
+    @staticmethod
+    def _default_mass(component_kind: str) -> float:
+        masses = {
+            "battery": 500.0,
+            "esc": 45.0,
+            "motor": 120.0,
+            "propeller": 25.0,
+            "rotor": 30.0,
+        }
+        return masses.get(component_kind, 50.0)
+
+    @staticmethod
+    def _default_envelope(component_kind: str) -> dict[str, Any]:
+        if component_kind == "battery":
+            return {
+                "shape": "box",
+                "size_mm": {"x": 150.0, "y": 50.0, "z": 50.0},
+                "offset_mm": {"x": 0.0, "y": 0.0, "z": 0.0},
+            }
+        if component_kind == "esc":
+            return {
+                "shape": "box",
+                "size_mm": {"x": 65.0, "y": 30.0, "z": 12.0},
+                "offset_mm": {"x": 0.0, "y": 0.0, "z": 0.0},
+            }
+        if component_kind == "motor":
+            return {
+                "shape": "cylinder",
+                "size_mm": {"x": 40.0, "y": 35.0, "z": 35.0},
+                "offset_mm": {"x": 20.0, "y": 0.0, "z": 0.0},
+            }
+        if component_kind in {"propeller", "rotor"}:
+            return {
+                "shape": "cylinder",
+                "size_mm": {"x": 20.0, "y": 330.0, "z": 330.0},
+                "offset_mm": {"x": 0.0, "y": 0.0, "z": 0.0},
+            }
+        return {
+            "shape": "box",
+            "size_mm": {"x": 50.0, "y": 50.0, "z": 50.0},
+            "offset_mm": {"x": 0.0, "y": 0.0, "z": 0.0},
+        }
 
     @staticmethod
     def _default_parameters(component_kind: str) -> dict[str, Any]:

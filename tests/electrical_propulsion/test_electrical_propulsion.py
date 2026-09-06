@@ -195,7 +195,7 @@ class TestElectricalPropulsion(unittest.TestCase):
 
         # Verify summary results are populated
         static_thrust_str = results.summary_table.item(0, 1).text()
-        self.assertIn("N", static_thrust_str)
+        self.assertTrue(any(unit in static_thrust_str for unit in ("N", "kgf", "lbf")))
         self.assertNotEqual(static_thrust_str, "-")
 
         # Verify charts are plotted

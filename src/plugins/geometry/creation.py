@@ -230,7 +230,16 @@ class GeometryCreationController:
             "name": fuse_name,
             "type": _FUSELAGE_TYPE,
             "parent": None,
-            "transform": {},
+            "mass": 350.0,
+            "transform": {
+                "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+                "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
+            },
+            "envelope": {
+                "shape": "cylinder",
+                "size_mm": {"x": 600.0, "y": 120.0, "z": 120.0},
+                "offset_mm": {"x": 300.0, "y": 0.0, "z": 0.0},
+            },
             "parameters": {
                 "geometry": {
                     "segments": [
@@ -255,7 +264,16 @@ class GeometryCreationController:
             "name": wing_name,
             "type": _LIFTING_SURFACE_TYPE,
             "parent": fuse_id,
-            "transform": {"translation": [180.0, 0.0, 30.0]},
+            "mass": 420.0,
+            "transform": {
+                "position": {"x": 180.0, "y": 0.0, "z": 30.0},
+                "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
+            },
+            "envelope": {
+                "shape": "box",
+                "size_mm": {"x": 200.0, "y": 1400.0, "z": 24.0},
+                "offset_mm": {"x": 100.0, "y": 0.0, "z": 0.0},
+            },
             "parameters": {
                 "is_symmetric": True,
                 "wingspan": 1400.0,
@@ -290,7 +308,16 @@ class GeometryCreationController:
             "name": name,
             "type": _FUSELAGE_TYPE,
             "parent": None,
-            "transform": {},
+            "mass": 350.0,
+            "transform": {
+                "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+                "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
+            },
+            "envelope": {
+                "shape": "cylinder",
+                "size_mm": {"x": 600.0, "y": 120.0, "z": 120.0},
+                "offset_mm": {"x": 300.0, "y": 0.0, "z": 0.0},
+            },
             "parameters": {
                 "geometry": {
                     "segments": [
@@ -312,8 +339,9 @@ class GeometryCreationController:
     def add_lifting_surface(self, preset: str) -> None:
         if not self._require_editable_project():
             return
-        presets = {
-            "main-wing": ("main-wing", "Main Wing", 500.0, 220.0, 110.0, True, 0.0, "2412"),
+        # (base_id, base_name, span, root_chord, tip_chord, mirrored, roll, airfoil, mass, thickness)
+        presets: dict[str, tuple[str, str, float, float, float, bool, float, str, float, float]] = {
+            "main-wing": ("main-wing", "Main Wing", 500.0, 220.0, 110.0, True, 0.0, "2412", 250.0, 26.0),
             "horizontal-tail": (
                 "horizontal-tail",
                 "Horizontal Tail",
@@ -323,6 +351,8 @@ class GeometryCreationController:
                 True,
                 0.0,
                 "0012",
+                80.0,
+                16.0,
             ),
             "vertical-tail": (
                 "vertical-tail",
@@ -333,6 +363,8 @@ class GeometryCreationController:
                 False,
                 90.0,
                 "0012",
+                50.0,
+                18.0,
             ),
             "generic": (
                 "lifting-surface",
@@ -343,22 +375,32 @@ class GeometryCreationController:
                 False,
                 0.0,
                 "0012",
+                100.0,
+                20.0,
             ),
         }
         values = presets.get(preset, presets["generic"])
-        base_id, base_name, span, root_chord, tip_chord, mirrored, roll, airfoil = values
+        base_id, base_name, span, root_chord, tip_chord, mirrored, roll, airfoil, mass, thickness = values
         component_id, name = self._unique_identity(base_id, base_name)
         attach_to = self._first_component_id(_FUSELAGE_TYPE)
         x_position = 0.0 if preset in {"main-wing", "generic"} else 500.0
+        total_span = span * 2.0 if mirrored else span
+        span_offset = 0.0 if mirrored else span / 2.0
         component = {
             "kind": "component",
             "id": component_id,
             "name": name,
             "type": _LIFTING_SURFACE_TYPE,
             "attach_to": attach_to,
+            "mass": mass,
             "transform": {
                 "position": {"x": x_position, "y": 0.0, "z": 0.0},
                 "rotation": {"roll": roll, "pitch": 0.0, "yaw": 0.0},
+            },
+            "envelope": {
+                "shape": "box",
+                "size_mm": {"x": root_chord, "y": total_span, "z": thickness},
+                "offset_mm": {"x": root_chord / 2.0, "y": span_offset, "z": 0.0},
             },
             "parameters": {
                 "geometry": {
@@ -409,6 +451,24 @@ class GeometryCreationController:
             "type": _CONTROL_SURFACE_TYPE,
             "parent": parent_id,
             "attach_to": parent_id,
+            "mass": 25.0,
+            "transform": {
+                "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+                "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
+            },
+            "envelope": {
+                "shape": "box",
+                "size_mm": {
+                    "x": round(max(root_chord * chord_fraction, 10.0), 1),
+                    "y": round(max(semi_span * (eta_end - eta_start), 20.0), 1),
+                    "z": 15.0,
+                },
+                "offset_mm": {
+                    "x": round(root_chord * (1.0 - chord_fraction / 2.0), 1),
+                    "y": round(semi_span * (eta_start + eta_end) / 2.0, 1),
+                    "z": 0.0,
+                },
+            },
             "parameters": {
                 "geometry": {
                     "tag": component_id.removeprefix(f"{parent_id}-"),

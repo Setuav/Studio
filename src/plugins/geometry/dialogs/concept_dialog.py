@@ -21,8 +21,8 @@ from PySide6.QtWidgets import (
     QLabel,
     QPushButton,
     QSizePolicy,
-    QTabWidget,
     QTableWidget,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -720,4 +720,4 @@ class ConceptGeneratorDialog(QDialog, PropertyTableMixin):
         return dict(self.params)
 
 
-__all__ = ["ConceptGeneratorDialog", "ConceptPreset", "PRESETS"]
+__all__ = ["PRESETS", "ConceptGeneratorDialog", "ConceptPreset"]

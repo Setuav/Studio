@@ -583,6 +583,8 @@ class ControlSurfacesMixin:
         def_start = round(max(semi_span * 0.4, 20.0), 1)
         def_end = round(max(semi_span * 0.85, def_start + 50.0), 1)
         def_chord = round(max(root_chord * 0.25, 10.0), 1)
+        span_len = round(max(def_end - def_start, 20.0), 1)
+        span_mid = round((def_start + def_end) / 2.0, 1)
 
         if project and isinstance(project.data.get("components"), list):
             new_comp = {
@@ -591,6 +593,24 @@ class ControlSurfacesMixin:
                 "name": new_tag.replace("_", " ").title(),
                 "type": "org.setuav.core:control-surface",
                 "parent": wing_id,
+                "mass": 25.0,
+                "transform": {
+                    "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+                    "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
+                },
+                "envelope": {
+                    "shape": "box",
+                    "size_mm": {
+                        "x": def_chord,
+                        "y": span_len,
+                        "z": 15.0,
+                    },
+                    "offset_mm": {
+                        "x": round(root_chord * (1.0 - 0.25 / 2.0), 1),
+                        "y": span_mid,
+                        "z": 0.0,
+                    },
+                },
                 "parameters": {
                     "geometry": {
                         "tag": new_tag,
