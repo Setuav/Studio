@@ -1,4 +1,4 @@
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from PySide6.QtWidgets import QWidget
 
@@ -15,8 +15,6 @@ from .creation import GeometryCreationController
 from .editors.control_surface import ControlSurfaceEditor
 from .editors.fuselage import FuselageEditor
 from .editors.lifting_surface import LiftingSurfaceEditor
-from .engine.fuselage_geometry import build_fuselage_geometry
-from .engine.lifting_surface_geometry import build_lifting_surface_geometry
 from .settings import (
     apply_editor_settings,
     apply_viewer_settings,
@@ -43,7 +41,12 @@ class GeometryPlugin:
     priority = 80
     provides: ClassVar[dict[str, str]] = {"org.setuav.core": "1.0.0"}
 
+    def __init__(self) -> None:
+        self._api: StudioAPI | None = None
+        self._providers: dict[str, Any] = {}
+
     def activate(self, api: StudioAPI) -> None:
+        self._api = api
         self._creation_controller = GeometryCreationController(api)
         for contribution in self._creation_controller.contributions():
             api.add_toolbar_item(contribution)
@@ -141,15 +144,37 @@ class GeometryPlugin:
             "component_structural_system",
         )
 
-        # 5. Geometry Providers
-        api.register_geometry_provider(
-            "org.setuav.core:fuselage",
-            build_fuselage_geometry,
-        )
-        api.register_geometry_provider(
-            "org.setuav.core:lifting-surface",
-            build_lifting_surface_geometry,
-        )
+        # 5. Geometry Providers (internal — not exposed through StudioAPI)
+        from .engine.fuselage_geometry import build_fuselage_geometry
+        from .engine.lifting_surface_geometry import build_lifting_surface_geometry
+
+        self._providers = {
+            "org.setuav.core:fuselage": build_fuselage_geometry,
+            "org.setuav.core:lifting-surface": build_lifting_surface_geometry,
+        }
+
+    def get_geometry(self, project: Any = None) -> Any:
+        """Build and return geometry data for the given project.
+
+        Returns an empty GeometryData when no project is available.
+        """
+        from .engine.data import GeometryData
+        from .viewport.scene import build_project_geometry
+
+        api = getattr(self, "_api", None)
+        doc = project if project is not None else (api.current_project if api is not None else None)
+        if doc is None:
+            return GeometryData()
+        providers = getattr(self, "_providers", {})
+        if not providers:
+            from .engine.fuselage_geometry import build_fuselage_geometry
+            from .engine.lifting_surface_geometry import build_lifting_surface_geometry
+
+            providers = {
+                "org.setuav.core:fuselage": build_fuselage_geometry,
+                "org.setuav.core:lifting-surface": build_lifting_surface_geometry,
+            }
+        return build_project_geometry(doc, providers)
 
     def deactivate(self, api: StudioAPI) -> None:
         controller = getattr(self, "_creation_controller", None)
@@ -159,8 +184,8 @@ class GeometryPlugin:
         api.remove_component_model("org.setuav.core:lifting-surface")
         api.remove_component_model("org.setuav.core:fuselage")
         api.remove_component_model("org.setuav.core:control-surface")
-        api.remove_geometry_provider("org.setuav.core:fuselage")
-        api.remove_geometry_provider("org.setuav.core:lifting-surface")
+        self._providers = {}
+        self._api = None
         api.remove_component_icon("org.setuav.core:fuselage")
         api.remove_component_icon("org.setuav.core:lifting-surface")
         api.remove_component_icon("org.setuav.core:control-surface")

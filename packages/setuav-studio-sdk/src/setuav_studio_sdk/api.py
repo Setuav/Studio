@@ -49,15 +49,11 @@ from .models import ProjectDocument
 
 __all__ = [
     "ComponentTreeProvider",
-    "GeometryProvider",
     "ProjectDocument",
     "ProjectTreeProvider",
     "StudioAPI",
 ]
 
-#: Callback that builds geometry data for a component.
-## @ingroup providers
-GeometryProvider = Callable[[dict[str, Any]], Any]
 #: Callback that contributes virtual nodes beneath a component.
 ## @ingroup providers
 ComponentTreeProvider = Callable[
@@ -343,18 +339,6 @@ class StudioAPI(Protocol):
 
     def get_component_icon(self, component: dict[str, Any]) -> QIcon:
         """Resolve the best registered icon for a component or selection."""
-        ...
-
-    def register_geometry_provider(self, component_type: str, provider: GeometryProvider) -> None:
-        """Register a geometry provider for a fully qualified component type."""
-        ...
-
-    def remove_geometry_provider(self, component_type: str) -> None:
-        """Remove a geometry provider registered for a component type."""
-        ...
-
-    def build_geometry_data(self, project: ProjectDocument | None = None) -> Any:
-        """Build combined geometry data using all registered providers."""
         ...
 
     def register_component_tree_provider(

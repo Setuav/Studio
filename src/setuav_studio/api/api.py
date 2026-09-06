@@ -17,7 +17,6 @@ from setuav_studio.task.manager import TaskManager
 from setuav_studio.ui.icons import get_icon
 from setuav_studio_sdk.api import (
     ComponentTreeProvider,
-    GeometryProvider,
     ProjectTreeProvider,
 )
 from setuav_studio_sdk.contributions import (
@@ -90,7 +89,6 @@ class StudioAPI:
         self._component_icons: dict[str, str | Path | QIcon] = {}
         self._kind_icons: dict[str, str | Path | QIcon] = {}
         self._component_models: dict[str, Any] = {}
-        self._geometry_providers: dict[str, GeometryProvider] = {}
         self._component_tree_providers: dict[str, ComponentTreeProvider] = {}
         self._project_tree_providers: dict[str, ProjectTreeProvider] = {}
         self._project_requirement_checker: Callable[[dict[str, Any]], list[str]] | None = None
@@ -667,19 +665,6 @@ class StudioAPI:
             return factory(component)
         return GenericComponent(component)
 
-    def register_geometry_provider(
-        self,
-        component_type: str,
-        provider: GeometryProvider,
-    ) -> None:
-        """Register a 3D geometry provider for a component type."""
-        if component_type in self._geometry_providers:
-            raise ValueError(f"A geometry provider is already registered for: {component_type}")
-        self._geometry_providers[component_type] = provider
-
-    def remove_geometry_provider(self, component_type: str) -> None:
-        """Remove the geometry provider registered for a component type."""
-        self._geometry_providers.pop(component_type, None)
 
     def register_component_tree_provider(
         self,
@@ -741,19 +726,6 @@ class StudioAPI:
 
         register_component_validator(component_type, validator)
 
-    def build_geometry_data(
-        self,
-        project: ProjectDocument | None = None,
-    ) -> Any:
-        """Build combined geometry data using all registered providers."""
-        document = project or self.current_project
-        if document is None:
-            from plugins.geometry.engine.data import GeometryData
-
-            return GeometryData()
-        from plugins.geometry.viewport.scene import build_project_geometry
-
-        return build_project_geometry(document, self._geometry_providers)
 
     def remove_project_listener(
         self,

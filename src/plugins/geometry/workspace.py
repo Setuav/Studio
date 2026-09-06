@@ -521,7 +521,9 @@ class ViewerWorkspace(QWidget):
 
     def _refresh(self, project: ProjectDocument, fit: bool) -> None:
         try:
-            self.viewer.set_geometry(self._api.build_geometry_data(project), fit=fit)
+            from plugins.geometry import PLUGIN as _geometry_plugin
+
+            self.viewer.set_geometry(_geometry_plugin.get_geometry(project), fit=fit)
         except (TypeError, ValueError):
             logger.exception("Could not build viewer geometry")
 

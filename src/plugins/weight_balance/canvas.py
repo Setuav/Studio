@@ -12,18 +12,16 @@ from PySide6.QtWidgets import QToolTip, QWidget
 
 from setuav_studio.ui.theme import is_light_theme
 
-from .geometry import View2DGeometrySource
 from .scene import ColorValue, View2DMarker, View2DPath, View2DScene
 
 
 class View2DCanvas(QWidget):
-    """Render a projection scene and inject shared project geometry.
+    """Render a projection scene supplied by domain plugins.
 
-    Consumers provide only overlays (markers, vectors, annotations). When an
-    API object is supplied, this canvas obtains the current renderer-neutral
-    geometry through ``StudioAPI.build_geometry_data`` and projects it itself.
-    This keeps geometry ownership in the 2D view plugin rather than duplicating
-    geometry extraction in every analysis plugin.
+    Consumers provide overlays (markers, vectors, annotations) via
+    ``set_scene``.  Unlike the plugin-local canvas this widget does not
+    manage geometry injection; geometry must be baked into the overlay scene
+    before calling ``set_scene``.
     """
 
     itemHovered = Signal(str)
@@ -41,7 +39,6 @@ class View2DCanvas(QWidget):
         y_label: str = "Y",
         units: str = "mm",
         invert_vertical: bool = False,
-        geometry_source: View2DGeometrySource | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -52,9 +49,6 @@ class View2DCanvas(QWidget):
         self._y_label = y_label
         self._units = units
         self._invert_vertical = bool(invert_vertical)
-        self._geometry_source = geometry_source or (
-            View2DGeometrySource(api) if api is not None else None
-        )
         self._overlay_scene: View2DScene | None = None
         self._scene = View2DScene(
             title=title,
@@ -63,27 +57,18 @@ class View2DCanvas(QWidget):
             units=units,
         )
         self._hovered_id = ""
-        self._show_geometry = True
         self._show_labels = False
         self._show_legend = True
         self.setMinimumSize(280, 190)
         self.setMouseTracking(True)
-
-        if api is not None:
-            api.on_project_changed(self._on_project_changed)
-            api.on_project_content_changed(self._on_project_changed)
 
     @property
     def scene(self) -> View2DScene:
         return self._scene
 
     def set_scene(self, scene: View2DScene | None) -> None:
-        """Set domain overlays; project geometry is added automatically."""
+        """Set domain overlays; geometry must be pre-baked into the scene."""
         self._overlay_scene = scene
-        self._rebuild_scene()
-
-    def set_show_geometry(self, visible: bool) -> None:
-        self._show_geometry = bool(visible)
         self._rebuild_scene()
 
     def set_show_labels(self, visible: bool) -> None:
@@ -95,16 +80,10 @@ class View2DCanvas(QWidget):
         self._show_legend = bool(visible)
         self.update()
 
-    def refresh_geometry(self) -> None:
-        self._rebuild_scene()
-
     def fit_to_content(self) -> None:
         if self._overlay_scene is not None:
             self._overlay_scene.x_bounds = None
             self._overlay_scene.y_bounds = None
-        self._rebuild_scene()
-
-    def _on_project_changed(self, _project: Any) -> None:
         self._rebuild_scene()
 
     def _rebuild_scene(self) -> None:
@@ -128,25 +107,7 @@ class View2DCanvas(QWidget):
                 markers=list(overlay.markers),
                 legend=list(overlay.legend),
             )
-
-        if self._show_geometry and self._geometry_source is not None:
-            geometry_data = self._geometry_source.current()
-            self._scene.add_geometry(
-                geometry_data,
-                axes=self._axes,
-                color=self._geometry_color(),
-                width=self._geometry_style()[0],
-                fill_alpha=self._geometry_style()[1],
-            )
         self.update()
-
-    def _geometry_color(self) -> ColorValue | None:
-        """Return an optional projection-wide geometry colour override."""
-        return None
-
-    def _geometry_style(self) -> tuple[float, int]:
-        """Return geometry outline width and fill opacity for this canvas."""
-        return 1.1, 42
 
     def paintEvent(self, _event) -> None:
         painter = QPainter(self)

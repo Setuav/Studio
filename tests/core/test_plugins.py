@@ -8,12 +8,8 @@ from plugins.geometry.mesh import build_loft_wire_vertices
 from PySide6.QtWidgets import QWidget
 
 from plugins.geometry import GeometryPlugin
-from plugins.view2d import (
-    View2DCanvas,
-    View2DGeometrySource,
-    View2DPlugin,
-    View2DScene,
-)
+from plugins.weight_balance.canvas import View2DCanvas
+from plugins.weight_balance.scene import View2DScene
 from setuav_studio.api import (
     PanelContribution,
     PluginManager,
@@ -238,17 +234,12 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(issues, [])
         self.assertIn("org.setuav.core:fuselage", self.api._component_editors)
 
-    def test_view2d_plugin_provides_shared_scene_engine(self) -> None:
-        self.manager.activate(View2DPlugin())
-
+    def test_view2d_scene_and_canvas_render_markers_and_geometry(self) -> None:
         scene = View2DScene(title="Top Projection", x_label="X", y_label="Y")
         scene.add_marker("battery", (120.0, 30.0), label="Battery")
-
-        self.assertIn("org.setuav.studio.view2d", self.manager._providers)
         self.assertEqual(scene.markers[0].id, "battery")
         self.assertEqual(scene.markers[0].position, (120.0, 30.0))
 
-    def test_view2d_canvas_injects_geometry_from_studio_api(self) -> None:
         geometry = GeometryData(
             (
                 LoftGeometry(
@@ -260,29 +251,13 @@ class PluginTests(unittest.TestCase):
                 ),
             )
         )
-        self.api.build_geometry_data = lambda _project=None: geometry
-        canvas = View2DCanvas(api=self.api, axes=(0, 1))
-        scene = View2DScene(title="Top")
-        scene.add_marker("cg", (40.0, 0.0))
+        scene.add_geometry(geometry, axes=(0, 1))
+        canvas = View2DCanvas(axes=(0, 1))
         canvas.set_scene(scene)
 
         self.assertEqual(len(canvas.scene.paths), 1)
         self.assertEqual(len(canvas.scene.markers), 1)
         self.assertEqual(canvas.scene.paths[0].id, "fuselage:envelope")
-
-    def test_view2d_geometry_source_is_shared_and_invalidated(self) -> None:
-        calls: list[object | None] = []
-        geometry = GeometryData()
-        self.api.build_geometry_data = lambda project=None: calls.append(project) or geometry
-        source = View2DGeometrySource(self.api)
-
-        self.assertIs(source.current(), geometry)
-        self.assertIs(source.current(), geometry)
-        self.assertEqual(len(calls), 1)
-
-        source._invalidate(None)
-        self.assertIs(source.current(), geometry)
-        self.assertEqual(len(calls), 2)
 
     def test_view2d_canvas_letterboxes_to_preserve_model_aspect_ratio(self) -> None:
         canvas = View2DCanvas()

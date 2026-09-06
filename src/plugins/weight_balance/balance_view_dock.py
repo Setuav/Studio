@@ -8,9 +8,16 @@ from PySide6.QtCore import QEvent, QSettings, Qt, QTimer
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QDockWidget, QHBoxLayout, QLabel, QMainWindow, QStatusBar, QWidget
 
-from plugins.view2d import View2DCanvas, View2DGeometrySource, View2DScene
 from setuav_studio.ui.theme import chart_color, tokens
 from setuav_studio_sdk import StudioAPI, StudioEvents
+
+from .canvas import View2DCanvas
+from .scene import View2DScene
+
+try:
+    from plugins.geometry import get_geometry as _get_geometry
+except ImportError:
+    _get_geometry = None
 
 from .models import WeightBalanceResult
 
@@ -32,7 +39,6 @@ class _BalanceProjectionCanvas(View2DCanvas):
         x_label: str,
         y_label: str,
         invert_vertical: bool = False,
-        geometry_source: View2DGeometrySource,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(
@@ -43,7 +49,6 @@ class _BalanceProjectionCanvas(View2DCanvas):
             y_label=y_label,
             units="mm",
             invert_vertical=invert_vertical,
-            geometry_source=geometry_source,
             parent=parent,
         )
         self.set_show_legend(False)
@@ -97,7 +102,25 @@ class _BalanceProjectionCanvas(View2DCanvas):
         scene.add_legend("Electronics", ELECTRONICS_COMPONENT_COLOR)
         scene.add_legend("Point Mass", POINT_MASS_COLOR)
         scene.add_legend("Aircraft CG", CG_COLOR)
+
+        if _get_geometry is not None:
+            project = self._api.current_project if self._api is not None else None
+            geometry_data = _get_geometry(project)
+            scene.add_geometry(
+                geometry_data,
+                axes=self._axes,
+                color=self._geometry_color(),
+                width=self._geometry_style()[0],
+                fill_alpha=self._geometry_style()[1],
+            )
+
         self.set_scene(scene)
+
+    def refresh_geometry(self) -> None:
+        if self.result is not None:
+            self.set_result(self.result)
+        else:
+            self.update()
 
     def _geometry_color(self) -> str:
         # Keep the aircraft outline neutral so it never competes with the
@@ -161,8 +184,6 @@ class WeightBalanceViewDock(QMainWindow):
             | QMainWindow.DockOption.AllowTabbedDocks
             | QMainWindow.DockOption.AnimatedDocks
         )
-        geometry_source = View2DGeometrySource(api)
-
         self.top_canvas = _BalanceProjectionCanvas(
             api,
             # Put longitudinal X on the vertical screen axis.  This project
@@ -173,7 +194,6 @@ class WeightBalanceViewDock(QMainWindow):
             y_label="X",
             invert_vertical=True,
             title="",
-            geometry_source=geometry_source,
             parent=self,
         )
         self.side_canvas = _BalanceProjectionCanvas(
@@ -182,7 +202,6 @@ class WeightBalanceViewDock(QMainWindow):
             x_label="X",
             y_label="Z",
             title="",
-            geometry_source=geometry_source,
             parent=self,
         )
         self.top_canvas.itemClicked.connect(self._on_marker_clicked)

@@ -315,14 +315,6 @@ class PluginSystemEdgeTests(unittest.TestCase):
         self.assertFalse(self.api.get_component_icon({"kind": "custom"}).isNull())
         self.api.remove_kind_icon("custom")
 
-        def provider(component: dict[str, object]) -> dict[str, object]:
-            return component
-
-        self.api.register_geometry_provider("wing", provider)
-        with self.assertRaises(ValueError):
-            self.api.register_geometry_provider("wing", provider)
-        self.api.remove_geometry_provider("wing")
-
     def test_tree_provider_registries_notify_and_resolve(self) -> None:
         component_node = ComponentTreeNodeContribution("node", "Node", {})
         self.api.register_component_tree_provider("one", lambda _component: (component_node,))
@@ -342,18 +334,6 @@ class PluginSystemEdgeTests(unittest.TestCase):
         self.api.remove_project_tree_provider("missing")
         self.api.remove_project_tree_provider("one")
         self.assertEqual(len(events), 2)
-
-    def test_geometry_builder_handles_empty_and_explicit_projects(self) -> None:
-        geometry = self.api.build_geometry_data()
-        self.assertEqual(geometry.lofts, ())
-
-        sentinel = object()
-        with patch(
-            "plugins.geometry.viewport.scene.build_project_geometry",
-            return_value=sentinel,
-        ) as build:
-            self.assertIs(self.api.build_geometry_data(self.project), sentinel)
-        build.assert_called_once_with(self.project, self.api._geometry_providers)
 
     def test_plugin_requirements_handle_malformed_and_incompatible_entries(self) -> None:
         manager = PluginManager(self.api)
