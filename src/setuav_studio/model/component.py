@@ -54,7 +54,7 @@ class Component:
 
     @property
     def mass(self) -> float:
-        val = self._raw_data.get("mass", self.parameters.get("mass", 0.0))
+        val = self._raw_data.get("mass", 0.0)
         try:
             return float(val) if val is not None else 0.0
         except (ValueError, TypeError):
@@ -62,11 +62,19 @@ class Component:
 
     @mass.setter
     def mass(self, value: float) -> None:
-        self._raw_data["mass"] = value
+        self._raw_data["mass"] = float(value)
 
     @property
     def transform(self) -> dict[str, Any]:
         return self._raw_data.setdefault("transform", {})
+
+    @property
+    def envelope(self) -> dict[str, Any]:
+        return self._raw_data.setdefault("envelope", {})
+
+    @envelope.setter
+    def envelope(self, value: dict[str, Any]) -> None:
+        self._raw_data["envelope"] = value
 
     @property
     def position(self) -> dict[str, float]:

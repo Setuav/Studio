@@ -1625,21 +1625,17 @@
         "internal_resistance": 0.0075
       },
       "mass": 580.0,
-      "extensions": {
-        "org.setuav.core.physical": {
-          "envelope": {
-            "shape": "box",
-            "size_mm": {
-              "x": 0.0,
-              "y": 0.0,
-              "z": 0.0
-            },
-            "offset_mm": {
-              "x": 0.0,
-              "y": 0.0,
-              "z": 0.0
-            }
-          }
+      "envelope": {
+        "shape": "box",
+        "size_mm": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        },
+        "offset_mm": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
         }
       }
     },

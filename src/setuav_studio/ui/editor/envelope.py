@@ -18,13 +18,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from plugins.geometry.engine.derived_geometry import derive_component_geometry
 from setuav_studio.ui.icons import set_label_icon
 from setuav_studio.ui.widget.spinbox import NumericSpinBox, set_table_spinbox
 from setuav_studio.ui.widget.table import PropertyTableMixin
 from setuav_studio_sdk import StudioAPI
-
-PHYSICAL_EXTENSION_ID = "org.setuav.core.physical"
 
 
 class EnvelopeEditor(PropertyTableMixin, QWidget):
@@ -195,19 +192,6 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
                 editable=False,
             )
             envelope = self._envelope(component)
-            if not envelope:
-                project_data = getattr(self._api.current_project, "data", {})
-                project_components = (
-                    project_data.get("components", []) if isinstance(project_data, dict) else []
-                )
-                by_id = {
-                    str(item.get("id")): item
-                    for item in project_components
-                    if isinstance(item, dict) and isinstance(item.get("id"), str)
-                }
-                by_id.setdefault(str(component.get("id") or ""), component)
-                derived = derive_component_geometry(component, by_id)
-                envelope = derived.envelope
             shape = str(envelope.get("shape") or "box")
             if self.shape_combo is not None:
                 index = max(self.shape_combo.findData(shape), 0)
@@ -235,18 +219,18 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
         )
         size = {axis: spin.value() for axis, spin in self.dimension_spins.items()}
         offset = {axis: spin.value() for axis, spin in self.offset_spins.items()}
+        component = self._component
 
-        def change(extension: dict[str, Any]) -> None:
-            extension["envelope"] = {
+        def change() -> None:
+            component["envelope"] = {
                 "shape": shape,
                 "size_mm": size,
                 "offset_mm": offset,
             }
 
-        self._api.edit_component_extension(
-            str(self._component.get("id") or ""),
-            PHYSICAL_EXTENSION_ID,
-            f"Edit physical envelope of {self._component.get('name') or 'component'}",
+        self._api.edit_component(
+            component,
+            f"Edit envelope of {component.get('name') or 'component'}",
             change,
         )
         self._update_volume_display()
@@ -274,11 +258,7 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
 
     @staticmethod
     def _envelope(component: dict[str, Any]) -> dict[str, Any]:
-        extensions = component.get("extensions")
-        extensions = extensions if isinstance(extensions, dict) else {}
-        envelope_extension = extensions.get(PHYSICAL_EXTENSION_ID)
-        envelope_extension = envelope_extension if isinstance(envelope_extension, dict) else {}
-        envelope = envelope_extension.get("envelope")
+        envelope = component.get("envelope")
         return envelope if isinstance(envelope, dict) else {}
 
     @staticmethod

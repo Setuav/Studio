@@ -18,7 +18,7 @@ from setuav_studio.api import (
     _candidate_sort_key,
 )
 from setuav_studio.project import ProjectDocument
-from setuav_studio.ui.editor.envelope import PHYSICAL_EXTENSION_ID, EnvelopeEditor
+from setuav_studio.ui.editor.envelope import EnvelopeEditor
 from setuav_studio.ui.editor.transform import TransformEditor
 from setuav_studio.ui.project_explorer import ProjectExplorer
 from setuav_studio.ui.shell.native_registrations import register_native_contributions
@@ -123,7 +123,7 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(contribution.id, "motor:transform")
         self.assertEqual(contribution.icon, "transform")
         envelope_contribution = self.api.component_tree_nodes(component)[1]
-        self.assertEqual(envelope_contribution.id, "motor:physical-envelope")
+        self.assertEqual(envelope_contribution.id, "motor:envelope")
         self.assertEqual(envelope_contribution.title, "Envelope")
         self.assertEqual(envelope_contribution.icon, "envelope")
         editor = self.api.create_component_editor(contribution.selection)
@@ -143,7 +143,7 @@ class PluginTests(unittest.TestCase):
         envelope_editor.dimension_spins["x"].setValue(60)
         envelope_editor.dimension_spins["y"].setValue(30)
         envelope_editor.dimension_spins["z"].setValue(15)
-        envelope = component["extensions"][PHYSICAL_EXTENSION_ID]["envelope"]
+        envelope = component["envelope"]
         self.assertEqual(envelope["size_mm"], {"x": 60.0, "y": 30.0, "z": 15.0})
         self.assertAlmostEqual(envelope_editor.volume_value(), 27_000.0)
 

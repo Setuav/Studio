@@ -22,7 +22,6 @@ from .base import WeightBalanceEngine, WeightBalanceError
 from .spatial import Matrix3, TransformError, resolve_world_transforms
 
 EXTENSION_ID = "org.setuav.weight-balance"
-PHYSICAL_EXTENSION_ID = "org.setuav.core.physical"
 
 
 class WeightBalanceSolver(WeightBalanceEngine):
@@ -160,10 +159,8 @@ class WeightBalanceSolver(WeightBalanceEngine):
         extensions = extensions if isinstance(extensions, dict) else {}
         wb_extension = extensions.get(EXTENSION_ID)
         wb_extension = wb_extension if isinstance(wb_extension, dict) else {}
-        physical_extension = extensions.get(PHYSICAL_EXTENSION_ID)
-        physical_extension = physical_extension if isinstance(physical_extension, dict) else {}
-        physical_envelope = physical_extension.get("envelope")
-        physical_envelope = physical_envelope if isinstance(physical_envelope, dict) else None
+        envelope = component.get("envelope")
+        envelope = envelope if isinstance(envelope, dict) else None
 
         component_warnings: list[str] = []
         root_mass = _optional_number(component.get("mass"))
@@ -190,7 +187,7 @@ class WeightBalanceSolver(WeightBalanceEngine):
             return None
 
         cg_value, has_declared_cg = _component_cg_value(
-            component, wb_extension, physical_envelope, derived, source
+            component, wb_extension, envelope, derived, source
         )
         cg_local_mm = _vector(cg_value)
         cg_body = transform_point_mm(cg_local_mm)
@@ -209,13 +206,13 @@ class WeightBalanceSolver(WeightBalanceEngine):
         if inertia_value is None and source != "derived":
             inertia_value = parameters.get("inertia")
         inertia, has_declared_inertia = _inertia(inertia_value)
-        envelope = (
+        effective_envelope = (
             derived.envelope
             if derived is not None and _envelope_has_size(derived.envelope)
-            else physical_envelope
+            else envelope
         )
         if not has_declared_inertia:
-            inertia, has_derived_inertia = _inertia_from_envelope(envelope, mass_g / 1000.0)
+            inertia, has_derived_inertia = _inertia_from_envelope(effective_envelope, mass_g / 1000.0)
         else:
             has_derived_inertia = False
 
@@ -256,7 +253,7 @@ def _optional_number(value: Any) -> float | None:
 def _component_cg_value(
     component: dict[str, Any],
     wb_extension: dict[str, Any],
-    physical_envelope: dict[str, Any] | None,
+    envelope: dict[str, Any] | None,
     derived: DerivedComponentGeometry | None,
     source: str,
 ) -> tuple[object, bool]:
@@ -275,8 +272,8 @@ def _component_cg_value(
         elif _envelope_has_size(derived.envelope):
             offset = derived.envelope.get("offset_mm")
             value = offset if isinstance(offset, dict) else None
-    if not declared and value is None and physical_envelope is not None:
-        offset = physical_envelope.get("offset_mm")
+    if not declared and value is None and envelope is not None:
+        offset = envelope.get("offset_mm")
         value = offset if isinstance(offset, dict) else None
     return value, declared
 

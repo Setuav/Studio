@@ -28,7 +28,7 @@ def _transform_tree_nodes(
     if not component_id:
         return ()
     transform_node_id = f"{component_id}:transform"
-    envelope_node_id = f"{component_id}:physical-envelope"
+    envelope_node_id = f"{component_id}:envelope"
     nodes = [
         ComponentTreeNodeContribution(
             id=transform_node_id,
@@ -43,8 +43,6 @@ def _transform_tree_nodes(
             tooltip="Position and rotation relative to the parent frame",
         ),
     ]
-    # A point mass has no physical volume; its only geometric property is
-    # the transform origin. Do not expose a meaningless Envelope node.
     if component.get("type") != "org.setuav.core:point-mass":
         nodes.append(
             ComponentTreeNodeContribution(
@@ -53,7 +51,7 @@ def _transform_tree_nodes(
                 selection={
                     "id": envelope_node_id,
                     "name": "Envelope",
-                    "kind": "physical-envelope",
+                    "kind": "envelope",
                     "component_id": component_id,
                 },
                 icon="envelope",
@@ -110,6 +108,6 @@ def register_native_contributions(api: StudioAPI) -> None:
         lambda selection: TransformEditor(api, selection),
     )
     api.register_kind_editor(
-        "physical-envelope",
+        "envelope",
         lambda selection: EnvelopeEditor(api, selection),
     )
