@@ -148,28 +148,18 @@ class ProjectExplorer(QTreeWidget):
         project: ProjectDocument,
     ) -> dict[str, dict[str, Any]]:
         results: dict[str, dict[str, Any]] = {}
-        try:
-            from plugins.aerodynamics.analysis_store import (
-                analysis_entries as aero_entries,
-            )
-
-            for entry in aero_entries(project):
-                if isinstance(entry, dict) and (eid := str(entry.get("id") or "")):
-                    results[eid] = deepcopy(entry)
-        except Exception:
-            pass
-
-        try:
-            from plugins.flight_performance.analysis_store import (
-                analysis_entries as perf_entries,
-            )
-
-            for entry in perf_entries(project):
-                if isinstance(entry, dict) and (eid := str(entry.get("id") or "")):
-                    results[eid] = deepcopy(entry)
-        except Exception:
-            pass
-
+        plugins_data = project.data.get("plugins") or project.data.get("extensions") or {}
+        if not isinstance(plugins_data, dict):
+            return results
+        for ns_data in plugins_data.values():
+            if not isinstance(ns_data, dict):
+                continue
+            for list_key in ("results", "analysis_runs", "entries"):
+                items = ns_data.get(list_key)
+                if isinstance(items, list):
+                    for entry in items:
+                        if isinstance(entry, dict) and (eid := str(entry.get("id") or "")):
+                            results[eid] = deepcopy(entry)
         return results
 
     @staticmethod

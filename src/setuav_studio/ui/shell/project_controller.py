@@ -199,55 +199,11 @@ class ProjectController:
                 "Assembly",
             )
             self.append_unsaved_plugin_entries(changes, disk_data, curr_data)
-            self.append_unsaved_aerodynamic_analyses(changes, disk_doc)
-            self.append_unsaved_performance_analyses(changes, disk_doc)
 
         except Exception as exc:
             logger.debug("Failed to collect detailed unsaved changes: %s", exc)
 
         return changes
-
-    def append_unsaved_aerodynamic_analyses(
-        self, changes: list[str], disk_document: ProjectDocument | None
-    ) -> None:
-        try:
-            from plugins.aerodynamics.analysis_store import analysis_entries
-
-            self.append_unsaved_analyses(
-                changes,
-                analysis_entries(disk_document) if disk_document else [],
-                analysis_entries(self.project),
-                "Aerodynamic Analysis",
-            )
-        except Exception:
-            pass
-
-    def append_unsaved_performance_analyses(
-        self, changes: list[str], disk_document: ProjectDocument | None
-    ) -> None:
-        try:
-            from plugins.flight_performance.analysis_store import analysis_entries
-
-            self.append_unsaved_analyses(
-                changes,
-                analysis_entries(disk_document) if disk_document else [],
-                analysis_entries(self.project),
-                "Flight Performance Analysis",
-            )
-        except Exception:
-            pass
-
-    @staticmethod
-    def append_unsaved_analyses(
-        changes: list[str],
-        disk_entries: list[dict[str, Any]],
-        current_entries: list[dict[str, Any]],
-        fallback_name: str,
-    ) -> None:
-        disk_ids = {entry.get("id") for entry in disk_entries if isinstance(entry, dict)}
-        for entry in current_entries:
-            if isinstance(entry, dict) and entry.get("id") not in disk_ids:
-                changes.append(f"Unsaved {fallback_name}: {entry.get('name') or fallback_name}")
 
     @staticmethod
     def append_unsaved_plugin_entries(

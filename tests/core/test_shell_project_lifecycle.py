@@ -256,25 +256,17 @@ class ShellProjectLifecycleTests(unittest.TestCase):
                         {"id": "assembly", "name": "Changed Assembly"},
                         {"id": "new-assembly", "name": "New Assembly"},
                     ],
+                    "plugins": {
+                        "org.setuav.studio.aerodynamics": {
+                            "results": [{"id": "aero", "name": "Aero"}],
+                        },
+                        "org.setuav.studio.flight_performance": {
+                            "results": [{"id": "perf", "name": "Performance"}],
+                        },
+                    },
                 },
             )
-            with (
-                patch(
-                    "plugins.aerodynamics.analysis_store.analysis_entries",
-                    side_effect=lambda doc: (
-                        [] if doc is not self.window._project else [{"id": "aero", "name": "Aero"}]
-                    ),
-                ),
-                patch(
-                    "plugins.flight_performance.analysis_store.analysis_entries",
-                    side_effect=lambda doc: (
-                        []
-                        if doc is not self.window._project
-                        else [{"id": "perf", "name": "Performance"}]
-                    ),
-                ),
-            ):
-                changes = self.window._collect_unsaved_changes()
+            changes = self.window._collect_unsaved_changes()
 
         self.assertEqual(
             changes,
@@ -284,8 +276,8 @@ class ShellProjectLifecycleTests(unittest.TestCase):
                 "Deleted Component: Deleted",
                 "Modified Assembly: Changed Assembly",
                 "New Assembly: New Assembly",
-                "Unsaved Aerodynamic Analysis: Aero",
-                "Unsaved Flight Performance Analysis: Performance",
+                "Unsaved Aerodynamics entry: Aero",
+                "Unsaved Flight Performance entry: Performance",
             ],
         )
 
