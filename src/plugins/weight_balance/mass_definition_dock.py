@@ -19,7 +19,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from plugins.geometry.engine.derived_geometry import derive_component_geometry
 from setuav_studio.ui.icons import get_icon, set_label_icon
 from setuav_studio.ui.widget.spinbox import NumericSpinBox, set_table_spinbox
 from setuav_studio.ui.widget.table import PropertyTableMixin
@@ -279,7 +278,6 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
         self._loading = True
         try:
             source = self._source_component(component)
-            by_id: dict[str, dict[str, Any]] = {}
             parameters = component.get("parameters")
             parameters = parameters if isinstance(parameters, dict) else {}
             source_parameters = source.get("parameters")
@@ -291,20 +289,6 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
                     source.get("mass", source_parameters.get("mass", 0.0)),
                 ),
             )
-            is_control_surface = component.get("type") == "org.setuav.core:control-surface"
-            if (mass is None or mass == 0.0) and not is_control_surface:
-                project_data = getattr(self._api.current_project, "data", {})
-                project_components = (
-                    project_data.get("components", []) if isinstance(project_data, dict) else []
-                )
-                by_id = {
-                    str(item.get("id")): item
-                    for item in project_components
-                    if isinstance(item, dict) and isinstance(item.get("id"), str)
-                }
-                derived = derive_component_geometry(component, by_id)
-                if derived.mass_g is not None:
-                    mass = derived.mass_g
             self.mass_g.setValue(_number(mass))
 
             source_extensions = source.get("extensions")
@@ -319,13 +303,11 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
             definition.update(own_definition)
             cg = definition.get("local_cg_mm")
             if not isinstance(cg, dict):
-                derived = derive_component_geometry(component, by_id)
-                candidate = derived.transform.get("position")
-                if not isinstance(candidate, dict) or not any(
-                    _number(candidate.get(axis)) for axis in ("x", "y", "z")
-                ):
-                    candidate = derived.envelope.get("offset_mm")
-                cg = candidate if isinstance(candidate, dict) else {}
+                envelope = component.get("envelope") or source.get("envelope")
+                if isinstance(envelope, dict):
+                    candidate = envelope.get("offset_mm")
+                    if isinstance(candidate, dict):
+                        cg = candidate
             cg = cg if isinstance(cg, dict) else {}
             for axis, spin in self.cg_spins.items():
                 spin.setValue(_number(cg.get(axis)))

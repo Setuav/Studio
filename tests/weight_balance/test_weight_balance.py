@@ -6,7 +6,6 @@ from pathlib import Path
 from PySide6.QtCore import QEvent
 from PySide6.QtWidgets import QDockWidget, QMainWindow
 
-from plugins.geometry.engine.derived_geometry import derive_project_component_geometry
 from plugins.weight_balance import WeightBalancePlugin
 from plugins.weight_balance.engine.base import WeightBalanceError
 from plugins.weight_balance.engine.solver import EXTENSION_ID, WeightBalanceSolver
@@ -36,39 +35,29 @@ class WeightBalanceSolverTests(unittest.TestCase):
     def setUp(self) -> None:
         self.solver = WeightBalanceSolver()
 
-    def test_geometry_derived_control_surface_properties_without_mass_deduction(self) -> None:
-        wing = {
-            "id": "wing",
-            "type": "org.setuav.core:lifting-surface",
-            "parameters": {
-                "geometry": {
-                    "mirror": True,
-                    "profiles": [
-                        {"position": {"x": 0, "y": 0, "z": 0}, "chord": 100, "airfoil": "0012"},
-                        {"position": {"x": 0, "y": 500, "z": 0}, "chord": 80, "airfoil": "0012"},
-                    ],
-                }
-            },
-        }
-        aileron = {
-            "id": "aileron",
-            "type": "org.setuav.core:control-surface",
-            "parent": "wing",
-            "attach_to": "wing",
-            "parameters": {
-                "geometry": {
-                    "type": "aileron",
-                    "span_mode": "ratio",
-                    "eta_start": 0.5,
-                    "eta_end": 1.0,
-                    "chord_fraction": 0.25,
-                }
-            },
-        }
-        derived = derive_project_component_geometry([wing, aileron])
-        self.assertGreater(derived["aileron"].mass_g or 0, 0)
-        self.assertEqual(derived["aileron"].envelope["size_mm"]["y"], 500.0)
-        self.assertAlmostEqual(derived["wing"].mass_g or 0, 77.76, places=2)
+    def test_solver_uses_component_envelope_for_inertia_and_cg_offset(self) -> None:
+        project = _project(
+            {
+                "components": [
+                    {
+                        "id": "wing",
+                        "name": "Wing",
+                        "type": "org.setuav.core:lifting-surface",
+                        "mass": 500.0,
+                        "transform": {"position": {"x": 100.0, "y": 0.0, "z": 0.0}},
+                        "envelope": {
+                            "shape": "box",
+                            "size_mm": {"x": 200.0, "y": 1000.0, "z": 20.0},
+                            "offset_mm": {"x": 50.0, "y": 0.0, "z": 0.0},
+                        },
+                    }
+                ]
+            }
+        )
+        result = self.solver.evaluate(project)
+        self.assertAlmostEqual(result.total.mass_kg, 0.5)
+        self.assertAlmostEqual(result.total.cg_body_m[0], 0.15)
+        self.assertGreater(result.total.inertia_cg_kg_m2.ixx, 0.0)
 
     def test_two_point_masses_have_expected_cg_and_parallel_axis_inertia(self) -> None:
         project = _project(
