@@ -38,9 +38,6 @@ CORE_MODULES = (
     "tests.core.test_workspaces",
 )
 GEOMETRY_MODULES = (
-    "tests.geometry.test_concept_dialog",
-    "tests.geometry.test_concept_generator",
-    "tests.geometry.test_concept_models",
     "tests.geometry.test_creation",
     "tests.geometry.test_geometry",
     "tests.geometry.test_settings",

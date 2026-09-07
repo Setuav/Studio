@@ -23,7 +23,6 @@ class GeometryCreationController:
     """Create valid starter geometry and publish it through the Studio API."""
 
     toolbar_ids = (
-        "geometry.generate-concept",
         "geometry.create-structural-system",
         "geometry.create-fuselage",
         "geometry.create-lifting-surface",
@@ -37,16 +36,6 @@ class GeometryCreationController:
         return (
             ToolbarContribution(
                 id=self.toolbar_ids[0],
-                title="Concept Generator...",
-                callback=self.open_concept_generator,
-                icon="fa6s.wand-magic-sparkles",
-                enabled_when=self._can_edit_project,
-                group="geometry-creation",
-                order=80,
-                workspace_id=_DESIGN_WORKSPACE,
-            ),
-            ToolbarContribution(
-                id=self.toolbar_ids[1],
                 title="New Airframe Structure",
                 callback=self.add_structural_system,
                 icon="component_structural_system",
@@ -56,7 +45,7 @@ class GeometryCreationController:
                 workspace_id=_DESIGN_WORKSPACE,
             ),
             ToolbarContribution(
-                id=self.toolbar_ids[2],
+                id=self.toolbar_ids[1],
                 title="Add Fuselage",
                 callback=self.add_fuselage,
                 icon="geometry_add_fuselage",
@@ -66,7 +55,7 @@ class GeometryCreationController:
                 workspace_id=_DESIGN_WORKSPACE,
             ),
             ToolbarContribution(
-                id=self.toolbar_ids[3],
+                id=self.toolbar_ids[2],
                 title="Add Lifting Surface",
                 icon="geometry_add_lifting_surface",
                 menu_items=(
@@ -87,7 +76,7 @@ class GeometryCreationController:
                 workspace_id=_DESIGN_WORKSPACE,
             ),
             ToolbarContribution(
-                id=self.toolbar_ids[4],
+                id=self.toolbar_ids[3],
                 title="Add Control Surface",
                 icon="geometry_add_control_surface",
                 menu_items=tuple(
@@ -111,52 +100,6 @@ class GeometryCreationController:
                 workspace_id=_DESIGN_WORKSPACE,
             ),
         )
-
-    def open_concept_generator(self) -> None:
-        """Open the Vehicle Concept Generator dialog to instantiate an airframe."""
-        if not self._require_editable_project():
-            return
-        from .dialogs import ConceptGeneratorDialog
-
-        dialog = ConceptGeneratorDialog(api=self._api)
-        dialog.concept_generated.connect(self._on_concept_generated)
-        dialog.exec()
-
-    def _on_concept_generated(self, config: dict[str, Any]) -> None:
-        """Handle concept generation from dialog parameters."""
-        if not self._require_editable_project():
-            return
-        from .concepts.generator import generate_airframe_components
-
-        bundle = generate_airframe_components(config)
-        project = self._api.current_project
-        if project is None:
-            return
-
-        def apply_concept() -> None:
-            # 1. Update project parameters
-            params = project.data.setdefault("parameters", {})
-            if isinstance(params, dict):
-                params.update(bundle.get("parameters", {}))
-
-            # 2. Append generated components
-            comps = project.data.setdefault("components", [])
-            if isinstance(comps, list):
-                comps.extend(bundle.get("components", []))
-
-            # 3. Append generated assemblies
-            asms = project.data.setdefault("assemblies", [])
-            if isinstance(asms, list):
-                asms.extend(bundle.get("assemblies", []))
-
-        title = str(config.get("concept_title", "Aircraft Concept"))
-        self._api.edit_project(f"Generate {title} airframe", apply_concept)
-
-        first_comp = next((c for c in bundle.get("components", []) if c.get("id") == "main-wing"), None)
-        if first_comp is not None:
-            self._api.set_selection(first_comp)
-
-        self._api.show_status(f"Generated {title} 3D airframe", "success", 4000)
 
     def add_structural_system(self) -> None:
         if not self._require_editable_project():
