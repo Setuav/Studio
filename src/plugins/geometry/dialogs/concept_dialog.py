@@ -33,156 +33,18 @@ from setuav_studio.ui.widget.button import set_button_role
 from setuav_studio.ui.widget.spinbox import (
     NumericSpinBox,
 )
-from setuav_studio.ui.widget.table import PropertyTableMixin
+from setuav_studio.ui.widget.table import (
+    ExpressionPropertyCell,
+    PropertyTableMixin,
+    format_engineering_value,
+)
 from setuav_studio_sdk import StudioAPI
 
 ASSETS_DIR = Path(__file__).parent.parent / "assets" / "concepts"
 
 
-@dataclass
-class ConceptPreset:
-    """Definition and default geometric parameters for an aircraft concept preset."""
+from ..concepts import CONCEPT_PRESETS as PRESETS, ConceptPreset
 
-    id: str
-    title: str
-    image_filename: str
-
-    # Wing defaults (mm, deg)
-    wingspan_mm: float = 1400.0
-    wing_root_chord_mm: float = 210.0
-    wing_tip_chord_mm: float = 130.0
-    wing_sweep_deg: float = 2.0
-    wing_dihedral_deg: float = 2.0
-    wing_airfoil: str = "NACA 2412"
-    wing_position: str = "High-Wing"
-
-    # Fuselage defaults (mm)
-    fuselage_length_mm: float = 850.0
-    fuselage_diameter_mm: float = 130.0
-    nose_length_mm: float = 220.0
-    tail_length_mm: float = 450.0
-    fuselage_style: str = "Pod & Boom"
-
-    # Tail defaults (mm, deg)
-    tail_type: str = "V-Tail"
-    tail_span_mm: float = 380.0
-    tail_root_chord_mm: float = 120.0
-    tail_tip_chord_mm: float = 80.0
-    tail_v_angle_deg: float = 110.0
-    tail_height_mm: float = 160.0
-    tail_arm_mm: float = 520.0
-    tail_airfoil: str = "NACA 0012"
-
-    # Propulsion layout
-    propulsion_layout: str = "Pusher"
-
-
-PRESETS: dict[str, ConceptPreset] = {
-    "talon_pusher": ConceptPreset(
-        id="talon_pusher",
-        title="Talon Pusher",
-        image_filename="config_pod_boom.jpg",
-        wingspan_mm=1400.0,
-        wing_root_chord_mm=210.0,
-        wing_tip_chord_mm=130.0,
-        wing_sweep_deg=2.0,
-        wing_dihedral_deg=2.0,
-        wing_airfoil="NACA 2412",
-        wing_position="High-Wing",
-        fuselage_length_mm=850.0,
-        fuselage_diameter_mm=130.0,
-        nose_length_mm=220.0,
-        tail_length_mm=450.0,
-        fuselage_style="Pod & Boom",
-        tail_type="V-Tail",
-        tail_span_mm=380.0,
-        tail_root_chord_mm=120.0,
-        tail_tip_chord_mm=80.0,
-        tail_v_angle_deg=110.0,
-        tail_height_mm=160.0,
-        tail_arm_mm=520.0,
-        tail_airfoil="NACA 0012",
-        propulsion_layout="Pusher",
-    ),
-    "conventional_tractor": ConceptPreset(
-        id="conventional_tractor",
-        title="Conventional Tractor",
-        image_filename="config_conventional.jpg",
-        wingspan_mm=1600.0,
-        wing_root_chord_mm=220.0,
-        wing_tip_chord_mm=150.0,
-        wing_sweep_deg=0.0,
-        wing_dihedral_deg=3.0,
-        wing_airfoil="NACA 2412",
-        wing_position="High-Wing",
-        fuselage_length_mm=1050.0,
-        fuselage_diameter_mm=115.0,
-        nose_length_mm=250.0,
-        tail_length_mm=550.0,
-        fuselage_style="Full Fuselage",
-        tail_type="Conventional",
-        tail_span_mm=440.0,
-        tail_root_chord_mm=130.0,
-        tail_tip_chord_mm=90.0,
-        tail_v_angle_deg=0.0,
-        tail_height_mm=180.0,
-        tail_arm_mm=650.0,
-        tail_airfoil="NACA 0012",
-        propulsion_layout="Tractor",
-    ),
-    "twin_boom_pusher": ConceptPreset(
-        id="twin_boom_pusher",
-        title="Twin-Boom Pusher",
-        image_filename="config_twin_boom.jpg",
-        wingspan_mm=1800.0,
-        wing_root_chord_mm=240.0,
-        wing_tip_chord_mm=160.0,
-        wing_sweep_deg=0.0,
-        wing_dihedral_deg=2.0,
-        wing_airfoil="Clark Y",
-        wing_position="High-Wing",
-        fuselage_length_mm=750.0,
-        fuselage_diameter_mm=140.0,
-        nose_length_mm=220.0,
-        tail_length_mm=350.0,
-        fuselage_style="Center Pod",
-        tail_type="Twin Boom",
-        tail_span_mm=520.0,
-        tail_root_chord_mm=120.0,
-        tail_tip_chord_mm=90.0,
-        tail_v_angle_deg=0.0,
-        tail_height_mm=170.0,
-        tail_arm_mm=620.0,
-        tail_airfoil="NACA 0012",
-        propulsion_layout="Pusher",
-    ),
-    "flying_wing": ConceptPreset(
-        id="flying_wing",
-        title="Flying Wing",
-        image_filename="config_flying_wing.jpg",
-        wingspan_mm=1200.0,
-        wing_root_chord_mm=300.0,
-        wing_tip_chord_mm=160.0,
-        wing_sweep_deg=18.0,
-        wing_dihedral_deg=1.0,
-        wing_airfoil="MH 45",
-        wing_position="Mid-Wing",
-        fuselage_length_mm=350.0,
-        fuselage_diameter_mm=120.0,
-        nose_length_mm=120.0,
-        tail_length_mm=150.0,
-        fuselage_style="Blended Center Body",
-        tail_type="Winglets Only",
-        tail_span_mm=0.0,
-        tail_root_chord_mm=140.0,
-        tail_tip_chord_mm=80.0,
-        tail_v_angle_deg=90.0,
-        tail_height_mm=160.0,
-        tail_arm_mm=0.0,
-        tail_airfoil="NACA 0012",
-        propulsion_layout="Pusher",
-    ),
-}
 
 
 class ConceptThumbnailCard(QFrame):
@@ -578,6 +440,12 @@ class ConceptGeneratorDialog(QDialog, PropertyTableMixin):
         suffix: str,
         on_change,
     ) -> NumericSpinBox | None:
+        row = self._property_row_index(table, key)
+        if row is not None:
+            w = table.cellWidget(row, 1)
+            if isinstance(w, ExpressionPropertyCell):
+                w.setText(format_engineering_value(val, decimals))
+                return w
         return self._set_property_spinbox(
             table,
             key,
