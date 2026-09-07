@@ -122,7 +122,6 @@ include = [
     "src/plugins/flight_performance/engine/solver.py",
     "src/plugins/geometry/engine/airfoil.py",
     "src/plugins/geometry/engine/data.py",
-    "src/plugins/geometry/engine/derived_geometry.py",
     "src/plugins/geometry/engine/fuselage_geometry.py",
     "src/plugins/geometry/engine/lifting_surface_geometry.py",
     "src/plugins/geometry/engine/transforms.py",
