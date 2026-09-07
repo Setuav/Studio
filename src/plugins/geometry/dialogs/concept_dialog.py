@@ -158,8 +158,8 @@ class ConceptGeneratorDialog(QDialog, PropertyTableMixin):
         self._api = api
         self.setObjectName("geometry.concept_generator_dialog")
         self.setWindowTitle("Airframe Concept Generator — SetUAV Studio")
-        self.resize(860, 560)
-        self.setMinimumSize(780, 500)
+        self.resize(920, 570)
+        self.setMinimumSize(860, 520)
 
         self._cards: dict[str, ConceptThumbnailCard] = {}
         self._selected_id: str = "talon_pusher"
@@ -214,9 +214,19 @@ class ConceptGeneratorDialog(QDialog, PropertyTableMixin):
 
         main_layout.addLayout(cards_row)
 
-        # 2. Middle Section: Geometric Parameters & Metrics
+        # 2. Middle Section: Parameters (Left) + 3D Concept Model Preview (Right)
+        middle_row = QHBoxLayout()
+        middle_row.setContentsMargins(0, 0, 0, 0)
+        middle_row.setSpacing(12)
+
+        # Left Column: Parameter Tabs
+        tabs_box = QWidget()
+        tabs_layout = QVBoxLayout(tabs_box)
+        tabs_layout.setContentsMargins(0, 0, 0, 0)
+        tabs_layout.setSpacing(6)
+
         param_header = self._create_section_header("Geometry Parameters & Configuration", "fa6s.sliders")
-        main_layout.addWidget(param_header)
+        tabs_layout.addWidget(param_header)
 
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
@@ -303,7 +313,50 @@ class ConceptGeneratorDialog(QDialog, PropertyTableMixin):
         met_layout.addStretch()
         self.tabs.addTab(tab_metrics, "Planform Metrics")
 
-        main_layout.addWidget(self.tabs, 1)
+        tabs_layout.addWidget(self.tabs, 1)
+        middle_row.addWidget(tabs_box, 3)
+
+        # Right Column: 3D Concept Model Preview
+        preview_box = QWidget()
+        preview_layout = QVBoxLayout(preview_box)
+        preview_layout.setContentsMargins(0, 0, 0, 0)
+        preview_layout.setSpacing(6)
+
+        preview_header = self._create_section_header("Concept 3D Preview", "fa6s.cube")
+        preview_layout.addWidget(preview_header)
+
+        self.preview_card = QFrame()
+        tokens_dict = tokens()
+        surface = tokens_dict.get("surface", "#252528")
+        border = tokens_dict.get("border", "#3d3d42")
+        text_sec = tokens_dict.get("text_secondary", "#9e9ea6")
+        self.preview_card.setStyleSheet(
+            f"QFrame {{"
+            f"  background-color: {surface};"
+            f"  border: 1px solid {border};"
+            f"  border-radius: 4px;"
+            f"}}"
+        )
+        pc_layout = QVBoxLayout(self.preview_card)
+        pc_layout.setContentsMargins(10, 10, 10, 10)
+        pc_layout.setSpacing(8)
+
+        self.preview_img_lbl = QLabel()
+        self.preview_img_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.preview_img_lbl.setMinimumSize(280, 240)
+        self.preview_img_lbl.setScaledContents(False)
+        pc_layout.addWidget(self.preview_img_lbl, 1)
+
+        self.preview_meta_lbl = QLabel()
+        self.preview_meta_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.preview_meta_lbl.setWordWrap(True)
+        self.preview_meta_lbl.setStyleSheet(f"color: {text_sec}; font-size: 11px;")
+        pc_layout.addWidget(self.preview_meta_lbl)
+
+        preview_layout.addWidget(self.preview_card, 1)
+        middle_row.addWidget(preview_box, 2)
+
+        main_layout.addLayout(middle_row, 1)
 
         # 3. Bottom Action Bar
         action_bar = QWidget()
@@ -494,6 +547,21 @@ class ConceptGeneratorDialog(QDialog, PropertyTableMixin):
             "tail_arm_mm": preset.tail_arm_mm,
             "tail_airfoil": preset.tail_airfoil,
         }
+        # Update 3D Concept Preview
+        img_path = ASSETS_DIR / preset.image_filename
+        if img_path.exists():
+            pix = QPixmap(str(img_path))
+            scaled = pix.scaled(
+                280,
+                240,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            self.preview_img_lbl.setPixmap(scaled)
+        self.preview_meta_lbl.setText(
+            f"<b>{preset.title}</b><br/>"
+            f"<span>{preset.fuselage_style} • {preset.tail_type} • {preset.propulsion_layout}</span>"
+        )
 
         self._populate_ui_from_params()
 
