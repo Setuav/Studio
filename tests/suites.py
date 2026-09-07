@@ -39,6 +39,7 @@ CORE_MODULES = (
 )
 GEOMETRY_MODULES = (
     "tests.geometry.test_concept_dialog",
+    "tests.geometry.test_concept_generator",
     "tests.geometry.test_concept_models",
     "tests.geometry.test_creation",
     "tests.geometry.test_geometry",

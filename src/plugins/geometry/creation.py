@@ -124,8 +124,39 @@ class GeometryCreationController:
 
     def _on_concept_generated(self, config: dict[str, Any]) -> None:
         """Handle concept generation from dialog parameters."""
-        # Will be connected to airframe geometry generator in the next step
-        pass
+        if not self._require_editable_project():
+            return
+        from .concepts.generator import generate_airframe_components
+
+        bundle = generate_airframe_components(config)
+        project = self._api.current_project
+        if project is None:
+            return
+
+        def apply_concept() -> None:
+            # 1. Update project parameters
+            params = project.data.setdefault("parameters", {})
+            if isinstance(params, dict):
+                params.update(bundle.get("parameters", {}))
+
+            # 2. Append generated components
+            comps = project.data.setdefault("components", [])
+            if isinstance(comps, list):
+                comps.extend(bundle.get("components", []))
+
+            # 3. Append generated assemblies
+            asms = project.data.setdefault("assemblies", [])
+            if isinstance(asms, list):
+                asms.extend(bundle.get("assemblies", []))
+
+        title = str(config.get("concept_title", "Aircraft Concept"))
+        self._api.edit_project(f"Generate {title} airframe", apply_concept)
+
+        first_comp = next((c for c in bundle.get("components", []) if c.get("id") == "main-wing"), None)
+        if first_comp is not None:
+            self._api.set_selection(first_comp)
+
+        self._api.show_status(f"Generated {title} 3D airframe", "success", 4000)
 
     def add_structural_system(self) -> None:
         if not self._require_editable_project():
