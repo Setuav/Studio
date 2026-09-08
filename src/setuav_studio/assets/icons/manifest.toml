@@ -17,18 +17,36 @@ geometry_add_fuselage = "geometry-add-fuselage.png"
 geometry_add_lifting_surface = "geometry-add-lifting-surface.png"
 geometry_add_control_surface = "geometry-add-control-surface.png"
 
+# Transform & Envelope
+transform = "transform.svg"
+coordinate_system = "transform.svg"
+envelope = "envelope.svg"
+physical_envelope = "envelope.svg"
+
+# Weight & Balance / Mass
+mass = "mass.svg"
+point_mass = "mass.svg"
+component_point_mass = "mass.svg"
+
 # View menu 3D panel
 viewer_3d = "view-isometric.png"
 
-# 3D viewport display modes and camera presets
-# Colored view, grid, and color selection intentionally use QtAwesome.
+# 3D viewport display modes, camera presets, and overlays
+view_colored = "view-colored.svg"
+view_monochrome = "view-monochrome.svg"
+view_palette = "view-palette.svg"
+palette = "view-palette.svg"
 view_solid = "view-solid.png"
 view_wireframe = "view-wireframe.png"
-view_monochrome = "view-monochrome.png"
 view_transparent = "view-transparent.png"
+view_grid = "view-grid.svg"
+view_isometric = "view-isometric.svg"
+view_perspective = "view-perspective.svg"
+camera_perspective = "view-perspective.svg"
 camera_iso = "view-isometric.png"
 camera_top = "view-top.png"
 camera_bottom = "view-bottom.png"
 camera_front = "view-front.png"
 camera_side = "view-side.png"
 view_fit = "view-fit.png"
+screenshot = "screenshot.svg"

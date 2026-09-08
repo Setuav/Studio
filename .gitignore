@@ -27,6 +27,7 @@ htmlcov/
 .vscode/
 *.swp
 *~
+.docs/
 
 # Operating systems
 .DS_Store

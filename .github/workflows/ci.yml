@@ -16,6 +16,9 @@ concurrency:
 env:
   MPLCONFIGDIR: ${{ github.workspace }}/.cache/matplotlib
   QT_QPA_PLATFORM: offscreen
+  QT_OPENGL: software
+  QSG_RHI_BACKEND: software
+  LIBGL_ALWAYS_SOFTWARE: "1"
 
 jobs:
   quality:

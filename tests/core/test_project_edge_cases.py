@@ -38,28 +38,30 @@ class ProjectEdgeCaseTests(unittest.TestCase):
         folder_document.plugin_issues.append("missing plugin")
         self.assertTrue(folder_document.degraded)
 
-        self.assertEqual(folder_document.get_extension("missing", "fallback"), "fallback")
+        self.assertEqual(folder_document.get_plugin_data("missing", "fallback"), "fallback")
         folder_document.data["extensions"] = "invalid"
-        folder_document.set_extension("plugin", {"enabled": True})
-        self.assertEqual(folder_document.get_extension("plugin"), {"enabled": True})
-        folder_document.remove_extension("missing")
-        folder_document.remove_extension("plugin")
-        self.assertIsNone(folder_document.get_extension("plugin"))
+        folder_document.set_plugin_data("plugin", {"enabled": True})
+        self.assertEqual(folder_document.get_plugin_data("plugin"), {"enabled": True})
+        folder_document.remove_plugin_data("missing")
+        folder_document.remove_plugin_data("plugin")
+        self.assertIsNone(folder_document.get_plugin_data("plugin"))
         folder_document.data["extensions"] = "invalid"
-        folder_document.remove_extension("plugin")
+        folder_document.remove_plugin_data("plugin")
 
     def test_component_extension_helpers_handle_invalid_and_missing_components(self) -> None:
         document = ProjectDocument(self.root / "project.json", "json", {"components": "invalid"})
         self.assertIsNone(document.get_component("missing"))
-        self.assertEqual(document.get_component_extension("missing", "ext", "fallback"), "fallback")
+        self.assertEqual(
+            document.get_component_plugin_data("missing", "ext", "fallback"), "fallback"
+        )
         with self.assertRaises(KeyError):
-            document.set_component_extension("missing", "ext", {})
+            document.set_component_plugin_data("missing", "ext", {})
 
         component = {"id": "wing", "extensions": "invalid"}
         document.data["components"] = ["invalid", component]
-        self.assertEqual(document.get_component_extension("wing", "ext", "fallback"), "fallback")
-        document.set_component_extension("wing", "ext", {"value": 1})
-        self.assertEqual(document.get_component_extension("wing", "ext"), {"value": 1})
+        self.assertEqual(document.get_component_plugin_data("wing", "ext", "fallback"), "fallback")
+        document.set_component_plugin_data("wing", "ext", {"value": 1})
+        self.assertEqual(document.get_component_plugin_data("wing", "ext"), {"value": 1})
 
     def test_open_rejects_unsupported_invalid_and_non_object_json(self) -> None:
         with self.assertRaisesRegex(ProjectOpenError, "Expected a project"):
@@ -123,7 +125,9 @@ class ProjectEdgeCaseTests(unittest.TestCase):
     def test_save_wraps_os_errors(self) -> None:
         project = ProjectDocument(self.root / "project.json", "json", self.data)
         with (
-            patch("setuav_studio.project._write_json_file", side_effect=OSError("disk full")),
+            patch(
+                "setuav_studio.project.document._write_json_file", side_effect=OSError("disk full")
+            ),
             self.assertRaisesRegex(ProjectSaveError, "Cannot save project"),
         ):
             save_project(project)
@@ -131,7 +135,9 @@ class ProjectEdgeCaseTests(unittest.TestCase):
     def test_atomic_json_writer_removes_temporary_file_after_replace_failure(self) -> None:
         target = self.root / "project.json"
         with (
-            patch("setuav_studio.project.os.replace", side_effect=OSError("replace failed")),
+            patch(
+                "setuav_studio.project.document.os.replace", side_effect=OSError("replace failed")
+            ),
             self.assertRaises(OSError),
         ):
             _write_json_file(target, self.data)
@@ -142,7 +148,9 @@ class ProjectEdgeCaseTests(unittest.TestCase):
         target = self.root / "project.suav"
         project = ProjectDocument(self.root / "project.json", "json", self.data)
         with (
-            patch("setuav_studio.project.os.replace", side_effect=OSError("replace failed")),
+            patch(
+                "setuav_studio.project.document.os.replace", side_effect=OSError("replace failed")
+            ),
             self.assertRaises(OSError),
         ):
             _write_suav(project, target)

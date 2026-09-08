@@ -505,8 +505,8 @@ def apply_theme(app: QApplication, mode: str | None = None) -> None:
     if app.font() != application_font:
         app.setFont(application_font)
 
-    from setuav_studio.ui.buttons import refresh_all_button_roles
     from setuav_studio.ui.icons import refresh_label_icon
+    from setuav_studio.ui.widget.button import refresh_all_button_roles
 
     for widget in app.allWidgets():
         # Application palette propagation preserves intentional per-widget

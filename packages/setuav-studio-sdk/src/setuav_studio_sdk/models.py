@@ -29,28 +29,37 @@ class ProjectDocument(Protocol):
         """Whether loading the document reported plugin issues."""
         ...
 
-    def get_extension(self, namespace: str, default: Any = None) -> Any:
-        """Retrieve root-level extension data."""
+    @property
+    def vehicle(self) -> Any:
+        """Domain Vehicle model representation."""
         ...
 
-    def set_extension(self, namespace: str, value: Any) -> None:
-        """Set root-level extension data."""
+    def get_plugin_data(self, namespace: str, default: Any = None) -> Any:
+        """Retrieve root-level plugin data."""
         ...
 
-    def remove_extension(self, namespace: str) -> None:
-        """Remove root-level extension data."""
+    def set_plugin_data(self, namespace: str, value: Any) -> None:
+        """Set root-level plugin data."""
+        ...
+
+    def remove_plugin_data(self, namespace: str) -> None:
+        """Remove root-level plugin data."""
         ...
 
     def get_component(self, comp_id: str) -> dict[str, Any] | None:
         """Find a component by ID."""
         ...
 
-    def get_component_extension(self, comp_id: str, namespace: str, default: Any = None) -> Any:
-        """Retrieve component-level extension data."""
+    def get_typed_component(self, comp_id: str) -> Any:
+        """Find a component by ID and return typed domain component."""
         ...
 
-    def set_component_extension(self, comp_id: str, namespace: str, value: Any) -> None:
-        """Set component-level extension data."""
+    def get_component_plugin_data(self, comp_id: str, namespace: str, default: Any = None) -> Any:
+        """Retrieve component-level plugin data."""
+        ...
+
+    def set_component_plugin_data(self, comp_id: str, namespace: str, value: Any) -> None:
+        """Set component-level plugin data."""
         ...
 
 

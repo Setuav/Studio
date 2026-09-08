@@ -1,0 +1,492 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="11.699951"
+   height="13.997345"
+   id="svg2"
+   version="1.0"
+   style="display:inline;enable-background:new"
+   enable-background="new"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs4">
+    <linearGradient
+       id="linearGradient23974">
+      <stop
+         id="stop23976"
+         offset="0"
+         style="stop-color:#2561b7;stop-opacity:1;" />
+      <stop
+         id="stop23978"
+         offset="1"
+         style="stop-color:#f9fbff;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient
+       id="linearGradient31320">
+      <stop
+         style="stop-color:white;stop-opacity:1;"
+         offset="0"
+         id="stop31322" />
+      <stop
+         style="stop-color:white;stop-opacity:0;"
+         offset="1"
+         id="stop31324" />
+    </linearGradient>
+    <linearGradient
+       id="linearGradient23974-0-2">
+      <stop
+         id="stop23976-22-8"
+         offset="0"
+         style="stop-color:#2561b7;stop-opacity:1;" />
+      <stop
+         id="stop23978-4-5"
+         offset="1"
+         style="stop-color:#f9fbff;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient
+       id="linearGradient14262-95-2">
+      <stop
+         id="stop14264-2-2"
+         offset="0"
+         style="stop-color:#2661b6;stop-opacity:1;" />
+      <stop
+         id="stop14266-7-2"
+         offset="1"
+         style="stop-color:#c1d7f8;stop-opacity:0;" />
+    </linearGradient>
+    <linearGradient
+       id="linearGradient319-40-7">
+      <stop
+         style="stop-color:#ffffff;stop-opacity:1;"
+         offset="0"
+         id="stop320-95-9" />
+      <stop
+         style="stop-color:#ffffff;stop-opacity:0;"
+         offset="1"
+         id="stop321-16-1" />
+    </linearGradient>
+    <linearGradient
+       xlink:href="#linearGradient23974-0-2"
+       id="linearGradient77"
+       gradientUnits="userSpaceOnUse"
+       gradientTransform="matrix(-1.004219,0,0,0.980922,74.34344,372.3905)"
+       x1="-88.73024"
+       y1="-120.6127"
+       x2="-78.787354"
+       y2="-128.30418" />
+    <linearGradient
+       xlink:href="#linearGradient31320"
+       id="linearGradient78"
+       gradientUnits="userSpaceOnUse"
+       gradientTransform="matrix(-1.004219,0,0,0.980922,222.97812,19.5574)"
+       x1="68.688324"
+       y1="51.42366"
+       x2="72.671516"
+       y2="55.501457" />
+    <linearGradient
+       xlink:href="#linearGradient14262-95-2"
+       id="linearGradient79"
+       gradientUnits="userSpaceOnUse"
+       gradientTransform="matrix(-1.004219,0,0,0.980922,139.37998,3.53336)"
+       x1="-26.207859"
+       y1="252.77303"
+       x2="-5.4963508"
+       y2="253.15045" />
+    <linearGradient
+       xlink:href="#linearGradient319-40-7"
+       id="linearGradient80"
+       gradientUnits="userSpaceOnUse"
+       gradientTransform="matrix(0.8167109,0,0,0.8433415,69.29396,203.19342)"
+       x1="103.65562"
+       y1="49.547874"
+       x2="120.79755"
+       y2="57.84819" />
+    <linearGradient
+       xlink:href="#linearGradient23974"
+       id="linearGradient81"
+       gradientUnits="userSpaceOnUse"
+       x1="94.485573"
+       y1="122.13319"
+       x2="89.207298"
+       y2="125.83332" />
+  </defs>
+  <g
+     id="layer1"
+     style="display:inline"
+     transform="translate(267.93906,-255.99146)">
+    <g
+       id="g16016-2"
+       transform="translate(-422.07691,11.991455)">
+      <path
+         id="path18699-7-8"
+         d="m 159.95712,247.8542 -3.25648,1.32353 -1.7128,5.25087 5,2.71875 4.99999,-2.71875 -1.77423,-5.25087 z"
+         style="fill:none;stroke:#0b1728;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+      <path
+         style="display:inline;overflow:visible;visibility:visible;fill:url(#linearGradient77);fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.06667px;marker:none;enable-background:accumulate"
+         d="m 159.98133,247.9448 -3.25648,1.2408 -1.73704,5.243 5,2.71875 4.99999,-2.71875 -1.75,-5.243 z"
+         id="path18719-4-4" />
+      <g
+         transform="translate(8.95064,173.9792)"
+         id="g18703-0-7">
+        <path
+           style="display:inline;overflow:visible;visibility:visible;fill:url(#linearGradient78);fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.06667px;marker:none;enable-background:accumulate"
+           d="m 147.75124,75.228495 3.25648,-1.253486 3.25648,1.253486 -3.25648,1.372473 z"
+           id="path18707-0-2" />
+      </g>
+      <path
+         style="display:inline;fill:url(#linearGradient79);fill-opacity:1;fill-rule:evenodd;stroke:none"
+         d="m 163.2136,249.34317 -3.25648,1.32353 -0.006,6.4375 5,-2.75 z"
+         id="path18763-7-4" />
+      <path
+         style="fill:none;stroke:url(#linearGradient80);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 162.79956,249.6191 1.65308,4.57246 -4.5,2.48007 -4.5,-2.48007 1.75043,-4.61666 2.79824,-1.11389 z"
+         id="path18709-5-0" />
+      <path
+         id="path14332-7-5-6"
+         d="m 161.04227,247.90828 c 0.24495,-0.26634 0.39423,-0.62011 0.39423,-1.00834 0,-0.8284 -0.67974,-1.49994 -1.51825,-1.49994 -0.83851,0 -1.51825,0.67154 -1.51825,1.49994 0,0.43979 0.0353,0.57241 0.34052,0.84677"
+         style="display:inline;fill:#e6e6e6;fill-opacity:1;stroke:#0b1728;stroke-width:2.8;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;enable-background:new" />
+      <ellipse
+         transform="matrix(0.8540253,0,0,-1.199954,81.751209,396.89409)"
+         id="path14336-5-6-2"
+         style="display:inline;fill:#000000;fill-opacity:1;stroke:url(#linearGradient81);stroke-width:1.28418;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;enable-background:new"
+         cx="91.5"
+         cy="125"
+         rx="1.75"
+         ry="1.25" />
+      <rect
+         style="display:inline;overflow:visible;visibility:visible;opacity:0.75;fill:#162d50;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.2;marker:none;enable-background:accumulate"
+         id="rect14340-2-4-9"
+         width="2.0011597"
+         height="2"
+         x="158.93533"
+         y="245.8999" />
+    </g>
+  </g>
+  <g
+     id="layer2"
+     style="display:inline"
+     transform="translate(267.93906,-255.99146)">
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;writing-mode:lr-tb;direction:ltr;fill:#4d7a9b;stroke-width:0.32194;stroke-linejoin:round"
+       x="-607.66687"
+       y="0.14792109"
+       id="text1"
+       transform="scale(0.90029291,1.1107496)"><tspan
+         id="tspan1"
+         x="-607.66687"
+         y="0.14792109"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">=== 1. GEOMETRI &amp; UCAK BILESENLERI ===</tspan><tspan
+         x="-607.66687"
+         y="15.147921"
+         id="tspan2"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- component_structural_system : Govde Yapisi / Airframe Structure</tspan><tspan
+         x="-607.66687"
+         y="30.147921"
+         id="tspan3"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- geometry_add_fuselage : Govde / Fuselage</tspan><tspan
+         x="-607.66687"
+         y="45.147923"
+         id="tspan4"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- geometry_add_lifting_surface : Kanat / Lifting Surface (Wing)</tspan><tspan
+         x="-607.66687"
+         y="60.147923"
+         id="tspan5"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- geometry_add_control_surface : Kontrol Yuzeyi / Control Surface (Aileron/Elevator/Rudder/Flap)</tspan><tspan
+         x="-607.66687"
+         y="75.147919"
+         id="tspan6"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- transform : Eksenler / Koordinat Sistemi / Position &amp; Rotation</tspan><tspan
+         x="-607.66687"
+         y="90.147919"
+         id="tspan7"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- envelope : Fiziksel Boyutlar / Bounding Box</tspan><tspan
+         x="-607.66687"
+         y="105.14792"
+         id="tspan8"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194" /><tspan
+         x="-607.66687"
+         y="120.14792"
+         id="tspan9"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">=== 2. ITKI SISTEMI (PROPULSION) ===</tspan><tspan
+         x="-607.66687"
+         y="135.14792"
+         id="tspan10"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- component_propulsion_system : Itki Sistemi / Propulsion Assembly</tspan><tspan
+         x="-607.66687"
+         y="150.14792"
+         id="tspan11"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- motor : Elektrik Motoru / BLDC Motor</tspan><tspan
+         x="-607.66687"
+         y="165.14792"
+         id="tspan12"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- propeller : Pervane / Propeller Rotor</tspan><tspan
+         x="-607.66687"
+         y="180.14792"
+         id="tspan13"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- battery : Batarya / Pil Paketi</tspan><tspan
+         x="-607.66687"
+         y="195.14792"
+         id="tspan14"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- esc : Hiz Kontrolcusu / ESC</tspan><tspan
+         x="-607.66687"
+         y="210.14792"
+         id="tspan15"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194" /><tspan
+         x="-607.66687"
+         y="225.14792"
+         id="tspan16"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">=== 3. AGIRLIK &amp; DENGE (WEIGHT &amp; BALANCE) ===</tspan><tspan
+         x="-607.66687"
+         y="240.14792"
+         id="tspan17"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- component_point_mass : Nokta Kutle / Ekipman Agirligi</tspan><tspan
+         x="-607.66687"
+         y="255.14792"
+         id="tspan18"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- center_of_gravity : Agirlik Merkezi / CG</tspan><tspan
+         x="-607.66687"
+         y="270.14792"
+         id="tspan19"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- inertia : Eylemsizlik Momenti / Moments of Inertia</tspan><tspan
+         x="-607.66687"
+         y="285.14792"
+         id="tspan20"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194" /><tspan
+         x="-607.66687"
+         y="300.14792"
+         id="tspan21"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">=== 4. 3D VIEWPORT &amp; KAMERA ===</tspan><tspan
+         x="-607.66687"
+         y="315.14792"
+         id="tspan22"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- view_solid : Kati Yuzey Modu / Solid Shading</tspan><tspan
+         x="-607.66687"
+         y="330.14792"
+         id="tspan23"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- view_wireframe : Tel Kafes / Wireframe</tspan><tspan
+         x="-607.66687"
+         y="345.14792"
+         id="tspan24"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- view_colored : Renkli Yuzey Modu / Colored Panels</tspan><tspan
+         x="-607.66687"
+         y="360.14792"
+         id="tspan25"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- view_monochrome : Tek Renk / Monochrome CAD</tspan><tspan
+         x="-607.66687"
+         y="375.14792"
+         id="tspan26"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- view_transparent : Yari Saydam / X-Ray Transparency</tspan><tspan
+         x="-607.66687"
+         y="390.14792"
+         id="tspan27"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- view_grid : Zemin Izgarasi / Reference Grid</tspan><tspan
+         x="-607.66687"
+         y="405.14792"
+         id="tspan28"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- view_palette : Renk Paleti / Palette Dropdown</tspan><tspan
+         x="-607.66687"
+         y="420.14792"
+         id="tspan29"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- view_isometric : Ortografik-Izometrik Projeksiyon</tspan><tspan
+         x="-607.66687"
+         y="435.14792"
+         id="tspan30"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- view_perspective : Perspektif Projeksiyon</tspan><tspan
+         x="-607.66687"
+         y="450.14792"
+         id="tspan31"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- camera_top : Ustten Bakis / Top View</tspan><tspan
+         x="-607.66687"
+         y="465.14792"
+         id="tspan32"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- camera_bottom : Alttan Bakis / Bottom View</tspan><tspan
+         x="-607.66687"
+         y="480.14792"
+         id="tspan33"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- camera_front : Onden Bakis / Front View</tspan><tspan
+         x="-607.66687"
+         y="495.14792"
+         id="tspan34"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- camera_side : Yandan Bakis / Side View</tspan><tspan
+         x="-607.66687"
+         y="510.14792"
+         id="tspan35"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- camera_iso : Standart Izometrik Bakis / Isometric Angle</tspan><tspan
+         x="-607.66687"
+         y="525.14795"
+         id="tspan36"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- view_fit : Modele Odaklan-Sigdir / Fit View</tspan><tspan
+         x="-607.66687"
+         y="540.14795"
+         id="tspan37"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- screenshot : Ekran Goruntusu Al / Capture Screenshot</tspan><tspan
+         x="-607.66687"
+         y="555.14795"
+         id="tspan38"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194" /><tspan
+         x="-607.66687"
+         y="570.14795"
+         id="tspan39"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">=== 5. ARACLAR &amp; COZUCULER (TOOLS) ===</tspan><tspan
+         x="-607.66687"
+         y="585.14795"
+         id="tspan40"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- constraint : Tasarim Kisitlari / Constraints</tspan><tspan
+         x="-607.66687"
+         y="600.14795"
+         id="tspan41"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- tasks : Arka Plan Gorev Yoneticisi / Background Tasks</tspan><tspan
+         x="-607.66687"
+         y="615.14795"
+         id="tspan42"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- package : Eklenti Yoneticisi / Plugin Manager</tspan><tspan
+         x="-607.66687"
+         y="630.14795"
+         id="tspan43"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- command_palette : Komut Paleti / Command Palette</tspan><tspan
+         x="-607.66687"
+         y="645.14795"
+         id="tspan44"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- log : Sistem Gunlugu / Console Logs</tspan><tspan
+         x="-607.66687"
+         y="660.14795"
+         id="tspan45"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- export_csv : Rapor &amp; Veri Disa Aktar / Export CSV</tspan><tspan
+         x="-607.66687"
+         y="675.14795"
+         id="tspan46"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- equation : Matematiksel Ifade-Formul (=)</tspan><tspan
+         x="-607.66687"
+         y="690.14795"
+         id="tspan47"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- constant : Sabit Deger / Pi / Math Constant</tspan><tspan
+         x="-607.66687"
+         y="705.14795"
+         id="tspan48"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194" /><tspan
+         x="-607.66687"
+         y="720.14795"
+         id="tspan49"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">=== 6. DOSYA &amp; MENULER ===</tspan><tspan
+         x="-607.66687"
+         y="735.14795"
+         id="tspan50"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- new_project : Yeni Proje / New Project</tspan><tspan
+         x="-607.66687"
+         y="750.14795"
+         id="tspan52"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- open_project : Proje Ac / Open Project</tspan><tspan
+         x="-607.66687"
+         y="765.14795"
+         id="tspan53"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- save : Kaydet / Save</tspan><tspan
+         x="-607.66687"
+         y="780.14795"
+         id="tspan54"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- save_as : Farkli Kaydet / Save As</tspan><tspan
+         x="-607.66687"
+         y="795.14795"
+         id="tspan55"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- exit : Cikis / Exit</tspan><tspan
+         x="-607.66687"
+         y="810.14795"
+         id="tspan56"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- undo : Geri Al / Undo</tspan><tspan
+         x="-607.66687"
+         y="825.14795"
+         id="tspan57"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- redo : Ileri Al / Redo</tspan><tspan
+         x="-607.66687"
+         y="840.14795"
+         id="tspan58"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- settings : Ayarlar / Settings</tspan><tspan
+         x="-607.66687"
+         y="855.14795"
+         id="tspan59"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194" /><tspan
+         x="-607.66687"
+         y="870.14795"
+         id="tspan60"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">=== 7. CALISMA ALANLARI (WORKSPACES) ===</tspan><tspan
+         x="-607.66687"
+         y="885.14795"
+         id="tspan61"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- workspace_design : Geometri &amp; 3D Tasarim</tspan><tspan
+         x="-607.66687"
+         y="900.14795"
+         id="tspan62"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- workspace_aerodynamics : Aerodinamik Analiz</tspan><tspan
+         x="-607.66687"
+         y="915.14795"
+         id="tspan63"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- workspace_propulsion : Itki &amp; Guc Sistemi</tspan><tspan
+         x="-607.66687"
+         y="930.14795"
+         id="tspan64"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- workspace_flight_performance : Ucus Performansi</tspan><tspan
+         x="-607.66687"
+         y="945.14795"
+         id="tspan65"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- workspace_weight_balance : Agirlik ve Denge</tspan><tspan
+         x="-607.66687"
+         y="960.14795"
+         id="tspan66"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194" /><tspan
+         x="-607.66687"
+         y="975.14795"
+         id="tspan67"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">=== 8. GENEL DURUM &amp; BUTONLAR ===</tspan><tspan
+         x="-607.66687"
+         y="990.14795"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194"
+         id="tspan101">- add : Ekle (+)</tspan><tspan
+         x="-607.66687"
+         y="1005.1479"
+         id="tspan69"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- remove : Sil / Cop Kutusu</tspan><tspan
+         x="-607.66687"
+         y="1020.1479"
+         id="tspan70"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- edit : Duzenle / Kalem</tspan><tspan
+         x="-607.66687"
+         y="1035.1479"
+         id="tspan71"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- success : Basarili / Onay Tik</tspan><tspan
+         x="-607.66687"
+         y="1050.1479"
+         id="tspan72"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- warning : Uyari / Unlem</tspan><tspan
+         x="-607.66687"
+         y="1065.1479"
+         id="tspan73"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194">- error : Hata / Carpi</tspan><tspan
+         x="-607.66687"
+         y="1080.1479"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194"
+         id="tspan98">- info : Soru işareti</tspan><tspan
+         x="-607.66687"
+         y="1095.1479"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194"
+         id="tspan107" /><tspan
+         x="-607.66687"
+         y="1110.1479"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194"
+         id="tspan108" /><tspan
+         x="-607.66687"
+         y="1125.1479"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194"
+         id="tspan109" /><tspan
+         x="-607.66687"
+         y="1140.1479"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194"
+         id="tspan110">project explorer</tspan><tspan
+         x="-607.66687"
+         y="1155.1479"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.32194"
+         id="tspan111">properties</tspan></text>
+  </g>
+</svg>

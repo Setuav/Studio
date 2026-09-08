@@ -56,11 +56,14 @@ _ICON_MAP = {
     "constant": "mdi6.pi",
     "constraint": "mdi6.link-variant",
     "equation": "fa6s.code",
+    "package": "fa6s.box-open",
+    "plugin": "fa6s.box-open",
     # QtAwesome controls intentionally used inside 3D viewers
     "view_colored": "fa6s.palette",
     "view_grid": "mdi6.grid",
-    "view_palette": "fa6s.eye-dropper",
+    "view_palette": "fa6s.palette",
     "view_fit": "fa6s.expand",
+    "screenshot": "fa6s.camera",
     # Default Component Types
     "component": "fa6s.cube",
     "instance": "fa6s.clone",
@@ -69,6 +72,7 @@ _ICON_MAP = {
     "component_lifting_surface": "fa6s.plane",
     "component_control_surface": "fa6s.sliders",
     "component_propulsion_system": "fa6s.bolt",
+    "component_structural_system": "fa6s.plane-up",
     "component_point_mass": "fa6s.weight-hanging",
     "point_mass": "fa6s.weight-hanging",
 }

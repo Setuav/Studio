@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-from setuav_studio.plugin_system import (
+from setuav_studio.api import (
     BaseComponentEditor,
     ParameterField,
     StudioAPI,
@@ -52,6 +52,7 @@ class TestComponentEditor(unittest.TestCase):
         ]
 
         editor = BaseComponentEditor(api, comp, parameter_fields=fields)
+        self.addCleanup(editor.deleteLater)
 
         # Check loaded values in general_table and parameters_table
         self.assertEqual(editor._property_text(editor.general_table, 0), "Brushless Motor")

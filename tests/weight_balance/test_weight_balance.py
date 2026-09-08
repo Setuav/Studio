@@ -6,25 +6,24 @@ from pathlib import Path
 from PySide6.QtCore import QEvent
 from PySide6.QtWidgets import QDockWidget, QMainWindow
 
-from setuav_studio.plugin_system import (
+from plugins.weight_balance import WeightBalancePlugin
+from plugins.weight_balance.engine.base import WeightBalanceError
+from plugins.weight_balance.engine.solver import EXTENSION_ID, WeightBalanceSolver
+from plugins.weight_balance.mass_definition_dock import MassPropertiesEditor
+from plugins.weight_balance.point_mass_editor import PointMassEditor
+from setuav_studio.api import (
     PanelContribution,
     PluginManager,
     StudioAPI,
     WorkspaceContribution,
 )
-from setuav_studio.plugins.core import CorePlugin
-from setuav_studio.plugins.core.derived_geometry import derive_project_component_geometry
-from setuav_studio.plugins.core.properties import PropertiesPanel
-from setuav_studio.plugins.core.ui.project_explorer import (
+from setuav_studio.project import ProjectDocument, open_project
+from setuav_studio.ui.project_explorer import (
     ProjectExplorer,
     ProjectExplorerPanel,
 )
-from setuav_studio.plugins.weight_balance import WeightBalancePlugin
-from setuav_studio.plugins.weight_balance.engine.base import WeightBalanceError
-from setuav_studio.plugins.weight_balance.engine.solver import EXTENSION_ID, WeightBalanceSolver
-from setuav_studio.plugins.weight_balance.mass_definition_dock import MassPropertiesEditor
-from setuav_studio.plugins.weight_balance.point_mass_editor import PointMassEditor
-from setuav_studio.project import ProjectDocument, open_project
+from setuav_studio.ui.properties.properties_panel import PropertiesPanel
+from setuav_studio.ui.shell.native_registrations import register_native_contributions
 from tests._common import TEST_PROJECT_PATH, get_qapp
 
 
@@ -36,39 +35,29 @@ class WeightBalanceSolverTests(unittest.TestCase):
     def setUp(self) -> None:
         self.solver = WeightBalanceSolver()
 
-    def test_geometry_derived_control_surface_properties_without_mass_deduction(self) -> None:
-        wing = {
-            "id": "wing",
-            "type": "org.setuav.core:lifting-surface",
-            "parameters": {
-                "geometry": {
-                    "mirror": True,
-                    "profiles": [
-                        {"position": {"x": 0, "y": 0, "z": 0}, "chord": 100, "airfoil": "0012"},
-                        {"position": {"x": 0, "y": 500, "z": 0}, "chord": 80, "airfoil": "0012"},
-                    ],
-                }
-            },
-        }
-        aileron = {
-            "id": "aileron",
-            "type": "org.setuav.core:control-surface",
-            "parent": "wing",
-            "attach_to": "wing",
-            "parameters": {
-                "geometry": {
-                    "type": "aileron",
-                    "span_mode": "ratio",
-                    "eta_start": 0.5,
-                    "eta_end": 1.0,
-                    "chord_fraction": 0.25,
-                }
-            },
-        }
-        derived = derive_project_component_geometry([wing, aileron])
-        self.assertGreater(derived["aileron"].mass_g or 0, 0)
-        self.assertEqual(derived["aileron"].envelope["size_mm"]["y"], 500.0)
-        self.assertAlmostEqual(derived["wing"].mass_g or 0, 77.76, places=2)
+    def test_solver_uses_component_envelope_for_inertia_and_cg_offset(self) -> None:
+        project = _project(
+            {
+                "components": [
+                    {
+                        "id": "wing",
+                        "name": "Wing",
+                        "type": "org.setuav.core:lifting-surface",
+                        "mass": 500.0,
+                        "transform": {"position": {"x": 100.0, "y": 0.0, "z": 0.0}},
+                        "envelope": {
+                            "shape": "box",
+                            "size_mm": {"x": 200.0, "y": 1000.0, "z": 20.0},
+                            "offset_mm": {"x": 50.0, "y": 0.0, "z": 0.0},
+                        },
+                    }
+                ]
+            }
+        )
+        result = self.solver.evaluate(project)
+        self.assertAlmostEqual(result.total.mass_kg, 0.5)
+        self.assertAlmostEqual(result.total.cg_body_m[0], 0.15)
+        self.assertGreater(result.total.inertia_cg_kg_m2.ixx, 0.0)
 
     def test_two_point_masses_have_expected_cg_and_parallel_axis_inertia(self) -> None:
         project = _project(
@@ -234,7 +223,7 @@ class WeightBalancePluginTests(unittest.TestCase):
         self.assertEqual(len(panels), 2)
         self.assertEqual(len(toolbar), 1)
         self.assertEqual(toolbar[0].id, "weight_balance.add_point_mass")
-        self.assertEqual(toolbar[0].icon, "fa6s.weight-scale")
+        self.assertEqual(toolbar[0].icon, "point_mass")
         self.assertFalse(api.get_component_icon({"type": "org.setuav.core:point-mass"}).isNull())
 
         manager.deactivate("org.setuav.studio.weight_balance")
@@ -256,6 +245,7 @@ class WeightBalancePluginTests(unittest.TestCase):
         self.assertEqual(component["type"], "org.setuav.core:point-mass")
         self.assertEqual(component["name"], "Point Mass")
         self.assertEqual(component["mass"], 100.0)
+        self.assertEqual(component["transform"]["position"], {"x": 0.0, "y": 0.0, "z": 0.0})
         self.assertEqual(api.current_selection, component)
 
     def test_point_mass_has_mass_transform_and_no_envelope(self) -> None:
@@ -263,7 +253,7 @@ class WeightBalancePluginTests(unittest.TestCase):
         api._host.bind_panel_handlers(lambda _panel: None)
         api._host.bind_workspace_handlers(lambda _workspace: None)
         manager = PluginManager(api)
-        manager.activate(CorePlugin())
+        register_native_contributions(api)
         manager.activate(WeightBalancePlugin())
         component = {
             "id": "payload-mass",
@@ -335,6 +325,8 @@ class WeightBalancePluginTests(unittest.TestCase):
         by_id = {panel.id: panel for panel in panels}
         view = by_id["weight_balance.view_dock"].factory()
         results = by_id["weight_balance.results_dock"].factory()
+        self.addCleanup(view.deleteLater)
+        self.addCleanup(results.deleteLater)
 
         self.assertIsInstance(view, QMainWindow)
         self.assertEqual(view.top_dock.windowTitle(), "Top View · X / Y")
@@ -384,7 +376,7 @@ class WeightBalancePluginTests(unittest.TestCase):
         project = _project({"components": [component]})
         api._host.set_project(project)
         contribution = api.component_tree_nodes(component)[0]
-        self.assertEqual(contribution.icon, "fa6s.cubes-stacked")
+        self.assertEqual(contribution.icon, "mass")
         definition = api.create_component_editor(contribution.selection)
         self.assertIsInstance(definition, MassPropertiesEditor)
         self.assertEqual(definition.mass_table.rowCount(), 2)
@@ -494,8 +486,8 @@ class WeightBalancePluginTests(unittest.TestCase):
         self.assertTrue(root.isExpanded())
 
     def test_cg_view_marker_click_selects_mass_properties(self) -> None:
-        from setuav_studio.plugins.weight_balance.balance_view_dock import WeightBalanceViewDock
-        from setuav_studio.plugins.weight_balance.models import (
+        from plugins.weight_balance.balance_view_dock import WeightBalanceViewDock
+        from plugins.weight_balance.models import (
             ComponentMassProperties,
             InertiaTensor,
             MassProperties,
@@ -546,7 +538,7 @@ class WeightBalancePluginTests(unittest.TestCase):
         self.assertIsInstance(properties._current_widget, MassPropertiesEditor)
 
         # Verify point mass color and legend bar entry
-        from setuav_studio.plugins.weight_balance.balance_view_dock import (
+        from plugins.weight_balance.balance_view_dock import (
             POINT_MASS_COLOR,
             _BalanceProjectionCanvas,
         )

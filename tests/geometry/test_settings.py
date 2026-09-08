@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from PySide6.QtWidgets import QCheckBox, QComboBox, QWidget
 
-from setuav_studio.plugins.geometry import settings as geometry_settings
+from plugins.geometry import settings as geometry_settings
 from tests._common import get_qapp
 
 

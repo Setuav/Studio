@@ -76,12 +76,11 @@ def main() -> int:
     from PySide6.QtCore import QTimer
     from PySide6.QtWidgets import QApplication
 
-    from setuav_studio.plugin_system import PluginManager, StudioAPI
-    from setuav_studio.plugins.core import CorePlugin
-    from setuav_studio.plugins.core.settings import StudioSettings
-    from setuav_studio.shell import MainWindow
+    from setuav_studio.api import PluginManager, StudioAPI
     from setuav_studio.ui.icons import application_icon
-    from setuav_studio.ui.log_buffer import install_log_buffer
+    from setuav_studio.ui.log.buffer import install_log_buffer
+    from setuav_studio.ui.settings.settings_pages import StudioSettings
+    from setuav_studio.ui.shell import MainWindow
     from setuav_studio.ui.theme import apply_theme
 
     _configure_logging(arguments.verbose)
@@ -101,7 +100,6 @@ def main() -> int:
 
     plugin_manager = PluginManager(api)
     window.bind_plugin_manager(plugin_manager)
-    plugin_manager.activate(CorePlugin())
     plugin_issues = plugin_manager.discover()
     if plugin_issues:
         logger = logging.getLogger(__name__)

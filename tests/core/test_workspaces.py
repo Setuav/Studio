@@ -6,13 +6,13 @@ import unittest
 
 from PySide6.QtWidgets import QLabel
 
-from setuav_studio.plugin_system import (
+from setuav_studio.api import (
     PanelContribution,
     StudioAPI,
     ToolContribution,
     WorkspaceContribution,
 )
-from setuav_studio.shell import MainWindow
+from setuav_studio.ui.shell import MainWindow
 from tests._common import get_qapp
 
 
@@ -149,7 +149,7 @@ class TestWorkspacesAndTools(unittest.TestCase):
     def test_log_button_opens_log_window(self) -> None:
         import logging
 
-        from setuav_studio.ui.log_buffer import clear_log_buffer, install_log_buffer
+        from setuav_studio.ui.log.buffer import clear_log_buffer, install_log_buffer
 
         clear_log_buffer()
         install_log_buffer()

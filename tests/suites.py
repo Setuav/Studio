@@ -11,32 +11,38 @@ from collections.abc import Sequence
 
 CORE_MODULES = (
     "tests.core.test_about_dialog",
+    "tests.core.test_command_palette",
     "tests.core.test_component_editor",
-    "tests.core.test_configurations",
+    "tests.core.test_configuration",
     "tests.core.test_configuration_ui",
-    "tests.core.test_constraints",
-    "tests.core.test_expressions",
+    "tests.core.test_constraint",
+    "tests.core.test_expression",
     "tests.core.test_instance",
     "tests.core.test_main",
+    "tests.core.test_model",
     "tests.core.test_native_models",
-    "tests.core.test_parameters",
+    "tests.core.test_parameter",
     "tests.core.test_parameters_panel",
-    "tests.core.test_plugin_system_edges",
+    "tests.core.test_api_edges",
+    "tests.core.test_atmosphere",
     "tests.core.test_plugins",
     "tests.core.test_project",
     "tests.core.test_project_edge_cases",
     "tests.core.test_sdk",
-    "tests.core.test_schema_drift",
     "tests.core.test_settings",
     "tests.core.test_shell_contributions",
     "tests.core.test_shell_project_lifecycle",
+    "tests.core.test_tasks",
     "tests.core.test_theme",
+    "tests.core.test_units",
     "tests.core.test_workspaces",
 )
 GEOMETRY_MODULES = (
     "tests.geometry.test_creation",
+    "tests.geometry.test_envelope",
     "tests.geometry.test_geometry",
     "tests.geometry.test_settings",
+    "tests.geometry.test_structural_system_editor",
     "tests.geometry.test_wing_driver_solver",
 )
 AERODYNAMICS_FAST_MODULES = (
@@ -49,10 +55,7 @@ AERODYNAMICS_INTEGRATION_MODULES = (
     "tests.aerodynamics.integration.test_stability_engine",
     "tests.aerodynamics.integration.test_sweep_infrastructure",
 )
-ELECTRICAL_PROPULSION_MODULES = (
-    "tests.electrical_propulsion.test_creation",
-    "tests.electrical_propulsion.test_electrical_propulsion",
-)
+ELECTRICAL_PROPULSION_MODULES = ("tests.electrical_propulsion.test_creation",)
 FLIGHT_PERFORMANCE_MODULES = ("tests.flight_performance.test_flight_performance",)
 WEIGHT_BALANCE_MODULES = ("tests.weight_balance.test_weight_balance",)
 
@@ -93,6 +96,31 @@ def main(argv: Sequence[str] | None = None) -> int:
         "MPLCONFIGDIR",
         os.path.join(tempfile.gettempdir(), "setuav-studio-matplotlib"),
     )
+
+    if args.suite == "all":
+        import subprocess
+
+        sub_suites = [
+            "core",
+            "geometry",
+            "aerodynamics-fast",
+            "aerodynamics-integration",
+            "electrical-propulsion",
+            "flight-performance",
+            "weight-balance",
+        ]
+        total_was_successful = True
+        for s in sub_suites:
+            cmd = [sys.executable, "-m", "tests.suites", s]
+            if args.verbose:
+                cmd.append("-v")
+            print("\n========================================================")
+            print(f"=== Running Test Suite: {s}")
+            print("========================================================")
+            res = subprocess.run(cmd)
+            if res.returncode != 0:
+                total_was_successful = False
+        return 0 if total_was_successful else 1
 
     result = unittest.TextTestRunner(verbosity=2 if args.verbose else 1).run(load_suite(args.suite))
     return 0 if result.wasSuccessful() else 1

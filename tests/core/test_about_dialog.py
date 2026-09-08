@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 from PySide6.QtWidgets import QLabel
 
-from setuav_studio.ui.about_dialog import AboutDialog, application_version
+from setuav_studio.ui.dialog.about import AboutDialog, application_version
 from tests._common import get_qapp
 
 
@@ -15,7 +15,7 @@ class AboutDialogTests(unittest.TestCase):
 
     def test_displays_logo_version_and_license_notice(self) -> None:
         with patch(
-            "setuav_studio.ui.about_dialog.distribution_version",
+            "setuav_studio.ui.dialog.about.distribution_version",
             return_value="1.2.3",
         ):
             dialog = AboutDialog()
@@ -29,7 +29,7 @@ class AboutDialogTests(unittest.TestCase):
 
     def test_version_falls_back_outside_an_installed_package(self) -> None:
         with patch(
-            "setuav_studio.ui.about_dialog.distribution_version",
+            "setuav_studio.ui.dialog.about.distribution_version",
             side_effect=PackageNotFoundError,
         ):
             self.assertEqual(application_version(), "development")

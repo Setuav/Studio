@@ -1,31 +1,27 @@
 import unittest
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar
 
+from plugins.geometry.data import GeometryData, LoftGeometry, Section
+from plugins.geometry.fuselage import FuselageEditor
+from plugins.geometry.mesh import build_loft_wire_vertices
 from PySide6.QtWidgets import QWidget
-from setuav_studio.plugins.geometry.data import GeometryData, LoftGeometry, Section
-from setuav_studio.plugins.geometry.fuselage import FuselageEditor
-from setuav_studio.plugins.geometry.mesh import build_loft_wire_vertices
 
-from setuav_studio.plugin_system import (
+from plugins.geometry import GeometryPlugin
+from plugins.weight_balance.canvas import View2DCanvas
+from plugins.weight_balance.scene import View2DScene
+from setuav_studio.api import (
     PanelContribution,
     PluginManager,
     StudioAPI,
     WorkspaceContribution,
     _candidate_sort_key,
 )
-from setuav_studio.plugins.core import CorePlugin
-from setuav_studio.plugins.core.envelope import PHYSICAL_EXTENSION_ID, EnvelopeEditor
-from setuav_studio.plugins.core.project import ProjectExplorer
-from setuav_studio.plugins.core.transform import TransformEditor
-from setuav_studio.plugins.geometry import GeometryPlugin
-from setuav_studio.plugins.view2d import (
-    View2DCanvas,
-    View2DGeometrySource,
-    View2DPlugin,
-    View2DScene,
-)
 from setuav_studio.project import ProjectDocument
+from setuav_studio.ui.editor.envelope import EnvelopeEditor
+from setuav_studio.ui.editor.transform import TransformEditor
+from setuav_studio.ui.project_explorer import ProjectExplorer
+from setuav_studio.ui.shell.native_registrations import register_native_contributions
 from tests._common import get_qapp
 
 
@@ -98,16 +94,16 @@ class PluginTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.api.register_component_icon("custom:sensor", "fa6s.camera")
 
-    def test_core_plugin_contributes_properties_panel(self) -> None:
-        self.manager.activate(CorePlugin())
+    def test_native_contributions_registers_panels(self) -> None:
+        register_native_contributions(self.api)
 
         self.assertEqual(
             [panel.id for panel in self.panels],
-            ["project.explorer", "studio.properties", "project.parameters"],
+            ["core:project-explorer", "core:properties", "core:parameters"],
         )
 
     def test_core_plugin_contributes_transform_tree_node_and_editor(self) -> None:
-        self.manager.activate(CorePlugin())
+        register_native_contributions(self.api)
         component = {
             "id": "motor",
             "name": "Motor",
@@ -125,13 +121,14 @@ class PluginTests(unittest.TestCase):
 
         contribution = self.api.component_tree_nodes(component)[0]
         self.assertEqual(contribution.id, "motor:transform")
-        self.assertEqual(contribution.icon, "mdi6.axis-arrow")
+        self.assertEqual(contribution.icon, "transform")
         envelope_contribution = self.api.component_tree_nodes(component)[1]
-        self.assertEqual(envelope_contribution.id, "motor:physical-envelope")
+        self.assertEqual(envelope_contribution.id, "motor:envelope")
         self.assertEqual(envelope_contribution.title, "Envelope")
-        self.assertEqual(envelope_contribution.icon, "fa6s.ruler-combined")
+        self.assertEqual(envelope_contribution.icon, "envelope")
         editor = self.api.create_component_editor(contribution.selection)
         self.assertIsInstance(editor, TransformEditor)
+        self.addCleanup(editor.deleteLater)
         self.assertEqual(editor.position_spins["x"].value(), 100.0)
         self.assertEqual(editor.rotation_spins["yaw"].value(), 3.0)
 
@@ -142,10 +139,11 @@ class PluginTests(unittest.TestCase):
 
         envelope_editor = self.api.create_component_editor(envelope_contribution.selection)
         self.assertIsInstance(envelope_editor, EnvelopeEditor)
+        self.addCleanup(envelope_editor.deleteLater)
         envelope_editor.dimension_spins["x"].setValue(60)
         envelope_editor.dimension_spins["y"].setValue(30)
         envelope_editor.dimension_spins["z"].setValue(15)
-        envelope = component["extensions"][PHYSICAL_EXTENSION_ID]["envelope"]
+        envelope = component["envelope"]
         self.assertEqual(envelope["size_mm"], {"x": 60.0, "y": 30.0, "z": 15.0})
         self.assertAlmostEqual(envelope_editor.volume_value(), 27_000.0)
 
@@ -231,24 +229,17 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(segment["loft"]["method"], "smooth")
 
     def test_discovers_bundled_geometry_plugin(self) -> None:
-        self.manager.activate(CorePlugin())
-
         issues = self.manager.discover()
 
         self.assertEqual(issues, [])
         self.assertIn("org.setuav.core:fuselage", self.api._component_editors)
 
-    def test_view2d_plugin_provides_shared_scene_engine(self) -> None:
-        self.manager.activate(View2DPlugin())
-
+    def test_view2d_scene_and_canvas_render_markers_and_geometry(self) -> None:
         scene = View2DScene(title="Top Projection", x_label="X", y_label="Y")
         scene.add_marker("battery", (120.0, 30.0), label="Battery")
-
-        self.assertIn("org.setuav.studio.view2d", self.manager._providers)
         self.assertEqual(scene.markers[0].id, "battery")
         self.assertEqual(scene.markers[0].position, (120.0, 30.0))
 
-    def test_view2d_canvas_injects_geometry_from_studio_api(self) -> None:
         geometry = GeometryData(
             (
                 LoftGeometry(
@@ -260,29 +251,13 @@ class PluginTests(unittest.TestCase):
                 ),
             )
         )
-        self.api.build_geometry_data = lambda _project=None: geometry
-        canvas = View2DCanvas(api=self.api, axes=(0, 1))
-        scene = View2DScene(title="Top")
-        scene.add_marker("cg", (40.0, 0.0))
+        scene.add_geometry(geometry, axes=(0, 1))
+        canvas = View2DCanvas(axes=(0, 1))
         canvas.set_scene(scene)
 
         self.assertEqual(len(canvas.scene.paths), 1)
         self.assertEqual(len(canvas.scene.markers), 1)
         self.assertEqual(canvas.scene.paths[0].id, "fuselage:envelope")
-
-    def test_view2d_geometry_source_is_shared_and_invalidated(self) -> None:
-        calls: list[object | None] = []
-        geometry = GeometryData()
-        self.api.build_geometry_data = lambda project=None: calls.append(project) or geometry
-        source = View2DGeometrySource(self.api)
-
-        self.assertIs(source.current(), geometry)
-        self.assertIs(source.current(), geometry)
-        self.assertEqual(len(calls), 1)
-
-        source._invalidate(None)
-        self.assertIs(source.current(), geometry)
-        self.assertEqual(len(calls), 2)
 
     def test_view2d_canvas_letterboxes_to_preserve_model_aspect_ratio(self) -> None:
         canvas = View2DCanvas()
@@ -315,7 +290,7 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(missing, ["Missing plugin: example.missing"])
 
     def test_version_satisfies_pep440_pre_release_and_build_metadata(self) -> None:
-        from setuav_studio.plugin_system import _version_satisfies
+        from setuav_studio.api.requirements import _version_satisfies
 
         self.assertTrue(_version_satisfies("1.2.3-rc1", "^1.2.0"))
         self.assertTrue(_version_satisfies("1.2.3.4", "^1.2.0"))
@@ -354,10 +329,10 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(component["name"], "After")
 
     def test_rejects_duplicate_plugin_activation(self) -> None:
-        self.manager.activate(CorePlugin())
+        self.manager.activate(GeometryPlugin())
 
         with self.assertRaises(ValueError):
-            self.manager.activate(CorePlugin())
+            self.manager.activate(GeometryPlugin())
 
     def test_active_plugins_are_sorted_for_management_views(self) -> None:
         class LaterPlugin:
@@ -524,7 +499,7 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(received[-1], ("", "info", 0))
 
     def test_remove_panel_and_workspace_via_shell(self) -> None:
-        from setuav_studio.shell import MainWindow
+        from setuav_studio.ui.shell import MainWindow
 
         get_qapp()
         api = StudioAPI()
@@ -551,26 +526,24 @@ class PluginTests(unittest.TestCase):
         self.assertNotIn("test.removable", window._panels)
         self.assertNotIn("test.removable-ws", window._workspaces)
 
-    def test_dynamic_schema_registration_and_validation(self) -> None:
-        """Verify 3rd party plugins can dynamically register schemas and validate component types."""
-        from setuav_studio.schema_validation import validate_project
+    def test_dynamic_component_validator_registration(self) -> None:
+        """Verify 3rd party plugins can dynamically register component validators."""
+        from setuav_studio.project.validation import validate_project
 
         api = StudioAPI()
 
-        # 1. Custom 3rd-party component schema
-        custom_schema = {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "type": "object",
-            "required": ["frequency_ghz"],
-            "properties": {
-                "frequency_ghz": {"type": "number", "minimum": 1.0, "maximum": 100.0},
-            },
-        }
+        def validate_radar(params: dict[str, Any]) -> list[str] | None:
+            freq = params.get("frequency_ghz")
+            if freq is None:
+                return ["frequency_ghz is required"]
+            if not (1.0 <= freq <= 100.0):
+                return ["frequency_ghz must be between 1.0 and 100.0 GHz"]
+            return None
 
-        # 2. Register via StudioAPI
-        api.register_component_type_schema("com.custom:radar-sensor", custom_schema)
+        # 1. Register via StudioAPI
+        api.register_component_validator("com.custom:radar-sensor", validate_radar)
 
-        # 3. Valid project with custom component
+        # 2. Valid project with custom component
         valid_project = {
             "name": "Radar Drone",
             "plugins": [],
@@ -586,7 +559,7 @@ class PluginTests(unittest.TestCase):
         issues = validate_project(valid_project)
         self.assertEqual(len(issues), 0)
 
-        # 4. Invalid project (frequency out of bounds)
+        # 3. Invalid project (frequency out of bounds)
         invalid_project = {
             "name": "Radar Drone",
             "plugins": [],

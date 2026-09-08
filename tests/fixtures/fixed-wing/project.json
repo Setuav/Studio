@@ -232,6 +232,837 @@
             "iyz": 0.0
           }
         }
+      },
+      "envelope": {
+        "shape": "trapezoid",
+        "size_mm": {
+          "x": 830.0,
+          "y": 122.0,
+          "z": 126.0
+        },
+        "offset_mm": {
+          "x": 361.4,
+          "y": 0.0,
+          "z": 17.7
+        },
+        "volume_mm3": 7598745.8,
+        "unit_inertia": {
+          "ixx": 0.00196905,
+          "iyy": 0.0391483,
+          "izz": 0.03908042,
+          "ixy": 0.0,
+          "ixz": -0.00100123,
+          "iyz": 0.0
+        },
+        "sections": [
+          {
+            "index": 0,
+            "segment": "main",
+            "station_x_mm": 0.0,
+            "position": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": -7.0
+            },
+            "width_mm": 20.0,
+            "height_mm": 20.0,
+            "shape": "rectangle",
+            "top_width_mm": 20.0,
+            "bottom_width_mm": 20.0,
+            "y_bounds_mm": [
+              -10.0,
+              10.0
+            ],
+            "z_bounds_mm": [
+              -17.0,
+              3.0
+            ],
+            "area_mm2": 400.0,
+            "corners_3d": [
+              {
+                "x": 0.0,
+                "y": -10.0,
+                "z": 3.0
+              },
+              {
+                "x": 0.0,
+                "y": 10.0,
+                "z": 3.0
+              },
+              {
+                "x": 0.0,
+                "y": 10.0,
+                "z": -17.0
+              },
+              {
+                "x": 0.0,
+                "y": -10.0,
+                "z": -17.0
+              }
+            ]
+          },
+          {
+            "index": 1,
+            "segment": "main",
+            "station_x_mm": 7.0,
+            "position": {
+              "x": 7.0,
+              "y": 0.0,
+              "z": -5.0
+            },
+            "width_mm": 40.0,
+            "height_mm": 36.0,
+            "shape": "rectangle",
+            "top_width_mm": 40.0,
+            "bottom_width_mm": 40.0,
+            "y_bounds_mm": [
+              -20.0,
+              20.0
+            ],
+            "z_bounds_mm": [
+              -23.0,
+              13.0
+            ],
+            "area_mm2": 1440.0,
+            "corners_3d": [
+              {
+                "x": 7.0,
+                "y": -20.0,
+                "z": 13.0
+              },
+              {
+                "x": 7.0,
+                "y": 20.0,
+                "z": 13.0
+              },
+              {
+                "x": 7.0,
+                "y": 20.0,
+                "z": -23.0
+              },
+              {
+                "x": 7.0,
+                "y": -20.0,
+                "z": -23.0
+              }
+            ]
+          },
+          {
+            "index": 2,
+            "segment": "main",
+            "station_x_mm": 40.0,
+            "position": {
+              "x": 40.0,
+              "y": 0.0,
+              "z": 3.0
+            },
+            "width_mm": 80.0,
+            "height_mm": 77.0,
+            "shape": "rectangle",
+            "top_width_mm": 80.0,
+            "bottom_width_mm": 80.0,
+            "y_bounds_mm": [
+              -40.0,
+              40.0
+            ],
+            "z_bounds_mm": [
+              -35.5,
+              41.5
+            ],
+            "area_mm2": 6160.0,
+            "corners_3d": [
+              {
+                "x": 40.0,
+                "y": -40.0,
+                "z": 41.5
+              },
+              {
+                "x": 40.0,
+                "y": 40.0,
+                "z": 41.5
+              },
+              {
+                "x": 40.0,
+                "y": 40.0,
+                "z": -35.5
+              },
+              {
+                "x": 40.0,
+                "y": -40.0,
+                "z": -35.5
+              }
+            ]
+          },
+          {
+            "index": 3,
+            "segment": "main",
+            "station_x_mm": 50.0,
+            "position": {
+              "x": 50.0,
+              "y": 0.0,
+              "z": 4.0
+            },
+            "width_mm": 87.0,
+            "height_mm": 84.0,
+            "shape": "rectangle",
+            "top_width_mm": 87.0,
+            "bottom_width_mm": 87.0,
+            "y_bounds_mm": [
+              -43.5,
+              43.5
+            ],
+            "z_bounds_mm": [
+              -38.0,
+              46.0
+            ],
+            "area_mm2": 7308.0,
+            "corners_3d": [
+              {
+                "x": 50.0,
+                "y": -43.5,
+                "z": 46.0
+              },
+              {
+                "x": 50.0,
+                "y": 43.5,
+                "z": 46.0
+              },
+              {
+                "x": 50.0,
+                "y": 43.5,
+                "z": -38.0
+              },
+              {
+                "x": 50.0,
+                "y": -43.5,
+                "z": -38.0
+              }
+            ]
+          },
+          {
+            "index": 4,
+            "segment": "main",
+            "station_x_mm": 120.0,
+            "position": {
+              "x": 120.0,
+              "y": 0.0,
+              "z": 11.0
+            },
+            "width_mm": 110.0,
+            "height_mm": 113.0,
+            "shape": "rectangle",
+            "top_width_mm": 110.0,
+            "bottom_width_mm": 110.0,
+            "y_bounds_mm": [
+              -55.0,
+              55.0
+            ],
+            "z_bounds_mm": [
+              -45.5,
+              67.5
+            ],
+            "area_mm2": 12430.0,
+            "corners_3d": [
+              {
+                "x": 120.0,
+                "y": -55.0,
+                "z": 67.5
+              },
+              {
+                "x": 120.0,
+                "y": 55.0,
+                "z": 67.5
+              },
+              {
+                "x": 120.0,
+                "y": 55.0,
+                "z": -45.5
+              },
+              {
+                "x": 120.0,
+                "y": -55.0,
+                "z": -45.5
+              }
+            ]
+          },
+          {
+            "index": 5,
+            "segment": "main",
+            "station_x_mm": 190.0,
+            "position": {
+              "x": 190.0,
+              "y": 0.0,
+              "z": 15.0
+            },
+            "width_mm": 118.0,
+            "height_mm": 123.0,
+            "shape": "rectangle",
+            "top_width_mm": 118.0,
+            "bottom_width_mm": 118.0,
+            "y_bounds_mm": [
+              -59.0,
+              59.0
+            ],
+            "z_bounds_mm": [
+              -46.5,
+              76.5
+            ],
+            "area_mm2": 14514.0,
+            "corners_3d": [
+              {
+                "x": 190.0,
+                "y": -59.0,
+                "z": 76.5
+              },
+              {
+                "x": 190.0,
+                "y": 59.0,
+                "z": 76.5
+              },
+              {
+                "x": 190.0,
+                "y": 59.0,
+                "z": -46.5
+              },
+              {
+                "x": 190.0,
+                "y": -59.0,
+                "z": -46.5
+              }
+            ]
+          },
+          {
+            "index": 6,
+            "segment": "main",
+            "station_x_mm": 275.0,
+            "position": {
+              "x": 275.0,
+              "y": 0.0,
+              "z": 17.0
+            },
+            "width_mm": 122.0,
+            "height_mm": 125.0,
+            "shape": "rectangle",
+            "top_width_mm": 122.0,
+            "bottom_width_mm": 122.0,
+            "y_bounds_mm": [
+              -61.0,
+              61.0
+            ],
+            "z_bounds_mm": [
+              -45.5,
+              79.5
+            ],
+            "area_mm2": 15250.0,
+            "corners_3d": [
+              {
+                "x": 275.0,
+                "y": -61.0,
+                "z": 79.5
+              },
+              {
+                "x": 275.0,
+                "y": 61.0,
+                "z": 79.5
+              },
+              {
+                "x": 275.0,
+                "y": 61.0,
+                "z": -45.5
+              },
+              {
+                "x": 275.0,
+                "y": -61.0,
+                "z": -45.5
+              }
+            ]
+          },
+          {
+            "index": 7,
+            "segment": "main",
+            "station_x_mm": 360.0,
+            "position": {
+              "x": 360.0,
+              "y": 0.0,
+              "z": 18.0
+            },
+            "width_mm": 120.0,
+            "height_mm": 122.0,
+            "shape": "rectangle",
+            "top_width_mm": 120.0,
+            "bottom_width_mm": 120.0,
+            "y_bounds_mm": [
+              -60.0,
+              60.0
+            ],
+            "z_bounds_mm": [
+              -43.0,
+              79.0
+            ],
+            "area_mm2": 14640.0,
+            "corners_3d": [
+              {
+                "x": 360.0,
+                "y": -60.0,
+                "z": 79.0
+              },
+              {
+                "x": 360.0,
+                "y": 60.0,
+                "z": 79.0
+              },
+              {
+                "x": 360.0,
+                "y": 60.0,
+                "z": -43.0
+              },
+              {
+                "x": 360.0,
+                "y": -60.0,
+                "z": -43.0
+              }
+            ]
+          },
+          {
+            "index": 8,
+            "segment": "main",
+            "station_x_mm": 440.0,
+            "position": {
+              "x": 440.0,
+              "y": 0.0,
+              "z": 20.0
+            },
+            "width_mm": 110.0,
+            "height_mm": 113.0,
+            "shape": "rectangle",
+            "top_width_mm": 110.0,
+            "bottom_width_mm": 110.0,
+            "y_bounds_mm": [
+              -55.0,
+              55.0
+            ],
+            "z_bounds_mm": [
+              -36.5,
+              76.5
+            ],
+            "area_mm2": 12430.0,
+            "corners_3d": [
+              {
+                "x": 440.0,
+                "y": -55.0,
+                "z": 76.5
+              },
+              {
+                "x": 440.0,
+                "y": 55.0,
+                "z": 76.5
+              },
+              {
+                "x": 440.0,
+                "y": 55.0,
+                "z": -36.5
+              },
+              {
+                "x": 440.0,
+                "y": -55.0,
+                "z": -36.5
+              }
+            ]
+          },
+          {
+            "index": 9,
+            "segment": "main",
+            "station_x_mm": 520.0,
+            "position": {
+              "x": 520.0,
+              "y": 0.0,
+              "z": 22.0
+            },
+            "width_mm": 100.0,
+            "height_mm": 100.0,
+            "shape": "rectangle",
+            "top_width_mm": 100.0,
+            "bottom_width_mm": 100.0,
+            "y_bounds_mm": [
+              -50.0,
+              50.0
+            ],
+            "z_bounds_mm": [
+              -28.0,
+              72.0
+            ],
+            "area_mm2": 10000.0,
+            "corners_3d": [
+              {
+                "x": 520.0,
+                "y": -50.0,
+                "z": 72.0
+              },
+              {
+                "x": 520.0,
+                "y": 50.0,
+                "z": 72.0
+              },
+              {
+                "x": 520.0,
+                "y": 50.0,
+                "z": -28.0
+              },
+              {
+                "x": 520.0,
+                "y": -50.0,
+                "z": -28.0
+              }
+            ]
+          },
+          {
+            "index": 10,
+            "segment": "main",
+            "station_x_mm": 700.0,
+            "position": {
+              "x": 700.0,
+              "y": 0.0,
+              "z": 25.0
+            },
+            "width_mm": 75.0,
+            "height_mm": 75.0,
+            "shape": "rectangle",
+            "top_width_mm": 75.0,
+            "bottom_width_mm": 75.0,
+            "y_bounds_mm": [
+              -37.5,
+              37.5
+            ],
+            "z_bounds_mm": [
+              -12.5,
+              62.5
+            ],
+            "area_mm2": 5625.0,
+            "corners_3d": [
+              {
+                "x": 700.0,
+                "y": -37.5,
+                "z": 62.5
+              },
+              {
+                "x": 700.0,
+                "y": 37.5,
+                "z": 62.5
+              },
+              {
+                "x": 700.0,
+                "y": 37.5,
+                "z": -12.5
+              },
+              {
+                "x": 700.0,
+                "y": -37.5,
+                "z": -12.5
+              }
+            ]
+          },
+          {
+            "index": 11,
+            "segment": "main",
+            "station_x_mm": 830.0,
+            "position": {
+              "x": 830.0,
+              "y": 0.0,
+              "z": 30.0
+            },
+            "width_mm": 55.0,
+            "height_mm": 55.0,
+            "shape": "rectangle",
+            "top_width_mm": 55.0,
+            "bottom_width_mm": 55.0,
+            "y_bounds_mm": [
+              -27.5,
+              27.5
+            ],
+            "z_bounds_mm": [
+              2.5,
+              57.5
+            ],
+            "area_mm2": 3025.0,
+            "corners_3d": [
+              {
+                "x": 830.0,
+                "y": -27.5,
+                "z": 57.5
+              },
+              {
+                "x": 830.0,
+                "y": 27.5,
+                "z": 57.5
+              },
+              {
+                "x": 830.0,
+                "y": 27.5,
+                "z": 2.5
+              },
+              {
+                "x": 830.0,
+                "y": -27.5,
+                "z": 2.5
+              }
+            ]
+          }
+        ],
+        "slices": [
+          {
+            "index": 0,
+            "segment": "main",
+            "start_section_index": 0,
+            "end_section_index": 1,
+            "station_start_mm": 0.0,
+            "station_end_mm": 7.0,
+            "length_mm": 7.0,
+            "start_dimensions_mm": {
+              "width": 20.0,
+              "height": 20.0
+            },
+            "end_dimensions_mm": {
+              "width": 40.0,
+              "height": 36.0
+            },
+            "volume_mm3": 5619.38,
+            "centroid_mm": {
+              "x": 4.22,
+              "y": 0.0,
+              "z": -5.79
+            }
+          },
+          {
+            "index": 1,
+            "segment": "main",
+            "start_section_index": 1,
+            "end_section_index": 2,
+            "station_start_mm": 7.0,
+            "station_end_mm": 40.0,
+            "length_mm": 33.0,
+            "start_dimensions_mm": {
+              "width": 40.0,
+              "height": 36.0
+            },
+            "end_dimensions_mm": {
+              "width": 80.0,
+              "height": 77.0
+            },
+            "volume_mm3": 108765.55,
+            "centroid_mm": {
+              "x": 27.16,
+              "y": 0.0,
+              "z": -0.11
+            }
+          },
+          {
+            "index": 2,
+            "segment": "main",
+            "start_section_index": 2,
+            "end_section_index": 3,
+            "station_start_mm": 40.0,
+            "station_end_mm": 50.0,
+            "length_mm": 10.0,
+            "start_dimensions_mm": {
+              "width": 80.0,
+              "height": 77.0
+            },
+            "end_dimensions_mm": {
+              "width": 87.0,
+              "height": 84.0
+            },
+            "volume_mm3": 62509.79,
+            "centroid_mm": {
+              "x": 45.14,
+              "y": 0.0,
+              "z": 3.51
+            }
+          },
+          {
+            "index": 3,
+            "segment": "main",
+            "start_section_index": 3,
+            "end_section_index": 4,
+            "station_start_mm": 50.0,
+            "station_end_mm": 120.0,
+            "length_mm": 70.0,
+            "start_dimensions_mm": {
+              "width": 87.0,
+              "height": 84.0
+            },
+            "end_dimensions_mm": {
+              "width": 110.0,
+              "height": 113.0
+            },
+            "volume_mm3": 637318.48,
+            "centroid_mm": {
+              "x": 88.13,
+              "y": 0.0,
+              "z": 7.81
+            }
+          },
+          {
+            "index": 4,
+            "segment": "main",
+            "start_section_index": 4,
+            "end_section_index": 5,
+            "station_start_mm": 120.0,
+            "station_end_mm": 190.0,
+            "length_mm": 70.0,
+            "start_dimensions_mm": {
+              "width": 110.0,
+              "height": 113.0
+            },
+            "end_dimensions_mm": {
+              "width": 118.0,
+              "height": 123.0
+            },
+            "volume_mm3": 878438.38,
+            "centroid_mm": {
+              "x": 155.84,
+              "y": 0.0,
+              "z": 13.05
+            }
+          },
+          {
+            "index": 5,
+            "segment": "main",
+            "start_section_index": 5,
+            "end_section_index": 6,
+            "station_start_mm": 190.0,
+            "station_end_mm": 275.0,
+            "length_mm": 85.0,
+            "start_dimensions_mm": {
+              "width": 118.0,
+              "height": 123.0
+            },
+            "end_dimensions_mm": {
+              "width": 122.0,
+              "height": 125.0
+            },
+            "volume_mm3": 1175449.59,
+            "centroid_mm": {
+              "x": 232.88,
+              "y": 0.0,
+              "z": 16.01
+            }
+          },
+          {
+            "index": 6,
+            "segment": "main",
+            "start_section_index": 6,
+            "end_section_index": 7,
+            "station_start_mm": 275.0,
+            "station_end_mm": 360.0,
+            "length_mm": 85.0,
+            "start_dimensions_mm": {
+              "width": 122.0,
+              "height": 125.0
+            },
+            "end_dimensions_mm": {
+              "width": 120.0,
+              "height": 122.0
+            },
+            "volume_mm3": 1188227.79,
+            "centroid_mm": {
+              "x": 317.28,
+              "y": 0.0,
+              "z": 17.5
+            }
+          },
+          {
+            "index": 7,
+            "segment": "main",
+            "start_section_index": 7,
+            "end_section_index": 8,
+            "station_start_mm": 360.0,
+            "station_end_mm": 440.0,
+            "length_mm": 80.0,
+            "start_dimensions_mm": {
+              "width": 120.0,
+              "height": 122.0
+            },
+            "end_dimensions_mm": {
+              "width": 110.0,
+              "height": 113.0
+            },
+            "volume_mm3": 1011190.44,
+            "centroid_mm": {
+              "x": 398.83,
+              "y": 0.0,
+              "z": 18.97
+            }
+          },
+          {
+            "index": 8,
+            "segment": "main",
+            "start_section_index": 8,
+            "end_section_index": 9,
+            "station_start_mm": 440.0,
+            "station_end_mm": 520.0,
+            "length_mm": 80.0,
+            "start_dimensions_mm": {
+              "width": 110.0,
+              "height": 113.0
+            },
+            "end_dimensions_mm": {
+              "width": 100.0,
+              "height": 100.0
+            },
+            "volume_mm3": 824968.33,
+            "centroid_mm": {
+              "x": 478.43,
+              "y": 0.0,
+              "z": 20.96
+            }
+          },
+          {
+            "index": 9,
+            "segment": "main",
+            "start_section_index": 9,
+            "end_section_index": 10,
+            "station_start_mm": 520.0,
+            "station_end_mm": 700.0,
+            "length_mm": 180.0,
+            "start_dimensions_mm": {
+              "width": 100.0,
+              "height": 100.0
+            },
+            "end_dimensions_mm": {
+              "width": 75.0,
+              "height": 75.0
+            },
+            "volume_mm3": 1237570.09,
+            "centroid_mm": {
+              "x": 600.69,
+              "y": 0.0,
+              "z": 23.34
+            }
+          },
+          {
+            "index": 10,
+            "segment": "main",
+            "start_section_index": 10,
+            "end_section_index": 11,
+            "station_start_mm": 700.0,
+            "station_end_mm": 830.0,
+            "length_mm": 130.0,
+            "start_dimensions_mm": {
+              "width": 75.0,
+              "height": 75.0
+            },
+            "end_dimensions_mm": {
+              "width": 55.0,
+              "height": 55.0
+            },
+            "volume_mm3": 468687.96,
+            "centroid_mm": {
+              "x": 757.9,
+              "y": 0.0,
+              "z": 27.23
+            }
+          }
+        ]
       }
     },
     {
@@ -1363,6 +2194,90 @@
             "iyz": 0.0
           }
         }
+      },
+      "envelope": {
+        "shape": "box",
+        "size_mm": {
+          "x": 240.0,
+          "y": 1466.9,
+          "z": 50.8
+        },
+        "offset_mm": {
+          "x": 108.1,
+          "y": 0.0,
+          "z": 11.0
+        },
+        "volume_mm3": 4855232.5,
+        "unit_inertia": {
+          "ixx": 0.13104416,
+          "iyy": 0.00280917,
+          "izz": 0.13374749,
+          "ixy": 0.0,
+          "ixz": 0.0,
+          "iyz": 0.0
+        },
+        "sections": [
+          {
+            "index": 0,
+            "span_y_mm": 0.0,
+            "position": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "chord_mm": 240.0,
+            "thickness_mm": 28.8,
+            "x_bounds_mm": [
+              0.0,
+              240.0
+            ],
+            "z_bounds_mm": [
+              -14.4,
+              14.4
+            ],
+            "area_mm2": 4657.47,
+            "shape": "airfoil"
+          },
+          {
+            "index": 1,
+            "span_y_mm": 676.19,
+            "position": {
+              "x": 40.98,
+              "y": 676.19,
+              "z": 11.8
+            },
+            "chord_mm": 180.0,
+            "thickness_mm": 21.6,
+            "x_bounds_mm": [
+              40.98,
+              220.98
+            ],
+            "z_bounds_mm": [
+              1.0,
+              22.6
+            ],
+            "area_mm2": 2619.83,
+            "shape": "airfoil"
+          }
+        ],
+        "slices": [
+          {
+            "index": 0,
+            "start_section_index": 0,
+            "end_section_index": 1,
+            "span_start_mm": 0.0,
+            "span_end_mm": 676.19,
+            "length_mm": 676.19,
+            "chord_start_mm": 240.0,
+            "chord_end_mm": 180.0,
+            "volume_mm3": 2427616.23,
+            "centroid_mm": {
+              "x": 108.09,
+              "y": 306.11,
+              "z": 11.03
+            }
+          }
+        ]
       }
     },
     {
@@ -1386,7 +2301,58 @@
           "eta_start": 0.45,
           "eta_end": 0.95
         }
-      }
+      },
+      "envelope": {
+        "shape": "box",
+        "size_mm": {
+          "x": 64.3,
+          "y": 338.1,
+          "z": 6.4
+        },
+        "offset_mm": {
+          "x": 218.6,
+          "y": 473.4,
+          "z": 0.0
+        },
+        "volume_mm3": 69567.5,
+        "unit_inertia": {
+          "ixx": 0.00952824,
+          "iyy": 0.00023197,
+          "izz": 0.00975566,
+          "ixy": 0.0,
+          "ixz": 0.0,
+          "iyz": 0.0
+        },
+        "sections": [
+          {
+            "index": 0,
+            "span_start_mm": 304.3,
+            "span_end_mm": 642.4,
+            "chord_mm": 64.3,
+            "thickness_mm": 6.4,
+            "shape": "wedge"
+          }
+        ],
+        "slices": [
+          {
+            "index": 0,
+            "start_section_index": 0,
+            "end_section_index": 0,
+            "span_start_mm": 304.3,
+            "span_end_mm": 642.4,
+            "length_mm": 338.1,
+            "chord_start_mm": 64.3,
+            "chord_end_mm": 64.3,
+            "volume_mm3": 69567.46,
+            "centroid_mm": {
+              "x": 218.6,
+              "y": 473.4,
+              "z": 0.0
+            }
+          }
+        ]
+      },
+      "mass": 25.0
     },
     {
       "kind": "component",
@@ -1466,6 +2432,90 @@
             "iyz": 0.0
           }
         }
+      },
+      "envelope": {
+        "shape": "box",
+        "size_mm": {
+          "x": 163.8,
+          "y": 441.0,
+          "z": 19.7
+        },
+        "offset_mm": {
+          "x": 82.0,
+          "y": 0.0,
+          "z": 0.0
+        },
+        "volume_mm3": 577739.1,
+        "unit_inertia": {
+          "ixx": 0.01019219,
+          "iyy": 0.0010941,
+          "izz": 0.01124507,
+          "ixy": 0.0,
+          "ixz": 0.0,
+          "iyz": 0.0
+        },
+        "sections": [
+          {
+            "index": 0,
+            "span_y_mm": 0.0,
+            "position": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "chord_mm": 163.82,
+            "thickness_mm": 19.66,
+            "x_bounds_mm": [
+              0.0,
+              163.82
+            ],
+            "z_bounds_mm": [
+              -9.83,
+              9.83
+            ],
+            "area_mm2": 2205.39,
+            "shape": "airfoil"
+          },
+          {
+            "index": 1,
+            "span_y_mm": 200.48,
+            "position": {
+              "x": 59.0,
+              "y": 200.48,
+              "z": 0.0
+            },
+            "chord_mm": 98.29,
+            "thickness_mm": 11.8,
+            "x_bounds_mm": [
+              59.0,
+              157.29
+            ],
+            "z_bounds_mm": [
+              -5.9,
+              5.9
+            ],
+            "area_mm2": 793.94,
+            "shape": "airfoil"
+          }
+        ],
+        "slices": [
+          {
+            "index": 0,
+            "start_section_index": 0,
+            "end_section_index": 1,
+            "span_start_mm": 0.0,
+            "span_end_mm": 200.48,
+            "length_mm": 200.48,
+            "chord_start_mm": 163.82,
+            "chord_end_mm": 98.29,
+            "volume_mm3": 288869.56,
+            "centroid_mm": {
+              "x": 82.04,
+              "y": 83.88,
+              "z": 0.0
+            }
+          }
+        ]
       }
     },
     {
@@ -1489,7 +2539,58 @@
           "eta_start": 0.1107,
           "eta_end": 0.8855
         }
-      }
+      },
+      "envelope": {
+        "shape": "box",
+        "size_mm": {
+          "x": 49.6,
+          "y": 155.3,
+          "z": 5.0
+        },
+        "offset_mm": {
+          "x": 147.3,
+          "y": 99.8,
+          "z": 0.0
+        },
+        "volume_mm3": 19257.2,
+        "unit_inertia": {
+          "ixx": 0.00201123,
+          "iyy": 0.00013806,
+          "izz": 0.00214652,
+          "ixy": 0.0,
+          "ixz": 0.0,
+          "iyz": 0.0
+        },
+        "sections": [
+          {
+            "index": 0,
+            "span_start_mm": 22.2,
+            "span_end_mm": 177.5,
+            "chord_mm": 49.6,
+            "thickness_mm": 5.0,
+            "shape": "wedge"
+          }
+        ],
+        "slices": [
+          {
+            "index": 0,
+            "start_section_index": 0,
+            "end_section_index": 0,
+            "span_start_mm": 22.2,
+            "span_end_mm": 177.5,
+            "length_mm": 155.3,
+            "chord_start_mm": 49.6,
+            "chord_end_mm": 49.6,
+            "volume_mm3": 19257.2,
+            "centroid_mm": {
+              "x": 147.3,
+              "y": 99.8,
+              "z": 0.0
+            }
+          }
+        ]
+      },
+      "mass": 10.0
     },
     {
       "kind": "component",
@@ -1543,7 +2644,8 @@
         "mass": 28
       },
       "manufacturer": "APC",
-      "model": "12x6E"
+      "model": "12x6E",
+      "mass": 28.0
     },
     {
       "kind": "component",
@@ -1625,21 +2727,17 @@
         "internal_resistance": 0.0075
       },
       "mass": 580.0,
-      "extensions": {
-        "org.setuav.core.physical": {
-          "envelope": {
-            "shape": "box",
-            "size_mm": {
-              "x": 0.0,
-              "y": 0.0,
-              "z": 0.0
-            },
-            "offset_mm": {
-              "x": 0.0,
-              "y": 0.0,
-              "z": 0.0
-            }
-          }
+      "envelope": {
+        "shape": "box",
+        "size_mm": {
+          "x": 145.0,
+          "y": 50.0,
+          "z": 45.0
+        },
+        "offset_mm": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
         }
       }
     },
@@ -1733,10 +2831,72 @@
             "iyz": 0.0
           }
         }
+      },
+      "envelope": {
+        "shape": "box",
+        "size_mm": {
+          "x": 69.6,
+          "y": 233.3,
+          "z": 7.0
+        },
+        "offset_mm": {
+          "x": 216.8,
+          "y": 170.8,
+          "z": 0.0
+        },
+        "volume_mm3": 56831.9,
+        "unit_inertia": {
+          "ixx": 0.00453846,
+          "iyy": 0.00027184,
+          "izz": 0.00480486,
+          "ixy": 0.0,
+          "ixz": 0.0,
+          "iyz": 0.0
+        },
+        "sections": [
+          {
+            "index": 0,
+            "span_start_mm": 54.1,
+            "span_end_mm": 287.4,
+            "chord_mm": 69.6,
+            "thickness_mm": 7.0,
+            "shape": "wedge"
+          }
+        ],
+        "slices": [
+          {
+            "index": 0,
+            "start_section_index": 0,
+            "end_section_index": 0,
+            "span_start_mm": 54.1,
+            "span_end_mm": 287.4,
+            "length_mm": 233.3,
+            "chord_start_mm": 69.6,
+            "chord_end_mm": 69.6,
+            "volume_mm3": 56831.88,
+            "centroid_mm": {
+              "x": 216.8,
+              "y": 170.8,
+              "z": 0.0
+            }
+          }
+        ]
       }
     }
   ],
   "assemblies": [
+    {
+      "id": "airframe-main",
+      "name": "Main Airframe",
+      "type": "org.setuav.core:structural-system",
+      "members": {
+        "fuselage": "fuselage",
+        "wings": [
+          "main-wing",
+          "v-tail"
+        ]
+      }
+    },
     {
       "id": "propulsion-main",
       "name": "Main Propulsion",
@@ -1867,6 +3027,90 @@
                 "length": 12.0
               }
             }
+          },
+          "envelope": {
+            "shape": "box",
+            "size_mm": {
+              "x": 160.0,
+              "y": 424.0,
+              "z": 19.2
+            },
+            "offset_mm": {
+              "x": 82.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "volume_mm3": 565375.9,
+            "unit_inertia": {
+              "ixx": 0.01037687,
+              "iyy": 0.00107653,
+              "izz": 0.01141284,
+              "ixy": 0.0,
+              "ixz": 0.0,
+              "iyz": 0.0
+            },
+            "sections": [
+              {
+                "index": 0,
+                "span_y_mm": 0.0,
+                "position": {
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": 0.0
+                },
+                "chord_mm": 160.0,
+                "thickness_mm": 19.2,
+                "x_bounds_mm": [
+                  0.0,
+                  160.0
+                ],
+                "z_bounds_mm": [
+                  -9.6,
+                  9.6
+                ],
+                "area_mm2": 2103.72,
+                "shape": "airfoil"
+              },
+              {
+                "index": 1,
+                "span_y_mm": 200.0,
+                "position": {
+                  "x": 60.0,
+                  "y": 200.0,
+                  "z": 0.0
+                },
+                "chord_mm": 100.0,
+                "thickness_mm": 12.0,
+                "x_bounds_mm": [
+                  60.0,
+                  160.0
+                ],
+                "z_bounds_mm": [
+                  -6.0,
+                  6.0
+                ],
+                "area_mm2": 821.77,
+                "shape": "airfoil"
+              }
+            ],
+            "slices": [
+              {
+                "index": 0,
+                "start_section_index": 0,
+                "end_section_index": 1,
+                "span_start_mm": 0.0,
+                "span_end_mm": 200.0,
+                "length_mm": 200.0,
+                "chord_start_mm": 160.0,
+                "chord_end_mm": 100.0,
+                "volume_mm3": 282687.97,
+                "centroid_mm": {
+                  "x": 82.04,
+                  "y": 84.88,
+                  "z": 0.0
+                }
+              }
+            ]
           }
         },
         {
@@ -1891,6 +3135,56 @@
               "deflection": 0.0,
               "symmetry_mode": "auto"
             }
+          },
+          "envelope": {
+            "shape": "box",
+            "size_mm": {
+              "x": 48.0,
+              "y": 180.0,
+              "z": 5.0
+            },
+            "offset_mm": {
+              "x": 144.0,
+              "y": 100.0,
+              "z": 0.0
+            },
+            "volume_mm3": 21600.0,
+            "unit_inertia": {
+              "ixx": 0.00270139,
+              "iyy": 0.00012939,
+              "izz": 0.002828,
+              "ixy": 0.0,
+              "ixz": 0.0,
+              "iyz": 0.0
+            },
+            "sections": [
+              {
+                "index": 0,
+                "span_start_mm": 10.0,
+                "span_end_mm": 190.0,
+                "chord_mm": 48.0,
+                "thickness_mm": 5.0,
+                "shape": "wedge"
+              }
+            ],
+            "slices": [
+              {
+                "index": 0,
+                "start_section_index": 0,
+                "end_section_index": 0,
+                "span_start_mm": 10.0,
+                "span_end_mm": 190.0,
+                "length_mm": 180.0,
+                "chord_start_mm": 48.0,
+                "chord_end_mm": 48.0,
+                "volume_mm3": 21600.0,
+                "centroid_mm": {
+                  "x": 144.0,
+                  "y": 100.0,
+                  "z": 0.0
+                }
+              }
+            ]
           }
         },
         {
@@ -1952,6 +3246,90 @@
               "control_surfaces": [],
               "sweep_curvature": 0.0
             }
+          },
+          "envelope": {
+            "shape": "box",
+            "size_mm": {
+              "x": 160.0,
+              "y": 182.0,
+              "z": 19.2
+            },
+            "offset_mm": {
+              "x": 86.2,
+              "y": 65.4,
+              "z": 0.0
+            },
+            "volume_mm3": 201285.1,
+            "unit_inertia": {
+              "ixx": 0.00211968,
+              "iyy": 0.00087946,
+              "izz": 0.00296601,
+              "ixy": 0.0,
+              "ixz": 0.0,
+              "iyz": 0.0
+            },
+            "sections": [
+              {
+                "index": 0,
+                "span_y_mm": 0.0,
+                "position": {
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": 0.0
+                },
+                "chord_mm": 160.0,
+                "thickness_mm": 19.2,
+                "x_bounds_mm": [
+                  0.0,
+                  160.0
+                ],
+                "z_bounds_mm": [
+                  -9.6,
+                  9.6
+                ],
+                "area_mm2": 2103.72,
+                "shape": "airfoil"
+              },
+              {
+                "index": 1,
+                "span_y_mm": 170.0,
+                "position": {
+                  "x": 85.0,
+                  "y": 170.0,
+                  "z": 0.0
+                },
+                "chord_mm": 75.0,
+                "thickness_mm": 9.0,
+                "x_bounds_mm": [
+                  85.0,
+                  160.0
+                ],
+                "z_bounds_mm": [
+                  -4.5,
+                  4.5
+                ],
+                "area_mm2": 462.24,
+                "shape": "airfoil"
+              }
+            ],
+            "slices": [
+              {
+                "index": 0,
+                "start_section_index": 0,
+                "end_section_index": 1,
+                "span_start_mm": 0.0,
+                "span_end_mm": 170.0,
+                "length_mm": 170.0,
+                "chord_start_mm": 160.0,
+                "chord_end_mm": 75.0,
+                "volume_mm3": 201285.07,
+                "centroid_mm": {
+                  "x": 86.22,
+                  "y": 65.36,
+                  "z": 0.0
+                }
+              }
+            ]
           }
         },
         {
@@ -1976,6 +3354,56 @@
               "deflection": 0.0,
               "symmetry_mode": "auto"
             }
+          },
+          "envelope": {
+            "shape": "box",
+            "size_mm": {
+              "x": 48.0,
+              "y": 136.0,
+              "z": 5.0
+            },
+            "offset_mm": {
+              "x": 144.0,
+              "y": 85.0,
+              "z": 0.0
+            },
+            "volume_mm3": 16320.0,
+            "unit_inertia": {
+              "ixx": 0.00154272,
+              "iyy": 0.00012939,
+              "izz": 0.00166933,
+              "ixy": 0.0,
+              "ixz": 0.0,
+              "iyz": 0.0
+            },
+            "sections": [
+              {
+                "index": 0,
+                "span_start_mm": 17.0,
+                "span_end_mm": 153.0,
+                "chord_mm": 48.0,
+                "thickness_mm": 5.0,
+                "shape": "wedge"
+              }
+            ],
+            "slices": [
+              {
+                "index": 0,
+                "start_section_index": 0,
+                "end_section_index": 0,
+                "span_start_mm": 17.0,
+                "span_end_mm": 153.0,
+                "length_mm": 136.0,
+                "chord_start_mm": 48.0,
+                "chord_end_mm": 48.0,
+                "volume_mm3": 16320.0,
+                "centroid_mm": {
+                  "x": 144.0,
+                  "y": 85.0,
+                  "z": 0.0
+                }
+              }
+            ]
           }
         }
       ],

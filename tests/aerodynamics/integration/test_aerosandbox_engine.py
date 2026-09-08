@@ -7,18 +7,18 @@ import math
 import unittest
 from unittest.mock import patch
 
-from setuav_studio.plugins.aerodynamics.engine.aerosandbox_engine import (
+from plugins.aerodynamics.engine.aerosandbox_engine import (
     HAS_AEROSANDBOX,
     AeroSandboxEngine,
 )
-from setuav_studio.plugins.aerodynamics.engine.base import (
+from plugins.aerodynamics.engine.base import (
     AeroAnalysisError,
     AeroResult,
     AnalysisMethod,
     AnalysisType,
     FlightCondition,
 )
-from setuav_studio.plugins.aerodynamics.engine.stability_engine import (
+from plugins.aerodynamics.engine.stability_engine import (
     StabilityAnalysisEngine,
 )
 from tests._common import TEST_PROJECT_PATH
@@ -98,7 +98,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
 
         with (
             patch(
-                "setuav_studio.plugins.aerodynamics.engine.aerosandbox_engine.asb.AeroBuildup.run",
+                "plugins.aerodynamics.engine.aerosandbox_engine.asb.AeroBuildup.run",
                 side_effect=RuntimeError("solver exploded"),
             ),
             self.assertRaisesRegex(

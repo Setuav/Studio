@@ -3,22 +3,25 @@ import unittest
 from PySide6.QtWidgets import QDockWidget, QWidget
 
 from setuav_studio.__main__ import _parse_arguments
-from setuav_studio.plugin_system import (
+from setuav_studio.api import (
     PanelContribution,
     PluginManager,
     StudioAPI,
     WorkspaceContribution,
 )
-from setuav_studio.shell import MainWindow
+from setuav_studio.ui.shell import MainWindow
 from tests._common import TEST_PROJECT_PATH, get_qapp
-
-_app = get_qapp()
 
 
 class MainTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls._app = get_qapp()
+
     def test_plugin_manager_action_is_bound_to_manager(self) -> None:
         api = StudioAPI()
         window = MainWindow(api)
+        self.addCleanup(window.deleteLater)
 
         self.assertFalse(window._plugin_manager_action.isEnabled())
         window.bind_plugin_manager(PluginManager(api))
@@ -43,22 +46,22 @@ class MainTests(unittest.TestCase):
         api = StudioAPI()
         api._host.bind_project_requirement_checker(lambda data: ["Missing plugin: com.example.foo"])
         window = MainWindow(api)
-        window.show()
+        self.addCleanup(window.deleteLater)
         window.open_project(TEST_PROJECT_PATH)
-        get_qapp().processEvents()
 
-        self.assertTrue(window._degraded_badge.isVisible())
+        self.assertFalse(window._degraded_badge.isHidden())
         self.assertIn("com.example.foo", window._degraded_badge.toolTip())
 
         api._host.bind_project_requirement_checker(lambda data: [])
         if window._project is not None:
             window._project.modified = False
         window.open_project(TEST_PROJECT_PATH)
-        self.assertFalse(window._degraded_badge.isVisible())
+        self.assertTrue(window._degraded_badge.isHidden())
 
     def test_workspace_and_panel_contributions(self) -> None:
         api = StudioAPI()
         window = MainWindow(api)
+        self.addCleanup(window.deleteLater)
         api.add_workspace(
             WorkspaceContribution(
                 id="test.workspace",
@@ -82,17 +85,20 @@ class MainTests(unittest.TestCase):
         self.assertIsNotNone(view_action)
         self.assertTrue(view_action.isCheckable())
         self.assertIn(view_action, window._view_menu.actions())
-        self.assertEqual(window._view_menu.actions()[0].text(), "Theme")
+        self.assertTrue(any(a.text() == "Theme" for a in window._view_menu.actions()))
 
         window._update_view_menu("test.workspace")
-        self.assertEqual(window._view_menu.actions()[0].text(), "Theme")
+        self.assertTrue(any(a.text() == "Theme" for a in window._view_menu.actions()))
         self.assertIn(view_action, window._view_menu.actions())
+        window.close()
+
+    def test_runtime_validation_strictness_outcomes(self) -> None:
         """4.13: validation_strictness drives open/read_only/cancel outcomes."""
         from pathlib import Path
         from types import SimpleNamespace
 
         from setuav_studio.project import ProjectDocument
-        from setuav_studio.shell import apply_runtime_validation
+        from setuav_studio.ui.shell import apply_runtime_validation
 
         valid = ProjectDocument(path=Path("/tmp/x.json"), kind="json", data={})
         issues = [

@@ -1,8 +1,0 @@
-"""Compatibility imports for the relocated Project Explorer widgets."""
-
-from setuav_studio.plugins.core.ui.project_explorer import (
-    ProjectExplorer,
-    ProjectExplorerPanel,
-)
-
-__all__ = ["ProjectExplorer", "ProjectExplorerPanel"]

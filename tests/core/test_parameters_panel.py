@@ -5,9 +5,9 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-from setuav_studio.plugin_system import StudioAPI
-from setuav_studio.plugins.core.ui.parameters_panel import ProjectParametersPanel
+from setuav_studio.api import StudioAPI
 from setuav_studio.project import ProjectDocument
+from setuav_studio.ui.parameter.panel import ProjectParametersPanel
 from tests._common import get_qapp
 
 
