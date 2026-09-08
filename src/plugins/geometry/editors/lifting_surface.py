@@ -271,6 +271,12 @@ class LiftingSurfaceEditor(
     def _edit_control_surface_item(
         self, cs: dict[str, Any], description: str, change_fn: Callable[[], None]
     ) -> None:
+        def wrapped_cs_change() -> None:
+            change_fn()
+            from ..engine.envelope import sync_component_envelope
+
+            sync_component_envelope(cs, self._component)
+
         project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
         if (
             project
@@ -278,19 +284,25 @@ class LiftingSurfaceEditor(
             and cs in project.data["components"]
         ):
             if hasattr(self._api, "edit_component"):
-                self._api.edit_component(cs, description, change_fn)
+                self._api.edit_component(cs, description, wrapped_cs_change)
             elif hasattr(self._api, "edit_project"):
-                self._api.edit_project(description, change_fn)
+                self._api.edit_project(description, wrapped_cs_change)
             else:
-                change_fn()
+                wrapped_cs_change()
         else:
             self._edit_component(description, change_fn)
 
     def _edit_component(self, description: str, change_fn: Callable[[], None]) -> None:
-        if hasattr(self._api, "edit_component"):
-            self._api.edit_component(self._component, description, change_fn)
-        else:
+        def wrapped_change() -> None:
             change_fn()
+            from ..engine.envelope import sync_component_envelope
+
+            sync_component_envelope(self._component)
+
+        if hasattr(self._api, "edit_component"):
+            self._api.edit_component(self._component, description, wrapped_change)
+        else:
+            wrapped_change()
 
     def _parameters(self) -> dict[str, Any]:
         params = self._component.get("parameters")

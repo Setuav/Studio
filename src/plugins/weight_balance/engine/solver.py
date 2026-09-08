@@ -264,19 +264,33 @@ def _inertia(value: object) -> tuple[InertiaTensor, bool]:
 
 
 def _inertia_from_envelope(value: object, mass_kg: float) -> tuple[InertiaTensor, bool]:
-    """Estimate a solid-box inertia from a local physical envelope.
+    """Estimate inertia from a physical envelope or integrated trapezoidal slices.
 
-    The envelope is deliberately only an approximation.  It is still a more
-    useful default than a zero tensor for payloads and equipment, and avoids
-    requiring every component plugin to duplicate basic rigid-body math.
+    If the envelope contains high-fidelity unit inertia derived from geometry
+    slices, scales by mass; otherwise falls back to a solid-box approximation.
     """
     if not isinstance(value, dict):
         return InertiaTensor(), False
+    if mass_kg <= 0.0:
+        return InertiaTensor(), False
+    unit_inertia = value.get("unit_inertia")
+    if isinstance(unit_inertia, dict) and any(
+        (_optional_number(unit_inertia.get(axis)) or 0.0) > 0.0
+        for axis in ("ixx", "iyy", "izz")
+    ):
+        return InertiaTensor(
+            ixx=mass_kg * (_optional_number(unit_inertia.get("ixx")) or 0.0),
+            iyy=mass_kg * (_optional_number(unit_inertia.get("iyy")) or 0.0),
+            izz=mass_kg * (_optional_number(unit_inertia.get("izz")) or 0.0),
+            ixy=mass_kg * (_optional_number(unit_inertia.get("ixy")) or 0.0),
+            ixz=mass_kg * (_optional_number(unit_inertia.get("ixz")) or 0.0),
+            iyz=mass_kg * (_optional_number(unit_inertia.get("iyz")) or 0.0),
+        ), True
     size = value.get("size_mm")
     if not isinstance(size, dict):
         return InertiaTensor(), False
     dimensions = tuple(_optional_number(size.get(axis)) or 0.0 for axis in ("x", "y", "z"))
-    if mass_kg <= 0.0 or any(dimension <= 0.0 for dimension in dimensions):
+    if any(dimension <= 0.0 for dimension in dimensions):
         return InertiaTensor(), False
     x_m, y_m, z_m = (dimension / 1000.0 for dimension in dimensions)
     return InertiaTensor(

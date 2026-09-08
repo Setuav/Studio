@@ -1084,10 +1084,17 @@ class FuselageSectionDialog(QDialog):
         after_data = copy.deepcopy(self._component)
         self._component.clear()
         self._component.update(self._original_component)
+
+        def apply_change() -> None:
+            self._component.update(after_data)
+            from ..engine.envelope import sync_component_envelope
+
+            sync_component_envelope(self._component)
+
         self._api.edit_component(
             self._component,
             f"Edit fuselage section {self._section_index + 1}",
-            lambda: self._component.update(after_data),
+            apply_change,
         )
         self._original_component = copy.deepcopy(self._component)
 
@@ -1096,10 +1103,17 @@ class FuselageSectionDialog(QDialog):
         after_data = copy.deepcopy(self._component)
         self._component.clear()
         self._component.update(self._original_component)
+
+        def ok_change() -> None:
+            self._component.update(after_data)
+            from ..engine.envelope import sync_component_envelope
+
+            sync_component_envelope(self._component)
+
         self._api.edit_component(
             self._component,
             f"Edit fuselage section {self._section_index + 1}",
-            lambda: self._component.update(after_data),
+            ok_change,
         )
         self.accept()
 

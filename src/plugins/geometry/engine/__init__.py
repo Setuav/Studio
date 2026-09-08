@@ -13,6 +13,12 @@ from .airfoil import (
     sample_airfoil_points,
 )
 from .data import GeometryData, LoftGeometry, Point3D, Section
+from .envelope import (
+    GEOMETRY_COMPONENT_TYPES,
+    compute_geometry_envelope,
+    sync_component_envelope,
+    sync_project_geometry_envelopes,
+)
 from .fuselage_geometry import (
     DEFAULT_PROFILES,
     FUSELAGE_PROFILE_TYPES,
@@ -71,6 +77,10 @@ __all__ = [
     "Matrix4",
     "Point3D",
     "Section",
+    "GEOMETRY_COMPONENT_TYPES",
+    "compute_geometry_envelope",
+    "sync_component_envelope",
+    "sync_project_geometry_envelopes",
     "apply_airfoil_shaping",
     "biconvex",
     "build_fuselage_geometry",

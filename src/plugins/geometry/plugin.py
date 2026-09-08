@@ -153,6 +153,11 @@ class GeometryPlugin:
             "org.setuav.core:lifting-surface": build_lifting_surface_geometry,
         }
 
+        # 6. Auto-sync physical envelopes from geometry
+        api.subscribe(StudioEvents.PROJECT_OPENED, self._on_project_opened)
+        if api.current_project is not None:
+            self._on_project_opened()
+
     def get_geometry(self, project: Any = None) -> Any:
         """Build and return geometry data for the given project.
 
@@ -198,6 +203,13 @@ class GeometryPlugin:
         api.remove_workspace("studio.workspace.design")
         api.remove_settings_page("geometry.settings.viewer")
         api.remove_settings_page("geometry.settings.editor")
+        api.unsubscribe(StudioEvents.PROJECT_OPENED, self._on_project_opened)
+
+    def _on_project_opened(self, *args: Any) -> None:
+        if self._api is not None and self._api.current_project is not None:
+            from .engine.envelope import sync_project_geometry_envelopes
+
+            sync_project_geometry_envelopes(self._api.current_project)
 
     @staticmethod
     def _apply_viewer_settings(api: StudioAPI, page: QWidget) -> None:

@@ -423,14 +423,25 @@ class FuselageEditor(PropertyTableMixin, QWidget):
             self._publish_section_selection()
         self._update_segment_actions()
 
+    def _edit_component(self, description: str, change_fn: Callable[[], None]) -> None:
+        def wrapped() -> None:
+            change_fn()
+            from ..engine.envelope import sync_component_envelope
+
+            sync_component_envelope(self._component)
+
+        if hasattr(self._api, "edit_component"):
+            self._api.edit_component(self._component, description, wrapped)
+        else:
+            wrapped()
+
     def _add_segment(self) -> None:
         segments = self._segments()
         insert_at = (
             self._segment_index + 1 if 0 <= self._segment_index < len(segments) else len(segments)
         )
         new_segment = self._new_segment(segments)
-        self._api.edit_component(
-            self._component,
+        self._edit_component(
             "Add fuselage segment",
             lambda: segments.insert(insert_at, new_segment),
         )
@@ -448,8 +459,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
             segments,
             f"{source_tag}-copy",
         )
-        self._api.edit_component(
-            self._component,
+        self._edit_component(
             "Duplicate fuselage segment",
             lambda: segments.insert(insert_at, duplicate),
         )
@@ -471,8 +481,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         def change() -> None:
             segments.insert(target, segments.pop(source))
 
-        self._api.edit_component(
-            self._component,
+        self._edit_component(
             "Move fuselage segment",
             change,
         )
@@ -483,8 +492,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         index = self._segment_index
         if len(segments) <= 1 or not 0 <= index < len(segments):
             return
-        self._api.edit_component(
-            self._component,
+        self._edit_component(
             "Delete fuselage segment",
             lambda: segments.pop(index),
         )
@@ -545,8 +553,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
             self._section_index + 1 if 0 <= self._section_index < len(sections) else len(sections)
         )
         new_section = self._new_section(sections, insert_at)
-        self._api.edit_component(
-            self._component,
+        self._edit_component(
             "Add fuselage section",
             lambda: sections.insert(insert_at, new_section),
         )
@@ -559,8 +566,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
             return
         insert_at = index + 1
         duplicate = deepcopy(sections[index])
-        self._api.edit_component(
-            self._component,
+        self._edit_component(
             "Duplicate fuselage section",
             lambda: sections.insert(insert_at, duplicate),
         )
@@ -582,8 +588,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         def change() -> None:
             sections.insert(target, sections.pop(source))
 
-        self._api.edit_component(
-            self._component,
+        self._edit_component(
             "Move fuselage section",
             change,
         )
@@ -594,8 +599,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         index = self._section_index
         if len(sections) <= 2 or not 0 <= index < len(sections):
             return
-        self._api.edit_component(
-            self._component,
+        self._edit_component(
             "Delete fuselage section",
             lambda: sections.pop(index),
         )
@@ -721,7 +725,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
             if key == "name":
                 self._component["name"] = value.strip()
 
-        self._api.edit_component(self._component, "Edit fuselage properties", change)
+        self._edit_component("Edit fuselage properties", change)
 
     def _update_segment_cell(self, row: int, column: int) -> None:
         segments = self._segments()
@@ -732,8 +736,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
             return
         segment = segments[row]
         value = item.text().strip()
-        self._api.edit_component(
-            self._component,
+        self._edit_component(
             "Edit fuselage segment",
             lambda: segment.__setitem__("tag", value),
         )
@@ -743,8 +746,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         if self._loading or section is None:
             return
 
-        self._api.edit_component(
-            self._component,
+        self._edit_component(
             "Change fuselage profile",
             lambda: section.__setitem__("profile", self._default_profile(profile_type)),
         )
@@ -767,7 +769,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
             loft[key] = value
             loft["profile_correspondence"] = "cardinal_quadrants"
 
-        self._api.edit_component(self._component, "Edit fuselage segment", change)
+        self._edit_component("Edit fuselage segment", change)
 
     def _update_section(self, *_args: object) -> None:
         section = self._current_section()
@@ -792,7 +794,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
                 "z": rotation_values[2],
             }
 
-        self._api.edit_component(self._component, "Edit section transform", change)
+        self._edit_component("Edit section transform", change)
         self._refresh_section_row()
 
     def _update_section_property(self, row: int, column: int) -> None:
@@ -823,8 +825,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
                 return
             converted = number
 
-        self._api.edit_component(
-            self._component,
+        self._edit_component(
             "Edit section profile",
             lambda: profile.__setitem__(key, converted),
         )
@@ -844,8 +845,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         if section is None:
             return
         profile = self._object(section, "profile")
-        self._api.edit_component(
-            self._component,
+        self._edit_component(
             "Edit section profile",
             lambda: profile.__setitem__(key, value),
         )
@@ -928,8 +928,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
                 return
         key = ("y", "z", "radius")[column]
         if isinstance(vertices[row], dict):
-            self._api.edit_component(
-                self._component,
+            self._edit_component(
                 "Edit polygon vertex",
                 lambda: vertices[row].__setitem__(key, value),
             )
@@ -1008,8 +1007,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
 
         if num_val is not None:
             profile[key] = num_val
-            self._api.edit_component(
-                self._component,
+            self._edit_component(
                 f"Change fuselage section {key}",
                 lambda: None,
             )
@@ -1023,8 +1021,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         if section is None:
             return
         profile = self._object(section, "profile")
-        self._api.edit_component(
-            self._component,
+        self._edit_component(
             "Edit section profile",
             lambda: profile.__setitem__(key, float(value)),
         )
@@ -1096,8 +1093,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
             return
         key = ("y", "z", "radius")[column]
         if isinstance(vertices[row], dict):
-            self._api.edit_component(
-                self._component,
+            self._edit_component(
                 "Edit polygon vertex",
                 lambda: vertices[row].__setitem__(key, float(value)),
             )

@@ -39,6 +39,7 @@ CORE_MODULES = (
 )
 GEOMETRY_MODULES = (
     "tests.geometry.test_creation",
+    "tests.geometry.test_envelope",
     "tests.geometry.test_geometry",
     "tests.geometry.test_settings",
     "tests.geometry.test_structural_system_editor",

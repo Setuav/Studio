@@ -40,7 +40,7 @@ class GeometryCreationTests(unittest.TestCase):
         self.assertEqual(len(components), 1)
         comp = components[0]
         self._assert_valid_physical_contract(comp)
-        self.assertEqual(comp["envelope"]["shape"], "cylinder")
+        self.assertEqual(comp["envelope"]["shape"], "trapezoid")
         self.assertEqual(comp["mass"], 350.0)
 
     def test_add_lifting_surface_presets_populate_mass_transform_envelope(self) -> None:
@@ -93,7 +93,7 @@ class GeometryCreationTests(unittest.TestCase):
 
         self.assertIn("envelope", comp)
         self.assertIsInstance(comp["envelope"], dict)
-        self.assertIn(comp["envelope"]["shape"], {"box", "cylinder"})
+        self.assertIn(comp["envelope"]["shape"], {"box", "trapezoid", "cylinder"})
         self.assertIn("size_mm", comp["envelope"])
         self.assertIn("offset_mm", comp["envelope"])
 

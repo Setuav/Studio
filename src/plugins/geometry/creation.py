@@ -210,7 +210,7 @@ class GeometryCreationController:
                 "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
             },
             "envelope": {
-                "shape": "cylinder",
+                "shape": "trapezoid",
                 "size_mm": {"x": 600.0, "y": 120.0, "z": 120.0},
                 "offset_mm": {"x": 300.0, "y": 0.0, "z": 0.0},
             },
@@ -263,6 +263,10 @@ class GeometryCreationController:
                 },
             },
         }
+        from .engine.envelope import sync_component_envelope
+
+        sync_component_envelope(fuse_comp)
+        sync_component_envelope(wing_comp)
         return {"fuselage": fuse_id, "wings": [wing_id]}, [fuse_comp, wing_comp]
 
     def add_fuselage(self) -> None:
@@ -288,7 +292,7 @@ class GeometryCreationController:
                 "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
             },
             "envelope": {
-                "shape": "cylinder",
+                "shape": "trapezoid",
                 "size_mm": {"x": 600.0, "y": 120.0, "z": 120.0},
                 "offset_mm": {"x": 300.0, "y": 0.0, "z": 0.0},
             },
@@ -308,6 +312,9 @@ class GeometryCreationController:
                 }
             },
         }
+        from .engine.envelope import sync_component_envelope
+
+        sync_component_envelope(component)
         self._append_component(component, "Add fuselage")
 
     def add_lifting_surface(self, preset: str) -> None:
@@ -388,6 +395,9 @@ class GeometryCreationController:
                 }
             },
         }
+        from .engine.envelope import sync_component_envelope
+
+        sync_component_envelope(component)
         self._append_component(component, f"Add {base_name.lower()}")
 
     def add_control_surface(self, surface_type: str) -> None:
@@ -461,6 +471,9 @@ class GeometryCreationController:
                 }
             },
         }
+        from .engine.envelope import sync_component_envelope
+
+        sync_component_envelope(component, parent)
         self._append_component(component, f"Add {base_name.lower()}")
 
     def _lifting_surface_item(

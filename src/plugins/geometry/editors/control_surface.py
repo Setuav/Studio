@@ -587,11 +587,26 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
 
         self._edit_component("Change control surface parent wing", change)
 
+    def _parent_component(self) -> dict[str, Any] | None:
+        parent_id = str(self._component.get("parent") or self._component.get("attach_to") or "")
+        if self._api.current_project and parent_id:
+            for c in self._api.current_project.data.get("components", []):
+                if isinstance(c, dict) and str(c.get("id") or "") == parent_id:
+                    return c
+        return None
+
     def _edit_component(self, action_name: str, mutation: Callable[[], None]) -> None:
-        if hasattr(self._api, "edit_component"):
-            self._api.edit_component(self._component, action_name, mutation)
-        else:
+        def wrapped() -> None:
             mutation()
+            from ..engine.envelope import sync_component_envelope
+
+            parent = self._parent_component()
+            sync_component_envelope(self._component, parent)
+
+        if hasattr(self._api, "edit_component"):
+            self._api.edit_component(self._component, action_name, wrapped)
+        else:
+            wrapped()
 
     def _set_property_spinbox(
         self,

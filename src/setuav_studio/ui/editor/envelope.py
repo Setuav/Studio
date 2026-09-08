@@ -67,6 +67,7 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
         self._create_definition_section()
         self._create_dimensions_section()
         self._create_offset_section()
+        self._create_sections_section()
         self._content_layout.addStretch(1)
 
         if self._component is not None:
@@ -121,7 +122,12 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
             self.definition_table,
             "shape",
             "box",
-            [("box", "Box")],
+            [
+                ("box", "Box"),
+                ("trapezoid", "Trapezoid"),
+                ("cylinder", "Cylinder"),
+                ("sphere", "Sphere"),
+            ],
             self._on_shape_changed,
         )
         self.shape_combo = self._find_combo(self.definition_table, "shape")
@@ -143,6 +149,46 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
             for column, axis in enumerate(("x", "y", "z"))
         }
         layout.addWidget(self.offset_table)
+
+    def _create_sections_section(self) -> None:
+        self._sections_container = QWidget()
+        layout = QVBoxLayout(self._sections_container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(3)
+
+        header = QWidget(self._sections_container)
+        header.setProperty("sectionHeader", True)
+        header.setFixedHeight(20)
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(5)
+
+        icon_label = QLabel(header)
+        set_label_icon(icon_label, "fa6s.layer-group")
+        icon_label.setFixedSize(14, 14)
+        self._section_icons.append((icon_label, "fa6s.layer-group"))
+        header_layout.addWidget(icon_label)
+        header_layout.addWidget(QLabel("BBox Sections", header))
+        header_layout.addStretch(1)
+        layout.addWidget(header)
+
+        self.sections_table = QTableWidget(0, 5)
+        self.sections_table.setHorizontalHeaderLabels(
+            ["Station", "Width", "Height", "Z Pos", "Shape"]
+        )
+        self.sections_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.sections_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.sections_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.sections_table.setAlternatingRowColors(True)
+        self.sections_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.sections_table.horizontalHeader().setFixedHeight(23)
+        self.sections_table.verticalHeader().setDefaultSectionSize(23)
+        self.sections_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.sections_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        layout.addWidget(self.sections_table)
+
+        self._content_layout.addWidget(self._sections_container)
+        self._sections_container.setVisible(False)
 
     @staticmethod
     def _vector_table(row_label: str) -> QTableWidget:
@@ -204,9 +250,37 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
                 self.offset_spins,
                 envelope.get("offset_mm"),
             )
+            self._load_sections(envelope.get("sections"))
             self._update_volume_display()
         finally:
             self._loading = False
+
+    def _load_sections(self, sections: object) -> None:
+        if isinstance(sections, list) and sections:
+            self._sections_container.setVisible(True)
+            self.sections_table.setRowCount(len(sections))
+            self.sections_table.setFixedHeight(23 + len(sections) * 23 + 2)
+            from PySide6.QtWidgets import QTableWidgetItem
+
+            for row, sec in enumerate(sections):
+                if not isinstance(sec, dict):
+                    continue
+                st = _number(sec.get("station_x_mm", sec.get("span_y_mm", 0.0)))
+                w = _number(sec.get("width_mm", sec.get("chord_mm", 0.0)))
+                h = _number(sec.get("height_mm", sec.get("thickness_mm", 0.0)))
+                pos = sec.get("position", {}) if isinstance(sec.get("position"), dict) else {}
+                z = _number(pos.get("z", 0.0))
+                sh = sec.get("shape", "box")
+                for col, val in enumerate(
+                    (f"{st:.1f} mm", f"{w:.1f} mm", f"{h:.1f} mm", f"{z:.1f} mm", str(sh).capitalize())
+                ):
+                    item = QTableWidgetItem(val)
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                    self.sections_table.setItem(row, col, item)
+        else:
+            self._sections_container.setVisible(False)
+            self.sections_table.setRowCount(0)
+            self.sections_table.setFixedHeight(0)
 
     def _on_shape_changed(self, _shape: str) -> None:
         self._update_envelope()
@@ -222,11 +296,14 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
         component = self._component
 
         def change() -> None:
-            component["envelope"] = {
+            existing = component.get("envelope")
+            new_env = dict(existing) if isinstance(existing, dict) else {}
+            new_env.update({
                 "shape": shape,
                 "size_mm": size,
                 "offset_mm": offset,
-            }
+            })
+            component["envelope"] = new_env
 
         self._api.edit_component(
             component,
@@ -250,10 +327,34 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
         )
 
     def volume_value(self) -> float:
-        """Return the current box envelope volume in cubic millimetres."""
+        """Return the current envelope volume in cubic millimetres."""
+        envelope = self._envelope(self._component) if self._component is not None else {}
+        geom_vol = envelope.get("volume_mm3")
+        size_mm = envelope.get("size_mm")
+        if (
+            isinstance(geom_vol, (int, float))
+            and geom_vol > 0.0
+            and isinstance(size_mm, dict)
+            and all(
+                abs(self.dimension_spins[axis].value() - _number(size_mm.get(axis))) < 1e-3
+                for axis in ("x", "y", "z")
+                if axis in self.dimension_spins
+            )
+        ):
+            return float(geom_vol)
+
         volume_mm3 = 1.0
         for spin in self.dimension_spins.values():
             volume_mm3 *= spin.value()
+        shape = (
+            str(self.shape_combo.currentData() or "box") if self.shape_combo is not None else "box"
+        )
+        if shape == "cylinder":
+            return volume_mm3 * 0.7853981633974483
+        if shape == "sphere":
+            return volume_mm3 * 0.5235987755982988
+        if shape == "trapezoid":
+            return volume_mm3 * 0.6
         return volume_mm3
 
     @staticmethod
@@ -281,6 +382,7 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
         self.definition_table.setEnabled(enabled)
         self.dimensions_table.setEnabled(enabled)
         self.offset_table.setEnabled(enabled)
+        self.sections_table.setEnabled(enabled)
 
 
 def _number(value: object) -> float:
