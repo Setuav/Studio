@@ -54,9 +54,7 @@ def build_project_geometry(
     envelopes: list[EnvelopeWireGeometry] = []
     for item_id, item in items.items():
         source = _geometry_source(item, items) or item
-        env_geom = _build_component_envelope_geometry(
-            item_id, item, source, world_matrix, items
-        )
+        env_geom = _build_component_envelope_geometry(item_id, item, source, world_matrix, items)
         if env_geom is not None:
             envelopes.append(env_geom)
 
@@ -527,7 +525,7 @@ def _project_point_to_fuselage(
     return p_in, True
 
 
-def _build_component_envelope_geometry(
+def _build_component_envelope_geometry(  # noqa: C901
     item_id: str,
     item: dict[str, Any],
     source: dict[str, Any],
@@ -550,7 +548,9 @@ def _build_component_envelope_geometry(
         if (
             not secs
             or not all(isinstance(s, dict) and "corners_3d" in s for s in secs)
-            or (component_type == "org.setuav.core:control-surface" and "hinge_axis" not in envelope)
+            or (
+                component_type == "org.setuav.core:control-surface" and "hinge_axis" not in envelope
+            )
         ):
             try:
                 from plugins.geometry.engine.envelope import compute_geometry_envelope
@@ -596,7 +596,9 @@ def _build_component_envelope_geometry(
 
     if component_type == "org.setuav.core:lifting-surface" and _is_bilateral(source):
         parent_id_frame = _frame_parent(item)
-        parent_matrix = world_matrix(parent_id_frame) if isinstance(parent_id_frame, str) else identity_matrix()
+        parent_matrix = (
+            world_matrix(parent_id_frame) if isinstance(parent_id_frame, str) else identity_matrix()
+        )
         local_matrix = transform_matrix(item.get("transform"))
         mirror = derivation_matrix({"type": "mirror", "plane": "XZ"})
         mirrored_matrix = multiply_matrix(
@@ -612,17 +614,21 @@ def _build_component_envelope_geometry(
         and _is_bilateral(parent_source)
     ):
         parent_parent_id = _frame_parent(parent_item) if parent_item else None
-        pp_matrix = world_matrix(parent_parent_id) if isinstance(parent_parent_id, str) else identity_matrix()
-        parent_local_matrix = transform_matrix(parent_item.get("transform")) if parent_item else identity_matrix()
+        pp_matrix = (
+            world_matrix(parent_parent_id)
+            if isinstance(parent_parent_id, str)
+            else identity_matrix()
+        )
+        parent_local_matrix = (
+            transform_matrix(parent_item.get("transform")) if parent_item else identity_matrix()
+        )
         cs_local_matrix = transform_matrix(item.get("transform"))
         mirror = derivation_matrix({"type": "mirror", "plane": "XZ"})
         mirrored_matrix = multiply_matrix(
             pp_matrix,
             multiply_matrix(mirror, multiply_matrix(parent_local_matrix, cs_local_matrix)),
         )
-        mirrored_deflection = (
-            -cs_deflection if cs_type in ("aileron", "elevon") else cs_deflection
-        )
+        mirrored_deflection = -cs_deflection if cs_type in ("aileron", "elevon") else cs_deflection
         mirrored_env = _rotate_control_surface_envelope(envelope, mirrored_deflection)
         _append_envelope_lines(lines, mirrored_env, mirrored_matrix)
 
@@ -699,7 +705,7 @@ def _rotate_control_surface_envelope(
     return deflected_env
 
 
-def _append_envelope_lines(
+def _append_envelope_lines(  # noqa: C901
     lines: list[tuple[Point3D, Point3D]],
     envelope: dict[str, Any],
     matrix: Matrix4,
@@ -717,17 +723,21 @@ def _append_envelope_lines(
                 parsed_loop: list[Point3D] = []
                 for pt in corners_raw:
                     if isinstance(pt, dict):
-                        parsed_loop.append((
-                            float(pt.get("x", 0.0)),
-                            float(pt.get("y", 0.0)),
-                            float(pt.get("z", 0.0)),
-                        ))
+                        parsed_loop.append(
+                            (
+                                float(pt.get("x", 0.0)),
+                                float(pt.get("y", 0.0)),
+                                float(pt.get("z", 0.0)),
+                            )
+                        )
                     elif isinstance(pt, (list, tuple)) and len(pt) >= 3:
-                        parsed_loop.append((
-                            float(pt[0]),
-                            float(pt[1]),
-                            float(pt[2]),
-                        ))
+                        parsed_loop.append(
+                            (
+                                float(pt[0]),
+                                float(pt[1]),
+                                float(pt[2]),
+                            )
+                        )
                 if len(parsed_loop) >= 3:
                     section_loops.append(parsed_loop)
             elif "x_bounds_mm" in sec and "z_bounds_mm" in sec:
@@ -813,18 +823,24 @@ def _append_envelope_lines(
                     for k in range(segments):
                         a1 = 2.0 * math.pi * k / segments
                         a2 = 2.0 * math.pi * (k + 1) / segments
-                        local_lines.append((
-                            (ox + hx * math.cos(a1), oy + hy * math.sin(a1), oz),
-                            (ox + hx * math.cos(a2), oy + hy * math.sin(a2), oz),
-                        ))
-                        local_lines.append((
-                            (ox + hx * math.cos(a1), oy, oz + hz * math.sin(a1)),
-                            (ox + hx * math.cos(a2), oy, oz + hz * math.sin(a2)),
-                        ))
-                        local_lines.append((
-                            (ox, oy + hy * math.cos(a1), oz + hz * math.sin(a1)),
-                            (ox, oy + hy * math.cos(a2), oz + hz * math.sin(a2)),
-                        ))
+                        local_lines.append(
+                            (
+                                (ox + hx * math.cos(a1), oy + hy * math.sin(a1), oz),
+                                (ox + hx * math.cos(a2), oy + hy * math.sin(a2), oz),
+                            )
+                        )
+                        local_lines.append(
+                            (
+                                (ox + hx * math.cos(a1), oy, oz + hz * math.sin(a1)),
+                                (ox + hx * math.cos(a2), oy, oz + hz * math.sin(a2)),
+                            )
+                        )
+                        local_lines.append(
+                            (
+                                (ox, oy + hy * math.cos(a1), oz + hz * math.sin(a1)),
+                                (ox, oy + hy * math.cos(a2), oz + hz * math.sin(a2)),
+                            )
+                        )
                 else:
                     p0 = (ox - hx, oy - hy, oz - hz)
                     p1 = (ox + hx, oy - hy, oz - hz)
@@ -840,13 +856,15 @@ def _append_envelope_lines(
                     local_lines.extend([(p0, p4), (p1, p5), (p2, p6), (p3, p7)])
 
     for start, end in local_lines:
-        lines.append((
-            transform_point(matrix, start),
-            transform_point(matrix, end),
-        ))
+        lines.append(
+            (
+                transform_point(matrix, start),
+                transform_point(matrix, end),
+            )
+        )
 
 
-def _append_lifting_surface_tip_envelope_lines(
+def _append_lifting_surface_tip_envelope_lines(  # noqa: C901
     lines: list[tuple[Point3D, Point3D]],
     source: dict[str, Any],
     matrix: Matrix4,
@@ -907,17 +925,21 @@ def _append_lifting_surface_tip_envelope_lines(
                     local_lines.append((loop1[j], loop2[j]))
 
             for start, end in local_lines:
-                lines.append((
-                    transform_point(matrix, start),
-                    transform_point(matrix, end),
-                ))
+                lines.append(
+                    (
+                        transform_point(matrix, start),
+                        transform_point(matrix, end),
+                    )
+                )
 
         elif ":tip-cap" in tip_loft.component_id:
             all_pts = [p for sec in tip_loft.sections for p in sec.points]
             if not all_pts or not tip_loft.sections[0].points:
                 continue
 
-            y_junc = sum(p[1] for p in tip_loft.sections[0].points) / len(tip_loft.sections[0].points)
+            y_junc = sum(p[1] for p in tip_loft.sections[0].points) / len(
+                tip_loft.sections[0].points
+            )
             y_outer = max((p[1] for p in all_pts), key=lambda y: abs(y - y_junc))
             tip_span = abs(y_outer - y_junc)
             if tip_span < 1e-3:
@@ -957,7 +979,9 @@ def _append_lifting_surface_tip_envelope_lines(
                     local_lines.append((loop1[j], loop2[j]))
 
             for start, end in local_lines:
-                lines.append((
-                    transform_point(matrix, start),
-                    transform_point(matrix, end),
-                ))
+                lines.append(
+                    (
+                        transform_point(matrix, start),
+                        transform_point(matrix, end),
+                    )
+                )

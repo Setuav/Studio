@@ -173,9 +173,7 @@ class WeightBalanceSolver(WeightBalanceEngine):
         if mass_g is None or mass_g <= 0.0:
             return None
 
-        cg_value, has_declared_cg = _component_cg_value(
-            component, wb_extension, envelope
-        )
+        cg_value, has_declared_cg = _component_cg_value(component, wb_extension, envelope)
         cg_local_mm = _vector(cg_value)
         cg_body = transform_point_mm(cg_local_mm)
 
@@ -275,8 +273,7 @@ def _inertia_from_envelope(value: object, mass_kg: float) -> tuple[InertiaTensor
         return InertiaTensor(), False
     unit_inertia = value.get("unit_inertia")
     if isinstance(unit_inertia, dict) and any(
-        (_optional_number(unit_inertia.get(axis)) or 0.0) > 0.0
-        for axis in ("ixx", "iyy", "izz")
+        (_optional_number(unit_inertia.get(axis)) or 0.0) > 0.0 for axis in ("ixx", "iyy", "izz")
     ):
         return InertiaTensor(
             ixx=mass_kg * (_optional_number(unit_inertia.get("ixx")) or 0.0),

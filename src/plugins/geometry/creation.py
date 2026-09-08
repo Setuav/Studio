@@ -322,7 +322,18 @@ class GeometryCreationController:
             return
         # (base_id, base_name, span, root_chord, tip_chord, mirrored, roll, airfoil, mass, thickness)
         presets: dict[str, tuple[str, str, float, float, float, bool, float, str, float, float]] = {
-            "main-wing": ("main-wing", "Main Wing", 500.0, 220.0, 110.0, True, 0.0, "2412", 250.0, 26.0),
+            "main-wing": (
+                "main-wing",
+                "Main Wing",
+                500.0,
+                220.0,
+                110.0,
+                True,
+                0.0,
+                "2412",
+                250.0,
+                26.0,
+            ),
             "horizontal-tail": (
                 "horizontal-tail",
                 "Horizontal Tail",
@@ -361,7 +372,18 @@ class GeometryCreationController:
             ),
         }
         values = presets.get(preset, presets["generic"])
-        base_id, base_name, span, root_chord, tip_chord, mirrored, roll, airfoil, mass, thickness = values
+        (
+            base_id,
+            base_name,
+            span,
+            root_chord,
+            tip_chord,
+            mirrored,
+            roll,
+            airfoil,
+            mass,
+            thickness,
+        ) = values
         component_id, name = self._unique_identity(base_id, base_name)
         attach_to = self._first_component_id(_FUSELAGE_TYPE)
         x_position = 0.0 if preset in {"main-wing", "generic"} else 500.0

@@ -98,7 +98,9 @@ class CommandPaletteDialog(QDialog):
         self._filtered_commands: list[CommandItem] = []
 
         self.setWindowFlags(
-            Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint | Qt.WindowType.NoDropShadowWindowHint
+            Qt.WindowType.Popup
+            | Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.NoDropShadowWindowHint
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
         self.setFixedWidth(620)
@@ -224,7 +226,11 @@ class CommandPaletteDialog(QDialog):
         for cmd_id, action in action_manager.command_actions.items():
             if not action.isVisible() or not action.isEnabled():
                 continue
-            cat = "Tools" if any(k in cmd_id for k in ("plugins", "tasks", "constraints")) else "Command"
+            cat = (
+                "Tools"
+                if any(k in cmd_id for k in ("plugins", "tasks", "constraints"))
+                else "Command"
+            )
             for prefix, cat_name in menu_categories.items():
                 if cmd_id.startswith(prefix) or f".{prefix}." in cmd_id:
                     cat = cat_name

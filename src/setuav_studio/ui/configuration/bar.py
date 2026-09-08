@@ -42,9 +42,7 @@ class ConfigurationSelectorWidget(QWidget):
         self.config_combo = QComboBox(self)
         self.config_combo.setObjectName("studio.configuration_combo")
         self.config_combo.setToolTip("Active Configuration")
-        self.config_combo.setSizeAdjustPolicy(
-            QComboBox.SizeAdjustPolicy.AdjustToContents
-        )
+        self.config_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         self.config_combo.activated.connect(self._on_combo_activated)
         layout.addWidget(self.config_combo, 1)
 

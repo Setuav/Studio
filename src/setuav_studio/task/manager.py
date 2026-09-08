@@ -378,7 +378,11 @@ class TaskManager(QObject):
         result: Any,
     ) -> None:
         handle = self._handles.get(task_id)
-        if handle is not None and handle.status not in (TaskStatus.SUCCESS, TaskStatus.CANCELLED, TaskStatus.ERROR):
+        if handle is not None and handle.status not in (
+            TaskStatus.SUCCESS,
+            TaskStatus.CANCELLED,
+            TaskStatus.ERROR,
+        ):
             handle._status = TaskStatus.SUCCESS
             handle._completed_at = time.time()
             handle._result = result
@@ -399,7 +403,11 @@ class TaskManager(QObject):
         exc: Exception,
     ) -> None:
         handle = self._handles.get(task_id)
-        if handle is not None and handle.status not in (TaskStatus.SUCCESS, TaskStatus.CANCELLED, TaskStatus.ERROR):
+        if handle is not None and handle.status not in (
+            TaskStatus.SUCCESS,
+            TaskStatus.CANCELLED,
+            TaskStatus.ERROR,
+        ):
             handle._status = TaskStatus.ERROR
             handle._completed_at = time.time()
             handle._error = exc
@@ -419,7 +427,11 @@ class TaskManager(QObject):
         task_id: str,
     ) -> None:
         handle = self._handles.get(task_id)
-        if handle is not None and handle.status not in (TaskStatus.SUCCESS, TaskStatus.CANCELLED, TaskStatus.ERROR):
+        if handle is not None and handle.status not in (
+            TaskStatus.SUCCESS,
+            TaskStatus.CANCELLED,
+            TaskStatus.ERROR,
+        ):
             handle._status = TaskStatus.CANCELLED
             handle._completed_at = time.time()
             self.task_cancelled.emit(task_id)

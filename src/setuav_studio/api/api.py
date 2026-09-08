@@ -665,7 +665,6 @@ class StudioAPI:
             return factory(component)
         return GenericComponent(component)
 
-
     def register_component_tree_provider(
         self,
         provider_id: str,
@@ -725,7 +724,6 @@ class StudioAPI:
         from setuav_studio.project.validation import register_component_validator
 
         register_component_validator(component_type, validator)
-
 
     def remove_project_listener(
         self,

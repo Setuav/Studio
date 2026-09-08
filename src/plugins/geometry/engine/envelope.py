@@ -55,7 +55,7 @@ def sync_component_envelope(
     return True
 
 
-def sync_project_geometry_envelopes(project: Any) -> int:
+def sync_project_geometry_envelopes(project: Any) -> int:  # noqa: C901
     """Ensure all geometry components in the project document have up-to-date envelopes.
 
     Returns the count of components whose envelope was updated.
@@ -77,9 +77,7 @@ def sync_project_geometry_envelopes(project: Any) -> int:
                     all_components.append(added)
 
     by_id: dict[str, dict[str, Any]] = {
-        str(c.get("id")): c
-        for c in all_components
-        if isinstance(c, dict) and c.get("id")
+        str(c.get("id")): c for c in all_components if isinstance(c, dict) and c.get("id")
     }
 
     updated = 0
@@ -170,11 +168,9 @@ def _polygon_area_and_centroid(
     return area, cx, cz
 
 
-
-
-
-
-def _compute_section_properties(profile: dict[str, Any]) -> tuple[float, float, float, float, float]:
+def _compute_section_properties(
+    profile: dict[str, Any],
+) -> tuple[float, float, float, float, float]:
     """Compute (area, width, height, cy_rel, cz_rel) for a fuselage profile."""
     profile_type = str(profile.get("type") or "").lower()
 
@@ -270,9 +266,9 @@ def _compute_fuselage_section_bbox(
 
     local_corners = (
         (0.0, -top_w * 0.5, h * 0.5),  # top-left
-        (0.0, top_w * 0.5, h * 0.5),   # top-right
+        (0.0, top_w * 0.5, h * 0.5),  # top-right
         (0.0, bot_w * 0.5, -h * 0.5),  # bottom-right
-        (0.0, -bot_w * 0.5, -h * 0.5), # bottom-left
+        (0.0, -bot_w * 0.5, -h * 0.5),  # bottom-left
     )
     from .transforms import section_transform, transform_point
 
@@ -301,8 +297,7 @@ def _compute_fuselage_section_bbox(
         "z_bounds_mm": [round(min(zs), 2), round(max(zs), 2)],
         "area_mm2": round(area, 2),
         "corners_3d": [
-            {"x": round(p[0], 2), "y": round(p[1], 2), "z": round(p[2], 2)}
-            for p in world_corners
+            {"x": round(p[0], 2), "y": round(p[1], 2), "z": round(p[2], 2)} for p in world_corners
         ],
     }
 
@@ -355,7 +350,6 @@ def _compute_airfoil_properties(
     return 0.0822, 0.4205, 0.0, 0.004537, 0.0000684, 0.0
 
 
-
 # =============================================================================
 # Fuselage Slice & Section Integration
 # =============================================================================
@@ -396,13 +390,9 @@ def _compute_fuselage_trapezoidal_slices(
         if not isinstance(raw_sections, list) or len(raw_sections) < 2:
             continue
 
-        valid_sections: list[dict[str, Any]] = [
-            s for s in raw_sections if isinstance(s, dict)
-        ]
+        valid_sections: list[dict[str, Any]] = [s for s in raw_sections if isinstance(s, dict)]
         # Sort along X
-        valid_sections.sort(
-            key=lambda s: _number((s.get("position") or {}).get("x"))
-        )
+        valid_sections.sort(key=lambda s: _number((s.get("position") or {}).get("x")))
 
         # Compute BBox cross-sections for all sections in this segment
         seg_section_bboxes = [
@@ -557,7 +547,7 @@ def _compute_fuselage_trapezoidal_slices(
 # =============================================================================
 
 
-def _compute_lifting_surface_trapezoidal_slices(
+def _compute_lifting_surface_trapezoidal_slices(  # noqa: C901
     geometry: dict[str, Any],
     profiles: list[Any],
 ) -> tuple[
@@ -583,9 +573,7 @@ def _compute_lifting_surface_trapezoidal_slices(
             {"ixx": 0.0, "iyy": 0.0, "izz": 0.0, "ixy": 0.0, "ixz": 0.0, "iyz": 0.0},
         )
 
-    valid_profiles.sort(
-        key=lambda p: abs(_number((p.get("position") or {}).get("y")))
-    )
+    valid_profiles.sort(key=lambda p: abs(_number((p.get("position") or {}).get("y"))))
 
     mirror = bool(geometry.get("mirror", geometry.get("symmetric", False)))
 
@@ -596,9 +584,7 @@ def _compute_lifting_surface_trapezoidal_slices(
     weighted_y = 0.0
     weighted_z = 0.0
 
-    panel_data: list[
-        tuple[float, tuple[float, float, float], tuple[float, float, float]]
-    ] = []
+    panel_data: list[tuple[float, tuple[float, float, float], tuple[float, float, float]]] = []
 
     # Compute section bboxes for all profiles
     shaping = geometry.get("shaping")
@@ -710,7 +696,7 @@ def _compute_lifting_surface_trapezoidal_slices(
             cz_norm1,
             izz_norm1,
             ixx_norm1,
-            ixz_norm1,
+            _ixz_norm1,
         ) = _compute_airfoil_properties(p1.get("airfoil"), te_th, th_scale, cb_scale)
         (
             a_norm2,
@@ -718,7 +704,7 @@ def _compute_lifting_surface_trapezoidal_slices(
             cz_norm2,
             izz_norm2,
             ixx_norm2,
-            ixz_norm2,
+            _ixz_norm2,
         ) = _compute_airfoil_properties(p2.get("airfoil"), te_th, th_scale, cb_scale)
 
         a1 = a_norm1 * (c1**2)
@@ -1118,7 +1104,7 @@ def _fuselage_fallback(segments: list[Any]) -> dict[str, Any] | None:
     }
 
 
-def _compute_control_surface_envelope(
+def _compute_control_surface_envelope(  # noqa: C901
     component: dict[str, Any],
     parent: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
@@ -1138,6 +1124,7 @@ def _compute_control_surface_envelope(
     if parent is not None and parent.get("type") == "org.setuav.core:lifting-surface":
         try:
             from copy import deepcopy
+
             from .lifting_surface_geometry import build_lifting_surface_geometry
 
             parent_copy = deepcopy(parent)
@@ -1236,8 +1223,7 @@ def _compute_control_surface_envelope(
             s2 = sections[i + 1]
             c1 = s1["chord_mm"]
             c2 = s2["chord_mm"]
-            t1 = s1["thickness_mm"]
-            t2 = s2["thickness_mm"]
+
             y1 = s1["span_y_mm"]
             y2 = s2["span_y_mm"]
             span_len = abs(y2 - y1)

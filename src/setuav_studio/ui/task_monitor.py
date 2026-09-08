@@ -129,7 +129,9 @@ class TaskMonitorDialog(QDialog):
 
     def _create_history_table(self) -> QTableWidget:
         table = QTableWidget(0, 5)
-        table.setHorizontalHeaderLabels(["Time", "Task Name", "Status", "Duration", "Details / Error"])
+        table.setHorizontalHeaderLabels(
+            ["Time", "Task Name", "Status", "Duration", "Details / Error"]
+        )
         table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
@@ -168,7 +170,9 @@ class TaskMonitorDialog(QDialog):
             self._active_table.setItem(row, 0, name_item)
 
             # 1: Priority
-            prio_name = handle.priority.name if hasattr(handle.priority, "name") else str(handle.priority)
+            prio_name = (
+                handle.priority.name if hasattr(handle.priority, "name") else str(handle.priority)
+            )
             prio_item = QTableWidgetItem(prio_name)
             prio_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self._active_table.setItem(row, 1, prio_item)
@@ -223,7 +227,9 @@ class TaskMonitorDialog(QDialog):
             # 2: Status with color badge
             st = handle.status
             status_item = QTableWidgetItem(st.upper() if hasattr(st, "upper") else str(st))
-            color_name = "success" if st == "success" else ("warning" if st == "cancelled" else "error")
+            color_name = (
+                "success" if st == "success" else ("warning" if st == "cancelled" else "error")
+            )
             status_item.setForeground(QBrush(QColor(status_color(color_name))))
             status_item.setFont(QFont("Inter", 9, QFont.Weight.Bold))
             status_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)

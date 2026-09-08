@@ -13,7 +13,7 @@ from plugins.geometry.engine.envelope import (
     sync_project_geometry_envelopes,
 )
 from setuav_studio.ui.editor.envelope import EnvelopeEditor
-from tests._common import TEST_PROJECT_PATH, get_qapp
+from tests._common import get_qapp
 
 
 def _sample_wing(mirror: bool = True) -> dict[str, Any]:
@@ -280,9 +280,10 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         cls._app = get_qapp()
 
     def test_envelope_editor_supports_trapezoid_and_volume(self) -> None:
+        from pathlib import Path
+
         from setuav_studio.api import StudioAPI
         from setuav_studio.project import ProjectDocument
-        from pathlib import Path
 
         api = StudioAPI()
         fuse = _sample_fuselage()
@@ -314,10 +315,12 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         self.assertAlmostEqual(editor.volume_value(), expected_cyl_vol, delta=100.0)
 
     def test_envelope_editor_populates_sections_table(self) -> None:
+        from pathlib import Path
+
+        from PySide6.QtCore import Qt
+
         from setuav_studio.api import StudioAPI
         from setuav_studio.project import ProjectDocument
-        from pathlib import Path
-        from PySide6.QtCore import Qt
 
         api = StudioAPI()
         fuse = _sample_fuselage()
@@ -345,11 +348,12 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         self.assertIn("800.0", editor.sections_table.item(2, 0).text())
 
     def test_build_project_geometry_includes_envelopes(self) -> None:
-        from plugins.geometry.viewport.scene import build_project_geometry
+        from pathlib import Path
+
         from plugins.geometry.engine.fuselage_geometry import build_fuselage_geometry
         from plugins.geometry.engine.lifting_surface_geometry import build_lifting_surface_geometry
+        from plugins.geometry.viewport.scene import build_project_geometry
         from setuav_studio.project import ProjectDocument
-        from pathlib import Path
 
         fuse = _sample_fuselage()
         wing = _sample_wing()
@@ -372,11 +376,11 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         self.assertGreater(len(fuse_env.lines), 0)
 
     def test_build_envelope_wire_vertices_and_colors(self) -> None:
+        from plugins.geometry.engine.data import EnvelopeWireGeometry, GeometryData
         from plugins.geometry.viewport.mesh import (
             ENVELOPE_HIGHLIGHT,
             build_envelope_wire_vertices,
         )
-        from plugins.geometry.engine.data import EnvelopeWireGeometry, GeometryData
 
         env = EnvelopeWireGeometry(
             component_id="fuse-1",
@@ -399,10 +403,11 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         self.assertAlmostEqual(verts[4], ENVELOPE_HIGHLIGHT[1], places=2)
 
     def test_workspace_selection_sets_envelope_in_viewer(self) -> None:
+        from pathlib import Path
+
         from plugins.geometry.workspace import ViewerWorkspace
         from setuav_studio.api import StudioAPI
         from setuav_studio.project import ProjectDocument
-        from pathlib import Path
 
         api = StudioAPI()
         fuse = _sample_fuselage()
@@ -413,12 +418,14 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         workspace = ViewerWorkspace(api)
 
         # 1. Select Envelope node in tree
-        api.set_selection({
-            "id": "test-fuse:envelope",
-            "name": "Envelope",
-            "kind": "envelope",
-            "component_id": "test-fuse",
-        })
+        api.set_selection(
+            {
+                "id": "test-fuse:envelope",
+                "name": "Envelope",
+                "kind": "envelope",
+                "component_id": "test-fuse",
+            }
+        )
         self.assertEqual(workspace.viewer._selected_envelope_component_id, "test-fuse")
 
         # 2. Select component itself -> envelope selection is cleared
@@ -528,9 +535,13 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         from plugins.geometry.engine.envelope import _compute_airfoil_properties
 
         # Baseline NACA 0012
-        a_base, _, _, izz_base, ixx_base, _ = _compute_airfoil_properties("naca0012", thickness_scale=1.0)
+        a_base, _, _, izz_base, ixx_base, _ = _compute_airfoil_properties(
+            "naca0012", thickness_scale=1.0
+        )
         # Halved thickness: thickness_scale = 0.5
-        a_half, _, _, izz_half, ixx_half, _ = _compute_airfoil_properties("naca0012", thickness_scale=0.5)
+        a_half, _, _, izz_half, ixx_half, _ = _compute_airfoil_properties(
+            "naca0012", thickness_scale=0.5
+        )
 
         # Area scales linearly with thickness scale
         self.assertAlmostEqual(a_half / a_base, 0.5, delta=0.01)
@@ -540,8 +551,5 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         self.assertAlmostEqual(ixx_half / ixx_base, 0.125, delta=0.02)
 
 
-
 if __name__ == "__main__":
     unittest.main()
-
-

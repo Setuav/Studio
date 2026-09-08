@@ -272,7 +272,13 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
                 z = _number(pos.get("z", 0.0))
                 sh = sec.get("shape", "box")
                 for col, val in enumerate(
-                    (f"{st:.1f} mm", f"{w:.1f} mm", f"{h:.1f} mm", f"{z:.1f} mm", str(sh).capitalize())
+                    (
+                        f"{st:.1f} mm",
+                        f"{w:.1f} mm",
+                        f"{h:.1f} mm",
+                        f"{z:.1f} mm",
+                        str(sh).capitalize(),
+                    )
                 ):
                     item = QTableWidgetItem(val)
                     item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -298,11 +304,13 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
         def change() -> None:
             existing = component.get("envelope")
             new_env = dict(existing) if isinstance(existing, dict) else {}
-            new_env.update({
-                "shape": shape,
-                "size_mm": size,
-                "offset_mm": offset,
-            })
+            new_env.update(
+                {
+                    "shape": shape,
+                    "size_mm": size,
+                    "offset_mm": offset,
+                }
+            )
             component["envelope"] = new_env
 
         self._api.edit_component(

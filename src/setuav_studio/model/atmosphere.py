@@ -212,7 +212,9 @@ class Atmosphere:
     # Interoperability
     # -------------------------------------------------------------------------
 
-    def to_environment(self, wind_vector_mps: tuple[float, float, float] = (0.0, 0.0, 0.0)) -> Environment:
+    def to_environment(
+        self, wind_vector_mps: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    ) -> Environment:
         """Convert atmosphere state to core Environment dataclass instance."""
         from setuav_studio.model.environment import Environment
 
@@ -253,9 +255,7 @@ class Atmosphere:
                 density_kg_m3=float(data["density_kg_m3"]),
                 speed_of_sound_mps=float(data.get("speed_of_sound_mps", A0)),
                 dynamic_viscosity_pa_s=float(data.get("dynamic_viscosity_pa_s", MU0)),
-                kinematic_viscosity_m2_s=float(
-                    data.get("kinematic_viscosity_m2_s", MU0 / RHO0)
-                ),
+                kinematic_viscosity_m2_s=float(data.get("kinematic_viscosity_m2_s", MU0 / RHO0)),
                 gravity_mps2=float(data.get("gravity_mps2", G0)),
             )
         return cls.isa(

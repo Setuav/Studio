@@ -149,15 +149,15 @@ class StructuralSystemEditor(PropertyTableMixin, QWidget):
                 for c in components
                 if c.get("type") == "org.setuav.core:fuselage"
             ]
-            wings = [
-                c
-                for c in components
-                if c.get("type") == "org.setuav.core:lifting-surface"
-            ]
+            wings = [c for c in components if c.get("type") == "org.setuav.core:lifting-surface"]
 
             members = self._assembly.get("members", {})
             fuse_val = members.get("fuselage")
-            fuse_id = fuse_val if isinstance(fuse_val, str) else (fuse_val[0] if isinstance(fuse_val, list) and fuse_val else "")
+            fuse_id = (
+                fuse_val
+                if isinstance(fuse_val, str)
+                else (fuse_val[0] if isinstance(fuse_val, list) and fuse_val else "")
+            )
 
             # Set Fuselage combo
             none_opt = [("", "-- None --")]
@@ -185,7 +185,9 @@ class StructuralSystemEditor(PropertyTableMixin, QWidget):
                 chk = QCheckBox()
                 chk.setChecked(w_id in assigned_wing_ids)
                 chk.stateChanged.connect(
-                    lambda state, wid=w_id: self._on_wing_toggled(wid, state == Qt.CheckState.Checked.value)
+                    lambda state, wid=w_id: self._on_wing_toggled(
+                        wid, state == Qt.CheckState.Checked.value
+                    )
                 )
 
                 cell_widget = QWidget()
@@ -242,11 +244,30 @@ class StructuralSystemEditor(PropertyTableMixin, QWidget):
                     if x_vals:
                         fuse_len = (max(x_vals) - min(x_vals)) / 1000.0
 
-        self._set_property_value(self.metrics_table, "max_span", f"{max_b:.3f} m" if max_b > 0 else "-", editable=False)
-        self._set_property_value(self.metrics_table, "total_area", f"{total_s_ref:.3f} m²" if total_s_ref > 0 else "-", editable=False)
-        self._set_property_value(self.metrics_table, "aspect_ratio", f"{ar:.2f}" if ar > 0 else "-", editable=False)
-        self._set_property_value(self.metrics_table, "fuselage_length", f"{fuse_len:.3f} m" if fuse_len > 0 else "-", editable=False)
-        self._set_property_value(self.metrics_table, "total_mass", f"{total_mass:.3f} kg" if total_mass > 0 else "-", editable=False)
+        self._set_property_value(
+            self.metrics_table, "max_span", f"{max_b:.3f} m" if max_b > 0 else "-", editable=False
+        )
+        self._set_property_value(
+            self.metrics_table,
+            "total_area",
+            f"{total_s_ref:.3f} m²" if total_s_ref > 0 else "-",
+            editable=False,
+        )
+        self._set_property_value(
+            self.metrics_table, "aspect_ratio", f"{ar:.2f}" if ar > 0 else "-", editable=False
+        )
+        self._set_property_value(
+            self.metrics_table,
+            "fuselage_length",
+            f"{fuse_len:.3f} m" if fuse_len > 0 else "-",
+            editable=False,
+        )
+        self._set_property_value(
+            self.metrics_table,
+            "total_mass",
+            f"{total_mass:.3f} kg" if total_mass > 0 else "-",
+            editable=False,
+        )
 
     def _update_general(self, row: int, column: int) -> None:
         if self._loading or column != 1:

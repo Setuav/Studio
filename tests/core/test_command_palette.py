@@ -82,8 +82,12 @@ class TestCommandPalette(unittest.TestCase):
 
     def test_command_palette_keyboard_navigation(self) -> None:
         executed = []
-        cmd1 = CommandItem(id="1", title="Cmd 1", category="Test", callback=lambda: executed.append(1))
-        cmd2 = CommandItem(id="2", title="Cmd 2", category="Test", callback=lambda: executed.append(2))
+        cmd1 = CommandItem(
+            id="1", title="Cmd 1", category="Test", callback=lambda: executed.append(1)
+        )
+        cmd2 = CommandItem(
+            id="2", title="Cmd 2", category="Test", callback=lambda: executed.append(2)
+        )
 
         dlg = CommandPaletteDialog(self.window, self.api)
         dlg._commands = [cmd1, cmd2]
@@ -93,12 +97,16 @@ class TestCommandPalette(unittest.TestCase):
         self.assertEqual(dlg.list_widget.currentRow(), 0)
 
         # Press Down arrow
-        down_event = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Down, Qt.KeyboardModifier.NoModifier)
+        down_event = QKeyEvent(
+            QKeyEvent.Type.KeyPress, Qt.Key.Key_Down, Qt.KeyboardModifier.NoModifier
+        )
         dlg.eventFilter(dlg, down_event)
         self.assertEqual(dlg.list_widget.currentRow(), 1)
 
         # Press Enter key
-        enter_event = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Return, Qt.KeyboardModifier.NoModifier)
+        enter_event = QKeyEvent(
+            QKeyEvent.Type.KeyPress, Qt.Key.Key_Return, Qt.KeyboardModifier.NoModifier
+        )
         dlg.eventFilter(dlg, enter_event)
         self.assertEqual(executed, [2])
 

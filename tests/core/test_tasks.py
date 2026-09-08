@@ -22,7 +22,9 @@ from tests._common import get_qapp
 
 def _wait_for_task(handle: TaskHandleImpl, timeout_s: float = 3.0) -> None:
     start = time.time()
-    while handle.status in (TaskStatus.PENDING, TaskStatus.RUNNING) and (time.time() - start < timeout_s):
+    while handle.status in (TaskStatus.PENDING, TaskStatus.RUNNING) and (
+        time.time() - start < timeout_s
+    ):
         QCoreApplication.processEvents()
         time.sleep(0.005)
     QCoreApplication.processEvents()
