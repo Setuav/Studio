@@ -509,7 +509,39 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         # Corner Z coordinates should shift under rotation
         self.assertNotEqual(sec0_corners[1]["z"], rot0_corners[1]["z"])
 
+    def test_polygon_cross_section_properties(self) -> None:
+        from plugins.geometry.engine.envelope import _polygon_cross_section_properties
+
+        # Rectangle W=4 (X), H=2 (Z), centered at origin
+        rect = [(-2.0, -1.0), (2.0, -1.0), (2.0, 1.0), (-2.0, 1.0)]
+        area, cx, cz, izz_c, ixx_c, ixz_c = _polygon_cross_section_properties(rect)
+        self.assertAlmostEqual(area, 8.0, places=5)
+        self.assertAlmostEqual(cx, 0.0, places=5)
+        self.assertAlmostEqual(cz, 0.0, places=5)
+        # Analytical: Izz_c = W^3 * H / 12 = 4^3 * 2 / 12 = 10.66667
+        self.assertAlmostEqual(izz_c, 64.0 / 6.0, places=4)
+        # Analytical: Ixx_c = W * H^3 / 12 = 4 * 2^3 / 12 = 2.66667
+        self.assertAlmostEqual(ixx_c, 32.0 / 12.0, places=4)
+        self.assertAlmostEqual(ixz_c, 0.0, places=5)
+
+    def test_airfoil_inertia_thickness_scaling(self) -> None:
+        from plugins.geometry.engine.envelope import _compute_airfoil_properties
+
+        # Baseline NACA 0012
+        a_base, _, _, izz_base, ixx_base, _ = _compute_airfoil_properties("naca0012", thickness_scale=1.0)
+        # Halved thickness: thickness_scale = 0.5
+        a_half, _, _, izz_half, ixx_half, _ = _compute_airfoil_properties("naca0012", thickness_scale=0.5)
+
+        # Area scales linearly with thickness scale
+        self.assertAlmostEqual(a_half / a_base, 0.5, delta=0.01)
+        # Chordwise moment of area izz scales with thickness scale (proportional to area)
+        self.assertAlmostEqual(izz_half / izz_base, 0.5, delta=0.01)
+        # Thicknesswise moment of area ixx scales with (thickness_scale)^3 = 0.125
+        self.assertAlmostEqual(ixx_half / ixx_base, 0.125, delta=0.02)
+
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

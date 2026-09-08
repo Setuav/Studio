@@ -113,16 +113,24 @@ def _number(value: Any, default: float = 0.0) -> float:
     return default
 
 
-def _polygon_area_and_centroid(
+def _polygon_cross_section_properties(
     vertices: list[tuple[float, float]] | tuple[tuple[float, float], ...],
-) -> tuple[float, float, float]:
-    """Compute (area, cx, cz) of a 2D closed polygon using the Shoelace formula."""
+) -> tuple[float, float, float, float, float, float]:
+    """Compute (area, cx, cz, izz_c, ixx_c, ixz_c) of a 2D closed polygon using Green's theorem.
+
+    izz_c: centroidal second moment about Z (chordwise, int (x - cx)^2 dA)
+    ixx_c: centroidal second moment about X (thicknesswise, int (z - cz)^2 dA)
+    ixz_c: centroidal product moment of area (int (x - cx)(z - cz) dA)
+    """
     n = len(vertices)
     if n < 3:
-        return 0.0, 0.0, 0.0
+        return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
     area_acc = 0.0
     cx_acc = 0.0
     cz_acc = 0.0
+    izz_acc = 0.0
+    ixx_acc = 0.0
+    ixz_acc = 0.0
     for i in range(n):
         x1, z1 = vertices[i]
         x2, z2 = vertices[(i + 1) % n]
@@ -130,13 +138,40 @@ def _polygon_area_and_centroid(
         area_acc += cross
         cx_acc += (x1 + x2) * cross
         cz_acc += (z1 + z2) * cross
+        izz_acc += cross * (x1 * x1 + x1 * x2 + x2 * x2)
+        ixx_acc += cross * (z1 * z1 + z1 * z2 + z2 * z2)
+        ixz_acc += cross * (2.0 * x1 * z1 + x1 * z2 + x2 * z1 + 2.0 * x2 * z2)
+
     signed_area = area_acc * 0.5
     area = abs(signed_area)
-    if area < 1e-9 or abs(signed_area) < 1e-9:
-        return 0.0, 0.0, 0.0
+    if area < 1e-9:
+        return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+
+    sign = 1.0 if signed_area >= 0.0 else -1.0
     cx = cx_acc / (6.0 * signed_area)
     cz = cz_acc / (6.0 * signed_area)
+
+    izz_0 = (izz_acc / 12.0) * sign
+    ixx_0 = (ixx_acc / 12.0) * sign
+    ixz_0 = (ixz_acc / 24.0) * sign
+
+    izz_c = max(izz_0 - area * (cx**2), 0.0)
+    ixx_c = max(ixx_0 - area * (cz**2), 0.0)
+    ixz_c = ixz_0 - area * cx * cz
+
+    return area, cx, cz, izz_c, ixx_c, ixz_c
+
+
+def _polygon_area_and_centroid(
+    vertices: list[tuple[float, float]] | tuple[tuple[float, float], ...],
+) -> tuple[float, float, float]:
+    """Compute (area, cx, cz) of a 2D closed polygon using the Shoelace formula."""
+    area, cx, cz, _, _, _ = _polygon_cross_section_properties(vertices)
     return area, cx, cz
+
+
+
+
 
 
 def _compute_section_properties(profile: dict[str, Any]) -> tuple[float, float, float, float, float]:
@@ -272,8 +307,13 @@ def _compute_fuselage_section_bbox(
     }
 
 
-def _compute_airfoil_properties(airfoil: Any) -> tuple[float, float, float]:
-    """Compute normalized (area, cx, cz) for an airfoil in [0, 1] coordinates."""
+def _compute_airfoil_properties(
+    airfoil: Any,
+    te_thickness: float = 0.0,
+    thickness_scale: float = 1.0,
+    camber_scale: float = 1.0,
+) -> tuple[float, float, float, float, float, float]:
+    """Compute normalized (area, cx, cz, izz_c, ixx_c, ixz_c) for an airfoil in [0, 1] coordinates."""
     pts: tuple[tuple[float, float], ...] | list[tuple[float, float]] = ()
     if isinstance(airfoil, dict):
         raw_pts = airfoil.get("points")
@@ -295,12 +335,25 @@ def _compute_airfoil_properties(airfoil: Any) -> tuple[float, float, float]:
             pts = ()
 
     if len(pts) >= 3:
-        area, cx, cz = _polygon_area_and_centroid(pts)
+        try:
+            from .airfoil import apply_airfoil_shaping
+
+            pts = apply_airfoil_shaping(
+                tuple(pts),
+                te_thickness=te_thickness,
+                thickness_scale=thickness_scale,
+                camber_scale=camber_scale,
+            )
+        except Exception:
+            pass
+
+        area, cx, cz, izz_c, ixx_c, ixz_c = _polygon_cross_section_properties(pts)
         if area > 1e-6:
-            return area, cx, cz
+            return area, cx, cz, izz_c, ixx_c, ixz_c
 
     # Standard 12% symmetric profile baseline (NACA 0012)
-    return 0.082, 0.40, 0.0
+    return 0.0822, 0.4205, 0.0, 0.004537, 0.0000684, 0.0
+
 
 
 # =============================================================================
@@ -562,7 +615,14 @@ def _compute_lifting_surface_trapezoidal_slices(
         py = _number(pos.get("y"))
         pz = _number(pos.get("z"))
         chord = max(_number(prof.get("chord")), 1.0)
-        a_norm, _, _ = _compute_airfoil_properties(prof.get("airfoil"))
+        (
+            a_norm,
+            _,
+            _,
+            _,
+            _,
+            _,
+        ) = _compute_airfoil_properties(prof.get("airfoil"), te_th, th_scale, cb_scale)
 
         sec_geo = None
         try:
@@ -644,8 +704,22 @@ def _compute_lifting_surface_trapezoidal_slices(
         c1 = max(_number(p1.get("chord")), 1.0)
         c2 = max(_number(p2.get("chord")), 1.0)
 
-        a_norm1, cx_norm1, cz_norm1 = _compute_airfoil_properties(p1.get("airfoil"))
-        a_norm2, cx_norm2, cz_norm2 = _compute_airfoil_properties(p2.get("airfoil"))
+        (
+            a_norm1,
+            cx_norm1,
+            cz_norm1,
+            izz_norm1,
+            ixx_norm1,
+            ixz_norm1,
+        ) = _compute_airfoil_properties(p1.get("airfoil"), te_th, th_scale, cb_scale)
+        (
+            a_norm2,
+            cx_norm2,
+            cz_norm2,
+            izz_norm2,
+            ixx_norm2,
+            ixz_norm2,
+        ) = _compute_airfoil_properties(p2.get("airfoil"), te_th, th_scale, cb_scale)
 
         a1 = a_norm1 * (c1**2)
         a2 = a_norm2 * (c2**2)
@@ -680,10 +754,18 @@ def _compute_lifting_surface_trapezoidal_slices(
         )
         j_span = vol * (span_len**2) * max(factor, 0.0)
 
+        # Radii of gyration squared (normalized by chord^2) from Green's theorem:
+        k_chord1_sq = izz_norm1 / a_norm1 if a_norm1 > 1e-9 else 0.055
+        k_chord2_sq = izz_norm2 / a_norm2 if a_norm2 > 1e-9 else 0.055
+        k_thick1_sq = ixx_norm1 / a_norm1 if a_norm1 > 1e-9 else 0.0008
+        k_thick2_sq = ixx_norm2 / a_norm2 if a_norm2 > 1e-9 else 0.0008
+
         c_avg = (c1 + c2) * 0.5
-        t_avg = c_avg * 0.12
-        j_chord = vol * (c_avg**2) / 16.0
-        j_thick = vol * (t_avg**2) / 12.0
+        k_chord_sq = (k_chord1_sq + k_chord2_sq) * 0.5
+        k_thick_sq = (k_thick1_sq + k_thick2_sq) * 0.5
+
+        j_chord = vol * (c_avg**2) * k_chord_sq
+        j_thick = vol * (c_avg**2) * k_thick_sq
 
         ixx_panel = j_span + j_thick
         iyy_panel = j_chord + j_thick
