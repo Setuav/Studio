@@ -12,7 +12,7 @@ from .airfoil import (
     parse_airfoil_dat,
     sample_airfoil_points,
 )
-from .data import GeometryData, LoftGeometry, Point3D, Section
+from .data import EnvelopeWireGeometry, GeometryData, LoftGeometry, Point3D, Section
 from .envelope import (
     GEOMETRY_COMPONENT_TYPES,
     compute_geometry_envelope,
@@ -72,6 +72,7 @@ __all__ = [
     "SECTION_SAMPLES",
     "SWEEP_LOCATIONS",
     "TWIST_LOCATIONS",
+    "EnvelopeWireGeometry",
     "GeometryData",
     "LoftGeometry",
     "Matrix4",

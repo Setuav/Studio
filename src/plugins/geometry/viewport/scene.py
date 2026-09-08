@@ -3,7 +3,7 @@ from collections.abc import Callable
 from copy import deepcopy
 from typing import Any
 
-from ..engine.data import GeometryData, LoftGeometry, Section
+from ..engine.data import EnvelopeWireGeometry, GeometryData, LoftGeometry, Point3D, Section
 from ..engine.transforms import (
     Matrix4,
     derivation_matrix,
@@ -50,7 +50,17 @@ def build_project_geometry(
             world_matrix,
         )
     lofts.extend(_build_wing_root_stubs(items, providers, world_matrix))
-    return GeometryData(tuple(lofts))
+
+    envelopes: list[EnvelopeWireGeometry] = []
+    for item_id, item in items.items():
+        source = _geometry_source(item, items) or item
+        env_geom = _build_component_envelope_geometry(
+            item_id, item, source, world_matrix, items
+        )
+        if env_geom is not None:
+            envelopes.append(env_geom)
+
+    return GeometryData(tuple(lofts), tuple(envelopes))
 
 
 def _project_items(project: Any) -> dict[str, dict[str, Any]] | None:
@@ -515,3 +525,439 @@ def _project_point_to_fuselage(
 
     p_in = (gx + t * dx, gy + t * dy, gz + t * dz)
     return p_in, True
+
+
+def _build_component_envelope_geometry(
+    item_id: str,
+    item: dict[str, Any],
+    source: dict[str, Any],
+    world_matrix: Callable[[str], Matrix4],
+    items: dict[str, dict[str, Any]],
+) -> EnvelopeWireGeometry | None:
+    envelope = item.get("envelope") or source.get("envelope")
+    component_type = source.get("type")
+
+    parent_id = _frame_parent(item) or item.get("parent") or item.get("attach_to")
+    parent_item = items.get(str(parent_id)) if parent_id else None
+    parent_source = _geometry_source(parent_item, items) if parent_item else None
+
+    if component_type in (
+        "org.setuav.core:lifting-surface",
+        "org.setuav.core:fuselage",
+        "org.setuav.core:control-surface",
+    ):
+        secs = envelope.get("sections") if isinstance(envelope, dict) else None
+        if (
+            not secs
+            or not all(isinstance(s, dict) and "corners_3d" in s for s in secs)
+            or (component_type == "org.setuav.core:control-surface" and "hinge_axis" not in envelope)
+        ):
+            try:
+                from plugins.geometry.engine.envelope import compute_geometry_envelope
+
+                fresh = compute_geometry_envelope(source or item, parent_source)
+                if isinstance(fresh, dict) and fresh:
+                    envelope = fresh
+                    if isinstance(source, dict):
+                        source["envelope"] = fresh
+            except Exception:
+                pass
+    elif not isinstance(envelope, dict):
+        try:
+            from plugins.geometry.engine.envelope import compute_geometry_envelope
+
+            envelope = compute_geometry_envelope(source or item, parent_source)
+        except Exception:
+            envelope = None
+    if not isinstance(envelope, dict) or not envelope:
+        return None
+
+    matrix = world_matrix(item_id)
+    lines: list[tuple[Point3D, Point3D]] = []
+
+    cs_deflection = 0.0
+    cs_type = "aileron"
+    if component_type == "org.setuav.core:control-surface":
+        params = source.get("parameters") if isinstance(source, dict) else {}
+        geom = params.get("geometry") if isinstance(params, dict) else {}
+        if isinstance(geom, dict):
+            cs_deflection = float(geom.get("deflection", 0.0))
+            cs_type = str(geom.get("type", "aileron")).lower()
+
+    env_to_draw = (
+        _rotate_control_surface_envelope(envelope, cs_deflection)
+        if component_type == "org.setuav.core:control-surface"
+        else envelope
+    )
+    _append_envelope_lines(lines, env_to_draw, matrix)
+
+    if component_type == "org.setuav.core:lifting-surface":
+        _append_lifting_surface_tip_envelope_lines(lines, source, matrix)
+
+    if component_type == "org.setuav.core:lifting-surface" and _is_bilateral(source):
+        parent_id_frame = _frame_parent(item)
+        parent_matrix = world_matrix(parent_id_frame) if isinstance(parent_id_frame, str) else identity_matrix()
+        local_matrix = transform_matrix(item.get("transform"))
+        mirror = derivation_matrix({"type": "mirror", "plane": "XZ"})
+        mirrored_matrix = multiply_matrix(
+            parent_matrix,
+            multiply_matrix(mirror, local_matrix),
+        )
+        _append_envelope_lines(lines, envelope, mirrored_matrix)
+        _append_lifting_surface_tip_envelope_lines(lines, source, mirrored_matrix)
+
+    if (
+        component_type == "org.setuav.core:control-surface"
+        and parent_source
+        and _is_bilateral(parent_source)
+    ):
+        parent_parent_id = _frame_parent(parent_item) if parent_item else None
+        pp_matrix = world_matrix(parent_parent_id) if isinstance(parent_parent_id, str) else identity_matrix()
+        parent_local_matrix = transform_matrix(parent_item.get("transform")) if parent_item else identity_matrix()
+        cs_local_matrix = transform_matrix(item.get("transform"))
+        mirror = derivation_matrix({"type": "mirror", "plane": "XZ"})
+        mirrored_matrix = multiply_matrix(
+            pp_matrix,
+            multiply_matrix(mirror, multiply_matrix(parent_local_matrix, cs_local_matrix)),
+        )
+        mirrored_deflection = (
+            -cs_deflection if cs_type in ("aileron", "elevon") else cs_deflection
+        )
+        mirrored_env = _rotate_control_surface_envelope(envelope, mirrored_deflection)
+        _append_envelope_lines(lines, mirrored_env, mirrored_matrix)
+
+    if not lines:
+        return None
+    return EnvelopeWireGeometry(component_id=item_id, lines=tuple(lines))
+
+
+def _rotate_control_surface_envelope(
+    envelope: dict[str, Any],
+    angle_deg: float,
+) -> dict[str, Any]:
+    if abs(angle_deg) <= 1e-4:
+        return envelope
+
+    hinge_axis = envelope.get("hinge_axis")
+    if isinstance(hinge_axis, (list, tuple)) and len(hinge_axis) >= 2:
+        p0 = hinge_axis[0]
+        p1 = hinge_axis[-1]
+        ox = float(p0["x"])
+        oy = float(p0["y"])
+        oz = float(p0["z"])
+        dx = float(p1["x"]) - ox
+        dy = float(p1["y"]) - oy
+        dz = float(p1["z"]) - oz
+    else:
+        secs = envelope.get("sections")
+        if not isinstance(secs, list) or len(secs) < 2:
+            return envelope
+        c0 = secs[0].get("corners_3d") or []
+        cN = secs[-1].get("corners_3d") or []
+        if len(c0) < 4 or len(cN) < 4:
+            return envelope
+        ox = float(c0[0]["x"])
+        oy = float(c0[0]["y"])
+        oz = (float(c0[0]["z"]) + float(c0[3]["z"])) * 0.5
+        end_x = float(cN[0]["x"])
+        end_y = float(cN[0]["y"])
+        end_z = (float(cN[0]["z"]) + float(cN[3]["z"])) * 0.5
+        dx = end_x - ox
+        dy = end_y - oy
+        dz = end_z - oz
+
+    length = math.sqrt(dx**2 + dy**2 + dz**2)
+    if length < 1e-6:
+        return envelope
+    kx, ky, kz = dx / length, dy / length, dz / length
+
+    rad = math.radians(angle_deg)
+    cos_a = math.cos(rad)
+    sin_a = math.sin(rad)
+    one_minus_cos = 1.0 - cos_a
+
+    def rot(pt: dict[str, Any]) -> dict[str, Any]:
+        px = float(pt.get("x", 0.0))
+        py = float(pt.get("y", 0.0))
+        pz = float(pt.get("z", 0.0))
+        vx, vy, vz = px - ox, py - oy, pz - oz
+        dot = kx * vx + ky * vy + kz * vz
+        cx = ky * vz - kz * vy
+        cy = kz * vx - kx * vz
+        cz = kx * vy - ky * vx
+        rx = vx * cos_a + cx * sin_a + kx * dot * one_minus_cos + ox
+        ry = vy * cos_a + cy * sin_a + ky * dot * one_minus_cos + oy
+        rz = vz * cos_a + cz * sin_a + kz * dot * one_minus_cos + oz
+        return {"x": round(rx, 2), "y": round(ry, 2), "z": round(rz, 2)}
+
+    deflected_env = deepcopy(envelope)
+    sections = deflected_env.get("sections")
+    if isinstance(sections, list):
+        for sec in sections:
+            if isinstance(sec, dict) and "corners_3d" in sec:
+                sec["corners_3d"] = [rot(c) for c in sec["corners_3d"] if isinstance(c, dict)]
+    return deflected_env
+
+
+def _append_envelope_lines(
+    lines: list[tuple[Point3D, Point3D]],
+    envelope: dict[str, Any],
+    matrix: Matrix4,
+) -> None:
+    sections = envelope.get("sections")
+    local_lines: list[tuple[Point3D, Point3D]] = []
+
+    if isinstance(sections, list) and sections:
+        section_loops: list[list[Point3D]] = []
+        for sec in sections:
+            if not isinstance(sec, dict):
+                continue
+            corners_raw = sec.get("corners_3d")
+            if isinstance(corners_raw, (list, tuple)) and len(corners_raw) >= 3:
+                parsed_loop: list[Point3D] = []
+                for pt in corners_raw:
+                    if isinstance(pt, dict):
+                        parsed_loop.append((
+                            float(pt.get("x", 0.0)),
+                            float(pt.get("y", 0.0)),
+                            float(pt.get("z", 0.0)),
+                        ))
+                    elif isinstance(pt, (list, tuple)) and len(pt) >= 3:
+                        parsed_loop.append((
+                            float(pt[0]),
+                            float(pt[1]),
+                            float(pt[2]),
+                        ))
+                if len(parsed_loop) >= 3:
+                    section_loops.append(parsed_loop)
+            elif "x_bounds_mm" in sec and "z_bounds_mm" in sec:
+                xb = sec["x_bounds_mm"]
+                zb = sec["z_bounds_mm"]
+                y = float(sec.get("span_y_mm", 0.0))
+                if (
+                    isinstance(xb, (list, tuple))
+                    and len(xb) == 2
+                    and isinstance(zb, (list, tuple))
+                    and len(zb) == 2
+                ):
+                    loop = [
+                        (float(xb[0]), y, float(zb[0])),
+                        (float(xb[1]), y, float(zb[0])),
+                        (float(xb[1]), y, float(zb[1])),
+                        (float(xb[0]), y, float(zb[1])),
+                    ]
+                    section_loops.append(loop)
+            elif "station_x_mm" in sec and "bounds" in sec:
+                sx = float(sec.get("station_x_mm", 0.0))
+                b = sec.get("bounds")
+                if isinstance(b, dict):
+                    ymin = float(b.get("ymin", 0.0))
+                    ymax = float(b.get("ymax", 0.0))
+                    zmin = float(b.get("zmin", 0.0))
+                    zmax = float(b.get("zmax", 0.0))
+                    loop = [
+                        (sx, ymin, zmin),
+                        (sx, ymax, zmin),
+                        (sx, ymax, zmax),
+                        (sx, ymin, zmax),
+                    ]
+                    section_loops.append(loop)
+
+        # Section loops
+        for loop in section_loops:
+            n = len(loop)
+            for i in range(n):
+                local_lines.append((loop[i], loop[(i + 1) % n]))
+
+        # Longitudinal connecting rails
+        for i in range(len(section_loops) - 1):
+            loop1 = section_loops[i]
+            loop2 = section_loops[i + 1]
+            m = min(len(loop1), len(loop2))
+            for j in range(m):
+                local_lines.append((loop1[j], loop2[j]))
+
+    if not local_lines:
+        size = envelope.get("size_mm")
+        offset = envelope.get("offset_mm")
+        if isinstance(size, dict):
+            sx = float(size.get("x", 0.0))
+            sy = float(size.get("y", 0.0))
+            sz = float(size.get("z", 0.0))
+            ox = float(offset.get("x", 0.0)) if isinstance(offset, dict) else 0.0
+            oy = float(offset.get("y", 0.0)) if isinstance(offset, dict) else 0.0
+            oz = float(offset.get("z", 0.0)) if isinstance(offset, dict) else 0.0
+
+            shape = str(envelope.get("shape") or "box").lower()
+            if sx > 0.0 and sy > 0.0 and sz > 0.0:
+                hx, hy, hz = sx * 0.5, sy * 0.5, sz * 0.5
+                if shape == "cylinder":
+                    segments = 24
+                    for x_pos in (ox - hx, ox + hx):
+                        pts = [
+                            (
+                                x_pos,
+                                oy + hy * math.cos(2.0 * math.pi * k / segments),
+                                oz + hz * math.sin(2.0 * math.pi * k / segments),
+                            )
+                            for k in range(segments)
+                        ]
+                        for k in range(segments):
+                            local_lines.append((pts[k], pts[(k + 1) % segments]))
+                    for angle in (0.0, math.pi * 0.5, math.pi, math.pi * 1.5):
+                        p_start = (ox - hx, oy + hy * math.cos(angle), oz + hz * math.sin(angle))
+                        p_end = (ox + hx, oy + hy * math.cos(angle), oz + hz * math.sin(angle))
+                        local_lines.append((p_start, p_end))
+                elif shape == "sphere":
+                    segments = 24
+                    for k in range(segments):
+                        a1 = 2.0 * math.pi * k / segments
+                        a2 = 2.0 * math.pi * (k + 1) / segments
+                        local_lines.append((
+                            (ox + hx * math.cos(a1), oy + hy * math.sin(a1), oz),
+                            (ox + hx * math.cos(a2), oy + hy * math.sin(a2), oz),
+                        ))
+                        local_lines.append((
+                            (ox + hx * math.cos(a1), oy, oz + hz * math.sin(a1)),
+                            (ox + hx * math.cos(a2), oy, oz + hz * math.sin(a2)),
+                        ))
+                        local_lines.append((
+                            (ox, oy + hy * math.cos(a1), oz + hz * math.sin(a1)),
+                            (ox, oy + hy * math.cos(a2), oz + hz * math.sin(a2)),
+                        ))
+                else:
+                    p0 = (ox - hx, oy - hy, oz - hz)
+                    p1 = (ox + hx, oy - hy, oz - hz)
+                    p2 = (ox + hx, oy + hy, oz - hz)
+                    p3 = (ox - hx, oy + hy, oz - hz)
+                    p4 = (ox - hx, oy - hy, oz + hz)
+                    p5 = (ox + hx, oy - hy, oz + hz)
+                    p6 = (ox + hx, oy + hy, oz + hz)
+                    p7 = (ox - hx, oy + hy, oz + hz)
+
+                    local_lines.extend([(p0, p1), (p1, p2), (p2, p3), (p3, p0)])
+                    local_lines.extend([(p4, p5), (p5, p6), (p6, p7), (p7, p4)])
+                    local_lines.extend([(p0, p4), (p1, p5), (p2, p6), (p3, p7)])
+
+    for start, end in local_lines:
+        lines.append((
+            transform_point(matrix, start),
+            transform_point(matrix, end),
+        ))
+
+
+def _append_lifting_surface_tip_envelope_lines(
+    lines: list[tuple[Point3D, Point3D]],
+    source: dict[str, Any],
+    matrix: Matrix4,
+) -> None:
+    try:
+        from plugins.geometry.engine.lifting_surface_geometry import build_lifting_surface_geometry
+
+        lofts = build_lifting_surface_geometry(source)
+    except Exception:
+        return
+
+    comp_id = str(source.get("id") or "")
+    tip_lofts = [
+        loft
+        for loft in lofts
+        if loft.component_id != comp_id
+        and (":winglet" in loft.component_id or ":tip-cap" in loft.component_id)
+    ]
+
+    for tip_loft in tip_lofts:
+        if not tip_loft.sections:
+            continue
+
+        if ":winglet" in tip_loft.component_id:
+            n_sec = len(tip_loft.sections)
+            if n_sec <= 6:
+                sampled_indices = list(range(n_sec))
+            else:
+                step = max(1, (n_sec - 1) // 5)
+                sampled_indices = list(range(0, n_sec - 1, step))
+                if (n_sec - 1) not in sampled_indices:
+                    sampled_indices.append(n_sec - 1)
+
+            quad_loops: list[list[Point3D]] = []
+            for idx in sampled_indices:
+                pts = tip_loft.sections[idx].points
+                if not pts:
+                    continue
+                le = min(pts, key=lambda p: p[0])
+                te = max(pts, key=lambda p: p[0])
+                top_z = max(p[2] for p in pts)
+                bot_z = min(p[2] for p in pts)
+
+                p0 = (le[0], le[1], bot_z)
+                p1 = (te[0], te[1], bot_z)
+                p2 = (te[0], te[1], top_z)
+                p3 = (le[0], le[1], top_z)
+                quad_loops.append([p0, p1, p2, p3])
+
+            local_lines: list[tuple[Point3D, Point3D]] = []
+            for loop in quad_loops:
+                for k in range(4):
+                    local_lines.append((loop[k], loop[(k + 1) % 4]))
+            for k in range(len(quad_loops) - 1):
+                loop1 = quad_loops[k]
+                loop2 = quad_loops[k + 1]
+                for j in range(4):
+                    local_lines.append((loop1[j], loop2[j]))
+
+            for start, end in local_lines:
+                lines.append((
+                    transform_point(matrix, start),
+                    transform_point(matrix, end),
+                ))
+
+        elif ":tip-cap" in tip_loft.component_id:
+            all_pts = [p for sec in tip_loft.sections for p in sec.points]
+            if not all_pts or not tip_loft.sections[0].points:
+                continue
+
+            y_junc = sum(p[1] for p in tip_loft.sections[0].points) / len(tip_loft.sections[0].points)
+            y_outer = max((p[1] for p in all_pts), key=lambda y: abs(y - y_junc))
+            tip_span = abs(y_outer - y_junc)
+            if tip_span < 1e-3:
+                continue
+
+            span_dir = 1.0 if (y_outer - y_junc) >= 0 else -1.0
+            n_stations = 3
+            fractions = [i / (n_stations - 1) for i in range(n_stations)]
+
+            quad_loops: list[list[Point3D]] = []
+            for f in fractions:
+                y_s = y_junc + span_dir * (f * tip_span)
+                band_tol = max(tip_span * 0.15, 1.0)
+                band = [p for p in all_pts if abs(p[1] - y_s) <= band_tol]
+                if not band:
+                    band = [min(all_pts, key=lambda p: abs(p[1] - y_s))]
+
+                min_x = min(p[0] for p in band)
+                max_x = max(p[0] for p in band)
+                min_z = min(p[2] for p in band)
+                max_z = max(p[2] for p in band)
+
+                p0 = (min_x, y_s, min_z)
+                p1 = (max_x, y_s, min_z)
+                p2 = (max_x, y_s, max_z)
+                p3 = (min_x, y_s, max_z)
+                quad_loops.append([p0, p1, p2, p3])
+
+            local_lines: list[tuple[Point3D, Point3D]] = []
+            for loop in quad_loops:
+                for k in range(4):
+                    local_lines.append((loop[k], loop[(k + 1) % 4]))
+            for k in range(len(quad_loops) - 1):
+                loop1 = quad_loops[k]
+                loop2 = quad_loops[k + 1]
+                for j in range(4):
+                    local_lines.append((loop1[j], loop2[j]))
+
+            for start, end in local_lines:
+                lines.append((
+                    transform_point(matrix, start),
+                    transform_point(matrix, end),
+                ))

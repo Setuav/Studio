@@ -25,6 +25,15 @@ class LoftGeometry:
     parameterization: Literal["uniform", "chord_length", "centripetal"] = "centripetal"
     station_spacing: float = 10.0
     closed_ends: bool = True
+    hinge_points: tuple[Point3D, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class EnvelopeWireGeometry:
+    """Wireframe line segments for a component envelope in world coordinates."""
+
+    component_id: str
+    lines: tuple[tuple[Point3D, Point3D], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,6 +41,7 @@ class GeometryData:
     """Renderer-neutral geometry passed to the OpenGL viewer."""
 
     lofts: tuple[LoftGeometry, ...] = ()
+    envelopes: tuple[EnvelopeWireGeometry, ...] = ()
 
     def points(self) -> Iterator[Point3D]:
         for loft in self.lofts:

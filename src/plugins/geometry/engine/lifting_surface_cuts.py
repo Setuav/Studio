@@ -364,6 +364,7 @@ def build_control_segment(
             interpolation=interpolation,
             station_spacing=15.0,
             closed_ends=True,
+            hinge_points=tuple(hinge_points),
         ),
     )
 

@@ -689,3 +689,23 @@ def _cross(left: Point3D, right: Point3D) -> Point3D:
 
 def _subtract(left: Point3D, right: Point3D) -> Point3D:
     return (left[0] - right[0], left[1] - right[1], left[2] - right[2])
+
+
+ENVELOPE_HIGHLIGHT: Point3D = (0.15, 1.0, 0.25)
+
+
+def build_envelope_wire_vertices(
+    data: GeometryData,
+    selected_envelope_component_id: str | None,
+    color: Point3D = ENVELOPE_HIGHLIGHT,
+) -> list[float]:
+    if not selected_envelope_component_id:
+        return []
+    target_clean = selected_envelope_component_id.lower().replace(":envelope", "")
+    vertices: list[float] = []
+    for env in getattr(data, "envelopes", ()):
+        env_clean = env.component_id.lower().replace(":envelope", "")
+        if env_clean == target_clean or env_clean.startswith(f"{target_clean}:"):
+            for start, end in env.lines:
+                _add_line(vertices, start, end, color)
+    return vertices

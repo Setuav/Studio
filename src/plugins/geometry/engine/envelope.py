@@ -548,25 +548,82 @@ def _compute_lifting_surface_trapezoidal_slices(
     ] = []
 
     # Compute section bboxes for all profiles
+    shaping = geometry.get("shaping")
+    shaping = shaping if isinstance(shaping, dict) else {}
+    twist_loc = _number(geometry.get("twist_location", 0.25))
+    te_th = float(shaping.get("te_thickness", 0.0))
+    th_scale = float(shaping.get("thickness_scale", 1.0))
+    cb_scale = float(shaping.get("camber_scale", 1.0))
+    sec_align = str(geometry.get("section_align", "xz")).lower()
+
     for i, prof in enumerate(valid_profiles):
         pos = prof.get("position") if isinstance(prof.get("position"), dict) else {}
         px = _number(pos.get("x"))
         py = _number(pos.get("y"))
         pz = _number(pos.get("z"))
         chord = max(_number(prof.get("chord")), 1.0)
-        thick = round(chord * 0.12, 2)
         a_norm, _, _ = _compute_airfoil_properties(prof.get("airfoil"))
+
+        sec_geo = None
+        try:
+            from .lifting_surface_geometry import _build_profile_section
+
+            sec_geo = _build_profile_section(
+                prof,
+                twist_location=twist_loc,
+                te_thickness=te_th,
+                thickness_scale=th_scale,
+                camber_scale=cb_scale,
+                section_align=sec_align,
+            )
+        except Exception:
+            sec_geo = None
+
+        if sec_geo is not None and sec_geo.points:
+            pts = sec_geo.points
+            le = min(pts, key=lambda p: p[0])
+            te = max(pts, key=lambda p: p[0])
+            bot_z = min(p[2] for p in pts)
+            top_z = max(p[2] for p in pts)
+            min_x = min(p[0] for p in pts)
+            max_x = max(p[0] for p in pts)
+            min_y = min(p[1] for p in pts)
+            max_y = max(p[1] for p in pts)
+            y_center = (min_y + max_y) * 0.5
+
+            thick = round(top_z - bot_z, 2)
+            x_bounds = [round(min_x, 2), round(max_x, 2)]
+            z_bounds = [round(bot_z, 2), round(top_z, 2)]
+            corners = [
+                {"x": round(le[0], 2), "y": round(le[1], 2), "z": round(bot_z, 2)},
+                {"x": round(te[0], 2), "y": round(te[1], 2), "z": round(bot_z, 2)},
+                {"x": round(te[0], 2), "y": round(te[1], 2), "z": round(top_z, 2)},
+                {"x": round(le[0], 2), "y": round(le[1], 2), "z": round(top_z, 2)},
+            ]
+        else:
+            thick = round(chord * 0.12, 2)
+            x_bounds = [round(px, 2), round(px + chord, 2)]
+            z_bounds = [round(pz - thick * 0.5, 2), round(pz + thick * 0.5, 2)]
+            corners = [
+                {"x": x_bounds[0], "y": round(py, 2), "z": z_bounds[0]},
+                {"x": x_bounds[1], "y": round(py, 2), "z": z_bounds[0]},
+                {"x": x_bounds[1], "y": round(py, 2), "z": z_bounds[1]},
+                {"x": x_bounds[0], "y": round(py, 2), "z": z_bounds[1]},
+            ]
+            y_center = py
+
         sections.append(
             {
                 "index": i,
-                "span_y_mm": round(py, 2),
+                "span_y_mm": round(y_center, 2),
                 "position": {"x": round(px, 2), "y": round(py, 2), "z": round(pz, 2)},
                 "chord_mm": round(chord, 2),
                 "thickness_mm": thick,
-                "x_bounds_mm": [round(px, 2), round(px + chord, 2)],
-                "z_bounds_mm": [round(pz - thick * 0.5, 2), round(pz + thick * 0.5, 2)],
+                "x_bounds_mm": x_bounds,
+                "z_bounds_mm": z_bounds,
                 "area_mm2": round(a_norm * (chord**2), 2),
                 "shape": "airfoil",
+                "corners_3d": corners,
             }
         )
 
@@ -992,6 +1049,192 @@ def _compute_control_surface_envelope(
     span_end = geometry.get("span_end")
     chord = geometry.get("chord")
     chord_fraction = _number(geometry.get("chord_fraction", 0.25))
+
+    ctrl_tag = str(geometry.get("tag") or component.get("id") or component.get("name") or "CS")
+    control_loft = None
+
+    if parent is not None and parent.get("type") == "org.setuav.core:lifting-surface":
+        try:
+            from copy import deepcopy
+            from .lifting_surface_geometry import build_lifting_surface_geometry
+
+            parent_copy = deepcopy(parent)
+            p_params = parent_copy.setdefault("parameters", {})
+            p_geom = p_params.setdefault("geometry", {})
+            p_controls = [
+                c
+                for c in (p_geom.get("control_surfaces") or [])
+                if isinstance(c, dict) and str(c.get("tag") or "").lower() != ctrl_tag.lower()
+            ]
+            ctrl_geom = deepcopy(geometry)
+            ctrl_geom["tag"] = ctrl_tag
+            ctrl_geom["deflection"] = 0.0
+            ctrl_geom["deflection_expression"] = None
+            p_controls.append(ctrl_geom)
+            p_geom["control_surfaces"] = p_controls
+
+            lofts = build_lifting_surface_geometry(parent_copy)
+            control_loft = next(
+                (
+                    loft
+                    for loft in lofts
+                    if loft.component_id.lower().endswith(f":{ctrl_tag.lower()}")
+                ),
+                None,
+            )
+        except Exception:
+            control_loft = None
+
+    if control_loft is not None and len(control_loft.sections) >= 2:
+        sections: list[dict[str, Any]] = []
+        all_pts = [p for sec in control_loft.sections for p in sec.points]
+        xs = [p[0] for p in all_pts]
+        ys = [p[1] for p in all_pts]
+        zs = [p[2] for p in all_pts]
+
+        size_x = round(max(max(xs) - min(xs), 1.0), 1)
+        size_y = round(max(max(ys) - min(ys), 1.0), 1)
+        size_z = round(max(max(zs) - min(zs), 1.0), 1)
+
+        offset_x = round((max(xs) + min(xs)) * 0.5, 1)
+        offset_y = round((max(ys) + min(ys)) * 0.5, 1)
+        offset_z = round((max(zs) + min(zs)) * 0.5, 1)
+
+        total_vol = 0.0
+        weighted_x = 0.0
+        weighted_y = 0.0
+        weighted_z = 0.0
+        slices: list[dict[str, Any]] = []
+
+        for idx, sec in enumerate(control_loft.sections):
+            pts = sec.points
+            if not pts:
+                continue
+            le = min(pts, key=lambda p: p[0])
+            te = max(pts, key=lambda p: p[0])
+            bot_z = min(p[2] for p in pts)
+            top_z = max(p[2] for p in pts)
+            min_x = min(p[0] for p in pts)
+            max_x = max(p[0] for p in pts)
+            min_y = min(p[1] for p in pts)
+            max_y = max(p[1] for p in pts)
+            y_center = (min_y + max_y) * 0.5
+
+            thick = round(top_z - bot_z, 2)
+            c_sec = round(max_x - min_x, 2)
+
+            corners = [
+                {"x": round(le[0], 2), "y": round(le[1], 2), "z": round(bot_z, 2)},
+                {"x": round(te[0], 2), "y": round(te[1], 2), "z": round(bot_z, 2)},
+                {"x": round(te[0], 2), "y": round(te[1], 2), "z": round(top_z, 2)},
+                {"x": round(le[0], 2), "y": round(le[1], 2), "z": round(top_z, 2)},
+            ]
+
+            sections.append(
+                {
+                    "index": idx,
+                    "span_y_mm": round(y_center, 2),
+                    "position": {
+                        "x": round(min_x, 2),
+                        "y": round(y_center, 2),
+                        "z": round((bot_z + top_z) * 0.5, 2),
+                    },
+                    "chord_mm": c_sec,
+                    "thickness_mm": thick,
+                    "x_bounds_mm": [round(min_x, 2), round(max_x, 2)],
+                    "z_bounds_mm": [round(bot_z, 2), round(top_z, 2)],
+                    "area_mm2": round(0.5 * c_sec * thick, 2),
+                    "shape": "wedge",
+                    "corners_3d": corners,
+                }
+            )
+
+        for i in range(len(sections) - 1):
+            s1 = sections[i]
+            s2 = sections[i + 1]
+            c1 = s1["chord_mm"]
+            c2 = s2["chord_mm"]
+            t1 = s1["thickness_mm"]
+            t2 = s2["thickness_mm"]
+            y1 = s1["span_y_mm"]
+            y2 = s2["span_y_mm"]
+            span_len = abs(y2 - y1)
+            a1 = s1["area_mm2"]
+            a2 = s2["area_mm2"]
+            geom_mean = math.sqrt(max(a1 * a2, 0.0))
+            vol = (span_len / 3.0) * (a1 + a2 + geom_mean)
+            total_vol += vol
+
+            cg_slice = (
+                (s1["position"]["x"] + s2["position"]["x"]) * 0.5 + (c1 + c2) * 0.2,
+                (y1 + y2) * 0.5,
+                (s1["position"]["z"] + s2["position"]["z"]) * 0.5,
+            )
+            weighted_x += vol * cg_slice[0]
+            weighted_y += vol * cg_slice[1]
+            weighted_z += vol * cg_slice[2]
+
+            slices.append(
+                {
+                    "index": i,
+                    "start_section_index": i,
+                    "end_section_index": i + 1,
+                    "span_start_mm": round(y1, 2),
+                    "span_end_mm": round(y2, 2),
+                    "length_mm": round(span_len, 2),
+                    "chord_start_mm": round(c1, 2),
+                    "chord_end_mm": round(c2, 2),
+                    "volume_mm3": round(vol, 2),
+                    "centroid_mm": {
+                        "x": round(cg_slice[0], 2),
+                        "y": round(cg_slice[1], 2),
+                        "z": round(cg_slice[2], 2),
+                    },
+                }
+            )
+
+        if total_vol > 0.0:
+            offset_x = round(weighted_x / total_vol, 1)
+            offset_y = round(weighted_y / total_vol, 1)
+            offset_z = round(weighted_z / total_vol, 1)
+
+        scale = max(total_vol, 1.0) * 1e6
+        j_span = total_vol * (size_y**2) / 12.0
+        j_chord = total_vol * (size_x**2) / 18.0
+        j_thick = total_vol * (size_z**2) / 18.0
+
+        unit_inertia = {
+            "ixx": round((j_span + j_thick) / scale, 8),
+            "iyy": round((j_chord + j_thick) / scale, 8),
+            "izz": round((j_span + j_chord) / scale, 8),
+            "ixy": 0.0,
+            "ixz": 0.0,
+            "iyz": 0.0,
+        }
+
+        env_dict = {
+            "shape": "box",
+            "size_mm": {"x": size_x, "y": size_y, "z": size_z},
+            "offset_mm": {"x": offset_x, "y": offset_y, "z": offset_z},
+            "volume_mm3": round(total_vol, 1),
+            "unit_inertia": unit_inertia,
+            "sections": sections,
+            "slices": slices,
+        }
+        if control_loft.hinge_points and len(control_loft.hinge_points) >= 2:
+            env_dict["hinge_axis"] = [
+                {
+                    "x": round(control_loft.hinge_points[0][0], 2),
+                    "y": round(control_loft.hinge_points[0][1], 2),
+                    "z": round(control_loft.hinge_points[0][2], 2),
+                },
+                {
+                    "x": round(control_loft.hinge_points[-1][0], 2),
+                    "y": round(control_loft.hinge_points[-1][1], 2),
+                    "z": round(control_loft.hinge_points[-1][2], 2),
+                },
+            ]
+        return env_dict
 
     parent_root_chord = 200.0
     parent_semi_span = 500.0

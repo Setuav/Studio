@@ -31,6 +31,7 @@ from .mesh import (
     WIRE_FEATURE,
     WIRE_FULL,
     build_component_wire_vertices,
+    build_envelope_wire_vertices,
     build_loft_solid_vertices,
     build_loft_wire_vertices,
     build_section_ring_vertices,
@@ -154,12 +155,15 @@ class OpenGLViewer(QOpenGLWidget):
         self._highlight_vbo = QOpenGLBuffer(QOpenGLBuffer.Type.VertexBuffer)
         self._section_ring_vao = QOpenGLVertexArrayObject()
         self._section_ring_vbo = QOpenGLBuffer(QOpenGLBuffer.Type.VertexBuffer)
+        self._envelope_vao = QOpenGLVertexArrayObject()
+        self._envelope_vbo = QOpenGLBuffer(QOpenGLBuffer.Type.VertexBuffer)
         self._wire_count = 0
         self._solid_count = 0
         self._grid_count = 0
         self._axis_count = 0
         self._highlight_count = 0
         self._section_ring_count = 0
+        self._envelope_count = 0
         self._show_solid = True
         self._show_wireframe = True
         self._wire_mode = WIRE_FEATURE
@@ -175,6 +179,7 @@ class OpenGLViewer(QOpenGLWidget):
         self._selected_component_id: str | None = None
         self._hovered_component_id: str | None = None
         self._section_selection: tuple[str, int, int] | None = None
+        self._selected_envelope_component_id: str | None = None
 
         self._azimuth = 30.0
         self._elevation = 20.0
@@ -208,6 +213,7 @@ class OpenGLViewer(QOpenGLWidget):
                 (self._axis_vao, self._axis_vbo),
                 (self._highlight_vao, self._highlight_vbo),
                 (self._section_ring_vao, self._section_ring_vbo),
+                (self._envelope_vao, self._envelope_vbo),
             ):
                 self._setup_buffer(vao, vbo, self._wire_program, 6, ((0, 0, 3), (1, 3, 3)))
             self._setup_buffer(
@@ -287,6 +293,7 @@ class OpenGLViewer(QOpenGLWidget):
             (self._show_wireframe and self._wire_count > 0)
             or self._highlight_count > 0
             or self._section_ring_count > 0
+            or self._envelope_count > 0
         )
         self._draw_solid_mesh(mvp, lines_overlay)
         if self._wire_program is None:
@@ -342,6 +349,10 @@ class OpenGLViewer(QOpenGLWidget):
             self._section_ring_vao.bind()
             self._functions.glDrawArrays(_GL_LINES, 0, self._section_ring_count)
             self._section_ring_vao.release()
+        if self._envelope_count > 0:
+            self._envelope_vao.bind()
+            self._functions.glDrawArrays(_GL_LINES, 0, self._envelope_count)
+            self._envelope_vao.release()
         if self._show_wireframe:
             self._functions.glEnable(_GL_BLEND)
             self._functions.glBlendFunc(_GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA)
@@ -393,6 +404,12 @@ class OpenGLViewer(QOpenGLWidget):
         if self._selected_component_id == component_id:
             return
         self._selected_component_id = component_id
+        self._update_gpu_meshes()
+
+    def set_selected_envelope(self, component_id: str | None) -> None:
+        if self._selected_envelope_component_id == component_id:
+            return
+        self._selected_envelope_component_id = component_id
         self._update_gpu_meshes()
 
     def set_selected_section(
@@ -698,11 +715,21 @@ class OpenGLViewer(QOpenGLWidget):
                 rgb(chart_color("orange")),
                 wire_mode=self._wire_mode,
             )
+        from setuav_studio.ui.theme import is_light_theme
+
+        is_light = is_light_theme()
+        envelope_color = (0.05, 0.85, 0.15) if is_light else (0.15, 1.0, 0.25)
+        envelope_values = build_envelope_wire_vertices(
+            self._geometry_data,
+            self._selected_envelope_component_id,
+            envelope_color,
+        )
         self._grid_count = self._allocate(self._grid_vbo, grid_values, 6)
         self._wire_count = self._allocate(self._wire_vbo, wire_values, 6)
         self._solid_count = self._allocate(self._solid_vbo, solid_values, 9)
         self._highlight_count = self._allocate(self._highlight_vbo, highlight_values, 6)
         self._section_ring_count = self._allocate(self._section_ring_vbo, ring_values, 6)
+        self._envelope_count = self._allocate(self._envelope_vbo, envelope_values, 6)
 
     @staticmethod
     def _allocate(buffer: QOpenGLBuffer, values: list[float], stride: int) -> int:
@@ -882,6 +909,7 @@ class OpenGLViewer(QOpenGLWidget):
                 (self._show_wireframe and self._wire_count > 0)
                 or self._highlight_count > 0
                 or self._section_ring_count > 0
+                or self._envelope_count > 0
             )
             self._draw_solid_mesh(mvp, lines_overlay)
             if self._wire_program is not None:
@@ -911,6 +939,7 @@ class OpenGLViewer(QOpenGLWidget):
                     self._axis_vbo,
                     self._highlight_vbo,
                     self._section_ring_vbo,
+                    self._envelope_vbo,
                 ):
                     if buffer.isCreated():
                         buffer.destroy()
@@ -921,6 +950,7 @@ class OpenGLViewer(QOpenGLWidget):
                     self._axis_vao,
                     self._highlight_vao,
                     self._section_ring_vao,
+                    self._envelope_vao,
                 ):
                     if vao.isCreated():
                         vao.destroy()
@@ -939,4 +969,5 @@ class OpenGLViewer(QOpenGLWidget):
             self._axis_count = 0
             self._highlight_count = 0
             self._section_ring_count = 0
+            self._envelope_count = 0
             self._mesh_dirty = True

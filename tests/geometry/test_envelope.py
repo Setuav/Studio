@@ -137,6 +137,48 @@ class GeometryEnvelopeTests(unittest.TestCase):
         self.assertGreater(env["volume_mm3"], 0.0)
         self.assertIn("unit_inertia", env)
         self.assertEqual(len(env["slices"]), 1)
+        self.assertIn("sections", env)
+        self.assertEqual(len(env["sections"]), 2)
+        sec0 = env["sections"][0]
+        self.assertIn("corners_3d", sec0)
+        self.assertEqual(len(sec0["corners_3d"]), 4)
+        # Root chord 200 mm with NACA 2412: actual bounds should enclose camber
+        z_b = sec0["z_bounds_mm"]
+        self.assertLess(z_b[0], 0.0)
+        self.assertGreater(z_b[1], 0.0)
+        self.assertGreater(sec0["thickness_mm"], 20.0)
+
+    def test_lifting_surface_clark_y_bounds(self) -> None:
+        wing = {
+            "id": "clark-wing",
+            "type": "org.setuav.core:lifting-surface",
+            "parameters": {
+                "geometry": {
+                    "profiles": [
+                        {
+                            "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+                            "chord": 300.0,
+                            "airfoil": "clark-y",
+                        },
+                        {
+                            "position": {"x": 0.0, "y": 500.0, "z": 0.0},
+                            "chord": 300.0,
+                            "airfoil": "clark-y",
+                        },
+                    ],
+                }
+            },
+        }
+        env = compute_geometry_envelope(wing)
+        self.assertIsNotNone(env)
+        assert env is not None
+        sec = env["sections"][0]
+        self.assertIn("corners_3d", sec)
+        # Clark-Y has asymmetric camber: top rises much higher than bottom
+        z_b = sec["z_bounds_mm"]
+        self.assertAlmostEqual(z_b[0], -9.08, delta=1.0)
+        self.assertAlmostEqual(z_b[1], 27.48, delta=1.0)
+        self.assertAlmostEqual(sec["thickness_mm"], 36.56, delta=1.0)
 
     def test_fuselage_envelope(self) -> None:
         fuse = _sample_fuselage()
@@ -181,10 +223,13 @@ class GeometryEnvelopeTests(unittest.TestCase):
         self.assertAlmostEqual(size["y"], 300.0, delta=1.0)
         self.assertAlmostEqual(offset["y"], 350.0, delta=1.0)
 
-        # Chord = 45 mm
-        self.assertAlmostEqual(size["x"], 45.0, delta=1.0)
+        # Size covers control surface chord plus sweep (from 125.7 to 183.3 mm -> ~57.7 mm)
+        self.assertAlmostEqual(size["x"], 57.7, delta=1.0)
         # Offset X placed towards trailing edge of parent root chord
         self.assertGreater(offset["x"], 100.0)
+        self.assertIn("sections", env)
+        self.assertEqual(len(env["sections"]), 2)
+        self.assertIn("corners_3d", env["sections"][0])
 
     def test_unsupported_component_returns_none(self) -> None:
         motor = {"id": "motor-1", "type": "org.setuav.core:motor"}
@@ -299,6 +344,172 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         self.assertIn("300.0", editor.sections_table.item(1, 0).text())
         self.assertIn("800.0", editor.sections_table.item(2, 0).text())
 
+    def test_build_project_geometry_includes_envelopes(self) -> None:
+        from plugins.geometry.viewport.scene import build_project_geometry
+        from plugins.geometry.engine.fuselage_geometry import build_fuselage_geometry
+        from plugins.geometry.engine.lifting_surface_geometry import build_lifting_surface_geometry
+        from setuav_studio.project import ProjectDocument
+        from pathlib import Path
+
+        fuse = _sample_fuselage()
+        wing = _sample_wing()
+        sync_component_envelope(fuse)
+        sync_component_envelope(wing)
+
+        doc = ProjectDocument(Path("test.uav"), "uav", {"components": [fuse, wing]})
+        providers = {
+            "org.setuav.core:fuselage": build_fuselage_geometry,
+            "org.setuav.core:lifting-surface": build_lifting_surface_geometry,
+        }
+        geom_data = build_project_geometry(doc, providers)
+        self.assertGreater(len(geom_data.envelopes), 0)
+
+        env_ids = [e.component_id for e in geom_data.envelopes]
+        self.assertIn("test-fuse", env_ids)
+        self.assertIn("test-wing", env_ids)
+
+        fuse_env = next(e for e in geom_data.envelopes if e.component_id == "test-fuse")
+        self.assertGreater(len(fuse_env.lines), 0)
+
+    def test_build_envelope_wire_vertices_and_colors(self) -> None:
+        from plugins.geometry.viewport.mesh import (
+            ENVELOPE_HIGHLIGHT,
+            build_envelope_wire_vertices,
+        )
+        from plugins.geometry.engine.data import EnvelopeWireGeometry, GeometryData
+
+        env = EnvelopeWireGeometry(
+            component_id="fuse-1",
+            lines=(
+                ((0.0, 0.0, 0.0), (100.0, 0.0, 0.0)),
+                ((100.0, 0.0, 0.0), (100.0, 50.0, 0.0)),
+            ),
+        )
+        data = GeometryData(envelopes=(env,))
+
+        # Not selected -> empty
+        self.assertEqual(build_envelope_wire_vertices(data, None), [])
+        self.assertEqual(build_envelope_wire_vertices(data, "other"), [])
+
+        # Selected -> returns line vertices with bright green color
+        verts = build_envelope_wire_vertices(data, "fuse-1")
+        # 2 lines * 2 vertices * 6 floats (x, y, z, r, g, b) = 24 floats
+        self.assertEqual(len(verts), 24)
+        # Check green channel
+        self.assertAlmostEqual(verts[4], ENVELOPE_HIGHLIGHT[1], places=2)
+
+    def test_workspace_selection_sets_envelope_in_viewer(self) -> None:
+        from plugins.geometry.workspace import ViewerWorkspace
+        from setuav_studio.api import StudioAPI
+        from setuav_studio.project import ProjectDocument
+        from pathlib import Path
+
+        api = StudioAPI()
+        fuse = _sample_fuselage()
+        sync_component_envelope(fuse)
+        doc = ProjectDocument(Path("test.uav"), "uav", {"components": [fuse]})
+        api.current_project = doc
+
+        workspace = ViewerWorkspace(api)
+
+        # 1. Select Envelope node in tree
+        api.set_selection({
+            "id": "test-fuse:envelope",
+            "name": "Envelope",
+            "kind": "envelope",
+            "component_id": "test-fuse",
+        })
+        self.assertEqual(workspace.viewer._selected_envelope_component_id, "test-fuse")
+
+        # 2. Select component itself -> envelope selection is cleared
+        api.set_selection(fuse)
+        self.assertIsNone(workspace.viewer._selected_envelope_component_id)
+
+        # 3. Clear selection -> envelope selection is cleared
+        api.set_selection(None)
+        self.assertIsNone(workspace.viewer._selected_envelope_component_id)
+
+    def test_lifting_surface_tip_cap_envelope_lines(self) -> None:
+        from plugins.geometry.engine.transforms import identity_matrix
+        from plugins.geometry.viewport.scene import _append_lifting_surface_tip_envelope_lines
+
+        wing_round = _sample_wing(mirror=False)
+        wing_round["parameters"]["geometry"]["tip_treatment"] = {
+            "type": "round",
+            "length": 25.0,
+            "offset_x": 0.0,
+        }
+
+        lines_round: list[tuple[Any, Any]] = []
+        _append_lifting_surface_tip_envelope_lines(lines_round, wing_round, identity_matrix())
+        self.assertGreater(len(lines_round), 0)
+
+        # Root rib is at Y=0, tip rib is at Y=600. Tip cap must extend to ~625 mm
+        ys_round = [p[1] for line in lines_round for p in line]
+        self.assertAlmostEqual(min(ys_round), 600.0, delta=1.0)
+        self.assertAlmostEqual(max(ys_round), 625.0, delta=1.0)
+
+        # Sharp tip cap
+        wing_sharp = _sample_wing(mirror=False)
+        wing_sharp["parameters"]["geometry"]["tip_treatment"] = {
+            "type": "sharp",
+            "length": 20.0,
+            "offset_x": 0.0,
+        }
+        lines_sharp: list[tuple[Any, Any]] = []
+        _append_lifting_surface_tip_envelope_lines(lines_sharp, wing_sharp, identity_matrix())
+        self.assertGreater(len(lines_sharp), 0)
+        ys_sharp = [p[1] for line in lines_sharp for p in line]
+        self.assertAlmostEqual(min(ys_sharp), 600.0, delta=1.0)
+        self.assertAlmostEqual(max(ys_sharp), 620.0, delta=1.0)
+
+    def test_lifting_surface_winglet_envelope_lines(self) -> None:
+        from plugins.geometry.engine.transforms import identity_matrix
+        from plugins.geometry.viewport.scene import _append_lifting_surface_tip_envelope_lines
+
+        wing_wl = _sample_wing(mirror=False)
+        wing_wl["parameters"]["geometry"]["tip_treatment"] = {
+            "type": "winglet",
+            "winglet_height": 80.0,
+            "cant_angle": 60.0,
+        }
+        lines: list[tuple[Any, Any]] = []
+        _append_lifting_surface_tip_envelope_lines(lines, wing_wl, identity_matrix())
+        self.assertGreater(len(lines), 0)
+        # Tip rib is at Y=600, Z=30. Winglet extends upwards in Z and outwards in Y
+        zs = [p[2] for line in lines for p in line]
+        self.assertGreater(max(zs), 65.0)
+
+    def test_control_surface_envelope_invariant_to_deflection(self) -> None:
+        wing = _sample_wing(mirror=False)
+        cs_0 = _sample_control_surface(parent_id="test-wing")
+        cs_0["parameters"]["geometry"]["deflection"] = 0.0
+
+        cs_20 = deepcopy(cs_0)
+        cs_20["parameters"]["geometry"]["deflection"] = 20.0
+
+        env_0 = compute_geometry_envelope(cs_0, wing)
+        env_20 = compute_geometry_envelope(cs_20, wing)
+        self.assertIsNotNone(env_0)
+        self.assertIsNotNone(env_20)
+        assert env_0 is not None and env_20 is not None
+
+        # Envelope metadata must remain identical regardless of deflection!
+        self.assertEqual(env_0["size_mm"], env_20["size_mm"])
+        self.assertEqual(env_0["offset_mm"], env_20["offset_mm"])
+        self.assertEqual(env_0["volume_mm3"], env_20["volume_mm3"])
+        self.assertIn("hinge_axis", env_0)
+
+        # Viewer rotation rotates the envelope wireframe
+        from plugins.geometry.viewport.scene import _rotate_control_surface_envelope
+
+        rotated_env = _rotate_control_surface_envelope(env_0, 20.0)
+        sec0_corners = env_0["sections"][0]["corners_3d"]
+        rot0_corners = rotated_env["sections"][0]["corners_3d"]
+        # Corner Z coordinates should shift under rotation
+        self.assertNotEqual(sec0_corners[1]["z"], rot0_corners[1]["z"])
+
 
 if __name__ == "__main__":
     unittest.main()
+
