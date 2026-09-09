@@ -194,7 +194,9 @@ class TestElectricalPropulsion(unittest.TestCase):
         self._drain_events()
 
         # Verify summary results are populated
-        static_thrust_str = results.summary_table.item(0, 1).text()
+        config_str = results._property_value(results.summary_table, "config")
+        self.assertEqual(config_str, "Single Motor (1x)")
+        static_thrust_str = results._property_value(results.summary_table, "static_thrust")
         self.assertTrue(any(unit in static_thrust_str for unit in ("N", "kgf", "lbf")))
         self.assertNotEqual(static_thrust_str, "-")
 
@@ -439,6 +441,70 @@ class TestElectricalPropulsion(unittest.TestCase):
         um.set_display_unit("velocity", "m/s")
         um.set_display_unit("force", "N")
         um.units_changed.emit()
+        dock.close()
+
+    def test_twin_motor_propulsion_analysis(self) -> None:
+        from pythrust.propulsion.models.motor import MotorSpec
+        from pythrust.propulsion.models.propeller import PropellerSpec
+
+        from plugins.electrical_propulsion.engine import PropulsionSolverEngine
+        from plugins.electrical_propulsion.results_dock import PropulsionResultsDock
+
+        motor_spec = MotorSpec(
+            kv_rpm_per_v=900.0, resistance_ohm=0.035, no_load_current_a=1.2, current_max_a=250.0
+        )
+        prop_spec = PropellerSpec(diameter_m=0.3302, pitch_m=0.1651, blade_count=2)
+        prop_entry = PropulsionSolverEngine.fallback_propeller(13.0, 6.5, 2)
+
+        single_ctx = {
+            "mode": "airspeed_sweep",
+            "params": {"throttle": 100.0, "v_min": 0.0, "v_max": 20.0, "v_step": 5.0},
+            "motor_spec": motor_spec,
+            "motor_params": {"max_power": 5000.0},
+            "prop_spec": prop_spec,
+            "prop_entry": prop_entry,
+            "total_voltage": 22.2,
+            "capacity_mah": 5000.0,
+            "rho": 1.225,
+            "diameter_in": 13.0,
+            "pitch_in": 6.5,
+            "motor_count": 1,
+        }
+
+        twin_ctx = dict(single_ctx)
+        twin_ctx["motor_count"] = 2
+
+        res_single = PropulsionSolverEngine.run_airspeed_sweep(single_ctx)
+        res_twin = PropulsionSolverEngine.run_airspeed_sweep(twin_ctx)
+
+        # Twin configuration produces 2x thrust, power, and current
+        self.assertEqual(res_twin["motor_count"], 2)
+        self.assertAlmostEqual(res_twin["static_thrust"], 2.0 * res_single["static_thrust"], places=2)
+        self.assertAlmostEqual(res_twin["peak_power"], 2.0 * res_single["peak_power"], places=1)
+        self.assertAlmostEqual(res_twin["peak_current"], 2.0 * res_single["peak_current"], places=1)
+        # RPM and efficiencies should match single motor
+        self.assertAlmostEqual(res_twin["max_rpm"], res_single["max_rpm"], places=1)
+        self.assertAlmostEqual(res_twin["cruise_efficiency"], res_single["cruise_efficiency"], places=3)
+        # Endurance is halved due to 2x power draw
+        self.assertAlmostEqual(res_twin["endurance_min"], res_single["endurance_min"] / 2.0, places=2)
+
+        # Verify results dock UI displays configuration and per-motor overload safety correctly
+        api = StudioAPI()
+        dock = PropulsionResultsDock(api)
+        dock.set_results(res_twin)
+        self.assertEqual(dock._property_value(dock.summary_table, "config"), "Twin Motor (2x - Bilateral)")
+        # Total current is ~373 A which exceeds 250 A, BUT per-motor current is ~186 A <= 250 A,
+        # so it must be evaluated as Safe!
+        self.assertGreater(res_twin["sweep_table"][0]["current"], 250.0)
+        self.assertLess(res_twin["sweep_table"][0]["per_motor_current"], 250.0)
+        self.assertEqual(dock.detail_table.rowCount(), len(res_twin["sweep_table"]))
+        self.assertIn("Safe", dock.detail_table.item(0, 9).text())
+
+        # When per-motor limit is reduced below per-motor current, it should flag Overload
+        overload_data = dict(res_twin)
+        overload_data["motor_max_current"] = 100.0
+        dock.set_results(overload_data)
+        self.assertIn("Overload", dock.detail_table.item(0, 9).text())
         dock.close()
 
     def _drain_events(self, iterations: int = 15) -> None:

@@ -11,7 +11,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QPushButton,
-    QTableWidget,
     QTableWidgetItem,
     QTabWidget,
     QVBoxLayout,
@@ -64,6 +63,7 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
 
         self.summary_table = self._property_table(
             [
+                ("config", "Configuration"),
                 ("static_thrust", "Static Thrust"),
                 ("peak_power", "Peak Electrical Power"),
                 ("peak_current", "Peak Current"),
@@ -142,7 +142,7 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
             "Status",
         ]
 
-    def _create_detail_table(self) -> QTableWidget:
+    def _create_detail_table(self) -> ContentFitTableWidget:
         headers = self._detail_headers()
         table = ContentFitTableWidget(0, len(headers))
         table.setHorizontalHeaderLabels(headers)
@@ -172,11 +172,12 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
         if not sweep_rows:
             return
 
+        motor_count = max(int(data.get("motor_count", 1)), 1)
         max_curr_limit = float(data.get("motor_max_current") or 9999.0)
         self.detail_table.setRowCount(len(sweep_rows))
         best_eff_idx = self._best_efficiency_row(sweep_rows)
         for r_idx, row in enumerate(sweep_rows):
-            self._populate_detail_row(r_idx, row, best_eff_idx, max_curr_limit)
+            self._populate_detail_row(r_idx, row, best_eff_idx, max_curr_limit, motor_count)
 
         self.detail_table.fit_columns_to_viewport()
         self._last_data = data
@@ -195,6 +196,14 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
         force_sym = um.get_unit_symbol("force")
         power_sym = um.get_unit_symbol("power")
         current_sym = um.get_unit_symbol("current")
+
+        motor_count = int(data.get("motor_count", 1))
+        config_text = (
+            "Twin Motor (2x - Bilateral)"
+            if motor_count == 2
+            else ("Multi-Motor (" + str(motor_count) + "x)" if motor_count > 1 else "Single Motor (1x)")
+        )
+        self._set_property_value(self.summary_table, "config", config_text)
 
         if "static_thrust" in data:
             st = um.to_display(float(data["static_thrust"]), "force")
@@ -233,10 +242,12 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
         row: dict[str, Any],
         best_efficiency_index: int,
         max_current: float,
+        motor_count: int = 1,
     ) -> None:
         current = float(row.get("current", 0.0))
+        per_motor_curr = float(row.get("per_motor_current", current / max(motor_count, 1)))
         is_best = row_index == best_efficiency_index
-        is_overcurrent = current > max_current or not bool(row.get("feasible", True))
+        is_overcurrent = per_motor_curr > max_current or not bool(row.get("feasible", True))
         over_fg, best_fg, safe_fg = self._detail_colors()
         values = self._detail_values(row, is_best, is_overcurrent)
 
@@ -292,6 +303,7 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
     def clear_results(self) -> None:
         self._last_data = None
         for key in [
+            "config",
             "static_thrust",
             "peak_power",
             "peak_current",

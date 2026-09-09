@@ -129,6 +129,7 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
             [
                 ("assembly", "Assembly"),
                 ("motor_info", "Motor"),
+                ("motor_count", "Configuration"),
                 ("propeller_info", "Propeller"),
                 ("battery_info", "Battery"),
             ]
@@ -403,6 +404,53 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
         self._on_assembly_selected(options[0][0])
         self.run_button.setEnabled(True)
 
+    def _detect_motor_count(
+        self, assembly: dict[str, Any] | None, comp_map: dict[str, Any]
+    ) -> int:
+        if not assembly:
+            return 1
+        members = assembly.get("members", {})
+        motor_ids = members.get("motors", [])
+        motor = comp_map.get(motor_ids[0]) if motor_ids else None
+        motor_count = 1
+        if motor:
+            motor_params = (
+                motor.get("parameters", {}) if isinstance(motor.get("parameters"), dict) else {}
+            )
+            mount = (
+                motor_params.get("mount", {}) if isinstance(motor_params.get("mount"), dict) else {}
+            )
+            target_id = str(mount.get("target_id") or "")
+            if target_id and target_id in comp_map:
+                t_comp = comp_map[target_id]
+                geom = (
+                    t_comp.get("parameters", {}).get("geometry", {})
+                    if isinstance(t_comp.get("parameters"), dict)
+                    else {}
+                )
+                if geom.get("mirror") is True or t_comp.get("mirror") is True:
+                    motor_count = 2
+            elif target_id:
+                try:
+                    from plugins.geometry import get_mount_targets
+
+                    targets = get_mount_targets(self._api.current_project)
+                    t = next((x for x in targets if getattr(x, "id", None) == target_id), None)
+                    if t and getattr(t, "type", "") == "wing":
+                        p_comp = comp_map.get(getattr(t, "parent_id", ""), {})
+                        geom = (
+                            p_comp.get("parameters", {}).get("geometry", {})
+                            if isinstance(p_comp.get("parameters"), dict)
+                            else {}
+                        )
+                        if geom.get("mirror") is True or p_comp.get("mirror") is True:
+                            motor_count = 2
+                except Exception:
+                    pass
+        if len(motor_ids) > 1:
+            motor_count = max(motor_count, len(motor_ids))
+        return motor_count
+
     def _on_assembly_selected(self, assembly_id: str) -> None:
         proj = self._api.current_project
         if not proj:
@@ -424,6 +472,15 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
             f"{motor.get('name') or motor.get('model') or motor.get('id')}" if motor else "-"
         )
         self._set_property_value(self.system_table, "motor_info", motor_text, editable=False)
+
+        # Bilateral / Twin Motor detection
+        motor_count = self._detect_motor_count(assembly, comp_map)
+        config_text = (
+            "Twin Motor (2x - Bilateral)"
+            if motor_count == 2
+            else ("Multi-Motor (" + str(motor_count) + "x)" if motor_count > 1 else "Single Motor (1x)")
+        )
+        self._set_property_value(self.system_table, "motor_count", config_text, editable=False)
 
         # Propeller Info
         prop_ids = members.get("propulsors", [])
@@ -643,11 +700,15 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
         mode = config.get("mode", "airspeed_sweep")
         params = config.get("parameters", {})
 
+        motor_count = self._detect_motor_count(assembly, comp_map)
+
         return {
             "mode": mode,
             "params": params,
             "motor_spec": motor_spec,
             "motor_params": motor_params,
+            "motor_mount": motor_params.get("mount", {}),
+            "motor_count": motor_count,
             "prop_spec": prop_spec,
             "prop_entry": prop_entry,
             "total_voltage": total_voltage,
@@ -743,56 +804,69 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
     def _show_feasibility_alert(self, context: dict[str, Any], res: dict[str, Any]) -> None:
         motor_spec = context["motor_spec"]
         motor_params = context["motor_params"]
+        motor_count = max(int(context.get("motor_count", 1)), 1)
 
-        peak_curr = res.get("peak_current", 0.0)
-        peak_pwr = res.get("peak_power", 0.0)
+        peak_curr = float(res.get("peak_current", 0.0))
+        peak_pwr = float(res.get("peak_power", 0.0))
+        per_motor_curr = peak_curr / motor_count
+        per_motor_pwr = peak_pwr / motor_count
         max_curr_limit = motor_spec.current_max_a
         max_pwr_limit = float(motor_params.get("max_power") or 0.0)
 
-        if peak_curr > max_curr_limit:
-            over_pct = ((peak_curr / max(max_curr_limit, 1e-3)) - 1.0) * 100.0
-            self._api.show_status(
-                f"Current limit exceeded: peak {peak_curr:.1f} A vs "
-                f"{max_curr_limit:.1f} A max ({over_pct:.0f}%)",
-                "error",
-                8000,
+        if per_motor_curr > max_curr_limit:
+            over_pct = ((per_motor_curr / max(max_curr_limit, 1e-3)) - 1.0) * 100.0
+            status_msg = (
+                f"Current limit exceeded: per-motor {per_motor_curr:.1f} A (total {peak_curr:.1f} A) vs "
+                f"{max_curr_limit:.1f} A max ({over_pct:.0f}%)"
+                if motor_count > 1
+                else f"Current limit exceeded: peak {peak_curr:.1f} A vs {max_curr_limit:.1f} A max ({over_pct:.0f}%)"
             )
+            self._api.show_status(status_msg, "error", 8000)
+            count_str = f" per motor (Total system: {peak_curr:.1f} A)" if motor_count > 1 else ""
             self.show_alert(
                 severity="danger",
                 title="Motor Current Limit Exceeded",
                 message=(
-                    f"PyThrust Warning: Peak current draw ({peak_curr:.1f} A) exceeds "
+                    f"PyThrust Warning: Peak current draw ({per_motor_curr:.1f} A{count_str}) exceeds "
                     f"the motor continuous rating ({max_curr_limit:.1f} A) by {over_pct:.0f}%. "
                     f"The propeller ({context['diameter_in']:.1f}×{context['pitch_in']:.1f}) is overloading the motor at this battery voltage."
                 ),
             )
-        elif max_pwr_limit > 0 and peak_pwr > max_pwr_limit:
-            over_pct = ((peak_pwr / max_pwr_limit) - 1.0) * 100.0
-            self._api.show_status(
-                f"Power limit exceeded: peak {peak_pwr:.1f} W vs "
-                f"{max_pwr_limit:.1f} W max ({over_pct:.0f}%)",
-                "warning",
-                8000,
+        elif max_pwr_limit > 0 and per_motor_pwr > max_pwr_limit:
+            over_pct = ((per_motor_pwr / max_pwr_limit) - 1.0) * 100.0
+            count_str = f" per motor (Total system: {peak_pwr:.1f} W)" if motor_count > 1 else ""
+            status_msg = (
+                f"Power limit exceeded: per-motor {per_motor_pwr:.1f} W vs "
+                f"{max_pwr_limit:.1f} W max ({over_pct:.0f}%)"
+                if motor_count > 1
+                else f"Power limit exceeded: peak {peak_pwr:.1f} W vs {max_pwr_limit:.1f} W max ({over_pct:.0f}%)"
             )
+            self._api.show_status(status_msg, "warning", 8000)
             self.show_alert(
                 severity="warning",
                 title="Motor Power Limit Exceeded",
                 message=(
-                    f"PyThrust Warning: Peak electrical power ({peak_pwr:.1f} W) exceeds "
+                    f"PyThrust Warning: Peak electrical power ({per_motor_pwr:.1f} W{count_str}) exceeds "
                     f"the motor maximum power rating ({max_pwr_limit:.1f} W) by {over_pct:.0f}%."
                 ),
             )
         else:
-            self._api.show_status(
-                f"Analysis complete — feasible, peak {peak_curr:.1f} A "
-                f"({max_curr_limit:.1f} A max)",
-                "success",
-                5000,
+            status_msg = (
+                f"Analysis complete — feasible, peak {peak_curr:.1f} A ({per_motor_curr:.1f} A/motor vs {max_curr_limit:.1f} A max)"
+                if motor_count > 1
+                else f"Analysis complete — feasible, peak {peak_curr:.1f} A ({max_curr_limit:.1f} A max)"
+            )
+            self._api.show_status(status_msg, "success", 5000)
+            alert_msg = (
+                f"PyThrust: All operating points are within safe motor limits "
+                f"(Per motor: {per_motor_curr:.1f} A / Max: {max_curr_limit:.1f} A; Total battery current: {peak_curr:.1f} A)."
+                if motor_count > 1
+                else f"PyThrust: All operating points are within safe motor limits (Peak: {peak_curr:.1f} A / Max: {max_curr_limit:.1f} A)."
             )
             self.show_alert(
                 severity="success",
                 title="Operating Point Feasible",
-                message=f"PyThrust: All operating points are within safe motor limits (Peak: {peak_curr:.1f} A / Max: {max_curr_limit:.1f} A).",
+                message=alert_msg,
             )  # Helper Table Methods
 
     @staticmethod

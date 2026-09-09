@@ -181,6 +181,71 @@ class GeometryPlugin:
             }
         return build_project_geometry(doc, providers)
 
+    def get_mount_targets(self, project: Any = None) -> list[Any]:
+        """Return available mount targets (wings, fuselage segments) for the project."""
+        from .engine.mount import generate_mount_targets
+
+        api = getattr(self, "_api", None)
+        doc = project if project is not None else (api.current_project if api is not None else None)
+        return generate_mount_targets(doc)
+
+    def compute_mount_point(
+        self,
+        project: Any = None,
+        target_id: str = "",
+        position: str = "front",
+        offset: dict[str, float] | None = None,
+        orientation: dict[str, float] | None = None,
+    ) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
+        """Calculate the 3D mount point and orientation for a given target and configuration."""
+        from .engine.mount import resolve_mount_point
+
+        targets = self.get_mount_targets(project)
+        target = next((t for t in targets if t.id == target_id), None)
+        if target is None:
+            return (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)
+        return resolve_mount_point(target, position, offset, orientation)
+
+    def check_propeller_clearance(
+        self,
+        project: Any = None,
+        target_id: str = "",
+        position: str = "front",
+        offset: dict[str, float] | None = None,
+        orientation: dict[str, float] | None = None,
+        propeller_diameter: float = 250.0,
+    ) -> dict[str, Any]:
+        """Check clearance between propeller disk and aircraft geometry."""
+        from .engine.mount import compute_propeller_clearance
+
+        api = getattr(self, "_api", None)
+        doc = project if project is not None else (api.current_project if api is not None else None)
+        return compute_propeller_clearance(
+            doc,
+            target_id=target_id,
+            position=position,
+            offset=offset or {},
+            orientation=orientation or {},
+            propeller_diameter=propeller_diameter,
+        )
+
+    def get_clearance_circle(
+        self,
+        mount_point: tuple[float, float, float],
+        orientation: tuple[float, float, float],
+        propeller_diameter: float,
+        num_points: int = 36,
+    ) -> tuple[tuple[float, float, float], ...]:
+        """Generate 3D points representing the propeller clearance circle."""
+        from .engine.mount import generate_clearance_circle_points
+
+        return generate_clearance_circle_points(
+            mount_point=mount_point,
+            orientation=orientation,
+            diameter=propeller_diameter,
+            num_points=num_points,
+        )
+
     def deactivate(self, api: StudioAPI) -> None:
         controller = getattr(self, "_creation_controller", None)
         if controller is not None:

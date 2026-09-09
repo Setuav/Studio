@@ -160,6 +160,7 @@ class PropulsionSolverEngine:
         total_voltage: float = context["total_voltage"]
         capacity_mah: float = context["capacity_mah"]
         rho: float = context["rho"]
+        motor_count = max(int(context.get("motor_count", 1)), 1)
 
         throttle_pct = float(params.get("throttle", 100.0))
         v_min = float(params.get("v_min", 0.0))
@@ -192,10 +193,14 @@ class PropulsionSolverEngine:
                 throttle_val=throttle_norm,
                 x_val=curr_v,
             )
+            tot_thrust = pt.thrust * motor_count
+            tot_power = pt.power * motor_count
+            tot_current = pt.current * motor_count
+
             x_vals.append(curr_v)
-            thrusts.append(pt.thrust)
-            powers.append(pt.power)
-            currents.append(pt.current)
+            thrusts.append(tot_thrust)
+            powers.append(tot_power)
+            currents.append(tot_current)
             rpms.append(pt.rpm)
             eta_tots.append(pt.eta_sys)
             eta_props.append(pt.eta_p)
@@ -205,9 +210,12 @@ class PropulsionSolverEngine:
                     "x_val": curr_v,
                     "x_label": "Airspeed (m/s)",
                     "rpm": pt.rpm,
-                    "thrust": pt.thrust,
-                    "power": pt.power,
-                    "current": pt.current,
+                    "thrust": tot_thrust,
+                    "power": tot_power,
+                    "current": tot_current,
+                    "per_motor_thrust": pt.thrust,
+                    "per_motor_power": pt.power,
+                    "per_motor_current": pt.current,
                     "eta_sys": pt.eta_sys,
                     "eta_p": pt.eta_p,
                     "eta_m": pt.eta_m,
@@ -247,6 +255,7 @@ class PropulsionSolverEngine:
             "voltage_loaded": total_voltage - currents[cruise_idx] * 0.02,
             "sweep_table": sweep_rows,
             "motor_max_current": motor_spec.current_max_a,
+            "motor_count": motor_count,
             "clear_charts": False,
         }
 
@@ -264,6 +273,7 @@ class PropulsionSolverEngine:
         total_voltage: float = context["total_voltage"]
         capacity_mah: float = context["capacity_mah"]
         rho: float = context["rho"]
+        motor_count = max(int(context.get("motor_count", 1)), 1)
 
         v_fixed = float(params.get("airspeed", 15.0))
         t_min = float(params.get("t_min", 10.0))
@@ -295,10 +305,14 @@ class PropulsionSolverEngine:
                 throttle_val=curr_t / 100.0,
                 x_val=curr_t,
             )
+            tot_thrust = pt.thrust * motor_count
+            tot_power = pt.power * motor_count
+            tot_current = pt.current * motor_count
+
             x_vals.append(curr_t)
-            thrusts.append(pt.thrust)
-            powers.append(pt.power)
-            currents.append(pt.current)
+            thrusts.append(tot_thrust)
+            powers.append(tot_power)
+            currents.append(tot_current)
             rpms.append(pt.rpm)
             eta_tots.append(pt.eta_sys)
             eta_props.append(pt.eta_p)
@@ -308,9 +322,12 @@ class PropulsionSolverEngine:
                     "x_val": curr_t,
                     "x_label": "Throttle (%)",
                     "rpm": pt.rpm,
-                    "thrust": pt.thrust,
-                    "power": pt.power,
-                    "current": pt.current,
+                    "thrust": tot_thrust,
+                    "power": tot_power,
+                    "current": tot_current,
+                    "per_motor_thrust": pt.thrust,
+                    "per_motor_power": pt.power,
+                    "per_motor_current": pt.current,
                     "eta_sys": pt.eta_sys,
                     "eta_p": pt.eta_p,
                     "eta_m": pt.eta_m,
@@ -350,6 +367,7 @@ class PropulsionSolverEngine:
             "voltage_loaded": total_voltage - currents[cruise_idx] * 0.02,
             "sweep_table": sweep_rows,
             "motor_max_current": motor_spec.current_max_a,
+            "motor_count": motor_count,
             "clear_charts": False,
         }
 
@@ -367,6 +385,7 @@ class PropulsionSolverEngine:
         total_voltage: float = context["total_voltage"]
         capacity_mah: float = context["capacity_mah"]
         rho: float = context["rho"]
+        motor_count = max(int(context.get("motor_count", 1)), 1)
 
         v_val = float(params.get("airspeed", 18.0))
         t_val = float(params.get("throttle", 75.0))
@@ -384,7 +403,11 @@ class PropulsionSolverEngine:
             x_val=v_val,
         )
 
-        cruise_power = max(pt.power, 1e-3)
+        tot_thrust = pt.thrust * motor_count
+        tot_power = pt.power * motor_count
+        tot_current = pt.current * motor_count
+
+        cruise_power = max(tot_power, 1e-3)
         batt_wh = total_voltage * capacity_mah / 1000.0
         endurance_min = (batt_wh * 0.8 / cruise_power) * 60.0
 
@@ -393,9 +416,12 @@ class PropulsionSolverEngine:
                 "x_val": v_val,
                 "x_label": "Airspeed (m/s)",
                 "rpm": pt.rpm,
-                "thrust": pt.thrust,
-                "power": pt.power,
-                "current": pt.current,
+                "thrust": tot_thrust,
+                "power": tot_power,
+                "current": tot_current,
+                "per_motor_thrust": pt.thrust,
+                "per_motor_power": pt.power,
+                "per_motor_current": pt.current,
                 "eta_sys": pt.eta_sys,
                 "eta_p": pt.eta_p,
                 "eta_m": pt.eta_m,
@@ -408,26 +434,27 @@ class PropulsionSolverEngine:
             "mode": "operating_point",
             "x_label": "Airspeed (m/s)",
             "x_values": [v_val],
-            "thrust_n": [pt.thrust],
-            "power_w": [pt.power],
-            "current_a": [pt.current],
+            "thrust_n": [tot_thrust],
+            "power_w": [tot_power],
+            "current_a": [tot_current],
             "rpm": [pt.rpm],
             "eta_total": [pt.eta_sys],
             "eta_prop": [pt.eta_p],
             "eta_motor": [pt.eta_m],
-            "static_thrust": pt.thrust,
-            "peak_power": pt.power,
-            "peak_current": pt.current,
+            "static_thrust": tot_thrust,
+            "peak_power": tot_power,
+            "peak_current": tot_current,
             "max_rpm": pt.rpm,
-            "cruise_thrust": pt.thrust,
+            "cruise_thrust": tot_thrust,
             "cruise_efficiency": pt.eta_sys,
             "endurance_min": endurance_min,
             "advance_ratio": pt.j,
             "prop_efficiency": pt.eta_p,
             "motor_efficiency": pt.eta_m,
-            "voltage_loaded": total_voltage - pt.current * 0.02,
+            "voltage_loaded": total_voltage - tot_current * 0.02,
             "sweep_table": sweep_rows,
             "motor_max_current": motor_spec.current_max_a,
+            "motor_count": motor_count,
             "clear_charts": True,
         }
 
@@ -440,10 +467,27 @@ class PropulsionSolverEngine:
         """Execute propulsion analysis for given context."""
         mode = context.get("mode", "airspeed_sweep")
         if mode == "airspeed_sweep":
-            return cls.run_airspeed_sweep(context, progress_callback=progress_callback)
+            result = cls.run_airspeed_sweep(context, progress_callback=progress_callback)
         elif mode == "throttle_sweep":
-            return cls.run_throttle_sweep(context, progress_callback=progress_callback)
+            result = cls.run_throttle_sweep(context, progress_callback=progress_callback)
         elif mode == "operating_point":
-            return cls.run_operating_point(context, progress_callback=progress_callback)
+            result = cls.run_operating_point(context, progress_callback=progress_callback)
         else:
             raise ValueError(f"Unknown propulsion analysis mode: {mode}")
+
+        mount = context.get("motor_mount") or context.get("motor_params", {}).get("mount")
+        if isinstance(mount, dict) and mount:
+            result["motor_mount"] = mount
+            ori = mount.get("orientation", {}) if isinstance(mount.get("orientation"), dict) else {}
+            pitch_deg = float(ori.get("pitch", 0.0))
+            yaw_deg = float(ori.get("yaw", 0.0))
+            cos_factor = math.cos(math.radians(pitch_deg)) * math.cos(math.radians(yaw_deg))
+            sin_pitch = math.sin(math.radians(pitch_deg))
+            thrusts = result.get("thrust_n", [])
+            result["effective_thrust_factor"] = cos_factor
+            result["thrust_forward_n"] = [t * cos_factor for t in thrusts]
+            result["thrust_vertical_n"] = [t * sin_pitch for t in thrusts]
+            result["mount_target_id"] = mount.get("target_id")
+            result["mount_position"] = mount.get("position", "front")
+
+        return result

@@ -698,14 +698,36 @@ def build_envelope_wire_vertices(
     data: GeometryData,
     selected_envelope_component_id: str | None,
     color: Point3D = ENVELOPE_HIGHLIGHT,
+    selected_component_id: str | None = None,
 ) -> list[float]:
-    if not selected_envelope_component_id:
-        return []
-    target_clean = selected_envelope_component_id.lower().replace(":envelope", "")
+    target_clean = (
+        selected_envelope_component_id.lower().replace(":envelope", "")
+        if selected_envelope_component_id
+        else ""
+    )
+    comp_clean = (
+        selected_component_id.lower().replace(":envelope", "")
+        if selected_component_id
+        else ""
+    )
     vertices: list[float] = []
     for env in getattr(data, "envelopes", ()):
         env_clean = env.component_id.lower().replace(":envelope", "")
-        if env_clean == target_clean or env_clean.startswith(f"{target_clean}:"):
-            for start, end in env.lines:
-                _add_line(vertices, start, end, color)
+        is_prop_clearance = ":propeller_clearance" in env_clean or ":clearance" in env_clean or "motor" in env_clean
+
+        is_selected = False
+        if target_clean:
+            is_selected = env_clean == target_clean or env_clean.startswith(f"{target_clean}:")
+        if not is_selected and comp_clean:
+            is_selected = env_clean == comp_clean or env_clean.startswith(f"{comp_clean}:")
+
+        if is_selected:
+            line_color = (0.95, 0.6, 0.1) if is_prop_clearance else color
+        elif is_prop_clearance:
+            line_color = (0.1, 0.85, 0.95)
+        else:
+            continue
+
+        for start, end in env.lines:
+            _add_line(vertices, start, end, line_color)
     return vertices

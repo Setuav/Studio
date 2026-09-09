@@ -723,6 +723,7 @@ class OpenGLViewer(QOpenGLWidget):
             self._geometry_data,
             self._selected_envelope_component_id,
             envelope_color,
+            selected_component_id=self._selected_component_id,
         )
         self._grid_count = self._allocate(self._grid_vbo, grid_values, 6)
         self._wire_count = self._allocate(self._wire_vbo, wire_values, 6)

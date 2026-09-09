@@ -1,3 +1,4 @@
+import contextlib
 import math
 from collections.abc import Callable
 from copy import deepcopy
@@ -57,6 +58,8 @@ def build_project_geometry(
         env_geom = _build_component_envelope_geometry(item_id, item, source, world_matrix, items)
         if env_geom is not None:
             envelopes.append(env_geom)
+
+    _append_all_motor_geometries(envelopes, items, world_matrix)
 
     return GeometryData(tuple(lofts), tuple(envelopes))
 
@@ -985,3 +988,146 @@ def _append_lifting_surface_tip_envelope_lines(  # noqa: C901
                         transform_point(matrix, end),
                     )
                 )
+
+
+def _append_all_motor_geometries(
+    envelopes: list[EnvelopeWireGeometry],
+    items: dict[str, dict[str, Any]],
+    world_matrix: _WorldMatrixResolver,
+) -> None:
+    """Build propeller clearance wireframes for all motors."""
+    for item_id, item in items.items():
+        source = _geometry_source(item, items) or item
+        if not isinstance(source, dict):
+            continue
+        if source.get("type") != "org.setuav.core:motor":
+            continue
+        with contextlib.suppress(Exception):
+            _append_single_motor_geometry(
+                envelopes, item_id, item, source, items, world_matrix
+            )
+
+
+def _append_single_motor_geometry(
+    envelopes: list[EnvelopeWireGeometry],
+    item_id: str,
+    item: dict[str, Any],
+    source: dict[str, Any],
+    items: dict[str, dict[str, Any]],
+    world_matrix: _WorldMatrixResolver,
+) -> None:
+    params = source.get("parameters") if isinstance(source, dict) else {}
+    if not isinstance(params, dict):
+        return
+    mount = params.get("mount")
+    if not isinstance(mount, dict):
+        return
+    target_id = mount.get("target_id")
+    if not target_id or not isinstance(target_id, str):
+        return
+
+    from ..engine.mount import (
+        generate_clearance_circle_points,
+        generate_mount_targets,
+        resolve_mount_point,
+    )
+
+    targets = generate_mount_targets({"components": list(items.values())})
+    target = next((t for t in targets if t.id == target_id), None)
+    if target is None:
+        return
+
+    pos_str = str(mount.get("position") or "front")
+    offset = mount.get("offset") if isinstance(mount.get("offset"), dict) else {}
+    ori = mount.get("orientation") if isinstance(mount.get("orientation"), dict) else {}
+
+    local_pt, (r_deg, p_deg, y_deg) = resolve_mount_point(target, pos_str, offset, ori)
+    parent_matrix = world_matrix(target.parent_id)
+    world_pt = transform_point(parent_matrix, local_pt)
+
+    base_frame = target.get_frame(pos_str)
+    base_norm = base_frame.normal
+
+    cp = math.cos(math.radians(p_deg))
+    sp = math.sin(math.radians(p_deg))
+    cy = math.cos(math.radians(y_deg))
+    sy = math.sin(math.radians(y_deg))
+
+    dir_x = cp * cy * base_norm[0]
+    dir_y = cp * sy * base_norm[0]
+    dir_z = -sp * base_norm[0]
+    mag = math.sqrt(dir_x**2 + dir_y**2 + dir_z**2) or 1.0
+    local_dir = (dir_x / mag, dir_y / mag, dir_z / mag)
+
+    pt_along = transform_point(
+        parent_matrix,
+        (local_pt[0] + local_dir[0], local_pt[1] + local_dir[1], local_pt[2] + local_dir[2]),
+    )
+    w_dir = (pt_along[0] - world_pt[0], pt_along[1] - world_pt[1], pt_along[2] - world_pt[2])
+    w_mag = math.sqrt(w_dir[0] ** 2 + w_dir[1] ** 2 + w_dir[2] ** 2) or 1.0
+    world_norm = (w_dir[0] / w_mag, w_dir[1] / w_mag, w_dir[2] / w_mag)
+
+    prop_dia_mm = _find_propeller_diameter_mm(item_id, items)
+
+    # Offset propeller circle slightly along normal so it clears surface
+    motor_offset_dist = 20.0
+    circle_center = (
+        world_pt[0] + motor_offset_dist * world_norm[0],
+        world_pt[1] + motor_offset_dist * world_norm[1],
+        world_pt[2] + motor_offset_dist * world_norm[2],
+    )
+
+    lines: list[tuple[Point3D, Point3D]] = []
+    num_pts = 48
+    circle_pts = generate_clearance_circle_points(
+        circle_center, (r_deg, p_deg, y_deg), prop_dia_mm, num_points=num_pts, normal=world_norm
+    )
+    for i in range(len(circle_pts)):
+        lines.append((circle_pts[i], circle_pts[(i + 1) % len(circle_pts)]))
+
+    # Crosshair inside the propeller disk
+    lines.append((circle_pts[0], circle_pts[len(circle_pts) // 2]))
+    lines.append((circle_pts[len(circle_pts) // 4], circle_pts[3 * len(circle_pts) // 4]))
+
+    # Motor shaft axis line from mount point to circle center
+    lines.append((world_pt, circle_center))
+
+    parent_source = items.get(target.parent_id, {})
+    if target.type == "wing" and _is_bilateral(parent_source):
+        for p1, p2 in list(lines):
+            lines.append(((p1[0], -p1[1], p1[2]), (p2[0], -p2[1], p2[2])))
+
+    envelopes.append(
+        EnvelopeWireGeometry(
+            component_id=f"{item_id}:propeller_clearance",
+            lines=tuple(lines),
+        )
+    )
+
+
+def _find_propeller_diameter_mm(motor_id: str, items: dict[str, dict[str, Any]]) -> float:
+    # First check if there is an assembly linking this motor to a propeller
+    for item in items.values():
+        if not isinstance(item, dict):
+            continue
+        if item.get("type") == "org.setuav.core:propulsion-assembly":
+            params = item.get("parameters", {})
+            members = params.get("members", {})
+            if motor_id in members.get("motors", []):
+                prop_ids = members.get("propulsors", [])
+                for pid in prop_ids:
+                    if pid in items:
+                        p_params = items[pid].get("parameters", {})
+                        d = float(p_params.get("diameter_m") or p_params.get("diameter") or 0.25)
+                        return d * 1000.0 if d < 2.0 else d
+
+    # Otherwise find any propeller or rotor in the project
+    for item in items.values():
+        if not isinstance(item, dict):
+            continue
+        ctype = item.get("type")
+        if ctype in ("org.setuav.core:propeller", "org.setuav.core:rotor"):
+            params = item.get("parameters", {})
+            d = float(params.get("diameter_m") or params.get("diameter") or 0.25)
+            return d * 1000.0 if d < 2.0 else d
+    return 250.0

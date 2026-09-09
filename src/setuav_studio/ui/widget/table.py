@@ -679,6 +679,13 @@ class PropertyTableMixin:
         item = table.item(row, 1)
         return item.text() if item is not None else ""
 
+    @classmethod
+    def _property_value(cls, table: QTableWidget, key: str) -> str:
+        for row in range(table.rowCount()):
+            if cls._property_key(table, row) == key:
+                return cls._property_text(table, row).strip()
+        return ""
+
     @staticmethod
     def _parse_number(value: str) -> float | None:
         try:
