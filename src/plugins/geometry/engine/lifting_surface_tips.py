@@ -98,23 +98,9 @@ def compute_winglet_projected_dimensions(
     """
     if winglet_height <= 0.0:
         return 0.0, 0.0
-    u_blend = min(1.0, max(0.01, blend_radius / winglet_height)) if blend_radius > 0.0 else 0.0
-    c_root = cant_root_deg
-    c_tip = cant_tip_deg
 
     u_vals = [0.5 * (1.0 - math.cos(math.pi * i / (n_pts - 1))) for i in range(n_pts)]
-    cant_angles_rad: list[float] = []
-    for u in u_vals:
-        if blend_radius > 0.0:
-            if u <= u_blend:
-                t = u / u_blend
-                w = t * t * t * (t * (t * 6.0 - 15.0) + 10.0)
-                angle = c_root + (c_tip - c_root) * w
-            else:
-                angle = c_tip
-        else:
-            angle = c_root + (c_tip - c_root) * u
-        cant_angles_rad.append(math.radians(angle))
+    cant_angles_rad = winglet_cant_angles(u_vals, cant_root_deg, cant_tip_deg, blend_radius, winglet_height)
 
     delta_y = 0.0
     delta_z = 0.0
@@ -236,30 +222,43 @@ def build_winglet_loft(
     sections: list[Section] = []
 
     for idx, u in enumerate(u_vals):
-        h00 = 2.0 * u**3 - 3.0 * u**2 + 1.0
-        h10 = u**3 - 2.0 * u**2 + u
-        h01 = -2.0 * u**3 + 3.0 * u**2
-        h11 = u**3 - u**2
-        bow = 16.0 * (u**2) * ((1.0 - u) ** 2)
+        if idx == 0:
+            x_le_u = 0.0
+            chord_wl = tip_chord
+            ds_y = 0.0
+            ds_z = 0.0
+            cant_rad = 0.0
+            cos_cant = 1.0
+            sin_cant = 0.0
+            cos_toe = 1.0
+            sin_toe = 0.0
+            t_scale = 1.0
+            x_pivot = twist_location * tip_chord
+        else:
+            h00 = 2.0 * u**3 - 3.0 * u**2 + 1.0
+            h10 = u**3 - 2.0 * u**2 + u
+            h01 = -2.0 * u**3 + 3.0 * u**2
+            h11 = u**3 - u**2
+            bow = 16.0 * (u**2) * ((1.0 - u) ** 2)
 
-        x_le_u = x_le_tip * h01 + m0_le * h10 + m1_le * h11 + le_curv_val * bow
-        x_te_u = c0 * h00 + x_te_tip * h01 + k0_te * h10 + k1_te * h11 + te_curv_val * bow
-        chord_wl = max(x_te_u - x_le_u, 0.05 * c1)
+            x_le_u = x_le_tip * h01 + m0_le * h10 + m1_le * h11 + le_curv_val * bow
+            x_te_u = c0 * h00 + x_te_tip * h01 + k0_te * h10 + k1_te * h11 + te_curv_val * bow
+            chord_wl = max(x_te_u - x_le_u, 0.05 * c1)
 
-        ds_y = y_offsets[idx]
-        ds_z = z_offsets[idx]
+            ds_y = y_offsets[idx]
+            ds_z = z_offsets[idx]
 
-        cant_rad = cant_angles_rad[idx]
-        cos_cant = math.cos(cant_rad)
-        sin_cant = math.sin(cant_rad)
+            cant_rad = cant_angles_rad[idx]
+            cos_cant = math.cos(cant_rad)
+            sin_cant = math.sin(cant_rad)
 
-        toe_deg = t_root + (t_tip - t_root) * u
-        toe_rad = math.radians(toe_deg)
-        cos_toe = math.cos(toe_rad)
-        sin_toe = math.sin(toe_rad)
+            toe_deg = t_root + (t_tip - t_root) * u
+            toe_rad = math.radians(toe_deg)
+            cos_toe = math.cos(toe_rad)
+            sin_toe = math.sin(toe_rad)
 
-        t_scale = 1.0 + (tip_thickness_scale - 1.0) * u
-        x_pivot = x_le_u + 0.25 * chord_wl
+            t_scale = 1.0 + (tip_thickness_scale - 1.0) * u
+            x_pivot = x_le_u + twist_location * chord_wl
 
         def _calc_pt(
             x_rel: float,
@@ -365,7 +364,10 @@ def winglet_cant_angles(
 ) -> list[float]:
     blend_end = min(1.0, max(0.01, blend_radius / height)) if blend_radius > 0.0 else 0.0
     angles: list[float] = []
-    for station in stations:
+    for i, station in enumerate(stations):
+        if i == 0 or station == 0.0:
+            angles.append(0.0)
+            continue
         if blend_radius <= 0.0:
             angle = root_angle + (tip_angle - root_angle) * station
         elif station > blend_end:
