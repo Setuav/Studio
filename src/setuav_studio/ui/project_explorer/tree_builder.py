@@ -60,8 +60,12 @@ class ProjectTreeBuilder:
         finally:
             self._tree.blockSignals(False)
 
-        current_selection_id = selection_state[1]
-        if current_selection_id and self._api.current_selection is not fresh_selection:
+        has_prior_selection = (
+            selection_state[0]
+            or bool(selection_state[1])
+            or (len(selection_state) > 2 and bool(selection_state[2]))
+        )
+        if has_prior_selection and self._api.current_selection is not fresh_selection:
             self._api.set_selection(fresh_selection)
 
     def reset_project_tree(self) -> None:
@@ -282,6 +286,10 @@ class ProjectTreeBuilder:
             child.setData(0, Qt.ItemDataRole.UserRole, contribution.id)
             self._tree._item_map[contribution.id] = child
             self._tree._element_map[child] = contribution.selection
+            if isinstance(contribution.selection, dict):
+                sel_id = contribution.selection.get("id")
+                if sel_id and isinstance(sel_id, str):
+                    self._tree._item_map[sel_id] = child
             self._tree._virtual_items.add(child)
             self._tree._component_contributions[child] = contribution
             parent.addChild(child)
@@ -342,6 +350,10 @@ class ProjectTreeBuilder:
         item.setData(0, Qt.ItemDataRole.UserRole, contribution.id)
         self._tree._item_map[contribution.id] = item
         self._tree._element_map[item] = contribution.selection
+        if isinstance(contribution.selection, dict):
+            sel_id = contribution.selection.get("id")
+            if sel_id and isinstance(sel_id, str):
+                self._tree._item_map[sel_id] = item
         self._tree._virtual_items.add(item)
         self._tree._project_contributions[item] = contribution
 

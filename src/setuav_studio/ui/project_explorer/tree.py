@@ -115,27 +115,50 @@ class ProjectExplorer(QTreeWidget):
     def _tree_selection_state(
         self,
         project: ProjectDocument,
-    ) -> tuple[bool, str | None]:
+    ) -> tuple[bool, str | None, str | None]:
         current_selection = self._api.current_selection
+        current_item = self.currentItem()
+        item_data_id = (
+            str(current_item.data(0, Qt.ItemDataRole.UserRole) or "")
+            if current_item is not None
+            else ""
+        )
         return (
             current_selection is project.data,
             (current_selection.get("id") if isinstance(current_selection, dict) else None),
+            (item_data_id or None),
         )
 
     def _restore_tree_selection(
         self,
         project: ProjectDocument,
         project_item: QTreeWidgetItem,
-        selection_state: tuple[bool, str | None],
+        selection_state: tuple[bool, str | None, ...] | tuple[bool, str | None],
     ) -> dict[str, Any] | None:
-        project_selected, selection_id = selection_state
+        project_selected = selection_state[0]
+        selection_id = selection_state[1] if len(selection_state) > 1 else None
+        item_data_id = selection_state[2] if len(selection_state) > 2 else None
+
         if project_selected:
+            project_item.setSelected(True)
             self.setCurrentItem(project_item)
             return project.data
-        if selection_id and selection_id in self._item_map:
-            selected_item = self._item_map[selection_id]
-            self.setCurrentItem(selected_item)
-            return self._element_map.get(selected_item)
+
+        candidate_ids = [cid for cid in (selection_id, item_data_id) if cid]
+        for cid in candidate_ids:
+            if cid in self._item_map:
+                selected_item = self._item_map[cid]
+                selected_item.setSelected(True)
+                self.setCurrentItem(selected_item)
+                return self._element_map.get(selected_item)
+
+        if selection_id:
+            for item, elem in self._element_map.items():
+                if isinstance(elem, dict) and elem.get("id") == selection_id:
+                    item.setSelected(True)
+                    self.setCurrentItem(item)
+                    return elem
+
         return None
 
     def _capture_saved_state(self, project: ProjectDocument) -> None:
@@ -260,8 +283,14 @@ class ProjectExplorer(QTreeWidget):
             self.clearSelection()
             return
         item = self._item_map.get(elem_id)
+        if item is None:
+            for itm, elem in self._element_map.items():
+                if isinstance(elem, dict) and elem.get("id") == elem_id:
+                    item = itm
+                    break
         if item is not None:
             if self.currentItem() is not item:
+                item.setSelected(True)
                 self.setCurrentItem(item)
         else:
             self.clearSelection()
