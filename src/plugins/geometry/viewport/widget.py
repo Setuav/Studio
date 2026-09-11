@@ -23,7 +23,7 @@ from PySide6.QtOpenGL import (
 )
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 
-from ..engine.data import GeometryData, Point3D
+from ..engine.data import GeometryData, Point3D, VisualPrimitive
 from .mesh import (
     FACE_COLORED,
     FACE_MONOCHROME,
@@ -34,6 +34,8 @@ from .mesh import (
     build_envelope_wire_vertices,
     build_loft_solid_vertices,
     build_loft_wire_vertices,
+    build_primitive_solid_vertices,
+    build_primitive_wire_vertices,
     build_section_ring_vertices,
     hit_test_loft,
 )
@@ -57,6 +59,8 @@ _GL_TRIANGLES = 0x0004
 _GL_BLEND = 0x0BE2
 _GL_SRC_ALPHA = 0x0302
 _GL_ONE_MINUS_SRC_ALPHA = 0x0303
+_GL_ZERO = 0
+_GL_ONE = 1
 
 _WIRE_VERTEX_SHADER = """
 #version 330 core
@@ -133,6 +137,7 @@ class OpenGLViewer(QOpenGLWidget):
         surface_format = QSurfaceFormat.defaultFormat()
         surface_format.setDepthBufferSize(24)
         surface_format.setStencilBufferSize(8)
+        surface_format.setAlphaBufferSize(0)
         surface_format.setSamples(0)
         super().__init__(parent)
         self.setFormat(surface_format)
@@ -157,6 +162,10 @@ class OpenGLViewer(QOpenGLWidget):
         self._section_ring_vbo = QOpenGLBuffer(QOpenGLBuffer.Type.VertexBuffer)
         self._envelope_vao = QOpenGLVertexArrayObject()
         self._envelope_vbo = QOpenGLBuffer(QOpenGLBuffer.Type.VertexBuffer)
+        self._primitive_solid_vao = QOpenGLVertexArrayObject()
+        self._primitive_solid_vbo = QOpenGLBuffer(QOpenGLBuffer.Type.VertexBuffer)
+        self._primitive_wire_vao = QOpenGLVertexArrayObject()
+        self._primitive_wire_vbo = QOpenGLBuffer(QOpenGLBuffer.Type.VertexBuffer)
         self._wire_count = 0
         self._solid_count = 0
         self._grid_count = 0
@@ -164,6 +173,9 @@ class OpenGLViewer(QOpenGLWidget):
         self._highlight_count = 0
         self._section_ring_count = 0
         self._envelope_count = 0
+        self._primitive_solid_count = 0
+        self._primitive_wire_count = 0
+        self._overlay_layers: dict[str, list[VisualPrimitive]] = {}
         self._show_solid = True
         self._show_wireframe = True
         self._wire_mode = WIRE_FEATURE
@@ -214,15 +226,20 @@ class OpenGLViewer(QOpenGLWidget):
                 (self._highlight_vao, self._highlight_vbo),
                 (self._section_ring_vao, self._section_ring_vbo),
                 (self._envelope_vao, self._envelope_vbo),
+                (self._primitive_wire_vao, self._primitive_wire_vbo),
             ):
                 self._setup_buffer(vao, vbo, self._wire_program, 6, ((0, 0, 3), (1, 3, 3)))
-            self._setup_buffer(
-                self._solid_vao,
-                self._solid_vbo,
-                self._solid_program,
-                9,
-                ((0, 0, 3), (1, 3, 3), (2, 6, 3)),
-            )
+            for vao, vbo in (
+                (self._solid_vao, self._solid_vbo),
+                (self._primitive_solid_vao, self._primitive_solid_vbo),
+            ):
+                self._setup_buffer(
+                    vao,
+                    vbo,
+                    self._solid_program,
+                    9,
+                    ((0, 0, 3), (1, 3, 3), (2, 6, 3)),
+                )
             self._upload_meshes()
             self._mesh_dirty = False
             self._initialization_error = None
@@ -294,6 +311,7 @@ class OpenGLViewer(QOpenGLWidget):
             or self._highlight_count > 0
             or self._section_ring_count > 0
             or self._envelope_count > 0
+            or self._primitive_wire_count > 0
         )
         self._draw_solid_mesh(mvp, lines_overlay)
         if self._wire_program is None:
@@ -302,7 +320,7 @@ class OpenGLViewer(QOpenGLWidget):
         self._draw_axis_gizmo()
 
     def _draw_solid_mesh(self, mvp: QMatrix4x4, lines_overlay: bool) -> None:
-        if self._show_solid and self._solid_program is not None:
+        if self._show_solid and self._solid_program is not None and self._solid_count > 0:
             eye_direction = self._eye_position() - self._target
             eye_direction.normalize()
             if lines_overlay:
@@ -319,7 +337,8 @@ class OpenGLViewer(QOpenGLWidget):
             )
             if transparent:
                 self._functions.glEnable(_GL_BLEND)
-                self._functions.glBlendFunc(_GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA)
+                self._functions.glBlendFuncSeparate(_GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA, _GL_ZERO, _GL_ONE)
+                self._functions.glColorMask(True, True, True, False)
                 self._functions.glDepthMask(False)
             self._solid_vao.bind()
             self._functions.glDrawArrays(_GL_TRIANGLES, 0, self._solid_count)
@@ -327,9 +346,29 @@ class OpenGLViewer(QOpenGLWidget):
             self._solid_program.release()
             if transparent:
                 self._functions.glDepthMask(True)
+                self._functions.glColorMask(True, True, True, True)
                 self._functions.glDisable(_GL_BLEND)
             if lines_overlay:
                 self._functions.glDisable(_GL_POLYGON_OFFSET_FILL)
+
+        # Draw primitive overlays (always blended so transparency is respected)
+        if self._primitive_solid_count > 0 and self._solid_program is not None:
+            eye_direction = self._eye_position() - self._target
+            eye_direction.normalize()
+            self._solid_program.bind()
+            self._solid_program.setUniformValue("mvp", mvp)
+            self._solid_program.setUniformValue("eyeDirection", eye_direction)
+            alpha_location = self._solid_program.uniformLocation("alpha")
+            self._functions.glUniform1f(alpha_location, 0.45)
+            self._functions.glEnable(_GL_BLEND)
+            self._functions.glBlendFuncSeparate(_GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA, _GL_ZERO, _GL_ONE)
+            self._functions.glColorMask(True, True, True, False)
+            self._primitive_solid_vao.bind()
+            self._functions.glDrawArrays(_GL_TRIANGLES, 0, self._primitive_solid_count)
+            self._primitive_solid_vao.release()
+            self._functions.glColorMask(True, True, True, True)
+            self._functions.glDisable(_GL_BLEND)
+            self._solid_program.release()
 
     def _draw_wire_mesh(self, mvp: QMatrix4x4) -> None:
         assert self._wire_program is not None
@@ -353,6 +392,16 @@ class OpenGLViewer(QOpenGLWidget):
             self._envelope_vao.bind()
             self._functions.glDrawArrays(_GL_LINES, 0, self._envelope_count)
             self._envelope_vao.release()
+        if self._primitive_wire_count > 0:
+            self._functions.glEnable(_GL_BLEND)
+            self._functions.glBlendFuncSeparate(_GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA, _GL_ZERO, _GL_ONE)
+            self._functions.glColorMask(True, True, True, False)
+            self._functions.glUniform1f(alpha_location, 1.0)
+            self._primitive_wire_vao.bind()
+            self._functions.glDrawArrays(_GL_LINES, 0, self._primitive_wire_count)
+            self._primitive_wire_vao.release()
+            self._functions.glColorMask(True, True, True, True)
+            self._functions.glDisable(_GL_BLEND)
         if self._show_wireframe:
             self._functions.glEnable(_GL_BLEND)
             self._functions.glBlendFunc(_GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA)
@@ -732,6 +781,17 @@ class OpenGLViewer(QOpenGLWidget):
         self._section_ring_count = self._allocate(self._section_ring_vbo, ring_values, 6)
         self._envelope_count = self._allocate(self._envelope_vbo, envelope_values, 6)
 
+        # Collect primitives from both GeometryData and dynamic overlay layers
+        all_primitives = list(getattr(self._geometry_data, "primitives", ()))
+        for layer_prims in self._overlay_layers.values():
+            all_primitives.extend(layer_prims)
+
+        primitive_solid_values = build_primitive_solid_vertices(all_primitives)
+        primitive_wire_values = build_primitive_wire_vertices(all_primitives)
+
+        self._primitive_solid_count = self._allocate(self._primitive_solid_vbo, primitive_solid_values, 9)
+        self._primitive_wire_count = self._allocate(self._primitive_wire_vbo, primitive_wire_values, 6)
+
     @staticmethod
     def _allocate(buffer: QOpenGLBuffer, values: list[float], stride: int) -> int:
         data = array("f", values)
@@ -941,6 +1001,8 @@ class OpenGLViewer(QOpenGLWidget):
                     self._highlight_vbo,
                     self._section_ring_vbo,
                     self._envelope_vbo,
+                    self._primitive_wire_vbo,
+                    self._primitive_solid_vbo,
                 ):
                     if buffer.isCreated():
                         buffer.destroy()
@@ -952,6 +1014,8 @@ class OpenGLViewer(QOpenGLWidget):
                     self._highlight_vao,
                     self._section_ring_vao,
                     self._envelope_vao,
+                    self._primitive_wire_vao,
+                    self._primitive_solid_vao,
                 ):
                     if vao.isCreated():
                         vao.destroy()
@@ -971,4 +1035,26 @@ class OpenGLViewer(QOpenGLWidget):
             self._highlight_count = 0
             self._section_ring_count = 0
             self._envelope_count = 0
+            self._primitive_solid_count = 0
+            self._primitive_wire_count = 0
             self._mesh_dirty = True
+
+    def set_overlays(
+        self,
+        layer_id: str,
+        primitives: list[VisualPrimitive] | tuple[VisualPrimitive, ...],
+    ) -> None:
+        """Set or update a named overlay layer with visual primitives."""
+        self._overlay_layers[layer_id] = list(primitives)
+        self._mesh_dirty = True
+        self.update()
+
+    def clear_overlays(self, layer_id: str | None = None) -> None:
+        """Remove a named overlay layer, or clear all overlays if layer_id is None."""
+        if layer_id is None:
+            self._overlay_layers.clear()
+        else:
+            self._overlay_layers.pop(layer_id, None)
+        self._mesh_dirty = True
+        self.update()
+

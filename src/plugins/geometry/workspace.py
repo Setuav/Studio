@@ -62,6 +62,8 @@ class ViewerWorkspace(QWidget):
             StudioEvents.GEOMETRY_VIEWER_SETTINGS_CHANGED,
             self._on_viewer_settings_changed,
         )
+        self._api.subscribe("studio.viewer.set_overlays", self._on_set_overlays)
+        self._api.subscribe("studio.viewer.clear_overlays", self._on_clear_overlays)
         layout = QGridLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -612,3 +614,19 @@ class ViewerWorkspace(QWidget):
         self._api.remove_project_content_listener(self._on_project_content_changed)
         self._api.remove_selection_listener(self._on_selection_changed)
         self._api.remove_section_selection_listener(self._on_section_selection_changed)
+        self._api.unsubscribe("studio.viewer.set_overlays", self._on_set_overlays)
+        self._api.unsubscribe("studio.viewer.clear_overlays", self._on_clear_overlays)
+
+    def _on_set_overlays(self, payload: object) -> None:
+        if isinstance(payload, dict):
+            layer_id = str(payload.get("layer", "default"))
+            prims = payload.get("primitives", [])
+            self.viewer.set_overlays(layer_id, prims)
+
+    def _on_clear_overlays(self, payload: object) -> None:
+        layer_id = None
+        if isinstance(payload, dict):
+            layer_id = payload.get("layer")
+        elif isinstance(payload, str):
+            layer_id = payload
+        self.viewer.clear_overlays(layer_id)

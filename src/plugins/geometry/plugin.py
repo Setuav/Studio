@@ -65,7 +65,7 @@ class GeometryPlugin:
                 id="studio.viewer.opengl",
                 title="3D Viewer",
                 factory=lambda: ViewerWorkspace(api),
-                workspace_id="studio.workspace.design",
+                workspace_id=None,
                 icon="viewer_3d",
             )
         )

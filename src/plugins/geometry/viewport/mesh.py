@@ -1,7 +1,19 @@
 import math
 from itertools import pairwise
 
-from ..engine.data import GeometryData, LoftGeometry, Point3D, Section
+from ..engine.data import (
+    BoxPrimitive,
+    CylinderPrimitive,
+    GeometryData,
+    LineSegmentsPrimitive,
+    LoftGeometry,
+    PlanePrimitive,
+    Point3D,
+    RingPrimitive,
+    Section,
+    TrianglesPrimitive,
+    VisualPrimitive,
+)
 
 SELECTED_WIRE = (0.95, 0.58, 0.28)
 HOVERED_WIRE = (1.0, 1.0, 1.0)
@@ -731,3 +743,209 @@ def build_envelope_wire_vertices(
         for start, end in env.lines:
             _add_line(vertices, start, end, line_color)
     return vertices
+
+
+def _ortho_basis(normal: Point3D) -> tuple[Point3D, Point3D]:
+    nx, ny, nz = normal
+    length = math.sqrt(nx * nx + ny * ny + nz * nz)
+    if length > 1e-9:
+        nx, ny, nz = nx / length, ny / length, nz / length
+    else:
+        nx, ny, nz = 0.0, 0.0, 1.0
+
+    if abs(nx) < 0.9:
+        ax, ay, az = 1.0, 0.0, 0.0
+    else:
+        ax, ay, az = 0.0, 1.0, 0.0
+
+    ux = ny * az - nz * ay
+    uy = nz * ax - nx * az
+    uz = nx * ay - ny * ax
+    u_len = math.sqrt(ux * ux + uy * uy + uz * uz)
+    u = (ux / u_len, uy / u_len, uz / u_len)
+
+    vx = ny * u[2] - nz * u[1]
+    vy = nz * u[0] - nx * u[2]
+    vz = nx * u[1] - ny * u[0]
+    v = (vx, vy, vz)
+    return u, v
+
+
+def build_primitive_solid_vertices(primitives) -> list[float]:
+    vertices: list[float] = []
+    for prim in primitives:
+        if not getattr(prim, "solid", True):
+            continue
+        raw_color = prim.color
+        color = raw_color[:3]
+
+        if isinstance(prim, BoxPrimitive):
+            cx, cy, cz = prim.center
+            sx, sy, sz = prim.size
+            hx, hy, hz = sx * 0.5, sy * 0.5, sz * 0.5
+            c = [
+                (cx - hx, cy - hy, cz - hz),
+                (cx + hx, cy - hy, cz - hz),
+                (cx + hx, cy + hy, cz - hz),
+                (cx - hx, cy + hy, cz - hz),
+                (cx - hx, cy - hy, cz + hz),
+                (cx + hx, cy - hy, cz + hz),
+                (cx + hx, cy + hy, cz + hz),
+                (cx - hx, cy + hy, cz + hz),
+            ]
+            faces = (
+                (c[0], c[1], c[2], c[3]),  # bottom
+                (c[4], c[7], c[6], c[5]),  # top
+                (c[0], c[4], c[5], c[1]),  # front
+                (c[2], c[6], c[7], c[3]),  # back
+                (c[0], c[3], c[7], c[4]),  # left
+                (c[1], c[5], c[6], c[2]),  # right
+            )
+            for p0, p1, p2, p3 in faces:
+                _add_triangle(vertices, p0, p1, p2, color)
+                _add_triangle(vertices, p0, p2, p3, color)
+
+        elif isinstance(prim, CylinderPrimitive):
+            p1, p2 = prim.start, prim.end
+            axis = (p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2])
+            axis_len = math.sqrt(sum(a * a for a in axis))
+            if axis_len < 1e-6:
+                continue
+            u, v = _ortho_basis(axis)
+            r = prim.radius
+            segs = getattr(prim, "segments", 24)
+
+            ring1: list[Point3D] = []
+            ring2: list[Point3D] = []
+            for i in range(segs):
+                angle = 2.0 * math.pi * i / segs
+                cos_a, sin_a = math.cos(angle), math.sin(angle)
+                offset = (
+                    r * (cos_a * u[0] + sin_a * v[0]),
+                    r * (cos_a * u[1] + sin_a * v[1]),
+                    r * (cos_a * u[2] + sin_a * v[2]),
+                )
+                ring1.append((p1[0] + offset[0], p1[1] + offset[1], p1[2] + offset[2]))
+                ring2.append((p2[0] + offset[0], p2[1] + offset[1], p2[2] + offset[2]))
+
+            _add_quad_strip(vertices, ring1, ring2, color)
+            _cap_loop(vertices, ring1, color, flip=True)
+            _cap_loop(vertices, ring2, color, flip=False)
+
+        elif isinstance(prim, PlanePrimitive):
+            cx, cy, cz = prim.center
+            u, v = _ortho_basis(prim.normal)
+            hw, hh = prim.width * 0.5, prim.height * 0.5
+            p0 = (cx - hw * u[0] - hh * v[0], cy - hw * u[1] - hh * v[1], cz - hw * u[2] - hh * v[2])
+            p1 = (cx + hw * u[0] - hh * v[0], cy + hw * u[1] - hh * v[1], cz + hw * u[2] - hh * v[2])
+            p2 = (cx + hw * u[0] + hh * v[0], cy + hw * u[1] + hh * v[1], cz + hw * u[2] + hh * v[2])
+            p3 = (cx - hw * u[0] + hh * v[0], cy - hw * u[1] + hh * v[1], cz - hw * u[2] + hh * v[2])
+
+            _add_triangle(vertices, p0, p1, p2, color)
+            _add_triangle(vertices, p0, p2, p3, color)
+            _add_triangle(vertices, p0, p2, p1, color)
+            _add_triangle(vertices, p0, p3, p2, color)
+
+        elif isinstance(prim, TrianglesPrimitive):
+            if not getattr(prim, "solid", True):
+                continue
+            for p0, p1, p2 in prim.triangles:
+                _add_triangle(vertices, p0, p1, p2, color)
+
+    return vertices
+
+
+def build_primitive_wire_vertices(primitives) -> list[float]:
+    vertices: list[float] = []
+    for prim in primitives:
+        raw_color = prim.color
+        color = raw_color[:3]
+
+        if isinstance(prim, BoxPrimitive):
+            if not getattr(prim, "wireframe", True):
+                continue
+            cx, cy, cz = prim.center
+            sx, sy, sz = prim.size
+            hx, hy, hz = sx * 0.5, sy * 0.5, sz * 0.5
+            c = [
+                (cx - hx, cy - hy, cz - hz),
+                (cx + hx, cy - hy, cz - hz),
+                (cx + hx, cy + hy, cz - hz),
+                (cx - hx, cy + hy, cz - hz),
+                (cx - hx, cy - hy, cz + hz),
+                (cx + hx, cy - hy, cz + hz),
+                (cx + hx, cy + hy, cz + hz),
+                (cx - hx, cy + hy, cz + hz),
+            ]
+            edges = (
+                (0, 1), (1, 2), (2, 3), (3, 0),
+                (4, 5), (5, 6), (6, 7), (7, 4),
+                (0, 4), (1, 5), (2, 6), (3, 7),
+            )
+            for i1, i2 in edges:
+                _add_line(vertices, c[i1], c[i2], color)
+
+        elif isinstance(prim, CylinderPrimitive):
+            if not getattr(prim, "wireframe", False):
+                continue
+            p1, p2 = prim.start, prim.end
+            axis = (p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2])
+            axis_len = math.sqrt(sum(a * a for a in axis))
+            if axis_len < 1e-6:
+                continue
+            u, v = _ortho_basis(axis)
+            r = prim.radius
+            segs = getattr(prim, "segments", 24)
+
+            ring1: list[Point3D] = []
+            ring2: list[Point3D] = []
+            for i in range(segs):
+                angle = 2.0 * math.pi * i / segs
+                cos_a, sin_a = math.cos(angle), math.sin(angle)
+                offset = (
+                    r * (cos_a * u[0] + sin_a * v[0]),
+                    r * (cos_a * u[1] + sin_a * v[1]),
+                    r * (cos_a * u[2] + sin_a * v[2]),
+                )
+                ring1.append((p1[0] + offset[0], p1[1] + offset[1], p1[2] + offset[2]))
+                ring2.append((p2[0] + offset[0], p2[1] + offset[1], p2[2] + offset[2]))
+
+            _append_ring(vertices, ring1, color)
+            _append_ring(vertices, ring2, color)
+            for idx in (0, segs // 4, segs // 2, (3 * segs) // 4):
+                _add_line(vertices, ring1[idx], ring2[idx], color)
+
+        elif isinstance(prim, PlanePrimitive):
+            if not getattr(prim, "wireframe", True):
+                continue
+            cx, cy, cz = prim.center
+            u, v = _ortho_basis(prim.normal)
+            hw, hh = prim.width * 0.5, prim.height * 0.5
+            p0 = (cx - hw * u[0] - hh * v[0], cy - hw * u[1] - hh * v[1], cz - hw * u[2] - hh * v[2])
+            p1 = (cx + hw * u[0] - hh * v[0], cy + hw * u[1] - hh * v[1], cz + hw * u[2] - hh * v[2])
+            p2 = (cx + hw * u[0] + hh * v[0], cy + hw * u[1] + hh * v[1], cz + hw * u[2] + hh * v[2])
+            p3 = (cx - hw * u[0] + hh * v[0], cy - hw * u[1] + hh * v[1], cz - hw * u[2] + hh * v[2])
+            _append_ring(vertices, (p0, p1, p2, p3), color)
+
+        elif isinstance(prim, RingPrimitive):
+            cx, cy, cz = prim.center
+            u, v = _ortho_basis(prim.normal)
+            r = prim.radius
+            segs = getattr(prim, "segments", 36)
+            ring: list[Point3D] = []
+            for i in range(segs):
+                angle = 2.0 * math.pi * i / segs
+                cos_a, sin_a = math.cos(angle), math.sin(angle)
+                ring.append((
+                    cx + r * (cos_a * u[0] + sin_a * v[0]),
+                    cy + r * (cos_a * u[1] + sin_a * v[1]),
+                    cz + r * (cos_a * u[2] + sin_a * v[2]),
+                ))
+            _append_ring(vertices, ring, color)
+
+        elif isinstance(prim, LineSegmentsPrimitive):
+            for start, end in prim.lines:
+                _add_line(vertices, start, end, color)
+
+    return vertices
+
