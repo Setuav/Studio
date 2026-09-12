@@ -1,20 +1,34 @@
+# ruff: noqa: E402
 import json
-import os
+
+# Add manufacturing plugin to sys.path
+import sys
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock
 from typing import Any
+from unittest.mock import patch
 
 from setuav_studio.api import StudioAPI
 from setuav_studio.project import ProjectDocument
 from setuav_studio_sdk import LineSegmentsPrimitive, LoftPrimitive, TrianglesPrimitive
 
-# Add manufacturing plugin to sys.path
-import sys
 plugin_src = Path("/home/huseyin/dev/setware/setuav-cad/plugins/manufacturing_plugin/src")
 if str(plugin_src) not in sys.path:
     sys.path.insert(0, str(plugin_src))
 
+from setuav_manufacturing_plugin.editors.nose_cut import NoseCutPropertyEditor
+from setuav_manufacturing_plugin.editors.wing_connection import WingConnectionPropertyEditor
+from setuav_manufacturing_plugin.editors.wing_spars import WingSparsPropertyEditor
+from setuav_manufacturing_plugin.models import (
+    add_spar_to_wing,
+    calculate_seam_ratio_from_z,
+    calculate_seam_z_from_ratio,
+    ensure_manufacturing_configuration,
+    get_fuselage_z_range_at_x,
+    get_manufacturing_features,
+    resolve_fastener_standard,
+    scan_airframe_components,
+)
 from setuav_manufacturing_plugin.overlays import (
     COLOR_COVER_CUTTING_TOOL,
     COLOR_LUG_WIRE,
@@ -25,32 +39,16 @@ from setuav_manufacturing_plugin.overlays import (
     _generate_lug_polygon,
     _generate_screw_dashed_lines,
     _get_airfoil_z_surface_and_center,
-    get_wing_solid_vertical_bounds_at_xy,
-    get_main_wing_solid_midpoint_z,
     build_access_cover_primitives,
     build_nose_cut_primitives,
     build_wing_connection_primitives,
     build_wing_spar_primitives,
+    get_main_wing_solid_midpoint_z,
+    get_wing_solid_vertical_bounds_at_xy,
     update_manufacturing_overlays,
 )
-from setuav_manufacturing_plugin.models import (
-    FASTENER_STANDARDS,
-    WING_CONNECTION_DEFAULTS,
-    calculate_seam_ratio_from_z,
-    calculate_seam_z_from_ratio,
-    ensure_manufacturing_configuration,
-    get_fuselage_z_range_at_x,
-    get_manufacturing_features,
-    has_manufacturing_configuration,
-    resolve_fastener_standard,
-    add_spar_to_wing,
-    scan_airframe_components,
-)
-from setuav_manufacturing_plugin.editors.nose_cut import NoseCutPropertyEditor
-from setuav_manufacturing_plugin.editors.wing_connection import WingConnectionPropertyEditor
-from setuav_manufacturing_plugin.editors.wing_spars import WingSparsPropertyEditor
-from setuav_manufacturing_plugin.tree import ManufacturingTreeProvider
 from setuav_manufacturing_plugin.tools import ManufacturingToolsController
+from setuav_manufacturing_plugin.tree import ManufacturingTreeProvider
 
 
 class TestManufacturingOverlays(unittest.TestCase):
@@ -58,7 +56,7 @@ class TestManufacturingOverlays(unittest.TestCase):
         from PySide6.QtWidgets import QApplication
         self.app = QApplication.instance() or QApplication([])
         self.fixture_path = Path("/home/huseyin/dev/setware/setuav-studio/tests/fixtures/fixed-wing/project.json")
-        with open(self.fixture_path, "r") as f:
+        with open(self.fixture_path) as f:
             self.project_data = json.load(f)
         self.doc = ProjectDocument(self.fixture_path, "json", self.project_data)
 
@@ -229,7 +227,7 @@ class TestManufacturingOverlays(unittest.TestCase):
 
     def test_wing_connection_property_editor(self) -> None:
         from PySide6.QtWidgets import QApplication
-        app = QApplication.instance() or QApplication([])
+        _app = QApplication.instance() or QApplication([])
 
         api = StudioAPI()
         api.current_project = self.doc
@@ -492,7 +490,7 @@ class TestManufacturingOverlays(unittest.TestCase):
 
     def test_wing_spars_property_editor(self) -> None:
         from PySide6.QtWidgets import QApplication
-        app = QApplication.instance() or QApplication([])
+        _app = QApplication.instance() or QApplication([])
 
         api = StudioAPI()
         api.current_project = self.doc
@@ -881,9 +879,10 @@ class TestManufacturingOverlays(unittest.TestCase):
         self.assertFalse(hasattr(editor, "_tube_table"))
 
     def test_selection_and_properties_persists_on_edit(self) -> None:
+        from setuav_manufacturing_plugin.plugin import ManufacturingPlugin
+
         from setuav_studio.ui.project_explorer.tree import ProjectExplorer
         from setuav_studio.ui.properties.properties_panel import PropertiesPanel
-        from setuav_manufacturing_plugin.plugin import ManufacturingPlugin
 
         api = StudioAPI()
         mfg_plugin = ManufacturingPlugin()
@@ -943,8 +942,8 @@ class TestManufacturingOverlays(unittest.TestCase):
 
         # Now select Servo under Aileron Hardware
         from setuav_manufacturing_plugin.editors.control_surface_hardware import (
-            ServoPropertyEditor,
             HingePropertyEditor,
+            ServoPropertyEditor,
         )
         servo_item = tree._item_map.get("cshw_aileron_servo")
         self.assertIsNotNone(servo_item)
@@ -994,8 +993,8 @@ class TestManufacturingOverlays(unittest.TestCase):
         No span_start, span_end, or hinge_type clutter.
         """
         from setuav_manufacturing_plugin.editors.control_surface_hardware import (
-            HingePropertyEditor,
             ControlSurfaceHardwarePropertyEditor,
+            HingePropertyEditor,
         )
 
         api = StudioAPI()
@@ -1175,7 +1174,6 @@ class TestManufacturingOverlays(unittest.TestCase):
         conditional visibility of cover & bay based on mount type, and tree hierarchy without horn.
         """
         from setuav_manufacturing_plugin.editors.control_surface_hardware import (
-            ControlSurfaceHardwarePropertyEditor,
             ServoPropertyEditor,
             create_control_surface_hardware_editor,
         )
@@ -1356,7 +1354,7 @@ class TestManufacturingOverlays(unittest.TestCase):
             "name": "Nose",
         }
         editor = NoseCutPropertyEditor(api, selection)
-        self.assertEqual(editor._table.rowCount(), 6)
+        self.assertEqual(editor._table.rowCount(), 7)
 
         # Test changing nose_cut_length_mm
         editor._on_cut_len_changed(75.0)
@@ -1364,11 +1362,13 @@ class TestManufacturingOverlays(unittest.TestCase):
         self.assertEqual(features["nose_cut"]["nose_cut_length_mm"], 75.0)
 
         # Test changing 3D print interface parameters
+        editor._on_prop_changed("interface_plate_enabled", False)
         editor._on_prop_changed("rim_wall_thickness_mm", 8.5)
         editor._on_prop_changed("collar_depth_mm", 15.0)
         editor._on_prop_changed("interface_plate_thickness_mm", 4.0)
         editor._on_prop_changed("fastener_standard", "M4")
         features = get_manufacturing_features(self.doc)
+        self.assertFalse(features["nose_cut"]["interface_plate_enabled"])
         self.assertEqual(features["nose_cut"]["rim_wall_thickness_mm"], 8.5)
         self.assertEqual(features["nose_cut"]["collar_depth_mm"], 15.0)
         self.assertEqual(features["nose_cut"]["interface_plate_thickness_mm"], 4.0)
@@ -1434,8 +1434,8 @@ class TestManufacturingOverlays(unittest.TestCase):
     def test_fuselage_tree_and_editors(self) -> None:
         """Verify Fuselage group node under Manufacturing Configuration with on-demand Access Covers."""
         from setuav_manufacturing_plugin.editors import create_manufacturing_editor
-        from setuav_manufacturing_plugin.editors.fuselage_shell import FuselageShellPropertyEditor
         from setuav_manufacturing_plugin.editors.covers import CoversPropertyEditor
+        from setuav_manufacturing_plugin.editors.fuselage_shell import FuselageShellPropertyEditor
         from setuav_manufacturing_plugin.models import add_cover_to_fuselage
         from setuav_manufacturing_plugin.tools import ManufacturingToolsController
 
@@ -1533,11 +1533,11 @@ class TestManufacturingOverlays(unittest.TestCase):
 
     def test_loft_primitive_rendering(self) -> None:
         """Verify LoftPrimitive is rendered into solid and wireframe vertex buffers in viewport mesh."""
-        from setuav_studio_sdk import LoftPrimitive
         from plugins.geometry.viewport.mesh import (
             build_primitive_solid_vertices,
             build_primitive_wire_vertices,
         )
+        from setuav_studio_sdk import LoftPrimitive
 
         sec1 = ((0.0, -10.0, -10.0), (0.0, 10.0, -10.0), (0.0, 10.0, 10.0), (0.0, -10.0, 10.0))
         sec2 = ((50.0, -15.0, -15.0), (50.0, 15.0, -15.0), (50.0, 15.0, 15.0), (50.0, -15.0, 15.0))
@@ -1604,10 +1604,6 @@ class TestManufacturingOverlays(unittest.TestCase):
         ratios = calculate_fuselage_station_ratios(sections, min_wall_mm=1.5, max_wall_mm=4.0)
         self.assertEqual(len(ratios), len(sections))
 
-        # First section is narrow (20x20), middle is wide (87x84)
-        r0 = ratios[0]
-        r_mid = ratios[3]
-
         # Verify keys
         for r in ratios:
             self.assertIn("bottom_wall_ratio", r)
@@ -1648,23 +1644,27 @@ class TestManufacturingOverlays(unittest.TestCase):
         editor._on_toggle_unit_mode()  # into thickness
 
         from PySide6.QtWidgets import QDoubleSpinBox
-        # Station 1 (X=7.0 <= 50) is protected by Nose, spinbox is disabled
-        sb_nose = editor._stations_table.cellWidget(1, 3)
+        # Row 0 (#0 [Nose Plate], X=47.0) is protected by Nose, spinbox is disabled with 7.0mm equal wall
+        sb_nose = editor._stations_table.cellWidget(0, 3)
         self.assertIsInstance(sb_nose, QDoubleSpinBox)
         self.assertFalse(sb_nose.isEnabled())
+        self.assertIn("Nose Plate", editor._stations_table.item(0, 0).text())
+        self.assertAlmostEqual(sb_nose.value(), 7.0, places=1)
 
         # Attempting to edit protected Nose station is blocked
-        editor._on_station_cell_changed(1, "bottom_wall_ratio", 10.0, ref_dim=100.0)
+        editor._on_station_cell_changed(0, "bottom_wall_ratio", 10.0, ref_dim=100.0)
         self.assertEqual(get_manufacturing_features(self.doc).get("fuselage_shell", {}).get("station_ratios", []), [])
 
-        # Station 11 (motor mount station) is also protected, spinbox is disabled
+        # Station [Motor] (last row) is also protected, spinbox is disabled with 8.0mm equal wall
         last_row = editor._stations_table.rowCount() - 1
         sb_motor = editor._stations_table.cellWidget(last_row, 3)
         self.assertIsInstance(sb_motor, QDoubleSpinBox)
         self.assertFalse(sb_motor.isEnabled())
+        self.assertIn("Motor", editor._stations_table.item(last_row, 0).text())
+        self.assertAlmostEqual(sb_motor.value(), 8.0, places=1)
 
-        # Editing non-protected station (row 5, X=190) succeeds
-        editor._on_station_cell_changed(5, "bottom_wall_ratio", 10.0, ref_dim=100.0)
+        # Editing non-protected station (row 2, X=190, section index 5) succeeds
+        editor._on_station_cell_changed(2, "bottom_wall_ratio", 10.0, ref_dim=100.0)
         features = get_manufacturing_features(self.doc)
         sr = features["fuselage_shell"]["station_ratios"]
         self.assertAlmostEqual(sr[5]["bottom_wall_ratio"], 0.10, places=2)
@@ -1673,7 +1673,7 @@ class TestManufacturingOverlays(unittest.TestCase):
         editor._on_reset_stations()
         features = get_manufacturing_features(self.doc)
         sr = features["fuselage_shell"]["station_ratios"]
-        self.assertEqual(len(sr), editor._stations_table.rowCount())
+        self.assertGreaterEqual(len(sr), editor._stations_table.rowCount())
         from setuav_manufacturing_plugin.models import FUSELAGE_SHELL_DEFAULTS
         self.assertAlmostEqual(sr[5]["bottom_wall_ratio"], FUSELAGE_SHELL_DEFAULTS["bottom_wall_ratio"])
 
@@ -1692,20 +1692,129 @@ class TestManufacturingOverlays(unittest.TestCase):
         editor = MotorMountPropertyEditor(api, selection)
         self.assertEqual(editor._table.rowCount(), 10)
 
-        # Test editing rim_wall_thickness_mm, collar_depth_mm, interface_plate_thickness_mm
+        # Test editing rim_wall_thickness_mm, collar_depth_mm, interface_plate_thickness_mm, spacing
         editor._on_prop_changed("rim_wall_thickness_mm", 9.5)
         editor._on_prop_changed("collar_depth_mm", 16.0)
         editor._on_prop_changed("interface_plate_thickness_mm", 5.0)
-        editor._on_prop_changed("motor_mount_spacing_mm", 42.0)
-        editor._on_prop_changed("mount_type", "integrated")
+        editor._on_prop_changed("motor_mount_spacing_1_mm", 44.0)
+        editor._on_prop_changed("motor_mount_spacing_2_mm", 44.0)
 
         features = get_manufacturing_features(self.doc)
         mdata = features["mount_motor-1"]
         self.assertEqual(mdata["rim_wall_thickness_mm"], 9.5)
         self.assertEqual(mdata["collar_depth_mm"], 16.0)
         self.assertEqual(mdata["interface_plate_thickness_mm"], 5.0)
-        self.assertEqual(mdata["motor_mount_spacing_mm"], 42.0)
-        self.assertEqual(mdata["mount_type"], "integrated")
+        self.assertEqual(mdata["motor_mount_spacing_1_mm"], 44.0)
+        self.assertEqual(mdata["motor_mount_spacing_2_mm"], 44.0)
+
+    def test_motor_mount_primitives_outward_plate(self) -> None:
+        """Verify motor mount plate is drawn outward from fuselage rear face with cutouts and open shell."""
+        import math
+
+        from setuav_manufacturing_plugin.overlays import (
+            COLOR_LUG_WIRE,
+            COLOR_MOTOR_PLATE,
+            COLOR_MOTOR_PLATE_WIRE,
+            COLOR_SCREW_DASH,
+            COLOR_SCREW_RING,
+            COLOR_SHELL_INNER_CAVITY,
+            build_fuselage_shell_primitives,
+            build_motor_mount_primitives,
+        )
+        api = StudioAPI()
+        api.current_project = self.doc
+        ensure_manufacturing_configuration(api)
+
+        fuse_comp = next(
+            c for c in self.doc.data["components"] if c.get("id") == "fuselage"
+        )
+        raw_sections = fuse_comp["parameters"]["geometry"]["segments"][0]["sections"]
+        rear_x = float(raw_sections[-1]["position"]["x"])
+
+        feat_data = {
+            "enabled": True,
+            "interface_plate_thickness_mm": 4.0,
+            "rim_wall_thickness_mm": 8.0,
+            "center_hole_diameter_mm": 14.0,
+            "cable_slot_width_mm": 12.0,
+            "cable_slot_height_mm": 10.0,
+            "cable_slot_corner_radius_mm": 2.0,
+            "motor_mount_spacing_1_mm": 44.0,
+            "motor_mount_spacing_2_mm": 44.0,
+            "fastener_standard": "M3",
+        }
+
+        prims = build_motor_mount_primitives(fuse_comp, feat_data)
+        self.assertGreater(len(prims), 0)
+
+        # 1. Verify outward plate loft volume from rear_x to rear_x + plate_t
+        loft_prims = [p for p in prims if isinstance(p, LoftPrimitive) and p.color == COLOR_MOTOR_PLATE]
+        self.assertEqual(len(loft_prims), 1)
+        plate_loft = loft_prims[0]
+        self.assertEqual(len(plate_loft.sections), 2)
+        front_xs = [pt[0] for pt in plate_loft.sections[0]]
+        rear_xs = [pt[0] for pt in plate_loft.sections[1]]
+        self.assertAlmostEqual(sum(front_xs) / len(front_xs), rear_x, places=2)
+        self.assertAlmostEqual(sum(rear_xs) / len(rear_xs), rear_x + 4.0, places=2)
+
+        # 2. Verify plate perimeter wireframe in bright blue
+        wire_prims = [p for p in prims if isinstance(p, LineSegmentsPrimitive) and p.color == COLOR_MOTOR_PLATE_WIRE]
+        self.assertEqual(len(wire_prims), 1)
+        self.assertGreater(len(wire_prims[0].lines), 10)
+
+        # 3. Verify shaft hole and cable slot visualized in red extending 1mm outside plate surface
+        from setuav_manufacturing_plugin.overlays import COLOR_MOTOR_CUTOUT
+        cutout_prims = [p for p in prims if isinstance(p, LineSegmentsPrimitive) and p.color == COLOR_MOTOR_CUTOUT]
+        self.assertEqual(len(cutout_prims), 1)
+        cutout_xs = [pt[0] for seg in cutout_prims[0].lines for pt in seg]
+        self.assertAlmostEqual(min(cutout_xs), rear_x - 1.0, places=2)
+        self.assertAlmostEqual(max(cutout_xs), rear_x + 4.0 + 1.0, places=2)
+        self.assertGreater(len(cutout_prims[0].lines), 50)
+
+        # 4. Verify mounting screws (red dashed lines), rings, and internal lugs (blue wireframe)
+        dash_prims = [p for p in prims if isinstance(p, LineSegmentsPrimitive) and p.color == COLOR_SCREW_DASH]
+        self.assertEqual(len(dash_prims), 1)
+        self.assertGreater(len(dash_prims[0].lines), 0)
+
+        ring_prims = [p for p in prims if isinstance(p, LineSegmentsPrimitive) and p.color == COLOR_SCREW_RING]
+        self.assertEqual(len(ring_prims), 1)
+        self.assertGreater(len(ring_prims[0].lines), 0)
+
+        lug_prims = [p for p in prims if isinstance(p, LineSegmentsPrimitive) and p.color == COLOR_LUG_WIRE]
+        self.assertEqual(len(lug_prims), 1)
+        self.assertGreater(len(lug_prims[0].lines), 0)
+
+        # Verify diagonal spacing: distance between opposite screw hole axes should be exactly 44.0 mm
+        # Extract unique (y, z) pairs from dash line points
+        dash_yz_centers = set()
+        for p0, _p1 in dash_prims[0].lines:
+            dash_yz_centers.add((round(p0[1], 2), round(p0[2], 2)))
+        self.assertEqual(len(dash_yz_centers), 4)
+        yz_list = list(dash_yz_centers)
+        # Check diagonal distance between opposite corners across center
+        diag_dist_1 = math.hypot(yz_list[0][0] - yz_list[1][0], yz_list[0][1] - yz_list[1][1])
+        diag_dist_2 = math.hypot(yz_list[0][0] - yz_list[2][0], yz_list[0][1] - yz_list[2][1])
+        diag_dist_3 = math.hypot(yz_list[0][0] - yz_list[3][0], yz_list[0][1] - yz_list[3][1])
+        # Exactly one of these across-center pairs will equal the 44.0 mm diagonal spacing
+        self.assertTrue(
+            any(abs(d - 44.0) < 0.1 for d in (diag_dist_1, diag_dist_2, diag_dist_3))
+        )
+
+        # 4. Verify shell inner cavity reaches rear_x without end_wall subtraction when motor is enabled
+        shell_feat = {
+            "enabled": True,
+            "end_wall_thickness_mm": 2.4,
+        }
+        features = {
+            "motor_mount": feat_data,
+            "fuselage_shell": shell_feat,
+        }
+        shell_prims = build_fuselage_shell_primitives(fuse_comp, shell_feat, features=features)
+        shell_lofts = [p for p in shell_prims if isinstance(p, LoftPrimitive) and p.color == COLOR_SHELL_INNER_CAVITY]
+        self.assertEqual(len(shell_lofts), 1)
+        cavity_last_sec = shell_lofts[0].sections[-1]
+        last_xs = [pt[0] for pt in cavity_last_sec]
+        self.assertAlmostEqual(sum(last_xs) / len(last_xs), rear_x, places=2)
 
     def test_fuselage_access_cover_ratio_z_adjustment(self) -> None:
         """Verify relative vertical seam adjustment logic on fuselage cross sections.
@@ -1951,9 +2060,296 @@ class TestManufacturingOverlays(unittest.TestCase):
         self.assertLess(min(x_coords_filleted), 150.0)
         self.assertGreater(max(x_coords_filleted), 280.0)
 
+    def test_manufacturing_generate_tool_contribution(self) -> None:
+        """Test Generate button in toolbar: group, order, icon, and enabled_when behavior."""
+        from setuav_manufacturing_plugin.tools import ManufacturingToolsController
+
+        api = StudioAPI()
+        api.current_project = self.doc
+        ensure_manufacturing_configuration(api)
+
+        controller = ManufacturingToolsController(api)
+        contributions = controller.contributions()
+        gen_tool = next((c for c in contributions if c.id == "manufacturing.tool.generate"), None)
+        self.assertIsNotNone(gen_tool, "manufacturing.tool.generate must be in toolbar contributions")
+
+        # Verify group, order, and icon
+        self.assertEqual(gen_tool.group, "manufacturing-configuration")
+        self.assertEqual(gen_tool.order, 6)
+        self.assertIsNotNone(gen_tool.icon)
+
+        # Before configuration is selected, should be False if airframe component selected
+        api.set_selection({"id": "fuselage", "type": "component:fuselage"})
+        self.assertFalse(gen_tool.enabled_when())
+
+        # When manufacturing configuration is selected, should be True
+        api.set_selection({
+            "kind": "manufacturing_feature",
+            "type": "manufacturing:configuration",
+            "id": "manufacturing_configuration",
+        })
+        self.assertTrue(gen_tool.enabled_when())
+
+        # When any manufacturing subcomponent is selected, should be True
+        api.set_selection({
+            "kind": "manufacturing_feature",
+            "type": "manufacturing:nose_cut",
+            "id": "nose_cut",
+        })
+        self.assertTrue(gen_tool.enabled_when())
+
+    def test_build_manufacturing_specification(self) -> None:
+        """Test build_manufacturing_specification exports complete Specification dictionary."""
+        from setuav_manufacturing_plugin.generator import build_manufacturing_specification
+
+        api = StudioAPI()
+        api.current_project = self.doc
+        ensure_manufacturing_configuration(api)
+
+        spec = build_manufacturing_specification(api.current_project)
+        self.assertIn("fuselage_shell", spec)
+        self.assertIn("nose_mount", spec)
+        self.assertIn("motor_mount", spec)
+        self.assertIn("fuselage_covers", spec)
+        self.assertIn("main_wing_spars", spec)
+        self.assertIn("vtail_spars", spec)
+        self.assertIn("wing_connection", spec)
+        self.assertIn("vtail_connection", spec)
+        self.assertIn("print_settings", spec)
+
+        # Verify motor mount parameters
+        mm = spec["motor_mount"]
+        self.assertEqual(mm["motor_mount_spacing_1_mm"], 44.0)
+        self.assertEqual(mm["motor_mount_spacing_2_mm"], 44.0)
+        self.assertEqual(mm["fastener_standard"], "M3")
+
+        # Verify nose mount parameters
+        nm = spec["nose_mount"]
+        self.assertEqual(nm["fastener_standard"], "M3")
+        self.assertEqual(nm["interface_plate_thickness_mm"], 3.0)
+
+    def test_manufacturing_root_property_editor(self) -> None:
+        """Test ManufacturingRootPropertyEditor displays output info, parts list, and inspect action."""
+        import tempfile
+        from unittest.mock import patch
+
+        from setuav_manufacturing_plugin.editors.root import ManufacturingRootPropertyEditor
+
+        api = StudioAPI()
+        api.current_project = self.doc
+        ensure_manufacturing_configuration(api)
+
+        selection = {
+            "kind": "manufacturing_feature",
+            "type": "manufacturing:configuration",
+            "id": "manufacturing_configuration",
+            "name": "Manufacturing Configuration",
+        }
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            out_path = Path(tmp_dir)
+            manifest_file = out_path / "manifest.jsonl"
+            with open(manifest_file, "w") as f:
+                f.write(json.dumps({"id": "nose_piece", "category": "Fuselage", "file": "nose_piece.step"}) + "\n")
+                f.write(json.dumps({"id": "motor_mount_x", "category": "Motor Mount", "file": "motor_mount_x.step"}) + "\n")
+
+            with patch("setuav_manufacturing_plugin.editors.root.get_manufacturing_output_dir", return_value=out_path):
+                editor = ManufacturingRootPropertyEditor(api, selection)
+
+                # Inspect button should be enabled
+                self.assertTrue(editor.btn_inspect.isEnabled())
+                self.assertTrue(editor.btn_generate.isEnabled())
+                self.assertTrue(editor._progress_bar.isHidden())
+
+                # Test clicking inspect
+                with patch("setuav_manufacturing_plugin.editors.root.open_manufacturing_inspector") as mock_inspect:
+                    editor.btn_inspect.click()
+                    mock_inspect.assert_called_once_with(out_path)
+
+                # Test clicking generate with progress
+                with patch("setuav_manufacturing_plugin.editors.root.run_manufacturing_generation") as mock_run_gen:
+                    editor.btn_generate.click()
+                    self.assertTrue(mock_run_gen.called)
+                    self.assertFalse(editor._progress_bar.isHidden())
+
+    def test_control_surface_servo_overlays_wing_and_fuselage(self) -> None:
+        from setuav_manufacturing_plugin.overlays import (
+            COLOR_SCREW_DASH,
+            COLOR_SCREW_RING,
+            COLOR_SERVO_ORANGE,
+            build_control_surface_servo_primitives,
+        )
+
+        wing_comp = next(c for c in self.doc.data["components"] if c.get("id") == "main-wing")
+        aileron_comp = next(c for c in self.doc.data["components"] if c.get("id") == "aileron")
+        fuselage_comp = next(c for c in self.doc.data["components"] if c.get("id") == "fuselage")
+
+        # 1. Test Wing Flush Laying mount
+        hw_wing = {
+            "enabled": True,
+            "servo_enabled": True,
+            "servo_mount_type": "wing_flush_laying",
+            "servo_span_y_mm": 400.0,
+            "servo_chord_ratio": 0.5,
+            "cover_length_mm": 40.0,
+            "cover_width_mm": 40.0,
+            "servo_bay_depth_mm": 15.0,
+        }
+        prims_wing = build_control_surface_servo_primitives(
+            aileron_comp, wing_comp, fuselage_comp, hw_wing
+        )
+        self.assertGreater(len(prims_wing), 0)
+
+        # Should have orange bay lines, red dashed screws, red screw rings
+        has_orange_bay = any(
+            isinstance(p, LineSegmentsPrimitive) and p.color == COLOR_SERVO_ORANGE
+            for p in prims_wing
+        )
+        has_red_screws = any(
+            isinstance(p, LineSegmentsPrimitive) and p.color == COLOR_SCREW_DASH
+            for p in prims_wing
+        )
+        has_red_rings = any(
+            isinstance(p, LineSegmentsPrimitive) and p.color == COLOR_SCREW_RING
+            for p in prims_wing
+        )
+        self.assertTrue(has_orange_bay)
+        self.assertTrue(has_red_screws)
+        self.assertTrue(has_red_rings)
+
+        # Verify bay lines are placed outside the wing lower surface (z < z_bot) in world coords
+        from setuav_manufacturing_plugin.overlays import (
+            _component_transform_matrix,
+            _transform_point,
+            get_wing_solid_vertical_bounds_at_xy,
+        )
+        profiles = wing_comp["parameters"]["geometry"]["profiles"]
+        center_z_bot, _ = get_wing_solid_vertical_bounds_at_xy(profiles, 200.0, 400.0)
+        wing_m = _component_transform_matrix(wing_comp.get("transform", {}))
+        world_center_z_bot = _transform_point(wing_m, (200.0, 400.0, center_z_bot))[2]
+        bay_orange_prims = [p for p in prims_wing if isinstance(p, LineSegmentsPrimitive) and p.color == COLOR_SERVO_ORANGE]
+        for p in bay_orange_prims:
+            for seg in p.lines:
+                # All points of the bay rectangle must be strictly outside (below) the world center z_bot
+                self.assertLessEqual(seg[0][2], world_center_z_bot + 0.1)
+                self.assertLessEqual(seg[1][2], world_center_z_bot + 0.1)
+
+        # 2. Test Fuselage Sidewall mount
+        vtail_comp = next(c for c in self.doc.data["components"] if c.get("id") == "v-tail")
+        ruddervator_comp = next(
+            (c for c in self.doc.data["components"] if "ruddervator" in c.get("id", "").lower()),
+            aileron_comp,
+        )
+        hw_fuse = {
+            "enabled": True,
+            "servo_enabled": True,
+            "servo_mount_type": "fuselage_sidewall",
+            "servo_x_offset_mm": 10.0,
+            "servo_z_offset_mm": 5.0,
+            "case_length_mm": 23.0,
+            "case_width_mm": 12.0,
+            "case_height_mm": 24.0,
+        }
+        prims_fuse = build_control_surface_servo_primitives(
+            ruddervator_comp, vtail_comp, fuselage_comp, hw_fuse
+        )
+        self.assertGreater(len(prims_fuse), 0)
+
+        # Should have orange servo box lines inside fuselage
+        orange_fuse_prims = [
+            p for p in prims_fuse if isinstance(p, LineSegmentsPrimitive) and p.color == COLOR_SERVO_ORANGE
+        ]
+        self.assertGreater(len(orange_fuse_prims), 0)
+
+        all_fuse_zs = [
+            pt[2] for p in orange_fuse_prims for seg in p.lines for pt in seg
+        ]
+        mean_z = sum(all_fuse_zs) / len(all_fuse_zs)
+        self.assertAlmostEqual(mean_z, 29.59, delta=6.0)
+
+    def test_servo_property_editor_mount_type_toggle(self) -> None:
+        from setuav_manufacturing_plugin.editors.control_surface_hardware import ServoPropertyEditor
+        from setuav_manufacturing_plugin.models import ensure_manufacturing_configuration
+
+        api = StudioAPI()
+        api.current_project = self.doc
+        ensure_manufacturing_configuration(api)
+
+        selection = {
+            "id": "cshw_aileron_servo",
+            "type": "control_surface_hardware:servo",
+            "feature_id": "cshw_aileron",
+            "target_component": "aileron",
+            "sub_section": "servo",
+        }
+
+        editor = ServoPropertyEditor(api, selection)
+
+        # Default is wing_flush_laying
+        self.assertFalse(editor._cover_container.isHidden())
+        self.assertFalse(editor._bay_container.isHidden())
+        self.assertTrue(editor._fuselage_container.isHidden())
+
+        # Switch to fuselage_sidewall
+        with patch("setuav_manufacturing_plugin.editors.control_surface_hardware.update_manufacturing_overlays") as mock_ov:
+            editor._on_mount_type_changed("fuselage_sidewall")
+            self.assertTrue(editor._cover_container.isHidden())
+            self.assertTrue(editor._bay_container.isHidden())
+            self.assertFalse(editor._fuselage_container.isHidden())
+            mock_ov.assert_called_once()
+
+        # Switch back to wing_flush_laying
+        with patch("setuav_manufacturing_plugin.editors.control_surface_hardware.update_manufacturing_overlays") as mock_ov:
+            editor._on_mount_type_changed("wing_flush_laying")
+            self.assertFalse(editor._cover_container.isHidden())
+            self.assertFalse(editor._bay_container.isHidden())
+            self.assertTrue(editor._fuselage_container.isHidden())
+            mock_ov.assert_called_once()
+
+    def test_control_surface_servo_overlays_aileron_and_flap_independence(self) -> None:
+        """Verify that when an airframe has both aileron and flap with wing servos,
+        their overlays render at distinct spanwise locations rather than overlapping.
+        """
+        from setuav_manufacturing_plugin.models import ensure_manufacturing_configuration
+        from setuav_manufacturing_plugin.overlays import (
+            COLOR_SERVO_ORANGE,
+            update_manufacturing_overlays,
+        )
+
+        api = StudioAPI()
+        api.current_project = self.doc
+        ensure_manufacturing_configuration(api)
+
+        events: list[dict[str, Any]] = []
+        api.subscribe("studio.viewer.set_overlays", events.append)
+        update_manufacturing_overlays(api)
+
+        self.assertGreater(len(events), 0)
+        prims = events[-1]["primitives"]
+        orange_prims = [
+            p for p in prims if getattr(p, "color", None) == COLOR_SERVO_ORANGE
+        ]
+        # Should have at least 2 distinct wing-mounted servo bay primitives (aileron + flap)
+        # plus any fuselage sidewall servo primitives (e.g. ruddervator)
+        wing_bay_mean_ys = []
+        for p in orange_prims:
+            ys = [pt[1] for seg in p.lines for pt in seg]
+            mean_abs_y = sum(abs(y) for y in ys) / len(ys)
+            if mean_abs_y > 100.0:  # on the wing
+                wing_bay_mean_ys.append(mean_abs_y)
+
+        self.assertGreaterEqual(len(wing_bay_mean_ys), 2)
+        # Aileron is outboard (~548 mm), Flap is inboard (~246 mm)
+        wing_bay_mean_ys.sort()
+        self.assertAlmostEqual(wing_bay_mean_ys[0], 245.8, delta=15.0)
+        self.assertAlmostEqual(wing_bay_mean_ys[1], 548.4, delta=15.0)
+        # Ensure they do not overlap at the same span location
+        self.assertGreater(wing_bay_mean_ys[1] - wing_bay_mean_ys[0], 200.0)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
 
 
