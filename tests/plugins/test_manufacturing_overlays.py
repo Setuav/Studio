@@ -1499,7 +1499,7 @@ class TestManufacturingOverlays(unittest.TestCase):
         self.assertAlmostEqual(wire_verts[3], 1.0, places=2)
 
     def test_fuselage_shell_inner_cavity_overlay(self) -> None:
-        """Verify build_fuselage_shell_primitives produces dark gray inner cavity loft."""
+        """Verify build_fuselage_shell_primitives produces yellow inner cavity loft."""
         from setuav_manufacturing_plugin.overlays import (
             COLOR_SHELL_INNER_CAVITY,
             build_fuselage_shell_primitives,
