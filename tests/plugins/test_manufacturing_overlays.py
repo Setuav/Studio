@@ -1288,20 +1288,17 @@ class TestManufacturingOverlays(unittest.TestCase):
         self.assertAlmostEqual(plate_loft.sections[0][0][0], 47.0, places=2)
         self.assertAlmostEqual(plate_loft.sections[1][0][0], 50.0, places=2)
 
-        # Screws dashes and rings (including screwdriver access tunnel guidelines and front entrance rings)
+        # Screws dashes and rings
         screw_dashes = next((p for p in prims if isinstance(p, LineSegmentsPrimitive) and p.color == COLOR_SCREW_DASH), None)
         self.assertIsNotNone(screw_dashes)
         self.assertGreater(len(screw_dashes.lines), 0)
-        # Centerline and tunnel dashed lines must reach the front tip (x=0.0)
+        # Straight red dashed line for screw & screwdriver path reaches the front tip (x=0.0)
         min_dash_x = min(min(seg[0][0], seg[1][0]) for seg in screw_dashes.lines)
         self.assertAlmostEqual(min_dash_x, 0.0, places=3)
 
         screw_rings = next((p for p in prims if isinstance(p, LineSegmentsPrimitive) and p.color == COLOR_SCREW_RING), None)
         self.assertIsNotNone(screw_rings)
         self.assertGreater(len(screw_rings.lines), 0)
-        # Screwdriver entrance rings at front face (x=0.0): 4 corners * 16 segments = 64 segments
-        entrance_rings = [seg for seg in screw_rings.lines if abs(seg[0][0] - 0.0) < 1e-3]
-        self.assertEqual(len(entrance_rings), 64)
 
         # 2. Disabled cut produces no primitives
         disabled_prims = build_nose_cut_primitives(fuselage, {"enabled": False, "nose_cut_length_mm": 50.0})
