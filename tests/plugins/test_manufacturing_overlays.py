@@ -16,6 +16,7 @@ if str(plugin_src) not in sys.path:
 
 from setuav_manufacturing_plugin.overlays import (
     COLOR_LUG_WIRE,
+    COLOR_NOSE_CUT,
     COLOR_SCREW_DASH,
     COLOR_SCREW_RING,
     COLOR_SPAR_TUBE,
@@ -24,6 +25,7 @@ from setuav_manufacturing_plugin.overlays import (
     _get_airfoil_z_surface_and_center,
     get_wing_solid_vertical_bounds_at_xy,
     get_main_wing_solid_midpoint_z,
+    build_nose_cut_primitives,
     build_wing_connection_primitives,
     build_wing_spar_primitives,
     update_manufacturing_overlays,
@@ -38,6 +40,7 @@ from setuav_manufacturing_plugin.models import (
     add_spar_to_wing,
     scan_airframe_components,
 )
+from setuav_manufacturing_plugin.editors.nose_cut import NoseCutPropertyEditor
 from setuav_manufacturing_plugin.editors.wing_connection import WingConnectionPropertyEditor
 from setuav_manufacturing_plugin.editors.wing_spars import WingSparsPropertyEditor
 from setuav_manufacturing_plugin.tree import ManufacturingTreeProvider
@@ -360,6 +363,11 @@ class TestManufacturingOverlays(unittest.TestCase):
         self.assertNotIn("Aileron Servo Mount", child_map)
         self.assertNotIn("Ruddervator", child_map)
         self.assertNotIn("Ruddervator Servo Mount", child_map)
+        self.assertIn("Fuselage", child_map)
+        self.assertNotIn("Nose Cut", child_map)
+        self.assertNotIn("Access Cover", child_map)
+        self.assertNotIn("Access Covers", child_map)
+        self.assertNotIn("Shell", child_map)
 
         # Main wing children must include Fuselage Connection, Spar 1, and Aileron
         mw_children = main_wing_node.children
@@ -370,14 +378,13 @@ class TestManufacturingOverlays(unittest.TestCase):
 
         hw_node = next(c for c in mw_children if c.title == "Aileron Hardware")
         self.assertEqual(hw_node.selection["type"], "manufacturing:control_surface_hardware")
-        # Under Aileron Hardware: Servo, Hinge, and Horn
+        # Under Aileron Hardware: Servo and Hinge (no Horn)
         hw_children = {c.title: c for c in hw_node.children}
         self.assertIn("Servo", hw_children)
         self.assertIn("Hinge", hw_children)
-        self.assertIn("Horn", hw_children)
+        self.assertNotIn("Horn", hw_children)
         self.assertEqual(hw_children["Servo"].selection["sub_section"], "servo")
         self.assertEqual(hw_children["Hinge"].selection["sub_section"], "hinge")
-        self.assertEqual(hw_children["Horn"].selection["sub_section"], "horn")
 
         # V-Tail children must include Fuselage Connection, Spar 1, and Ruddervator Hardware
         v_tail_node = child_map["V-Tail"]
@@ -388,7 +395,7 @@ class TestManufacturingOverlays(unittest.TestCase):
         self.assertIn("Ruddervator Hardware", vt_child_titles)
 
         ruddervator_hw_node = next(c for c in vt_children if c.title == "Ruddervator Hardware")
-        self.assertEqual(len(ruddervator_hw_node.children), 3)
+        self.assertEqual(len(ruddervator_hw_node.children), 2)
 
     def test_toolbar_add_spar_enabled_only_when_wing_selected(self) -> None:
         api = StudioAPI()
@@ -838,9 +845,11 @@ class TestManufacturingOverlays(unittest.TestCase):
 
         editor = ControlSurfaceHardwarePropertyEditor(api, hw_node.selection)
         self.assertIsNotNone(editor._general_table)
-        self.assertIsNotNone(editor._servo_table)
+        self.assertIsNotNone(editor._mount_table)
+        self.assertIsNotNone(editor._dims_table)
+        self.assertIsNotNone(editor._cover_table)
+        self.assertIsNotNone(editor._bay_table)
         self.assertIsNotNone(editor._hinge_table)
-        self.assertIsNotNone(editor._horn_table)
 
         # 4. Property change persists to project
         editor._on_float_changed("servo_cover_length_mm", 55.0)
@@ -1155,13 +1164,13 @@ class TestManufacturingOverlays(unittest.TestCase):
         max_y_norm = max(abs(seg[0][1]) for p in prims_no_extend for seg in p.lines)
         self.assertAlmostEqual(max_y_ext - max_y_norm, 30.0, places=1)
 
-    def test_control_horn_editor_and_tree(self) -> None:
-        """Verify Control Horn (Yeke) editor, parameters matching component editor,
-        and Ruddervator Hardware tree node hierarchy.
+    def test_control_surface_hardware_servo_catalog_and_conditional_tables(self) -> None:
+        """Verify Servo catalog preset selection, separate dimension/cover/bay tables,
+        conditional visibility of cover & bay based on mount type, and tree hierarchy without horn.
         """
         from setuav_manufacturing_plugin.editors.control_surface_hardware import (
-            ControlHornPropertyEditor,
             ControlSurfaceHardwarePropertyEditor,
+            ServoPropertyEditor,
             create_control_surface_hardware_editor,
         )
 
@@ -1178,45 +1187,282 @@ class TestManufacturingOverlays(unittest.TestCase):
         hw_node = next(c for c in vt_node.children if c.title == "Ruddervator Hardware")
         self.assertEqual(hw_node.selection["type"], "manufacturing:control_surface_hardware")
 
-        # Children are Servo, Hinge, and Horn
+        # Children are strictly Servo and Hinge (NO Horn)
         child_map = {c.title: c for c in hw_node.children}
         self.assertIn("Servo", child_map)
         self.assertIn("Hinge", child_map)
-        self.assertIn("Horn", child_map)
+        self.assertNotIn("Horn", child_map)
 
-        horn_node = child_map["Horn"]
-        self.assertEqual(horn_node.selection["sub_section"], "horn")
+        servo_node = child_map["Servo"]
+        self.assertEqual(servo_node.selection["sub_section"], "servo")
 
-        # Factory returns ControlHornPropertyEditor
-        editor = create_control_surface_hardware_editor(api, horn_node.selection)
-        self.assertIsInstance(editor, ControlHornPropertyEditor)
+        # Factory returns ServoPropertyEditor
+        editor = create_control_surface_hardware_editor(api, servo_node.selection)
+        self.assertIsInstance(editor, ServoPropertyEditor)
 
-        # Verify all 11 rows (target_component + 10 parameters)
-        expected_keys = [
-            "target_component",
-            "horn_height_mm",
-            "base_length_mm",
-            "base_width_mm",
-            "base_thickness_mm",
-            "horn_fin_thickness_mm",
-            "tip_width_mm",
-            "control_horn_hole_count",
-            "control_horn_hole_dia_mm",
-            "control_horn_hole_pitch_mm",
-            "first_hole_height_mm",
-        ]
-        self.assertEqual(editor._horn_table.rowCount(), len(expected_keys))
-        for k in expected_keys:
-            self.assertGreaterEqual(editor._find_property_row(editor._horn_table, k), 0)
+        # 1. Distinct tables exist
+        self.assertIsNotNone(editor._mount_table)
+        self.assertIsNotNone(editor._dims_table)
+        self.assertIsNotNone(editor._cover_table)
+        self.assertIsNotNone(editor._bay_table)
 
-        # Test editing horn values
-        editor._on_float_changed("horn_height_mm", 22.5)
-        editor._on_int_changed("control_horn_hole_count", 5)
-
+        # 2. Ruddervator default mount is fuselage_sidewall -> Cover and Bay containers are hidden
         features = get_manufacturing_features(self.doc)
-        feat_data = features["cshw_ruddervator"]
-        self.assertEqual(feat_data["horn_height_mm"], 22.5)
-        self.assertEqual(feat_data["control_horn_hole_count"], 5)
+        self.assertEqual(features["cshw_ruddervator"]["servo_mount_type"], "fuselage_sidewall")
+        self.assertTrue(editor._cover_container.isHidden())
+        self.assertTrue(editor._bay_container.isHidden())
+
+        # 3. Switching mount type to wing_flush_laying makes Cover and Bay containers visible
+        editor._on_mount_type_changed("wing_flush_laying")
+        self.assertFalse(editor._cover_container.isHidden())
+        self.assertFalse(editor._bay_container.isHidden())
+
+        # Switching back to fuselage_sidewall hides them
+        editor._on_mount_type_changed("fuselage_sidewall")
+        self.assertTrue(editor._cover_container.isHidden())
+        self.assertTrue(editor._bay_container.isHidden())
+
+        # 4. Catalog servo model selection and default Emax ES08MD
+        model_row = editor._find_property_row(editor._dims_table, "servo_model")
+        self.assertGreaterEqual(model_row, 0)
+        self.assertEqual(editor._current_model, "Emax ES08MD")
+
+        # Check default Emax ES08MD dimensions in project
+        self.assertEqual(features["cshw_ruddervator"]["case_length_mm"], 23.0)
+        self.assertEqual(features["cshw_ruddervator"]["case_width_mm"], 12.0)
+        self.assertEqual(features["cshw_ruddervator"]["case_height_mm"], 24.0)
+
+        # 5. Selecting a different catalog model (e.g. TowerPro SG90) updates dimensions
+        editor._on_servo_model_changed("TowerPro SG90")
+        features = get_manufacturing_features(self.doc)
+        self.assertEqual(features["cshw_ruddervator"]["servo_model"], "TowerPro SG90")
+        self.assertEqual(features["cshw_ruddervator"]["case_length_mm"], 22.8)
+        self.assertEqual(features["cshw_ruddervator"]["case_width_mm"], 12.2)
+        self.assertEqual(features["cshw_ruddervator"]["case_height_mm"], 22.8)
+
+        # 6. Manually editing a dimension switches catalog model to Custom
+        editor._on_dimension_changed("case_length_mm", 25.0)
+        features = get_manufacturing_features(self.doc)
+        self.assertEqual(features["cshw_ruddervator"]["servo_model"], "Custom")
+        self.assertEqual(features["cshw_ruddervator"]["case_length_mm"], 25.0)
+
+    def test_nose_cut_primitives_exact_geometry(self) -> None:
+        airframe = scan_airframe_components(self.doc)
+        fuselage = airframe.get("fuselage")
+        self.assertIsNotNone(fuselage)
+
+        # 1. Enabled cut generates exactly LineSegmentsPrimitive with red color (no cut plane)
+        feat_data = {"enabled": True, "nose_cut_length_mm": 50.0}
+        prims = build_nose_cut_primitives(fuselage, feat_data)
+        self.assertEqual(len(prims), 1)
+
+        prim = prims[0]
+        self.assertIsInstance(prim, LineSegmentsPrimitive)
+        self.assertEqual(prim.color, COLOR_NOSE_CUT)
+        self.assertEqual(COLOR_NOSE_CUT, (1.0, 0.0, 0.0, 1.0))
+
+        # Check line segments form a closed loop of 128 points
+        lines = prim.lines
+        self.assertEqual(len(lines), 128)
+        for i in range(len(lines)):
+            p_start, p_end = lines[i]
+            # X coordinates must match cut_x (50.0)
+            self.assertAlmostEqual(p_start[0], 50.0, places=3)
+            self.assertAlmostEqual(p_end[0], 50.0, places=3)
+            # Consecutive segments must connect continuously
+            next_start = lines[(i + 1) % len(lines)][0]
+            self.assertAlmostEqual(p_end[0], next_start[0], places=5)
+            self.assertAlmostEqual(p_end[1], next_start[1], places=5)
+            self.assertAlmostEqual(p_end[2], next_start[2], places=5)
+
+        # 2. Disabled cut produces no primitives
+        disabled_prims = build_nose_cut_primitives(fuselage, {"enabled": False, "nose_cut_length_mm": 50.0})
+        self.assertEqual(disabled_prims, [])
+
+        # 3. Custom cut_x_mm position
+        custom_prims = build_nose_cut_primitives(fuselage, {"enabled": True, "cut_x_mm": 100.0})
+        self.assertEqual(len(custom_prims), 1)
+        for p_start, p_end in custom_prims[0].lines:
+            self.assertAlmostEqual(p_start[0], 100.0, places=3)
+            self.assertAlmostEqual(p_end[0], 100.0, places=3)
+
+    def test_nose_cut_overlay_publishing_in_project(self) -> None:
+        api = StudioAPI()
+        api.current_project = self.doc
+        ensure_manufacturing_configuration(api)
+
+        # Add nose cut to features
+        def add_nose_cut(ext: dict) -> None:
+            features = ext.setdefault("features", {})
+            features["nose_cut"] = {
+                "id": "nose_cut",
+                "type": "manufacturing:nose_cut",
+                "name": "Nose Cut",
+                "enabled": True,
+                "nose_cut_length_mm": 50.0,
+            }
+        api.edit_project_extension("com.setuav.manufacturing", "Add Nose Cut", add_nose_cut)
+
+        published_prims: list = []
+        def mock_publish(channel: str, data: dict) -> None:
+            if channel == "studio.viewer.set_overlays":
+                published_prims.extend(data.get("primitives", []))
+        api.publish = mock_publish
+
+        update_manufacturing_overlays(api)
+
+        # Must have red line primitive for nose cut
+        nose_cut_prims = [
+            p for p in published_prims
+            if isinstance(p, LineSegmentsPrimitive) and p.color == COLOR_NOSE_CUT
+        ]
+        self.assertEqual(len(nose_cut_prims), 1)
+        self.assertEqual(len(nose_cut_prims[0].lines), 128)
+
+    def test_nose_cut_property_editor(self) -> None:
+        api = StudioAPI()
+        api.current_project = self.doc
+        ensure_manufacturing_configuration(api)
+
+        selection = {
+            "kind": "manufacturing_feature",
+            "type": "manufacturing:nose_cut",
+            "id": "nose_cut",
+            "name": "Nose Cut",
+        }
+        editor = NoseCutPropertyEditor(api, selection)
+        self.assertEqual(editor._table.rowCount(), 2)
+
+        # Test changing nose_cut_length_mm
+        editor._on_cut_len_changed(75.0)
+        features = get_manufacturing_features(self.doc)
+        self.assertEqual(features["nose_cut"]["nose_cut_length_mm"], 75.0)
+
+        # Test toggling enabled
+        editor._on_enabled_toggled(False)
+        features = get_manufacturing_features(self.doc)
+        self.assertFalse(features["nose_cut"]["enabled"])
+
+    def test_control_surface_hinge_sweep_and_chord_alignment(self) -> None:
+        """Hinge tube overlay must precisely match control surface sweep and chord location."""
+        from setuav_manufacturing_plugin.overlays import build_control_surface_hinge_primitives
+
+        # 1. Swept wing test with zero hinge sweep:
+        # Hinge line must remain parallel to Y axis (X = 150.0 mm along full span)
+        swept_wing = {
+            "parameters": {
+                "geometry": {
+                    "mirror": False,
+                    "profiles": [
+                        {"position": {"x": 0.0, "y": 0.0, "z": 0.0}, "chord": 200.0, "airfoil": "0012"},
+                        {"position": {"x": 50.0, "y": 500.0, "z": 0.0}, "chord": 100.0, "airfoil": "0012"},
+                    ],
+                }
+            }
+        }
+        zero_sweep_cs = {
+            "parameters": {
+                "geometry": {
+                    "tag": "aileron",
+                    "type": "aileron",
+                    "span_start": 100.0,
+                    "span_end": 400.0,
+                    "chord": 40.0,
+                    "hinge_sweep": 0.0,
+                }
+            }
+        }
+        prims = build_control_surface_hinge_primitives(
+            zero_sweep_cs, swept_wing, hw_data={"enabled": True, "hinge_enabled": True}
+        )
+        self.assertEqual(len(prims), 1)
+
+        # Centerline segments connecting station centers
+        center_x_coords = [
+            p1[0]
+            for p1, p2 in prims[0].lines
+            if abs(p1[2]) < 1e-4 and abs(p2[2]) < 1e-4 and abs(p1[0] - p2[0]) < 1e-4 and abs(p1[0] - 150.0) < 0.1
+        ]
+        self.assertGreater(len(center_x_coords), 0)
+        for cx in center_x_coords:
+            self.assertAlmostEqual(cx, 150.0, delta=0.01)
+
+        # 2. Ruddervator test from project fixture
+        airframe = scan_airframe_components(self.doc)
+        vtail_wing = next(w["comp"] for w in airframe["wings"] if w["id"] == "v-tail")
+        ruddervator = next(cs["comp"] for cs in airframe["control_surfaces"] if cs["id"] == "ruddervator")
+        rv_prims = build_control_surface_hinge_primitives(
+            ruddervator, vtail_wing, hw_data={"enabled": True, "hinge_enabled": True}
+        )
+        self.assertEqual(len(rv_prims), 1)
+    def test_fuselage_tree_and_editors(self) -> None:
+        """Verify Fuselage group node under Manufacturing Configuration with Shell, Access Covers, Nose Cut."""
+        from setuav_manufacturing_plugin.editors import create_manufacturing_editor
+        from setuav_manufacturing_plugin.editors.fuselage_shell import FuselageShellPropertyEditor
+        from setuav_manufacturing_plugin.editors.covers import CoversPropertyEditor
+
+        api = StudioAPI()
+        api.current_project = self.doc
+        ensure_manufacturing_configuration(api)
+
+        provider = ManufacturingTreeProvider(api)
+        nodes = provider.project_tree_nodes(self.doc)
+        self.assertEqual(len(nodes), 1)
+        root = nodes[0]
+        self.assertEqual(root.title, "Manufacturing Configuration")
+
+        # Find Fuselage group node
+        fuselage_node = next((c for c in root.children if c.title == "Fuselage"), None)
+        self.assertIsNotNone(fuselage_node)
+        self.assertEqual(fuselage_node.selection["type"], "manufacturing:fuselage_group")
+
+        # Verify Fuselage children: Shell, Access Covers, Nose Cut
+        child_titles = [c.title for c in fuselage_node.children]
+        self.assertEqual(child_titles, ["Shell", "Access Covers", "Nose Cut"])
+
+        shell_node = fuselage_node.children[0]
+        covers_node = fuselage_node.children[1]
+        nose_cut_node = fuselage_node.children[2]
+
+        self.assertEqual(shell_node.selection["type"], "manufacturing:fuselage_shell")
+        self.assertEqual(covers_node.selection["type"], "manufacturing:covers")
+        self.assertEqual(nose_cut_node.selection["type"], "manufacturing:nose_cut")
+
+        # Verify editors instantiated via create_manufacturing_editor
+        # Selecting parent group should open FuselageShellPropertyEditor
+        group_editor = create_manufacturing_editor(api, fuselage_node.selection)
+        self.assertIsInstance(group_editor, FuselageShellPropertyEditor)
+
+        # Selecting Shell opens FuselageShellPropertyEditor
+        shell_editor = create_manufacturing_editor(api, shell_node.selection)
+        self.assertIsInstance(shell_editor, FuselageShellPropertyEditor)
+
+        # Selecting Access Covers opens CoversPropertyEditor
+        covers_editor = create_manufacturing_editor(api, covers_node.selection)
+        self.assertIsInstance(covers_editor, CoversPropertyEditor)
+
+        # Selecting Nose Cut opens NoseCutPropertyEditor
+        nose_editor = create_manufacturing_editor(api, nose_cut_node.selection)
+        self.assertIsInstance(nose_editor, NoseCutPropertyEditor)
+
+        # Test updating Fuselage Shell property
+        self.assertGreaterEqual(shell_editor._table.rowCount(), 6)
+        shell_editor._on_float_changed("bottom_wall_ratio", 0.05)
+        features = get_manufacturing_features(self.doc)
+        self.assertEqual(features["fuselage_shell"]["bottom_wall_ratio"], 0.05)
+
+        # Test updating Access Covers property
+        self.assertGreaterEqual(covers_editor._table.rowCount(), 8)
+        covers_editor._on_float_changed("corner_radius_mm", 12.0)
+        features = get_manufacturing_features(self.doc)
+        self.assertEqual(features["covers"]["corner_radius_mm"], 12.0)
+
+        # Test deleting Fuselage group
+        fuselage_node.delete()
+        features_after = get_manufacturing_features(self.doc)
+        self.assertNotIn("fuselage_shell", features_after)
+        self.assertNotIn("covers", features_after)
+        self.assertNotIn("nose_cut", features_after)
 
 
 if __name__ == "__main__":
