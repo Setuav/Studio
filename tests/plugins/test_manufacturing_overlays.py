@@ -1334,15 +1334,26 @@ class TestManufacturingOverlays(unittest.TestCase):
             "kind": "manufacturing_feature",
             "type": "manufacturing:nose_cut",
             "id": "nose_cut",
-            "name": "Nose Cut",
+            "name": "Nose",
         }
         editor = NoseCutPropertyEditor(api, selection)
-        self.assertEqual(editor._table.rowCount(), 2)
+        self.assertEqual(editor._table.rowCount(), 6)
 
         # Test changing nose_cut_length_mm
         editor._on_cut_len_changed(75.0)
         features = get_manufacturing_features(self.doc)
         self.assertEqual(features["nose_cut"]["nose_cut_length_mm"], 75.0)
+
+        # Test changing 3D print interface parameters
+        editor._on_prop_changed("rim_wall_thickness_mm", 8.5)
+        editor._on_prop_changed("collar_depth_mm", 15.0)
+        editor._on_prop_changed("interface_plate_thickness_mm", 4.0)
+        editor._on_prop_changed("fastener_standard", "M4")
+        features = get_manufacturing_features(self.doc)
+        self.assertEqual(features["nose_cut"]["rim_wall_thickness_mm"], 8.5)
+        self.assertEqual(features["nose_cut"]["collar_depth_mm"], 15.0)
+        self.assertEqual(features["nose_cut"]["interface_plate_thickness_mm"], 4.0)
+        self.assertEqual(features["nose_cut"]["fastener_standard"], "M4")
 
         # Test toggling enabled
         editor._on_enabled_toggled(False)
@@ -1424,9 +1435,9 @@ class TestManufacturingOverlays(unittest.TestCase):
         self.assertIsNotNone(fuselage_node)
         self.assertEqual(fuselage_node.selection["type"], "manufacturing:fuselage_group")
 
-        # Verify Fuselage children by default: Shell and Nose Cut (Access Covers NOT present by default)
+        # Verify Fuselage children by default: Shell and Nose (Access Covers NOT present by default)
         child_titles = [c.title for c in fuselage_node.children]
-        self.assertEqual(child_titles, ["Shell", "Nose Cut"])
+        self.assertEqual(child_titles, ["Shell", "Nose"])
 
         # Test toolbar cover addition gating (only enabled when fuselage is selected)
         tools = ManufacturingToolsController(api)
@@ -1446,7 +1457,7 @@ class TestManufacturingOverlays(unittest.TestCase):
         nodes = provider.project_tree_nodes(self.doc)
         fuselage_node = next((c for c in nodes[0].children if c.title == "Fuselage"), None)
         child_titles = [c.title for c in fuselage_node.children]
-        self.assertEqual(child_titles, ["Shell", "Access Cover 1", "Access Cover 2", "Nose Cut"])
+        self.assertEqual(child_titles, ["Shell", "Access Cover 1", "Access Cover 2", "Nose"])
 
         shell_node = fuselage_node.children[0]
         cover1_node = fuselage_node.children[1]
@@ -1469,7 +1480,7 @@ class TestManufacturingOverlays(unittest.TestCase):
         covers_editor = create_manufacturing_editor(api, cover1_node.selection)
         self.assertIsInstance(covers_editor, CoversPropertyEditor)
 
-        # Selecting Nose Cut opens NoseCutPropertyEditor
+        # Selecting Nose opens NoseCutPropertyEditor
         nose_editor = create_manufacturing_editor(api, nose_cut_node.selection)
         self.assertIsInstance(nose_editor, NoseCutPropertyEditor)
 
@@ -1616,10 +1627,28 @@ class TestManufacturingOverlays(unittest.TestCase):
 
         # Test editing a cell in thickness mode converts to ratio
         editor._on_toggle_unit_mode()  # into thickness
+
+        from PySide6.QtWidgets import QDoubleSpinBox
+        # Station 1 (X=7.0 <= 50) is protected by Nose, spinbox is disabled
+        sb_nose = editor._stations_table.cellWidget(1, 3)
+        self.assertIsInstance(sb_nose, QDoubleSpinBox)
+        self.assertFalse(sb_nose.isEnabled())
+
+        # Attempting to edit protected Nose station is blocked
         editor._on_station_cell_changed(1, "bottom_wall_ratio", 10.0, ref_dim=100.0)
+        self.assertEqual(get_manufacturing_features(self.doc).get("fuselage_shell", {}).get("station_ratios", []), [])
+
+        # Station 11 (motor mount station) is also protected, spinbox is disabled
+        last_row = editor._stations_table.rowCount() - 1
+        sb_motor = editor._stations_table.cellWidget(last_row, 3)
+        self.assertIsInstance(sb_motor, QDoubleSpinBox)
+        self.assertFalse(sb_motor.isEnabled())
+
+        # Editing non-protected station (row 5, X=190) succeeds
+        editor._on_station_cell_changed(5, "bottom_wall_ratio", 10.0, ref_dim=100.0)
         features = get_manufacturing_features(self.doc)
         sr = features["fuselage_shell"]["station_ratios"]
-        self.assertAlmostEqual(sr[1]["bottom_wall_ratio"], 0.10, places=2)
+        self.assertAlmostEqual(sr[5]["bottom_wall_ratio"], 0.10, places=2)
 
         # Test reset table to defaults button
         editor._on_reset_stations()
@@ -1627,7 +1656,37 @@ class TestManufacturingOverlays(unittest.TestCase):
         sr = features["fuselage_shell"]["station_ratios"]
         self.assertEqual(len(sr), editor._stations_table.rowCount())
         from setuav_manufacturing_plugin.models import FUSELAGE_SHELL_DEFAULTS
-        self.assertAlmostEqual(sr[0]["bottom_wall_ratio"], FUSELAGE_SHELL_DEFAULTS["bottom_wall_ratio"])
+        self.assertAlmostEqual(sr[5]["bottom_wall_ratio"], FUSELAGE_SHELL_DEFAULTS["bottom_wall_ratio"])
+
+    def test_motor_mount_editor(self) -> None:
+        """Verify MotorMountPropertyEditor initialization and parameter changes."""
+        from setuav_manufacturing_plugin.editors.motor_mount import MotorMountPropertyEditor
+        api = StudioAPI()
+        api.current_project = self.doc
+        ensure_manufacturing_configuration(api)
+
+        selection = {
+            "type": "manufacturing:motor_mount",
+            "id": "mount_motor-1",
+            "name": "Pusher Motor Mount",
+        }
+        editor = MotorMountPropertyEditor(api, selection)
+        self.assertEqual(editor._table.rowCount(), 10)
+
+        # Test editing rim_wall_thickness_mm, collar_depth_mm, interface_plate_thickness_mm
+        editor._on_prop_changed("rim_wall_thickness_mm", 9.5)
+        editor._on_prop_changed("collar_depth_mm", 16.0)
+        editor._on_prop_changed("interface_plate_thickness_mm", 5.0)
+        editor._on_prop_changed("motor_mount_spacing_mm", 42.0)
+        editor._on_prop_changed("mount_type", "integrated")
+
+        features = get_manufacturing_features(self.doc)
+        mdata = features["mount_motor-1"]
+        self.assertEqual(mdata["rim_wall_thickness_mm"], 9.5)
+        self.assertEqual(mdata["collar_depth_mm"], 16.0)
+        self.assertEqual(mdata["interface_plate_thickness_mm"], 5.0)
+        self.assertEqual(mdata["motor_mount_spacing_mm"], 42.0)
+        self.assertEqual(mdata["mount_type"], "integrated")
 
     def test_fuselage_access_cover_ratio_z_adjustment(self) -> None:
         """Verify relative vertical seam adjustment logic on fuselage cross sections.
