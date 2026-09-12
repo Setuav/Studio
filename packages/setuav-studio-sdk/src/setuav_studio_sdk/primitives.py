@@ -82,7 +82,7 @@ class LoftPrimitive:
     """Ordered closed 3D section loops forming a lofted visual body."""
 
     sections: tuple[tuple[Point3D, ...], ...]
-    color: ColorRGBA = (1.0, 0.82, 0.10, 0.45)
+    color: ColorRGBA = (1.0, 0.82, 0.10, 1.0)
     interpolation: Literal["linear", "smooth"] = "smooth"
     parameterization: Literal["uniform", "chord_length", "centripetal"] = "centripetal"
     station_spacing: float = 10.0
