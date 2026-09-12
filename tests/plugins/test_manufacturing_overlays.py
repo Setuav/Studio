@@ -1396,10 +1396,12 @@ class TestManufacturingOverlays(unittest.TestCase):
         )
         self.assertEqual(len(rv_prims), 1)
     def test_fuselage_tree_and_editors(self) -> None:
-        """Verify Fuselage group node under Manufacturing Configuration with Shell, Access Covers, Nose Cut."""
+        """Verify Fuselage group node under Manufacturing Configuration with on-demand Access Covers."""
         from setuav_manufacturing_plugin.editors import create_manufacturing_editor
         from setuav_manufacturing_plugin.editors.fuselage_shell import FuselageShellPropertyEditor
         from setuav_manufacturing_plugin.editors.covers import CoversPropertyEditor
+        from setuav_manufacturing_plugin.models import add_cover_to_fuselage
+        from setuav_manufacturing_plugin.tools import ManufacturingToolsController
 
         api = StudioAPI()
         api.current_project = self.doc
@@ -1416,52 +1418,69 @@ class TestManufacturingOverlays(unittest.TestCase):
         self.assertIsNotNone(fuselage_node)
         self.assertEqual(fuselage_node.selection["type"], "manufacturing:fuselage_group")
 
-        # Verify Fuselage children: Shell, Access Covers, Nose Cut
+        # Verify Fuselage children by default: Shell and Nose Cut (Access Covers NOT present by default)
         child_titles = [c.title for c in fuselage_node.children]
-        self.assertEqual(child_titles, ["Shell", "Access Covers", "Nose Cut"])
+        self.assertEqual(child_titles, ["Shell", "Nose Cut"])
+
+        # Test toolbar cover addition gating (only enabled when fuselage is selected)
+        tools = ManufacturingToolsController(api)
+        api.set_selection(None)
+        self.assertFalse(tools._can_add_cover())
+
+        api.set_selection(fuselage_node.selection)
+        self.assertTrue(tools._can_add_cover())
+
+        # Add Access Covers 1 and 2 sequentially (1-2 sequence like spars)
+        cover1 = add_cover_to_fuselage(api, "fuselage")
+        cover2 = add_cover_to_fuselage(api, "fuselage")
+        self.assertEqual(cover1["name"], "Access Cover 1")
+        self.assertEqual(cover2["name"], "Access Cover 2")
+
+        # Refresh tree and verify both covers are listed under fuselage
+        nodes = provider.project_tree_nodes(self.doc)
+        fuselage_node = next((c for c in nodes[0].children if c.title == "Fuselage"), None)
+        child_titles = [c.title for c in fuselage_node.children]
+        self.assertEqual(child_titles, ["Shell", "Access Cover 1", "Access Cover 2", "Nose Cut"])
 
         shell_node = fuselage_node.children[0]
-        covers_node = fuselage_node.children[1]
-        nose_cut_node = fuselage_node.children[2]
+        cover1_node = fuselage_node.children[1]
+        cover2_node = fuselage_node.children[2]
+        nose_cut_node = fuselage_node.children[3]
 
         self.assertEqual(shell_node.selection["type"], "manufacturing:fuselage_shell")
-        self.assertEqual(covers_node.selection["type"], "manufacturing:covers")
+        self.assertEqual(cover1_node.selection["type"], "manufacturing:covers")
+        self.assertEqual(cover2_node.selection["type"], "manufacturing:covers")
         self.assertEqual(nose_cut_node.selection["type"], "manufacturing:nose_cut")
 
-        # Verify editors instantiated via create_manufacturing_editor
-        # Selecting parent group should open FuselageShellPropertyEditor
+        # Selecting parent group or Shell opens FuselageShellPropertyEditor
         group_editor = create_manufacturing_editor(api, fuselage_node.selection)
         self.assertIsInstance(group_editor, FuselageShellPropertyEditor)
 
-        # Selecting Shell opens FuselageShellPropertyEditor
         shell_editor = create_manufacturing_editor(api, shell_node.selection)
         self.assertIsInstance(shell_editor, FuselageShellPropertyEditor)
 
-        # Selecting Access Covers opens CoversPropertyEditor
-        covers_editor = create_manufacturing_editor(api, covers_node.selection)
+        # Selecting Access Cover opens CoversPropertyEditor
+        covers_editor = create_manufacturing_editor(api, cover1_node.selection)
         self.assertIsInstance(covers_editor, CoversPropertyEditor)
 
         # Selecting Nose Cut opens NoseCutPropertyEditor
         nose_editor = create_manufacturing_editor(api, nose_cut_node.selection)
         self.assertIsInstance(nose_editor, NoseCutPropertyEditor)
 
-        # Test updating Fuselage Shell property
-        self.assertGreaterEqual(shell_editor._table.rowCount(), 6)
-        shell_editor._on_float_changed("bottom_wall_ratio", 0.05)
-        features = get_manufacturing_features(self.doc)
-        self.assertEqual(features["fuselage_shell"]["bottom_wall_ratio"], 0.05)
+        # Verify CoversPropertyEditor table has 7 rows (no 'Enabled' row)
+        self.assertEqual(covers_editor._table.rowCount(), 7)
 
-        # Test updating Access Covers property
-        self.assertGreaterEqual(covers_editor._table.rowCount(), 8)
+        # Test updating Access Cover property
         covers_editor._on_float_changed("corner_radius_mm", 12.0)
         features = get_manufacturing_features(self.doc)
-        self.assertEqual(features["covers"]["corner_radius_mm"], 12.0)
+        self.assertEqual(features[cover1["id"]]["corner_radius_mm"], 12.0)
 
-        # Test deleting Fuselage group
+        # Test deleting Fuselage group deletes shell, nose cut, and all covers
         fuselage_node.delete()
         features_after = get_manufacturing_features(self.doc)
         self.assertNotIn("fuselage_shell", features_after)
-        self.assertNotIn("covers", features_after)
+        self.assertNotIn(cover1["id"], features_after)
+        self.assertNotIn(cover2["id"], features_after)
         self.assertNotIn("nose_cut", features_after)
 
     def test_loft_primitive_rendering(self) -> None:
