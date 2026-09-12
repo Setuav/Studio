@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from typing import Literal
+
 Point3D = tuple[float, float, float]
 ColorRGB = tuple[float, float, float]
 ColorRGBA = tuple[float, float, float, float] | tuple[float, float, float]
@@ -75,6 +77,20 @@ class TrianglesPrimitive:
     solid: bool = True
 
 
+@dataclass(frozen=True, slots=True)
+class LoftPrimitive:
+    """Ordered closed 3D section loops forming a lofted visual body."""
+
+    sections: tuple[tuple[Point3D, ...], ...]
+    color: ColorRGBA = (1.0, 0.15, 0.15, 0.40)
+    interpolation: Literal["linear", "smooth"] = "smooth"
+    parameterization: Literal["uniform", "chord_length", "centripetal"] = "centripetal"
+    station_spacing: float = 10.0
+    closed_ends: bool = True
+    wireframe: bool = True
+    solid: bool = True
+
+
 VisualPrimitive = (
     BoxPrimitive
     | CylinderPrimitive
@@ -82,4 +98,6 @@ VisualPrimitive = (
     | RingPrimitive
     | LineSegmentsPrimitive
     | TrianglesPrimitive
+    | LoftPrimitive
 )
+

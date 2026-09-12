@@ -8,6 +8,7 @@ from setuav_studio_sdk.primitives import (
     ColorRGBA,
     CylinderPrimitive,
     LineSegmentsPrimitive,
+    LoftPrimitive,
     PlanePrimitive,
     Point3D,
     RingPrimitive,

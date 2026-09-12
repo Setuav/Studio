@@ -7,6 +7,7 @@ from ..engine.data import (
     GeometryData,
     LineSegmentsPrimitive,
     LoftGeometry,
+    LoftPrimitive,
     PlanePrimitive,
     Point3D,
     RingPrimitive,
@@ -852,6 +853,26 @@ def build_primitive_solid_vertices(primitives) -> list[float]:
             for p0, p1, p2 in prim.triangles:
                 _add_triangle(vertices, p0, p1, p2, color)
 
+        elif isinstance(prim, LoftPrimitive):
+            if not getattr(prim, "solid", True) or not prim.sections or len(prim.sections) < 2:
+                continue
+            loft = LoftGeometry(
+                component_id="primitive:loft",
+                sections=tuple(Section(pts) for pts in prim.sections),
+                color=color,
+                interpolation=getattr(prim, "interpolation", "smooth"),
+                parameterization=getattr(prim, "parameterization", "centripetal"),
+                station_spacing=getattr(prim, "station_spacing", 10.0),
+                closed_ends=getattr(prim, "closed_ends", True),
+            )
+            loops = _tessellated_loops(loft)
+            if len(loops) >= 2:
+                for first, second in pairwise(loops):
+                    _add_quad_strip(vertices, first, second, color)
+                if loft.closed_ends:
+                    _cap_loop(vertices, loops[0], color, flip=True)
+                    _cap_loop(vertices, loops[-1], color, flip=False)
+
     return vertices
 
 
@@ -946,6 +967,22 @@ def build_primitive_wire_vertices(primitives) -> list[float]:
         elif isinstance(prim, LineSegmentsPrimitive):
             for start, end in prim.lines:
                 _add_line(vertices, start, end, color)
+
+        elif isinstance(prim, LoftPrimitive):
+            if not getattr(prim, "wireframe", True) or not prim.sections or len(prim.sections) < 2:
+                continue
+            loft = LoftGeometry(
+                component_id="primitive:loft",
+                sections=tuple(Section(pts) for pts in prim.sections),
+                color=color,
+                interpolation=getattr(prim, "interpolation", "smooth"),
+                parameterization=getattr(prim, "parameterization", "centripetal"),
+                station_spacing=getattr(prim, "station_spacing", 10.0),
+                closed_ends=getattr(prim, "closed_ends", True),
+            )
+            loops = _tessellated_loops(loft)
+            if loops:
+                _append_loft_feature_wire(vertices, loft, loops, color)
 
     return vertices
 

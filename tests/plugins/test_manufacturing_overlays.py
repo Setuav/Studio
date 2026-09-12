@@ -1464,6 +1464,118 @@ class TestManufacturingOverlays(unittest.TestCase):
         self.assertNotIn("covers", features_after)
         self.assertNotIn("nose_cut", features_after)
 
+    def test_loft_primitive_rendering(self) -> None:
+        """Verify LoftPrimitive is rendered into solid and wireframe vertex buffers in viewport mesh."""
+        from setuav_studio_sdk import LoftPrimitive
+        from plugins.geometry.viewport.mesh import (
+            build_primitive_solid_vertices,
+            build_primitive_wire_vertices,
+        )
+
+        sec1 = ((0.0, -10.0, -10.0), (0.0, 10.0, -10.0), (0.0, 10.0, 10.0), (0.0, -10.0, 10.0))
+        sec2 = ((50.0, -15.0, -15.0), (50.0, 15.0, -15.0), (50.0, 15.0, 15.0), (50.0, -15.0, 15.0))
+        sec3 = ((100.0, -10.0, -10.0), (100.0, 10.0, -10.0), (100.0, 10.0, 10.0), (100.0, -10.0, 10.0))
+
+        prim = LoftPrimitive(
+            sections=(sec1, sec2, sec3),
+            color=(1.0, 0.15, 0.15, 0.35),
+            closed_ends=True,
+            wireframe=True,
+            solid=True,
+        )
+
+        # Test solid mesh generation
+        solid_verts = build_primitive_solid_vertices([prim])
+        self.assertGreater(len(solid_verts), 0)
+        # Verify color in vertex buffer (each vertex has x, y, z, nx, ny, nz, r, g, b, a)
+        self.assertAlmostEqual(solid_verts[6], 1.0, places=2)  # R
+        self.assertAlmostEqual(solid_verts[7], 0.15, places=2)  # G
+        self.assertAlmostEqual(solid_verts[8], 0.15, places=2)  # B
+
+        # Test wireframe generation
+        wire_verts = build_primitive_wire_vertices([prim])
+        self.assertGreater(len(wire_verts), 0)
+        # Wireframe color: x, y, z, r, g, b
+        self.assertAlmostEqual(wire_verts[3], 1.0, places=2)
+
+    def test_fuselage_shell_inner_cavity_overlay(self) -> None:
+        """Verify build_fuselage_shell_primitives produces translucent red inner cavity loft."""
+        from setuav_manufacturing_plugin.overlays import (
+            COLOR_SHELL_INNER_CAVITY,
+            build_fuselage_shell_primitives,
+        )
+
+        airframe = scan_airframe_components(self.doc)
+        fuselage = airframe["fuselage"]
+        self.assertIsNotNone(fuselage)
+
+        shell_feat = {
+            "enabled": True,
+            "bottom_wall_ratio": 0.16,
+            "side_wall_ratio": 0.12,
+            "top_wall_ratio": 0.06,
+            "inner_bottom_corner_ratio": 0.10,
+            "inner_top_corner_ratio": 0.15,
+            "end_wall_thickness_mm": 2.4,
+        }
+
+        prims = build_fuselage_shell_primitives(fuselage, shell_feat)
+        self.assertEqual(len(prims), 1)
+        prim = prims[0]
+        self.assertEqual(prim.color, COLOR_SHELL_INNER_CAVITY)
+        self.assertGreaterEqual(len(prim.sections), 2)
+
+    def test_fuselage_station_ratios_auto_calculation(self) -> None:
+        """Verify calculate_fuselage_station_ratios distributes thicknesses between min_wall and max_wall."""
+        from setuav_manufacturing_plugin.models import calculate_fuselage_station_ratios
+
+        airframe = scan_airframe_components(self.doc)
+        fuselage = airframe["fuselage"]
+        sections = fuselage["parameters"]["geometry"]["segments"][0]["sections"]
+        self.assertGreater(len(sections), 5)
+
+        ratios = calculate_fuselage_station_ratios(sections, min_wall_mm=1.5, max_wall_mm=4.0)
+        self.assertEqual(len(ratios), len(sections))
+
+        # First section is narrow (20x20), middle is wide (87x84)
+        r0 = ratios[0]
+        r_mid = ratios[3]
+
+        # Verify keys
+        for r in ratios:
+            self.assertIn("bottom_wall_ratio", r)
+            self.assertIn("side_wall_ratio", r)
+            self.assertIn("top_wall_ratio", r)
+            self.assertIn("bottom_corner_ratio", r)
+            self.assertIn("top_corner_ratio", r)
+            self.assertGreater(r["bottom_wall_ratio"], 0.0)
+
+    def test_fuselage_shell_editor_station_table_and_actions(self) -> None:
+        """Verify FuselageShellPropertyEditor auto-calculation and station table updates."""
+        from setuav_manufacturing_plugin.editors.fuselage_shell import FuselageShellPropertyEditor
+
+        api = StudioAPI()
+        api.current_project = self.doc
+        ensure_manufacturing_configuration(api)
+
+        editor = FuselageShellPropertyEditor(api, {"id": "fuselage_shell", "name": "Fuselage Shell"})
+        self.assertIsNotNone(editor._stations_table)
+        self.assertGreater(editor._stations_table.rowCount(), 5)
+
+        # Test auto calculate button
+        editor._on_auto_calculate()
+        features = get_manufacturing_features(self.doc)
+        station_ratios = features["fuselage_shell"].get("station_ratios", [])
+        self.assertEqual(len(station_ratios), editor._stations_table.rowCount())
+
+        # Test solid nose button
+        editor._on_set_solid_nose()
+        features = get_manufacturing_features(self.doc)
+        sr = features["fuselage_shell"]["station_ratios"]
+        self.assertEqual(sr[0]["bottom_wall_ratio"], 0.0)
+        self.assertEqual(sr[0]["side_wall_ratio"], 0.0)
+        self.assertEqual(sr[0]["top_wall_ratio"], 0.0)
+
 
 if __name__ == "__main__":
     unittest.main()
