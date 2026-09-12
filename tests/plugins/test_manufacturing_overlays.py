@@ -1568,13 +1568,13 @@ class TestManufacturingOverlays(unittest.TestCase):
         station_ratios = features["fuselage_shell"].get("station_ratios", [])
         self.assertEqual(len(station_ratios), editor._stations_table.rowCount())
 
-        # Test solid nose button
-        editor._on_set_solid_nose()
+        # Test reset table to defaults button
+        editor._on_reset_stations()
         features = get_manufacturing_features(self.doc)
         sr = features["fuselage_shell"]["station_ratios"]
-        self.assertEqual(sr[0]["bottom_wall_ratio"], 0.0)
-        self.assertEqual(sr[0]["side_wall_ratio"], 0.0)
-        self.assertEqual(sr[0]["top_wall_ratio"], 0.0)
+        self.assertEqual(len(sr), editor._stations_table.rowCount())
+        from setuav_manufacturing_plugin.models import FUSELAGE_SHELL_DEFAULTS
+        self.assertAlmostEqual(sr[0]["bottom_wall_ratio"], FUSELAGE_SHELL_DEFAULTS["bottom_wall_ratio"])
 
 
 if __name__ == "__main__":
