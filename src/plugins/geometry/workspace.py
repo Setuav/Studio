@@ -460,8 +460,9 @@ class ViewerWorkspace(QWidget):
 
     def _on_selection_changed(self, selection: object | None) -> None:
         if isinstance(selection, dict) and selection.get("kind") == "envelope":
-            component_id = selection.get("component_id")
-            envelope_component_id = component_id if isinstance(component_id, str) else None
+            comp_id = selection.get("component_id")
+            envelope_component_id = comp_id if isinstance(comp_id, str) else None
+            component_id = None
         else:
             component_id = selection.get("id") if isinstance(selection, dict) else None
             envelope_component_id = None
@@ -469,7 +470,7 @@ class ViewerWorkspace(QWidget):
         self.viewer.set_selected_component(component_id if isinstance(component_id, str) else None)
         self.viewer.set_selected_envelope(envelope_component_id)
         current = self._api.current_section_selection
-        if current is not None and current[0] != component_id:
+        if current is not None and current[0] not in (component_id, envelope_component_id):
             self._api.set_section_selection(None)
 
     def _on_section_selection_changed(

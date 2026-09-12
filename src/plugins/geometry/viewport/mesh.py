@@ -13,7 +13,6 @@ from ..engine.data import (
     RingPrimitive,
     Section,
     TrianglesPrimitive,
-    VisualPrimitive,
 )
 
 SELECTED_WIRE = (0.95, 0.58, 0.28)
@@ -731,7 +730,7 @@ def build_envelope_wire_vertices(
         is_selected = False
         if target_clean:
             is_selected = env_clean == target_clean or env_clean.startswith(f"{target_clean}:")
-        if not is_selected and comp_clean:
+        if not is_selected and comp_clean and is_prop_clearance:
             is_selected = env_clean == comp_clean or env_clean.startswith(f"{comp_clean}:")
 
         if is_selected:
