@@ -2186,21 +2186,6 @@ wheels = [
 ]
 
 [[package]]
-name = "setuav-manufacturing-plugin"
-version = "0.1.0"
-source = { editable = "../setuav-cad/plugins/manufacturing_plugin" }
-dependencies = [
-    { name = "pyside6" },
-    { name = "setuav-studio-sdk" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "pyside6", specifier = ">=6.8,<7" },
-    { name = "setuav-studio-sdk", specifier = ">=0.1,<0.2" },
-]
-
-[[package]]
 name = "setuav-pythrust"
 version = "0.2.3"
 source = { registry = "https://pypi.org/simple" }
@@ -2229,7 +2214,6 @@ dependencies = [
     { name = "qtawesome" },
     { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "scipy", version = "1.18.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
-    { name = "setuav-manufacturing-plugin" },
     { name = "setuav-pythrust" },
     { name = "setuav-studio-sdk" },
     { name = "shiboken6" },
@@ -2274,7 +2258,6 @@ requires-dist = [
     { name = "qt-themes", specifier = ">=0.4,<0.5" },
     { name = "qtawesome", specifier = ">=1.3,<2" },
     { name = "scipy", specifier = ">=1.11,<2" },
-    { name = "setuav-manufacturing-plugin", editable = "../setuav-cad/plugins/manufacturing_plugin" },
     { name = "setuav-pythrust", specifier = ">=0.2.1,<0.3" },
     { name = "setuav-studio-sdk", editable = "packages/setuav-studio-sdk" },
     { name = "shiboken6", specifier = ">=6.8,<7" },

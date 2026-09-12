@@ -21,7 +21,6 @@ dependencies = [
     "numpy>=1.26,<3",
     "scipy>=1.11,<2",
     "setuav-studio-sdk>=0.1,<0.2",
-    "setuav-manufacturing-plugin",
     "asteval>=1.0.5,<2",
 ]
 
@@ -62,7 +61,6 @@ packages = ["src/setuav_studio", "src/plugins"]
 
 [tool.uv.sources]
 setuav-studio-sdk = { path = "packages/setuav-studio-sdk", editable = true }
-setuav-manufacturing-plugin = { path = "../setuav-cad/plugins/manufacturing_plugin", editable = true }
 
 [tool.deptry.package_module_name_map]
 setuav-pythrust = "pythrust"
