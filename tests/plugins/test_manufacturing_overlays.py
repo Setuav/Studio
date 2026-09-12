@@ -3,6 +3,7 @@ import os
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock
+from typing import Any
 
 from setuav_studio.api import StudioAPI
 from setuav_studio.project import ProjectDocument
@@ -15,6 +16,7 @@ if str(plugin_src) not in sys.path:
     sys.path.insert(0, str(plugin_src))
 
 from setuav_manufacturing_plugin.overlays import (
+    COLOR_COVER_CUTTING_TOOL,
     COLOR_LUG_WIRE,
     COLOR_NOSE_CUT,
     COLOR_SCREW_DASH,
@@ -25,6 +27,7 @@ from setuav_manufacturing_plugin.overlays import (
     _get_airfoil_z_surface_and_center,
     get_wing_solid_vertical_bounds_at_xy,
     get_main_wing_solid_midpoint_z,
+    build_access_cover_primitives,
     build_nose_cut_primitives,
     build_wing_connection_primitives,
     build_wing_spar_primitives,
@@ -1730,6 +1733,64 @@ class TestManufacturingOverlays(unittest.TestCase):
         # Z height mm adapted to the cross-section at X=120 mm
         expected_z_120 = calculate_seam_z_from_ratio(self.doc, 120.0, 0.50, "fuselage")
         self.assertAlmostEqual(new_features["seam_start_z_mm"], expected_z_120, places=1)
+
+    def test_fuselage_access_cover_cutting_tool_overlay(self) -> None:
+        """Verify access cover cutting tool renders as a bright purple wireframe."""
+        airframe = scan_airframe_components(self.doc)
+        fuselage = airframe["fuselage"]
+
+        cover_feat = {
+            "id": "cover_fuselage_1",
+            "type": "manufacturing:covers",
+            "name": "Access Cover 1",
+            "enabled": True,
+            "target_component": "fuselage",
+            "longitudinal_start_mm": 150.0,
+            "longitudinal_end_mm": 280.0,
+            "seam_start_z_ratio": 0.50,
+            "seam_end_z_ratio": 0.50,
+            "corner_radius_mm": 25.0,
+            "wall_angle_deg": 25.0,
+        }
+
+        prims = build_access_cover_primitives(fuselage, cover_feat)
+        self.assertEqual(len(prims), 1)
+        prim = prims[0]
+        self.assertIsInstance(prim, LineSegmentsPrimitive)
+
+        # Must be bright purple: (0.75, 0.15, 1.0, 1.0)
+        self.assertEqual(prim.color, COLOR_COVER_CUTTING_TOOL)
+        self.assertEqual(prim.color, (0.75, 0.15, 1.0, 1.0))
+
+        # Must contain 3D wireframe lines (side sketch profiles + transverse edges)
+        self.assertGreater(len(prim.lines), 20)
+        for p1, p2 in prim.lines:
+            self.assertEqual(len(p1), 3)
+            self.assertEqual(len(p2), 3)
+
+        # Disabled cover returns empty list
+        disabled_feat = dict(cover_feat, enabled=False)
+        self.assertEqual(build_access_cover_primitives(fuselage, disabled_feat), [])
+
+        # Full pipeline test with update_manufacturing_overlays
+        api = StudioAPI()
+        api.current_project = self.doc
+        ensure_manufacturing_configuration(api)
+        from setuav_manufacturing_plugin.models import add_cover_to_fuselage
+        add_cover_to_fuselage(api, "fuselage")
+
+        published_layers: list[Any] = []
+        def capture_publish(topic: str, msg: dict[str, Any]) -> None:
+            if topic == "studio.viewer.set_overlays":
+                published_layers.append(msg)
+
+        api.publish = capture_publish
+        update_manufacturing_overlays(api)
+
+        self.assertEqual(len(published_layers), 1)
+        mfg_prims = published_layers[0]["primitives"]
+        purple_prims = [p for p in mfg_prims if isinstance(p, LineSegmentsPrimitive) and p.color == COLOR_COVER_CUTTING_TOOL]
+        self.assertEqual(len(purple_prims), 1)
 
 
 if __name__ == "__main__":
