@@ -1551,7 +1551,7 @@ class TestManufacturingOverlays(unittest.TestCase):
             self.assertGreater(r["bottom_wall_ratio"], 0.0)
 
     def test_fuselage_shell_editor_station_table_and_actions(self) -> None:
-        """Verify FuselageShellPropertyEditor auto-calculation and station table updates."""
+        """Verify FuselageShellPropertyEditor unit mode toggle and station table updates."""
         from setuav_manufacturing_plugin.editors.fuselage_shell import FuselageShellPropertyEditor
 
         api = StudioAPI()
@@ -1562,11 +1562,27 @@ class TestManufacturingOverlays(unittest.TestCase):
         self.assertIsNotNone(editor._stations_table)
         self.assertGreater(editor._stations_table.rowCount(), 5)
 
-        # Test auto calculate button
-        editor._on_auto_calculate()
+        # Test initial unit mode is ratios and button text is 'Ratios'
+        self.assertEqual(editor._unit_mode, "ratios")
+        self.assertEqual(editor.btn_unit_toggle.text(), "Ratios")
+
+        # Test toggle button switches to 'Thickness' and updates table headers
+        editor._on_toggle_unit_mode()
+        self.assertEqual(editor._unit_mode, "thickness")
+        self.assertEqual(editor.btn_unit_toggle.text(), "Thickness")
+        self.assertIn("(mm)", editor._stations_table.horizontalHeaderItem(3).text())
+
+        # Test toggle button switches back to 'Ratios'
+        editor._on_toggle_unit_mode()
+        self.assertEqual(editor._unit_mode, "ratios")
+        self.assertEqual(editor.btn_unit_toggle.text(), "Ratios")
+
+        # Test editing a cell in thickness mode converts to ratio
+        editor._on_toggle_unit_mode()  # into thickness
+        editor._on_station_cell_changed(1, "bottom_wall_ratio", 10.0, ref_dim=100.0)
         features = get_manufacturing_features(self.doc)
-        station_ratios = features["fuselage_shell"].get("station_ratios", [])
-        self.assertEqual(len(station_ratios), editor._stations_table.rowCount())
+        sr = features["fuselage_shell"]["station_ratios"]
+        self.assertAlmostEqual(sr[1]["bottom_wall_ratio"], 0.10, places=2)
 
         # Test reset table to defaults button
         editor._on_reset_stations()
