@@ -7,7 +7,7 @@ from typing import Any
 
 from setuav_studio.api import StudioAPI
 from setuav_studio.project import ProjectDocument
-from setuav_studio_sdk import LineSegmentsPrimitive, TrianglesPrimitive
+from setuav_studio_sdk import LineSegmentsPrimitive, LoftPrimitive, TrianglesPrimitive
 
 # Add manufacturing plugin to sys.path
 import sys
@@ -1257,18 +1257,17 @@ class TestManufacturingOverlays(unittest.TestCase):
         fuselage = airframe.get("fuselage")
         self.assertIsNotNone(fuselage)
 
-        # 1. Enabled cut generates exactly LineSegmentsPrimitive with red color (no cut plane)
+        # 1. Enabled cut generates red cut outline, interface plate loft & wireframe, and screws
         feat_data = {"enabled": True, "nose_cut_length_mm": 50.0}
         prims = build_nose_cut_primitives(fuselage, feat_data)
-        self.assertEqual(len(prims), 1)
+        self.assertGreaterEqual(len(prims), 4)
 
-        prim = prims[0]
-        self.assertIsInstance(prim, LineSegmentsPrimitive)
-        self.assertEqual(prim.color, COLOR_NOSE_CUT)
+        # Red cut loop
+        cut_prim = next(p for p in prims if isinstance(p, LineSegmentsPrimitive) and p.color == COLOR_NOSE_CUT)
         self.assertEqual(COLOR_NOSE_CUT, (1.0, 0.0, 0.0, 1.0))
 
         # Check line segments form a closed loop of 128 points
-        lines = prim.lines
+        lines = cut_prim.lines
         self.assertEqual(len(lines), 128)
         for i in range(len(lines)):
             p_start, p_end = lines[i]
@@ -1281,14 +1280,31 @@ class TestManufacturingOverlays(unittest.TestCase):
             self.assertAlmostEqual(p_end[1], next_start[1], places=5)
             self.assertAlmostEqual(p_end[2], next_start[2], places=5)
 
+        # Interface plate solid loft
+        plate_loft = next((p for p in prims if isinstance(p, LoftPrimitive)), None)
+        self.assertIsNotNone(plate_loft)
+        self.assertEqual(len(plate_loft.sections), 2)
+        # Front section X is split_x (50 - 3 = 47.0), rear section X is cut_x (50.0)
+        self.assertAlmostEqual(plate_loft.sections[0][0][0], 47.0, places=2)
+        self.assertAlmostEqual(plate_loft.sections[1][0][0], 50.0, places=2)
+
+        # Screws dashes and rings
+        screw_dashes = next((p for p in prims if isinstance(p, LineSegmentsPrimitive) and p.color == COLOR_SCREW_DASH), None)
+        self.assertIsNotNone(screw_dashes)
+        self.assertGreater(len(screw_dashes.lines), 0)
+
+        screw_rings = next((p for p in prims if isinstance(p, LineSegmentsPrimitive) and p.color == COLOR_SCREW_RING), None)
+        self.assertIsNotNone(screw_rings)
+        self.assertGreater(len(screw_rings.lines), 0)
+
         # 2. Disabled cut produces no primitives
         disabled_prims = build_nose_cut_primitives(fuselage, {"enabled": False, "nose_cut_length_mm": 50.0})
         self.assertEqual(disabled_prims, [])
 
         # 3. Custom cut_x_mm position
         custom_prims = build_nose_cut_primitives(fuselage, {"enabled": True, "cut_x_mm": 100.0})
-        self.assertEqual(len(custom_prims), 1)
-        for p_start, p_end in custom_prims[0].lines:
+        custom_cut = next(p for p in custom_prims if isinstance(p, LineSegmentsPrimitive) and p.color == COLOR_NOSE_CUT)
+        for p_start, p_end in custom_cut.lines:
             self.assertAlmostEqual(p_start[0], 100.0, places=3)
             self.assertAlmostEqual(p_end[0], 100.0, places=3)
 
