@@ -958,7 +958,7 @@ class TestManufacturingOverlays(unittest.TestCase):
         combo = servo_editor._servo_table.cellWidget(mount_row, 1)
         self.assertEqual(combo.count(), 2)
         combo_items = [combo.itemText(i) for i in range(combo.count())]
-        self.assertIn("Wing Flush Laying", combo_items)
+        self.assertIn("Servo Bay and Cover", combo_items)
         self.assertIn("Fuselage Sidewall", combo_items)
 
         # Verify servo_enabled is not in the table
