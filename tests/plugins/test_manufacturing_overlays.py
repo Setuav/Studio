@@ -33,7 +33,10 @@ from setuav_manufacturing_plugin.overlays import (
 from setuav_manufacturing_plugin.models import (
     FASTENER_STANDARDS,
     WING_CONNECTION_DEFAULTS,
+    calculate_seam_ratio_from_z,
+    calculate_seam_z_from_ratio,
     ensure_manufacturing_configuration,
+    get_fuselage_z_range_at_x,
     get_manufacturing_features,
     has_manufacturing_configuration,
     resolve_fastener_standard,
@@ -1475,6 +1478,12 @@ class TestManufacturingOverlays(unittest.TestCase):
         features = get_manufacturing_features(self.doc)
         self.assertEqual(features[cover1["id"]]["corner_radius_mm"], 12.0)
 
+        # Test updating ratio updates both ratio and mm
+        covers_editor._on_float_changed("seam_start_z_ratio", 0.60)
+        features = get_manufacturing_features(self.doc)
+        self.assertAlmostEqual(features[cover1["id"]]["seam_start_z_ratio"], 0.60, places=2)
+        self.assertIn("seam_start_z_mm", features[cover1["id"]])
+
         # Test deleting Fuselage group deletes shell, nose cut, and all covers
         fuselage_node.delete()
         features_after = get_manufacturing_features(self.doc)
@@ -1610,6 +1619,117 @@ class TestManufacturingOverlays(unittest.TestCase):
         self.assertEqual(len(sr), editor._stations_table.rowCount())
         from setuav_manufacturing_plugin.models import FUSELAGE_SHELL_DEFAULTS
         self.assertAlmostEqual(sr[0]["bottom_wall_ratio"], FUSELAGE_SHELL_DEFAULTS["bottom_wall_ratio"])
+
+    def test_fuselage_access_cover_ratio_z_adjustment(self) -> None:
+        """Verify relative vertical seam adjustment logic on fuselage cross sections.
+
+        User requirement:
+        At station X, with fuselage vertical range 10 - 90 mm, start Z ratio 0.50
+        must correspond exactly to 50 mm. If the fuselage is resized, the ratio
+        remains feasible and scales automatically.
+        """
+        # 1. Direct mock fuselage component testing user's exact numbers
+        # Section with center Z = 50.0, height = 80.0 -> Z range [10.0, 90.0]
+        mock_fuselage = {
+            "id": "fuselage_test",
+            "type": "org.setuav.core:fuselage",
+            "transform": {},
+            "parameters": {
+                "geometry": {
+                    "segments": [
+                        {
+                            "sections": [
+                                {
+                                    "position": {"x": 100.0, "y": 0.0, "z": 50.0},
+                                    "profile": {"type": "rectangle", "width": 80.0, "height": 80.0},
+                                },
+                                {
+                                    "position": {"x": 300.0, "y": 0.0, "z": 60.0},
+                                    "profile": {"type": "rectangle", "width": 80.0, "height": 100.0},
+                                },
+                            ]
+                        }
+                    ]
+                }
+            },
+        }
+
+        # At X=100: center=50, height=80 -> z_min=10, z_max=90
+        z_min, z_max = get_fuselage_z_range_at_x(mock_fuselage, 100.0)
+        self.assertAlmostEqual(z_min, 10.0)
+        self.assertAlmostEqual(z_max, 90.0)
+
+        # Start Z = 0.5 -> 50 mm (User's exact example)
+        z_50 = calculate_seam_z_from_ratio(mock_fuselage, 100.0, 0.50)
+        self.assertAlmostEqual(z_50, 50.0)
+
+        # Invert from 50 mm -> ratio 0.50
+        r_50 = calculate_seam_ratio_from_z(mock_fuselage, 100.0, 50.0)
+        self.assertAlmostEqual(r_50, 0.50)
+
+        # Bounds: ratio 0.0 -> 10 mm, ratio 1.0 -> 90 mm
+        self.assertAlmostEqual(calculate_seam_z_from_ratio(mock_fuselage, 100.0, 0.0), 10.0)
+        self.assertAlmostEqual(calculate_seam_z_from_ratio(mock_fuselage, 100.0, 1.0), 90.0)
+
+        # Interpolated section at X=200 (halfway between 100 and 300):
+        # Station 1: [10, 90], Station 2: [60 - 50, 60 + 50] = [10, 110]
+        # At X=200: z_min=10, z_max=100
+        z_min_200, z_max_200 = get_fuselage_z_range_at_x(mock_fuselage, 200.0)
+        self.assertAlmostEqual(z_min_200, 10.0)
+        self.assertAlmostEqual(z_max_200, 100.0)
+        self.assertAlmostEqual(calculate_seam_z_from_ratio(mock_fuselage, 200.0, 0.50), 55.0)
+
+        # Resizing fuselage: height increases from 80 to 160 (Z range 20 - 180 mm)
+        # Center = 100, height = 160 -> z_min = 20, z_max = 180
+        mock_resized_fuselage = {
+            "id": "fuselage_test",
+            "type": "org.setuav.core:fuselage",
+            "transform": {},
+            "parameters": {
+                "geometry": {
+                    "segments": [
+                        {
+                            "sections": [
+                                {
+                                    "position": {"x": 100.0, "y": 0.0, "z": 100.0},
+                                    "profile": {"type": "rectangle", "width": 80.0, "height": 160.0},
+                                },
+                            ]
+                        }
+                    ]
+                }
+            },
+        }
+        # Ratio 0.5 scales automatically to 100 mm (perfect feasibility preserved)
+        z_resized = calculate_seam_z_from_ratio(mock_resized_fuselage, 100.0, 0.50)
+        self.assertAlmostEqual(z_resized, 100.0)
+
+        # 2. CoversPropertyEditor behavior on project document
+        from setuav_manufacturing_plugin.editors.covers import CoversPropertyEditor
+        from setuav_manufacturing_plugin.models import add_cover_to_fuselage
+
+        api = StudioAPI()
+        api.current_project = self.doc
+        ensure_manufacturing_configuration(api)
+
+        cover_feat = add_cover_to_fuselage(api, "fuselage")
+        editor = CoversPropertyEditor(api, cover_feat)
+
+        # Table rows check
+        self.assertEqual(editor._table.rowCount(), 7)
+        keys = [editor._property_key(editor._table, r) for r in range(7)]
+        self.assertIn("seam_start_z_ratio", keys)
+        self.assertIn("seam_end_z_ratio", keys)
+
+        # Modifying longitudinal_start_mm recalculates seam_start_z_mm
+        editor._on_float_changed("longitudinal_start_mm", 120.0)
+        new_features = get_manufacturing_features(self.doc)[cover_feat["id"]]
+        self.assertEqual(new_features["longitudinal_start_mm"], 120.0)
+        # Ratio stays preserved at default
+        self.assertAlmostEqual(new_features["seam_start_z_ratio"], 0.50)
+        # Z height mm adapted to the cross-section at X=120 mm
+        expected_z_120 = calculate_seam_z_from_ratio(self.doc, 120.0, 0.50, "fuselage")
+        self.assertAlmostEqual(new_features["seam_start_z_mm"], expected_z_120, places=1)
 
 
 if __name__ == "__main__":
