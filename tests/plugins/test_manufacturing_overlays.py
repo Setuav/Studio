@@ -1473,13 +1473,19 @@ class TestManufacturingOverlays(unittest.TestCase):
         nose_editor = create_manufacturing_editor(api, nose_cut_node.selection)
         self.assertIsInstance(nose_editor, NoseCutPropertyEditor)
 
-        # Verify CoversPropertyEditor table has 7 rows (no 'Enabled' row)
-        self.assertEqual(covers_editor._table.rowCount(), 7)
+        # Verify CoversPropertyEditor table has 9 rows (no 'Enabled' row)
+        self.assertEqual(covers_editor._table.rowCount(), 9)
 
-        # Test updating Access Cover property
-        covers_editor._on_float_changed("corner_radius_mm", 12.0)
+        # Test updating Access Cover properties (front/rear radius and angles)
+        covers_editor._on_float_changed("front_radius_mm", 12.0)
+        covers_editor._on_float_changed("rear_radius_mm", 16.0)
+        covers_editor._on_float_changed("front_wall_angle_deg", 75.0)
+        covers_editor._on_float_changed("rear_wall_angle_deg", 80.0)
         features = get_manufacturing_features(self.doc)
-        self.assertEqual(features[cover1["id"]]["corner_radius_mm"], 12.0)
+        self.assertEqual(features[cover1["id"]]["front_radius_mm"], 12.0)
+        self.assertEqual(features[cover1["id"]]["rear_radius_mm"], 16.0)
+        self.assertEqual(features[cover1["id"]]["front_wall_angle_deg"], 75.0)
+        self.assertEqual(features[cover1["id"]]["rear_wall_angle_deg"], 80.0)
 
         # Test updating ratio updates both ratio and mm
         covers_editor._on_float_changed("seam_start_z_ratio", 0.60)
@@ -1719,10 +1725,14 @@ class TestManufacturingOverlays(unittest.TestCase):
         editor = CoversPropertyEditor(api, cover_feat)
 
         # Table rows check
-        self.assertEqual(editor._table.rowCount(), 7)
-        keys = [editor._property_key(editor._table, r) for r in range(7)]
+        self.assertEqual(editor._table.rowCount(), 9)
+        keys = [editor._property_key(editor._table, r) for r in range(9)]
         self.assertIn("seam_start_z_ratio", keys)
         self.assertIn("seam_end_z_ratio", keys)
+        self.assertIn("front_radius_mm", keys)
+        self.assertIn("rear_radius_mm", keys)
+        self.assertIn("front_wall_angle_deg", keys)
+        self.assertIn("rear_wall_angle_deg", keys)
 
         # Modifying longitudinal_start_mm recalculates seam_start_z_mm
         editor._on_float_changed("longitudinal_start_mm", 120.0)
@@ -1791,6 +1801,77 @@ class TestManufacturingOverlays(unittest.TestCase):
         mfg_prims = published_layers[0]["primitives"]
         purple_prims = [p for p in mfg_prims if isinstance(p, LineSegmentsPrimitive) and p.color == COLOR_COVER_CUTTING_TOOL]
         self.assertEqual(len(purple_prims), 1)
+
+    def test_fuselage_access_cover_separate_radii_and_wall_draft_angles(self) -> None:
+        """Verify separate front/rear radii, 90 deg default draft angles, and fixed bottom corners."""
+        airframe = scan_airframe_components(self.doc)
+        fuselage = airframe["fuselage"]
+
+        # 1. Default 90 deg wall angles: front and rear walls are vertical
+        cover_default = {
+            "id": "cover_90",
+            "type": "manufacturing:covers",
+            "name": "Cover 90",
+            "enabled": True,
+            "target_component": "fuselage",
+            "longitudinal_start_mm": 150.0,
+            "longitudinal_end_mm": 280.0,
+            "seam_start_z_ratio": 0.50,
+            "seam_end_z_ratio": 0.50,
+            "front_radius_mm": 15.0,
+            "rear_radius_mm": 25.0,
+            "front_wall_angle_deg": 90.0,
+            "rear_wall_angle_deg": 90.0,
+        }
+        prims_90 = build_access_cover_primitives(fuselage, cover_default)
+        self.assertEqual(len(prims_90), 1)
+        x_coords_90 = [p[0] for line in prims_90[0].lines for p in line]
+        min_x_90 = min(x_coords_90)
+        max_x_90 = max(x_coords_90)
+        # With 90 deg, cutting tool extents along X start at 150.0 and end at 280.0
+        self.assertAlmostEqual(min_x_90, 150.0, places=1)
+        self.assertAlmostEqual(max_x_90, 280.0, places=1)
+
+        # 2. Sloped draft angles (e.g. 60 deg) with sharp corners:
+        # User requirement: Bottom corners MUST stay anchored at start_x (150) and end_x (280),
+        # only the top corners move outward (top-left moves to < 150, top-right moves to > 280).
+        cover_sloped_sharp = dict(
+            cover_default,
+            front_radius_mm=0.0,
+            rear_radius_mm=0.0,
+            front_wall_angle_deg=60.0,
+            rear_wall_angle_deg=60.0,
+        )
+        prims_sharp = build_access_cover_primitives(fuselage, cover_sloped_sharp)
+        self.assertEqual(len(prims_sharp), 1)
+        x_coords_sharp = [p[0] for line in prims_sharp[0].lines for p in line]
+        min_x_sharp = min(x_coords_sharp)
+        max_x_sharp = max(x_coords_sharp)
+
+        # Top corners moved outward:
+        self.assertLess(min_x_sharp, 150.0)
+        self.assertGreater(max_x_sharp, 280.0)
+
+        # Bottom corner points are exactly start_x (150.0) and end_x (280.0)
+        bottom_pts_sharp = [p for line in prims_sharp[0].lines for p in line if abs(p[0] - 150.0) < 0.1 or abs(p[0] - 280.0) < 0.1]
+        self.assertTrue(len(bottom_pts_sharp) > 0)
+        self.assertTrue(any(abs(p[0] - 150.0) < 0.1 for p in bottom_pts_sharp))
+        self.assertTrue(any(abs(p[0] - 280.0) < 0.1 for p in bottom_pts_sharp))
+
+        # 3. Sloped draft angles with independent front and rear fillets
+        cover_sloped_filleted = dict(
+            cover_default,
+            front_radius_mm=10.0,
+            rear_radius_mm=25.0,
+            front_wall_angle_deg=60.0,
+            rear_wall_angle_deg=60.0,
+        )
+        prims_filleted = build_access_cover_primitives(fuselage, cover_sloped_filleted)
+        self.assertEqual(len(prims_filleted), 1)
+        x_coords_filleted = [p[0] for line in prims_filleted[0].lines for p in line]
+        # Top corners still move outward past start_x and end_x
+        self.assertLess(min(x_coords_filleted), 150.0)
+        self.assertGreater(max(x_coords_filleted), 280.0)
 
 
 if __name__ == "__main__":
