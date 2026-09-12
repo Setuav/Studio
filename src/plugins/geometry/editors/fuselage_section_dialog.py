@@ -1119,12 +1119,21 @@ class FuselageSectionDialog(QDialog):
 
     def _on_cancel_clicked(self) -> None:
         """Discard changes and restore original component state."""
-        self._component.clear()
-        self._component.update(self._original_component)
-        if self._api.current_project:
+        orig = copy.deepcopy(self._original_component)
+        if self._component != orig and self._api.current_project:
+            def cancel_change() -> None:
+                self._component.clear()
+                self._component.update(orig)
+                from ..engine.envelope import sync_component_envelope
+
+                sync_component_envelope(self._component)
+
             self._api.edit_component(
                 self._component,
                 "Cancel fuselage section edit",
-                lambda: None,
+                cancel_change,
             )
+        else:
+            self._component.clear()
+            self._component.update(orig)
         self.reject()

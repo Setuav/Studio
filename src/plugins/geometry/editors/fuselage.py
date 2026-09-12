@@ -423,7 +423,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
             self._publish_section_selection()
         self._update_segment_actions()
 
-    def _edit_component(self, description: str, change_fn: Callable[[], None]) -> None:
+    def _edit_component(self, description: str, change_fn: Callable[[], Any]) -> None:
         def wrapped() -> None:
             change_fn()
             from ..engine.envelope import sync_component_envelope
@@ -904,8 +904,11 @@ class FuselageEditor(PropertyTableMixin, QWidget):
                         vals.append(float(item.text()) if item is not None else 0.0)
                     except (AttributeError, ValueError):
                         return None
-            rows.append(tuple(vals))
-        return rows[0], rows[1]
+            if len(vals) == 3:
+                rows.append((vals[0], vals[1], vals[2]))
+        if len(rows) == 2:
+            return rows[0], rows[1]
+        return None
 
     def _update_vertices(self, row: int, column: int) -> None:
         if self._loading:
@@ -1000,18 +1003,24 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         val_str = str(value).strip() if value is not None else ""
 
         num_val, is_expr = evaluate_expression_or_number(val_str, self._api)
-        if is_expr:
-            profile[f"{key}_expression"] = val_str
-        else:
-            profile.pop(f"{key}_expression", None)
+        if not is_expr and (num_val is None or num_val < 0):
+            self._load_section(self._section_index)
+            return
 
-        if num_val is not None:
-            profile[key] = num_val
-            self._edit_component(
-                f"Change fuselage section {key}",
-                lambda: None,
-            )
-            self._update_sections_table()
+        def change() -> None:
+            if is_expr:
+                profile[f"{key}_expression"] = val_str
+            else:
+                profile.pop(f"{key}_expression", None)
+
+            if num_val is not None:
+                profile[key] = num_val
+
+        self._edit_component(
+            f"Change fuselage section {key}",
+            change,
+        )
+        self._refresh_section_row()
         self.vertices_table.setVisible(profile.get("type") == "polygon")
 
     def _on_property_spin_changed(self, key: str, value: float) -> None:
@@ -1106,9 +1115,15 @@ class FuselageEditor(PropertyTableMixin, QWidget):
 
         um = get_unit_manager()
         length_sym = um.get_unit_symbol("length")
-        position = section.get("position") if isinstance(section.get("position"), dict) else {}
-        profile = section.get("profile") if isinstance(section.get("profile"), dict) else {}
+        position: dict[str, Any] = (
+            section.get("position") if isinstance(section.get("position"), dict) else {}
+        )
+        profile: dict[str, Any] = (
+            section.get("profile") if isinstance(section.get("profile"), dict) else {}
+        )
         row = self._section_index
+        if not hasattr(self, "sections_table") or row < 0 or row >= self.sections_table.rowCount():
+            return
         x_raw = float(position.get("x") or 0.0)
         disp_x = um.to_display(x_raw, "length")
         disp_x_str = (
@@ -1116,9 +1131,15 @@ class FuselageEditor(PropertyTableMixin, QWidget):
             if abs(disp_x - round(disp_x)) > 1e-4
             else f"{disp_x:.0f} {length_sym}"
         )
-        self.sections_table.item(row, 1).setText(str(profile.get("type") or ""))
-        self.sections_table.item(row, 2).setText(disp_x_str)
-        self.sections_table.item(row, 3).setText(self._profile_size(profile))
+        item1 = self.sections_table.item(row, 1)
+        if item1 is not None:
+            item1.setText(str(profile.get("type") or ""))
+        item2 = self.sections_table.item(row, 2)
+        if item2 is not None:
+            item2.setText(disp_x_str)
+        item3 = self.sections_table.item(row, 3)
+        if item3 is not None:
+            item3.setText(self._profile_size(profile))
 
     def _parameters(self) -> dict[str, Any]:
         return self._object(self._component, "parameters")

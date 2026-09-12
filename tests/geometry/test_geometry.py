@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from copy import deepcopy
 from pathlib import Path
+from typing import Any
 from unittest import mock
 
 from plugins.geometry.data import GeometryData, LoftGeometry, Section
@@ -2052,6 +2053,43 @@ class GeometryTests(unittest.TestCase):
             comp["parameters"]["geometry"]["segments"][1]["loft"]["parameterization"],
             "chord_length",
         )
+
+    def test_fuselage_editor_property_expression_changes(self) -> None:
+        """Verify editing section properties via expressions or numbers applies correctly."""
+        from plugins.geometry.fuselage import FuselageEditor
+
+        from setuav_studio.api import StudioAPI
+
+        api = StudioAPI()
+        doc = open_project(TEST_PROJECT_PATH)
+        api._host.set_project(doc)
+
+        comp = _build_fuselage_component()
+        doc.data["components"].append(comp)
+        editor = FuselageEditor(api, comp)
+
+        def current_profile() -> dict[str, Any]:
+            return comp["parameters"]["geometry"]["segments"][0]["sections"][0]["profile"]
+
+        # Section 0 is a circle (diameter = 80.0)
+        self.assertAlmostEqual(current_profile().get("diameter"), 80.0)
+
+        # Change diameter via numeric input
+        editor._on_property_expression_changed("diameter", "110.0")
+        self.assertAlmostEqual(current_profile().get("diameter"), 110.0)
+        self.assertNotIn("diameter_expression", current_profile())
+        self.assertIn("110", editor.sections_table.item(0, 3).text())
+
+        # Change diameter via expression
+        editor._on_property_expression_changed("diameter", "=50 + 75")
+        self.assertAlmostEqual(current_profile().get("diameter"), 125.0)
+        self.assertEqual(current_profile().get("diameter_expression"), "=50 + 75")
+        self.assertIn("125", editor.sections_table.item(0, 3).text())
+
+        # Verify undo works
+        api.undo()
+        self.assertAlmostEqual(current_profile().get("diameter"), 110.0)
+        self.assertNotIn("diameter_expression", current_profile())
 
     def test_3d_section_and_control_surface_selection_highlight(self) -> None:
         """Verify 3D section ring vertices highlight both bounding stations and control surfaces."""
