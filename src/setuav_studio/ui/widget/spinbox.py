@@ -186,6 +186,9 @@ def set_table_spinbox(
     suffix: str = "",
     quantity: str | None = None,
     unit: str | None = None,
+    expression: str | None = None,
+    target_data: dict[str, Any] | None = None,
+    property_key: str | None = None,
     on_changed: Callable[[Any], None] | None = None,
     api: Any | None = None,
     label: str = "",
@@ -202,7 +205,20 @@ def set_table_spinbox(
         col0_item = table.item(row, 0)
         label = col0_item.text() if col0_item else ""
 
+    prop_k = property_key
+    if not prop_k:
+        item0 = table.item(row, 0)
+        prop_k = str(item0.data(Qt.ItemDataRole.UserRole) or "") if item0 else ""
+
     resolved_api = _resolve_table_api(table, api)
+
+    active_expr = expression
+    if active_expr is None and target_data is not None and isinstance(target_data, dict) and prop_k:
+        exprs = target_data.get("_expressions")
+        if isinstance(exprs, dict):
+            active_expr = exprs.get(prop_k)
+        if not active_expr:
+            active_expr = target_data.get(f"{prop_k}_expression")
 
     on_changed_ref = (
         weakref.WeakMethod(on_changed)
@@ -211,15 +227,30 @@ def set_table_spinbox(
     )
 
     def handle_cell_changed(new_text: str) -> None:
+        clean = new_text.strip()
+        is_expr = bool(
+            clean.startswith("=")
+            or (clean and not clean.replace(".", "", 1).replace("-", "", 1).isdigit())
+        )
+        if target_data is not None and isinstance(target_data, dict) and prop_k:
+            if is_expr:
+                target_data.setdefault("_expressions", {})[prop_k] = clean
+            elif "_expressions" in target_data and isinstance(target_data["_expressions"], dict):
+                target_data["_expressions"].pop(prop_k, None)
+
         cb = on_changed_ref() if isinstance(on_changed_ref, weakref.WeakMethod) else on_changed_ref
         if cb is not None:
             cb(_parse_spinbox_callback_value(new_text, resolved_api, min_val, max_val))
 
-    init_str = (
-        format_engineering_value(value, decimals)
-        if isinstance(value, (int, float)) and not str(value).startswith("=")
-        else str(value)
-    )
+    if active_expr:
+        init_str = str(active_expr)
+    else:
+        init_str = (
+            format_engineering_value(value, decimals)
+            if isinstance(value, (int, float)) and not str(value).startswith("=")
+            else str(value)
+        )
+
     cell = ExpressionPropertyCell(
         initial_value=init_str,
         on_changed=handle_cell_changed if on_changed else None,

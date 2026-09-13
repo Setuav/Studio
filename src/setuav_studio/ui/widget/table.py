@@ -590,6 +590,10 @@ class PropertyTableMixin:
         step: float = 1.0,
         decimals: int = 2,
         suffix: str = "",
+        quantity: str | None = None,
+        unit: str | None = None,
+        expression: str | None = None,
+        target_data: dict[str, Any] | None = None,
         on_changed: Callable[[Any], None] | None = None,
         api: Any | None = None,
         label: str = "",
@@ -614,11 +618,137 @@ class PropertyTableMixin:
                 step=step,
                 decimals=decimals,
                 suffix=suffix,
+                quantity=quantity,
+                unit=unit,
+                expression=expression,
+                target_data=target_data,
+                property_key=key,
                 on_changed=on_changed,
                 api=api or getattr(self, "_api", None),
                 label=resolved_label,
             )
         return None
+
+    def bind_parametric_properties(
+        self,
+        table: QTableWidget,
+        target_data: dict[str, Any],
+        fields: Any,
+        *,
+        on_changed: Callable[[str, Any], None] | None = None,
+        api: Any | None = None,
+    ) -> None:
+        """Declaratively bind a schema of parameter fields to a property table.
+
+        Handles UI generation, two-way numeric and formula data binding,
+        units, and transparent '_expressions' persistence automatically.
+        """
+        from setuav_studio_sdk import ParameterField
+
+        normalized: list[ParameterField] = []
+        if isinstance(fields, dict):
+            for k, spec in fields.items():
+                if isinstance(spec, ParameterField):
+                    normalized.append(spec)
+                elif isinstance(spec, dict):
+                    normalized.append(
+                        ParameterField(
+                            key=k,
+                            label=spec.get("label", k.replace("_", " ").title()),
+                            unit=spec.get("unit", ""),
+                            quantity=spec.get("quantity"),
+                            field_type=spec.get("type", spec.get("field_type", float)),
+                            default=spec.get("default", 0.0),
+                            min_value=spec.get("min", spec.get("min_value")),
+                            max_value=spec.get("max", spec.get("max_value")),
+                            step=spec.get("step"),
+                            decimals=spec.get("decimals", 2),
+                            tooltip=spec.get("tooltip", spec.get("description", "")),
+                            options=spec.get("options", spec.get("choices")),
+                            allow_formula=spec.get("allow_formula", True),
+                            readonly=spec.get("readonly", False),
+                        )
+                    )
+        elif isinstance(fields, (list, tuple)):
+            for item in fields:
+                if isinstance(item, ParameterField):
+                    normalized.append(item)
+                elif isinstance(item, dict):
+                    k = item.get("key", "")
+                    normalized.append(
+                        ParameterField(
+                            key=k,
+                            label=item.get("label", k.replace("_", " ").title()),
+                            unit=item.get("unit", ""),
+                            quantity=item.get("quantity"),
+                            field_type=item.get("type", item.get("field_type", float)),
+                            default=item.get("default", 0.0),
+                            min_value=item.get("min", item.get("min_value")),
+                            max_value=item.get("max", item.get("max_value")),
+                            step=item.get("step"),
+                            decimals=item.get("decimals", 2),
+                            tooltip=item.get("tooltip", item.get("description", "")),
+                            options=item.get("options", item.get("choices")),
+                            allow_formula=item.get("allow_formula", True),
+                            readonly=item.get("readonly", False),
+                        )
+                    )
+
+        if table.rowCount() != len(normalized):
+            self._configure_property_table(table, [(f.key, f.label) for f in normalized])
+
+        resolved_api = api or getattr(self, "_api", None)
+
+        for f in normalized:
+            val = target_data.get(f.key, f.default)
+            if f.options:
+                self._set_property_combo(
+                    table,
+                    f.key,
+                    str(val),
+                    list(f.options),
+                    lambda new_v, k=f.key: (
+                        target_data.__setitem__(k, new_v),
+                        on_changed(k, new_v) if on_changed else None,
+                    ),
+                )
+            elif f.field_type is bool:
+                bool_opts = [("true", "True"), ("false", "False")]
+                self._set_property_combo(
+                    table,
+                    f.key,
+                    "true" if val else "false",
+                    bool_opts,
+                    lambda new_v, k=f.key: (
+                        target_data.__setitem__(k, new_v == "true"),
+                        on_changed(k, new_v == "true") if on_changed else None,
+                    ),
+                )
+            elif f.field_type in (float, int):
+                min_v = f.min_value if f.min_value is not None else -1e6
+                max_v = f.max_value if f.max_value is not None else 1e6
+                step_v = f.step if f.step is not None else 1.0
+                self._set_property_spinbox(
+                    table,
+                    f.key,
+                    val,
+                    min_val=min_v,
+                    max_val=max_v,
+                    step=step_v,
+                    decimals=f.decimals,
+                    suffix=f.unit,
+                    quantity=f.quantity,
+                    unit=f.unit,
+                    target_data=target_data,
+                    on_changed=lambda new_v, k=f.key: (
+                        target_data.__setitem__(k, new_v),
+                        on_changed(k, new_v) if on_changed else None,
+                    ),
+                    api=resolved_api,
+                    label=f.label,
+                )
+            else:
+                self._set_property_value(table, f.key, val, editable=not f.readonly)
 
     def _set_property_expression(
         self,

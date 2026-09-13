@@ -12,6 +12,7 @@ from setuav_studio.project.document import (
     open_project,
     save_project,
 )
+from setuav_studio.project.evaluator import recompute_project_expressions
 from setuav_studio.project.validation import (
     Issue,
     clear_component_validators,
@@ -30,6 +31,7 @@ __all__ = [
     "clear_component_validators",
     "create_project",
     "open_project",
+    "recompute_project_expressions",
     "register_component_validator",
     "save_project",
     "unregister_component_validator",

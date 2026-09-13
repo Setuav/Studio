@@ -40,6 +40,7 @@ class DriverPlanformTable(QTableWidget):
         self,
         default_drivers: list[str] | None = None,
         on_values_changed: Callable[[dict[str, float]], None] | None = None,
+        on_drivers_changed: Callable[[list[str]], None] | None = None,
         api: Any | None = None,
         parent: QWidget | None = None,
     ) -> None:
@@ -49,6 +50,7 @@ class DriverPlanformTable(QTableWidget):
             default_drivers or ["span", "root_chord", "tip_chord"]
         )
         self._on_values_changed = on_values_changed
+        self._on_drivers_changed = on_drivers_changed
         self._driver_expressions: dict[str, str] = {}
         self._current_values: dict[str, float] = {
             "area": 200000.0,
@@ -113,6 +115,7 @@ class DriverPlanformTable(QTableWidget):
         self,
         values: dict[str, float],
         *,
+        active_drivers: list[str] | None = None,
         expressions: dict[str, str] | None = None,
         is_symmetric: bool = True,
         y_offset: float = 0.0,
@@ -121,10 +124,12 @@ class DriverPlanformTable(QTableWidget):
         self._is_symmetric = is_symmetric
         self._y_offset = y_offset
         self._current_values.update(values)
+        if active_drivers is not None:
+            valid = [d for d in active_drivers if d in PLANFORM_PARAM_KEYS]
+            if valid:
+                self._active_drivers = valid
         if expressions is not None:
-            self._driver_expressions = {
-                k: v for k, v in expressions.items() if k in self._active_drivers
-            }
+            self._driver_expressions = dict(expressions)
         self._refresh_table_widgets()
 
     def get_active_drivers(self) -> list[str]:
@@ -150,10 +155,11 @@ class DriverPlanformTable(QTableWidget):
         else:
             if key in self._active_drivers:
                 self._active_drivers.remove(key)
-            self._driver_expressions.pop(key, None)
 
         self._refresh_table_widgets()
-        if self._on_values_changed:
+        if self._on_drivers_changed:
+            self._on_drivers_changed(list(self._active_drivers))
+        elif self._on_values_changed:
             self._on_values_changed(self._current_values)
 
     def _update_checkbox_ui(self, key: str, checked: bool) -> None:
@@ -289,6 +295,8 @@ class DriverPlanformTable(QTableWidget):
 
         if eval_val is not None:
             self._on_spinbox_value_changed(edited_key, eval_val)
+        elif self._on_values_changed:
+            self._on_values_changed(self._current_values)
 
     def _on_spinbox_value_changed(self, edited_key: str, value: float) -> None:
         inputs = dict(self._current_values)

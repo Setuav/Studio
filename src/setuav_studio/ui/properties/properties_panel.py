@@ -1,7 +1,7 @@
 from typing import Any
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QApplication, QLabel, QVBoxLayout, QWidget
 
 from setuav_studio_sdk import StudioAPI
 
@@ -65,6 +65,16 @@ class PropertiesPanel(QWidget):
 
     def _replace_widget(self, widget: QWidget | None) -> None:
         if self._current_widget is not None:
+            focus_widget = QApplication.focusWidget()
+            if focus_widget is not None and self._current_widget.isAncestorOf(focus_widget):
+                focus_widget.clearFocus()
+
+            from setuav_studio.ui.widget.table import ExpressionPropertyCell
+
+            for cell in self._current_widget.findChildren(ExpressionPropertyCell):
+                if getattr(cell, "_is_focused", False):
+                    cell._on_focus_out()
+
             self._layout.removeWidget(self._current_widget)
             self._current_widget.setParent(None)
             self._current_widget.deleteLater()

@@ -32,9 +32,12 @@ class PlanformMixin:
         """Parametric Wing Planform table (8 parameters with 3-driver checkbox system)."""
         layout = self._create_section("Wing Planform", "fa6s.ruler-combined")
 
+        geom = self._geometry()
+        init_drivers = geom.get("active_drivers") or ["span", "root_chord", "tip_chord"]
         self.planform_table = DriverPlanformTable(
-            default_drivers=["area", "aspect_ratio", "taper_ratio"],
+            default_drivers=init_drivers,
             on_values_changed=self._on_wing_driver_values_changed,
+            on_drivers_changed=self._on_wing_drivers_changed,
             api=getattr(self, "_api", None),
         )
         layout.addWidget(self.planform_table)
@@ -67,6 +70,21 @@ class PlanformMixin:
 
     def _on_driver_mode_changed(self, mode_val: str) -> None:
         pass
+
+    def _on_wing_drivers_changed(self, active_drivers: list[str]) -> None:
+        if self._loading:
+            return
+
+        def change() -> None:
+            geom = self._geometry()
+            geom["active_drivers"] = list(active_drivers)
+            driver_exprs = self.planform_table.get_driver_expressions()
+            if driver_exprs:
+                geom["driver_expressions"] = dict(driver_exprs)
+            else:
+                geom.pop("driver_expressions", None)
+
+        self._edit_component("Change active planform drivers", change)
 
     def _on_sweep_loc_changed(self, loc_val_str: str) -> None:
         if self._loading:
@@ -136,9 +154,11 @@ class PlanformMixin:
                 is_symmetric=self._is_symmetric(),
                 y_offset=self._y_offset(),
             )
+            active_drivers = geom.get("active_drivers")
             driver_exprs = geom.get("driver_expressions", {})
             self.planform_table.set_parameters(
                 planform_8,
+                active_drivers=active_drivers,
                 expressions=driver_exprs,
                 is_symmetric=self._is_symmetric(),
                 y_offset=self._y_offset(),
@@ -279,14 +299,6 @@ class PlanformMixin:
         is_sym = self._is_symmetric()
         y_off = self._y_offset()
         sw_loc = getattr(self, "_sweep_loc", 0.25)
-        geom = self._geometry()
-
-        # Preserve driver expressions in component parameters
-        driver_exprs = self.planform_table.get_driver_expressions()
-        if driver_exprs:
-            geom["driver_expressions"] = driver_exprs
-        else:
-            geom.pop("driver_expressions", None)
 
         inputs = {
             "span": new_metrics["span"],
@@ -307,6 +319,13 @@ class PlanformMixin:
         def change() -> None:
             profiles.clear()
             profiles.extend(deepcopy(new_profiles))
+            geom = self._geometry()
+            geom["active_drivers"] = list(self.planform_table.get_active_drivers())
+            driver_exprs = self.planform_table.get_driver_expressions()
+            if driver_exprs:
+                geom["driver_expressions"] = dict(driver_exprs)
+            else:
+                geom.pop("driver_expressions", None)
             self._sync_project_parameters(new_metrics, "planform")
 
         self._edit_component("Parametric wing resize", change)

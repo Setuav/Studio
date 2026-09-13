@@ -78,6 +78,7 @@ class StudioAPI:
         self._workspace_listeners: list[Callable[[str], None]] = []
         self._selection_listeners: list[Callable[[Any | None], None]] = []
         self._section_selection_listeners: list[Callable[[tuple[str, int, int] | None], None]] = []
+        self._is_recomputing_expressions: bool = False
         self._component_editors: dict[
             str,
             Callable[[dict[str, Any]], QWidget],
@@ -471,9 +472,27 @@ class StudioAPI:
         """Explicitly notify listeners that project content was updated or needs refresh."""
         self._notify_project_content_changed()
 
+    def recompute_project_expressions(self) -> bool:
+        """Evaluate all parametric formulas across the project and update numbers."""
+        if self.current_project is None:
+            return False
+        from setuav_studio.project.evaluator import recompute_project_expressions
+
+        return recompute_project_expressions(self.current_project, api=self)
+
     def _notify_project_content_changed(self) -> None:
         if self.current_project is None:
             return
+
+        if not self._is_recomputing_expressions:
+            self._is_recomputing_expressions = True
+            try:
+                from setuav_studio.project.evaluator import recompute_project_expressions
+
+                recompute_project_expressions(self.current_project, api=self)
+            finally:
+                self._is_recomputing_expressions = False
+
         dead_listeners = []
         for listener in list(self._project_content_listeners):
             try:
