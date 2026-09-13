@@ -147,15 +147,19 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
             ]
         )
 
-        self.spin_payload = NumericSpinBox(quantity="mass", suffix="g")
-        self.spin_payload.setRange(0.0, 100000.0)
-        self.spin_payload.setValue(0.0)
-        self.spin_payload.setDecimals(1)
-        self.spin_payload.setSingleStep(10.0)
-        self.spin_payload.valueChanged.connect(self._update_takeoff_mass)
-
         self._set_property_value(self.mass_table, "empty_mass", "0.0 g")
-        self.mass_table.setCellWidget(1, 1, self.spin_payload)
+        self.spin_payload = self._set_property_spinbox(
+            self.mass_table,
+            "payload",
+            0.0,
+            min_val=0.0,
+            max_val=100000.0,
+            step=10.0,
+            decimals=1,
+            quantity="mass",
+            unit="g",
+            on_changed=lambda _v: self._update_takeoff_mass(),
+        )
         self._set_property_value(self.mass_table, "tow", "0.0 g")
 
         layout.addWidget(self.mass_table)
@@ -171,18 +175,29 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
             ]
         )
 
-        self.spin_alt = NumericSpinBox(quantity="length", suffix="m")
-        self.spin_alt.setRange(-500.0, 15000.0)
-        self.spin_alt.setValue(0.0)
-        self.spin_alt.valueChanged.connect(self._update_density_preview)
-
-        self.spin_temp = NumericSpinBox(suffix="°C")
-        self.spin_temp.setRange(-50.0, 60.0)
-        self.spin_temp.setValue(15.0)
-        self.spin_temp.valueChanged.connect(self._update_density_preview)
-
-        self.atmosphere_table.setCellWidget(0, 1, self.spin_alt)
-        self.atmosphere_table.setCellWidget(1, 1, self.spin_temp)
+        self.spin_alt = self._set_property_spinbox(
+            self.atmosphere_table,
+            "altitude",
+            0.0,
+            min_val=-500.0,
+            max_val=15000.0,
+            step=10.0,
+            decimals=1,
+            quantity="length",
+            unit="m",
+            on_changed=lambda _v: self._update_density_preview(),
+        )
+        self.spin_temp = self._set_property_spinbox(
+            self.atmosphere_table,
+            "temperature",
+            15.0,
+            min_val=-50.0,
+            max_val=60.0,
+            step=1.0,
+            decimals=1,
+            suffix="°C",
+            on_changed=lambda _v: self._update_density_preview(),
+        )
         self._set_property_value(self.atmosphere_table, "density", "1.2250 kg/m³")
 
         layout.addWidget(self.atmosphere_table)
@@ -199,30 +214,49 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
             ]
         )
 
-        self.spin_vmin = NumericSpinBox(quantity="velocity", suffix="m/s")
-        self.spin_vmin.setRange(1.0, 100.0)
-        self.spin_vmin.setValue(8.0)
-
-        self.spin_vmax = NumericSpinBox(quantity="velocity", suffix="m/s")
-        self.spin_vmax.setRange(5.0, 200.0)
-        self.spin_vmax.setValue(35.0)
-
-        self.spin_vstep = NumericSpinBox(quantity="velocity", suffix="m/s")
-        self.spin_vstep.setRange(0.05, 5.0)
-        self.spin_vstep.setValue(0.25)
-        self.spin_vstep.setDecimals(2)
-        self.spin_vstep.setSingleStep(0.05)
-
-        self.spin_stall_margin = NumericSpinBox(suffix="×")
-        self.spin_stall_margin.setRange(1.0, 2.0)
-        self.spin_stall_margin.setValue(1.15)
-        self.spin_stall_margin.setDecimals(2)
-        self.spin_stall_margin.setSingleStep(0.05)
-
-        self.sweep_table.setCellWidget(0, 1, self.spin_vmin)
-        self.sweep_table.setCellWidget(1, 1, self.spin_vmax)
-        self.sweep_table.setCellWidget(2, 1, self.spin_vstep)
-        self.sweep_table.setCellWidget(3, 1, self.spin_stall_margin)
+        self.spin_vmin = self._set_property_spinbox(
+            self.sweep_table,
+            "v_min",
+            8.0,
+            min_val=1.0,
+            max_val=100.0,
+            step=1.0,
+            decimals=1,
+            quantity="velocity",
+            unit="m/s",
+        )
+        self.spin_vmax = self._set_property_spinbox(
+            self.sweep_table,
+            "v_max",
+            35.0,
+            min_val=5.0,
+            max_val=200.0,
+            step=1.0,
+            decimals=1,
+            quantity="velocity",
+            unit="m/s",
+        )
+        self.spin_vstep = self._set_property_spinbox(
+            self.sweep_table,
+            "v_step",
+            0.25,
+            min_val=0.05,
+            max_val=5.0,
+            step=0.05,
+            decimals=2,
+            quantity="velocity",
+            unit="m/s",
+        )
+        self.spin_stall_margin = self._set_property_spinbox(
+            self.sweep_table,
+            "stall_margin",
+            1.15,
+            min_val=1.0,
+            max_val=2.0,
+            step=0.05,
+            decimals=2,
+            suffix="×",
+        )
 
         layout.addWidget(self.sweep_table)
 

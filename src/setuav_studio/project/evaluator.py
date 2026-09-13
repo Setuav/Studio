@@ -72,9 +72,71 @@ def _recompute_component(
             comp["mass"] = val
             changed = True
 
+    # Transform position and rotation expressions
+    tf = comp.get("transform")
+    if isinstance(tf, dict):
+        pos = tf.get("position")
+        if isinstance(pos, dict):
+            pos_exprs = pos.get("_expressions")
+            if isinstance(pos_exprs, dict):
+                for axis, expr in pos_exprs.items():
+                    if isinstance(expr, str) and expr.strip():
+                        val = _safe_eval(evaluator, expr, scope)
+                        if val is not None and pos.get(axis) != val:
+                            pos[axis] = val
+                            changed = True
+            for axis in ("x", "y", "z"):
+                ax_expr = pos.get(f"{axis}_expression")
+                if isinstance(ax_expr, str) and ax_expr.strip():
+                    val = _safe_eval(evaluator, ax_expr, scope)
+                    if val is not None and pos.get(axis) != val:
+                        pos[axis] = val
+                        changed = True
+
+        rot = tf.get("rotation")
+        if isinstance(rot, dict):
+            rot_exprs = rot.get("_expressions")
+            if isinstance(rot_exprs, dict):
+                for axis, expr in rot_exprs.items():
+                    if isinstance(expr, str) and expr.strip():
+                        val = _safe_eval(evaluator, expr, scope)
+                        if val is not None and rot.get(axis) != val:
+                            rot[axis] = val
+                            changed = True
+            for axis in ("roll", "pitch", "yaw"):
+                ax_expr = rot.get(f"{axis}_expression")
+                if isinstance(ax_expr, str) and ax_expr.strip():
+                    val = _safe_eval(evaluator, ax_expr, scope)
+                    if val is not None and rot.get(axis) != val:
+                        rot[axis] = val
+                        changed = True
+
     params = comp.get("parameters")
     if not isinstance(params, dict):
         return changed
+
+    param_mass_expr = params.get("mass_expression")
+    if isinstance(param_mass_expr, str) and param_mass_expr.strip():
+        val = _safe_eval(evaluator, param_mass_expr, scope)
+        if val is not None:
+            if comp.get("mass") != val:
+                comp["mass"] = val
+                changed = True
+            if params.get("mass") != val:
+                params["mass"] = val
+                changed = True
+
+    comp_type = str(comp.get("type", "")).lower()
+    if "battery" in comp_type or "battery" in str(comp.get("id", "")).lower():
+        s = int(params.get("cell_count", 6))
+        par = int(params.get("parallel_count", 1))
+        cell_m = float(params.get("cell_mass", 130.0))
+        pkg_m = float(params.get("packaging_mass", 40.0))
+        total_m = (s * par * cell_m) + pkg_m
+        if comp.get("mass") != total_m:
+            comp["mass"] = total_m
+            params["mass"] = total_m
+            changed = True
 
     # Generic component parameter expressions
     param_exprs = params.get("_expressions")

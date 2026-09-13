@@ -161,6 +161,31 @@ class TransformEditor(PropertyTableMixin, QWidget):
         }
         layout.addWidget(self.transform_table)
 
+    def _transform(self) -> dict[str, Any]:
+        if self._component is None:
+            return {}
+        tf = self._component.get("transform")
+        if not isinstance(tf, dict):
+            tf = {}
+            self._component["transform"] = tf
+        return tf
+
+    def _position(self) -> dict[str, Any]:
+        tf = self._transform()
+        pos = tf.get("position")
+        if not isinstance(pos, dict):
+            pos = {}
+            tf["position"] = pos
+        return pos
+
+    def _rotation(self) -> dict[str, Any]:
+        tf = self._transform()
+        rot = tf.get("rotation")
+        if not isinstance(rot, dict):
+            rot = {}
+            tf["rotation"] = rot
+        return rot
+
     def _set_transform_spin(
         self,
         *,
@@ -172,18 +197,26 @@ class TransformEditor(PropertyTableMixin, QWidget):
         decimals: int,
         quantity: str,
         suffix: str,
+        target_data: dict[str, Any] | None = None,
+        property_key: str | None = None,
+        value: float | str = 0.0,
+        label: str = "",
     ) -> NumericSpinBox:
         return set_table_spinbox(
             self.transform_table,
             row,
             column,
-            0.0,
+            value,
             min_val=minimum,
             max_val=maximum,
             step=step,
             decimals=decimals,
             quantity=quantity,
             suffix=suffix,
+            target_data=target_data,
+            property_key=property_key,
+            api=self._api,
+            label=label,
             on_changed=lambda _value: self._update_transform(),
         )
 
@@ -203,16 +236,38 @@ class TransformEditor(PropertyTableMixin, QWidget):
                 editable=False,
             )
 
-            transform = component.get("transform")
-            transform = transform if isinstance(transform, dict) else {}
-            position = transform.get("position")
-            position = position if isinstance(position, dict) else {}
-            rotation = transform.get("rotation")
-            rotation = rotation if isinstance(rotation, dict) else {}
-            for axis, spin in self.position_spins.items():
-                spin.setValue(_number(position.get(axis)))
-            for axis, spin in self.rotation_spins.items():
-                spin.setValue(_number(rotation.get(axis)))
+            pos = self._position()
+            rot = self._rotation()
+            for col, axis in enumerate(("x", "y", "z")):
+                self.position_spins[axis] = self._set_transform_spin(
+                    row=0,
+                    column=col,
+                    minimum=-1_000_000_000.0,
+                    maximum=1_000_000_000.0,
+                    step=1.0,
+                    decimals=3,
+                    quantity="length",
+                    suffix="mm",
+                    target_data=pos,
+                    property_key=axis,
+                    value=pos.get(axis, 0.0),
+                    label=f"Position {axis.upper()}",
+                )
+            for col, axis in enumerate(("roll", "pitch", "yaw")):
+                self.rotation_spins[axis] = self._set_transform_spin(
+                    row=1,
+                    column=col,
+                    minimum=-360.0,
+                    maximum=360.0,
+                    step=1.0,
+                    decimals=3,
+                    quantity="angle",
+                    suffix="°",
+                    target_data=rot,
+                    property_key=axis,
+                    value=rot.get(axis, 0.0),
+                    label=f"Rotation {axis.title()}",
+                )
         finally:
             self._loading = False
 
@@ -224,10 +279,8 @@ class TransformEditor(PropertyTableMixin, QWidget):
         rotation = {axis: spin.value() for axis, spin in self.rotation_spins.items()}
 
         def change() -> None:
-            component["transform"] = {
-                "position": position,
-                "rotation": rotation,
-            }
+            self._position().update(position)
+            self._rotation().update(rotation)
 
         self._api.edit_component(
             component,

@@ -161,8 +161,12 @@ class ProjectDocument:
                 if hasattr(model, "raw_data") and isinstance(model.raw_data, dict)
                 else None
             )
-            if parent_id and parent_id in model_by_id and hasattr(model, "set_parent_model"):
-                model.set_parent_model(model_by_id[parent_id])
+            if parent_id and parent_id in model_by_id:
+                parent_model = model_by_id[parent_id]
+                if hasattr(model, "set_parent_model"):
+                    model.set_parent_model(parent_model)
+                if hasattr(parent_model, "add_child_model"):
+                    parent_model.add_child_model(model)
 
         return models
 
@@ -194,6 +198,14 @@ class ProjectDocument:
                 for prop_name, prop_val in model.get_exposed_properties().items():
                     if isinstance(prop_val, (int, float, bool, str)):
                         scope[f"{clean_cid}_{prop_name}"] = prop_val
+
+            # Child aliases (e.g. main_wing_flap_chord)
+            if hasattr(model, "children") and isinstance(model.children, dict):
+                for child_name, child_model in model.children.items():
+                    if hasattr(child_model, "get_exposed_properties"):
+                        for cp_name, cp_val in child_model.get_exposed_properties().items():
+                            if isinstance(cp_val, (int, float, bool, str)):
+                                scope[f"{clean_cid}_{child_name}_{cp_name}"] = cp_val
 
             total_mass += model.mass
 

@@ -11,6 +11,8 @@ class Component:
 
     def __init__(self, data: dict[str, Any] | None = None) -> None:
         self._raw_data: dict[str, Any] = data if data is not None else {}
+        self._children: dict[str, Any] = {}
+        self._child_list: list[Any] = []
 
     @property
     def raw_data(self) -> dict[str, Any]:
@@ -166,13 +168,63 @@ class Component:
         """Instantiate model from dictionary."""
         return cls(data)
 
+    def add_child_model(self, child: Any) -> None:
+        """Register a child component model attached to this component."""
+        if child not in self._child_list:
+            self._child_list.append(child)
+
+        child_id = getattr(child, "id", "")
+        if child_id:
+            clean_id = child_id.replace("-", "_").lower()
+            self._children[clean_id] = child
+
+            parent_clean = self.id.replace("-", "_").lower()
+            if clean_id.startswith(f"{parent_clean}_"):
+                short_name = clean_id[len(parent_clean) + 1 :]
+                if short_name:
+                    self._children[short_name] = child
+            elif "-" in child_id:
+                short_name = child_id.split("-")[-1].replace("-", "_").lower()
+                if short_name:
+                    self._children[short_name] = child
+
+        raw = getattr(child, "raw_data", {})
+        if isinstance(raw, dict):
+            geom = raw.get("parameters", {}).get("geometry", {})
+            if isinstance(geom, dict):
+                tag = str(geom.get("tag") or "").replace("-", "_").lower()
+                if tag:
+                    self._children[tag] = child
+                ctype = str(geom.get("type") or "").replace("-", "_").lower()
+                if ctype:
+                    self._children[ctype] = child
+            c_name = str(raw.get("name") or "").replace("-", "_").replace(" ", "_").lower()
+            if c_name:
+                self._children[c_name] = child
+
+    @property
+    def children(self) -> dict[str, Any]:
+        """Dictionary of child component models indexed by identifier / tag."""
+        return self._children
+
+    @property
+    def child_components(self) -> list[Any]:
+        """Ordered list of unique child component models."""
+        return list(self._child_list)
+
     def __getattr__(self, name: str) -> Any:
+        name_lower = name.lower()
+        if hasattr(self, "_children") and name_lower in self._children:
+            return self._children[name_lower]
         if name in self.parameters:
             return self.parameters[name]
+        geom = self.parameters.get("geometry")
+        if isinstance(geom, dict) and name in geom:
+            return geom[name]
         if name in self._raw_data:
             return self._raw_data[name]
         raise AttributeError(
-            f"'{self.__class__.__name__}' object has no attribute or parameter '{name}'"
+            f"'{self.__class__.__name__}' object has no attribute, child, or parameter '{name}'"
         )
 
     def __getitem__(self, key: str) -> Any:

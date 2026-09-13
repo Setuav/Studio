@@ -232,7 +232,7 @@ class ExpressionPropertyCell(QWidget):
             or (clean and not clean.replace(".", "", 1).replace("-", "", 1).isdigit())
         )
 
-    def _evaluate_expression(self, expr_text: str) -> tuple[bool, Any]:
+    def _evaluate_expression(self, expr_text: str) -> tuple[bool, Any, str | None]:
         """Evaluate expression against current project scope (or math fallback)."""
         try:
             from setuav_studio.model.expression import ExpressionEvaluator
@@ -243,9 +243,9 @@ class ExpressionPropertyCell(QWidget):
                 scope = self._api.current_project.get_scope(api=self._api)
             expr = expr_text.lstrip("=").strip()
             val = evaluator.evaluate(expr, scope)
-            return True, val
-        except Exception:
-            return False, None
+            return True, val, None
+        except Exception as exc:
+            return False, None, str(exc)
 
     def _display_number(self, base_val: float) -> tuple[str, str]:
         from setuav_studio.units import get_unit_manager
@@ -295,7 +295,7 @@ class ExpressionPropertyCell(QWidget):
         else:
             # Idle / Display mode: show evaluated calculated value if it is a formula
             if self._is_formula(clean):
-                ok, val = self._evaluate_expression(clean)
+                ok, val, err_msg = self._evaluate_expression(clean)
                 self.line_edit.blockSignals(True)
                 if ok and isinstance(val, (int, float)):
                     disp_val, sym = self._display_number(float(val))
@@ -308,9 +308,12 @@ class ExpressionPropertyCell(QWidget):
                         tip += f" {sym}"
                     self.line_edit.setToolTip(tip)
                 else:
-                    self.line_edit.setText(self._raw_expression)
-                    self.line_edit.setStyleSheet("color: #4CAF50; font-weight: bold;")
-                    self.line_edit.setToolTip(f"Formula: {self._raw_expression}")
+                    self.line_edit.setText(f"#REF! {self._raw_expression}")
+                    self.line_edit.setStyleSheet(
+                        "color: #e53935; font-weight: bold; background-color: rgba(229, 57, 53, 0.08); border: 1px solid #e53935;"
+                    )
+                    tip = f"Formula Error in '{self._raw_expression}':\n{err_msg or 'Failed to evaluate'}"
+                    self.line_edit.setToolTip(tip)
                 self.line_edit.blockSignals(False)
             else:
                 self.line_edit.blockSignals(True)
@@ -598,6 +601,24 @@ class PropertyTableMixin:
         api: Any | None = None,
         label: str = "",
     ) -> Any:
+        if target_data is None:
+            if hasattr(self, "_get_property_target_data") and callable(self._get_property_target_data):
+                target_data = self._get_property_target_data()
+            elif hasattr(self, "_target_data") and isinstance(self._target_data, dict):
+                target_data = self._target_data
+            elif hasattr(self, "_get_data") and callable(self._get_data):
+                target_data = self._get_data()
+            elif hasattr(self, "_geometry") and callable(self._geometry):
+                target_data = self._geometry()
+            elif hasattr(self, "_parameters") and callable(self._parameters):
+                target_data = self._parameters()
+            elif hasattr(self, "_parameters") and isinstance(self._parameters, dict):
+                target_data = self._parameters
+            elif hasattr(self, "_component") and isinstance(self._component, dict):
+                params = self._component.get("parameters")
+                if isinstance(params, dict):
+                    target_data = params
+
         for row in range(table.rowCount()):
             if self._property_key(table, row) != key:
                 continue
@@ -755,40 +776,27 @@ class PropertyTableMixin:
         table: QTableWidget,
         key: str,
         value: object,
-        on_changed: Callable[[str], None] | None = None,
+        on_changed: Callable[[Any], None] | None = None,
         on_open_assistant: Callable[[str], None] | None = None,
         api: Any | None = None,
         label: str = "",
         decimals: int | None = None,
         quantity: str | None = None,
         unit: str | None = None,
+        target_data: dict[str, Any] | None = None,
     ) -> None:
-        for row in range(table.rowCount()):
-            if self._property_key(table, row) != key:
-                continue
-            item = table.item(row, 1)
-            if item is not None:
-                item.setText("")
-                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-
-            resolved_label = label
-            if not resolved_label:
-                col0_item = table.item(row, 0)
-                resolved_label = col0_item.text() if col0_item else key
-
-            cell = ExpressionPropertyCell(
-                initial_value=str(value) if value is not None else "",
-                on_changed=on_changed,
-                on_open_assistant=on_open_assistant,
-                api=api or getattr(self, "_api", None),
-                label=resolved_label,
-                decimals=decimals,
-                quantity=quantity,
-                unit=unit,
-                parent=table,
-            )
-            table.setCellWidget(row, 1, cell)
-            return
+        self._set_property_spinbox(
+            table,
+            key,
+            value if isinstance(value, (int, float, str)) else str(value or ""),
+            decimals=decimals or 2,
+            quantity=quantity,
+            unit=unit,
+            target_data=target_data,
+            on_changed=on_changed,
+            api=api,
+            label=label,
+        )
 
     @staticmethod
     def _property_key(table: QTableWidget, row: int) -> str:
@@ -815,6 +823,24 @@ class PropertyTableMixin:
             if cls._property_key(table, row) == key:
                 return cls._property_text(table, row).strip()
         return ""
+
+    @classmethod
+    def _property_numeric(cls, table: QTableWidget, key_or_row: str | int) -> float | None:
+        row = key_or_row if isinstance(key_or_row, int) else -1
+        if isinstance(key_or_row, str):
+            for r in range(table.rowCount()):
+                if cls._property_key(table, r) == key_or_row:
+                    row = r
+                    break
+        if row < 0 or row >= table.rowCount():
+            return None
+        editor = table.cellWidget(row, 1)
+        if isinstance(editor, ExpressionPropertyCell):
+            return editor.value()
+        if isinstance(editor, QDoubleSpinBox):
+            return float(editor.value())
+        txt = cls._property_text(table, row)
+        return cls._parse_number(txt)
 
     @staticmethod
     def _parse_number(value: str) -> float | None:

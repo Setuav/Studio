@@ -1239,35 +1239,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
             owner[key] = value
         return value
 
-    def _set_property_spinbox(
-        self,
-        table: QTableWidget,
-        key: str,
-        value: float,
-        *,
-        min_val: float = -1e6,
-        max_val: float = 1e6,
-        step: float = 1.0,
-        decimals: int = 2,
-        suffix: str = "",
-        on_changed: Callable[[float], None] | None = None,
-    ) -> NumericSpinBox | None:
-        for row in range(table.rowCount()):
-            if self._property_key(table, row) != key:
-                continue
-            return set_table_spinbox(
-                table,
-                row,
-                1,
-                value,
-                min_val=min_val,
-                max_val=max_val,
-                step=step,
-                decimals=decimals,
-                suffix=suffix,
-                on_changed=on_changed,
-            )
-        return None
+
 
     @staticmethod
     def _profile_size(profile: dict[str, Any]) -> str:

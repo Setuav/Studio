@@ -173,9 +173,29 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
                 ("density", "Air Density"),
             ]
         )
-        self.atmosphere_table.cellChanged.connect(self._on_atmosphere_cell_changed)
-        self._set_property_value(self.atmosphere_table, "altitude", "0.0")
-        self._set_property_value(self.atmosphere_table, "temperature", "15.0")
+        self._set_property_spinbox(
+            self.atmosphere_table,
+            "altitude",
+            0.0,
+            min_val=-500.0,
+            max_val=15000.0,
+            step=100.0,
+            decimals=1,
+            quantity="length",
+            unit="m",
+            on_changed=lambda _v: self._update_isa_density(),
+        )
+        self._set_property_spinbox(
+            self.atmosphere_table,
+            "temperature",
+            15.0,
+            min_val=-50.0,
+            max_val=60.0,
+            step=1.0,
+            decimals=1,
+            suffix="°C",
+            on_changed=lambda _v: self._update_isa_density(),
+        )
         self._set_property_value(self.atmosphere_table, "density", "1.225", editable=False)
         layout.addWidget(self.atmosphere_table)
 
@@ -301,10 +321,10 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
                 ("v_step", "Airspeed Step"),
             ]
             self._configure_property_table(self.parameters_table, defs)
-            self._set_property_value(self.parameters_table, "throttle", "100")
-            self._set_property_value(self.parameters_table, "v_min", "0.0")
-            self._set_property_value(self.parameters_table, "v_max", "35.0")
-            self._set_property_value(self.parameters_table, "v_step", "1.0")
+            self._set_property_spinbox(self.parameters_table, "throttle", 100.0, min_val=0.0, max_val=100.0, step=5.0, decimals=0, suffix="%")
+            self._set_property_spinbox(self.parameters_table, "v_min", 0.0, min_val=0.0, max_val=200.0, step=1.0, decimals=1, quantity="velocity", unit="m/s")
+            self._set_property_spinbox(self.parameters_table, "v_max", 35.0, min_val=1.0, max_val=200.0, step=1.0, decimals=1, quantity="velocity", unit="m/s")
+            self._set_property_spinbox(self.parameters_table, "v_step", 1.0, min_val=0.1, max_val=20.0, step=0.5, decimals=1, quantity="velocity", unit="m/s")
         elif mode == "throttle_sweep":
             defs = [
                 ("airspeed", "Airspeed"),
@@ -313,18 +333,18 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
                 ("t_step", "Throttle Step"),
             ]
             self._configure_property_table(self.parameters_table, defs)
-            self._set_property_value(self.parameters_table, "airspeed", "0.0")
-            self._set_property_value(self.parameters_table, "t_min", "10")
-            self._set_property_value(self.parameters_table, "t_max", "100")
-            self._set_property_value(self.parameters_table, "t_step", "5")
+            self._set_property_spinbox(self.parameters_table, "airspeed", 0.0, min_val=0.0, max_val=200.0, step=1.0, decimals=1, quantity="velocity", unit="m/s")
+            self._set_property_spinbox(self.parameters_table, "t_min", 10.0, min_val=0.0, max_val=100.0, step=5.0, decimals=0, suffix="%")
+            self._set_property_spinbox(self.parameters_table, "t_max", 100.0, min_val=0.0, max_val=100.0, step=5.0, decimals=0, suffix="%")
+            self._set_property_spinbox(self.parameters_table, "t_step", 5.0, min_val=1.0, max_val=50.0, step=1.0, decimals=0, suffix="%")
         elif mode == "operating_point":
             defs = [
                 ("airspeed", "Airspeed"),
                 ("throttle", "Throttle"),
             ]
             self._configure_property_table(self.parameters_table, defs)
-            self._set_property_value(self.parameters_table, "airspeed", "18.0")
-            self._set_property_value(self.parameters_table, "throttle", "75")
+            self._set_property_spinbox(self.parameters_table, "airspeed", 18.0, min_val=0.0, max_val=200.0, step=1.0, decimals=1, quantity="velocity", unit="m/s")
+            self._set_property_spinbox(self.parameters_table, "throttle", 75.0, min_val=0.0, max_val=100.0, step=5.0, decimals=0, suffix="%")
         self._loading = False
 
     def _on_parameter_cell_changed(self, row: int, col: int) -> None:
@@ -891,15 +911,16 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
                 return item.text() if item else ""
         return ""
 
-    @staticmethod
-    def _property_value(table: QTableWidget, key: str) -> str:
-        for row in range(table.rowCount()):
-            if PropulsionControlsDock._property_key(table, row) == key:
-                item = table.item(row, 1)
-                return item.text().strip() if item else ""
-        return ""
+    @classmethod
+    def _property_value(cls, table: QTableWidget, key: str) -> str:
+        val = cls._property_numeric(table, key)
+        if val is not None:
+            return str(val)
+        return super()._property_value(table, key)
 
-    @staticmethod
-    def _property_value_by_row(table: QTableWidget, row: int) -> str:
-        item = table.item(row, 1)
-        return item.text().strip() if item else ""
+    @classmethod
+    def _property_value_by_row(cls, table: QTableWidget, row: int) -> str:
+        val = cls._property_numeric(table, row)
+        if val is not None:
+            return str(val)
+        return cls._property_text(table, row).strip()
