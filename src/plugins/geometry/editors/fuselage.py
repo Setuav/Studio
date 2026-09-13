@@ -545,10 +545,21 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         else:
             self._api.set_section_selection(None)
 
+    def _update_segment_sections_cell(self) -> None:
+        if 0 <= self._segment_index < self.segments_table.rowCount():
+            sections = self._sections()
+            item = self.segments_table.item(self._segment_index, 1)
+            if item is not None:
+                item.setText(str(len(sections)))
+
     def _add_section(self) -> None:
+        segment = self._current_segment()
+        if segment is None:
+            self._add_segment()
+            segment = self._current_segment()
+            if segment is None:
+                return
         sections = self._sections()
-        if self._current_segment() is None:
-            return
         insert_at = (
             self._section_index + 1 if 0 <= self._section_index < len(sections) else len(sections)
         )
@@ -558,6 +569,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
             lambda: sections.insert(insert_at, new_section),
         )
         self._reload_sections(insert_at)
+        self._update_segment_sections_cell()
 
     def _duplicate_section(self) -> None:
         sections = self._sections()
@@ -571,6 +583,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
             lambda: sections.insert(insert_at, duplicate),
         )
         self._reload_sections(insert_at)
+        self._update_segment_sections_cell()
 
     def _move_section_up(self) -> None:
         self._move_section(-1)
@@ -604,6 +617,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
             lambda: sections.pop(index),
         )
         self._reload_sections(min(index, len(sections) - 1))
+        self._update_segment_sections_cell()
 
     def _reload_sections(self, selected_index: int) -> None:
         self._loading = True
@@ -620,6 +634,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         else:
             self._section_index = -1
         self._update_section_actions()
+        self._publish_section_selection()
 
     def _update_section_actions(self) -> None:
         sections = self._sections()
@@ -1145,14 +1160,50 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         return self._object(self._component, "parameters")
 
     def _segments(self) -> list[dict[str, Any]]:
-        geometry = self._parameters().get("geometry")
+        parameters = self._parameters()
+        geometry = parameters.get("geometry")
         if not isinstance(geometry, dict):
-            return []
+            geometry = {}
+            parameters["geometry"] = geometry
         segments = geometry.get("segments")
         if not isinstance(segments, list) or not all(
             isinstance(segment, dict) for segment in segments
         ):
-            return []
+            # Check for legacy top-level sections
+            legacy_sections = geometry.pop("sections", None)
+            loft = geometry.get("loft")
+            loft_dict = (
+                loft
+                if isinstance(loft, dict)
+                else {
+                    "method": "smooth",
+                    "parameterization": "centripetal",
+                    "profile_correspondence": "cardinal_quadrants",
+                }
+            )
+            if isinstance(legacy_sections, list) and legacy_sections:
+                segments = [
+                    {
+                        "tag": "main",
+                        "loft": loft_dict,
+                        "sections": legacy_sections,
+                    }
+                ]
+            else:
+                segments = [create_default_segment("main", 0.0, 500.0)]
+            geometry["segments"] = segments
+
+        # If top-level sections existed alongside empty segments, migrate them
+        legacy_sections = geometry.pop("sections", None)
+        if isinstance(legacy_sections, list) and legacy_sections and segments:
+            first_seg = segments[0]
+            if not first_seg.get("sections"):
+                first_seg["sections"] = legacy_sections
+
+        for seg in segments:
+            if not isinstance(seg.get("sections"), list):
+                seg["sections"] = []
+
         return segments
 
     def _sections(self) -> list[dict[str, Any]]:
@@ -1160,16 +1211,18 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         if segment is None:
             return []
         sections = segment.get("sections")
-        if not isinstance(sections, list) or not all(
-            isinstance(section, dict) for section in sections
-        ):
-            return []
+        if not isinstance(sections, list):
+            sections = []
+            segment["sections"] = sections
         return sections
 
     def _current_segment(self) -> dict[str, Any] | None:
         segments = self._segments()
         if 0 <= self._segment_index < len(segments):
             return segments[self._segment_index]
+        if segments:
+            self._segment_index = 0
+            return segments[0]
         return None
 
     def _current_section(self) -> dict[str, Any] | None:

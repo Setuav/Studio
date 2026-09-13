@@ -26,13 +26,27 @@ class GeometryCreationTests(unittest.TestCase):
         self.api._host.set_project(self.project)
         self.controller = GeometryCreationController(self.api)
 
-    def test_add_starter_airframe_populates_mass_transform_envelope(self) -> None:
+    def test_add_structural_system_creates_empty_assembly_without_auto_components(self) -> None:
         self.controller.add_structural_system()
         components = self.project.data.get("components", [])
-        self.assertEqual(len(components), 2)
+        self.assertEqual(len(components), 0)
+        assemblies = self.project.data.get("assemblies", [])
+        self.assertEqual(len(assemblies), 1)
+        self.assertEqual(assemblies[0]["members"], {"fuselage": None, "wings": []})
 
-        for comp in components:
-            self._assert_valid_physical_contract(comp)
+    def test_add_fuselage_allows_adding_sections_and_updates_table(self) -> None:
+        from plugins.geometry.editors.fuselage import FuselageEditor
+
+        self.controller.add_fuselage()
+        fuse = self.project.data["components"][0]
+        editor = FuselageEditor(self.api, fuse)
+        self.assertEqual(editor.sections_table.rowCount(), 3)
+        self.assertEqual(editor.segments_table.item(0, 1).text(), "3")
+
+        editor._add_section()
+        self.assertEqual(editor.sections_table.rowCount(), 4)
+        self.assertEqual(len(editor._sections()), 4)
+        self.assertEqual(editor.segments_table.item(0, 1).text(), "4")
 
     def test_add_fuselage_populates_mass_transform_envelope(self) -> None:
         self.controller.add_fuselage()

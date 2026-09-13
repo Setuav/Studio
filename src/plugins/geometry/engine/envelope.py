@@ -985,7 +985,17 @@ def _compute_fuselage_envelope(component: dict[str, Any]) -> dict[str, Any] | No
     segments = geometry.get("segments")
 
     if not isinstance(segments, list) or not segments:
-        length = _number(parameters.get("length"))
+        legacy_sections = geometry.get("sections")
+        if isinstance(legacy_sections, list) and legacy_sections:
+            segments = [
+                {
+                    "tag": "main",
+                    "loft": geometry.get("loft") if isinstance(geometry.get("loft"), dict) else {},
+                    "sections": legacy_sections,
+                }
+            ]
+        else:
+            length = _number(parameters.get("length"))
         width = _number(parameters.get("width"))
         height = _number(parameters.get("height"))
         if length > 0.0:
