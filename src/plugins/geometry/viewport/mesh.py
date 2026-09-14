@@ -733,10 +733,10 @@ def build_envelope_wire_vertices(
         if not is_selected and comp_clean and is_prop_clearance:
             is_selected = env_clean == comp_clean or env_clean.startswith(f"{comp_clean}:")
 
-        if is_selected:
-            line_color = (0.95, 0.6, 0.1) if is_prop_clearance else color
-        elif is_prop_clearance:
-            line_color = (0.1, 0.85, 0.95)
+        if is_prop_clearance:
+            line_color = (1.0, 1.0, 1.0)
+        elif is_selected:
+            line_color = color
         else:
             continue
 

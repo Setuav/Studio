@@ -294,7 +294,7 @@ class MotorMountTests(unittest.TestCase):
         ]
         self.assertEqual(len(prop_envs), 1)
         prop_env = prop_envs[0]
-        # Must have circle perimeter lines, crosshairs, and shaft axis
+        # Must have circle perimeter lines
         self.assertGreater(len(prop_env.lines), 40)
 
     def test_viewport_mesh_renders_propeller_clearance(self) -> None:
@@ -303,23 +303,25 @@ class MotorMountTests(unittest.TestCase):
 
         geom_data = build_project_geometry(self.project_data, {})
 
-        # When unselected, clearance circle should still be rendered (cyan wireframe)
+        # When unselected, clearance circle should still be rendered (white wireframe)
         unselected_verts = build_envelope_wire_vertices(
             geom_data, selected_envelope_component_id=None
         )
         self.assertGreater(len(unselected_verts), 0)
+        unsel_r = [unselected_verts[i + 3] for i in range(0, len(unselected_verts), 6)]
+        self.assertTrue(all(abs(r - 1.0) < 0.01 for r in unsel_r))
 
-        # When motor component is selected, clearance circle is highlighted
+        # When motor component is selected, clearance circle is rendered white
         selected_verts = build_envelope_wire_vertices(
             geom_data,
             selected_envelope_component_id=None,
             selected_component_id="motor-01",
         )
         self.assertGreater(len(selected_verts), 0)
-        # Verify color in selected_verts contains highlight color (orange: 0.95, 0.6, 0.1)
+        # Verify color in selected_verts is pure white (1.0, 1.0, 1.0)
         # vertex stride is 6 (x, y, z, r, g, b)
         r_vals = [selected_verts[i + 3] for i in range(0, len(selected_verts), 6)]
-        self.assertTrue(any(abs(r - 0.95) < 0.01 for r in r_vals))
+        self.assertTrue(all(abs(r - 1.0) < 0.01 for r in r_vals))
 
 
 if __name__ == "__main__":
