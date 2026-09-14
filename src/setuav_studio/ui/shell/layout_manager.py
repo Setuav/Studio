@@ -114,6 +114,8 @@ class LayoutManager:
             not self.layout_persistence_enabled
             or self.restoring_workspace_layout
             or current_workspace_id is None
+            or self._window.isMaximized()
+            or self._window.isFullScreen()
         ):
             return
         if self.layout_save_scheduled:
@@ -124,7 +126,12 @@ class LayoutManager:
     def save_current_workspace_layout(self) -> None:
         self.layout_save_scheduled = False
         workspace_id = getattr(self._window, "_current_workspace_id", None)
-        if workspace_id is None or self.restoring_workspace_layout:
+        if (
+            workspace_id is None
+            or self.restoring_workspace_layout
+            or self._window.isMaximized()
+            or self._window.isFullScreen()
+        ):
             return
         state = self._window.saveState(self.LAYOUT_VERSION)
         self.workspace_states[workspace_id] = state

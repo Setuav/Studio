@@ -296,6 +296,13 @@ class ActionManager:
         action = self.panel_actions.get(panel_id)
         if entry is None or action is None:
             return
+        try:
+            import shiboken6
+
+            if not shiboken6.isValid(action):
+                return
+        except Exception:
+            pass
         _, dock = entry
         action.setChecked(dock.isVisible())
         self.update_panel_action_icon(panel_id)
