@@ -99,7 +99,11 @@ class TestElectricalPropulsion(unittest.TestCase):
 
         # Change Series Count to 6S; the editor derives mass from the fixture's
         # cell mass, parallel count, and packaging mass values.
-        editor.pack_table.item(0, 1).setText("6")
+        cell_widget = editor.pack_table.cellWidget(0, 1)
+        if cell_widget is not None and hasattr(cell_widget, "setValue"):
+            cell_widget.setValue(6)
+        else:
+            editor.pack_table.item(0, 1).setText("6")
         params = battery_comp["parameters"]
         expected_mass = 6 * int(params.get("parallel_count", 1)) * float(
             params["cell_mass"]

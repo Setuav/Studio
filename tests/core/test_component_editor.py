@@ -76,6 +76,82 @@ class TestComponentEditor(unittest.TestCase):
         api.redo()
         self.assertEqual(comp["parameters"]["kv"], 450.0)
 
+    def test_edit_component_on_detached_dict_updates_live_project(self) -> None:
+        import copy
+
+        api = StudioAPI()
+        doc = ProjectDocument(
+            path=Path("/tmp/test.json"),
+            kind="json",
+            data={
+                "components": [
+                    {
+                        "id": "wing-1",
+                        "type": "org.setuav.core:lifting-surface",
+                        "name": "Main Wing",
+                        "parameters": {"span": 1.5},
+                    }
+                ]
+            },
+        )
+        api._host.set_project(doc)
+
+        # Detached copy of the component
+        detached = copy.deepcopy(doc.get_component("wing-1"))
+
+        def mutate() -> None:
+            detached["parameters"]["span"] = 3.2
+
+        api.edit_component(detached, "Resize span", mutate)
+
+        # Live project must be updated to 3.2
+        live = doc.get_component("wing-1")
+        self.assertEqual(live["parameters"]["span"], 3.2)
+        self.assertEqual(detached["parameters"]["span"], 3.2)
+
+        # Undo must restore live and detached
+        api.undo()
+        self.assertEqual(live["parameters"]["span"], 1.5)
+
+    def test_properties_panel_refreshes_on_project_content_change(self) -> None:
+        import copy
+        from setuav_studio.ui.properties import PropertiesPanel
+        from setuav_studio.ui.editor import InstanceEditor
+
+        api = StudioAPI()
+        doc = ProjectDocument(
+            path=Path("/tmp/test.json"),
+            kind="json",
+            data={
+                "components": [
+                    {
+                        "id": "wing-1",
+                        "type": "test:comp",
+                        "name": "Main Wing",
+                        "parameters": {"span": 1.5},
+                    }
+                ]
+            },
+        )
+        api._host.set_project(doc)
+        api.register_component_editor("test:comp", lambda c: InstanceEditor(api, c))
+
+        panel = PropertiesPanel(api)
+        self.addCleanup(panel.deleteLater)
+        api.set_selection(doc.get_component("wing-1"))
+
+        self.assertIsNotNone(panel._current_widget)
+        self.assertEqual(panel._current_widget._instance["parameters"]["span"], 1.5)
+
+        # Deepcopy project components simulating config switch or edit_project
+        doc.data["components"] = copy.deepcopy(doc.data["components"])
+        doc.get_component("wing-1")["parameters"]["span"] = 4.0
+        api.notify_project_content_changed()
+
+        # Panel must have refreshed and point to the live component
+        self.assertIsNotNone(panel._current_widget)
+        self.assertEqual(panel._current_widget._instance["parameters"]["span"], 4.0)
+
 
 if __name__ == "__main__":
     unittest.main()

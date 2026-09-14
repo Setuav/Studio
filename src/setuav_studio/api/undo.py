@@ -15,12 +15,14 @@ class _ComponentEditCommand(QUndoCommand):
         after: dict[str, Any],
         description: str,
         changed: Callable[[], None],
+        source: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(description)
         self._component = component
         self._before = before
         self._after = after
         self._changed = changed
+        self._source = source
 
     def undo(self) -> None:
         self._apply(self._before)
@@ -31,6 +33,9 @@ class _ComponentEditCommand(QUndoCommand):
     def _apply(self, value: dict[str, Any]) -> None:
         self._component.clear()
         self._component.update(deepcopy(value))
+        if self._source is not None and self._source is not self._component:
+            self._source.clear()
+            self._source.update(deepcopy(value))
         self._changed()
 
 

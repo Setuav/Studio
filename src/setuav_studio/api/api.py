@@ -352,22 +352,43 @@ class StudioAPI:
         @param description Human-readable undo command text.
         @param change Callback that performs the mutation.
         """
-        before = deepcopy(component)
+        comp_id = str(component.get("id") or "")
+        live_component = None
+        if self.current_project is not None and comp_id:
+            if hasattr(self.current_project, "get_component"):
+                live_component = self.current_project.get_component(comp_id)
+            elif isinstance(getattr(self.current_project, "data", None), dict):
+                comps = self.current_project.data.get("components", [])
+                if isinstance(comps, list):
+                    live_component = next(
+                        (c for c in comps if isinstance(c, dict) and str(c.get("id") or "") == comp_id),
+                        None,
+                    )
+        target = live_component if live_component is not None else component
+
+        before = deepcopy(target)
         change()
-        after = deepcopy(component)
-        component.clear()
-        component.update(before)
+        if target is not component:
+            target.clear()
+            target.update(deepcopy(component))
+        after = deepcopy(target)
+        target.clear()
+        target.update(before)
         if before == after:
             return
         self._undo_stack.push(
             _ComponentEditCommand(
-                component,
+                target,
                 before,
                 after,
                 description,
                 self._notify_project_content_changed,
+                source=component if target is not component else None,
             )
         )
+        if target is not component:
+            component.clear()
+            component.update(deepcopy(after))
 
     def edit_project(
         self,
