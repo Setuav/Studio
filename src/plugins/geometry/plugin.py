@@ -73,7 +73,7 @@ class GeometryPlugin:
             SettingsPageContribution(
                 id="geometry.settings.viewer",
                 title="3D Viewer",
-                factory=create_viewer_settings_page,
+                factory=lambda: create_viewer_settings_page(api),
                 apply=lambda page: self._apply_viewer_settings(api, page),
                 group="Geometry Engine",
                 order=10,

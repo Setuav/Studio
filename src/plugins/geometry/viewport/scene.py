@@ -1078,19 +1078,12 @@ def _append_single_motor_geometry(
     )
 
     lines: list[tuple[Point3D, Point3D]] = []
-    num_pts = 48
+    num_pts = 64
     circle_pts = generate_clearance_circle_points(
         circle_center, (r_deg, p_deg, y_deg), prop_dia_mm, num_points=num_pts, normal=world_norm
     )
     for i in range(len(circle_pts)):
         lines.append((circle_pts[i], circle_pts[(i + 1) % len(circle_pts)]))
-
-    # Crosshair inside the propeller disk
-    lines.append((circle_pts[0], circle_pts[len(circle_pts) // 2]))
-    lines.append((circle_pts[len(circle_pts) // 4], circle_pts[3 * len(circle_pts) // 4]))
-
-    # Motor shaft axis line from mount point to circle center
-    lines.append((world_pt, circle_center))
 
     parent_source = items.get(target.parent_id, {})
     if target.type == "wing" and _is_bilateral(parent_source):

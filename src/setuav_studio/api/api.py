@@ -19,6 +19,7 @@ from setuav_studio_sdk.api import (
     ComponentTreeProvider,
     ProjectTreeProvider,
 )
+from setuav_studio_sdk.events import StudioEvents
 from setuav_studio_sdk.contributions import (
     ActionContribution,
     ComponentTreeNodeContribution,
@@ -237,6 +238,7 @@ class StudioAPI:
             self._switch_workspace_handler(workspace_id)
         for listener in list(self._workspace_listeners):
             listener(workspace_id)
+        self.publish(StudioEvents.WORKSPACE_CHANGED, workspace_id)
 
     def on_workspace_changed(self, listener: Callable[[str], None]) -> None:
         """Subscribe to workspace changes and receive the current ID immediately."""
