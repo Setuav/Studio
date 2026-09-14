@@ -385,6 +385,28 @@ class ShellProjectLifecycleTests(unittest.TestCase):
             ["project-folder"],
         )
 
+    def test_open_project_dialog_selects_suav_file(self) -> None:
+        with (
+            patch.object(self.window, "open_project") as open_selected,
+            patch(
+                "setuav_studio.ui.shell.project_controller.QFileDialog.getOpenFileName",
+                side_effect=[
+                    ("", ""),
+                    ("/path/to/model.suav", "Setuav Projects (*.suav project.json)"),
+                ],
+            ) as get_open,
+        ):
+            self.window._open_project_dialog()
+            self.window._open_project_dialog()
+
+        self.assertEqual(
+            [call.args[0] for call in open_selected.call_args_list],
+            ["/path/to/model.suav"],
+        )
+        filter_arg = get_open.call_args[0][3]
+        self.assertIn("*.suav", filter_arg)
+        self.assertIn("project.json", filter_arg)
+
     def test_new_project_creates_and_activates_empty_archive(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             project_path = Path(temporary_directory) / "new.suav"

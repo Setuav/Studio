@@ -93,7 +93,9 @@ class MainWindow(QMainWindow):
         self._help_menu = self._action_manager.help_menu
         self._recent_menu = self._action_manager.recent_menu
         self._new_project_action = self._action_manager.new_project_action
+        self._open_project_action = self._action_manager.open_action
         self._open_folder_action = self._action_manager.open_folder_action
+        self._open_directory_action = getattr(self._action_manager, "open_directory_action", None)
         self._save_action = self._action_manager.save_action
         self._save_as_action = self._action_manager.save_as_action
         self._exit_action = self._action_manager.exit_action
@@ -228,6 +230,9 @@ class MainWindow(QMainWindow):
     # Project Controller Delegations
     def _new_project(self) -> bool:
         return self._project_controller.new_project()
+
+    def _open_project_dialog(self) -> None:
+        self._project_controller.open_project_dialog()
 
     def _open_project_folder(self) -> None:
         self._project_controller.open_project_folder()

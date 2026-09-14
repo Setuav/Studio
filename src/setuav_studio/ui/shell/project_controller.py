@@ -68,8 +68,24 @@ class ProjectController:
             return False
         return self._window._activate_project(doc, confirm_close=False)
 
+    def open_project_dialog(self) -> None:
+        file_filter = (
+            "Setuav Projects (*.suav project.json);;"
+            "Setuav Archive (*.suav);;"
+            "Project JSON (project.json);;"
+            "All Files (*)"
+        )
+        path, _ = QFileDialog.getOpenFileName(
+            self._window,
+            "Open Setuav Project",
+            "",
+            file_filter,
+        )
+        if path:
+            self._window.open_project(path)
+
     def open_project_folder(self) -> None:
-        path = QFileDialog.getExistingDirectory(self._window, "Open Setuav Project")
+        path = QFileDialog.getExistingDirectory(self._window, "Open Setuav Project Folder")
         if path:
             self._window.open_project(path)
 
