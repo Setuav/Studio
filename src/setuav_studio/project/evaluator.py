@@ -265,52 +265,45 @@ def _recompute_extension(
     evaluator: ExpressionEvaluator,
     scope: dict[str, Any],
 ) -> bool:
+    """Generic recursive expression recomputation across plugin extensions without hardcoding."""
+    return _recompute_generic_dict(ext, evaluator, scope)
+
+
+def _recompute_generic_dict(
+    d: dict[str, Any],
+    evaluator: ExpressionEvaluator,
+    scope: dict[str, Any],
+) -> bool:
     changed = False
 
-    # 1. Features dictionary (e.g. manufacturing spars, covers, shells)
-    features = ext.get("features")
-    if isinstance(features, dict):
-        for feat in features.values():
-            if not isinstance(feat, dict):
-                continue
-            # Check _expressions dictionary
-            exprs = feat.get("_expressions")
-            if isinstance(exprs, dict):
-                for k, expr in exprs.items():
-                    if isinstance(expr, str) and expr.strip():
-                        val = _safe_eval(evaluator, expr, scope)
-                        if val is not None and feat.get(k) != val:
-                            feat[k] = val
-                            changed = True
-
-            # Check any {k}_expression
-            for k, v in list(feat.items()):
-                if k.endswith("_expression") and isinstance(v, str):
-                    base_k = k[:-11]
-                    val = _safe_eval(evaluator, v, scope)
-                    if val is not None and feat.get(base_k) != val:
-                        feat[base_k] = val
-                        changed = True
-
-    # 2. Configuration dictionary
-    cfg = ext.get("configuration")
-    if isinstance(cfg, dict):
-        exprs = cfg.get("_expressions")
-        if isinstance(exprs, dict):
-            for k, expr in exprs.items():
-                if isinstance(expr, str) and expr.strip():
-                    val = _safe_eval(evaluator, expr, scope)
-                    if val is not None and cfg.get(k) != val:
-                        cfg[k] = val
-                        changed = True
-
-        for k, v in list(cfg.items()):
-            if k.endswith("_expression") and isinstance(v, str):
-                base_k = k[:-11]
-                val = _safe_eval(evaluator, v, scope)
-                if val is not None and cfg.get(base_k) != val:
-                    cfg[base_k] = val
+    # 1. Check '_expressions' sub-dictionary
+    exprs = d.get("_expressions")
+    if isinstance(exprs, dict):
+        for k, expr in exprs.items():
+            if isinstance(expr, str) and expr.strip():
+                val = _safe_eval(evaluator, expr, scope)
+                if val is not None and d.get(k) != val:
+                    d[k] = val
                     changed = True
+
+    # 2. Check '{k}_expression' and nested dicts/lists
+    for k, v in list(d.items()):
+        if k == "_expressions":
+            continue
+        if k.endswith("_expression") and isinstance(v, str) and v.strip():
+            base_k = k[:-11]
+            val = _safe_eval(evaluator, v, scope)
+            if val is not None and d.get(base_k) != val:
+                d[base_k] = val
+                changed = True
+        elif isinstance(v, dict):
+            if _recompute_generic_dict(v, evaluator, scope):
+                changed = True
+        elif isinstance(v, list):
+            for item in v:
+                if isinstance(item, dict):
+                    if _recompute_generic_dict(item, evaluator, scope):
+                        changed = True
 
     return changed
 

@@ -172,81 +172,9 @@ class ProjectDocument:
 
     def get_scope(self, api: Any | None = None, config_id: str | None = None) -> dict[str, Any]:
         """Return the complete runtime evaluation scope containing resolved parameters and live component models."""
-        cfg_mgr = self.get_configuration_manager()
-        scope: dict[str, Any] = {}
+        from setuav_studio.model.scope import build_universal_scope
 
-        # 1. Project Parameters & Constants
-        resolved_params = cfg_mgr.get_effective_project_parameters(config_id)
-        for k, v in resolved_params.items():
-            scope[k] = v
-
-        # 2. Live Component Models
-        models = self.get_component_models(api, config_id)
-        total_mass = 0.0
-
-        for model in models:
-            raw_cid = model.id
-            if not raw_cid:
-                continue
-            clean_cid = raw_cid.replace("-", "_")
-            scope[clean_cid] = model
-            if raw_cid != clean_cid:
-                scope[raw_cid] = model
-
-            # Flat aliases for compatibility (e.g. main_wing_planform_area)
-            if hasattr(model, "get_exposed_properties"):
-                for prop_name, prop_val in model.get_exposed_properties().items():
-                    if isinstance(prop_val, (int, float, bool, str)):
-                        scope[f"{clean_cid}_{prop_name}"] = prop_val
-
-            # Child aliases (e.g. main_wing_flap_chord)
-            if hasattr(model, "children") and isinstance(model.children, dict):
-                for child_name, child_model in model.children.items():
-                    if hasattr(child_model, "get_exposed_properties"):
-                        for cp_name, cp_val in child_model.get_exposed_properties().items():
-                            if isinstance(cp_val, (int, float, bool, str)):
-                                scope[f"{clean_cid}_{child_name}_{cp_name}"] = cp_val
-
-            total_mass += model.mass
-
-        extensions = self.data.get("extensions", {})
-        if isinstance(extensions, dict):
-            from types import SimpleNamespace
-
-            for ext in extensions.values():
-                if not isinstance(ext, dict):
-                    continue
-                features = ext.get("features")
-                if isinstance(features, dict):
-                    for fid, feat in features.items():
-                        if not isinstance(feat, dict) or feat.get("deleted") is True:
-                            continue
-                        clean_fid = str(feat.get("id") or fid).replace("-", "_")
-                        ns_dict = {
-                            k: v for k, v in feat.items()
-                            if isinstance(v, (int, float, bool, str)) and not k.startswith("_")
-                        }
-                        ns = SimpleNamespace(**ns_dict)
-                        scope[clean_fid] = ns
-                        if fid != clean_fid:
-                            scope[fid] = ns
-                        for pk, pv in ns_dict.items():
-                            scope[f"{clean_fid}_{pk}"] = pv
-                cfg = ext.get("configuration")
-                if isinstance(cfg, dict):
-                    cfg_id = str(cfg.get("id") or "manufacturing_configuration").replace("-", "_")
-                    cfg_dict = {
-                        k: v for k, v in cfg.items()
-                        if isinstance(v, (int, float, bool, str)) and not k.startswith("_")
-                    }
-                    cfg_ns = SimpleNamespace(**cfg_dict)
-                    scope[cfg_id] = cfg_ns
-                    for pk, pv in cfg_dict.items():
-                        scope[f"{cfg_id}_{pk}"] = pv
-
-        scope["total_mass"] = total_mass
-        scope["mtow"] = resolved_params.get("mtow", total_mass)
-        return scope
+        return build_universal_scope(self.data, api=api, config_id=config_id)
 
     def recompute_expressions(self, api: Any | None = None) -> bool:
         """Re-evaluate all mathematical formulas across the project against current scope."""
