@@ -209,6 +209,41 @@ class ProjectDocument:
 
             total_mass += model.mass
 
+        extensions = self.data.get("extensions", {})
+        if isinstance(extensions, dict):
+            from types import SimpleNamespace
+
+            for ext in extensions.values():
+                if not isinstance(ext, dict):
+                    continue
+                features = ext.get("features")
+                if isinstance(features, dict):
+                    for fid, feat in features.items():
+                        if not isinstance(feat, dict) or feat.get("deleted") is True:
+                            continue
+                        clean_fid = str(feat.get("id") or fid).replace("-", "_")
+                        ns_dict = {
+                            k: v for k, v in feat.items()
+                            if isinstance(v, (int, float, bool, str)) and not k.startswith("_")
+                        }
+                        ns = SimpleNamespace(**ns_dict)
+                        scope[clean_fid] = ns
+                        if fid != clean_fid:
+                            scope[fid] = ns
+                        for pk, pv in ns_dict.items():
+                            scope[f"{clean_fid}_{pk}"] = pv
+                cfg = ext.get("configuration")
+                if isinstance(cfg, dict):
+                    cfg_id = str(cfg.get("id") or "manufacturing_configuration").replace("-", "_")
+                    cfg_dict = {
+                        k: v for k, v in cfg.items()
+                        if isinstance(v, (int, float, bool, str)) and not k.startswith("_")
+                    }
+                    cfg_ns = SimpleNamespace(**cfg_dict)
+                    scope[cfg_id] = cfg_ns
+                    for pk, pv in cfg_dict.items():
+                        scope[f"{cfg_id}_{pk}"] = pv
+
         scope["total_mass"] = total_mass
         scope["mtow"] = resolved_params.get("mtow", total_mass)
         return scope
