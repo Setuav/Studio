@@ -42,9 +42,7 @@ def get_user_plugins_dir(custom_base: Path | str | None = None) -> Path:
     elif env_dir := os.environ.get("SETUAV_STUDIO_PLUGINS_DIR"):
         plugins_dir = Path(env_dir)
     else:
-        app_data = QStandardPaths.writableLocation(
-            QStandardPaths.StandardLocation.AppDataLocation
-        )
+        app_data = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
         base = Path(app_data) if app_data else Path.home() / ".setuav-studio"
         plugins_dir = base / "plugins"
 
@@ -65,7 +63,10 @@ def _validate_safe_path(target_dir: Path, relative_name: str) -> Path:
     """Ensure relative_name resolves strictly within target_dir (prevent Zip Slip)."""
     dest_path = (target_dir / relative_name).resolve()
     target_resolved = target_dir.resolve()
-    if not (str(dest_path) == str(target_resolved) or str(dest_path).startswith(str(target_resolved) + os.sep)):
+    if not (
+        str(dest_path) == str(target_resolved)
+        or str(dest_path).startswith(str(target_resolved) + os.sep)
+    ):
         raise ValueError(f"Path traversal detected in archive entry: {relative_name}")
     return dest_path
 
@@ -168,14 +169,10 @@ def install_plugin_archive(
 
         # Inspect extracted items, ignoring OS-generated metadata like __MACOSX
         valid_items = [
-            p
-            for p in staging_dir.iterdir()
-            if p.name != "__MACOSX" and not p.name.startswith(".")
+            p for p in staging_dir.iterdir() if p.name != "__MACOSX" and not p.name.startswith(".")
         ]
         if not valid_items:
-            raise ValueError(
-                f"Archive {archive_file.name} contains no valid files or folders."
-            )
+            raise ValueError(f"Archive {archive_file.name} contains no valid files or folders.")
 
         # If archive contains a single top-level directory, use that as plugin root
         if len(valid_items) == 1 and valid_items[0].is_dir():

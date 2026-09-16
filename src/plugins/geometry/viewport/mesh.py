@@ -718,14 +718,14 @@ def build_envelope_wire_vertices(
         else ""
     )
     comp_clean = (
-        selected_component_id.lower().replace(":envelope", "")
-        if selected_component_id
-        else ""
+        selected_component_id.lower().replace(":envelope", "") if selected_component_id else ""
     )
     vertices: list[float] = []
     for env in getattr(data, "envelopes", ()):
         env_clean = env.component_id.lower().replace(":envelope", "")
-        is_prop_clearance = ":propeller_clearance" in env_clean or ":clearance" in env_clean or "motor" in env_clean
+        is_prop_clearance = (
+            ":propeller_clearance" in env_clean or ":clearance" in env_clean or "motor" in env_clean
+        )
 
         is_selected = False
         if target_clean:
@@ -836,10 +836,26 @@ def build_primitive_solid_vertices(primitives) -> list[float]:  # noqa: C901
             cx, cy, cz = prim.center
             u, v = _ortho_basis(prim.normal)
             hw, hh = prim.width * 0.5, prim.height * 0.5
-            p0 = (cx - hw * u[0] - hh * v[0], cy - hw * u[1] - hh * v[1], cz - hw * u[2] - hh * v[2])
-            p1 = (cx + hw * u[0] - hh * v[0], cy + hw * u[1] - hh * v[1], cz + hw * u[2] - hh * v[2])
-            p2 = (cx + hw * u[0] + hh * v[0], cy + hw * u[1] + hh * v[1], cz + hw * u[2] + hh * v[2])
-            p3 = (cx - hw * u[0] + hh * v[0], cy - hw * u[1] + hh * v[1], cz - hw * u[2] + hh * v[2])
+            p0 = (
+                cx - hw * u[0] - hh * v[0],
+                cy - hw * u[1] - hh * v[1],
+                cz - hw * u[2] - hh * v[2],
+            )
+            p1 = (
+                cx + hw * u[0] - hh * v[0],
+                cy + hw * u[1] - hh * v[1],
+                cz + hw * u[2] - hh * v[2],
+            )
+            p2 = (
+                cx + hw * u[0] + hh * v[0],
+                cy + hw * u[1] + hh * v[1],
+                cz + hw * u[2] + hh * v[2],
+            )
+            p3 = (
+                cx - hw * u[0] + hh * v[0],
+                cy - hw * u[1] + hh * v[1],
+                cz - hw * u[2] + hh * v[2],
+            )
 
             _add_triangle(vertices, p0, p1, p2, color)
             _add_triangle(vertices, p0, p2, p3, color)
@@ -898,9 +914,18 @@ def build_primitive_wire_vertices(primitives) -> list[float]:  # noqa: C901
                 (cx - hx, cy + hy, cz + hz),
             ]
             edges = (
-                (0, 1), (1, 2), (2, 3), (3, 0),
-                (4, 5), (5, 6), (6, 7), (7, 4),
-                (0, 4), (1, 5), (2, 6), (3, 7),
+                (0, 1),
+                (1, 2),
+                (2, 3),
+                (3, 0),
+                (4, 5),
+                (5, 6),
+                (6, 7),
+                (7, 4),
+                (0, 4),
+                (1, 5),
+                (2, 6),
+                (3, 7),
             )
             for i1, i2 in edges:
                 _add_line(vertices, c[i1], c[i2], color)
@@ -941,10 +966,26 @@ def build_primitive_wire_vertices(primitives) -> list[float]:  # noqa: C901
             cx, cy, cz = prim.center
             u, v = _ortho_basis(prim.normal)
             hw, hh = prim.width * 0.5, prim.height * 0.5
-            p0 = (cx - hw * u[0] - hh * v[0], cy - hw * u[1] - hh * v[1], cz - hw * u[2] - hh * v[2])
-            p1 = (cx + hw * u[0] - hh * v[0], cy + hw * u[1] - hh * v[1], cz + hw * u[2] - hh * v[2])
-            p2 = (cx + hw * u[0] + hh * v[0], cy + hw * u[1] + hh * v[1], cz + hw * u[2] + hh * v[2])
-            p3 = (cx - hw * u[0] + hh * v[0], cy - hw * u[1] + hh * v[1], cz - hw * u[2] + hh * v[2])
+            p0 = (
+                cx - hw * u[0] - hh * v[0],
+                cy - hw * u[1] - hh * v[1],
+                cz - hw * u[2] - hh * v[2],
+            )
+            p1 = (
+                cx + hw * u[0] - hh * v[0],
+                cy + hw * u[1] - hh * v[1],
+                cz + hw * u[2] - hh * v[2],
+            )
+            p2 = (
+                cx + hw * u[0] + hh * v[0],
+                cy + hw * u[1] + hh * v[1],
+                cz + hw * u[2] + hh * v[2],
+            )
+            p3 = (
+                cx - hw * u[0] + hh * v[0],
+                cy - hw * u[1] + hh * v[1],
+                cz - hw * u[2] + hh * v[2],
+            )
             _append_ring(vertices, (p0, p1, p2, p3), color)
 
         elif isinstance(prim, RingPrimitive):
@@ -956,11 +997,13 @@ def build_primitive_wire_vertices(primitives) -> list[float]:  # noqa: C901
             for i in range(segs):
                 angle = 2.0 * math.pi * i / segs
                 cos_a, sin_a = math.cos(angle), math.sin(angle)
-                ring.append((
-                    cx + r * (cos_a * u[0] + sin_a * v[0]),
-                    cy + r * (cos_a * u[1] + sin_a * v[1]),
-                    cz + r * (cos_a * u[2] + sin_a * v[2]),
-                ))
+                ring.append(
+                    (
+                        cx + r * (cos_a * u[0] + sin_a * v[0]),
+                        cy + r * (cos_a * u[1] + sin_a * v[1]),
+                        cz + r * (cos_a * u[2] + sin_a * v[2]),
+                    )
+                )
             _append_ring(vertices, ring, color)
 
         elif isinstance(prim, LineSegmentsPrimitive):
@@ -984,4 +1027,3 @@ def build_primitive_wire_vertices(primitives) -> list[float]:  # noqa: C901
                 _append_loft_feature_wire(vertices, loft, loops, color)
 
     return vertices
-

@@ -369,8 +369,6 @@ class LiftingSurfaceEditor(
                 return f"File: {Path(str(value.get('path') or value.get('file') or '')).name}"
         return "NACA 2412"
 
-
-
     @staticmethod
     def _clear_property_values(table: QTableWidget) -> None:
         for row in range(table.rowCount()):

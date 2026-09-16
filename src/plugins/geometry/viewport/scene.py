@@ -1003,9 +1003,7 @@ def _append_all_motor_geometries(
         if source.get("type") != "org.setuav.core:motor":
             continue
         with contextlib.suppress(Exception):
-            _append_single_motor_geometry(
-                envelopes, item_id, item, source, items, world_matrix
-            )
+            _append_single_motor_geometry(envelopes, item_id, item, source, items, world_matrix)
 
 
 def _append_single_motor_geometry(

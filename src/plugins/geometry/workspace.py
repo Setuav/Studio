@@ -259,9 +259,7 @@ class ViewerWorkspace(QWidget):
                 False,
             )
         )
-        self._action_transparent_bg.toggled.connect(
-            self._on_screenshot_transparent_toggled
-        )
+        self._action_transparent_bg.toggled.connect(self._on_screenshot_transparent_toggled)
         self.screenshot_button.setMenu(self._screenshot_menu)
         hud_layout.addWidget(self.screenshot_button)
 

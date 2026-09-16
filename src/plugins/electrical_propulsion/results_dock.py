@@ -201,7 +201,11 @@ class PropulsionResultsDock(PropertyTableMixin, QWidget):
         config_text = (
             "Twin Motor (2x - Bilateral)"
             if motor_count == 2
-            else ("Multi-Motor (" + str(motor_count) + "x)" if motor_count > 1 else "Single Motor (1x)")
+            else (
+                "Multi-Motor (" + str(motor_count) + "x)"
+                if motor_count > 1
+                else "Single Motor (1x)"
+            )
         )
         self._set_property_value(self.summary_table, "config", config_text)
 

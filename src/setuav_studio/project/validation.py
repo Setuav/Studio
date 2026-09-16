@@ -246,13 +246,11 @@ def _collect_valid_mount_targets(components_by_id: dict[str, dict[str, Any]]) ->
         if ctype == "org.setuav.core:lifting-surface":
             valid.add(cid)
         elif ctype == "org.setuav.core:fuselage":
-            params = (
-                comp.get("parameters", {}) if isinstance(comp.get("parameters"), dict) else {}
-            )
+            params = comp.get("parameters", {}) if isinstance(comp.get("parameters"), dict) else {}
             geom = params.get("geometry", {}) if isinstance(params.get("geometry"), dict) else {}
             segs = geom.get("segments", []) if isinstance(geom.get("segments"), list) else []
             for s_idx, seg in enumerate(segs):
-                valid.add(f"{cid}/segment-{s_idx+1:02d}")
+                valid.add(f"{cid}/segment-{s_idx + 1:02d}")
                 if isinstance(seg, dict) and seg.get("tag"):
                     valid.add(f"{cid}/{seg.get('tag')}")
     return valid

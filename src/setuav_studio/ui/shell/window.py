@@ -537,7 +537,9 @@ class MainWindow(QMainWindow):
                 # Horizontal resizing (vertical separator dividing left dock A and right dock B)
                 if -2 <= (gb.left() - ga.right()) <= 20:
                     y_overlap = min(ga.bottom(), gb.bottom()) - max(ga.top(), gb.top())
-                    if y_overlap > 10 and (max(ga.top(), gb.top()) - 4) <= pt.y() <= (min(ga.bottom(), gb.bottom()) + 4):
+                    if y_overlap > 10 and (max(ga.top(), gb.top()) - 4) <= pt.y() <= (
+                        min(ga.bottom(), gb.bottom()) + 4
+                    ):
                         sep_x = (ga.right() + gb.left()) / 2.0
                         dist = abs(pt.x() - sep_x)
                         if dist <= 12 and dist < min_dist_h:
@@ -547,7 +549,9 @@ class MainWindow(QMainWindow):
                 # Vertical resizing (horizontal separator dividing top dock A and bottom dock B)
                 if -2 <= (gb.top() - ga.bottom()) <= 20:
                     x_overlap = min(ga.right(), gb.right()) - max(ga.left(), gb.left())
-                    if x_overlap > 10 and (max(ga.left(), gb.left()) - 4) <= pt.x() <= (min(ga.right(), gb.right()) + 4):
+                    if x_overlap > 10 and (max(ga.left(), gb.left()) - 4) <= pt.x() <= (
+                        min(ga.right(), gb.right()) + 4
+                    ):
                         sep_y = (ga.bottom() + gb.top()) / 2.0
                         dist = abs(pt.y() - sep_y)
                         if dist <= 12 and dist < min_dist_v:
@@ -639,7 +643,9 @@ class MainWindow(QMainWindow):
         super().mouseReleaseEvent(event)
 
     def leaveEvent(self, event: Any) -> None:
-        if self._dragging_separator and not (QApplication.mouseButtons() & Qt.MouseButton.LeftButton):
+        if self._dragging_separator and not (
+            QApplication.mouseButtons() & Qt.MouseButton.LeftButton
+        ):
             self._finish_separator_drag()
         super().leaveEvent(event)
 

@@ -101,10 +101,16 @@ class TestUniversalScope(unittest.TestCase):
             scope = proj.get_scope()
 
             # 1. Full JSON dotted paths
-            self.assertEqual(self.evaluator.evaluate("main_wing.parameters.geometry.span", scope), 2000.0)
-            self.assertEqual(self.evaluator.evaluate("main_wing.transform.position.x", scope), 300.0)
             self.assertEqual(
-                self.evaluator.evaluate("main_wing.parameters.geometry.profiles[1].position.x", scope),
+                self.evaluator.evaluate("main_wing.parameters.geometry.span", scope), 2000.0
+            )
+            self.assertEqual(
+                self.evaluator.evaluate("main_wing.transform.position.x", scope), 300.0
+            )
+            self.assertEqual(
+                self.evaluator.evaluate(
+                    "main_wing.parameters.geometry.profiles[1].position.x", scope
+                ),
                 60.0,
             )
 

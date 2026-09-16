@@ -1290,8 +1290,6 @@ class FuselageEditor(PropertyTableMixin, QWidget):
             owner[key] = value
         return value
 
-
-
     @staticmethod
     def _profile_size(profile: dict[str, Any]) -> str:
         return format_profile_size(profile)

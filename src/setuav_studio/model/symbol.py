@@ -147,7 +147,11 @@ def get_available_symbols_metadata(  # noqa: C901
 
                     fprops: list[dict[str, Any]] = []
                     for k, v in feat.items():
-                        if isinstance(v, (int, float, str, bool)) and not k.startswith("_") and k not in ("id", "name", "type", "deleted"):
+                        if (
+                            isinstance(v, (int, float, str, bool))
+                            and not k.startswith("_")
+                            and k not in ("id", "name", "type", "deleted")
+                        ):
                             fprops.append(
                                 {
                                     "key": k,

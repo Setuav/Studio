@@ -548,8 +548,12 @@ class ShellContributionTests(unittest.TestCase):
         with (
             patch.object(self.window, "isMaximized", return_value=False),
             patch.object(self.window, "isFullScreen", return_value=False),
-            patch.object(self.window, "restoreGeometry", side_effect=lambda g: called.append(("geom", g))),
-            patch.object(self.window, "restoreState", side_effect=lambda s, v: called.append(("state", s, v))),
+            patch.object(
+                self.window, "restoreGeometry", side_effect=lambda g: called.append(("geom", g))
+            ),
+            patch.object(
+                self.window, "restoreState", side_effect=lambda s, v: called.append(("state", s, v))
+            ),
         ):
             self.window.changeEvent(QEvent(QEvent.Type.WindowStateChange))
 
@@ -566,7 +570,9 @@ class ShellContributionTests(unittest.TestCase):
             self.window._layout_manager.schedule_workspace_layout_save()
             self.assertFalse(self.window._layout_manager.layout_save_scheduled)
             self.window._save_current_workspace_layout()
-            self.assertNotIn("studio.workspace.design", self.window._layout_manager.workspace_states)
+            self.assertNotIn(
+                "studio.workspace.design", self.window._layout_manager.workspace_states
+            )
 
     def test_separator_drag_resizes_only_adjacent_docks(self) -> None:
         d1 = QDockWidget("D1", self.window)
@@ -581,7 +587,9 @@ class ShellContributionTests(unittest.TestCase):
         self.window.splitDockWidget(d2, d3, Qt.Orientation.Horizontal)
 
         sep_pt = QPoint(200, 200)
-        with patch.object(self.window, "_find_adjacent_docks_at", return_value=(d1, d2, Qt.Orientation.Horizontal)):
+        with patch.object(
+            self.window, "_find_adjacent_docks_at", return_value=(d1, d2, Qt.Orientation.Horizontal)
+        ):
             press = QMouseEvent(
                 QEvent.Type.MouseButtonPress,
                 QPointF(sep_pt),

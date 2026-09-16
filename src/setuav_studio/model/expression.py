@@ -332,4 +332,3 @@ def find_symbol_usages_in_project(
 
     walk_expressions(project_data, _inspect)
     return usages
-

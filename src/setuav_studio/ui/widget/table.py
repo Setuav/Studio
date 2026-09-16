@@ -602,7 +602,9 @@ class PropertyTableMixin:
         label: str = "",
     ) -> Any:
         if target_data is None:
-            if hasattr(self, "_get_property_target_data") and callable(self._get_property_target_data):
+            if hasattr(self, "_get_property_target_data") and callable(
+                self._get_property_target_data
+            ):
                 target_data = self._get_property_target_data()
             elif hasattr(self, "_target_data") and isinstance(self._target_data, dict):
                 target_data = self._target_data

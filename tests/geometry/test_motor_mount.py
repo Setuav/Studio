@@ -165,9 +165,7 @@ class MotorMountTests(unittest.TestCase):
         from copy import deepcopy
 
         proj = deepcopy(self.project_data)
-        proj["components"][1]["transform"] = {
-            "position": {"x": 30.0, "y": 75.0, "z": 20.0}
-        }
+        proj["components"][1]["transform"] = {"position": {"x": 30.0, "y": 75.0, "z": 20.0}}
         res = compute_propeller_clearance(
             proj,
             target_id="main-wing",
@@ -288,9 +286,7 @@ class MotorMountTests(unittest.TestCase):
 
         # Verify propeller clearance envelope is created
         prop_envs = [
-            env
-            for env in geom_data.envelopes
-            if env.component_id == "motor-01:propeller_clearance"
+            env for env in geom_data.envelopes if env.component_id == "motor-01:propeller_clearance"
         ]
         self.assertEqual(len(prop_envs), 1)
         prop_env = prop_envs[0]

@@ -337,7 +337,9 @@ class OpenGLViewer(QOpenGLWidget):
             )
             if transparent:
                 self._functions.glEnable(_GL_BLEND)
-                self._functions.glBlendFuncSeparate(_GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA, _GL_ZERO, _GL_ONE)
+                self._functions.glBlendFuncSeparate(
+                    _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA, _GL_ZERO, _GL_ONE
+                )
                 self._functions.glColorMask(True, True, True, False)
                 self._functions.glDepthMask(False)
             self._solid_vao.bind()
@@ -361,7 +363,9 @@ class OpenGLViewer(QOpenGLWidget):
             alpha_location = self._solid_program.uniformLocation("alpha")
             self._functions.glUniform1f(alpha_location, 0.45)
             self._functions.glEnable(_GL_BLEND)
-            self._functions.glBlendFuncSeparate(_GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA, _GL_ZERO, _GL_ONE)
+            self._functions.glBlendFuncSeparate(
+                _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA, _GL_ZERO, _GL_ONE
+            )
             self._functions.glColorMask(True, True, True, False)
             self._primitive_solid_vao.bind()
             self._functions.glDrawArrays(_GL_TRIANGLES, 0, self._primitive_solid_count)
@@ -394,7 +398,9 @@ class OpenGLViewer(QOpenGLWidget):
             self._envelope_vao.release()
         if self._primitive_wire_count > 0:
             self._functions.glEnable(_GL_BLEND)
-            self._functions.glBlendFuncSeparate(_GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA, _GL_ZERO, _GL_ONE)
+            self._functions.glBlendFuncSeparate(
+                _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA, _GL_ZERO, _GL_ONE
+            )
             self._functions.glColorMask(True, True, True, False)
             self._functions.glUniform1f(alpha_location, 1.0)
             self._primitive_wire_vao.bind()
@@ -789,8 +795,12 @@ class OpenGLViewer(QOpenGLWidget):
         primitive_solid_values = build_primitive_solid_vertices(all_primitives)
         primitive_wire_values = build_primitive_wire_vertices(all_primitives)
 
-        self._primitive_solid_count = self._allocate(self._primitive_solid_vbo, primitive_solid_values, 9)
-        self._primitive_wire_count = self._allocate(self._primitive_wire_vbo, primitive_wire_values, 6)
+        self._primitive_solid_count = self._allocate(
+            self._primitive_solid_vbo, primitive_solid_values, 9
+        )
+        self._primitive_wire_count = self._allocate(
+            self._primitive_wire_vbo, primitive_wire_values, 6
+        )
 
     @staticmethod
     def _allocate(buffer: QOpenGLBuffer, values: list[float], stride: int) -> int:
@@ -1057,4 +1067,3 @@ class OpenGLViewer(QOpenGLWidget):
             self._overlay_layers.pop(layer_id, None)
         self._mesh_dirty = True
         self.update()
-

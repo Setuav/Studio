@@ -60,11 +60,12 @@ class ProjectTreeBuilder:
         finally:
             self._tree.blockSignals(False)
 
-        has_prior_selection = (
-            selection_state[0]
-            or bool(selection_state[1])
-        )
-        if has_prior_selection and fresh_selection is not None and self._api.current_selection is not fresh_selection:
+        has_prior_selection = selection_state[0] or bool(selection_state[1])
+        if (
+            has_prior_selection
+            and fresh_selection is not None
+            and self._api.current_selection is not fresh_selection
+        ):
             self._api.set_selection(fresh_selection)
 
     def reset_project_tree(self) -> None:

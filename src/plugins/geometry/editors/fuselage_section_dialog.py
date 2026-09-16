@@ -497,17 +497,25 @@ class FuselageSectionDialog(QDialog):
         elif prof_type == "rectangle":
             self._add_prop_row("Width", _raw("width", 120.0), "width", profile)
             self._add_prop_row("Height", _raw("height", 80.0), "height", profile)
-            self._add_prop_row("Corner Radius", _raw("corner_radius", 10.0), "corner_radius", profile)
+            self._add_prop_row(
+                "Corner Radius", _raw("corner_radius", 10.0), "corner_radius", profile
+            )
         elif prof_type == "trapezoid":
             self._add_prop_row("Top Width", _raw("top_width", 80.0), "top_width", profile)
             self._add_prop_row("Bottom Width", _raw("bottom_width", 120.0), "bottom_width", profile)
             self._add_prop_row("Height", _raw("height", 80.0), "height", profile)
-            self._add_prop_row("Corner Radius", _raw("corner_radius", 5.0), "corner_radius", profile)
+            self._add_prop_row(
+                "Corner Radius", _raw("corner_radius", 5.0), "corner_radius", profile
+            )
         elif prof_type == "triangle":
             self._add_prop_row("Base Width", _raw("base_width", 100.0), "base_width", profile)
             self._add_prop_row("Height", _raw("height", 80.0), "height", profile)
-            self._add_prop_row("Corner Radius", _raw("corner_radius", 5.0), "corner_radius", profile)
-            self._add_prop_row("Orientation", profile.get("orientation", "up"), "orientation", profile)
+            self._add_prop_row(
+                "Corner Radius", _raw("corner_radius", 5.0), "corner_radius", profile
+            )
+            self._add_prop_row(
+                "Orientation", profile.get("orientation", "up"), "orientation", profile
+            )
         elif prof_type == "polygon":
             self._populate_vertices_table(profile)
 
@@ -702,9 +710,7 @@ class FuselageSectionDialog(QDialog):
                 ),
             )
 
-    def _on_transform_expression_changed(
-        self, transform_type: str, axis: str, value: Any
-    ) -> None:
+    def _on_transform_expression_changed(self, transform_type: str, axis: str, value: Any) -> None:
         if self._loading:
             return
         sec = self._current_section()
@@ -1173,6 +1179,7 @@ class FuselageSectionDialog(QDialog):
         """Discard changes and restore original component state."""
         orig = copy.deepcopy(self._original_component)
         if self._component != orig and self._api.current_project:
+
             def cancel_change() -> None:
                 self._component.clear()
                 self._component.update(orig)

@@ -591,5 +591,3 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
             self._api.edit_component(self._component, action_name, wrapped)
         else:
             wrapped()
-
-

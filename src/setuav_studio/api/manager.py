@@ -249,17 +249,13 @@ class PluginManager:
 
         return None
 
-    def _load_from_pyproject(
-        self, plugin_dir: Path, pyproject_file: Path
-    ) -> object | None:
+    def _load_from_pyproject(self, plugin_dir: Path, pyproject_file: Path) -> object | None:
         try:
             import tomllib
 
             data = tomllib.loads(pyproject_file.read_text("utf-8"))
             ep_group = (
-                data.get("project", {})
-                .get("entry-points", {})
-                .get("setuav_studio.plugins", {})
+                data.get("project", {}).get("entry-points", {}).get("setuav_studio.plugins", {})
             )
             if not isinstance(ep_group, dict) or not ep_group:
                 return None

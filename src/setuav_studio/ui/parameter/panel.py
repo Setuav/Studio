@@ -369,6 +369,7 @@ class ProjectParametersPanel(QWidget):
                     parsed = new_expr
 
             existing_val = raw_params.get(param_name)
+
             def _apply() -> None:
                 if isinstance(existing_val, dict):
                     target_val: Any = copy.deepcopy(existing_val)

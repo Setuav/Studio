@@ -199,20 +199,24 @@ def _build_fuselage_mount_targets(
         if not isinstance(sections, list) or not sections:
             continue
 
-        target_id = f"{comp_id}/segment-{idx+1:02d}"
+        target_id = f"{comp_id}/segment-{idx + 1:02d}"
         tag = seg.get("tag")
-        label = f"{comp_name} Segment {idx+1}" + (f" ({tag})" if tag else "")
+        label = f"{comp_name} Segment {idx + 1}" + (f" ({tag})" if tag else "")
 
         # Front section: minimum x or first section
         first_sec = sections[0] if isinstance(sections[0], dict) else {}
-        first_pos = first_sec.get("position", {}) if isinstance(first_sec.get("position"), dict) else {}
+        first_pos = (
+            first_sec.get("position", {}) if isinstance(first_sec.get("position"), dict) else {}
+        )
         fx = float(first_pos.get("x", 0.0))
         fy = float(first_pos.get("y", 0.0))
         fz = float(first_pos.get("z", 0.0))
 
         # Rear section: maximum x or last section
         last_sec = sections[-1] if isinstance(sections[-1], dict) else {}
-        last_pos = last_sec.get("position", {}) if isinstance(last_sec.get("position"), dict) else {}
+        last_pos = (
+            last_sec.get("position", {}) if isinstance(last_sec.get("position"), dict) else {}
+        )
         lx = float(last_pos.get("x", 0.0))
         ly = float(last_pos.get("y", 0.0))
         lz = float(last_pos.get("z", 0.0))
@@ -385,7 +389,9 @@ def _check_wing_clearance(
     root = profiles[0] if profiles and isinstance(profiles[0], dict) else {}
 
     clearance_mm, has_coll, msgs = _check_wing_edge_margin(root, pos_lower, mount_pt, prop_radius)
-    fuse_margin, fuse_coll, fuse_msgs = _check_fuselage_proximity(world_mount_pt, prop_radius, items, comp_map)
+    fuse_margin, fuse_coll, fuse_msgs = _check_fuselage_proximity(
+        world_mount_pt, prop_radius, items, comp_map
+    )
 
     if fuse_coll:
         has_coll = True
@@ -462,9 +468,7 @@ def compute_propeller_clearance(
         clearance_mm = _check_fuselage_clearance(geom, target_id, pos_lower, prop_radius)
 
     msg = (
-        "; ".join(warning_msgs)
-        if has_collision
-        else f"Clearance OK: {clearance_mm:.1f} mm margin"
+        "; ".join(warning_msgs) if has_collision else f"Clearance OK: {clearance_mm:.1f} mm margin"
     )
 
     return {

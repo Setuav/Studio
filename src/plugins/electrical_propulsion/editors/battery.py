@@ -234,28 +234,98 @@ class BatteryEditor(PropertyTableMixin, QWidget):
 
             # Pack table
             self._set_property_spinbox(
-                self.pack_table, "cell_count", s, min_val=1, max_val=100, step=1, decimals=0, target_data=params, on_changed=lambda v: self._on_pack_param_changed("cell_count", v)
+                self.pack_table,
+                "cell_count",
+                s,
+                min_val=1,
+                max_val=100,
+                step=1,
+                decimals=0,
+                target_data=params,
+                on_changed=lambda v: self._on_pack_param_changed("cell_count", v),
             )
             self._set_property_spinbox(
-                self.pack_table, "parallel_count", p, min_val=1, max_val=100, step=1, decimals=0, target_data=params, on_changed=lambda v: self._on_pack_param_changed("parallel_count", v)
+                self.pack_table,
+                "parallel_count",
+                p,
+                min_val=1,
+                max_val=100,
+                step=1,
+                decimals=0,
+                target_data=params,
+                on_changed=lambda v: self._on_pack_param_changed("parallel_count", v),
             )
             self._set_property_spinbox(
-                self.pack_table, "capacity", pack_cap, min_val=0, max_val=1e6, step=100, decimals=0, suffix="mAh", target_data=params, on_changed=lambda v: self._on_pack_param_changed("capacity", v)
+                self.pack_table,
+                "capacity",
+                pack_cap,
+                min_val=0,
+                max_val=1e6,
+                step=100,
+                decimals=0,
+                suffix="mAh",
+                target_data=params,
+                on_changed=lambda v: self._on_pack_param_changed("capacity", v),
             )
             self._set_property_spinbox(
-                self.pack_table, "nominal_voltage", v_nom, min_val=0, max_val=1000, step=0.1, decimals=1, suffix="V", target_data=params, on_changed=lambda v: self._on_pack_param_changed("nominal_voltage", v)
+                self.pack_table,
+                "nominal_voltage",
+                v_nom,
+                min_val=0,
+                max_val=1000,
+                step=0.1,
+                decimals=1,
+                suffix="V",
+                target_data=params,
+                on_changed=lambda v: self._on_pack_param_changed("nominal_voltage", v),
             )
             self._set_property_spinbox(
-                self.pack_table, "internal_resistance", r_pack, min_val=0, max_val=100, step=0.001, decimals=4, suffix="Ω", target_data=params, on_changed=lambda v: self._on_pack_param_changed("internal_resistance", v)
+                self.pack_table,
+                "internal_resistance",
+                r_pack,
+                min_val=0,
+                max_val=100,
+                step=0.001,
+                decimals=4,
+                suffix="Ω",
+                target_data=params,
+                on_changed=lambda v: self._on_pack_param_changed("internal_resistance", v),
             )
             self._set_property_spinbox(
-                self.pack_table, "packaging_mass", packaging_mass, min_val=0, max_val=1e5, step=1.0, decimals=1, suffix="g", target_data=params, on_changed=lambda v: self._on_pack_param_changed("packaging_mass", v)
+                self.pack_table,
+                "packaging_mass",
+                packaging_mass,
+                min_val=0,
+                max_val=1e5,
+                step=1.0,
+                decimals=1,
+                suffix="g",
+                target_data=params,
+                on_changed=lambda v: self._on_pack_param_changed("packaging_mass", v),
             )
             self._set_property_spinbox(
-                self.pack_table, "max_discharge", c_cont, min_val=0, max_val=500, step=1, decimals=0, suffix="C", target_data=params, on_changed=lambda v: self._on_pack_param_changed("max_discharge", v)
+                self.pack_table,
+                "max_discharge",
+                c_cont,
+                min_val=0,
+                max_val=500,
+                step=1,
+                decimals=0,
+                suffix="C",
+                target_data=params,
+                on_changed=lambda v: self._on_pack_param_changed("max_discharge", v),
             )
             self._set_property_spinbox(
-                self.pack_table, "burst_discharge", c_burst, min_val=0, max_val=500, step=1, decimals=0, suffix="C", target_data=params, on_changed=lambda v: self._on_pack_param_changed("burst_discharge", v)
+                self.pack_table,
+                "burst_discharge",
+                c_burst,
+                min_val=0,
+                max_val=500,
+                step=1,
+                decimals=0,
+                suffix="C",
+                target_data=params,
+                on_changed=lambda v: self._on_pack_param_changed("burst_discharge", v),
             )
 
             # Cell table
@@ -274,22 +344,76 @@ class BatteryEditor(PropertyTableMixin, QWidget):
                 self._on_chemistry_changed,
             )
             self._set_property_spinbox(
-                self.cell_table, "cell_capacity", cell_cap, min_val=0, max_val=1e6, step=100, decimals=0, suffix="mAh", target_data=params, on_changed=lambda v: self._on_cell_param_changed("cell_capacity", v)
+                self.cell_table,
+                "cell_capacity",
+                cell_cap,
+                min_val=0,
+                max_val=1e6,
+                step=100,
+                decimals=0,
+                suffix="mAh",
+                target_data=params,
+                on_changed=lambda v: self._on_cell_param_changed("cell_capacity", v),
             )
             self._set_property_spinbox(
-                self.cell_table, "cell_nominal_voltage", cell_v_nom, min_val=0, max_val=100, step=0.05, decimals=2, suffix="V", target_data=params, on_changed=lambda v: self._on_cell_param_changed("cell_nominal_voltage", v)
+                self.cell_table,
+                "cell_nominal_voltage",
+                cell_v_nom,
+                min_val=0,
+                max_val=100,
+                step=0.05,
+                decimals=2,
+                suffix="V",
+                target_data=params,
+                on_changed=lambda v: self._on_cell_param_changed("cell_nominal_voltage", v),
             )
             self._set_property_spinbox(
-                self.cell_table, "cell_max_voltage", cell_v_max, min_val=0, max_val=100, step=0.05, decimals=2, suffix="V", target_data=params, on_changed=lambda v: self._on_cell_param_changed("cell_max_voltage", v)
+                self.cell_table,
+                "cell_max_voltage",
+                cell_v_max,
+                min_val=0,
+                max_val=100,
+                step=0.05,
+                decimals=2,
+                suffix="V",
+                target_data=params,
+                on_changed=lambda v: self._on_cell_param_changed("cell_max_voltage", v),
             )
             self._set_property_spinbox(
-                self.cell_table, "cell_min_voltage", cell_v_min, min_val=0, max_val=100, step=0.05, decimals=2, suffix="V", target_data=params, on_changed=lambda v: self._on_cell_param_changed("cell_min_voltage", v)
+                self.cell_table,
+                "cell_min_voltage",
+                cell_v_min,
+                min_val=0,
+                max_val=100,
+                step=0.05,
+                decimals=2,
+                suffix="V",
+                target_data=params,
+                on_changed=lambda v: self._on_cell_param_changed("cell_min_voltage", v),
             )
             self._set_property_spinbox(
-                self.cell_table, "cell_resistance", cell_res, min_val=0, max_val=10, step=0.0005, decimals=4, suffix="Ω", target_data=params, on_changed=lambda v: self._on_cell_param_changed("cell_resistance", v)
+                self.cell_table,
+                "cell_resistance",
+                cell_res,
+                min_val=0,
+                max_val=10,
+                step=0.0005,
+                decimals=4,
+                suffix="Ω",
+                target_data=params,
+                on_changed=lambda v: self._on_cell_param_changed("cell_resistance", v),
             )
             self._set_property_spinbox(
-                self.cell_table, "cell_mass", cell_mass, min_val=0, max_val=10000, step=1.0, decimals=1, suffix="g", target_data=params, on_changed=lambda v: self._on_cell_param_changed("cell_mass", v)
+                self.cell_table,
+                "cell_mass",
+                cell_mass,
+                min_val=0,
+                max_val=10000,
+                step=1.0,
+                decimals=1,
+                suffix="g",
+                target_data=params,
+                on_changed=lambda v: self._on_cell_param_changed("cell_mass", v),
             )
 
         finally:

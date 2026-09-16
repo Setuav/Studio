@@ -342,9 +342,13 @@ class ConfigurationManager:
             self.project_data["components"] = copy.deepcopy(self._base_state["components"])
             self.project_data["parameters"] = copy.deepcopy(self._base_state["parameters"])
             # Restore expressions from base state if present
-            if "_expressions" in self._base_state and isinstance(self._base_state["_expressions"], dict):
+            if "_expressions" in self._base_state and isinstance(
+                self._base_state["_expressions"], dict
+            ):
                 self.project_data["parameters"].setdefault("_expressions", {})
-                self.project_data["parameters"]["_expressions"].update(copy.deepcopy(self._base_state["_expressions"]))
+                self.project_data["parameters"]["_expressions"].update(
+                    copy.deepcopy(self._base_state["_expressions"])
+                )
             self.project_data["assemblies"] = copy.deepcopy(self._base_state.get("assemblies", []))
         else:
             target_cfg = self.get_configuration(config_id)
@@ -360,7 +364,9 @@ class ConfigurationManager:
                 # Restore expressions from config if present
                 if "_expressions" in target_cfg and isinstance(target_cfg["_expressions"], dict):
                     self.project_data["parameters"].setdefault("_expressions", {})
-                    self.project_data["parameters"]["_expressions"].update(copy.deepcopy(target_cfg["_expressions"]))
+                    self.project_data["parameters"]["_expressions"].update(
+                        copy.deepcopy(target_cfg["_expressions"])
+                    )
                 self.project_data["assemblies"] = assems
 
         self._active_id = config_id

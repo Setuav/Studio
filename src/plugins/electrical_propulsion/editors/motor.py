@@ -152,7 +152,6 @@ class MotorEditor(BaseComponentEditor):
             if current_target and not any(opt[0] == current_target for opt in target_options):
                 target_options.insert(1, (current_target, f"⚠ {current_target} (Not Found)"))
 
-
             self._set_property_combo(
                 self.mount_table,
                 "target_id",
@@ -176,7 +175,9 @@ class MotorEditor(BaseComponentEditor):
             self._set_property_value(self.mount_table, "offset_z", str(offset.get("z", 0.0)))
 
             ori = mount.setdefault("orientation", {"roll": 0.0, "pitch": 0.0, "yaw": 0.0})
-            self._set_property_value(self.mount_table, "orientation_roll", str(ori.get("roll", 0.0)))
+            self._set_property_value(
+                self.mount_table, "orientation_roll", str(ori.get("roll", 0.0))
+            )
             self._set_property_value(
                 self.mount_table, "orientation_pitch", str(ori.get("pitch", 0.0))
             )
@@ -229,9 +230,7 @@ class MotorEditor(BaseComponentEditor):
             mount = params.setdefault("mount", {})
             mount["target_id"] = target_id
 
-        self._api.edit_component(
-            self._component, f"Set motor mount target '{target_id}'", apply
-        )
+        self._api.edit_component(self._component, f"Set motor mount target '{target_id}'", apply)
         self._refresh_clearance()
         self._api.publish("project.modified")
         self._api.notify_project_content_changed()
@@ -245,9 +244,7 @@ class MotorEditor(BaseComponentEditor):
             mount = params.setdefault("mount", {})
             mount["position"] = position
 
-        self._api.edit_component(
-            self._component, f"Set motor mount position '{position}'", apply
-        )
+        self._api.edit_component(self._component, f"Set motor mount position '{position}'", apply)
         self._refresh_clearance()
         self._api.publish("project.modified")
         self._api.notify_project_content_changed()

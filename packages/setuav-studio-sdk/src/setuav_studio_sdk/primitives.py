@@ -99,4 +99,3 @@ VisualPrimitive = (
     | TrianglesPrimitive
     | LoftPrimitive
 )
-

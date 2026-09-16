@@ -361,7 +361,11 @@ class StudioAPI:
                 comps = self.current_project.data.get("components", [])
                 if isinstance(comps, list):
                     live_component = next(
-                        (c for c in comps if isinstance(c, dict) and str(c.get("id") or "") == comp_id),
+                        (
+                            c
+                            for c in comps
+                            if isinstance(c, dict) and str(c.get("id") or "") == comp_id
+                        ),
                         None,
                     )
         target = live_component if live_component is not None else component

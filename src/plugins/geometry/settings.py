@@ -75,9 +75,7 @@ class ViewerSettingsPage(QWidget):
         self.show_wire.setObjectName("showWireframe")
         form.addRow(self.show_wire)
 
-        self.transparent_screenshot = QCheckBox(
-            "Transparent background in screenshots", self
-        )
+        self.transparent_screenshot = QCheckBox("Transparent background in screenshots", self)
         self.transparent_screenshot.setObjectName("transparentScreenshot")
         form.addRow(self.transparent_screenshot)
 

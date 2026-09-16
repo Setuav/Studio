@@ -225,7 +225,9 @@ def _recompute_component(  # noqa: C901
                         profiles.extend(new_profiles)
                         changed = True
                 except Exception:
-                    logger.debug("Failed wing planform recompute for %s", comp.get("id"), exc_info=True)
+                    logger.debug(
+                        "Failed wing planform recompute for %s", comp.get("id"), exc_info=True
+                    )
 
     # Fuselage Sections Profile Expressions
     segments = geom.get("segments")
@@ -302,7 +304,7 @@ def _recompute_generic_dict(
         elif isinstance(v, list):
             for item in v:
                 if isinstance(item, dict) and _recompute_generic_dict(item, evaluator, scope):
-                        changed = True
+                    changed = True
 
     return changed
 

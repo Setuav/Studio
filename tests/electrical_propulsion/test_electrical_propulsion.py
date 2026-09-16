@@ -483,20 +483,28 @@ class TestElectricalPropulsion(unittest.TestCase):
 
         # Twin configuration produces 2x thrust, power, and current
         self.assertEqual(res_twin["motor_count"], 2)
-        self.assertAlmostEqual(res_twin["static_thrust"], 2.0 * res_single["static_thrust"], places=2)
+        self.assertAlmostEqual(
+            res_twin["static_thrust"], 2.0 * res_single["static_thrust"], places=2
+        )
         self.assertAlmostEqual(res_twin["peak_power"], 2.0 * res_single["peak_power"], places=1)
         self.assertAlmostEqual(res_twin["peak_current"], 2.0 * res_single["peak_current"], places=1)
         # RPM and efficiencies should match single motor
         self.assertAlmostEqual(res_twin["max_rpm"], res_single["max_rpm"], places=1)
-        self.assertAlmostEqual(res_twin["cruise_efficiency"], res_single["cruise_efficiency"], places=3)
+        self.assertAlmostEqual(
+            res_twin["cruise_efficiency"], res_single["cruise_efficiency"], places=3
+        )
         # Endurance is halved due to 2x power draw
-        self.assertAlmostEqual(res_twin["endurance_min"], res_single["endurance_min"] / 2.0, places=2)
+        self.assertAlmostEqual(
+            res_twin["endurance_min"], res_single["endurance_min"] / 2.0, places=2
+        )
 
         # Verify results dock UI displays configuration and per-motor overload safety correctly
         api = StudioAPI()
         dock = PropulsionResultsDock(api)
         dock.set_results(res_twin)
-        self.assertEqual(dock._property_value(dock.summary_table, "config"), "Twin Motor (2x - Bilateral)")
+        self.assertEqual(
+            dock._property_value(dock.summary_table, "config"), "Twin Motor (2x - Bilateral)"
+        )
         # Total current is ~373 A which exceeds 250 A, BUT per-motor current is ~186 A <= 250 A,
         # so it must be evaluated as Safe!
         self.assertGreater(res_twin["sweep_table"][0]["current"], 250.0)

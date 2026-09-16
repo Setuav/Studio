@@ -321,10 +321,49 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
                 ("v_step", "Airspeed Step"),
             ]
             self._configure_property_table(self.parameters_table, defs)
-            self._set_property_spinbox(self.parameters_table, "throttle", 100.0, min_val=0.0, max_val=100.0, step=5.0, decimals=0, suffix="%")
-            self._set_property_spinbox(self.parameters_table, "v_min", 0.0, min_val=0.0, max_val=200.0, step=1.0, decimals=1, quantity="velocity", unit="m/s")
-            self._set_property_spinbox(self.parameters_table, "v_max", 35.0, min_val=1.0, max_val=200.0, step=1.0, decimals=1, quantity="velocity", unit="m/s")
-            self._set_property_spinbox(self.parameters_table, "v_step", 1.0, min_val=0.1, max_val=20.0, step=0.5, decimals=1, quantity="velocity", unit="m/s")
+            self._set_property_spinbox(
+                self.parameters_table,
+                "throttle",
+                100.0,
+                min_val=0.0,
+                max_val=100.0,
+                step=5.0,
+                decimals=0,
+                suffix="%",
+            )
+            self._set_property_spinbox(
+                self.parameters_table,
+                "v_min",
+                0.0,
+                min_val=0.0,
+                max_val=200.0,
+                step=1.0,
+                decimals=1,
+                quantity="velocity",
+                unit="m/s",
+            )
+            self._set_property_spinbox(
+                self.parameters_table,
+                "v_max",
+                35.0,
+                min_val=1.0,
+                max_val=200.0,
+                step=1.0,
+                decimals=1,
+                quantity="velocity",
+                unit="m/s",
+            )
+            self._set_property_spinbox(
+                self.parameters_table,
+                "v_step",
+                1.0,
+                min_val=0.1,
+                max_val=20.0,
+                step=0.5,
+                decimals=1,
+                quantity="velocity",
+                unit="m/s",
+            )
         elif mode == "throttle_sweep":
             defs = [
                 ("airspeed", "Airspeed"),
@@ -333,18 +372,74 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
                 ("t_step", "Throttle Step"),
             ]
             self._configure_property_table(self.parameters_table, defs)
-            self._set_property_spinbox(self.parameters_table, "airspeed", 0.0, min_val=0.0, max_val=200.0, step=1.0, decimals=1, quantity="velocity", unit="m/s")
-            self._set_property_spinbox(self.parameters_table, "t_min", 10.0, min_val=0.0, max_val=100.0, step=5.0, decimals=0, suffix="%")
-            self._set_property_spinbox(self.parameters_table, "t_max", 100.0, min_val=0.0, max_val=100.0, step=5.0, decimals=0, suffix="%")
-            self._set_property_spinbox(self.parameters_table, "t_step", 5.0, min_val=1.0, max_val=50.0, step=1.0, decimals=0, suffix="%")
+            self._set_property_spinbox(
+                self.parameters_table,
+                "airspeed",
+                0.0,
+                min_val=0.0,
+                max_val=200.0,
+                step=1.0,
+                decimals=1,
+                quantity="velocity",
+                unit="m/s",
+            )
+            self._set_property_spinbox(
+                self.parameters_table,
+                "t_min",
+                10.0,
+                min_val=0.0,
+                max_val=100.0,
+                step=5.0,
+                decimals=0,
+                suffix="%",
+            )
+            self._set_property_spinbox(
+                self.parameters_table,
+                "t_max",
+                100.0,
+                min_val=0.0,
+                max_val=100.0,
+                step=5.0,
+                decimals=0,
+                suffix="%",
+            )
+            self._set_property_spinbox(
+                self.parameters_table,
+                "t_step",
+                5.0,
+                min_val=1.0,
+                max_val=50.0,
+                step=1.0,
+                decimals=0,
+                suffix="%",
+            )
         elif mode == "operating_point":
             defs = [
                 ("airspeed", "Airspeed"),
                 ("throttle", "Throttle"),
             ]
             self._configure_property_table(self.parameters_table, defs)
-            self._set_property_spinbox(self.parameters_table, "airspeed", 18.0, min_val=0.0, max_val=200.0, step=1.0, decimals=1, quantity="velocity", unit="m/s")
-            self._set_property_spinbox(self.parameters_table, "throttle", 75.0, min_val=0.0, max_val=100.0, step=5.0, decimals=0, suffix="%")
+            self._set_property_spinbox(
+                self.parameters_table,
+                "airspeed",
+                18.0,
+                min_val=0.0,
+                max_val=200.0,
+                step=1.0,
+                decimals=1,
+                quantity="velocity",
+                unit="m/s",
+            )
+            self._set_property_spinbox(
+                self.parameters_table,
+                "throttle",
+                75.0,
+                min_val=0.0,
+                max_val=100.0,
+                step=5.0,
+                decimals=0,
+                suffix="%",
+            )
         self._loading = False
 
     def _on_parameter_cell_changed(self, row: int, col: int) -> None:
@@ -424,9 +519,7 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
         self._on_assembly_selected(options[0][0])
         self.run_button.setEnabled(True)
 
-    def _detect_motor_count(
-        self, assembly: dict[str, Any] | None, comp_map: dict[str, Any]
-    ) -> int:
+    def _detect_motor_count(self, assembly: dict[str, Any] | None, comp_map: dict[str, Any]) -> int:
         if not assembly:
             return 1
         members = assembly.get("members", {})
@@ -498,7 +591,11 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
         config_text = (
             "Twin Motor (2x - Bilateral)"
             if motor_count == 2
-            else ("Multi-Motor (" + str(motor_count) + "x)" if motor_count > 1 else "Single Motor (1x)")
+            else (
+                "Multi-Motor (" + str(motor_count) + "x)"
+                if motor_count > 1
+                else "Single Motor (1x)"
+            )
         )
         self._set_property_value(self.system_table, "motor_count", config_text, editable=False)
 

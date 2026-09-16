@@ -100,7 +100,9 @@ def compute_winglet_projected_dimensions(
         return 0.0, 0.0
 
     u_vals = [0.5 * (1.0 - math.cos(math.pi * i / (n_pts - 1))) for i in range(n_pts)]
-    cant_angles_rad = winglet_cant_angles(u_vals, cant_root_deg, cant_tip_deg, blend_radius, winglet_height)
+    cant_angles_rad = winglet_cant_angles(
+        u_vals, cant_root_deg, cant_tip_deg, blend_radius, winglet_height
+    )
 
     delta_y = 0.0
     delta_z = 0.0
