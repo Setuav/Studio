@@ -69,11 +69,13 @@ def _project_items(project: Any) -> dict[str, dict[str, Any]] | None:
     components = project_data.get("components") if isinstance(project_data, dict) else None
     if not isinstance(components, list):
         return None
-    from setuav_studio.model.configuration import ConfigurationManager
+    from setuav_studio.model.parameter import ParameterResolver
 
-    cfg_mgr = ConfigurationManager(project_data)
+    resolver = ParameterResolver()
+    raw_params = project_data.get("parameters", {}) if isinstance(project_data, dict) else {}
+    resolved_params = resolver.resolve_all(raw_params) if isinstance(raw_params, dict) else {}
     return {
-        item["id"]: cfg_mgr.get_resolved_component(item)
+        item["id"]: resolver.evaluate_component_parameters(item, resolved_params)
         for item in components
         if isinstance(item, dict) and isinstance(item.get("id"), str)
     }

@@ -119,26 +119,17 @@ class ProjectDocument:
         comp["plugins"][namespace] = value
         self.modified = True
 
-    def get_configuration_manager(self) -> Any:
-        """Return the shared ConfigurationManager instance for this project."""
-        if (
-            not hasattr(self, "_config_manager")
-            or getattr(self, "_config_manager_data", None) is not self.data
-        ):
-            from setuav_studio.model.configuration import ConfigurationManager
-
-            self._config_manager = ConfigurationManager(self.data)
-            self._config_manager_data = self.data
-        return self._config_manager
-
     def get_component_models(
         self, api: Any | None = None, config_id: str | None = None
     ) -> list[Any]:
         """Return the list of typed domain model instances for all project components."""
         from setuav_studio.model import GenericComponent
+        from setuav_studio.model.parameter import ParameterResolver
 
-        cfg_mgr = self.get_configuration_manager()
-        components = cfg_mgr.get_materialized_components(config_id)
+        resolver = ParameterResolver()
+        raw_params = self.data.get("parameters", {}) if isinstance(self.data, dict) else {}
+        resolved_params = resolver.resolve_all(raw_params) if isinstance(raw_params, dict) else {}
+        components = self.data.get("components", []) if isinstance(self.data, dict) else []
         models: list[Any] = []
         if not isinstance(components, list):
             return models
@@ -146,7 +137,7 @@ class ProjectDocument:
         for comp in components:
             if not isinstance(comp, dict):
                 continue
-            resolved_comp = cfg_mgr.get_resolved_component(comp, config_id)
+            resolved_comp = resolver.evaluate_component_parameters(comp, resolved_params)
             if api is not None and hasattr(api, "create_component_model"):
                 model = api.create_component_model(resolved_comp)
             else:
@@ -247,16 +238,6 @@ def save_project(
     logger.info("Saving project: %s", target)
 
     save_data = project.data
-    if hasattr(project, "get_configuration_manager"):
-        import copy
-
-        cfg_mgr = project.get_configuration_manager()
-        cfg_mgr.sync_current_state_to_active()
-        if cfg_mgr.get_active_id() is not None:
-            save_data = copy.deepcopy(project.data)
-            save_data["components"] = copy.deepcopy(cfg_mgr._base_state["components"])
-            save_data["parameters"] = copy.deepcopy(cfg_mgr._base_state["parameters"])
-            save_data["assemblies"] = copy.deepcopy(cfg_mgr._base_state["assemblies"])
 
     try:
         if target.suffix.lower() == ".suav":

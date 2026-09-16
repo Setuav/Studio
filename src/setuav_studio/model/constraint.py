@@ -3,12 +3,40 @@
 from __future__ import annotations
 
 import contextlib
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from setuav_studio.model.configuration import get_by_path
 from setuav_studio.model.expression import ExpressionEvaluator
 from setuav_studio.model.parameter import ParameterResolver
+
+
+def parse_path_segments(path: str) -> list[str | int]:
+    """Parse a dot/bracket notation path into list of key/index segments."""
+    tokens = re.findall(r"[^.\[\]]+|\[\d+\]", path)
+    segments: list[str | int] = []
+    for token in tokens:
+        if token.startswith("[") and token.endswith("]"):
+            segments.append(int(token[1:-1]))
+        else:
+            segments.append(token)
+    return segments
+
+
+def get_by_path(target: Any, path: str) -> Any:
+    """Retrieve value from nested dict/list using dot/bracket path."""
+    segments = parse_path_segments(path)
+    curr = target
+    for seg in segments:
+        if isinstance(seg, int):
+            if not isinstance(curr, (list, tuple)) or seg >= len(curr):
+                raise IndexError(f"Index {seg} out of bounds in path '{path}'")
+            curr = curr[seg]
+        else:
+            if not isinstance(curr, dict) or seg not in curr:
+                raise KeyError(f"Key '{seg}' not found in path '{path}'")
+            curr = curr[seg]
+    return curr
 
 
 @dataclass

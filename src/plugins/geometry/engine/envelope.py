@@ -70,11 +70,6 @@ def sync_project_geometry_envelopes(project: Any) -> int:
         return 0
 
     all_components = list(components)
-    for cfg in data.get("configurations", []):
-        if isinstance(cfg, dict):
-            for added in cfg.get("added_components", []):
-                if isinstance(added, dict):
-                    all_components.append(added)
 
     by_id: dict[str, dict[str, Any]] = {
         str(c.get("id")): c for c in all_components if isinstance(c, dict) and c.get("id")

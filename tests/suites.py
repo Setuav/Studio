@@ -15,7 +15,6 @@ CORE_MODULES = (
     "tests.core.test_atmosphere",
     "tests.core.test_command_palette",
     "tests.core.test_component_editor",
-    "tests.core.test_configuration",
     "tests.core.test_constraint",
     "tests.core.test_expression",
     "tests.core.test_main",

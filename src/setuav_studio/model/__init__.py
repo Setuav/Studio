@@ -7,10 +7,6 @@ from setuav_studio.model.component import (
     Component,
     GenericComponent,
 )
-from setuav_studio.model.configuration import (
-    ConfigurationError,
-    ConfigurationManager,
-)
 from setuav_studio.model.constraint import (
     ConstraintChecker,
     ConstraintResult,
@@ -50,8 +46,6 @@ __all__ = [
     "CircularDependencyError",
     "Component",
     "ComponentMassProperties",
-    "ConfigurationError",
-    "ConfigurationManager",
     "ConstraintChecker",
     "ConstraintResult",
     "Data",
