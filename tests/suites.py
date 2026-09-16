@@ -11,20 +11,18 @@ from collections.abc import Sequence
 
 CORE_MODULES = (
     "tests.core.test_about_dialog",
+    "tests.core.test_api_edges",
+    "tests.core.test_atmosphere",
     "tests.core.test_command_palette",
     "tests.core.test_component_editor",
     "tests.core.test_configuration",
-    "tests.core.test_configuration_ui",
     "tests.core.test_constraint",
     "tests.core.test_expression",
-    "tests.core.test_instance",
     "tests.core.test_main",
     "tests.core.test_model",
     "tests.core.test_native_models",
     "tests.core.test_parameter",
-    "tests.core.test_parameters_panel",
-    "tests.core.test_api_edges",
-    "tests.core.test_atmosphere",
+    "tests.core.test_plugin_installer",
     "tests.core.test_plugins",
     "tests.core.test_project",
     "tests.core.test_project_edge_cases",
@@ -35,15 +33,18 @@ CORE_MODULES = (
     "tests.core.test_tasks",
     "tests.core.test_theme",
     "tests.core.test_units",
+    "tests.core.test_universal_scope",
     "tests.core.test_workspaces",
 )
 GEOMETRY_MODULES = (
     "tests.geometry.test_creation",
     "tests.geometry.test_envelope",
     "tests.geometry.test_geometry",
+    "tests.geometry.test_motor_mount",
     "tests.geometry.test_settings",
     "tests.geometry.test_structural_system_editor",
     "tests.geometry.test_wing_driver_solver",
+    "tests.geometry.test_workspace_overlays",
 )
 AERODYNAMICS_FAST_MODULES = (
     "tests.aerodynamics.test_aero_engine_base",
@@ -55,7 +56,10 @@ AERODYNAMICS_INTEGRATION_MODULES = (
     "tests.aerodynamics.integration.test_stability_engine",
     "tests.aerodynamics.integration.test_sweep_infrastructure",
 )
-ELECTRICAL_PROPULSION_MODULES = ("tests.electrical_propulsion.test_creation",)
+ELECTRICAL_PROPULSION_MODULES = (
+    "tests.electrical_propulsion.test_creation",
+    "tests.electrical_propulsion.test_electrical_propulsion",
+)
 FLIGHT_PERFORMANCE_MODULES = ("tests.flight_performance.test_flight_performance",)
 WEIGHT_BALANCE_MODULES = ("tests.weight_balance.test_weight_balance",)
 

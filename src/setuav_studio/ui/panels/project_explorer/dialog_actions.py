@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtWidgets import QDialog, QWidget
+from PySide6.QtWidgets import QWidget
 
 if TYPE_CHECKING:
     from setuav_studio_sdk import StudioAPI
@@ -31,10 +31,6 @@ def add_parameter_action(
     api.set_selection({"kind": "parameter", "key": param_name, "value": 0.0})
 
 
-def add_constraint_action(
-    api: StudioAPI,
-    tree: QWidget,
-    parent: QWidget | None = None,
 def add_constraint_action(
     api: StudioAPI,
     tree: QWidget,

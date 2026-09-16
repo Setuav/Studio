@@ -10,7 +10,6 @@ from setuav_studio.ui.icons import get_icon
 if TYPE_CHECKING:
     from setuav_studio.ui.panels.project_explorer.operations import (
         ProjectExplorerOperations,
-        show_delete_confirmation_dialog,
     )
     from setuav_studio.ui.panels.project_explorer.tree import ProjectExplorer
     from setuav_studio_sdk import StudioAPI

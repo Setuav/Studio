@@ -37,6 +37,8 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertIn("org.setuav.core:esc", api._component_editors)
         self.assertIn("org.setuav.core:battery", api._component_editors)
         self.assertIn("org.setuav.core:electric-propulsion-system", api._component_editors)
+        _win.close()
+        _win.deleteLater()
 
     def test_plugin_can_be_deactivated_and_reactivated(self) -> None:
         from plugins.electrical_propulsion.plugin import ElectricalPropulsionPlugin
@@ -63,6 +65,8 @@ class TestElectricalPropulsion(unittest.TestCase):
 
         manager.activate_plugin(plugin.id)
         self.assertIn("org.setuav.core:motor", api._component_editors)
+        window.close()
+        window.deleteLater()
 
     def test_motor_editor(self) -> None:
         api = StudioAPI()
@@ -84,6 +88,8 @@ class TestElectricalPropulsion(unittest.TestCase):
         # Undo
         api.undo()
         self.assertEqual(motor_comp["parameters"]["kv"], 900.0)
+        editor.close()
+        editor.deleteLater()
 
     def test_battery_editor(self) -> None:
         api = StudioAPI()
@@ -110,6 +116,8 @@ class TestElectricalPropulsion(unittest.TestCase):
         ) + float(params.get("packaging_mass", 40.0))
         self.assertEqual(battery_comp["mass"], expected_mass)
         self.assertEqual(editor._property_text(editor.general_table, 2), f"{expected_mass:.1f}")
+        editor.close()
+        editor.deleteLater()
 
     def test_esc_editor(self) -> None:
         api = StudioAPI()
@@ -120,6 +128,8 @@ class TestElectricalPropulsion(unittest.TestCase):
         editor = EscEditor(api, esc_comp)
 
         self.assertEqual(editor._property_text(editor.parameters_table, 0), "50.0")
+        editor.close()
+        editor.deleteLater()
 
     def test_propeller_editor(self) -> None:
         api = StudioAPI()
@@ -136,6 +146,8 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertEqual(editor._property_text(editor.parameters_table, 0), dia)
         self.assertEqual(editor._property_text(editor.parameters_table, 1), pitch)
         self.assertEqual(editor._property_text(editor.parameters_table, 2), "2")
+        editor.close()
+        editor.deleteLater()
 
     def test_assembly_editor(self) -> None:
         api = StudioAPI()
@@ -153,6 +165,8 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertEqual(editor._property_text(editor.members_table, 0), "battery-main")
         self.assertEqual(editor._property_text(editor.members_table, 2), "motor-cruise")
         self.assertEqual(editor._property_text(editor.members_table, 3), "propeller-cruise")
+        editor.close()
+        editor.deleteLater()
 
     def test_catalog_database_and_dialog(self) -> None:
         from plugins.electrical_propulsion.catalog_dialog import (
@@ -173,6 +187,8 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertIsNotNone(dialog)
         dialog.motor_search.setText("Tiger")
         self.assertLessEqual(dialog.motor_table.rowCount(), 400)
+        dialog.close()
+        dialog.deleteLater()
 
     def test_propulsion_controls_and_analysis_run(self) -> None:
         from plugins.electrical_propulsion.plugin import ElectricalPropulsionPlugin
@@ -208,6 +224,8 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertGreater(len(charts.chart_thrust_power.series()), 0)
         self.assertGreater(len(charts.chart_electrical.series()), 0)
         self.assertGreater(len(charts.chart_efficiency.series()), 0)
+        win.close()
+        win.deleteLater()
 
     def test_analysis_posts_status_messages(self) -> None:
         from plugins.electrical_propulsion.plugin import ElectricalPropulsionPlugin
@@ -235,6 +253,8 @@ class TestElectricalPropulsion(unittest.TestCase):
         controls.run_button.click()
         self._drain_events()
         self.assertIn("Current limit exceeded", win._status_label.text())
+        win.close()
+        win.deleteLater()
 
     def test_propulsion_worker_and_solver_modes(self) -> None:
         from PySide6.QtCore import QThreadPool

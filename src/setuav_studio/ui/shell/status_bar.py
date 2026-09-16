@@ -13,8 +13,8 @@ from PySide6.QtWidgets import (
     QToolButton,
 )
 
-from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.dialog.log import install_log_buffer
+from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.theme import status_color
 
 if TYPE_CHECKING:

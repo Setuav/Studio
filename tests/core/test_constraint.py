@@ -3,12 +3,8 @@
 from __future__ import annotations
 
 import unittest
-from pathlib import Path
 
-from setuav_studio.api import StudioAPI
 from setuav_studio.model.constraint import ConstraintChecker
-from setuav_studio.project import ProjectDocument
-from tests._common import get_qapp
 
 
 class ConstraintEngineTests(unittest.TestCase):
