@@ -16,6 +16,11 @@ SMOKE_TEST_TIMEOUT_SECONDS = int(os.environ.get("SETUAV_DESKTOP_SMOKE_TIMEOUT", 
 def _parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("bundle", type=Path, help="PyInstaller desktop bundle")
+    parser.add_argument(
+        "--skip-aero-3d",
+        action="store_true",
+        help="deprecated / no-op",
+    )
     return parser.parse_args()
 
 
