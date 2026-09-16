@@ -133,22 +133,16 @@ class ProjectController:
                 8000,
             )
         project_name = str(project.data.get("name") or project.location.name or project.path.name)
+        if status_mgr:
+            status_mgr.evaluate_problems(project)
         if project.degraded:
-            if status_mgr:
-                status_mgr.degraded_badge.setToolTip("\n".join(project.plugin_issues))
-                status_mgr.degraded_badge.show()
             self._api.show_status(
                 "Degraded mode — " + "; ".join(project.plugin_issues),
                 "warning",
                 0,
             )
         elif not project.read_only:
-            if status_mgr:
-                status_mgr.degraded_badge.hide()
             self._api.show_status(f"Project opened: {project_name}", "info", 4000)
-        else:
-            if status_mgr:
-                status_mgr.degraded_badge.hide()
         return True
 
     def save_project(self) -> bool:

@@ -14,6 +14,7 @@ from setuav_studio.ui.dialog.log import (
     log_signal,
 )
 from setuav_studio.ui.dialog.plugin_manager import PluginManagerDialog
+from setuav_studio.ui.dialog.problems import Problem, ProblemsDialog
 from setuav_studio.ui.dialog.task_monitor import TaskMonitorDialog
 
 __all__ = [
@@ -23,6 +24,8 @@ __all__ = [
     "LogEntry",
     "LogWindow",
     "PluginManagerDialog",
+    "Problem",
+    "ProblemsDialog",
     "TaskMonitorDialog",
     "clear_log_buffer",
     "install_log_buffer",

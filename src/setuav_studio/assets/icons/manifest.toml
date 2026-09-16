@@ -1,4 +1,6 @@
 [icons]
+error = "error.svg"
+warning = "warning.svg"
 # File menu
 file_open = "project-open-file.png"
 file_new = "project-open-file.png"

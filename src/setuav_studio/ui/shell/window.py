@@ -113,7 +113,6 @@ class MainWindow(QMainWindow):
         self._undo_action = self._action_manager.undo_action
         self._redo_action = self._action_manager.redo_action
         self._settings_action = self._action_manager.settings_action
-        self._constraints_action = self._action_manager.constraints_action
         self._plugin_manager_action = self._action_manager.plugin_manager_action
         self._about_action = self._action_manager.about_action
         self._dark_theme_action = self._action_manager.dark_theme_action
@@ -127,6 +126,7 @@ class MainWindow(QMainWindow):
         self._workspace_states = self._layout_manager.workspace_states
         self._status_label = self._status_manager.status_label
         self._progress_bar = self._status_manager.progress_bar
+        self._command_palette_button = self._status_manager.command_palette_button
         self._log_button = self._status_manager.log_button
         self._degraded_badge = self._status_manager.degraded_badge
 
@@ -463,9 +463,10 @@ class MainWindow(QMainWindow):
     def _on_modified_changed(self, _modified: bool) -> None:
         self._update_window_title()
 
-    def _on_project_content_changed(self, _project: ProjectDocument) -> None:
+    def _on_project_content_changed(self, project: ProjectDocument) -> None:
         self._update_window_title()
         self._refresh_toolbar_action_states()
+        self._status_manager.evaluate_problems(project)
 
     def _on_toolbar_context_changed(self, _selection: object | None) -> None:
         self._refresh_toolbar_action_states()

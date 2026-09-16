@@ -41,7 +41,7 @@ class TestCommandPalette(unittest.TestCase):
         titles = [c.title for c in commands]
         self.assertTrue(any("Open" in t or "New" in t for t in titles))
         self.assertTrue(any("Background Tasks" in t for t in titles))
-        self.assertTrue(any("Design Constraints" in t for t in titles))
+        self.assertTrue(any("Command Palette" in t for t in titles))
         self.assertTrue(any("Settings" in t for t in titles))
 
     def test_command_palette_filter(self) -> None:

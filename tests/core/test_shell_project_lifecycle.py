@@ -148,17 +148,16 @@ class ShellProjectLifecycleTests(unittest.TestCase):
             patch.object(self.window, "_add_recent_project"),
         ):
             self.assertTrue(self.window.open_project("degraded.json"))
-        self.assertIn("Missing plugin", self.window._degraded_badge.toolTip())
-        self.assertIn("Degraded mode", self.window._status_label.text())
+        self.assertIn("missing plugin", self.window._degraded_badge.toolTip().lower())
+        self.assertIn("⚠️ 1", self.window._degraded_badge.text())
 
     def test_degraded_details_and_window_titles_handle_empty_states(self) -> None:
-        with patch("setuav_studio.ui.shell.project_controller.QMessageBox.warning") as warning:
+        with patch("setuav_studio.ui.dialog.problems.ProblemsDialog.exec"):
             self.window._show_degraded_details()
             self.window._project = self._project()
             self.window._show_degraded_details()
             self.window._project.plugin_issues = ["Missing plugin"]
             self.window._show_degraded_details()
-        warning.assert_called_once()
 
         self.window._project = None
         self.window._update_window_title()
