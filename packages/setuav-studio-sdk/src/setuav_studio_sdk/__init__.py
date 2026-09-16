@@ -25,6 +25,19 @@ from .contributions import (
 from .events import StudioEvents
 from .models import ProjectDocument
 from .plugin import PLUGIN_ENTRY_POINT_GROUP, StudioPlugin
+from .primitives import (
+    BoxPrimitive,
+    ColorRGB,
+    ColorRGBA,
+    CylinderPrimitive,
+    LineSegmentsPrimitive,
+    LoftPrimitive,
+    PlanePrimitive,
+    Point3D,
+    RingPrimitive,
+    TrianglesPrimitive,
+    VisualPrimitive,
+)
 from .tasks import (
     CancellationToken,
     TaskCancelledError,
@@ -39,14 +52,23 @@ __all__ = [
     "PLUGIN_API_VERSION",
     "PLUGIN_ENTRY_POINT_GROUP",
     "ActionContribution",
+    "BoxPrimitive",
     "CancellationToken",
+    "ColorRGB",
+    "ColorRGBA",
     "ComponentTreeNodeContribution",
     "ComponentTreeProvider",
+    "CylinderPrimitive",
+    "LineSegmentsPrimitive",
+    "LoftPrimitive",
     "PanelContribution",
     "ParameterField",
+    "PlanePrimitive",
+    "Point3D",
     "ProjectDocument",
     "ProjectTreeNodeContribution",
     "ProjectTreeProvider",
+    "RingPrimitive",
     "SettingsPageContribution",
     "StudioAPI",
     "StudioEvents",
@@ -59,6 +81,8 @@ __all__ = [
     "ToolContribution",
     "ToolbarContribution",
     "ToolbarMenuItemContribution",
+    "TrianglesPrimitive",
+    "VisualPrimitive",
     "WorkspaceContribution",
     "WorkspaceLayoutContext",
 ]

@@ -55,7 +55,7 @@ def sync_component_envelope(
     return True
 
 
-def sync_project_geometry_envelopes(project: Any) -> int:  # noqa: C901
+def sync_project_geometry_envelopes(project: Any) -> int:
     """Ensure all geometry components in the project document have up-to-date envelopes.
 
     Returns the count of components whose envelope was updated.
@@ -547,7 +547,7 @@ def _compute_fuselage_trapezoidal_slices(
 # =============================================================================
 
 
-def _compute_lifting_surface_trapezoidal_slices(  # noqa: C901
+def _compute_lifting_surface_trapezoidal_slices(
     geometry: dict[str, Any],
     profiles: list[Any],
 ) -> tuple[
@@ -985,7 +985,17 @@ def _compute_fuselage_envelope(component: dict[str, Any]) -> dict[str, Any] | No
     segments = geometry.get("segments")
 
     if not isinstance(segments, list) or not segments:
-        length = _number(parameters.get("length"))
+        legacy_sections = geometry.get("sections")
+        if isinstance(legacy_sections, list) and legacy_sections:
+            segments = [
+                {
+                    "tag": "main",
+                    "loft": geometry.get("loft") if isinstance(geometry.get("loft"), dict) else {},
+                    "sections": legacy_sections,
+                }
+            ]
+        else:
+            length = _number(parameters.get("length"))
         width = _number(parameters.get("width"))
         height = _number(parameters.get("height"))
         if length > 0.0:
@@ -1104,7 +1114,7 @@ def _fuselage_fallback(segments: list[Any]) -> dict[str, Any] | None:
     }
 
 
-def _compute_control_surface_envelope(  # noqa: C901
+def _compute_control_surface_envelope(
     component: dict[str, Any],
     parent: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:

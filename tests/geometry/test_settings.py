@@ -32,6 +32,11 @@ class GeometrySettingsTests(unittest.TestCase):
         self.settings_patch = patch.object(geometry_settings, "QSettings", _FakeSettings)
         self.settings_patch.start()
         self.addCleanup(self.settings_patch.stop)
+        import plugins.geometry.workspace as geom_ws
+
+        self.ws_settings_patch = patch.object(geom_ws, "QSettings", _FakeSettings)
+        self.ws_settings_patch.start()
+        self.addCleanup(self.ws_settings_patch.stop)
 
     def test_boolean_and_combo_normalization(self) -> None:
         self.assertFalse(geometry_settings._as_bool(None, False))
@@ -130,6 +135,63 @@ class GeometrySettingsTests(unittest.TestCase):
         _FakeSettings.values["viewer"] = 42
         self.assertEqual(geometry_settings.viewer_setting("viewer", 0), 42)
         self.assertEqual(geometry_settings.editor_setting("missing", "fallback"), "fallback")
+
+    def test_viewer_settings_page_dynamic_sync(self) -> None:
+        from setuav_studio.api import StudioAPI
+        from setuav_studio_sdk import StudioEvents
+
+        api = StudioAPI()
+        _FakeSettings.values[geometry_settings._VIEWER_GRID_KEY] = False
+        _FakeSettings.values[geometry_settings._VIEWER_SOLID_KEY] = False
+        page = geometry_settings.create_viewer_settings_page(api=api)
+        self.addCleanup(page.deleteLater)
+
+        self.assertFalse(page.show_grid.isChecked())
+        self.assertFalse(page.show_solid.isChecked())
+
+        _FakeSettings.values[geometry_settings._VIEWER_GRID_KEY] = True
+        _FakeSettings.values[geometry_settings._VIEWER_SOLID_KEY] = True
+        api.publish(StudioEvents.GEOMETRY_VIEWER_SETTINGS_CHANGED)
+
+        self.assertTrue(page.show_grid.isChecked())
+        self.assertTrue(page.show_solid.isChecked())
+
+    def test_viewer_workspace_settings_sync_and_persistence(self) -> None:
+        from plugins.geometry.workspace import ViewerWorkspace
+        from setuav_studio.api import StudioAPI
+        from setuav_studio_sdk import StudioEvents
+
+        # 1. Verify startup with grid disabled
+        _FakeSettings.values[geometry_settings._VIEWER_GRID_KEY] = False
+        _FakeSettings.values[geometry_settings._VIEWER_SOLID_KEY] = True
+        _FakeSettings.values[geometry_settings._VIEWER_PROJECTION_KEY] = "perspective"
+        api = StudioAPI()
+        workspace = ViewerWorkspace(api)
+        self.addCleanup(workspace.deleteLater)
+
+        self.assertFalse(workspace.grid_button.isChecked())
+        self.assertFalse(workspace.viewer._show_grid)
+        self.assertTrue(workspace.solid_button.isChecked())
+        self.assertTrue(workspace.viewer._show_solid)
+        self.assertFalse(workspace.viewer._orthographic)
+
+        # 2. Toggle via dock button
+        workspace.grid_button.setChecked(True)
+        self.assertTrue(workspace.grid_button.isChecked())
+        self.assertTrue(workspace.viewer._show_grid)
+        self.assertEqual(_FakeSettings.values[geometry_settings._VIEWER_GRID_KEY], True)
+
+        # 3. Simulate settings dialog apply event
+        _FakeSettings.values[geometry_settings._VIEWER_GRID_KEY] = False
+        _FakeSettings.values[geometry_settings._VIEWER_SOLID_KEY] = False
+        _FakeSettings.values[geometry_settings._VIEWER_PROJECTION_KEY] = "orthographic"
+        api.publish(StudioEvents.GEOMETRY_VIEWER_SETTINGS_CHANGED)
+
+        self.assertFalse(workspace.grid_button.isChecked())
+        self.assertFalse(workspace.viewer._show_grid)
+        self.assertFalse(workspace.solid_button.isChecked())
+        self.assertFalse(workspace.viewer._show_solid)
+        self.assertTrue(workspace.viewer._orthographic)
 
 
 if __name__ == "__main__":

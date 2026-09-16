@@ -7,8 +7,8 @@ from pathlib import Path
 from typing import ClassVar
 from unittest.mock import Mock, patch
 
-from PySide6.QtCore import QEvent
-from PySide6.QtGui import QAction, QCloseEvent
+from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
+from PySide6.QtGui import QAction, QCloseEvent, QMouseEvent
 from PySide6.QtWidgets import QDialog, QDockWidget, QWidget
 
 from setuav_studio.api import (
@@ -538,6 +538,98 @@ class ShellContributionTests(unittest.TestCase):
         self.assertIn(self.window._save_as_action, actions)
         self.assertIn(self.window._undo_action, actions)
         self.assertIn(self.window._redo_action, actions)
+
+    def test_window_state_change_restores_normal_geometry_and_dock_state(self) -> None:
+        self.window._normal_geometry = b"fake_normal_geom"
+        self.window._normal_dock_state = b"fake_dock_state"
+        self.window._was_maximized = True
+
+        called: list[tuple[object, ...]] = []
+        with (
+            patch.object(self.window, "isMaximized", return_value=False),
+            patch.object(self.window, "isFullScreen", return_value=False),
+            patch.object(
+                self.window, "restoreGeometry", side_effect=lambda g: called.append(("geom", g))
+            ),
+            patch.object(
+                self.window, "restoreState", side_effect=lambda s, v: called.append(("state", s, v))
+            ),
+        ):
+            self.window.changeEvent(QEvent(QEvent.Type.WindowStateChange))
+
+        self.assertIn(("geom", b"fake_normal_geom"), called)
+        self.assertIn(("state", b"fake_dock_state", self.window._LAYOUT_VERSION), called)
+        self.assertFalse(self.window._was_maximized)
+
+    def test_layout_save_skipped_when_maximized_or_fullscreen(self) -> None:
+        self.window._current_workspace_id = "studio.workspace.design"
+        self.window._layout_persistence_enabled = True
+        self.window._layout_manager.workspace_states.clear()
+
+        with patch.object(self.window, "isMaximized", return_value=True):
+            self.window._layout_manager.schedule_workspace_layout_save()
+            self.assertFalse(self.window._layout_manager.layout_save_scheduled)
+            self.window._save_current_workspace_layout()
+            self.assertNotIn(
+                "studio.workspace.design", self.window._layout_manager.workspace_states
+            )
+
+    def test_separator_drag_resizes_only_adjacent_docks(self) -> None:
+        d1 = QDockWidget("D1", self.window)
+        d1.setObjectName("test_d1")
+        d2 = QDockWidget("D2", self.window)
+        d2.setObjectName("test_d2")
+        d3 = QDockWidget("D3", self.window)
+        d3.setObjectName("test_d3")
+
+        self.window.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, d1)
+        self.window.splitDockWidget(d1, d2, Qt.Orientation.Horizontal)
+        self.window.splitDockWidget(d2, d3, Qt.Orientation.Horizontal)
+
+        sep_pt = QPoint(200, 200)
+        with patch.object(
+            self.window, "_find_adjacent_docks_at", return_value=(d1, d2, Qt.Orientation.Horizontal)
+        ):
+            press = QMouseEvent(
+                QEvent.Type.MouseButtonPress,
+                QPointF(sep_pt),
+                QPointF(sep_pt),
+                Qt.MouseButton.LeftButton,
+                Qt.MouseButton.LeftButton,
+                Qt.KeyboardModifier.NoModifier,
+            )
+            self.window.mousePressEvent(press)
+            self.assertTrue(self.window._dragging_separator)
+            self.assertEqual(self.window._drag_dock_a, d1)
+            self.assertEqual(self.window._drag_dock_b, d2)
+
+        with patch.object(self.window, "resizeDocks") as resize_mock:
+            move = QMouseEvent(
+                QEvent.Type.MouseMove,
+                QPointF(250, 200),
+                QPointF(250, 200),
+                Qt.MouseButton.LeftButton,
+                Qt.MouseButton.LeftButton,
+                Qt.KeyboardModifier.NoModifier,
+            )
+            self.window.mouseMoveEvent(move)
+            resize_mock.assert_called_once()
+            args, _ = resize_mock.call_args
+            self.assertEqual(args[0], [d1, d2])
+            self.assertEqual(args[2], Qt.Orientation.Horizontal)
+
+        release = QMouseEvent(
+            QEvent.Type.MouseButtonRelease,
+            QPointF(250, 200),
+            QPointF(250, 200),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        self.window.mouseReleaseEvent(release)
+        self.assertFalse(self.window._dragging_separator)
+        self.assertIsNone(self.window._drag_dock_a)
+        self.assertIsNone(self.window._drag_dock_b)
 
     @staticmethod
     def _project() -> object:

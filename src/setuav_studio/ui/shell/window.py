@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QEvent, QSettings
+from PySide6.QtCore import QByteArray, QEvent, QPoint, QSettings, Qt
 from PySide6.QtGui import QAction, QCloseEvent
 from PySide6.QtWidgets import (
     QApplication,
@@ -50,6 +50,17 @@ class MainWindow(QMainWindow):
         self._project: ProjectDocument | None = None
         self._panels: dict[str, tuple[PanelContribution, QDockWidget]] = {}
         self._current_workspace_id: str | None = None
+        self._normal_geometry: QByteArray | None = None
+        self._normal_dock_state: QByteArray | None = None
+        self._was_maximized: bool = False
+        self._dragging_separator: bool = False
+        self._drag_dock_a: QDockWidget | None = None
+        self._drag_dock_b: QDockWidget | None = None
+        self._drag_orientation: Qt.Orientation | None = None
+        self._drag_start_pos: QPoint | None = None
+        self._drag_start_size_a: int = 0
+        self._drag_start_size_b: int = 0
+        self._cursor_overridden: bool = False
 
         # Register built-in native UI contributions (Explorer, Properties, Parameters, Editors, Settings)
         register_native_contributions(api)
@@ -93,7 +104,9 @@ class MainWindow(QMainWindow):
         self._help_menu = self._action_manager.help_menu
         self._recent_menu = self._action_manager.recent_menu
         self._new_project_action = self._action_manager.new_project_action
+        self._open_project_action = self._action_manager.open_action
         self._open_folder_action = self._action_manager.open_folder_action
+        self._open_directory_action = getattr(self._action_manager, "open_directory_action", None)
         self._save_action = self._action_manager.save_action
         self._save_as_action = self._action_manager.save_as_action
         self._exit_action = self._action_manager.exit_action
@@ -228,6 +241,9 @@ class MainWindow(QMainWindow):
     # Project Controller Delegations
     def _new_project(self) -> bool:
         return self._project_controller.new_project()
+
+    def _open_project_dialog(self) -> None:
+        self._project_controller.open_project_dialog()
 
     def _open_project_folder(self) -> None:
         self._project_controller.open_project_folder()
@@ -461,14 +477,177 @@ class MainWindow(QMainWindow):
 
     def resizeEvent(self, event: Any) -> None:
         super().resizeEvent(event)
+        if not self.isMaximized() and not self.isFullScreen():
+            self._normal_geometry = self.saveGeometry()
+            self._normal_dock_state = self.saveState(self._LAYOUT_VERSION)
         self._schedule_workspace_layout_save()
+
+    def moveEvent(self, event: Any) -> None:
+        super().moveEvent(event)
+        if not self.isMaximized() and not self.isFullScreen():
+            self._normal_geometry = self.saveGeometry()
+
+    def changeEvent(self, event: QEvent) -> None:
+        if event.type() == QEvent.Type.WindowStateChange:
+            is_max = self.isMaximized() or self.isFullScreen()
+            if self._was_maximized and not is_max:
+                if self._normal_geometry is not None:
+                    self.restoreGeometry(self._normal_geometry)
+                if self._normal_dock_state is not None:
+                    self.restoreState(self._normal_dock_state, self._LAYOUT_VERSION)
+            self._was_maximized = is_max
+        super().changeEvent(event)
 
     def showEvent(self, event: Any) -> None:
         super().showEvent(event)
+        if not self.isMaximized() and not self.isFullScreen():
+            if self._normal_geometry is None:
+                self._normal_geometry = self.saveGeometry()
+            if self._normal_dock_state is None:
+                self._normal_dock_state = self.saveState(self._LAYOUT_VERSION)
         if not self._layout_persistence_enabled:
             from PySide6.QtCore import QTimer
 
             QTimer.singleShot(0, self._enable_layout_persistence)
+
+    def _find_adjacent_docks_at(
+        self, pt: QPoint
+    ) -> tuple[QDockWidget, QDockWidget, Qt.Orientation] | None:
+        visible_docks = [
+            dock
+            for dock in self.findChildren(QDockWidget)
+            if dock.isVisible() and not dock.isFloating() and dock.parent() is self
+        ]
+        if len(visible_docks) < 2:
+            return None
+
+        best_h: tuple[QDockWidget, QDockWidget, Qt.Orientation] | None = None
+        min_dist_h = float("inf")
+
+        best_v: tuple[QDockWidget, QDockWidget, Qt.Orientation] | None = None
+        min_dist_v = float("inf")
+
+        for a in visible_docks:
+            ga = a.geometry()
+            for b in visible_docks:
+                if a is b:
+                    continue
+                gb = b.geometry()
+
+                # Horizontal resizing (vertical separator dividing left dock A and right dock B)
+                if -2 <= (gb.left() - ga.right()) <= 20:
+                    y_overlap = min(ga.bottom(), gb.bottom()) - max(ga.top(), gb.top())
+                    if y_overlap > 10 and (max(ga.top(), gb.top()) - 4) <= pt.y() <= (
+                        min(ga.bottom(), gb.bottom()) + 4
+                    ):
+                        sep_x = (ga.right() + gb.left()) / 2.0
+                        dist = abs(pt.x() - sep_x)
+                        if dist <= 12 and dist < min_dist_h:
+                            min_dist_h = dist
+                            best_h = (a, b, Qt.Orientation.Horizontal)
+
+                # Vertical resizing (horizontal separator dividing top dock A and bottom dock B)
+                if -2 <= (gb.top() - ga.bottom()) <= 20:
+                    x_overlap = min(ga.right(), gb.right()) - max(ga.left(), gb.left())
+                    if x_overlap > 10 and (max(ga.left(), gb.left()) - 4) <= pt.x() <= (
+                        min(ga.right(), gb.right()) + 4
+                    ):
+                        sep_y = (ga.bottom() + gb.top()) / 2.0
+                        dist = abs(pt.y() - sep_y)
+                        if dist <= 12 and dist < min_dist_v:
+                            min_dist_v = dist
+                            best_v = (a, b, Qt.Orientation.Vertical)
+
+        if best_h is not None and best_v is not None:
+            return best_h if min_dist_h <= min_dist_v else best_v
+        return best_h or best_v
+
+    def _finish_separator_drag(self) -> None:
+        if self._dragging_separator:
+            self._dragging_separator = False
+            self._drag_dock_a = None
+            self._drag_dock_b = None
+            self._drag_orientation = None
+            self._drag_start_pos = None
+            if self._cursor_overridden:
+                QApplication.restoreOverrideCursor()
+                self._cursor_overridden = False
+            self._schedule_workspace_layout_save()
+
+    def mousePressEvent(self, event: Any) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            pt = event.position().toPoint()
+            adj = self._find_adjacent_docks_at(pt)
+            if adj is not None:
+                dock_a, dock_b, orientation = adj
+                self._drag_dock_a = dock_a
+                self._drag_dock_b = dock_b
+                self._drag_orientation = orientation
+                self._drag_start_pos = pt
+                if orientation == Qt.Orientation.Horizontal:
+                    self._drag_start_size_a = dock_a.width()
+                    self._drag_start_size_b = dock_b.width()
+                    QApplication.setOverrideCursor(Qt.CursorShape.SplitHCursor)
+                else:
+                    self._drag_start_size_a = dock_a.height()
+                    self._drag_start_size_b = dock_b.height()
+                    QApplication.setOverrideCursor(Qt.CursorShape.SplitVCursor)
+                self._cursor_overridden = True
+                self._dragging_separator = True
+                event.accept()
+                return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event: Any) -> None:
+        if (
+            self._dragging_separator
+            and self._drag_dock_a is not None
+            and self._drag_dock_b is not None
+            and self._drag_start_pos is not None
+            and self._drag_orientation is not None
+        ):
+            pt = event.position().toPoint()
+            if self._drag_orientation == Qt.Orientation.Horizontal:
+                delta = pt.x() - self._drag_start_pos.x()
+                min_a = max(self._drag_dock_a.minimumWidth(), 50)
+                min_b = max(self._drag_dock_b.minimumWidth(), 50)
+            else:
+                delta = pt.y() - self._drag_start_pos.y()
+                min_a = max(self._drag_dock_a.minimumHeight(), 50)
+                min_b = max(self._drag_dock_b.minimumHeight(), 50)
+
+            total = self._drag_start_size_a + self._drag_start_size_b
+            new_a = self._drag_start_size_a + delta
+            new_b = total - new_a
+            if new_a < min_a:
+                new_a = min_a
+                new_b = total - new_a
+            elif new_b < min_b:
+                new_b = min_b
+                new_a = total - new_b
+
+            self.resizeDocks(
+                [self._drag_dock_a, self._drag_dock_b],
+                [int(new_a), int(new_b)],
+                self._drag_orientation,
+            )
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event: Any) -> None:
+        if self._dragging_separator:
+            self._finish_separator_drag()
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
+
+    def leaveEvent(self, event: Any) -> None:
+        if self._dragging_separator and not (
+            QApplication.mouseButtons() & Qt.MouseButton.LeftButton
+        ):
+            self._finish_separator_drag()
+        super().leaveEvent(event)
 
     def eventFilter(self, watched: Any, event: QEvent) -> bool:
         if isinstance(watched, QDockWidget) and event.type() in (
@@ -485,7 +664,10 @@ class MainWindow(QMainWindow):
 
         self._detach_api_listeners()
         settings = QSettings()
-        settings.setValue("main_window/geometry", self.saveGeometry())
+        if not self.isMaximized() and not self.isFullScreen():
+            settings.setValue("main_window/geometry", self.saveGeometry())
+        elif self._normal_geometry is not None:
+            settings.setValue("main_window/geometry", self._normal_geometry)
         if self._current_workspace_id is not None:
             self._save_current_workspace_layout()
             settings.setValue("active_workspace", self._current_workspace_id)

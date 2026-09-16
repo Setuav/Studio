@@ -161,45 +161,26 @@ class ProjectDocument:
                 if hasattr(model, "raw_data") and isinstance(model.raw_data, dict)
                 else None
             )
-            if parent_id and parent_id in model_by_id and hasattr(model, "set_parent_model"):
-                model.set_parent_model(model_by_id[parent_id])
+            if parent_id and parent_id in model_by_id:
+                parent_model = model_by_id[parent_id]
+                if hasattr(model, "set_parent_model"):
+                    model.set_parent_model(parent_model)
+                if hasattr(parent_model, "add_child_model"):
+                    parent_model.add_child_model(model)
 
         return models
 
     def get_scope(self, api: Any | None = None, config_id: str | None = None) -> dict[str, Any]:
         """Return the complete runtime evaluation scope containing resolved parameters and live component models."""
-        cfg_mgr = self.get_configuration_manager()
-        scope: dict[str, Any] = {}
+        from setuav_studio.model.scope import build_universal_scope
 
-        # 1. Project Parameters & Constants
-        resolved_params = cfg_mgr.get_effective_project_parameters(config_id)
-        for k, v in resolved_params.items():
-            scope[k] = v
+        return build_universal_scope(self.data, api=api, config_id=config_id)
 
-        # 2. Live Component Models
-        models = self.get_component_models(api, config_id)
-        total_mass = 0.0
+    def recompute_expressions(self, api: Any | None = None) -> bool:
+        """Re-evaluate all mathematical formulas across the project against current scope."""
+        from setuav_studio.project.evaluator import recompute_project_expressions
 
-        for model in models:
-            raw_cid = model.id
-            if not raw_cid:
-                continue
-            clean_cid = raw_cid.replace("-", "_")
-            scope[clean_cid] = model
-            if raw_cid != clean_cid:
-                scope[raw_cid] = model
-
-            # Flat aliases for compatibility (e.g. main_wing_planform_area)
-            if hasattr(model, "get_exposed_properties"):
-                for prop_name, prop_val in model.get_exposed_properties().items():
-                    if isinstance(prop_val, (int, float, bool, str)):
-                        scope[f"{clean_cid}_{prop_name}"] = prop_val
-
-            total_mass += model.mass
-
-        scope["total_mass"] = total_mass
-        scope["mtow"] = resolved_params.get("mtow", total_mass)
-        return scope
+        return recompute_project_expressions(self, api=api)
 
 
 def create_project(path: str | Path) -> ProjectDocument:

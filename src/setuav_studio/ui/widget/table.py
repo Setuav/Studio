@@ -21,7 +21,7 @@ copying the implementation:
 from __future__ import annotations
 
 import weakref
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any
 
 from PySide6.QtCore import Qt, QTimer, Signal
@@ -232,7 +232,7 @@ class ExpressionPropertyCell(QWidget):
             or (clean and not clean.replace(".", "", 1).replace("-", "", 1).isdigit())
         )
 
-    def _evaluate_expression(self, expr_text: str) -> tuple[bool, Any]:
+    def _evaluate_expression(self, expr_text: str) -> tuple[bool, Any, str | None]:
         """Evaluate expression against current project scope (or math fallback)."""
         try:
             from setuav_studio.model.expression import ExpressionEvaluator
@@ -243,9 +243,9 @@ class ExpressionPropertyCell(QWidget):
                 scope = self._api.current_project.get_scope(api=self._api)
             expr = expr_text.lstrip("=").strip()
             val = evaluator.evaluate(expr, scope)
-            return True, val
-        except Exception:
-            return False, None
+            return True, val, None
+        except Exception as exc:
+            return False, None, str(exc)
 
     def _display_number(self, base_val: float) -> tuple[str, str]:
         from setuav_studio.units import get_unit_manager
@@ -295,7 +295,7 @@ class ExpressionPropertyCell(QWidget):
         else:
             # Idle / Display mode: show evaluated calculated value if it is a formula
             if self._is_formula(clean):
-                ok, val = self._evaluate_expression(clean)
+                ok, val, err_msg = self._evaluate_expression(clean)
                 self.line_edit.blockSignals(True)
                 if ok and isinstance(val, (int, float)):
                     disp_val, sym = self._display_number(float(val))
@@ -308,9 +308,12 @@ class ExpressionPropertyCell(QWidget):
                         tip += f" {sym}"
                     self.line_edit.setToolTip(tip)
                 else:
-                    self.line_edit.setText(self._raw_expression)
-                    self.line_edit.setStyleSheet("color: #4CAF50; font-weight: bold;")
-                    self.line_edit.setToolTip(f"Formula: {self._raw_expression}")
+                    self.line_edit.setText(f"#REF! {self._raw_expression}")
+                    self.line_edit.setStyleSheet(
+                        "color: #e53935; font-weight: bold; background-color: rgba(229, 57, 53, 0.08); border: 1px solid #e53935;"
+                    )
+                    tip = f"Formula Error in '{self._raw_expression}':\n{err_msg or 'Failed to evaluate'}"
+                    self.line_edit.setToolTip(tip)
                 self.line_edit.blockSignals(False)
             else:
                 self.line_edit.blockSignals(True)
@@ -411,7 +414,7 @@ class ExpressionPropertyCell(QWidget):
     def value(self) -> float:
         clean = self._raw_expression.strip()
         if self._is_formula(clean):
-            ok, val = self._evaluate_expression(clean)
+            ok, val, _ = self._evaluate_expression(clean)
             if ok and isinstance(val, (int, float)):
                 return float(val)
         try:
@@ -503,8 +506,8 @@ class PropertyTableMixin:
         table: QTableWidget,
         key: str,
         value: str,
-        options: list[tuple[str, str]],
-        on_changed: Callable[[str], None],
+        options: Sequence[tuple[str, str] | str],
+        on_changed: Callable[[str], Any],
     ) -> None:
         for row in range(table.rowCount()):
             if self._property_key(table, row) != key:
@@ -526,8 +529,8 @@ class PropertyTableMixin:
         row: int,
         column: int,
         value: str,
-        options: list[tuple[str, str]],
-        on_changed: Callable[[str], None],
+        options: Sequence[tuple[str, str] | str],
+        on_changed: Callable[[str], Any],
     ) -> None:
         item = table.item(row, column)
         if item is not None:
@@ -541,7 +544,11 @@ class PropertyTableMixin:
         )
         combo.view().setProperty("tableComboPopup", True)
         combo.view().setFont(QApplication.font())
-        for option_value, label in options:
+        for opt in options:
+            if isinstance(opt, tuple) and len(opt) == 2:
+                option_value, label = opt
+            else:
+                option_value, label = str(opt), str(opt)
             combo.addItem(label, option_value)
         if cls.table_combo_strict_find:
             index = combo.findData(value)
@@ -590,10 +597,41 @@ class PropertyTableMixin:
         step: float = 1.0,
         decimals: int = 2,
         suffix: str = "",
-        on_changed: Callable[[Any], None] | None = None,
+        quantity: str | None = None,
+        unit: str | None = None,
+        expression: str | None = None,
+        target_data: dict[str, Any] | None = None,
+        on_changed: Callable[[Any], Any] | None = None,
         api: Any | None = None,
         label: str = "",
     ) -> Any:
+        if target_data is None:
+            resolved: Any = None
+            _get_target = getattr(self, "_get_property_target_data", None)
+            _target = getattr(self, "_target_data", None)
+            _get = getattr(self, "_get_data", None)
+            _geom = getattr(self, "_geometry", None)
+            _params = getattr(self, "_parameters", None)
+            _comp = getattr(self, "_component", None)
+
+            if callable(_get_target):
+                resolved = _get_target()
+            elif isinstance(_target, dict):
+                resolved = _target
+            elif callable(_get):
+                resolved = _get()
+            elif callable(_geom):
+                resolved = _geom()
+            elif callable(_params):
+                resolved = _params()
+            elif isinstance(_params, dict):
+                resolved = _params
+            elif isinstance(_comp, dict):
+                resolved = _comp.get("parameters")
+
+            if isinstance(resolved, dict):
+                target_data = resolved
+
         for row in range(table.rowCount()):
             if self._property_key(table, row) != key:
                 continue
@@ -614,51 +652,164 @@ class PropertyTableMixin:
                 step=step,
                 decimals=decimals,
                 suffix=suffix,
+                quantity=quantity,
+                unit=unit,
+                expression=expression,
+                target_data=target_data,
+                property_key=key,
                 on_changed=on_changed,
                 api=api or getattr(self, "_api", None),
                 label=resolved_label,
             )
         return None
 
+    def bind_parametric_properties(
+        self,
+        table: QTableWidget,
+        target_data: dict[str, Any],
+        fields: Any,
+        *,
+        on_changed: Callable[[str, Any], None] | None = None,
+        api: Any | None = None,
+    ) -> None:
+        """Declaratively bind a schema of parameter fields to a property table.
+
+        Handles UI generation, two-way numeric and formula data binding,
+        units, and transparent '_expressions' persistence automatically.
+        """
+        from setuav_studio_sdk import ParameterField
+
+        normalized: list[ParameterField] = []
+        if isinstance(fields, dict):
+            for k, spec in fields.items():
+                if isinstance(spec, ParameterField):
+                    normalized.append(spec)
+                elif isinstance(spec, dict):
+                    normalized.append(
+                        ParameterField(
+                            key=k,
+                            label=spec.get("label", k.replace("_", " ").title()),
+                            unit=spec.get("unit", ""),
+                            quantity=spec.get("quantity"),
+                            field_type=spec.get("type", spec.get("field_type", float)),
+                            default=spec.get("default", 0.0),
+                            min_value=spec.get("min", spec.get("min_value")),
+                            max_value=spec.get("max", spec.get("max_value")),
+                            step=spec.get("step"),
+                            decimals=spec.get("decimals", 2),
+                            tooltip=spec.get("tooltip", spec.get("description", "")),
+                            options=spec.get("options", spec.get("choices")),
+                            allow_formula=spec.get("allow_formula", True),
+                            readonly=spec.get("readonly", False),
+                        )
+                    )
+        elif isinstance(fields, (list, tuple)):
+            for item in fields:
+                if isinstance(item, ParameterField):
+                    normalized.append(item)
+                elif isinstance(item, dict):
+                    k = item.get("key", "")
+                    normalized.append(
+                        ParameterField(
+                            key=k,
+                            label=item.get("label", k.replace("_", " ").title()),
+                            unit=item.get("unit", ""),
+                            quantity=item.get("quantity"),
+                            field_type=item.get("type", item.get("field_type", float)),
+                            default=item.get("default", 0.0),
+                            min_value=item.get("min", item.get("min_value")),
+                            max_value=item.get("max", item.get("max_value")),
+                            step=item.get("step"),
+                            decimals=item.get("decimals", 2),
+                            tooltip=item.get("tooltip", item.get("description", "")),
+                            options=item.get("options", item.get("choices")),
+                            allow_formula=item.get("allow_formula", True),
+                            readonly=item.get("readonly", False),
+                        )
+                    )
+
+        if table.rowCount() != len(normalized):
+            self._configure_property_table(table, [(f.key, f.label) for f in normalized])
+
+        resolved_api = api or getattr(self, "_api", None)
+
+        for f in normalized:
+            val = target_data.get(f.key, f.default)
+            if f.options:
+                self._set_property_combo(
+                    table,
+                    f.key,
+                    str(val),
+                    list(f.options),
+                    lambda new_v, k=f.key: (
+                        target_data.__setitem__(k, new_v),
+                        on_changed(k, new_v) if on_changed else None,
+                    ),
+                )
+            elif f.field_type is bool:
+                bool_opts = [("true", "True"), ("false", "False")]
+                self._set_property_combo(
+                    table,
+                    f.key,
+                    "true" if val else "false",
+                    bool_opts,
+                    lambda new_v, k=f.key: (
+                        target_data.__setitem__(k, new_v == "true"),
+                        on_changed(k, new_v == "true") if on_changed else None,
+                    ),
+                )
+            elif f.field_type in (float, int):
+                min_v = f.min_value if f.min_value is not None else -1e6
+                max_v = f.max_value if f.max_value is not None else 1e6
+                step_v = f.step if f.step is not None else 1.0
+                self._set_property_spinbox(
+                    table,
+                    f.key,
+                    val,
+                    min_val=min_v,
+                    max_val=max_v,
+                    step=step_v,
+                    decimals=f.decimals,
+                    suffix=f.unit,
+                    quantity=f.quantity,
+                    unit=f.unit,
+                    target_data=target_data,
+                    on_changed=lambda new_v, k=f.key: (
+                        target_data.__setitem__(k, new_v),
+                        on_changed(k, new_v) if on_changed else None,
+                    ),
+                    api=resolved_api,
+                    label=f.label,
+                )
+            else:
+                self._set_property_value(table, f.key, val, editable=not f.readonly)
+
     def _set_property_expression(
         self,
         table: QTableWidget,
         key: str,
         value: object,
-        on_changed: Callable[[str], None] | None = None,
+        on_changed: Callable[[Any], None] | None = None,
         on_open_assistant: Callable[[str], None] | None = None,
         api: Any | None = None,
         label: str = "",
         decimals: int | None = None,
         quantity: str | None = None,
         unit: str | None = None,
+        target_data: dict[str, Any] | None = None,
     ) -> None:
-        for row in range(table.rowCount()):
-            if self._property_key(table, row) != key:
-                continue
-            item = table.item(row, 1)
-            if item is not None:
-                item.setText("")
-                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-
-            resolved_label = label
-            if not resolved_label:
-                col0_item = table.item(row, 0)
-                resolved_label = col0_item.text() if col0_item else key
-
-            cell = ExpressionPropertyCell(
-                initial_value=str(value) if value is not None else "",
-                on_changed=on_changed,
-                on_open_assistant=on_open_assistant,
-                api=api or getattr(self, "_api", None),
-                label=resolved_label,
-                decimals=decimals,
-                quantity=quantity,
-                unit=unit,
-                parent=table,
-            )
-            table.setCellWidget(row, 1, cell)
-            return
+        self._set_property_spinbox(
+            table,
+            key,
+            value if isinstance(value, (int, float, str)) else str(value or ""),
+            decimals=decimals or 2,
+            quantity=quantity,
+            unit=unit,
+            target_data=target_data,
+            on_changed=on_changed,
+            api=api,
+            label=label,
+        )
 
     @staticmethod
     def _property_key(table: QTableWidget, row: int) -> str:
@@ -678,6 +829,31 @@ class PropertyTableMixin:
             return str(editor.value())
         item = table.item(row, 1)
         return item.text() if item is not None else ""
+
+    @classmethod
+    def _property_value(cls, table: QTableWidget, key: str) -> str:
+        for row in range(table.rowCount()):
+            if cls._property_key(table, row) == key:
+                return cls._property_text(table, row).strip()
+        return ""
+
+    @classmethod
+    def _property_numeric(cls, table: QTableWidget, key_or_row: str | int) -> float | None:
+        row = key_or_row if isinstance(key_or_row, int) else -1
+        if isinstance(key_or_row, str):
+            for r in range(table.rowCount()):
+                if cls._property_key(table, r) == key_or_row:
+                    row = r
+                    break
+        if row < 0 or row >= table.rowCount():
+            return None
+        editor = table.cellWidget(row, 1)
+        if isinstance(editor, ExpressionPropertyCell):
+            return editor.value()
+        if isinstance(editor, QDoubleSpinBox):
+            return float(editor.value())
+        txt = cls._property_text(table, row)
+        return cls._parse_number(txt)
 
     @staticmethod
     def _parse_number(value: str) -> float | None:

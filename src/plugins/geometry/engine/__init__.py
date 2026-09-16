@@ -35,6 +35,14 @@ from .lifting_surface_geometry import (
     build_lifting_surface_geometry,
     compute_winglet_projected_dimensions,
 )
+from .mount import (
+    MountFrame,
+    MountTarget,
+    compute_propeller_clearance,
+    generate_clearance_circle_points,
+    generate_mount_targets,
+    resolve_mount_point,
+)
 from .transforms import (
     Matrix4,
     derivation_matrix,
@@ -77,6 +85,8 @@ __all__ = [
     "GeometryData",
     "LoftGeometry",
     "Matrix4",
+    "MountFrame",
+    "MountTarget",
     "Point3D",
     "Section",
     "apply_airfoil_shaping",
@@ -88,6 +98,7 @@ __all__ = [
     "compute_all_8_parameters",
     "compute_geometry_envelope",
     "compute_planform_metrics",
+    "compute_propeller_clearance",
     "compute_section_metrics",
     "compute_winglet_projected_dimensions",
     "create_default_section",
@@ -95,6 +106,8 @@ __all__ = [
     "delete_section",
     "derivation_matrix",
     "format_profile_size",
+    "generate_clearance_circle_points",
+    "generate_mount_targets",
     "get_default_profile",
     "identity_matrix",
     "insert_section",
@@ -103,6 +116,7 @@ __all__ = [
     "naca5",
     "parse_airfoil_dat",
     "profiles_to_sections",
+    "resolve_mount_point",
     "sample_airfoil_points",
     "sample_profile",
     "section_transform",

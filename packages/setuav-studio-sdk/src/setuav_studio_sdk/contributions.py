@@ -59,18 +59,22 @@ class WorkspaceLayoutContext(Protocol):
 
 @dataclass(frozen=True)
 class ParameterField:
-    """Descriptor for a component parameter field in a property editor."""
+    """Descriptor for a component or plugin parameter field in a property editor."""
 
     key: str
     label: str
     unit: str = ""
+    quantity: str | None = None
     field_type: type = float
     default: Any = 0.0
     min_value: float | None = None
     max_value: float | None = None
+    step: float | None = None
     decimals: int = 2
     tooltip: str = ""
     options: tuple[tuple[str, str], ...] | tuple[str, ...] | None = None
+    allow_formula: bool = True
+    readonly: bool = False
 
 
 def _matches_workspace(scope: WorkspaceScope, workspace_id: str | None) -> bool:

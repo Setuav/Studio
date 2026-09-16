@@ -194,6 +194,33 @@ class ShellProjectLifecycleTests(unittest.TestCase):
         add_recent.assert_called_once()
         self.assertEqual(self.window._status_label.text(), "Project saved")
 
+    def test_save_project_does_not_resurrect_deselected_selection(self) -> None:
+        from setuav_studio.ui.project_explorer.tree import ProjectExplorer
+
+        project = self._project()
+        project.data["components"] = [
+            {"id": "comp1", "name": "Wing", "type": "org.setuav.core:lifting-surface"}
+        ]
+        self.window._activate_project(project)
+
+        tree = self.window.findChild(ProjectExplorer)
+        self.assertIsNotNone(tree)
+        comp_item = tree._item_map.get("comp1")
+        self.assertIsNotNone(comp_item)
+        tree.setCurrentItem(comp_item)
+        self.assertIsNotNone(self.api.current_selection)
+
+        # Deselect
+        self.api.set_selection(None)
+        self.assertIsNone(self.api.current_selection)
+
+        # Save project
+        with patch("setuav_studio.ui.shell.project_controller.save_project"):
+            self.assertTrue(self.window.save_project())
+
+        # Selection must NOT be resurrected to comp1
+        self.assertIsNone(self.api.current_selection)
+
     def test_save_as_handles_empty_cancel_error_and_success_states(self) -> None:
         self.assertFalse(self.window.save_project_as())
         self.window._project = self._project()
@@ -357,6 +384,28 @@ class ShellProjectLifecycleTests(unittest.TestCase):
             [call.args[0] for call in open_selected.call_args_list],
             ["project-folder"],
         )
+
+    def test_open_project_dialog_selects_suav_file(self) -> None:
+        with (
+            patch.object(self.window, "open_project") as open_selected,
+            patch(
+                "setuav_studio.ui.shell.project_controller.QFileDialog.getOpenFileName",
+                side_effect=[
+                    ("", ""),
+                    ("/path/to/model.suav", "Setuav Projects (*.suav project.json)"),
+                ],
+            ) as get_open,
+        ):
+            self.window._open_project_dialog()
+            self.window._open_project_dialog()
+
+        self.assertEqual(
+            [call.args[0] for call in open_selected.call_args_list],
+            ["/path/to/model.suav"],
+        )
+        filter_arg = get_open.call_args[0][3]
+        self.assertIn("*.suav", filter_arg)
+        self.assertIn("project.json", filter_arg)
 
     def test_new_project_creates_and_activates_empty_archive(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

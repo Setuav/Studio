@@ -21,6 +21,7 @@ from setuav_studio_sdk.plugin import StudioPlugin
 from .api import StudioAPI
 from .hooks import HookRegistry
 from .host import _StudioHost
+from .installer import get_user_plugins_dir, install_plugin_archive
 from .manager import PluginManager
 from .requirements import (
     PluginLoadIssue,
@@ -56,4 +57,6 @@ __all__ = [
     "_candidate_sort_key",
     "_plugin_sort_key",
     "_version_satisfies",
+    "get_user_plugins_dir",
+    "install_plugin_archive",
 ]

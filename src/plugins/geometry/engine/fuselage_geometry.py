@@ -14,8 +14,18 @@ def build_fuselage_geometry(component: dict[str, Any]) -> tuple[LoftGeometry, ..
     geometry = parameters.get("geometry")
     geometry = geometry if isinstance(geometry, dict) else {}
     segments = geometry.get("segments")
-    if not isinstance(segments, list):
-        return ()
+    if not isinstance(segments, list) or not segments:
+        legacy_sections = geometry.get("sections")
+        if isinstance(legacy_sections, list) and legacy_sections:
+            segments = [
+                {
+                    "tag": "main",
+                    "loft": geometry.get("loft") if isinstance(geometry.get("loft"), dict) else {},
+                    "sections": legacy_sections,
+                }
+            ]
+        else:
+            return ()
 
     component_id = str(component.get("id") or "fuselage")
     colors = segment_colors()

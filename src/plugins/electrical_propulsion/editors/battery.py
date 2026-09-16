@@ -162,7 +162,6 @@ class BatteryEditor(PropertyTableMixin, QWidget):
                 ("burst_discharge", "Burst Discharge (C)"),
             ]
         )
-        self.pack_table.cellChanged.connect(self._update_pack_cell)
         layout.addWidget(self.pack_table)
 
     def _create_cell_section(self) -> None:
@@ -178,7 +177,6 @@ class BatteryEditor(PropertyTableMixin, QWidget):
                 ("cell_mass", "Cell Mass"),
             ]
         )
-        self.cell_table.cellChanged.connect(self._update_cell_param)
         layout.addWidget(self.cell_table)
 
     def _load_battery(self) -> None:
@@ -235,14 +233,100 @@ class BatteryEditor(PropertyTableMixin, QWidget):
             )
 
             # Pack table
-            self._set_property_value(self.pack_table, "cell_count", str(s))
-            self._set_property_value(self.pack_table, "parallel_count", str(p))
-            self._set_property_value(self.pack_table, "capacity", f"{pack_cap:.0f}")
-            self._set_property_value(self.pack_table, "nominal_voltage", f"{v_nom:.1f}")
-            self._set_property_value(self.pack_table, "internal_resistance", f"{r_pack:.4f}")
-            self._set_property_value(self.pack_table, "packaging_mass", f"{packaging_mass:.1f}")
-            self._set_property_value(self.pack_table, "max_discharge", f"{c_cont:.0f}")
-            self._set_property_value(self.pack_table, "burst_discharge", f"{c_burst:.0f}")
+            self._set_property_spinbox(
+                self.pack_table,
+                "cell_count",
+                s,
+                min_val=1,
+                max_val=100,
+                step=1,
+                decimals=0,
+                target_data=params,
+                on_changed=lambda v: self._on_pack_param_changed("cell_count", v),
+            )
+            self._set_property_spinbox(
+                self.pack_table,
+                "parallel_count",
+                p,
+                min_val=1,
+                max_val=100,
+                step=1,
+                decimals=0,
+                target_data=params,
+                on_changed=lambda v: self._on_pack_param_changed("parallel_count", v),
+            )
+            self._set_property_spinbox(
+                self.pack_table,
+                "capacity",
+                pack_cap,
+                min_val=0,
+                max_val=1e6,
+                step=100,
+                decimals=0,
+                suffix="mAh",
+                target_data=params,
+                on_changed=lambda v: self._on_pack_param_changed("capacity", v),
+            )
+            self._set_property_spinbox(
+                self.pack_table,
+                "nominal_voltage",
+                v_nom,
+                min_val=0,
+                max_val=1000,
+                step=0.1,
+                decimals=1,
+                suffix="V",
+                target_data=params,
+                on_changed=lambda v: self._on_pack_param_changed("nominal_voltage", v),
+            )
+            self._set_property_spinbox(
+                self.pack_table,
+                "internal_resistance",
+                r_pack,
+                min_val=0,
+                max_val=100,
+                step=0.001,
+                decimals=4,
+                suffix="Ω",
+                target_data=params,
+                on_changed=lambda v: self._on_pack_param_changed("internal_resistance", v),
+            )
+            self._set_property_spinbox(
+                self.pack_table,
+                "packaging_mass",
+                packaging_mass,
+                min_val=0,
+                max_val=1e5,
+                step=1.0,
+                decimals=1,
+                suffix="g",
+                target_data=params,
+                on_changed=lambda v: self._on_pack_param_changed("packaging_mass", v),
+            )
+            self._set_property_spinbox(
+                self.pack_table,
+                "max_discharge",
+                c_cont,
+                min_val=0,
+                max_val=500,
+                step=1,
+                decimals=0,
+                suffix="C",
+                target_data=params,
+                on_changed=lambda v: self._on_pack_param_changed("max_discharge", v),
+            )
+            self._set_property_spinbox(
+                self.pack_table,
+                "burst_discharge",
+                c_burst,
+                min_val=0,
+                max_val=500,
+                step=1,
+                decimals=0,
+                suffix="C",
+                target_data=params,
+                on_changed=lambda v: self._on_pack_param_changed("burst_discharge", v),
+            )
 
             # Cell table
             chem_options = [
@@ -259,12 +343,78 @@ class BatteryEditor(PropertyTableMixin, QWidget):
                 chem_options,
                 self._on_chemistry_changed,
             )
-            self._set_property_value(self.cell_table, "cell_capacity", f"{cell_cap:.0f}")
-            self._set_property_value(self.cell_table, "cell_nominal_voltage", f"{cell_v_nom:.2f}")
-            self._set_property_value(self.cell_table, "cell_max_voltage", f"{cell_v_max:.2f}")
-            self._set_property_value(self.cell_table, "cell_min_voltage", f"{cell_v_min:.2f}")
-            self._set_property_value(self.cell_table, "cell_resistance", f"{cell_res:.4f}")
-            self._set_property_value(self.cell_table, "cell_mass", f"{cell_mass:.1f}")
+            self._set_property_spinbox(
+                self.cell_table,
+                "cell_capacity",
+                cell_cap,
+                min_val=0,
+                max_val=1e6,
+                step=100,
+                decimals=0,
+                suffix="mAh",
+                target_data=params,
+                on_changed=lambda v: self._on_cell_param_changed("cell_capacity", v),
+            )
+            self._set_property_spinbox(
+                self.cell_table,
+                "cell_nominal_voltage",
+                cell_v_nom,
+                min_val=0,
+                max_val=100,
+                step=0.05,
+                decimals=2,
+                suffix="V",
+                target_data=params,
+                on_changed=lambda v: self._on_cell_param_changed("cell_nominal_voltage", v),
+            )
+            self._set_property_spinbox(
+                self.cell_table,
+                "cell_max_voltage",
+                cell_v_max,
+                min_val=0,
+                max_val=100,
+                step=0.05,
+                decimals=2,
+                suffix="V",
+                target_data=params,
+                on_changed=lambda v: self._on_cell_param_changed("cell_max_voltage", v),
+            )
+            self._set_property_spinbox(
+                self.cell_table,
+                "cell_min_voltage",
+                cell_v_min,
+                min_val=0,
+                max_val=100,
+                step=0.05,
+                decimals=2,
+                suffix="V",
+                target_data=params,
+                on_changed=lambda v: self._on_cell_param_changed("cell_min_voltage", v),
+            )
+            self._set_property_spinbox(
+                self.cell_table,
+                "cell_resistance",
+                cell_res,
+                min_val=0,
+                max_val=10,
+                step=0.0005,
+                decimals=4,
+                suffix="Ω",
+                target_data=params,
+                on_changed=lambda v: self._on_cell_param_changed("cell_resistance", v),
+            )
+            self._set_property_spinbox(
+                self.cell_table,
+                "cell_mass",
+                cell_mass,
+                min_val=0,
+                max_val=10000,
+                step=1.0,
+                decimals=1,
+                suffix="g",
+                target_data=params,
+                on_changed=lambda v: self._on_cell_param_changed("cell_mass", v),
+            )
 
         finally:
             self._loading = False
@@ -286,12 +436,13 @@ class BatteryEditor(PropertyTableMixin, QWidget):
 
         self._api.edit_component(self._component, f"Edit {key}", apply_edit)
 
-    def _update_pack_cell(self, row: int, column: int) -> None:
-        if self._loading or column != 1:
+    def _on_pack_param_changed(self, key: str, value: Any) -> None:
+        if self._loading:
             return
-        key = self._property_key(self.pack_table, row)
-        val_text = self._property_text(self.pack_table, row)
-        num = self._parse_number(val_text) or 0.0
+        try:
+            num = float(value)
+        except (ValueError, TypeError):
+            return
 
         def apply_edit() -> None:
             p = self._component.setdefault("parameters", {})
@@ -320,12 +471,13 @@ class BatteryEditor(PropertyTableMixin, QWidget):
         self._api.edit_component(self._component, f"Set {key}", apply_edit)
         self._load_battery()
 
-    def _update_cell_param(self, row: int, column: int) -> None:
-        if self._loading or column != 1:
+    def _on_cell_param_changed(self, key: str, value: Any) -> None:
+        if self._loading:
             return
-        key = self._property_key(self.cell_table, row)
-        val_text = self._property_text(self.cell_table, row)
-        num = self._parse_number(val_text) or 0.0
+        try:
+            num = float(value)
+        except (ValueError, TypeError):
+            return
 
         def apply_edit() -> None:
             p = self._component.setdefault("parameters", {})

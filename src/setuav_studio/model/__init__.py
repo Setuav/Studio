@@ -26,6 +26,10 @@ from setuav_studio.model.parameter import (
     ParameterResolutionError,
     ParameterResolver,
 )
+from setuav_studio.model.scope import (
+    ScopeProxy,
+    build_universal_scope,
+)
 from setuav_studio.model.state import State
 from setuav_studio.model.symbol import (
     build_evaluation_context,
@@ -50,10 +54,12 @@ __all__ = [
     "GenericComponent",
     "ParameterResolutionError",
     "ParameterResolver",
+    "ScopeProxy",
     "State",
     "System",
     "Vehicle",
     "build_evaluation_context",
+    "build_universal_scope",
     "create_model_for_component",
     "get_available_symbols_metadata",
 ]

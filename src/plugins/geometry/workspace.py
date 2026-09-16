@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 
 from setuav_studio.project import ProjectDocument
 from setuav_studio.ui.icons import get_icon
-from setuav_studio_sdk import StudioAPI, StudioEvents
+from setuav_studio_sdk import StudioAPI, StudioEvents, VisualPrimitive
 
 from .settings import (
     _VIEWER_GRID_KEY,
@@ -58,10 +58,17 @@ class ViewerWorkspace(QWidget):
     def __init__(self, api: StudioAPI) -> None:
         super().__init__()
         self._api = api
+        self._syncing_settings = False
+        self._all_overlay_layers: dict[str, list[VisualPrimitive]] = {}
+        self._overlay_workspaces: dict[str, set[str] | None] = {}
         self._api.subscribe(
             StudioEvents.GEOMETRY_VIEWER_SETTINGS_CHANGED,
             self._on_viewer_settings_changed,
         )
+        self._api.subscribe("studio.viewer.set_overlays", self._on_set_overlays)
+        self._api.subscribe("studio.viewer.clear_overlays", self._on_clear_overlays)
+        if hasattr(self._api, "on_workspace_changed"):
+            self._api.on_workspace_changed(self._on_workspace_changed)
         layout = QGridLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -252,9 +259,7 @@ class ViewerWorkspace(QWidget):
                 False,
             )
         )
-        self._action_transparent_bg.toggled.connect(
-            lambda checked: QSettings().setValue(_VIEWER_SCREENSHOT_TRANSPARENT_KEY, checked)
-        )
+        self._action_transparent_bg.toggled.connect(self._on_screenshot_transparent_toggled)
         self.screenshot_button.setMenu(self._screenshot_menu)
         hud_layout.addWidget(self.screenshot_button)
 
@@ -324,6 +329,7 @@ class ViewerWorkspace(QWidget):
         project = self._api.current_project
         if project is not None:
             self._refresh(project, fit=False)
+        self._notify_viewer_settings_changed()
 
     def _build_wire_menu(self) -> None:
         self._wire_menu.clear()
@@ -350,31 +356,56 @@ class ViewerWorkspace(QWidget):
 
     def _on_wire_mode_selected(self, mode: str) -> None:
         if mode == "off":
+            self._default_show_wire = False
             self.viewer.set_show_wireframe(False)
             QSettings().setValue(_VIEWER_WIRE_KEY, False)
         else:
+            self._default_show_wire = True
             self.viewer.set_show_wireframe(True)
             self.viewer.set_wire_mode(mode)
             QSettings().setValue(_VIEWER_WIRE_KEY, True)
             QSettings().setValue(_VIEWER_WIRE_MODE_KEY, mode)
         self._build_wire_menu()
         self._update_wire_tooltip()
+        self._notify_viewer_settings_changed()
 
     def _on_solid_toggled(self, checked: bool) -> None:
+        self._default_show_solid = checked
         self.viewer.set_show_solid(checked)
         QSettings().setValue(_VIEWER_SOLID_KEY, checked)
+        self._notify_viewer_settings_changed()
 
     def _on_grid_toggled(self, checked: bool) -> None:
+        self._default_show_grid = checked
         self.viewer.set_show_grid(checked)
         QSettings().setValue(_VIEWER_GRID_KEY, checked)
+        self._notify_viewer_settings_changed()
 
     def _on_projection_toggled(self, checked: bool) -> None:
+        self._default_orthographic = checked
         self.viewer.set_orthographic(checked)
         QSettings().setValue(
             _VIEWER_PROJECTION_KEY,
             "orthographic" if checked else "perspective",
         )
         self._update_projection_state()
+        self._notify_viewer_settings_changed()
+
+    def _on_screenshot_transparent_toggled(self, checked: bool) -> None:
+        QSettings().setValue(_VIEWER_SCREENSHOT_TRANSPARENT_KEY, checked)
+        self._notify_viewer_settings_changed()
+
+    def _notify_viewer_settings_changed(self) -> None:
+        if self._syncing_settings:
+            return
+        self._syncing_settings = True
+        try:
+            self._api.publish(
+                StudioEvents.GEOMETRY_VIEWER_SETTINGS_CHANGED,
+                {"source": self},
+            )
+        finally:
+            self._syncing_settings = False
 
     def _update_projection_state(self) -> None:
         is_ortho = self.projection_button.isChecked()
@@ -418,6 +449,7 @@ class ViewerWorkspace(QWidget):
             self.viewer.set_wire_mode(wire_mode)
         self.viewer.set_show_solid(self._default_show_solid)
         self.viewer.set_show_wireframe(self._default_show_wire)
+        self.viewer.set_show_grid(self._default_show_grid)
         self.viewer.set_orthographic(self._default_orthographic)
         if hasattr(self, "_action_transparent_bg"):
             self._action_transparent_bg.blockSignals(True)
@@ -430,25 +462,32 @@ class ViewerWorkspace(QWidget):
             self._action_transparent_bg.blockSignals(False)
 
     def _on_viewer_settings_changed(self, _payload: object = None) -> None:
-        self._load_viewer_defaults()
-        for button, checked in (
-            (self.solid_button, self._default_show_solid),
-            (self.grid_button, self._default_show_grid),
-            (self.projection_button, self._default_orthographic),
-        ):
-            button.blockSignals(True)
-            button.setChecked(checked)
-            button.blockSignals(False)
-        self.viewer.set_show_solid(self._default_show_solid)
-        self.viewer.set_show_wireframe(self._default_show_wire)
-        self.viewer.set_show_grid(self._default_show_grid)
-        self._build_palette_menu()
-        self._build_wire_menu()
-        self._update_projection_tooltip()
-        self._update_wire_tooltip()
-        project = self._api.current_project
-        if project is not None:
-            self._refresh(project, fit=False)
+        if isinstance(_payload, dict) and _payload.get("source") is self:
+            return
+        self._syncing_settings = True
+        try:
+            self._load_viewer_defaults()
+            for button, checked in (
+                (self.solid_button, self._default_show_solid),
+                (self.grid_button, self._default_show_grid),
+                (self.projection_button, self._default_orthographic),
+            ):
+                button.blockSignals(True)
+                button.setChecked(checked)
+                button.blockSignals(False)
+            self.viewer.set_show_solid(self._default_show_solid)
+            self.viewer.set_show_wireframe(self._default_show_wire)
+            self.viewer.set_show_grid(self._default_show_grid)
+            self.viewer.set_orthographic(self._default_orthographic)
+            self._build_palette_menu()
+            self._build_wire_menu()
+            self._update_projection_state()
+            self._update_wire_tooltip()
+            project = self._api.current_project
+            if project is not None:
+                self._refresh(project, fit=False)
+        finally:
+            self._syncing_settings = False
 
     def _on_project_changed(self, project: ProjectDocument) -> None:
         self._refresh(project, fit=True)
@@ -458,8 +497,9 @@ class ViewerWorkspace(QWidget):
 
     def _on_selection_changed(self, selection: object | None) -> None:
         if isinstance(selection, dict) and selection.get("kind") == "envelope":
-            component_id = selection.get("component_id")
-            envelope_component_id = component_id if isinstance(component_id, str) else None
+            comp_id = selection.get("component_id")
+            envelope_component_id = comp_id if isinstance(comp_id, str) else None
+            component_id = None
         else:
             component_id = selection.get("id") if isinstance(selection, dict) else None
             envelope_component_id = None
@@ -467,7 +507,7 @@ class ViewerWorkspace(QWidget):
         self.viewer.set_selected_component(component_id if isinstance(component_id, str) else None)
         self.viewer.set_selected_envelope(envelope_component_id)
         current = self._api.current_section_selection
-        if current is not None and current[0] != component_id:
+        if current is not None and current[0] not in (component_id, envelope_component_id):
             self._api.set_section_selection(None)
 
     def _on_section_selection_changed(
@@ -605,10 +645,61 @@ class ViewerWorkspace(QWidget):
 
     def _detach(self, *_args: object) -> None:
         self._api.unsubscribe(
-            "geometry.viewer.settings.changed",
+            StudioEvents.GEOMETRY_VIEWER_SETTINGS_CHANGED,
             self._on_viewer_settings_changed,
         )
         self._api.remove_project_listener(self._on_project_changed)
         self._api.remove_project_content_listener(self._on_project_content_changed)
         self._api.remove_selection_listener(self._on_selection_changed)
         self._api.remove_section_selection_listener(self._on_section_selection_changed)
+        self._api.unsubscribe("studio.viewer.set_overlays", self._on_set_overlays)
+        self._api.unsubscribe("studio.viewer.clear_overlays", self._on_clear_overlays)
+        if hasattr(self._api, "remove_workspace_listener"):
+            self._api.remove_workspace_listener(self._on_workspace_changed)
+
+    def _sync_active_overlays(self) -> None:
+        current_ws = getattr(self._api, "current_workspace_id", None)
+        for layer_id, prims in list(self._all_overlay_layers.items()):
+            target_workspaces = self._overlay_workspaces.get(layer_id)
+            if target_workspaces is None or (
+                current_ws is not None and current_ws in target_workspaces
+            ):
+                self.viewer.set_overlays(layer_id, prims)
+            else:
+                self.viewer.clear_overlays(layer_id)
+
+    def _on_workspace_changed(self, _workspace_id: str) -> None:
+        self._sync_active_overlays()
+
+    def _on_set_overlays(self, payload: object) -> None:
+        if isinstance(payload, dict):
+            layer_id = str(payload.get("layer", "default"))
+            prims = list(payload.get("primitives", []))
+            workspaces = payload.get("workspaces") or payload.get("workspace")
+            if workspaces is None:
+                if layer_id == "manufacturing":
+                    workspaces = {"com.setuav.manufacturing.workspace"}
+                else:
+                    workspaces = None
+            elif isinstance(workspaces, str):
+                workspaces = {workspaces}
+            elif isinstance(workspaces, (list, tuple, set)):
+                workspaces = set(workspaces)
+            self._all_overlay_layers[layer_id] = prims
+            self._overlay_workspaces[layer_id] = workspaces
+            self._sync_active_overlays()
+
+    def _on_clear_overlays(self, payload: object) -> None:
+        layer_id = None
+        if isinstance(payload, dict):
+            layer_id = payload.get("layer")
+        elif isinstance(payload, str):
+            layer_id = payload
+        if layer_id is None:
+            self._all_overlay_layers.clear()
+            self._overlay_workspaces.clear()
+            self.viewer.clear_overlays(None)
+        else:
+            self._all_overlay_layers.pop(str(layer_id), None)
+            self._overlay_workspaces.pop(str(layer_id), None)
+            self.viewer.clear_overlays(str(layer_id))

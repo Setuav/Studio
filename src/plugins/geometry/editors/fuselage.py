@@ -24,7 +24,6 @@ from setuav_studio.ui.icons import set_label_icon
 from setuav_studio.ui.widget.button import set_native_button
 from setuav_studio.ui.widget.spinbox import (
     NoWheelComboBox,
-    NumericSpinBox,
     set_table_spinbox,
 )
 from setuav_studio.ui.widget.table import ExpressionPropertyCell, PropertyTableMixin
@@ -398,16 +397,8 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         profile = self._object(section, "profile")
 
         self._set_transform_values(
-            (
-                float(position.get("x") or 0),
-                float(position.get("y") or 0),
-                float(position.get("z") or 0),
-            ),
-            (
-                float(rotation.get("x", rotation.get("roll", 0)) or 0),
-                float(rotation.get("y", rotation.get("pitch", 0)) or 0),
-                float(rotation.get("z", rotation.get("yaw", 0)) or 0),
-            ),
+            position,
+            rotation,
         )
         self._populate_section_properties(profile)
         self._populate_vertices(profile)
@@ -423,7 +414,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
             self._publish_section_selection()
         self._update_segment_actions()
 
-    def _edit_component(self, description: str, change_fn: Callable[[], None]) -> None:
+    def _edit_component(self, description: str, change_fn: Callable[[], Any]) -> None:
         def wrapped() -> None:
             change_fn()
             from ..engine.envelope import sync_component_envelope
@@ -545,10 +536,21 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         else:
             self._api.set_section_selection(None)
 
+    def _update_segment_sections_cell(self) -> None:
+        if 0 <= self._segment_index < self.segments_table.rowCount():
+            sections = self._sections()
+            item = self.segments_table.item(self._segment_index, 1)
+            if item is not None:
+                item.setText(str(len(sections)))
+
     def _add_section(self) -> None:
+        segment = self._current_segment()
+        if segment is None:
+            self._add_segment()
+            segment = self._current_segment()
+            if segment is None:
+                return
         sections = self._sections()
-        if self._current_segment() is None:
-            return
         insert_at = (
             self._section_index + 1 if 0 <= self._section_index < len(sections) else len(sections)
         )
@@ -558,6 +560,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
             lambda: sections.insert(insert_at, new_section),
         )
         self._reload_sections(insert_at)
+        self._update_segment_sections_cell()
 
     def _duplicate_section(self) -> None:
         sections = self._sections()
@@ -571,6 +574,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
             lambda: sections.insert(insert_at, duplicate),
         )
         self._reload_sections(insert_at)
+        self._update_segment_sections_cell()
 
     def _move_section_up(self) -> None:
         self._move_section(-1)
@@ -604,6 +608,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
             lambda: sections.pop(index),
         )
         self._reload_sections(min(index, len(sections) - 1))
+        self._update_segment_sections_cell()
 
     def _reload_sections(self, selected_index: int) -> None:
         self._loading = True
@@ -620,6 +625,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         else:
             self._section_index = -1
         self._update_section_actions()
+        self._publish_section_selection()
 
     def _update_section_actions(self) -> None:
         sections = self._sections()
@@ -783,18 +789,49 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         position_values, rotation_values = transform_values
 
         def change() -> None:
-            section["position"] = {
-                "x": position_values[0],
-                "y": position_values[1],
-                "z": position_values[2],
-            }
-            section["rotation"] = {
-                "x": rotation_values[0],
-                "y": rotation_values[1],
-                "z": rotation_values[2],
-            }
+            pos = section.setdefault("position", {})
+            pos["x"] = position_values[0]
+            pos["y"] = position_values[1]
+            pos["z"] = position_values[2]
+            rot = section.setdefault("rotation", {})
+            rot["x"] = rotation_values[0]
+            rot["y"] = rotation_values[1]
+            rot["z"] = rotation_values[2]
 
         self._edit_component("Edit section transform", change)
+        self._refresh_section_row()
+
+    def _on_transform_expression_changed(self, transform_type: str, axis: str, value: Any) -> None:
+        if self._loading:
+            return
+        section = self._current_section()
+        if section is None:
+            return
+        target = self._object(section, transform_type)
+
+        # Read the raw text from the cell widget to detect expressions,
+        # because the callback value is always the resolved numeric float.
+        row = 0 if transform_type == "position" else 1
+        col = ("x", "y", "z").index(axis)
+        widget = self.transform_table.cellWidget(row, col)
+        raw_text = ""
+        if hasattr(widget, "text"):
+            raw_text = widget.text().strip()
+
+        num_val, is_expr = evaluate_expression_or_number(raw_text, self._api)
+        # Fallback to callback value if raw_text couldn't resolve
+        if num_val is None and isinstance(value, (int, float)):
+            num_val = float(value)
+
+        def change() -> None:
+            if is_expr:
+                target[f"{axis}_expression"] = raw_text
+            else:
+                target.pop(f"{axis}_expression", None)
+            if num_val is not None:
+                target[axis] = num_val
+
+        self._edit_component(f"Change fuselage section {transform_type} {axis}", change)
         self._refresh_section_row()
 
     def _update_section_property(self, row: int, column: int) -> None:
@@ -853,38 +890,67 @@ class FuselageEditor(PropertyTableMixin, QWidget):
 
     def _set_transform_values(
         self,
-        position: tuple[float, float, float],
-        rotation: tuple[float, float, float],
+        position: dict[str, Any] | tuple[float, float, float],
+        rotation: dict[str, Any] | tuple[float, float, float],
     ) -> None:
         self_ref = weakref.ref(self)
-        for column, value in enumerate(position):
+        pos_dict = (
+            position
+            if isinstance(position, dict)
+            else {"x": position[0], "y": position[1], "z": position[2]}
+        )
+        rot_dict = (
+            rotation
+            if isinstance(rotation, dict)
+            else {"x": rotation[0], "y": rotation[1], "z": rotation[2]}
+        )
+        axes = ("x", "y", "z")
+        for column, axis in enumerate(axes):
+            raw_val = pos_dict.get(f"{axis}_expression") or pos_dict.get(axis, 0.0)
             set_table_spinbox(
                 self.transform_table,
                 0,
                 column,
-                value,
+                raw_val,
                 step=5.0,
                 decimals=2,
                 quantity="length",
                 suffix="mm",
-                on_changed=lambda _v: (
-                    self_ref()._update_section(0, 0) if self_ref() is not None else None
+                api=self._api,
+                label=f"Position {axis.upper()}",
+                property_key=axis,
+                on_changed=lambda _v, a=axis: (
+                    self_ref()._on_transform_expression_changed("position", a, _v)
+                    if self_ref() is not None
+                    else None
                 ),
             )
-        for column, value in enumerate(rotation):
+        rot_aliases = {"x": "roll", "y": "pitch", "z": "yaw"}
+        for column, axis in enumerate(axes):
+            alias = rot_aliases[axis]
+            raw_val = (
+                rot_dict.get(f"{axis}_expression")
+                or rot_dict.get(f"{alias}_expression")
+                or rot_dict.get(axis, rot_dict.get(alias, 0.0))
+            )
             set_table_spinbox(
                 self.transform_table,
                 1,
                 column,
-                value,
+                raw_val,
                 min_val=-360.0,
                 max_val=360.0,
                 step=1.0,
                 decimals=2,
                 quantity="angle",
                 suffix="°",
-                on_changed=lambda _v: (
-                    self_ref()._update_section(1, 0) if self_ref() is not None else None
+                api=self._api,
+                label=f"Rotation {axis.upper()}",
+                property_key=axis,
+                on_changed=lambda _v, a=axis: (
+                    self_ref()._on_transform_expression_changed("rotation", a, _v)
+                    if self_ref() is not None
+                    else None
                 ),
             )
 
@@ -904,8 +970,11 @@ class FuselageEditor(PropertyTableMixin, QWidget):
                         vals.append(float(item.text()) if item is not None else 0.0)
                     except (AttributeError, ValueError):
                         return None
-            rows.append(tuple(vals))
-        return rows[0], rows[1]
+            if len(vals) == 3:
+                rows.append((vals[0], vals[1], vals[2]))
+        if len(rows) == 2:
+            return rows[0], rows[1]
+        return None
 
     def _update_vertices(self, row: int, column: int) -> None:
         if self._loading:
@@ -1000,18 +1069,24 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         val_str = str(value).strip() if value is not None else ""
 
         num_val, is_expr = evaluate_expression_or_number(val_str, self._api)
-        if is_expr:
-            profile[f"{key}_expression"] = val_str
-        else:
-            profile.pop(f"{key}_expression", None)
+        if not is_expr and (num_val is None or num_val < 0):
+            self._load_section(self._section_index)
+            return
 
-        if num_val is not None:
-            profile[key] = num_val
-            self._edit_component(
-                f"Change fuselage section {key}",
-                lambda: None,
-            )
-            self._update_sections_table()
+        def change() -> None:
+            if is_expr:
+                profile[f"{key}_expression"] = val_str
+            else:
+                profile.pop(f"{key}_expression", None)
+
+            if num_val is not None:
+                profile[key] = num_val
+
+        self._edit_component(
+            f"Change fuselage section {key}",
+            change,
+        )
+        self._refresh_section_row()
         self.vertices_table.setVisible(profile.get("type") == "polygon")
 
     def _on_property_spin_changed(self, key: str, value: float) -> None:
@@ -1106,9 +1181,15 @@ class FuselageEditor(PropertyTableMixin, QWidget):
 
         um = get_unit_manager()
         length_sym = um.get_unit_symbol("length")
-        position = section.get("position") if isinstance(section.get("position"), dict) else {}
-        profile = section.get("profile") if isinstance(section.get("profile"), dict) else {}
+        position: dict[str, Any] = (
+            section.get("position") if isinstance(section.get("position"), dict) else {}
+        )
+        profile: dict[str, Any] = (
+            section.get("profile") if isinstance(section.get("profile"), dict) else {}
+        )
         row = self._section_index
+        if not hasattr(self, "sections_table") or row < 0 or row >= self.sections_table.rowCount():
+            return
         x_raw = float(position.get("x") or 0.0)
         disp_x = um.to_display(x_raw, "length")
         disp_x_str = (
@@ -1116,22 +1197,64 @@ class FuselageEditor(PropertyTableMixin, QWidget):
             if abs(disp_x - round(disp_x)) > 1e-4
             else f"{disp_x:.0f} {length_sym}"
         )
-        self.sections_table.item(row, 1).setText(str(profile.get("type") or ""))
-        self.sections_table.item(row, 2).setText(disp_x_str)
-        self.sections_table.item(row, 3).setText(self._profile_size(profile))
+        item1 = self.sections_table.item(row, 1)
+        if item1 is not None:
+            item1.setText(str(profile.get("type") or ""))
+        item2 = self.sections_table.item(row, 2)
+        if item2 is not None:
+            item2.setText(disp_x_str)
+        item3 = self.sections_table.item(row, 3)
+        if item3 is not None:
+            item3.setText(self._profile_size(profile))
 
     def _parameters(self) -> dict[str, Any]:
         return self._object(self._component, "parameters")
 
     def _segments(self) -> list[dict[str, Any]]:
-        geometry = self._parameters().get("geometry")
+        parameters = self._parameters()
+        geometry = parameters.get("geometry")
         if not isinstance(geometry, dict):
-            return []
+            geometry = {}
+            parameters["geometry"] = geometry
         segments = geometry.get("segments")
         if not isinstance(segments, list) or not all(
             isinstance(segment, dict) for segment in segments
         ):
-            return []
+            # Check for legacy top-level sections
+            legacy_sections = geometry.pop("sections", None)
+            loft = geometry.get("loft")
+            loft_dict = (
+                loft
+                if isinstance(loft, dict)
+                else {
+                    "method": "smooth",
+                    "parameterization": "centripetal",
+                    "profile_correspondence": "cardinal_quadrants",
+                }
+            )
+            if isinstance(legacy_sections, list) and legacy_sections:
+                segments = [
+                    {
+                        "tag": "main",
+                        "loft": loft_dict,
+                        "sections": legacy_sections,
+                    }
+                ]
+            else:
+                segments = [create_default_segment("main", 0.0, 500.0)]
+            geometry["segments"] = segments
+
+        # If top-level sections existed alongside empty segments, migrate them
+        legacy_sections = geometry.pop("sections", None)
+        if isinstance(legacy_sections, list) and legacy_sections and segments:
+            first_seg = segments[0]
+            if not first_seg.get("sections"):
+                first_seg["sections"] = legacy_sections
+
+        for seg in segments:
+            if not isinstance(seg.get("sections"), list):
+                seg["sections"] = []
+
         return segments
 
     def _sections(self) -> list[dict[str, Any]]:
@@ -1139,16 +1262,18 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         if segment is None:
             return []
         sections = segment.get("sections")
-        if not isinstance(sections, list) or not all(
-            isinstance(section, dict) for section in sections
-        ):
-            return []
+        if not isinstance(sections, list):
+            sections = []
+            segment["sections"] = sections
         return sections
 
     def _current_segment(self) -> dict[str, Any] | None:
         segments = self._segments()
         if 0 <= self._segment_index < len(segments):
             return segments[self._segment_index]
+        if segments:
+            self._segment_index = 0
+            return segments[0]
         return None
 
     def _current_section(self) -> dict[str, Any] | None:
@@ -1164,36 +1289,6 @@ class FuselageEditor(PropertyTableMixin, QWidget):
             value = {}
             owner[key] = value
         return value
-
-    def _set_property_spinbox(
-        self,
-        table: QTableWidget,
-        key: str,
-        value: float,
-        *,
-        min_val: float = -1e6,
-        max_val: float = 1e6,
-        step: float = 1.0,
-        decimals: int = 2,
-        suffix: str = "",
-        on_changed: Callable[[float], None] | None = None,
-    ) -> NumericSpinBox | None:
-        for row in range(table.rowCount()):
-            if self._property_key(table, row) != key:
-                continue
-            return set_table_spinbox(
-                table,
-                row,
-                1,
-                value,
-                min_val=min_val,
-                max_val=max_val,
-                step=step,
-                decimals=decimals,
-                suffix=suffix,
-                on_changed=on_changed,
-            )
-        return None
 
     @staticmethod
     def _profile_size(profile: dict[str, Any]) -> str:

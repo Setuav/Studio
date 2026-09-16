@@ -112,22 +112,15 @@ class GeometryCreationController:
             "airframe-structure", "Airframe Structure", include_assemblies=True
         )
 
-        components = self._components()
-        members, new_components = self._build_structural_members(components, project)
-
         assembly_dict: dict[str, Any] = {
             "kind": "assembly",
             "id": assembly_id,
             "name": assembly_name,
             "type": _STRUCTURAL_SYSTEM_TYPE,
-            "members": members,
+            "members": {"fuselage": None, "wings": []},
         }
 
         def change() -> None:
-            if new_components:
-                comps = project.data.setdefault("components", [])
-                if isinstance(comps, list):
-                    comps.extend(new_components)
             asms = project.data.setdefault("assemblies", [])
             if isinstance(asms, list):
                 asms.append(assembly_dict)
@@ -144,130 +137,6 @@ class GeometryCreationController:
         if created is not None:
             self._api.set_selection(created)
             self._api.show_status(f"Created {assembly_name}", "success", 3000)
-
-    def _build_structural_members(
-        self, components: list[dict[str, Any]], project: Any
-    ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-        assigned_cids = self._collect_assigned_component_ids(project)
-        unassigned_fuse = [
-            c["id"]
-            for c in components
-            if c.get("type") == _FUSELAGE_TYPE and c.get("id") not in assigned_cids
-        ]
-        unassigned_wings = [
-            c["id"]
-            for c in components
-            if c.get("type") == _LIFTING_SURFACE_TYPE and c.get("id") not in assigned_cids
-        ]
-
-        members: dict[str, Any] = {}
-        if unassigned_fuse:
-            members["fuselage"] = unassigned_fuse[0]
-        if unassigned_wings:
-            members["wings"] = unassigned_wings
-
-        if not members and not components:
-            return self._create_starter_airframe()
-
-        return members, []
-
-    def _collect_assigned_component_ids(self, project: Any) -> set[str]:
-        assigned: set[str] = set()
-        existing_assemblies = project.data.get("assemblies", [])
-        if isinstance(existing_assemblies, list):
-            for asm in existing_assemblies:
-                if isinstance(asm, dict):
-                    members_dict = asm.get("members", {})
-                    if isinstance(members_dict, dict):
-                        for v in members_dict.values():
-                            if isinstance(v, list):
-                                assigned.update(str(x) for x in v)
-                            elif v:
-                                assigned.add(str(v))
-        return assigned
-
-    def _create_starter_airframe(self) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-        fuse_id, fuse_name = self._unique_identity("fuselage", "Fuselage")
-        fuse_sections = [
-            create_default_section(0.0, "circle"),
-            create_default_section(140.0, "circle"),
-            create_default_section(600.0, "circle"),
-        ]
-        for section, diameter in zip(fuse_sections, (25.0, 120.0, 35.0), strict=True):
-            profile_dict = section.get("profile")
-            if isinstance(profile_dict, dict):
-                profile_dict["diameter"] = diameter
-
-        fuse_comp = {
-            "kind": "component",
-            "id": fuse_id,
-            "name": fuse_name,
-            "type": _FUSELAGE_TYPE,
-            "parent": None,
-            "mass": 350.0,
-            "transform": {
-                "position": {"x": 0.0, "y": 0.0, "z": 0.0},
-                "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
-            },
-            "envelope": {
-                "shape": "trapezoid",
-                "size_mm": {"x": 600.0, "y": 120.0, "z": 120.0},
-                "offset_mm": {"x": 300.0, "y": 0.0, "z": 0.0},
-            },
-            "parameters": {
-                "geometry": {
-                    "segments": [
-                        {
-                            "tag": "main",
-                            "loft": {
-                                "method": "smooth",
-                                "parameterization": "centripetal",
-                                "profile_correspondence": "cardinal_quadrants",
-                                "skin_interpolation": "cubic",
-                            },
-                        }
-                    ],
-                    "sections": fuse_sections,
-                }
-            },
-        }
-        wing_id, wing_name = self._unique_identity("main-wing", "Main Wing")
-        wing_comp = {
-            "kind": "component",
-            "id": wing_id,
-            "name": wing_name,
-            "type": _LIFTING_SURFACE_TYPE,
-            "parent": fuse_id,
-            "mass": 420.0,
-            "transform": {
-                "position": {"x": 180.0, "y": 0.0, "z": 30.0},
-                "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
-            },
-            "envelope": {
-                "shape": "box",
-                "size_mm": {"x": 200.0, "y": 1400.0, "z": 24.0},
-                "offset_mm": {"x": 100.0, "y": 0.0, "z": 0.0},
-            },
-            "parameters": {
-                "is_symmetric": True,
-                "wingspan": 1400.0,
-                "root_chord": 200.0,
-                "tip_chord": 140.0,
-                "sweep_angle": 3.0,
-                "dihedral_angle": 2.0,
-                "geometry": {
-                    "profiles": [
-                        self._wing_profile(0.0, 200.0, "naca2412"),
-                        self._wing_profile(700.0, 140.0, "naca2412"),
-                    ]
-                },
-            },
-        }
-        from .engine.envelope import sync_component_envelope
-
-        sync_component_envelope(fuse_comp)
-        sync_component_envelope(wing_comp)
-        return {"fuselage": fuse_id, "wings": [wing_id]}, [fuse_comp, wing_comp]
 
     def add_fuselage(self) -> None:
         if not self._require_editable_project():

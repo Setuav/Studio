@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import logging
 import pkgutil
+import sys
 from importlib import import_module, metadata
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from PySide6.QtCore import QSettings
 
 from setuav_studio_sdk.plugin import StudioPlugin
 
+from .installer import get_user_plugins_dir, install_plugin_archive
 from .requirements import (
     PluginLoadIssue,
     _candidate_sort_key,
@@ -103,8 +106,9 @@ class PluginManager:
         logger.info("Discovering plugins")
         bundled_issues, bundled_candidates = self._collect_bundled_candidates()
         entry_point_issues, entry_point_candidates = self._collect_entry_point_candidates()
-        issues = bundled_issues + entry_point_issues
-        candidates = bundled_candidates + entry_point_candidates
+        user_issues, user_candidates = self._collect_user_directory_candidates()
+        issues = bundled_issues + entry_point_issues + user_issues
+        candidates = bundled_candidates + entry_point_candidates + user_candidates
         candidates.sort(key=lambda item: (item[0], item[1]))
         self._activate_candidates(candidates, issues)
         self._load_issues = issues
@@ -177,6 +181,147 @@ class PluginManager:
                 logger.warning("Failed to load entry-point plugin %s: %s", entry_point.name, exc)
                 issues.append(PluginLoadIssue(entry_point.name, str(exc)))
         return issues, candidates
+
+    def _collect_user_directory_candidates(
+        self,
+    ) -> tuple[list[PluginLoadIssue], list[tuple[int, str, object]]]:
+        issues: list[PluginLoadIssue] = []
+        candidates: list[tuple[int, str, object]] = []
+        user_dir = get_user_plugins_dir()
+        if not user_dir.is_dir():
+            return issues, candidates
+
+        user_dir_str = str(user_dir)
+        if user_dir_str not in sys.path:
+            sys.path.insert(0, user_dir_str)
+
+        for item in sorted(user_dir.iterdir()):
+            if item.name.startswith((".", "__")):
+                continue
+            try:
+                candidate = None
+                source_name = item.stem if item.is_file() else item.name
+                if item.is_dir():
+                    candidate = self._load_plugin_from_dir(item)
+                elif item.is_file() and item.suffix == ".py":
+                    candidate = self._load_plugin_from_file(item)
+
+                if candidate is not None:
+                    candidates.append(_candidate_sort_key(candidate, source_name))
+            except Exception as exc:
+                logger.warning("Failed to load user plugin from %s: %s", item.name, exc)
+                issues.append(PluginLoadIssue(item.name, str(exc)))
+
+        return issues, candidates
+
+    def _load_plugin_from_dir(self, plugin_dir: Path) -> object | None:
+        # 1. Check for pyproject.toml with entry-points
+        pyproject_file = plugin_dir / "pyproject.toml"
+        if pyproject_file.is_file():
+            candidate = self._load_from_pyproject(plugin_dir, pyproject_file)
+            if candidate is not None:
+                return candidate
+
+        # 2. Check if src/ exists and add to sys.path
+        src_dir = plugin_dir / "src"
+        if src_dir.is_dir() and str(src_dir) not in sys.path:
+            sys.path.insert(0, str(src_dir))
+        if str(plugin_dir) not in sys.path:
+            sys.path.insert(0, str(plugin_dir))
+
+        # 3. Check for standard package __init__.py
+        init_file = plugin_dir / "__init__.py"
+        if init_file.is_file():
+            mod = import_module(plugin_dir.name)
+            candidate = self._find_plugin_in_module(mod)
+            if candidate is not None:
+                return candidate
+            if (plugin_dir / "plugin.py").is_file():
+                submod = import_module(f"{plugin_dir.name}.plugin")
+                candidate = self._find_plugin_in_module(submod)
+                if candidate is not None:
+                    return candidate
+
+        # 4. Check for standalone plugin.py in the directory
+        plugin_file = plugin_dir / "plugin.py"
+        if plugin_file.is_file():
+            return self._load_plugin_from_file(plugin_file, module_name=plugin_dir.name)
+
+        return None
+
+    def _load_from_pyproject(self, plugin_dir: Path, pyproject_file: Path) -> object | None:
+        try:
+            import tomllib
+
+            data = tomllib.loads(pyproject_file.read_text("utf-8"))
+            ep_group = (
+                data.get("project", {}).get("entry-points", {}).get("setuav_studio.plugins", {})
+            )
+            if not isinstance(ep_group, dict) or not ep_group:
+                return None
+
+            src_dir = plugin_dir / "src"
+            if src_dir.is_dir() and str(src_dir) not in sys.path:
+                sys.path.insert(0, str(src_dir))
+            if str(plugin_dir) not in sys.path:
+                sys.path.insert(0, str(plugin_dir))
+
+            for ep_str in ep_group.values():
+                if isinstance(ep_str, str) and ":" in ep_str:
+                    mod_name, attr_name = ep_str.split(":", 1)
+                    mod = import_module(mod_name.strip())
+                    candidate = getattr(mod, attr_name.strip(), None)
+                    if candidate is not None:
+                        return candidate
+        except Exception as exc:
+            logger.warning(
+                "Could not load entry-points from pyproject.toml in %s: %s",
+                plugin_dir.name,
+                exc,
+            )
+        return None
+
+    def _load_plugin_from_file(
+        self, file_path: Path, module_name: str | None = None
+    ) -> object | None:
+        import importlib.util
+
+        name = module_name or file_path.stem
+        spec = importlib.util.spec_from_file_location(f"user_plugins.{name}", file_path)
+        if spec and spec.loader:
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            return self._find_plugin_in_module(mod)
+        return None
+
+    @staticmethod
+    def _find_plugin_in_module(module: Any) -> object | None:
+        if hasattr(module, "PLUGIN"):
+            return module.PLUGIN
+        for name in dir(module):
+            if name.startswith("_"):
+                continue
+            obj = getattr(module, name)
+            if (
+                isinstance(obj, type)
+                and obj.__name__ != "StudioPlugin"
+                and hasattr(obj, "id")
+                and hasattr(obj, "activate")
+                and callable(obj.activate)
+            ) or (
+                not isinstance(obj, type)
+                and hasattr(obj, "id")
+                and hasattr(obj, "activate")
+                and callable(obj.activate)
+            ):
+                return obj
+        return None
+
+    def install_archive(self, archive_path: Path | str) -> Path:
+        """Extract and install a plugin archive into the user plugins directory, then discover."""
+        installed = install_plugin_archive(archive_path, get_user_plugins_dir())
+        self.discover()
+        return installed
 
     def _activate_candidates(
         self,

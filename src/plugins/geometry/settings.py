@@ -1,7 +1,12 @@
 """Persistent settings pages for the geometry plugin."""
 
+from contextlib import suppress
+from typing import Any
+
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QCheckBox, QComboBox, QFormLayout, QWidget
+
+from setuav_studio_sdk import StudioEvents
 
 from .viewport.palettes import DEFAULT_PALETTE, palette_names, set_active_palette
 
@@ -32,54 +37,83 @@ def _combo_value(combo: QComboBox, key: str, fallback: str) -> None:
     combo.setCurrentIndex(index if index >= 0 else 0)
 
 
-def create_viewer_settings_page() -> QWidget:
-    settings = QSettings()
-    page = QWidget()
-    form = QFormLayout(page)
+class ViewerSettingsPage(QWidget):
+    """Settings page widget for 3D viewer preferences."""
 
-    projection = QComboBox()
-    projection.setObjectName("defaultProjection")
-    projection.addItem("Orthographic", "orthographic")
-    projection.addItem("Perspective", "perspective")
-    _combo_value(projection, _VIEWER_PROJECTION_KEY, "orthographic")
-    form.addRow("Default projection:", projection)
+    def __init__(self, api: Any = None, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._api = api
+        form = QFormLayout(self)
 
-    palette = QComboBox()
-    palette.setObjectName("defaultPalette")
-    for name in palette_names():
-        palette.addItem(name.capitalize(), name)
-    _combo_value(palette, _VIEWER_PALETTE_KEY, DEFAULT_PALETTE)
-    form.addRow("Default palette:", palette)
+        self.projection = QComboBox(self)
+        self.projection.setObjectName("defaultProjection")
+        self.projection.addItem("Orthographic", "orthographic")
+        self.projection.addItem("Perspective", "perspective")
+        form.addRow("Default projection:", self.projection)
 
-    wire_mode = QComboBox()
-    wire_mode.setObjectName("wireframeMode")
-    wire_mode.addItem("Feature Edges", "feature")
-    wire_mode.addItem("Full Mesh", "full")
-    _combo_value(wire_mode, _VIEWER_WIRE_MODE_KEY, "feature")
-    form.addRow("Wireframe style:", wire_mode)
+        self.palette = QComboBox(self)
+        self.palette.setObjectName("defaultPalette")
+        for name in palette_names():
+            self.palette.addItem(name.capitalize(), name)
+        form.addRow("Default palette:", self.palette)
 
-    show_grid = QCheckBox("Show reference grid")
-    show_grid.setObjectName("showGrid")
-    show_grid.setChecked(_as_bool(settings.value(_VIEWER_GRID_KEY, True), True))
-    form.addRow(show_grid)
+        self.wire_mode = QComboBox(self)
+        self.wire_mode.setObjectName("wireframeMode")
+        self.wire_mode.addItem("Feature Edges", "feature")
+        self.wire_mode.addItem("Full Mesh", "full")
+        form.addRow("Wireframe style:", self.wire_mode)
 
-    show_solid = QCheckBox("Show solid surfaces")
-    show_solid.setObjectName("showSolid")
-    show_solid.setChecked(_as_bool(settings.value(_VIEWER_SOLID_KEY, True), True))
-    form.addRow(show_solid)
+        self.show_grid = QCheckBox("Show reference grid", self)
+        self.show_grid.setObjectName("showGrid")
+        form.addRow(self.show_grid)
 
-    show_wire = QCheckBox("Show wireframe")
-    show_wire.setObjectName("showWireframe")
-    show_wire.setChecked(_as_bool(settings.value(_VIEWER_WIRE_KEY, True), True))
-    form.addRow(show_wire)
+        self.show_solid = QCheckBox("Show solid surfaces", self)
+        self.show_solid.setObjectName("showSolid")
+        form.addRow(self.show_solid)
 
-    transparent_screenshot = QCheckBox("Transparent background in screenshots")
-    transparent_screenshot.setObjectName("transparentScreenshot")
-    transparent_screenshot.setChecked(
-        _as_bool(settings.value(_VIEWER_SCREENSHOT_TRANSPARENT_KEY, False), False)
-    )
-    form.addRow(transparent_screenshot)
-    return page
+        self.show_wire = QCheckBox("Show wireframe", self)
+        self.show_wire.setObjectName("showWireframe")
+        form.addRow(self.show_wire)
+
+        self.transparent_screenshot = QCheckBox("Transparent background in screenshots", self)
+        self.transparent_screenshot.setObjectName("transparentScreenshot")
+        form.addRow(self.transparent_screenshot)
+
+        self.load_from_settings()
+
+        if self._api is not None:
+            self._api.subscribe(
+                StudioEvents.GEOMETRY_VIEWER_SETTINGS_CHANGED,
+                self._on_settings_changed,
+            )
+            self.destroyed.connect(self._detach)
+
+    def load_from_settings(self) -> None:
+        settings = QSettings()
+        _combo_value(self.projection, _VIEWER_PROJECTION_KEY, "orthographic")
+        _combo_value(self.palette, _VIEWER_PALETTE_KEY, DEFAULT_PALETTE)
+        _combo_value(self.wire_mode, _VIEWER_WIRE_MODE_KEY, "feature")
+        self.show_grid.setChecked(_as_bool(settings.value(_VIEWER_GRID_KEY, True), True))
+        self.show_solid.setChecked(_as_bool(settings.value(_VIEWER_SOLID_KEY, True), True))
+        self.show_wire.setChecked(_as_bool(settings.value(_VIEWER_WIRE_KEY, True), True))
+        self.transparent_screenshot.setChecked(
+            _as_bool(settings.value(_VIEWER_SCREENSHOT_TRANSPARENT_KEY, False), False)
+        )
+
+    def _on_settings_changed(self, _payload: object = None) -> None:
+        self.load_from_settings()
+
+    def _detach(self, *_args: object) -> None:
+        if self._api is not None:
+            with suppress(Exception):
+                self._api.unsubscribe(
+                    StudioEvents.GEOMETRY_VIEWER_SETTINGS_CHANGED,
+                    self._on_settings_changed,
+                )
+
+
+def create_viewer_settings_page(api: Any = None) -> QWidget:
+    return ViewerSettingsPage(api=api)
 
 
 def apply_viewer_settings(page: QWidget) -> None:
@@ -165,6 +199,7 @@ __all__ = [
     "_VIEWER_SOLID_KEY",
     "_VIEWER_WIRE_KEY",
     "_VIEWER_WIRE_MODE_KEY",
+    "ViewerSettingsPage",
     "apply_editor_settings",
     "apply_viewer_settings",
     "create_editor_settings_page",

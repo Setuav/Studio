@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import weakref
 from typing import Any
 
@@ -113,6 +112,8 @@ class PointMassEditor(PropertyTableMixin, QWidget):
                 maximum=1e9,
                 quantity="length",
                 suffix="mm",
+                axis=axis,
+                label=f"Position {axis.upper()}",
             )
             for column, axis in enumerate(("x", "y", "z"))
         }
@@ -124,10 +125,35 @@ class PointMassEditor(PropertyTableMixin, QWidget):
                 maximum=360.0,
                 quantity="angle",
                 suffix="°",
+                axis=axis,
+                label=f"Rotation {axis.title()}",
             )
             for column, axis in enumerate(("roll", "pitch", "yaw"))
         }
         layout.addWidget(self.transform_table)
+
+    def _transform(self) -> dict[str, Any]:
+        tf = self._component.get("transform")
+        if not isinstance(tf, dict):
+            tf = {}
+            self._component["transform"] = tf
+        return tf
+
+    def _position(self) -> dict[str, Any]:
+        tf = self._transform()
+        pos = tf.get("position")
+        if not isinstance(pos, dict):
+            pos = {}
+            tf["position"] = pos
+        return pos
+
+    def _rotation(self) -> dict[str, Any]:
+        tf = self._transform()
+        rot = tf.get("rotation")
+        if not isinstance(rot, dict):
+            rot = {}
+            tf["rotation"] = rot
+        return rot
 
     def _spin(
         self,
@@ -137,9 +163,11 @@ class PointMassEditor(PropertyTableMixin, QWidget):
         maximum: float,
         quantity: str,
         suffix: str,
+        axis: str,
         label: str = "",
     ) -> Any:
         self_ref = weakref.ref(self)
+        target_dict = self._position() if row == 0 else self._rotation()
         return set_table_spinbox(
             self.transform_table,
             row,
@@ -151,6 +179,8 @@ class PointMassEditor(PropertyTableMixin, QWidget):
             decimals=2,
             quantity=quantity,
             suffix=suffix,
+            target_data=target_dict,
+            property_key=axis,
             on_changed=lambda _value: (
                 self_ref()._transform_changed() if self_ref() is not None else None
             ),
@@ -161,63 +191,43 @@ class PointMassEditor(PropertyTableMixin, QWidget):
     def _load_component(self) -> None:
         self._loading = True
         try:
-            params = self._component.get("parameters")
-            params = params if isinstance(params, dict) else {}
-            mass_val = self._component.get("mass_expression") or self._component.get(
-                "mass", params.get("mass", 0.0)
-            )
-            self._set_property_expression(
+            params = self._component.setdefault("parameters", {})
+            mass_val = float(self._component.get("mass", params.get("mass", 0.0)))
+            self._set_property_spinbox(
                 self.mass_table,
                 "mass",
                 mass_val,
-                on_changed=self._on_mass_expression_changed,
-                label="Mass",
+                min_val=0.0,
+                max_val=1e8,
+                step=10.0,
+                decimals=1,
                 unit="g",
+                target_data=params,
+                on_changed=self._on_mass_changed,
+                label="Mass",
             )
-            transform = self._component.get("transform")
-            transform = transform if isinstance(transform, dict) else {}
-            position = transform.get("position")
-            position = position if isinstance(position, dict) else {}
-            rotation = transform.get("rotation")
-            rotation = rotation if isinstance(rotation, dict) else {}
+            pos = self._position()
+            rot = self._rotation()
             for axis, spin in self.position_spins.items():
-                val = position.get(f"{axis}_expression") or position.get(axis, 0.0)
+                val = pos.get(axis, 0.0)
                 spin.setValue(val)
             for axis, spin in self.rotation_spins.items():
-                val = rotation.get(f"{axis}_expression") or rotation.get(axis, 0.0)
+                val = rot.get(axis, 0.0)
                 spin.setValue(val)
         finally:
             self._loading = False
 
-    def _on_mass_expression_changed(self, val_text: str) -> None:
+    def _on_mass_changed(self, value: Any) -> None:
         if self._loading:
             return
-        clean = val_text.strip()
-        num_val: float | None = None
-        params = self._component.setdefault("parameters", {})
-        if clean.startswith("=") or not clean.replace(".", "", 1).replace("-", "", 1).isdigit():
-            params["mass_expression"] = clean
-            if self._api is not None and getattr(self._api, "current_project", None) is not None:
-                try:
-                    from setuav_studio.model.expression import ExpressionEvaluator
-
-                    evaluator = ExpressionEvaluator()
-                    scope = self._api.current_project.get_scope(api=self._api)
-                    expr = clean.lstrip("=").strip()
-                    res = evaluator.evaluate(expr, scope)
-                    if isinstance(res, (int, float)):
-                        num_val = float(res)
-                except Exception:
-                    pass
-        else:
-            params.pop("mass_expression", None)
-            with contextlib.suppress(ValueError):
-                num_val = float(clean)
+        try:
+            num_val = float(value)
+        except (ValueError, TypeError):
+            return
 
         def change() -> None:
-            if num_val is not None:
-                self._component["mass"] = num_val
-                self._component.setdefault("parameters", {})["mass"] = num_val
+            self._component["mass"] = num_val
+            self._component.setdefault("parameters", {})["mass"] = num_val
 
         self._api.edit_component(self._component, "Edit point mass", change)
 
@@ -228,25 +238,12 @@ class PointMassEditor(PropertyTableMixin, QWidget):
         rotation = {axis: spin.value() for axis, spin in self.rotation_spins.items()}
 
         def change() -> None:
-            tf = self._component.setdefault("transform", {})
-            tf["position"] = position
-            tf["rotation"] = rotation
-            # Store any transform expression strings safely in component parameters
-            exprs: dict[str, str] = {}
-            for axis, spin in self.position_spins.items():
-                txt = spin.text().strip()
-                if txt.startswith("="):
-                    exprs[f"position.{axis}"] = txt
-            for axis, spin in self.rotation_spins.items():
-                txt = spin.text().strip()
-                if txt.startswith("="):
-                    exprs[f"rotation.{axis}"] = txt
-            if exprs:
-                self._component.setdefault("parameters", {})["transform_expressions"] = exprs
-            elif "parameters" in self._component:
-                self._component["parameters"].pop("transform_expressions", None)
+            pos = self._position()
+            pos.update(position)
+            rot = self._rotation()
+            rot.update(rotation)
 
-        self._api.edit_component(self._component, "Edit point-mass transform", change)
+        self._api.edit_component(self._component, "Edit point mass transform", change)
 
     def update_theme_style(self) -> None:
         for label, icon_name in self._section_icons:

@@ -280,7 +280,20 @@ class ProjectExplorerOperations:
 
     def delete_parameter_item(self, element: dict[str, Any]) -> None:
         param_name = str(element.get("key") or "")
-        if not self.confirm_delete(f"Parameter '{param_name}'", []):
+        pdata = self._api.current_project.data if self._api.current_project else {}
+        from setuav_studio.model.expression import find_symbol_usages_in_project
+
+        usages = find_symbol_usages_in_project(pdata, param_name)
+        details: list[str] = []
+        if usages:
+            details.append(f"WARNING: Referenced in {len(usages)} expression(s):")
+            for loc, expr in usages[:5]:
+                details.append(f"• {loc}: {expr}")
+            if len(usages) > 5:
+                details.append(f"... and {len(usages) - 5} more")
+            details.append("Deleting will break these expressions (#REF!).")
+
+        if not self.confirm_delete(f"Parameter '{param_name}'", details):
             return
 
         def _apply_param_del() -> None:
@@ -289,6 +302,8 @@ class ProjectExplorerOperations:
 
         self._api.set_selection(None)
         self._api.edit_project(f"Delete parameter '{param_name}'", _apply_param_del)
+        if hasattr(self._api.current_project, "recompute_expressions"):
+            self._api.current_project.recompute_expressions(self._api)
         self._api.show_status(f'Deleted parameter "{param_name}"', "success", 3000)
 
     def delete_constraint_item(self, element: dict[str, Any]) -> None:
@@ -323,6 +338,22 @@ class ProjectExplorerOperations:
             component_ids,
             assembly_ids,
         )
+
+        pdata = self._api.current_project.data if self._api.current_project else {}
+        from setuav_studio.model.expression import find_symbol_usages_in_project
+
+        all_usages: list[tuple[str, str]] = []
+        for cid in component_ids:
+            all_usages.extend(find_symbol_usages_in_project(pdata, cid))
+
+        if all_usages:
+            details.append(f"WARNING: Referenced in {len(all_usages)} expression(s):")
+            for loc, expr in all_usages[:5]:
+                details.append(f"• {loc}: {expr}")
+            if len(all_usages) > 5:
+                details.append(f"... and {len(all_usages) - 5} more")
+            details.append("Deleting will break these expressions (#REF!).")
+
         if not self.confirm_delete(element_name, details):
             return
 
@@ -331,6 +362,8 @@ class ProjectExplorerOperations:
 
         self._api.set_selection(None)
         self._api.edit_project(f"Delete {element_name}", change)
+        if hasattr(self._api.current_project, "recompute_expressions"):
+            self._api.current_project.recompute_expressions(self._api)
         self._api.show_status(f'Deleted "{element_name}"', "success", 3000)
 
     def rename_item(self, item: QTreeWidgetItem, column: int) -> None:

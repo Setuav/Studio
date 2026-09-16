@@ -6,6 +6,7 @@ import copy
 from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QHBoxLayout,
@@ -41,7 +42,7 @@ class ProjectParametersPanel(QWidget):
 
         # Toolbar / buttons
         btn_bar = QHBoxLayout()
-        self.btn_add = QPushButton(get_icon("file_new"), "Add Parameter")
+        self.btn_add = QPushButton(get_icon("fa6s.plus"), "Add Parameter")
         self.btn_add.clicked.connect(self._add_parameter)
         btn_bar.addWidget(self.btn_add)
 
@@ -62,6 +63,8 @@ class ProjectParametersPanel(QWidget):
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)
+        self.table.verticalHeader().setDefaultSectionSize(22)
+        self.table.verticalHeader().setMinimumSectionSize(20)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.itemChanged.connect(self._on_item_changed)
@@ -92,6 +95,29 @@ class ProjectParametersPanel(QWidget):
                 if isinstance(mgr, ConfigurationManager):
                     return mgr
         return ConfigurationManager(data, self._resolver)
+
+    def _format_resolved(self, res_val: Any, param_def: Any) -> str:
+        """Format resolved value with its unit symbol from the active unit system."""
+        if not isinstance(res_val, (float, int)) or isinstance(res_val, bool):
+            return str(res_val)
+
+        from setuav_studio.units import get_unit_manager
+
+        um = get_unit_manager()
+
+        # Determine quantity from parameter definition
+        quantity = ""
+        if isinstance(param_def, dict):
+            quantity = param_def.get("quantity") or ""
+
+        if quantity:
+            display_val = um.to_display(float(res_val), quantity)
+            sym = um.get_unit_symbol(quantity)
+            formatted = f"{display_val:.4g}"
+            return f"{formatted} {sym}" if sym else formatted
+
+        formatted = f"{res_val:.4g}"
+        return formatted
 
     def _refresh(self) -> None:
         if self._loading:
@@ -134,14 +160,16 @@ class ProjectParametersPanel(QWidget):
                     if q_info:
                         val_item.setToolTip(f"Quantity: {q_info}")
 
-                # Col 2: Resolved Value
+                # Col 2: Resolved Value (with unit)
                 res_val = resolved_params.get(k, "Error")
-                res_str = (
-                    f"{res_val:.4g}"
-                    if isinstance(res_val, (float, int)) and not isinstance(res_val, bool)
-                    else str(res_val)
-                )
-                res_item = QTableWidgetItem(res_str)
+                if res_val is None or res_val == "Error":
+                    res_str = "#REF!"
+                    res_item = QTableWidgetItem(res_str)
+                    res_item.setForeground(QColor(229, 57, 53))
+                    res_item.setToolTip("Formula evaluation failed (#REF!)")
+                else:
+                    res_str = self._format_resolved(res_val, val)
+                    res_item = QTableWidgetItem(res_str)
                 res_item.setFlags(res_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
 
                 # Check if overridden in active config
@@ -192,13 +220,34 @@ class ProjectParametersPanel(QWidget):
         else:
             target_val = parsed_val
 
+        renamed_count = 0
+
         def _apply() -> None:
+            nonlocal renamed_count
             if old_key and old_key != new_key and old_key in raw_params:
                 del raw_params[old_key]
+                from setuav_studio.model.expression import rename_symbol_in_project
+
+                renamed_count = rename_symbol_in_project(data, old_key, new_key)
             if new_key:
                 raw_params[new_key] = target_val
 
-        self._api.edit_project("Edit project parameters", _apply)
+        desc = (
+            f"Rename parameter '{old_key}' to '{new_key}'"
+            if old_key and old_key != new_key
+            else f"Edit parameter '{new_key}'"
+        )
+        self._api.edit_project(desc, _apply)
+        recompute = getattr(self._api.current_project, "recompute_expressions", None)
+        if recompute is not None:
+            recompute(self._api)
+
+        if old_key and old_key != new_key:
+            msg = f'Renamed parameter "{old_key}" to "{new_key}"'
+            if renamed_count > 0:
+                msg += f" (updated {renamed_count} dependent expression{'s' if renamed_count > 1 else ''})"
+            self._api.show_status(msg, "success", 4000)
+
         self._refresh()
 
     def _add_parameter(self) -> None:
@@ -240,12 +289,31 @@ class ProjectParametersPanel(QWidget):
             return
         param_name = key_item.text().strip()
 
-        reply = QMessageBox.question(
-            self,
-            "Remove Parameter",
-            f"Are you sure you want to remove parameter '{param_name}'?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        )
+        from setuav_studio.model.expression import find_symbol_usages_in_project
+
+        usages = find_symbol_usages_in_project(data, param_name)
+        if usages:
+            usages_preview = "\n".join(f"• {loc}: {expr}" for loc, expr in usages[:5])
+            if len(usages) > 5:
+                usages_preview += f"\n... and {len(usages) - 5} more"
+            reply = QMessageBox.warning(
+                self,
+                "Confirm Parameter Deletion",
+                f"Parameter '{param_name}' is referenced in {len(usages)} expression(s):\n\n"
+                f"{usages_preview}\n\n"
+                f"Deleting this parameter will break these expressions (#REF!).\n"
+                f"Are you sure you want to proceed?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+        else:
+            reply = QMessageBox.question(
+                self,
+                "Remove Parameter",
+                f"Are you sure you want to remove parameter '{param_name}'?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+
         if reply == QMessageBox.StandardButton.Yes:
             raw_params: dict[str, Any] = data.setdefault("parameters", {})
 
@@ -253,6 +321,9 @@ class ProjectParametersPanel(QWidget):
                 raw_params.pop(param_name, None)
 
             self._api.edit_project(f"Remove parameter '{param_name}'", _apply)
+            recompute = getattr(self._api.current_project, "recompute_expressions", None)
+            if recompute is not None:
+                recompute(self._api)
             self._refresh()
 
     def _on_table_double_clicked(self, index) -> None:
@@ -299,8 +370,15 @@ class ProjectParametersPanel(QWidget):
                 except ValueError:
                     parsed = new_expr
 
+            existing_val = raw_params.get(param_name)
+
             def _apply() -> None:
-                raw_params[param_name] = parsed
+                if isinstance(existing_val, dict):
+                    target_val: Any = copy.deepcopy(existing_val)
+                    target_val["value"] = parsed
+                else:
+                    target_val = parsed
+                raw_params[param_name] = target_val
 
             self._api.edit_project(f"Edit parameter '{param_name}'", _apply)
             self._refresh()

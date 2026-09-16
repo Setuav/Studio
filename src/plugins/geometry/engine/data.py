@@ -2,8 +2,37 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Literal
 
-Point3D = tuple[float, float, float]
-ColorRGB = tuple[float, float, float]
+from setuav_studio_sdk.primitives import (
+    BoxPrimitive,
+    ColorRGB,
+    ColorRGBA,
+    CylinderPrimitive,
+    LineSegmentsPrimitive,
+    LoftPrimitive,
+    PlanePrimitive,
+    Point3D,
+    RingPrimitive,
+    TrianglesPrimitive,
+    VisualPrimitive,
+)
+
+__all__ = [
+    "BoxPrimitive",
+    "ColorRGB",
+    "ColorRGBA",
+    "CylinderPrimitive",
+    "EnvelopeWireGeometry",
+    "GeometryData",
+    "LineSegmentsPrimitive",
+    "LoftGeometry",
+    "LoftPrimitive",
+    "PlanePrimitive",
+    "Point3D",
+    "RingPrimitive",
+    "Section",
+    "TrianglesPrimitive",
+    "VisualPrimitive",
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,6 +71,7 @@ class GeometryData:
 
     lofts: tuple[LoftGeometry, ...] = ()
     envelopes: tuple[EnvelopeWireGeometry, ...] = ()
+    primitives: tuple[VisualPrimitive, ...] = ()
 
     def points(self) -> Iterator[Point3D]:
         for loft in self.lofts:

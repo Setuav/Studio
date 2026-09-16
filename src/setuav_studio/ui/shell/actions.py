@@ -47,8 +47,17 @@ class ActionManager:
         self.new_project_action.setShortcut(QKeySequence.StandardKey.New)
         self.new_project_action.triggered.connect(self._window._new_project)
 
-        self.open_folder_action = self.file_menu.addAction(get_icon("folder_open"), "Open Project…")
-        self.open_folder_action.triggered.connect(self._window._open_project_folder)
+        self.open_action = self.file_menu.addAction(get_icon("folder_open"), "Open Project…")
+        self.open_action.setShortcut(QKeySequence.StandardKey.Open)
+        self.open_action.triggered.connect(self._window._open_project_dialog)
+
+        self.open_project_action = self.open_action
+        self.open_folder_action = self.open_action
+
+        self.open_directory_action = self.file_menu.addAction(
+            get_icon("project_folder"), "Open Project Folder…"
+        )
+        self.open_directory_action.triggered.connect(self._window._open_project_folder)
 
         self.recent_menu = QMenu("Open Recent", self.file_menu)
         self.recent_menu.setIcon(get_icon("project_folder"))
@@ -89,7 +98,8 @@ class ActionManager:
         self.command_actions.update(
             {
                 "core.project.new": self.new_project_action,
-                "core.project.open-folder": self.open_folder_action,
+                "core.project.open": self.open_action,
+                "core.project.open-folder": self.open_directory_action,
                 "core.project.save": self.save_action,
                 "core.project.save-as": self.save_as_action,
                 "core.edit.undo": self.undo_action,
@@ -223,7 +233,9 @@ class ActionManager:
     def update_all_icons(self) -> None:
         try:
             self.new_project_action.setIcon(get_icon("file_new"))
-            self.open_folder_action.setIcon(get_icon("folder_open"))
+            self.open_action.setIcon(get_icon("folder_open"))
+            if hasattr(self, "open_directory_action"):
+                self.open_directory_action.setIcon(get_icon("project_folder"))
             self.recent_menu.setIcon(get_icon("project_folder"))
             self.save_action.setIcon(get_icon("save"))
             self.save_as_action.setIcon(get_icon("save_as"))
@@ -284,6 +296,13 @@ class ActionManager:
         action = self.panel_actions.get(panel_id)
         if entry is None or action is None:
             return
+        try:
+            import shiboken6
+
+            if not shiboken6.isValid(action):
+                return
+        except Exception:
+            pass
         _, dock = entry
         action.setChecked(dock.isVisible())
         self.update_panel_action_icon(panel_id)

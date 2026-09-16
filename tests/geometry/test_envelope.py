@@ -394,6 +394,10 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         # Not selected -> empty
         self.assertEqual(build_envelope_wire_vertices(data, None), [])
         self.assertEqual(build_envelope_wire_vertices(data, "other"), [])
+        # Component selected directly with selected_component_id -> envelope remains empty (not selected)
+        self.assertEqual(
+            build_envelope_wire_vertices(data, None, selected_component_id="fuse-1"), []
+        )
 
         # Selected -> returns line vertices with bright green color
         verts = build_envelope_wire_vertices(data, "fuse-1")
@@ -417,7 +421,7 @@ class EnvelopeEditorUiTests(unittest.TestCase):
 
         workspace = ViewerWorkspace(api)
 
-        # 1. Select Envelope node in tree
+        # 1. Select Envelope node in tree -> envelope selected, component wireframe not selected
         api.set_selection(
             {
                 "id": "test-fuse:envelope",
@@ -427,14 +431,17 @@ class EnvelopeEditorUiTests(unittest.TestCase):
             }
         )
         self.assertEqual(workspace.viewer._selected_envelope_component_id, "test-fuse")
+        self.assertIsNone(workspace.viewer._selected_component_id)
 
-        # 2. Select component itself -> envelope selection is cleared
+        # 2. Select component itself -> envelope selection is cleared, component wireframe is selected
         api.set_selection(fuse)
         self.assertIsNone(workspace.viewer._selected_envelope_component_id)
+        self.assertEqual(workspace.viewer._selected_component_id, "test-fuse")
 
-        # 3. Clear selection -> envelope selection is cleared
+        # 3. Clear selection -> envelope and component selections are cleared
         api.set_selection(None)
         self.assertIsNone(workspace.viewer._selected_envelope_component_id)
+        self.assertIsNone(workspace.viewer._selected_component_id)
 
     def test_lifting_surface_tip_cap_envelope_lines(self) -> None:
         from plugins.geometry.engine.transforms import identity_matrix

@@ -94,6 +94,24 @@ class ExpressionLineEdit(QLineEdit):
             for p in props:
                 self._all_symbols.append(f"{clean_cid}.{p}")
 
+            parent_id = comp.get("parent_id")
+            if parent_id:
+                clean_parent = str(parent_id).replace("-", "_")
+                short_name = clean_cid
+                if clean_cid.startswith(f"{clean_parent}_"):
+                    short_name = clean_cid[len(clean_parent) + 1 :]
+                elif "_" in clean_cid:
+                    short_name = clean_cid.split("_")[-1]
+
+                self._all_symbols.append(f"{clean_parent}.{clean_cid}")
+                if short_name != clean_cid:
+                    self._all_symbols.append(f"{clean_parent}.{short_name}")
+
+                for p in props:
+                    self._all_symbols.append(f"{clean_parent}.{clean_cid}.{p}")
+                    if short_name != clean_cid:
+                        self._all_symbols.append(f"{clean_parent}.{short_name}.{p}")
+
         self._all_symbols = sorted(set(self._all_symbols))
         self._update_completer_model(self._all_symbols)
 
@@ -363,17 +381,35 @@ class AdvancedExpressionDialog(QDialog):
         components = self._metadata.get("components", [])
         self.expr_edit.set_symbol_data(constants, components, math_funcs)
 
-    def _populate_component_tree(self) -> None:
+    def _populate_component_tree(self) -> None:  # noqa: C901
         self.comp_tree.clear()
         components = self._metadata.get("components", [])
 
+        comp_map: dict[str, dict[str, Any]] = {}
         for comp in components:
+            comp_map[comp["id"]] = comp
+            if comp.get("raw_id"):
+                comp_map[comp["raw_id"]] = comp
+
+        tree_items: dict[str, QTreeWidgetItem] = {}
+        top_level_comps: list[dict[str, Any]] = []
+        child_comps: list[dict[str, Any]] = []
+
+        for comp in components:
+            p_id = comp.get("parent_id")
+            if p_id and (p_id in comp_map or p_id.replace("-", "_") in comp_map):
+                child_comps.append(comp)
+            else:
+                top_level_comps.append(comp)
+
+        def _build_comp_item(comp: dict[str, Any], prefix: str | None = None) -> QTreeWidgetItem:
             cid = comp["id"]
             cname = comp["name"]
             ctype = comp["type"]
+            effective_prefix = prefix or cid
 
-            parent_item = QTreeWidgetItem([f"{cname} ({cid})", "", ""])
-            self.comp_tree.addTopLevelItem(parent_item)
+            item_title = f"{cname} ({effective_prefix})"
+            parent_item = QTreeWidgetItem([item_title, "", ""])
 
             sections_folder: QTreeWidgetItem | None = None
             section_items: dict[str, QTreeWidgetItem] = {}
@@ -382,7 +418,7 @@ class AdvancedExpressionDialog(QDialog):
                 pkey = prop["key"]
                 pval = prop["value"]
                 val_str = f"{pval:.4g}" if isinstance(pval, (int, float)) else str(pval)
-                expr_tag = prop["expression"]
+                expr_tag = f"{effective_prefix}.{pkey}"
 
                 if pkey.startswith("section_"):
                     if sections_folder is None:
@@ -405,7 +441,7 @@ class AdvancedExpressionDialog(QDialog):
                             section_items[sec_key] = sec_item
 
                         target_sec_item = section_items[sec_key]
-                        sub_tag = f"{cid}.{sec_key}.{subprop}"
+                        sub_tag = f"{effective_prefix}.{sec_key}.{subprop}"
                         child_item = QTreeWidgetItem([subprop, val_str, sub_tag])
                         child_item.setData(0, Qt.ItemDataRole.UserRole, sub_tag)
                         target_sec_item.addChild(child_item)
@@ -421,6 +457,32 @@ class AdvancedExpressionDialog(QDialog):
             parent_item.setExpanded(True)
             if sections_folder:
                 sections_folder.setExpanded(False)
+            return parent_item
+
+        for comp in top_level_comps:
+            item = _build_comp_item(comp)
+            tree_items[comp["id"]] = item
+            if comp.get("raw_id"):
+                tree_items[comp["raw_id"]] = item
+            self.comp_tree.addTopLevelItem(item)
+
+        for comp in child_comps:
+            p_id = comp.get("parent_id", "")
+            parent_item = tree_items.get(p_id) or tree_items.get(p_id.replace("-", "_"))
+            clean_parent = p_id.replace("-", "_")
+            cid = comp["id"]
+            short_name = cid
+            if cid.startswith(f"{clean_parent}_"):
+                short_name = cid[len(clean_parent) + 1 :]
+            elif "_" in cid:
+                short_name = cid.split("_")[-1]
+
+            hierarchical_prefix = f"{clean_parent}.{short_name}"
+            item = _build_comp_item(comp, prefix=hierarchical_prefix)
+            if parent_item is not None:
+                parent_item.addChild(item)
+            else:
+                self.comp_tree.addTopLevelItem(item)
 
     def _populate_parameters_table(self) -> None:
         constants = self._metadata.get("constants", [])

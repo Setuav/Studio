@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
     QDialogButtonBox,
+    QFileDialog,
     QHeaderView,
     QLabel,
     QListWidget,
@@ -54,13 +55,19 @@ class PluginManagerDialog(QDialog):
         layout.addWidget(self._issues)
 
         actions = QDialogButtonBox(QDialogButtonBox.StandardButton.Close, parent=self)
+        self._install = QPushButton("Install Archive...", self)
+        self._open_folder = QPushButton("Open Plugins Folder", self)
         self._discover = QPushButton("Discover plugins", self)
         self._refresh = QPushButton("Refresh list", self)
+        actions.addButton(self._install, QDialogButtonBox.ButtonRole.ActionRole)
+        actions.addButton(self._open_folder, QDialogButtonBox.ButtonRole.ActionRole)
         actions.addButton(self._discover, QDialogButtonBox.ButtonRole.ActionRole)
         actions.addButton(self._refresh, QDialogButtonBox.ButtonRole.ActionRole)
         actions.rejected.connect(self.reject)
         layout.addWidget(actions)
 
+        self._install.clicked.connect(self._install_archive)
+        self._open_folder.clicked.connect(self._open_plugins_folder)
         self._discover.clicked.connect(self._discover_plugins)
         self._refresh.clicked.connect(self._refresh_plugins)
         self._refresh_plugins()
@@ -72,6 +79,48 @@ class PluginManagerDialog(QDialog):
     def _discover_plugins(self) -> None:
         self._manager.discover()
         self._refresh_plugins()
+
+    def _install_archive(self) -> None:
+        filter_str = (
+            "Plugin Archives (*.zip *.tar.gz *.tgz *.tar.bz2 *.tbz2 *.tar.xz *.txz *.tar *.rar);;"
+            "ZIP Archives (*.zip);;"
+            "TAR Archives (*.tar.gz *.tgz *.tar.bz2 *.tbz2 *.tar.xz *.tar);;"
+            "RAR Archives (*.rar);;"
+            "All Files (*)"
+        )
+        archive_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Install Plugin Archive",
+            "",
+            filter_str,
+        )
+        if not archive_path:
+            return
+
+        try:
+            installed = self._manager.install_archive(archive_path)
+            self._refresh_plugins()
+            QMessageBox.information(
+                self,
+                "Plugin Installed",
+                f"Successfully installed plugin archive:\n{installed.name}\n\n"
+                f"Directory:\n{installed}",
+            )
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Installation Failed",
+                f"Could not install plugin archive:\n{exc}",
+            )
+
+    def _open_plugins_folder(self) -> None:
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+
+        from setuav_studio.api.installer import get_user_plugins_dir
+
+        user_plugins = get_user_plugins_dir()
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(user_plugins)))
 
     def _refresh_plugins(self) -> None:
         self._plugins.clear()

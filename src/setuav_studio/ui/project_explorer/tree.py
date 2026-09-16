@@ -126,16 +126,31 @@ class ProjectExplorer(QTreeWidget):
         self,
         project: ProjectDocument,
         project_item: QTreeWidgetItem,
-        selection_state: tuple[bool, str | None],
+        selection_state: tuple[bool, str | None, ...] | tuple[bool, str | None],
     ) -> dict[str, Any] | None:
-        project_selected, selection_id = selection_state
+        project_selected = selection_state[0]
+        selection_id = selection_state[1] if len(selection_state) > 1 else None
+
         if project_selected:
+            project_item.setSelected(True)
             self.setCurrentItem(project_item)
             return project.data
-        if selection_id and selection_id in self._item_map:
-            selected_item = self._item_map[selection_id]
-            self.setCurrentItem(selected_item)
-            return self._element_map.get(selected_item)
+
+        if selection_id:
+            if selection_id in self._item_map:
+                selected_item = self._item_map[selection_id]
+                selected_item.setSelected(True)
+                self.setCurrentItem(selected_item)
+                return self._element_map.get(selected_item)
+
+            for item, elem in self._element_map.items():
+                if isinstance(elem, dict) and elem.get("id") == selection_id:
+                    item.setSelected(True)
+                    self.setCurrentItem(item)
+                    return elem
+
+        self.clearSelection()
+        self.setCurrentItem(None)
         return None
 
     def _capture_saved_state(self, project: ProjectDocument) -> None:
@@ -200,7 +215,41 @@ class ProjectExplorer(QTreeWidget):
         if hasattr(project, "get_configuration_manager"):
             self._last_active_config_id = project.get_configuration_manager().get_active_id()
         self._capture_saved_state(project)
-        self._rebuild_project(project)
+        self._refresh_modified_colors()
+
+    def _refresh_modified_colors(self) -> None:
+        from setuav_studio.ui.theme import status_color
+
+        for item, element in list(self._element_map.items()):
+            try:
+                _ = item.text(0)
+            except RuntimeError:
+                continue
+
+            if item in self._virtual_items:
+                analysis_id = element.get("analysis_id") if isinstance(element, dict) else None
+                if analysis_id:
+                    project = self._api.current_project
+                    current_entries = self._snapshot_analysis_results(project) if project else {}
+                    current_entry = current_entries.get(analysis_id)
+                    saved_entry = self._saved_analysis_results.get(analysis_id)
+                    if saved_entry != current_entry:
+                        item.setForeground(0, QBrush(QColor(status_color("warning"))))
+                    else:
+                        item.setData(0, Qt.ItemDataRole.ForegroundRole, None)
+                continue
+
+            element_id = str(element.get("id") or "") if isinstance(element, dict) else ""
+            if not element_id:
+                continue
+            is_modified = (
+                self._saved_components.get(element_id) != element
+                and self._saved_assemblies.get(element_id) != element
+            )
+            if is_modified:
+                item.setForeground(0, QBrush(QColor(status_color("warning"))))
+            else:
+                item.setData(0, Qt.ItemDataRole.ForegroundRole, None)
 
     def filter_items(self, query: str) -> None:
         """Filter tree items based on search query."""
@@ -241,10 +290,14 @@ class ProjectExplorer(QTreeWidget):
         self._api.set_selection(element)
 
     def _sync_selection(self, selection: object | None) -> None:
-        if selection is None and self.currentItem() in (
-            self._parameters_group_item,
-            self._constraints_group_item,
-        ):
+        if selection is None:
+            if self.currentItem() in (
+                self._parameters_group_item,
+                self._constraints_group_item,
+            ):
+                return
+            self.clearSelection()
+            self.setCurrentItem(None)
             return
         project = self._api.current_project
         if project is not None and selection is project.data:
@@ -258,10 +311,17 @@ class ProjectExplorer(QTreeWidget):
         elem_id = selection.get("id") if isinstance(selection, dict) else None
         if not isinstance(elem_id, str):
             self.clearSelection()
+            self.setCurrentItem(None)
             return
         item = self._item_map.get(elem_id)
+        if item is None:
+            for itm, elem in self._element_map.items():
+                if isinstance(elem, dict) and elem.get("id") == elem_id:
+                    item = itm
+                    break
         if item is not None:
             if self.currentItem() is not item:
+                item.setSelected(True)
                 self.setCurrentItem(item)
         else:
             self.clearSelection()

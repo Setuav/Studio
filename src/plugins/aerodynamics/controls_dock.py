@@ -194,26 +194,50 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
             ]
         )
 
-        self.spin_velocity = NumericSpinBox(quantity="velocity", suffix="m/s")
-        self.spin_velocity.setRange(1.0, 300.0)
-        self.spin_velocity.setValue(25.0)
-
-        self.spin_altitude = NumericSpinBox(quantity="length", suffix="m")
-        self.spin_altitude.setRange(0.0, 15000.0)
-        self.spin_altitude.setValue(0.0)
-
-        self.spin_ref_alpha = NumericSpinBox(quantity="angle", suffix="°")
-        self.spin_ref_alpha.setRange(-20.0, 30.0)
-        self.spin_ref_alpha.setValue(2.0)
-
-        self.spin_ref_beta = NumericSpinBox(quantity="angle", suffix="°")
-        self.spin_ref_beta.setRange(-45.0, 45.0)
-        self.spin_ref_beta.setValue(0.0)
-
-        self.conditions_table.setCellWidget(0, 1, self.spin_velocity)
-        self.conditions_table.setCellWidget(1, 1, self.spin_altitude)
-        self.conditions_table.setCellWidget(2, 1, self.spin_ref_alpha)
-        self.conditions_table.setCellWidget(3, 1, self.spin_ref_beta)
+        self.spin_velocity = self._set_property_spinbox(
+            self.conditions_table,
+            "velocity",
+            25.0,
+            min_val=1.0,
+            max_val=300.0,
+            step=1.0,
+            decimals=1,
+            quantity="velocity",
+            unit="m/s",
+        )
+        self.spin_altitude = self._set_property_spinbox(
+            self.conditions_table,
+            "altitude",
+            0.0,
+            min_val=0.0,
+            max_val=15000.0,
+            step=100.0,
+            decimals=1,
+            quantity="length",
+            unit="m",
+        )
+        self.spin_ref_alpha = self._set_property_spinbox(
+            self.conditions_table,
+            "ref_alpha",
+            2.0,
+            min_val=-20.0,
+            max_val=30.0,
+            step=0.5,
+            decimals=1,
+            quantity="angle",
+            unit="°",
+        )
+        self.spin_ref_beta = self._set_property_spinbox(
+            self.conditions_table,
+            "ref_beta",
+            0.0,
+            min_val=-45.0,
+            max_val=45.0,
+            step=0.5,
+            decimals=1,
+            quantity="angle",
+            unit="°",
+        )
 
         layout.addWidget(self.conditions_table)
 
@@ -245,44 +269,67 @@ class AeroControlsDock(PropertyTableMixin, QWidget):
         self.combo_ctrl = QComboBox()
         self._available_control_channels: tuple[str, ...] = ()
 
-        self.spin_sweep_min = NumericSpinBox()
-        self.spin_sweep_min.setRange(-100.0, 100.0)
-        self.spin_sweep_min.setValue(-10.0)
-        self.spin_sweep_min.setSuffix(" °")
-
-        self.spin_sweep_max = NumericSpinBox()
-        self.spin_sweep_max.setRange(-100.0, 100.0)
-        self.spin_sweep_max.setValue(18.0)
-        self.spin_sweep_max.setSuffix(" °")
-
-        self.spin_sweep_steps = NumericSpinBox()
-        self.spin_sweep_steps.setDecimals(0)
-        self.spin_sweep_steps.setRange(2, 100)
-        self.spin_sweep_steps.setValue(29)
-
-        self.spin_sec_min = NumericSpinBox()
-        self.spin_sec_min.setRange(-45.0, 45.0)
-        self.spin_sec_min.setValue(-12.0)
-        self.spin_sec_min.setSuffix(" °")
-
-        self.spin_sec_max = NumericSpinBox()
-        self.spin_sec_max.setRange(-45.0, 45.0)
-        self.spin_sec_max.setValue(12.0)
-        self.spin_sec_max.setSuffix(" °")
-
-        self.spin_sec_steps = NumericSpinBox()
-        self.spin_sec_steps.setDecimals(0)
-        self.spin_sec_steps.setRange(2, 50)
-        self.spin_sec_steps.setValue(13)
-
         self.sweep_table.setCellWidget(0, 1, self.combo_mode)
         self.sweep_table.setCellWidget(1, 1, self.combo_ctrl)
-        self.sweep_table.setCellWidget(2, 1, self.spin_sweep_min)
-        self.sweep_table.setCellWidget(3, 1, self.spin_sweep_max)
-        self.sweep_table.setCellWidget(4, 1, self.spin_sweep_steps)
-        self.sweep_table.setCellWidget(5, 1, self.spin_sec_min)
-        self.sweep_table.setCellWidget(6, 1, self.spin_sec_max)
-        self.sweep_table.setCellWidget(7, 1, self.spin_sec_steps)
+
+        self.spin_sweep_min = self._set_property_spinbox(
+            self.sweep_table,
+            "sweep_min",
+            -10.0,
+            min_val=-100.0,
+            max_val=100.0,
+            step=1.0,
+            decimals=1,
+            suffix="°",
+        )
+        self.spin_sweep_max = self._set_property_spinbox(
+            self.sweep_table,
+            "sweep_max",
+            18.0,
+            min_val=-100.0,
+            max_val=100.0,
+            step=1.0,
+            decimals=1,
+            suffix="°",
+        )
+        self.spin_sweep_steps = self._set_property_spinbox(
+            self.sweep_table,
+            "sweep_steps",
+            29.0,
+            min_val=2.0,
+            max_val=100.0,
+            step=1.0,
+            decimals=0,
+        )
+        self.spin_sec_min = self._set_property_spinbox(
+            self.sweep_table,
+            "sec_min",
+            -12.0,
+            min_val=-45.0,
+            max_val=45.0,
+            step=1.0,
+            decimals=1,
+            suffix="°",
+        )
+        self.spin_sec_max = self._set_property_spinbox(
+            self.sweep_table,
+            "sec_max",
+            12.0,
+            min_val=-45.0,
+            max_val=45.0,
+            step=1.0,
+            decimals=1,
+            suffix="°",
+        )
+        self.spin_sec_steps = self._set_property_spinbox(
+            self.sweep_table,
+            "sec_steps",
+            13.0,
+            min_val=2.0,
+            max_val=50.0,
+            step=1.0,
+            decimals=0,
+        )
 
         layout.addWidget(self.sweep_table)
         self._on_mode_changed()

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import contextlib
 from collections.abc import Callable
 from typing import Any
 
@@ -8,20 +7,17 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QApplication,
-    QComboBox,
     QFrame,
     QHBoxLayout,
     QLabel,
     QScrollArea,
     QSizePolicy,
-    QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
 from setuav_studio.ui.icons import set_label_icon
-from setuav_studio.ui.widget.spinbox import NumericSpinBox, set_table_spinbox
 from setuav_studio.ui.widget.table import PropertyTableMixin
 from setuav_studio_sdk import StudioAPI
 
@@ -334,28 +330,36 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
                 driver_keys,
             )
 
-            hs_val = geom.get("hinge_sweep_expression") or hinge_sweep
-            self._set_property_expression(
+            self._set_property_spinbox(
                 self.properties_table,
                 "hinge_sweep",
-                hs_val,
+                hinge_sweep,
+                min_val=-90.0,
+                max_val=90.0,
+                step=1.0,
+                decimals=2,
+                quantity="angle",
+                suffix="°",
+                target_data=geom,
                 on_changed=lambda val: self._on_prop_spinbox_changed("hinge_sweep", val),
                 api=self._api,
                 label="Hinge sweep angle",
-                unit="°",
-                decimals=2,
             )
 
-            def_val = geom.get("deflection_expression") or deflection
-            self._set_property_expression(
+            self._set_property_spinbox(
                 self.properties_table,
                 "deflection",
-                def_val,
+                deflection,
+                min_val=-90.0,
+                max_val=90.0,
+                step=1.0,
+                decimals=2,
+                quantity="angle",
+                suffix="°",
+                target_data=geom,
                 on_changed=lambda val: self._on_prop_spinbox_changed("deflection", val),
                 api=self._api,
                 label="Deflection angle",
-                unit="°",
-                decimals=2,
             )
 
             self._set_property_combo(
@@ -369,34 +373,14 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
             self._loading = was_loading
 
     def _on_prop_spinbox_changed(self, key: str, value: Any) -> None:
-        if self._loading:
+        if self._loading or value is None:
             return
         geom = self._geometry()
         semi_span, root_chord, tip_chord, _wing_area = self._parent_wing_info()
 
-        val_str = str(value).strip() if value is not None else ""
-        num_val: float | None = None
-        if val_str.startswith("=") or not val_str.replace(".", "", 1).replace("-", "", 1).isdigit():
-            # Expression formula
-            geom[f"{key}_expression"] = val_str
-            if self._api is not None and getattr(self._api, "current_project", None) is not None:
-                try:
-                    from setuav_studio.model.expression import ExpressionEvaluator
-
-                    evaluator = ExpressionEvaluator()
-                    scope = self._api.current_project.get_scope(api=self._api)
-                    expr = val_str.lstrip("=").strip()
-                    res = evaluator.evaluate(expr, scope)
-                    if isinstance(res, (int, float)):
-                        num_val = float(res)
-                except Exception:
-                    pass
-        else:
-            geom.pop(f"{key}_expression", None)
-            with contextlib.suppress(ValueError):
-                num_val = float(val_str)
-
-        if num_val is None:
+        try:
+            num_val = float(value)
+        except (ValueError, TypeError):
             return
 
         def change() -> None:
@@ -481,16 +465,16 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
                 label_item.setForeground(QColor(130, 130, 130))
 
         if is_driver:
-            val_to_pass = raw_expr if raw_expr else current_val
-            self._set_property_expression(
+            self._set_property_spinbox(
                 self.properties_table,
                 key,
-                val_to_pass,
+                current_val,
+                unit=unit,
+                decimals=dec,
+                target_data=self._geometry(),
                 on_changed=lambda val, k=key: self._on_prop_spinbox_changed(k, val),
                 api=self._api,
                 label=label_text,
-                unit=unit,
-                decimals=dec,
             )
         else:
             from setuav_studio.ui.widget.table import format_engineering_value
@@ -607,62 +591,3 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
             self._api.edit_component(self._component, action_name, wrapped)
         else:
             wrapped()
-
-    def _set_property_spinbox(
-        self,
-        table: QTableWidget,
-        key: str,
-        value: float,
-        *,
-        min_val: float = -1e6,
-        max_val: float = 1e6,
-        step: float = 1.0,
-        decimals: int = 2,
-        suffix: str = "",
-        on_changed: Callable[[float], None] | None = None,
-    ) -> NumericSpinBox | None:
-        for row in range(table.rowCount()):
-            if self._property_key(table, row) != key:
-                continue
-            return set_table_spinbox(
-                table,
-                row,
-                1,
-                value,
-                min_val=min_val,
-                max_val=max_val,
-                step=step,
-                decimals=decimals,
-                suffix=suffix,
-                on_changed=on_changed,
-            )
-        return None
-
-    def _set_property_combo(
-        self,
-        table: QTableWidget,
-        key: str,
-        value: str,
-        options: list[tuple[str, str]],
-        on_changed: Callable[[str], None],
-    ) -> None:
-        for row in range(table.rowCount()):
-            if self._property_key(table, row) != key:
-                continue
-            item = table.item(row, 1)
-            if item is not None:
-                item.setText("")
-                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-            combo = QComboBox(table)
-            combo.setFont(QApplication.font())
-            combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-            for opt_val, opt_label in options:
-                combo.addItem(opt_label, opt_val)
-            idx = combo.findData(value)
-            if idx >= 0:
-                combo.setCurrentIndex(idx)
-            combo.currentIndexChanged.connect(
-                lambda _i, combo=combo: on_changed(str(combo.currentData()))
-            )
-            table.setCellWidget(row, 1, combo)
-            return

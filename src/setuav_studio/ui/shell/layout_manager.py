@@ -11,6 +11,12 @@ if TYPE_CHECKING:
     from setuav_studio.api import StudioAPI
 
 
+_DOCK_ALIASES = {
+    "project.explorer": "core:project-explorer",
+    "studio.properties": "core:properties",
+}
+
+
 class LayoutManager:
     """Manages workspace perspectives, dock layouts, and window geometry."""
 
@@ -108,6 +114,8 @@ class LayoutManager:
             not self.layout_persistence_enabled
             or self.restoring_workspace_layout
             or current_workspace_id is None
+            or self._window.isMaximized()
+            or self._window.isFullScreen()
         ):
             return
         if self.layout_save_scheduled:
@@ -118,7 +126,12 @@ class LayoutManager:
     def save_current_workspace_layout(self) -> None:
         self.layout_save_scheduled = False
         workspace_id = getattr(self._window, "_current_workspace_id", None)
-        if workspace_id is None or self.restoring_workspace_layout:
+        if (
+            workspace_id is None
+            or self.restoring_workspace_layout
+            or self._window.isMaximized()
+            or self._window.isFullScreen()
+        ):
             return
         state = self._window.saveState(self.LAYOUT_VERSION)
         self.workspace_states[workspace_id] = state
@@ -145,6 +158,10 @@ class LayoutManager:
                 dock.hide()
 
     def dock(self, panel_id: str) -> QDockWidget | None:
+        target_id = _DOCK_ALIASES.get(panel_id, panel_id)
+        d = self._window.findChild(QDockWidget, target_id)
+        if d is not None:
+            return d
         return self._window.findChild(QDockWidget, panel_id)
 
     def resize_visible_docks(

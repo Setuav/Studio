@@ -174,10 +174,10 @@ class ParameterResolver:
         if self.evaluator.is_expression(value):
             try:
                 return self.evaluator.evaluate(str(value), resolved_parameters)
-            except ExpressionEvaluationError as exc:
-                raise ParameterResolutionError(
-                    f"Failed to evaluate expression '{value}': {exc}"
-                ) from exc
+            except ExpressionEvaluationError:
+                # Return raw value for broken / empty expressions (e.g. bare "=")
+                # instead of crashing the entire scope build.
+                return value
 
         if isinstance(value, dict):
             res_dict = {
