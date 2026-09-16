@@ -486,29 +486,35 @@ class FuselageSectionDialog(QDialog):
         self.poly_box.setVisible(is_polygon)
         self.props_table.setVisible(not is_polygon)
 
+        def _raw(key: str, default: float) -> Any:
+            """Return the expression string if set, otherwise the numeric value."""
+            return profile.get(f"{key}_expression") or profile.get(key, default)
+
         if prof_type == "circle":
-            self._add_prop_row("Diameter", profile.get("diameter", 100.0), "diameter")
+            self._add_prop_row("Diameter", _raw("diameter", 100.0), "diameter", profile)
         elif prof_type == "ellipse":
-            self._add_prop_row("Width", profile.get("width", 120.0), "width")
-            self._add_prop_row("Height", profile.get("height", 80.0), "height")
+            self._add_prop_row("Width", _raw("width", 120.0), "width", profile)
+            self._add_prop_row("Height", _raw("height", 80.0), "height", profile)
         elif prof_type == "rectangle":
-            self._add_prop_row("Width", profile.get("width", 120.0), "width")
-            self._add_prop_row("Height", profile.get("height", 80.0), "height")
-            self._add_prop_row("Corner Radius", profile.get("corner_radius", 10.0), "corner_radius")
+            self._add_prop_row("Width", _raw("width", 120.0), "width", profile)
+            self._add_prop_row("Height", _raw("height", 80.0), "height", profile)
+            self._add_prop_row("Corner Radius", _raw("corner_radius", 10.0), "corner_radius", profile)
         elif prof_type == "trapezoid":
-            self._add_prop_row("Top Width", profile.get("top_width", 80.0), "top_width")
-            self._add_prop_row("Bottom Width", profile.get("bottom_width", 120.0), "bottom_width")
-            self._add_prop_row("Height", profile.get("height", 80.0), "height")
-            self._add_prop_row("Corner Radius", profile.get("corner_radius", 5.0), "corner_radius")
+            self._add_prop_row("Top Width", _raw("top_width", 80.0), "top_width", profile)
+            self._add_prop_row("Bottom Width", _raw("bottom_width", 120.0), "bottom_width", profile)
+            self._add_prop_row("Height", _raw("height", 80.0), "height", profile)
+            self._add_prop_row("Corner Radius", _raw("corner_radius", 5.0), "corner_radius", profile)
         elif prof_type == "triangle":
-            self._add_prop_row("Base Width", profile.get("base_width", 100.0), "base_width")
-            self._add_prop_row("Height", profile.get("height", 80.0), "height")
-            self._add_prop_row("Corner Radius", profile.get("corner_radius", 5.0), "corner_radius")
-            self._add_prop_row("Orientation", profile.get("orientation", "up"), "orientation")
+            self._add_prop_row("Base Width", _raw("base_width", 100.0), "base_width", profile)
+            self._add_prop_row("Height", _raw("height", 80.0), "height", profile)
+            self._add_prop_row("Corner Radius", _raw("corner_radius", 5.0), "corner_radius", profile)
+            self._add_prop_row("Orientation", profile.get("orientation", "up"), "orientation", profile)
         elif prof_type == "polygon":
             self._populate_vertices_table(profile)
 
-    def _add_prop_row(self, label: str, value: Any, key: str) -> None:
+    def _add_prop_row(
+        self, label: str, value: Any, key: str, profile: dict[str, Any] | None = None
+    ) -> None:
         row = self.props_table.rowCount()
         self.props_table.insertRow(row)
 
@@ -524,10 +530,6 @@ class FuselageSectionDialog(QDialog):
             combo.currentTextChanged.connect(lambda txt, k=key: self._on_prop_spin_changed(k, txt))
             self.props_table.setCellWidget(row, 1, combo)
         else:
-            try:
-                num_val = float(value)
-            except (ValueError, TypeError):
-                num_val = 0.0
             step_val = (
                 5.0 if any(sub in key for sub in ("width", "height", "diameter", "radius")) else 1.0
             )
@@ -535,12 +537,15 @@ class FuselageSectionDialog(QDialog):
                 self.props_table,
                 row,
                 1,
-                num_val,
+                value,
                 min_val=0.0,
                 step=step_val,
                 decimals=2,
                 quantity="length",
                 suffix="mm",
+                api=self._api,
+                label=label,
+                property_key=key,
                 on_changed=lambda _v, k=key: self._on_prop_spin_changed(k, _v),
             )
 
@@ -553,11 +558,24 @@ class FuselageSectionDialog(QDialog):
         prof = sec.get("profile")
         if not isinstance(prof, dict):
             return
-        old_val = prof.get(key)
-        if old_val == new_val:
-            return
-        cmd = ChangePropertyCommand(self, key, old_val, new_val)
-        self.undo_stack.push(cmd)
+
+        from .fuselage_profile_editor import evaluate_expression_or_number
+
+        val_str = str(new_val).strip() if new_val is not None else ""
+        num_val, is_expr = evaluate_expression_or_number(val_str, self._api)
+
+        if is_expr:
+            prof[f"{key}_expression"] = val_str
+            if num_val is not None:
+                prof[key] = num_val
+        else:
+            prof.pop(f"{key}_expression", None)
+            if num_val is not None:
+                prof[key] = num_val
+            elif isinstance(new_val, str) and key == "orientation":
+                prof[key] = new_val
+
+        self._refresh_canvas_and_metrics()
 
     def _populate_vertices_table(self, profile: dict[str, Any]) -> None:
         self.vertices_table.setRowCount(0)
@@ -643,50 +661,99 @@ class FuselageSectionDialog(QDialog):
 
         rotation_aliases = {"x": "roll", "y": "pitch", "z": "yaw"}
         for col, axis in enumerate(("x", "y", "z")):
+            raw_pos = pos.get(f"{axis}_expression") or pos.get(axis, 0.0)
             set_table_spinbox(
                 self.trans_table,
                 0,
                 col,
-                float(pos.get(axis, 0.0)),
+                raw_pos,
                 step=5.0,
                 decimals=2,
                 quantity="length",
                 suffix="mm",
-                on_changed=lambda _v: self._on_transform_spinbox_changed(),
+                api=self._api,
+                label=f"Position {axis.upper()}",
+                property_key=axis,
+                on_changed=lambda _v, a=axis: self._on_transform_expression_changed(
+                    "position", a, _v
+                ),
+            )
+            alias = rotation_aliases[axis]
+            raw_rot = (
+                rot.get(f"{axis}_expression")
+                or rot.get(f"{alias}_expression")
+                or rot.get(axis, rot.get(alias, 0.0))
             )
             set_table_spinbox(
                 self.trans_table,
                 1,
                 col,
-                float(rot.get(axis, rot.get(rotation_aliases[axis], 0.0))),
+                raw_rot,
                 min_val=-360.0,
                 max_val=360.0,
                 step=1.0,
                 decimals=2,
                 quantity="angle",
                 suffix="°",
-                on_changed=lambda _v: self._on_transform_spinbox_changed(),
+                api=self._api,
+                label=f"Rotation {axis.upper()}",
+                property_key=axis,
+                on_changed=lambda _v, a=axis: self._on_transform_expression_changed(
+                    "rotation", a, _v
+                ),
             )
 
-    def _on_transform_spinbox_changed(self) -> None:
+    def _on_transform_expression_changed(
+        self, transform_type: str, axis: str, value: Any
+    ) -> None:
         if self._loading:
             return
         sec = self._current_section()
         if not sec:
             return
-        pos = sec.get("position") if isinstance(sec.get("position"), dict) else {}
-        rotation: dict[str, float] = {}
+        target = sec.get(transform_type)
+        if not isinstance(target, dict):
+            target = {}
+            sec[transform_type] = target
 
+        from .fuselage_profile_editor import evaluate_expression_or_number
+
+        # Read the raw text from the cell widget to detect expressions,
+        # because the callback value is always the resolved numeric float.
+        row = 0 if transform_type == "position" else 1
+        col = ("x", "y", "z").index(axis)
+        widget = self.trans_table.cellWidget(row, col)
+        raw_text = ""
+        if hasattr(widget, "text"):
+            raw_text = widget.text().strip()
+
+        num_val, is_expr = evaluate_expression_or_number(raw_text, self._api)
+        if num_val is None and isinstance(value, (int, float)):
+            num_val = float(value)
+
+        if is_expr:
+            target[f"{axis}_expression"] = raw_text
+        else:
+            target.pop(f"{axis}_expression", None)
+        if num_val is not None:
+            target[axis] = num_val
+
+        self._refresh_canvas_and_metrics()
+
+    def _on_transform_spinbox_changed(self) -> None:
+        """Legacy handler kept for backward compatibility — delegates to expression handler."""
+        if self._loading:
+            return
+        sec = self._current_section()
+        if not sec:
+            return
         for col, axis in enumerate(("x", "y", "z")):
             w_pos = self.trans_table.cellWidget(0, col)
             if isinstance(w_pos, (QDoubleSpinBox, ExpressionPropertyCell)):
-                pos[axis] = float(w_pos.value())
+                self._on_transform_expression_changed("position", axis, w_pos.value())
             w_rot = self.trans_table.cellWidget(1, col)
             if isinstance(w_rot, (QDoubleSpinBox, ExpressionPropertyCell)):
-                rotation[axis] = float(w_rot.value())
-        sec["position"] = pos
-        sec["rotation"] = rotation
-        self._refresh_canvas_and_metrics()
+                self._on_transform_expression_changed("rotation", axis, w_rot.value())
 
     def _update_metrics_labels(self) -> None:
         from setuav_studio.units import get_unit_manager
@@ -785,7 +852,22 @@ class FuselageSectionDialog(QDialog):
         prof = sec.get("profile")
         if not isinstance(prof, dict):
             return
-        prof[key] = value
+
+        from .fuselage_profile_editor import evaluate_expression_or_number
+
+        val_str = str(value).strip() if value is not None else ""
+        num_val, is_expr = evaluate_expression_or_number(val_str, self._api)
+        if is_expr:
+            prof[f"{key}_expression"] = val_str
+            if num_val is not None:
+                prof[key] = num_val
+        else:
+            prof.pop(f"{key}_expression", None)
+            if num_val is not None:
+                prof[key] = num_val
+            else:
+                prof[key] = value
+
         self._populate_props_table(prof)
         self._refresh_canvas_and_metrics()
 
@@ -917,18 +999,9 @@ class FuselageSectionDialog(QDialog):
 
         key = key_item.data(Qt.ItemDataRole.UserRole)
         val_text = val_item.text().strip()
-        old_val = prof.get(key)
 
-        try:
-            new_val = float(val_text)
-        except ValueError:
-            new_val = val_text
-
-        if old_val == new_val:
-            return
-
-        cmd = ChangePropertyCommand(self, key, old_val, new_val)
-        self.undo_stack.push(cmd)
+        # Delegate to the expression-aware handler
+        self._on_prop_spin_changed(key, val_text)
 
     def _on_vertices_cell_changed(self, row: int, column: int) -> None:
         if self._loading:
@@ -1016,29 +1089,9 @@ class FuselageSectionDialog(QDialog):
         if not item:
             return
 
-        try:
-            val = float(item.text().strip())
-        except ValueError:
-            val = 0.0
-
         key_axis = ["x", "y", "z"][column]
-        if row == 0:
-            pos = sec.get("position")
-            if not isinstance(pos, dict):
-                pos = {}
-                sec["position"] = pos
-            pos[key_axis] = val
-        else:
-            rot = sec.get("rotation")
-            if not isinstance(rot, dict):
-                rot = {}
-            canonical_rotation = {
-                "x": float(rot.get("x", rot.get("roll", 0.0))),
-                "y": float(rot.get("y", rot.get("pitch", 0.0))),
-                "z": float(rot.get("z", rot.get("yaw", 0.0))),
-            }
-            canonical_rotation[key_axis] = val
-            sec["rotation"] = canonical_rotation
+        transform_type = "position" if row == 0 else "rotation"
+        self._on_transform_expression_changed(transform_type, key_axis, item.text().strip())
 
     def _on_display_option_toggled(self) -> None:
         self.canvas.show_previous = self.cb_prev.isChecked()

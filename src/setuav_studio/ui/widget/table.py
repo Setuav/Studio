@@ -414,7 +414,7 @@ class ExpressionPropertyCell(QWidget):
     def value(self) -> float:
         clean = self._raw_expression.strip()
         if self._is_formula(clean):
-            ok, val = self._evaluate_expression(clean)
+            ok, val, _ = self._evaluate_expression(clean)
             if ok and isinstance(val, (int, float)):
                 return float(val)
         try:

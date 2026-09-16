@@ -166,7 +166,11 @@ class PlanformMixin:
 
             # 2. Update Wing Angles & Alignment Table
             if hasattr(self, "wing_angles_table"):
-                sw_val = geom.get("sweep_expression") or float(metrics.get("sweep", 0.0))
+                sw_val = (
+                    geom.get("sweep_expression")
+                    or geom.get("sweep")
+                    or float(metrics.get("sweep", 0.0))
+                )
                 self._set_property_expression(
                     self.wing_angles_table,
                     "sweep",
@@ -228,24 +232,29 @@ class PlanformMixin:
         val_str = str(value).strip() if value is not None else ""
         if not val_str:
             return None
-        if val_str.startswith("=") or not val_str.replace(".", "", 1).replace("-", "", 1).isdigit():
-            geom[f"{key}_expression"] = val_str
-            api = getattr(self, "_api", None)
-            if api is not None and getattr(api, "current_project", None) is not None:
-                try:
-                    from setuav_studio.model.expression import ExpressionEvaluator
 
-                    evaluator = ExpressionEvaluator()
-                    scope = api.current_project.get_scope(api=api)
-                    res = evaluator.evaluate(val_str.lstrip("=").strip(), scope)
-                    if isinstance(res, (int, float)):
-                        return float(res)
-                except Exception:
-                    pass
-            return None
-        geom.pop(f"{key}_expression", None)
-        with contextlib.suppress(ValueError):
-            return float(val_str)
+        # Check if plain numeric float
+        try:
+            num_val = float(val_str)
+            geom.pop(f"{key}_expression", None)
+            return num_val
+        except ValueError:
+            pass
+
+        # Otherwise treat as formula expression
+        geom[f"{key}_expression"] = val_str
+        api = getattr(self, "_api", None)
+        if api is not None and getattr(api, "current_project", None) is not None:
+            try:
+                from setuav_studio.model.expression import ExpressionEvaluator
+
+                evaluator = ExpressionEvaluator()
+                scope = api.current_project.get_scope(api=api)
+                res = evaluator.evaluate(val_str.lstrip("=").strip(), scope)
+                if isinstance(res, (int, float)):
+                    return float(res)
+            except Exception:
+                pass
         return None
 
     def _on_wing_angle_changed(self, key: str, value: Any) -> None:
@@ -266,24 +275,38 @@ class PlanformMixin:
             return
 
         if key in ("sweep", "sweep_curvature"):
-            sweep_val = float(num_val if key == "sweep" else metrics.get("sweep", 0.0))
+            sweep_val = float(
+                num_val if key == "sweep" else (geom.get("sweep") or metrics.get("sweep", 0.0))
+            )
             curv_val = float(
                 num_val if key == "sweep_curvature" else geom.get("sweep_curvature", 0.0)
             )
             new_profiles = set_wing_global_sweep(
                 profiles, sweep_val, sw_loc, sweep_curvature=curv_val
             )
-            geom["sweep_curvature"] = curv_val
+
+            def change() -> None:
+                g = self._geometry()
+                g["profiles"] = deepcopy(new_profiles)
+                g["sweep"] = sweep_val
+                g["sweep_curvature"] = curv_val
         elif key == "dihedral":
             new_profiles = set_wing_global_dihedral(profiles, num_val)
+
+            def change() -> None:
+                g = self._geometry()
+                g["profiles"] = deepcopy(new_profiles)
+                g["dihedral"] = num_val
         elif key == "twist":
             new_profiles = set_wing_global_twist(profiles, num_val)
+
+            def change() -> None:
+                g = self._geometry()
+                g["profiles"] = deepcopy(new_profiles)
+                g["washout"] = num_val
+                g["twist"] = num_val
         else:
             return
-
-        def change() -> None:
-            profiles.clear()
-            profiles.extend(deepcopy(new_profiles))
 
         self._edit_component(f"Change wing {key}", change)
         self._populate_sections()
@@ -300,11 +323,18 @@ class PlanformMixin:
         y_off = self._y_offset()
         sw_loc = getattr(self, "_sweep_loc", 0.25)
 
+        metrics = compute_planform_metrics(
+            profiles,
+            sw_loc,
+            symmetric=is_sym,
+            y_offset=y_off,
+        )
+
         inputs = {
             "span": new_metrics["span"],
             "root_chord": new_metrics["root_chord"],
             "tip_chord": new_metrics["tip_chord"],
-            "sweep": 0.0,
+            "sweep": float(metrics.get("sweep", 0.0)),
         }
 
         new_profiles, _ = solve_wing_planform(
@@ -331,6 +361,7 @@ class PlanformMixin:
         self._edit_component("Parametric wing resize", change)
 
         self._populate_sections()
+        self._refresh_planform_table()
         if 0 <= getattr(self, "_section_index", -1) < len(self._get_sections()):
             self._load_section(self._section_index)
         elif self._get_sections():

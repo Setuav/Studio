@@ -109,7 +109,13 @@ def _apply_parameter_overrides(
     for path, value in param_overrides.items():
         if path.startswith("project.parameters."):
             param_key = path[len("project.parameters.") :]
-            parameters[param_key] = copy.deepcopy(value)
+            existing_val = parameters.get(param_key)
+            if isinstance(existing_val, dict):
+                target_val: Any = copy.deepcopy(existing_val)
+                target_val["value"] = copy.deepcopy(value)
+            else:
+                target_val = copy.deepcopy(value)
+            parameters[param_key] = target_val
         else:
             for comp in components:
                 cid = str(comp.get("id") or "")
@@ -286,6 +292,7 @@ class ConfigurationManager:
         current_components = self.project_data.get("components", [])
         current_parameters = self.project_data.get("parameters", {})
         current_assemblies = self.project_data.get("assemblies", [])
+        current_expressions = current_parameters.get("_expressions", {})
 
         active_id = self.get_active_id()
         if active_id is None:
@@ -294,6 +301,7 @@ class ConfigurationManager:
                 "parameters": copy.deepcopy(current_parameters),
                 "assemblies": copy.deepcopy(current_assemblies),
             }
+            self._base_state["parameters"]["_expressions"] = copy.deepcopy(current_expressions)
         else:
             cfg = self.get_configuration(active_id)
             if cfg is not None:
@@ -307,6 +315,12 @@ class ConfigurationManager:
                 cfg["excluded_components"] = delta["excluded_components"]
                 cfg["added_components"] = delta["added_components"]
                 cfg["component_overrides"] = delta["component_overrides"]
+                # Preserve expressions through config delta
+                if current_expressions:
+                    cfg.setdefault("_expressions", {})[param] = copy.deepcopy(current_expressions.get(param, {}))
+                    for k, v in current_expressions.items():
+                        if k not in cfg["_expressions"]:
+                            cfg["_expressions"][k] = copy.deepcopy(v)
                 # Clean up legacy redundant full snapshots if present
                 cfg.pop("components", None)
                 cfg.pop("parameters", None)
@@ -324,9 +338,13 @@ class ConfigurationManager:
         self.sync_current_state_to_active()
 
         # 2. Materialize target configuration state
-        if config_id is None:
+        if config_id := config_id:
             self.project_data["components"] = copy.deepcopy(self._base_state["components"])
             self.project_data["parameters"] = copy.deepcopy(self._base_state["parameters"])
+            # Restore expressions from base state if present
+            if "_expressions" in self._base_state and isinstance(self._base_state["_expressions"], dict):
+                self.project_data["parameters"].setdefault("_expressions", {})
+                self.project_data["parameters"]["_expressions"].update(copy.deepcopy(self._base_state["_expressions"]))
             self.project_data["assemblies"] = copy.deepcopy(self._base_state.get("assemblies", []))
         else:
             target_cfg = self.get_configuration(config_id)
@@ -339,6 +357,10 @@ class ConfigurationManager:
                 )
                 self.project_data["components"] = comps
                 self.project_data["parameters"] = params
+                # Restore expressions from config if present
+                if "_expressions" in target_cfg and isinstance(target_cfg["_expressions"], dict):
+                    self.project_data["parameters"].setdefault("_expressions", {})
+                    self.project_data["parameters"]["_expressions"].update(copy.deepcopy(target_cfg["_expressions"]))
                 self.project_data["assemblies"] = assems
 
         self._active_id = config_id

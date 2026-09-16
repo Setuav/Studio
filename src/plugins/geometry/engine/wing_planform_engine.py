@@ -335,7 +335,7 @@ def compute_planform_metrics(
     yt = float(pos_tip.get("y", 0.0))
     dy = abs(yt - y0)
     if dy > 1e-6:
-        dx_ref = (xt - x0) + sweep_loc * (c_tip - c_root)
+        dx_ref = (xt - x0) - sweep_loc * (c_root - c_tip)
         sweep_deg = math.degrees(math.atan2(dx_ref, dy))
     else:
         sweep_deg = 0.0
@@ -396,7 +396,7 @@ def set_wing_global_sweep(
         eta = dy / b_panel
         # Base linear sweep + progressive quadratic curvature (eta^2)
         dx_ref = dy * tan_sw + sweep_curvature * (eta**2)
-        pos["x"] = x0 + dx_ref - sweep_loc * (c_i - c0)
+        pos["x"] = x0 + dx_ref + sweep_loc * (c0 - c_i)
 
     return new_profs
 

@@ -42,7 +42,7 @@ class ProjectParametersPanel(QWidget):
 
         # Toolbar / buttons
         btn_bar = QHBoxLayout()
-        self.btn_add = QPushButton(get_icon("file_new"), "Add Parameter")
+        self.btn_add = QPushButton(get_icon("fa6s.plus"), "Add Parameter")
         self.btn_add.clicked.connect(self._add_parameter)
         btn_bar.addWidget(self.btn_add)
 
@@ -63,6 +63,8 @@ class ProjectParametersPanel(QWidget):
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)
+        self.table.verticalHeader().setDefaultSectionSize(22)
+        self.table.verticalHeader().setMinimumSectionSize(20)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.itemChanged.connect(self._on_item_changed)
@@ -93,6 +95,29 @@ class ProjectParametersPanel(QWidget):
                 if isinstance(mgr, ConfigurationManager):
                     return mgr
         return ConfigurationManager(data, self._resolver)
+
+    def _format_resolved(self, res_val: Any, param_def: Any) -> str:
+        """Format resolved value with its unit symbol from the active unit system."""
+        if not isinstance(res_val, (float, int)) or isinstance(res_val, bool):
+            return str(res_val)
+
+        from setuav_studio.units import get_unit_manager
+
+        um = get_unit_manager()
+
+        # Determine quantity from parameter definition
+        quantity = ""
+        if isinstance(param_def, dict):
+            quantity = param_def.get("quantity") or ""
+
+        if quantity:
+            display_val = um.to_display(float(res_val), quantity)
+            sym = um.get_unit_symbol(quantity)
+            formatted = f"{display_val:.4g}"
+            return f"{formatted} {sym}" if sym else formatted
+
+        formatted = f"{res_val:.4g}"
+        return formatted
 
     def _refresh(self) -> None:
         if self._loading:
@@ -135,7 +160,7 @@ class ProjectParametersPanel(QWidget):
                     if q_info:
                         val_item.setToolTip(f"Quantity: {q_info}")
 
-                # Col 2: Resolved Value
+                # Col 2: Resolved Value (with unit)
                 res_val = resolved_params.get(k, "Error")
                 if res_val is None or res_val == "Error":
                     res_str = "#REF!"
@@ -143,11 +168,7 @@ class ProjectParametersPanel(QWidget):
                     res_item.setForeground(QColor(229, 57, 53))
                     res_item.setToolTip("Formula evaluation failed (#REF!)")
                 else:
-                    res_str = (
-                        f"{res_val:.4g}"
-                        if isinstance(res_val, (float, int)) and not isinstance(res_val, bool)
-                        else str(res_val)
-                    )
+                    res_str = self._format_resolved(res_val, val)
                     res_item = QTableWidgetItem(res_str)
                 res_item.setFlags(res_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
 
@@ -347,8 +368,14 @@ class ProjectParametersPanel(QWidget):
                 except ValueError:
                     parsed = new_expr
 
+            existing_val = raw_params.get(param_name)
             def _apply() -> None:
-                raw_params[param_name] = parsed
+                if isinstance(existing_val, dict):
+                    target_val: Any = copy.deepcopy(existing_val)
+                    target_val["value"] = parsed
+                else:
+                    target_val = parsed
+                raw_params[param_name] = target_val
 
             self._api.edit_project(f"Edit parameter '{param_name}'", _apply)
             self._refresh()

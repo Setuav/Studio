@@ -398,16 +398,8 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         profile = self._object(section, "profile")
 
         self._set_transform_values(
-            (
-                float(position.get("x") or 0),
-                float(position.get("y") or 0),
-                float(position.get("z") or 0),
-            ),
-            (
-                float(rotation.get("x", rotation.get("roll", 0)) or 0),
-                float(rotation.get("y", rotation.get("pitch", 0)) or 0),
-                float(rotation.get("z", rotation.get("yaw", 0)) or 0),
-            ),
+            position,
+            rotation,
         )
         self._populate_section_properties(profile)
         self._populate_vertices(profile)
@@ -798,18 +790,49 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         position_values, rotation_values = transform_values
 
         def change() -> None:
-            section["position"] = {
-                "x": position_values[0],
-                "y": position_values[1],
-                "z": position_values[2],
-            }
-            section["rotation"] = {
-                "x": rotation_values[0],
-                "y": rotation_values[1],
-                "z": rotation_values[2],
-            }
+            pos = section.setdefault("position", {})
+            pos["x"] = position_values[0]
+            pos["y"] = position_values[1]
+            pos["z"] = position_values[2]
+            rot = section.setdefault("rotation", {})
+            rot["x"] = rotation_values[0]
+            rot["y"] = rotation_values[1]
+            rot["z"] = rotation_values[2]
 
         self._edit_component("Edit section transform", change)
+        self._refresh_section_row()
+
+    def _on_transform_expression_changed(self, transform_type: str, axis: str, value: Any) -> None:
+        if self._loading:
+            return
+        section = self._current_section()
+        if section is None:
+            return
+        target = self._object(section, transform_type)
+
+        # Read the raw text from the cell widget to detect expressions,
+        # because the callback value is always the resolved numeric float.
+        row = 0 if transform_type == "position" else 1
+        col = ("x", "y", "z").index(axis)
+        widget = self.transform_table.cellWidget(row, col)
+        raw_text = ""
+        if hasattr(widget, "text"):
+            raw_text = widget.text().strip()
+
+        num_val, is_expr = evaluate_expression_or_number(raw_text, self._api)
+        # Fallback to callback value if raw_text couldn't resolve
+        if num_val is None and isinstance(value, (int, float)):
+            num_val = float(value)
+
+        def change() -> None:
+            if is_expr:
+                target[f"{axis}_expression"] = raw_text
+            else:
+                target.pop(f"{axis}_expression", None)
+            if num_val is not None:
+                target[axis] = num_val
+
+        self._edit_component(f"Change fuselage section {transform_type} {axis}", change)
         self._refresh_section_row()
 
     def _update_section_property(self, row: int, column: int) -> None:
@@ -868,38 +891,67 @@ class FuselageEditor(PropertyTableMixin, QWidget):
 
     def _set_transform_values(
         self,
-        position: tuple[float, float, float],
-        rotation: tuple[float, float, float],
+        position: dict[str, Any] | tuple[float, float, float],
+        rotation: dict[str, Any] | tuple[float, float, float],
     ) -> None:
         self_ref = weakref.ref(self)
-        for column, value in enumerate(position):
+        pos_dict = (
+            position
+            if isinstance(position, dict)
+            else {"x": position[0], "y": position[1], "z": position[2]}
+        )
+        rot_dict = (
+            rotation
+            if isinstance(rotation, dict)
+            else {"x": rotation[0], "y": rotation[1], "z": rotation[2]}
+        )
+        axes = ("x", "y", "z")
+        for column, axis in enumerate(axes):
+            raw_val = pos_dict.get(f"{axis}_expression") or pos_dict.get(axis, 0.0)
             set_table_spinbox(
                 self.transform_table,
                 0,
                 column,
-                value,
+                raw_val,
                 step=5.0,
                 decimals=2,
                 quantity="length",
                 suffix="mm",
-                on_changed=lambda _v: (
-                    self_ref()._update_section(0, 0) if self_ref() is not None else None
+                api=self._api,
+                label=f"Position {axis.upper()}",
+                property_key=axis,
+                on_changed=lambda _v, a=axis: (
+                    self_ref()._on_transform_expression_changed("position", a, _v)
+                    if self_ref() is not None
+                    else None
                 ),
             )
-        for column, value in enumerate(rotation):
+        rot_aliases = {"x": "roll", "y": "pitch", "z": "yaw"}
+        for column, axis in enumerate(axes):
+            alias = rot_aliases[axis]
+            raw_val = (
+                rot_dict.get(f"{axis}_expression")
+                or rot_dict.get(f"{alias}_expression")
+                or rot_dict.get(axis, rot_dict.get(alias, 0.0))
+            )
             set_table_spinbox(
                 self.transform_table,
                 1,
                 column,
-                value,
+                raw_val,
                 min_val=-360.0,
                 max_val=360.0,
                 step=1.0,
                 decimals=2,
                 quantity="angle",
                 suffix="°",
-                on_changed=lambda _v: (
-                    self_ref()._update_section(1, 0) if self_ref() is not None else None
+                api=self._api,
+                label=f"Rotation {axis.upper()}",
+                property_key=axis,
+                on_changed=lambda _v, a=axis: (
+                    self_ref()._on_transform_expression_changed("rotation", a, _v)
+                    if self_ref() is not None
+                    else None
                 ),
             )
 

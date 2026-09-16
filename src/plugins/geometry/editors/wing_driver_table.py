@@ -229,12 +229,14 @@ class DriverPlanformTable(QTableWidget):
                         init_str = format_engineering_value(disp_val, dec)
 
                     label_name = PLANFORM_PARAM_LABELS[key]
+                    q_id = get_quantity_for_unit(unit)
                     cell = ExpressionPropertyCell(
                         initial_value=init_str,
                         on_changed=lambda s, k=key: self._on_expression_cell_changed(k, s),
                         api=self._api,
                         label=label_name,
                         decimals=dec,
+                        quantity=q_id,
                         unit=unit,
                         parent=self,
                     )
@@ -291,7 +293,12 @@ class DriverPlanformTable(QTableWidget):
         else:
             self._driver_expressions.pop(edited_key, None)
             with contextlib.suppress(ValueError):
-                eval_val = float(clean)
+                disp_num = float(clean)
+                from setuav_studio.units import get_quantity_for_unit, get_unit_manager
+
+                unit = PLANFORM_PARAM_UNITS.get(edited_key, "")
+                q_id = get_quantity_for_unit(unit)
+                eval_val = get_unit_manager().to_base(disp_num, q_id) if q_id else disp_num
 
         if eval_val is not None:
             self._on_spinbox_value_changed(edited_key, eval_val)
