@@ -162,7 +162,6 @@ include = [
     "src/setuav_studio/units/quantities.py",
     "src/setuav_studio/units/unit.py",
     "src/setuav_studio/model/component.py",
-    "src/setuav_studio/model/configuration.py",
     "src/setuav_studio/model/constraint.py",
     "src/setuav_studio/model/data.py",
     "src/setuav_studio/model/environment.py",

@@ -254,16 +254,15 @@ def build_universal_scope(  # noqa: C901
     Single source of truth used for runtime expression evaluation and UI symbol discovery.
     """
     from setuav_studio.model.component import GenericComponent
-    from setuav_studio.model.configuration import ConfigurationManager
     from setuav_studio.model.parameter import ParameterResolver
 
     resolver = ParameterResolver()
-    cfg_mgr = ConfigurationManager(project_data, resolver=resolver)
+    raw_params = project_data.get("parameters", {}) if isinstance(project_data, dict) else {}
+    resolved_params = resolver.resolve_all(raw_params) if isinstance(raw_params, dict) else {}
 
     scope: dict[str, Any] = {}
 
     # 1. Project Global Parameters & Constants
-    resolved_params = cfg_mgr.get_effective_project_parameters(config_id)
     for k, v in resolved_params.items():
         clean_k = k.replace("-", "_")
         scope[k] = v
@@ -271,7 +270,7 @@ def build_universal_scope(  # noqa: C901
             scope[clean_k] = v
 
     # 2. Materialized & Resolved Components
-    components = cfg_mgr.get_materialized_components(config_id)
+    components = project_data.get("components", []) if isinstance(project_data, dict) else []
     models_list: list[Any] = []
     total_mass = 0.0
 
@@ -279,7 +278,7 @@ def build_universal_scope(  # noqa: C901
         for comp in components:
             if not isinstance(comp, dict):
                 continue
-            resolved_comp = cfg_mgr.get_resolved_component(comp, config_id)
+            resolved_comp = resolver.evaluate_component_parameters(comp, resolved_params)
             if api is not None and hasattr(api, "create_component_model"):
                 model = api.create_component_model(resolved_comp)
             else:

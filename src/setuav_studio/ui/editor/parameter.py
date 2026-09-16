@@ -14,7 +14,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.model.configuration import ConfigurationManager
 from setuav_studio.model.parameter import ParameterResolver
 from setuav_studio.ui.icons import set_label_icon
 from setuav_studio.ui.widget.table import PropertyTableMixin
@@ -166,10 +165,10 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
             )
             self._set_property_value(self.general_table, "unit", active_sym, editable=False)
 
-            cfg_mgr = ConfigurationManager(data, self._resolver)
+            raw_params = data.get("parameters", {}) if isinstance(data, dict) else {}
             res_str = "—"
             with contextlib.suppress(Exception):
-                resolved = cfg_mgr.get_effective_project_parameters()
+                resolved = self._resolver.resolve_all(raw_params)
                 res_val = resolved.get(self._param_key, "—")
                 if isinstance(res_val, (int, float)):
                     disp_val = (

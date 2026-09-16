@@ -19,7 +19,6 @@ class Vehicle:
     name: str = "Unnamed Vehicle"
     type: str = "org.setuav.core:vehicle"
     systems: list[System] = field(default_factory=list)
-    configurations: list[dict[str, Any]] = field(default_factory=list)
     states: list[State] = field(default_factory=list)
     parameters: Data = field(default_factory=Data)
     plugins: Data = field(default_factory=Data)
@@ -78,7 +77,6 @@ class Vehicle:
             "name": self.name,
             "type": self.type,
             "systems": [s.to_dict() for s in self.systems],
-            "configurations": list(self.configurations),
             "states": [s.to_dict() for s in self.states],
             "parameters": self.parameters.to_dict(),
             "plugins": self.plugins.to_dict(),
@@ -111,10 +109,7 @@ class Vehicle:
             if isinstance(s, (dict, State))
         ]
 
-        # 3. Parse Configurations
-        configs = list(data.get("configurations", []))
-
-        # 4. Plugins / Extensions storage
+        # 3. Plugins / Extensions storage
         plugins_data = data.get("plugins") or data.get("extensions") or {}
 
         return cls(
@@ -122,7 +117,6 @@ class Vehicle:
             name=str(data.get("name", "Unnamed Vehicle")),
             type=str(data.get("type", "org.setuav.core:vehicle")),
             systems=systems,
-            configurations=configs,
             states=states,
             parameters=Data.from_dict(data.get("parameters", {})),
             plugins=Data.from_dict(plugins_data if isinstance(plugins_data, dict) else {}),
