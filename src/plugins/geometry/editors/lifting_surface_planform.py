@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import contextlib
 from copy import deepcopy
 from typing import Any
 

@@ -381,7 +381,7 @@ class AdvancedExpressionDialog(QDialog):
         components = self._metadata.get("components", [])
         self.expr_edit.set_symbol_data(constants, components, math_funcs)
 
-    def _populate_component_tree(self) -> None:
+    def _populate_component_tree(self) -> None:  # noqa: C901
         self.comp_tree.clear()
         components = self._metadata.get("components", [])
 

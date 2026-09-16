@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import unittest
 
-from PySide6.QtWidgets import QApplication
-
 from plugins.geometry.workspace import ViewerWorkspace
 from setuav_studio.api import StudioAPI
 from setuav_studio_sdk.primitives import LineSegmentsPrimitive

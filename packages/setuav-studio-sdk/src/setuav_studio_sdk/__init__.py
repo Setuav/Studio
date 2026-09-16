@@ -25,14 +25,6 @@ from .contributions import (
 from .events import StudioEvents
 from .models import ProjectDocument
 from .plugin import PLUGIN_ENTRY_POINT_GROUP, StudioPlugin
-from .tasks import (
-    CancellationToken,
-    TaskCancelledError,
-    TaskHandle,
-    TaskManagerProtocol,
-    TaskProgress,
-    TaskStatus,
-)
 from .primitives import (
     BoxPrimitive,
     ColorRGB,
@@ -45,6 +37,14 @@ from .primitives import (
     RingPrimitive,
     TrianglesPrimitive,
     VisualPrimitive,
+)
+from .tasks import (
+    CancellationToken,
+    TaskCancelledError,
+    TaskHandle,
+    TaskManagerProtocol,
+    TaskProgress,
+    TaskStatus,
 )
 from .version import PLUGIN_API_VERSION
 

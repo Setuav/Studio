@@ -771,7 +771,7 @@ def _ortho_basis(normal: Point3D) -> tuple[Point3D, Point3D]:
     return u, v
 
 
-def build_primitive_solid_vertices(primitives) -> list[float]:
+def build_primitive_solid_vertices(primitives) -> list[float]:  # noqa: C901
     vertices: list[float] = []
     for prim in primitives:
         if not getattr(prim, "solid", True):
@@ -875,7 +875,7 @@ def build_primitive_solid_vertices(primitives) -> list[float]:
     return vertices
 
 
-def build_primitive_wire_vertices(primitives) -> list[float]:
+def build_primitive_wire_vertices(primitives) -> list[float]:  # noqa: C901
     vertices: list[float] = []
     for prim in primitives:
         raw_color = prim.color

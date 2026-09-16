@@ -55,7 +55,7 @@ def sync_component_envelope(
     return True
 
 
-def sync_project_geometry_envelopes(project: Any) -> int:  # noqa: C901
+def sync_project_geometry_envelopes(project: Any) -> int:
     """Ensure all geometry components in the project document have up-to-date envelopes.
 
     Returns the count of components whose envelope was updated.
@@ -547,7 +547,7 @@ def _compute_fuselage_trapezoidal_slices(
 # =============================================================================
 
 
-def _compute_lifting_surface_trapezoidal_slices(  # noqa: C901
+def _compute_lifting_surface_trapezoidal_slices(
     geometry: dict[str, Any],
     profiles: list[Any],
 ) -> tuple[
@@ -1114,7 +1114,7 @@ def _fuselage_fallback(segments: list[Any]) -> dict[str, Any] | None:
     }
 
 
-def _compute_control_surface_envelope(  # noqa: C901
+def _compute_control_surface_envelope(
     component: dict[str, Any],
     parent: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:

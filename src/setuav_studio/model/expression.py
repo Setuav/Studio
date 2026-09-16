@@ -5,7 +5,8 @@ from __future__ import annotations
 import ast
 import math
 import re
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from asteval import Interpreter
 
@@ -197,7 +198,7 @@ def rename_symbol_in_expression(
     return expression, False
 
 
-def walk_expressions(
+def walk_expressions(  # noqa: C901
     obj: Any,
     callback: Callable[[str, str], str | None],
     path: str = "",
@@ -318,7 +319,7 @@ def find_symbol_usages_in_project(
         is_used = False
         for s in symbols:
             parts = s.split(".")
-            if clean_sym in parts or raw_sym in parts or s == clean_sym or s == raw_sym:
+            if clean_sym in parts or raw_sym in parts or s in (clean_sym, raw_sym):
                 is_used = True
                 break
             if s.startswith(f"{clean_sym}.") or s.startswith(f"{clean_sym}_"):

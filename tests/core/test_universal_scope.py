@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 from setuav_studio.model.expression import ExpressionEvaluator
-from setuav_studio.model.scope import ScopeProxy, build_universal_scope
+from setuav_studio.model.scope import ScopeProxy
 from setuav_studio.model.symbol import get_available_symbols_metadata
 from setuav_studio.project.document import create_project
 

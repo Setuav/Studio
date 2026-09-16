@@ -25,7 +25,7 @@ class ScopeProxy:
     - Automatic hyphen-to-underscore normalization: ``main-wing`` <-> ``main_wing``
     """
 
-    __slots__ = ("_target", "_path")
+    __slots__ = ("_path", "_target")
 
     def __init__(self, target: Any, path: str = "") -> None:
         object.__setattr__(self, "_target", target)
@@ -48,7 +48,7 @@ class ScopeProxy:
         """Return the underlying unwrapped object or dictionary."""
         return self._target
 
-    def __getattr__(self, name: str) -> Any:
+    def __getattr__(self, name: str) -> Any:  # noqa: C901
         # Ignore dunder methods to avoid interfering with Python runtime protocols
         if name.startswith("__") and name.endswith("__"):
             raise AttributeError(name)
@@ -168,9 +168,9 @@ class ScopeProxy:
         # 5. Section / Profile list aliases on components
         if clean_name in ("sections", "profiles"):
             if hasattr(target, "sections"):
-                return ScopeProxy.wrap(getattr(target, "sections"), f"{self._path}.{name}")
+                return ScopeProxy.wrap(target.sections, f"{self._path}.{name}")
             if hasattr(target, "profiles"):
-                return ScopeProxy.wrap(getattr(target, "profiles"), f"{self._path}.{name}")
+                return ScopeProxy.wrap(target.profiles, f"{self._path}.{name}")
             if isinstance(d, dict):
                 profs = (
                     d.get("parameters", {}).get("geometry", {}).get("profiles")
@@ -244,7 +244,7 @@ class ScopeProxy:
         return f"<ScopeProxy({self._path or self._target!r})>"
 
 
-def build_universal_scope(
+def build_universal_scope(  # noqa: C901
     project_data: dict[str, Any],
     api: Any | None = None,
     config_id: str | None = None,

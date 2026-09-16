@@ -9,8 +9,6 @@ from __future__ import annotations
 from typing import Any
 
 from setuav_studio.model.component import Component, GenericComponent
-from setuav_studio.model.configuration import ConfigurationManager
-from setuav_studio.model.parameter import ParameterResolver
 
 
 def create_model_for_component(
@@ -34,7 +32,7 @@ def build_evaluation_context(
     return build_universal_scope(project_data, api=api, config_id=config_id)
 
 
-def get_available_symbols_metadata(
+def get_available_symbols_metadata(  # noqa: C901
     project_data: dict[str, Any],
     api: Any | None = None,
 ) -> dict[str, Any]:

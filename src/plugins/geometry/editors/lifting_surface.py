@@ -22,8 +22,6 @@ from setuav_studio.ui.icons import set_label_icon
 from setuav_studio.ui.widget.button import set_native_button
 from setuav_studio.ui.widget.spinbox import (
     NoWheelComboBox,
-    NumericSpinBox,
-    set_table_spinbox,
 )
 from setuav_studio.ui.widget.table import PropertyTableMixin
 from setuav_studio_sdk import StudioAPI

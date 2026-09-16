@@ -115,8 +115,9 @@ class TestComponentEditor(unittest.TestCase):
 
     def test_properties_panel_refreshes_on_project_content_change(self) -> None:
         import copy
-        from setuav_studio.ui.properties import PropertiesPanel
+
         from setuav_studio.ui.editor import InstanceEditor
+        from setuav_studio.ui.properties import PropertiesPanel
 
         api = StudioAPI()
         doc = ProjectDocument(

@@ -19,7 +19,6 @@ from setuav_studio_sdk.api import (
     ComponentTreeProvider,
     ProjectTreeProvider,
 )
-from setuav_studio_sdk.events import StudioEvents
 from setuav_studio_sdk.contributions import (
     ActionContribution,
     ComponentTreeNodeContribution,
@@ -30,6 +29,7 @@ from setuav_studio_sdk.contributions import (
     ToolContribution,
     WorkspaceContribution,
 )
+from setuav_studio_sdk.events import StudioEvents
 
 from .host import _StudioHost
 from .undo import _ComponentEditCommand, _ProjectEditCommand

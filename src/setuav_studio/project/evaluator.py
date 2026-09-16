@@ -57,7 +57,7 @@ def recompute_project_expressions(project: Any, api: Any | None = None) -> bool:
     return updated
 
 
-def _recompute_component(
+def _recompute_component(  # noqa: C901
     comp: dict[str, Any],
     evaluator: ExpressionEvaluator,
     scope: dict[str, Any],
@@ -301,8 +301,7 @@ def _recompute_generic_dict(
                 changed = True
         elif isinstance(v, list):
             for item in v:
-                if isinstance(item, dict):
-                    if _recompute_generic_dict(item, evaluator, scope):
+                if isinstance(item, dict) and _recompute_generic_dict(item, evaluator, scope):
                         changed = True
 
     return changed

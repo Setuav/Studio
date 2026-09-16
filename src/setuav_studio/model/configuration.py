@@ -317,7 +317,7 @@ class ConfigurationManager:
                 cfg["component_overrides"] = delta["component_overrides"]
                 # Preserve expressions through config delta
                 if current_expressions:
-                    cfg.setdefault("_expressions", {})[param] = copy.deepcopy(current_expressions.get(param, {}))
+                    cfg.setdefault("_expressions", {})
                     for k, v in current_expressions.items():
                         if k not in cfg["_expressions"]:
                             cfg["_expressions"][k] = copy.deepcopy(v)

@@ -528,7 +528,7 @@ def _project_point_to_fuselage(
     return p_in, True
 
 
-def _build_component_envelope_geometry(  # noqa: C901
+def _build_component_envelope_geometry(
     item_id: str,
     item: dict[str, Any],
     source: dict[str, Any],

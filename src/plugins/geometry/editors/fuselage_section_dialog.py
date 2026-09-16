@@ -44,7 +44,6 @@ from .fuselage_canvas import FuselageCanvasWidget
 from .fuselage_commands import (
     AddVertexCommand,
     ChangeProfileTypeCommand,
-    ChangePropertyCommand,
     DeleteVertexCommand,
     MoveVertexCommand,
 )
