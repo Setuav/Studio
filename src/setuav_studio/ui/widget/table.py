@@ -21,7 +21,7 @@ copying the implementation:
 from __future__ import annotations
 
 import weakref
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any
 
 from PySide6.QtCore import Qt, QTimer, Signal
@@ -506,8 +506,8 @@ class PropertyTableMixin:
         table: QTableWidget,
         key: str,
         value: str,
-        options: list[tuple[str, str]],
-        on_changed: Callable[[str], None],
+        options: Sequence[tuple[str, str] | str],
+        on_changed: Callable[[str], Any],
     ) -> None:
         for row in range(table.rowCount()):
             if self._property_key(table, row) != key:
@@ -529,8 +529,8 @@ class PropertyTableMixin:
         row: int,
         column: int,
         value: str,
-        options: list[tuple[str, str]],
-        on_changed: Callable[[str], None],
+        options: Sequence[tuple[str, str] | str],
+        on_changed: Callable[[str], Any],
     ) -> None:
         item = table.item(row, column)
         if item is not None:
@@ -544,7 +544,11 @@ class PropertyTableMixin:
         )
         combo.view().setProperty("tableComboPopup", True)
         combo.view().setFont(QApplication.font())
-        for option_value, label in options:
+        for opt in options:
+            if isinstance(opt, tuple) and len(opt) == 2:
+                option_value, label = opt
+            else:
+                option_value, label = str(opt), str(opt)
             combo.addItem(label, option_value)
         if cls.table_combo_strict_find:
             index = combo.findData(value)
@@ -597,29 +601,36 @@ class PropertyTableMixin:
         unit: str | None = None,
         expression: str | None = None,
         target_data: dict[str, Any] | None = None,
-        on_changed: Callable[[Any], None] | None = None,
+        on_changed: Callable[[Any], Any] | None = None,
         api: Any | None = None,
         label: str = "",
     ) -> Any:
         if target_data is None:
-            if hasattr(self, "_get_property_target_data") and callable(
-                self._get_property_target_data
-            ):
-                target_data = self._get_property_target_data()
-            elif hasattr(self, "_target_data") and isinstance(self._target_data, dict):
-                target_data = self._target_data
-            elif hasattr(self, "_get_data") and callable(self._get_data):
-                target_data = self._get_data()
-            elif hasattr(self, "_geometry") and callable(self._geometry):
-                target_data = self._geometry()
-            elif hasattr(self, "_parameters") and callable(self._parameters):
-                target_data = self._parameters()
-            elif hasattr(self, "_parameters") and isinstance(self._parameters, dict):
-                target_data = self._parameters
-            elif hasattr(self, "_component") and isinstance(self._component, dict):
-                params = self._component.get("parameters")
-                if isinstance(params, dict):
-                    target_data = params
+            resolved: Any = None
+            _get_target = getattr(self, "_get_property_target_data", None)
+            _target = getattr(self, "_target_data", None)
+            _get = getattr(self, "_get_data", None)
+            _geom = getattr(self, "_geometry", None)
+            _params = getattr(self, "_parameters", None)
+            _comp = getattr(self, "_component", None)
+
+            if callable(_get_target):
+                resolved = _get_target()
+            elif isinstance(_target, dict):
+                resolved = _target
+            elif callable(_get):
+                resolved = _get()
+            elif callable(_geom):
+                resolved = _geom()
+            elif callable(_params):
+                resolved = _params()
+            elif isinstance(_params, dict):
+                resolved = _params
+            elif isinstance(_comp, dict):
+                resolved = _comp.get("parameters")
+
+            if isinstance(resolved, dict):
+                target_data = resolved
 
         for row in range(table.rowCount()):
             if self._property_key(table, row) != key:

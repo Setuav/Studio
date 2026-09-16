@@ -238,8 +238,9 @@ class ProjectParametersPanel(QWidget):
             else f"Edit parameter '{new_key}'"
         )
         self._api.edit_project(desc, _apply)
-        if hasattr(self._api.current_project, "recompute_expressions"):
-            self._api.current_project.recompute_expressions(self._api)
+        recompute = getattr(self._api.current_project, "recompute_expressions", None)
+        if recompute is not None:
+            recompute(self._api)
 
         if old_key and old_key != new_key:
             msg = f'Renamed parameter "{old_key}" to "{new_key}"'
@@ -320,8 +321,9 @@ class ProjectParametersPanel(QWidget):
                 raw_params.pop(param_name, None)
 
             self._api.edit_project(f"Remove parameter '{param_name}'", _apply)
-            if hasattr(self._api.current_project, "recompute_expressions"):
-                self._api.current_project.recompute_expressions(self._api)
+            recompute = getattr(self._api.current_project, "recompute_expressions", None)
+            if recompute is not None:
+                recompute(self._api)
             self._refresh()
 
     def _on_table_double_clicked(self, index) -> None:
