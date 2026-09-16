@@ -17,7 +17,6 @@ from PySide6.QtWidgets import (
 from setuav_studio.model.configuration import ConfigurationManager
 from setuav_studio.model.parameter import ParameterResolver
 from setuav_studio.ui.icons import set_label_icon
-from setuav_studio.ui.parameter.expression_dialog import AdvancedExpressionDialog
 from setuav_studio.ui.widget.table import PropertyTableMixin
 
 if TYPE_CHECKING:
@@ -189,6 +188,8 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
 
     def _open_assistant(self, current_val: str) -> None:
         from PySide6.QtWidgets import QDialog
+
+        from setuav_studio.ui.dialog.expression_dialog import AdvancedExpressionDialog
 
         dlg = AdvancedExpressionDialog(
             self._api,

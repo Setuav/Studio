@@ -43,7 +43,7 @@ from setuav_studio.api import (
     WorkspaceContribution,
 )
 from setuav_studio.project import ProjectDocument
-from setuav_studio.ui.project_explorer import ProjectExplorer
+from setuav_studio.ui.panels.project_explorer import ProjectExplorer
 from tests._common import get_qapp
 
 
@@ -813,7 +813,7 @@ class AerodynamicsPluginTests(unittest.TestCase):
             def exec(self, *args, **kwargs):
                 return None
 
-        with patch("setuav_studio.ui.project_explorer.context_menu.QMenu", MockMenu):
+        with patch("setuav_studio.ui.panels.project_explorer.context_menu.QMenu", MockMenu):
             explorer._open_context_menu(explorer.visualItemRect(result_item).center())
 
         self.assertIn("Rename", menu_actions)

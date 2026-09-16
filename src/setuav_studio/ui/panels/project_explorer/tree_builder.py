@@ -7,7 +7,7 @@ from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import QTreeWidgetItem
 
 from setuav_studio.ui.icons import get_icon
-from setuav_studio.ui.project_explorer.style import (
+from setuav_studio.ui.panels.project_explorer.style import (
     format_assembly_icon,
     format_assembly_type,
     format_component_name,
@@ -17,7 +17,7 @@ from setuav_studio.ui.project_explorer.style import (
 
 if TYPE_CHECKING:
     from setuav_studio.project import ProjectDocument
-    from setuav_studio.ui.project_explorer.tree import ProjectExplorer
+    from setuav_studio.ui.panels.project_explorer.tree import ProjectExplorer
     from setuav_studio_sdk import (
         ProjectTreeNodeContribution,
         StudioAPI,

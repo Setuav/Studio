@@ -116,8 +116,8 @@ class TestComponentEditor(unittest.TestCase):
     def test_properties_panel_refreshes_on_project_content_change(self) -> None:
         import copy
 
-        from setuav_studio.ui.editor import InstanceEditor
-        from setuav_studio.ui.properties import PropertiesPanel
+        from setuav_studio.ui.editor import BaseComponentEditor
+        from setuav_studio.ui.panels.properties import PropertiesPanel
 
         api = StudioAPI()
         doc = ProjectDocument(
@@ -135,14 +135,14 @@ class TestComponentEditor(unittest.TestCase):
             },
         )
         api._host.set_project(doc)
-        api.register_component_editor("test:comp", lambda c: InstanceEditor(api, c))
+        api.register_component_editor("test:comp", lambda c: BaseComponentEditor(api, c))
 
         panel = PropertiesPanel(api)
         self.addCleanup(panel.deleteLater)
         api.set_selection(doc.get_component("wing-1"))
 
         self.assertIsNotNone(panel._current_widget)
-        self.assertEqual(panel._current_widget._instance["parameters"]["span"], 1.5)
+        self.assertEqual(panel._current_widget._component["parameters"]["span"], 1.5)
 
         # Deepcopy project components simulating config switch or edit_project
         doc.data["components"] = copy.deepcopy(doc.data["components"])
@@ -151,7 +151,7 @@ class TestComponentEditor(unittest.TestCase):
 
         # Panel must have refreshed and point to the live component
         self.assertIsNotNone(panel._current_widget)
-        self.assertEqual(panel._current_widget._instance["parameters"]["span"], 4.0)
+        self.assertEqual(panel._current_widget._component["parameters"]["span"], 4.0)
 
 
 if __name__ == "__main__":

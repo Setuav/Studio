@@ -22,6 +22,9 @@ class TestPluginInstaller(unittest.TestCase):
         cls._app = QApplication.instance() or QApplication([])
 
     def setUp(self) -> None:
+        from PySide6.QtCore import QSettings
+
+        QSettings().setValue("plugins/disabled", [])
         self.temp_dir = tempfile.TemporaryDirectory()
         self.user_dir = Path(self.temp_dir.name) / "plugins"
         self.user_dir.mkdir(parents=True, exist_ok=True)

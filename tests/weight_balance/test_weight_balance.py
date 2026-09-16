@@ -18,11 +18,11 @@ from setuav_studio.api import (
     WorkspaceContribution,
 )
 from setuav_studio.project import ProjectDocument, open_project
-from setuav_studio.ui.project_explorer import (
+from setuav_studio.ui.panels.project_explorer import (
     ProjectExplorer,
     ProjectExplorerPanel,
 )
-from setuav_studio.ui.properties.properties_panel import PropertiesPanel
+from setuav_studio.ui.panels.properties.properties_panel import PropertiesPanel
 from setuav_studio.ui.shell.native_registrations import register_native_contributions
 from tests._common import TEST_PROJECT_PATH, get_qapp
 

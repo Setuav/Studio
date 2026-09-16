@@ -4,12 +4,12 @@ from typing import TYPE_CHECKING, Any
 
 from PySide6.QtWidgets import QMessageBox, QTreeWidgetItem, QWidget
 
-from setuav_studio.ui.project_explorer.style import (
+from setuav_studio.ui.panels.project_explorer.style import (
     format_component_name,
 )
 
 if TYPE_CHECKING:
-    from setuav_studio.ui.project_explorer.tree import ProjectExplorer
+    from setuav_studio.ui.panels.project_explorer.tree import ProjectExplorer
     from setuav_studio_sdk import ProjectTreeNodeContribution, StudioAPI
 
 
@@ -444,35 +444,35 @@ class ProjectExplorerOperations:
     def add_parameter_action(
         self, is_constant: bool = False, parent: QWidget | None = None
     ) -> None:
-        from setuav_studio.ui.project_explorer.dialog_actions import (
+        from setuav_studio.ui.panels.project_explorer.dialog_actions import (
             add_parameter_action,
         )
 
         add_parameter_action(self._api, self._tree, is_constant=is_constant, parent=parent)
 
     def add_constraint_action(self, parent: QWidget | None = None) -> None:
-        from setuav_studio.ui.project_explorer.dialog_actions import (
+        from setuav_studio.ui.panels.project_explorer.dialog_actions import (
             add_constraint_action,
         )
 
         add_constraint_action(self._api, self._tree, parent=parent)
 
     def edit_parameter_fx(self, element: dict[str, Any], parent: QWidget | None = None) -> None:
-        from setuav_studio.ui.project_explorer.dialog_actions import (
+        from setuav_studio.ui.panels.project_explorer.dialog_actions import (
             edit_parameter_fx,
         )
 
         edit_parameter_fx(self._api, self._tree, element, parent=parent)
 
     def edit_constraint_fx(self, element: dict[str, Any], parent: QWidget | None = None) -> None:
-        from setuav_studio.ui.project_explorer.dialog_actions import (
+        from setuav_studio.ui.panels.project_explorer.dialog_actions import (
             edit_constraint_fx,
         )
 
         edit_constraint_fx(self._api, self._tree, element, parent=parent)
 
     def toggle_constraint(self, element: dict[str, Any]) -> None:
-        from setuav_studio.ui.project_explorer.dialog_actions import (
+        from setuav_studio.ui.panels.project_explorer.dialog_actions import (
             toggle_constraint,
         )
 

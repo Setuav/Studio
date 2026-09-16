@@ -290,6 +290,7 @@ class PluginManager:
         spec = importlib.util.spec_from_file_location(f"user_plugins.{name}", file_path)
         if spec and spec.loader:
             mod = importlib.util.module_from_spec(spec)
+            sys.modules[f"user_plugins.{name}"] = mod
             spec.loader.exec_module(mod)
             return self._find_plugin_in_module(mod)
         return None

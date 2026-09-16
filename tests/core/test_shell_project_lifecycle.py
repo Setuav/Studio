@@ -195,7 +195,7 @@ class ShellProjectLifecycleTests(unittest.TestCase):
         self.assertEqual(self.window._status_label.text(), "Project saved")
 
     def test_save_project_does_not_resurrect_deselected_selection(self) -> None:
-        from setuav_studio.ui.project_explorer.tree import ProjectExplorer
+        from setuav_studio.ui.panels.project_explorer.tree import ProjectExplorer
 
         project = self._project()
         project.data["components"] = [

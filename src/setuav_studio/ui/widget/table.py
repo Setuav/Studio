@@ -383,7 +383,7 @@ class ExpressionPropertyCell(QWidget):
         if self._on_open_assistant:
             self._on_open_assistant(self._raw_expression)
         elif self._api is not None:
-            from setuav_studio.ui.parameter.expression_dialog import AdvancedExpressionDialog
+            from setuav_studio.ui.dialog.expression_dialog import AdvancedExpressionDialog
 
             curr_text = self._raw_expression.strip()
             dlg = AdvancedExpressionDialog(

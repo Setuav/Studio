@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 class ToolbarManager:
-    """Manages workspace switcher, configuration bar, standard and dynamic toolbars."""
+    """Manages workspace switcher, standard and dynamic toolbars."""
 
     def __init__(self, window: QMainWindow, api: StudioAPI) -> None:
         self._window = window
