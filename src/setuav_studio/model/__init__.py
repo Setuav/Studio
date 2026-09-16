@@ -36,6 +36,12 @@ from setuav_studio.model.symbol import (
     create_model_for_component,
     get_available_symbols_metadata,
 )
+from setuav_studio.model.mass import (
+    ComponentMassProperties,
+    InertiaTensor,
+    MassProperties,
+    Vector3,
+)
 from setuav_studio.model.system import System
 from setuav_studio.model.vehicle import Vehicle
 
@@ -43,6 +49,7 @@ __all__ = [
     "Atmosphere",
     "CircularDependencyError",
     "Component",
+    "ComponentMassProperties",
     "ConfigurationError",
     "ConfigurationManager",
     "ConstraintChecker",
@@ -52,11 +59,14 @@ __all__ = [
     "ExpressionEvaluationError",
     "ExpressionEvaluator",
     "GenericComponent",
+    "InertiaTensor",
+    "MassProperties",
     "ParameterResolutionError",
     "ParameterResolver",
     "ScopeProxy",
     "State",
     "System",
+    "Vector3",
     "Vehicle",
     "build_evaluation_context",
     "build_universal_scope",

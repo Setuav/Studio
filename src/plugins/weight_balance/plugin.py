@@ -7,7 +7,6 @@ from typing import ClassVar
 from PySide6.QtCore import Qt
 
 from setuav_studio_sdk import (
-    ComponentTreeNodeContribution,
     PanelContribution,
     StudioAPI,
     StudioEvents,
@@ -19,7 +18,6 @@ from setuav_studio_sdk import (
 from .balance_view_dock import WeightBalanceViewDock
 from .engine.base import WeightBalanceError
 from .engine.solver import EXTENSION_ID, WeightBalanceSolver
-from .mass_definition_dock import MassPropertiesEditor
 from .point_mass_editor import PointMassEditor
 from .results_dock import WeightBalanceResultsDock
 
@@ -78,11 +76,6 @@ class WeightBalancePlugin:
             "org.setuav.core:point-mass",
             POINT_MASS_ICON,
         )
-        api.register_component_tree_provider(EXTENSION_ID, self._mass_property_nodes)
-        api.register_kind_editor(
-            "mass-properties",
-            lambda selection: MassPropertiesEditor(api, selection),
-        )
         api.register_component_editor(
             "org.setuav.core:point-mass",
             lambda component: PointMassEditor(api, component),
@@ -125,11 +118,9 @@ class WeightBalancePlugin:
         api.remove_workspace("studio.workspace.weight_balance")
         api.remove_project_listener(self._project_changed)
         api.remove_project_content_listener(self._project_changed)
-        api.remove_kind_editor("mass-properties")
         api.remove_component_model("org.setuav.core:point-mass")
         api.remove_component_editor("org.setuav.core:point-mass")
         api.remove_component_icon("org.setuav.core:point-mass")
-        api.remove_component_tree_provider(EXTENSION_ID)
         self._api = None
 
     def _can_edit_project(self) -> bool:
@@ -201,29 +192,6 @@ class WeightBalancePlugin:
         api.edit_project("Add point mass", change)
         api.set_selection(component)
         api.show_status(f"Created {component_name}", "success", 3000)
-
-    @staticmethod
-    def _mass_property_nodes(
-        component: dict,
-    ) -> tuple[ComponentTreeNodeContribution, ...]:
-        component_id = str(component.get("id") or "")
-        if not component_id:
-            return ()
-        node_id = f"{component_id}:mass-properties"
-        return (
-            ComponentTreeNodeContribution(
-                id=node_id,
-                title="Mass",
-                selection={
-                    "id": node_id,
-                    "name": "Mass",
-                    "kind": "mass-properties",
-                    "component_id": component_id,
-                },
-                icon="mass",
-                tooltip=f"Mass, local CG and inertia for {component.get('name') or component_id}",
-            ),
-        )
 
     def run_analysis(self) -> None:
         if self._api is None or self._api.current_project is None:

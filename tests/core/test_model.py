@@ -146,6 +146,52 @@ class TestModelHierarchy(unittest.TestCase):
         self.assertEqual(len(vehicle.all_components()), 2)
         self.assertEqual(vehicle.get_component("c1").name, "Wing")
 
+    def test_component_mass_properties_and_inertia_model(self) -> None:
+        from setuav_studio.model import InertiaTensor, MassProperties
+
+        tensor = InertiaTensor(ixx=0.05, iyy=0.08, izz=0.12, ixy=0.001)
+        matrix = tensor.as_matrix()
+        self.assertEqual(matrix[0][0], 0.05)
+        self.assertEqual(matrix[0][1], -0.001)
+        from_mat = InertiaTensor.from_matrix(matrix)
+        self.assertAlmostEqual(from_mat.ixx, 0.05)
+        self.assertAlmostEqual(from_mat.ixy, 0.001)
+
+        comp = Component(
+            {
+                "id": "battery",
+                "name": "LiPo Pack",
+                "mass": 450.0,
+                "local_cg_mm": {"x": 50.0, "y": 0.0, "z": -10.0},
+                "inertia_kg_m2": {"ixx": 0.01, "iyy": 0.02, "izz": 0.03},
+            }
+        )
+        self.assertEqual(comp.mass, 450.0)
+        self.assertEqual(comp.local_cg["x"], 50.0)
+        self.assertEqual(comp.inertia["izz"], 0.03)
+        self.assertIsInstance(comp.inertia_tensor, InertiaTensor)
+        self.assertAlmostEqual(comp.inertia_tensor.izz, 0.03)
+
+        # Setter updates underlying raw dict
+        comp.local_cg = {"x": 60.0, "y": 5.0, "z": 0.0}
+        self.assertEqual(comp.raw_data["local_cg_mm"]["x"], 60.0)
+
+        # Legacy extensions fallback
+        legacy_comp = Component(
+            {
+                "id": "legacy_motor",
+                "mass": 120.0,
+                "extensions": {
+                    "org.setuav.weight-balance": {
+                        "local_cg_mm": {"x": 10.0, "y": 0.0, "z": 0.0},
+                        "inertia_kg_m2": {"ixx": 0.005},
+                    }
+                },
+            }
+        )
+        self.assertEqual(legacy_comp.local_cg["x"], 10.0)
+        self.assertEqual(legacy_comp.inertia["ixx"], 0.005)
+
 
 if __name__ == "__main__":
     unittest.main()

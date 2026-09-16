@@ -19,6 +19,7 @@ from setuav_studio.api import (
 )
 from setuav_studio.project import ProjectDocument
 from setuav_studio.ui.editor.envelope import EnvelopeEditor
+from setuav_studio.ui.editor.mass import MassPropertiesEditor
 from setuav_studio.ui.editor.transform import TransformEditor
 from setuav_studio.ui.project_explorer import ProjectExplorer
 from setuav_studio.ui.shell.native_registrations import register_native_contributions
@@ -146,6 +147,20 @@ class PluginTests(unittest.TestCase):
         envelope = component["envelope"]
         self.assertEqual(envelope["size_mm"], {"x": 60.0, "y": 30.0, "z": 15.0})
         self.assertAlmostEqual(envelope_editor.volume_value(), 27_000.0)
+
+        # 3. Native Mass Properties contribution
+        mass_contribution = self.api.component_tree_nodes(component)[2]
+        self.assertEqual(mass_contribution.id, "motor:mass-properties")
+        self.assertEqual(mass_contribution.title, "Mass")
+        self.assertEqual(mass_contribution.icon, "mass")
+        mass_editor = self.api.create_component_editor(mass_contribution.selection)
+        self.assertIsInstance(mass_editor, MassPropertiesEditor)
+        self.addCleanup(mass_editor.deleteLater)
+        self.assertTrue(mass_editor.mass_g.isEnabled())
+        mass_editor.mass_g.setValue(320.0)
+        self.assertEqual(component["mass"], 320.0)
+        self.api.undo()
+        self.assertNotIn("mass", component)
 
     def test_project_explorer_describes_instance_source_by_name(self) -> None:
         components = [

@@ -7,6 +7,7 @@ from PySide6.QtCore import Qt
 from setuav_studio.ui.editor import (
     EnvelopeEditor,
     InstanceEditor,
+    MassPropertiesEditor,
     TransformEditor,
 )
 from setuav_studio.ui.parameter import ProjectParametersPanel
@@ -61,6 +62,29 @@ def _transform_tree_nodes(
     return tuple(nodes)
 
 
+def _mass_tree_nodes(
+    component: dict[str, Any],
+) -> tuple[ComponentTreeNodeContribution, ...]:
+    component_id = str(component.get("id") or "")
+    if not component_id:
+        return ()
+    node_id = f"{component_id}:mass-properties"
+    return (
+        ComponentTreeNodeContribution(
+            id=node_id,
+            title="Mass",
+            selection={
+                "id": node_id,
+                "name": "Mass",
+                "kind": "mass-properties",
+                "component_id": component_id,
+            },
+            icon="mass",
+            tooltip=f"Mass, local CG and inertia for {component.get('name') or component_id}",
+        ),
+    )
+
+
 def register_native_contributions(api: StudioAPI) -> None:
     """Register built-in native panels, tree providers, and kind editors into the StudioAPI."""
     # 1. Native Panels
@@ -97,6 +121,10 @@ def register_native_contributions(api: StudioAPI) -> None:
         "org.setuav.studio.core.transform",
         _transform_tree_nodes,
     )
+    api.register_component_tree_provider(
+        "org.setuav.studio.core.mass",
+        _mass_tree_nodes,
+    )
 
     # 3. Native Kind Editors
     api.register_kind_editor(
@@ -111,3 +139,8 @@ def register_native_contributions(api: StudioAPI) -> None:
         "envelope",
         lambda selection: EnvelopeEditor(api, selection),
     )
+    api.register_kind_editor(
+        "mass-properties",
+        lambda selection: MassPropertiesEditor(api, selection),
+    )
+

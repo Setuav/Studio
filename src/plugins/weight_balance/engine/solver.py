@@ -168,7 +168,11 @@ class WeightBalanceSolver(WeightBalanceEngine):
             )
 
         mass_g = root_mass if root_mass is not None else parameter_mass
-        requested_source = str(wb_extension.get("mass_source") or "")
+        requested_source = str(
+            component.get("mass_source")
+            or wb_extension.get("mass_source")
+            or ""
+        )
         source = requested_source or ("declared" if mass_g is not None else "missing")
         if mass_g is None or mass_g <= 0.0:
             return None
@@ -179,7 +183,11 @@ class WeightBalanceSolver(WeightBalanceEngine):
 
         geometry = parameters.get("geometry")
         geometry = geometry if isinstance(geometry, dict) else {}
-        symmetry_mode = str(wb_extension.get("symmetry_mode") or "pair")
+        symmetry_mode = str(
+            component.get("symmetry_mode")
+            or wb_extension.get("symmetry_mode")
+            or "pair"
+        )
         if symmetry_mode == "pair" and (geometry.get("mirror") is True or mirrored_frame):
             # A mirrored lifting surface, and its attached control surfaces,
             # represent the complete left/right pair.  Their aggregate CG is
@@ -187,7 +195,11 @@ class WeightBalanceSolver(WeightBalanceEngine):
             # component has a local attachment offset on Y.
             cg_body = (cg_body[0], 0.0, cg_body[2])
 
-        inertia_value = wb_extension.get("inertia_kg_m2")
+        inertia_value = (
+            component.get("inertia_kg_m2")
+            or component.get("inertia")
+            or wb_extension.get("inertia_kg_m2")
+        )
         if inertia_value is None:
             inertia_value = parameters.get("inertia")
         inertia, has_declared_inertia = _inertia(inertia_value)
@@ -235,7 +247,7 @@ def _component_cg_value(
     wb_extension: dict[str, Any],
     envelope: dict[str, Any] | None,
 ) -> tuple[object, bool]:
-    value = wb_extension.get("local_cg_mm")
+    value = component.get("local_cg_mm") or component.get("local_cg") or wb_extension.get("local_cg_mm")
     declared = isinstance(value, dict)
     if not declared and envelope is not None:
         offset = envelope.get("offset_mm")
