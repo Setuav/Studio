@@ -293,7 +293,11 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
             self.mass_g.setValue(_number(mass))
 
             # 1. CG resolution: check root first, then extensions, then envelope
-            cg = component.get("local_cg_mm") or component.get("local_cg") or source.get("local_cg_mm")
+            cg = (
+                component.get("local_cg_mm")
+                or component.get("local_cg")
+                or source.get("local_cg_mm")
+            )
             source_extensions = source.get("extensions")
             source_extensions = source_extensions if isinstance(source_extensions, dict) else {}
             source_definition = source_extensions.get(WB_EXTENSION_ID)
@@ -317,7 +321,11 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
                 spin.setValue(_number(cg.get(axis)))
 
             # 2. Inertia resolution: check root first, then extensions, then parameters
-            inertia = component.get("inertia_kg_m2") or component.get("inertia") or source.get("inertia_kg_m2")
+            inertia = (
+                component.get("inertia_kg_m2")
+                or component.get("inertia")
+                or source.get("inertia_kg_m2")
+            )
             if not isinstance(inertia, dict):
                 inertia = definition.get(
                     "inertia_kg_m2",
@@ -395,7 +403,11 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
 
 
 def _number(value: object) -> float:
+    if value is None or value == "":
+        return 0.0
     try:
-        return float(value or 0.0)
+        if isinstance(value, (int, float, str)):
+            return float(value)
+        return float(str(value))
     except (TypeError, ValueError):
         return 0.0

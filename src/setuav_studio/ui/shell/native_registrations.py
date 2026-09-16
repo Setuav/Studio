@@ -143,4 +143,3 @@ def register_native_contributions(api: StudioAPI) -> None:
         "mass-properties",
         lambda selection: MassPropertiesEditor(api, selection),
     )
-

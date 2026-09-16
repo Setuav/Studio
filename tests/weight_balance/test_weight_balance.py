@@ -377,7 +377,9 @@ class WeightBalancePluginTests(unittest.TestCase):
         project = _project({"components": [component]})
         api._host.set_project(project)
         mass_nodes = [
-            n for n in api.component_tree_nodes(component) if n.selection.get("kind") == "mass-properties"
+            n
+            for n in api.component_tree_nodes(component)
+            if n.selection.get("kind") == "mass-properties"
         ]
         self.assertEqual(len(mass_nodes), 1)
         contribution = mass_nodes[0]
@@ -575,7 +577,9 @@ class WeightBalancePluginTests(unittest.TestCase):
 
         # Tree nodes still contain mass-properties
         mass_nodes = [
-            n for n in api.component_tree_nodes(component) if n.selection.get("kind") == "mass-properties"
+            n
+            for n in api.component_tree_nodes(component)
+            if n.selection.get("kind") == "mass-properties"
         ]
         self.assertEqual(len(mass_nodes), 1)
         contribution = mass_nodes[0]

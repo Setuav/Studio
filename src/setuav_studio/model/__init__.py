@@ -21,6 +21,12 @@ from setuav_studio.model.expression import (
     ExpressionEvaluationError,
     ExpressionEvaluator,
 )
+from setuav_studio.model.mass import (
+    ComponentMassProperties,
+    InertiaTensor,
+    MassProperties,
+    Vector3,
+)
 from setuav_studio.model.parameter import (
     CircularDependencyError,
     ParameterResolutionError,
@@ -35,12 +41,6 @@ from setuav_studio.model.symbol import (
     build_evaluation_context,
     create_model_for_component,
     get_available_symbols_metadata,
-)
-from setuav_studio.model.mass import (
-    ComponentMassProperties,
-    InertiaTensor,
-    MassProperties,
-    Vector3,
 )
 from setuav_studio.model.system import System
 from setuav_studio.model.vehicle import Vehicle

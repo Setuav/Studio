@@ -147,7 +147,7 @@ class TestModelHierarchy(unittest.TestCase):
         self.assertEqual(vehicle.get_component("c1").name, "Wing")
 
     def test_component_mass_properties_and_inertia_model(self) -> None:
-        from setuav_studio.model import InertiaTensor, MassProperties
+        from setuav_studio.model import InertiaTensor
 
         tensor = InertiaTensor(ixx=0.05, iyy=0.08, izz=0.12, ixy=0.001)
         matrix = tensor.as_matrix()
