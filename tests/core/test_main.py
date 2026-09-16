@@ -49,14 +49,14 @@ class MainTests(unittest.TestCase):
         self.addCleanup(window.deleteLater)
         window.open_project(TEST_PROJECT_PATH)
 
-        self.assertFalse(window._degraded_badge.isHidden())
+        self.assertIn("⚠️ 1", window._degraded_badge.text())
         self.assertIn("com.example.foo", window._degraded_badge.toolTip())
 
         api._host.bind_project_requirement_checker(lambda data: [])
         if window._project is not None:
             window._project.modified = False
         window.open_project(TEST_PROJECT_PATH)
-        self.assertTrue(window._degraded_badge.isHidden())
+        self.assertIn("🔴 0  ⚠️ 0", window._degraded_badge.text())
 
     def test_workspace_and_panel_contributions(self) -> None:
         api = StudioAPI()

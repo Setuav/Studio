@@ -146,6 +146,7 @@ class ActionManager:
         # Tools Menu
         self.tools_menu = menu_bar.addMenu("&Tools")
         self.menus["tools"] = self.tools_menu
+        self.tools_menu.addAction(self.command_palette_action)
         self.task_monitor_action = self.tools_menu.addAction(
             get_icon("fa6s.list-check"),
             "Background Tasks…",
@@ -153,12 +154,6 @@ class ActionManager:
         )
         self.task_monitor_action.setShortcut("Ctrl+T")
         self.command_actions["core.tasks.manage"] = self.task_monitor_action
-        self.constraints_action = self.tools_menu.addAction(
-            get_icon("constraint"),
-            "Design Constraints…",
-            self.open_constraints,
-        )
-        self.command_actions["core.constraints.manage"] = self.constraints_action
         self.plugin_manager_action = self.tools_menu.addAction(
             get_icon("package"),
             "Plugin Manager…",
@@ -245,6 +240,8 @@ class ActionManager:
             self.settings_action.setIcon(get_icon("fa6s.gear"))
             if hasattr(self._window, "_log_button"):
                 self._window._log_button.setIcon(get_icon("log"))
+            if hasattr(self._window, "_command_palette_button"):
+                self._window._command_palette_button.setIcon(get_icon("fa6s.terminal"))
             if hasattr(self._window, "_update_toolbar_contribution_icons"):
                 self._window._update_toolbar_contribution_icons()
             if hasattr(self._window, "_refresh_workspace_combo"):
@@ -254,8 +251,6 @@ class ActionManager:
 
     def populate_view_menu(self, workspace_id: str | None = None) -> None:
         self.view_menu.clear()
-        self.view_menu.addAction(self.command_palette_action)
-        self.view_menu.addSeparator()
         theme_menu = self.view_menu.addMenu("Theme")
         theme_menu.addAction(self.dark_theme_action)
         theme_menu.addAction(self.light_theme_action)

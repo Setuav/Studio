@@ -202,3 +202,12 @@ class ConstraintChecker:
                     self.check_constraint(c, project_data, context, api=api, config_id=config_id)
                 )
         return results
+
+    def evaluate_project(
+        self,
+        project_data: dict[str, Any],
+        config_id: str | None = None,
+        api: Any | None = None,
+    ) -> list[ConstraintResult]:
+        """Evaluate all constraints in project (alias for check_all)."""
+        return self.check_all(project_data, config_id=config_id, api=api)
