@@ -365,6 +365,7 @@ class WeightBalancePluginTests(unittest.TestCase):
         api = StudioAPI()
         api._host.bind_panel_handlers(lambda _panel: None)
         api._host.bind_workspace_handlers(lambda _workspace: None)
+        register_native_contributions(api)
         plugin = WeightBalancePlugin()
         plugin.activate(api)
         component = {
@@ -375,7 +376,13 @@ class WeightBalancePluginTests(unittest.TestCase):
         }
         project = _project({"components": [component]})
         api._host.set_project(project)
-        contribution = api.component_tree_nodes(component)[0]
+        mass_nodes = [
+            n
+            for n in api.component_tree_nodes(component)
+            if n.selection.get("kind") == "mass-properties"
+        ]
+        self.assertEqual(len(mass_nodes), 1)
+        contribution = mass_nodes[0]
         self.assertEqual(contribution.icon, "mass")
         definition = api.create_component_editor(contribution.selection)
         self.assertIsInstance(definition, MassPropertiesEditor)
@@ -431,6 +438,7 @@ class WeightBalancePluginTests(unittest.TestCase):
         api = StudioAPI()
         api._host.bind_panel_handlers(lambda _panel: None)
         api._host.bind_workspace_handlers(lambda _workspace: None)
+        register_native_contributions(api)
         plugin = WeightBalancePlugin()
         plugin.activate(api)
         component = {"id": "payload", "name": "Payload", "mass": 500}
@@ -497,6 +505,7 @@ class WeightBalancePluginTests(unittest.TestCase):
         api = StudioAPI()
         api._host.bind_panel_handlers(lambda _panel: None)
         api._host.bind_workspace_handlers(lambda _workspace: None)
+        register_native_contributions(api)
         plugin = WeightBalancePlugin()
         plugin.activate(api)
         component = {"id": "battery_1", "name": "Main Battery", "mass": 450}
@@ -549,6 +558,45 @@ class WeightBalancePluginTests(unittest.TestCase):
         )
         legend_texts = [text for _, _, text in view_dock._legend_labels]
         self.assertIn("Point Mass", legend_texts)
+
+    def test_mass_properties_remain_visible_when_weight_balance_plugin_deactivated(self) -> None:
+        api = StudioAPI()
+        api._host.bind_panel_handlers(lambda _panel: None)
+        api._host.bind_workspace_handlers(lambda _workspace: None)
+        register_native_contributions(api)
+
+        plugin = WeightBalancePlugin()
+        plugin.activate(api)
+
+        component = {"id": "payload", "name": "Payload", "mass": 500}
+        project = _project({"name": "Test", "components": [component]})
+        api._host.set_project(project)
+
+        # Deactivate plugin
+        plugin.deactivate(api)
+
+        # Tree nodes still contain mass-properties
+        mass_nodes = [
+            n
+            for n in api.component_tree_nodes(component)
+            if n.selection.get("kind") == "mass-properties"
+        ]
+        self.assertEqual(len(mass_nodes), 1)
+        contribution = mass_nodes[0]
+        self.assertEqual(contribution.title, "Mass")
+        self.assertEqual(contribution.icon, "mass")
+
+        # Project Explorer still has the mass tree item
+        explorer = ProjectExplorer(api)
+        properties = PropertiesPanel(api)
+        mass_item = explorer._item_map["payload:mass-properties"]
+        self.assertIsNotNone(mass_item)
+        explorer.setCurrentItem(mass_item)
+        get_qapp().processEvents()
+
+        self.assertEqual(api.current_selection["kind"], "mass-properties")
+        self.assertIsInstance(properties._current_widget, MassPropertiesEditor)
+        self.assertTrue(properties._current_widget.mass_g.isEnabled())
 
 
 if __name__ == "__main__":

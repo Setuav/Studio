@@ -21,6 +21,12 @@ from setuav_studio.model.expression import (
     ExpressionEvaluationError,
     ExpressionEvaluator,
 )
+from setuav_studio.model.mass import (
+    ComponentMassProperties,
+    InertiaTensor,
+    MassProperties,
+    Vector3,
+)
 from setuav_studio.model.parameter import (
     CircularDependencyError,
     ParameterResolutionError,
@@ -43,6 +49,7 @@ __all__ = [
     "Atmosphere",
     "CircularDependencyError",
     "Component",
+    "ComponentMassProperties",
     "ConfigurationError",
     "ConfigurationManager",
     "ConstraintChecker",
@@ -52,11 +59,14 @@ __all__ = [
     "ExpressionEvaluationError",
     "ExpressionEvaluator",
     "GenericComponent",
+    "InertiaTensor",
+    "MassProperties",
     "ParameterResolutionError",
     "ParameterResolver",
     "ScopeProxy",
     "State",
     "System",
+    "Vector3",
     "Vehicle",
     "build_evaluation_context",
     "build_universal_scope",

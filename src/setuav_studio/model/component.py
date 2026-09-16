@@ -67,6 +67,60 @@ class Component:
         self._raw_data["mass"] = float(value)
 
     @property
+    def local_cg(self) -> dict[str, float]:
+        """Local center of gravity offset in mm relative to component origin."""
+        val = self._raw_data.get("local_cg_mm") or self._raw_data.get("local_cg")
+        if not isinstance(val, dict):
+            ext = self.extensions.get("org.setuav.weight-balance")
+            if isinstance(ext, dict) and isinstance(ext.get("local_cg_mm"), dict):
+                val = ext["local_cg_mm"]
+        if not isinstance(val, dict):
+            val = self._raw_data.setdefault("local_cg_mm", {"x": 0.0, "y": 0.0, "z": 0.0})
+        return val
+
+    @local_cg.setter
+    def local_cg(self, value: dict[str, float]) -> None:
+        self._raw_data["local_cg_mm"] = {
+            "x": float(value.get("x", 0.0) or 0.0),
+            "y": float(value.get("y", 0.0) or 0.0),
+            "z": float(value.get("z", 0.0) or 0.0),
+        }
+
+    @property
+    def inertia(self) -> dict[str, float]:
+        """Local inertia tensor moments and products in kg·m²."""
+        val = self._raw_data.get("inertia_kg_m2") or self._raw_data.get("inertia")
+        if not isinstance(val, dict):
+            ext = self.extensions.get("org.setuav.weight-balance")
+            if isinstance(ext, dict) and isinstance(ext.get("inertia_kg_m2"), dict):
+                val = ext["inertia_kg_m2"]
+            elif isinstance(self.parameters.get("inertia"), dict):
+                val = self.parameters["inertia"]
+        if not isinstance(val, dict):
+            val = self._raw_data.setdefault(
+                "inertia_kg_m2",
+                {"ixx": 0.0, "iyy": 0.0, "izz": 0.0, "ixy": 0.0, "ixz": 0.0, "iyz": 0.0},
+            )
+        return val
+
+    @inertia.setter
+    def inertia(self, value: dict[str, float]) -> None:
+        self._raw_data["inertia_kg_m2"] = {
+            "ixx": float(value.get("ixx", 0.0) or 0.0),
+            "iyy": float(value.get("iyy", 0.0) or 0.0),
+            "izz": float(value.get("izz", 0.0) or 0.0),
+            "ixy": float(value.get("ixy", 0.0) or 0.0),
+            "ixz": float(value.get("ixz", 0.0) or 0.0),
+            "iyz": float(value.get("iyz", 0.0) or 0.0),
+        }
+
+    @property
+    def inertia_tensor(self) -> Any:
+        from setuav_studio.model.mass import InertiaTensor
+
+        return InertiaTensor.from_dict(self.inertia)
+
+    @property
     def transform(self) -> dict[str, Any]:
         return self._raw_data.setdefault("transform", {})
 
@@ -142,6 +196,7 @@ class Component:
 
     def get_exposed_properties(self) -> dict[str, Any]:
         """Return a dictionary of all property names and their current values."""
+        cg = self.local_cg
         props: dict[str, Any] = {
             "id": self.id,
             "name": self.name,
@@ -153,6 +208,9 @@ class Component:
             "roll": self.roll,
             "pitch": self.pitch,
             "yaw": self.yaw,
+            "cg_x": float(cg.get("x", 0.0) or 0.0),
+            "cg_y": float(cg.get("y", 0.0) or 0.0),
+            "cg_z": float(cg.get("z", 0.0) or 0.0),
         }
         for k, v in self.parameters.items():
             if isinstance(v, (int, float, str, bool)):
