@@ -44,6 +44,7 @@ from .fuselage_canvas import FuselageCanvasWidget
 from .fuselage_commands import (
     AddVertexCommand,
     ChangeProfileTypeCommand,
+    ChangePropertyCommand,
     DeleteVertexCommand,
     MoveVertexCommand,
 )
@@ -566,23 +567,12 @@ class FuselageSectionDialog(QDialog):
         if not isinstance(prof, dict):
             return
 
-        from .fuselage_profile_editor import evaluate_expression_or_number
+        old_val = prof.get(f"{key}_expression") or prof.get(key)
+        if old_val == new_val:
+            return
 
-        val_str = str(new_val).strip() if new_val is not None else ""
-        num_val, is_expr = evaluate_expression_or_number(val_str, self._api)
-
-        if is_expr:
-            prof[f"{key}_expression"] = val_str
-            if num_val is not None:
-                prof[key] = num_val
-        else:
-            prof.pop(f"{key}_expression", None)
-            if num_val is not None:
-                prof[key] = num_val
-            elif isinstance(new_val, str) and key == "orientation":
-                prof[key] = new_val
-
-        self._refresh_canvas_and_metrics()
+        cmd = ChangePropertyCommand(self, key, old_val, new_val)
+        self.undo_stack.push(cmd)
 
     def _populate_vertices_table(self, profile: dict[str, Any]) -> None:
         self.vertices_table.setRowCount(0)
@@ -873,7 +863,11 @@ class FuselageSectionDialog(QDialog):
             else:
                 prof[key] = value
 
-        self._populate_props_table(prof)
+        self._loading = True
+        try:
+            self._populate_props_table(prof)
+        finally:
+            self._loading = False
         self._refresh_canvas_and_metrics()
 
     def _apply_full_profile(self, profile: dict[str, Any]) -> None:

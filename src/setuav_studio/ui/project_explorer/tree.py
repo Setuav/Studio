@@ -220,9 +220,25 @@ class ProjectExplorer(QTreeWidget):
     def _refresh_modified_colors(self) -> None:
         from setuav_studio.ui.theme import status_color
 
-        for item, element in self._element_map.items():
-            if item in self._virtual_items:
+        for item, element in list(self._element_map.items()):
+            try:
+                _ = item.text(0)
+            except RuntimeError:
                 continue
+
+            if item in self._virtual_items:
+                analysis_id = element.get("analysis_id") if isinstance(element, dict) else None
+                if analysis_id:
+                    project = self._api.current_project
+                    current_entries = self._snapshot_analysis_results(project) if project else {}
+                    current_entry = current_entries.get(analysis_id)
+                    saved_entry = self._saved_analysis_results.get(analysis_id)
+                    if saved_entry != current_entry:
+                        item.setForeground(0, QBrush(QColor(status_color("warning"))))
+                    else:
+                        item.setData(0, Qt.ItemDataRole.ForegroundRole, None)
+                continue
+
             element_id = str(element.get("id") or "") if isinstance(element, dict) else ""
             if not element_id:
                 continue

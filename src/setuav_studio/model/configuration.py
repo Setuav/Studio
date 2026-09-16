@@ -338,7 +338,7 @@ class ConfigurationManager:
         self.sync_current_state_to_active()
 
         # 2. Materialize target configuration state
-        if config_id is not None and config_id:
+        if config_id is None:
             self.project_data["components"] = copy.deepcopy(self._base_state["components"])
             self.project_data["parameters"] = copy.deepcopy(self._base_state["parameters"])
             # Restore expressions from base state if present
@@ -350,6 +350,7 @@ class ConfigurationManager:
                     copy.deepcopy(self._base_state["_expressions"])
                 )
             self.project_data["assemblies"] = copy.deepcopy(self._base_state.get("assemblies", []))
+        else:
             target_cfg = self.get_configuration(config_id)
             if target_cfg is not None:
                 comps, params, assems = apply_configuration_delta(
