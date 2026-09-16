@@ -21,7 +21,7 @@ from setuav_studio.project import ProjectDocument
 from setuav_studio.ui.editor.envelope import EnvelopeEditor
 from setuav_studio.ui.editor.mass import MassPropertiesEditor
 from setuav_studio.ui.editor.transform import TransformEditor
-from setuav_studio.ui.project_explorer import ProjectExplorer
+from setuav_studio.ui.panels.project_explorer import ProjectExplorer
 from setuav_studio.ui.shell.native_registrations import register_native_contributions
 from tests._common import get_qapp
 
@@ -100,7 +100,7 @@ class PluginTests(unittest.TestCase):
 
         self.assertEqual(
             [panel.id for panel in self.panels],
-            ["core:project-explorer", "core:properties", "core:parameters"],
+            ["core:project-explorer", "core:properties"],
         )
 
     def test_core_plugin_contributes_transform_tree_node_and_editor(self) -> None:

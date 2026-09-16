@@ -198,10 +198,10 @@ class ExpressionLineEdit(QLineEdit):
         self._completer.setCompletionPrefix(token)
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
+        popup = self._completer.popup() if self._completer else None
         if (
-            self._completer
-            and self._completer.popup()
-            and self._completer.popup().isVisible()
+            popup
+            and popup.isVisible()
             and event.key()
             in (
                 Qt.Key.Key_Enter,
@@ -221,21 +221,21 @@ class ExpressionLineEdit(QLineEdit):
 
         token, _start_pos, _end_pos = self._get_current_token()
         if not token:
-            if self._completer.popup():
-                self._completer.popup().hide()
+            if popup:
+                popup.hide()
             return
 
         self._update_token_completions(token)
 
         popup = self._completer.popup()
-        if self._completer.completionCount() > 0:
+        if self._completer.completionCount() > 0 and popup:
             cr = self.cursorRect()
+            vbar = popup.verticalScrollBar()
+            vbar_w = vbar.sizeHint().width() if vbar else 0
             cr.setWidth(
                 max(
                     220,
-                    self._completer.popup().sizeHintForColumn(0)
-                    + self._completer.popup().verticalScrollBar().sizeHint().width()
-                    + 30,
+                    popup.sizeHintForColumn(0) + vbar_w + 30,
                 )
             )
             self._completer.complete(cr)

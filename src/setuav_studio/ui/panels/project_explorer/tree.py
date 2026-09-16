@@ -11,13 +11,13 @@ from PySide6.QtWidgets import (
     QTreeWidgetItem,
 )
 
-from setuav_studio.ui.project_explorer.context_menu import (
+from setuav_studio.ui.panels.project_explorer.context_menu import (
     ProjectExplorerContextMenu,
 )
-from setuav_studio.ui.project_explorer.operations import (
+from setuav_studio.ui.panels.project_explorer.operations import (
     ProjectExplorerOperations,
 )
-from setuav_studio.ui.project_explorer.style import (
+from setuav_studio.ui.panels.project_explorer.style import (
     _ProjectExplorerBranchStyle,
     format_assembly_icon,
     format_assembly_type,
@@ -25,7 +25,7 @@ from setuav_studio.ui.project_explorer.style import (
     format_component_type,
     get_geometry_icon_source,
 )
-from setuav_studio.ui.project_explorer.tree_builder import (
+from setuav_studio.ui.panels.project_explorer.tree_builder import (
     ProjectTreeBuilder,
 )
 
@@ -78,7 +78,6 @@ class ProjectExplorer(QTreeWidget):
         self._saved_components: dict[str, dict[str, Any]] = {}
         self._saved_assemblies: dict[str, dict[str, Any]] = {}
         self._saved_analysis_results: dict[str, dict[str, Any]] = {}
-        self._last_active_config_id: str | None = None
 
         self._ops = ProjectExplorerOperations(self, api)
         self._builder = ProjectTreeBuilder(self, api)
@@ -94,19 +93,12 @@ class ProjectExplorer(QTreeWidget):
         api.on_modified_changed(self._on_modified_changed)
 
     def set_project(self, project: ProjectDocument) -> None:
-        if hasattr(project, "get_configuration_manager"):
-            self._last_active_config_id = project.get_configuration_manager().get_active_id()
         self._capture_saved_state(project)
         self._rebuild_project(project)
 
     def refresh_project(self, project: ProjectDocument | None = None) -> None:
         current_project = project or self._api.current_project
         if current_project is not None:
-            if hasattr(current_project, "get_configuration_manager"):
-                curr_active_id = current_project.get_configuration_manager().get_active_id()
-                if curr_active_id != self._last_active_config_id:
-                    self._last_active_config_id = curr_active_id
-                    self._capture_saved_state(current_project)
             self._rebuild_project(current_project)
 
     def _rebuild_project(self, project: ProjectDocument) -> None:
@@ -212,8 +204,6 @@ class ProjectExplorer(QTreeWidget):
         project = self._api.current_project
         if project is None:
             return
-        if hasattr(project, "get_configuration_manager"):
-            self._last_active_config_id = project.get_configuration_manager().get_active_id()
         self._capture_saved_state(project)
         self._refresh_modified_colors()
 

@@ -3,14 +3,8 @@
 from __future__ import annotations
 
 import unittest
-from pathlib import Path
 
-from setuav_studio.api import StudioAPI
 from setuav_studio.model.constraint import ConstraintChecker
-from setuav_studio.project import ProjectDocument
-from setuav_studio.ui.constraint.constraints_dialog import ConstraintEditDialog
-from setuav_studio.ui.constraint.status import ConstraintStatusWidget
-from tests._common import get_qapp
 
 
 class ConstraintEngineTests(unittest.TestCase):
@@ -91,45 +85,6 @@ class ConstraintEngineTests(unittest.TestCase):
         res = self.checker.check_constraint(bad_constraint, self.project_data)
         self.assertFalse(res.passed)
         self.assertIsNotNone(res.error)
-
-
-class ConstraintUITests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
-        cls.app = get_qapp()
-
-    def test_status_widget_reflects_project_state(self) -> None:
-        api = StudioAPI()
-        doc = ProjectDocument(
-            path=Path("/tmp/test.json"),
-            kind="json",
-            data={
-                "parameters": {"mtow": 20.0, "wing_area": 1.0},
-                "constraints": [
-                    {
-                        "id": "c1",
-                        "name": "Wing Loading",
-                        "expression": "mtow / wing_area <= 25",
-                        "enabled": True,
-                    }
-                ],
-            },
-        )
-        api._host.set_project(doc)
-
-        widget = ConstraintStatusWidget(api)
-        self.assertIn("Constraints OK", widget.btn.text())
-
-        # Cause violation
-        doc.data["parameters"]["mtow"] = 50.0
-        widget.refresh()
-        self.assertIn("1 Violation", widget.btn.text())
-
-    def test_edit_dialog_validation(self) -> None:
-        dlg = ConstraintEditDialog(None, {"name": "Span Check", "expression": "span > 1000"})
-        data = dlg.get_data()
-        self.assertEqual(data["name"], "Span Check")
-        self.assertEqual(data["expression"], "span > 1000")
 
 
 if __name__ == "__main__":

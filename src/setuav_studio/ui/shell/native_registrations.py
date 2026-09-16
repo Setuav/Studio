@@ -6,13 +6,11 @@ from PySide6.QtCore import Qt
 
 from setuav_studio.ui.editor import (
     EnvelopeEditor,
-    InstanceEditor,
     MassPropertiesEditor,
     TransformEditor,
 )
-from setuav_studio.ui.parameter import ProjectParametersPanel
-from setuav_studio.ui.project_explorer import ProjectExplorerPanel
-from setuav_studio.ui.properties import PropertiesPanel
+from setuav_studio.ui.panels.project_explorer import ProjectExplorerPanel
+from setuav_studio.ui.panels.properties import PropertiesPanel
 from setuav_studio_sdk import (
     ComponentTreeNodeContribution,
     PanelContribution,
@@ -106,15 +104,6 @@ def register_native_contributions(api: StudioAPI) -> None:
             icon="fa6s.sliders",
         )
     )
-    api.add_panel(
-        PanelContribution(
-            id="core:parameters",
-            title="Project Parameters",
-            factory=lambda: ProjectParametersPanel(api),
-            area=Qt.DockWidgetArea.BottomDockWidgetArea,
-            icon="constant",
-        )
-    )
 
     # 2. Native Tree Providers
     api.register_component_tree_provider(
@@ -127,10 +116,6 @@ def register_native_contributions(api: StudioAPI) -> None:
     )
 
     # 3. Native Kind Editors
-    api.register_kind_editor(
-        "instance",
-        lambda instance: InstanceEditor(api, instance),
-    )
     api.register_kind_editor(
         "transform",
         lambda selection: TransformEditor(api, selection),

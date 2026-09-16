@@ -8,10 +8,10 @@ from PySide6.QtWidgets import QMenu, QTreeWidgetItem
 from setuav_studio.ui.icons import get_icon
 
 if TYPE_CHECKING:
-    from setuav_studio.ui.project_explorer.operations import (
+    from setuav_studio.ui.panels.project_explorer.operations import (
         ProjectExplorerOperations,
     )
-    from setuav_studio.ui.project_explorer.tree import ProjectExplorer
+    from setuav_studio.ui.panels.project_explorer.tree import ProjectExplorer
     from setuav_studio_sdk import StudioAPI
 
 
@@ -80,14 +80,9 @@ class ProjectExplorerContextMenu:
         menu = QMenu(self._tree)
         add_c_act = menu.addAction(get_icon("constraint"), "Add Constraint…")
         add_c_act.setEnabled(can_edit)
-        manage_c_act = menu.addAction(get_icon("constraint"), "Manage Constraints…")
         chosen = menu.exec(self._tree.viewport().mapToGlobal(position))
         if chosen is add_c_act:
             self._ops.add_constraint_action()
-        elif chosen is manage_c_act:
-            from setuav_studio.ui.constraint.constraints_dialog import ManageConstraintsDialog
-
-            ManageConstraintsDialog(self._api, parent=self._tree).exec()
 
     def open_parameter_element_menu(
         self,
@@ -97,14 +92,10 @@ class ProjectExplorerContextMenu:
         can_edit: bool,
     ) -> None:
         menu = QMenu(self._tree)
-        fx_act = menu.addAction(get_icon("settings"), "Edit with fx Assistant…")
-        fx_act.setEnabled(can_edit)
         del_act = menu.addAction(get_icon("remove"), "Delete")
         del_act.setEnabled(can_edit)
         chosen = menu.exec(self._tree.viewport().mapToGlobal(position))
-        if chosen is fx_act:
-            self._ops.edit_parameter_fx(element)
-        elif chosen is del_act:
+        if chosen is del_act:
             self._ops.delete_item(item)
 
     def open_constraint_element_menu(
@@ -115,16 +106,12 @@ class ProjectExplorerContextMenu:
         can_edit: bool,
     ) -> None:
         menu = QMenu(self._tree)
-        fx_act = menu.addAction(get_icon("settings"), "Edit with fx Assistant…")
-        fx_act.setEnabled(can_edit)
         toggle_act = menu.addAction("Toggle Enabled")
         toggle_act.setEnabled(can_edit)
         del_act = menu.addAction(get_icon("remove"), "Delete")
         del_act.setEnabled(can_edit)
         chosen = menu.exec(self._tree.viewport().mapToGlobal(position))
-        if chosen is fx_act:
-            self._ops.edit_constraint_fx(element)
-        elif chosen is toggle_act:
+        if chosen is toggle_act:
             self._ops.toggle_constraint(element)
         elif chosen is del_act:
             self._ops.delete_item(item)

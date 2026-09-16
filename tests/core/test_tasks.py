@@ -15,7 +15,7 @@ from setuav_studio.task.manager import (
     TaskPriority,
     TaskStatus,
 )
-from setuav_studio.ui.task_monitor import TaskMonitorDialog
+from setuav_studio.ui.dialog.task_monitor import TaskMonitorDialog
 from setuav_studio_sdk.events import StudioEvents
 from tests._common import get_qapp
 

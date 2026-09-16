@@ -15,7 +15,6 @@ from PySide6.QtWidgets import (
 
 from setuav_studio.model.constraint import ConstraintChecker
 from setuav_studio.ui.icons import set_label_icon
-from setuav_studio.ui.parameter.expression_dialog import AdvancedExpressionDialog
 from setuav_studio.ui.widget.table import PropertyTableMixin
 
 if TYPE_CHECKING:
@@ -166,6 +165,8 @@ class ConstraintPropertyEditor(PropertyTableMixin, QWidget):
 
     def _open_assistant(self, current_val: str) -> None:
         from PySide6.QtWidgets import QDialog
+
+        from setuav_studio.ui.dialog.expression_dialog import AdvancedExpressionDialog
 
         dlg = AdvancedExpressionDialog(
             self._api,

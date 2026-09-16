@@ -206,7 +206,7 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
     def _open_field_expression_assistant(self, field: ParameterField, current_val: str) -> None:
         from PySide6.QtWidgets import QDialog
 
-        from setuav_studio.ui.parameter.expression_dialog import AdvancedExpressionDialog
+        from setuav_studio.ui.dialog.expression_dialog import AdvancedExpressionDialog
 
         dlg = AdvancedExpressionDialog(
             self._api,

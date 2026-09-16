@@ -382,10 +382,9 @@ class ActionManager:
             self._window._status_bar_manager.open_task_monitor_window()
 
     def open_constraints(self) -> None:
-        from setuav_studio.ui.constraint.constraints_dialog import ManageConstraintsDialog
+        from setuav_studio.ui.panels.project_explorer.dialog_actions import add_constraint_action
 
-        dlg = ManageConstraintsDialog(self._api, parent=self._window)
-        dlg.exec()
+        add_constraint_action(self._api, self._window)
 
     def bind_plugin_manager(self, manager: PluginManager) -> None:
         self.plugin_manager = manager
