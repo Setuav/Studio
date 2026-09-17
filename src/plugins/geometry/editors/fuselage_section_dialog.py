@@ -30,7 +30,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.ui.icons import get_icon
+from setuav_studio.ui.style.icons import get_icon
 from setuav_studio.ui.widget.button import set_button_role, set_native_button
 from setuav_studio.ui.widget.spinbox import (
     NoWheelComboBox,

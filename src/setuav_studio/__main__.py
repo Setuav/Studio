@@ -78,10 +78,10 @@ def main() -> int:
 
     from setuav_studio.api import PluginManager, StudioAPI
     from setuav_studio.ui.dialog.log import install_log_buffer
-    from setuav_studio.ui.icons import application_icon
     from setuav_studio.ui.settings.settings_pages import StudioSettings
     from setuav_studio.ui.shell import MainWindow
-    from setuav_studio.ui.theme import apply_theme
+    from setuav_studio.ui.style.icons import application_icon
+    from setuav_studio.ui.style.theme import apply_theme
 
     _configure_logging(arguments.verbose)
     install_log_buffer(logging.DEBUG if arguments.verbose else logging.INFO)

@@ -4,7 +4,7 @@ from importlib.metadata import version as distribution_version
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QVBoxLayout, QWidget
 
-from setuav_studio.ui.icons import application_icon
+from setuav_studio.ui.style.icons import application_icon
 
 
 def application_version() -> str:

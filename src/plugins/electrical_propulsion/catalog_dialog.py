@@ -31,7 +31,7 @@ from plugins.electrical_propulsion.database import (
     get_motor_database,
     get_propeller_database,
 )
-from setuav_studio.ui.icons import get_icon
+from setuav_studio.ui.style.icons import get_icon
 from setuav_studio.ui.widget.button import set_button_role
 
 _INVALID_MODEL_INDEX = QModelIndex()

@@ -191,7 +191,7 @@ class ProjectExplorer(QTreeWidget):
     ) -> None:
         element_id = str(element.get("id") or "")
         if element_id and saved_elements.get(element_id) != element:
-            from setuav_studio.ui.theme import status_color
+            from setuav_studio.ui.style.theme import status_color
 
             item.setForeground(
                 0,
@@ -208,7 +208,7 @@ class ProjectExplorer(QTreeWidget):
         self._refresh_modified_colors()
 
     def _refresh_modified_colors(self) -> None:
-        from setuav_studio.ui.theme import status_color
+        from setuav_studio.ui.style.theme import status_color
 
         for item, element in list(self._element_map.items()):
             try:

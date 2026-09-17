@@ -844,7 +844,7 @@ class AerodynamicsPluginTests(unittest.TestCase):
         self.assertEqual(len(project.data["components"]), 0)
 
     def test_unsaved_analysis_result_is_marked_dirty_yellow(self) -> None:
-        from setuav_studio.ui.theme import status_color
+        from setuav_studio.ui.style.theme import status_color
 
         self.plugin.activate(self.api)
         project = ProjectDocument(

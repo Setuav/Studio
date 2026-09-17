@@ -32,7 +32,7 @@ from setuav_studio.model.parameter import ParameterResolver
 from setuav_studio.model.symbol import (
     get_available_symbols_metadata,
 )
-from setuav_studio.ui.theme import status_color
+from setuav_studio.ui.style.theme import status_color
 
 if TYPE_CHECKING:
     from setuav_studio_sdk import StudioAPI

@@ -57,7 +57,7 @@ class ShellContributionTests(unittest.TestCase):
         self.addCleanup(broken_widget.deleteLater)
 
         with (
-            patch("setuav_studio.ui.theme.apply_theme") as apply_theme,
+            patch("setuav_studio.ui.style.theme.apply_theme") as apply_theme,
             patch("setuav_studio.ui.widget.button.refresh_all_button_roles") as refresh_roles,
             patch.object(StudioSettings, "load", return_value=StudioSettings(theme_mode="dark")),
             patch.object(StudioSettings, "save") as save_settings,
@@ -71,7 +71,7 @@ class ShellContributionTests(unittest.TestCase):
         themed_widget.update_theme_style.assert_called_once()  # type: ignore[attr-defined]
 
         with (
-            patch("setuav_studio.ui.theme.apply_theme"),
+            patch("setuav_studio.ui.style.theme.apply_theme"),
             patch("setuav_studio.ui.widget.button.refresh_all_button_roles"),
             patch.object(StudioSettings, "load", return_value=StudioSettings(theme_mode="nord")),
             patch.object(StudioSettings, "save") as unchanged_save,

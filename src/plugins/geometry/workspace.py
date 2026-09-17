@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.project import ProjectDocument
-from setuav_studio.ui.icons import get_icon
+from setuav_studio.ui.style.icons import get_icon
 from setuav_studio_sdk import StudioAPI, StudioEvents, VisualPrimitive
 
 from .settings import (

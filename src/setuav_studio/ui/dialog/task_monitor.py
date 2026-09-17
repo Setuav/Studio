@@ -24,8 +24,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.ui.icons import get_icon
-from setuav_studio.ui.theme import status_color
+from setuav_studio.ui.style.icons import get_icon
+from setuav_studio.ui.style.theme import status_color
 
 if TYPE_CHECKING:
     from setuav_studio.api import StudioAPI

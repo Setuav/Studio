@@ -1672,7 +1672,7 @@ class GeometryTests(unittest.TestCase):
         from PySide6.QtGui import QWheelEvent
         from PySide6.QtWidgets import QComboBox
 
-        from setuav_studio.ui.theme import ComboBoxWheelFilter
+        from setuav_studio.ui.style.theme import ComboBoxWheelFilter
         from setuav_studio.ui.widget.spinbox import NoWheelComboBox
 
         # 1. Test NoWheelComboBox ignores wheelEvent

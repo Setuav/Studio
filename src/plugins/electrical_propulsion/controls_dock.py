@@ -24,7 +24,7 @@ from pythrust.propellers.database import PropellerEntry
 from pythrust.propulsion.models.motor import MotorSpec
 from pythrust.propulsion.models.propeller import PropellerSpec
 
-from setuav_studio.ui.icons import get_icon, set_label_icon
+from setuav_studio.ui.style.icons import get_icon, set_label_icon
 from setuav_studio.ui.widget.button import refresh_button_role, set_button_role, set_native_button
 from setuav_studio.ui.widget.table import PropertyTableMixin
 from setuav_studio_sdk import StudioAPI, StudioEvents
@@ -283,7 +283,7 @@ class PropulsionControlsDock(PropertyTableMixin, QWidget):
         self._content_layout.addWidget(self.alert_box)
 
     def show_alert(self, severity: str, title: str, message: str) -> None:
-        from setuav_studio.ui.theme import status_color
+        from setuav_studio.ui.style.theme import status_color
 
         self._alert_severity = severity
         if severity in ("warning", "danger", "error"):

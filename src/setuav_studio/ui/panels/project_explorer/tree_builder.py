@@ -6,7 +6,6 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import QTreeWidgetItem
 
-from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.panels.project_explorer.style import (
     format_assembly_icon,
     format_assembly_type,
@@ -14,6 +13,7 @@ from setuav_studio.ui.panels.project_explorer.style import (
     format_component_type,
     get_geometry_icon_source,
 )
+from setuav_studio.ui.style.icons import get_icon
 
 if TYPE_CHECKING:
     from setuav_studio.project import ProjectDocument
@@ -368,7 +368,7 @@ class ProjectTreeBuilder:
             current_entry = current_entries.get(analysis_id)
             saved_entry = self._tree._saved_analysis_results.get(analysis_id)
             if saved_entry != current_entry:
-                from setuav_studio.ui.theme import status_color
+                from setuav_studio.ui.style.theme import status_color
 
                 item.setForeground(
                     0,

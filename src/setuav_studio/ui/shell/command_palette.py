@@ -19,8 +19,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.ui.icons import get_icon
-from setuav_studio.ui.theme import tokens
+from setuav_studio.ui.style.icons import get_icon
+from setuav_studio.ui.style.theme import tokens
 
 if TYPE_CHECKING:
     from setuav_studio.api.api import StudioAPI

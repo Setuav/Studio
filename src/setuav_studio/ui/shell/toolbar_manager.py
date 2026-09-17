@@ -7,8 +7,8 @@ from PySide6.QtCore import QSettings, Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QMainWindow, QMenu
 
-from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.shell.toolbar import StandardToolBar, ToolSetBar, WorkspaceToolBar
+from setuav_studio.ui.style.icons import get_icon
 from setuav_studio_sdk import (
     ToolbarContribution,
     ToolbarMenuItemContribution,

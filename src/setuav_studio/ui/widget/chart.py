@@ -63,7 +63,7 @@ class StudioChartWidget(QWidget):
 
     def update_theme_style(self) -> None:
         """Synchronize colors and pens with current application theme tokens."""
-        from setuav_studio.ui.theme import chart_color, is_light_theme, tokens
+        from setuav_studio.ui.style.theme import chart_color, is_light_theme, tokens
 
         tok = tokens()
         is_light = is_light_theme()
@@ -104,7 +104,7 @@ class StudioChartWidget(QWidget):
 
     def get_theme_colors(self) -> tuple[QColor, QColor]:
         """Return (grid_color, dim_text_color) based on current theme."""
-        from setuav_studio.ui.theme import is_light_theme, tokens
+        from setuav_studio.ui.style.theme import is_light_theme, tokens
 
         tok = tokens()
         is_light = is_light_theme()
@@ -141,7 +141,7 @@ class StudioChartWidget(QWidget):
         style: Qt.PenStyle = Qt.PenStyle.SolidLine,
     ) -> QLineSeries:
         """Create and return a styled QLineSeries with optional themeColorRole."""
-        from setuav_studio.ui.theme import chart_color
+        from setuav_studio.ui.style.theme import chart_color
 
         series = QLineSeries()
         if name:

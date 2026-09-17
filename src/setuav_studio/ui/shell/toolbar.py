@@ -7,7 +7,7 @@ from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QComboBox, QToolBar, QToolButton
 
-from setuav_studio.ui.icons import get_icon
+from setuav_studio.ui.style.icons import get_icon
 from setuav_studio_sdk import WorkspaceContribution
 
 
