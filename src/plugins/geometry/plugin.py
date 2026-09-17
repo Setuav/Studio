@@ -1,7 +1,9 @@
+from pathlib import Path
 from typing import Any, ClassVar
 
 from PySide6.QtWidgets import QWidget
 
+from setuav_studio.ui.style.icons import register_plugin_icons
 from setuav_studio_sdk import (
     PanelContribution,
     SettingsPageContribution,
@@ -46,6 +48,9 @@ class GeometryPlugin:
         self._providers: dict[str, Any] = {}
 
     def activate(self, api: StudioAPI) -> None:
+        register_plugin_icons(
+            "org.setuav.studio.geometry", Path(__file__).parent / "assets" / "icons"
+        )
         self._api = api
         self._creation_controller = GeometryCreationController(api)
         for contribution in self._creation_controller.contributions():

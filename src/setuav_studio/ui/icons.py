@@ -7,6 +7,8 @@ from setuav_studio.ui.style.icons import (
     create_color_badge_icon,
     get_icon,
     refresh_label_icon,
+    register_icon,
+    register_plugin_icons,
     set_label_icon,
 )
 
@@ -15,5 +17,7 @@ __all__ = [
     "create_color_badge_icon",
     "get_icon",
     "refresh_label_icon",
+    "register_icon",
+    "register_plugin_icons",
     "set_label_icon",
 ]

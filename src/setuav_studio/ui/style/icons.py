@@ -102,7 +102,66 @@ def _asset_icon_map() -> dict[str, str]:
     }
 
 
+_PLUGIN_ICON_MAP: dict[str, Path] = {}
+_PLUGIN_ICON_MANIFESTS: dict[str, tuple[Path, dict[str, str]]] = {}
+
+
+def register_icon(name: str, icon_path_or_specifier: str | Path | QIcon) -> None:
+    """Register a custom logical icon name mapped to an asset file or QtAwesome specifier."""
+    if isinstance(icon_path_or_specifier, (str, Path)):
+        p = Path(icon_path_or_specifier)
+        if p.is_file():
+            _PLUGIN_ICON_MAP[name] = p.resolve()
+            return
+    if isinstance(icon_path_or_specifier, str):
+        _ICON_MAP[name] = icon_path_or_specifier
+
+
+def register_plugin_icons(
+    plugin_id: str,
+    assets_dir: Path | str,
+    manifest: dict[str, str] | None = None,
+) -> None:
+    """Register a plugin's asset directory and optional icon name mappings."""
+    dir_path = Path(assets_dir).resolve()
+    icon_manifest: dict[str, str] = dict(manifest or {})
+
+    manifest_file = dir_path / "manifest.toml"
+    if not icon_manifest and manifest_file.is_file():
+        try:
+            with manifest_file.open("rb") as stream:
+                values = tomllib.load(stream).get("icons", {})
+                if isinstance(values, dict):
+                    icon_manifest = {
+                        str(k): str(v) for k, v in values.items() if isinstance(v, str)
+                    }
+        except (OSError, tomllib.TOMLDecodeError) as exc:
+            logger.warning("Could not load plugin icon manifest %s: %s", manifest_file, exc)
+
+    _PLUGIN_ICON_MANIFESTS[plugin_id] = (dir_path, icon_manifest)
+
+    for name, rel_path in icon_manifest.items():
+        full_path = dir_path / rel_path
+        if full_path.is_file():
+            _PLUGIN_ICON_MAP[name] = full_path
+
+
 def _asset_icon(icon_source: str) -> QIcon | None:
+    if icon_source in _PLUGIN_ICON_MAP:
+        icon_path = _PLUGIN_ICON_MAP[icon_source]
+        if icon_path.is_file():
+            return QIcon(str(icon_path))
+
+    for dir_path, manifest in _PLUGIN_ICON_MANIFESTS.values():
+        if icon_source in manifest:
+            full_path = dir_path / manifest[icon_source]
+            if full_path.is_file():
+                return QIcon(str(full_path))
+        for ext in (".svg", ".png"):
+            candidate = dir_path / f"{icon_source}{ext}"
+            if candidate.is_file():
+                return QIcon(str(candidate))
+
     relative_path = _asset_icon_map().get(icon_source)
     if relative_path is None:
         return None
@@ -273,5 +332,7 @@ __all__ = [
     "create_color_badge_icon",
     "get_icon",
     "refresh_label_icon",
+    "register_icon",
+    "register_plugin_icons",
     "set_label_icon",
 ]

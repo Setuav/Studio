@@ -8,6 +8,8 @@ from setuav_studio.ui.style.icons import (
     create_color_badge_icon,
     get_icon,
     refresh_label_icon,
+    register_icon,
+    register_plugin_icons,
     set_label_icon,
 )
 from setuav_studio.ui.style.theme import (
@@ -40,6 +42,8 @@ __all__ = [
     "icons",
     "is_light_theme",
     "refresh_label_icon",
+    "register_icon",
+    "register_plugin_icons",
     "semantic_color",
     "set_label_icon",
     "status_color",
