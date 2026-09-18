@@ -9,9 +9,9 @@ from PySide6.QtWidgets import QApplication, QDialog, QMainWindow, QMenu
 
 from setuav_studio.ui.dialog.about import AboutDialog
 from setuav_studio.ui.dialog.plugin_manager import PluginManagerDialog
-from setuav_studio.ui.icons import get_icon
 from setuav_studio.ui.settings.settings_pages import SettingsDialog, StudioSettings
 from setuav_studio.ui.shell.command_palette import CommandPaletteDialog
+from setuav_studio.ui.style.icons import get_icon
 from setuav_studio_sdk import ActionContribution
 
 if TYPE_CHECKING:
@@ -123,7 +123,7 @@ class ActionManager:
         self._f1_shortcut.activated.connect(self.open_command_palette)
         self.command_actions["core.command_palette.open"] = self.command_palette_action
 
-        from setuav_studio.ui.theme import current_theme_mode
+        from setuav_studio.ui.style.theme import current_theme_mode
 
         cur_mode = current_theme_mode()
         self.theme_action_group = QActionGroup(self._window)
@@ -188,7 +188,7 @@ class ActionManager:
         return action
 
     def switch_theme(self, mode: str) -> None:
-        from setuav_studio.ui.theme import apply_theme
+        from setuav_studio.ui.style.theme import apply_theme
         from setuav_studio.ui.widget.button import refresh_all_button_roles
 
         app = QApplication.instance()

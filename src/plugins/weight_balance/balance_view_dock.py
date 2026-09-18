@@ -8,7 +8,7 @@ from PySide6.QtCore import QEvent, QSettings, Qt, QTimer
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QDockWidget, QHBoxLayout, QLabel, QMainWindow, QStatusBar, QWidget
 
-from setuav_studio.ui.theme import chart_color, tokens
+from setuav_studio.ui.style.theme import chart_color, tokens
 from setuav_studio_sdk import StudioAPI, StudioEvents
 
 from .canvas import View2DCanvas

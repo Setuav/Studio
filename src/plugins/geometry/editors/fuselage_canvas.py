@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.ui.theme import accent_color, tokens
+from setuav_studio.ui.style.theme import accent_color, tokens
 
 from ..engine.fuselage_geometry import compute_section_metrics, sample_profile
 
@@ -432,7 +432,7 @@ class FuselageCanvasWidget(QWidget):
         height = self.height()
 
         # Canvas background
-        from setuav_studio.ui.theme import is_light_theme, tokens
+        from setuav_studio.ui.style.theme import is_light_theme, tokens
 
         tok = tokens()
         is_light = is_light_theme()
@@ -534,7 +534,7 @@ class FuselageCanvasWidget(QWidget):
             self._draw_polygon_handles(painter, world_to_screen)
 
     def _draw_polygon_handles(self, painter: QPainter, to_screen: Any) -> None:
-        from setuav_studio.ui.theme import tokens
+        from setuav_studio.ui.style.theme import tokens
 
         tok = tokens()
         text_color = QColor(tok["text"])
@@ -620,7 +620,7 @@ class FuselageCanvasWidget(QWidget):
         ox: float,
         oy: float,
     ) -> None:
-        from setuav_studio.ui.theme import is_light_theme, tokens
+        from setuav_studio.ui.style.theme import is_light_theme, tokens
 
         tok = tokens()
         is_light = is_light_theme()
@@ -667,7 +667,7 @@ class FuselageCanvasWidget(QWidget):
         ox: float,
         oy: float,
     ) -> None:
-        from setuav_studio.ui.theme import is_light_theme, tokens
+        from setuav_studio.ui.style.theme import is_light_theme, tokens
 
         tok = tokens()
         is_light = is_light_theme()
@@ -702,7 +702,7 @@ class FuselageCanvasWidget(QWidget):
         w_mm = max_y - min_y
         h_mm = max_z - min_z
 
-        from setuav_studio.ui.theme import tokens
+        from setuav_studio.ui.style.theme import tokens
 
         dim_pen = QPen(QColor(tokens()["text_dim"]), 1.0, Qt.PenStyle.SolidLine)
         painter.setPen(dim_pen)
@@ -735,7 +735,7 @@ class FuselageCanvasWidget(QWidget):
         )
 
     def _draw_hud(self, painter: QPainter, width: int, _height: int) -> None:
-        from setuav_studio.ui.theme import chart_color, tokens
+        from setuav_studio.ui.style.theme import chart_color, tokens
 
         tok = tokens()
         painter.setPen(QColor(tok["text"]))

@@ -68,7 +68,7 @@ class TestWorkspacesAndTools(unittest.TestCase):
         from PySide6.QtCore import QTimer
         from PySide6.QtGui import QPalette
 
-        from setuav_studio.ui.theme import status_color
+        from setuav_studio.ui.style.theme import status_color
 
         api = StudioAPI()
         win = MainWindow(api)

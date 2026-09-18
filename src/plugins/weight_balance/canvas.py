@@ -10,7 +10,7 @@ from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QFontMetrics, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QToolTip, QWidget
 
-from setuav_studio.ui.theme import is_light_theme
+from setuav_studio.ui.style.theme import is_light_theme
 
 from .scene import ColorValue, View2DMarker, View2DPath, View2DScene
 

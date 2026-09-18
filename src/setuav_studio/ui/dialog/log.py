@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from setuav_studio.ui.theme import status_color, tokens
+from setuav_studio.ui.style.theme import status_color, tokens
 
 MAX_BUFFER_SIZE = 2000
 

@@ -81,7 +81,7 @@ class SingleChartWidget(StudioChartWidget):
         series = QLineSeries()
         series.setName(name)
         series.setProperty("themeColorRole", color_role)
-        from setuav_studio.ui.theme import chart_color
+        from setuav_studio.ui.style.theme import chart_color
 
         pen = QPen(QColor(chart_color(color_role)), 2.5)
         series.setPen(pen)
@@ -121,7 +121,7 @@ class SingleChartWidget(StudioChartWidget):
         all_x: list[float] = []
         all_y: list[float] = []
 
-        from setuav_studio.ui.theme import chart_color
+        from setuav_studio.ui.style.theme import chart_color
 
         for x_vals, y_vals, name, color_role in curves:
             if not x_vals or not y_vals:

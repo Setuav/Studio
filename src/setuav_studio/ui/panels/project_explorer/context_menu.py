@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any
 from PySide6.QtCore import QPoint
 from PySide6.QtWidgets import QMenu, QTreeWidgetItem
 
-from setuav_studio.ui.icons import get_icon
+from setuav_studio.ui.style.icons import get_icon
 
 if TYPE_CHECKING:
     from setuav_studio.ui.panels.project_explorer.operations import (

@@ -5,7 +5,7 @@ from __future__ import annotations
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QAbstractButton, QApplication
 
-from setuav_studio.ui.icons import get_icon
+from setuav_studio.ui.style.icons import get_icon
 
 _ROLE_PROPERTY = "setuavButtonRole"
 _VARIANT_PROPERTY = "setuavButtonVariant"
@@ -63,7 +63,7 @@ def refresh_button_role(button: QAbstractButton) -> None:
     )
 
     if role == "primary" and variant == "filled":
-        from setuav_studio.ui.theme import semantic_color
+        from setuav_studio.ui.style.theme import semantic_color
 
         role_color = QColor(semantic_color(role))
         foreground = _contrasting_foreground(role_color)

@@ -294,7 +294,7 @@ class OpenGLViewer(QOpenGLWidget):
                 # Keep the data dirty so a later, valid paint context can
                 # retry instead of leaving the viewer permanently empty.
                 logger.exception("Geometry OpenGL mesh upload failed")
-        from setuav_studio.ui.theme import is_light_theme, tokens
+        from setuav_studio.ui.style.theme import is_light_theme, tokens
 
         tok = tokens()
         is_light = is_light_theme()
@@ -719,7 +719,7 @@ class OpenGLViewer(QOpenGLWidget):
     def _upload_meshes(self) -> None:
         from PySide6.QtGui import QColor
 
-        from setuav_studio.ui.theme import chart_color, tokens
+        from setuav_studio.ui.style.theme import chart_color, tokens
 
         def rgb(color: str) -> tuple[float, float, float]:
             value = QColor(color)
@@ -770,7 +770,7 @@ class OpenGLViewer(QOpenGLWidget):
                 rgb(chart_color("orange")),
                 wire_mode=self._wire_mode,
             )
-        from setuav_studio.ui.theme import is_light_theme
+        from setuav_studio.ui.style.theme import is_light_theme
 
         is_light = is_light_theme()
         envelope_color = (0.05, 0.85, 0.15) if is_light else (0.15, 1.0, 0.25)
@@ -839,7 +839,7 @@ class OpenGLViewer(QOpenGLWidget):
 
     @staticmethod
     def _reference_grid_vertices() -> list[float]:
-        from setuav_studio.ui.theme import is_light_theme
+        from setuav_studio.ui.style.theme import is_light_theme
 
         is_light = is_light_theme()
         major_col = (0.78, 0.78, 0.78) if is_light else (0.24, 0.24, 0.24)
@@ -964,7 +964,7 @@ class OpenGLViewer(QOpenGLWidget):
             else:
                 from PySide6.QtGui import QColor
 
-                from setuav_studio.ui.theme import is_light_theme, tokens
+                from setuav_studio.ui.style.theme import is_light_theme, tokens
 
                 tok = tokens()
                 is_light = is_light_theme()

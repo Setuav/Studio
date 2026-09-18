@@ -37,7 +37,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.ui.theme import tokens
+from setuav_studio.ui.style.theme import tokens
 from setuav_studio.ui.widget.button import set_button_role, set_native_button
 
 from ..engine.airfoil import (
@@ -68,7 +68,7 @@ class AirfoilCanvasWidget(QWidget):
         self.update()
 
     def paintEvent(self, _event: Any) -> None:
-        from setuav_studio.ui.theme import is_light_theme, tokens
+        from setuav_studio.ui.style.theme import is_light_theme, tokens
 
         tok = tokens()
         is_light = is_light_theme()
@@ -130,7 +130,7 @@ class AirfoilCanvasWidget(QWidget):
         path.closeSubpath()
 
         # Fill & Stroke Airfoil
-        from setuav_studio.ui.theme import chart_color
+        from setuav_studio.ui.style.theme import chart_color
 
         series_color = QColor(chart_color("blue"))
         fill_color = QColor(series_color)

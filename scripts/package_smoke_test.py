@@ -19,7 +19,7 @@ EXPECTED_FILES = (
     "setuav_studio/assets/icons/studio.svg",
     "setuav_studio/assets/fonts/Inter/Inter-VariableFont_opsz,wght.ttf",
     "setuav_studio/assets/fonts/Inter/OFL.txt",
-    "setuav_studio/data/airfoils/clarky.dat",
+    "plugins/geometry/data/airfoils/clarky.dat",
 )
 
 

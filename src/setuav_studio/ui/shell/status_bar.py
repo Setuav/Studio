@@ -18,8 +18,8 @@ from PySide6.QtWidgets import (
 from setuav_studio.model.constraint import ConstraintChecker
 from setuav_studio.ui.dialog.log import install_log_buffer
 from setuav_studio.ui.dialog.problems import Problem, ProblemsDialog
-from setuav_studio.ui.icons import get_icon
-from setuav_studio.ui.theme import status_color
+from setuav_studio.ui.style.icons import get_icon
+from setuav_studio.ui.style.theme import status_color
 
 if TYPE_CHECKING:
     from setuav_studio.api import StudioAPI

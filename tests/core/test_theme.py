@@ -3,9 +3,9 @@ from importlib import resources
 
 from PySide6.QtGui import QPalette
 
-from setuav_studio.ui.icons import application_icon, get_icon
 from setuav_studio.ui.settings.settings_pages import StudioSettings
-from setuav_studio.ui.theme import (
+from setuav_studio.ui.style.icons import application_icon, get_icon
+from setuav_studio.ui.style.theme import (
     ACCENT_COLOR,
     DEFAULT_FONT_SIZE,
     FONT_FAMILY,
@@ -42,7 +42,7 @@ class ThemeTests(unittest.TestCase):
         self.assertFalse(application_icon().isNull())
 
     def test_theme_mode_switching_and_tokens(self) -> None:
-        from setuav_studio.ui.theme import (
+        from setuav_studio.ui.style.theme import (
             BLENDER_TOKENS,
             DARK_TOKENS,
             LIGHT_TOKENS,
@@ -83,7 +83,7 @@ class ThemeTests(unittest.TestCase):
         set_theme_mode("dark")
 
     def test_application_palette_and_existing_icons_follow_theme(self) -> None:
-        from setuav_studio.ui.theme import apply_theme, tokens
+        from setuav_studio.ui.style.theme import apply_theme, tokens
 
         app = get_qapp()
 
@@ -108,7 +108,7 @@ class ThemeTests(unittest.TestCase):
 
     def test_chart_series_and_axes_are_rethemed(self) -> None:
         from plugins.aerodynamics.charts_dock import SingleChartWidget
-        from setuav_studio.ui.theme import apply_theme, chart_color, tokens
+        from setuav_studio.ui.style.theme import apply_theme, chart_color, tokens
 
         app = get_qapp()
         apply_theme(app, "dark")

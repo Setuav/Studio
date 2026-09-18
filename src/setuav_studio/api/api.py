@@ -14,7 +14,7 @@ from PySide6.QtWidgets import QWidget
 from setuav_studio.api.hooks import HookRegistry
 from setuav_studio.project import ProjectDocument
 from setuav_studio.task.manager import TaskManager
-from setuav_studio.ui.icons import get_icon
+from setuav_studio.ui.style.icons import get_icon
 from setuav_studio_sdk.api import (
     ComponentTreeProvider,
     ProjectTreeProvider,

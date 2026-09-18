@@ -19,8 +19,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.ui.icons import get_icon
-from setuav_studio.ui.theme import status_color, tokens
+from setuav_studio.ui.style.icons import get_icon
+from setuav_studio.ui.style.theme import status_color, tokens
 from setuav_studio.ui.widget.button import set_native_button
 from setuav_studio.ui.widget.table import ContentFitTableWidget, PropertyTableMixin
 from setuav_studio_sdk import StudioAPI, StudioEvents

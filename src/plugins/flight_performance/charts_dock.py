@@ -238,7 +238,7 @@ class SinglePerformanceChartWidget(StudioChartWidget):
         axis_x: QValueAxis,
         axis_y: QValueAxis,
     ) -> QLineSeries:
-        from setuav_studio.ui.theme import chart_color
+        from setuav_studio.ui.style.theme import chart_color
 
         series = QLineSeries()
         series.setName(label)

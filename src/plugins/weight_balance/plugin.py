@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import ClassVar
 
 from PySide6.QtCore import Qt
 
+from setuav_studio.ui.style.icons import register_plugin_icons
 from setuav_studio_sdk import (
     PanelContribution,
     StudioAPI,
@@ -52,6 +54,9 @@ class WeightBalancePlugin:
         self._solver = WeightBalanceSolver()
 
     def activate(self, api: StudioAPI) -> None:
+        register_plugin_icons(
+            "org.setuav.studio.weight_balance", Path(__file__).parent / "assets" / "icons"
+        )
         self._api = api
         api.add_toolbar_item(
             ToolbarContribution(

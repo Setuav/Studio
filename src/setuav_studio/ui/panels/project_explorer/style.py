@@ -6,7 +6,7 @@ from PySide6.QtCore import QLine, QRect, QSize, Qt
 from PySide6.QtGui import QPainter, QPalette, QPen
 from PySide6.QtWidgets import QProxyStyle, QStyle, QWidget
 
-from setuav_studio.ui.icons import get_icon
+from setuav_studio.ui.style.icons import get_icon
 
 if TYPE_CHECKING:
     from setuav_studio_sdk import StudioAPI

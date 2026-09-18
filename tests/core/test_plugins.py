@@ -2,12 +2,12 @@ import unittest
 from pathlib import Path
 from typing import Any, ClassVar
 
-from plugins.geometry.data import GeometryData, LoftGeometry, Section
-from plugins.geometry.fuselage import FuselageEditor
-from plugins.geometry.mesh import build_loft_wire_vertices
 from PySide6.QtWidgets import QWidget
 
 from plugins.geometry import GeometryPlugin
+from plugins.geometry.data import GeometryData, LoftGeometry, Section
+from plugins.geometry.fuselage import FuselageEditor
+from plugins.geometry.mesh import build_loft_wire_vertices
 from plugins.weight_balance.canvas import View2DCanvas
 from plugins.weight_balance.scene import View2DScene
 from setuav_studio.api import (

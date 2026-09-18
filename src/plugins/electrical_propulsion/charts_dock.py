@@ -62,7 +62,7 @@ class ThrustPowerChartDock(SinglePropulsionChartWidget):
         series_thrust = QLineSeries()
         series_thrust.setName("Thrust (N)")
         series_thrust.setProperty("themeColorRole", "blue")
-        from setuav_studio.ui.theme import chart_color
+        from setuav_studio.ui.style.theme import chart_color
 
         series_thrust.setPen(QPen(QColor(chart_color("blue")), 2.5))
 
@@ -149,7 +149,7 @@ class ElectricalChartDock(SinglePropulsionChartWidget):
         series_current = QLineSeries()
         series_current.setName("Current (A)")
         series_current.setProperty("themeColorRole", "red")
-        from setuav_studio.ui.theme import chart_color
+        from setuav_studio.ui.style.theme import chart_color
 
         series_current.setPen(QPen(QColor(chart_color("red")), 2.5))
 
@@ -237,7 +237,7 @@ class EfficiencyChartDock(SinglePropulsionChartWidget):
         series_eta_tot = QLineSeries()
         series_eta_tot.setName("Total η")
         series_eta_tot.setProperty("themeColorRole", "green")
-        from setuav_studio.ui.theme import chart_color
+        from setuav_studio.ui.style.theme import chart_color
 
         series_eta_tot.setPen(QPen(QColor(chart_color("green")), 2.5))
 
@@ -321,7 +321,7 @@ class PowerLoadingChartDock(SinglePropulsionChartWidget):
         series_pl = QLineSeries()
         series_pl.setName("g/W")
         series_pl.setProperty("themeColorRole", "orange")
-        from setuav_studio.ui.theme import chart_color
+        from setuav_studio.ui.style.theme import chart_color
 
         series_pl.setPen(QPen(QColor(chart_color("orange")), 2.5))
 

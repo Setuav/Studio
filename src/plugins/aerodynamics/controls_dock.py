@@ -22,8 +22,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.ui.icons import set_label_icon
-from setuav_studio.ui.theme import tokens
+from setuav_studio.ui.style.icons import set_label_icon
+from setuav_studio.ui.style.theme import tokens
 from setuav_studio.ui.widget.button import refresh_button_role, set_button_role, set_native_button
 from setuav_studio.ui.widget.spinbox import NumericSpinBox
 from setuav_studio.ui.widget.table import PropertyTableMixin

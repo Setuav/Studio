@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Any
 from unittest import mock
 
+from PySide6.QtCore import Qt
+
 from plugins.geometry.data import GeometryData, LoftGeometry, Section
 from plugins.geometry.fuselage_geometry import (
     SECTION_SAMPLES,
@@ -17,8 +19,6 @@ from plugins.geometry.lifting_surface_geometry import (
 )
 from plugins.geometry.mesh import build_loft_solid_vertices
 from plugins.geometry.scene import build_project_geometry
-from PySide6.QtCore import Qt
-
 from setuav_studio.project import ProjectDocument, open_project
 from tests._common import TEST_PROJECT_PATH, get_qapp
 
@@ -199,7 +199,6 @@ class GeometryTests(unittest.TestCase):
 
     def test_lifting_surface_editor_population_and_metrics(self) -> None:
         from plugins.geometry.lifting_surface import LiftingSurfaceEditor
-
         from setuav_studio.api import StudioAPI
 
         get_qapp()
@@ -531,7 +530,6 @@ class GeometryTests(unittest.TestCase):
         from plugins.geometry.lifting_surface_geometry import (
             build_lifting_surface_geometry,
         )
-
         from setuav_studio.project import ProjectDocument
 
         wing_component = {
@@ -886,7 +884,6 @@ class GeometryTests(unittest.TestCase):
 
     def test_control_surface_editor(self) -> None:
         from plugins.geometry.control_surface import ControlSurfaceEditor
-
         from setuav_studio.api import StudioAPI
 
         api = StudioAPI()
@@ -934,7 +931,6 @@ class GeometryTests(unittest.TestCase):
 
     def test_control_surface_sizing_modes_and_live_sync(self) -> None:
         from plugins.geometry.lifting_surface import LiftingSurfaceEditor
-
         from setuav_studio.api import StudioAPI
         from setuav_studio.project import ProjectDocument
 
@@ -1011,7 +1007,6 @@ class GeometryTests(unittest.TestCase):
             build_lifting_surface_geometry,
         )
         from plugins.geometry.scene import build_project_geometry
-
         from setuav_studio.api import StudioAPI
         from setuav_studio.project import ProjectDocument
 
@@ -1273,7 +1268,6 @@ class GeometryTests(unittest.TestCase):
     def test_lifting_surface_editor_tip_caps_ui(self) -> None:
         """Verify LiftingSurfaceEditor tip caps table interactions and project mutation."""
         from plugins.geometry.lifting_surface import LiftingSurfaceEditor
-
         from setuav_studio.api import StudioAPI
 
         api = StudioAPI()
@@ -1436,7 +1430,6 @@ class GeometryTests(unittest.TestCase):
             FuselageCanvasWidget,
             FuselageSectionDialog,
         )
-
         from setuav_studio.api import StudioAPI
 
         # 1. Test geometric metrics calculation
@@ -1672,7 +1665,7 @@ class GeometryTests(unittest.TestCase):
         from PySide6.QtGui import QWheelEvent
         from PySide6.QtWidgets import QComboBox
 
-        from setuav_studio.ui.theme import ComboBoxWheelFilter
+        from setuav_studio.ui.style.theme import ComboBoxWheelFilter
         from setuav_studio.ui.widget.spinbox import NoWheelComboBox
 
         # 1. Test NoWheelComboBox ignores wheelEvent
@@ -1789,8 +1782,9 @@ class GeometryTests(unittest.TestCase):
 
     def test_airfoil_dialog_dat_import(self) -> None:
         """Verify .dat import populates coordinates table, canvas, and spec."""
-        from plugins.geometry.airfoil_dialog import AirfoilDialog
         from PySide6.QtWidgets import QFileDialog
+
+        from plugins.geometry.airfoil_dialog import AirfoilDialog
 
         with tempfile.TemporaryDirectory() as tmp:
             dat_path = Path(tmp) / "custom.dat"
@@ -1852,7 +1846,6 @@ class GeometryTests(unittest.TestCase):
     def test_fuselage_editor_population(self) -> None:
         """Verify FuselageEditor loads general info, segments, sections, and transforms."""
         from plugins.geometry.fuselage import FuselageEditor
-
         from setuav_studio.api import StudioAPI
 
         api = StudioAPI()
@@ -1894,7 +1887,6 @@ class GeometryTests(unittest.TestCase):
     def test_fuselage_editor_segment_actions(self) -> None:
         """Verify add/duplicate/move/delete segment mutations."""
         from plugins.geometry.fuselage import FuselageEditor
-
         from setuav_studio.api import StudioAPI
 
         api = StudioAPI()
@@ -1931,7 +1923,6 @@ class GeometryTests(unittest.TestCase):
     def test_fuselage_editor_section_actions(self) -> None:
         """Verify add/duplicate/move/delete section mutations and x interpolation."""
         from plugins.geometry.fuselage import FuselageEditor
-
         from setuav_studio.api import StudioAPI
 
         api = StudioAPI()
@@ -1973,7 +1964,6 @@ class GeometryTests(unittest.TestCase):
     def test_fuselage_editor_profile_transform_and_vertices(self) -> None:
         """Verify profile type change, numeric property, transform, and polygon vertex edits."""
         from plugins.geometry.fuselage import FuselageEditor
-
         from setuav_studio.api import StudioAPI
 
         api = StudioAPI()
@@ -2024,7 +2014,6 @@ class GeometryTests(unittest.TestCase):
     def test_fuselage_editor_general_and_segment_edits(self) -> None:
         """Verify general name/mass edits and segment tag/loft choice edits."""
         from plugins.geometry.fuselage import FuselageEditor
-
         from setuav_studio.api import StudioAPI
 
         api = StudioAPI()
@@ -2057,7 +2046,6 @@ class GeometryTests(unittest.TestCase):
     def test_fuselage_editor_property_expression_changes(self) -> None:
         """Verify editing section properties via expressions or numbers applies correctly."""
         from plugins.geometry.fuselage import FuselageEditor
-
         from setuav_studio.api import StudioAPI
 
         api = StudioAPI()

@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.ui.icons import set_label_icon
+from setuav_studio.ui.style.icons import set_label_icon
 from setuav_studio.ui.widget.button import set_native_button
 from setuav_studio.ui.widget.spinbox import (
     NoWheelComboBox,
