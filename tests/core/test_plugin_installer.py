@@ -146,6 +146,37 @@ class DialogPlugin:
             ]
             self.assertIn("org.dialog.plugin", plugin_ids)
 
+    def test_custom_plugin_folder_management(self) -> None:
+        custom_dir = Path(self.temp_dir.name) / "external_plugins"
+        custom_dir.mkdir(parents=True, exist_ok=True)
+        plugin_file = custom_dir / "custom_test_plugin.py"
+        plugin_file.write_text(
+            """
+class CustomTestPlugin:
+    id = "org.custom.test.plugin"
+    def activate(self, api) -> None:
+        pass
+    def deactivate(self, api) -> None:
+        pass
+""",
+            encoding="utf-8",
+        )
+
+        self.assertTrue(self.manager.add_custom_folder(custom_dir))
+        self.assertIn(custom_dir.resolve(), self.manager.custom_folders)
+
+        issues = self.manager.discover()
+        self.assertEqual(issues, [])
+        self.assertTrue(self.manager.is_active("org.custom.test.plugin"))
+
+        dialog = PluginManagerDialog(self.manager)
+        self.assertEqual(dialog._custom_folders_table.rowCount(), 1)
+        self.assertEqual(dialog._custom_folders_table.item(0, 0).text(), str(custom_dir.resolve()))
+        self.assertEqual(dialog._custom_folders_table.item(0, 1).text(), "Found")
+
+        self.assertTrue(self.manager.remove_custom_folder(custom_dir))
+        self.assertNotIn(custom_dir.resolve(), self.manager.custom_folders)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -24,6 +24,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 _DISABLED_PLUGINS_KEY = "plugins/disabled"
+_CUSTOM_FOLDERS_KEY = "plugins/custom_folders"
 
 
 class PluginManager:
@@ -32,6 +33,7 @@ class PluginManager:
         self._plugins: dict[str, StudioPlugin] = {}
         self._candidates: dict[str, StudioPlugin] = {}
         self._disabled_plugins = self._load_disabled_plugins()
+        self._custom_folders: list[Path] = self._load_custom_folders()
         self._load_issues: list[PluginLoadIssue] = []
         self._providers: dict[str, str] = {}
         self._plugin_providers: dict[str, dict[str, str]] = {}
@@ -56,6 +58,29 @@ class PluginManager:
     def known_plugins(self) -> tuple[StudioPlugin, ...]:
         """Return discovered plugin candidates ordered by priority and ID."""
         return tuple(sorted(self._candidates.values(), key=_plugin_sort_key))
+
+    @property
+    def custom_folders(self) -> tuple[Path, ...]:
+        """Return user-configured custom plugin search directories."""
+        return tuple(self._custom_folders)
+
+    def add_custom_folder(self, folder_path: str | Path) -> bool:
+        """Add a custom plugin search directory if valid and not already added."""
+        path = Path(folder_path).resolve()
+        if path not in self._custom_folders:
+            self._custom_folders.append(path)
+            self._save_custom_folders()
+            return True
+        return False
+
+    def remove_custom_folder(self, folder_path: str | Path) -> bool:
+        """Remove a custom plugin search directory if present."""
+        path = Path(folder_path).resolve()
+        if path in self._custom_folders:
+            self._custom_folders.remove(path)
+            self._save_custom_folders()
+            return True
+        return False
 
     def is_active(self, plugin_id: str) -> bool:
         """Return whether a plugin is currently active."""
@@ -107,8 +132,11 @@ class PluginManager:
         bundled_issues, bundled_candidates = self._collect_bundled_candidates()
         entry_point_issues, entry_point_candidates = self._collect_entry_point_candidates()
         user_issues, user_candidates = self._collect_user_directory_candidates()
-        issues = bundled_issues + entry_point_issues + user_issues
-        candidates = bundled_candidates + entry_point_candidates + user_candidates
+        custom_issues, custom_candidates = self._collect_custom_directory_candidates()
+        issues = bundled_issues + entry_point_issues + user_issues + custom_issues
+        candidates = (
+            bundled_candidates + entry_point_candidates + user_candidates + custom_candidates
+        )
         candidates.sort(key=lambda item: (item[0], item[1]))
         self._activate_candidates(candidates, issues)
         self._load_issues = issues
@@ -363,6 +391,70 @@ class PluginManager:
 
     def _save_disabled_plugins(self) -> None:
         QSettings().setValue(_DISABLED_PLUGINS_KEY, sorted(self._disabled_plugins))
+
+    @staticmethod
+    def _load_custom_folders() -> list[Path]:
+        stored = QSettings().value(_CUSTOM_FOLDERS_KEY, [])
+        if isinstance(stored, str):
+            stored = [stored]
+        folders: list[Path] = []
+        if isinstance(stored, (list, tuple, set)):
+            for item in stored:
+                if item and isinstance(item, str):
+                    p = Path(item).resolve()
+                    if p not in folders:
+                        folders.append(p)
+        return folders
+
+    def _save_custom_folders(self) -> None:
+        QSettings().setValue(_CUSTOM_FOLDERS_KEY, [str(p) for p in self._custom_folders])
+
+    def _collect_custom_directory_candidates(
+        self,
+    ) -> tuple[list[PluginLoadIssue], list[tuple[int, str, object]]]:
+        issues: list[PluginLoadIssue] = []
+        candidates: list[tuple[int, str, object]] = []
+
+        for custom_dir in self._custom_folders:
+            if not custom_dir.is_dir():
+                logger.warning("Custom plugin directory does not exist: %s", custom_dir)
+                issues.append(PluginLoadIssue(str(custom_dir), "Directory does not exist"))
+                continue
+
+            custom_dir_str = str(custom_dir)
+            if custom_dir_str not in sys.path:
+                sys.path.insert(0, custom_dir_str)
+
+            # 1. Check if custom_dir itself is a plugin directory
+            try:
+                candidate = self._load_plugin_from_dir(custom_dir)
+                if candidate is not None:
+                    candidates.append(_candidate_sort_key(candidate, custom_dir.name))
+                    continue
+            except Exception as exc:
+                logger.warning("Failed to load plugin directly from %s: %s", custom_dir, exc)
+
+            # 2. Check subdirectories and .py files inside custom_dir
+            for item in sorted(custom_dir.iterdir()):
+                if item.name.startswith((".", "__")):
+                    continue
+                try:
+                    candidate = None
+                    source_name = item.stem if item.is_file() else item.name
+                    if item.is_dir():
+                        candidate = self._load_plugin_from_dir(item)
+                    elif item.is_file() and item.suffix == ".py":
+                        candidate = self._load_plugin_from_file(item)
+
+                    if candidate is not None:
+                        candidates.append(_candidate_sort_key(candidate, source_name))
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to load plugin from custom dir item %s: %s", item.name, exc
+                    )
+                    issues.append(PluginLoadIssue(item.name, str(exc)))
+
+        return issues, candidates
 
     def activate_plugin(self, plugin_id: str) -> None:
         """Activate a previously discovered plugin by ID."""

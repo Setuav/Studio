@@ -8,11 +8,14 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFileDialog,
+    QHBoxLayout,
     QHeaderView,
     QLabel,
     QListWidget,
     QMessageBox,
     QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -32,7 +35,7 @@ class PluginManagerDialog(QDialog):
         self._manager = manager
         self.setObjectName("pluginManagerDialog")
         self.setWindowTitle("Plugin Manager")
-        self.setMinimumSize(620, 420)
+        self.setMinimumSize(640, 540)
 
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel("Active plugins", self))
@@ -49,9 +52,35 @@ class PluginManagerDialog(QDialog):
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         layout.addWidget(self._plugins)
 
+        # Custom plugin search directories table section
+        layout.addWidget(QLabel("Custom plugin search directories", self))
+        folders_layout = QHBoxLayout()
+        self._custom_folders_table = QTableWidget(self)
+        self._custom_folders_table.setColumnCount(2)
+        self._custom_folders_table.setHorizontalHeaderLabels(["Folder Path", "Status"])
+        self._custom_folders_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self._custom_folders_table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        self._custom_folders_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._custom_folders_table.setMinimumHeight(100)
+        folders_header = self._custom_folders_table.horizontalHeader()
+        folders_header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        folders_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
+        self._custom_folders_table.setColumnWidth(1, 100)
+        folders_layout.addWidget(self._custom_folders_table)
+
+        folder_buttons = QVBoxLayout()
+        self._add_folder_btn = QPushButton("Add Folder...", self)
+        self._remove_folder_btn = QPushButton("Remove Folder", self)
+        folder_buttons.addWidget(self._add_folder_btn)
+        folder_buttons.addWidget(self._remove_folder_btn)
+        folder_buttons.addStretch()
+        folders_layout.addLayout(folder_buttons)
+        layout.addLayout(folders_layout)
+
         layout.addWidget(QLabel("Discovery and activation issues", self))
         self._issues = QListWidget(self)
         self._issues.setAlternatingRowColors(True)
+        self._issues.setMaximumHeight(90)
         layout.addWidget(self._issues)
 
         actions = QDialogButtonBox(QDialogButtonBox.StandardButton.Close, parent=self)
@@ -70,6 +99,9 @@ class PluginManagerDialog(QDialog):
         self._open_folder.clicked.connect(self._open_plugins_folder)
         self._discover.clicked.connect(self._discover_plugins)
         self._refresh.clicked.connect(self._refresh_plugins)
+        self._add_folder_btn.clicked.connect(self._add_custom_folder)
+        self._remove_folder_btn.clicked.connect(self._remove_custom_folder)
+
         self._refresh_plugins()
 
     def refresh(self) -> None:
@@ -79,6 +111,30 @@ class PluginManagerDialog(QDialog):
     def _discover_plugins(self) -> None:
         self._manager.discover()
         self._refresh_plugins()
+
+    def _add_custom_folder(self) -> None:
+        folder_path = QFileDialog.getExistingDirectory(
+            self,
+            "Select Plugin Search Directory",
+            "",
+            QFileDialog.Option.ShowDirsOnly,
+        )
+        if not folder_path:
+            return
+        if self._manager.add_custom_folder(folder_path):
+            self._manager.discover()
+            self._refresh_plugins()
+
+    def _remove_custom_folder(self) -> None:
+        row = self._custom_folders_table.currentRow()
+        if row < 0:
+            return
+        item = self._custom_folders_table.item(row, 0)
+        if item is not None:
+            folder_path = item.text()
+            if self._manager.remove_custom_folder(folder_path):
+                self._manager.discover()
+                self._refresh_plugins()
 
     def _install_archive(self) -> None:
         filter_str = (
@@ -148,6 +204,16 @@ class PluginManagerDialog(QDialog):
                 lambda enabled, plugin_id=plugin.id: self._toggle_plugin(plugin_id, enabled)
             )
             self._plugins.setItemWidget(item, 0, toggle)
+
+        # Refresh custom plugin search directories table
+        self._custom_folders_table.setRowCount(len(self._manager.custom_folders))
+        for row, folder in enumerate(self._manager.custom_folders):
+            path_item = QTableWidgetItem(str(folder))
+            path_item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+            status_item = QTableWidgetItem("Found" if folder.is_dir() else "Missing")
+            status_item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+            self._custom_folders_table.setItem(row, 0, path_item)
+            self._custom_folders_table.setItem(row, 1, status_item)
 
         self._issues.clear()
         for issue in self._manager.load_issues:
