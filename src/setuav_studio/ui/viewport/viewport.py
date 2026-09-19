@@ -12,7 +12,7 @@ import logging
 from collections.abc import Sequence
 from typing import Any, Literal
 
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import QSettings, Qt, QTimer, Signal
 from PySide6.QtGui import QImage, QKeyEvent, QShowEvent
 from PySide6.QtWidgets import QGridLayout, QWidget
 
@@ -42,6 +42,22 @@ from .scene_object import SceneObject
 from .widget import OpenGLViewer
 
 logger = logging.getLogger(__name__)
+
+_SETTING_PREFIX = "studio_viewport"
+_SETTING_ORTHO = f"{_SETTING_PREFIX}_orthographic"
+_SETTING_SOLID = f"{_SETTING_PREFIX}_show_solid"
+_SETTING_WIRE = f"{_SETTING_PREFIX}_show_wireframe"
+_SETTING_WIRE_MODE = f"{_SETTING_PREFIX}_wire_mode"
+_SETTING_GRID = f"{_SETTING_PREFIX}_show_grid"
+_SETTING_FACE_STYLE = f"{_SETTING_PREFIX}_face_style"
+
+
+def _as_bool(value: Any, default: bool = True) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    return str(value).lower() in {"1", "true", "yes", "on"}
 
 
 def _call_method(target: object, name: str, *args: Any) -> None:
@@ -85,15 +101,22 @@ class StudioViewport(QWidget):
         self._selected_section: tuple[str, int, int] | None = None
 
         # Camera & Display state
+        settings = QSettings()
         self._azimuth: float = 210.0
         self._elevation: float = 20.0
-        self._orthographic: bool = True
-        self._show_solid: bool = True
-        self._show_wireframe: bool = True
-        self._wire_mode: str = WIRE_FEATURE
-        self._show_grid: bool = True
+        self._orthographic: bool = _as_bool(settings.value(_SETTING_ORTHO, True), True)
+        self._show_solid: bool = _as_bool(settings.value(_SETTING_SOLID, True), True)
+        self._show_wireframe: bool = _as_bool(settings.value(_SETTING_WIRE, True), True)
+        raw_wire_mode = str(settings.value(_SETTING_WIRE_MODE, WIRE_FEATURE)).lower()
+        self._wire_mode: str = (
+            raw_wire_mode if raw_wire_mode in (WIRE_FEATURE, WIRE_FULL) else WIRE_FEATURE
+        )
+        self._show_grid: bool = _as_bool(settings.value(_SETTING_GRID, True), True)
         self._transparent: bool = False
-        self._face_style: str = FACE_COLORED
+        raw_face = str(settings.value(_SETTING_FACE_STYLE, FACE_COLORED)).lower()
+        self._face_style: str = (
+            raw_face if raw_face in (FACE_COLORED, FACE_MONOCHROME) else FACE_COLORED
+        )
 
         # Scene graph: object_id -> SceneObject
         self._objects: dict[str, SceneObject] = {}
@@ -385,6 +408,7 @@ class StudioViewport(QWidget):
     def set_orthographic(self, enabled: bool) -> None:
         """Switch between orthographic (True) and perspective (False) projection."""
         self._orthographic = bool(enabled)
+        QSettings().setValue(_SETTING_ORTHO, self._orthographic)
         if self._renderer is not None:
             ortho_fn = getattr(self._renderer, "set_orthographic", None)
             if callable(ortho_fn):
@@ -397,6 +421,7 @@ class StudioViewport(QWidget):
     def set_show_solid(self, show: bool) -> None:
         """Toggle solid surface rendering."""
         self._show_solid = bool(show)
+        QSettings().setValue(_SETTING_SOLID, self._show_solid)
         if self._renderer is not None:
             solid_fn = getattr(self._renderer, "set_show_solid", None)
             if callable(solid_fn):
@@ -409,6 +434,7 @@ class StudioViewport(QWidget):
     def set_show_wireframe(self, show: bool) -> None:
         """Toggle wireframe lines."""
         self._show_wireframe = bool(show)
+        QSettings().setValue(_SETTING_WIRE, self._show_wireframe)
         if self._renderer is not None:
             wire_fn = getattr(self._renderer, "set_show_wireframe", None)
             if callable(wire_fn):
@@ -423,6 +449,7 @@ class StudioViewport(QWidget):
         if mode not in (WIRE_FEATURE, WIRE_FULL):
             raise ValueError(f"Unknown wire mode: {mode}. Must be 'feature' or 'full'.")
         self._wire_mode = mode
+        QSettings().setValue(_SETTING_WIRE_MODE, self._wire_mode)
         if self._renderer is not None:
             mode_fn = getattr(self._renderer, "set_wire_mode", None)
             if callable(mode_fn):
@@ -435,6 +462,7 @@ class StudioViewport(QWidget):
     def set_show_grid(self, show: bool) -> None:
         """Toggle 3D ground reference grid."""
         self._show_grid = bool(show)
+        QSettings().setValue(_SETTING_GRID, self._show_grid)
         if self._renderer is not None:
             grid_fn = getattr(self._renderer, "set_show_grid", None)
             if callable(grid_fn):
@@ -461,6 +489,7 @@ class StudioViewport(QWidget):
         if style not in (FACE_COLORED, FACE_MONOCHROME):
             raise ValueError(f"Unknown face style: {style}. Must be 'colored' or 'monochrome'.")
         self._face_style = style
+        QSettings().setValue(_SETTING_FACE_STYLE, self._face_style)
         if self._renderer is not None:
             style_fn = getattr(self._renderer, "set_face_style", None)
             if callable(style_fn):

@@ -100,26 +100,27 @@ def main() -> int:
 
     plugin_manager = PluginManager(api)
     window.bind_plugin_manager(plugin_manager)
-    plugin_issues = plugin_manager.discover()
-    if plugin_issues:
-        logger = logging.getLogger(__name__)
-        for issue in plugin_issues:
-            logger.warning("Plugin load issue (%s): %s", issue.source, issue.message)
-        window.statusBar().showMessage(
-            "Plugin load issues: "
-            + "; ".join(f"{issue.source}: {issue.message}" for issue in plugin_issues)
-        )
-        if arguments.smoke_test:
-            return 1
+    # NOTE: Plugins disabled temporarily during core architecture refactoring.
+    # plugin_issues = plugin_manager.discover()
+    # if plugin_issues:
+    #     logger = logging.getLogger(__name__)
+    #     for issue in plugin_issues:
+    #         logger.warning("Plugin load issue (%s): %s", issue.source, issue.message)
+    #     window.statusBar().showMessage(
+    #         "Plugin load issues: "
+    #         + "; ".join(f"{issue.source}: {issue.message}" for issue in plugin_issues)
+    #     )
+    #     if arguments.smoke_test:
+    #         return 1
 
-    # Restore the top-level geometry before showing, but defer dock/workspace
+    # Restore the top-level geometry before showing, but defer dock layout
     # restoration until the platform has created and exposed the native
     # window. VTK and QOpenGLWidget surfaces are unreliable before that point.
     window.restore_window_geometry()
     window.show()
 
     def finish_startup() -> None:
-        window.restore_workspace_layout()
+        window.restore_layout()
         if arguments.smoke_test:
             QTimer.singleShot(100, app.quit)
         elif arguments.project:

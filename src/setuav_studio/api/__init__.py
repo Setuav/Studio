@@ -13,7 +13,6 @@ from setuav_studio_sdk.contributions import (
     ToolbarContribution,
     ToolbarMenuItemContribution,
     ToolContribution,
-    WorkspaceContribution,
 )
 from setuav_studio_sdk.events import StudioEvents
 from setuav_studio_sdk.plugin import StudioPlugin
@@ -50,7 +49,6 @@ __all__ = [
     "ToolContribution",
     "ToolbarContribution",
     "ToolbarMenuItemContribution",
-    "WorkspaceContribution",
     "_ComponentEditCommand",
     "_ProjectEditCommand",
     "_StudioHost",

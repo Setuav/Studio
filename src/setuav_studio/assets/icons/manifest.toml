@@ -14,3 +14,32 @@ exit = "application-exit.png"
 # Edit menu
 undo = "edit-undo.png"
 redo = "edit-redo.png"
+
+# Transform & Envelope
+transform = "transform.svg"
+coordinate_system = "transform.svg"
+envelope = "envelope.svg"
+physical_envelope = "envelope.svg"
+
+# 3D Viewport & Panels
+viewer_3d = "view-isometric.png"
+
+# 3D viewport display modes, camera presets, and overlays
+view_colored = "view-colored.svg"
+view_monochrome = "view-monochrome.svg"
+view_palette = "view-palette.svg"
+palette = "view-palette.svg"
+view_solid = "view-solid.png"
+view_wireframe = "view-wireframe.png"
+view_transparent = "view-transparent.png"
+view_grid = "view-grid.svg"
+view_isometric = "view-isometric.svg"
+view_perspective = "view-perspective.svg"
+camera_perspective = "view-perspective.svg"
+camera_iso = "view-isometric.png"
+camera_top = "view-top.png"
+camera_bottom = "view-bottom.png"
+camera_front = "view-front.png"
+camera_side = "view-side.png"
+view_fit = "view-fit.png"
+screenshot = "screenshot.svg"

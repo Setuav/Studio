@@ -22,7 +22,6 @@ from setuav_studio.api import (
     ToolbarContribution,
     ToolbarMenuItemContribution,
     ToolContribution,
-    WorkspaceContribution,
     _candidate_sort_key,
 )
 from setuav_studio.project import ProjectDocument
@@ -107,24 +106,6 @@ class PluginSystemEdgeTests(unittest.TestCase):
         )
         self.api.remove_panel("panel")
         self.assertEqual((panels, removed_panels), (["panel"], ["panel"]))
-
-        workspace = WorkspaceContribution("design", "Design")
-        self.api.add_workspace(workspace)
-        workspaces: list[str] = []
-        removed_workspaces: list[str] = []
-        switched: list[str] = []
-        self.api._host.bind_workspace_handlers(
-            lambda item: workspaces.append(item.id), switched.append, removed_workspaces.append
-        )
-        self.api.set_workspace(WorkspaceContribution("analysis", "Analysis"))
-        self.api.remove_workspace("design")
-        changes: list[str] = []
-        self.api.switch_workspace("design")
-        self.api.on_workspace_changed(changes.append)
-        self.assertEqual(workspaces, ["design", "analysis"])
-        self.assertEqual(removed_workspaces, ["design"])
-        self.assertEqual(switched, ["design"])
-        self.assertEqual(changes, ["design"])
 
         first = ToolbarContribution("first", "First", command="first")
         removed_toolbar: list[str] = []
@@ -396,6 +377,7 @@ class PluginSystemEdgeTests(unittest.TestCase):
             return SimpleNamespace(PLUGIN=BadPlugin())
 
         with (
+            patch("setuav_studio.api.manager.ENABLE_BUNDLED_PLUGINS", True),
             patch("setuav_studio.api.manager.pkgutil.iter_modules", return_value=modules),
             patch(
                 "setuav_studio.api.manager.import_module",
@@ -413,6 +395,7 @@ class PluginSystemEdgeTests(unittest.TestCase):
         activation_error.name = "activation-error"
         activation_error.load.return_value = BadPlugin()
         with (
+            patch("setuav_studio.api.manager.ENABLE_ENTRY_POINT_PLUGINS", True),
             patch(
                 "setuav_studio.api.manager.metadata.entry_points",
                 return_value=[load_error, activation_error],
@@ -539,33 +522,14 @@ class PluginSystemEdgeTests(unittest.TestCase):
         self.assertIs(self.api.project, self.project)
 
         empty_api = StudioAPI()
-        empty_api.remove_workspace("missing")
         empty_api.remove_action("File", "Missing")
-        workspace_changes: list[str] = []
-        empty_api.on_workspace_changed(workspace_changes.append)
-        empty_api.switch_workspace("design")
         empty_api.notify_project_content_changed()
         empty_api.remove_project_listener(lambda _project: None)
-        self.assertEqual(workspace_changes, ["design"])
 
         validator_mock = Mock()
         with patch("setuav_studio.project.validation.register_component_validator") as mock_reg:
             empty_api.register_component_validator("example", validator_mock)
         mock_reg.assert_called_once_with("example", validator_mock)
-
-    def test_workspace_listener_can_be_removed(self) -> None:
-        api = StudioAPI()
-        changes: list[str] = []
-
-        def listener(workspace_id: str) -> None:
-            changes.append(workspace_id)
-
-        api.on_workspace_changed(listener)
-        api.switch_workspace("one")
-        api.remove_workspace_listener(listener)
-        api.switch_workspace("two")
-
-        self.assertEqual(changes, ["one"])
 
     def test_listeners_may_remove_themselves_before_raising(self) -> None:
         api = StudioAPI()

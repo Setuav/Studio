@@ -2,7 +2,7 @@
 
 import unittest
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import QSettings, Signal
 from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QApplication, QWidget
 
@@ -103,10 +103,28 @@ class TestStudioViewport(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls._app = QApplication.instance() or QApplication([])
 
+    @staticmethod
+    def _clear_viewport_settings() -> None:
+        settings = QSettings()
+        for key in (
+            "studio_viewport_orthographic",
+            "studio_viewport_show_solid",
+            "studio_viewport_show_wireframe",
+            "studio_viewport_wire_mode",
+            "studio_viewport_show_grid",
+            "studio_viewport_face_style",
+        ):
+            settings.remove(key)
+
     def setUp(self) -> None:
+        self._clear_viewport_settings()
         self.viewport = StudioViewport()
         self.mock_renderer = MockRenderer()
         self.viewport.attach_renderer(self.mock_renderer)
+
+    def tearDown(self) -> None:
+        self._clear_viewport_settings()
+        super().tearDown()
 
     def test_initial_state(self) -> None:
         self.assertEqual(self.viewport.layers(), ["default", "geometry"])
@@ -512,3 +530,36 @@ class TestStudioViewport(unittest.TestCase):
         self.assertIsNone(api.viewport)
         api._viewport = self.viewport
         self.assertIs(api.viewport, self.viewport)
+
+    def test_viewport_settings_persistence(self) -> None:
+        from PySide6.QtCore import QSettings
+
+        settings = QSettings()
+        self.viewport.set_orthographic(False)
+        self.assertFalse(self.viewport.is_orthographic())
+        self.assertEqual(settings.value("studio_viewport_orthographic"), False)
+
+        self.viewport.set_show_grid(False)
+        self.assertFalse(self.viewport.is_show_grid())
+        self.assertEqual(settings.value("studio_viewport_show_grid"), False)
+
+        self.viewport.set_show_solid(False)
+        self.assertFalse(self.viewport.is_show_solid())
+        self.assertEqual(settings.value("studio_viewport_show_solid"), False)
+
+        self.viewport.set_wire_mode("full")
+        self.assertEqual(self.viewport.wire_mode(), "full")
+        self.assertEqual(settings.value("studio_viewport_wire_mode"), "full")
+
+        self.viewport.set_face_style("monochrome")
+        self.assertEqual(self.viewport.face_style(), "monochrome")
+        self.assertEqual(settings.value("studio_viewport_face_style"), "monochrome")
+
+        for key in (
+            "studio_viewport_orthographic",
+            "studio_viewport_show_grid",
+            "studio_viewport_show_solid",
+            "studio_viewport_wire_mode",
+            "studio_viewport_face_style",
+        ):
+            settings.remove(key)

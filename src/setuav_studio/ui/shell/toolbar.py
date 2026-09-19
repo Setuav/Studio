@@ -3,12 +3,9 @@
 import re
 from collections.abc import Iterable
 
-from PySide6.QtCore import QSize, Qt, Signal
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QComboBox, QToolBar, QToolButton
-
-from setuav_studio.ui.style.icons import get_icon
-from setuav_studio_sdk import WorkspaceContribution
+from PySide6.QtWidgets import QToolBar, QToolButton
 
 
 def _configure_toolbar(toolbar: QToolBar) -> None:
@@ -19,73 +16,8 @@ def _configure_toolbar(toolbar: QToolBar) -> None:
     toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
 
 
-class WorkspaceToolBar(QToolBar):
-    """Movable toolbar containing the active-workspace selector."""
-
-    workspace_activated = Signal(str)
-
-    def __init__(self, parent=None) -> None:
-        super().__init__("Workspaces", parent)
-        self.setObjectName("studio.workspace_toolbar")
-        _configure_toolbar(self)
-
-        self.workspace_combo = QComboBox(self)
-        self.workspace_combo.setObjectName("studio.workspace_combo")
-        self.workspace_combo.setToolTip("Workspace")
-        self.workspace_combo.setMinimumWidth(170)
-        self.workspace_combo.setSizeAdjustPolicy(
-            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
-        )
-        self.workspace_combo.currentIndexChanged.connect(self._emit_workspace_selection)
-
-        self.addWidget(self.workspace_combo)
-
-    def set_workspaces(
-        self,
-        workspaces: Iterable[WorkspaceContribution],
-        current_workspace_id: str | None,
-    ) -> None:
-        self.workspace_combo.blockSignals(True)
-        try:
-            self.workspace_combo.clear()
-            current_index = -1
-            for index, workspace in enumerate(workspaces):
-                if workspace.icon:
-                    self.workspace_combo.addItem(
-                        get_icon(workspace.icon),
-                        workspace.title,
-                        workspace.id,
-                    )
-                else:
-                    self.workspace_combo.addItem(workspace.title, workspace.id)
-                if workspace.id == current_workspace_id:
-                    current_index = index
-
-            if current_index < 0 and self.workspace_combo.count() > 0:
-                current_index = 0
-            self.workspace_combo.setCurrentIndex(current_index)
-            self.workspace_combo.setEnabled(self.workspace_combo.count() > 0)
-        finally:
-            self.workspace_combo.blockSignals(False)
-
-    def set_current_workspace(self, workspace_id: str) -> None:
-        index = self.workspace_combo.findData(workspace_id)
-        if index < 0 or index == self.workspace_combo.currentIndex():
-            return
-        self.workspace_combo.blockSignals(True)
-        try:
-            self.workspace_combo.setCurrentIndex(index)
-        finally:
-            self.workspace_combo.blockSignals(False)
-
-    def _emit_workspace_selection(self, index: int) -> None:
-        workspace_id = self.workspace_combo.itemData(index)
-        if isinstance(workspace_id, str) and workspace_id:
-            self.workspace_activated.emit(workspace_id)
-
-
 class ToolSetBar(QToolBar):
-    """One independently movable group of plugin-contributed tools."""
+    """One independently movable group of contributed tools."""
 
     def __init__(self, group: str, parent=None) -> None:
         title = group.replace("_", " ").replace("-", " ").title()
@@ -115,4 +47,4 @@ class StandardToolBar(QToolBar):
         _configure_toolbar(self)
 
 
-__all__ = ["StandardToolBar", "ToolSetBar", "WorkspaceToolBar"]
+__all__ = ["StandardToolBar", "ToolSetBar"]

@@ -25,6 +25,7 @@ class TestPluginInstaller(unittest.TestCase):
         from PySide6.QtCore import QSettings
 
         QSettings().setValue("plugins/disabled", [])
+        QSettings().setValue("plugins/custom_folders", [])
         self.temp_dir = tempfile.TemporaryDirectory()
         self.user_dir = Path(self.temp_dir.name) / "plugins"
         self.user_dir.mkdir(parents=True, exist_ok=True)
@@ -32,6 +33,10 @@ class TestPluginInstaller(unittest.TestCase):
         self.manager = PluginManager(self.api)
 
     def tearDown(self) -> None:
+        from PySide6.QtCore import QSettings
+
+        QSettings().setValue("plugins/disabled", [])
+        QSettings().setValue("plugins/custom_folders", [])
         self.temp_dir.cleanup()
 
     def test_get_user_plugins_dir_precedence(self) -> None:

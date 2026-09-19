@@ -7,7 +7,6 @@ from setuav_studio.api import (
     PanelContribution,
     PluginManager,
     StudioAPI,
-    WorkspaceContribution,
 )
 from setuav_studio.ui.shell import MainWindow
 from tests._common import TEST_PROJECT_PATH, get_qapp
@@ -58,18 +57,10 @@ class MainTests(unittest.TestCase):
         window.open_project(TEST_PROJECT_PATH)
         self.assertIn("🔴 0  ⚠️ 0", window._degraded_badge.text())
 
-    def test_workspace_and_panel_contributions(self) -> None:
+    def test_panel_contributions(self) -> None:
         api = StudioAPI()
         window = MainWindow(api)
         self.addCleanup(window.deleteLater)
-        api.add_workspace(
-            WorkspaceContribution(
-                id="test.workspace",
-                title="Test Workspace",
-                factory=QWidget,
-            )
-        )
-        self.assertIn("test.workspace", window._workspaces)
 
         api.add_panel(
             PanelContribution(
@@ -87,7 +78,7 @@ class MainTests(unittest.TestCase):
         self.assertIn(view_action, window._view_menu.actions())
         self.assertTrue(any(a.text() == "Theme" for a in window._view_menu.actions()))
 
-        window._update_view_menu("test.workspace")
+        window._update_view_menu()
         self.assertTrue(any(a.text() == "Theme" for a in window._view_menu.actions()))
         self.assertIn(view_action, window._view_menu.actions())
         window.close()

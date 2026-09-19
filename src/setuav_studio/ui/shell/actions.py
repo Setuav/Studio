@@ -244,12 +244,10 @@ class ActionManager:
                 self._window._command_palette_button.setIcon(get_icon("fa6s.terminal"))
             if hasattr(self._window, "_update_toolbar_contribution_icons"):
                 self._window._update_toolbar_contribution_icons()
-            if hasattr(self._window, "_refresh_workspace_combo"):
-                self._window._refresh_workspace_combo()
         except Exception as exc:
             logger.debug("Error refreshing icons: %s", exc)
 
-    def populate_view_menu(self, workspace_id: str | None = None) -> None:
+    def populate_view_menu(self) -> None:
         self.view_menu.clear()
         theme_menu = self.view_menu.addMenu("Theme")
         theme_menu.addAction(self.dark_theme_action)
@@ -263,22 +261,21 @@ class ActionManager:
         self.view_menu.addSeparator()
 
         panels = getattr(self._window, "_panels", {})
-        for cid, (panel_contrib, dock) in panels.items():
-            if workspace_id is None or panel_contrib.is_in_workspace(workspace_id):
-                action = self.panel_actions.get(cid)
-                if action is not None:
-                    action.setChecked(dock.isVisible())
-                    self.update_panel_action_icon(cid)
-                    self.view_menu.addAction(action)
+        for cid, (_panel_contrib, dock) in panels.items():
+            action = self.panel_actions.get(cid)
+            if action is not None:
+                action.setChecked(dock.isVisible())
+                self.update_panel_action_icon(cid)
+                self.view_menu.addAction(action)
 
         self.view_menu.addSeparator()
-        reset_layout_action = QAction("Reset Workspace Layout", self._window)
+        reset_layout_action = QAction("Reset Layout", self._window)
         reset_layout_action.setIcon(get_icon("fa6s.arrow-rotate-left"))
-        reset_layout_action.triggered.connect(self._window._reset_current_workspace_layout)
+        reset_layout_action.triggered.connect(self._window.reset_layout)
         self.view_menu.addAction(reset_layout_action)
 
-    def update_view_menu(self, workspace_id: str | None) -> None:
-        self.populate_view_menu(workspace_id)
+    def update_view_menu(self) -> None:
+        self.populate_view_menu()
 
     def update_panel_action_icon(self, panel_id: str) -> None:
         action = self.panel_actions.get(panel_id)

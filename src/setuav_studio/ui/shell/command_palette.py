@@ -185,7 +185,7 @@ class CommandPaletteDialog(QDialog):
         return super().eventFilter(watched, event)
 
     def populate_and_show(self, action_manager: ActionManager) -> None:
-        """Collect all active commands across menus, toolbars, and workspaces, then show."""
+        """Collect all active commands across menus and toolbars, then show."""
         self._commands = self._collect_commands(action_manager)
         self.search_edit.clear()
         self._filter_commands("")
@@ -206,7 +206,6 @@ class CommandPaletteDialog(QDialog):
         commands: list[CommandItem] = []
         seen_titles: set[str] = set()
         self._collect_menu_commands(action_manager, commands, seen_titles)
-        self._collect_workspace_commands(commands, seen_titles)
         self._collect_toolbar_commands(commands, seen_titles)
         return commands
 
@@ -249,28 +248,6 @@ class CommandPaletteDialog(QDialog):
                         icon=action.icon(),
                         callback=action.trigger,
                         enabled=action.isEnabled(),
-                    )
-                )
-
-    def _collect_workspace_commands(
-        self,
-        commands: list[CommandItem],
-        seen_titles: set[str],
-    ) -> None:
-        if not hasattr(self._window, "_workspace_manager"):
-            return
-        wm = self._window._workspace_manager
-        for ws_id, ws_contrib in wm._workspaces.items():
-            title = f"Switch to {ws_contrib.title} Workspace"
-            if title not in seen_titles:
-                seen_titles.add(title)
-                commands.append(
-                    CommandItem(
-                        id=f"workspace.switch.{ws_id}",
-                        title=title,
-                        category="Workspace",
-                        icon=get_icon("view_fit"),
-                        callback=lambda wid=ws_id: self._window.switch_workspace(wid),
                     )
                 )
 

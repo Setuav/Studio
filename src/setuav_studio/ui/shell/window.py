@@ -31,14 +31,13 @@ if TYPE_CHECKING:
     from setuav_studio_sdk import (
         ActionContribution,
         ToolbarContribution,
-        WorkspaceContribution,
     )
 
 logger = logging.getLogger(__name__)
 
 
 class MainWindow(QMainWindow):
-    """Main application shell coordinating workspace, toolbar, project, and actions."""
+    """Main application shell coordinating workbench layout, toolbar, project, and actions."""
 
     _LAYOUT_VERSION = LayoutManager.LAYOUT_VERSION
     _LAYOUT_DEFAULTS_KEY = LayoutManager.LAYOUT_DEFAULTS_KEY
@@ -49,7 +48,6 @@ class MainWindow(QMainWindow):
         self._host = api._host
         self._project: ProjectDocument | None = None
         self._panels: dict[str, tuple[PanelContribution, QDockWidget]] = {}
-        self._current_workspace_id: str | None = None
         self._normal_geometry: QByteArray | None = None
         self._normal_dock_state: QByteArray | None = None
         self._was_maximized: bool = False
@@ -85,15 +83,13 @@ class MainWindow(QMainWindow):
             self._action_manager.redo_action,
         )
 
-        # Expose sub-manager properties for backward-compatibility & inspection
+        # Expose sub-manager properties for inspection
         self._standard_toolbar = self._toolbar_manager.standard_toolbar
-        self._workspaces = self._toolbar_manager.workspaces
         self._toolbar_contributions = self._toolbar_manager.toolbar_contributions
         self._toolbar_actions = self._toolbar_manager.toolbar_actions
         self._toolbar_menu_actions = self._toolbar_manager.toolbar_menu_actions
         self._owned_toolbar_actions = self._toolbar_manager.owned_toolbar_actions
         self._toolset_bars = self._toolbar_manager.toolset_bars
-        self._workspace_toolbar = self._toolbar_manager.workspace_toolbar
 
         self._menus = self._action_manager.menus
         self._command_actions = self._action_manager.command_actions
@@ -123,7 +119,6 @@ class MainWindow(QMainWindow):
         self._monokai_theme_action = self._action_manager.monokai_theme_action
         self._nord_theme_action = self._action_manager.nord_theme_action
 
-        self._workspace_states = self._layout_manager.workspace_states
         self._status_label = self._status_manager.status_label
         self._progress_bar = self._status_manager.progress_bar
         self._command_palette_button = self._status_manager.command_palette_button
@@ -132,11 +127,6 @@ class MainWindow(QMainWindow):
 
         # Host bridge bindings
         self._host.bind_panel_handlers(self._add_panel, self._remove_panel)
-        self._host.bind_workspace_handlers(
-            self._add_workspace,
-            self._switch_workspace,
-            self._remove_workspace,
-        )
         self._host.bind_toolbar_handlers(
             self._add_toolbar_item,
             self._remove_toolbar_item,
@@ -161,12 +151,12 @@ class MainWindow(QMainWindow):
         self._status_manager._log_window = value
 
     @property
-    def _restoring_workspace_layout(self) -> bool:
-        return self._layout_manager.restoring_workspace_layout
+    def _restoring_layout(self) -> bool:
+        return self._layout_manager.restoring_layout
 
-    @_restoring_workspace_layout.setter
-    def _restoring_workspace_layout(self, value: bool) -> None:
-        self._layout_manager.restoring_workspace_layout = value
+    @_restoring_layout.setter
+    def _restoring_layout(self, value: bool) -> None:
+        self._layout_manager.restoring_layout = value
 
     @property
     def _layout_persistence_enabled(self) -> bool:
@@ -209,18 +199,14 @@ class MainWindow(QMainWindow):
         dock.visibilityChanged.connect(
             lambda _visible=False, pid=contribution.id: self._sync_panel_action(pid)
         )
-        dock.dockLocationChanged.connect(self._schedule_workspace_layout_save)
-        dock.topLevelChanged.connect(self._schedule_workspace_layout_save)
-        dock.visibilityChanged.connect(self._schedule_workspace_layout_save)
+        dock.dockLocationChanged.connect(self._schedule_layout_save)
+        dock.topLevelChanged.connect(self._schedule_layout_save)
+        dock.visibilityChanged.connect(self._schedule_layout_save)
         dock.installEventFilter(self)
         self._panel_actions[contribution.id] = action
         self._update_panel_action_icon(contribution.id)
 
-        ws_id = self._current_workspace_id or self._api.current_workspace_id
-        if not contribution.is_in_workspace(ws_id):
-            dock.hide()
-
-        self._update_view_menu(ws_id)
+        self._update_view_menu()
 
     def _remove_panel(self, panel_id: str) -> None:
         entry = self._panels.pop(panel_id, None)
@@ -232,7 +218,7 @@ class MainWindow(QMainWindow):
         action = self._panel_actions.pop(panel_id, None)
         if action is not None:
             action.deleteLater()
-        self._update_view_menu(self._current_workspace_id)
+        self._update_view_menu()
 
     @staticmethod
     def _wrap_panel(content: QWidget) -> QWidget:
@@ -320,29 +306,20 @@ class MainWindow(QMainWindow):
     def restore_window_geometry(self) -> None:
         self._layout_manager.restore_window_geometry()
 
-    def restore_workspace_layout(self) -> None:
-        self._layout_manager.restore_workspace_layout()
+    def restore_layout(self) -> None:
+        self._layout_manager.restore_dock_layout()
 
-    def _reset_outdated_workspace_perspectives(self, settings: QSettings) -> None:
-        self._layout_manager.reset_outdated_workspace_perspectives(settings)
+    def _schedule_layout_save(self, *_args: Any) -> None:
+        self._layout_manager.schedule_layout_save()
 
-    def _switch_workspace(self, workspace_id: str) -> None:
-        self._layout_manager.switch_workspace(workspace_id)
+    def save_layout(self) -> None:
+        self._layout_manager.save_layout()
 
-    def _schedule_workspace_layout_save(self, *_args: Any) -> None:
-        self._layout_manager.schedule_workspace_layout_save()
-
-    def _save_current_workspace_layout(self) -> None:
-        self._layout_manager.save_current_workspace_layout()
+    def reset_layout(self) -> None:
+        self._layout_manager.reset_layout()
 
     def _enable_layout_persistence(self) -> None:
         self._layout_manager.enable_layout_persistence()
-
-    def _apply_default_workspace_layout(self, workspace_id: str) -> None:
-        self._layout_manager.apply_default_workspace_layout(workspace_id)
-
-    def _hide_panels_outside_workspace(self, workspace_id: str) -> None:
-        self._layout_manager.hide_panels_outside_workspace(workspace_id)
 
     def _dock(self, panel_id: str) -> QDockWidget | None:
         return self._layout_manager.dock(panel_id)
@@ -352,9 +329,6 @@ class MainWindow(QMainWindow):
     ) -> None:
         self._layout_manager.resize_visible_docks(docks, widths)
 
-    def _reset_current_workspace_layout(self) -> None:
-        self._layout_manager.reset_current_workspace_layout()
-
     # Toolbar Manager Delegations
     def _add_toolbar_item(self, contribution: ToolbarContribution) -> None:
         self._toolbar_manager.add_toolbar_item(contribution)
@@ -363,7 +337,7 @@ class MainWindow(QMainWindow):
         self._toolbar_manager.remove_toolbar_item(contribution_id)
 
     def _refresh_toolbar_action_states(self) -> None:
-        self._toolbar_manager.refresh_toolbar_action_states()
+        self._toolbar_manager.update_toolbar_states()
 
     def _rebuild_toolbar_tools(self) -> None:
         self._toolbar_manager.rebuild_toolbar_tools()
@@ -374,15 +348,6 @@ class MainWindow(QMainWindow):
     def _update_toolbar_contribution_icons(self) -> None:
         self._toolbar_manager.update_toolbar_contribution_icons()
 
-    def _refresh_workspace_combo(self) -> None:
-        self._toolbar_manager.refresh_workspace_combo()
-
-    def _add_workspace(self, contribution: WorkspaceContribution) -> None:
-        self._toolbar_manager.add_workspace(contribution)
-
-    def _remove_workspace(self, workspace_id: str) -> None:
-        self._toolbar_manager.remove_workspace(workspace_id)
-
     # Action Manager Delegations
     def _switch_theme(self, mode: str) -> None:
         self._action_manager.switch_theme(mode)
@@ -390,11 +355,11 @@ class MainWindow(QMainWindow):
     def _update_all_icons(self) -> None:
         self._action_manager.update_all_icons()
 
-    def _populate_view_menu(self, workspace_id: str | None = None) -> None:
-        self._action_manager.populate_view_menu(workspace_id)
+    def _populate_view_menu(self) -> None:
+        self._action_manager.populate_view_menu()
 
-    def _update_view_menu(self, workspace_id: str | None) -> None:
-        self._action_manager.update_view_menu(workspace_id)
+    def _update_view_menu(self) -> None:
+        self._action_manager.update_view_menu()
 
     def _update_panel_action_icon(self, panel_id: str) -> None:
         self._action_manager.update_panel_action_icon(panel_id)
@@ -487,7 +452,7 @@ class MainWindow(QMainWindow):
         if not self.isMaximized() and not self.isFullScreen():
             self._normal_geometry = self.saveGeometry()
             self._normal_dock_state = self.saveState(self._LAYOUT_VERSION)
-        self._schedule_workspace_layout_save()
+        self._schedule_layout_save()
 
     def moveEvent(self, event: Any) -> None:
         super().moveEvent(event)
@@ -579,7 +544,7 @@ class MainWindow(QMainWindow):
             if self._cursor_overridden:
                 QApplication.restoreOverrideCursor()
                 self._cursor_overridden = False
-            self._schedule_workspace_layout_save()
+            self._schedule_layout_save()
 
     def mousePressEvent(self, event: Any) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
@@ -661,7 +626,7 @@ class MainWindow(QMainWindow):
             QEvent.Type.Resize,
             QEvent.Type.Move,
         ):
-            self._schedule_workspace_layout_save()
+            self._schedule_layout_save()
         return super().eventFilter(watched, event)
 
     def closeEvent(self, event: QCloseEvent) -> None:
@@ -675,9 +640,7 @@ class MainWindow(QMainWindow):
             settings.setValue("main_window/geometry", self.saveGeometry())
         elif self._normal_geometry is not None:
             settings.setValue("main_window/geometry", self._normal_geometry)
-        if self._current_workspace_id is not None:
-            self._save_current_workspace_layout()
-            settings.setValue("active_workspace", self._current_workspace_id)
+        self._layout_manager.save_layout()
 
         for _, dock in self._panels.values():
             try:

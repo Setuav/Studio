@@ -25,6 +25,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 _DISABLED_PLUGINS_KEY = "plugins/disabled"
 _CUSTOM_FOLDERS_KEY = "plugins/custom_folders"
+ENABLE_BUNDLED_PLUGINS = False  # Temporarily disabled during Core architecture refactoring
+ENABLE_ENTRY_POINT_PLUGINS = False  # Temporarily disabled during Core architecture refactoring
 
 
 class PluginManager:
@@ -174,6 +176,8 @@ class PluginManager:
     ) -> tuple[list[PluginLoadIssue], list[tuple[int, str, object]]]:
         issues: list[PluginLoadIssue] = []
         candidates: list[tuple[int, str, object]] = []
+        if not ENABLE_BUNDLED_PLUGINS:
+            return issues, candidates
         try:
             package = import_module("plugins")
             for module_info in pkgutil.iter_modules(package.__path__):
@@ -201,6 +205,8 @@ class PluginManager:
     ) -> tuple[list[PluginLoadIssue], list[tuple[int, str, object]]]:
         issues: list[PluginLoadIssue] = []
         candidates: list[tuple[int, str, object]] = []
+        if not ENABLE_ENTRY_POINT_PLUGINS:
+            return issues, candidates
         for entry_point in metadata.entry_points(group="setuav_studio.plugins"):
             try:
                 logger.info("Loading entry-point plugin: %s", entry_point.name)

@@ -1,4 +1,4 @@
-"""Unit tests for Multi-Workspace and Tool Contribution systems."""
+"""Unit tests for Workbench and Tool Contribution systems."""
 
 from __future__ import annotations
 
@@ -10,58 +10,32 @@ from setuav_studio.api import (
     PanelContribution,
     StudioAPI,
     ToolContribution,
-    WorkspaceContribution,
 )
 from setuav_studio.ui.shell import MainWindow
 from tests._common import get_qapp
 
 
-class TestWorkspacesAndTools(unittest.TestCase):
+class TestWorkbenchAndTools(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.app = get_qapp()
 
-    def test_multi_workspace_and_dock_visibility(self) -> None:
+    def test_workbench_dock_registration(self) -> None:
         api = StudioAPI()
         win = MainWindow(api)
 
-        # Register Design workspace
-        api.add_workspace(
-            WorkspaceContribution(
-                id="studio.viewer.opengl",
-                title="3D Viewer",
-                factory=lambda: QLabel("Viewer Canvas"),
-                order=0,
-            )
-        )
-
-        # Register custom Workspace B
-        api.add_workspace(
-            WorkspaceContribution(
-                id="studio.custom.workspace",
-                title="Custom Workspace",
-                factory=lambda: QLabel("Custom Canvas"),
-                order=10,
-            )
-        )
-
-        # Register workspace-specific dock
+        # Register custom panel
         api.add_panel(
             PanelContribution(
                 id="custom.panel",
                 title="Custom Panel",
                 factory=lambda: QLabel("Custom Dock Widget"),
-                workspace_id="studio.custom.workspace",
             )
         )
 
-        # Design is active -> Custom Panel is hidden
-        api.switch_workspace("studio.viewer.opengl")
+        # Panel is registered and dock is present
+        self.assertIn("custom.panel", win._panels)
         custom_dock = win._panels["custom.panel"][1]
-        self.assertTrue(custom_dock.isHidden())
-
-        # Switch to Custom Workspace -> Custom Panel is shown
-        api.switch_workspace("studio.custom.workspace")
         self.assertFalse(custom_dock.isHidden())
 
     def test_status_bar_shows_colored_messages_and_auto_clears(self) -> None:

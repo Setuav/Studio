@@ -11,7 +11,6 @@ from setuav_studio_sdk.contributions import (
     PanelContribution,
     SettingsPageContribution,
     ToolbarContribution,
-    WorkspaceContribution,
 )
 
 if TYPE_CHECKING:
@@ -52,19 +51,6 @@ class _StudioHost:
 
     def bind_progress_handler(self, handler: Callable[[int, int, str], None]) -> None:
         self._api._progress_handler = handler
-
-    def bind_workspace_handlers(
-        self,
-        add_handler: Callable[[WorkspaceContribution], None],
-        switch_handler: Callable[[str], None] | None = None,
-        remove_handler: Callable[[str], None] | None = None,
-    ) -> None:
-        self._api._add_workspace = add_handler
-        self._api._switch_workspace_handler = switch_handler
-        self._api._remove_workspace = remove_handler
-        for workspace in self._api._pending_workspaces:
-            add_handler(workspace)
-        self._api._pending_workspaces.clear()
 
     def bind_toolbar_handlers(
         self,
