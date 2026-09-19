@@ -126,7 +126,7 @@ class MainWindow(QMainWindow):
         self._degraded_badge = self._status_manager.degraded_badge
 
         # Host bridge bindings
-        self._host.bind_panel_handlers(self._add_panel, self._remove_panel)
+        self._host.bind_panel_handlers(self._add_panel, self._remove_panel, self._show_panel_by_id)
         self._host.bind_toolbar_handlers(
             self._add_toolbar_item,
             self._remove_toolbar_item,
@@ -219,6 +219,12 @@ class MainWindow(QMainWindow):
         if action is not None:
             action.deleteLater()
         self._update_view_menu()
+
+    def _show_panel_by_id(self, panel_id: str) -> None:
+        dock = self._dock(panel_id)
+        if dock is not None:
+            dock.show()
+            dock.raise_()
 
     @staticmethod
     def _wrap_panel(content: QWidget) -> QWidget:

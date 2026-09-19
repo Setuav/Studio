@@ -36,9 +36,11 @@ class _StudioHost:
         self,
         add_handler: Callable[[PanelContribution], None],
         remove_handler: Callable[[str], None] | None = None,
+        show_handler: Callable[[str], None] | None = None,
     ) -> None:
         self._api._add_panel = add_handler
         self._api._remove_panel = remove_handler
+        self._api._show_panel = show_handler
         for panel in self._api._pending_panels:
             add_handler(panel)
         self._api._pending_panels.clear()

@@ -116,6 +116,10 @@ class StudioAPI(Protocol):
         """Remove a panel previously registered by the plugin."""
         ...
 
+    def show_panel(self, panel_id: str) -> None:
+        """Show and bring a dock panel to the front by ID."""
+        ...
+
     def add_workspace(self, contribution: WorkspaceContribution) -> None:
         """Add a workspace to the main workspace selector."""
         ...

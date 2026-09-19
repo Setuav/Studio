@@ -482,6 +482,19 @@ class AnalysisResult:
         self.plots[plot_id] = plot
         return plot
 
+    @property
+    def analysis_config(self) -> Any:
+        """Return the configuration snapshot of this run as an AnalysisConfig."""
+        from setuav_studio.model.analysis_config import AnalysisConfig
+
+        return AnalysisConfig(
+            config_id=self.config.config_id,
+            solver_id=self.config.solver_id,
+            name=self.config.name,
+            parameters=dict(self.config.parameters),
+            options=dict(self.config.options),
+        )
+
     # ------------------------------------------------------------------
     # Backward Compatibility
     # ------------------------------------------------------------------

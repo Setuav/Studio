@@ -56,6 +56,18 @@ class SolverConfig:
             options=dict(data.get("options", {})),
         )
 
+    def to_analysis_config(self) -> Any:
+        """Convert this SolverConfig into an AnalysisConfig."""
+        from setuav_studio.model.analysis_config import AnalysisConfig
+
+        return AnalysisConfig(
+            config_id=self.config_id,
+            solver_id=self.solver_id,
+            name=self.name,
+            parameters=dict(self.parameters),
+            options=dict(self.options),
+        )
+
 
 class AbstractSolver(ABC):
     """Abstract base class for all engineering solvers in Setuav Studio.

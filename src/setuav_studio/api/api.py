@@ -56,6 +56,7 @@ class StudioAPI:
         self.current_analysis_config_id: str | None = None
         self._add_panel: Callable[[PanelContribution], None] | None = None
         self._remove_panel: Callable[[str], None] | None = None
+        self._show_panel: Callable[[str], None] | None = None
         self._pending_panels: list[PanelContribution] = []
         self._add_toolbar_item: Callable[[ToolbarContribution], None] | None = None
         self._remove_toolbar_item: Callable[[str], None] | None = None
@@ -139,6 +140,11 @@ class StudioAPI:
         self._pending_panels = [p for p in self._pending_panels if p.id != panel_id]
         if self._remove_panel is not None:
             self._remove_panel(panel_id)
+
+    def show_panel(self, panel_id: str) -> None:
+        """Show and bring a dock panel to the front by ID."""
+        if self._show_panel is not None:
+            self._show_panel(panel_id)
 
     def show_status(
         self,

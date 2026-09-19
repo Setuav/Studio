@@ -84,9 +84,20 @@ class LayoutManager:
             self._window.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, viewer_dock)
             viewer_dock.show()
 
+        # Analysis Result docks (placed in standard areas, revealed on demand)
+        chart_dock = self.dock("core:analysis-chart")
+        if chart_dock is not None:
+            self._window.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, chart_dock)
+            chart_dock.hide()
+
+        table_dock = self.dock("core:analysis-table")
+        if table_dock is not None:
+            self._window.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, table_dock)
+            table_dock.hide()
+
         # Ensure all registered docks are shown unless explicitly hidden
         for _cid, (_panel_contrib, dock) in panels.items():
-            if dock not in (left_dock, right_dock, viewer_dock):
+            if dock not in (left_dock, right_dock, viewer_dock, chart_dock, table_dock):
                 dock.show()
 
     def schedule_layout_save(self) -> None:
