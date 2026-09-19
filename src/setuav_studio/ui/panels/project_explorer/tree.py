@@ -66,6 +66,7 @@ class ProjectExplorer(QTreeWidget):
         self._project_root_item: QTreeWidgetItem | None = None
         self._parameters_group_item: QTreeWidgetItem | None = None
         self._constraints_group_item: QTreeWidgetItem | None = None
+        self._analysis_group_item: QTreeWidgetItem | None = None
         self._virtual_items: set[QTreeWidgetItem] = set()
         self._project_contributions: dict[
             QTreeWidgetItem,
@@ -273,6 +274,7 @@ class ProjectExplorer(QTreeWidget):
         if current in (
             self._parameters_group_item,
             self._constraints_group_item,
+            self._analysis_group_item,
         ):
             self._api.set_selection(None)
             return
@@ -294,6 +296,7 @@ class ProjectExplorer(QTreeWidget):
             if self.currentItem() in (
                 self._parameters_group_item,
                 self._constraints_group_item,
+                self._analysis_group_item,
             ):
                 return
             self.clearSelection()

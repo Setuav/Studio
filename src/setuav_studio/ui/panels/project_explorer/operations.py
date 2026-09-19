@@ -247,6 +247,7 @@ class ProjectExplorerOperations:
             self._tree._project_root_item,
             self._tree._parameters_group_item,
             self._tree._constraints_group_item,
+            self._tree._analysis_group_item,
         ):
             return
         if not self.can_edit_project():
@@ -262,6 +263,12 @@ class ProjectExplorerOperations:
             self.delete_parameter_item(element)
         elif kind == "constraint":
             self.delete_constraint_item(element)
+        elif kind == "analysis_config":
+            if str(element.get("id") or "").endswith(":config"):
+                return
+            self.delete_analysis_config_item(element)
+        elif kind in ("analysis_table", "analysis_plot"):
+            return
         else:
             self.delete_component_item(element)
 
@@ -366,6 +373,63 @@ class ProjectExplorerOperations:
             self._api.current_project.recompute_expressions(self._api)
         self._api.show_status(f'Deleted "{element_name}"', "success", 3000)
 
+    def delete_analysis_config_item(self, element: dict[str, Any]) -> None:
+        config_id = str(element.get("config_id") or element.get("id") or "")
+        name = str(element.get("name") or "Analysis")
+        if not config_id:
+            return
+
+        project = self._api.current_project
+        if project is None:
+            return
+
+        matching_results = [
+            r_id
+            for r_id, r in project.analysis_results.items()
+            if getattr(getattr(r, "config", None), "config_id", None) == config_id
+        ]
+        details: list[str] = []
+        if matching_results:
+            details.append(
+                f"{len(matching_results)} completed analysis result(s) will also be deleted."
+            )
+
+        if not self.confirm_delete(f"Analysis '{name}'", details):
+            return
+
+        for r_id in matching_results:
+            project.remove_analysis_result(r_id)
+
+        self._api.remove_analysis_config(config_id)
+        self._api.set_selection(None)
+        self._api.show_status(f"Deleted analysis '{name}'", "info", 3000)
+
+    def rename_analysis_config_item(self, item: QTreeWidgetItem, element: dict[str, Any]) -> None:
+        if str(element.get("id") or "").endswith(":config"):
+            self.restore_item_text(item, "Configuration")
+            return
+        config_id = str(element.get("config_id") or element.get("id") or "")
+        old_name = str(element.get("name") or "Analysis").strip()
+        new_name = item.text(0).strip()
+        if not self.can_edit_project():
+            self.restore_item_text(item, old_name)
+            return
+        if not new_name:
+            self.restore_item_text(item, old_name)
+            self._api.show_status("Name cannot be empty", "warning", 3000)
+            return
+        if new_name == old_name:
+            self.restore_item_text(item, new_name)
+            return
+        project = self._api.current_project
+        if project is not None:
+            config = project.get_analysis_config(config_id)
+            if config is not None:
+                config.name = new_name
+                self._api.add_analysis_config(config)
+                self._api.notify_project_content_changed()
+                self._api.show_status(f'Renamed analysis to "{new_name}"', "success", 3000)
+
     def rename_item(self, item: QTreeWidgetItem, column: int) -> None:
         if column != 0:
             return
@@ -377,6 +441,10 @@ class ProjectExplorerOperations:
             return
         element = self._tree._element_map.get(item)
         if element is None:
+            return
+
+        if element.get("kind") == "analysis_config":
+            self.rename_analysis_config_item(item, element)
             return
 
         element_id = str(element.get("id") or "")
@@ -477,3 +545,50 @@ class ProjectExplorerOperations:
         )
 
         toggle_constraint(self._api, self._tree, element)
+
+    def run_analysis(self, config_id: str | None = None) -> None:
+        if config_id is not None:
+            self._api.set_current_analysis_config(config_id)
+        config = (
+            self._api.get_current_analysis_config()
+            if config_id is None
+            else self._api.get_analysis_config(config_id)
+        )
+        if config is None:
+            all_configs = self._api.get_analysis_configs()
+            if all_configs:
+                config = next(iter(all_configs.values()))
+                self._api.set_current_analysis_config(config.config_id)
+
+        if config is None:
+            self._api.show_status("No analysis configuration available to run.", "warning", 3000)
+            return
+
+        solver_cls = self._api.solvers.get_solver_class(config.solver_id)
+        if solver_cls is None:
+            self._api.show_status(
+                f"No registered solver found for '{config.solver_id}'.",
+                "error",
+                3000,
+            )
+            return
+
+        try:
+            solver_config = config.to_solver_config()
+            solver = solver_cls(solver_config)
+            self._api.show_status(f"Starting analysis '{config.name}'...", "info", 3000)
+            self._api.run_solver(
+                solver,
+                on_complete=lambda res: self._api.show_status(
+                    f"Analysis '{config.name}' completed ({res.execution_time_ms:.1f} ms).",
+                    "success",
+                    4000,
+                ),
+                on_error=lambda err: self._api.show_status(
+                    f"Analysis '{config.name}' failed: {err}",
+                    "error",
+                    5000,
+                ),
+            )
+        except Exception as exc:
+            self._api.show_status(f"Failed to launch analysis: {exc}", "error", 5000)

@@ -76,6 +76,7 @@ class ProjectTreeBuilder:
         self._tree._project_root_item = None
         self._tree._parameters_group_item = None
         self._tree._constraints_group_item = None
+        self._tree._analysis_group_item = None
         self._tree._virtual_items.clear()
         self._tree._project_contributions.clear()
         self._tree._component_contributions.clear()
@@ -217,6 +218,7 @@ class ProjectTreeBuilder:
         analysis_group = QTreeWidgetItem(["Analyses"])
         analysis_group.setIcon(0, get_icon("fa6s.gears"))
         analysis_group.setToolTip(0, "Analysis Configurations")
+        self._tree._analysis_group_item = analysis_group
         project_item.addChild(analysis_group)
 
         for cid, config in configs.items():
@@ -224,6 +226,10 @@ class ProjectTreeBuilder:
             item = QTreeWidgetItem([name])
             item.setIcon(0, get_icon("fa6s.play"))
             item.setToolTip(0, f"Analysis: {name}\nSolver: {config.solver_id}")
+            if not project.read_only:
+                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
+            else:
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             payload = {
                 "kind": "analysis_config",
                 "id": cid,

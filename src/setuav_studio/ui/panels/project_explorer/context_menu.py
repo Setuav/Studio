@@ -59,6 +59,21 @@ class ProjectExplorerContextMenu:
             self.open_constraint_element_menu(item, element, position, can_edit)
             return
 
+        if element and element.get("kind") == "analysis_config":
+            self.open_analysis_config_menu(item, element, position, can_edit)
+            return
+
+        if element and element.get("kind") == "analysis_table":
+            self.open_analysis_table_menu(item, element, position)
+            return
+
+        if element and element.get("kind") == "analysis_plot":
+            self.open_analysis_plot_menu(item, element, position)
+            return
+
+        if element is None and item is not self._tree._project_root_item:
+            return
+
         self.open_default_context_menu(item, position, can_edit)
 
     def open_parameters_group_menu(
@@ -156,3 +171,64 @@ class ProjectExplorerContextMenu:
             self._tree.editItem(item, 0)
         elif delete_action is not None and chosen is delete_action:
             self._ops.delete_item(item)
+
+    def open_analysis_config_menu(
+        self,
+        item: QTreeWidgetItem,
+        element: dict[str, Any],
+        position: QPoint,
+        can_edit: bool,
+    ) -> None:
+        menu = QMenu(self._tree)
+        config_id = str(element.get("config_id") or element.get("id") or "")
+        is_subconfig = str(element.get("id") or "").endswith(":config")
+
+        if is_subconfig:
+            show_props_act = menu.addAction(get_icon("fa6s.sliders"), "Show Parameters")
+            chosen = menu.exec(self._tree.viewport().mapToGlobal(position))
+            if chosen is show_props_act:
+                self._api.set_current_analysis_config(config_id)
+                self._api.set_selection(element)
+                self._api.show_panel("core:properties")
+            return
+
+        run_act = menu.addAction(get_icon("fa6s.play"), "Run Analysis")
+        menu.addSeparator()
+        rename_act = menu.addAction(get_icon("edit"), "Rename")
+        rename_act.setEnabled(can_edit)
+        del_act = menu.addAction(get_icon("remove"), "Delete")
+        del_act.setEnabled(can_edit)
+
+        chosen = menu.exec(self._tree.viewport().mapToGlobal(position))
+        if chosen is run_act:
+            self._ops.run_analysis(config_id)
+        elif chosen is rename_act:
+            self._tree.editItem(item, 0)
+        elif chosen is del_act:
+            self._ops.delete_item(item)
+
+    def open_analysis_table_menu(
+        self,
+        _item: QTreeWidgetItem,
+        element: dict[str, Any],
+        position: QPoint,
+    ) -> None:
+        menu = QMenu(self._tree)
+        open_act = menu.addAction(get_icon("fa6s.table-cells"), "Open Table")
+        chosen = menu.exec(self._tree.viewport().mapToGlobal(position))
+        if chosen is open_act:
+            self._api.set_selection(element)
+            self._api.show_panel("core:analysis-table")
+
+    def open_analysis_plot_menu(
+        self,
+        _item: QTreeWidgetItem,
+        element: dict[str, Any],
+        position: QPoint,
+    ) -> None:
+        menu = QMenu(self._tree)
+        open_act = menu.addAction(get_icon("fa6s.chart-simple"), "Open Chart")
+        chosen = menu.exec(self._tree.viewport().mapToGlobal(position))
+        if chosen is open_act:
+            self._api.set_selection(element)
+            self._api.show_panel("core:analysis-chart")

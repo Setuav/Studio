@@ -552,6 +552,12 @@ class StudioAPI:
             return {}
         return self.current_project.analysis_configs
 
+    def get_analysis_config(self, config_id: str) -> Any | None:
+        """Retrieve an AnalysisConfig by ID from the current project."""
+        if self.current_project is None:
+            return None
+        return self.current_project.get_analysis_config(config_id)
+
     def add_analysis_config(self, config: Any) -> None:
         """Add an AnalysisConfig to the current project and set it as active."""
         if self.current_project is None:

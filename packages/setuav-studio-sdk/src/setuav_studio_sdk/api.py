@@ -395,3 +395,50 @@ class StudioAPI(Protocol):
     def tasks(self) -> Any:
         """Centralized background task manager for asynchronous analysis jobs."""
         ...
+
+    @property
+    def solvers(self) -> Any:
+        """Central solver runner and registry."""
+        ...
+
+    def register_solver(self, solver_id: str, solver_cls: type[Any]) -> None:
+        """Register a solver class by unique solver identifier."""
+        ...
+
+    def run_solver(
+        self,
+        solver: Any,
+        on_complete: Callable[[Any], None] | None = None,
+        on_error: Callable[[Exception], None] | None = None,
+        priority: Any = None,
+    ) -> Any:
+        """Run a solver asynchronously in the background via TaskManager."""
+        ...
+
+    def get_analysis_configs(self) -> dict[str, Any]:
+        """Return the dictionary of analysis configurations in the current project."""
+        ...
+
+    def get_analysis_config(self, config_id: str) -> Any | None:
+        """Retrieve an analysis configuration by ID."""
+        ...
+
+    def add_analysis_config(self, config: Any) -> None:
+        """Add or update an analysis configuration in the current project."""
+        ...
+
+    def remove_analysis_config(self, config_id: str) -> bool:
+        """Remove an analysis configuration by ID from the current project."""
+        ...
+
+    def get_analysis_results(self) -> dict[str, Any]:
+        """Return the dictionary of analysis results in the current project."""
+        ...
+
+    def get_analysis_result(self, result_id: str) -> Any | None:
+        """Retrieve an analysis result by ID from the current project."""
+        ...
+
+    def remove_analysis_result(self, result_id: str) -> bool:
+        """Remove an analysis result by ID from the current project."""
+        ...

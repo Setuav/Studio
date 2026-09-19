@@ -206,6 +206,80 @@ class TestAnalysisPanels(unittest.TestCase):
         tree.setCurrentItem(plot_item)
         self.assertIn("core:analysis-chart", self.shown_panels)
 
+    def test_analysis_config_rename(self) -> None:
+        panel = ProjectExplorerPanel(self.api)
+        tree = panel.explorer
+        ops = tree._ops
+
+        analysis_item = tree._item_map[self.config.config_id]
+        self.assertEqual(analysis_item.text(0), "VLM Baseline Run")
+
+        # In Qt, editing item text emits itemChanged -> ops.rename_item automatically
+        analysis_item.setText(0, "Renamed Polar Run")
+        updated_cfg = self.api.get_analysis_config(self.config.config_id)
+        self.assertIsNotNone(updated_cfg)
+        self.assertEqual(updated_cfg.name, "Renamed Polar Run")
+
+        # Test empty name restoration using ops.rename_item directly
+        refreshed_item = tree._item_map[self.config.config_id]
+        tree.blockSignals(True)
+        refreshed_item.setText(0, "")
+        tree.blockSignals(False)
+        ops.rename_item(refreshed_item, 0)
+        self.assertEqual(refreshed_item.text(0), "Renamed Polar Run")
+
+        # Subconfig item cannot be renamed
+        cfg_item = tree._item_map[f"{self.result.id}:config"]
+        tree.blockSignals(True)
+        cfg_item.setText(0, "Custom Subconfig Name")
+        tree.blockSignals(False)
+        ops.rename_item(cfg_item, 0)
+        self.assertEqual(cfg_item.text(0), "Configuration")
+
+    def test_analysis_config_delete_cascades_results(self) -> None:
+        panel = ProjectExplorerPanel(self.api)
+        tree = panel.explorer
+        ops = tree._ops
+
+        # Mock confirm_delete to True
+        ops.confirm_delete = lambda title, details=None: True
+
+        # Ensure config and result exist before delete
+        self.assertIn(self.config.config_id, self.api.get_analysis_configs())
+        self.assertIn(self.result.id, self.api.get_analysis_results())
+
+        # Attempt to delete the subconfig item - should be ignored
+        cfg_item = tree._item_map[f"{self.result.id}:config"]
+        ops.delete_item(cfg_item)
+        self.assertIn(self.config.config_id, self.api.get_analysis_configs())
+
+        # Delete the main analysis config item
+        analysis_item = tree._item_map[self.config.config_id]
+        ops.delete_item(analysis_item)
+
+        # Both config and associated results should be deleted
+        self.assertNotIn(self.config.config_id, self.api.get_analysis_configs())
+        self.assertNotIn(self.result.id, self.api.get_analysis_results())
+
+    def test_analysis_operations_run(self) -> None:
+        panel = ProjectExplorerPanel(self.api)
+        ops = panel.explorer._ops
+
+        run_called = []
+        self.api.run_solver = (  # type: ignore
+            lambda solver, on_complete=None, on_error=None, priority=None: run_called.append(solver)
+        )
+
+        class MockSolver:
+            def __init__(self, config):
+                self.config = config
+
+        self.api.register_solver("vlm_solver", MockSolver)
+
+        ops.run_analysis(self.config.config_id)
+        self.assertEqual(len(run_called), 1)
+        self.assertEqual(run_called[0].config.config_id, self.config.config_id)
+
     @staticmethod
     def horizontalHeaderOrientation():
         from PySide6.QtCore import Qt
