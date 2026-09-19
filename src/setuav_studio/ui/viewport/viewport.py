@@ -12,7 +12,8 @@ import logging
 from collections.abc import Sequence
 from typing import Any, Literal
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QImage, QKeyEvent
 from PySide6.QtWidgets import QGridLayout, QWidget
 
 from setuav_studio_sdk.primitives import (
@@ -32,6 +33,25 @@ from .layer import Layer
 from .scene_object import SceneObject
 
 logger = logging.getLogger(__name__)
+
+WIRE_FEATURE = "feature"
+WIRE_FULL = "full"
+FACE_COLORED = "colored"
+FACE_MONOCHROME = "monochrome"
+
+VIEW_PRESETS: dict[str, tuple[float, float]] = {
+    "top": (0.0, 90.0),
+    "bottom": (0.0, -90.0),
+    "front": (270.0, 0.0),
+    "side": (180.0, 0.0),
+    "iso": (210.0, 20.0),
+}
+
+
+def _call_method(target: object, name: str, *args: Any) -> None:
+    fn = getattr(target, name, None)
+    if callable(fn):
+        fn(*args)
 
 
 class StudioViewport(QWidget):
@@ -66,6 +86,17 @@ class StudioViewport(QWidget):
         self._selected_object_id: str | None = None
         self._selected_section: tuple[str, int, int] | None = None
 
+        # Camera & Display state
+        self._azimuth: float = 210.0
+        self._elevation: float = 20.0
+        self._orthographic: bool = True
+        self._show_solid: bool = True
+        self._show_wireframe: bool = True
+        self._wire_mode: str = WIRE_FEATURE
+        self._show_grid: bool = True
+        self._transparent: bool = False
+        self._face_style: str = FACE_COLORED
+
         # Scene graph: object_id -> SceneObject
         self._objects: dict[str, SceneObject] = {}
 
@@ -96,6 +127,16 @@ class StudioViewport(QWidget):
         """
         self._renderer = renderer
         self._grid_layout.addWidget(renderer, 0, 0)
+
+        # Apply initial display state to the renderer
+        _call_method(renderer, "set_orthographic", self._orthographic)
+        _call_method(renderer, "set_show_solid", self._show_solid)
+        _call_method(renderer, "set_show_wireframe", self._show_wireframe)
+        _call_method(renderer, "set_wire_mode", self._wire_mode)
+        _call_method(renderer, "set_show_grid", self._show_grid)
+        _call_method(renderer, "set_transparent", self._transparent)
+        _call_method(renderer, "set_face_style", self._face_style)
+        _call_method(renderer, "set_view", self._azimuth, self._elevation)
 
         # Connect renderer picking signal if present
         comp_picked = getattr(renderer, "componentPicked", None)
@@ -273,6 +314,150 @@ class StudioViewport(QWidget):
     def selected_section(self) -> tuple[str, int, int] | None:
         """Return the currently selected section tuple, or None."""
         return self._selected_section
+
+    # ------------------------------------------------------------------
+    # Camera and display controls
+    # ------------------------------------------------------------------
+
+    def fit_view(self) -> None:
+        """Fit the camera to frame all visible objects in the viewport."""
+        if self._renderer is not None:
+            fit_fn = getattr(self._renderer, "fit_view", None)
+            if callable(fit_fn):
+                fit_fn()
+
+    def set_view(self, azimuth: float, elevation: float) -> None:
+        """Set the camera orbit angles in degrees."""
+        self._azimuth = azimuth
+        self._elevation = max(-89.0, min(89.0, elevation))
+        if self._renderer is not None:
+            view_fn = getattr(self._renderer, "set_view", None)
+            if callable(view_fn):
+                view_fn(self._azimuth, self._elevation)
+
+    def view_angles(self) -> tuple[float, float]:
+        """Return the current camera (azimuth, elevation) angles."""
+        return self._azimuth, self._elevation
+
+    def set_view_preset(self, preset: Literal["top", "bottom", "front", "side", "iso"]) -> None:
+        """Set camera to a standard viewpoint ('top', 'bottom', 'front', 'side', 'iso')."""
+        if preset not in VIEW_PRESETS:
+            raise ValueError(
+                f"Unknown view preset: {preset}. Valid presets: {list(VIEW_PRESETS.keys())}"
+            )
+        az, el = VIEW_PRESETS[preset]
+        self.set_view(az, el)
+
+    def set_orthographic(self, enabled: bool) -> None:
+        """Switch between orthographic (True) and perspective (False) projection."""
+        self._orthographic = bool(enabled)
+        if self._renderer is not None:
+            ortho_fn = getattr(self._renderer, "set_orthographic", None)
+            if callable(ortho_fn):
+                ortho_fn(self._orthographic)
+
+    def is_orthographic(self) -> bool:
+        """Return whether orthographic projection is active."""
+        return self._orthographic
+
+    def set_show_solid(self, show: bool) -> None:
+        """Toggle solid surface rendering."""
+        self._show_solid = bool(show)
+        if self._renderer is not None:
+            solid_fn = getattr(self._renderer, "set_show_solid", None)
+            if callable(solid_fn):
+                solid_fn(self._show_solid)
+
+    def is_show_solid(self) -> bool:
+        """Return whether solid surfaces are visible."""
+        return self._show_solid
+
+    def set_show_wireframe(self, show: bool) -> None:
+        """Toggle wireframe lines."""
+        self._show_wireframe = bool(show)
+        if self._renderer is not None:
+            wire_fn = getattr(self._renderer, "set_show_wireframe", None)
+            if callable(wire_fn):
+                wire_fn(self._show_wireframe)
+
+    def is_show_wireframe(self) -> bool:
+        """Return whether wireframes are visible."""
+        return self._show_wireframe
+
+    def set_wire_mode(self, mode: Literal["feature", "full"]) -> None:
+        """Set wireframe display mode ('feature' or 'full')."""
+        if mode not in (WIRE_FEATURE, WIRE_FULL):
+            raise ValueError(f"Unknown wire mode: {mode}. Must be 'feature' or 'full'.")
+        self._wire_mode = mode
+        if self._renderer is not None:
+            mode_fn = getattr(self._renderer, "set_wire_mode", None)
+            if callable(mode_fn):
+                mode_fn(mode)
+
+    def wire_mode(self) -> str:
+        """Return the current wireframe mode."""
+        return self._wire_mode
+
+    def set_show_grid(self, show: bool) -> None:
+        """Toggle 3D ground reference grid."""
+        self._show_grid = bool(show)
+        if self._renderer is not None:
+            grid_fn = getattr(self._renderer, "set_show_grid", None)
+            if callable(grid_fn):
+                grid_fn(self._show_grid)
+
+    def is_show_grid(self) -> bool:
+        """Return whether the ground grid is visible."""
+        return self._show_grid
+
+    def set_transparent(self, transparent: bool) -> None:
+        """Toggle transparency / X-ray mode."""
+        self._transparent = bool(transparent)
+        if self._renderer is not None:
+            trans_fn = getattr(self._renderer, "set_transparent", None)
+            if callable(trans_fn):
+                trans_fn(self._transparent)
+
+    def is_transparent(self) -> bool:
+        """Return whether transparency mode is active."""
+        return self._transparent
+
+    def set_face_style(self, style: Literal["colored", "monochrome"]) -> None:
+        """Set surface shading style ('colored' or 'monochrome')."""
+        if style not in (FACE_COLORED, FACE_MONOCHROME):
+            raise ValueError(f"Unknown face style: {style}. Must be 'colored' or 'monochrome'.")
+        self._face_style = style
+        if self._renderer is not None:
+            style_fn = getattr(self._renderer, "set_face_style", None)
+            if callable(style_fn):
+                style_fn(style)
+
+    def face_style(self) -> str:
+        """Return the current face style."""
+        return self._face_style
+
+    def capture_screenshot(
+        self,
+        width: int,
+        height: int,
+        transparent_background: bool = False,
+    ) -> QImage | None:
+        """Capture an off-screen screenshot at the specified resolution."""
+        if self._renderer is not None:
+            capture_fn = getattr(self._renderer, "capture_screenshot", None)
+            if callable(capture_fn):
+                result = capture_fn(width, height, transparent_background=transparent_background)
+                if isinstance(result, QImage):
+                    return result
+        return None
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        """Handle keyboard shortcuts (e.g. 'F' to fit view)."""
+        if event.key() == Qt.Key.Key_F:
+            self.fit_view()
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
     # ------------------------------------------------------------------
     # Typed convenience helpers  (add_*)

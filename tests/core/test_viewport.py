@@ -3,6 +3,7 @@
 import unittest
 
 from PySide6.QtCore import Signal
+from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QApplication, QWidget
 
 from setuav_studio.api import StudioAPI
@@ -29,6 +30,15 @@ class MockRenderer(QWidget):
         self.selected_component: str | None = None
         self.selected_section: tuple[str, int, int] | None = None
         self.selected_envelope: str | None = None
+        self.fit_view_called: bool = False
+        self.view_angles: tuple[float, float] | None = None
+        self.orthographic: bool = True
+        self.show_solid: bool = True
+        self.show_wireframe: bool = True
+        self.wire_mode: str = "feature"
+        self.show_grid: bool = True
+        self.transparent: bool = False
+        self.face_style: str = "colored"
 
     def set_overlays(self, layer_id: str, primitives: list) -> None:
         self.overlays[layer_id] = list(primitives)
@@ -49,6 +59,43 @@ class MockRenderer(QWidget):
 
     def set_selected_envelope(self, component_id: str | None) -> None:
         self.selected_envelope = component_id
+
+    def fit_view(self) -> None:
+        self.fit_view_called = True
+
+    def set_view(self, azimuth: float, elevation: float) -> None:
+        self.view_angles = (azimuth, elevation)
+
+    def set_orthographic(self, enabled: bool) -> None:
+        self.orthographic = enabled
+
+    def set_show_solid(self, show: bool) -> None:
+        self.show_solid = show
+
+    def set_show_wireframe(self, show: bool) -> None:
+        self.show_wireframe = show
+
+    def set_wire_mode(self, mode: str) -> None:
+        self.wire_mode = mode
+
+    def set_show_grid(self, show: bool) -> None:
+        self.show_grid = show
+
+    def set_transparent(self, transparent: bool) -> None:
+        self.transparent = transparent
+
+    def set_face_style(self, style: str) -> None:
+        self.face_style = style
+
+    def capture_screenshot(
+        self,
+        width: int,
+        height: int,
+        transparent_background: bool = False,
+    ) -> QImage:
+        from PySide6.QtGui import QImage
+
+        return QImage(width, height, QImage.Format.Format_ARGB32)
 
 
 class TestStudioViewport(unittest.TestCase):
@@ -299,6 +346,91 @@ class TestStudioViewport(unittest.TestCase):
             # 3. Sub-part tag match (e.g. "wing_1:control_1") -> selects "wing_1"
             viewport.object_picked.emit("wing_1:control_1")
             self.assertEqual(api.current_selection, {"id": "wing_1", "name": "Main Wing"})
+
+    def test_camera_controls(self) -> None:
+        # fit_view
+        self.assertFalse(self.mock_renderer.fit_view_called)
+        self.viewport.fit_view()
+        self.assertTrue(self.mock_renderer.fit_view_called)
+
+        # set_view and view_angles
+        self.viewport.set_view(45.0, 30.0)
+        self.assertEqual(self.viewport.view_angles(), (45.0, 30.0))
+        self.assertEqual(self.mock_renderer.view_angles, (45.0, 30.0))
+
+        # set_view_preset ("top" clamps to 89.0 to avoid gimbal lock)
+        self.viewport.set_view_preset("top")
+        self.assertEqual(self.viewport.view_angles(), (0.0, 89.0))
+        self.viewport.set_view_preset("iso")
+        self.assertEqual(self.viewport.view_angles(), (210.0, 20.0))
+
+        with self.assertRaises(ValueError):
+            self.viewport.set_view_preset("invalid_preset")  # type: ignore[arg-type]
+
+        # orthographic projection
+        self.assertTrue(self.viewport.is_orthographic())
+        self.viewport.set_orthographic(False)
+        self.assertFalse(self.viewport.is_orthographic())
+        self.assertFalse(self.mock_renderer.orthographic)
+
+    def test_display_controls(self) -> None:
+        # Solid surface
+        self.assertTrue(self.viewport.is_show_solid())
+        self.viewport.set_show_solid(False)
+        self.assertFalse(self.viewport.is_show_solid())
+        self.assertFalse(self.mock_renderer.show_solid)
+
+        # Wireframe
+        self.assertTrue(self.viewport.is_show_wireframe())
+        self.viewport.set_show_wireframe(False)
+        self.assertFalse(self.viewport.is_show_wireframe())
+        self.assertFalse(self.mock_renderer.show_wireframe)
+
+        # Wire mode
+        self.assertEqual(self.viewport.wire_mode(), "feature")
+        self.viewport.set_wire_mode("full")
+        self.assertEqual(self.viewport.wire_mode(), "full")
+        self.assertEqual(self.mock_renderer.wire_mode, "full")
+
+        with self.assertRaises(ValueError):
+            self.viewport.set_wire_mode("invalid")  # type: ignore[arg-type]
+
+        # Grid
+        self.assertTrue(self.viewport.is_show_grid())
+        self.viewport.set_show_grid(False)
+        self.assertFalse(self.viewport.is_show_grid())
+        self.assertFalse(self.mock_renderer.show_grid)
+
+        # Transparent
+        self.assertFalse(self.viewport.is_transparent())
+        self.viewport.set_transparent(True)
+        self.assertTrue(self.viewport.is_transparent())
+        self.assertTrue(self.mock_renderer.transparent)
+
+        # Face style
+        self.assertEqual(self.viewport.face_style(), "colored")
+        self.viewport.set_face_style("monochrome")
+        self.assertEqual(self.viewport.face_style(), "monochrome")
+        self.assertEqual(self.mock_renderer.face_style, "monochrome")
+
+        with self.assertRaises(ValueError):
+            self.viewport.set_face_style("invalid")  # type: ignore[arg-type]
+
+    def test_capture_screenshot(self) -> None:
+        image = self.viewport.capture_screenshot(800, 600, transparent_background=True)
+        self.assertIsNotNone(image)
+        assert image is not None
+        self.assertEqual(image.width(), 800)
+        self.assertEqual(image.height(), 600)
+
+    def test_key_press_fit_view(self) -> None:
+        from PySide6.QtCore import Qt
+        from PySide6.QtGui import QKeyEvent
+
+        self.mock_renderer.fit_view_called = False
+        event = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_F, Qt.KeyboardModifier.NoModifier)
+        self.viewport.keyPressEvent(event)
+        self.assertTrue(self.mock_renderer.fit_view_called)
 
     def test_studio_api_viewport_property(self) -> None:
         api = StudioAPI()
