@@ -125,6 +125,7 @@ def _on_run_analysis_triggered(api: StudioAPI) -> None:
 
 def register_native_contributions(api: StudioAPI) -> None:
     """Register built-in native panels, tree providers, and kind editors into the StudioAPI."""
+    from setuav_studio.ui.viewport import StudioViewport
     from setuav_studio_sdk import ActionContribution, ToolbarContribution
 
     # 1. Native Panels
@@ -135,6 +136,15 @@ def register_native_contributions(api: StudioAPI) -> None:
             factory=lambda: ProjectExplorerPanel(api),
             area=Qt.DockWidgetArea.LeftDockWidgetArea,
             icon="fa6s.folder-tree",
+        )
+    )
+    api.add_panel(
+        PanelContribution(
+            id="studio.viewer.opengl",
+            title="3D Viewer",
+            factory=lambda: StudioViewport(api=api),
+            area=Qt.DockWidgetArea.RightDockWidgetArea,
+            icon="viewer_3d",
         )
     )
     api.add_panel(

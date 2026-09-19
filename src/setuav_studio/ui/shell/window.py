@@ -186,6 +186,12 @@ class MainWindow(QMainWindow):
 
     # Panel Management
     def _add_panel(self, contribution: PanelContribution) -> None:
+        if contribution.id in self._panels:
+            logger.info(
+                "Panel '%s' already registered, skipping duplicate contribution.",
+                contribution.id,
+            )
+            return
         dock = QDockWidget(contribution.title, self)
         dock.setFont(QApplication.font())
         dock.setObjectName(contribution.id)

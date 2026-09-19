@@ -631,6 +631,15 @@ class ShellContributionTests(unittest.TestCase):
         self.assertIsNone(self.window._drag_dock_a)
         self.assertIsNone(self.window._drag_dock_b)
 
+    def test_native_3d_viewer_panel(self) -> None:
+        from setuav_studio.ui.viewport import StudioViewport
+
+        self.assertIn("studio.viewer.opengl", self.window._panels)
+        _, dock = self.window._panels["studio.viewer.opengl"]
+        self.assertIsNotNone(dock)
+        self.assertIsNotNone(self.api.viewport)
+        self.assertIsInstance(self.api.viewport, StudioViewport)
+
     @staticmethod
     def _project() -> object:
         from setuav_studio.project import ProjectDocument
