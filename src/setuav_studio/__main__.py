@@ -29,6 +29,39 @@ def _configure_logging(verbose: bool = False) -> None:
     root.addHandler(console_handler)
 
 
+def _install_qt_message_handler() -> None:
+    """Filter out known benign platform-level warnings (e.g. Qt Wayland mouse grab)."""
+    from typing import Any
+
+    from PySide6.QtCore import QtMsgType, qInstallMessageHandler
+
+    _IGNORED_PATTERNS = (
+        "This plugin supports grabbing the mouse only for popup windows",
+        "Wayland does not support QWindow::requestActivate()",
+    )
+
+    qt_logger = logging.getLogger("qt")
+
+    def _handler(mode: QtMsgType, _context: Any, message: str) -> None:
+        if any(pattern in message for pattern in _IGNORED_PATTERNS):
+            return
+        if mode == QtMsgType.QtDebugMsg:
+            qt_logger.debug(message)
+        elif mode == QtMsgType.QtInfoMsg:
+            qt_logger.info(message)
+        elif mode == QtMsgType.QtWarningMsg:
+            qt_logger.warning(message)
+        elif mode == QtMsgType.QtCriticalMsg:
+            qt_logger.error(message)
+        elif mode == QtMsgType.QtFatalMsg:
+            qt_logger.critical(message)
+        else:
+            sys.stderr.write(f"{message}\n")
+            sys.stderr.flush()
+
+    qInstallMessageHandler(_handler)
+
+
 def _parse_arguments(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="setuav-studio")
     parser.add_argument(
@@ -84,6 +117,7 @@ def main() -> int:
     from setuav_studio.ui.style.theme import apply_theme
 
     _configure_logging(arguments.verbose)
+    _install_qt_message_handler()
     install_log_buffer(logging.DEBUG if arguments.verbose else logging.INFO)
     logging.getLogger(__name__).info("Setuav Studio starting")
     _configure_opengl()

@@ -126,7 +126,7 @@ def _on_run_analysis_triggered(api: StudioAPI) -> None:
 def register_native_contributions(api: StudioAPI) -> None:
     """Register built-in native panels, tree providers, and kind editors into the StudioAPI."""
     from setuav_studio.ui.viewport import StudioViewport
-    from setuav_studio_sdk import ActionContribution, ToolbarContribution
+    from setuav_studio_sdk import ToolbarContribution
 
     # 1. Native Panels
     api.add_panel(
@@ -168,17 +168,7 @@ def register_native_contributions(api: StudioAPI) -> None:
         )
     )
 
-    # 2. Native Actions & Toolbar Contributions
-    api.add_action(
-        ActionContribution(
-            menu="Analysis",
-            title="Run Analysis",
-            callback=lambda: _on_run_analysis_triggered(api),
-            shortcut="F5",
-            icon="fa6s.play",
-        )
-    )
-
+    # 2. Native Toolbar Contributions
     api.add_toolbar_item(
         ToolbarContribution(
             id="org.setuav.studio.toolbar.run_analysis",

@@ -88,30 +88,10 @@ class ResultPanel(QWidget):
         self._stack = QStackedWidget()
         main_layout.addWidget(self._stack)
 
-        # 1. Empty Placeholder
-        self._empty_view = QWidget()
-        empty_layout = QVBoxLayout(self._empty_view)
-        empty_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        empty_layout.setSpacing(8)
-
-        empty_icon = QLabel()
-        empty_icon.setPixmap(get_icon("fa6s.chart-line").pixmap(36, 36))
-        empty_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        empty_layout.addWidget(empty_icon)
-
-        empty_title = QLabel("No Result Views Open")
-        empty_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        empty_title.setStyleSheet("font-weight: bold; font-size: 13px; color: #aaaaaa;")
-        empty_layout.addWidget(empty_title)
-
-        empty_sub = QLabel(
-            "Select tables or plots under Analyses in Project Explorer\n"
-            "to inspect and compare them side by side."
-        )
-        empty_sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        empty_sub.setStyleSheet("color: #777777; font-size: 11px; line-height: 140%;")
-        empty_layout.addWidget(empty_sub)
-
+        # 1. Empty Placeholder (matching Properties panel style)
+        self._empty_view = QLabel("No result views open")
+        self._empty_view.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._empty_view.setWordWrap(True)
         self._stack.addWidget(self._empty_view)
 
         # 2. Splitter Container

@@ -45,8 +45,8 @@ class TestRunAnalysisAction(unittest.TestCase):
 
     def test_native_registrations_includes_run_analysis_action(self) -> None:
         register_native_contributions(self.api)
-        # Check action registration
-        self.assertIn("Run Analysis", [a.title for a in self.api._pending_actions])
+        # Verify no Analysis action in top menu
+        self.assertNotIn("Run Analysis", [a.title for a in self.api._pending_actions])
         self.assertIn(
             "org.setuav.studio.toolbar.run_analysis",
             [t.id for t in self.api._pending_toolbar_items],
