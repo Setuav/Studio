@@ -432,6 +432,81 @@ class TestStudioViewport(unittest.TestCase):
         self.viewport.keyPressEvent(event)
         self.assertTrue(self.mock_renderer.fit_view_called)
 
+    def test_viewport_hud(self) -> None:
+        hud = self.viewport.hud
+        self.assertIsNotNone(hud)
+
+        # Test solid button toggles viewport
+        hud.solid_button.setChecked(False)
+        self.assertFalse(self.viewport.is_show_solid())
+        hud.solid_button.setChecked(True)
+        self.assertTrue(self.viewport.is_show_solid())
+
+        # Test transparency toggle
+        hud.trans_button.setChecked(True)
+        self.assertTrue(self.viewport.is_transparent())
+        hud.trans_button.setChecked(False)
+        self.assertFalse(self.viewport.is_transparent())
+
+        # Test shading style buttons
+        hud.mono_button.click()
+        self.assertEqual(self.viewport.face_style(), "monochrome")
+        hud.colored_button.click()
+        self.assertEqual(self.viewport.face_style(), "colored")
+
+        # Test fit button
+        self.mock_renderer.fit_view_called = False
+        hud.fit_button.click()
+        self.assertTrue(self.mock_renderer.fit_view_called)
+
+        # Test theme update
+        self.viewport.update_theme_style()
+
+    def test_viewport_hud_layers(self) -> None:
+        hud = self.viewport.hud
+        self.assertIsNotNone(hud.layers_button)
+        self.assertIsNotNone(hud.layers_menu)
+
+        # Initial layers should be 'default' and 'geometry'
+        action_map = {action.data(): action for action in hud.layers_menu.actions()}
+        self.assertIn("default", action_map)
+        self.assertIn("geometry", action_map)
+        self.assertTrue(action_map["default"].isCheckable())
+        self.assertTrue(action_map["default"].isChecked())
+        self.assertTrue(action_map["geometry"].isChecked())
+
+        # Test clicking geometry action toggles layer visibility in viewport
+        visibility_events: list[tuple[str, bool]] = []
+        self.viewport.layer_visibility_changed.connect(
+            lambda lid, vis: visibility_events.append((lid, vis))
+        )
+
+        action_map["geometry"].trigger()
+        self.assertFalse(self.viewport.is_layer_visible("geometry"))
+        self.assertEqual(visibility_events[-1], ("geometry", False))
+
+        # Toggling back from viewport updates action state
+        self.viewport.set_layer_visible("geometry", True)
+        self.assertTrue(self.viewport.is_layer_visible("geometry"))
+        self.assertTrue(action_map["geometry"].isChecked())
+        self.assertEqual(visibility_events[-1], ("geometry", True))
+
+        # Adding a layer dynamically updates the layers menu
+        layers_changed_events: list[bool] = []
+        self.viewport.layers_changed.connect(lambda: layers_changed_events.append(True))
+
+        self.viewport.add_layer("aerodynamics", name="Aerodynamics")
+        self.assertTrue(len(layers_changed_events) > 0)
+        action_map = {action.data(): action for action in hud.layers_menu.actions()}
+        self.assertIn("aerodynamics", action_map)
+        self.assertEqual(action_map["aerodynamics"].text(), "Aerodynamics")
+        self.assertTrue(action_map["aerodynamics"].isChecked())
+
+        # Removing a layer updates the layers menu
+        self.viewport.remove_layer("aerodynamics")
+        action_map = {action.data(): action for action in hud.layers_menu.actions()}
+        self.assertNotIn("aerodynamics", action_map)
+
     def test_studio_api_viewport_property(self) -> None:
         api = StudioAPI()
         self.assertIsNone(api.viewport)

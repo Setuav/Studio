@@ -12,8 +12,8 @@ import logging
 from collections.abc import Sequence
 from typing import Any, Literal
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QImage, QKeyEvent
+from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtGui import QImage, QKeyEvent, QShowEvent
 from PySide6.QtWidgets import QGridLayout, QWidget
 
 from setuav_studio_sdk.primitives import (
@@ -29,23 +29,18 @@ from setuav_studio_sdk.primitives import (
     VisualPrimitive,
 )
 
+from .constants import (
+    FACE_COLORED,
+    FACE_MONOCHROME,
+    VIEW_PRESETS,
+    WIRE_FEATURE,
+    WIRE_FULL,
+)
+from .hud import StudioViewportHUD
 from .layer import Layer
 from .scene_object import SceneObject
 
 logger = logging.getLogger(__name__)
-
-WIRE_FEATURE = "feature"
-WIRE_FULL = "full"
-FACE_COLORED = "colored"
-FACE_MONOCHROME = "monochrome"
-
-VIEW_PRESETS: dict[str, tuple[float, float]] = {
-    "top": (0.0, 90.0),
-    "bottom": (0.0, -90.0),
-    "front": (270.0, 0.0),
-    "side": (180.0, 0.0),
-    "iso": (210.0, 20.0),
-}
 
 
 def _call_method(target: object, name: str, *args: Any) -> None:
@@ -69,6 +64,8 @@ class StudioViewport(QWidget):
 
     object_picked = Signal(str)
     selection_changed = Signal(object)
+    layer_visibility_changed = Signal(str, bool)
+    layers_changed = Signal()
 
     # ------------------------------------------------------------------
     # Construction
@@ -113,8 +110,31 @@ class StudioViewport(QWidget):
         self.add_layer("default", name="Default")
         self.add_layer("geometry", name="Geometry")
 
+        # Fixed bottom HUD bar
+        self.hud = StudioViewportHUD(self)
+        self._grid_layout.addWidget(
+            self.hud,
+            0,
+            0,
+            Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignHCenter,
+        )
+        self.hud.raise_()
+
         if api is not None:
             self.bind_api(api)
+
+    # ------------------------------------------------------------------
+    # Lifecycle & Theme
+    # ------------------------------------------------------------------
+
+    def showEvent(self, event: QShowEvent) -> None:
+        super().showEvent(event)
+        QTimer.singleShot(0, self.hud.raise_)
+
+    def update_theme_style(self) -> None:
+        """Propagate theme styling to the HUD bar and attached renderer."""
+        self.hud.update_theme_style()
+        _call_method(self._renderer, "update_theme_style")
 
     # ------------------------------------------------------------------
     # Renderer & API binding
@@ -127,6 +147,7 @@ class StudioViewport(QWidget):
         """
         self._renderer = renderer
         self._grid_layout.addWidget(renderer, 0, 0)
+        self.hud.raise_()
 
         # Apply initial display state to the renderer
         _call_method(renderer, "set_orthographic", self._orthographic)
@@ -179,7 +200,8 @@ class StudioViewport(QWidget):
         Returns:
             The created or updated :class:`Layer` instance.
         """
-        if layer_id in self._layers:
+        is_new = layer_id not in self._layers
+        if not is_new:
             layer = self._layers[layer_id]
             if name:
                 layer.name = name
@@ -188,6 +210,8 @@ class StudioViewport(QWidget):
             layer = Layer(layer_id=layer_id, name=name or layer_id, visible=visible)
             self._layers[layer_id] = layer
         self._sync_renderer()
+        if is_new:
+            self.layers_changed.emit()
         return layer
 
     def remove_layer(self, layer_id: str) -> bool:
@@ -204,6 +228,7 @@ class StudioViewport(QWidget):
         del self._layers[layer_id]
         self._objects = {oid: obj for oid, obj in self._objects.items() if obj.layer != layer_id}
         self._sync_renderer()
+        self.layers_changed.emit()
         return True
 
     def has_layer(self, layer_id: str) -> bool:
@@ -225,6 +250,7 @@ class StudioViewport(QWidget):
         else:
             self.add_layer(layer, visible=visible)
         self._sync_renderer()
+        self.layer_visibility_changed.emit(layer, visible)
 
     def is_layer_visible(self, layer: str) -> bool:
         """Return whether *layer* is currently visible (default True)."""

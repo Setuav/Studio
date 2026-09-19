@@ -63,6 +63,8 @@ _ICON_MAP = {
     "view_grid": "mdi6.grid",
     "view_palette": "fa6s.palette",
     "view_fit": "fa6s.expand",
+    "view_layers": "fa6s.layer-group",
+    "layers": "fa6s.layer-group",
     "screenshot": "fa6s.camera",
     # Default Component Types
     "component": "fa6s.cube",

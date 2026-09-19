@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from setuav_studio.ui.viewport.hud import StudioViewportHUD
 from setuav_studio.ui.viewport.layer import Layer
 from setuav_studio.ui.viewport.scene_object import SceneObject
 from setuav_studio.ui.viewport.viewport import (
@@ -22,4 +23,5 @@ __all__ = [
     "Layer",
     "SceneObject",
     "StudioViewport",
+    "StudioViewportHUD",
 ]
