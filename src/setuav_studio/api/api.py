@@ -105,6 +105,12 @@ class StudioAPI:
         self._undo_stack = QUndoStack()
         self._undo_stack.cleanChanged.connect(self._on_clean_changed)
         self._host = _StudioHost(self)
+        self._viewport: Any | None = None
+
+    @property
+    def viewport(self) -> Any | None:
+        """Return the central :class:`StudioViewport` instance, or *None*."""
+        return self._viewport
 
     @property
     def hooks(self) -> HookRegistry:

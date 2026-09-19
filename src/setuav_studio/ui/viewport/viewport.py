@@ -1,0 +1,486 @@
+"""StudioViewport — Core 3D viewport widget with plugin-facing API.
+
+This module wraps the existing OpenGL viewer and exposes a clean,
+plugin-friendly interface for adding lofts, primitives, and overlay
+objects organised by layers.  Plugins should never touch the underlying
+``OpenGLViewer`` directly; all interaction goes through this class.
+"""
+
+from __future__ import annotations
+
+import logging
+from collections.abc import Sequence
+from typing import Literal
+
+from PySide6.QtWidgets import QGridLayout, QWidget
+
+from setuav_studio_sdk.primitives import (
+    BoxPrimitive,
+    ColorRGBA,
+    CylinderPrimitive,
+    LineSegmentsPrimitive,
+    LoftPrimitive,
+    PlanePrimitive,
+    Point3D,
+    RingPrimitive,
+    TrianglesPrimitive,
+    VisualPrimitive,
+)
+
+from .layer import Layer
+from .scene_object import SceneObject
+
+logger = logging.getLogger(__name__)
+
+
+class StudioViewport(QWidget):
+    """Central 3D viewport widget.
+
+    Provides the public ``add_*`` / ``remove`` / ``clear`` API that plugins use
+    to populate the 3D scene.  Internally delegates all OpenGL rendering to the
+    existing ``OpenGLViewer`` from the geometry plugin (which will be migrated
+    to this package in a later step).
+
+    Layer visibility can be toggled independently so that, for example, a
+    manufacturing overlay can be shown or hidden without affecting the main
+    geometry layer.
+    """
+
+    # ------------------------------------------------------------------
+    # Construction
+    # ------------------------------------------------------------------
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+
+        # Scene graph: object_id -> SceneObject
+        self._objects: dict[str, SceneObject] = {}
+
+        # Lazy reference to the low-level OpenGL widget.  Assigned via
+        # ``attach_renderer`` once the geometry plugin (or Core) provides it.
+        self._renderer: QWidget | None = None
+
+        self._grid_layout = QGridLayout(self)
+        self._grid_layout.setContentsMargins(0, 0, 0, 0)
+        self._grid_layout.setSpacing(0)
+
+        # Layers: layer_id -> Layer
+        self._layers: dict[str, Layer] = {}
+        self.add_layer("default", name="Default")
+        self.add_layer("geometry", name="Geometry")
+
+    # ------------------------------------------------------------------
+    # Renderer binding
+    # ------------------------------------------------------------------
+
+    def attach_renderer(self, renderer: QWidget) -> None:
+        """Embed the low-level OpenGL viewer widget.
+
+        Called once during application startup to connect the actual renderer.
+        """
+        self._renderer = renderer
+        self._grid_layout.addWidget(renderer, 0, 0)
+
+    @property
+    def renderer(self) -> QWidget | None:
+        """Return the attached renderer widget, or *None*."""
+        return self._renderer
+
+    # ------------------------------------------------------------------
+    # Layer management
+    # ------------------------------------------------------------------
+
+    def add_layer(
+        self,
+        layer_id: str,
+        *,
+        name: str = "",
+        visible: bool = True,
+    ) -> Layer:
+        """Register a new layer or update an existing one.
+
+        Args:
+            layer_id: Unique identifier for the layer (e.g. 'manufacturing').
+            name: Human-readable display name. Defaults to *layer_id*.
+            visible: Initial visibility state. Defaults to True.
+
+        Returns:
+            The created or updated :class:`Layer` instance.
+        """
+        if layer_id in self._layers:
+            layer = self._layers[layer_id]
+            if name:
+                layer.name = name
+            layer.visible = visible
+        else:
+            layer = Layer(layer_id=layer_id, name=name or layer_id, visible=visible)
+            self._layers[layer_id] = layer
+        self._sync_renderer()
+        return layer
+
+    def remove_layer(self, layer_id: str) -> bool:
+        """Remove a registered layer and all objects belonging to it.
+
+        Args:
+            layer_id: Identifier of the layer to remove.
+
+        Returns:
+            True if the layer existed and was removed, False otherwise.
+        """
+        if layer_id not in self._layers:
+            return False
+        del self._layers[layer_id]
+        self._objects = {oid: obj for oid, obj in self._objects.items() if obj.layer != layer_id}
+        self._sync_renderer()
+        return True
+
+    def has_layer(self, layer_id: str) -> bool:
+        """Return True if *layer_id* is registered."""
+        return layer_id in self._layers
+
+    def get_layer(self, layer_id: str) -> Layer | None:
+        """Retrieve a layer by ID, or None if not registered."""
+        return self._layers.get(layer_id)
+
+    def layers(self) -> list[str]:
+        """Return a sorted list of all registered layer IDs."""
+        return sorted(self._layers.keys())
+
+    def set_layer_visible(self, layer: str, visible: bool) -> None:
+        """Show or hide all objects belonging to *layer*."""
+        if layer in self._layers:
+            self._layers[layer].visible = visible
+        else:
+            self.add_layer(layer, visible=visible)
+        self._sync_renderer()
+
+    def is_layer_visible(self, layer: str) -> bool:
+        """Return whether *layer* is currently visible (default True)."""
+        layer_obj = self._layers.get(layer)
+        return layer_obj.visible if layer_obj is not None else True
+
+    # ------------------------------------------------------------------
+    # Generic add / remove / query
+    # ------------------------------------------------------------------
+
+    def add_object(self, obj: SceneObject) -> SceneObject:
+        """Insert or replace a scene object by its ``object_id``.
+
+        If the object belongs to an unregistered layer, that layer is
+        registered automatically.
+        """
+        if obj.layer not in self._layers:
+            self.add_layer(obj.layer)
+        self._objects[obj.object_id] = obj
+        self._sync_renderer()
+        return obj
+
+    def remove(self, object_id: str) -> bool:
+        """Remove a single object.  Returns ``True`` if it existed."""
+        removed = self._objects.pop(object_id, None) is not None
+        if removed:
+            self._sync_renderer()
+        return removed
+
+    def get_object(self, object_id: str) -> SceneObject | None:
+        """Look up an object by ID."""
+        return self._objects.get(object_id)
+
+    def clear(self, *, layer: str | None = None) -> None:
+        """Remove all objects, or all objects on a specific *layer*."""
+        if layer is None:
+            self._objects.clear()
+        else:
+            self._objects = {oid: obj for oid, obj in self._objects.items() if obj.layer != layer}
+        self._sync_renderer()
+
+    def clear_layer(self, layer: str) -> None:
+        """Convenience alias for ``clear(layer=...)``."""
+        self.clear(layer=layer)
+
+    def object_ids(self, *, layer: str | None = None) -> list[str]:
+        """Return IDs of all objects, optionally filtered by *layer*."""
+        if layer is None:
+            return list(self._objects)
+        return [oid for oid, obj in self._objects.items() if obj.layer == layer]
+
+    # ------------------------------------------------------------------
+    # Typed convenience helpers  (add_*)
+    # ------------------------------------------------------------------
+
+    def add_loft(
+        self,
+        object_id: str,
+        sections: Sequence[Sequence[Point3D]],
+        *,
+        name: str = "",
+        layer: str = "geometry",
+        color: ColorRGBA = (1.0, 0.82, 0.10, 1.0),
+        interpolation: Literal["linear", "smooth"] = "smooth",
+        parameterization: Literal["uniform", "chord_length", "centripetal"] = "centripetal",
+        station_spacing: float = 10.0,
+        closed_ends: bool = True,
+        wireframe: bool = True,
+        solid: bool = True,
+    ) -> SceneObject:
+        """Add a lofted surface defined by ordered section loops."""
+        # Normalise nested lists to tuples for the frozen dataclass
+        norm_sections: tuple[tuple[Point3D, ...], ...] = tuple(
+            tuple(pt for pt in sec) for sec in sections
+        )
+        prim = LoftPrimitive(
+            sections=norm_sections,
+            color=color,
+            interpolation=interpolation,
+            parameterization=parameterization,
+            station_spacing=station_spacing,
+            closed_ends=closed_ends,
+            wireframe=wireframe,
+            solid=solid,
+        )
+        obj = SceneObject(
+            object_id=object_id,
+            layer=layer,
+            name=name or object_id,
+            primitives=[prim],
+        )
+        return self.add_object(obj)
+
+    def add_box(
+        self,
+        object_id: str,
+        center: Point3D,
+        size: Point3D,
+        *,
+        name: str = "",
+        layer: str = "default",
+        color: ColorRGBA = (0.2, 0.6, 1.0, 0.4),
+        rotation: Point3D = (0.0, 0.0, 0.0),
+        wireframe: bool = True,
+        solid: bool = True,
+    ) -> SceneObject:
+        """Add an axis-aligned (or oriented) box."""
+        prim = BoxPrimitive(
+            center=center,
+            size=size,
+            color=color,
+            rotation=rotation,
+            wireframe=wireframe,
+            solid=solid,
+        )
+        obj = SceneObject(
+            object_id=object_id, layer=layer, name=name or object_id, primitives=[prim]
+        )
+        return self.add_object(obj)
+
+    def add_cylinder(
+        self,
+        object_id: str,
+        start: Point3D,
+        end: Point3D,
+        radius: float,
+        *,
+        name: str = "",
+        layer: str = "default",
+        color: ColorRGBA = (0.2, 0.2, 0.2, 0.9),
+        wireframe: bool = False,
+        solid: bool = True,
+        segments: int = 24,
+    ) -> SceneObject:
+        """Add a cylinder between two endpoints."""
+        prim = CylinderPrimitive(
+            start=start,
+            end=end,
+            radius=radius,
+            color=color,
+            wireframe=wireframe,
+            solid=solid,
+            segments=segments,
+        )
+        obj = SceneObject(
+            object_id=object_id, layer=layer, name=name or object_id, primitives=[prim]
+        )
+        return self.add_object(obj)
+
+    def add_ring(
+        self,
+        object_id: str,
+        center: Point3D,
+        *,
+        name: str = "",
+        layer: str = "default",
+        normal: Point3D = (1.0, 0.0, 0.0),
+        radius: float = 50.0,
+        color: ColorRGBA = (1.0, 0.5, 0.0, 1.0),
+        segments: int = 36,
+    ) -> SceneObject:
+        """Add a circular ring (wire loop)."""
+        prim = RingPrimitive(
+            center=center,
+            normal=normal,
+            radius=radius,
+            color=color,
+            segments=segments,
+        )
+        obj = SceneObject(
+            object_id=object_id, layer=layer, name=name or object_id, primitives=[prim]
+        )
+        return self.add_object(obj)
+
+    def add_plane(
+        self,
+        object_id: str,
+        center: Point3D,
+        *,
+        name: str = "",
+        layer: str = "default",
+        normal: Point3D = (1.0, 0.0, 0.0),
+        width: float = 200.0,
+        height: float = 200.0,
+        color: ColorRGBA = (1.0, 0.5, 0.0, 0.4),
+        wireframe: bool = True,
+        solid: bool = True,
+    ) -> SceneObject:
+        """Add a bounded flat plane."""
+        prim = PlanePrimitive(
+            center=center,
+            normal=normal,
+            width=width,
+            height=height,
+            color=color,
+            wireframe=wireframe,
+            solid=solid,
+        )
+        obj = SceneObject(
+            object_id=object_id, layer=layer, name=name or object_id, primitives=[prim]
+        )
+        return self.add_object(obj)
+
+    def add_lines(
+        self,
+        object_id: str,
+        lines: Sequence[tuple[Point3D, Point3D]],
+        *,
+        name: str = "",
+        layer: str = "default",
+        color: ColorRGBA = (1.0, 1.0, 1.0, 1.0),
+    ) -> SceneObject:
+        """Add a set of line segments."""
+        prim = LineSegmentsPrimitive(
+            lines=tuple(lines),
+            color=color,
+        )
+        obj = SceneObject(
+            object_id=object_id, layer=layer, name=name or object_id, primitives=[prim]
+        )
+        return self.add_object(obj)
+
+    def add_triangles(
+        self,
+        object_id: str,
+        triangles: Sequence[tuple[Point3D, Point3D, Point3D]],
+        *,
+        name: str = "",
+        layer: str = "default",
+        color: ColorRGBA = (0.7, 0.75, 0.8, 0.7),
+        solid: bool = True,
+    ) -> SceneObject:
+        """Add arbitrary triangles forming a solid surface."""
+        prim = TrianglesPrimitive(
+            triangles=tuple(triangles),
+            color=color,
+            solid=solid,
+        )
+        obj = SceneObject(
+            object_id=object_id, layer=layer, name=name or object_id, primitives=[prim]
+        )
+        return self.add_object(obj)
+
+    def add_points(
+        self,
+        object_id: str,
+        points: Sequence[Point3D],
+        *,
+        name: str = "",
+        layer: str = "default",
+        color: ColorRGBA = (1.0, 0.3, 0.1, 1.0),
+        size: float = 4.0,
+    ) -> SceneObject:
+        """Add a point cloud visualised as small crosses.
+
+        Each point is rendered as three short orthogonal line segments
+        centred on the point coordinate.
+        """
+        half = size * 0.5
+        segments: list[tuple[Point3D, Point3D]] = []
+        for px, py, pz in points:
+            segments.append(((px - half, py, pz), (px + half, py, pz)))
+            segments.append(((px, py - half, pz), (px, py + half, pz)))
+            segments.append(((px, py, pz - half), (px, py, pz + half)))
+        prim = LineSegmentsPrimitive(lines=tuple(segments), color=color)
+        obj = SceneObject(
+            object_id=object_id, layer=layer, name=name or object_id, primitives=[prim]
+        )
+        return self.add_object(obj)
+
+    def add_arrows(
+        self,
+        object_id: str,
+        arrows: Sequence[tuple[Point3D, Point3D]],
+        *,
+        name: str = "",
+        layer: str = "default",
+        color: ColorRGBA = (0.2, 0.8, 0.2, 1.0),
+    ) -> SceneObject:
+        """Add directional arrows (line from start to end).
+
+        Arrow heads are not yet implemented; arrows are rendered as plain
+        line segments for now.
+        """
+        prim = LineSegmentsPrimitive(lines=tuple(arrows), color=color)
+        obj = SceneObject(
+            object_id=object_id, layer=layer, name=name or object_id, primitives=[prim]
+        )
+        return self.add_object(obj)
+
+    def add_primitive(
+        self,
+        object_id: str,
+        primitive: VisualPrimitive,
+        *,
+        name: str = "",
+        layer: str = "default",
+    ) -> SceneObject:
+        """Add a raw SDK visual primitive directly."""
+        obj = SceneObject(
+            object_id=object_id, layer=layer, name=name or object_id, primitives=[primitive]
+        )
+        return self.add_object(obj)
+
+    # ------------------------------------------------------------------
+    # Internal renderer synchronisation
+    # ------------------------------------------------------------------
+
+    def _collect_visible_primitives(self) -> list[VisualPrimitive]:
+        """Gather all primitives from visible objects on visible layers."""
+        result: list[VisualPrimitive] = []
+        for obj in self._objects.values():
+            if not obj.visible:
+                continue
+            if not self.is_layer_visible(obj.layer):
+                continue
+            result.extend(obj.primitives)
+        return result
+
+    def _sync_renderer(self) -> None:
+        """Push the current scene state to the attached OpenGL renderer."""
+        if self._renderer is None:
+            return
+        primitives = self._collect_visible_primitives()
+        # The OpenGLViewer exposes set_overlays(layer_id, primitives).
+        # We use a single consolidated overlay layer named "_viewport_api"
+        # so that objects managed through this API don't clash with overlays
+        # managed through the legacy event bus.
+        set_overlays = getattr(self._renderer, "set_overlays", None)
+        if callable(set_overlays):
+            set_overlays("_viewport_api", primitives)
