@@ -171,6 +171,9 @@ def main() -> int:
         elif settings.reopen_last_project:
             window.open_last_project()
 
+        if not arguments.smoke_test and window.project is None:
+            window.new_untitled_project()
+
     QTimer.singleShot(0, finish_startup)
 
     return app.exec()

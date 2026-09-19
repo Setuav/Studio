@@ -162,8 +162,19 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
             if hasattr(self, "parameters_table"):
                 for field in self._fields:
                     val = params.get(field.key, field.default)
-
-                    if field.options:
+                    if (
+                        getattr(field, "widget_type", None) == "color"
+                        or getattr(field, "field_type", None) == "color"
+                        or (field.key.lower().endswith("color") and not field.options)
+                    ):
+                        self._set_property_color(
+                            self.parameters_table,
+                            field.key,
+                            str(val if val is not None else field.default),
+                            lambda new_val, k=field.key: self._on_color_changed(k, new_val),
+                            label=field.label,
+                        )
+                    elif field.options:
                         formatted_options: list[tuple[str, str]] = []
                         for opt in field.options:
                             if isinstance(opt, tuple):
@@ -354,6 +365,20 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
         )
 
     def _on_combo_changed(self, key: str, value: str) -> None:
+        if self._loading:
+            return
+
+        def apply_param() -> None:
+            p = self._component.setdefault("parameters", {})
+            p[key] = value
+
+        self._api.edit_component(
+            self._component,
+            f"Set {key} of {self._component.get('name', 'component')}",
+            apply_param,
+        )
+
+    def _on_color_changed(self, key: str, value: str) -> None:
         if self._loading:
             return
 

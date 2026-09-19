@@ -153,6 +153,15 @@ def format_component_type(
         "org.setuav.core:rotor": "Rotor",
         "org.setuav.core:esc": "ESC (Speed Controller)",
         "org.setuav.core:battery": "Battery",
+        "org.setuav.debug:box": "Box",
+        "org.setuav.debug:cylinder": "Cylinder",
+        "org.setuav.debug:ring": "Ring",
+        "org.setuav.debug:plane": "Plane",
+        "org.setuav.debug:line": "Line",
+        "org.setuav.debug:triangle": "Triangle",
+        "org.setuav.debug:loft": "Loft",
+        "org.setuav.debug:point": "Point",
+        "org.setuav.debug:arrow": "Arrow",
     }
     return labels.get(ctype, ctype)
 

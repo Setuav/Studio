@@ -92,6 +92,7 @@ class StudioViewport(QWidget):
         self,
         parent: QWidget | None = None,
         api: Any | None = None,
+        renderer: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._api: Any | None = None
@@ -137,8 +138,11 @@ class StudioViewport(QWidget):
         self.hud = StudioViewportHUD(self)
         self._reposition_hud()
 
-        # Attach default OpenGL 3.3 Core renderer
-        self.attach_renderer(OpenGLViewer(self))
+        # Attach renderer
+        if renderer is not None:
+            self.attach_renderer(renderer)
+        else:
+            self.attach_renderer(OpenGLViewer(self))
 
         if api is not None:
             self.bind_api(api)
@@ -182,7 +186,10 @@ class StudioViewport(QWidget):
         """Embed or replace the low-level OpenGL viewer widget."""
         if self._renderer is not None and self._renderer is not renderer:
             self._grid_layout.removeWidget(self._renderer)
-            self._renderer.setParent(None)
+            old_renderer = self._renderer
+            self._renderer = None
+            old_renderer.setParent(None)
+            old_renderer.deleteLater()
         self._renderer = renderer
         self._grid_layout.addWidget(renderer, 0, 0)
         self._reposition_hud()

@@ -75,6 +75,7 @@ class ParameterField:
     options: tuple[tuple[str, str], ...] | tuple[str, ...] | None = None
     allow_formula: bool = True
     readonly: bool = False
+    widget_type: str | None = None
 
 
 def _matches_workspace(scope: WorkspaceScope, workspace_id: str | None) -> bool:

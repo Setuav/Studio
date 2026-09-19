@@ -273,8 +273,15 @@ class MainWindow(QMainWindow):
             changes, disk_entries, current_entries, fallback_name
         )
 
-    def open_last_project(self) -> None:
-        self._project_controller.open_last_project()
+    @property
+    def project(self) -> ProjectDocument | None:
+        return self._project
+
+    def new_untitled_project(self) -> bool:
+        return self._project_controller.new_untitled_project()
+
+    def open_last_project(self) -> bool:
+        return self._project_controller.open_last_project()
 
     def save_project(self) -> bool:
         return self._project_controller.save_project()

@@ -488,6 +488,9 @@ class PropertyTableMixin:
                 widget.deleteLater()
         table.clearContents()
         table.setRowCount(len(definitions))
+        if table.columnCount() < 2:
+            table.setColumnCount(2)
+            table.setHorizontalHeaderLabels(list(cls.table_headers))
         for row, (key, label) in enumerate(definitions):
             label_item = QTableWidgetItem(label)
             label_item.setData(Qt.ItemDataRole.UserRole, key)
@@ -560,6 +563,55 @@ class PropertyTableMixin:
             lambda _index, editor=combo, callback=on_changed: callback(str(editor.currentData()))
         )
         table.setCellWidget(row, column, combo)
+
+    def _set_property_color(
+        self,
+        table: QTableWidget,
+        key: str,
+        value: Any,
+        on_changed: Callable[[str], Any] | None = None,
+        label: str = "",
+    ) -> Any:
+        for row in range(table.rowCount()):
+            if self._property_key(table, row) != key:
+                continue
+            col0_item = table.item(row, 0)
+            resolved_label = label or (col0_item.text() if col0_item else key)
+            return self._set_table_color(
+                table,
+                row,
+                1,
+                value,
+                on_changed=on_changed,
+                label=resolved_label,
+            )
+        return None
+
+    @classmethod
+    def _set_table_color(
+        cls,
+        table: QTableWidget,
+        row: int,
+        column: int,
+        value: Any,
+        on_changed: Callable[[str], Any] | None = None,
+        label: str = "",
+    ) -> Any:
+        from setuav_studio.ui.widget.color_picker import ColorPickerWidget
+
+        item = table.item(row, column)
+        if item is not None:
+            item.setText("")
+            item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+
+        picker = ColorPickerWidget(
+            initial_color=value,
+            on_changed=on_changed,
+            label=label,
+            parent=table,
+        )
+        table.setCellWidget(row, column, picker)
+        return picker
 
     @classmethod
     def _set_property_value(
@@ -735,7 +787,22 @@ class PropertyTableMixin:
 
         for f in normalized:
             val = target_data.get(f.key, f.default)
-            if f.options:
+            if (
+                getattr(f, "widget_type", None) == "color"
+                or getattr(f, "field_type", None) == "color"
+                or (f.key.lower().endswith("color") and not f.options)
+            ):
+                self._set_property_color(
+                    table,
+                    f.key,
+                    val,
+                    lambda new_v, k=f.key: (
+                        target_data.__setitem__(k, new_v),
+                        on_changed(k, new_v) if on_changed else None,
+                    ),
+                    label=f.label,
+                )
+            elif f.options:
                 self._set_property_combo(
                     table,
                     f.key,
@@ -824,6 +891,10 @@ class PropertyTableMixin:
         if isinstance(editor, QComboBox):
             return str(editor.currentData())
         if isinstance(editor, ExpressionPropertyCell):
+            return editor.text()
+        from setuav_studio.ui.widget.color_picker import ColorPickerWidget
+
+        if isinstance(editor, ColorPickerWidget):
             return editor.text()
         if cls.table_property_text_spinbox and isinstance(editor, QDoubleSpinBox):
             return str(editor.value())

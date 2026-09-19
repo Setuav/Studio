@@ -436,6 +436,21 @@ class ShellProjectLifecycleTests(unittest.TestCase):
             self.window.open_last_project()
         open_project.assert_called_once_with("first")
 
+    def test_new_untitled_project(self) -> None:
+        self.window._project = None
+        self.assertTrue(self.window.new_untitled_project())
+        proj = self.window._project
+        self.assertIsNotNone(proj)
+        self.assertIs(self.window.project, proj)
+        self.assertEqual(proj.data["name"], "Untitled Project")
+        self.assertFalse(proj.modified)
+        self.assertTrue(getattr(proj, "_is_untitled", False))
+        self.assertTrue(self.window._confirm_project_close())
+
+        with patch.object(self.window, "save_project_as", return_value=True) as mock_save_as:
+            self.window.save_project()
+            mock_save_as.assert_called_once()
+
     @staticmethod
     def _project(name: str = "Demo") -> ProjectDocument:
         return ProjectDocument(

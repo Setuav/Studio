@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from setuav_studio_sdk import (
@@ -11,19 +10,38 @@ from setuav_studio_sdk import (
     ToolbarMenuItemContribution,
 )
 
-from .primitives_demo import (
-    add_debug_arrows,
-    add_debug_box,
-    add_debug_cylinder,
-    add_debug_lines,
-    add_debug_loft,
-    add_debug_plane,
-    add_debug_points,
-    add_debug_ring,
-    add_debug_scene,
-    add_debug_triangles,
-    clear_debug_objects,
+from .components import (
+    TYPE_DEBUG_ARROW,
+    TYPE_DEBUG_BOX,
+    TYPE_DEBUG_CYLINDER,
+    TYPE_DEBUG_LINE,
+    TYPE_DEBUG_LOFT,
+    TYPE_DEBUG_PLANE,
+    TYPE_DEBUG_POINT,
+    TYPE_DEBUG_RING,
+    TYPE_DEBUG_TRIANGLE,
+    ArrowComponentEditor,
+    BoxComponentEditor,
+    CylinderComponentEditor,
+    LineComponentEditor,
+    LoftComponentEditor,
+    PlaneComponentEditor,
+    PointComponentEditor,
+    RingComponentEditor,
+    TriangleComponentEditor,
+    add_debug_component,
+    clear_debug_components,
+    create_arrow_component,
+    create_box_component,
+    create_cylinder_component,
+    create_line_component,
+    create_loft_component,
+    create_plane_component,
+    create_point_component,
+    create_ring_component,
+    create_triangle_component,
 )
+from .scene_sync import DEBUG_LAYER, sync_debug_components_to_viewport
 
 if TYPE_CHECKING:
     from setuav_studio_sdk import StudioAPI
@@ -47,21 +65,117 @@ class DebugPlugin:
     def activate(self, api: StudioAPI) -> None:
         """Activate the debug plugin."""
         self._api = api
+        self._register_component_types(api)
         self._register_toolbar_tools(api)
+
+        api.on_project_changed(self._on_project_changed)
+        api.on_project_content_changed(self._on_project_content_changed)
+
+        if api.current_project is not None:
+            self._sync_viewport(api.current_project)
+
         logger.info("DebugPlugin activated")
 
     def deactivate(self, api: StudioAPI) -> None:
         """Deactivate the debug plugin."""
         api.remove_toolbar_item(TOOLBAR_ADD_PRIMITIVE_ID)
+        api.remove_project_listener(self._on_project_changed)
+        api.remove_project_content_listener(self._on_project_content_changed)
+        self._unregister_component_types(api)
+
         vp = self._get_viewport()
         if vp is not None:
-            clear_debug_objects(vp)
+            vp.clear(layer=DEBUG_LAYER)
+
         self._api = None
         logger.info("DebugPlugin deactivated")
 
     # ------------------------------------------------------------------
-    # Viewport & Toolbar Helpers
+    # Component Types Registration
     # ------------------------------------------------------------------
+
+    def _register_component_types(self, api: StudioAPI) -> None:
+        """Register editors and icons for all primitive component types."""
+        # 1. Component Editors
+        api.register_component_editor(
+            TYPE_DEBUG_BOX,
+            lambda comp: BoxComponentEditor(api, comp),
+        )
+        api.register_component_editor(
+            TYPE_DEBUG_CYLINDER,
+            lambda comp: CylinderComponentEditor(api, comp),
+        )
+        api.register_component_editor(
+            TYPE_DEBUG_RING,
+            lambda comp: RingComponentEditor(api, comp),
+        )
+        api.register_component_editor(
+            TYPE_DEBUG_PLANE,
+            lambda comp: PlaneComponentEditor(api, comp),
+        )
+        api.register_component_editor(
+            TYPE_DEBUG_LINE,
+            lambda comp: LineComponentEditor(api, comp),
+        )
+        api.register_component_editor(
+            TYPE_DEBUG_TRIANGLE,
+            lambda comp: TriangleComponentEditor(api, comp),
+        )
+        api.register_component_editor(
+            TYPE_DEBUG_LOFT,
+            lambda comp: LoftComponentEditor(api, comp),
+        )
+        api.register_component_editor(
+            TYPE_DEBUG_POINT,
+            lambda comp: PointComponentEditor(api, comp),
+        )
+        api.register_component_editor(
+            TYPE_DEBUG_ARROW,
+            lambda comp: ArrowComponentEditor(api, comp),
+        )
+
+        # 2. Component Icons
+        api.register_component_icon(TYPE_DEBUG_BOX, "fa6s.cube")
+        api.register_component_icon(TYPE_DEBUG_CYLINDER, "fa6s.database")
+        api.register_component_icon(TYPE_DEBUG_RING, "fa6s.circle-notch")
+        api.register_component_icon(TYPE_DEBUG_PLANE, "fa6s.square")
+        api.register_component_icon(TYPE_DEBUG_LINE, "fa6s.arrows-up-down-left-right")
+        api.register_component_icon(TYPE_DEBUG_TRIANGLE, "fa6s.draw-polygon")
+        api.register_component_icon(TYPE_DEBUG_LOFT, "fa6s.plane")
+        api.register_component_icon(TYPE_DEBUG_POINT, "mdi6.dots-hexagon")
+        api.register_component_icon(TYPE_DEBUG_ARROW, "fa6s.location-arrow")
+
+    def _unregister_component_types(self, api: StudioAPI) -> None:
+        """Unregister component editors and icons."""
+        types = (
+            TYPE_DEBUG_BOX,
+            TYPE_DEBUG_CYLINDER,
+            TYPE_DEBUG_RING,
+            TYPE_DEBUG_PLANE,
+            TYPE_DEBUG_LINE,
+            TYPE_DEBUG_TRIANGLE,
+            TYPE_DEBUG_LOFT,
+            TYPE_DEBUG_POINT,
+            TYPE_DEBUG_ARROW,
+        )
+        for t in types:
+            api.remove_component_editor(t)
+            api.remove_component_icon(t)
+
+    # ------------------------------------------------------------------
+    # Project & Viewport Synchronization
+    # ------------------------------------------------------------------
+
+    def _on_project_changed(self, project: Any) -> None:
+        self._sync_viewport(project)
+
+    def _on_project_content_changed(self, project: Any) -> None:
+        self._sync_viewport(project)
+
+    def _sync_viewport(self, project: Any) -> None:
+        vp = self._get_viewport()
+        if vp is not None:
+            sync_debug_components_to_viewport(vp, project)
 
     def _get_viewport(self) -> Any | None:
         """Get the StudioViewport instance, showing the panel if necessary."""
@@ -73,88 +187,82 @@ class DebugPlugin:
             vp = self._api.viewport
         return vp
 
-    def _run_add_primitive(self, name: str, builder: Callable[[Any], None]) -> None:
-        """Run a primitive builder on the active viewport."""
-        vp = self._get_viewport()
-        if vp is None:
-            if self._api is not None:
-                self._api.show_status("3D Viewport is not available", level="warning")
+    def _add_component(self, factory_fn: Any, base_id: str, base_name: str) -> None:
+        """Add a primitive component to the active project and frame viewport."""
+        if self._api is None:
             return
-        builder(vp)
-        if self._api is not None:
-            self._api.show_status(f"Added {name} to 3D Viewport", level="info")
+        comp = add_debug_component(self._api, factory_fn, base_id, base_name)
+        if comp is not None:
+            vp = self._get_viewport()
+            if vp is not None:
+                vp.fit_view()
 
-    def _run_clear_primitives(self) -> None:
-        """Clear all debug primitives from the active viewport."""
-        vp = self._get_viewport()
-        if vp is not None:
-            clear_debug_objects(vp)
-            if self._api is not None:
-                self._api.show_status("Cleared debug primitives from 3D Viewport", level="info")
+    # ------------------------------------------------------------------
+    # Toolbar Tools
+    # ------------------------------------------------------------------
 
     def _register_toolbar_tools(self, api: StudioAPI) -> None:
-        """Register debug tools to the toolbar."""
+        """Register debug component tools to the toolbar."""
         menu_items = (
             ToolbarMenuItemContribution(
-                title="Add Box",
-                callback=lambda: self._run_add_primitive("Box", add_debug_box),
+                title="Box",
+                callback=lambda: self._add_component(create_box_component, "box", "Box"),
                 icon="fa6s.cube",
             ),
             ToolbarMenuItemContribution(
-                title="Add Cylinder",
-                callback=lambda: self._run_add_primitive("Cylinder", add_debug_cylinder),
+                title="Cylinder",
+                callback=lambda: self._add_component(
+                    create_cylinder_component, "cylinder", "Cylinder"
+                ),
                 icon="fa6s.database",
             ),
             ToolbarMenuItemContribution(
-                title="Add Ring (Propeller Disk)",
-                callback=lambda: self._run_add_primitive("Ring", add_debug_ring),
+                title="Ring",
+                callback=lambda: self._add_component(create_ring_component, "ring", "Ring"),
                 icon="fa6s.circle-notch",
             ),
             ToolbarMenuItemContribution(
-                title="Add Plane",
-                callback=lambda: self._run_add_primitive("Plane", add_debug_plane),
+                title="Plane",
+                callback=lambda: self._add_component(create_plane_component, "plane", "Plane"),
                 icon="fa6s.square",
             ),
             ToolbarMenuItemContribution(
-                title="Add Lines (Coordinate Axes)",
-                callback=lambda: self._run_add_primitive("Lines", add_debug_lines),
+                title="Line",
+                callback=lambda: self._add_component(create_line_component, "line", "Line"),
                 icon="fa6s.arrows-up-down-left-right",
             ),
             ToolbarMenuItemContribution(
-                title="Add Triangles (Pyramid)",
-                callback=lambda: self._run_add_primitive("Triangles", add_debug_triangles),
+                title="Triangle",
+                callback=lambda: self._add_component(
+                    create_triangle_component, "triangle", "Triangle"
+                ),
                 icon="fa6s.draw-polygon",
             ),
             ToolbarMenuItemContribution(
-                title="Add Wing Loft",
-                callback=lambda: self._run_add_primitive("Wing Loft", add_debug_loft),
+                title="Loft",
+                callback=lambda: self._add_component(create_loft_component, "loft", "Loft"),
                 icon="fa6s.plane",
             ),
             ToolbarMenuItemContribution(
-                title="Add Point Cloud",
-                callback=lambda: self._run_add_primitive("Point Cloud", add_debug_points),
+                title="Point",
+                callback=lambda: self._add_component(create_point_component, "point", "Point"),
                 icon="mdi6.dots-hexagon",
             ),
             ToolbarMenuItemContribution(
-                title="Add Directional Arrows",
-                callback=lambda: self._run_add_primitive("Arrows", add_debug_arrows),
+                title="Arrow",
+                callback=lambda: self._add_component(create_arrow_component, "arrow", "Arrow"),
                 icon="fa6s.location-arrow",
             ),
             ToolbarMenuItemContribution(
-                title="Add Complete Demo Scene",
-                callback=lambda: self._run_add_primitive("Demo Scene", add_debug_scene),
-                icon="fa6s.cubes",
-            ),
-            ToolbarMenuItemContribution(
-                title="Clear Debug Primitives",
-                callback=self._run_clear_primitives,
+                title="Clear All",
+                callback=lambda: clear_debug_components(api),
                 icon="fa6s.trash-can",
             ),
         )
 
         contribution = ToolbarContribution(
             id=TOOLBAR_ADD_PRIMITIVE_ID,
-            title="Add to Viewport",
+            title="Primitives",
             icon="fa6s.cube",
             menu_items=menu_items,
             group="debug",
