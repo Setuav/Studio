@@ -6,6 +6,7 @@ WIRE_FEATURE = "feature"
 WIRE_FULL = "full"
 FACE_COLORED = "colored"
 FACE_MONOCHROME = "monochrome"
+FACE_TRANSPARENT = "transparent"
 
 VIEW_PRESETS: dict[str, tuple[float, float]] = {
     "top": (0.0, 90.0),

@@ -23,11 +23,6 @@ from setuav_studio.ui.viewport.constants import (
     WIRE_FEATURE,
     WIRE_FULL,
 )
-from setuav_studio.ui.viewport.palettes import (
-    active_palette,
-    palette_names,
-    set_active_palette,
-)
 
 if TYPE_CHECKING:
     from setuav_studio.ui.viewport.viewport import StudioViewport
@@ -38,7 +33,7 @@ class StudioViewportHUD(QFrame):
 
     Provides quick access to:
       - Solid / Wireframe / Transparency rendering modes
-      - Colored vs Monochrome shading and palette selection
+      - Colored vs Monochrome shading
       - Reference grid and orthographic / perspective projection
       - Camera viewpoints (Top, Bottom, Front, Side, Iso) and Fit
       - High-resolution screenshot capture
@@ -106,18 +101,6 @@ class StudioViewportHUD(QFrame):
         self.colored_button.clicked.connect(lambda: self._viewport.set_face_style(FACE_COLORED))
         self.style_group.addButton(self.colored_button)
         layout.addWidget(self.colored_button)
-
-        # Palette Selector
-        self.palette_button = QToolButton(self)
-        self.palette_button.setIcon(get_icon("view_palette"))
-        self.palette_button.setToolTip("Color Palette")
-        self.palette_button.setFixedSize(24, 24)
-        self.palette_button.setAutoRaise(True)
-        self.palette_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        self._palette_menu = QMenu(self.palette_button)
-        self.palette_button.setMenu(self._palette_menu)
-        self._build_palette_menu()
-        layout.addWidget(self.palette_button)
 
         self.mono_button = QToolButton(self)
         self.mono_button.setCheckable(True)
@@ -245,7 +228,6 @@ class StudioViewportHUD(QFrame):
         self.grid_button.setIcon(get_icon("view_grid"))
         self._update_projection_state()
         self.layers_button.setIcon(get_icon("view_layers"))
-        self.palette_button.setIcon(get_icon("view_palette"))
         for btn, icon_name in self._cam_buttons:
             btn.setIcon(get_icon(icon_name))
         self.fit_button.setIcon(get_icon("view_fit"))
@@ -298,27 +280,6 @@ class StudioViewportHUD(QFrame):
             self.wire_button.setToolTip("Wireframe: Feature Edges")
         else:
             self.wire_button.setToolTip("Wireframe: Full Mesh")
-
-    def _build_palette_menu(self) -> None:
-        self._palette_menu.clear()
-        group = QActionGroup(self)
-        group.setExclusive(True)
-        for name in palette_names():
-            action = QAction(name.capitalize(), self)
-            action.setCheckable(True)
-            action.setChecked(name == active_palette())
-            action.triggered.connect(
-                lambda _checked=False, palette_name=name: self._on_palette_selected(palette_name)
-            )
-            group.addAction(action)
-            self._palette_menu.addAction(action)
-
-    def _on_palette_selected(self, name: str) -> None:
-        try:
-            set_active_palette(name)
-        except ValueError:
-            return
-        self._build_palette_menu()
 
     @property
     def layers_menu(self) -> QMenu:

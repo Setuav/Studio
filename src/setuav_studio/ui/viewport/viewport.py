@@ -39,6 +39,7 @@ from .constants import (
 from .hud import StudioViewportHUD
 from .layer import Layer
 from .scene_object import SceneObject
+from .widget import OpenGLViewer
 
 logger = logging.getLogger(__name__)
 
@@ -97,8 +98,7 @@ class StudioViewport(QWidget):
         # Scene graph: object_id -> SceneObject
         self._objects: dict[str, SceneObject] = {}
 
-        # Lazy reference to the low-level OpenGL widget.  Assigned via
-        # ``attach_renderer`` once the geometry plugin (or Core) provides it.
+        # Reference to the low-level OpenGL widget (defaulting to embedded OpenGLViewer)
         self._renderer: QWidget | None = None
 
         self._grid_layout = QGridLayout(self)
@@ -119,6 +119,9 @@ class StudioViewport(QWidget):
             Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignHCenter,
         )
         self.hud.raise_()
+
+        # Attach default OpenGL 3.3 Core renderer
+        self.attach_renderer(OpenGLViewer(self))
 
         if api is not None:
             self.bind_api(api)
@@ -141,10 +144,10 @@ class StudioViewport(QWidget):
     # ------------------------------------------------------------------
 
     def attach_renderer(self, renderer: QWidget) -> None:
-        """Embed the low-level OpenGL viewer widget.
-
-        Called once during application startup to connect the actual renderer.
-        """
+        """Embed or replace the low-level OpenGL viewer widget."""
+        if self._renderer is not None and self._renderer is not renderer:
+            self._grid_layout.removeWidget(self._renderer)
+            self._renderer.setParent(None)
         self._renderer = renderer
         self._grid_layout.addWidget(renderer, 0, 0)
         self.hud.raise_()
@@ -168,6 +171,11 @@ class StudioViewport(QWidget):
     def renderer(self) -> QWidget | None:
         """Return the attached renderer widget, or *None*."""
         return self._renderer
+
+    @property
+    def viewer(self) -> OpenGLViewer | None:
+        """Return the underlying OpenGLViewer instance, or None."""
+        return self._renderer if isinstance(self._renderer, OpenGLViewer) else None
 
     def bind_api(self, api: Any) -> None:
         """Bind StudioAPI to synchronize selections bi-directionally with the app."""
