@@ -283,8 +283,8 @@ class PluginTests(unittest.TestCase):
 
     def test_checks_project_plugin_requirements(self) -> None:
         class DummyPlugin:
-            id = "org.setuav.core"
-            provides: ClassVar[dict[str, str]] = {"org.setuav.core": "1.0.0"}
+            id = "org.example.aero"
+            provides: ClassVar[dict[str, str]] = {"org.example.aero": "1.0.0"}
 
             def activate(self, _api: StudioAPI) -> None:
                 pass
@@ -292,7 +292,7 @@ class PluginTests(unittest.TestCase):
         self.manager.activate(DummyPlugin())
 
         compatible = self.manager.check_project_requirements(
-            {"plugins": [{"id": "org.setuav.core", "version": "^1.0.0"}]}
+            {"plugins": [{"id": "org.example.aero", "version": "^1.0.0"}]}
         )
         missing = self.manager.check_project_requirements(
             {"plugins": [{"id": "example.missing", "version": "1.0.0"}]}

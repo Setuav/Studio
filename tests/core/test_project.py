@@ -36,7 +36,7 @@ class ProjectTests(unittest.TestCase):
         self.assertEqual(project.kind, "archive")
         self.assertTrue(project.modified)
         self.assertEqual(project.data["name"], "new")
-        self.assertEqual(project.data["plugins"], [{"id": "org.setuav.core", "version": "^1.0.0"}])
+        self.assertEqual(project.data["plugins"], [])
         self.assertEqual(project.data["components"], [])
         self.assertEqual(project.data["assemblies"], [])
 

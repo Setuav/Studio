@@ -1,12 +1,7 @@
 {
   "$schema": "https://schemas.setuav.org/core/project.schema.json",
   "name": "Pusher",
-  "plugins": [
-    {
-      "id": "org.setuav.core",
-      "version": "^1.0.0"
-    }
-  ],
+  "plugins": [],
   "parameters": {
     "design_speed": {
       "value": 25,

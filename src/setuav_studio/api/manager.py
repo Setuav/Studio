@@ -155,7 +155,7 @@ class PluginManager:
                 continue
             plugin_id = requirement.get("id")
             requested = requirement.get("version")
-            if not isinstance(plugin_id, str):
+            if not isinstance(plugin_id, str) or plugin_id == "org.setuav.core":
                 continue
             installed = self._providers.get(plugin_id)
             if installed is None:

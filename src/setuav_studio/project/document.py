@@ -291,7 +291,7 @@ def create_project(path: str | Path) -> ProjectDocument:
         kind=kind,
         data={
             "name": project_name,
-            "plugins": [{"id": "org.setuav.core", "version": "^1.0.0"}],
+            "plugins": [],
             "components": [],
             "assemblies": [],
             "parameters": {},

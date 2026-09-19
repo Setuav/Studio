@@ -13,7 +13,7 @@ from collections.abc import Sequence
 from typing import Any, Literal
 
 from PySide6.QtCore import QSettings, Qt, QTimer, Signal
-from PySide6.QtGui import QImage, QKeyEvent, QShowEvent
+from PySide6.QtGui import QImage, QKeyEvent, QResizeEvent, QShowEvent
 from PySide6.QtWidgets import QGridLayout, QWidget
 
 from setuav_studio_sdk.primitives import (
@@ -133,15 +133,9 @@ class StudioViewport(QWidget):
         self.add_layer("default", name="Default")
         self.add_layer("geometry", name="Geometry")
 
-        # Fixed bottom HUD bar
+        # Floating bottom HUD bar
         self.hud = StudioViewportHUD(self)
-        self._grid_layout.addWidget(
-            self.hud,
-            0,
-            0,
-            Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignHCenter,
-        )
-        self.hud.raise_()
+        self._reposition_hud()
 
         # Attach default OpenGL 3.3 Core renderer
         self.attach_renderer(OpenGLViewer(self))
@@ -153,13 +147,31 @@ class StudioViewport(QWidget):
     # Lifecycle & Theme
     # ------------------------------------------------------------------
 
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        super().resizeEvent(event)
+        self._reposition_hud()
+
     def showEvent(self, event: QShowEvent) -> None:
         super().showEvent(event)
-        QTimer.singleShot(0, self.hud.raise_)
+        self._reposition_hud()
+        QTimer.singleShot(0, self._reposition_hud)
+
+    def _reposition_hud(self) -> None:
+        if not hasattr(self, "hud"):
+            return
+        hint = self.hud.sizeHint()
+        margin_bottom = 12  # Floating offset from bottom edge
+        w = hint.width()
+        h = hint.height()
+        x = max(0, (self.width() - w) // 2)
+        y = max(0, self.height() - h - margin_bottom)
+        self.hud.setGeometry(x, y, w, h)
+        self.hud.raise_()
 
     def update_theme_style(self) -> None:
         """Propagate theme styling to the HUD bar and attached renderer."""
         self.hud.update_theme_style()
+        self._reposition_hud()
         _call_method(self._renderer, "update_theme_style")
 
     # ------------------------------------------------------------------
@@ -173,7 +185,7 @@ class StudioViewport(QWidget):
             self._renderer.setParent(None)
         self._renderer = renderer
         self._grid_layout.addWidget(renderer, 0, 0)
-        self.hud.raise_()
+        self._reposition_hud()
 
         # Apply initial display state to the renderer
         _call_method(renderer, "set_orthographic", self._orthographic)
