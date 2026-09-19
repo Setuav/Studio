@@ -156,24 +156,15 @@ def register_native_contributions(api: StudioAPI) -> None:
             icon="fa6s.sliders",
         )
     )
-    from setuav_studio.ui.panels.results import AnalysisChartPanel, AnalysisTablePanel
+    from setuav_studio.ui.panels.results import ResultPanel
 
     api.add_panel(
         PanelContribution(
-            id="core:analysis-chart",
-            title="Analysis Chart",
-            factory=lambda: AnalysisChartPanel(api),
+            id="core:result",
+            title="Result",
+            factory=lambda: ResultPanel(api),
             area=Qt.DockWidgetArea.RightDockWidgetArea,
-            icon="fa6s.chart-line",
-        )
-    )
-    api.add_panel(
-        PanelContribution(
-            id="core:analysis-table",
-            title="Analysis Table",
-            factory=lambda: AnalysisTablePanel(api),
-            area=Qt.DockWidgetArea.BottomDockWidgetArea,
-            icon="fa6s.table",
+            icon="fa6s.square-poll-vertical",
         )
     )
 

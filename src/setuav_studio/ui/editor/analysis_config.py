@@ -236,7 +236,7 @@ class AnalysisConfigPropertyEditor(PropertyTableMixin, QWidget):
             self._loading = False
 
     def _on_open_chart_clicked(self) -> None:
-        self._api.show_panel("core:analysis-chart")
+        self._api.show_panel("core:result")
         if self._cached_result and self._cached_result.plots:
             first_plot_id = next(iter(self._cached_result.plots))
             self._api.set_selection(
@@ -248,7 +248,7 @@ class AnalysisConfigPropertyEditor(PropertyTableMixin, QWidget):
             )
 
     def _on_open_table_clicked(self) -> None:
-        self._api.show_panel("core:analysis-table")
+        self._api.show_panel("core:result")
         if self._cached_result and self._cached_result.tables:
             first_table_id = next(iter(self._cached_result.tables))
             self._api.set_selection(

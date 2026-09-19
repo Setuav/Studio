@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QPainter, QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
@@ -29,16 +29,27 @@ if TYPE_CHECKING:
 class AnalysisChartPanel(QWidget):
     """Themed dock panel dedicated to displaying interactive plots derived from analysis tables."""
 
-    def __init__(self, api: StudioAPI, parent: QWidget | None = None) -> None:
+    close_requested = Signal()
+
+    def __init__(
+        self,
+        api: StudioAPI,
+        auto_sync_selection: bool = True,
+        show_close_button: bool = False,
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
         self._api = api
+        self._auto_sync_selection = auto_sync_selection
+        self._show_close_button = show_close_button
         self._current_result: AnalysisResult | None = None
         self._current_plot: PlotDefinition | None = None
         self._current_table: TableDefinition | None = None
         self._active_x_column: str = ""
 
         self._init_ui()
-        self._api.on_selection_changed(self._on_selection_changed)
+        if self._auto_sync_selection:
+            self._api.on_selection_changed(self._on_selection_changed)
 
     def _init_ui(self) -> None:
         main_layout = QVBoxLayout(self)
@@ -89,6 +100,15 @@ class AnalysisChartPanel(QWidget):
         self._export_csv_btn.setIcon(get_icon("fa6s.file-csv"))
         self._export_csv_btn.clicked.connect(self._export_csv)
         tb_layout.addWidget(self._export_csv_btn)
+
+        if self._show_close_button:
+            self._close_btn = QPushButton()
+            self._close_btn.setIcon(get_icon("fa6s.xmark"))
+            self._close_btn.setToolTip("Close this chart view")
+            self._close_btn.setFixedSize(24, 24)
+            self._close_btn.setStyleSheet("padding: 2px;")
+            self._close_btn.clicked.connect(self.close_requested.emit)
+            tb_layout.addWidget(self._close_btn)
 
         main_layout.addWidget(self._toolbar)
 

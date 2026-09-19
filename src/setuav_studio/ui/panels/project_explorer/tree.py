@@ -85,6 +85,7 @@ class ProjectExplorer(QTreeWidget):
         self._context_menu = ProjectExplorerContextMenu(self, api, self._ops)
 
         self.currentItemChanged.connect(self._publish_selection)
+        self.itemClicked.connect(self._on_item_clicked)
         self.itemChanged.connect(self._rename_item)
         self.customContextMenuRequested.connect(self._open_context_menu)
 
@@ -266,6 +267,9 @@ class ProjectExplorer(QTreeWidget):
         for i in range(self.topLevelItemCount()):
             apply_filter(self.topLevelItem(i))
 
+    def _on_item_clicked(self, item: QTreeWidgetItem, _column: int) -> None:
+        self._publish_selection(item, None)
+
     def _publish_selection(
         self,
         current: QTreeWidgetItem | None,
@@ -287,10 +291,8 @@ class ProjectExplorer(QTreeWidget):
                     self._api.set_current_analysis_config(config_id)
             elif kind == "analysis_result":
                 self._api.show_panel("core:properties")
-            elif kind == "analysis_table":
-                self._api.show_panel("core:analysis-table")
-            elif kind == "analysis_plot":
-                self._api.show_panel("core:analysis-chart")
+            elif kind in ("analysis_table", "analysis_plot"):
+                self._api.show_panel("core:result")
         self._api.set_selection(element)
 
     def _sync_selection(self, selection: object | None) -> None:

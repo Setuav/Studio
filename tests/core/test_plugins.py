@@ -101,8 +101,7 @@ class PluginTests(unittest.TestCase):
                 "core:project-explorer",
                 "studio.viewer.opengl",
                 "core:properties",
-                "core:analysis-chart",
-                "core:analysis-table",
+                "core:result",
             ],
         )
 

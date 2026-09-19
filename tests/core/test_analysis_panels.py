@@ -17,7 +17,11 @@ from setuav_studio.solver.results import (
 )
 from setuav_studio.ui.editor.analysis_config import AnalysisConfigPropertyEditor
 from setuav_studio.ui.panels.project_explorer.panel import ProjectExplorerPanel
-from setuav_studio.ui.panels.results import AnalysisChartPanel, AnalysisTablePanel
+from setuav_studio.ui.panels.results import (
+    AnalysisChartPanel,
+    AnalysisTablePanel,
+    ResultPanel,
+)
 
 
 class TestAnalysisPanels(unittest.TestCase):
@@ -160,11 +164,11 @@ class TestAnalysisPanels(unittest.TestCase):
 
         # Test View Plot button
         editor._open_chart_btn.click()
-        self.assertIn("core:analysis-chart", self.shown_panels)
+        self.assertIn("core:result", self.shown_panels)
 
         # Test View Table button
         editor._open_table_btn.click()
-        self.assertIn("core:analysis-table", self.shown_panels)
+        self.assertIn("core:result", self.shown_panels)
 
     def test_project_explorer_tree_shows_tables_and_plots(self) -> None:
         panel = ProjectExplorerPanel(self.api)
@@ -197,12 +201,12 @@ class TestAnalysisPanels(unittest.TestCase):
         # Clicking table item triggers show_panel
         table_item = tree._item_map[table_elem_id]
         tree.setCurrentItem(table_item)
-        self.assertIn("core:analysis-table", self.shown_panels)
+        self.assertIn("core:result", self.shown_panels)
 
         # Clicking plot item triggers show_panel
         plot_item = tree._item_map[plot_elem_id]
         tree.setCurrentItem(plot_item)
-        self.assertIn("core:analysis-chart", self.shown_panels)
+        self.assertIn("core:result", self.shown_panels)
 
     def test_analysis_config_rename(self) -> None:
         panel = ProjectExplorerPanel(self.api)
@@ -264,6 +268,116 @@ class TestAnalysisPanels(unittest.TestCase):
         ops.run_analysis(self.config.config_id)
         self.assertEqual(len(run_called), 1)
         self.assertEqual(run_called[0].config.config_id, self.config.config_id)
+
+    def test_result_panel_empty_initially(self) -> None:
+        panel = ResultPanel(self.api)
+        self.assertEqual(panel._stack.currentWidget(), panel._empty_view)
+        self.assertEqual(len(panel.open_pane_keys), 0)
+
+    def test_result_panel_side_by_side_tables_and_charts(self) -> None:
+        from PySide6.QtCore import Qt
+
+        panel = ResultPanel(self.api)
+
+        # 1. Select a table -> table pane opens
+        self.api.set_selection(
+            {
+                "kind": "analysis_table",
+                "result_id": self.result.id,
+                "table_id": self.table.id,
+            }
+        )
+        self.assertEqual(len(panel.open_pane_keys), 1)
+        self.assertEqual(panel._stack.currentWidget(), panel._splitter_container)
+        self.assertIn(f"table:{self.result.id}:{self.table.id}", panel.open_pane_keys)
+
+        # 2. Select a plot -> chart pane opens alongside table
+        self.api.set_selection(
+            {
+                "kind": "analysis_plot",
+                "result_id": self.result.id,
+                "plot_id": self.plot.id,
+            }
+        )
+        self.assertEqual(len(panel.open_pane_keys), 2)
+        self.assertEqual(panel._splitter.count(), 2)
+        self.assertEqual(panel._splitter.orientation(), Qt.Orientation.Horizontal)
+        self.assertIn(f"plot:{self.result.id}:{self.plot.id}", panel.open_pane_keys)
+
+        # 3. Duplicate selection focuses without creating new pane
+        self.api.set_selection(
+            {
+                "kind": "analysis_table",
+                "result_id": self.result.id,
+                "table_id": self.table.id,
+            }
+        )
+        self.assertEqual(len(panel.open_pane_keys), 2)
+
+    def test_result_panel_orientation_and_equalize(self) -> None:
+        from PySide6.QtCore import Qt
+
+        panel = ResultPanel(self.api)
+        self.api.set_selection(
+            {
+                "kind": "analysis_table",
+                "result_id": self.result.id,
+                "table_id": self.table.id,
+            }
+        )
+        self.api.set_selection(
+            {
+                "kind": "analysis_plot",
+                "result_id": self.result.id,
+                "plot_id": self.plot.id,
+            }
+        )
+        self.assertEqual(panel._splitter.orientation(), Qt.Orientation.Horizontal)
+
+        # Toggle to vertical
+        panel._toggle_orientation()
+        self.assertEqual(panel._splitter.orientation(), Qt.Orientation.Vertical)
+
+        # Toggle back to horizontal
+        panel._toggle_orientation()
+        self.assertEqual(panel._splitter.orientation(), Qt.Orientation.Horizontal)
+
+        # Equalize sizes
+        panel.equalize_sizes()
+        sizes = panel._splitter.sizes()
+        self.assertEqual(len(sizes), 2)
+        self.assertEqual(sizes[0], sizes[1])
+
+    def test_result_panel_close_pane_and_clear_all(self) -> None:
+        panel = ResultPanel(self.api)
+        self.api.set_selection(
+            {
+                "kind": "analysis_table",
+                "result_id": self.result.id,
+                "table_id": self.table.id,
+            }
+        )
+        self.api.set_selection(
+            {
+                "kind": "analysis_plot",
+                "result_id": self.result.id,
+                "plot_id": self.plot.id,
+            }
+        )
+        self.assertEqual(len(panel.open_pane_keys), 2)
+
+        # Close one pane
+        table_key = f"table:{self.result.id}:{self.table.id}"
+        panel.close_pane(table_key)
+        self.assertEqual(len(panel.open_pane_keys), 1)
+        self.assertNotIn(table_key, panel.open_pane_keys)
+        self.assertEqual(panel._splitter.count(), 1)
+        self.assertEqual(panel._stack.currentWidget(), panel._splitter_container)
+
+        # Clear all
+        panel.clear_all()
+        self.assertEqual(len(panel.open_pane_keys), 0)
+        self.assertEqual(panel._stack.currentWidget(), panel._empty_view)
 
     @staticmethod
     def horizontalHeaderOrientation():

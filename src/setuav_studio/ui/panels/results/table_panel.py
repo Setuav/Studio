@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, Signal
 from PySide6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
@@ -68,56 +68,63 @@ class AnalysisTableModel(QAbstractTableModel):
         return len(self._table.columns)
 
     def headerData(
-        self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole
+        self,
+        section: int,
+        orientation: Qt.Orientation,
+        role: int = Qt.ItemDataRole.DisplayRole,
     ) -> Any:
-        if role == Qt.ItemDataRole.DisplayRole:
-            if orientation == Qt.Orientation.Horizontal:
-                if 0 <= section < len(self._table.columns):
-                    return self._table.columns[section].header_text(
-                        use_display_units=self._use_display_units
-                    )
-            else:
-                return str(section + 1)
+        if role != Qt.ItemDataRole.DisplayRole:
+            return None
+        if orientation == Qt.Orientation.Horizontal:
+            if 0 <= section < len(self._table.columns):
+                return self._table.columns[section].header_text(
+                    use_display_units=self._use_display_units
+                )
+        elif orientation == Qt.Orientation.Vertical:
+            return str(section + 1)
         return None
 
     def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
-        if not index.isValid():
+        if not index.isValid() or role != Qt.ItemDataRole.DisplayRole:
             return None
-
         row = index.row()
         col = index.column()
-
         if 0 <= col < len(self._col_data):
             col_list = self._col_data[col]
             if 0 <= row < len(col_list):
                 val = col_list[row]
-                if role == Qt.ItemDataRole.DisplayRole:
-                    if isinstance(val, float):
-                        # Clean numeric format: 4 decimals if small, or scientific if very small/large
-                        if abs(val) < 1e-4 and val != 0.0:
-                            return f"{val:.4e}"
-                        return f"{val:.4f}"
-                    return str(val) if val is not None else ""
-                elif role == Qt.ItemDataRole.TextAlignmentRole:
-                    if isinstance(val, (int, float)):
-                        return int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-                    return int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+                if isinstance(val, float):
+                    if abs(val) < 1e-4 and val != 0.0:
+                        return f"{val:.4e}"
+                    return f"{val:.4f}"
+                return str(val)
         return None
 
 
 class AnalysisTablePanel(QWidget):
     """Themed dock panel dedicated to displaying tabular simulation datasets."""
 
-    def __init__(self, api: StudioAPI, parent: QWidget | None = None) -> None:
+    close_requested = Signal()
+
+    def __init__(
+        self,
+        api: StudioAPI,
+        auto_sync_selection: bool = True,
+        show_close_button: bool = False,
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
         self._api = api
+        self._auto_sync_selection = auto_sync_selection
+        self._show_close_button = show_close_button
         self._current_result: AnalysisResult | None = None
         self._current_table: TableDefinition | None = None
         self._use_display_units: bool = True
         self._model: AnalysisTableModel | None = None
 
         self._init_ui()
-        self._api.on_selection_changed(self._on_selection_changed)
+        if self._auto_sync_selection:
+            self._api.on_selection_changed(self._on_selection_changed)
 
     def _init_ui(self) -> None:
         main_layout = QVBoxLayout(self)
@@ -159,6 +166,15 @@ class AnalysisTablePanel(QWidget):
         self._export_csv_btn.setIcon(get_icon("fa6s.file-csv"))
         self._export_csv_btn.clicked.connect(self._export_csv)
         tb_layout.addWidget(self._export_csv_btn)
+
+        if self._show_close_button:
+            self._close_btn = QPushButton()
+            self._close_btn.setIcon(get_icon("fa6s.xmark"))
+            self._close_btn.setToolTip("Close this table view")
+            self._close_btn.setFixedSize(24, 24)
+            self._close_btn.setStyleSheet("padding: 2px;")
+            self._close_btn.clicked.connect(self.close_requested.emit)
+            tb_layout.addWidget(self._close_btn)
 
         main_layout.addWidget(self._toolbar)
 

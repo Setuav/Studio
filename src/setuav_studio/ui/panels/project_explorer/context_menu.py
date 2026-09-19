@@ -208,7 +208,7 @@ class ProjectExplorerContextMenu:
         chosen = menu.exec(self._tree.viewport().mapToGlobal(position))
         if chosen is open_act:
             self._api.set_selection(element)
-            self._api.show_panel("core:analysis-table")
+            self._api.show_panel("core:result")
 
     def open_analysis_plot_menu(
         self,
@@ -221,4 +221,4 @@ class ProjectExplorerContextMenu:
         chosen = menu.exec(self._tree.viewport().mapToGlobal(position))
         if chosen is open_act:
             self._api.set_selection(element)
-            self._api.show_panel("core:analysis-chart")
+            self._api.show_panel("core:result")
