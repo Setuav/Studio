@@ -41,6 +41,12 @@ class MainTests(unittest.TestCase):
 
         self.assertTrue(smoke_arguments.smoke_test)
 
+    def test_accepts_debug_flag(self) -> None:
+        debug_arguments = _parse_arguments(["--debug"])
+        self.assertTrue(debug_arguments.debug)
+        default_arguments = _parse_arguments([])
+        self.assertFalse(default_arguments.debug)
+
     def test_degraded_mode_badge_shown_for_missing_plugins(self) -> None:
         api = StudioAPI()
         api._host.bind_project_requirement_checker(lambda data: ["Missing plugin: com.example.foo"])

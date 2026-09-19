@@ -108,6 +108,11 @@ class StudioAPI(Protocol):
         """Identifier of the active workspace."""
         ...
 
+    @property
+    def viewport(self) -> Any | None:
+        """Return the central 3D viewport widget, or ``None``."""
+        ...
+
     def add_panel(self, contribution: PanelContribution) -> None:
         """Add a dockable panel to the application shell."""
         ...

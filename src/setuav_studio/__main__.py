@@ -75,6 +75,11 @@ def _parse_arguments(argv: list[str]) -> argparse.Namespace:
         help="enable debug-level logging",
     )
     parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="enable debug mode and load debug plugin",
+    )
+    parser.add_argument(
         "--smoke-test",
         action="store_true",
         help=argparse.SUPPRESS,
@@ -134,6 +139,10 @@ def main() -> int:
 
     plugin_manager = PluginManager(api)
     window.bind_plugin_manager(plugin_manager)
+    if arguments.debug:
+        from plugins.debug import PLUGIN as debug_plugin
+
+        plugin_manager.activate(debug_plugin)
     # NOTE: Plugins disabled temporarily during core architecture refactoring.
     # plugin_issues = plugin_manager.discover()
     # if plugin_issues:
