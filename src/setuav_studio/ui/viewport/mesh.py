@@ -1,4 +1,5 @@
 import math
+from collections.abc import Sequence
 from itertools import pairwise
 
 from setuav_studio_sdk.primitives import (
@@ -10,6 +11,7 @@ from setuav_studio_sdk.primitives import (
     Point3D,
     RingPrimitive,
     TrianglesPrimitive,
+    VisualPrimitive,
 )
 
 from .constants import (
@@ -39,6 +41,7 @@ __all__ = [
     "build_envelope_wire_vertices",
     "build_loft_solid_vertices",
     "build_loft_wire_vertices",
+    "build_primitive_annotation_vertices",
     "build_primitive_solid_vertices",
     "build_primitive_wire_vertices",
     "build_section_ring_vertices",
@@ -794,13 +797,16 @@ def _ortho_basis(normal: Point3D) -> tuple[Point3D, Point3D]:
     return u, v
 
 
-def build_primitive_solid_vertices(primitives) -> list[float]:  # noqa: C901
+def build_primitive_solid_vertices(  # noqa: C901
+    primitives: Sequence[VisualPrimitive],
+    face_style: str = FACE_COLORED,
+) -> list[float]:
     vertices: list[float] = []
     for prim in primitives:
         if not getattr(prim, "solid", True):
             continue
         raw_color = prim.color
-        color = raw_color[:3]
+        color = raw_color[:3] if face_style in (FACE_COLORED, FACE_TRANSPARENT) else _SOLID_GREY
 
         if isinstance(prim, BoxPrimitive):
             cx, cy, cz = prim.center
@@ -914,11 +920,15 @@ def build_primitive_solid_vertices(primitives) -> list[float]:  # noqa: C901
     return vertices
 
 
-def build_primitive_wire_vertices(primitives) -> list[float]:  # noqa: C901
+def build_primitive_wire_vertices(  # noqa: C901
+    primitives: Sequence[VisualPrimitive],
+    face_style: str = FACE_COLORED,
+    wire_mode: str = WIRE_FEATURE,
+) -> list[float]:
     vertices: list[float] = []
     for prim in primitives:
         raw_color = prim.color
-        color = raw_color[:3]
+        color = raw_color[:3] if face_style in (FACE_COLORED, FACE_TRANSPARENT) else _WIRE_GREY
 
         if isinstance(prim, BoxPrimitive):
             if not getattr(prim, "wireframe", True):
@@ -952,6 +962,17 @@ def build_primitive_wire_vertices(primitives) -> list[float]:  # noqa: C901
             )
             for i1, i2 in edges:
                 _add_line(vertices, c[i1], c[i2], color)
+            if wire_mode == WIRE_FULL:
+                diagonals = (
+                    (0, 2),
+                    (4, 6),
+                    (0, 5),
+                    (2, 7),
+                    (0, 7),
+                    (1, 6),
+                )
+                for i1, i2 in diagonals:
+                    _add_line(vertices, c[i1], c[i2], color)
 
         elif isinstance(prim, CylinderPrimitive):
             if not getattr(prim, "wireframe", False):
@@ -980,8 +1001,12 @@ def build_primitive_wire_vertices(primitives) -> list[float]:  # noqa: C901
 
             _append_ring(vertices, ring1, color)
             _append_ring(vertices, ring2, color)
-            for idx in (0, segs // 4, segs // 2, (3 * segs) // 4):
-                _add_line(vertices, ring1[idx], ring2[idx], color)
+            if wire_mode == WIRE_FULL:
+                for idx in range(segs):
+                    _add_line(vertices, ring1[idx], ring2[idx], color)
+            else:
+                for idx in (0, segs // 4, segs // 2, (3 * segs) // 4):
+                    _add_line(vertices, ring1[idx], ring2[idx], color)
 
         elif isinstance(prim, PlanePrimitive):
             if not getattr(prim, "wireframe", True):
@@ -1010,8 +1035,49 @@ def build_primitive_wire_vertices(primitives) -> list[float]:  # noqa: C901
                 cz - hw * u[2] + hh * v[2],
             )
             _append_ring(vertices, (p0, p1, p2, p3), color)
+            if wire_mode == WIRE_FULL:
+                _add_line(vertices, p0, p2, color)
+                _add_line(vertices, p1, p3, color)
 
-        elif isinstance(prim, RingPrimitive):
+        elif isinstance(prim, TrianglesPrimitive):
+            for p0, p1, p2 in prim.triangles:
+                _add_line(vertices, p0, p1, color)
+                _add_line(vertices, p1, p2, color)
+                _add_line(vertices, p2, p0, color)
+
+        elif isinstance(prim, LoftPrimitive):
+            if not getattr(prim, "wireframe", True) or not prim.sections or len(prim.sections) < 2:
+                continue
+            loft = LoftGeometry(
+                component_id="primitive:loft",
+                sections=tuple(Section(pts) for pts in prim.sections),
+                color=color,
+                interpolation=getattr(prim, "interpolation", "smooth"),
+                parameterization=getattr(prim, "parameterization", "centripetal"),
+                station_spacing=getattr(prim, "station_spacing", 10.0),
+                closed_ends=getattr(prim, "closed_ends", True),
+            )
+            loops = _tessellated_loops(loft)
+            if loops:
+                if wire_mode == WIRE_FEATURE:
+                    _append_loft_feature_wire(vertices, loft, loops, color)
+                else:
+                    _append_loft_wire(vertices, loops, color)
+
+    return vertices
+
+
+def build_primitive_annotation_vertices(
+    primitives: Sequence[VisualPrimitive],
+    face_style: str = FACE_COLORED,
+) -> list[float]:
+    """Build vertices for line-based annotation primitives (rings, lines)."""
+    vertices: list[float] = []
+    for prim in primitives:
+        raw_color = prim.color
+        color = raw_color[:3] if face_style in (FACE_COLORED, FACE_TRANSPARENT) else _WIRE_GREY
+
+        if isinstance(prim, RingPrimitive):
             cx, cy, cz = prim.center
             u, v = _ortho_basis(prim.normal)
             r = prim.radius
@@ -1032,21 +1098,5 @@ def build_primitive_wire_vertices(primitives) -> list[float]:  # noqa: C901
         elif isinstance(prim, LineSegmentsPrimitive):
             for start, end in prim.lines:
                 _add_line(vertices, start, end, color)
-
-        elif isinstance(prim, LoftPrimitive):
-            if not getattr(prim, "wireframe", True) or not prim.sections or len(prim.sections) < 2:
-                continue
-            loft = LoftGeometry(
-                component_id="primitive:loft",
-                sections=tuple(Section(pts) for pts in prim.sections),
-                color=color,
-                interpolation=getattr(prim, "interpolation", "smooth"),
-                parameterization=getattr(prim, "parameterization", "centripetal"),
-                station_spacing=getattr(prim, "station_spacing", 10.0),
-                closed_ends=getattr(prim, "closed_ends", True),
-            )
-            loops = _tessellated_loops(loft)
-            if loops:
-                _append_loft_feature_wire(vertices, loft, loops, color)
 
     return vertices

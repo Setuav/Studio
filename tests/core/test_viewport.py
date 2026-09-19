@@ -563,3 +563,66 @@ class TestStudioViewport(unittest.TestCase):
             "studio_viewport_face_style",
         ):
             settings.remove(key)
+
+    def test_primitive_mesh_generation_display_modes(self) -> None:
+        from setuav_studio.ui.viewport.mesh import (
+            _SOLID_GREY,
+            _WIRE_GREY,
+            FACE_COLORED,
+            FACE_MONOCHROME,
+            WIRE_FEATURE,
+            WIRE_FULL,
+            build_primitive_annotation_vertices,
+            build_primitive_solid_vertices,
+            build_primitive_wire_vertices,
+        )
+
+        box = BoxPrimitive(
+            center=(0.0, 0.0, 0.0),
+            size=(10.0, 10.0, 10.0),
+            color=(1.0, 0.0, 0.0, 1.0),
+            wireframe=True,
+            solid=True,
+        )
+        line = LineSegmentsPrimitive(
+            lines=(((0.0, 0.0, 0.0), (1.0, 1.0, 1.0)),),
+            color=(0.0, 1.0, 0.0, 1.0),
+        )
+        loft = LoftPrimitive(
+            sections=(
+                ((0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (0.0, 5.0, 0.0)),
+                ((0.0, 10.0, 0.0), (8.0, 10.0, 0.0), (0.0, 14.0, 0.0)),
+            ),
+            color=(0.2, 0.4, 0.8, 1.0),
+            wireframe=True,
+            solid=True,
+        )
+        primitives = [box, line, loft]
+
+        # 1. Colored solid vertices
+        solid_col = build_primitive_solid_vertices(primitives, face_style=FACE_COLORED)
+        self.assertGreater(len(solid_col), 0)
+
+        # 2. Monochrome solid vertices
+        solid_mono = build_primitive_solid_vertices(primitives, face_style=FACE_MONOCHROME)
+        self.assertEqual(len(solid_mono), len(solid_col))
+        self.assertAlmostEqual(solid_mono[6], _SOLID_GREY[0])
+        self.assertAlmostEqual(solid_mono[7], _SOLID_GREY[1])
+        self.assertAlmostEqual(solid_mono[8], _SOLID_GREY[2])
+
+        # 3. Feature vs Full wireframe vertices
+        wire_feat = build_primitive_wire_vertices(primitives, wire_mode=WIRE_FEATURE)
+        wire_full = build_primitive_wire_vertices(primitives, wire_mode=WIRE_FULL)
+        self.assertGreater(len(wire_full), len(wire_feat))
+
+        # 4. Monochrome wireframe vertices
+        wire_mono = build_primitive_wire_vertices(
+            primitives, face_style=FACE_MONOCHROME, wire_mode=WIRE_FEATURE
+        )
+        self.assertAlmostEqual(wire_mono[3], _WIRE_GREY[0])
+        self.assertAlmostEqual(wire_mono[4], _WIRE_GREY[1])
+        self.assertAlmostEqual(wire_mono[5], _WIRE_GREY[2])
+
+        # 5. Annotation vertices (for line primitives and rings)
+        anno_col = build_primitive_annotation_vertices(primitives, face_style=FACE_COLORED)
+        self.assertEqual(len(anno_col), 12)  # 2 points * 6 floats for line segment
