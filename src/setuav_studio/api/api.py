@@ -97,6 +97,9 @@ class StudioAPI:
         self._event_subscribers: dict[str, list[Callable[[Any], None]]] = {}
         self._hooks = HookRegistry()
         self._tasks = TaskManager(self)
+        from setuav_studio.solver import SolverRunner
+
+        self._solver_runner = SolverRunner(self)
         self._undo_stack = QUndoStack()
         self._undo_stack.cleanChanged.connect(self._on_clean_changed)
         self._host = _StudioHost(self)
@@ -110,6 +113,11 @@ class StudioAPI:
     def tasks(self) -> TaskManager:
         """Central background task manager for asynchronous jobs."""
         return self._tasks
+
+    @property
+    def solvers(self) -> Any:
+        """Central solver runner and registry."""
+        return self._solver_runner
 
     @property
     def project(self) -> ProjectDocument | None:
@@ -506,6 +514,43 @@ class StudioAPI:
         from setuav_studio.project.evaluator import recompute_project_expressions
 
         return recompute_project_expressions(self.current_project, api=self)
+
+    def register_solver(self, solver_id: str, solver_cls: Any) -> None:
+        """Register a solver class by solver ID."""
+        self._solver_runner.register_solver(solver_id, solver_cls)
+
+    def run_solver(
+        self,
+        solver: Any,
+        on_complete: Callable[[Any], None] | None = None,
+        on_error: Callable[[Exception], None] | None = None,
+        priority: Any = None,
+    ) -> Any:
+        """Run a solver asynchronously in the background via TaskManager."""
+        from setuav_studio_sdk.tasks import TaskPriority
+
+        task_priority = priority if priority is not None else TaskPriority.NORMAL
+        return self._solver_runner.run_solver(
+            solver, on_complete=on_complete, on_error=on_error, priority=task_priority
+        )
+
+    def get_analysis_results(self) -> dict[str, Any]:
+        """Return the dictionary of analysis results in the current project."""
+        if self.current_project is None:
+            return {}
+        return self.current_project.analysis_results
+
+    def get_analysis_result(self, result_id: str) -> Any | None:
+        """Retrieve an analysis result by ID from the current project."""
+        if self.current_project is None:
+            return None
+        return self.current_project.get_analysis_result(result_id)
+
+    def remove_analysis_result(self, result_id: str) -> bool:
+        """Remove an analysis result by ID from the current project."""
+        if self.current_project is None:
+            return False
+        return self.current_project.remove_analysis_result(result_id)
 
     def _notify_project_content_changed(self) -> None:
         if self.current_project is None:
