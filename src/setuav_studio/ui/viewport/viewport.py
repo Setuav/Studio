@@ -10,8 +10,9 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from typing import Literal
+from typing import Any, Literal
 
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QGridLayout, QWidget
 
 from setuav_studio_sdk.primitives import (
@@ -46,12 +47,24 @@ class StudioViewport(QWidget):
     geometry layer.
     """
 
+    object_picked = Signal(str)
+    selection_changed = Signal(object)
+
     # ------------------------------------------------------------------
     # Construction
     # ------------------------------------------------------------------
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        api: Any | None = None,
+    ) -> None:
         super().__init__(parent)
+        self._api: Any | None = None
+
+        # Selection state
+        self._selected_object_id: str | None = None
+        self._selected_section: tuple[str, int, int] | None = None
 
         # Scene graph: object_id -> SceneObject
         self._objects: dict[str, SceneObject] = {}
@@ -69,8 +82,11 @@ class StudioViewport(QWidget):
         self.add_layer("default", name="Default")
         self.add_layer("geometry", name="Geometry")
 
+        if api is not None:
+            self.bind_api(api)
+
     # ------------------------------------------------------------------
-    # Renderer binding
+    # Renderer & API binding
     # ------------------------------------------------------------------
 
     def attach_renderer(self, renderer: QWidget) -> None:
@@ -81,10 +97,25 @@ class StudioViewport(QWidget):
         self._renderer = renderer
         self._grid_layout.addWidget(renderer, 0, 0)
 
+        # Connect renderer picking signal if present
+        comp_picked = getattr(renderer, "componentPicked", None)
+        if comp_picked is not None and hasattr(comp_picked, "connect"):
+            comp_picked.connect(self._on_renderer_component_picked)
+
     @property
     def renderer(self) -> QWidget | None:
         """Return the attached renderer widget, or *None*."""
         return self._renderer
+
+    def bind_api(self, api: Any) -> None:
+        """Bind StudioAPI to synchronize selections bi-directionally with the app."""
+        self._api = api
+        api._viewport = self
+        if hasattr(api, "on_selection_changed"):
+            api.on_selection_changed(self._on_api_selection_changed)
+        if hasattr(api, "on_section_selection_changed"):
+            api.on_section_selection_changed(self._on_api_section_selection_changed)
+        self.object_picked.connect(self._on_object_picked_to_api)
 
     # ------------------------------------------------------------------
     # Layer management
@@ -203,6 +234,45 @@ class StudioViewport(QWidget):
         if layer is None:
             return list(self._objects)
         return [oid for oid, obj in self._objects.items() if obj.layer == layer]
+
+    # ------------------------------------------------------------------
+    # Selection management
+    # ------------------------------------------------------------------
+
+    def set_selected(self, object_id: str | None) -> None:
+        """Set the active selected object ID and update viewport highlighting."""
+        if self._selected_object_id == object_id:
+            return
+        self._selected_object_id = object_id
+        if self._renderer is not None:
+            set_sel = getattr(self._renderer, "set_selected_component", None)
+            if callable(set_sel):
+                set_sel(object_id)
+        self.selection_changed.emit(object_id)
+
+    def selected_object_id(self) -> str | None:
+        """Return the currently selected object ID, or None."""
+        return self._selected_object_id
+
+    def set_selected_section(
+        self,
+        component_id: str | None,
+        segment_index: int | None = None,
+        section_index: int | None = None,
+    ) -> None:
+        """Set the selected section or station highlight."""
+        if component_id is not None and segment_index is not None and section_index is not None:
+            self._selected_section = (component_id, segment_index, section_index)
+        else:
+            self._selected_section = None
+        if self._renderer is not None:
+            set_sec = getattr(self._renderer, "set_selected_section", None)
+            if callable(set_sec):
+                set_sec(component_id, segment_index, section_index)
+
+    def selected_section(self) -> tuple[str, int, int] | None:
+        """Return the currently selected section tuple, or None."""
+        return self._selected_section
 
     # ------------------------------------------------------------------
     # Typed convenience helpers  (add_*)
@@ -484,3 +554,92 @@ class StudioViewport(QWidget):
         set_overlays = getattr(self._renderer, "set_overlays", None)
         if callable(set_overlays):
             set_overlays("_viewport_api", primitives)
+
+    # ------------------------------------------------------------------
+    # Selection event handlers
+    # ------------------------------------------------------------------
+
+    def _on_renderer_component_picked(self, component_id: Any) -> None:
+        """Handle pick event emitted by the low-level OpenGL widget."""
+        if not isinstance(component_id, str) or not component_id:
+            self.set_selected(None)
+            self.object_picked.emit("")
+            return
+        self.set_selected(component_id)
+        self.object_picked.emit(component_id)
+
+    def _on_api_selection_changed(self, selection: Any | None) -> None:
+        """Respond to selection events from StudioAPI (e.g. ProjectExplorer tree click)."""
+        if isinstance(selection, dict):
+            if selection.get("kind") == "envelope":
+                comp_id = selection.get("component_id")
+                envelope_id = comp_id if isinstance(comp_id, str) else None
+                component_id = None
+            else:
+                raw_id = selection.get("id")
+                component_id = str(raw_id) if raw_id is not None else None
+                envelope_id = None
+        elif isinstance(selection, str):
+            component_id = selection
+            envelope_id = None
+        else:
+            component_id = None
+            envelope_id = None
+
+        self.set_selected(component_id)
+        if self._renderer is not None:
+            set_env = getattr(self._renderer, "set_selected_envelope", None)
+            if callable(set_env):
+                set_env(envelope_id)
+
+    def _on_api_section_selection_changed(self, selection: tuple[str, int, int] | None) -> None:
+        """Respond to section selection events from StudioAPI."""
+        if selection is None:
+            self.set_selected_section(None)
+            return
+        comp_id, seg_idx, sec_idx = selection
+        self.set_selected_section(comp_id, seg_idx, sec_idx)
+
+    def _on_object_picked_to_api(self, object_id: str) -> None:
+        """Bridge a 3D click event to StudioAPI so the Tree and Properties panel update."""
+        if self._api is None or not hasattr(self._api, "set_selection"):
+            return
+        if not object_id:
+            self._api.set_selection(None)
+            return
+        project = getattr(self._api, "current_project", None)
+        if project is None or not hasattr(project, "data") or not isinstance(project.data, dict):
+            return
+        components = project.data.get("components", [])
+        raw_components = [c for c in components if isinstance(c, dict)]
+
+        # 1. Direct match with component ID
+        for component in raw_components:
+            if str(component.get("id") or "") == object_id:
+                self._api.set_selection(component)
+                return
+
+        # 2. Match control surface sub-tag or child component (e.g. "main-wing:control_1")
+        parts = object_id.split(":")
+        sub_tag = parts[-1]
+        base_id = parts[0]
+        for component in raw_components:
+            cid = str(component.get("id") or "")
+            raw_params = component.get("parameters")
+            params = raw_params if isinstance(raw_params, dict) else {}
+            raw_geom = params.get("geometry")
+            geom = raw_geom if isinstance(raw_geom, dict) else {}
+            tag = str(geom.get("tag") or component.get("name") or cid)
+            if (
+                cid in (sub_tag, f"{base_id}-{sub_tag}", f"{base_id}_{sub_tag}")
+                or tag == sub_tag
+                or sub_tag.endswith(cid)
+            ):
+                self._api.set_selection(component)
+                return
+
+        # 3. Match base component if mirrored or sub-tagged (e.g. "main-wing:mirror" -> "main-wing")
+        for component in raw_components:
+            if str(component.get("id") or "") == base_id:
+                self._api.set_selection(component)
+                return

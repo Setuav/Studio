@@ -2,6 +2,7 @@
 
 import unittest
 
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QApplication, QWidget
 
 from setuav_studio.api import StudioAPI
@@ -18,14 +19,36 @@ from setuav_studio_sdk.primitives import (
 
 
 class MockRenderer(QWidget):
-    """Mock OpenGL renderer to verify overlay synchronization."""
+    """Mock OpenGL renderer to verify overlay synchronization and selection."""
+
+    componentPicked = Signal(object)
 
     def __init__(self) -> None:
         super().__init__()
         self.overlays: dict[str, list] = {}
+        self.selected_component: str | None = None
+        self.selected_section: tuple[str, int, int] | None = None
+        self.selected_envelope: str | None = None
 
     def set_overlays(self, layer_id: str, primitives: list) -> None:
         self.overlays[layer_id] = list(primitives)
+
+    def set_selected_component(self, component_id: str | None) -> None:
+        self.selected_component = component_id
+
+    def set_selected_section(
+        self,
+        component_id: str | None,
+        segment_index: int | None = None,
+        section_index: int | None = None,
+    ) -> None:
+        if component_id is not None and segment_index is not None and section_index is not None:
+            self.selected_section = (component_id, segment_index, section_index)
+        else:
+            self.selected_section = None
+
+    def set_selected_envelope(self, component_id: str | None) -> None:
+        self.selected_envelope = component_id
 
 
 class TestStudioViewport(unittest.TestCase):
@@ -206,6 +229,76 @@ class TestStudioViewport(unittest.TestCase):
 
         # Remove non-existent layer returns False
         self.assertFalse(self.viewport.remove_layer("non_existent"))
+
+    def test_selection_direct_api(self) -> None:
+        changed_events: list[object] = []
+        self.viewport.selection_changed.connect(changed_events.append)
+
+        self.assertIsNone(self.viewport.selected_object_id())
+        self.viewport.set_selected("box-1")
+        self.assertEqual(self.viewport.selected_object_id(), "box-1")
+        self.assertEqual(self.mock_renderer.selected_component, "box-1")
+        self.assertEqual(changed_events, ["box-1"])
+
+        # Deselect
+        self.viewport.set_selected(None)
+        self.assertIsNone(self.viewport.selected_object_id())
+        self.assertIsNone(self.mock_renderer.selected_component)
+        self.assertEqual(changed_events, ["box-1", None])
+
+    def test_section_selection_direct_api(self) -> None:
+        self.assertIsNone(self.viewport.selected_section())
+        self.viewport.set_selected_section("main-wing", 0, 2)
+        self.assertEqual(self.viewport.selected_section(), ("main-wing", 0, 2))
+        self.assertEqual(self.mock_renderer.selected_section, ("main-wing", 0, 2))
+
+        self.viewport.set_selected_section(None)
+        self.assertIsNone(self.viewport.selected_section())
+        self.assertIsNone(self.mock_renderer.selected_section)
+
+    def test_renderer_pick_signal_forwards_to_viewport(self) -> None:
+        picked_events: list[str] = []
+        self.viewport.object_picked.connect(picked_events.append)
+
+        self.mock_renderer.componentPicked.emit("fuselage")
+        self.assertEqual(self.viewport.selected_object_id(), "fuselage")
+        self.assertEqual(picked_events, ["fuselage"])
+
+        # Emitting non-string or empty deselects
+        self.mock_renderer.componentPicked.emit(None)
+        self.assertIsNone(self.viewport.selected_object_id())
+        self.assertEqual(picked_events, ["fuselage", ""])
+
+    def test_bi_directional_sync_with_studio_api(self) -> None:
+        import tempfile
+        from pathlib import Path
+
+        from setuav_studio.project import create_project
+
+        api = StudioAPI()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proj_path = Path(tmpdir) / "test.suav"
+            project = create_project(proj_path)
+            project.data["components"] = [
+                {"id": "wing_1", "name": "Main Wing"},
+                {"id": "fuse_1", "name": "Fuselage"},
+            ]
+            api.current_project = project
+
+            viewport = StudioViewport(api=api)
+            self.assertIs(api.viewport, viewport)
+
+            # 1. API selection (e.g. Tree clicked) -> Viewport selects
+            api.set_selection({"id": "wing_1", "name": "Main Wing"})
+            self.assertEqual(viewport.selected_object_id(), "wing_1")
+
+            # 2. Viewport pick (e.g. 3D clicked) -> API selection updates
+            viewport.object_picked.emit("fuse_1")
+            self.assertEqual(api.current_selection, {"id": "fuse_1", "name": "Fuselage"})
+
+            # 3. Sub-part tag match (e.g. "wing_1:control_1") -> selects "wing_1"
+            viewport.object_picked.emit("wing_1:control_1")
+            self.assertEqual(api.current_selection, {"id": "wing_1", "name": "Main Wing"})
 
     def test_studio_api_viewport_property(self) -> None:
         api = StudioAPI()
