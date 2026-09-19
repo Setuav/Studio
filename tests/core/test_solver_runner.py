@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from PySide6.QtCore import QCoreApplication
+from PySide6.QtWidgets import QApplication
 
 from setuav_studio.api import StudioAPI
 from setuav_studio.project import create_project
@@ -41,7 +41,7 @@ class FailingSolver(AbstractSolver):
 class TestSolverRunner(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls._app = QCoreApplication.instance() or QCoreApplication([])
+        cls._app = QApplication.instance() or QApplication([])
 
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -69,12 +69,10 @@ class TestSolverRunner(unittest.TestCase):
         self.assertIsNotNone(handle)
 
         # Process Qt event loop until task finishes
-        start_time = QCoreApplication.processEvents
         for _ in range(50):
-            start_time()
+            QApplication.processEvents()
             if completed_results:
                 break
-            QCoreApplication.processEvents()
 
         self.assertEqual(len(completed_results), 1)
         res = completed_results[0]
@@ -99,7 +97,7 @@ class TestSolverRunner(unittest.TestCase):
         self.api.run_solver(solver, on_complete=_on_complete)
 
         for _ in range(50):
-            QCoreApplication.processEvents()
+            QApplication.processEvents()
             if completed_results:
                 break
 

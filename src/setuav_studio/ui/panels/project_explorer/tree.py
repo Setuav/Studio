@@ -277,6 +277,10 @@ class ProjectExplorer(QTreeWidget):
             self._api.set_selection(None)
             return
         element = self._element_map.get(current) if current else None
+        if isinstance(element, dict) and element.get("kind") == "analysis_config":
+            config_id = str(element.get("config_id") or element.get("id") or "")
+            if config_id:
+                self._api.set_current_analysis_config(config_id)
         self._api.set_selection(element)
 
     def _sync_selection(self, selection: object | None) -> None:

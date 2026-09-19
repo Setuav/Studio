@@ -96,6 +96,12 @@ class PropertiesPanel(QWidget):
             self._replace_widget(ConstraintPropertyEditor(self._api, selection))
             return
 
+        if kind == "analysis_config":
+            from setuav_studio.ui.editor import AnalysisConfigPropertyEditor
+
+            self._replace_widget(AnalysisConfigPropertyEditor(self._api, selection))
+            return
+
         editor = self._api.create_component_editor(live_selection)
         if editor is not None:
             self._replace_widget(editor)

@@ -49,6 +49,7 @@ class ProjectTreeBuilder:
             )
             self.create_parameters_group(project_item, project)
             self.create_constraints_group(project_item, project)
+            self.create_analysis_configs_group(project_item, project)
             for contribution in self._api.project_tree_nodes(project):
                 self.append_project_contribution(project_item, contribution)
             self._tree.expandAll()
@@ -203,6 +204,36 @@ class ProjectTreeBuilder:
             self._tree._element_map[item] = constraint_payload
             self._tree._item_map[cid] = item
             constraint_group.addChild(item)
+
+    def create_analysis_configs_group(
+        self,
+        project_item: QTreeWidgetItem,
+        project: ProjectDocument,
+    ) -> None:
+        configs = project.analysis_configs
+        if not configs:
+            return
+
+        analysis_group = QTreeWidgetItem(["Analyses"])
+        analysis_group.setIcon(0, get_icon("fa6s.gears"))
+        analysis_group.setToolTip(0, "Analysis Configurations")
+        project_item.addChild(analysis_group)
+
+        for cid, config in configs.items():
+            name = config.name or "New Analysis"
+            item = QTreeWidgetItem([name])
+            item.setIcon(0, get_icon("fa6s.play"))
+            item.setToolTip(0, f"Analysis: {name}\nSolver: {config.solver_id}")
+            payload = {
+                "kind": "analysis_config",
+                "id": cid,
+                "config_id": cid,
+                "solver_id": config.solver_id,
+                "name": name,
+            }
+            self._tree._element_map[item] = payload
+            self._tree._item_map[cid] = item
+            analysis_group.addChild(item)
 
     @staticmethod
     def component_assembly_map(

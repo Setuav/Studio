@@ -83,8 +83,50 @@ def _mass_tree_nodes(
     )
 
 
+def _on_run_analysis_triggered(api: StudioAPI) -> None:
+    """Trigger execution of the currently active analysis configuration."""
+    active_config = api.get_current_analysis_config()
+    if active_config is None:
+        all_configs = api.get_analysis_configs()
+        if all_configs:
+            active_config = next(iter(all_configs.values()))
+            api.set_current_analysis_config(active_config.config_id)
+
+    if active_config is None:
+        api.show_status("No analysis configuration available to run.", "warning")
+        return
+
+    solver_cls = api.solvers.get_solver_class(active_config.solver_id)
+    if solver_cls is None:
+        api.show_status(
+            f"No registered solver found for '{active_config.solver_id}'.",
+            "error",
+        )
+        return
+
+    try:
+        solver_config = active_config.to_solver_config()
+        solver = solver_cls(solver_config)
+        api.show_status(f"Starting analysis '{active_config.name}'...", "info")
+        api.run_solver(
+            solver,
+            on_complete=lambda res: api.show_status(
+                f"Analysis '{active_config.name}' completed ({res.execution_time_ms:.1f} ms).",
+                "success",
+            ),
+            on_error=lambda err: api.show_status(
+                f"Analysis '{active_config.name}' failed: {err}",
+                "error",
+            ),
+        )
+    except Exception as exc:
+        api.show_status(f"Failed to launch analysis: {exc}", "error")
+
+
 def register_native_contributions(api: StudioAPI) -> None:
     """Register built-in native panels, tree providers, and kind editors into the StudioAPI."""
+    from setuav_studio_sdk import ActionContribution, ToolbarContribution
+
     # 1. Native Panels
     api.add_panel(
         PanelContribution(
@@ -105,7 +147,29 @@ def register_native_contributions(api: StudioAPI) -> None:
         )
     )
 
-    # 2. Native Tree Providers
+    # 2. Native Actions & Toolbar Contributions
+    api.add_action(
+        ActionContribution(
+            menu="Analysis",
+            title="Run Analysis",
+            callback=lambda: _on_run_analysis_triggered(api),
+            shortcut="F5",
+            icon="fa6s.play",
+        )
+    )
+
+    api.add_toolbar_item(
+        ToolbarContribution(
+            id="org.setuav.studio.toolbar.run_analysis",
+            title="Run Analysis",
+            callback=lambda: _on_run_analysis_triggered(api),
+            icon="fa6s.play",
+            group="analysis",
+            order=10,
+        )
+    )
+
+    # 3. Native Tree Providers
     api.register_component_tree_provider(
         "org.setuav.studio.core.transform",
         _transform_tree_nodes,
@@ -115,7 +179,7 @@ def register_native_contributions(api: StudioAPI) -> None:
         _mass_tree_nodes,
     )
 
-    # 3. Native Kind Editors
+    # 4. Native Kind Editors
     api.register_kind_editor(
         "transform",
         lambda selection: TransformEditor(api, selection),
