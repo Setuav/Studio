@@ -241,11 +241,32 @@ class DebugPluginTests(unittest.TestCase):
 
         # Properties panel parameters table should contain ColorPickerWidget
         from setuav_studio.ui.widget.color_picker import ColorPickerWidget
+        from setuav_studio.ui.widget.table import ExpressionPropertyCell
 
         color_picker = props._current_widget.parameters_table.cellWidget(3, 1)
         self.assertIsInstance(color_picker, ColorPickerWidget)
         assert isinstance(color_picker, ColorPickerWidget)
-        self.assertEqual(color_picker.text(), "74, 144, 226")
+        self.assertEqual(color_picker.text(), "#4A90E2")
+        self.assertEqual(color_picker.line_edit.text(), "4A90E2")
+
+        # Edit length parameter via ExpressionPropertyCell and verify viewport sync
+        len_cell = props._current_widget.parameters_table.cellWidget(0, 1)
+        self.assertIsInstance(len_cell, ExpressionPropertyCell)
+        assert isinstance(len_cell, ExpressionPropertyCell)
+        len_cell.line_edit.setText("350.0")
+        len_cell._on_return_pressed()
+
+        box_obj = viewport.get_object("box-1")
+        self.assertIsNotNone(box_obj)
+        self.assertEqual(box_obj.primitives[0].size[0], 350.0)
+
+        # Edit color and verify viewport sync
+        from PySide6.QtGui import QColor
+
+        color_picker.set_color(QColor(255, 0, 0))
+        box_obj = viewport.get_object("box-1")
+        self.assertIsNotNone(box_obj)
+        self.assertEqual(box_obj.primitives[0].color, (1.0, 0.0, 0.0, 1.0))
 
         self.manager.deactivate("org.setuav.studio.debug")
         props.deleteLater()

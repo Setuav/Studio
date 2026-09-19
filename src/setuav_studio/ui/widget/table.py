@@ -121,7 +121,9 @@ def format_engineering_value(val: Any, decimals: int | None = 2) -> str:
     effective_decimals = 2 if decimals is None else decimals
     rounded = round(f_val, effective_decimals)
     if abs(rounded) < 1e-12:
-        return "0.0"
+        return "0" if effective_decimals == 0 else "0.0"
+    if effective_decimals == 0:
+        return str(int(rounded))
     if abs(rounded - int(rounded)) < 1e-9:
         return f"{rounded:.1f}"
     formatted = f"{rounded:.{effective_decimals}f}".rstrip("0")
@@ -715,20 +717,8 @@ class PropertyTableMixin:
             )
         return None
 
-    def bind_parametric_properties(
-        self,
-        table: QTableWidget,
-        target_data: dict[str, Any],
-        fields: Any,
-        *,
-        on_changed: Callable[[str, Any], None] | None = None,
-        api: Any | None = None,
-    ) -> None:
-        """Declaratively bind a schema of parameter fields to a property table.
-
-        Handles UI generation, two-way numeric and formula data binding,
-        units, and transparent '_expressions' persistence automatically.
-        """
+    @staticmethod
+    def _normalize_parameter_fields(fields: Any) -> list[Any]:
         from setuav_studio_sdk import ParameterField
 
         normalized: list[ParameterField] = []
@@ -779,77 +769,96 @@ class PropertyTableMixin:
                             readonly=item.get("readonly", False),
                         )
                     )
+        return normalized
 
+    def _bind_single_parametric_field(
+        self,
+        table: QTableWidget,
+        f: Any,
+        target_data: dict[str, Any],
+        on_changed: Callable[[str, Any], None] | None,
+        resolved_api: Any,
+    ) -> None:
+        def _update_field(k: str, new_v: Any) -> None:
+            target_data[k] = new_v
+            if on_changed:
+                on_changed(k, new_v)
+
+        val = target_data.get(f.key, f.default)
+        if (
+            getattr(f, "widget_type", None) == "color"
+            or getattr(f, "field_type", None) == "color"
+            or (f.key.lower().endswith("color") and not f.options)
+        ):
+            self._set_property_color(
+                table,
+                f.key,
+                val,
+                lambda new_v, k=f.key: _update_field(k, new_v),
+                label=f.label,
+            )
+        elif f.options:
+            self._set_property_combo(
+                table,
+                f.key,
+                str(val),
+                list(f.options),
+                lambda new_v, k=f.key: _update_field(k, new_v),
+            )
+        elif f.field_type is bool:
+            bool_opts = [("true", "True"), ("false", "False")]
+            self._set_property_combo(
+                table,
+                f.key,
+                "true" if val else "false",
+                bool_opts,
+                lambda new_v, k=f.key: _update_field(k, new_v == "true"),
+            )
+        elif f.field_type in (float, int):
+            min_v = f.min_value if f.min_value is not None else -1e6
+            max_v = f.max_value if f.max_value is not None else 1e6
+            step_v = f.step if f.step is not None else 1.0
+            dec = 0 if f.field_type is int else f.decimals
+            self._set_property_spinbox(
+                table,
+                f.key,
+                val,
+                min_val=min_v,
+                max_val=max_v,
+                step=step_v,
+                decimals=dec,
+                suffix=f.unit,
+                quantity=f.quantity,
+                unit=f.unit,
+                target_data=target_data,
+                on_changed=lambda new_v, k=f.key: _update_field(k, new_v),
+                api=resolved_api,
+                label=f.label,
+            )
+        else:
+            self._set_property_value(table, f.key, val, editable=not f.readonly)
+
+    def bind_parametric_properties(
+        self,
+        table: QTableWidget,
+        target_data: dict[str, Any],
+        fields: Any,
+        *,
+        on_changed: Callable[[str, Any], None] | None = None,
+        api: Any | None = None,
+    ) -> None:
+        """Declaratively bind a schema of parameter fields to a property table.
+
+        Handles UI generation, two-way numeric and formula data binding,
+        units, and transparent '_expressions' persistence automatically.
+        """
+        normalized = self._normalize_parameter_fields(fields)
         if table.rowCount() != len(normalized):
             self._configure_property_table(table, [(f.key, f.label) for f in normalized])
 
         resolved_api = api or getattr(self, "_api", None)
-
         for f in normalized:
-            val = target_data.get(f.key, f.default)
-            if (
-                getattr(f, "widget_type", None) == "color"
-                or getattr(f, "field_type", None) == "color"
-                or (f.key.lower().endswith("color") and not f.options)
-            ):
-                self._set_property_color(
-                    table,
-                    f.key,
-                    val,
-                    lambda new_v, k=f.key: (
-                        target_data.__setitem__(k, new_v),
-                        on_changed(k, new_v) if on_changed else None,
-                    ),
-                    label=f.label,
-                )
-            elif f.options:
-                self._set_property_combo(
-                    table,
-                    f.key,
-                    str(val),
-                    list(f.options),
-                    lambda new_v, k=f.key: (
-                        target_data.__setitem__(k, new_v),
-                        on_changed(k, new_v) if on_changed else None,
-                    ),
-                )
-            elif f.field_type is bool:
-                bool_opts = [("true", "True"), ("false", "False")]
-                self._set_property_combo(
-                    table,
-                    f.key,
-                    "true" if val else "false",
-                    bool_opts,
-                    lambda new_v, k=f.key: (
-                        target_data.__setitem__(k, new_v == "true"),
-                        on_changed(k, new_v == "true") if on_changed else None,
-                    ),
-                )
-            elif f.field_type in (float, int):
-                min_v = f.min_value if f.min_value is not None else -1e6
-                max_v = f.max_value if f.max_value is not None else 1e6
-                step_v = f.step if f.step is not None else 1.0
-                self._set_property_spinbox(
-                    table,
-                    f.key,
-                    val,
-                    min_val=min_v,
-                    max_val=max_v,
-                    step=step_v,
-                    decimals=f.decimals,
-                    suffix=f.unit,
-                    quantity=f.quantity,
-                    unit=f.unit,
-                    target_data=target_data,
-                    on_changed=lambda new_v, k=f.key: (
-                        target_data.__setitem__(k, new_v),
-                        on_changed(k, new_v) if on_changed else None,
-                    ),
-                    api=resolved_api,
-                    label=f.label,
-                )
-            else:
-                self._set_property_value(table, f.key, val, editable=not f.readonly)
+            self._bind_single_parametric_field(table, f, target_data, on_changed, resolved_api)
 
     def _set_property_expression(
         self,
@@ -927,11 +936,19 @@ class PropertyTableMixin:
         return cls._parse_number(txt)
 
     @staticmethod
-    def _parse_number(value: str) -> float | None:
+    def _parse_number(value: Any) -> float | None:
+        if isinstance(value, (int, float)):
+            return float(value)
+        if not isinstance(value, str):
+            try:
+                return float(value)
+            except (ValueError, TypeError):
+                return None
+        text = value.strip()
         try:
-            return float(value.strip())
+            return float(text)
         except ValueError:
-            tokens = value.strip().split()
+            tokens = text.split()
             if tokens:
                 try:
                     return float(tokens[0])

@@ -58,7 +58,16 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
             self._create_parameters_section()
 
         self._content_layout.addStretch()
+        self._committed_params: dict[str, Any] = dict(self._component.get("parameters", {}))
         self._load_component()
+        if self._api is not None:
+            self._api.on_project_content_changed(self._on_external_content_changed)
+
+    def closeEvent(self, event: Any) -> None:
+        if self._api is not None:
+            with contextlib.suppress(Exception):
+                self._api.remove_project_content_listener(self._on_external_content_changed)
+        super().closeEvent(event)
 
     def _create_section(
         self,
@@ -109,8 +118,6 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
                 ("name", "Name"),
                 ("type", "Type"),
                 ("mass", "Mass"),
-                ("manufacturer", "Manufacturer"),
-                ("model", "Model"),
             ]
         )
         self.general_table.cellChanged.connect(self._update_general)
@@ -151,107 +158,40 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
                 label="Mass",
                 unit="g",
             )
-            self._set_property_value(
-                self.general_table, "manufacturer", str(self._component.get("manufacturer") or "")
-            )
-            self._set_property_value(
-                self.general_table, "model", str(self._component.get("model") or "")
-            )
 
             # Load Parameters
-            if hasattr(self, "parameters_table"):
-                for field in self._fields:
-                    val = params.get(field.key, field.default)
-                    if (
-                        getattr(field, "widget_type", None) == "color"
-                        or getattr(field, "field_type", None) == "color"
-                        or (field.key.lower().endswith("color") and not field.options)
-                    ):
-                        self._set_property_color(
-                            self.parameters_table,
-                            field.key,
-                            str(val if val is not None else field.default),
-                            lambda new_val, k=field.key: self._on_color_changed(k, new_val),
-                            label=field.label,
-                        )
-                    elif field.options:
-                        formatted_options: list[tuple[str, str]] = []
-                        for opt in field.options:
-                            if isinstance(opt, tuple):
-                                formatted_options.append((opt[0], opt[1]))
-                            else:
-                                formatted_options.append((str(opt), str(opt)))
-                        self._set_property_combo(
-                            self.parameters_table,
-                            field.key,
-                            str(val),
-                            formatted_options,
-                            lambda new_val, k=field.key: self._on_combo_changed(k, new_val),
-                        )
-                    else:
-                        if isinstance(val, str) and val.strip().startswith("="):
-                            str_val = val.strip()
-                        elif field.field_type is float:
-                            str_val = (
-                                f"{float(val):.{field.decimals}f}" if val is not None else "0.0"
-                            )
-                        else:
-                            str_val = str(val if val is not None else "")
-                        self._set_property_expression(
-                            self.parameters_table,
-                            field.key,
-                            str_val,
-                            on_changed=lambda new_val, k=field.key: (
-                                self._on_expression_cell_changed(k, new_val)
-                            ),
-                            on_open_assistant=lambda curr_val, f=field: (
-                                self._open_field_expression_assistant(f, curr_val)
-                            ),
-                            decimals=field.decimals,
-                            unit=field.unit,
-                            label=field.label,
-                        )
+            if hasattr(self, "parameters_table") and self._fields:
+                self.bind_parametric_properties(
+                    self.parameters_table,
+                    params,
+                    self._fields,
+                    on_changed=self._on_param_changed,
+                    api=self._api,
+                )
+            self._committed_params = dict(self._component.get("parameters", {}))
         finally:
             self._loading = False
 
-    def _open_field_expression_assistant(self, field: ParameterField, current_val: str) -> None:
-        from PySide6.QtWidgets import QDialog
-
-        from setuav_studio.ui.dialog.expression_dialog import AdvancedExpressionDialog
-
-        dlg = AdvancedExpressionDialog(
-            self._api,
-            initial_expression=current_val,
-            title=f"Equation Assistant — {field.label}",
-            is_boolean_constraint=False,
-            parent=self,
-        )
-        if dlg.exec() == QDialog.DialogCode.Accepted:
-            new_expr = dlg.get_expression()
-            self._on_expression_cell_changed(field.key, new_expr)
-            self._load_component()
-
-    def _on_expression_cell_changed(self, key: str, val_text: str) -> None:
+    def _on_param_changed(self, key: str, value: Any) -> None:
         if self._loading:
             return
-        field = next((f for f in self._fields if f.key == key), None)
-        if field is None:
+
+        old_val = self._committed_params.get(key)
+        if old_val == value:
             return
 
-        if isinstance(val_text, str) and val_text.strip().startswith("="):
-            final_val: Any = val_text.strip()
-        elif field.field_type is int:
-            parsed_num = self._parse_number(val_text)
-            final_val = int(parsed_num) if parsed_num is not None else field.default
-        elif field.field_type is float:
-            parsed_num = self._parse_number(val_text)
-            final_val = float(parsed_num) if parsed_num is not None else field.default
+        # Restore component to previous value before edit_component starts,
+        # so edit_component correctly detects before != after and records undo.
+        p = self._component.setdefault("parameters", {})
+        if key in self._committed_params:
+            p[key] = old_val
         else:
-            final_val = val_text
+            p.pop(key, None)
 
         def apply_param() -> None:
-            p = self._component.setdefault("parameters", {})
-            p[key] = final_val
+            params = self._component.setdefault("parameters", {})
+            params[key] = value
+            self._committed_params[key] = value
 
         self._api.edit_component(
             self._component,
@@ -259,10 +199,20 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
             apply_param,
         )
 
-    def _on_mass_changed(self, val_text: str) -> None:
+    def _on_external_content_changed(self, project: Any = None) -> None:
         if self._loading:
             return
-        clean = val_text.strip()
+        curr_params = self._component.get("parameters", {})
+        if curr_params != self._committed_params:
+            self._load_component()
+
+    def _on_expression_cell_changed(self, key: str, val_text: Any) -> None:
+        self._on_param_changed(key, val_text)
+
+    def _on_mass_changed(self, val_text: Any) -> None:
+        if self._loading:
+            return
+        clean = val_text.strip() if isinstance(val_text, str) else str(val_text).strip()
         num_val: float | None = None
         if clean.startswith("=") or not clean.replace(".", "", 1).replace("-", "", 1).isdigit():
             self._component["mass_expression"] = clean
@@ -314,11 +264,6 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
                 self._component["mass"] = num
                 if "parameters" in self._component and "mass" in self._component["parameters"]:
                     self._component["parameters"]["mass"] = num
-            elif key in {"manufacturer", "model"}:
-                if val_text:
-                    self._component[key] = val_text
-                elif key in self._component:
-                    self._component.pop(key)
 
         self._api.edit_component(
             self._component,
@@ -330,64 +275,16 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
         if self._loading or column != 1:
             return
 
-        key = self._property_key(self.parameters_table, row)
         item = self.parameters_table.item(row, column)
+        if item is None or not item.text():
+            return
         cell_widget = self.parameters_table.cellWidget(row, column)
-        if item is not None and item.text():
-            val_text = item.text()
-            if isinstance(cell_widget, ExpressionPropertyCell):
-                cell_widget.setText(val_text)
+        if isinstance(cell_widget, ExpressionPropertyCell):
+            cell_widget.setValue(item.text())
+        elif cell_widget is not None:
+            set_text = getattr(cell_widget, "setText", None)
+            if callable(set_text):
+                set_text(item.text())
         else:
-            val_text = self._property_text(self.parameters_table, row)
-        field = next((f for f in self._fields if f.key == key), None)
-        if field is None:
-            return
-
-        if isinstance(val_text, str) and val_text.strip().startswith("="):
-            final_val: Any = val_text.strip()
-        elif field.field_type is int:
-            parsed_num = self._parse_number(val_text)
-            final_val = int(parsed_num) if parsed_num is not None else field.default
-        elif field.field_type is float:
-            parsed_num = self._parse_number(val_text)
-            final_val = float(parsed_num) if parsed_num is not None else field.default
-        else:
-            final_val = val_text
-
-        def apply_param() -> None:
-            p = self._component.setdefault("parameters", {})
-            p[key] = final_val
-
-        self._api.edit_component(
-            self._component,
-            f"Set {key} of {self._component.get('name', 'component')}",
-            apply_param,
-        )
-
-    def _on_combo_changed(self, key: str, value: str) -> None:
-        if self._loading:
-            return
-
-        def apply_param() -> None:
-            p = self._component.setdefault("parameters", {})
-            p[key] = value
-
-        self._api.edit_component(
-            self._component,
-            f"Set {key} of {self._component.get('name', 'component')}",
-            apply_param,
-        )
-
-    def _on_color_changed(self, key: str, value: str) -> None:
-        if self._loading:
-            return
-
-        def apply_param() -> None:
-            p = self._component.setdefault("parameters", {})
-            p[key] = value
-
-        self._api.edit_component(
-            self._component,
-            f"Set {key} of {self._component.get('name', 'component')}",
-            apply_param,
-        )
+            key = self._property_key(self.parameters_table, row)
+            self._on_param_changed(key, item.text())

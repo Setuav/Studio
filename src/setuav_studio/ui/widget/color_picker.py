@@ -7,11 +7,12 @@ import weakref
 from collections.abc import Callable
 from typing import Any
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor
+from PySide6.QtCore import QRegularExpression, Qt, Signal
+from PySide6.QtGui import QColor, QRegularExpressionValidator
 from PySide6.QtWidgets import (
     QColorDialog,
     QHBoxLayout,
+    QLabel,
     QPushButton,
     QSizePolicy,
     QWidget,
@@ -20,12 +21,64 @@ from PySide6.QtWidgets import (
 from setuav_studio.ui.widget.table import FocusAwareLineEdit
 
 
+def _parse_sequence(value: Any) -> QColor | None:
+    try:
+        vals = [float(v) for v in value[:4]]
+        if any(v > 1.0 for v in vals[:3]):
+            r = min(255, max(0, round(vals[0])))
+            g = min(255, max(0, round(vals[1])))
+            b = min(255, max(0, round(vals[2])))
+            a = min(255, max(0, round(vals[3]))) if len(vals) >= 4 else 255
+        else:
+            r = min(255, max(0, round(vals[0] * 255.0)))
+            g = min(255, max(0, round(vals[1] * 255.0)))
+            b = min(255, max(0, round(vals[2] * 255.0)))
+            a = min(255, max(0, round(vals[3] * 255.0))) if len(vals) >= 4 else 255
+        color = QColor(r, g, b, a)
+        return color if color.isValid() else None
+    except (ValueError, TypeError):
+        return None
+
+
+def _parse_string(text: str) -> QColor | None:
+    # Hex format with leading #
+    if text.startswith("#"):
+        color = QColor(text)
+        return color if color.isValid() else None
+
+    # Raw hex format without # (3, 6, or 8 characters)
+    if re.fullmatch(r"[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8}", text):
+        color = QColor(f"#{text}")
+        return color if color.isValid() else None
+
+    # rgb(...) or rgba(...) format
+    if text.lower().startswith("rgb"):
+        left_paren = text.find("(")
+        right_paren = text.rfind(")")
+        if left_paren != -1 and right_paren != -1:
+            text = text[left_paren + 1 : right_paren]
+
+    # Comma, semicolon, or whitespace separated numbers
+    clean = text.strip("()[]")
+    parts = [p.strip() for p in re.split(r"[,;\s]+", clean) if p.strip()]
+    if len(parts) >= 3:
+        try:
+            return _parse_sequence([float(p) for p in parts])
+        except ValueError:
+            pass
+
+    # Named color
+    color = QColor(text)
+    return color if color.isValid() else None
+
+
 def parse_color(value: Any) -> QColor | None:
     """Parse various color representations into a valid QColor.
 
     Supports:
     - QColor instances
-    - Hex strings: '#RRGGBB', '#RGB', '#RRGGBBAA'
+    - Hex strings with #: '#RRGGBB', '#RGB', '#RRGGBBAA'
+    - Hex strings without #: 'RRGGBB', 'RGB', 'RRGGBBAA'
     - CSS rgb/rgba: 'rgb(255, 128, 0)', 'rgba(255, 128, 0, 1.0)'
     - Comma/whitespace separated integers or floats: '255, 128, 0', '0.3, 0.6, 0.9'
     - Tuples/lists: (255, 128, 0), [0.3, 0.6, 0.9]
@@ -35,56 +88,12 @@ def parse_color(value: Any) -> QColor | None:
         return value if value.isValid() else None
 
     if isinstance(value, (tuple, list)) and len(value) >= 3:
-        try:
-            vals = [float(v) for v in value[:4]]
-            # Distinguish 0.0-1.0 floats from 0-255 integers
-            if any(v > 1.0 for v in vals[:3]):
-                r = min(255, max(0, round(vals[0])))
-                g = min(255, max(0, round(vals[1])))
-                b = min(255, max(0, round(vals[2])))
-                a = min(255, max(0, round(vals[3]))) if len(vals) >= 4 else 255
-            else:
-                r = min(255, max(0, round(vals[0] * 255.0)))
-                g = min(255, max(0, round(vals[1] * 255.0)))
-                b = min(255, max(0, round(vals[2] * 255.0)))
-                a = min(255, max(0, round(vals[3] * 255.0))) if len(vals) >= 4 else 255
-            color = QColor(r, g, b, a)
-            return color if color.isValid() else None
-        except (ValueError, TypeError):
-            return None
+        return _parse_sequence(value)
 
     if isinstance(value, str):
         text = value.strip()
-        if not text:
-            return None
-
-        # Hex format
-        if text.startswith("#"):
-            color = QColor(text)
-            if color.isValid():
-                return color
-
-        # rgb(...) or rgba(...) format
-        if text.lower().startswith("rgb"):
-            left_paren = text.find("(")
-            right_paren = text.rfind(")")
-            if left_paren != -1 and right_paren != -1:
-                text = text[left_paren + 1 : right_paren]
-
-        # Comma, semicolon, or whitespace separated numbers
-        clean = text.strip("()[]")
-        parts = [p.strip() for p in re.split(r"[,;\s]+", clean) if p.strip()]
-        if len(parts) >= 3:
-            try:
-                nums = [float(p) for p in parts]
-                return parse_color(nums)
-            except ValueError:
-                pass
-
-        # Named color
-        color = QColor(text)
-        if color.isValid():
-            return color
+        if text:
+            return _parse_string(text)
 
     return None
 
@@ -100,13 +109,13 @@ def color_to_hex_str(color: QColor) -> str:
 
 
 class ColorPickerWidget(QWidget):
-    """Compact property-editor color picker with preview swatch and RGB text editing."""
+    """Compact property-editor color picker with preview swatch and HEX code editing."""
 
     colorChanged = Signal(str)
 
     def __init__(
         self,
-        initial_color: Any = "74, 144, 226",
+        initial_color: Any = "#4A90E2",
         on_changed: Callable[[str], None] | None = None,
         label: str = "",
         parent: QWidget | None = None,
@@ -125,17 +134,29 @@ class ColorPickerWidget(QWidget):
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(4)
+        layout.setSpacing(3)
 
         self.swatch_button = QPushButton(self)
-        self.swatch_button.setFixedSize(24, 20)
+        self.swatch_button.setFixedSize(22, 18)
         self.swatch_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.swatch_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.swatch_button.clicked.connect(self._open_color_dialog)
         layout.addWidget(self.swatch_button)
 
+        self.prefix_label = QLabel("#", self)
+        self.prefix_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.prefix_label.setStyleSheet(
+            "color: #888888; font-weight: bold; font-family: monospace; font-size: 13px;"
+        )
+        layout.addWidget(self.prefix_label)
+
         self.line_edit = FocusAwareLineEdit(self)
-        self.line_edit.setPlaceholderText("R, G, B or #HEX")
+        self.line_edit.setPlaceholderText("4A90E2")
+        self.line_edit.setMaxLength(7)
+        validator = QRegularExpressionValidator(
+            QRegularExpression(r"#?[0-9A-Fa-f]{0,6}"), self.line_edit
+        )
+        self.line_edit.setValidator(validator)
         self.line_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.line_edit.returnPressed.connect(self._commit_text)
         self.line_edit.focused_out.connect(self._commit_text)
@@ -156,8 +177,8 @@ class ColorPickerWidget(QWidget):
 
     def _commit_text(self) -> None:
         """Parse the input in the line edit and update color state."""
-        text = self.line_edit.text().strip()
-        parsed = parse_color(text)
+        raw_text = self.line_edit.text().strip().lstrip("#")
+        parsed = parse_color(raw_text)
         if parsed is not None:
             self.set_color(parsed, notify=True)
         else:
@@ -165,8 +186,15 @@ class ColorPickerWidget(QWidget):
 
     def _on_text_edited(self, text: str) -> None:
         """Provide real-time visual feedback on the swatch while typing."""
-        parsed = parse_color(text)
-        if parsed is not None:
+        clean = text.lstrip("#").upper()[:6]
+        if clean != text:
+            cursor_pos = self.line_edit.cursorPosition()
+            self.line_edit.blockSignals(True)
+            self.line_edit.setText(clean)
+            self.line_edit.setCursorPosition(max(0, cursor_pos - (len(text) - len(clean))))
+            self.line_edit.blockSignals(False)
+        parsed = parse_color(clean)
+        if parsed is not None and len(clean) in (3, 6):
             self._apply_swatch_style(parsed)
 
     def _apply_swatch_style(self, color: QColor) -> None:
@@ -179,21 +207,22 @@ class ColorPickerWidget(QWidget):
 
     def _update_display(self, notify: bool = False) -> None:
         self._apply_swatch_style(self._current_color)
+        hex_full = color_to_hex_str(self._current_color)
+        hex_digits = hex_full.lstrip("#")
         rgb_text = color_to_rgb_str(self._current_color)
-        hex_text = color_to_hex_str(self._current_color)
-        tip = f"RGB: ({rgb_text}) | Hex: {hex_text}"
+        tip = f"Hex: {hex_full} | RGB: ({rgb_text})"
 
         self.swatch_button.setToolTip(f"Click to pick color\n{tip}")
         self.line_edit.blockSignals(True)
-        self.line_edit.setText(rgb_text)
+        self.line_edit.setText(hex_digits)
         self.line_edit.setToolTip(tip)
         self.line_edit.blockSignals(False)
 
         if notify:
-            self._notify_changed(rgb_text)
+            self._notify_changed(hex_full)
 
-    def _notify_changed(self, rgb_text: str) -> None:
-        self.colorChanged.emit(rgb_text)
+    def _notify_changed(self, hex_text: str) -> None:
+        self.colorChanged.emit(hex_text)
         if self._on_changed is not None:
             cb = (
                 self._on_changed()
@@ -201,7 +230,7 @@ class ColorPickerWidget(QWidget):
                 else self._on_changed
             )
             if cb is not None:
-                cb(rgb_text)
+                cb(hex_text)
 
     def set_color(self, color: Any, notify: bool = True) -> None:
         """Set the active color from a QColor, string, or sequence."""
@@ -229,13 +258,13 @@ class ColorPickerWidget(QWidget):
 
     # Standard property editor widget interfaces
     def text(self) -> str:
-        return self.rgb_text()
+        return self.hex_text()
 
     def setText(self, text: str) -> None:
         self.set_color(text, notify=False)
 
     def value(self) -> str:
-        return self.rgb_text()
+        return self.hex_text()
 
     def setValue(self, val: Any) -> None:
         self.set_color(val, notify=True)

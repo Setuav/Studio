@@ -34,7 +34,7 @@ class ColorPickerWidgetTests(unittest.TestCase):
         c1 = QColor(10, 20, 30)
         self.assertEqual(parse_color(c1), c1)
 
-        # Hex strings
+        # Hex strings with #
         c_hex = parse_color("#4A90E2")
         self.assertIsNotNone(c_hex)
         assert c_hex is not None
@@ -48,6 +48,14 @@ class ColorPickerWidgetTests(unittest.TestCase):
         self.assertEqual(c_short_hex.red(), 255)
         self.assertEqual(c_short_hex.green(), 0)
         self.assertEqual(c_short_hex.blue(), 0)
+
+        # Raw hex strings without #
+        c_raw_hex = parse_color("4A90E2")
+        self.assertIsNotNone(c_raw_hex)
+        assert c_raw_hex is not None
+        self.assertEqual(c_raw_hex.red(), 74)
+        self.assertEqual(c_raw_hex.green(), 144)
+        self.assertEqual(c_raw_hex.blue(), 226)
 
         # CSS rgb(...) string
         c_rgb = parse_color("rgb(100, 150, 200)")
@@ -91,42 +99,52 @@ class ColorPickerWidgetTests(unittest.TestCase):
             label="Surface Color",
         )
 
+        # Fixed '#' prefix label
+        self.assertEqual(picker.prefix_label.text(), "#")
+        # Line edit has 6 hex digits
+        self.assertEqual(picker.line_edit.text(), "4A90E2")
+
         self.assertEqual(picker.rgb_text(), "74, 144, 226")
         self.assertEqual(picker.hex_text(), "#4A90E2")
         self.assertEqual(picker.rgb_tuple(), (74, 144, 226))
-        self.assertEqual(picker.text(), "74, 144, 226")
-        self.assertEqual(picker.value(), "74, 144, 226")
+        self.assertEqual(picker.text(), "#4A90E2")
+        self.assertEqual(picker.value(), "#4A90E2")
         self.assertIn("74, 144, 226", picker.swatch_button.styleSheet())
 
         # Change color programmatically
-        picker.set_color("255, 0, 0")
-        self.assertEqual(picker.rgb_text(), "255, 0, 0")
+        picker.set_color("#FF0000")
+        self.assertEqual(picker.hex_text(), "#FF0000")
+        self.assertEqual(picker.text(), "#FF0000")
+        self.assertEqual(picker.line_edit.text(), "FF0000")
         self.assertEqual(picker.rgb_tuple(), (255, 0, 0))
-        self.assertEqual(changes, ["255, 0, 0"])
+        self.assertEqual(changes, ["#FF0000"])
 
     def test_color_picker_widget_text_editing(self) -> None:
         changes: list[str] = []
         picker = ColorPickerWidget(
-            initial_color="74, 144, 226",
+            initial_color="#4A90E2",
             on_changed=changes.append,
         )
 
-        # Simulate typing valid RGB string
-        picker.line_edit.setText("0, 128, 255")
+        # Simulate typing valid 6-char hex string without #
+        picker.line_edit.setText("0080FF")
         picker._commit_text()
-        self.assertEqual(picker.rgb_text(), "0, 128, 255")
-        self.assertEqual(changes[-1], "0, 128, 255")
+        self.assertEqual(picker.hex_text(), "#0080FF")
+        self.assertEqual(picker.text(), "#0080FF")
+        self.assertEqual(changes[-1], "#0080FF")
 
-        # Simulate typing hex string
+        # Simulate typing hex string with # (should be stripped)
         picker.line_edit.setText("#FF8000")
         picker._commit_text()
-        self.assertEqual(picker.rgb_text(), "255, 128, 0")
-        self.assertEqual(changes[-1], "255, 128, 0")
+        self.assertEqual(picker.hex_text(), "#FF8000")
+        self.assertEqual(picker.line_edit.text(), "FF8000")
+        self.assertEqual(changes[-1], "#FF8000")
 
         # Simulate typing invalid string -> reverts
         picker.line_edit.setText("invalid")
         picker._commit_text()
-        self.assertEqual(picker.rgb_text(), "255, 128, 0")
+        self.assertEqual(picker.hex_text(), "#FF8000")
+        self.assertEqual(picker.line_edit.text(), "FF8000")
 
     def test_property_table_integration(self) -> None:
         dummy = DummyTableWidget()
@@ -135,7 +153,7 @@ class ColorPickerWidgetTests(unittest.TestCase):
         dummy._set_property_color(
             dummy.table,
             "color",
-            "74, 144, 226",
+            "#4A90E2",
             on_changed=changes.append,
             label="Surface Color",
         )
@@ -144,26 +162,26 @@ class ColorPickerWidgetTests(unittest.TestCase):
         cell_widget = dummy.table.cellWidget(0, 1)
         self.assertIsInstance(cell_widget, ColorPickerWidget)
         assert isinstance(cell_widget, ColorPickerWidget)
-        self.assertEqual(cell_widget.text(), "74, 144, 226")
+        self.assertEqual(cell_widget.text(), "#4A90E2")
 
         # Verify PropertyTableMixin._property_text reads ColorPickerWidget
-        self.assertEqual(dummy._property_text(dummy.table, 0), "74, 144, 226")
-        self.assertEqual(dummy._property_value(dummy.table, "color"), "74, 144, 226")
+        self.assertEqual(dummy._property_text(dummy.table, 0), "#4A90E2")
+        self.assertEqual(dummy._property_value(dummy.table, "color"), "#4A90E2")
 
         # Update via widget
-        cell_widget.set_color("200, 100, 50")
-        self.assertEqual(changes, ["200, 100, 50"])
-        self.assertEqual(dummy._property_text(dummy.table, 0), "200, 100, 50")
+        cell_widget.set_color("#C86432")
+        self.assertEqual(changes, ["#C86432"])
+        self.assertEqual(dummy._property_text(dummy.table, 0), "#C86432")
 
     def test_bind_parametric_properties_with_color_field(self) -> None:
         table = QTableWidget()
-        target_data = {"color": "100, 200, 50", "length": 150.0}
+        target_data = {"color": "#64C832", "length": 150.0}
         fields = [
             ParameterField(
                 key="color",
                 label="Surface Color",
                 field_type=str,
-                default="74, 144, 226",
+                default="#4A90E2",
                 widget_type="color",
             ),
             ParameterField(key="length", label="Length", default=100.0),
@@ -182,12 +200,12 @@ class ColorPickerWidgetTests(unittest.TestCase):
         color_widget = table.cellWidget(0, 1)
         self.assertIsInstance(color_widget, ColorPickerWidget)
         assert isinstance(color_widget, ColorPickerWidget)
-        self.assertEqual(color_widget.text(), "100, 200, 50")
+        self.assertEqual(color_widget.text(), "#64C832")
 
         # Edit color
-        color_widget.set_color("10, 20, 30")
-        self.assertEqual(target_data["color"], "10, 20, 30")
-        self.assertEqual(on_changed_calls, [("color", "10, 20, 30")])
+        color_widget.set_color("#0A141E")
+        self.assertEqual(target_data["color"], "#0A141E")
+        self.assertEqual(on_changed_calls, [("color", "#0A141E")])
 
 
 if __name__ == "__main__":

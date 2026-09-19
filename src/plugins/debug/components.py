@@ -161,9 +161,9 @@ class BoxComponentEditor(BaseComponentEditor):
             key="color",
             label="Surface Color",
             field_type=str,
-            default="74, 144, 226",
+            default="#4A90E2",
             widget_type="color",
-            tooltip="Surface color in RGB (e.g. 74, 144, 226) or Hex",
+            tooltip="Surface color in Hex (e.g. #4A90E2)",
         ),
     )
 
@@ -205,11 +205,11 @@ class CylinderComponentEditor(BaseComponentEditor):
             field_type=str,
             default="Z",
             options=(("X", "X-Axis"), ("Y", "Y-Axis"), ("Z", "Z-Axis")),
-            tooltip="Longitudinal orientation axis",
+            tooltip="Longitudinal axis of the cylinder",
         ),
         ParameterField(
             key="segments",
-            label="Radial Segments",
+            label="Segments",
             field_type=int,
             default=32,
             min_value=3,
@@ -220,9 +220,9 @@ class CylinderComponentEditor(BaseComponentEditor):
             key="color",
             label="Surface Color",
             field_type=str,
-            default="230, 126, 34",
+            default="#E67E22",
             widget_type="color",
-            tooltip="Surface color in RGB (e.g. 230, 126, 34) or Hex",
+            tooltip="Surface color in Hex (e.g. #E67E22)",
         ),
     )
 
@@ -270,9 +270,9 @@ class RingComponentEditor(BaseComponentEditor):
             key="color",
             label="Ring Color",
             field_type=str,
-            default="241, 196, 15",
+            default="#F1C40F",
             widget_type="color",
-            tooltip="Ring color in RGB (e.g. 241, 196, 15) or Hex",
+            tooltip="Ring color in Hex (e.g. #F1C40F)",
         ),
     )
 
@@ -324,9 +324,9 @@ class PlaneComponentEditor(BaseComponentEditor):
             key="color",
             label="Surface Color",
             field_type=str,
-            default="46, 204, 113",
+            default="#2ECC71",
             widget_type="color",
-            tooltip="Surface color in RGB (e.g. 46, 204, 113) or Hex",
+            tooltip="Surface color in Hex (e.g. #2ECC71)",
         ),
     )
 
@@ -363,9 +363,9 @@ class LineComponentEditor(BaseComponentEditor):
             key="color",
             label="Line Color",
             field_type=str,
-            default="231, 76, 60",
+            default="#E74C3C",
             widget_type="color",
-            tooltip="Line color in RGB (e.g. 231, 76, 60) or Hex",
+            tooltip="Line color in Hex (e.g. #E74C3C)",
         ),
     )
 
@@ -405,9 +405,9 @@ class TriangleComponentEditor(BaseComponentEditor):
             key="color",
             label="Surface Color",
             field_type=str,
-            default="155, 89, 182",
+            default="#9B59B6",
             widget_type="color",
-            tooltip="Surface color in RGB (e.g. 155, 89, 182) or Hex",
+            tooltip="Surface color in Hex (e.g. #9B59B6)",
         ),
     )
 
@@ -456,14 +456,14 @@ class LoftComponentEditor(BaseComponentEditor):
         ),
         ParameterField(
             key="sweep",
-            label="Sweep Angle",
+            label="Leading-Edge Sweep",
             unit="°",
             field_type=float,
             default=5.0,
             min_value=-45.0,
             max_value=60.0,
             decimals=1,
-            tooltip="Sweep angle of the leading edge",
+            tooltip="Quarter-chord or LE sweep angle",
         ),
         ParameterField(
             key="dihedral",
@@ -480,9 +480,9 @@ class LoftComponentEditor(BaseComponentEditor):
             key="color",
             label="Surface Color",
             field_type=str,
-            default="52, 152, 219",
+            default="#3498DB",
             widget_type="color",
-            tooltip="Surface color in RGB (e.g. 52, 152, 219) or Hex",
+            tooltip="Surface color in Hex (e.g. #3498DB)",
         ),
     )
 
@@ -531,9 +531,9 @@ class PointComponentEditor(BaseComponentEditor):
             key="color",
             label="Point Color",
             field_type=str,
-            default="231, 76, 60",
+            default="#E74C3C",
             widget_type="color",
-            tooltip="Point color in RGB (e.g. 231, 76, 60) or Hex",
+            tooltip="Point color in Hex (e.g. #E74C3C)",
         ),
     )
 
@@ -575,9 +575,9 @@ class ArrowComponentEditor(BaseComponentEditor):
             key="color",
             label="Arrow Color",
             field_type=str,
-            default="26, 188, 156",
+            default="#1ABC9C",
             widget_type="color",
-            tooltip="Arrow color in RGB (e.g. 26, 188, 156) or Hex",
+            tooltip="Arrow color in Hex (e.g. #1ABC9C)",
         ),
     )
 
@@ -613,7 +613,7 @@ def create_box_component(comp_id: str, name: str) -> dict[str, Any]:
             "length": 200.0,
             "width": 150.0,
             "height": 100.0,
-            "color": "74, 144, 226",
+            "color": "#4A90E2",
         },
     }
 
@@ -640,7 +640,7 @@ def create_cylinder_component(comp_id: str, name: str) -> dict[str, Any]:
             "length": 200.0,
             "axis": "Z",
             "segments": 32,
-            "color": "230, 126, 34",
+            "color": "#E67E22",
         },
     }
 
@@ -666,7 +666,7 @@ def create_ring_component(comp_id: str, name: str) -> dict[str, Any]:
             "outer_radius": 125.0,
             "inner_radius": 25.0,
             "axis": "Z",
-            "color": "241, 196, 15",
+            "color": "#F1C40F",
         },
     }
 
@@ -692,7 +692,7 @@ def create_plane_component(comp_id: str, name: str) -> dict[str, Any]:
             "width": 200.0,
             "length": 200.0,
             "axis": "XY",
-            "color": "46, 204, 113",
+            "color": "#2ECC71",
         },
     }
 
@@ -717,7 +717,7 @@ def create_line_component(comp_id: str, name: str) -> dict[str, Any]:
         "parameters": {
             "length": 200.0,
             "axis": "X",
-            "color": "231, 76, 60",
+            "color": "#E74C3C",
         },
     }
 
@@ -742,7 +742,7 @@ def create_triangle_component(comp_id: str, name: str) -> dict[str, Any]:
         "parameters": {
             "base_width": 150.0,
             "height": 150.0,
-            "color": "155, 89, 182",
+            "color": "#9B59B6",
         },
     }
 
@@ -770,7 +770,7 @@ def create_loft_component(comp_id: str, name: str) -> dict[str, Any]:
             "tip_chord": 90.0,
             "sweep": 5.0,
             "dihedral": 2.0,
-            "color": "52, 152, 219",
+            "color": "#3498DB",
         },
     }
 
@@ -796,7 +796,7 @@ def create_point_component(comp_id: str, name: str) -> dict[str, Any]:
             "count": 100,
             "radius": 150.0,
             "point_size": 4.0,
-            "color": "231, 76, 60",
+            "color": "#E74C3C",
         },
     }
 
@@ -821,7 +821,7 @@ def create_arrow_component(comp_id: str, name: str) -> dict[str, Any]:
         "parameters": {
             "length": 150.0,
             "axis": "All",
-            "color": "26, 188, 156",
+            "color": "#1ABC9C",
         },
     }
 

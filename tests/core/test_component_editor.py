@@ -11,6 +11,7 @@ from setuav_studio.api import (
     StudioAPI,
 )
 from setuav_studio.project import ProjectDocument
+from setuav_studio.ui.widget.table import ExpressionPropertyCell
 from tests._common import get_qapp
 
 
@@ -55,10 +56,10 @@ class TestComponentEditor(unittest.TestCase):
         self.addCleanup(editor.deleteLater)
 
         # Check loaded values in general_table and parameters_table
+        self.assertEqual(editor.general_table.rowCount(), 3)
         self.assertEqual(editor._property_text(editor.general_table, 0), "Brushless Motor")
-        self.assertEqual(editor._property_text(editor.general_table, 3), "T-Motor")
         self.assertEqual(editor._property_text(editor.general_table, 2), "150.0")
-        self.assertEqual(editor._property_text(editor.parameters_table, 0), "400.00")
+        self.assertEqual(editor._property_numeric(editor.parameters_table, 0), 400.0)
 
         # Edit a field in general table (row 0 = name)
         editor.general_table.item(0, 1).setText("Updated Motor Name")
@@ -152,6 +153,44 @@ class TestComponentEditor(unittest.TestCase):
         # Panel must have refreshed and point to the live component
         self.assertIsNotNone(panel._current_widget)
         self.assertEqual(panel._current_widget._component["parameters"]["span"], 4.0)
+
+    def test_on_expression_cell_changed_with_float_and_spinbox_callback(self) -> None:
+        api = StudioAPI()
+        doc = ProjectDocument(
+            path=Path("/tmp/test.json"),
+            kind="json",
+            data={
+                "components": [
+                    {
+                        "id": "box-1",
+                        "type": "test:box",
+                        "name": "Box 1",
+                        "mass": 100.0,
+                        "parameters": {"length": 200.0},
+                    }
+                ]
+            },
+        )
+        api._host.set_project(doc)
+        comp = doc.data["components"][0]
+        fields = [ParameterField(key="length", label="Length", unit="mm", default=100.0)]
+        editor = BaseComponentEditor(api, comp, parameter_fields=fields)
+        self.addCleanup(editor.deleteLater)
+
+        # Passing float or int should not raise AttributeError
+        editor._on_expression_cell_changed("length", 250.0)
+        self.assertEqual(comp["parameters"]["length"], 250.0)
+
+        editor._on_mass_changed(120.0)
+        self.assertEqual(comp["mass"], 120.0)
+
+        # Test ExpressionPropertyCell callback commit
+        cell = editor.parameters_table.cellWidget(0, 1)
+        self.assertIsInstance(cell, ExpressionPropertyCell)
+        assert isinstance(cell, ExpressionPropertyCell)
+        cell.line_edit.setText("300.0")
+        cell._on_return_pressed()
+        self.assertEqual(comp["parameters"]["length"], 300.0)
 
 
 if __name__ == "__main__":
