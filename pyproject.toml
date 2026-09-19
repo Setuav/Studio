@@ -110,6 +110,7 @@ title = "Setuav Studio Coverage"
 extraPaths = ["packages/setuav-studio-sdk/src", "src"]
 include = [
     "packages/setuav-studio-sdk/src/setuav_studio_sdk",
+    "src/plugins/debug",
     "src/setuav_studio/ui/dialog/about.py",
     "src/setuav_studio/ui/dialog/plugin_manager.py",
     "src/plugins/aerodynamics/engine/base.py",

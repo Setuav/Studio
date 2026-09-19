@@ -97,7 +97,13 @@ class PluginTests(unittest.TestCase):
 
         self.assertEqual(
             [panel.id for panel in self.panels],
-            ["core:project-explorer", "studio.viewer.opengl", "core:properties"],
+            [
+                "core:project-explorer",
+                "studio.viewer.opengl",
+                "core:properties",
+                "core:analysis-chart",
+                "core:analysis-table",
+            ],
         )
 
     def test_core_plugin_contributes_transform_tree_node_and_editor(self) -> None:
