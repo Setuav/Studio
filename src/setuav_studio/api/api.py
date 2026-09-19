@@ -515,11 +515,21 @@ class StudioAPI:
             return None
         return self.current_project.get_analysis_result(result_id)
 
+    def add_analysis_result(self, result: Any) -> None:
+        """Add or update an analysis result in the current project."""
+        if self.current_project is None:
+            return
+        self.current_project.add_analysis_result(result)
+        self._notify_project_content_changed()
+
     def remove_analysis_result(self, result_id: str) -> bool:
         """Remove an analysis result by ID from the current project."""
         if self.current_project is None:
             return False
-        return self.current_project.remove_analysis_result(result_id)
+        removed = self.current_project.remove_analysis_result(result_id)
+        if removed:
+            self._notify_project_content_changed()
+        return removed
 
     def on_analysis_config_selection_changed(self, listener: Callable[[Any | None], None]) -> None:
         """Subscribe to active analysis configuration selection changes."""

@@ -264,8 +264,6 @@ class ProjectExplorerOperations:
         elif kind == "constraint":
             self.delete_constraint_item(element)
         elif kind == "analysis_config":
-            if str(element.get("id") or "").endswith(":config"):
-                return
             self.delete_analysis_config_item(element)
         elif kind in ("analysis_table", "analysis_plot"):
             return
@@ -405,9 +403,6 @@ class ProjectExplorerOperations:
         self._api.show_status(f"Deleted analysis '{name}'", "info", 3000)
 
     def rename_analysis_config_item(self, item: QTreeWidgetItem, element: dict[str, Any]) -> None:
-        if str(element.get("id") or "").endswith(":config"):
-            self.restore_item_text(item, "Configuration")
-            return
         config_id = str(element.get("config_id") or element.get("id") or "")
         old_name = str(element.get("name") or "Analysis").strip()
         new_name = item.text(0).strip()

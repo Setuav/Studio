@@ -83,8 +83,7 @@ class SolverRunner:
         name = f"Solver: {solver.config.name}"
 
         def _on_finished(result: AnalysisResult) -> None:
-            if self._api.current_project is not None:
-                self._api.current_project.add_analysis_result(result)
+            self._api.add_analysis_result(result)
             if on_complete:
                 on_complete(result)
 

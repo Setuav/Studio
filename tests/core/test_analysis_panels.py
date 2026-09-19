@@ -177,15 +177,13 @@ class TestAnalysisPanels(unittest.TestCase):
         self.assertIn(table_elem_id, tree._item_map)
         self.assertIn(plot_elem_id, tree._item_map)
 
-        # Verify Configuration node exists under analysis run
-        cfg_elem_id = f"{self.result.id}:config"
-        self.assertIn(cfg_elem_id, tree._item_map)
-        cfg_item = tree._item_map[cfg_elem_id]
-        tree.setCurrentItem(cfg_item)
+        # Verify analysis item itself is the config
+        analysis_item = tree._item_map[self.config.config_id]
+        tree.setCurrentItem(analysis_item)
         self.assertEqual(self.api.current_selection.get("kind"), "analysis_config")
-        self.assertEqual(self.api.current_selection.get("result_id"), self.result.id)
+        self.assertEqual(self.api.current_selection.get("config_id"), self.config.config_id)
 
-        # Editor with this selection loads the run's snapshot configuration
+        # Editor with this selection loads the configuration and results
         cfg_editor = AnalysisConfigPropertyEditor(self.api, self.api.current_selection)
         self.assertEqual(
             cfg_editor._property_text(cfg_editor.general_table, 0),
@@ -228,14 +226,6 @@ class TestAnalysisPanels(unittest.TestCase):
         ops.rename_item(refreshed_item, 0)
         self.assertEqual(refreshed_item.text(0), "Renamed Polar Run")
 
-        # Subconfig item cannot be renamed
-        cfg_item = tree._item_map[f"{self.result.id}:config"]
-        tree.blockSignals(True)
-        cfg_item.setText(0, "Custom Subconfig Name")
-        tree.blockSignals(False)
-        ops.rename_item(cfg_item, 0)
-        self.assertEqual(cfg_item.text(0), "Configuration")
-
     def test_analysis_config_delete_cascades_results(self) -> None:
         panel = ProjectExplorerPanel(self.api)
         tree = panel.explorer
@@ -247,11 +237,6 @@ class TestAnalysisPanels(unittest.TestCase):
         # Ensure config and result exist before delete
         self.assertIn(self.config.config_id, self.api.get_analysis_configs())
         self.assertIn(self.result.id, self.api.get_analysis_results())
-
-        # Attempt to delete the subconfig item - should be ignored
-        cfg_item = tree._item_map[f"{self.result.id}:config"]
-        ops.delete_item(cfg_item)
-        self.assertIn(self.config.config_id, self.api.get_analysis_configs())
 
         # Delete the main analysis config item
         analysis_item = tree._item_map[self.config.config_id]

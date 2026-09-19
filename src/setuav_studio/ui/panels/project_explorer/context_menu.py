@@ -181,16 +181,6 @@ class ProjectExplorerContextMenu:
     ) -> None:
         menu = QMenu(self._tree)
         config_id = str(element.get("config_id") or element.get("id") or "")
-        is_subconfig = str(element.get("id") or "").endswith(":config")
-
-        if is_subconfig:
-            show_props_act = menu.addAction(get_icon("fa6s.sliders"), "Show Parameters")
-            chosen = menu.exec(self._tree.viewport().mapToGlobal(position))
-            if chosen is show_props_act:
-                self._api.set_current_analysis_config(config_id)
-                self._api.set_selection(element)
-                self._api.show_panel("core:properties")
-            return
 
         run_act = menu.addAction(get_icon("fa6s.play"), "Run Analysis")
         menu.addSeparator()

@@ -285,6 +285,8 @@ class ProjectExplorer(QTreeWidget):
                 config_id = str(element.get("config_id") or element.get("id") or "")
                 if config_id:
                     self._api.set_current_analysis_config(config_id)
+            elif kind == "analysis_result":
+                self._api.show_panel("core:properties")
             elif kind == "analysis_table":
                 self._api.show_panel("core:analysis-table")
             elif kind == "analysis_plot":

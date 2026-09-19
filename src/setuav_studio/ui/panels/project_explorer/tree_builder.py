@@ -224,24 +224,14 @@ class ProjectTreeBuilder:
         for cid, config in configs.items():
             name = config.name or "New Analysis"
             item = QTreeWidgetItem([name])
-            item.setIcon(0, get_icon("fa6s.play"))
+            item.setIcon(0, get_icon("fa6s.chart-line"))
             item.setToolTip(0, f"Analysis: {name}\nSolver: {config.solver_id}")
             if not project.read_only:
                 item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
             else:
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-            payload = {
-                "kind": "analysis_config",
-                "id": cid,
-                "config_id": cid,
-                "solver_id": config.solver_id,
-                "name": name,
-            }
-            self._tree._element_map[item] = payload
-            self._tree._item_map[cid] = item
-            analysis_group.addChild(item)
 
-            # Populate tables and plots if an AnalysisResult exists for this config
+            # Check if an AnalysisResult exists for this config
             matching_results = [
                 r
                 for r in project.analysis_results.values()
@@ -252,27 +242,20 @@ class ProjectTreeBuilder:
             ]
             res = matching_results[-1] if matching_results else None
 
-            # 0. Configuration Node (Holds the input parameters & options under this run)
-            cfg_item = QTreeWidgetItem(["Configuration"])
-            cfg_item.setIcon(0, get_icon("fa6s.sliders"))
-            cfg_item.setToolTip(0, f"Configuration & Parameters for {name}")
-            cfg_id = f"{res.id}:config" if res else f"{cid}:config"
-            cfg_payload = {
+            payload = {
                 "kind": "analysis_config",
-                "id": cfg_id,
+                "id": cid,
                 "config_id": cid,
                 "solver_id": config.solver_id,
                 "result_id": res.id if res else None,
-                "name": f"{name} Configuration",
+                "name": name,
             }
-            self._tree._element_map[cfg_item] = cfg_payload
-            self._tree._item_map[cfg_id] = cfg_item
-            item.addChild(cfg_item)
+            self._tree._element_map[item] = payload
+            self._tree._item_map[cid] = item
+            analysis_group.addChild(item)
 
             if res is not None:
-                item.setIcon(0, get_icon("fa6s.circle-check"))
-
-                # 1. Tables Group
+                # Tables Group directly under Analysis Config
                 if res.tables:
                     tables_group = QTreeWidgetItem(["Tables"])
                     tables_group.setIcon(0, get_icon("fa6s.table"))
@@ -293,7 +276,7 @@ class ProjectTreeBuilder:
                         self._tree._item_map[t_payload["id"]] = t_item
                         tables_group.addChild(t_item)
 
-                # 2. Plots Group
+                # Plots Group directly under Analysis Config
                 if res.plots:
                     plots_group = QTreeWidgetItem(["Plots"])
                     plots_group.setIcon(0, get_icon("fa6s.chart-line"))

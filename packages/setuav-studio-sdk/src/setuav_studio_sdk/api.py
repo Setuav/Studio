@@ -439,6 +439,10 @@ class StudioAPI(Protocol):
         """Retrieve an analysis result by ID from the current project."""
         ...
 
+    def add_analysis_result(self, result: Any) -> None:
+        """Add or update an analysis result in the current project."""
+        ...
+
     def remove_analysis_result(self, result_id: str) -> bool:
         """Remove an analysis result by ID from the current project."""
         ...
