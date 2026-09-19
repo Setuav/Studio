@@ -55,6 +55,7 @@ class StudioAPI:
         self.current_project: ProjectDocument | None = None
         self.current_selection: Any | None = None
         self.current_section_selection: tuple[str, int, int] | None = None
+        self.current_analysis_config_id: str | None = None
         self.current_workspace_id: str | None = None
         self._add_panel: Callable[[PanelContribution], None] | None = None
         self._remove_panel: Callable[[str], None] | None = None
@@ -79,6 +80,7 @@ class StudioAPI:
         self._workspace_listeners: list[Callable[[str], None]] = []
         self._selection_listeners: list[Callable[[Any | None], None]] = []
         self._section_selection_listeners: list[Callable[[tuple[str, int, int] | None], None]] = []
+        self._analysis_config_selection_listeners: list[Callable[[Any | None], None]] = []
         self._is_recomputing_expressions: bool = False
         self._component_editors: dict[
             str,
@@ -551,6 +553,56 @@ class StudioAPI:
         if self.current_project is None:
             return False
         return self.current_project.remove_analysis_result(result_id)
+
+    def on_analysis_config_selection_changed(self, listener: Callable[[Any | None], None]) -> None:
+        """Subscribe to active analysis configuration selection changes."""
+        if listener not in self._analysis_config_selection_listeners:
+            self._analysis_config_selection_listeners.append(listener)
+
+    def set_current_analysis_config(self, config_id: str | None) -> None:
+        """Set the active analysis config selection by ID and notify listeners."""
+        self.current_analysis_config_id = config_id
+        active_config = self.get_current_analysis_config()
+        dead_listeners = []
+        for listener in list(self._analysis_config_selection_listeners):
+            try:
+                listener(active_config)
+            except RuntimeError:
+                dead_listeners.append(listener)
+        for dead in dead_listeners:
+            if dead in self._analysis_config_selection_listeners:
+                self._analysis_config_selection_listeners.remove(dead)
+
+    def get_current_analysis_config(self) -> Any | None:
+        """Return the currently selected AnalysisConfig, or None."""
+        if self.current_project is None or self.current_analysis_config_id is None:
+            return None
+        return self.current_project.get_analysis_config(self.current_analysis_config_id)
+
+    def get_analysis_configs(self) -> dict[str, Any]:
+        """Return all AnalysisConfig objects stored in the current project."""
+        if self.current_project is None:
+            return {}
+        return self.current_project.analysis_configs
+
+    def add_analysis_config(self, config: Any) -> None:
+        """Add an AnalysisConfig to the current project and set it as active."""
+        if self.current_project is None:
+            return
+        self.current_project.add_analysis_config(config)
+        self.set_current_analysis_config(config.config_id)
+        self._notify_project_content_changed()
+
+    def remove_analysis_config(self, config_id: str) -> bool:
+        """Remove an AnalysisConfig by ID from the current project."""
+        if self.current_project is None:
+            return False
+        removed = self.current_project.remove_analysis_config(config_id)
+        if removed:
+            if self.current_analysis_config_id == config_id:
+                self.set_current_analysis_config(None)
+            self._notify_project_content_changed()
+        return removed
 
     def _notify_project_content_changed(self) -> None:
         if self.current_project is None:

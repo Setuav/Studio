@@ -119,6 +119,52 @@ class ProjectDocument:
             self.modified = True
 
     @property
+    def analysis_configs(self) -> dict[str, Any]:
+        """Return the dictionary of AnalysisConfig objects stored in the project data."""
+        from setuav_studio.model.analysis_config import AnalysisConfig
+
+        raw_configs = self.data.get("analysis_configs")
+        if not isinstance(raw_configs, dict):
+            return {}
+
+        configs: dict[str, Any] = {}
+        for cfg_id, cfg_data in raw_configs.items():
+            if isinstance(cfg_data, dict):
+                try:
+                    configs[str(cfg_id)] = AnalysisConfig.from_dict(cfg_data)
+                except Exception as exc:
+                    logger.warning("Could not deserialize AnalysisConfig %s: %s", cfg_id, exc)
+        return configs
+
+    def add_analysis_config(self, config: Any) -> None:
+        """Add or update an AnalysisConfig in the project data."""
+        if "analysis_configs" not in self.data or not isinstance(
+            self.data["analysis_configs"], dict
+        ):
+            self.data["analysis_configs"] = {}
+        self.data["analysis_configs"][config.config_id] = config.to_dict()
+        self.modified = True
+
+    def get_analysis_config(self, config_id: str) -> Any | None:
+        """Retrieve a specific AnalysisConfig by ID."""
+        return self.analysis_configs.get(config_id)
+
+    def remove_analysis_config(self, config_id: str) -> bool:
+        """Remove an AnalysisConfig by ID if present."""
+        raw_configs = self.data.get("analysis_configs")
+        if isinstance(raw_configs, dict) and config_id in raw_configs:
+            del raw_configs[config_id]
+            self.modified = True
+            return True
+        return False
+
+    def clear_analysis_configs(self) -> None:
+        """Clear all analysis configs from the project data."""
+        if "analysis_configs" in self.data:
+            self.data["analysis_configs"] = {}
+            self.modified = True
+
+    @property
     def vehicle(self) -> Any:
         """Return the typed domain Vehicle model constructed from project data."""
         from setuav_studio.model.vehicle import Vehicle
