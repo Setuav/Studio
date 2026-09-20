@@ -177,33 +177,17 @@ class ProjectTreeBuilder:
         self._tree._constraints_group_item = constraint_group
         project_item.addChild(constraint_group)
 
-        from setuav_studio.model.constraint import ConstraintChecker
-
-        checker = ConstraintChecker()
-
         for c in valid_constraints:
             cid = c.get("id", "")
             name = c.get("name", cid)
-            enabled = c.get("enabled", True)
             expr = c.get("expression", "")
 
-            res = checker.check_constraint(c, project.data)
-            if not enabled:
-                status_icon_name = "fa6s.circle"
-                status_tip = "Disabled"
-            elif res.error:
-                status_icon_name = "error"
-                status_tip = f"Error: {res.error}"
-            elif res.passed:
-                status_icon_name = "success"
-                status_tip = "Passed"
-            else:
-                status_icon_name = "warning"
-                status_tip = f"Violated: {res.message or expr}"
-
             item = QTreeWidgetItem([name])
-            item.setIcon(0, get_icon(status_icon_name))
-            item.setToolTip(0, f"Constraint: {name}\nExpression: {expr}\nStatus: {status_tip}")
+            item.setIcon(0, get_icon("constraint"))
+            item.setToolTip(
+                0,
+                f"Constraint: {name}\nExpression: {expr}" if expr else f"Constraint: {name}",
+            )
             constraint_payload = {"kind": "constraint", "id": cid, **c}
             self._tree._element_map[item] = constraint_payload
             self._tree._item_map[cid] = item
