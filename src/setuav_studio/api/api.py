@@ -30,6 +30,8 @@ from .contributions import (
 from .events import StudioEvents
 
 if TYPE_CHECKING:
+    from setuav_studio.model.analysis_config import AnalysisConfig
+    from setuav_studio.solver.results import AnalysisResult
     from setuav_studio.task.manager import TaskManager
     from setuav_studio.ui.viewport import StudioViewport
     from setuav_studio.units import UnitManager
@@ -106,7 +108,9 @@ class StudioAPI:
         self._modified_listeners: list[Callable[[bool], None]] = []
         self._selection_listeners: list[Callable[[Any | None], None]] = []
         self._section_selection_listeners: list[Callable[[tuple[str, int, int] | None], None]] = []
-        self._analysis_config_selection_listeners: list[Callable[[Any | None], None]] = []
+        self._analysis_config_selection_listeners: list[
+            Callable[[AnalysisConfig | None], None]
+        ] = []
         self._is_recomputing_expressions: bool = False
         self._component_editors: dict[
             str,
@@ -569,19 +573,19 @@ class StudioAPI:
             solver, on_complete=on_complete, on_error=on_error, priority=task_priority
         )
 
-    def get_analysis_results(self) -> dict[str, Any]:
+    def get_analysis_results(self) -> dict[str, AnalysisResult]:
         """Return the dictionary of analysis results in the current project."""
         if self.current_project is None:
             return {}
         return self.current_project.analysis_results
 
-    def get_analysis_result(self, result_id: str) -> Any | None:
+    def get_analysis_result(self, result_id: str) -> AnalysisResult | None:
         """Retrieve an analysis result by ID from the current project."""
         if self.current_project is None:
             return None
         return self.current_project.get_analysis_result(result_id)
 
-    def add_analysis_result(self, result: Any) -> None:
+    def add_analysis_result(self, result: AnalysisResult) -> None:
         """Add or update an analysis result in the current project."""
         if self.current_project is None:
             return
@@ -598,7 +602,7 @@ class StudioAPI:
         return removed
 
     def on_analysis_config_selection_changed(
-        self, listener: Callable[[Any | None], None]
+        self, listener: Callable[[AnalysisConfig | None], None]
     ) -> UnsubscribeCallable:
         """Subscribe to active analysis configuration selection changes.
 
@@ -613,7 +617,7 @@ class StudioAPI:
 
     def remove_analysis_config_selection_listener(
         self,
-        listener: Callable[[Any | None], None],
+        listener: Callable[[AnalysisConfig | None], None],
     ) -> None:
         """Unsubscribe an analysis configuration selection listener."""
         if listener in self._analysis_config_selection_listeners:
@@ -625,25 +629,25 @@ class StudioAPI:
         active_config = self.get_current_analysis_config()
         _dispatch_listeners(self._analysis_config_selection_listeners, active_config)
 
-    def get_current_analysis_config(self) -> Any | None:
+    def get_current_analysis_config(self) -> AnalysisConfig | None:
         """Return the currently selected AnalysisConfig, or None."""
         if self.current_project is None or self.current_analysis_config_id is None:
             return None
         return self.current_project.get_analysis_config(self.current_analysis_config_id)
 
-    def get_analysis_configs(self) -> dict[str, Any]:
+    def get_analysis_configs(self) -> dict[str, AnalysisConfig]:
         """Return all AnalysisConfig objects stored in the current project."""
         if self.current_project is None:
             return {}
         return self.current_project.analysis_configs
 
-    def get_analysis_config(self, config_id: str) -> Any | None:
+    def get_analysis_config(self, config_id: str) -> AnalysisConfig | None:
         """Retrieve an AnalysisConfig by ID from the current project."""
         if self.current_project is None:
             return None
         return self.current_project.get_analysis_config(config_id)
 
-    def add_analysis_config(self, config: Any) -> None:
+    def add_analysis_config(self, config: AnalysisConfig) -> None:
         """Add an AnalysisConfig to the current project and set it as active."""
         if self.current_project is None:
             return

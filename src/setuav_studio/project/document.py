@@ -1,11 +1,17 @@
+from __future__ import annotations
+
 import json
 import logging
 import os
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 from zipfile import ZIP_DEFLATED, BadZipFile, ZipFile
+
+if TYPE_CHECKING:
+    from setuav_studio.model.analysis_config import AnalysisConfig
+    from setuav_studio.solver.results import AnalysisResult
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +85,7 @@ class ProjectDocument:
     remove_extension_data = remove_plugin_data
 
     @property
-    def analysis_results(self) -> dict[str, Any]:
+    def analysis_results(self) -> dict[str, AnalysisResult]:
         """Return the dictionary of AnalysisResult objects stored in the project data."""
         from setuav_studio.solver.results import AnalysisResult
 
@@ -87,7 +93,7 @@ class ProjectDocument:
         if not isinstance(raw_results, dict):
             return {}
 
-        results: dict[str, Any] = {}
+        results: dict[str, AnalysisResult] = {}
         for res_id, res_data in raw_results.items():
             if isinstance(res_data, dict):
                 try:
@@ -96,7 +102,7 @@ class ProjectDocument:
                     logger.warning("Could not deserialize AnalysisResult %s: %s", res_id, exc)
         return results
 
-    def add_analysis_result(self, result: Any) -> None:
+    def add_analysis_result(self, result: AnalysisResult) -> None:
         """Add or update an AnalysisResult in the project data."""
         if "analysis_results" not in self.data or not isinstance(
             self.data["analysis_results"], dict
@@ -105,7 +111,7 @@ class ProjectDocument:
         self.data["analysis_results"][result.id] = result.to_dict()
         self.modified = True
 
-    def get_analysis_result(self, result_id: str) -> Any | None:
+    def get_analysis_result(self, result_id: str) -> AnalysisResult | None:
         """Retrieve a specific AnalysisResult by ID."""
         return self.analysis_results.get(result_id)
 
@@ -125,7 +131,7 @@ class ProjectDocument:
             self.modified = True
 
     @property
-    def analysis_configs(self) -> dict[str, Any]:
+    def analysis_configs(self) -> dict[str, AnalysisConfig]:
         """Return the dictionary of AnalysisConfig objects stored in the project data."""
         from setuav_studio.model.analysis_config import AnalysisConfig
 
@@ -133,7 +139,7 @@ class ProjectDocument:
         if not isinstance(raw_configs, dict):
             return {}
 
-        configs: dict[str, Any] = {}
+        configs: dict[str, AnalysisConfig] = {}
         for cfg_id, cfg_data in raw_configs.items():
             if isinstance(cfg_data, dict):
                 try:
@@ -142,7 +148,7 @@ class ProjectDocument:
                     logger.warning("Could not deserialize AnalysisConfig %s: %s", cfg_id, exc)
         return configs
 
-    def add_analysis_config(self, config: Any) -> None:
+    def add_analysis_config(self, config: AnalysisConfig) -> None:
         """Add or update an AnalysisConfig in the project data."""
         if "analysis_configs" not in self.data or not isinstance(
             self.data["analysis_configs"], dict
@@ -151,7 +157,7 @@ class ProjectDocument:
         self.data["analysis_configs"][config.config_id] = config.to_dict()
         self.modified = True
 
-    def get_analysis_config(self, config_id: str) -> Any | None:
+    def get_analysis_config(self, config_id: str) -> AnalysisConfig | None:
         """Retrieve a specific AnalysisConfig by ID."""
         return self.analysis_configs.get(config_id)
 
