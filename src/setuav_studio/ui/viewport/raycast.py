@@ -7,7 +7,8 @@ from collections.abc import Sequence
 from itertools import pairwise
 from typing import Any
 
-from setuav_studio_sdk.primitives import (
+from .loft_mesh import _tessellated_loops
+from .primitives import (
     BoxPrimitive,
     CylinderPrimitive,
     LoftPrimitive,
@@ -17,8 +18,6 @@ from setuav_studio_sdk.primitives import (
     TrianglesPrimitive,
     VisualPrimitive,
 )
-
-from .loft_mesh import _tessellated_loops
 from .types import GeometryData, LoftGeometry, Section
 
 

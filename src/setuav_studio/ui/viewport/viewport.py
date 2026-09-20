@@ -16,7 +16,16 @@ from PySide6.QtCore import QSettings, Qt, QTimer, Signal
 from PySide6.QtGui import QImage, QKeyEvent, QResizeEvent, QShowEvent
 from PySide6.QtWidgets import QGridLayout, QWidget
 
-from setuav_studio_sdk.primitives import (
+from .constants import (
+    FACE_COLORED,
+    FACE_MONOCHROME,
+    VIEW_PRESETS,
+    WIRE_FEATURE,
+    WIRE_FULL,
+)
+from .hud import StudioViewportHUD
+from .layer import Layer
+from .primitives import (
     BoxPrimitive,
     ColorRGBA,
     CylinderPrimitive,
@@ -28,16 +37,6 @@ from setuav_studio_sdk.primitives import (
     TrianglesPrimitive,
     VisualPrimitive,
 )
-
-from .constants import (
-    FACE_COLORED,
-    FACE_MONOCHROME,
-    VIEW_PRESETS,
-    WIRE_FEATURE,
-    WIRE_FULL,
-)
-from .hud import StudioViewportHUD
-from .layer import Layer
 from .scene_object import SceneObject
 from .widget import OpenGLViewer
 

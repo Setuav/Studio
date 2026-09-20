@@ -18,6 +18,8 @@ from .envelope_mesh import (
     build_envelope_wire_vertices,
 )
 from .loft_mesh import (
+    _SOLID_GREY,
+    _WIRE_GREY,
     AIRFOIL_CHORD_HIGHLIGHT,
     AIRFOIL_HIGHLIGHT,
     CS_HIGHLIGHT,
@@ -25,6 +27,7 @@ from .loft_mesh import (
     HOVERED_WIRE,
     SECTION_RING,
     SELECTED_WIRE,
+    _is_matching_component,
     build_component_wire_vertices,
     build_loft_solid_vertices,
     build_loft_wire_vertices,
@@ -37,6 +40,7 @@ from .primitives_mesh import (
     build_primitive_wire_vertices,
 )
 from .raycast import (
+    _ray_primitive_intersection,
     hit_test_loft,
     hit_test_scene,
 )
@@ -55,6 +59,10 @@ __all__ = [
     "SELECTED_WIRE",
     "WIRE_FEATURE",
     "WIRE_FULL",
+    "_SOLID_GREY",
+    "_WIRE_GREY",
+    "_is_matching_component",
+    "_ray_primitive_intersection",
     "build_component_wire_vertices",
     "build_envelope_wire_vertices",
     "build_loft_solid_vertices",

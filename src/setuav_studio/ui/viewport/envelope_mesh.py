@@ -5,9 +5,8 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from setuav_studio_sdk.primitives import BoxPrimitive, CylinderPrimitive, Point3D
-
 from .loft_mesh import _add_line, _append_ring
+from .primitives import BoxPrimitive, CylinderPrimitive, Point3D
 from .raycast import _box_corners, _ortho_basis
 from .types import GeometryData
 

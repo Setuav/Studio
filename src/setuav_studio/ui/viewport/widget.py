@@ -26,8 +26,6 @@ from PySide6.QtOpenGL import (
 )
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 
-from setuav_studio_sdk.primitives import Point3D, VisualPrimitive
-
 from .constants import (
     FACE_COLORED,
     FACE_MONOCHROME,
@@ -47,6 +45,7 @@ from .mesh import (
     build_section_ring_vertices,
     hit_test_scene,
 )
+from .primitives import Point3D, VisualPrimitive
 from .types import GeometryData
 
 logger = logging.getLogger(__name__)

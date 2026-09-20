@@ -6,7 +6,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Literal
 
-from setuav_studio_sdk.primitives import (
+from .primitives import (
     ColorRGB,
     Point3D,
     VisualPrimitive,

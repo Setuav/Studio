@@ -9,7 +9,7 @@ from PySide6.QtWidgets import QApplication, QWidget
 
 from setuav_studio.api import StudioAPI
 from setuav_studio.ui.viewport import SceneObject, StudioViewport
-from setuav_studio_sdk.primitives import (
+from setuav_studio.ui.viewport.primitives import (
     BoxPrimitive,
     CylinderPrimitive,
     LineSegmentsPrimitive,

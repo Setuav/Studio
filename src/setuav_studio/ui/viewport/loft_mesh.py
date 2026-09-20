@@ -6,14 +6,13 @@ import math
 from collections.abc import Sequence
 from itertools import pairwise
 
-from setuav_studio_sdk.primitives import Point3D
-
 from .constants import (
     FACE_COLORED,
     FACE_TRANSPARENT,
     WIRE_FEATURE,
     WIRE_FULL,
 )
+from .primitives import Point3D
 from .types import GeometryData, LoftGeometry, Section
 
 SELECTED_WIRE: Point3D = (0.95, 0.58, 0.28)

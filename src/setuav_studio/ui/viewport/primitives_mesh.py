@@ -6,18 +6,6 @@ import math
 from collections.abc import Sequence
 from itertools import pairwise
 
-from setuav_studio_sdk.primitives import (
-    BoxPrimitive,
-    CylinderPrimitive,
-    LineSegmentsPrimitive,
-    LoftPrimitive,
-    PlanePrimitive,
-    Point3D,
-    RingPrimitive,
-    TrianglesPrimitive,
-    VisualPrimitive,
-)
-
 from .constants import (
     FACE_COLORED,
     FACE_TRANSPARENT,
@@ -37,6 +25,17 @@ from .loft_mesh import (
     _append_ring,
     _cap_loop,
     _tessellated_loops,
+)
+from .primitives import (
+    BoxPrimitive,
+    CylinderPrimitive,
+    LineSegmentsPrimitive,
+    LoftPrimitive,
+    PlanePrimitive,
+    Point3D,
+    RingPrimitive,
+    TrianglesPrimitive,
+    VisualPrimitive,
 )
 from .raycast import _box_corners, _ortho_basis
 from .types import LoftGeometry, Section

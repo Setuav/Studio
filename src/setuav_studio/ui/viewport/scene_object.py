@@ -6,7 +6,7 @@ import math
 from dataclasses import dataclass, field
 from typing import Any
 
-from setuav_studio_sdk.primitives import (
+from .primitives import (
     BoxPrimitive,
     CylinderPrimitive,
     LineSegmentsPrimitive,

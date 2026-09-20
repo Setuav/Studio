@@ -12,6 +12,19 @@ from setuav_studio.ui.viewport.constants import (
 )
 from setuav_studio.ui.viewport.hud import StudioViewportHUD
 from setuav_studio.ui.viewport.layer import Layer
+from setuav_studio.ui.viewport.primitives import (
+    BoxPrimitive,
+    ColorRGB,
+    ColorRGBA,
+    CylinderPrimitive,
+    LineSegmentsPrimitive,
+    LoftPrimitive,
+    PlanePrimitive,
+    Point3D,
+    RingPrimitive,
+    TrianglesPrimitive,
+    VisualPrimitive,
+)
 from setuav_studio.ui.viewport.scene_object import SceneObject
 from setuav_studio.ui.viewport.types import (
     EnvelopeWireGeometry,
@@ -29,13 +42,27 @@ __all__ = [
     "VIEW_PRESETS",
     "WIRE_FEATURE",
     "WIRE_FULL",
+    "BoxPrimitive",
+    "ColorRGB",
+    "ColorRGBA",
+    "CylinderPrimitive",
     "EnvelopeWireGeometry",
     "GeometryData",
     "Layer",
+    "LineSegmentsPrimitive",
     "LoftGeometry",
+    "LoftPrimitive",
     "OpenGLViewer",
+    "PlanePrimitive",
+    "Point3D",
+    "RingPrimitive",
     "SceneObject",
     "Section",
     "StudioViewport",
     "StudioViewportHUD",
+    "TrianglesPrimitive",
+    "ViewportProtocol",
+    "VisualPrimitive",
 ]
+
+ViewportProtocol = StudioViewport
