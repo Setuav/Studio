@@ -18,8 +18,6 @@ from .contributions import (
     ToolbarContribution,
     ToolbarMenuItemContribution,
     ToolContribution,
-    WorkspaceContribution,
-    WorkspaceLayoutContext,
 )
 from .events import StudioEvents
 from .hooks import HookRegistry
@@ -43,8 +41,6 @@ __all__ = [
     "ToolContribution",
     "ToolbarContribution",
     "ToolbarMenuItemContribution",
-    "WorkspaceContribution",
-    "WorkspaceLayoutContext",
     "_ComponentEditCommand",
     "_ProjectEditCommand",
     "_StudioHost",

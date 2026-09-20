@@ -12,7 +12,6 @@ from .contributions import (
     PanelContribution,
     SettingsPageContribution,
     ToolbarContribution,
-    WorkspaceContribution,
 )
 
 if TYPE_CHECKING:
@@ -46,17 +45,6 @@ class _StudioHost:
         for panel in self._api._pending_panels:
             add_handler(panel)
         self._api._pending_panels.clear()
-
-    def bind_workspace_handlers(
-        self,
-        add_handler: Callable[[WorkspaceContribution], None],
-        remove_handler: Callable[[str], None] | None = None,
-    ) -> None:
-        self._api._add_workspace = add_handler
-        self._api._remove_workspace = remove_handler
-        for workspace in self._api._pending_workspaces:
-            add_handler(workspace)
-        self._api._pending_workspaces.clear()
 
     def bind_status_handler(self, handler: Callable[[str, str, int], None]) -> None:
         self._api._status_handler = handler

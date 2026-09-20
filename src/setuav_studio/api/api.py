@@ -13,7 +13,6 @@ from PySide6.QtWidgets import QWidget
 
 from setuav_studio.api.hooks import HookRegistry
 from setuav_studio.project import ProjectDocument
-from setuav_studio.task.manager import TaskManager
 from setuav_studio.ui.style.icons import get_icon
 
 from .contributions import (
@@ -26,11 +25,11 @@ from .contributions import (
     SettingsPageContribution,
     ToolbarContribution,
     ToolContribution,
-    WorkspaceContribution,
 )
 from .events import StudioEvents
 
 if TYPE_CHECKING:
+    from setuav_studio.task.manager import TaskManager
     from setuav_studio.ui.viewport import StudioViewport
     from setuav_studio.units import UnitManager
 
@@ -72,14 +71,10 @@ class StudioAPI:
         self.current_selection: Any | None = None
         self.current_section_selection: tuple[str, int, int] | None = None
         self.current_analysis_config_id: str | None = None
-        self.current_workspace_id: str | None = None
         self._add_panel: Callable[[PanelContribution], None] | None = None
         self._remove_panel: Callable[[str], None] | None = None
         self._show_panel: Callable[[str], None] | None = None
         self._pending_panels: list[PanelContribution] = []
-        self._add_workspace: Callable[[WorkspaceContribution], None] | None = None
-        self._remove_workspace: Callable[[str], None] | None = None
-        self._pending_workspaces: list[WorkspaceContribution] = []
         self._add_toolbar_item: Callable[[ToolbarContribution], None] | None = None
         self._remove_toolbar_item: Callable[[str], None] | None = None
         self._pending_toolbar_items: list[ToolbarContribution] = []
@@ -93,7 +88,6 @@ class StudioAPI:
         self._project_listeners: list[Callable[[ProjectDocument], None]] = []
         self._project_content_listeners: list[Callable[[ProjectDocument], None]] = []
         self._modified_listeners: list[Callable[[bool], None]] = []
-        self._workspace_listeners: list[Callable[[str], None]] = []
         self._selection_listeners: list[Callable[[Any | None], None]] = []
         self._section_selection_listeners: list[Callable[[tuple[str, int, int] | None], None]] = []
         self._analysis_config_selection_listeners: list[Callable[[Any | None], None]] = []
@@ -114,6 +108,8 @@ class StudioAPI:
         self._project_requirement_checker: Callable[[dict[str, Any]], list[str]] | None = None
         self._event_subscribers: dict[str, list[Callable[[Any], None]]] = {}
         self._hooks = HookRegistry()
+        from setuav_studio.task.manager import TaskManager
+
         self._tasks = TaskManager(self)
         from setuav_studio.solver import SolverRunner
 
@@ -124,9 +120,7 @@ class StudioAPI:
         self._viewport: Any | None = None
         from setuav_studio.units import get_unit_manager
 
-        get_unit_manager().units_changed.connect(
-            lambda: self.publish(StudioEvents.UNITS_CHANGED)
-        )
+        get_unit_manager().units_changed.connect(lambda: self.publish(StudioEvents.UNITS_CHANGED))
 
     @property
     def units(self) -> UnitManager:
@@ -262,44 +256,6 @@ class StudioAPI:
                 logger.error(
                     "Error executing subscriber for event '%s': %s", event_name, exc, exc_info=True
                 )
-
-    def add_workspace(self, contribution: WorkspaceContribution) -> None:
-        """Register a workspace, queuing it until the shell is ready."""
-        if self._add_workspace is not None:
-            self._add_workspace(contribution)
-        else:
-            self._pending_workspaces.append(contribution)
-
-    def remove_workspace(self, workspace_id: str) -> None:
-        """Remove a previously contributed workspace by ID."""
-        self._pending_workspaces = [w for w in self._pending_workspaces if w.id != workspace_id]
-        if self._remove_workspace is not None:
-            self._remove_workspace(workspace_id)
-
-    def set_workspace(self, contribution: WorkspaceContribution) -> None:
-        """Register a workspace; retained as an alias for `add_workspace`."""
-        self.add_workspace(contribution)
-
-    def switch_workspace(self, workspace_id: str) -> None:
-        """Activate a workspace and notify workspace listeners."""
-        self.current_workspace_id = workspace_id
-        for listener in list(self._workspace_listeners):
-            try:
-                listener(workspace_id)
-            except Exception as exc:
-                logger.warning("Error in workspace listener: %s", exc)
-        self.publish(StudioEvents.WORKSPACE_CHANGED, workspace_id)
-
-    def on_workspace_changed(self, listener: Callable[[str], None]) -> None:
-        """Subscribe to workspace changes and receive the current ID immediately."""
-        self._workspace_listeners.append(listener)
-        if self.current_workspace_id is not None:
-            listener(self.current_workspace_id)
-
-    def remove_workspace_listener(self, listener: Callable[[str], None]) -> None:
-        """Unsubscribe a workspace-change listener."""
-        if listener in self._workspace_listeners:
-            self._workspace_listeners.remove(listener)
 
     def add_toolbar_item(self, contribution: ToolbarContribution) -> None:
         """Add an action to the main toolbar."""

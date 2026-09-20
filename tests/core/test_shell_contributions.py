@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar, cast
 from unittest.mock import Mock, patch
 
 from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
@@ -17,7 +17,6 @@ from setuav_studio.api import (
     StudioAPI,
     ToolbarContribution,
     ToolbarMenuItemContribution,
-    WorkspaceContribution,
 )
 from setuav_studio.ui.settings.settings_pages import StudioSettings
 from setuav_studio.ui.shell import MainWindow
@@ -206,16 +205,13 @@ class ShellContributionTests(unittest.TestCase):
         self.api.remove_toolbar_item("menu")
         self.api.remove_toolbar_item("save")
 
-    def test_toolbar_groups_follow_workspace_and_remove_obsolete_bars(self) -> None:
-        self.api.add_workspace(WorkspaceContribution("design", "Design"))
-        self.api.add_workspace(WorkspaceContribution("analysis", "Analysis"))
+    def test_toolbar_groups_and_remove_obsolete_bars(self) -> None:
         self.api.add_toolbar_item(
             ToolbarContribution(
                 "design-tool",
                 "Design Tool",
                 callback=lambda: None,
                 group="design",
-                workspace_id="design",
             )
         )
         self.api.add_toolbar_item(
@@ -224,18 +220,17 @@ class ShellContributionTests(unittest.TestCase):
                 "Analysis Tool",
                 callback=lambda: None,
                 group="analysis",
-                workspace_id="analysis",
             )
         )
 
-        self.api.switch_workspace("design")
+        self.assertIn("design", self.window._toolset_bars)
+        self.assertIn("analysis", self.window._toolset_bars)
         self.assertFalse(self.window._toolset_bars["design"].isHidden())
-        self.api.switch_workspace("analysis")
         self.assertFalse(self.window._toolset_bars["analysis"].isHidden())
-        self.assertTrue(self.window._toolset_bars["design"].isHidden())
 
         self.api.remove_toolbar_item("design-tool")
         self.assertNotIn("design", self.window._toolset_bars)
+        self.assertIn("analysis", self.window._toolset_bars)
 
     def test_late_command_registration_is_resolved_during_toolbar_rebuild(self) -> None:
         contribution = ToolbarContribution(
@@ -255,18 +250,14 @@ class ShellContributionTests(unittest.TestCase):
         self.assertFalse(command.icon().isNull())
 
     def test_panels_sync_visibility_wrap_content_and_remove_safely(self) -> None:
-        self.api.add_workspace(WorkspaceContribution("design", "Design"))
-        self.api.switch_workspace("design")
         self.api.add_panel(
             PanelContribution(
                 "analysis-panel",
                 "Analysis",
                 QWidget,
-                workspace_id="analysis",
             )
         )
         dock = self.window._panels["analysis-panel"][1]
-        self.assertTrue(dock.isHidden())
         self.assertEqual(dock.widget().objectName(), "studioDockPanel")
 
         self.window._sync_panel_action("missing")
@@ -283,184 +274,48 @@ class ShellContributionTests(unittest.TestCase):
         self.api.remove_panel("analysis-panel")
         self.assertNotIn("analysis-panel", self.window._panels)
 
-    def test_restore_layout_selects_saved_current_and_default_workspaces(self) -> None:
-        self.api.add_workspace(WorkspaceContribution("saved", "Saved"))
-        self.api.add_workspace(WorkspaceContribution("studio.workspace.design", "Design"))
+    def test_restore_window_layout(self) -> None:
         with (
             patch("setuav_studio.ui.shell.layout_manager.QSettings", _FakeSettings),
             patch.object(self.window, "restoreGeometry") as restore_geometry,
-            patch.object(self.window, "restore_workspace_layout") as restore_workspace,
+            patch.object(self.window, "restoreState") as restore_state,
         ):
             _FakeSettings.values["main_window/geometry"] = b"geometry"
+            _FakeSettings.values["main_window/state"] = b"state"
+            _FakeSettings.values["workbench_layout_version"] = (
+                self.window._layout_manager.LAYOUT_VERSION
+            )
             self.window.restore_window_layout()
         restore_geometry.assert_called_once_with(b"geometry")
-        restore_workspace.assert_called_once()
-
-        with patch("setuav_studio.ui.shell.layout_manager.QSettings", _FakeSettings):
-            _FakeSettings.values["active_workspace"] = "saved"
-            self.window.restore_workspace_layout()
-            self.assertEqual(self.api.current_workspace_id, "saved")
-            _FakeSettings.values["active_workspace"] = "missing"
-            self.api.current_workspace_id = "saved"
-            self.window.restore_workspace_layout()
-            self.api.current_workspace_id = None
-            self.window.restore_workspace_layout()
-            self.assertEqual(self.api.current_workspace_id, "studio.workspace.design")
-
-    def test_workspace_switch_persists_previous_state_and_restores_or_defaults(self) -> None:
-        self.api.add_workspace(WorkspaceContribution("one", "One", order=20))
-        self.api.add_workspace(WorkspaceContribution("two", "Two", order=10))
-        with (
-            patch("setuav_studio.ui.shell.layout_manager.QSettings", _FakeSettings),
-            patch.object(self.window, "saveState", return_value=b"state"),
-            patch.object(self.window, "restoreState") as restore_state,
-            patch.object(self.window, "_apply_default_workspace_layout") as apply_default,
-        ):
-            self.window._switch_workspace("missing")
-            self.api.switch_workspace("one")
-            apply_default.assert_called_with("one")
-            _FakeSettings.values["workspace_perspective/two"] = b"saved-two"
-            self.api.switch_workspace("two")
-        restore_state.assert_called_once_with(b"saved-two", self.window._LAYOUT_VERSION)
-        self.assertEqual(self.window._workspace_states["one"], b"state")
-        self.assertFalse(self.window._restoring_workspace_layout)
-
-    def test_saved_workspace_restore_hides_panels_from_other_workspaces(self) -> None:
-        self.api.add_workspace(WorkspaceContribution("one", "One"))
-        self.api.add_panel(PanelContribution("other", "Other", QWidget, workspace_id="other"))
-        self.window._workspace_states["one"] = b"state"
-        with patch.object(self.window, "restoreState", return_value=True):
-            self.window._switch_workspace("one")
-        self.assertTrue(self.window._panels["other"][1].isHidden())
-
-    def test_workspace_removal_cleans_string_and_list_scoped_panels(self) -> None:
-        with patch("setuav_studio.ui.shell.toolbar_manager.QSettings", _FakeSettings):
-            self.api.add_workspace(WorkspaceContribution("remove", "Remove"))
-            self.api.add_workspace(WorkspaceContribution("keep", "Keep"))
-            self.api.add_panel(
-                PanelContribution("single", "Single", QWidget, workspace_id="remove")
-            )
-            self.api.add_panel(
-                PanelContribution("multiple", "Multiple", QWidget, workspace_id=["remove", "keep"])
-            )
-            self.window._remove_workspace("missing")
-            self.api.remove_workspace("remove")
-        self.assertNotIn("single", self.window._panels)
-        self.assertIn("multiple", self.window._panels)
-
-    def test_removing_current_workspace_switches_to_survivor(self) -> None:
-        self.api.add_workspace(WorkspaceContribution("remove", "Remove", order=20))
-        self.api.add_workspace(WorkspaceContribution("keep", "Keep", order=10))
-        with patch.object(self.window, "_apply_default_workspace_layout"):
-            self.api.switch_workspace("remove")
-            self.api.remove_workspace("remove")
-
-        self.assertEqual(self.api.current_workspace_id, "keep")
-        self.assertEqual(self.window._current_workspace_id, "keep")
-        self.assertEqual(self.window._workspace_toolbar.workspace_combo.currentData(), "keep")
-
-    def test_removing_last_workspace_clears_active_workspace(self) -> None:
-        self.api.add_workspace(WorkspaceContribution("remove", "Remove"))
-        with patch.object(self.window, "_apply_default_workspace_layout"):
-            self.api.switch_workspace("remove")
-            self.api.remove_workspace("remove")
-
-        self.assertIsNone(self.api.current_workspace_id)
-        self.assertIsNone(self.window._current_workspace_id)
-        self.assertEqual(self.window._workspace_toolbar.workspace_combo.count(), 0)
+        restore_state.assert_called_once_with(b"state", self.window._layout_manager.LAYOUT_VERSION)
 
     def test_layout_save_scheduling_and_dock_event_filter(self) -> None:
-        self.window._schedule_workspace_layout_save()
+        self.window._layout_manager.schedule_layout_save()
         self.window._layout_persistence_enabled = True
-        self.window._current_workspace_id = "design"
-        self.window._restoring_workspace_layout = True
-        self.window._schedule_workspace_layout_save()
-        self.window._restoring_workspace_layout = False
+        self.window._layout_manager.restoring_layout = True
+        self.window._layout_manager.schedule_layout_save()
+        self.window._layout_manager.restoring_layout = False
 
         with patch("setuav_studio.ui.shell.layout_manager.QTimer.singleShot") as single_shot:
-            self.window._schedule_workspace_layout_save()
-            self.window._schedule_workspace_layout_save()
+            self.window._layout_manager.schedule_layout_save()
+            self.window._layout_manager.schedule_layout_save()
         single_shot.assert_called_once()
 
         with (
             patch("setuav_studio.ui.shell.layout_manager.QSettings", _FakeSettings),
             patch.object(self.window, "saveState", return_value=b"state"),
         ):
-            self.window._save_current_workspace_layout()
-            self.assertEqual(_FakeSettings.values["workspace_perspective/design"], b"state")
-            self.window._current_workspace_id = None
-            self.window._save_current_workspace_layout()
+            self.window._layout_manager.save_layout()
+            self.assertEqual(_FakeSettings.values["main_window/state"], b"state")
 
         dock = QDockWidget()
         self.addCleanup(dock.deleteLater)
-        with patch.object(self.window, "_schedule_workspace_layout_save") as schedule:
+        with patch.object(self.window._layout_manager, "schedule_layout_save") as schedule:
             self.window.eventFilter(dock, QEvent(QEvent.Type.Resize))
             self.window.eventFilter(QWidget(), QEvent(QEvent.Type.User))
         schedule.assert_called_once()
         self.window._enable_layout_persistence()
         self.assertTrue(self.window._layout_persistence_enabled)
-
-    def test_default_layout_branches_cover_all_builtin_workspaces(self) -> None:
-        panel_ids = (
-            "project.explorer",
-            "studio.viewer.opengl",
-            "studio.properties",
-            "propulsion.controls_dock",
-            "propulsion.results_dock",
-            "propulsion.charts_dock",
-            "aerodynamics.controls_dock",
-            "aerodynamics.charts_dock",
-            "aerodynamics.results_dock",
-            "flight_performance.controls_dock",
-            "flight_performance.charts_dock",
-            "flight_performance.results_dock",
-            "weight_balance.view_dock",
-            "weight_balance.results_dock",
-        )
-        for panel_id in panel_ids:
-            self.api.add_panel(PanelContribution(panel_id, panel_id, QWidget))
-        self.api.add_panel(
-            PanelContribution("other", "Other", QWidget, workspace_id="other-workspace")
-        )
-
-        for workspace_id in (
-            "studio.workspace.design",
-            "studio.workspace.propulsion",
-            "studio.workspace.aerodynamics",
-            "studio.workspace.flight_performance",
-            "studio.workspace.weight_balance",
-            "custom",
-        ):
-            self.window._apply_default_workspace_layout(workspace_id)
-        self.assertTrue(self.window._panels["other"][1].isHidden())
-
-        for panel_id in (
-            "propulsion.charts_dock",
-            "aerodynamics.charts_dock",
-            "flight_performance.charts_dock",
-        ):
-            self.window._remove_panel(panel_id)
-        for workspace_id in (
-            "studio.workspace.propulsion",
-            "studio.workspace.aerodynamics",
-            "studio.workspace.flight_performance",
-        ):
-            self.window._apply_default_workspace_layout(workspace_id)
-
-    def test_workspace_default_layout_is_owned_by_contribution(self) -> None:
-        layouts = []
-        self.api.add_workspace(
-            WorkspaceContribution(
-                "custom.workspace",
-                "Custom",
-                default_layout=layouts.append,
-            )
-        )
-
-        self.window._apply_default_workspace_layout("custom.workspace")
-
-        self.assertEqual(len(layouts), 1)
-        self.assertEqual(layouts[0].workspace_id, "custom.workspace")
 
     def test_invalid_window_guards_and_rejected_close_event_are_safe(self) -> None:
         event = QCloseEvent()
@@ -468,11 +323,12 @@ class ShellContributionTests(unittest.TestCase):
             self.window.closeEvent(event)
         self.assertFalse(event.isAccepted())
 
-        for callback, argument in (
+        guard_callbacks: list[tuple[Any, Any]] = [
             (self.window._update_window_title, None),
             (self.window._on_modified_changed, False),
             (self.window._on_project_content_changed, self._project()),
-        ):
+        ]
+        for callback, argument in guard_callbacks:
             with patch(
                 "setuav_studio.ui.shell.project_controller.shiboken6.isValid", return_value=False
             ):
@@ -486,7 +342,7 @@ class ShellContributionTests(unittest.TestCase):
             ):
                 callback() if argument is None else callback(argument)
 
-        self.window._on_project_content_changed(self._project())
+        self.window._on_project_content_changed(cast(Any, self._project()))
 
     def test_settings_dialog_cancel_and_accept_apply_all_changes(self) -> None:
         cancelled = Mock()
@@ -525,7 +381,7 @@ class ShellContributionTests(unittest.TestCase):
         self.window._project = None
         self.window._update_actions()
         self.assertFalse(self.window._save_action.isEnabled())
-        self.window._project = self._project()
+        self.window._project = cast(Any, self._project())
         self.window._update_actions()
         self.assertTrue(self.window._save_action.isEnabled())
 
@@ -540,8 +396,8 @@ class ShellContributionTests(unittest.TestCase):
         self.assertIn(self.window._redo_action, actions)
 
     def test_window_state_change_restores_normal_geometry_and_dock_state(self) -> None:
-        self.window._normal_geometry = b"fake_normal_geom"
-        self.window._normal_dock_state = b"fake_dock_state"
+        self.window._normal_geometry = cast(Any, b"fake_normal_geom")
+        self.window._normal_dock_state = cast(Any, b"fake_dock_state")
         self.window._was_maximized = True
 
         called: list[tuple[object, ...]] = []
@@ -562,17 +418,16 @@ class ShellContributionTests(unittest.TestCase):
         self.assertFalse(self.window._was_maximized)
 
     def test_layout_save_skipped_when_maximized_or_fullscreen(self) -> None:
-        self.window._current_workspace_id = "studio.workspace.design"
         self.window._layout_persistence_enabled = True
-        self.window._layout_manager.workspace_states.clear()
 
-        with patch.object(self.window, "isMaximized", return_value=True):
-            self.window._layout_manager.schedule_workspace_layout_save()
+        with (
+            patch("setuav_studio.ui.shell.layout_manager.QSettings", _FakeSettings),
+            patch.object(self.window, "isMaximized", return_value=True),
+        ):
+            self.window._layout_manager.schedule_layout_save()
             self.assertFalse(self.window._layout_manager.layout_save_scheduled)
-            self.window._save_current_workspace_layout()
-            self.assertNotIn(
-                "studio.workspace.design", self.window._layout_manager.workspace_states
-            )
+            self.window._layout_manager.save_layout()
+            self.assertNotIn("main_window/state", _FakeSettings.values)
 
     def test_separator_drag_resizes_only_adjacent_docks(self) -> None:
         d1 = QDockWidget("D1", self.window)

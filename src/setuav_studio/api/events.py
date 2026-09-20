@@ -14,7 +14,6 @@ class StudioEvents(StrEnum):
     # Selection
     SELECTION_CHANGED = "selection.changed"
     SECTION_SELECTION_CHANGED = "section_selection.changed"
-    WORKSPACE_CHANGED = "workspace.changed"
 
     # Units
     UNITS_CHANGED = "units.changed"

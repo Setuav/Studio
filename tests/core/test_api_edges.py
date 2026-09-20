@@ -50,7 +50,6 @@ class PluginSystemEdgeTests(unittest.TestCase):
             "set_project_requirement_checker",
             "set_status_handler",
             "set_toolbar_handler",
-            "set_workspace_handler",
             "settings_pages",
             "undo_stack",
         }
@@ -59,16 +58,10 @@ class PluginSystemEdgeTests(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertFalse(hasattr(self.api, name))
 
-    def test_contributions_validate_actions_and_workspace_filters(self) -> None:
-        panel = PanelContribution("panel", "Panel", QWidget, workspace_id=["design", "analysis"])
-        self.assertTrue(panel.is_in_workspace("design"))
-        self.assertFalse(panel.is_in_workspace("other"))
-        self.assertTrue(PanelContribution("all", "All", QWidget).is_in_workspace(None))
-        self.assertTrue(
-            PanelContribution("one", "One", QWidget, workspace_id="design").is_in_workspace(
-                "design"
-            )
-        )
+    def test_contributions_validate_actions(self) -> None:
+        panel = PanelContribution("panel", "Panel", QWidget)
+        self.assertEqual(panel.id, "panel")
+        self.assertEqual(panel.title, "Panel")
 
         with self.assertRaises(ValueError):
             ToolbarContribution("invalid", "Invalid")
@@ -88,15 +81,6 @@ class PluginSystemEdgeTests(unittest.TestCase):
                 command="run",
                 menu_items=(ToolbarMenuItemContribution("Item", lambda: None),),
             )
-        toolbar = ToolbarContribution("toolbar", "Toolbar", command="run", workspace_id=("design",))
-        self.assertTrue(toolbar.is_in_workspace("design"))
-        self.assertFalse(toolbar.is_in_workspace("other"))
-        self.assertTrue(ToolbarContribution("all", "All", command="run").is_in_workspace(None))
-        self.assertTrue(
-            ToolbarContribution("one", "One", command="run", workspace_id="design").is_in_workspace(
-                "design"
-            )
-        )
 
     def test_shell_handlers_queue_flush_remove_and_dispatch_contributions(self) -> None:
         self.api.add_panel(PanelContribution("panel", "Panel", QWidget))

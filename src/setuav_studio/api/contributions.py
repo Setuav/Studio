@@ -28,12 +28,9 @@ __all__ = [
     "ToolContribution",
     "ToolbarContribution",
     "ToolbarMenuItemContribution",
-    "WorkspaceContribution",
-    "WorkspaceLayoutContext",
 ]
 
 IconSource = str | Path | QIcon | None
-WorkspaceScope = Any
 
 
 @dataclass(frozen=True)
@@ -74,14 +71,6 @@ class ParameterField:
         params = getattr(instance, "parameters", None)
         if isinstance(params, dict):
             params[self.key] = value
-
-
-def _matches_workspace(scope: WorkspaceScope, workspace_id: str | None) -> bool:
-    if scope is None:
-        return True
-    if isinstance(scope, (list, tuple, set)):
-        return workspace_id in scope
-    return scope == workspace_id
 
 
 @dataclass(frozen=True)
@@ -149,15 +138,13 @@ ProjectTreeProvider = Callable[
 class PanelContribution:
     """Dockable panel supplied by a plugin.
 
-    The factory is called lazily on the Qt UI thread. An omitted
-    ``workspace_id`` makes the panel available in every workspace.
+    The factory is called lazily on the Qt UI thread.
 
     @ingroup contributions
     @param id Globally unique, stable panel identifier.
     @param title User-visible panel title.
     @param factory Zero-argument widget factory.
     @param area Initial Qt dock area.
-    @param workspace_id One workspace, multiple workspaces, or all workspaces.
     @param icon Optional icon name, file path, or ``QIcon``.
     """
 
@@ -165,12 +152,7 @@ class PanelContribution:
     title: str
     factory: Callable[[], QWidget]
     area: Qt.DockWidgetArea = Qt.DockWidgetArea.LeftDockWidgetArea
-    workspace_id: WorkspaceScope = None
     icon: IconSource = None
-
-    def is_in_workspace(self, current_workspace_id: str | None) -> bool:
-        """Return whether this panel belongs to the selected workspace."""
-        return _matches_workspace(self.workspace_id, current_workspace_id)
 
 
 @dataclass(frozen=True)
@@ -223,7 +205,7 @@ class ToolbarContribution:
     """Action displayed in the main application toolbar.
 
     Supply exactly one action form: ``callback``, ``command``, or one or more
-    ``menu_items``. Workspace scope and ordering are optional.
+    ``menu_items``. Ordering is optional.
 
     @ingroup contributions
     @param id Globally unique, stable toolbar item identifier.
@@ -235,7 +217,6 @@ class ToolbarContribution:
     @param enabled_when Optional predicate evaluated during UI refresh.
     @param group Toolbar group name.
     @param order Sort priority within the group.
-    @param workspace_id One workspace, multiple workspaces, or all workspaces.
     @exception ValueError If conflicting or missing action forms are supplied.
     """
 
@@ -248,7 +229,6 @@ class ToolbarContribution:
     enabled_when: Callable[[], bool] | None = None
     group: str = "default"
     order: int = 0
-    workspace_id: WorkspaceScope = None
 
     def __post_init__(self) -> None:
         action_forms = sum(
@@ -262,10 +242,6 @@ class ToolbarContribution:
             raise ValueError(
                 "Toolbar contributions require exactly one of callback, command, or menu_items"
             )
-
-    def is_in_workspace(self, current_workspace_id: str | None) -> bool:
-        """Return whether this item belongs to the selected workspace."""
-        return _matches_workspace(self.workspace_id, current_workspace_id)
 
 
 @dataclass(frozen=True)
@@ -304,19 +280,3 @@ class ActionContribution:
     callback: Callable[[], None]
     icon: IconSource = None
     shortcut: str | None = None
-
-
-# Deprecated compatibility aliases for legacy plugins
-@dataclass(frozen=True)
-class WorkspaceContribution:
-    """Deprecated: Workspaces were replaced by the unified workbench dock layout."""
-
-    id: str = ""
-    title: str = ""
-    factory: Any = None
-    icon: IconSource = None
-    order: int = 0
-    default_layout: Any = None
-
-
-WorkspaceLayoutContext = Any

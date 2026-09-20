@@ -34,7 +34,7 @@ CORE_MODULES = (
     "tests.core.test_theme",
     "tests.core.test_units",
     "tests.core.test_universal_scope",
-    "tests.core.test_workspaces",
+    "tests.core.test_workbench",
 )
 GEOMETRY_MODULES = (
     "tests.geometry.test_creation",
