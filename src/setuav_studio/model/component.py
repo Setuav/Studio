@@ -151,6 +151,10 @@ class Component:
         """Local center of gravity offset in mm relative to component origin."""
         val = self._raw_data.get("local_cg_mm") or self._raw_data.get("local_cg")
         if not isinstance(val, dict):
+            ext = self.extensions.get("org.setuav.weight-balance", {})
+            if isinstance(ext, dict):
+                val = ext.get("local_cg_mm") or ext.get("local_cg")
+        if not isinstance(val, dict):
             val = self._raw_data.setdefault("local_cg_mm", {"x": 0.0, "y": 0.0, "z": 0.0})
         return val
 
@@ -166,6 +170,10 @@ class Component:
     def inertia(self) -> dict[str, float]:
         """Local inertia tensor moments and products in kg·m²."""
         val = self._raw_data.get("inertia_kg_m2") or self._raw_data.get("inertia")
+        if not isinstance(val, dict):
+            ext = self.extensions.get("org.setuav.weight-balance", {})
+            if isinstance(ext, dict):
+                val = ext.get("inertia_kg_m2") or ext.get("inertia")
         if not isinstance(val, dict) and isinstance(self.parameters.get("inertia"), dict):
             val = self.parameters["inertia"]
         if not isinstance(val, dict):
@@ -320,14 +328,9 @@ class Component:
 
         raw = getattr(child, "raw_data", {})
         if isinstance(raw, dict):
-            geom = raw.get("parameters", {}).get("geometry", {})
-            if isinstance(geom, dict):
-                tag = str(geom.get("tag") or "").replace("-", "_").lower()
-                if tag:
-                    self._children[tag] = child
-                ctype = str(geom.get("type") or "").replace("-", "_").lower()
-                if ctype:
-                    self._children[ctype] = child
+            ctype = str(raw.get("type") or "").replace("-", "_").lower()
+            if ctype:
+                self._children[ctype] = child
             c_name = str(raw.get("name") or "").replace("-", "_").replace(" ", "_").lower()
             if c_name:
                 self._children[c_name] = child
@@ -354,9 +357,6 @@ class Component:
             return self._children[name_lower]
         if name in self.parameters:
             return self.parameters[name]
-        geom = self.parameters.get("geometry")
-        if isinstance(geom, dict) and name in geom:
-            return geom[name]
         if name in self._raw_data:
             return self._raw_data[name]
         raise AttributeError(
