@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
+    QLineEdit,
+    QPushButton,
     QScrollArea,
     QSizePolicy,
     QVBoxLayout,
@@ -19,6 +22,62 @@ from setuav_studio.ui.widget.table import PropertyTableMixin
 
 if TYPE_CHECKING:
     from setuav_studio_sdk import StudioAPI
+
+
+class ConstraintExpressionCell(QWidget):
+    """Expression editor widget for boolean constraints with direct text editing and fx assistant."""
+
+    def __init__(
+        self,
+        initial_value: str = "",
+        on_changed: Callable[[str], None] | None = None,
+        on_open_assistant: Callable[[str], None] | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self._on_changed = on_changed
+        self._on_open_assistant = on_open_assistant
+        self._committed_text = initial_value
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(2)
+
+        self.line_edit = QLineEdit(self)
+        self.line_edit.setText(initial_value)
+        self.line_edit.editingFinished.connect(self._on_editing_finished)
+        self.line_edit.returnPressed.connect(self.line_edit.clearFocus)
+        layout.addWidget(self.line_edit, 1)
+
+        self.fx_button = QPushButton("fx", self)
+        self.fx_button.setToolTip("Open Constraint Assistant")
+        self.fx_button.setFixedWidth(24)
+        self.fx_button.setFixedHeight(20)
+        self.fx_button.setStyleSheet(
+            "QPushButton { font-style: italic; font-weight: bold; padding: 0px; font-size: 11px; }"
+        )
+        self.fx_button.clicked.connect(self._on_fx_clicked)
+        layout.addWidget(self.fx_button)
+
+    def _on_editing_finished(self) -> None:
+        text = self.line_edit.text().strip()
+        if text != self._committed_text:
+            self._committed_text = text
+            if self._on_changed:
+                self._on_changed(text)
+
+    def _on_fx_clicked(self) -> None:
+        self._on_editing_finished()
+        if self._on_open_assistant:
+            self._on_open_assistant(self.line_edit.text().strip())
+
+    def setText(self, text: str) -> None:
+        self._committed_text = text
+        if self.line_edit.text() != text:
+            self.line_edit.setText(text)
+
+    def text(self) -> str:
+        return self.line_edit.text()
 
 
 class ConstraintPropertyEditor(PropertyTableMixin, QWidget):
@@ -125,13 +184,25 @@ class ConstraintPropertyEditor(PropertyTableMixin, QWidget):
         self._loading = True
         try:
             self._set_property_value(self.general_table, "name", c.get("name", ""))
-            self._set_property_expression(
-                self.general_table,
-                "expression",
-                c.get("expression", ""),
-                on_changed=self._on_expression_changed,
-                on_open_assistant=self._open_assistant,
-            )
+
+            expr_row = 1
+            for r in range(self.general_table.rowCount()):
+                if self._property_key(self.general_table, r) == "expression":
+                    expr_row = r
+                    break
+
+            existing_w = self.general_table.cellWidget(expr_row, 1)
+            if isinstance(existing_w, ConstraintExpressionCell):
+                existing_w.setText(c.get("expression", ""))
+            else:
+                cell = ConstraintExpressionCell(
+                    initial_value=c.get("expression", ""),
+                    on_changed=self._on_expression_changed,
+                    on_open_assistant=self._open_assistant,
+                    parent=self.general_table,
+                )
+                self.general_table.setCellWidget(expr_row, 1, cell)
+
             self._set_property_combo(
                 self.general_table,
                 "severity",
@@ -178,21 +249,27 @@ class ConstraintPropertyEditor(PropertyTableMixin, QWidget):
         if dlg.exec() == QDialog.DialogCode.Accepted:
             new_expr = dlg.get_expression()
             self._on_expression_changed(new_expr)
-            self._load_data()
 
     def _on_expression_changed(self, new_expr: str) -> None:
         if self._loading:
             return
+        clean_expr = new_expr.strip()
         data = self._get_project_data()
         if not data:
             return
         constraints = data.setdefault("constraints", [])
         c = next((item for item in constraints if item.get("id") == self._cid), None)
-        if not c:
+        if not c or c.get("expression") == clean_expr:
             return
 
-        c["expression"] = new_expr.strip()
-        self._api.notify_project_content_changed()
+        def _apply() -> None:
+            c["expression"] = clean_expr
+
+        self._api.edit_project(
+            f"Edit constraint '{c.get('name') or self._cid}' expression",
+            _apply,
+        )
+        self._load_data()
 
     def _on_severity_changed(self, new_sev: str) -> None:
         if self._loading:
@@ -202,25 +279,37 @@ class ConstraintPropertyEditor(PropertyTableMixin, QWidget):
             return
         constraints = data.setdefault("constraints", [])
         c = next((item for item in constraints if item.get("id") == self._cid), None)
-        if not c:
+        if not c or c.get("severity") == new_sev:
             return
 
-        c["severity"] = new_sev
-        self._api.notify_project_content_changed()
+        def _apply() -> None:
+            c["severity"] = new_sev
+
+        self._api.edit_project(
+            f"Set constraint '{c.get('name') or self._cid}' severity to {new_sev}",
+            _apply,
+        )
+        self._load_data()
 
     def _on_enabled_changed(self, val: str) -> None:
         if self._loading:
             return
+        is_enabled = val == "true"
         data = self._get_project_data()
         if not data:
             return
         constraints = data.setdefault("constraints", [])
         c = next((item for item in constraints if item.get("id") == self._cid), None)
-        if not c:
+        if not c or c.get("enabled") == is_enabled:
             return
 
-        c["enabled"] = val == "true"
-        self._api.notify_project_content_changed()
+        def _apply() -> None:
+            c["enabled"] = is_enabled
+
+        self._api.edit_project(
+            f"{'Enable' if is_enabled else 'Disable'} constraint '{c.get('name') or self._cid}'",
+            _apply,
+        )
         self._load_data()
 
     def _on_cell_changed(self, row: int, column: int) -> None:
@@ -238,8 +327,21 @@ class ConstraintPropertyEditor(PropertyTableMixin, QWidget):
             return
 
         if key == "name":
-            c["name"] = val_text.strip()
-            self._api.notify_project_content_changed()
+            clean_name = val_text.strip()
+            if clean_name and clean_name != c.get("name"):
+
+                def _apply() -> None:
+                    c["name"] = clean_name
+
+                self._api.edit_project(f"Rename constraint to '{clean_name}'", _apply)
         elif key == "description":
-            c["description"] = val_text.strip()
-            self._api.notify_project_content_changed()
+            clean_desc = val_text.strip()
+            if clean_desc != c.get("description"):
+
+                def _apply() -> None:
+                    c["description"] = clean_desc
+
+                self._api.edit_project(
+                    f"Edit constraint '{c.get('name') or self._cid}' description",
+                    _apply,
+                )

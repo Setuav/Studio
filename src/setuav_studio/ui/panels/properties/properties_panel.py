@@ -1,7 +1,7 @@
 from typing import Any
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication, QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QApplication, QLabel, QLineEdit, QVBoxLayout, QWidget
 
 from setuav_studio_sdk import StudioAPI
 
@@ -121,9 +121,13 @@ class PropertiesPanel(QWidget):
             if focus_widget is not None and self._current_widget.isAncestorOf(focus_widget):
                 focus_widget.clearFocus()
 
+            for line_edit in self._current_widget.findChildren(QLineEdit):
+                line_edit.editingFinished.emit()
+
             from setuav_studio.ui.widget.table import ExpressionPropertyCell
 
             for cell in self._current_widget.findChildren(ExpressionPropertyCell):
+                cell._commit_line_edit()
                 if getattr(cell, "_is_focused", False):
                     cell._on_focus_out()
 

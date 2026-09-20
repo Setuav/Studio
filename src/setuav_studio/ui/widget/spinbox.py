@@ -190,6 +190,8 @@ def set_table_spinbox(
     target_data: dict[str, Any] | None = None,
     property_key: str | None = None,
     on_changed: Callable[[Any], None] | None = None,
+    on_open_assistant: Callable[[str], None] | None = None,
+    raw_callback: bool = False,
     api: Any | None = None,
     label: str = "",
 ) -> Any:
@@ -240,7 +242,10 @@ def set_table_spinbox(
 
         cb = on_changed_ref() if isinstance(on_changed_ref, weakref.WeakMethod) else on_changed_ref
         if cb is not None:
-            cb(_parse_spinbox_callback_value(new_text, resolved_api, min_val, max_val))
+            if (raw_callback or target_data is None) and is_expr:
+                cb(clean)
+            else:
+                cb(_parse_spinbox_callback_value(new_text, resolved_api, min_val, max_val))
 
     if active_expr:
         init_str = str(active_expr)
@@ -254,6 +259,7 @@ def set_table_spinbox(
     cell = ExpressionPropertyCell(
         initial_value=init_str,
         on_changed=handle_cell_changed if on_changed else None,
+        on_open_assistant=on_open_assistant,
         api=resolved_api,
         label=label,
         decimals=decimals,

@@ -148,6 +148,7 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
                 unit=self._current_unit or None,
                 on_changed=self._on_value_expression_changed,
                 on_open_assistant=self._open_assistant,
+                raw_callback=True,
             )
 
             self._set_property_combo(
@@ -202,7 +203,7 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
             self._on_value_expression_changed(new_expr)
             self._load_data()
 
-    def _on_value_expression_changed(self, new_val_str: str) -> None:
+    def _on_value_expression_changed(self, new_val: Any) -> None:
         if self._loading:
             return
         data = self._get_project_data()
@@ -211,13 +212,22 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
         raw_params: dict[str, Any] = data.setdefault("parameters", {})
 
         parsed: Any
-        if self._resolver.evaluator.is_expression(new_val_str):
-            parsed = new_val_str
+        if isinstance(new_val, (int, float)):
+            parsed = new_val
         else:
-            try:
-                parsed = float(new_val_str) if "." in new_val_str else int(new_val_str)
-            except ValueError:
-                parsed = new_val_str
+            val_str = str(new_val).strip()
+            if self._resolver.evaluator.is_expression(val_str):
+                parsed = val_str
+            else:
+                try:
+                    parsed = float(val_str) if "." in val_str else int(val_str)
+                except ValueError:
+                    parsed = val_str
+
+        curr_entry = raw_params.get(self._param_key)
+        curr_val = curr_entry.get("value") if isinstance(curr_entry, dict) else curr_entry
+        if curr_val == parsed:
+            return
 
         if self._current_quantity:
             from setuav_studio.units import get_unit_manager
@@ -239,13 +249,11 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
     def _on_quantity_changed(self, new_quantity: str) -> None:
         if self._loading:
             return
-        self._current_quantity = new_quantity.strip()
+        new_q = new_quantity.strip()
         from setuav_studio.units import get_unit_manager
 
         um = get_unit_manager()
-        self._current_unit = (
-            um.get_unit_symbol(self._current_quantity) if self._current_quantity else ""
-        )
+        new_u = um.get_unit_symbol(new_q) if new_q else ""
 
         data = self._get_project_data()
         if not data:
@@ -254,16 +262,19 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
         curr = raw_params.get(self._param_key, 0.0)
         val = curr.get("value", curr) if isinstance(curr, dict) else curr
 
-        if self._current_quantity:
-            raw_params[self._param_key] = {
-                "value": val,
-                "quantity": self._current_quantity,
-                "unit": self._current_unit,
-            }
-        else:
-            raw_params[self._param_key] = val
+        def _apply() -> None:
+            if new_q:
+                raw_params[self._param_key] = {
+                    "value": val,
+                    "quantity": new_q,
+                    "unit": new_u,
+                }
+            else:
+                raw_params[self._param_key] = val
 
-        self._api.notify_project_content_changed()
+        self._current_quantity = new_q
+        self._current_unit = new_u
+        self._api.edit_project(f"Change quantity of '{self._param_key}'", _apply)
         self._load_data()
 
     def _on_cell_changed(self, row: int, column: int) -> None:
@@ -280,7 +291,11 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
         if key == "name":
             clean_name = val_text.strip()
             if clean_name and clean_name != self._param_key:
-                val = raw_params.pop(self._param_key, 0.0)
-                raw_params[clean_name] = val
+                old_key = self._param_key
+
+                def _apply() -> None:
+                    val = raw_params.pop(old_key, 0.0)
+                    raw_params[clean_name] = val
+
                 self._param_key = clean_name
-                self._api.notify_project_content_changed()
+                self._api.edit_project(f"Rename parameter '{old_key}' to '{clean_name}'", _apply)

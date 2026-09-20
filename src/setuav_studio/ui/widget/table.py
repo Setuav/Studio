@@ -656,6 +656,8 @@ class PropertyTableMixin:
         expression: str | None = None,
         target_data: dict[str, Any] | None = None,
         on_changed: Callable[[Any], Any] | None = None,
+        on_open_assistant: Callable[[str], None] | None = None,
+        raw_callback: bool = False,
         api: Any | None = None,
         label: str = "",
     ) -> Any:
@@ -712,6 +714,8 @@ class PropertyTableMixin:
                 target_data=target_data,
                 property_key=key,
                 on_changed=on_changed,
+                on_open_assistant=on_open_assistant,
+                raw_callback=raw_callback,
                 api=api or getattr(self, "_api", None),
                 label=resolved_label,
             )
@@ -873,6 +877,7 @@ class PropertyTableMixin:
         quantity: str | None = None,
         unit: str | None = None,
         target_data: dict[str, Any] | None = None,
+        raw_callback: bool = False,
     ) -> None:
         self._set_property_spinbox(
             table,
@@ -883,6 +888,8 @@ class PropertyTableMixin:
             unit=unit,
             target_data=target_data,
             on_changed=on_changed,
+            on_open_assistant=on_open_assistant,
+            raw_callback=raw_callback,
             api=api,
             label=label,
         )
