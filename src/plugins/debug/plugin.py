@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-from setuav_studio_sdk import (
+from setuav_studio.api import (
+    StudioAPI,
     ToolbarContribution,
     ToolbarMenuItemContribution,
-    ViewportProtocol,
 )
+from setuav_studio.ui.viewport import ViewportProtocol
 
 from .components import (
     DEBUG_LAYER,
@@ -54,9 +55,6 @@ from .components import (
     sync_debug_components_to_viewport,
 )
 
-if TYPE_CHECKING:
-    from setuav_studio_sdk import StudioAPI
-
 logger = logging.getLogger(__name__)
 
 TOOLBAR_ADD_PRIMITIVE_ID = "debug.toolbar.add_primitive"
@@ -89,7 +87,7 @@ class DebugPlugin:
 
     def deactivate(self, api: StudioAPI) -> None:
         """Deactivate the debug plugin."""
-        api.remove_toolbar_item(TOOLBAR_ADD_PRIMITIVE_ID)
+        api.unregister_toolbar_item(TOOLBAR_ADD_PRIMITIVE_ID)
         api.remove_project_listener(self._on_project_changed)
         api.remove_project_content_listener(self._on_project_content_changed)
         self._unregister_component_types(api)
@@ -181,9 +179,9 @@ class DebugPlugin:
             TYPE_DEBUG_ARROW,
         )
         for t in types:
-            api.remove_component_editor(t)
-            api.remove_component_icon(t)
-            api.remove_component_model(t)
+            api.unregister_component_editor(t)
+            api.unregister_component_icon(t)
+            api.unregister_component_model(t)
 
     # ------------------------------------------------------------------
     # Project & Viewport Synchronization
@@ -291,4 +289,4 @@ class DebugPlugin:
             group="debug",
             order=10,
         )
-        api.add_toolbar_item(contribution)
+        api.register_toolbar_item(contribution)

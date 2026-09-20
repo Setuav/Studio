@@ -6,7 +6,8 @@ from typing import TYPE_CHECKING, Any
 
 from PySide6.QtWidgets import QWidget
 
-from setuav_studio.sdk import Component, ParameterField, ViewportProtocol
+from setuav_studio.api import Component, ParameterField
+from setuav_studio.ui.viewport import ViewportProtocol
 
 from .common import (
     DEBUG_LAYER,
@@ -17,7 +18,7 @@ from .common import (
 )
 
 if TYPE_CHECKING:
-    from setuav_studio_sdk import StudioAPI
+    from setuav_studio.api import StudioAPI
 
 TYPE_DEBUG_LINE = "org.setuav.debug:line"
 

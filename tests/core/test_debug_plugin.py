@@ -13,7 +13,8 @@ from plugins.debug.components import (
     BoxComponentEditor,
 )
 from plugins.debug.plugin import TOOLBAR_ADD_PRIMITIVE_ID
-from setuav_studio.api import PluginManager, StudioAPI
+from setuav_studio.api import StudioAPI
+from setuav_studio.plugin import PluginManager
 from setuav_studio.project import ProjectDocument
 from setuav_studio.ui.viewport import StudioViewport
 from tests._common import get_qapp

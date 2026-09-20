@@ -7,10 +7,10 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from setuav_studio.ui.editor.component import BaseComponentEditor
-from setuav_studio_sdk import ViewportProtocol
+from setuav_studio.ui.viewport import ViewportProtocol
 
 if TYPE_CHECKING:
-    from setuav_studio_sdk import StudioAPI
+    from setuav_studio.api import StudioAPI
 
 DEBUG_LAYER = "debug"
 
