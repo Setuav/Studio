@@ -11,7 +11,6 @@ from setuav_studio.ui.panels.project_explorer.style import (
     format_assembly_type,
     format_component_name,
     format_component_type,
-    get_geometry_icon_source,
 )
 from setuav_studio.ui.style.icons import get_icon
 
@@ -311,7 +310,7 @@ class ProjectTreeBuilder:
         for assembly in assemblies:
             assembly_id = str(assembly.get("id") or "")
             name = str(assembly.get("name") or assembly_id or "Unnamed Assembly")
-            assembly_type = format_assembly_type(assembly)
+            assembly_type = format_assembly_type(assembly, self._api)
             item = QTreeWidgetItem([name])
             if not read_only:
                 item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
@@ -331,19 +330,11 @@ class ProjectTreeBuilder:
         for component in components:
             component_id = str(component.get("id") or "")
             name = format_component_name(component)
-            component_type = format_component_type(component, components)
+            component_type = format_component_type(component, components, api=self._api)
             item = QTreeWidgetItem([name])
             if not read_only:
                 item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
-            icon_source = get_geometry_icon_source(component, components)
-            item.setIcon(
-                0,
-                (
-                    self._api.get_component_icon(component)
-                    if icon_source is None
-                    else get_icon(icon_source)
-                ),
-            )
+            item.setIcon(0, self._api.get_component_icon(component))
             item.setToolTip(0, f"{name} ({component_type})")
             item.setData(0, Qt.ItemDataRole.UserRole, component_id)
             self._tree._apply_modified_color(item, component, self._tree._saved_components)

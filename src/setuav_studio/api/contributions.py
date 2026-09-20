@@ -20,6 +20,7 @@ __all__ = [
     "ActionContribution",
     "ComponentTreeNodeContribution",
     "ComponentTreeProvider",
+    "ComponentTypeContribution",
     "PanelContribution",
     "ParameterField",
     "ProjectTreeNodeContribution",
@@ -31,6 +32,27 @@ __all__ = [
 ]
 
 IconSource = str | Path | QIcon | None
+
+
+@dataclass(frozen=True)
+class ComponentTypeContribution:
+    """Descriptor for a component type contributed by core or a plugin.
+
+    @ingroup contributions
+    @param id Fully-qualified component type identifier (e.g. ``org.setuav.core:fuselage``).
+    @param name Human-readable display label (e.g. ``Fuselage``).
+    @param icon Optional icon name, file path, or ``QIcon``.
+    @param model Optional domain model class or factory function.
+    @param editor Optional editor widget factory function.
+    @param category Optional category group name (e.g. ``Aerodynamics``, ``Propulsion``).
+    """
+
+    id: str
+    name: str
+    icon: IconSource = None
+    model: Any = None
+    editor: Callable[[dict[str, Any]], QWidget] | None = None
+    category: str | None = None
 
 
 @dataclass(frozen=True)

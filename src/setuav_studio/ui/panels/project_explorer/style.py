@@ -18,12 +18,6 @@ from setuav_studio.ui.style.icons import get_icon
 if TYPE_CHECKING:
     from setuav_studio.api import StudioAPI
 
-_GEOMETRY_COMPONENT_ICONS = {
-    "org.setuav.core:fuselage": "geometry_add_fuselage",
-    "org.setuav.core:lifting-surface": "geometry_add_lifting_surface",
-    "org.setuav.core:control-surface": "geometry_add_control_surface",
-}
-
 
 class ProjectExplorerDelegate(QStyledItemDelegate):
     """Delegate ensuring uniform icon slot width and consistent text alignment across all tree nodes."""
@@ -162,7 +156,7 @@ class _ProjectExplorerBranchStyle(QProxyStyle):
             painter.restore()
 
 
-def format_component_name(component: dict[str, object]) -> str:
+def format_component_name(component: dict[str, Any]) -> str:
     ctype = str(component.get("type") or component.get("kind") or "")
     params = component.get("parameters") if isinstance(component.get("parameters"), dict) else {}
     geom = params.get("geometry") if isinstance(params.get("geometry"), dict) else {}
@@ -175,33 +169,33 @@ def format_component_name(component: dict[str, object]) -> str:
     return str(component.get("name") or component.get("id") or "Unnamed")
 
 
-def format_assembly_type(assembly: dict[str, object]) -> str:
+def format_assembly_type(assembly: dict[str, Any], api: StudioAPI | None = None) -> str:
     atype = str(assembly.get("type") or "Assembly")
-    if atype == "org.setuav.core:electric-propulsion-system":
-        return "Electric Propulsion System"
-    return atype
+    if api is not None:
+        return api.get_component_type_label(atype)
+    clean = atype.split(":")[-1] if ":" in atype else atype
+    return clean.replace("-", " ").replace("_", " ").title()
 
 
-def format_assembly_icon(assembly: dict[str, object], api: StudioAPI | None = None) -> Any:
-    atype = str(assembly.get("type") or "")
-    if atype == "org.setuav.core:electric-propulsion-system":
-        return get_icon("component_propulsion_system")
-    if api is not None and hasattr(api, "_component_icons") and atype in api._component_icons:
-        return get_icon(api._component_icons[atype])
+def format_assembly_icon(assembly: dict[str, Any], api: StudioAPI | None = None) -> Any:
+    if api is not None:
+        return api.get_component_icon(assembly)
     return get_icon("assembly_generic")
 
 
 def format_component_type(
-    component: dict[str, object],
-    components: list[dict[str, object]],
+    component: dict[str, Any],
+    components: list[dict[str, Any]] | None = None,
+    api: StudioAPI | None = None,
 ) -> str:
     if component.get("kind") == "instance":
         source_id = str(component.get("source") or "")
         source_name = source_id
-        for candidate in components:
-            if str(candidate.get("id") or "") == source_id:
-                source_name = str(candidate.get("name") or source_id)
-                break
+        if components:
+            for candidate in components:
+                if str(candidate.get("id") or "") == source_id:
+                    source_name = str(candidate.get("name") or source_id)
+                    break
         return f"Instance of {source_name}" if source_name else "Instance"
 
     ctype = str(component.get("type") or component.get("kind") or "")
@@ -214,44 +208,9 @@ def format_component_type(
     if ctype == "org.setuav.core:lifting-surface":
         is_mirrored = geom.get("mirror") is True or component.get("mirror") is True
         return "Lifting Surface (Bilateral)" if is_mirrored else "Lifting Surface"
-    labels = {
-        "org.setuav.core:fuselage": "Fuselage",
-        "org.setuav.core:motor": "Electric Motor",
-        "org.setuav.core:propeller": "Propeller",
-        "org.setuav.core:rotor": "Rotor",
-        "org.setuav.core:esc": "ESC (Speed Controller)",
-        "org.setuav.core:battery": "Battery",
-        "org.setuav.debug:box": "Box",
-        "org.setuav.debug:cylinder": "Cylinder",
-        "org.setuav.debug:ring": "Ring",
-        "org.setuav.debug:plane": "Plane",
-        "org.setuav.debug:line": "Line",
-        "org.setuav.debug:triangle": "Triangle",
-        "org.setuav.debug:loft": "Loft",
-        "org.setuav.debug:point": "Point",
-        "org.setuav.debug:arrow": "Arrow",
-    }
-    return labels.get(ctype, ctype)
 
+    if api is not None:
+        return api.get_component_type_label(ctype)
 
-def get_geometry_icon_source(
-    component: dict[str, Any],
-    components: list[dict[str, Any]],
-) -> str | None:
-    component_type = component.get("type")
-    if isinstance(component_type, str):
-        icon_source = _GEOMETRY_COMPONENT_ICONS.get(component_type)
-        if icon_source is not None:
-            return icon_source
-    if component.get("kind") != "instance":
-        return None
-
-    source_id = component.get("source")
-    source = next(
-        (candidate for candidate in components if candidate.get("id") == source_id),
-        None,
-    )
-    if source is None:
-        return None
-    source_type = source.get("type")
-    return _GEOMETRY_COMPONENT_ICONS.get(source_type) if isinstance(source_type, str) else None
+    clean = ctype.split(":")[-1] if ":" in ctype else ctype
+    return clean.replace("-", " ").replace("_", " ").title()

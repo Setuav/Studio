@@ -24,7 +24,6 @@ from setuav_studio.ui.panels.project_explorer.style import (
     format_assembly_type,
     format_component_name,
     format_component_type,
-    get_geometry_icon_source,
 )
 from setuav_studio.ui.panels.project_explorer.tree_builder import (
     ProjectTreeBuilder,
@@ -362,23 +361,15 @@ class ProjectExplorer(QTreeWidget):
     def _component_name_text(component: dict[str, object]) -> str:
         return format_component_name(component)
 
-    @staticmethod
-    def _assembly_type_text(assembly: dict[str, object]) -> str:
-        return format_assembly_type(assembly)
+    def _assembly_type_text(self, assembly: dict[str, object]) -> str:
+        return format_assembly_type(assembly, self._api)
 
     def _assembly_icon(self, assembly: dict[str, object]) -> Any:
         return format_assembly_icon(assembly, self._api)
 
-    @staticmethod
     def _component_type_text(
+        self,
         component: dict[str, object],
         components: list[dict[str, object]],
     ) -> str:
-        return format_component_type(component, components)
-
-    @staticmethod
-    def _geometry_icon_source(
-        component: dict[str, Any],
-        components: list[dict[str, Any]],
-    ) -> str | None:
-        return get_geometry_icon_source(component, components)
+        return format_component_type(component, components, api=self._api)

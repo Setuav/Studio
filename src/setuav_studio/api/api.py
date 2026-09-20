@@ -19,6 +19,7 @@ from .contributions import (
     ActionContribution,
     ComponentTreeNodeContribution,
     ComponentTreeProvider,
+    ComponentTypeContribution,
     PanelContribution,
     ProjectTreeNodeContribution,
     ProjectTreeProvider,
@@ -100,6 +101,7 @@ class StudioAPI:
             str,
             Callable[[dict[str, Any]], QWidget],
         ] = {}
+        self._component_types: dict[str, ComponentTypeContribution] = {}
         self._component_icons: dict[str, str | Path | QIcon] = {}
         self._kind_icons: dict[str, str | Path | QIcon] = {}
         self._component_models: dict[str, Any] = {}
@@ -673,6 +675,44 @@ class StudioAPI:
         self.current_section_selection = selection
         _dispatch_listeners(self._section_selection_listeners, selection)
 
+    def register_component_type(self, contribution: ComponentTypeContribution) -> None:
+        """Register a component type descriptor defining name, icon, model, or editor."""
+        if contribution.id in self._component_types:
+            raise ValueError(f"A component type is already registered for: {contribution.id}")
+        self._component_types[contribution.id] = contribution
+        if contribution.icon is not None:
+            self._component_icons[contribution.id] = contribution.icon
+        if contribution.model is not None:
+            self._component_models[contribution.id] = contribution.model
+        if contribution.editor is not None:
+            self._component_editors[contribution.id] = contribution.editor
+
+    def unregister_component_type(self, type_id: str) -> None:
+        """Unregister a component type descriptor and its associated resources."""
+        contrib = self._component_types.pop(type_id, None)
+        if contrib is not None:
+            if contrib.icon is not None and self._component_icons.get(type_id) == contrib.icon:
+                self.remove_component_icon(type_id)
+            if contrib.model is not None and self._component_models.get(type_id) == contrib.model:
+                self.remove_component_model(type_id)
+            if (
+                contrib.editor is not None
+                and self._component_editors.get(type_id) == contrib.editor
+            ):
+                self.remove_component_editor(type_id)
+
+    def get_component_type(self, type_id: str) -> ComponentTypeContribution | None:
+        """Retrieve a registered component type contribution by ID."""
+        return self._component_types.get(type_id)
+
+    def get_component_type_label(self, type_id: str) -> str:
+        """Return the user-friendly label for a component type ID."""
+        contrib = self._component_types.get(type_id)
+        if contrib is not None and contrib.name:
+            return contrib.name
+        clean = type_id.split(":")[-1] if ":" in type_id else type_id
+        return clean.replace("-", " ").replace("_", " ").title()
+
     def register_component_editor(
         self,
         component_type: str,
@@ -770,15 +810,33 @@ class StudioAPI:
 
     def get_component_icon(self, component: dict[str, Any]) -> QIcon:
         component_type = component.get("type")
-        if isinstance(component_type, str) and component_type in self._component_icons:
-            return get_icon(self._component_icons[component_type])
+        if isinstance(component_type, str):
+            if component_type in self._component_icons:
+                return get_icon(self._component_icons[component_type])
+            contrib = self._component_types.get(component_type)
+            if contrib is not None and contrib.icon is not None:
+                return get_icon(contrib.icon)
 
         component_kind = component.get("kind")
         if isinstance(component_kind, str) and component_kind in self._kind_icons:
             return get_icon(self._kind_icons[component_kind])
 
         if component_kind == "instance":
+            source_id = component.get("source")
+            if source_id and self.current_project is not None:
+                source = self.current_project.get_component(str(source_id))
+                if source is not None:
+                    src_dict = (
+                        source
+                        if isinstance(source, dict)
+                        else getattr(source, "raw_data", getattr(source, "data", {}))
+                    )
+                    if isinstance(src_dict, dict) and src_dict.get("id") != component.get("id"):
+                        return self.get_component_icon(src_dict)
             return get_icon("instance")
+
+        if component_kind == "assembly":
+            return get_icon("assembly_generic")
 
         return get_icon("component")
 

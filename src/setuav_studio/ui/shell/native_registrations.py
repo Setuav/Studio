@@ -6,6 +6,7 @@ from PySide6.QtCore import Qt
 
 from setuav_studio.api import (
     ComponentTreeNodeContribution,
+    ComponentTypeContribution,
     PanelContribution,
 )
 from setuav_studio.ui.panels.project_explorer import ProjectExplorerPanel
@@ -236,6 +237,85 @@ def register_native_contributions(api: StudioAPI) -> None:
 
     # 4. Native Kind Editors
     register_native_kind_editors(api)
+
+    # 5. Native Component Types
+    register_native_component_types(api)
+
+
+def register_native_component_types(api: StudioAPI) -> None:
+    """Register built-in component types, labels and icons."""
+    native_types = [
+        ComponentTypeContribution(
+            id="org.setuav.core:fuselage",
+            name="Fuselage",
+            icon="geometry_add_fuselage",
+            category="Aerodynamics",
+        ),
+        ComponentTypeContribution(
+            id="org.setuav.core:lifting-surface",
+            name="Lifting Surface",
+            icon="geometry_add_lifting_surface",
+            category="Aerodynamics",
+        ),
+        ComponentTypeContribution(
+            id="org.setuav.core:control-surface",
+            name="Control Surface",
+            icon="geometry_add_control_surface",
+            category="Aerodynamics",
+        ),
+        ComponentTypeContribution(
+            id="org.setuav.core:motor",
+            name="Electric Motor",
+            icon="component",
+            category="Propulsion",
+        ),
+        ComponentTypeContribution(
+            id="org.setuav.core:propeller",
+            name="Propeller",
+            icon="component",
+            category="Propulsion",
+        ),
+        ComponentTypeContribution(
+            id="org.setuav.core:rotor",
+            name="Rotor",
+            icon="component",
+            category="Propulsion",
+        ),
+        ComponentTypeContribution(
+            id="org.setuav.core:esc",
+            name="ESC (Speed Controller)",
+            icon="component",
+            category="Propulsion",
+        ),
+        ComponentTypeContribution(
+            id="org.setuav.core:battery",
+            name="Battery",
+            icon="component",
+            category="Electrical",
+        ),
+        ComponentTypeContribution(
+            id="org.setuav.core:electric-propulsion-system",
+            name="Electric Propulsion System",
+            icon="component_propulsion_system",
+            category="Propulsion",
+        ),
+        ComponentTypeContribution(id="org.setuav.debug:box", name="Box", category="Debug"),
+        ComponentTypeContribution(
+            id="org.setuav.debug:cylinder", name="Cylinder", category="Debug"
+        ),
+        ComponentTypeContribution(id="org.setuav.debug:ring", name="Ring", category="Debug"),
+        ComponentTypeContribution(id="org.setuav.debug:plane", name="Plane", category="Debug"),
+        ComponentTypeContribution(id="org.setuav.debug:line", name="Line", category="Debug"),
+        ComponentTypeContribution(
+            id="org.setuav.debug:triangle", name="Triangle", category="Debug"
+        ),
+        ComponentTypeContribution(id="org.setuav.debug:loft", name="Loft", category="Debug"),
+        ComponentTypeContribution(id="org.setuav.debug:point", name="Point", category="Debug"),
+        ComponentTypeContribution(id="org.setuav.debug:arrow", name="Arrow", category="Debug"),
+    ]
+    for contrib in native_types:
+        if contrib.id not in getattr(api, "_component_types", {}):
+            api.register_component_type(contrib)
 
 
 def register_native_kind_editors(api: StudioAPI) -> None:

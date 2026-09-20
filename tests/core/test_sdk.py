@@ -17,11 +17,29 @@ class PluginAPIContractTests(unittest.TestCase):
         self.assertTrue(hasattr(api, "ToolbarContribution"))
         self.assertTrue(hasattr(api, "ComponentTreeNodeContribution"))
         self.assertTrue(hasattr(api, "ComponentTreeProvider"))
+        self.assertTrue(hasattr(api, "ComponentTypeContribution"))
         self.assertTrue(hasattr(api, "ProjectTreeNodeContribution"))
         self.assertTrue(hasattr(api, "ProjectTreeProvider"))
         self.assertTrue(hasattr(api, "StudioEvents"))
         self.assertTrue(hasattr(api, "ParameterField"))
         self.assertTrue(hasattr(api, "Component"))
+
+    def test_component_type_registration(self) -> None:
+        inst = api.StudioAPI()
+        contrib = api.ComponentTypeContribution(
+            id="org.test:sensor",
+            name="Custom Sensor",
+            category="Sensors",
+        )
+        inst.register_component_type(contrib)
+        self.assertEqual(inst.get_component_type("org.test:sensor"), contrib)
+        self.assertEqual(inst.get_component_type_label("org.test:sensor"), "Custom Sensor")
+        # Fallback for unregistered types
+        self.assertEqual(inst.get_component_type_label("org.test:camera-mount"), "Camera Mount")
+
+        inst.unregister_component_type("org.test:sensor")
+        self.assertIsNone(inst.get_component_type("org.test:sensor"))
+        self.assertEqual(inst.get_component_type_label("org.test:sensor"), "Sensor")
 
     def test_plugin_entry_point_group_is_stable(self) -> None:
         self.assertEqual(plugin.PLUGIN_ENTRY_POINT_GROUP, "setuav_studio.plugins")
