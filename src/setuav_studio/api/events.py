@@ -16,6 +16,9 @@ class StudioEvents(StrEnum):
     SECTION_SELECTION_CHANGED = "section_selection.changed"
     WORKSPACE_CHANGED = "workspace.changed"
 
+    # Units
+    UNITS_CHANGED = "units.changed"
+
     # Aerodynamics
     AERODYNAMICS_ANALYSIS_COMPLETED = "aerodynamics.analysis_completed"
     AERODYNAMICS_RESULT_SELECTED = "aerodynamics.result_selected"

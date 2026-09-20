@@ -32,6 +32,7 @@ from .events import StudioEvents
 
 if TYPE_CHECKING:
     from setuav_studio.ui.viewport import StudioViewport
+    from setuav_studio.units import UnitManager
 
 from .host import _StudioHost
 from .undo import _ComponentEditCommand, _ProjectEditCommand
@@ -121,6 +122,18 @@ class StudioAPI:
         self._undo_stack.cleanChanged.connect(self._on_clean_changed)
         self._host = _StudioHost(self)
         self._viewport: Any | None = None
+        from setuav_studio.units import get_unit_manager
+
+        get_unit_manager().units_changed.connect(
+            lambda: self.publish(StudioEvents.UNITS_CHANGED)
+        )
+
+    @property
+    def units(self) -> UnitManager:
+        """Access application-wide unit manager and conversions."""
+        from setuav_studio.units import get_unit_manager
+
+        return get_unit_manager()
 
     @property
     def viewport(self) -> StudioViewport | None:

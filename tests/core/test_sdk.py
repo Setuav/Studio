@@ -45,6 +45,7 @@ class PluginAPIContractTests(unittest.TestCase):
         self.assertEqual(
             events.GEOMETRY_VIEWER_SETTINGS_CHANGED, "geometry.viewer.settings.changed"
         )
+        self.assertEqual(events.UNITS_CHANGED, "units.changed")
         self.assertEqual(events.TASK_STARTED, "task.started")
         self.assertEqual(events.TASK_PROGRESS, "task.progress")
         self.assertEqual(events.TASK_FINISHED, "task.finished")
@@ -52,6 +53,13 @@ class PluginAPIContractTests(unittest.TestCase):
         self.assertEqual(events.TASK_ERROR, "task.error")
         # Subclass of str
         self.assertIsInstance(events.PROJECT_OPENED, str)
+
+    def test_studio_api_exposes_units_service(self) -> None:
+        inst = api.StudioAPI()
+        self.assertIsNotNone(inst.units)
+        self.assertTrue(hasattr(inst.units, "to_display"))
+        self.assertTrue(hasattr(inst.units, "to_base"))
+        self.assertTrue(hasattr(inst.units, "get_unit_symbol"))
 
 
 if __name__ == "__main__":
