@@ -12,7 +12,6 @@ from setuav_studio.model.constraint import (
     ConstraintChecker,
     ConstraintResult,
 )
-from setuav_studio.model.data import Data
 from setuav_studio.model.environment import Environment
 from setuav_studio.model.expression import (
     ExpressionEvaluationError,
@@ -33,14 +32,11 @@ from setuav_studio.model.scope import (
     ScopeProxy,
     build_universal_scope,
 )
-from setuav_studio.model.state import State
 from setuav_studio.model.symbol import (
     build_evaluation_context,
     create_model_for_component,
     get_available_symbols_metadata,
 )
-from setuav_studio.model.system import System
-from setuav_studio.model.vehicle import Vehicle
 
 __all__ = [
     "AnalysisConfig",
@@ -50,7 +46,6 @@ __all__ = [
     "ComponentMassProperties",
     "ConstraintChecker",
     "ConstraintResult",
-    "Data",
     "Environment",
     "ExpressionEvaluationError",
     "ExpressionEvaluator",
@@ -60,10 +55,7 @@ __all__ = [
     "ParameterResolutionError",
     "ParameterResolver",
     "ScopeProxy",
-    "State",
-    "System",
     "Vector3",
-    "Vehicle",
     "build_evaluation_context",
     "build_universal_scope",
     "create_model_for_component",

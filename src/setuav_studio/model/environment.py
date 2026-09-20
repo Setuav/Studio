@@ -5,8 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from setuav_studio.model.data import Data
-
 # Standard physical constants
 _T0 = 288.15  # Sea-level standard temperature (K)
 _P0 = 101325.0  # Sea-level standard pressure (Pa)
@@ -31,7 +29,7 @@ class Environment:
     dynamic_viscosity: float = _MU0
     gravity_mps2: float = _G0
     wind_vector_mps: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    extra: Data = field(default_factory=Data)
+    extra: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def isa(
@@ -59,7 +57,7 @@ class Environment:
             "dynamic_viscosity": self.dynamic_viscosity,
             "gravity_mps2": self.gravity_mps2,
             "wind_vector_mps": list(self.wind_vector_mps),
-            "extra": self.extra.to_dict(),
+            "extra": dict(self.extra),
         }
 
     @classmethod
@@ -75,7 +73,7 @@ class Environment:
             dynamic_viscosity=float(data.get("dynamic_viscosity", _MU0)),
             gravity_mps2=float(data.get("gravity_mps2", _G0)),
             wind_vector_mps=tuple(wind) if isinstance(wind, (list, tuple)) else (0.0, 0.0, 0.0),  # type: ignore
-            extra=Data.from_dict(data.get("extra", {})),
+            extra=dict(data.get("extra", {})),
         )
 
 
