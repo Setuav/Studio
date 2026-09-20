@@ -122,10 +122,11 @@ class PluginTests(unittest.TestCase):
         )
         self.api._host.set_project(project)
 
-        contribution = self.api.component_tree_nodes(component)[0]
+        nodes = {node.id: node for node in self.api.component_tree_nodes(component)}
+        contribution = nodes["motor:transform"]
         self.assertEqual(contribution.id, "motor:transform")
         self.assertEqual(contribution.icon, "transform")
-        envelope_contribution = self.api.component_tree_nodes(component)[1]
+        envelope_contribution = nodes["motor:envelope"]
         self.assertEqual(envelope_contribution.id, "motor:envelope")
         self.assertEqual(envelope_contribution.title, "Envelope")
         self.assertEqual(envelope_contribution.icon, "envelope")
@@ -520,55 +521,6 @@ class PluginTests(unittest.TestCase):
 
         self.api.clear_status()
         self.assertEqual(received[-1], ("", "info", 0))
-
-    def test_dynamic_component_validator_registration(self) -> None:
-        """Verify 3rd party plugins can dynamically register component validators."""
-        from setuav_studio.project.validation import validate_project
-
-        api = StudioAPI()
-
-        def validate_radar(params: dict[str, Any]) -> list[str] | None:
-            freq = params.get("frequency_ghz")
-            if freq is None:
-                return ["frequency_ghz is required"]
-            if not (1.0 <= freq <= 100.0):
-                return ["frequency_ghz must be between 1.0 and 100.0 GHz"]
-            return None
-
-        # 1. Register via StudioAPI
-        api.register_component_validator("com.custom:radar-sensor", validate_radar)
-
-        # 2. Valid project with custom component
-        valid_project = {
-            "name": "Radar Drone",
-            "plugins": [],
-            "components": [
-                {
-                    "id": "radar_1",
-                    "name": "Front Radar",
-                    "type": "com.custom:radar-sensor",
-                    "parameters": {"frequency_ghz": 77.0},
-                }
-            ],
-        }
-        issues = validate_project(valid_project)
-        self.assertEqual(len(issues), 0)
-
-        # 3. Invalid project (frequency out of bounds)
-        invalid_project = {
-            "name": "Radar Drone",
-            "plugins": [],
-            "components": [
-                {
-                    "id": "radar_1",
-                    "name": "Front Radar",
-                    "type": "com.custom:radar-sensor",
-                    "parameters": {"frequency_ghz": 500.0},
-                }
-            ],
-        }
-        issues = validate_project(invalid_project)
-        self.assertGreater(len(issues), 0)
 
 
 if __name__ == "__main__":

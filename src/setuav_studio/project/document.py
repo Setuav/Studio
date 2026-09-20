@@ -181,6 +181,11 @@ class ProjectDocument:
             object.__setattr__(self, "_vehicle", v)
         return v
 
+    def invalidate_vehicle(self) -> None:
+        """Clear cached Vehicle model so it is rebuilt fresh on next access."""
+        if hasattr(self, "_vehicle"):
+            object.__delattr__(self, "_vehicle")
+
     def set_vehicle(self, vehicle: Any) -> None:
         """Update the underlying project dictionary from a Vehicle domain model."""
         self.data.clear()
@@ -329,15 +334,20 @@ def open_project(path: str | Path) -> ProjectDocument:
 
     if selected_path.is_dir():
         project_file = selected_path / "project.json"
-        return ProjectDocument(project_file, "folder", _read_json_file(project_file))
+        doc = ProjectDocument(project_file, "folder", _read_json_file(project_file))
+    elif selected_path.name == "project.json":
+        doc = ProjectDocument(selected_path, "json", _read_json_file(selected_path))
+    elif selected_path.suffix.lower() == ".suav":
+        doc = ProjectDocument(selected_path, "archive", _read_suav(selected_path))
+    else:
+        raise ProjectOpenError("Expected a project folder, project.json, or .suav file")
 
-    if selected_path.name == "project.json":
-        return ProjectDocument(selected_path, "json", _read_json_file(selected_path))
+    # Evaluate all parametric expressions to hydrate runtime numeric caches
+    from setuav_studio.project.evaluator import recompute_project_expressions
 
-    if selected_path.suffix.lower() == ".suav":
-        return ProjectDocument(selected_path, "archive", _read_suav(selected_path))
-
-    raise ProjectOpenError("Expected a project folder, project.json, or .suav file")
+    recompute_project_expressions(doc)
+    doc.modified = False
+    return doc
 
 
 def save_project(

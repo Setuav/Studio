@@ -27,7 +27,9 @@ from setuav_studio_sdk.contributions import (
     SettingsPageContribution,
     ToolbarContribution,
     ToolContribution,
+    WorkspaceContribution,
 )
+from setuav_studio_sdk.events import StudioEvents
 
 if TYPE_CHECKING:
     from setuav_studio.ui.viewport import StudioViewport
@@ -36,6 +38,19 @@ from .host import _StudioHost
 from .undo import _ComponentEditCommand, _ProjectEditCommand
 
 logger = logging.getLogger(__name__)
+
+
+def _dispatch_listeners(listeners: list[Any], arg: Any) -> None:
+    """Safely invoke listeners and clean up dead Qt object references."""
+    dead: list[Any] = []
+    for listener in list(listeners):
+        try:
+            listener(arg)
+        except RuntimeError:
+            dead.append(listener)
+    for d in dead:
+        if d in listeners:
+            listeners.remove(d)
 
 
 class StudioAPI:
@@ -57,10 +72,14 @@ class StudioAPI:
         self.current_selection: Any | None = None
         self.current_section_selection: tuple[str, int, int] | None = None
         self.current_analysis_config_id: str | None = None
+        self.current_workspace_id: str | None = None
         self._add_panel: Callable[[PanelContribution], None] | None = None
         self._remove_panel: Callable[[str], None] | None = None
         self._show_panel: Callable[[str], None] | None = None
         self._pending_panels: list[PanelContribution] = []
+        self._add_workspace: Callable[[WorkspaceContribution], None] | None = None
+        self._remove_workspace: Callable[[str], None] | None = None
+        self._pending_workspaces: list[WorkspaceContribution] = []
         self._add_toolbar_item: Callable[[ToolbarContribution], None] | None = None
         self._remove_toolbar_item: Callable[[str], None] | None = None
         self._pending_toolbar_items: list[ToolbarContribution] = []
@@ -74,6 +93,7 @@ class StudioAPI:
         self._project_listeners: list[Callable[[ProjectDocument], None]] = []
         self._project_content_listeners: list[Callable[[ProjectDocument], None]] = []
         self._modified_listeners: list[Callable[[bool], None]] = []
+        self._workspace_listeners: list[Callable[[str], None]] = []
         self._selection_listeners: list[Callable[[Any | None], None]] = []
         self._section_selection_listeners: list[Callable[[tuple[str, int, int] | None], None]] = []
         self._analysis_config_selection_listeners: list[Callable[[Any | None], None]] = []
@@ -230,6 +250,44 @@ class StudioAPI:
                 logger.error(
                     "Error executing subscriber for event '%s': %s", event_name, exc, exc_info=True
                 )
+
+    def add_workspace(self, contribution: WorkspaceContribution) -> None:
+        """Register a workspace, queuing it until the shell is ready."""
+        if self._add_workspace is not None:
+            self._add_workspace(contribution)
+        else:
+            self._pending_workspaces.append(contribution)
+
+    def remove_workspace(self, workspace_id: str) -> None:
+        """Remove a previously contributed workspace by ID."""
+        self._pending_workspaces = [w for w in self._pending_workspaces if w.id != workspace_id]
+        if self._remove_workspace is not None:
+            self._remove_workspace(workspace_id)
+
+    def set_workspace(self, contribution: WorkspaceContribution) -> None:
+        """Register a workspace; retained as an alias for `add_workspace`."""
+        self.add_workspace(contribution)
+
+    def switch_workspace(self, workspace_id: str) -> None:
+        """Activate a workspace and notify workspace listeners."""
+        self.current_workspace_id = workspace_id
+        for listener in list(self._workspace_listeners):
+            try:
+                listener(workspace_id)
+            except Exception as exc:
+                logger.warning("Error in workspace listener: %s", exc)
+        self.publish(StudioEvents.WORKSPACE_CHANGED, workspace_id)
+
+    def on_workspace_changed(self, listener: Callable[[str], None]) -> None:
+        """Subscribe to workspace changes and receive the current ID immediately."""
+        self._workspace_listeners.append(listener)
+        if self.current_workspace_id is not None:
+            listener(self.current_workspace_id)
+
+    def remove_workspace_listener(self, listener: Callable[[str], None]) -> None:
+        """Unsubscribe a workspace-change listener."""
+        if listener in self._workspace_listeners:
+            self._workspace_listeners.remove(listener)
 
     def add_toolbar_item(self, contribution: ToolbarContribution) -> None:
         """Add an action to the main toolbar."""
@@ -539,19 +597,19 @@ class StudioAPI:
         if listener not in self._analysis_config_selection_listeners:
             self._analysis_config_selection_listeners.append(listener)
 
+    def remove_analysis_config_selection_listener(
+        self,
+        listener: Callable[[Any | None], None],
+    ) -> None:
+        """Unsubscribe an analysis configuration selection listener."""
+        if listener in self._analysis_config_selection_listeners:
+            self._analysis_config_selection_listeners.remove(listener)
+
     def set_current_analysis_config(self, config_id: str | None) -> None:
         """Set the active analysis config selection by ID and notify listeners."""
         self.current_analysis_config_id = config_id
         active_config = self.get_current_analysis_config()
-        dead_listeners = []
-        for listener in list(self._analysis_config_selection_listeners):
-            try:
-                listener(active_config)
-            except RuntimeError:
-                dead_listeners.append(listener)
-        for dead in dead_listeners:
-            if dead in self._analysis_config_selection_listeners:
-                self._analysis_config_selection_listeners.remove(dead)
+        _dispatch_listeners(self._analysis_config_selection_listeners, active_config)
 
     def get_current_analysis_config(self) -> Any | None:
         """Return the currently selected AnalysisConfig, or None."""
@@ -603,29 +661,13 @@ class StudioAPI:
             finally:
                 self._is_recomputing_expressions = False
 
-        dead_listeners = []
-        for listener in list(self._project_content_listeners):
-            try:
-                listener(self.current_project)
-            except RuntimeError:
-                dead_listeners.append(listener)
-        for dead in dead_listeners:
-            if dead in self._project_content_listeners:
-                self._project_content_listeners.remove(dead)
+        _dispatch_listeners(self._project_content_listeners, self.current_project)
 
     def _on_clean_changed(self, clean: bool) -> None:
         modified = not clean
         if self.current_project is not None:
             self.current_project.modified = modified
-        dead_listeners = []
-        for listener in list(self._modified_listeners):
-            try:
-                listener(modified)
-            except RuntimeError:
-                dead_listeners.append(listener)
-        for dead in dead_listeners:
-            if dead in self._modified_listeners:
-                self._modified_listeners.remove(dead)
+        _dispatch_listeners(self._modified_listeners, modified)
 
     def on_selection_changed(self, listener: Callable[[Any | None], None]) -> None:
         """Subscribe to selection changes and receive the current selection."""
@@ -636,15 +678,7 @@ class StudioAPI:
     def set_selection(self, selection: Any | None) -> None:
         """Set the application selection and notify listeners."""
         self.current_selection = selection
-        dead_listeners = []
-        for listener in list(self._selection_listeners):
-            try:
-                listener(selection)
-            except RuntimeError:
-                dead_listeners.append(listener)
-        for dead in dead_listeners:
-            if dead in self._selection_listeners:
-                self._selection_listeners.remove(dead)
+        _dispatch_listeners(self._selection_listeners, selection)
 
     def on_section_selection_changed(
         self,
@@ -669,15 +703,7 @@ class StudioAPI:
     ) -> None:
         """Set the selected component, section, and side tuple."""
         self.current_section_selection = selection
-        dead_listeners = []
-        for listener in list(self._section_selection_listeners):
-            try:
-                listener(selection)
-            except RuntimeError:
-                dead_listeners.append(listener)
-        for dead in dead_listeners:
-            if dead in self._section_selection_listeners:
-                self._section_selection_listeners.remove(dead)
+        _dispatch_listeners(self._section_selection_listeners, selection)
 
     def register_component_editor(
         self,
@@ -864,16 +890,6 @@ class StudioAPI:
         for provider in self._project_tree_providers.values():
             nodes.extend(provider(project))
         return tuple(nodes)
-
-    def register_component_validator(
-        self,
-        component_type: str,
-        validator: Callable[[dict[str, Any]], list[Any] | None],
-    ) -> None:
-        """Register a custom validation callable for a component type."""
-        from setuav_studio.project.validation import register_component_validator
-
-        register_component_validator(component_type, validator)
 
     def remove_project_listener(
         self,

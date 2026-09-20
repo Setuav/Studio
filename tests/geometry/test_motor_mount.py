@@ -13,7 +13,6 @@ from plugins.geometry.engine.mount import (
     generate_mount_targets,
     resolve_mount_point,
 )
-from setuav_studio.project.validation import validate_project
 
 
 class MotorMountTests(unittest.TestCase):
@@ -247,33 +246,6 @@ class MotorMountTests(unittest.TestCase):
         self.assertIn("mount", exposed)
         self.assertEqual(exposed["mount_target_id"], "main-wing")
         self.assertEqual(exposed["mount_position"], "rear")
-
-    def test_validation_detects_unknown_mount_target(self) -> None:
-        invalid_project = {
-            "name": "Invalid Mount Project",
-            "components": [
-                {
-                    "id": "motor-01",
-                    "type": "org.setuav.core:motor",
-                    "parameters": {
-                        "mount": {
-                            "target_id": "deleted-wing",
-                            "position": "front",
-                        }
-                    },
-                }
-            ],
-        }
-        issues = validate_project(invalid_project)
-        error_msgs = [i.message for i in issues if i.severity == "error"]
-        self.assertTrue(
-            any("references unknown mount target 'deleted-wing'" in msg for msg in error_msgs)
-        )
-
-    def test_validation_passes_valid_mount_target(self) -> None:
-        issues = validate_project(self.project_data)
-        mount_errors = [i for i in issues if "mount" in i.path and i.severity == "error"]
-        self.assertEqual(len(mount_errors), 0)
 
     def test_viewport_scene_propeller_clearance_circle(self) -> None:
         from plugins.geometry.viewport.scene import build_project_geometry

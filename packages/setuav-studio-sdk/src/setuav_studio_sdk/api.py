@@ -516,14 +516,6 @@ class StudioAPI(Protocol):
         """Collect plugin-owned nodes for the project root."""
         ...
 
-    def register_component_validator(
-        self,
-        component_type: str,
-        validator: Callable[[dict[str, Any]], list[Any] | None],
-    ) -> None:
-        """Register a custom validation callable for a component type."""
-        ...
-
     @property
     def tasks(self) -> Any:
         """Centralized background task manager for asynchronous analysis jobs."""

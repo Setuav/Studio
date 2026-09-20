@@ -1,8 +1,7 @@
-"""Project and component validation engine."""
+"""Core project document schema and relational integrity validation engine."""
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -17,34 +16,11 @@ class Issue:
         return f"{self.severity.upper()}: {self.path}: {self.message}"
 
 
-_custom_component_validators: dict[
-    str, Callable[[dict[str, Any]], list[Issue] | list[str] | None]
-] = {}
-
-
-def register_component_validator(
-    component_type: str,
-    validator: Callable[[dict[str, Any]], list[Issue] | list[str] | None],
-) -> None:
-    """Register a custom validator callable for a component type."""
-    _custom_component_validators[component_type] = validator
-
-
-def unregister_component_validator(component_type: str) -> None:
-    """Unregister a custom validator callable for a component type."""
-    _custom_component_validators.pop(component_type, None)
-
-
-def clear_component_validators() -> None:
-    """Clear all custom component validators."""
-    _custom_component_validators.clear()
-
-
 def validate_project(
     project: dict[str, Any],
     **_kwargs: Any,
 ) -> list[Issue]:
-    """Validate a project document data structure and relational integrity."""
+    """Validate core project document schema and relational integrity."""
     if not isinstance(project, dict):
         return [Issue("error", "Project root must be a dictionary", "$")]
 
@@ -69,7 +45,6 @@ def validate_project(
     issues.extend(component_issues)
     issues.extend(_validate_component_links(components, component_ids))
     issues.extend(_validate_component_parameters(components))
-    issues.extend(_validate_motor_mounts(components, component_ids, components_by_id))
 
     # 3. Assemblies validation
     assemblies = project.get("assemblies", [])
@@ -115,11 +90,11 @@ def _index_components(
         components_by_id[cid] = component
 
         ctype = component.get("type")
-        if not ctype or not isinstance(ctype, str):
+        if not ctype or not isinstance(ctype, str) or not ctype.strip():
             issues.append(
                 Issue(
                     "error",
-                    "Component type is required and must be a string",
+                    "Component type is required and must be a non-empty string",
                     f"$.components[{index}].type",
                 )
             )
@@ -207,7 +182,6 @@ def _validate_component_parameters(
     for index, component in enumerate(components):
         if not isinstance(component, dict):
             continue
-        component_type = component.get("type", "")
         parameters = component.get("parameters")
         if parameters is not None and not isinstance(parameters, dict):
             issues.append(
@@ -217,105 +191,6 @@ def _validate_component_parameters(
                     f"$.components[{index}].parameters",
                 )
             )
-            continue
-
-        if component_type in _custom_component_validators and isinstance(parameters, dict):
-            validator = _custom_component_validators[component_type]
-            try:
-                res = validator(parameters)
-                if res:
-                    for err in res:
-                        if isinstance(err, Issue):
-                            issues.append(err)
-                        else:
-                            issues.append(
-                                Issue("error", str(err), f"$.components[{index}].parameters")
-                            )
-            except Exception as exc:
-                issues.append(
-                    Issue("error", f"Validation error: {exc}", f"$.components[{index}].parameters")
-                )
-
-    return issues
-
-
-def _collect_valid_mount_targets(components_by_id: dict[str, dict[str, Any]]) -> set[str]:
-    valid: set[str] = set()
-    for cid, comp in components_by_id.items():
-        ctype = comp.get("type", "")
-        if ctype == "org.setuav.core:lifting-surface":
-            valid.add(cid)
-        elif ctype == "org.setuav.core:fuselage":
-            params = comp.get("parameters", {}) if isinstance(comp.get("parameters"), dict) else {}
-            geom = params.get("geometry", {}) if isinstance(params.get("geometry"), dict) else {}
-            segs = geom.get("segments", []) if isinstance(geom.get("segments"), list) else []
-            for s_idx, seg in enumerate(segs):
-                valid.add(f"{cid}/segment-{s_idx + 1:02d}")
-                if isinstance(seg, dict) and seg.get("tag"):
-                    valid.add(f"{cid}/{seg.get('tag')}")
-    return valid
-
-
-def _validate_single_motor_mount(
-    component: dict[str, Any],
-    index: int,
-    valid_targets: set[str],
-) -> list[Issue]:
-    if component.get("type") != "org.setuav.core:motor":
-        return []
-
-    cid = str(component.get("id") or f"index_{index}")
-    params = component.get("parameters")
-    if not isinstance(params, dict):
-        return []
-    mount = params.get("mount")
-    if not isinstance(mount, dict):
-        return []
-
-    target_id = mount.get("target_id")
-    if not target_id:
-        return []
-
-    issues: list[Issue] = []
-    if not isinstance(target_id, str):
-        issues.append(
-            Issue(
-                "error",
-                f"Motor '{cid}' mount target_id must be a string",
-                f"$.components[{index}].parameters.mount.target_id",
-            )
-        )
-    elif target_id not in valid_targets:
-        issues.append(
-            Issue(
-                "error",
-                f"Motor '{cid}' references unknown mount target '{target_id}'",
-                f"$.components[{index}].parameters.mount.target_id",
-            )
-        )
-
-    position = mount.get("position")
-    if position is not None and position not in ("front", "rear"):
-        issues.append(
-            Issue(
-                "warning",
-                f"Motor '{cid}' mount position '{position}' is invalid (expected 'front' or 'rear')",
-                f"$.components[{index}].parameters.mount.position",
-            )
-        )
-    return issues
-
-
-def _validate_motor_mounts(
-    components: list[dict[str, Any]],
-    component_ids: set[str],
-    components_by_id: dict[str, dict[str, Any]],
-) -> list[Issue]:
-    valid_targets = _collect_valid_mount_targets(components_by_id)
-    issues: list[Issue] = []
-    for index, component in enumerate(components):
-        if isinstance(component, dict):
-            issues.extend(_validate_single_motor_mount(component, index, valid_targets))
     return issues
 
 
@@ -350,7 +225,7 @@ def _validate_assemblies(
             )
         assembly_ids.add(aid)
 
-        # Validate members
+        # Validate members reference existing components
         members = assembly.get("members", {})
         if isinstance(members, dict):
             for role, value in members.items():
@@ -369,8 +244,5 @@ def _validate_assemblies(
 
 __all__ = [
     "Issue",
-    "clear_component_validators",
-    "register_component_validator",
-    "unregister_component_validator",
     "validate_project",
 ]

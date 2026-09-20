@@ -377,7 +377,6 @@ class PluginSystemEdgeTests(unittest.TestCase):
             return SimpleNamespace(PLUGIN=BadPlugin())
 
         with (
-            patch("setuav_studio.api.manager.ENABLE_BUNDLED_PLUGINS", True),
             patch("setuav_studio.api.manager.pkgutil.iter_modules", return_value=modules),
             patch(
                 "setuav_studio.api.manager.import_module",
@@ -395,7 +394,6 @@ class PluginSystemEdgeTests(unittest.TestCase):
         activation_error.name = "activation-error"
         activation_error.load.return_value = BadPlugin()
         with (
-            patch("setuav_studio.api.manager.ENABLE_ENTRY_POINT_PLUGINS", True),
             patch(
                 "setuav_studio.api.manager.metadata.entry_points",
                 return_value=[load_error, activation_error],
@@ -525,11 +523,6 @@ class PluginSystemEdgeTests(unittest.TestCase):
         empty_api.remove_action("File", "Missing")
         empty_api.notify_project_content_changed()
         empty_api.remove_project_listener(lambda _project: None)
-
-        validator_mock = Mock()
-        with patch("setuav_studio.project.validation.register_component_validator") as mock_reg:
-            empty_api.register_component_validator("example", validator_mock)
-        mock_reg.assert_called_once_with("example", validator_mock)
 
     def test_listeners_may_remove_themselves_before_raising(self) -> None:
         api = StudioAPI()

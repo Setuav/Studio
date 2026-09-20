@@ -11,6 +11,7 @@ from setuav_studio_sdk.contributions import (
     PanelContribution,
     SettingsPageContribution,
     ToolbarContribution,
+    WorkspaceContribution,
 )
 
 if TYPE_CHECKING:
@@ -44,6 +45,17 @@ class _StudioHost:
         for panel in self._api._pending_panels:
             add_handler(panel)
         self._api._pending_panels.clear()
+
+    def bind_workspace_handlers(
+        self,
+        add_handler: Callable[[WorkspaceContribution], None],
+        remove_handler: Callable[[str], None] | None = None,
+    ) -> None:
+        self._api._add_workspace = add_handler
+        self._api._remove_workspace = remove_handler
+        for workspace in self._api._pending_workspaces:
+            add_handler(workspace)
+        self._api._pending_workspaces.clear()
 
     def bind_status_handler(self, handler: Callable[[str, str, int], None]) -> None:
         self._api._status_handler = handler
@@ -84,15 +96,9 @@ class _StudioHost:
         project.modified = False
         api.set_selection(None)
         api.set_section_selection(None)
-        dead_listeners = []
-        for listener in list(api._project_listeners):
-            try:
-                listener(project)
-            except RuntimeError:
-                dead_listeners.append(listener)
-        for dead in dead_listeners:
-            if dead in api._project_listeners:
-                api._project_listeners.remove(dead)
+        from .api import _dispatch_listeners
+
+        _dispatch_listeners(api._project_listeners, project)
 
     def mark_project_saved(self) -> None:
         self._api._undo_stack.setClean()
