@@ -15,6 +15,9 @@ class PropertiesPanel(QWidget):
         self._layout.setSpacing(4)
         self._current_widget: QWidget | None = None
         self._current_selection_key: tuple[str, str] | None = None
+        from setuav_studio.ui.shell.native_registrations import register_native_kind_editors
+
+        register_native_kind_editors(api)
         api.on_selection_changed(self.set_selection)
         api.on_project_content_changed(self._on_project_content_changed)
         api.on_project_changed(self._on_project_changed)
@@ -52,7 +55,11 @@ class PropertiesPanel(QWidget):
         self.set_selection(self._api.current_selection)
 
     def set_selection(self, selection: Any | None) -> None:
-        if hasattr(selection, "raw_data") and isinstance(selection.raw_data, dict):
+        if (
+            selection is not None
+            and hasattr(selection, "raw_data")
+            and isinstance(selection.raw_data, dict)
+        ):
             selection = selection.raw_data
         elif not isinstance(selection, dict):
             self._current_selection_key = None
@@ -85,24 +92,6 @@ class PropertiesPanel(QWidget):
                 return
 
         self._current_selection_key = new_key
-
-        if kind == "parameter":
-            from setuav_studio.ui.editor import ParameterPropertyEditor
-
-            self._replace_widget(ParameterPropertyEditor(self._api, selection))
-            return
-
-        if kind == "constraint":
-            from setuav_studio.ui.editor import ConstraintPropertyEditor
-
-            self._replace_widget(ConstraintPropertyEditor(self._api, selection))
-            return
-
-        if kind in ("analysis_config", "analysis_result"):
-            from setuav_studio.ui.editor import AnalysisConfigPropertyEditor
-
-            self._replace_widget(AnalysisConfigPropertyEditor(self._api, selection))
-            return
 
         editor = self._api.create_component_editor(live_selection)
         if editor is not None:
@@ -147,10 +136,10 @@ class PropertiesPanel(QWidget):
 
     def update_theme_style(self) -> None:
         if self._current_widget is not None:
-            if hasattr(self._current_widget, "update_theme_style") and callable(
-                self._current_widget.update_theme_style
-            ):
-                self._current_widget.update_theme_style()
+            fn = getattr(self._current_widget, "update_theme_style", None)
+            if callable(fn):
+                fn()
             for child in self._current_widget.findChildren(QWidget):
-                if hasattr(child, "update_theme_style") and callable(child.update_theme_style):
-                    child.update_theme_style()
+                child_fn = getattr(child, "update_theme_style", None)
+                if callable(child_fn):
+                    child_fn()

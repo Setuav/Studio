@@ -6,11 +6,11 @@ import unittest
 from pathlib import Path
 
 from setuav_studio.api import (
-    BaseComponentEditor,
     ParameterField,
     StudioAPI,
 )
 from setuav_studio.project import ProjectDocument
+from setuav_studio.ui.editor import BaseComponentEditor
 from setuav_studio.ui.widget.table import ExpressionPropertyCell
 from tests._common import get_qapp
 

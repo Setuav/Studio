@@ -8,11 +8,6 @@ from setuav_studio.api import (
     ComponentTreeNodeContribution,
     PanelContribution,
 )
-from setuav_studio.ui.editor import (
-    EnvelopeEditor,
-    MassPropertiesEditor,
-    TransformEditor,
-)
 from setuav_studio.ui.panels.project_explorer import ProjectExplorerPanel
 from setuav_studio.ui.panels.properties import PropertiesPanel
 
@@ -240,15 +235,29 @@ def register_native_contributions(api: StudioAPI) -> None:
     )
 
     # 4. Native Kind Editors
-    api.register_kind_editor(
-        "transform",
-        lambda selection: TransformEditor(api, selection),
+    register_native_kind_editors(api)
+
+
+def register_native_kind_editors(api: StudioAPI) -> None:
+    """Register built-in fallback editors for standard component and document kinds."""
+    from setuav_studio.ui.editor import (
+        AnalysisConfigPropertyEditor,
+        ConstraintPropertyEditor,
+        EnvelopeEditor,
+        MassPropertiesEditor,
+        ParameterPropertyEditor,
+        TransformEditor,
     )
-    api.register_kind_editor(
-        "envelope",
-        lambda selection: EnvelopeEditor(api, selection),
-    )
-    api.register_kind_editor(
-        "mass-properties",
-        lambda selection: MassPropertiesEditor(api, selection),
-    )
+
+    defaults = {
+        "transform": lambda selection: TransformEditor(api, selection),
+        "envelope": lambda selection: EnvelopeEditor(api, selection),
+        "mass-properties": lambda selection: MassPropertiesEditor(api, selection),
+        "parameter": lambda selection: ParameterPropertyEditor(api, selection),
+        "constraint": lambda selection: ConstraintPropertyEditor(api, selection),
+        "analysis_config": lambda selection: AnalysisConfigPropertyEditor(api, selection),
+        "analysis_result": lambda selection: AnalysisConfigPropertyEditor(api, selection),
+    }
+    for kind, factory in defaults.items():
+        if kind not in getattr(api, "_kind_editors", {}):
+            api.register_kind_editor(kind, factory)
