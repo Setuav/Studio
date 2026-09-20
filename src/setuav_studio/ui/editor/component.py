@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
 
 from setuav_studio.ui.style.icons import set_label_icon
 from setuav_studio.ui.widget.table import ExpressionPropertyCell, PropertyTableMixin
-from setuav_studio_sdk import ParameterField
+from setuav_studio_sdk.contributions import ParameterField
 
 if TYPE_CHECKING:
     from setuav_studio_sdk import StudioAPI

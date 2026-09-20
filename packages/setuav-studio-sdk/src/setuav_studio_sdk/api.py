@@ -43,7 +43,6 @@ from .contributions import (
     SettingsPageContribution,
     ToolbarContribution,
     ToolContribution,
-    WorkspaceContribution,
 )
 from .models import ProjectDocument
 from .primitives import ColorRGBA, Point3D
@@ -239,11 +238,6 @@ class StudioAPI(Protocol):
         ...
 
     @property
-    def current_workspace_id(self) -> str | None:
-        """Identifier of the active workspace."""
-        ...
-
-    @property
     def viewport(self) -> ViewportProtocol | None:
         """Return the central 3D viewport widget, or ``None``."""
         ...
@@ -258,26 +252,6 @@ class StudioAPI(Protocol):
 
     def show_panel(self, panel_id: str) -> None:
         """Show and bring a dock panel to the front by ID."""
-        ...
-
-    def add_workspace(self, contribution: WorkspaceContribution) -> None:
-        """Add a workspace to the main workspace selector."""
-        ...
-
-    def remove_workspace(self, workspace_id: str) -> None:
-        """Remove a workspace previously registered by the plugin."""
-        ...
-
-    def switch_workspace(self, workspace_id: str) -> None:
-        """Activate a workspace by identifier."""
-        ...
-
-    def on_workspace_changed(self, listener: Callable[[str], None]) -> None:
-        """Subscribe to workspace changes and immediately receive the current ID."""
-        ...
-
-    def remove_workspace_listener(self, listener: Callable[[str], None]) -> None:
-        """Remove a workspace-change listener."""
         ...
 
     def add_toolbar_item(self, contribution: ToolbarContribution) -> None:

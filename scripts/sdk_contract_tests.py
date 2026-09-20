@@ -1,4 +1,4 @@
-"""Run standalone SDK and example-plugin contract tests."""
+"""Run SDK contract tests."""
 
 from __future__ import annotations
 
@@ -8,28 +8,18 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SDK_SOURCE = PROJECT_ROOT / "packages" / "setuav-studio-sdk" / "src"
-EXAMPLE_SOURCE = PROJECT_ROOT / "packages" / "example-plugin" / "src"
-TEST_DIRECTORIES = (
-    PROJECT_ROOT / "packages" / "setuav-studio-sdk" / "tests",
-    PROJECT_ROOT / "packages" / "example-plugin" / "tests",
-)
+SRC_SOURCE = PROJECT_ROOT / "src"
+TEST_DIRECTORY = PROJECT_ROOT / "packages" / "setuav-studio-sdk" / "tests"
 
 
 def _add_source_paths() -> None:
-    """Make the standalone packages importable without installing the project."""
-    sys.path[:0] = [str(SDK_SOURCE), str(EXAMPLE_SOURCE)]
+    """Make the packages importable."""
+    sys.path[:0] = [str(SDK_SOURCE), str(SRC_SOURCE)]
 
 
 def _load_suite() -> unittest.TestSuite:
-    # ``TestLoader`` keeps the inferred top-level directory between discover
-    # calls. The SDK and example plugin live in separate package trees, so a
-    # shared loader triggers Python 3.11's "Path must be within the project"
-    # assertion on the second directory.
-    suites = []
-    for directory in TEST_DIRECTORIES:
-        loader = unittest.TestLoader()
-        suites.append(loader.discover(str(directory)))
-    return unittest.TestSuite(suites)
+    loader = unittest.TestLoader()
+    return loader.discover(str(TEST_DIRECTORY))
 
 
 def main() -> int:

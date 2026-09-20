@@ -9,6 +9,7 @@ from __future__ import annotations
 from setuav_studio.model.component import Component, GenericComponent
 from setuav_studio.model.data import Data
 from setuav_studio.model.vehicle import Vehicle
+from setuav_studio.project.document import ProjectDocument
 from setuav_studio.ui.editor.component import BaseComponentEditor
 from setuav_studio_sdk.api import (
     ComponentTreeProvider,
@@ -26,11 +27,8 @@ from setuav_studio_sdk.contributions import (
     ToolbarContribution,
     ToolbarMenuItemContribution,
     ToolContribution,
-    WorkspaceContribution,
-    WorkspaceLayoutContext,
 )
 from setuav_studio_sdk.events import StudioEvents
-from setuav_studio_sdk.models import ProjectDocument
 from setuav_studio_sdk.plugin import PLUGIN_ENTRY_POINT_GROUP, StudioPlugin
 from setuav_studio_sdk.primitives import (
     BoxPrimitive,
@@ -96,6 +94,4 @@ __all__ = [
     "Vehicle",
     "ViewportProtocol",
     "VisualPrimitive",
-    "WorkspaceContribution",
-    "WorkspaceLayoutContext",
 ]

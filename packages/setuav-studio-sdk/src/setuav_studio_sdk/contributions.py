@@ -7,7 +7,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
@@ -28,33 +28,7 @@ __all__ = [
 ]
 
 IconSource = str | Path | QIcon | None
-WorkspaceScope = str | list[str] | tuple[str, ...] | None
-
-
-class WorkspaceLayoutContext(Protocol):
-    """Operations available to a workspace's default-layout callback.
-
-    Plugins describe their own initial dock arrangement without depending on
-    the host shell implementation. Dock IDs refer to the IDs used by the
-    plugin's :class:`PanelContribution` objects.
-    """
-
-    workspace_id: str
-
-    def show(self, *dock_ids: str) -> None: ...
-
-    def hide(self, *dock_ids: str) -> None: ...
-
-    def split(
-        self,
-        first_dock_id: str,
-        second_dock_id: str,
-        orientation: str = "horizontal",
-    ) -> None: ...
-
-    def resize(self, dock_ids: tuple[str, ...], sizes: tuple[int, ...]) -> None: ...
-
-    def raise_dock(self, dock_id: str) -> None: ...
+WorkspaceScope = Any
 
 
 @dataclass(frozen=True)
@@ -210,31 +184,6 @@ class SettingsPageContribution:
 
 
 @dataclass(frozen=True)
-class WorkspaceContribution:
-    """Workspace available from the main workspace selector.
-
-    A workspace may provide a central widget or only group panels and toolbar
-    actions by leaving ``factory`` unset.
-
-    @ingroup contributions
-    @param id Globally unique, stable workspace identifier.
-    @param title User-visible workspace title.
-    @param factory Optional zero-argument central-widget factory.
-    @param icon Optional icon name, file path, or ``QIcon``.
-    @param order Sort priority; lower values appear first.
-    @param default_layout Optional callback that applies the plugin-owned
-        initial dock arrangement when no saved perspective exists.
-    """
-
-    id: str
-    title: str
-    factory: Callable[[], QWidget] | None = None
-    icon: IconSource = None
-    order: int = 0
-    default_layout: Callable[[WorkspaceLayoutContext], None] | None = None
-
-
-@dataclass(frozen=True)
 class ToolbarMenuItemContribution:
     """Command inside a contributed toolbar popup menu.
 
@@ -337,3 +286,19 @@ class ActionContribution:
     callback: Callable[[], None]
     icon: IconSource = None
     shortcut: str | None = None
+
+
+# Deprecated compatibility aliases for legacy plugins
+@dataclass(frozen=True)
+class WorkspaceContribution:
+    """Deprecated: Workspaces were replaced by the unified workbench dock layout."""
+
+    id: str = ""
+    title: str = ""
+    factory: Any = None
+    icon: IconSource = None
+    order: int = 0
+    default_layout: Any = None
+
+
+WorkspaceLayoutContext = Any
