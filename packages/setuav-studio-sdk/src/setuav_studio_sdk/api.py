@@ -28,7 +28,7 @@ Receives the open ``ProjectDocument`` and returns plugin-owned nodes displayed
 below the project root. Return an empty tuple when no nodes apply.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -46,12 +46,14 @@ from .contributions import (
     WorkspaceContribution,
 )
 from .models import ProjectDocument
+from .primitives import ColorRGBA, Point3D
 
 __all__ = [
     "ComponentTreeProvider",
     "ProjectDocument",
     "ProjectTreeProvider",
     "StudioAPI",
+    "ViewportProtocol",
 ]
 
 #: Callback that contributes virtual nodes beneath a component.
@@ -66,6 +68,139 @@ ProjectTreeProvider = Callable[
     [ProjectDocument],
     tuple[ProjectTreeNodeContribution, ...],
 ]
+
+
+class ViewportProtocol(Protocol):
+    """Protocol defining the 3D viewport API available to plugins."""
+
+    def add_box(
+        self,
+        object_id: str,
+        *,
+        center: Point3D = (0.0, 0.0, 0.0),
+        size: Point3D = (100.0, 100.0, 100.0),
+        rotation: Point3D = (0.0, 0.0, 0.0),
+        name: str = "",
+        layer: str = "default",
+        color: ColorRGBA = (0.2, 0.6, 1.0, 0.4),
+        wireframe: bool = True,
+        solid: bool = True,
+        envelope: Any = None,
+    ) -> Any: ...
+
+    def add_cylinder(
+        self,
+        object_id: str,
+        *,
+        start: Point3D = (0.0, 0.0, 0.0),
+        end: Point3D = (0.0, 0.0, 100.0),
+        radius: float = 25.0,
+        segments: int = 24,
+        name: str = "",
+        layer: str = "default",
+        color: ColorRGBA = (0.2, 0.2, 0.2, 0.9),
+        wireframe: bool = False,
+        solid: bool = True,
+        envelope: Any = None,
+    ) -> Any: ...
+
+    def add_plane(
+        self,
+        object_id: str,
+        *,
+        center: Point3D = (0.0, 0.0, 0.0),
+        normal: Point3D = (1.0, 0.0, 0.0),
+        width: float = 200.0,
+        height: float = 200.0,
+        name: str = "",
+        layer: str = "default",
+        color: ColorRGBA = (1.0, 0.5, 0.0, 0.4),
+        wireframe: bool = True,
+        solid: bool = True,
+        envelope: Any = None,
+    ) -> Any: ...
+
+    def add_ring(
+        self,
+        object_id: str,
+        *,
+        center: Point3D = (0.0, 0.0, 0.0),
+        normal: Point3D = (1.0, 0.0, 0.0),
+        radius: float = 50.0,
+        segments: int = 36,
+        name: str = "",
+        layer: str = "default",
+        color: ColorRGBA = (1.0, 0.5, 0.0, 1.0),
+        envelope: Any = None,
+    ) -> Any: ...
+
+    def add_lines(
+        self,
+        object_id: str,
+        lines: Sequence[tuple[Point3D, Point3D]],
+        *,
+        name: str = "",
+        layer: str = "default",
+        color: ColorRGBA = (1.0, 1.0, 1.0, 1.0),
+        envelope: Any = None,
+    ) -> Any: ...
+
+    def add_triangles(
+        self,
+        object_id: str,
+        triangles: Sequence[tuple[Point3D, Point3D, Point3D]],
+        *,
+        name: str = "",
+        layer: str = "default",
+        color: ColorRGBA = (0.5, 0.5, 0.5, 0.8),
+        wireframe: bool = True,
+        solid: bool = True,
+        envelope: Any = None,
+    ) -> Any: ...
+
+    def add_loft(
+        self,
+        object_id: str,
+        sections: Sequence[Sequence[Point3D]],
+        *,
+        name: str = "",
+        layer: str = "geometry",
+        color: ColorRGBA = (1.0, 0.82, 0.10, 1.0),
+        envelope: Any = None,
+    ) -> Any: ...
+
+    def add_points(
+        self,
+        object_id: str,
+        points: Sequence[Point3D],
+        *,
+        size: float = 4.0,
+        name: str = "",
+        layer: str = "default",
+        color: ColorRGBA = (1.0, 1.0, 0.0, 1.0),
+        envelope: Any = None,
+    ) -> Any: ...
+
+    def add_arrows(
+        self,
+        object_id: str,
+        arrows: Sequence[tuple[Point3D, Point3D]],
+        *,
+        name: str = "",
+        layer: str = "default",
+        color: ColorRGBA = (0.2, 0.8, 0.2, 1.0),
+        envelope: Any = None,
+    ) -> Any: ...
+
+    def remove(self, object_id: str) -> bool: ...
+
+    def clear(self, layer: str | None = None) -> None: ...
+
+    def object_ids(self, layer: str | None = None) -> list[str]: ...
+
+    def get_object(self, object_id: str) -> Any | None: ...
+
+    def fit_view(self) -> None: ...
 
 
 class StudioAPI(Protocol):
@@ -109,7 +244,7 @@ class StudioAPI(Protocol):
         ...
 
     @property
-    def viewport(self) -> Any | None:
+    def viewport(self) -> ViewportProtocol | None:
         """Return the central 3D viewport widget, or ``None``."""
         ...
 

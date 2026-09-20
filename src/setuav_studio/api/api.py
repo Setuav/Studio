@@ -5,7 +5,7 @@ from collections.abc import Callable, Generator
 from contextlib import contextmanager, suppress
 from copy import deepcopy
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import QObject
 from PySide6.QtGui import QIcon, QUndoStack
@@ -28,6 +28,9 @@ from setuav_studio_sdk.contributions import (
     ToolbarContribution,
     ToolContribution,
 )
+
+if TYPE_CHECKING:
+    from setuav_studio.ui.viewport import StudioViewport
 
 from .host import _StudioHost
 from .undo import _ComponentEditCommand, _ProjectEditCommand
@@ -101,7 +104,7 @@ class StudioAPI:
         self._viewport: Any | None = None
 
     @property
-    def viewport(self) -> Any | None:
+    def viewport(self) -> StudioViewport | None:
         """Return the central :class:`StudioViewport` instance, or *None*."""
         return self._viewport
 

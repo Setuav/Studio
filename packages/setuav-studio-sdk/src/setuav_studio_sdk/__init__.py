@@ -8,6 +8,7 @@ from .api import (
     ComponentTreeProvider,
     ProjectTreeProvider,
     StudioAPI,
+    ViewportProtocol,
 )
 from .contributions import (
     ActionContribution,
@@ -82,6 +83,7 @@ __all__ = [
     "ToolbarContribution",
     "ToolbarMenuItemContribution",
     "TrianglesPrimitive",
+    "ViewportProtocol",
     "VisualPrimitive",
     "WorkspaceContribution",
     "WorkspaceLayoutContext",
