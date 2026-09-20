@@ -1,6 +1,7 @@
-"""Unit tests for StudioViewport and SceneObject API."""
+from __future__ import annotations
 
 import unittest
+from typing import Any
 
 from PySide6.QtCore import QSettings, Signal
 from PySide6.QtGui import QImage
@@ -27,6 +28,7 @@ class MockRenderer(QWidget):
     def __init__(self) -> None:
         super().__init__()
         self.overlays: dict[str, list] = {}
+        self.scene_objects: dict[str, Any] = {}
         self.selected_component: str | None = None
         self.selected_section: tuple[str, int, int] | None = None
         self.selected_envelope: str | None = None
@@ -39,6 +41,9 @@ class MockRenderer(QWidget):
         self.show_grid: bool = True
         self.transparent: bool = False
         self.face_style: str = "colored"
+
+    def set_scene_objects(self, objects: dict[str, Any]) -> None:
+        self.scene_objects = dict(objects)
 
     def set_overlays(self, layer_id: str, primitives: list) -> None:
         self.overlays[layer_id] = list(primitives)
@@ -626,3 +631,44 @@ class TestStudioViewport(unittest.TestCase):
         # 5. Annotation vertices (for line primitives and rings)
         anno_col = build_primitive_annotation_vertices(primitives, face_style=FACE_COLORED)
         self.assertEqual(len(anno_col), 12)  # 2 points * 6 floats for line segment
+
+        # 6. Highlight vertices (for selected / hovered primitives)
+        from setuav_studio.ui.viewport.mesh import SELECTED_WIRE, build_primitive_highlight_vertices
+
+        hl_verts = build_primitive_highlight_vertices(primitives, color=SELECTED_WIRE)
+        self.assertGreater(len(hl_verts), 0)
+        # Box has 12 edges * 2 vertices * 6 floats = 144 floats
+        # Line has 1 edge * 2 vertices * 6 floats = 12 floats
+        # Loft has multiple wireframe loops
+        self.assertAlmostEqual(hl_verts[3], SELECTED_WIRE[0])
+        self.assertAlmostEqual(hl_verts[4], SELECTED_WIRE[1])
+        self.assertAlmostEqual(hl_verts[5], SELECTED_WIRE[2])
+
+    def test_opengl_viewer_primitive_selection_highlight(self) -> None:
+        from setuav_studio.ui.viewport.widget import OpenGLViewer
+
+        viewer = OpenGLViewer()
+        box_obj = SceneObject(
+            object_id="test.box",
+            layer="debug",
+            name="Test Box",
+            primitives=[
+                BoxPrimitive(
+                    center=(0.0, 0.0, 0.0),
+                    size=(100.0, 100.0, 100.0),
+                    color=(0.2, 0.6, 1.0, 1.0),
+                )
+            ],
+        )
+        viewer.set_scene_objects({"test.box": box_obj})
+        self.assertEqual(len(viewer._build_highlight_vertices()), 0)
+
+        # Select the box
+        viewer.set_selected_component("test.box")
+        hl = viewer._build_highlight_vertices()
+        self.assertEqual(len(hl), 12 * 2 * 6)  # 12 line edges * 2 endpoints * 6 floats
+
+        # Deselect
+        viewer.set_selected_component(None)
+        self.assertEqual(len(viewer._build_highlight_vertices()), 0)
+        viewer.deleteLater()

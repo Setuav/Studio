@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 import logging
 import math
 from array import array
+from typing import Any
 
 from PySide6.QtCore import QPoint, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import (
@@ -38,6 +41,7 @@ from .mesh import (
     build_loft_solid_vertices,
     build_loft_wire_vertices,
     build_primitive_annotation_vertices,
+    build_primitive_highlight_vertices,
     build_primitive_solid_vertices,
     build_primitive_wire_vertices,
     build_section_ring_vertices,
@@ -46,6 +50,13 @@ from .mesh import (
 from .types import GeometryData
 
 logger = logging.getLogger(__name__)
+
+
+def _color_rgb(color: str) -> tuple[float, float, float]:
+    from PySide6.QtGui import QColor
+
+    value = QColor(color)
+    return value.redF(), value.greenF(), value.blueF()
 
 
 WIREFRAME = "wireframe"
@@ -184,6 +195,7 @@ class OpenGLViewer(QOpenGLWidget):
         self._primitive_wire_count = 0
         self._primitive_annotation_count = 0
         self._overlay_layers: dict[str, list[VisualPrimitive]] = {}
+        self._scene_objects: dict[str, Any] = {}
         self._show_solid = True
         self._show_wireframe = True
         self._wire_mode = WIRE_FEATURE
@@ -751,16 +763,53 @@ class OpenGLViewer(QOpenGLWidget):
         self._mesh_dirty = True
         self.update()
 
-    def _upload_meshes(self) -> None:
-        from PySide6.QtGui import QColor
-
+    def _build_highlight_vertices(self) -> list[float]:
         from setuav_studio.ui.style.theme import chart_color, tokens
 
-        def rgb(color: str) -> tuple[float, float, float]:
-            value = QColor(color)
-            return value.redF(), value.greenF(), value.blueF()
-
         tok = tokens()
+        highlight_values = build_component_wire_vertices(
+            self._geometry_data,
+            self._selected_component_id,
+            _color_rgb(chart_color("orange")),
+            wire_mode=self._wire_mode,
+        )
+        if self._selected_component_id and self._scene_objects:
+            selected_obj = self._scene_objects.get(self._selected_component_id)
+            if selected_obj is not None:
+                highlight_values.extend(
+                    build_primitive_highlight_vertices(
+                        getattr(selected_obj, "primitives", ()),
+                        _color_rgb(chart_color("orange")),
+                    )
+                )
+
+        hovered = (
+            self._hovered_component_id
+            if self._hovered_component_id != self._selected_component_id
+            else None
+        )
+        highlight_values.extend(
+            build_component_wire_vertices(
+                self._geometry_data,
+                hovered,
+                _color_rgb(tok["text"]),
+                wire_mode=self._wire_mode,
+            )
+        )
+        if hovered and self._scene_objects:
+            hovered_obj = self._scene_objects.get(hovered)
+            if hovered_obj is not None:
+                highlight_values.extend(
+                    build_primitive_highlight_vertices(
+                        getattr(hovered_obj, "primitives", ()),
+                        _color_rgb(tok["text"]),
+                    )
+                )
+        return highlight_values
+
+    def _upload_meshes(self) -> None:
+        from setuav_studio.ui.style.theme import chart_color
+
         grid_values = self._reference_grid_vertices()
         wire_values = build_loft_wire_vertices(
             self._geometry_data,
@@ -775,25 +824,7 @@ class OpenGLViewer(QOpenGLWidget):
             self._hovered_component_id,
             self._face_style,
         )
-        highlight_values = build_component_wire_vertices(
-            self._geometry_data,
-            self._selected_component_id,
-            rgb(chart_color("orange")),
-            wire_mode=self._wire_mode,
-        )
-        hovered = (
-            self._hovered_component_id
-            if self._hovered_component_id != self._selected_component_id
-            else None
-        )
-        highlight_values.extend(
-            build_component_wire_vertices(
-                self._geometry_data,
-                hovered,
-                rgb(tok["text"]),
-                wire_mode=self._wire_mode,
-            )
-        )
+        highlight_values = self._build_highlight_vertices()
         ring_values = []
         if self._section_selection is not None:
             component_id, segment_index, section_index = self._section_selection
@@ -802,7 +833,7 @@ class OpenGLViewer(QOpenGLWidget):
                 component_id,
                 segment_index,
                 section_index,
-                rgb(chart_color("orange")),
+                _color_rgb(chart_color("orange")),
                 wire_mode=self._wire_mode,
             )
         from setuav_studio.ui.style.theme import is_light_theme
@@ -822,9 +853,14 @@ class OpenGLViewer(QOpenGLWidget):
         self._section_ring_count = self._allocate(self._section_ring_vbo, ring_values, 6)
         self._envelope_count = self._allocate(self._envelope_vbo, envelope_values, 6)
 
-        # Collect primitives from both GeometryData and dynamic overlay layers
+        # Collect primitives from both GeometryData and dynamic overlay layers / scene objects
         all_primitives = list(getattr(self._geometry_data, "primitives", ()))
-        for layer_prims in self._overlay_layers.values():
+        if self._scene_objects:
+            for obj in self._scene_objects.values():
+                all_primitives.extend(getattr(obj, "primitives", ()))
+        for layer_id, layer_prims in self._overlay_layers.items():
+            if layer_id == "_viewport_api" and self._scene_objects:
+                continue
             all_primitives.extend(layer_prims)
 
         primitive_solid_values = build_primitive_solid_vertices(
@@ -1119,5 +1155,17 @@ class OpenGLViewer(QOpenGLWidget):
             self._overlay_layers.clear()
         else:
             self._overlay_layers.pop(layer_id, None)
+        self._mesh_dirty = True
+        self.update()
+
+    def set_scene_objects(self, objects: dict[str, Any]) -> None:
+        """Set active scene objects mapped by object_id for rendering, picking and highlighting."""
+        self._scene_objects = dict(objects)
+        self._mesh_dirty = True
+        self.update()
+
+    def clear_scene_objects(self) -> None:
+        """Clear all registered scene objects."""
+        self._scene_objects.clear()
         self._mesh_dirty = True
         self.update()

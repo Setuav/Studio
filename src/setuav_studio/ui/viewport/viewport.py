@@ -813,11 +813,16 @@ class StudioViewport(QWidget):
         """Push the current scene state to the attached OpenGL renderer."""
         if self._renderer is None:
             return
+        visible_objs = {
+            oid: obj
+            for oid, obj in self._objects.items()
+            if obj.visible and self.is_layer_visible(obj.layer)
+        }
+        set_scene_objects = getattr(self._renderer, "set_scene_objects", None)
+        if callable(set_scene_objects):
+            set_scene_objects(visible_objs)
+
         primitives = self._collect_visible_primitives()
-        # The OpenGLViewer exposes set_overlays(layer_id, primitives).
-        # We use a single consolidated overlay layer named "_viewport_api"
-        # so that objects managed through this API don't clash with overlays
-        # managed through the legacy event bus.
         set_overlays = getattr(self._renderer, "set_overlays", None)
         if callable(set_overlays):
             set_overlays("_viewport_api", primitives)
