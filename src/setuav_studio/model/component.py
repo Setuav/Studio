@@ -71,7 +71,10 @@ class Component:
             self.parent_id = parent
 
         for k, v in kwargs.items():
-            setattr(self, k, v)
+            if hasattr(self.__class__, k):
+                setattr(self, k, v)
+            else:
+                self.parameters[k] = v
 
     @classmethod
     def get_fields(cls) -> tuple[ParameterField, ...]:
@@ -345,69 +348,23 @@ class Component:
         """Ordered list of unique child component models."""
         return list(self._child_list)
 
-    def __setattr__(self, name: str, value: Any) -> None:
-        if name.startswith("_") or hasattr(type(self), name):
-            super().__setattr__(name, value)
-        else:
-            self.parameters[name] = value
+    def get_parameter(self, key: str, default: Any = None) -> Any:
+        """Retrieve a parameter value by key, returning default if absent."""
+        return self.parameters.get(key, default)
+
+    def set_parameter(self, key: str, value: Any) -> None:
+        """Set a parameter value by key."""
+        self.parameters[key] = value
 
     def __getattr__(self, name: str) -> Any:
+        if name in self.parameters:
+            return self.parameters[name]
         name_lower = name.lower()
         if hasattr(self, "_children") and name_lower in self._children:
             return self._children[name_lower]
-        if name in self.parameters:
-            return self.parameters[name]
-        if name in self._raw_data:
-            return self._raw_data[name]
         raise AttributeError(
-            f"'{self.__class__.__name__}' object has no attribute, child, or parameter '{name}'"
+            f"'{self.__class__.__name__}' object has no attribute or parameter '{name}'"
         )
-
-    def __getitem__(self, key: str) -> Any:
-        if key in self._raw_data:
-            return self._raw_data[key]
-        if key in self.parameters:
-            return self.parameters[key]
-        return getattr(self, key)
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        if hasattr(type(self), key):
-            setattr(self, key, value)
-        elif key in (
-            "id",
-            "name",
-            "type",
-            "mass",
-            "parent",
-            "transform",
-            "envelope",
-            "parameters",
-            "kind",
-        ):
-            self._raw_data[key] = value
-        else:
-            self.parameters[key] = value
-
-    def get(self, key: str, default: Any = None) -> Any:
-        try:
-            return self[key]
-        except (KeyError, AttributeError):
-            return default
-
-    def __contains__(self, key: str) -> bool:
-        return key in self._raw_data or key in self.parameters
-
-    def keys(self) -> Any:
-        return self._raw_data.keys()
-
-    def values(self) -> Any:
-        return self._raw_data.values()
-
-    def items(self) -> Any:
-        return self._raw_data.items()
-
-    def __iter__(self) -> Any:
-        return iter(self._raw_data)
 
     def __repr__(self) -> str:
         return f"<Component id='{self.id}' name='{self.name}' type='{self.type}'>"

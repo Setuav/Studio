@@ -100,6 +100,21 @@ class TestModelHierarchy(unittest.TestCase):
         comp.y = 0.4
         self.assertEqual(comp.position["y"], 0.4)
 
+        # Parameter getter and setter
+        self.assertEqual(comp.get_parameter("kv"), 920.0)
+        self.assertEqual(comp.get_parameter("non_existent", 42), 42)
+        comp.set_parameter("kv", 1000.0)
+        self.assertEqual(comp.kv, 1000.0)
+        self.assertEqual(comp.parameters["kv"], 1000.0)
+
+        # Arbitrary attribute assignment does not pollute parameters
+        comp.temp_attr = "hello"
+        self.assertNotIn("temp_attr", comp.parameters)
+
+        # Component is a typed model, not a subscriptable dict
+        with self.assertRaises(TypeError):
+            _ = comp["id"]
+
     def test_generic_component_fallback(self) -> None:
         generic = GenericComponent({"id": "custom-part", "name": "Custom", "type": "custom"})
         self.assertEqual(generic.id, "custom-part")
