@@ -72,15 +72,15 @@ class StudioAPI:
         self.current_selection: Any | None = None
         self.current_section_selection: tuple[str, int, int] | None = None
         self.current_analysis_config_id: str | None = None
-        self._add_panel: Callable[[PanelContribution], None] | None = None
-        self._remove_panel: Callable[[str], None] | None = None
+        self._register_panel: Callable[[PanelContribution], None] | None = None
+        self._unregister_panel: Callable[[str], None] | None = None
         self._show_panel: Callable[[str], None] | None = None
         self._pending_panels: list[PanelContribution] = []
-        self._add_toolbar_item: Callable[[ToolbarContribution], None] | None = None
-        self._remove_toolbar_item: Callable[[str], None] | None = None
+        self._register_toolbar_item: Callable[[ToolbarContribution], None] | None = None
+        self._unregister_toolbar_item: Callable[[str], None] | None = None
         self._pending_toolbar_items: list[ToolbarContribution] = []
-        self._add_action: Callable[[ActionContribution], None] | None = None
-        self._remove_action: Callable[[str, str], None] | None = None
+        self._register_action: Callable[[ActionContribution], None] | None = None
+        self._unregister_action: Callable[[str, str], None] | None = None
         self._pending_actions: list[ActionContribution] = []
         self._settings_pages: dict[str, SettingsPageContribution] = {}
         self._status_handler: Callable[[str, str, int], None] | None = None
@@ -156,21 +156,21 @@ class StudioAPI:
         """Return the currently open project, or `None` when no project is open."""
         return self.current_project
 
-    def add_panel(self, contribution: PanelContribution) -> None:
-        """Add a dock panel to the application shell.
+    def register_panel(self, contribution: PanelContribution) -> None:
+        """Register a dockable panel contribution.
 
         @param contribution Panel descriptor with a globally unique ID.
         """
-        if self._add_panel is not None:
-            self._add_panel(contribution)
+        if self._register_panel is not None:
+            self._register_panel(contribution)
         else:
             self._pending_panels.append(contribution)
 
-    def remove_panel(self, panel_id: str) -> None:
-        """Remove a previously contributed panel by ID."""
+    def unregister_panel(self, panel_id: str) -> None:
+        """Unregister a previously contributed panel by ID."""
         self._pending_panels = [p for p in self._pending_panels if p.id != panel_id]
-        if self._remove_panel is not None:
-            self._remove_panel(panel_id)
+        if self._unregister_panel is not None:
+            self._unregister_panel(panel_id)
 
     def show_panel(self, panel_id: str) -> None:
         """Show and bring a dock panel to the front by ID."""
@@ -259,54 +259,54 @@ class StudioAPI:
                     "Error executing subscriber for event '%s': %s", event_name, exc, exc_info=True
                 )
 
-    def add_toolbar_item(self, contribution: ToolbarContribution) -> None:
-        """Add an action to the main toolbar."""
-        if self._add_toolbar_item is not None:
-            self._add_toolbar_item(contribution)
+    def register_toolbar_item(self, contribution: ToolbarContribution) -> None:
+        """Register an action to the main toolbar."""
+        if self._register_toolbar_item is not None:
+            self._register_toolbar_item(contribution)
         else:
             self._pending_toolbar_items.append(contribution)
 
-    def remove_toolbar_item(self, contribution_id: str) -> None:
-        """Remove a previously contributed toolbar action by ID."""
+    def unregister_toolbar_item(self, contribution_id: str) -> None:
+        """Unregister a previously contributed toolbar action by ID."""
         self._pending_toolbar_items = [
             item for item in self._pending_toolbar_items if item.id != contribution_id
         ]
-        if self._remove_toolbar_item is not None:
-            self._remove_toolbar_item(contribution_id)
+        if self._unregister_toolbar_item is not None:
+            self._unregister_toolbar_item(contribution_id)
 
-    def add_action(self, contribution: ActionContribution) -> None:
-        """Add an action to the menu path declared by the contribution."""
-        if self._add_action is not None:
-            self._add_action(contribution)
+    def register_action(self, contribution: ActionContribution) -> None:
+        """Register an action to the menu path declared by the contribution."""
+        if self._register_action is not None:
+            self._register_action(contribution)
         else:
             self._pending_actions.append(contribution)
 
-    def remove_action(self, menu: str, title: str) -> None:
-        """Remove a contributed menu action by menu path and title."""
+    def unregister_action(self, menu: str, title: str) -> None:
+        """Unregister a contributed menu action by menu path and title."""
         self._pending_actions = [
             a for a in self._pending_actions if not (a.menu == menu and a.title == title)
         ]
-        if self._remove_action is not None:
-            self._remove_action(menu, title)
+        if self._unregister_action is not None:
+            self._unregister_action(menu, title)
 
-    def add_settings_page(self, contribution: SettingsPageContribution) -> None:
-        """Add a category to the application Settings dialog.
+    def register_settings_page(self, contribution: SettingsPageContribution) -> None:
+        """Register a category to the application Settings dialog.
 
         Plugins may register pages during ``activate`` and remove them during
-        ``deactivate``.  Pages are created lazily when the dialog is opened.
+        ``deactivate``. Pages are created lazily when the dialog is opened.
         """
         if contribution.id in self._settings_pages:
             raise ValueError(f"A settings page is already registered for: {contribution.id}")
         self._settings_pages[contribution.id] = contribution
 
-    def remove_settings_page(self, page_id: str) -> None:
-        """Remove a plugin settings page by ID."""
+    def unregister_settings_page(self, page_id: str) -> None:
+        """Unregister a plugin settings page by ID."""
         self._settings_pages.pop(page_id, None)
 
     def register_tool(self, contribution: ToolContribution) -> None:
         """Register a Tools-menu command from a compact tool descriptor."""
         menu_path = f"Tools/{contribution.group}" if contribution.group else "Tools"
-        self.add_action(
+        self.register_action(
             ActionContribution(
                 menu=menu_path,
                 title=contribution.title,
@@ -315,6 +315,11 @@ class StudioAPI:
                 shortcut=contribution.shortcut,
             )
         )
+
+    def unregister_tool(self, contribution: ToolContribution) -> None:
+        """Unregister a Tools-menu command previously registered with register_tool."""
+        menu_path = f"Tools/{contribution.group}" if contribution.group else "Tools"
+        self.unregister_action(menu_path, contribution.title)
 
     def on_project_changed(self, listener: Callable[[ProjectDocument], None]) -> None:
         """Subscribe to project replacement and receive the current project immediately."""
@@ -519,6 +524,10 @@ class StudioAPI:
         """Register a solver class by solver ID."""
         self._solver_runner.register_solver(solver_id, solver_cls)
 
+    def unregister_solver(self, solver_id: str) -> None:
+        """Unregister a solver class by solver ID."""
+        self._solver_runner.unregister_solver(solver_id)
+
     def run_solver(
         self,
         solver: Any,
@@ -692,14 +701,14 @@ class StudioAPI:
         contrib = self._component_types.pop(type_id, None)
         if contrib is not None:
             if contrib.icon is not None and self._component_icons.get(type_id) == contrib.icon:
-                self.remove_component_icon(type_id)
+                self.unregister_component_icon(type_id)
             if contrib.model is not None and self._component_models.get(type_id) == contrib.model:
-                self.remove_component_model(type_id)
+                self.unregister_component_model(type_id)
             if (
                 contrib.editor is not None
                 and self._component_editors.get(type_id) == contrib.editor
             ):
-                self.remove_component_editor(type_id)
+                self.unregister_component_editor(type_id)
 
     def get_component_type(self, type_id: str) -> ComponentTypeContribution | None:
         """Retrieve a registered component type contribution by ID."""
@@ -723,8 +732,8 @@ class StudioAPI:
             raise ValueError(f"A component editor is already registered for: {component_type}")
         self._component_editors[component_type] = factory
 
-    def remove_component_editor(self, component_type: str) -> None:
-        """Remove the editor factory registered for a component type."""
+    def unregister_component_editor(self, component_type: str) -> None:
+        """Unregister the editor factory registered for a component type."""
         self._component_editors.pop(component_type, None)
 
     def register_kind_editor(
@@ -739,8 +748,8 @@ class StudioAPI:
             )
         self._kind_editors[component_kind] = factory
 
-    def remove_kind_editor(self, component_kind: str) -> None:
-        """Remove the fallback editor registered for a component kind."""
+    def unregister_kind_editor(self, component_kind: str) -> None:
+        """Unregister the fallback editor registered for a component kind."""
         self._kind_editors.pop(component_kind, None)
 
     def create_component_editor(
@@ -790,8 +799,8 @@ class StudioAPI:
             raise ValueError(f"An icon is already registered for component type: {component_type}")
         self._component_icons[component_type] = icon
 
-    def remove_component_icon(self, component_type: str) -> None:
-        """Remove the icon registered for a component type."""
+    def unregister_component_icon(self, component_type: str) -> None:
+        """Unregister the icon registered for a component type."""
         self._component_icons.pop(component_type, None)
 
     def register_kind_icon(
@@ -804,8 +813,8 @@ class StudioAPI:
             raise ValueError(f"An icon is already registered for component kind: {component_kind}")
         self._kind_icons[component_kind] = icon
 
-    def remove_kind_icon(self, component_kind: str) -> None:
-        """Remove the fallback icon registered for a component kind."""
+    def unregister_kind_icon(self, component_kind: str) -> None:
+        """Unregister the fallback icon registered for a component kind."""
         self._kind_icons.pop(component_kind, None)
 
     def get_component_icon(self, component: dict[str, Any]) -> QIcon:
@@ -848,8 +857,8 @@ class StudioAPI:
         """Register a domain model class or factory for a component type."""
         self._component_models[component_type] = model_factory
 
-    def remove_component_model(self, component_type: str) -> None:
-        """Remove a registered component model by component type."""
+    def unregister_component_model(self, component_type: str) -> None:
+        """Unregister a registered component model by component type."""
         self._component_models.pop(component_type, None)
 
     def create_component_model(
@@ -877,8 +886,8 @@ class StudioAPI:
             raise ValueError(f"A component tree provider is already registered for: {provider_id}")
         self._component_tree_providers[provider_id] = provider
 
-    def remove_component_tree_provider(self, provider_id: str) -> None:
-        """Remove a component-tree provider by ID."""
+    def unregister_component_tree_provider(self, provider_id: str) -> None:
+        """Unregister a component-tree provider by ID."""
         self._component_tree_providers.pop(provider_id, None)
 
     def component_tree_nodes(
@@ -902,8 +911,8 @@ class StudioAPI:
         if self.current_project is not None:
             self.notify_project_content_changed()
 
-    def remove_project_tree_provider(self, provider_id: str) -> None:
-        """Remove a project-tree provider and refresh the project tree."""
+    def unregister_project_tree_provider(self, provider_id: str) -> None:
+        """Unregister a project-tree provider and refresh the project tree."""
         removed = self._project_tree_providers.pop(provider_id, None)
         if removed is not None and self.current_project is not None:
             self.notify_project_content_changed()

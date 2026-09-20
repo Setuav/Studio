@@ -5,9 +5,9 @@ from PySide6.QtWidgets import QDockWidget, QWidget
 from setuav_studio.__main__ import _parse_arguments
 from setuav_studio.api import (
     PanelContribution,
-    PluginManager,
     StudioAPI,
 )
+from setuav_studio.plugin.manager import PluginManager
 from setuav_studio.ui.shell import MainWindow
 from tests._common import TEST_PROJECT_PATH, get_qapp
 
@@ -68,13 +68,14 @@ class MainTests(unittest.TestCase):
         window = MainWindow(api)
         self.addCleanup(window.deleteLater)
 
-        api.add_panel(
+        api.register_panel(
             PanelContribution(
                 id="test.panel",
                 title="Test Panel",
                 factory=QWidget,
             )
         )
+
         dock = window.findChild(QDockWidget, "test.panel")
         self.assertIsNotNone(dock)
         self.assertEqual(dock.windowTitle(), "Test Panel")

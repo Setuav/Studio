@@ -152,7 +152,7 @@ def register_native_contributions(api: StudioAPI) -> None:
     from setuav_studio.ui.viewport import StudioViewport
 
     # 1. Native Panels
-    api.add_panel(
+    api.register_panel(
         PanelContribution(
             id="core:project-explorer",
             title="Project Explorer",
@@ -161,7 +161,7 @@ def register_native_contributions(api: StudioAPI) -> None:
             icon="fa6s.folder-tree",
         )
     )
-    api.add_panel(
+    api.register_panel(
         PanelContribution(
             id="studio.viewer.opengl",
             title="3D Viewer",
@@ -170,7 +170,7 @@ def register_native_contributions(api: StudioAPI) -> None:
             icon="viewer_3d",
         )
     )
-    api.add_panel(
+    api.register_panel(
         PanelContribution(
             id="core:properties",
             title="Properties",
@@ -181,7 +181,7 @@ def register_native_contributions(api: StudioAPI) -> None:
     )
     from setuav_studio.ui.panels.results import ResultPanel
 
-    api.add_panel(
+    api.register_panel(
         PanelContribution(
             id="core:result",
             title="Result",
@@ -192,7 +192,7 @@ def register_native_contributions(api: StudioAPI) -> None:
     )
 
     # 2. Native Toolbar Contributions
-    api.add_toolbar_item(
+    api.register_toolbar_item(
         ToolbarContribution(
             id="org.setuav.studio.toolbar.add_constant",
             title="Add Constant",
@@ -203,7 +203,7 @@ def register_native_contributions(api: StudioAPI) -> None:
             order=10,
         )
     )
-    api.add_toolbar_item(
+    api.register_toolbar_item(
         ToolbarContribution(
             id="org.setuav.studio.toolbar.add_constraint",
             title="Add Constraint",
@@ -214,7 +214,7 @@ def register_native_contributions(api: StudioAPI) -> None:
             order=20,
         )
     )
-    api.add_toolbar_item(
+    api.register_toolbar_item(
         ToolbarContribution(
             id="org.setuav.studio.toolbar.run_analysis",
             title="Run Analysis",

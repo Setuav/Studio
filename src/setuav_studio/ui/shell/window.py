@@ -127,12 +127,14 @@ class MainWindow(QMainWindow):
         self._degraded_badge = self._status_manager.degraded_badge
 
         # Host bridge bindings
-        self._host.bind_panel_handlers(self._add_panel, self._remove_panel, self._show_panel_by_id)
-        self._host.bind_toolbar_handlers(
-            self._add_toolbar_item,
-            self._remove_toolbar_item,
+        self._host.bind_panel_handlers(
+            self._register_panel, self._unregister_panel, self._show_panel_by_id
         )
-        self._host.bind_action_handlers(self._add_action, self._remove_action)
+        self._host.bind_toolbar_handlers(
+            self._register_toolbar_item,
+            self._unregister_toolbar_item,
+        )
+        self._host.bind_action_handlers(self._register_action, self._unregister_action)
 
         self.setWindowTitle("Setuav Studio")
         self.resize(1200, 800)
@@ -176,7 +178,7 @@ class MainWindow(QMainWindow):
         self._layout_manager.layout_save_scheduled = value
 
     # Panel Management
-    def _add_panel(self, contribution: PanelContribution) -> None:
+    def _register_panel(self, contribution: PanelContribution) -> None:
         if contribution.id in self._panels:
             logger.info(
                 "Panel '%s' already registered, skipping duplicate contribution.",
@@ -209,7 +211,7 @@ class MainWindow(QMainWindow):
 
         self._update_view_menu()
 
-    def _remove_panel(self, panel_id: str) -> None:
+    def _unregister_panel(self, panel_id: str) -> None:
         entry = self._panels.pop(panel_id, None)
         if entry is None:
             return
@@ -323,11 +325,11 @@ class MainWindow(QMainWindow):
         self._layout_manager.resize_visible_docks(docks, widths)
 
     # Toolbar Manager Delegations
-    def _add_toolbar_item(self, contribution: ToolbarContribution) -> None:
-        self._toolbar_manager.add_toolbar_item(contribution)
+    def _register_toolbar_item(self, contribution: ToolbarContribution) -> None:
+        self._toolbar_manager.register_toolbar_item(contribution)
 
-    def _remove_toolbar_item(self, contribution_id: str) -> None:
-        self._toolbar_manager.remove_toolbar_item(contribution_id)
+    def _unregister_toolbar_item(self, contribution_id: str) -> None:
+        self._toolbar_manager.unregister_toolbar_item(contribution_id)
 
     def _refresh_toolbar_action_states(self) -> None:
         self._toolbar_manager.update_toolbar_states()
@@ -387,11 +389,11 @@ class MainWindow(QMainWindow):
     def _open_plugin_manager(self) -> None:
         self._action_manager.open_plugin_manager()
 
-    def _add_action(self, contribution: ActionContribution) -> None:
-        self._action_manager.add_action(contribution)
+    def _register_action(self, contribution: ActionContribution) -> None:
+        self._action_manager.register_action(contribution)
 
-    def _remove_action(self, menu_path: str, title: str) -> None:
-        self._action_manager.remove_action(menu_path, title)
+    def _unregister_action(self, menu_path: str, title: str) -> None:
+        self._action_manager.unregister_action(menu_path, title)
 
     # Status Bar Delegations
     def _show_status_message(

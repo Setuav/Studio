@@ -35,15 +35,15 @@ class _StudioHost:
 
     def bind_panel_handlers(
         self,
-        add_handler: Callable[[PanelContribution], None],
-        remove_handler: Callable[[str], None] | None = None,
+        register_handler: Callable[[PanelContribution], None],
+        unregister_handler: Callable[[str], None] | None = None,
         show_handler: Callable[[str], None] | None = None,
     ) -> None:
-        self._api._add_panel = add_handler
-        self._api._remove_panel = remove_handler
+        self._api._register_panel = register_handler
+        self._api._unregister_panel = unregister_handler
         self._api._show_panel = show_handler
         for panel in self._api._pending_panels:
-            add_handler(panel)
+            register_handler(panel)
         self._api._pending_panels.clear()
 
     def bind_status_handler(self, handler: Callable[[str, str, int], None]) -> None:
@@ -57,24 +57,24 @@ class _StudioHost:
 
     def bind_toolbar_handlers(
         self,
-        add_handler: Callable[[ToolbarContribution], None],
-        remove_handler: Callable[[str], None] | None = None,
+        register_handler: Callable[[ToolbarContribution], None],
+        unregister_handler: Callable[[str], None] | None = None,
     ) -> None:
-        self._api._add_toolbar_item = add_handler
-        self._api._remove_toolbar_item = remove_handler
+        self._api._register_toolbar_item = register_handler
+        self._api._unregister_toolbar_item = unregister_handler
         for contribution in self._api._pending_toolbar_items:
-            add_handler(contribution)
+            register_handler(contribution)
         self._api._pending_toolbar_items.clear()
 
     def bind_action_handlers(
         self,
-        add_handler: Callable[[ActionContribution], None],
-        remove_handler: Callable[[str, str], None] | None = None,
+        register_handler: Callable[[ActionContribution], None],
+        unregister_handler: Callable[[str, str], None] | None = None,
     ) -> None:
-        self._api._add_action = add_handler
-        self._api._remove_action = remove_handler
+        self._api._register_action = register_handler
+        self._api._unregister_action = unregister_handler
         for action in self._api._pending_actions:
-            add_handler(action)
+            register_handler(action)
         self._api._pending_actions.clear()
 
     def set_project(self, project: ProjectDocument) -> None:

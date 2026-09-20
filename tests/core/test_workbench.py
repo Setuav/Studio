@@ -25,7 +25,7 @@ class TestWorkbenchAndTools(unittest.TestCase):
         win = MainWindow(api)
 
         # Register custom panel
-        api.add_panel(
+        api.register_panel(
             PanelContribution(
                 id="custom.panel",
                 title="Custom Panel",

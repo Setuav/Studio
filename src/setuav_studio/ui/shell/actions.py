@@ -391,7 +391,7 @@ class ActionManager:
         self._plugin_manager_dialog.refresh()
         self._plugin_manager_dialog.exec()
 
-    def add_action(self, contribution: ActionContribution) -> None:
+    def register_action(self, contribution: ActionContribution) -> None:
         parts = [p.strip().replace("&", "") for p in contribution.menu.split("/") if p.strip()]
         if not parts:
             parts = ["Tools"]
@@ -422,7 +422,8 @@ class ActionManager:
 
         action.triggered.connect(contribution.callback)
 
-    def remove_action(self, menu_path: str, title: str) -> None:
+    def unregister_action(self, menu_path: str, title: str) -> None:
+
         parts = [p.strip().replace("&", "") for p in menu_path.split("/") if p.strip()]
         if not parts:
             parts = ["Tools"]

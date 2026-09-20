@@ -68,6 +68,10 @@ class SolverRunner:
         """Register a solver class by solver ID."""
         self._registry[solver_id] = solver_cls
 
+    def unregister_solver(self, solver_id: str) -> None:
+        """Unregister a solver class by solver ID."""
+        self._registry.pop(solver_id, None)
+
     def get_solver_class(self, solver_id: str) -> type[AbstractSolver] | None:
         """Get registered solver class by ID."""
         return self._registry.get(solver_id)

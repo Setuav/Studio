@@ -83,27 +83,27 @@ class PluginSystemEdgeTests(unittest.TestCase):
             )
 
     def test_shell_handlers_queue_flush_remove_and_dispatch_contributions(self) -> None:
-        self.api.add_panel(PanelContribution("panel", "Panel", QWidget))
-        self.api.remove_panel("missing")
+        self.api.register_panel(PanelContribution("panel", "Panel", QWidget))
+        self.api.unregister_panel("missing")
         panels: list[str] = []
         removed_panels: list[str] = []
         self.api._host.bind_panel_handlers(
             lambda item: panels.append(item.id), removed_panels.append
         )
-        self.api.remove_panel("panel")
+        self.api.unregister_panel("panel")
         self.assertEqual((panels, removed_panels), (["panel"], ["panel"]))
 
         first = ToolbarContribution("first", "First", command="first")
         removed_toolbar: list[str] = []
-        self.api.add_toolbar_item(first)
-        self.api.remove_toolbar_item("first")
-        self.api.add_toolbar_item(first)
+        self.api.register_toolbar_item(first)
+        self.api.unregister_toolbar_item("first")
+        self.api.register_toolbar_item(first)
         toolbars: list[str] = []
         self.api._host.bind_toolbar_handlers(
             lambda item: toolbars.append(item.id), removed_toolbar.append
         )
-        self.api.add_toolbar_item(ToolbarContribution("second", "Second", command="second"))
-        self.api.remove_toolbar_item("second")
+        self.api.register_toolbar_item(ToolbarContribution("second", "Second", command="second"))
+        self.api.unregister_toolbar_item("second")
         self.assertEqual(toolbars, ["first", "second"])
         self.assertEqual(removed_toolbar, ["second"])
 
@@ -136,14 +136,14 @@ class PluginSystemEdgeTests(unittest.TestCase):
         self.assertEqual(received, [42])
 
         pending = ActionContribution("File", "Pending", lambda: None)
-        self.api.add_action(pending)
+        self.api.register_action(pending)
         actions: list[str] = []
         removed: list[tuple[str, str]] = []
         self.api._host.bind_action_handlers(
             lambda item: actions.append(item.title), lambda *args: removed.append(args)
         )
-        self.api.add_action(ActionContribution("File", "Direct", lambda: None))
-        self.api.remove_action("File", "Direct")
+        self.api.register_action(ActionContribution("File", "Direct", lambda: None))
+        self.api.unregister_action("File", "Direct")
         self.assertEqual(actions, ["Pending", "Direct"])
         self.assertEqual(removed, [("File", "Direct")])
 
@@ -165,18 +165,20 @@ class PluginSystemEdgeTests(unittest.TestCase):
             SettingsPageContribution("a", "Alpha", QWidget, order=5),
         )
         for page in pages:
-            self.api.add_settings_page(page)
+            self.api.register_settings_page(page)
         with self.assertRaises(ValueError):
-            self.api.add_settings_page(pages[0])
+            self.api.register_settings_page(pages[0])
         self.assertEqual([page.id for page in self.api._host.settings_pages()], ["a", "b", "z"])
-        self.api.remove_settings_page("a")
-        self.api.remove_settings_page("missing")
+        self.api.unregister_settings_page("a")
+        self.api.unregister_settings_page("missing")
 
         actions: list[ActionContribution] = []
         self.api._host.bind_action_handlers(actions.append)
-        self.api.register_tool(ToolContribution("Plain", lambda: None))
+        plain_tool = ToolContribution("Plain", lambda: None)
+        self.api.register_tool(plain_tool)
         self.api.register_tool(ToolContribution("Grouped", lambda: None, group="Geometry"))
         self.assertEqual([action.menu for action in actions], ["Tools", "Tools/Geometry"])
+        self.api.unregister_tool(plain_tool)
 
     def test_project_and_selection_listeners_drop_deleted_qobjects(self) -> None:
         project_events: list[ProjectDocument] = []
@@ -270,17 +272,17 @@ class PluginSystemEdgeTests(unittest.TestCase):
     def test_editor_icon_and_geometry_registries_support_removal_and_duplicates(self) -> None:
         self.assertIsNone(self.api.create_component_editor({}))
         self.api.register_component_editor("wing", QWidget)
-        self.api.remove_component_editor("wing")
+        self.api.unregister_component_editor("wing")
         self.api.register_kind_editor("instance", QWidget)
-        self.api.remove_kind_editor("instance")
+        self.api.unregister_kind_editor("instance")
 
         self.api.register_component_icon("wing", "component")
-        self.api.remove_component_icon("wing")
+        self.api.unregister_component_icon("wing")
         self.api.register_kind_icon("custom", "component")
         with self.assertRaises(ValueError):
             self.api.register_kind_icon("custom", "component")
         self.assertFalse(self.api.get_component_icon({"kind": "custom"}).isNull())
-        self.api.remove_kind_icon("custom")
+        self.api.unregister_kind_icon("custom")
 
     def test_tree_provider_registries_notify_and_resolve(self) -> None:
         component_node = ComponentTreeNodeContribution("node", "Node", {})
@@ -288,7 +290,7 @@ class PluginSystemEdgeTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.api.register_component_tree_provider("one", lambda _component: ())
         self.assertEqual(self.api.component_tree_nodes({}), (component_node,))
-        self.api.remove_component_tree_provider("one")
+        self.api.unregister_component_tree_provider("one")
 
         events: list[ProjectDocument] = []
         self.api._host.set_project(self.project)
@@ -298,8 +300,8 @@ class PluginSystemEdgeTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.api.register_project_tree_provider("one", lambda _project: ())
         self.assertEqual(self.api.project_tree_nodes(self.project), (project_node,))
-        self.api.remove_project_tree_provider("missing")
-        self.api.remove_project_tree_provider("one")
+        self.api.unregister_project_tree_provider("missing")
+        self.api.unregister_project_tree_provider("one")
         self.assertEqual(len(events), 2)
 
     def test_plugin_requirements_handle_malformed_and_incompatible_entries(self) -> None:
@@ -506,8 +508,9 @@ class PluginSystemEdgeTests(unittest.TestCase):
         self.assertIs(self.api.project, self.project)
 
         empty_api = StudioAPI()
-        empty_api.remove_action("File", "Missing")
+        empty_api.unregister_action("File", "Missing")
         empty_api.notify_project_content_changed()
+
         empty_api.remove_project_listener(lambda _project: None)
 
     def test_listeners_may_remove_themselves_before_raising(self) -> None:

@@ -86,7 +86,7 @@ class ShellContributionTests(unittest.TestCase):
             icon="menu-icon",
             menu_items=(menu_item,),
         )
-        self.api.add_toolbar_item(contribution)
+        self.api.register_toolbar_item(contribution)
         self.window._update_main_toolbar_style()
         self.window._update_all_icons()
 
@@ -111,19 +111,19 @@ class ShellContributionTests(unittest.TestCase):
             icon="component",
             shortcut="Ctrl+Alt+N",
         )
-        self.window._add_action(nested)
+        self.window._register_action(nested)
         menu = self.window._menus["tools/geometry"]
         menu.actions()[0].trigger()
         self.assertEqual(called, ["nested"])
         self.assertFalse(menu.actions()[0].icon().isNull())
 
-        self.window._add_action(ActionContribution("", "Default", lambda: None))
+        self.window._register_action(ActionContribution("", "Default", lambda: None))
         self.assertIn("Default", [action.text() for action in self.window._tools_menu.actions()])
-        self.window._remove_action("Tools/Geometry", "Nested")
+        self.window._unregister_action("Tools/Geometry", "Nested")
         self.assertNotIn("Nested", [action.text() for action in menu.actions()])
         self.assertNotIn("tools/geometry", self.window._menus)
-        self.window._remove_action("Missing", "Unknown")
-        self.window._remove_action("", "Default")
+        self.window._unregister_action("Missing", "Unknown")
+        self.window._unregister_action("", "Default")
 
     def test_help_menu_opens_about_dialog(self) -> None:
         self.assertEqual(self.window._help_menu.title(), "&Help")
@@ -176,7 +176,7 @@ class ShellContributionTests(unittest.TestCase):
             group="create",
         )
         for contribution in (callback, command, missing_command, menu):
-            self.api.add_toolbar_item(contribution)
+            self.api.register_toolbar_item(contribution)
 
         self.window._toolbar_actions["callback"].trigger()
         self.window._toolbar_menu_actions["menu"][0][1].trigger()
@@ -194,19 +194,19 @@ class ShellContributionTests(unittest.TestCase):
             callback=lambda: None,
             enabled_when=Mock(side_effect=RuntimeError("broken")),
         )
-        self.api.add_toolbar_item(broken)
+        self.api.register_toolbar_item(broken)
         with self.assertLogs("setuav_studio.ui.shell.toolbar_manager", level="ERROR"):
             self.window._refresh_toolbar_action_states()
         self.assertFalse(self.window._toolbar_actions["broken"].isEnabled())
 
         replacement = ToolbarContribution("callback", "Replacement", callback=lambda: None)
-        self.api.add_toolbar_item(replacement)
+        self.api.register_toolbar_item(replacement)
         self.assertEqual(self.window._toolbar_actions["callback"].toolTip(), "Replacement")
-        self.api.remove_toolbar_item("menu")
-        self.api.remove_toolbar_item("save")
+        self.api.unregister_toolbar_item("menu")
+        self.api.unregister_toolbar_item("save")
 
     def test_toolbar_groups_and_remove_obsolete_bars(self) -> None:
-        self.api.add_toolbar_item(
+        self.api.register_toolbar_item(
             ToolbarContribution(
                 "design-tool",
                 "Design Tool",
@@ -214,7 +214,7 @@ class ShellContributionTests(unittest.TestCase):
                 group="design",
             )
         )
-        self.api.add_toolbar_item(
+        self.api.register_toolbar_item(
             ToolbarContribution(
                 "analysis-tool",
                 "Analysis Tool",
@@ -228,7 +228,7 @@ class ShellContributionTests(unittest.TestCase):
         self.assertFalse(self.window._toolset_bars["design"].isHidden())
         self.assertFalse(self.window._toolset_bars["analysis"].isHidden())
 
-        self.api.remove_toolbar_item("design-tool")
+        self.api.unregister_toolbar_item("design-tool")
         self.assertNotIn("design", self.window._toolset_bars)
         self.assertIn("analysis", self.window._toolset_bars)
 
@@ -239,7 +239,7 @@ class ShellContributionTests(unittest.TestCase):
             command="plugin.command",
             icon="component",
         )
-        self.api.add_toolbar_item(contribution)
+        self.api.register_toolbar_item(contribution)
         self.assertNotIn("late", self.window._toolbar_actions)
 
         command = QAction("Command", self.window)
@@ -250,7 +250,7 @@ class ShellContributionTests(unittest.TestCase):
         self.assertFalse(command.icon().isNull())
 
     def test_panels_sync_visibility_wrap_content_and_remove_safely(self) -> None:
-        self.api.add_panel(
+        self.api.register_panel(
             PanelContribution(
                 "analysis-panel",
                 "Analysis",
@@ -270,8 +270,8 @@ class ShellContributionTests(unittest.TestCase):
         self.window._panel_actions["analysis-panel"].setChecked(False)
         self.assertTrue(dock.isHidden())
 
-        self.window._remove_panel("missing")
-        self.api.remove_panel("analysis-panel")
+        self.window._unregister_panel("missing")
+        self.api.unregister_panel("analysis-panel")
         self.assertNotIn("analysis-panel", self.window._panels)
 
     def test_restore_window_layout(self) -> None:

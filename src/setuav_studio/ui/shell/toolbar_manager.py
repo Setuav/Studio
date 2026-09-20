@@ -69,9 +69,9 @@ class ToolbarManager:
                 if menu_item.icon:
                     menu_action.setIcon(get_icon(menu_item.icon))
 
-    def add_toolbar_item(self, contribution: ToolbarContribution) -> None:
+    def register_toolbar_item(self, contribution: ToolbarContribution) -> None:
         if contribution.id in self.toolbar_contributions:
-            self.remove_toolbar_item(contribution.id)
+            self.unregister_toolbar_item(contribution.id)
 
         self.toolbar_contributions[contribution.id] = contribution
         if contribution.callback is not None:
@@ -115,7 +115,8 @@ class ToolbarManager:
         self.rebuild_toolbar_tools()
         self.update_toolbar_states()
 
-    def remove_toolbar_item(self, contribution_id: str) -> None:
+    def unregister_toolbar_item(self, contribution_id: str) -> None:
+
         contribution = self.toolbar_contributions.pop(contribution_id, None)
         if contribution is None:
             return

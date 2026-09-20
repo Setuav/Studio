@@ -79,6 +79,29 @@ class PluginAPIContractTests(unittest.TestCase):
         self.assertTrue(hasattr(inst.units, "to_base"))
         self.assertTrue(hasattr(inst.units, "get_unit_symbol"))
 
+    def test_studio_api_registration_surface(self) -> None:
+        inst = api.StudioAPI()
+        expected_pairs = [
+            ("register_panel", "unregister_panel"),
+            ("register_toolbar_item", "unregister_toolbar_item"),
+            ("register_action", "unregister_action"),
+            ("register_settings_page", "unregister_settings_page"),
+            ("register_tool", "unregister_tool"),
+            ("register_component_type", "unregister_component_type"),
+            ("register_component_editor", "unregister_component_editor"),
+            ("register_kind_editor", "unregister_kind_editor"),
+            ("register_component_icon", "unregister_component_icon"),
+            ("register_kind_icon", "unregister_kind_icon"),
+            ("register_component_model", "unregister_component_model"),
+            ("register_component_tree_provider", "unregister_component_tree_provider"),
+            ("register_project_tree_provider", "unregister_project_tree_provider"),
+            ("register_solver", "unregister_solver"),
+        ]
+        for reg, unreg in expected_pairs:
+            with self.subTest(reg=reg, unreg=unreg):
+                self.assertTrue(hasattr(inst, reg), f"Missing {reg}")
+                self.assertTrue(hasattr(inst, unreg), f"Missing {unreg}")
+
 
 if __name__ == "__main__":
     unittest.main()
