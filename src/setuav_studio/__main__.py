@@ -114,7 +114,8 @@ def main() -> int:
     from PySide6.QtCore import QTimer
     from PySide6.QtWidgets import QApplication
 
-    from setuav_studio.api import PluginManager, StudioAPI
+    from setuav_studio.api import StudioAPI
+    from setuav_studio.plugin import PluginManager
     from setuav_studio.ui.dialog.log import install_log_buffer
     from setuav_studio.ui.settings.settings_pages import StudioSettings
     from setuav_studio.ui.shell import MainWindow
@@ -143,18 +144,17 @@ def main() -> int:
         from plugins.debug import PLUGIN as debug_plugin
 
         plugin_manager.activate(debug_plugin)
-    # NOTE: Plugins disabled temporarily during core architecture refactoring.
-    # plugin_issues = plugin_manager.discover()
-    # if plugin_issues:
-    #     logger = logging.getLogger(__name__)
-    #     for issue in plugin_issues:
-    #         logger.warning("Plugin load issue (%s): %s", issue.source, issue.message)
-    #     window.statusBar().showMessage(
-    #         "Plugin load issues: "
-    #         + "; ".join(f"{issue.source}: {issue.message}" for issue in plugin_issues)
-    #     )
-    #     if arguments.smoke_test:
-    #         return 1
+    plugin_issues = plugin_manager.discover()
+    if plugin_issues:
+        logger = logging.getLogger(__name__)
+        for issue in plugin_issues:
+            logger.warning("Plugin load issue (%s): %s", issue.source, issue.message)
+        window.statusBar().showMessage(
+            "Plugin load issues: "
+            + "; ".join(f"{issue.source}: {issue.message}" for issue in plugin_issues)
+        )
+        if arguments.smoke_test:
+            return 1
 
     # Restore the top-level geometry before showing, but defer dock layout
     # restoration until the platform has created and exposed the native

@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 from packaging.version import InvalidVersion, Version
 
-from setuav_studio_sdk.plugin import StudioPlugin
+from .plugin import StudioPlugin
 
 
 @dataclass(frozen=True)

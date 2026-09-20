@@ -1,6 +1,6 @@
 import unittest
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import ClassVar
 
 from PySide6.QtWidgets import QWidget
 

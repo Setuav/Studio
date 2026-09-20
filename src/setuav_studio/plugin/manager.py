@@ -9,9 +9,8 @@ from typing import TYPE_CHECKING, Any, cast
 
 from PySide6.QtCore import QSettings
 
-from setuav_studio_sdk.plugin import StudioPlugin
-
 from .installer import get_user_plugins_dir, install_plugin_archive
+from .plugin import StudioPlugin
 from .requirements import (
     PluginLoadIssue,
     _candidate_sort_key,
@@ -20,13 +19,11 @@ from .requirements import (
 )
 
 if TYPE_CHECKING:
-    from .api import StudioAPI
+    from setuav_studio.api import StudioAPI
 
 logger = logging.getLogger(__name__)
 _DISABLED_PLUGINS_KEY = "plugins/disabled"
 _CUSTOM_FOLDERS_KEY = "plugins/custom_folders"
-ENABLE_BUNDLED_PLUGINS = False  # Temporarily disabled during Core architecture refactoring
-ENABLE_ENTRY_POINT_PLUGINS = False  # Temporarily disabled during Core architecture refactoring
 
 
 class PluginManager:
@@ -176,8 +173,6 @@ class PluginManager:
     ) -> tuple[list[PluginLoadIssue], list[tuple[int, str, object]]]:
         issues: list[PluginLoadIssue] = []
         candidates: list[tuple[int, str, object]] = []
-        if not ENABLE_BUNDLED_PLUGINS:
-            return issues, candidates
         try:
             package = import_module("plugins")
             for module_info in pkgutil.iter_modules(package.__path__):
@@ -205,8 +200,6 @@ class PluginManager:
     ) -> tuple[list[PluginLoadIssue], list[tuple[int, str, object]]]:
         issues: list[PluginLoadIssue] = []
         candidates: list[tuple[int, str, object]] = []
-        if not ENABLE_ENTRY_POINT_PLUGINS:
-            return issues, candidates
         for entry_point in metadata.entry_points(group="setuav_studio.plugins"):
             try:
                 logger.info("Loading entry-point plugin: %s", entry_point.name)

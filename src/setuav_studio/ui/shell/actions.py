@@ -7,15 +7,16 @@ import shiboken6
 from PySide6.QtGui import QAction, QActionGroup, QKeySequence, QShortcut
 from PySide6.QtWidgets import QApplication, QDialog, QMainWindow, QMenu
 
+from setuav_studio.api import ActionContribution
 from setuav_studio.ui.dialog.about import AboutDialog
 from setuav_studio.ui.dialog.plugin_manager import PluginManagerDialog
 from setuav_studio.ui.settings.settings_pages import SettingsDialog, StudioSettings
 from setuav_studio.ui.shell.command_palette import CommandPaletteDialog
 from setuav_studio.ui.style.icons import get_icon
-from setuav_studio_sdk import ActionContribution
 
 if TYPE_CHECKING:
-    from setuav_studio.api import PluginManager, StudioAPI
+    from setuav_studio.api import StudioAPI
+    from setuav_studio.plugin import PluginManager
 
 logger = logging.getLogger(__name__)
 

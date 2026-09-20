@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.api import PluginManager
+from setuav_studio.plugin import PluginManager
 
 
 class PluginManagerDialog(QDialog):
@@ -173,7 +173,7 @@ class PluginManagerDialog(QDialog):
         from PySide6.QtCore import QUrl
         from PySide6.QtGui import QDesktopServices
 
-        from setuav_studio.api.installer import get_user_plugins_dir
+        from setuav_studio.plugin import get_user_plugins_dir
 
         user_plugins = get_user_plugins_dir()
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(user_plugins)))

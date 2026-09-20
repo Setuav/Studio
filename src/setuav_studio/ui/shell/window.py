@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio_sdk import PanelContribution
+from setuav_studio.api import PanelContribution
 
 from .actions import ActionManager
 from .layout_manager import LayoutManager
@@ -26,12 +26,13 @@ from .toolbar_manager import ToolbarManager
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from setuav_studio.api import PluginManager, StudioAPI
-    from setuav_studio.project import ProjectDocument
-    from setuav_studio_sdk import (
+    from setuav_studio.api import (
         ActionContribution,
+        StudioAPI,
         ToolbarContribution,
     )
+    from setuav_studio.plugin import PluginManager
+    from setuav_studio.project import ProjectDocument
 
 logger = logging.getLogger(__name__)
 

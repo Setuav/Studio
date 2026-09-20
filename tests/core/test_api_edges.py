@@ -15,13 +15,15 @@ from setuav_studio.api import (
     ActionContribution,
     ComponentTreeNodeContribution,
     PanelContribution,
-    PluginManager,
     ProjectTreeNodeContribution,
     SettingsPageContribution,
     StudioAPI,
     ToolbarContribution,
     ToolbarMenuItemContribution,
     ToolContribution,
+)
+from setuav_studio.plugin import (
+    PluginManager,
     _candidate_sort_key,
 )
 from setuav_studio.project import ProjectDocument
@@ -377,12 +379,12 @@ class PluginSystemEdgeTests(unittest.TestCase):
             return SimpleNamespace(PLUGIN=BadPlugin())
 
         with (
-            patch("setuav_studio.api.manager.pkgutil.iter_modules", return_value=modules),
+            patch("setuav_studio.plugin.manager.pkgutil.iter_modules", return_value=modules),
             patch(
-                "setuav_studio.api.manager.import_module",
+                "setuav_studio.plugin.manager.import_module",
                 side_effect=import_side_effect,
             ),
-            self.assertLogs("setuav_studio.api.manager", level="WARNING"),
+            self.assertLogs("setuav_studio.plugin.manager", level="WARNING"),
         ):
             issues = manager._discover_bundled()
         self.assertEqual(len(issues), 2)
@@ -395,10 +397,10 @@ class PluginSystemEdgeTests(unittest.TestCase):
         activation_error.load.return_value = BadPlugin()
         with (
             patch(
-                "setuav_studio.api.manager.metadata.entry_points",
+                "setuav_studio.plugin.manager.metadata.entry_points",
                 return_value=[load_error, activation_error],
             ),
-            self.assertLogs("setuav_studio.api.manager", level="WARNING"),
+            self.assertLogs("setuav_studio.plugin.manager", level="WARNING"),
         ):
             issues = manager._discover_entry_points()
         self.assertEqual(len(issues), 2)
@@ -459,7 +461,7 @@ class PluginSystemEdgeTests(unittest.TestCase):
     def test_disabled_plugin_state_is_loaded_and_saved(self) -> None:
         settings = Mock()
         settings.value.return_value = ["com.example.persisted"]
-        with patch("setuav_studio.api.manager.QSettings", return_value=settings):
+        with patch("setuav_studio.plugin.manager.QSettings", return_value=settings):
             manager = PluginManager(self.api)
 
             self.assertTrue(manager.is_disabled("com.example.persisted"))
