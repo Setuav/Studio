@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.api import PanelContribution
+from setuav_studio.api import PanelContribution, StudioEvents
 
 from .actions import ActionManager
 from .layout_manager import LayoutManager
@@ -103,7 +103,7 @@ class MainWindow(QMainWindow):
         self._new_project_action = self._action_manager.new_project_action
         self._open_project_action = self._action_manager.open_action
         self._open_folder_action = self._action_manager.open_folder_action
-        self._open_directory_action = getattr(self._action_manager, "open_directory_action", None)
+        self._open_directory_action = self._action_manager.open_directory_action
         self._save_action = self._action_manager.save_action
         self._save_as_action = self._action_manager.save_as_action
         self._exit_action = self._action_manager.exit_action
@@ -625,6 +625,10 @@ class MainWindow(QMainWindow):
         if not self._confirm_project_close():
             event.ignore()
             return
+
+        if self._project is not None:
+            self._api.publish(StudioEvents.PROJECT_CLOSED, self._project)
+            self._project = None
 
         self._detach_api_listeners()
         settings = QSettings()

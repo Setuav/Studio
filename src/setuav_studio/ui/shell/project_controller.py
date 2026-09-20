@@ -7,8 +7,9 @@ from typing import TYPE_CHECKING, Any
 
 import shiboken6
 from PySide6.QtCore import QSettings
-from PySide6.QtWidgets import QFileDialog, QMainWindow, QMessageBox
+from PySide6.QtWidgets import QFileDialog, QMessageBox
 
+from setuav_studio.api.events import StudioEvents
 from setuav_studio.project import (
     ProjectDocument,
     ProjectOpenError,
@@ -29,13 +30,15 @@ from .validation import (
 if TYPE_CHECKING:
     from setuav_studio.api import StudioAPI
 
+    from .window import MainWindow
+
 logger = logging.getLogger(__name__)
 
 
 class ProjectController:
     """Manages project file operations, document lifecycle, and unsaved changes."""
 
-    def __init__(self, window: QMainWindow, api: StudioAPI) -> None:
+    def __init__(self, window: MainWindow, api: StudioAPI) -> None:
         self._window = window
         self._api = api
         self._host = api._host
@@ -101,7 +104,7 @@ class ProjectController:
         doc = create_project("untitled.suav")
         doc.modified = False
         doc.data["name"] = "Untitled Project"
-        doc._is_untitled = True
+        doc._is_untitled = True  # type: ignore[attr-defined]
         return self.activate_project(doc, confirm_close=False)
 
     def open_last_project(self) -> bool:
@@ -129,6 +132,10 @@ class ProjectController:
 
         if confirm_close and not self._window._confirm_project_close():
             return False
+
+        old_project = self.project
+        if old_project is not None and old_project is not project:
+            self._api.publish(StudioEvents.PROJECT_CLOSED, old_project)
 
         self.project = project
         project.plugin_issues = self._host.check_project_requirements(project.data)
@@ -194,7 +201,7 @@ class ProjectController:
         except ProjectSaveError as exc:
             QMessageBox.critical(self._window, "Cannot Save Project", str(exc))
             return False
-        self.project._is_untitled = False
+        self.project._is_untitled = False  # type: ignore[attr-defined]
         self._host.mark_project_saved()
         self._window._add_recent_project(self.project.location)
         self._window._update_window_title()
@@ -321,6 +328,8 @@ class ProjectController:
         value = QSettings().value("recent_projects", [])
         if isinstance(value, str):
             return [value]
+        if not isinstance(value, list):
+            return []
         return [str(path) for path in value]
 
     def add_recent_project(self, path: Path) -> None:
