@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 from setuav_studio.model.expression import ExpressionEvaluator
-from setuav_studio.model.scope import ScopeProxy
+from setuav_studio.model.scope import DotDict, to_dot_dict
 from setuav_studio.model.symbol import get_available_symbols_metadata
 from setuav_studio.project.document import create_project
 
@@ -16,16 +16,16 @@ class TestUniversalScope(unittest.TestCase):
     def setUp(self) -> None:
         self.evaluator = ExpressionEvaluator()
 
-    def test_scope_proxy_primitives_and_wrappers(self) -> None:
-        self.assertEqual(ScopeProxy.wrap(42), 42)
-        self.assertEqual(ScopeProxy.wrap(3.14), 3.14)
-        self.assertEqual(ScopeProxy.wrap("hello"), "hello")
-        self.assertEqual(ScopeProxy.wrap(None), None)
+    def test_dot_dict_primitives_and_wrappers(self) -> None:
+        self.assertEqual(to_dot_dict(42), 42)
+        self.assertEqual(to_dot_dict(3.14), 3.14)
+        self.assertEqual(to_dot_dict("hello"), "hello")
+        self.assertEqual(to_dot_dict(None), None)
 
-        proxy = ScopeProxy.wrap({"foo": {"bar": 100}})
-        self.assertIsInstance(proxy, ScopeProxy)
-        self.assertEqual(proxy.foo.bar, 100)
-        self.assertEqual(proxy["foo"]["bar"], 100)
+        d = to_dot_dict({"foo": {"bar": 100}})
+        self.assertIsInstance(d, DotDict)
+        self.assertEqual(d.foo.bar, 100)
+        self.assertEqual(d["foo"]["bar"], 100)
 
     def test_hierarchical_json_dotted_paths_and_shortcuts(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -29,8 +29,9 @@ from setuav_studio.model.parameter import (
     ParameterResolver,
 )
 from setuav_studio.model.scope import (
-    ScopeProxy,
+    DotDict,
     build_universal_scope,
+    to_dot_dict,
 )
 from setuav_studio.model.symbol import (
     build_evaluation_context,
@@ -46,6 +47,7 @@ __all__ = [
     "ComponentMassProperties",
     "ConstraintChecker",
     "ConstraintResult",
+    "DotDict",
     "Environment",
     "ExpressionEvaluationError",
     "ExpressionEvaluator",
@@ -54,10 +56,10 @@ __all__ = [
     "MassProperties",
     "ParameterResolutionError",
     "ParameterResolver",
-    "ScopeProxy",
     "Vector3",
     "build_evaluation_context",
     "build_universal_scope",
     "create_model_for_component",
     "get_available_symbols_metadata",
+    "to_dot_dict",
 ]

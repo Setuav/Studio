@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from setuav_studio.api.contributions import ParameterField
@@ -205,7 +205,13 @@ class Component:
 
     @property
     def transform(self) -> dict[str, Any]:
-        return self._raw_data.setdefault("transform", {})
+        from setuav_studio.model.scope import to_dot_dict
+
+        tf = self._raw_data.get("transform")
+        if not isinstance(tf, dict) or not hasattr(tf, "__getattr__"):
+            tf = to_dot_dict(tf if isinstance(tf, dict) else {})
+            self._raw_data["transform"] = tf
+        return cast(dict[str, Any], tf)
 
     @property
     def envelope(self) -> dict[str, Any]:
@@ -217,11 +223,25 @@ class Component:
 
     @property
     def position(self) -> dict[str, float]:
-        return self.transform.setdefault("position", {"x": 0.0, "y": 0.0, "z": 0.0})
+        from setuav_studio.model.scope import to_dot_dict
+
+        pos = self.transform.get("position")
+        if not isinstance(pos, dict) or not hasattr(pos, "__getattr__"):
+            pos = to_dot_dict(pos if isinstance(pos, dict) else {"x": 0.0, "y": 0.0, "z": 0.0})
+            self.transform["position"] = pos
+        return cast(dict[str, float], pos)
 
     @property
     def rotation(self) -> dict[str, float]:
-        return self.transform.setdefault("rotation", {"roll": 0.0, "pitch": 0.0, "yaw": 0.0})
+        from setuav_studio.model.scope import to_dot_dict
+
+        rot = self.transform.get("rotation")
+        if not isinstance(rot, dict) or not hasattr(rot, "__getattr__"):
+            rot = to_dot_dict(
+                rot if isinstance(rot, dict) else {"roll": 0.0, "pitch": 0.0, "yaw": 0.0}
+            )
+            self.transform["rotation"] = rot
+        return cast(dict[str, float], rot)
 
     @property
     def x(self) -> float:
@@ -261,7 +281,13 @@ class Component:
 
     @property
     def parameters(self) -> dict[str, Any]:
-        return self._raw_data.setdefault("parameters", {})
+        from setuav_studio.model.scope import to_dot_dict
+
+        p = self._raw_data.get("parameters")
+        if not isinstance(p, dict) or not hasattr(p, "__getattr__"):
+            p = to_dot_dict(p if isinstance(p, dict) else {})
+            self._raw_data["parameters"] = p
+        return cast(dict[str, Any], p)
 
     @property
     def extensions(self) -> dict[str, Any]:
@@ -356,12 +382,35 @@ class Component:
         """Set a parameter value by key."""
         self.parameters[key] = value
 
+    @property
+    def sections(self) -> list[Any]:
+        """List of station profile dictionaries/models."""
+        from setuav_studio.model.scope import to_dot_dict
+
+        profs = (
+            self.parameters.get("geometry", {}).get("profiles")
+            or self.parameters.get("profiles")
+            or []
+        )
+        return [to_dot_dict(x) for x in profs] if isinstance(profs, list) else []
+
     def __getattr__(self, name: str) -> Any:
         if name in self.parameters:
             return self.parameters[name]
+        geom = self.parameters.get("geometry")
+        if isinstance(geom, dict) and name in geom:
+            return geom[name]
         name_lower = name.lower()
         if hasattr(self, "_children") and name_lower in self._children:
             return self._children[name_lower]
+        if name.startswith("section_") or name.startswith("profile_"):
+            try:
+                idx = int(name.split("_")[-1])
+                secs = self.sections
+                if 0 <= idx < len(secs):
+                    return secs[idx]
+            except (ValueError, IndexError):
+                pass
         raise AttributeError(
             f"'{self.__class__.__name__}' object has no attribute or parameter '{name}'"
         )
