@@ -119,26 +119,27 @@ class ProjectTreeBuilder:
             else:
                 constants[k] = v
 
-        # 1. Constants Group
-        const_group = QTreeWidgetItem(["Constants"])
-        const_group.setIcon(0, get_icon("constant"))
-        const_group.setToolTip(0, "Project Design Constants")
-        self._tree._parameters_group_item = const_group
-        project_item.addChild(const_group)
+        # 1. Constants Group (if any exist)
+        if constants:
+            const_group = QTreeWidgetItem(["Constants"])
+            const_group.setIcon(0, get_icon("constant"))
+            const_group.setToolTip(0, "Constants")
+            self._tree._parameters_group_item = const_group
+            project_item.addChild(const_group)
 
-        for k, v in constants.items():
-            item = QTreeWidgetItem([str(k)])
-            item.setIcon(0, get_icon("constant"))
-            if isinstance(v, dict):
-                unit_str = f" {v.get('unit')}" if v.get("unit") else ""
-                val_disp = f"{v.get('value', '')}{unit_str}"
-            else:
-                val_disp = str(v)
-            item.setToolTip(0, f"Constant: {k}\nValue: {val_disp}")
-            param_payload = {"kind": "parameter", "id": f"param_{k}", "key": k, "value": v}
-            self._tree._element_map[item] = param_payload
-            self._tree._item_map[f"param_{k}"] = item
-            const_group.addChild(item)
+            for k, v in constants.items():
+                item = QTreeWidgetItem([str(k)])
+                item.setIcon(0, get_icon("constant"))
+                if isinstance(v, dict):
+                    unit_str = f" {v.get('unit')}" if v.get("unit") else ""
+                    val_disp = f"{v.get('value', '')}{unit_str}"
+                else:
+                    val_disp = str(v)
+                item.setToolTip(0, f"Constant: {k}\nValue: {val_disp}")
+                param_payload = {"kind": "parameter", "id": f"param_{k}", "key": k, "value": v}
+                self._tree._element_map[item] = param_payload
+                self._tree._item_map[f"param_{k}"] = item
+                const_group.addChild(item)
 
         # 2. Equations Group (if any exist)
         if equations:
@@ -163,12 +164,16 @@ class ProjectTreeBuilder:
         project: ProjectDocument,
     ) -> None:
         constraints = project.data.get("constraints", [])
-        if not isinstance(constraints, list):
+        if not isinstance(constraints, list) or not constraints:
             return
 
-        constraint_group = QTreeWidgetItem(["Design Constraints"])
+        valid_constraints = [c for c in constraints if isinstance(c, dict)]
+        if not valid_constraints:
+            return
+
+        constraint_group = QTreeWidgetItem(["Constraints"])
         constraint_group.setIcon(0, get_icon("constraint"))
-        constraint_group.setToolTip(0, "Design Rules & Limits")
+        constraint_group.setToolTip(0, "Constraints")
         self._tree._constraints_group_item = constraint_group
         project_item.addChild(constraint_group)
 
@@ -176,9 +181,7 @@ class ProjectTreeBuilder:
 
         checker = ConstraintChecker()
 
-        for c in constraints:
-            if not isinstance(c, dict):
-                continue
+        for c in valid_constraints:
             cid = c.get("id", "")
             name = c.get("name", cid)
             enabled = c.get("enabled", True)

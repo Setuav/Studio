@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 def add_parameter_action(
     api: StudioAPI,
-    tree: QWidget,
+    tree: QWidget | None = None,
     is_constant: bool = False,
     parent: QWidget | None = None,
 ) -> None:
@@ -28,12 +28,14 @@ def add_parameter_action(
 
     action_name = "constant" if is_constant else "parameter"
     api.edit_project(f"Add {action_name} '{param_name}'", _apply)
-    api.set_selection({"kind": "parameter", "key": param_name, "value": 0.0})
+    api.set_selection(
+        {"kind": "parameter", "id": f"param_{param_name}", "key": param_name, "value": 0.0}
+    )
 
 
 def add_constraint_action(
     api: StudioAPI,
-    tree: QWidget,
+    tree: QWidget | None = None,
     parent: QWidget | None = None,
 ) -> None:
     data = api.current_project.data if api.current_project else {}
@@ -58,7 +60,7 @@ def add_constraint_action(
         pdata.setdefault("constraints", []).append(new_constraint)
 
     api.edit_project(f"Add constraint '{cname}'", _apply)
-    api.set_selection({"kind": "constraint", "id": cid, "name": cname})
+    api.set_selection({"kind": "constraint", "id": cid, "name": cname, **new_constraint})
 
 
 def toggle_constraint(

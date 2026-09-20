@@ -7,10 +7,10 @@ from typing import TYPE_CHECKING
 from PySide6.QtGui import QAction, QActionGroup
 from PySide6.QtWidgets import (
     QButtonGroup,
+    QDialog,
     QFileDialog,
     QFrame,
     QHBoxLayout,
-    QInputDialog,
     QMenu,
     QMessageBox,
     QToolButton,
@@ -187,32 +187,13 @@ class StudioViewportHUD(QFrame):
 
         layout.addWidget(self._create_separator())
 
-        # 9. Screenshot button with resolution menu
+        # 9. Screenshot button opening custom resolution dialog
         self.screenshot_button = QToolButton(self)
         self.screenshot_button.setIcon(get_icon("screenshot"))
         self.screenshot_button.setToolTip("Capture Screenshot")
         self.screenshot_button.setFixedSize(24, 24)
         self.screenshot_button.setAutoRaise(True)
-        self.screenshot_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        self._screenshot_menu = QMenu(self.screenshot_button)
-        self._screenshot_presets = [
-            ("HD (1280 × 720)", 1280, 720),
-            ("Full HD (1920 × 1080)", 1920, 1080),
-            ("QHD (2560 × 1440)", 2560, 1440),
-            ("4K UHD (3840 × 2160)", 3840, 2160),
-        ]
-        for label, w, h in self._screenshot_presets:
-            self._screenshot_menu.addAction(
-                label,
-                lambda _checked=False, sw=w, sh=h: self._take_screenshot(sw, sh),
-            )
-        self._screenshot_menu.addSeparator()
-        self._screenshot_menu.addAction("Custom Resolution…", self._take_screenshot_custom)
-        self._screenshot_menu.addSeparator()
-        self._action_transparent_bg = self._screenshot_menu.addAction("Transparent Background")
-        self._action_transparent_bg.setCheckable(True)
-        self._action_transparent_bg.setChecked(False)
-        self.screenshot_button.setMenu(self._screenshot_menu)
+        self.screenshot_button.clicked.connect(self._open_screenshot_dialog)
         layout.addWidget(self.screenshot_button)
 
         self.adjustSize()
@@ -331,8 +312,21 @@ class StudioViewportHUD(QFrame):
         )
         self.projection_button.setToolTip(f"Projection: {mode} (click for {next_mode})")
 
-    def _take_screenshot(self, width: int, height: int) -> None:
-        transparent = self._action_transparent_bg.isChecked()
+    def _open_screenshot_dialog(self) -> None:
+        from setuav_studio.ui.dialog.screenshot import ScreenshotDialog
+
+        cur_w = self._viewport.width()
+        cur_h = self._viewport.height()
+        if cur_w < 100 or cur_h < 100:
+            cur_w, cur_h = 1920, 1080
+
+        dialog = ScreenshotDialog(cur_w, cur_h, parent=self.window())
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        width, height = dialog.resolution
+        transparent = dialog.transparent_background
+
         image = self._viewport.capture_screenshot(
             width,
             height,
@@ -361,39 +355,3 @@ class StudioViewportHUD(QFrame):
                 "Screenshot",
                 f"Failed to save image to:\n{path}",
             )
-
-    def _take_screenshot_custom(self) -> None:
-        text, ok = QInputDialog.getText(
-            self,
-            "Custom Resolution",
-            "Enter resolution (Width x Height):",
-            text="1920x1080",
-        )
-        if not ok or not text:
-            return
-        text = text.strip().lower().replace("×", "x")
-        parts = text.split("x")
-        if len(parts) != 2:
-            QMessageBox.warning(
-                self,
-                "Invalid Resolution",
-                "Format: WIDTHxHEIGHT  (e.g. 1920x1080)",
-            )
-            return
-        try:
-            width, height = int(parts[0].strip()), int(parts[1].strip())
-        except ValueError:
-            QMessageBox.warning(
-                self,
-                "Invalid Resolution",
-                "Width and height must be integers.",
-            )
-            return
-        if width < 1 or height < 1 or width > 16384 or height > 16384:
-            QMessageBox.warning(
-                self,
-                "Invalid Resolution",
-                "Resolution must be between 1×1 and 16384×16384.",
-            )
-            return
-        self._take_screenshot(width, height)

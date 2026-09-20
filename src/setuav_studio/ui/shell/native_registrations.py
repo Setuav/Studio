@@ -89,6 +89,27 @@ def _mass_tree_nodes(
     )
 
 
+def _can_edit_project(api: StudioAPI) -> bool:
+    project = api.current_project
+    return project is not None and not project.read_only
+
+
+def _on_add_constant_triggered(api: StudioAPI) -> None:
+    from setuav_studio.ui.panels.project_explorer.dialog_actions import (
+        add_parameter_action,
+    )
+
+    add_parameter_action(api, is_constant=True)
+
+
+def _on_add_constraint_triggered(api: StudioAPI) -> None:
+    from setuav_studio.ui.panels.project_explorer.dialog_actions import (
+        add_constraint_action,
+    )
+
+    add_constraint_action(api)
+
+
 def _on_run_analysis_triggered(api: StudioAPI) -> None:
     """Trigger execution of the currently active analysis configuration."""
     active_config = api.get_current_analysis_config()
@@ -175,6 +196,28 @@ def register_native_contributions(api: StudioAPI) -> None:
     )
 
     # 2. Native Toolbar Contributions
+    api.add_toolbar_item(
+        ToolbarContribution(
+            id="org.setuav.studio.toolbar.add_constant",
+            title="Add Constant",
+            callback=lambda: _on_add_constant_triggered(api),
+            icon="constant",
+            enabled_when=lambda: _can_edit_project(api),
+            group="parameters",
+            order=10,
+        )
+    )
+    api.add_toolbar_item(
+        ToolbarContribution(
+            id="org.setuav.studio.toolbar.add_constraint",
+            title="Add Constraint",
+            callback=lambda: _on_add_constraint_triggered(api),
+            icon="constraint",
+            enabled_when=lambda: _can_edit_project(api),
+            group="parameters",
+            order=20,
+        )
+    )
     api.add_toolbar_item(
         ToolbarContribution(
             id="org.setuav.studio.toolbar.run_analysis",

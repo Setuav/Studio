@@ -20,6 +20,9 @@ transform = "transform.svg"
 coordinate_system = "transform.svg"
 envelope = "envelope.svg"
 physical_envelope = "envelope.svg"
+mass = "mass.svg"
+point_mass = "mass.svg"
+component_point_mass = "mass.svg"
 
 # 3D Viewport & Panels
 viewer_3d = "view-isometric.png"
