@@ -1,18 +1,89 @@
-"""Universal Component model for UAV entities."""
+"""Universal Component domain model for UAV entities and plugin components."""
 
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from setuav_studio_sdk.contributions import ParameterField
 
 
 class Component:
     """Core domain entity model for a UAV component."""
 
-    def __init__(self, data: dict[str, Any] | None = None) -> None:
-        self._raw_data: dict[str, Any] = data if data is not None else {}
+    COMPONENT_TYPE: str = ""
+
+    def __init__(
+        self,
+        data: dict[str, Any] | None = None,
+        *,
+        id: str = "",
+        name: str = "",
+        type: str = "",
+        mass: float = 0.0,
+        parent: str | None = None,
+        **kwargs: Any,
+    ) -> None:
+        if (
+            data is not None
+            and "parameters" not in data
+            and "kind" not in data
+            and "id" not in data
+        ):
+            self._raw_data: dict[str, Any] = {"parameters": dict(data)}
+        else:
+            self._raw_data = data if data is not None else {}
+
+        self._raw_data.setdefault("kind", "component")
+        self._raw_data.setdefault(
+            "transform",
+            {
+                "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+                "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
+            },
+        )
+        self._raw_data.setdefault("parameters", {})
         self._children: dict[str, Any] = {}
         self._child_list: list[Any] = []
+
+        # 1. Class-level component type default
+        class_type = getattr(self.__class__, "COMPONENT_TYPE", "")
+        if class_type and not self._raw_data.get("type"):
+            self._raw_data["type"] = class_type
+
+        # 2. Populate parameter defaults from class field descriptors
+        fields = self.get_fields()
+        params = self._raw_data.setdefault("parameters", {})
+        for f in fields:
+            if f.key and f.key not in params:
+                params[f.key] = f.default
+
+        if id:
+            self.id = id
+        if name:
+            self.name = name
+        if type:
+            self.type = type
+        if mass:
+            self.mass = mass
+        if parent:
+            self.parent_id = parent
+
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+    @classmethod
+    def get_fields(cls) -> tuple[ParameterField, ...]:
+        """Return all ParameterField descriptors defined on this component class."""
+        from setuav_studio_sdk.contributions import ParameterField
+
+        fields: list[ParameterField] = []
+        for base in reversed(cls.__mro__):
+            for v in base.__dict__.values():
+                if isinstance(v, ParameterField) and v not in fields:
+                    fields.append(v)
+        return tuple(fields)
 
     @property
     def raw_data(self) -> dict[str, Any]:
@@ -36,8 +107,17 @@ class Component:
         self._raw_data["name"] = value
 
     @property
-    def type(self) -> str:
+    def component_type(self) -> str:
         return str(self._raw_data.get("type", ""))
+
+    @component_type.setter
+    def component_type(self, value: str) -> None:
+        self._raw_data["type"] = value
+
+    # Compatibility property for comp.type
+    @property
+    def type(self) -> str:
+        return str(self._raw_data.get("type") or getattr(self.__class__, "COMPONENT_TYPE", ""))
 
     @type.setter
     def type(self, value: str) -> None:
@@ -270,6 +350,12 @@ class Component:
         """Ordered list of unique child component models."""
         return list(self._child_list)
 
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name.startswith("_") or hasattr(type(self), name):
+            super().__setattr__(name, value)
+        else:
+            self.parameters[name] = value
+
     def __getattr__(self, name: str) -> Any:
         name_lower = name.lower()
         if hasattr(self, "_children") and name_lower in self._children:
@@ -286,7 +372,50 @@ class Component:
         )
 
     def __getitem__(self, key: str) -> Any:
+        if key in self._raw_data:
+            return self._raw_data[key]
+        if key in self.parameters:
+            return self.parameters[key]
         return getattr(self, key)
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        if hasattr(type(self), key):
+            setattr(self, key, value)
+        elif key in (
+            "id",
+            "name",
+            "type",
+            "mass",
+            "parent",
+            "transform",
+            "envelope",
+            "parameters",
+            "kind",
+        ):
+            self._raw_data[key] = value
+        else:
+            self.parameters[key] = value
+
+    def get(self, key: str, default: Any = None) -> Any:
+        try:
+            return self[key]
+        except (KeyError, AttributeError):
+            return default
+
+    def __contains__(self, key: str) -> bool:
+        return key in self._raw_data or key in self.parameters
+
+    def keys(self) -> Any:
+        return self._raw_data.keys()
+
+    def values(self) -> Any:
+        return self._raw_data.values()
+
+    def items(self) -> Any:
+        return self._raw_data.items()
+
+    def __iter__(self) -> Any:
+        return iter(self._raw_data)
 
     def __repr__(self) -> str:
         return f"<Component id='{self.id}' name='{self.name}' type='{self.type}'>"

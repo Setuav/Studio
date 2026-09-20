@@ -61,8 +61,8 @@ class WorkspaceLayoutContext(Protocol):
 class ParameterField:
     """Descriptor for a component or plugin parameter field in a property editor."""
 
-    key: str
-    label: str
+    key: str = ""
+    label: str = ""
     unit: str = ""
     quantity: str | None = None
     field_type: type = float
@@ -76,6 +76,25 @@ class ParameterField:
     allow_formula: bool = True
     readonly: bool = False
     widget_type: str | None = None
+
+    def __set_name__(self, owner: type, name: str) -> None:
+        if not self.key:
+            object.__setattr__(self, "key", name)
+        if not self.label:
+            object.__setattr__(self, "label", name.replace("_", " ").title())
+
+    def __get__(self, instance: Any, owner: type | None = None) -> Any:
+        if instance is None:
+            return self
+        params = getattr(instance, "parameters", None)
+        if isinstance(params, dict):
+            return params.get(self.key, self.default)
+        return self.default
+
+    def __set__(self, instance: Any, value: Any) -> None:
+        params = getattr(instance, "parameters", None)
+        if isinstance(params, dict):
+            params[self.key] = value
 
 
 def _matches_workspace(scope: WorkspaceScope, workspace_id: str | None) -> bool:
