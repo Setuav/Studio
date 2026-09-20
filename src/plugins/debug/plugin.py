@@ -8,9 +8,11 @@ from typing import TYPE_CHECKING, Any
 from setuav_studio_sdk import (
     ToolbarContribution,
     ToolbarMenuItemContribution,
+    ViewportProtocol,
 )
 
 from .components import (
+    DEBUG_LAYER,
     TYPE_DEBUG_ARROW,
     TYPE_DEBUG_BOX,
     TYPE_DEBUG_CYLINDER,
@@ -40,8 +42,8 @@ from .components import (
     create_point_component,
     create_ring_component,
     create_triangle_component,
+    sync_debug_components_to_viewport,
 )
-from .scene_sync import DEBUG_LAYER, sync_debug_components_to_viewport
 
 if TYPE_CHECKING:
     from setuav_studio_sdk import StudioAPI
@@ -177,7 +179,7 @@ class DebugPlugin:
         if vp is not None:
             sync_debug_components_to_viewport(vp, project)
 
-    def _get_viewport(self) -> Any | None:
+    def _get_viewport(self) -> ViewportProtocol | None:
         """Get the StudioViewport instance, showing the panel if necessary."""
         if self._api is None:
             return None

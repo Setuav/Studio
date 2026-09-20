@@ -7,12 +7,12 @@ from pathlib import Path
 
 from plugins.debug import PLUGIN, DebugPlugin
 from plugins.debug.components import (
+    DEBUG_LAYER,
     TYPE_DEBUG_BOX,
     TYPE_DEBUG_CYLINDER,
     BoxComponentEditor,
 )
 from plugins.debug.plugin import TOOLBAR_ADD_PRIMITIVE_ID
-from plugins.debug.scene_sync import DEBUG_LAYER
 from setuav_studio.api import PluginManager, StudioAPI
 from setuav_studio.project import ProjectDocument
 from setuav_studio.ui.viewport import StudioViewport

@@ -198,6 +198,11 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
             f"Set {key} of {self._component.get('name', 'component')}",
             apply_param,
         )
+        self.update_viewport()
+
+    def update_viewport(self) -> None:
+        """Hook called when parameters change, allowing the editor to update its 3D object directly."""
+        pass
 
     def _on_external_content_changed(self, project: Any = None) -> None:
         if self._loading:
@@ -205,6 +210,7 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
         curr_params = self._component.get("parameters", {})
         if curr_params != self._committed_params:
             self._load_component()
+            self.update_viewport()
 
     def _on_expression_cell_changed(self, key: str, val_text: Any) -> None:
         self._on_param_changed(key, val_text)
