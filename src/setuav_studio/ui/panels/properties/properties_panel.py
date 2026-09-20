@@ -52,7 +52,9 @@ class PropertiesPanel(QWidget):
         self.set_selection(self._api.current_selection)
 
     def set_selection(self, selection: Any | None) -> None:
-        if not isinstance(selection, dict):
+        if hasattr(selection, "raw_data") and isinstance(selection.raw_data, dict):
+            selection = selection.raw_data
+        elif not isinstance(selection, dict):
             self._current_selection_key = None
             self._replace_widget(self._message("Select a component, parameter, or constraint"))
             return

@@ -22,14 +22,23 @@ from .components import (
     TYPE_DEBUG_POINT,
     TYPE_DEBUG_RING,
     TYPE_DEBUG_TRIANGLE,
+    ArrowComponent,
     ArrowComponentEditor,
+    BoxComponent,
     BoxComponentEditor,
+    CylinderComponent,
     CylinderComponentEditor,
+    LineComponent,
     LineComponentEditor,
+    LoftComponent,
     LoftComponentEditor,
+    PlaneComponent,
     PlaneComponentEditor,
+    PointComponent,
     PointComponentEditor,
+    RingComponent,
     RingComponentEditor,
+    TriangleComponent,
     TriangleComponentEditor,
     add_debug_component,
     clear_debug_components,
@@ -147,8 +156,19 @@ class DebugPlugin:
         api.register_component_icon(TYPE_DEBUG_POINT, "mdi6.dots-hexagon")
         api.register_component_icon(TYPE_DEBUG_ARROW, "fa6s.location-arrow")
 
+        # 3. Component Domain Models
+        api.register_component_model(TYPE_DEBUG_BOX, BoxComponent)
+        api.register_component_model(TYPE_DEBUG_CYLINDER, CylinderComponent)
+        api.register_component_model(TYPE_DEBUG_RING, RingComponent)
+        api.register_component_model(TYPE_DEBUG_PLANE, PlaneComponent)
+        api.register_component_model(TYPE_DEBUG_LINE, LineComponent)
+        api.register_component_model(TYPE_DEBUG_TRIANGLE, TriangleComponent)
+        api.register_component_model(TYPE_DEBUG_LOFT, LoftComponent)
+        api.register_component_model(TYPE_DEBUG_POINT, PointComponent)
+        api.register_component_model(TYPE_DEBUG_ARROW, ArrowComponent)
+
     def _unregister_component_types(self, api: StudioAPI) -> None:
-        """Unregister component editors and icons."""
+        """Unregister component editors, icons, and models."""
         types = (
             TYPE_DEBUG_BOX,
             TYPE_DEBUG_CYLINDER,
@@ -163,6 +183,7 @@ class DebugPlugin:
         for t in types:
             api.remove_component_editor(t)
             api.remove_component_icon(t)
+            api.remove_component_model(t)
 
     # ------------------------------------------------------------------
     # Project & Viewport Synchronization

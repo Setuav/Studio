@@ -5,7 +5,7 @@ from collections.abc import Callable, Generator
 from contextlib import contextmanager, suppress
 from copy import deepcopy
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from PySide6.QtCore import QObject
 from PySide6.QtGui import QIcon, QUndoStack
@@ -721,9 +721,30 @@ class StudioAPI:
             component_kind = component.get("kind")
             if isinstance(component_kind, str):
                 factory = self._kind_editors.get(component_kind)
-        if factory is None:
-            return None
-        return factory(component)
+        if factory is not None:
+            return factory(component)
+
+        # Fallback: auto-generate editor if component model defines parameter field descriptors
+        if isinstance(component_type, str) and component_type in self._component_models:
+            model_cls = self._component_models[component_type]
+            if hasattr(model_cls, "get_fields"):
+                fields = model_cls.get_fields()
+                if fields:
+                    from setuav_studio.ui.editor.component import BaseComponentEditor
+
+                    raw_comp = getattr(component, "raw_data", component)
+                    return BaseComponentEditor(cast(Any, self), raw_comp, fields)
+
+        get_fields_fn = getattr(component, "get_fields", None)
+        if callable(get_fields_fn):
+            fields = get_fields_fn()
+            if fields:
+                from setuav_studio.ui.editor.component import BaseComponentEditor
+
+                raw_comp = getattr(component, "raw_data", component)
+                return BaseComponentEditor(cast(Any, self), raw_comp, cast(Any, fields))
+
+        return None
 
     def register_component_icon(
         self,

@@ -485,6 +485,25 @@ class StudioAPI(Protocol):
         """Resolve the best registered icon for a component or selection."""
         ...
 
+    def register_component_model(
+        self,
+        component_type: str,
+        model_factory: Any,
+    ) -> None:
+        """Register a domain model class or factory for a component type."""
+        ...
+
+    def remove_component_model(self, component_type: str) -> None:
+        """Remove a registered component model by component type."""
+        ...
+
+    def create_component_model(
+        self,
+        component: dict[str, Any],
+    ) -> Any:
+        """Instantiate the domain model object for a given component dictionary."""
+        ...
+
     def register_component_tree_provider(
         self,
         provider_id: str,

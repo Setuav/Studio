@@ -9,6 +9,7 @@ from __future__ import annotations
 from setuav_studio.model.component import Component, GenericComponent
 from setuav_studio.model.data import Data
 from setuav_studio.model.vehicle import Vehicle
+from setuav_studio.ui.editor.component import BaseComponentEditor
 from setuav_studio_sdk.api import (
     ComponentTreeProvider,
     ProjectTreeProvider,
@@ -58,6 +59,7 @@ __all__ = [
     "PLUGIN_API_VERSION",
     "PLUGIN_ENTRY_POINT_GROUP",
     "ActionContribution",
+    "BaseComponentEditor",
     "BoxPrimitive",
     "CancellationToken",
     "ColorRGB",
