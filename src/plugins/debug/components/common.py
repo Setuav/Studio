@@ -264,6 +264,20 @@ def sync_debug_components_to_viewport(viewport: ViewportProtocol, project: Any) 
 class BaseDebugComponentEditor(BaseComponentEditor):
     """Base property editor for debug components with direct viewport updating."""
 
+    def __init__(
+        self,
+        api: StudioAPI,
+        component: Any,
+        parameter_fields: Any = (),
+        parent: Any = None,
+    ) -> None:
+        raw_comp: dict[str, Any] = (
+            component.raw_data
+            if hasattr(component, "raw_data") and isinstance(component.raw_data, dict)
+            else component
+        )
+        super().__init__(api, raw_comp, parameter_fields=parameter_fields, parent=parent)
+
     def update_viewport(self) -> None:
         """Update this component's 3D representation directly in the viewport."""
         vp = getattr(self._api, "viewport", None)
@@ -286,10 +300,10 @@ def generate_unique_identity(api: StudioAPI, base_id: str, base_name: str) -> tu
 
 def add_debug_component(
     api: StudioAPI,
-    factory_fn: Callable[[str, str], dict[str, Any]],
+    factory_fn: Callable[[str, str], Any],
     base_id: str,
     base_name: str,
-) -> dict[str, Any] | None:
+) -> Any | None:
     """Create and append a debug component into the active project with undo support."""
     project = api.current_project
     if project is None:
@@ -303,11 +317,12 @@ def add_debug_component(
 
     comp_id, name = generate_unique_identity(api, base_id, base_name)
     comp = factory_fn(comp_id, name)
+    raw = comp.raw_data if hasattr(comp, "raw_data") and isinstance(comp.raw_data, dict) else comp
 
     def change() -> None:
         comps = project.data.setdefault("components", [])
         if isinstance(comps, list):
-            comps.append(comp)
+            comps.append(raw)
 
     api.edit_project(f"Add {name}", change)
     created = next(
@@ -316,7 +331,7 @@ def add_debug_component(
             for item in project.data.get("components", [])
             if isinstance(item, dict) and item.get("id") == comp_id
         ),
-        comp,
+        raw,
     )
     # Render component directly into viewport
     vp = getattr(api, "viewport", None)

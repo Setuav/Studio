@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from PySide6.QtWidgets import QWidget
 
-from setuav_studio_sdk import ParameterField, ViewportProtocol
+from setuav_studio.sdk import Component, ParameterField, ViewportProtocol
 
 from .common import (
     DEBUG_LAYER,
@@ -70,110 +70,89 @@ def naca_airfoil_loop(
     return tuple(pts)
 
 
+class LoftComponent(Component):
+    """Loft primitive component definition with unit and parameter metadata."""
+
+    COMPONENT_TYPE = TYPE_DEBUG_LOFT
+
+    span = ParameterField(
+        label="Wingspan",
+        unit="mm",
+        field_type=float,
+        default=400.0,
+        min_value=1.0,
+        max_value=50000.0,
+        decimals=1,
+        tooltip="Span distance along Y axis",
+    )
+    root_chord = ParameterField(
+        label="Root Chord",
+        unit="mm",
+        field_type=float,
+        default=180.0,
+        min_value=1.0,
+        max_value=10000.0,
+        decimals=1,
+        tooltip="Chord length at root section",
+    )
+    tip_chord = ParameterField(
+        label="Tip Chord",
+        unit="mm",
+        field_type=float,
+        default=90.0,
+        min_value=1.0,
+        max_value=10000.0,
+        decimals=1,
+        tooltip="Chord length at tip section",
+    )
+    sweep = ParameterField(
+        label="Sweep Angle",
+        unit="°",
+        field_type=float,
+        default=5.0,
+        min_value=-60.0,
+        max_value=60.0,
+        decimals=1,
+        tooltip="Leading edge sweep angle in degrees",
+    )
+    dihedral = ParameterField(
+        label="Dihedral Angle",
+        unit="°",
+        field_type=float,
+        default=2.0,
+        min_value=-45.0,
+        max_value=45.0,
+        decimals=1,
+        tooltip="Dihedral angle in degrees",
+    )
+    color = ParameterField(
+        label="Surface Color",
+        field_type=str,
+        default="#3498DB",
+        widget_type="color",
+        tooltip="Loft surface color in Hex",
+    )
+
+
 class LoftComponentEditor(BaseDebugComponentEditor):
     """Property editor for Loft primitive components."""
 
-    FIELDS = (
-        ParameterField(
-            key="span",
-            label="Wingspan",
-            unit="mm",
-            field_type=float,
-            default=400.0,
-            min_value=1.0,
-            max_value=50000.0,
-            decimals=1,
-            tooltip="Span distance along Y axis",
-        ),
-        ParameterField(
-            key="root_chord",
-            label="Root Chord",
-            unit="mm",
-            field_type=float,
-            default=180.0,
-            min_value=1.0,
-            max_value=10000.0,
-            decimals=1,
-            tooltip="Chord length at root section",
-        ),
-        ParameterField(
-            key="tip_chord",
-            label="Tip Chord",
-            unit="mm",
-            field_type=float,
-            default=90.0,
-            min_value=1.0,
-            max_value=10000.0,
-            decimals=1,
-            tooltip="Chord length at tip section",
-        ),
-        ParameterField(
-            key="sweep",
-            label="Sweep Angle",
-            unit="°",
-            field_type=float,
-            default=5.0,
-            min_value=-60.0,
-            max_value=60.0,
-            decimals=1,
-            tooltip="Leading edge sweep angle in degrees",
-        ),
-        ParameterField(
-            key="dihedral",
-            label="Dihedral Angle",
-            unit="°",
-            field_type=float,
-            default=2.0,
-            min_value=-45.0,
-            max_value=45.0,
-            decimals=1,
-            tooltip="Dihedral angle in degrees",
-        ),
-        ParameterField(
-            key="color",
-            label="Surface Color",
-            field_type=str,
-            default="#3498DB",
-            widget_type="color",
-            tooltip="Loft surface color in Hex",
-        ),
-    )
-
     def __init__(
-        self, api: StudioAPI, component: dict[str, Any], parent: QWidget | None = None
+        self, api: StudioAPI, component: dict[str, Any] | Component, parent: QWidget | None = None
     ) -> None:
-        super().__init__(api, component, parameter_fields=self.FIELDS, parent=parent)
+        super().__init__(api, component, parameter_fields=LoftComponent.get_fields(), parent=parent)
 
 
-def create_loft_component(comp_id: str, name: str) -> dict[str, Any]:
+def create_loft_component(comp_id: str, name: str) -> LoftComponent:
     """Create data schema for a Loft debug component."""
-    return {
-        "kind": "component",
-        "id": comp_id,
-        "name": name,
-        "type": TYPE_DEBUG_LOFT,
-        "parent": None,
-        "mass": 150.0,
-        "transform": {
-            "position": {"x": 0.0, "y": 0.0, "z": 0.0},
-            "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
-        },
-        "parameters": {
-            "span": 400.0,
-            "root_chord": 180.0,
-            "tip_chord": 90.0,
-            "sweep": 5.0,
-            "dihedral": 2.0,
-            "color": "#3498DB",
-        },
-    }
+    return LoftComponent(id=comp_id, name=name, mass=150.0)
 
 
 def add_loft_to_viewport(
     viewport: ViewportProtocol,
     comp_id: str,
     name: str,
-    params: dict[str, Any],
+    params: dict[str, Any] | LoftComponent,
     px: float,
     py: float,
     pz: float,
@@ -181,12 +160,13 @@ def add_loft_to_viewport(
     envelope: dict[str, Any] | None = None,
 ) -> None:
     """Add or update a loft primitive in the 3D viewport."""
-    span = float(params.get("span", 400.0))
-    rc = float(params.get("root_chord", 180.0))
-    tc = float(params.get("tip_chord", 90.0))
-    sweep_deg = float(params.get("sweep", 5.0))
-    dihedral_deg = float(params.get("dihedral", 2.0))
-    color = parse_color_rgba(params.get("color", "#3498DB"))
+    loft = params if isinstance(params, LoftComponent) else LoftComponent(params)
+    span = float(loft.span)
+    rc = float(loft.root_chord)
+    tc = float(loft.tip_chord)
+    sweep_deg = float(loft.sweep)
+    dihedral_deg = float(loft.dihedral)
+    color = parse_color_rgba(loft.color)
     sweep_rad = math.radians(sweep_deg)
     dih_rad = math.radians(dihedral_deg)
     tip_x = px + span * math.sin(sweep_rad)

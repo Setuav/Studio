@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from PySide6.QtWidgets import QWidget
 
-from setuav_studio_sdk import ParameterField, ViewportProtocol
+from setuav_studio.sdk import Component, ParameterField, ViewportProtocol
 
 from .common import (
     DEBUG_LAYER,
@@ -23,84 +23,69 @@ if TYPE_CHECKING:
 TYPE_DEBUG_POINT = "org.setuav.debug:point"
 
 
+class PointComponent(Component):
+    """Point cloud primitive component definition with unit and parameter metadata."""
+
+    COMPONENT_TYPE = TYPE_DEBUG_POINT
+
+    count = ParameterField(
+        label="Point Count",
+        field_type=int,
+        default=100,
+        min_value=1,
+        max_value=10000,
+        tooltip="Number of points distributed on sphere surface",
+    )
+    radius = ParameterField(
+        label="Sphere Radius",
+        unit="mm",
+        field_type=float,
+        default=150.0,
+        min_value=1.0,
+        max_value=10000.0,
+        decimals=1,
+        tooltip="Radius of the distribution sphere",
+    )
+    point_size = ParameterField(
+        label="Point Size",
+        unit="px",
+        field_type=float,
+        default=4.0,
+        min_value=1.0,
+        max_value=32.0,
+        decimals=1,
+        tooltip="Rendered point size in pixels",
+    )
+    color = ParameterField(
+        label="Point Color",
+        field_type=str,
+        default="#E74C3C",
+        widget_type="color",
+        tooltip="Point color in Hex",
+    )
+
+
 class PointComponentEditor(BaseDebugComponentEditor):
     """Property editor for Point cloud primitive components."""
 
-    FIELDS = (
-        ParameterField(
-            key="count",
-            label="Point Count",
-            field_type=int,
-            default=100,
-            min_value=1,
-            max_value=10000,
-            tooltip="Number of points distributed on sphere surface",
-        ),
-        ParameterField(
-            key="radius",
-            label="Sphere Radius",
-            unit="mm",
-            field_type=float,
-            default=150.0,
-            min_value=1.0,
-            max_value=10000.0,
-            decimals=1,
-            tooltip="Radius of the distribution sphere",
-        ),
-        ParameterField(
-            key="point_size",
-            label="Point Size",
-            unit="px",
-            field_type=float,
-            default=4.0,
-            min_value=1.0,
-            max_value=32.0,
-            decimals=1,
-            tooltip="Rendered point size in pixels",
-        ),
-        ParameterField(
-            key="color",
-            label="Point Color",
-            field_type=str,
-            default="#E74C3C",
-            widget_type="color",
-            tooltip="Point color in Hex",
-        ),
-    )
-
     def __init__(
-        self, api: StudioAPI, component: dict[str, Any], parent: QWidget | None = None
+        self, api: StudioAPI, component: dict[str, Any] | Component, parent: QWidget | None = None
     ) -> None:
-        super().__init__(api, component, parameter_fields=self.FIELDS, parent=parent)
+        super().__init__(
+            api, component, parameter_fields=PointComponent.get_fields(), parent=parent
+        )
 
 
-def create_point_component(comp_id: str, name: str) -> dict[str, Any]:
+def create_point_component(comp_id: str, name: str) -> PointComponent:
     """Create data schema for a Point debug component."""
-    return {
-        "kind": "component",
-        "id": comp_id,
-        "name": name,
-        "type": TYPE_DEBUG_POINT,
-        "parent": None,
-        "mass": 5.0,
-        "transform": {
-            "position": {"x": 0.0, "y": 0.0, "z": 0.0},
-            "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
-        },
-        "parameters": {
-            "count": 100,
-            "radius": 150.0,
-            "point_size": 4.0,
-            "color": "#E74C3C",
-        },
-    }
+    return PointComponent(id=comp_id, name=name, mass=5.0)
 
 
 def add_point_to_viewport(
     viewport: ViewportProtocol,
     comp_id: str,
     name: str,
-    params: dict[str, Any],
+    params: dict[str, Any] | PointComponent,
     px: float,
     py: float,
     pz: float,
@@ -108,10 +93,11 @@ def add_point_to_viewport(
     envelope: dict[str, Any] | None = None,
 ) -> None:
     """Add or update a point cloud primitive in the 3D viewport."""
-    count = max(1, int(params.get("count", 100)))
-    radius = float(params.get("radius", 150.0))
-    pt_size = float(params.get("point_size", 4.0))
-    color = parse_color_rgba(params.get("color", "#E74C3C"))
+    pt = params if isinstance(params, PointComponent) else PointComponent(params)
+    count = max(1, int(pt.count))
+    radius = float(pt.radius)
+    pt_size = float(pt.point_size)
+    color = parse_color_rgba(pt.color)
     pts: list[tuple[float, float, float]] = []
     phi = math.pi * (math.sqrt(5.0) - 1.0)
     for i in range(count):

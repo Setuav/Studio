@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from .arrow import (
     TYPE_DEBUG_ARROW,
+    ArrowComponent,
     ArrowComponentEditor,
     add_arrow_to_viewport,
     create_arrow_component,
 )
 from .box import (
     TYPE_DEBUG_BOX,
+    BoxComponent,
     BoxComponentEditor,
     add_box_to_viewport,
     create_box_component,
@@ -28,18 +30,21 @@ from .common import (
 )
 from .cylinder import (
     TYPE_DEBUG_CYLINDER,
+    CylinderComponent,
     CylinderComponentEditor,
     add_cylinder_to_viewport,
     create_cylinder_component,
 )
 from .line import (
     TYPE_DEBUG_LINE,
+    LineComponent,
     LineComponentEditor,
     add_line_to_viewport,
     create_line_component,
 )
 from .loft import (
     TYPE_DEBUG_LOFT,
+    LoftComponent,
     LoftComponentEditor,
     add_loft_to_viewport,
     create_loft_component,
@@ -47,24 +52,28 @@ from .loft import (
 )
 from .plane import (
     TYPE_DEBUG_PLANE,
+    PlaneComponent,
     PlaneComponentEditor,
     add_plane_to_viewport,
     create_plane_component,
 )
 from .point import (
     TYPE_DEBUG_POINT,
+    PointComponent,
     PointComponentEditor,
     add_point_to_viewport,
     create_point_component,
 )
 from .ring import (
     TYPE_DEBUG_RING,
+    RingComponent,
     RingComponentEditor,
     add_ring_to_viewport,
     create_ring_component,
 )
 from .triangle import (
     TYPE_DEBUG_TRIANGLE,
+    TriangleComponent,
     TriangleComponentEditor,
     add_triangle_to_viewport,
     create_triangle_component,
@@ -94,15 +103,24 @@ __all__ = [
     "TYPE_DEBUG_POINT",
     "TYPE_DEBUG_RING",
     "TYPE_DEBUG_TRIANGLE",
+    "ArrowComponent",
     "ArrowComponentEditor",
     "BaseDebugComponentEditor",
+    "BoxComponent",
     "BoxComponentEditor",
+    "CylinderComponent",
     "CylinderComponentEditor",
+    "LineComponent",
     "LineComponentEditor",
+    "LoftComponent",
     "LoftComponentEditor",
+    "PlaneComponent",
     "PlaneComponentEditor",
+    "PointComponent",
     "PointComponentEditor",
+    "RingComponent",
     "RingComponentEditor",
+    "TriangleComponent",
     "TriangleComponentEditor",
     "add_arrow_to_viewport",
     "add_box_to_viewport",

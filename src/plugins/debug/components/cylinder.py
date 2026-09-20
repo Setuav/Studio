@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from PySide6.QtWidgets import QWidget
 
-from setuav_studio_sdk import ParameterField, ViewportProtocol
+from setuav_studio.sdk import Component, ParameterField, ViewportProtocol
 
 from .common import (
     DEBUG_LAYER,
@@ -22,93 +22,76 @@ if TYPE_CHECKING:
 TYPE_DEBUG_CYLINDER = "org.setuav.debug:cylinder"
 
 
+class CylinderComponent(Component):
+    """Cylinder primitive component definition with unit and parameter metadata."""
+
+    COMPONENT_TYPE = TYPE_DEBUG_CYLINDER
+
+    radius = ParameterField(
+        label="Radius",
+        unit="mm",
+        field_type=float,
+        default=50.0,
+        min_value=1.0,
+        max_value=10000.0,
+        decimals=1,
+        tooltip="Radius of the cylinder cross section",
+    )
+    length = ParameterField(
+        label="Length",
+        unit="mm",
+        field_type=float,
+        default=200.0,
+        min_value=1.0,
+        max_value=50000.0,
+        decimals=1,
+        tooltip="Length of the cylinder along its axis",
+    )
+    axis = ParameterField(
+        label="Alignment Axis",
+        field_type=str,
+        default="Z",
+        options=(("X", "X-Axis"), ("Y", "Y-Axis"), ("Z", "Z-Axis")),
+        tooltip="Longitudinal axis of the cylinder",
+    )
+    segments = ParameterField(
+        label="Segments",
+        field_type=int,
+        default=32,
+        min_value=3,
+        max_value=128,
+        tooltip="Number of circumferential polygon segments",
+    )
+    color = ParameterField(
+        label="Surface Color",
+        field_type=str,
+        default="#E67E22",
+        widget_type="color",
+        tooltip="Surface color in Hex (e.g. #E67E22)",
+    )
+
+
 class CylinderComponentEditor(BaseDebugComponentEditor):
     """Property editor for Cylinder primitive components."""
 
-    FIELDS = (
-        ParameterField(
-            key="radius",
-            label="Radius",
-            unit="mm",
-            field_type=float,
-            default=50.0,
-            min_value=1.0,
-            max_value=10000.0,
-            decimals=1,
-            tooltip="Radius of the cylinder cross section",
-        ),
-        ParameterField(
-            key="length",
-            label="Length",
-            unit="mm",
-            field_type=float,
-            default=200.0,
-            min_value=1.0,
-            max_value=50000.0,
-            decimals=1,
-            tooltip="Length of the cylinder along its axis",
-        ),
-        ParameterField(
-            key="axis",
-            label="Alignment Axis",
-            field_type=str,
-            default="Z",
-            options=(("X", "X-Axis"), ("Y", "Y-Axis"), ("Z", "Z-Axis")),
-            tooltip="Longitudinal axis of the cylinder",
-        ),
-        ParameterField(
-            key="segments",
-            label="Segments",
-            field_type=int,
-            default=32,
-            min_value=3,
-            max_value=128,
-            tooltip="Number of circumferential polygon segments",
-        ),
-        ParameterField(
-            key="color",
-            label="Surface Color",
-            field_type=str,
-            default="#E67E22",
-            widget_type="color",
-            tooltip="Surface color in Hex (e.g. #E67E22)",
-        ),
-    )
-
     def __init__(
-        self, api: StudioAPI, component: dict[str, Any], parent: QWidget | None = None
+        self, api: StudioAPI, component: dict[str, Any] | Component, parent: QWidget | None = None
     ) -> None:
-        super().__init__(api, component, parameter_fields=self.FIELDS, parent=parent)
+        super().__init__(
+            api, component, parameter_fields=CylinderComponent.get_fields(), parent=parent
+        )
 
 
-def create_cylinder_component(comp_id: str, name: str) -> dict[str, Any]:
+def create_cylinder_component(comp_id: str, name: str) -> CylinderComponent:
     """Create data schema for a Cylinder debug component."""
-    return {
-        "kind": "component",
-        "id": comp_id,
-        "name": name,
-        "type": TYPE_DEBUG_CYLINDER,
-        "parent": None,
-        "mass": 40.0,
-        "transform": {
-            "position": {"x": 0.0, "y": 0.0, "z": 0.0},
-            "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
-        },
-        "parameters": {
-            "radius": 50.0,
-            "length": 200.0,
-            "axis": "Z",
-            "segments": 32,
-            "color": "#E67E22",
-        },
-    }
+    return CylinderComponent(id=comp_id, name=name, mass=40.0)
 
 
 def add_cylinder_to_viewport(
     viewport: ViewportProtocol,
     comp_id: str,
     name: str,
-    params: dict[str, Any],
+    params: dict[str, Any] | CylinderComponent,
     px: float,
     py: float,
     pz: float,
@@ -116,11 +99,12 @@ def add_cylinder_to_viewport(
     envelope: dict[str, Any] | None = None,
 ) -> None:
     """Add or update a cylinder primitive in the 3D viewport."""
-    radius = float(params.get("radius", 50.0))
-    length = float(params.get("length", 200.0))
-    axis = str(params.get("axis", "Z")).upper()
-    segments = int(params.get("segments", 32))
-    color = parse_color_rgba(params.get("color", "#E67E22"))
+    cyl = params if isinstance(params, CylinderComponent) else CylinderComponent(params)
+    radius = float(cyl.radius)
+    length = float(cyl.length)
+    axis = str(cyl.axis).upper()
+    segments = int(cyl.segments)
+    color = parse_color_rgba(cyl.color)
     base_axis: tuple[float, float, float]
     if axis == "X":
         base_axis = (1.0, 0.0, 0.0)

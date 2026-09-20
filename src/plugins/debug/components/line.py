@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from PySide6.QtWidgets import QWidget
 
-from setuav_studio_sdk import ParameterField, ViewportProtocol
+from setuav_studio.sdk import Component, ParameterField, ViewportProtocol
 
 from .common import (
     DEBUG_LAYER,
@@ -22,71 +22,56 @@ if TYPE_CHECKING:
 TYPE_DEBUG_LINE = "org.setuav.debug:line"
 
 
+class LineComponent(Component):
+    """Line primitive component definition with unit and parameter metadata."""
+
+    COMPONENT_TYPE = TYPE_DEBUG_LINE
+
+    length = ParameterField(
+        label="Length",
+        unit="mm",
+        field_type=float,
+        default=200.0,
+        min_value=1.0,
+        max_value=50000.0,
+        decimals=1,
+        tooltip="Length of the line segment",
+    )
+    axis = ParameterField(
+        label="Direction Axis",
+        field_type=str,
+        default="X",
+        options=(("X", "X-Axis"), ("Y", "Y-Axis"), ("Z", "Z-Axis")),
+        tooltip="Direction of the line",
+    )
+    color = ParameterField(
+        label="Line Color",
+        field_type=str,
+        default="#E74C3C",
+        widget_type="color",
+        tooltip="Line segment color in Hex",
+    )
+
+
 class LineComponentEditor(BaseDebugComponentEditor):
     """Property editor for Line primitive components."""
 
-    FIELDS = (
-        ParameterField(
-            key="length",
-            label="Length",
-            unit="mm",
-            field_type=float,
-            default=200.0,
-            min_value=1.0,
-            max_value=50000.0,
-            decimals=1,
-            tooltip="Length of the line segment",
-        ),
-        ParameterField(
-            key="axis",
-            label="Direction Axis",
-            field_type=str,
-            default="X",
-            options=(("X", "X-Axis"), ("Y", "Y-Axis"), ("Z", "Z-Axis")),
-            tooltip="Direction of the line",
-        ),
-        ParameterField(
-            key="color",
-            label="Line Color",
-            field_type=str,
-            default="#E74C3C",
-            widget_type="color",
-            tooltip="Line segment color in Hex",
-        ),
-    )
-
     def __init__(
-        self, api: StudioAPI, component: dict[str, Any], parent: QWidget | None = None
+        self, api: StudioAPI, component: dict[str, Any] | Component, parent: QWidget | None = None
     ) -> None:
-        super().__init__(api, component, parameter_fields=self.FIELDS, parent=parent)
+        super().__init__(api, component, parameter_fields=LineComponent.get_fields(), parent=parent)
 
 
-def create_line_component(comp_id: str, name: str) -> dict[str, Any]:
+def create_line_component(comp_id: str, name: str) -> LineComponent:
     """Create data schema for a Line debug component."""
-    return {
-        "kind": "component",
-        "id": comp_id,
-        "name": name,
-        "type": TYPE_DEBUG_LINE,
-        "parent": None,
-        "mass": 1.0,
-        "transform": {
-            "position": {"x": 0.0, "y": 0.0, "z": 0.0},
-            "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
-        },
-        "parameters": {
-            "length": 200.0,
-            "axis": "X",
-            "color": "#E74C3C",
-        },
-    }
+    return LineComponent(id=comp_id, name=name, mass=1.0)
 
 
 def add_line_to_viewport(
     viewport: ViewportProtocol,
     comp_id: str,
     name: str,
-    params: dict[str, Any],
+    params: dict[str, Any] | LineComponent,
     px: float,
     py: float,
     pz: float,
@@ -94,9 +79,10 @@ def add_line_to_viewport(
     envelope: dict[str, Any] | None = None,
 ) -> None:
     """Add or update a line primitive in the 3D viewport."""
-    length = float(params.get("length", 200.0))
-    axis = str(params.get("axis", "X")).upper()
-    color = parse_color_rgba(params.get("color", "#E74C3C"))
+    line = params if isinstance(params, LineComponent) else LineComponent(params)
+    length = float(line.length)
+    axis = str(line.axis).upper()
+    color = parse_color_rgba(line.color)
     base_dir: tuple[float, float, float]
     if axis == "Y":
         base_dir = (0.0, 1.0, 0.0)
