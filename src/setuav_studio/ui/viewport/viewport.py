@@ -559,6 +559,7 @@ class StudioViewport(QWidget):
         closed_ends: bool = True,
         wireframe: bool = True,
         solid: bool = True,
+        envelope: Any = None,
     ) -> SceneObject:
         """Add a lofted surface defined by ordered section loops."""
         # Normalise nested lists to tuples for the frozen dataclass
@@ -580,6 +581,7 @@ class StudioViewport(QWidget):
             layer=layer,
             name=name or object_id,
             primitives=[prim],
+            envelope=envelope,
         )
         return self.add_object(obj)
 
@@ -595,6 +597,7 @@ class StudioViewport(QWidget):
         rotation: Point3D = (0.0, 0.0, 0.0),
         wireframe: bool = True,
         solid: bool = True,
+        envelope: Any = None,
     ) -> SceneObject:
         """Add an axis-aligned (or oriented) box."""
         prim = BoxPrimitive(
@@ -606,7 +609,11 @@ class StudioViewport(QWidget):
             solid=solid,
         )
         obj = SceneObject(
-            object_id=object_id, layer=layer, name=name or object_id, primitives=[prim]
+            object_id=object_id,
+            layer=layer,
+            name=name or object_id,
+            primitives=[prim],
+            envelope=envelope,
         )
         return self.add_object(obj)
 
@@ -623,6 +630,7 @@ class StudioViewport(QWidget):
         wireframe: bool = False,
         solid: bool = True,
         segments: int = 24,
+        envelope: Any = None,
     ) -> SceneObject:
         """Add a cylinder between two endpoints."""
         prim = CylinderPrimitive(
@@ -635,7 +643,11 @@ class StudioViewport(QWidget):
             segments=segments,
         )
         obj = SceneObject(
-            object_id=object_id, layer=layer, name=name or object_id, primitives=[prim]
+            object_id=object_id,
+            layer=layer,
+            name=name or object_id,
+            primitives=[prim],
+            envelope=envelope,
         )
         return self.add_object(obj)
 
@@ -650,6 +662,7 @@ class StudioViewport(QWidget):
         radius: float = 50.0,
         color: ColorRGBA = (1.0, 0.5, 0.0, 1.0),
         segments: int = 36,
+        envelope: Any = None,
     ) -> SceneObject:
         """Add a circular ring (wire loop)."""
         prim = RingPrimitive(
@@ -660,7 +673,11 @@ class StudioViewport(QWidget):
             segments=segments,
         )
         obj = SceneObject(
-            object_id=object_id, layer=layer, name=name or object_id, primitives=[prim]
+            object_id=object_id,
+            layer=layer,
+            name=name or object_id,
+            primitives=[prim],
+            envelope=envelope,
         )
         return self.add_object(obj)
 
@@ -677,6 +694,7 @@ class StudioViewport(QWidget):
         color: ColorRGBA = (1.0, 0.5, 0.0, 0.4),
         wireframe: bool = True,
         solid: bool = True,
+        envelope: Any = None,
     ) -> SceneObject:
         """Add a bounded flat plane."""
         prim = PlanePrimitive(
@@ -689,7 +707,11 @@ class StudioViewport(QWidget):
             solid=solid,
         )
         obj = SceneObject(
-            object_id=object_id, layer=layer, name=name or object_id, primitives=[prim]
+            object_id=object_id,
+            layer=layer,
+            name=name or object_id,
+            primitives=[prim],
+            envelope=envelope,
         )
         return self.add_object(obj)
 
@@ -701,6 +723,7 @@ class StudioViewport(QWidget):
         name: str = "",
         layer: str = "default",
         color: ColorRGBA = (1.0, 1.0, 1.0, 1.0),
+        envelope: Any = None,
     ) -> SceneObject:
         """Add a set of line segments."""
         prim = LineSegmentsPrimitive(
@@ -708,7 +731,11 @@ class StudioViewport(QWidget):
             color=color,
         )
         obj = SceneObject(
-            object_id=object_id, layer=layer, name=name or object_id, primitives=[prim]
+            object_id=object_id,
+            layer=layer,
+            name=name or object_id,
+            primitives=[prim],
+            envelope=envelope,
         )
         return self.add_object(obj)
 
@@ -721,6 +748,7 @@ class StudioViewport(QWidget):
         layer: str = "default",
         color: ColorRGBA = (0.7, 0.75, 0.8, 0.7),
         solid: bool = True,
+        envelope: Any = None,
     ) -> SceneObject:
         """Add arbitrary triangles forming a solid surface."""
         prim = TrianglesPrimitive(
@@ -729,7 +757,11 @@ class StudioViewport(QWidget):
             solid=solid,
         )
         obj = SceneObject(
-            object_id=object_id, layer=layer, name=name or object_id, primitives=[prim]
+            object_id=object_id,
+            layer=layer,
+            name=name or object_id,
+            primitives=[prim],
+            envelope=envelope,
         )
         return self.add_object(obj)
 
@@ -742,6 +774,7 @@ class StudioViewport(QWidget):
         layer: str = "default",
         color: ColorRGBA = (1.0, 0.3, 0.1, 1.0),
         size: float = 4.0,
+        envelope: Any = None,
     ) -> SceneObject:
         """Add a point cloud visualised as small crosses.
 
@@ -756,7 +789,11 @@ class StudioViewport(QWidget):
             segments.append(((px, py, pz - half), (px, py, pz + half)))
         prim = LineSegmentsPrimitive(lines=tuple(segments), color=color)
         obj = SceneObject(
-            object_id=object_id, layer=layer, name=name or object_id, primitives=[prim]
+            object_id=object_id,
+            layer=layer,
+            name=name or object_id,
+            primitives=[prim],
+            envelope=envelope,
         )
         return self.add_object(obj)
 
@@ -768,6 +805,7 @@ class StudioViewport(QWidget):
         name: str = "",
         layer: str = "default",
         color: ColorRGBA = (0.2, 0.8, 0.2, 1.0),
+        envelope: Any = None,
     ) -> SceneObject:
         """Add directional arrows (line from start to end).
 
@@ -776,7 +814,11 @@ class StudioViewport(QWidget):
         """
         prim = LineSegmentsPrimitive(lines=tuple(arrows), color=color)
         obj = SceneObject(
-            object_id=object_id, layer=layer, name=name or object_id, primitives=[prim]
+            object_id=object_id,
+            layer=layer,
+            name=name or object_id,
+            primitives=[prim],
+            envelope=envelope,
         )
         return self.add_object(obj)
 
@@ -787,10 +829,15 @@ class StudioViewport(QWidget):
         *,
         name: str = "",
         layer: str = "default",
+        envelope: Any = None,
     ) -> SceneObject:
         """Add a raw SDK visual primitive directly."""
         obj = SceneObject(
-            object_id=object_id, layer=layer, name=name or object_id, primitives=[primitive]
+            object_id=object_id,
+            layer=layer,
+            name=name or object_id,
+            primitives=[primitive],
+            envelope=envelope,
         )
         return self.add_object(obj)
 
@@ -843,13 +890,14 @@ class StudioViewport(QWidget):
     def _on_api_selection_changed(self, selection: Any | None) -> None:
         """Respond to selection events from StudioAPI (e.g. ProjectExplorer tree click)."""
         if isinstance(selection, dict):
-            if selection.get("kind") == "envelope":
-                comp_id = selection.get("component_id")
-                envelope_id = comp_id if isinstance(comp_id, str) else None
+            kind = selection.get("kind")
+            comp_id = selection.get("component_id") or selection.get("id")
+            comp_str = str(comp_id) if comp_id is not None else None
+            if kind == "envelope":
+                envelope_id = comp_str
                 component_id = None
             else:
-                raw_id = selection.get("id")
-                component_id = str(raw_id) if raw_id is not None else None
+                component_id = comp_str
                 envelope_id = None
         elif isinstance(selection, str):
             component_id = selection

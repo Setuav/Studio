@@ -38,7 +38,7 @@ class PropertiesPanel(QWidget):
         if self._current_widget is None or self._current_selection_key is None:
             return
         kind, new_id = self._current_selection_key
-        if not kind and new_id:
+        if kind in ("", "component") and new_id:
             live_comp = self._resolve_live_component(new_id)
             widget_comp = getattr(self._current_widget, "_component", None) or getattr(
                 self._current_widget, "_instance", None
@@ -62,7 +62,7 @@ class PropertiesPanel(QWidget):
         new_key = (kind, new_id)
 
         live_selection = selection
-        if not kind and new_id:
+        if kind in ("", "component") and new_id:
             live_comp = self._resolve_live_component(new_id)
             if live_comp is not None:
                 live_selection = live_comp

@@ -365,9 +365,17 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
             return volume_mm3 * 0.6
         return volume_mm3
 
-    @staticmethod
-    def _envelope(component: dict[str, Any]) -> dict[str, Any]:
+    def _envelope(self, component: dict[str, Any]) -> dict[str, Any]:
         envelope = component.get("envelope")
+        if isinstance(envelope, dict) and envelope.get("size_mm"):
+            return envelope
+        if self._api.viewport is not None:
+            comp_id = str(component.get("id") or "")
+            scene_obj = self._api.viewport.get_object(comp_id)
+            if scene_obj is not None and hasattr(scene_obj, "get_envelope"):
+                computed = scene_obj.get_envelope()
+                if isinstance(computed, dict) and computed.get("size_mm"):
+                    return computed
         return envelope if isinstance(envelope, dict) else {}
 
     @staticmethod
