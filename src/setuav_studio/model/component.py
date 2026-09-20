@@ -137,6 +137,23 @@ class Component:
         self._raw_data["parent"] = value
         self._raw_data["attach_to"] = value
 
+    def reparent(
+        self,
+        new_parent_id: str | None,
+        comps_or_project: Any = None,
+        *,
+        preserve_world_transform: bool = True,
+    ) -> None:
+        """Reparent this component, preserving its world coordinates and visual position."""
+        from setuav_studio.utilities.transform import reparent_component
+
+        reparent_component(
+            self._raw_data,
+            new_parent_id,
+            comps_or_project,
+            preserve_world_transform=preserve_world_transform,
+        )
+
     @property
     def mass(self) -> float:
         val = self._raw_data.get("mass", 0.0)

@@ -56,12 +56,17 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
         self._create_general_section()
         if self._fields:
             self._create_parameters_section()
+        self._create_custom_sections()
 
         self._content_layout.addStretch()
         params = self._component.get("parameters", {})
         self._committed_params: dict[str, Any] = dict(params) if isinstance(params, dict) else {}
         exprs = params.get("_expressions") if isinstance(params, dict) else None
         self._committed_expressions: dict[str, str] = dict(exprs) if isinstance(exprs, dict) else {}
+        self._committed_name: str = str(self._component.get("name") or "")
+        self._committed_parent: str = str(
+            self._component.get("attach_to") or self._component.get("parent") or ""
+        )
         self._load_component()
         if self._api is not None:
             self._api.on_project_content_changed(self._on_external_content_changed)
@@ -136,6 +141,10 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
         self.parameters_table.cellChanged.connect(self._update_parameter_cell)
         layout.addWidget(self.parameters_table)
 
+    def _create_custom_sections(self) -> None:
+        """Hook for subclasses to add custom property sections."""
+        pass
+
     def _load_component(self) -> None:
         self._loading = True
         try:
@@ -171,12 +180,21 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
                     on_changed=self._on_param_changed,
                     api=self._api,
                 )
+            self._load_custom_data()
             params = self._component.get("parameters", {})
             self._committed_params = dict(params) if isinstance(params, dict) else {}
             exprs = params.get("_expressions") if isinstance(params, dict) else None
             self._committed_expressions = dict(exprs) if isinstance(exprs, dict) else {}
+            self._committed_name = str(self._component.get("name") or "")
+            self._committed_parent = str(
+                self._component.get("attach_to") or self._component.get("parent") or ""
+            )
         finally:
             self._loading = False
+
+    def _load_custom_data(self) -> None:
+        """Hook for subclasses to populate data in custom sections."""
+        pass
 
     def _on_param_changed(self, key: str, value: Any) -> None:
         if self._loading:
@@ -238,9 +256,18 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
             return
         curr_params = self._component.get("parameters", {})
         curr_exprs = curr_params.get("_expressions") if isinstance(curr_params, dict) else None
-        if curr_params != self._committed_params or curr_exprs != self._committed_expressions:
+        curr_name = str(self._component.get("name") or "")
+        curr_parent = str(self._component.get("attach_to") or self._component.get("parent") or "")
+        if (
+            curr_params != self._committed_params
+            or curr_exprs != self._committed_expressions
+            or curr_name != self._committed_name
+            or curr_parent != self._committed_parent
+        ):
             self._load_component()
             self.update_viewport()
+        else:
+            self._load_custom_data()
 
     def _on_expression_cell_changed(self, key: str, val_text: Any) -> None:
         self._on_param_changed(key, val_text)

@@ -440,6 +440,45 @@ class StudioAPI:
             )
         )
 
+    def reparent_component(
+        self,
+        component: dict[str, Any] | Any,
+        new_parent_id: str | None,
+        *,
+        preserve_world_transform: bool = True,
+        description: str | None = None,
+    ) -> None:
+        """Reparent or attach a component to a new parent or World with undo support.
+
+        @param component The component to reparent (dict or Component object).
+        @param new_parent_id Target parent component ID, or None/empty for World.
+        @param preserve_world_transform When True, recomputes the component's local
+            position and rotation relative to the new parent so its world transform
+            does not jump in 3D space.
+        @param description Custom undo description, or None for automatic description.
+        """
+        from setuav_studio.utilities.transform import reparent_component
+
+        raw_data = getattr(component, "raw_data", None)
+        raw = raw_data if isinstance(raw_data, dict) else component
+        if not isinstance(raw, dict):
+            return
+
+        clean_parent = (new_parent_id.strip() if isinstance(new_parent_id, str) else None) or None
+        comp_name = str(raw.get("name") or raw.get("id") or "component")
+        parent_name = clean_parent or "World"
+        cmd_desc = description or f"Attach {comp_name} to {parent_name}"
+
+        def change() -> None:
+            reparent_component(
+                raw,
+                clean_parent,
+                self.current_project,
+                preserve_world_transform=preserve_world_transform,
+            )
+
+        self.edit_component(raw, cmd_desc, change)
+
     def edit_project(
         self,
         description: str,

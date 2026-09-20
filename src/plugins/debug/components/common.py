@@ -2,15 +2,32 @@
 
 from __future__ import annotations
 
-import math
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from setuav_studio.ui.editor.component import BaseComponentEditor
 from setuav_studio.ui.viewport import ViewportProtocol
+from setuav_studio.utilities.transform import (
+    resolve_world_transform,
+    rotate_vector,
+)
 
 if TYPE_CHECKING:
     from setuav_studio.api import StudioAPI
+
+__all__ = [
+    "DEBUG_LAYER",
+    "BaseDebugComponentEditor",
+    "add_debug_component",
+    "clear_debug_components",
+    "generate_unique_identity",
+    "parse_color_rgba",
+    "register_renderer",
+    "resolve_world_transform",
+    "rotate_vector",
+    "sync_debug_components_to_viewport",
+    "update_component_in_viewport",
+]
 
 DEBUG_LAYER = "debug"
 
@@ -96,65 +113,19 @@ def parse_color_rgba(
     return default
 
 
-def rotate_vector(
-    vec: tuple[float, float, float],
-    rotation: tuple[float, float, float],
-) -> tuple[float, float, float]:
-    """Rotate a 3D vector by (roll, pitch, yaw) Euler angles in degrees."""
-    roll, pitch, yaw = rotation
-    if abs(roll) < 1e-6 and abs(pitch) < 1e-6 and abs(yaw) < 1e-6:
-        return vec
-    r = math.radians(roll)
-    p = math.radians(pitch)
-    y_rad = math.radians(yaw)
-    cr, sr = math.cos(r), math.sin(r)
-    cp, sp = math.cos(p), math.sin(p)
-    cy, sy = math.cos(y_rad), math.sin(y_rad)
-    x, y, z = vec
-    rx = (cp * cy) * x + (cy * sp * sr - sy * cr) * y + (cy * sp * cr + sy * sr) * z
-    ry = (cp * sy) * x + (sy * sp * sr + cy * cr) * y + (sy * sp * cr - cy * sr) * z
-    rz = (-sp) * x + (cp * sr) * y + (cp * cr) * z
-    return (rx, ry, rz)
-
-
-def resolve_world_transform(
-    comp_id: str,
-    comps_by_id: dict[str, dict[str, Any]],
-    resolving: frozenset[str] = frozenset(),
-) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
-    """Compute (world_position, world_rotation) traversing parent chain."""
-    if comp_id in resolving:
-        return (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)
-    comp = comps_by_id.get(comp_id)
-    if comp is None:
-        return (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)
-
-    raw_transform = comp.get("transform")
-    transform_dict: dict[str, Any] = raw_transform if isinstance(raw_transform, dict) else {}
-    raw_pos = transform_dict.get("position")
-    pos_dict: dict[str, Any] = raw_pos if isinstance(raw_pos, dict) else {}
-    raw_rot = transform_dict.get("rotation")
-    rot_dict: dict[str, Any] = raw_rot if isinstance(raw_rot, dict) else {}
-
-    lx = float(pos_dict.get("x", 0.0) or 0.0)
-    ly = float(pos_dict.get("y", 0.0) or 0.0)
-    lz = float(pos_dict.get("z", 0.0) or 0.0)
-
-    l_roll = float(rot_dict.get("roll", rot_dict.get("x", 0.0)) or 0.0)
-    l_pitch = float(rot_dict.get("pitch", rot_dict.get("y", 0.0)) or 0.0)
-    l_yaw = float(rot_dict.get("yaw", rot_dict.get("z", 0.0)) or 0.0)
-
-    parent_id = comp.get("parent") or comp.get("attach_to")
-    if not parent_id or str(parent_id) not in comps_by_id:
-        return (lx, ly, lz), (l_roll, l_pitch, l_yaw)
-
-    p_pos, p_rot = resolve_world_transform(str(parent_id), comps_by_id, resolving | {comp_id})
-
-    rx, ry, rz = rotate_vector((lx, ly, lz), p_rot)
-    world_pos = (p_pos[0] + rx, p_pos[1] + ry, p_pos[2] + rz)
-    world_rot = (p_rot[0] + l_roll, p_rot[1] + l_pitch, p_rot[2] + l_yaw)
-
-    return world_pos, world_rot
+def _comp_as_dict(item: Any) -> dict[str, Any] | None:
+    """Return dictionary representation of a component whether it is a dict or a model object."""
+    if isinstance(item, dict):
+        return item
+    raw = getattr(item, "raw_data", None)
+    if isinstance(raw, dict):
+        return raw
+    to_dict = getattr(item, "to_dict", None)
+    if callable(to_dict):
+        res = to_dict()
+        if isinstance(res, dict):
+            return res
+    return None
 
 
 _RENDERERS: dict[
@@ -203,13 +174,14 @@ def update_component_in_viewport(
     project: Any = None,
 ) -> None:
     """Update or add a single debug component in the 3D viewport."""
-    if viewport is None:
+    comp_dict = _comp_as_dict(component)
+    if comp_dict is None or viewport is None:
         return
-    comp_id = str(component.get("id") or "")
+    comp_id = str(comp_dict.get("id") or "")
     if not comp_id:
         return
-    name = str(component.get("name") or comp_id)
-    raw_params = component.get("parameters")
+    name = str(comp_dict.get("name") or comp_id)
+    raw_params = comp_dict.get("parameters")
     params: dict[str, Any] = dict(raw_params) if isinstance(raw_params, dict) else {}
 
     comps_by_id: dict[str, dict[str, Any]] = {}
@@ -217,19 +189,31 @@ def update_component_in_viewport(
         comps = project.data.get("components", [])
         if isinstance(comps, list):
             comps_by_id = {
-                str(c.get("id")): c for c in comps if isinstance(c, dict) and c.get("id")
+                str(d["id"]): d
+                for c in comps
+                for d in [_comp_as_dict(c)]
+                if d is not None and d.get("id")
             }
     if comp_id not in comps_by_id:
-        comps_by_id[comp_id] = component
+        comps_by_id[comp_id] = comp_dict
 
     world_pos, world_rot = resolve_world_transform(comp_id, comps_by_id)
     px, py, pz = world_pos
-    envelope = component.get("envelope")
-    ctype = str(component.get("type", ""))
+    envelope = comp_dict.get("envelope")
+    ctype = str(comp_dict.get("type", ""))
 
     renderer = _RENDERERS.get(ctype)
     if renderer is not None:
         renderer(viewport, comp_id, name, params, px, py, pz, world_rot, envelope)
+
+    # Re-render any child components attached to this component
+    if comps_by_id:
+        for other_id, other_comp in comps_by_id.items():
+            if other_id == comp_id:
+                continue
+            parent = other_comp.get("attach_to") or other_comp.get("parent")
+            if parent and str(parent) == comp_id:
+                update_component_in_viewport(viewport, other_comp, project)
 
 
 def sync_debug_components_to_viewport(viewport: ViewportProtocol, project: Any) -> None:
@@ -245,11 +229,15 @@ def sync_debug_components_to_viewport(viewport: ViewportProtocol, project: Any) 
         viewport.clear(layer=DEBUG_LAYER)
         return
 
-    debug_components = [
-        c
-        for c in comps
-        if isinstance(c, dict) and str(c.get("type", "")).startswith("org.setuav.debug:")
-    ]
+    debug_components: list[dict[str, Any]] = []
+    for c in comps:
+        d = _comp_as_dict(c)
+        if d is not None and (
+            str(d.get("type", "")).startswith("org.setuav.debug:")
+            or str(d.get("type", "")).startswith("debug.")
+            or str(d.get("type", "")) in _RENDERERS
+        ):
+            debug_components.append(d)
 
     active_ids = {str(c.get("id")) for c in debug_components}
     existing_ids = set(viewport.object_ids(layer=DEBUG_LAYER))
@@ -262,7 +250,7 @@ def sync_debug_components_to_viewport(viewport: ViewportProtocol, project: Any) 
 
 
 class BaseDebugComponentEditor(BaseComponentEditor):
-    """Base property editor for debug components with direct viewport updating."""
+    """Base property editor for debug components with direct viewport updating and attachment support."""
 
     def __init__(
         self,
@@ -277,6 +265,98 @@ class BaseDebugComponentEditor(BaseComponentEditor):
             else component
         )
         super().__init__(api, raw_comp, parameter_fields=parameter_fields, parent=parent)
+
+    def _create_custom_sections(self) -> None:
+        layout = self._create_section("Attachment", "fa6s.link")
+        self.attachment_table = self._property_table(
+            [
+                ("attach_to", "Attach To"),
+            ]
+        )
+        layout.addWidget(self.attachment_table)
+
+    def _load_custom_data(self) -> None:
+        if not hasattr(self, "attachment_table"):
+            return
+        options = self._get_attachment_options()
+        curr_parent = str(self._component.get("attach_to") or self._component.get("parent") or "")
+        self._set_property_combo(
+            self.attachment_table,
+            "attach_to",
+            curr_parent,
+            options,
+            self._on_attach_to_changed,
+        )
+
+    def _get_attachment_options(self) -> list[tuple[str, str]]:
+        options: list[tuple[str, str]] = [("", "None (World)")]
+        project = getattr(self._api, "current_project", None)
+        if project is None or not hasattr(project, "data") or not isinstance(project.data, dict):
+            return options
+
+        self_id = str(self._component.get("id") or "")
+        comps = project.data.get("components", [])
+        if not isinstance(comps, list):
+            return options
+
+        comps_by_id = {
+            str(d["id"]): d
+            for c in comps
+            for d in [_comp_as_dict(c)]
+            if d is not None and d.get("id")
+        }
+
+        for c in comps:
+            d = _comp_as_dict(c)
+            if d is None:
+                continue
+            cid = str(d.get("id") or "")
+            ctype = str(d.get("type") or "")
+            if not cid or cid == self_id:
+                continue
+            if not (
+                ctype in _RENDERERS
+                or ctype.startswith("org.setuav.debug:")
+                or ctype.startswith("debug.")
+            ):
+                continue
+
+            # Prevent cyclic attachments: check if self_id is an ancestor of cid
+            curr: str | None = cid
+            is_cyclic = False
+            visited: set[str] = set()
+            while curr:
+                if curr == self_id or curr in visited:
+                    is_cyclic = True
+                    break
+                visited.add(curr)
+                parent_comp = comps_by_id.get(curr)
+                if not parent_comp:
+                    break
+                p = parent_comp.get("attach_to") or parent_comp.get("parent")
+                curr = str(p) if p else None
+
+            if not is_cyclic:
+                cname = str(d.get("name") or cid)
+                options.append((cid, cname))
+
+        return options
+
+    def _on_attach_to_changed(self, new_parent: str) -> None:
+        if self._loading:
+            return
+        clean_parent = new_parent.strip() or None
+        old_parent = self._component.get("attach_to") or self._component.get("parent")
+        if old_parent == clean_parent:
+            return
+
+        self._api.reparent_component(
+            self._component,
+            clean_parent,
+            preserve_world_transform=True,
+        )
+        self._committed_parent = clean_parent or ""
+        self.update_viewport()
 
     def update_viewport(self) -> None:
         """Update this component's 3D representation directly in the viewport."""
