@@ -19,9 +19,9 @@ from setuav_studio.ui.style.icons import get_icon, set_label_icon
 from setuav_studio.ui.widget.table import PropertyTableMixin
 
 if TYPE_CHECKING:
+    from setuav_studio.api import StudioAPI
     from setuav_studio.model.analysis_config import AnalysisConfig
     from setuav_studio.solver.results import AnalysisResult
-    from setuav_studio_sdk import StudioAPI
 
 
 class AnalysisConfigPropertyEditor(PropertyTableMixin, QWidget):

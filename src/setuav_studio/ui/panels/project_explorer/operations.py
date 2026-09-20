@@ -9,8 +9,8 @@ from setuav_studio.ui.panels.project_explorer.style import (
 )
 
 if TYPE_CHECKING:
+    from setuav_studio.api import ProjectTreeNodeContribution, StudioAPI
     from setuav_studio.ui.panels.project_explorer.tree import ProjectExplorer
-    from setuav_studio_sdk import ProjectTreeNodeContribution, StudioAPI
 
 
 class ProjectExplorerOperations:

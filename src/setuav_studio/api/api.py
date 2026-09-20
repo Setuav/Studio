@@ -15,21 +15,20 @@ from setuav_studio.api.hooks import HookRegistry
 from setuav_studio.project import ProjectDocument
 from setuav_studio.task.manager import TaskManager
 from setuav_studio.ui.style.icons import get_icon
-from setuav_studio_sdk.api import (
-    ComponentTreeProvider,
-    ProjectTreeProvider,
-)
-from setuav_studio_sdk.contributions import (
+
+from .contributions import (
     ActionContribution,
     ComponentTreeNodeContribution,
+    ComponentTreeProvider,
     PanelContribution,
     ProjectTreeNodeContribution,
+    ProjectTreeProvider,
     SettingsPageContribution,
     ToolbarContribution,
     ToolContribution,
     WorkspaceContribution,
 )
-from setuav_studio_sdk.events import StudioEvents
+from .events import StudioEvents
 
 if TYPE_CHECKING:
     from setuav_studio.ui.viewport import StudioViewport
@@ -557,7 +556,7 @@ class StudioAPI:
         priority: Any = None,
     ) -> Any:
         """Run a solver asynchronously in the background via TaskManager."""
-        from setuav_studio_sdk.tasks import TaskPriority
+        from setuav_studio.task import TaskPriority
 
         task_priority = priority if priority is not None else TaskPriority.NORMAL
         return self._solver_runner.run_solver(

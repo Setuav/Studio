@@ -6,7 +6,8 @@ from typing import TYPE_CHECKING, Any
 from PySide6.QtGui import QUndoStack
 
 from setuav_studio.project import ProjectDocument
-from setuav_studio_sdk.contributions import (
+
+from .contributions import (
     ActionContribution,
     PanelContribution,
     SettingsPageContribution,

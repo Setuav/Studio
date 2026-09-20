@@ -21,7 +21,7 @@ from setuav_studio.solver.results import AnalysisResult, TableDefinition
 from setuav_studio.ui.style.icons import get_icon
 
 if TYPE_CHECKING:
-    from setuav_studio_sdk import StudioAPI
+    from setuav_studio.api import StudioAPI
 
 
 _EMPTY_INDEX = QModelIndex()

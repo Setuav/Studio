@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any
 from PySide6.QtWidgets import QWidget
 
 if TYPE_CHECKING:
-    from setuav_studio_sdk import StudioAPI
+    from setuav_studio.api import StudioAPI
 
 
 def add_parameter_action(

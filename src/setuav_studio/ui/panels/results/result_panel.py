@@ -23,7 +23,7 @@ from .chart_panel import AnalysisChartPanel
 from .table_panel import AnalysisTablePanel
 
 if TYPE_CHECKING:
-    from setuav_studio_sdk import StudioAPI
+    from setuav_studio.api import StudioAPI
 
 
 class ResultPanel(QWidget):

@@ -35,7 +35,7 @@ from setuav_studio.model.symbol import (
 from setuav_studio.ui.style.theme import status_color
 
 if TYPE_CHECKING:
-    from setuav_studio_sdk import StudioAPI
+    from setuav_studio.api import StudioAPI
 
 
 MATH_FUNCTIONS: list[tuple[str, str, str]] = [

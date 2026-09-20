@@ -16,12 +16,12 @@ from setuav_studio.ui.panels.project_explorer.style import (
 from setuav_studio.ui.style.icons import get_icon
 
 if TYPE_CHECKING:
-    from setuav_studio.project import ProjectDocument
-    from setuav_studio.ui.panels.project_explorer.tree import ProjectExplorer
-    from setuav_studio_sdk import (
+    from setuav_studio.api import (
         ProjectTreeNodeContribution,
         StudioAPI,
     )
+    from setuav_studio.project import ProjectDocument
+    from setuav_studio.ui.panels.project_explorer.tree import ProjectExplorer
 
 
 class ProjectTreeBuilder:

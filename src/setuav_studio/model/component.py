@@ -6,7 +6,7 @@ from copy import deepcopy
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from setuav_studio_sdk.contributions import ParameterField
+    from setuav_studio.api.contributions import ParameterField
 
 
 class Component:
@@ -76,7 +76,7 @@ class Component:
     @classmethod
     def get_fields(cls) -> tuple[ParameterField, ...]:
         """Return all ParameterField descriptors defined on this component class."""
-        from setuav_studio_sdk.contributions import ParameterField
+        from setuav_studio.api.contributions import ParameterField
 
         fields: list[ParameterField] = []
         for base in reversed(cls.__mro__):

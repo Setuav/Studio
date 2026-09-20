@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 from setuav_studio.ui.style.icons import get_icon
 
 if TYPE_CHECKING:
-    from setuav_studio_sdk import StudioAPI
+    from setuav_studio.api import StudioAPI
 
 _GEOMETRY_COMPONENT_ICONS = {
     "org.setuav.core:fuselage": "geometry_add_fuselage",

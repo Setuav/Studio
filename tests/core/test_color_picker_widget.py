@@ -7,6 +7,7 @@ import unittest
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QTableWidget, QWidget
 
+from setuav_studio.api import ParameterField
 from setuav_studio.ui.widget.color_picker import (
     ColorPickerWidget,
     color_to_hex_str,
@@ -14,7 +15,6 @@ from setuav_studio.ui.widget.color_picker import (
     parse_color,
 )
 from setuav_studio.ui.widget.table import PropertyTableMixin
-from setuav_studio_sdk import ParameterField
 from tests._common import get_qapp
 
 

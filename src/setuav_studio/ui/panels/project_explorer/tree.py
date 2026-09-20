@@ -31,12 +31,12 @@ from setuav_studio.ui.panels.project_explorer.tree_builder import (
 )
 
 if TYPE_CHECKING:
-    from setuav_studio.project import ProjectDocument
-    from setuav_studio_sdk import (
+    from setuav_studio.api import (
         ComponentTreeNodeContribution,
         ProjectTreeNodeContribution,
         StudioAPI,
     )
+    from setuav_studio.project import ProjectDocument
 
 
 class ProjectExplorer(QTreeWidget):

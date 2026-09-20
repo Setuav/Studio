@@ -1,60 +1,51 @@
-"""Plugin management and StudioAPI execution engine."""
+"""StudioAPI — clean public service surface for plugins and shell."""
+
+from __future__ import annotations
 
 from setuav_studio.model.component import Component
-from setuav_studio.task.manager import TaskManager
-from setuav_studio.ui.editor.component import BaseComponentEditor
-from setuav_studio_sdk.contributions import (
+from setuav_studio.plugin.plugin import StudioPlugin
+
+from .api import StudioAPI
+from .contributions import (
     ActionContribution,
     ComponentTreeNodeContribution,
+    ComponentTreeProvider,
     PanelContribution,
     ParameterField,
     ProjectTreeNodeContribution,
+    ProjectTreeProvider,
     SettingsPageContribution,
     ToolbarContribution,
     ToolbarMenuItemContribution,
     ToolContribution,
+    WorkspaceContribution,
+    WorkspaceLayoutContext,
 )
-from setuav_studio_sdk.events import StudioEvents
-from setuav_studio_sdk.plugin import StudioPlugin
-
-from .api import StudioAPI
+from .events import StudioEvents
 from .hooks import HookRegistry
 from .host import _StudioHost
-from .installer import get_user_plugins_dir, install_plugin_archive
-from .manager import PluginManager
-from .requirements import (
-    PluginLoadIssue,
-    _candidate_sort_key,
-    _plugin_sort_key,
-    _version_satisfies,
-)
 from .undo import _ComponentEditCommand, _ProjectEditCommand
 
 __all__ = [
     "ActionContribution",
-    "BaseComponentEditor",
     "Component",
     "ComponentTreeNodeContribution",
+    "ComponentTreeProvider",
     "HookRegistry",
     "PanelContribution",
     "ParameterField",
-    "PluginLoadIssue",
-    "PluginManager",
     "ProjectTreeNodeContribution",
+    "ProjectTreeProvider",
     "SettingsPageContribution",
     "StudioAPI",
     "StudioEvents",
     "StudioPlugin",
-    "TaskManager",
     "ToolContribution",
     "ToolbarContribution",
     "ToolbarMenuItemContribution",
+    "WorkspaceContribution",
+    "WorkspaceLayoutContext",
     "_ComponentEditCommand",
     "_ProjectEditCommand",
     "_StudioHost",
-    "_candidate_sort_key",
-    "_plugin_sort_key",
-    "_version_satisfies",
-    "get_user_plugins_dir",
-    "install_plugin_archive",
 ]

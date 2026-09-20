@@ -4,6 +4,10 @@ from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import Qt
 
+from setuav_studio.api import (
+    ComponentTreeNodeContribution,
+    PanelContribution,
+)
 from setuav_studio.ui.editor import (
     EnvelopeEditor,
     MassPropertiesEditor,
@@ -11,10 +15,6 @@ from setuav_studio.ui.editor import (
 )
 from setuav_studio.ui.panels.project_explorer import ProjectExplorerPanel
 from setuav_studio.ui.panels.properties import PropertiesPanel
-from setuav_studio_sdk import (
-    ComponentTreeNodeContribution,
-    PanelContribution,
-)
 
 if TYPE_CHECKING:
     from setuav_studio.api import StudioAPI
@@ -152,8 +152,8 @@ def _on_run_analysis_triggered(api: StudioAPI) -> None:
 
 def register_native_contributions(api: StudioAPI) -> None:
     """Register built-in native panels, tree providers, and kind editors into the StudioAPI."""
+    from setuav_studio.api import ToolbarContribution
     from setuav_studio.ui.viewport import StudioViewport
-    from setuav_studio_sdk import ToolbarContribution
 
     # 1. Native Panels
     api.add_panel(

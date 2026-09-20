@@ -23,7 +23,7 @@ from setuav_studio.ui.style.icons import get_icon
 from setuav_studio.ui.widget.chart import StudioChartWidget
 
 if TYPE_CHECKING:
-    from setuav_studio_sdk import StudioAPI
+    from setuav_studio.api import StudioAPI
 
 
 class AnalysisChartPanel(QWidget):

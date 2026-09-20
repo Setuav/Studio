@@ -3,7 +3,7 @@ from typing import Any
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QLabel, QLineEdit, QVBoxLayout, QWidget
 
-from setuav_studio_sdk import StudioAPI
+from setuav_studio.api import StudioAPI
 
 
 class PropertiesPanel(QWidget):

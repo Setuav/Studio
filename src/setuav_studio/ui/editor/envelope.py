@@ -18,10 +18,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from setuav_studio.api import StudioAPI
 from setuav_studio.ui.style.icons import set_label_icon
 from setuav_studio.ui.widget.spinbox import NumericSpinBox, set_table_spinbox
 from setuav_studio.ui.widget.table import PropertyTableMixin
-from setuav_studio_sdk import StudioAPI
 
 
 class EnvelopeEditor(PropertyTableMixin, QWidget):

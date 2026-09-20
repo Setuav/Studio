@@ -723,7 +723,7 @@ class PropertyTableMixin:
 
     @staticmethod
     def _normalize_parameter_fields(fields: Any) -> list[Any]:
-        from setuav_studio_sdk import ParameterField
+        from setuav_studio.api import ParameterField
 
         normalized: list[ParameterField] = []
         if isinstance(fields, dict):
