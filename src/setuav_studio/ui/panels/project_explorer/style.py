@@ -2,9 +2,16 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QLine, QRect, QSize, Qt
+from PySide6.QtCore import QLine, QModelIndex, QRect, QSize, Qt
 from PySide6.QtGui import QPainter, QPalette, QPen
-from PySide6.QtWidgets import QProxyStyle, QStyle, QWidget
+from PySide6.QtWidgets import (
+    QProxyStyle,
+    QStyle,
+    QStyledItemDelegate,
+    QStyleOption,
+    QStyleOptionViewItem,
+    QWidget,
+)
 
 from setuav_studio.ui.style.icons import get_icon
 
@@ -18,13 +25,74 @@ _GEOMETRY_COMPONENT_ICONS = {
 }
 
 
+class ProjectExplorerDelegate(QStyledItemDelegate):
+    """Delegate ensuring uniform icon slot width and consistent text alignment across all tree nodes."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+
+    def initStyleOption(self, option: QStyleOptionViewItem, index: QModelIndex) -> None:
+        super().initStyleOption(option, index)
+        if option.features & QStyleOptionViewItem.ViewItemFeature.HasDecoration:
+            target_size = _ProjectExplorerBranchStyle.ICON_SLOT_SIZE
+            if option.widget is not None and hasattr(option.widget, "iconSize"):
+                isz = option.widget.iconSize()
+                if isz.isValid() and isz.width() > 0:
+                    target_size = isz.width()
+            option.decorationSize = QSize(target_size, target_size)
+
+
 class _ProjectExplorerBranchStyle(QProxyStyle):
-    """Draw classic dotted tree branches with square expand controls."""
+    """Draw classic dotted tree branches with square expand controls and aligned item layout."""
+
+    ICON_SLOT_SIZE = 16
+    TEXT_SPACING = 5
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__()
         if parent is not None:
             self.setParent(parent)
+
+    def _icon_slot_width(self, option: QStyleOption, widget: QWidget | None) -> int:
+        if isinstance(option, QStyleOptionViewItem) and option.decorationSize.isValid():
+            w = option.decorationSize.width()
+            if w > 0:
+                return w
+        if widget is not None and hasattr(widget, "iconSize"):
+            isz = widget.iconSize()
+            if isz.isValid() and isz.width() > 0:
+                return isz.width()
+        return self.ICON_SLOT_SIZE
+
+    def subElementRect(
+        self,
+        element: QStyle.SubElement,
+        option: QStyleOption,
+        widget: QWidget | None = None,
+    ) -> QRect:
+        if element == QStyle.SubElement.SE_ItemViewItemDecoration:
+            r = super().subElementRect(element, option, widget)
+            if not r.isEmpty():
+                slot_w = self._icon_slot_width(option, widget)
+                actual_w = r.width()
+                if actual_w < slot_w:
+                    offset = (slot_w - actual_w) // 2
+                    return QRect(r.x() + offset, r.y(), actual_w, r.height())
+            return r
+
+        if element == QStyle.SubElement.SE_ItemViewItemText:
+            base_dec = super().subElementRect(
+                QStyle.SubElement.SE_ItemViewItemDecoration, option, widget
+            )
+            r = super().subElementRect(element, option, widget)
+            if not base_dec.isEmpty():
+                slot_w = self._icon_slot_width(option, widget)
+                new_left = base_dec.x() + slot_w + self.TEXT_SPACING
+                avail_w = max(0, option.rect.right() - new_left + 1)
+                return QRect(new_left, r.y(), avail_w, r.height())
+            return r
+
+        return super().subElementRect(element, option, widget)
 
     def sizeFromContents(self, contents_type, option, size, widget=None) -> QSize:
         result = super().sizeFromContents(contents_type, option, size, widget)

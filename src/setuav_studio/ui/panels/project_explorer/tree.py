@@ -3,7 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QPoint, Qt
+from PySide6.QtCore import QPoint, QSize, Qt
 from PySide6.QtGui import QBrush, QColor, QKeyEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -18,6 +18,7 @@ from setuav_studio.ui.panels.project_explorer.operations import (
     ProjectExplorerOperations,
 )
 from setuav_studio.ui.panels.project_explorer.style import (
+    ProjectExplorerDelegate,
     _ProjectExplorerBranchStyle,
     format_assembly_icon,
     format_assembly_type,
@@ -57,6 +58,8 @@ class ProjectExplorer(QTreeWidget):
         self.setIndentation(20)
         self.setRootIsDecorated(True)
         self.setUniformRowHeights(True)
+        self.setIconSize(QSize(16, 16))
+        self.setItemDelegate(ProjectExplorerDelegate(self))
         self._branch_style = _ProjectExplorerBranchStyle(self)
         self.setStyle(self._branch_style)
 
