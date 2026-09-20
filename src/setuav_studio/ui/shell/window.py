@@ -136,7 +136,7 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("Setuav Studio")
         self.resize(1200, 800)
-        self.setCentralWidget(None)
+        self.setCentralWidget(None)  # type: ignore[arg-type]
 
         self._api.on_modified_changed(self._on_modified_changed)
         self._api.on_project_content_changed(self._on_project_content_changed)
@@ -252,27 +252,6 @@ class MainWindow(QMainWindow):
 
     def _activate_project(self, project: ProjectDocument, *, confirm_close: bool = True) -> bool:
         return self._project_controller.activate_project(project, confirm_close=confirm_close)
-
-    def _append_unsaved_aerodynamic_analyses(
-        self, changes: list[str], disk_document: ProjectDocument | None
-    ) -> None:
-        self._project_controller.append_unsaved_aerodynamic_analyses(changes, disk_document)
-
-    def _append_unsaved_performance_analyses(
-        self, changes: list[str], disk_document: ProjectDocument | None
-    ) -> None:
-        self._project_controller.append_unsaved_performance_analyses(changes, disk_document)
-
-    @staticmethod
-    def _append_unsaved_analyses(
-        changes: list[str],
-        disk_entries: list[dict[str, Any]],
-        current_entries: list[dict[str, Any]],
-        fallback_name: str,
-    ) -> None:
-        ProjectController.append_unsaved_analyses(
-            changes, disk_entries, current_entries, fallback_name
-        )
 
     @property
     def project(self) -> ProjectDocument | None:
@@ -431,9 +410,6 @@ class MainWindow(QMainWindow):
 
     def _open_log_window(self) -> None:
         self._status_manager.open_log_window()
-
-    def _open_task_monitor_window(self) -> None:
-        self._status_manager.open_task_monitor_window()
 
     def open_task_monitor_window(self) -> None:
         self._status_manager.open_task_monitor_window()
