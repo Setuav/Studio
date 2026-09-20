@@ -218,8 +218,8 @@ class ProjectTests(unittest.TestCase):
         project.remove_plugin_data("flight_plan")
         self.assertIsNone(project.get_plugin_data("flight_plan"))
 
-    def test_typed_vehicle_domain_model_access(self) -> None:
-        """Verify project.vehicle and project.get_typed_component bridge."""
+    def test_typed_component_access(self) -> None:
+        """Verify project.get_typed_component bridge and absence of dual-state vehicle attribute."""
         self.project_data["components"] = [
             {
                 "id": "main_wing",
@@ -229,8 +229,7 @@ class ProjectTests(unittest.TestCase):
             }
         ]
         project = open_project(self._write_project_json())
-        vehicle = project.vehicle
-        self.assertEqual(vehicle.name, project.data.get("name", "Unnamed Vehicle"))
+        self.assertFalse(hasattr(project, "vehicle"))
         comp = project.get_typed_component("main_wing")
         self.assertIsNotNone(comp)
         self.assertEqual(comp.name, "Main Wing")

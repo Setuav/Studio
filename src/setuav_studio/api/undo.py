@@ -63,8 +63,6 @@ class _ProjectEditCommand(QUndoCommand):
     def _apply(self, value: dict[str, Any]) -> None:
         self._project.data.clear()
         self._project.data.update(deepcopy(value))
-        if hasattr(self._project, "invalidate_vehicle"):
-            self._project.invalidate_vehicle()
         self._changed()
 
 

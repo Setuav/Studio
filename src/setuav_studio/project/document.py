@@ -170,29 +170,6 @@ class ProjectDocument:
             self.data["analysis_configs"] = {}
             self.modified = True
 
-    @property
-    def vehicle(self) -> Any:
-        """Return the typed domain Vehicle model constructed from project data."""
-        v = getattr(self, "_vehicle", None)
-        if v is None:
-            from setuav_studio.model.vehicle import Vehicle
-
-            v = Vehicle.from_dict(self.data)
-            object.__setattr__(self, "_vehicle", v)
-        return v
-
-    def invalidate_vehicle(self) -> None:
-        """Clear cached Vehicle model so it is rebuilt fresh on next access."""
-        if hasattr(self, "_vehicle"):
-            object.__delattr__(self, "_vehicle")
-
-    def set_vehicle(self, vehicle: Any) -> None:
-        """Update the underlying project dictionary from a Vehicle domain model."""
-        self.data.clear()
-        self.data.update(vehicle.to_dict())
-        object.__setattr__(self, "_vehicle", vehicle)
-        self.modified = True
-
     def get_typed_component(self, comp_id: str, api: Any | None = None) -> Any:
         """Find a component by ID and return its live typed Component model."""
         comp = self.get_component(comp_id)
