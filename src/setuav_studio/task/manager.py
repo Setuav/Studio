@@ -11,8 +11,8 @@ from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal, Slot
 
-from setuav_studio_sdk.events import StudioEvents
-from setuav_studio_sdk.tasks import (
+from ..api.events import StudioEvents
+from .types import (
     CancellationToken,
     TaskCancelledError,
     TaskPriority,

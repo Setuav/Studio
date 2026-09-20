@@ -1,6 +1,7 @@
 """Central background task execution package."""
 
-from setuav_studio_sdk.tasks import (
+from .manager import TaskHandleImpl, TaskManager
+from .types import (
     CancellationToken,
     TaskCancelledError,
     TaskHandle,
@@ -9,8 +10,6 @@ from setuav_studio_sdk.tasks import (
     TaskProgress,
     TaskStatus,
 )
-
-from .manager import TaskHandleImpl, TaskManager
 
 __all__ = [
     "CancellationToken",

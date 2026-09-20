@@ -7,6 +7,7 @@ import unittest
 
 from PySide6.QtCore import QCoreApplication
 
+from setuav_studio.api import StudioEvents
 from setuav_studio.api.api import StudioAPI
 from setuav_studio.task.manager import (
     CancellationToken,
@@ -16,7 +17,6 @@ from setuav_studio.task.manager import (
     TaskStatus,
 )
 from setuav_studio.ui.dialog.task_monitor import TaskMonitorDialog
-from setuav_studio_sdk.events import StudioEvents
 from tests._common import get_qapp
 
 

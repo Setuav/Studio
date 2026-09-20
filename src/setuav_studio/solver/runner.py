@@ -7,7 +7,7 @@ import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-from setuav_studio_sdk.tasks import CancellationToken, TaskPriority
+from setuav_studio.task import CancellationToken, TaskPriority
 
 from .base import AbstractSolver, SolverStatus
 from .results import AnalysisResult
