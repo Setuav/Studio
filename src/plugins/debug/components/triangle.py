@@ -77,11 +77,6 @@ def create_triangle_component(comp_id: str, name: str) -> dict[str, Any]:
             "position": {"x": 0.0, "y": 0.0, "z": 0.0},
             "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
         },
-        "envelope": {
-            "shape": "box",
-            "size_mm": {"x": 150.0, "y": 10.0, "z": 150.0},
-            "offset_mm": {"x": 0.0, "y": 0.0, "z": 0.0},
-        },
         "parameters": {
             "base_width": 150.0,
             "height": 150.0,
@@ -121,8 +116,5 @@ def add_triangle_to_viewport(
         envelope=envelope,
     )
 
-
-# Alias for backward compatibility
-render_triangle = add_triangle_to_viewport
 
 register_renderer(TYPE_DEBUG_TRIANGLE, add_triangle_to_viewport)

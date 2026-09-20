@@ -7,14 +7,12 @@ from .arrow import (
     ArrowComponentEditor,
     add_arrow_to_viewport,
     create_arrow_component,
-    render_arrow,
 )
 from .box import (
     TYPE_DEBUG_BOX,
     BoxComponentEditor,
     add_box_to_viewport,
     create_box_component,
-    render_box,
 )
 from .common import (
     DEBUG_LAYER,
@@ -23,7 +21,6 @@ from .common import (
     clear_debug_components,
     generate_unique_identity,
     parse_color_rgba,
-    render_debug_component,
     resolve_world_transform,
     rotate_vector,
     sync_debug_components_to_viewport,
@@ -34,14 +31,12 @@ from .cylinder import (
     CylinderComponentEditor,
     add_cylinder_to_viewport,
     create_cylinder_component,
-    render_cylinder,
 )
 from .line import (
     TYPE_DEBUG_LINE,
     LineComponentEditor,
     add_line_to_viewport,
     create_line_component,
-    render_line,
 )
 from .loft import (
     TYPE_DEBUG_LOFT,
@@ -49,35 +44,30 @@ from .loft import (
     add_loft_to_viewport,
     create_loft_component,
     naca_airfoil_loop,
-    render_loft,
 )
 from .plane import (
     TYPE_DEBUG_PLANE,
     PlaneComponentEditor,
     add_plane_to_viewport,
     create_plane_component,
-    render_plane,
 )
 from .point import (
     TYPE_DEBUG_POINT,
     PointComponentEditor,
     add_point_to_viewport,
     create_point_component,
-    render_point,
 )
 from .ring import (
     TYPE_DEBUG_RING,
     RingComponentEditor,
     add_ring_to_viewport,
     create_ring_component,
-    render_ring,
 )
 from .triangle import (
     TYPE_DEBUG_TRIANGLE,
     TriangleComponentEditor,
     add_triangle_to_viewport,
     create_triangle_component,
-    render_triangle,
 )
 
 ALL_DEBUG_TYPES = (
@@ -137,16 +127,6 @@ __all__ = [
     "generate_unique_identity",
     "naca_airfoil_loop",
     "parse_color_rgba",
-    "render_arrow",
-    "render_box",
-    "render_cylinder",
-    "render_debug_component",
-    "render_line",
-    "render_loft",
-    "render_plane",
-    "render_point",
-    "render_ring",
-    "render_triangle",
     "resolve_world_transform",
     "rotate_vector",
     "sync_debug_components_to_viewport",

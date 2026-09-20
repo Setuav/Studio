@@ -89,11 +89,6 @@ def create_plane_component(comp_id: str, name: str) -> dict[str, Any]:
             "position": {"x": 0.0, "y": 0.0, "z": 0.0},
             "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
         },
-        "envelope": {
-            "shape": "box",
-            "size_mm": {"x": 200.0, "y": 200.0, "z": 5.0},
-            "offset_mm": {"x": 0.0, "y": 0.0, "z": 0.0},
-        },
         "parameters": {
             "width": 200.0,
             "length": 200.0,
@@ -139,8 +134,5 @@ def add_plane_to_viewport(
         envelope=envelope,
     )
 
-
-# Alias for backward compatibility
-render_plane = add_plane_to_viewport
 
 register_renderer(TYPE_DEBUG_PLANE, add_plane_to_viewport)

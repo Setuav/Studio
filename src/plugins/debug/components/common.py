@@ -232,10 +232,6 @@ def update_component_in_viewport(
         renderer(viewport, comp_id, name, params, px, py, pz, world_rot, envelope)
 
 
-# Alias for backward compatibility
-render_debug_component = update_component_in_viewport
-
-
 def sync_debug_components_to_viewport(viewport: ViewportProtocol, project: Any) -> None:
     """Synchronize all debug components in the project with the viewport."""
     if viewport is None:

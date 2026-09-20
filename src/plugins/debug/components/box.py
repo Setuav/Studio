@@ -87,11 +87,6 @@ def create_box_component(comp_id: str, name: str) -> dict[str, Any]:
             "position": {"x": 0.0, "y": 0.0, "z": 0.0},
             "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
         },
-        "envelope": {
-            "shape": "box",
-            "size_mm": {"x": 200.0, "y": 150.0, "z": 100.0},
-            "offset_mm": {"x": 0.0, "y": 0.0, "z": 0.0},
-        },
         "parameters": {
             "length": 200.0,
             "width": 150.0,
@@ -128,8 +123,5 @@ def add_box_to_viewport(
         envelope=envelope,
     )
 
-
-# Alias for backward compatibility
-render_box = add_box_to_viewport
 
 register_renderer(TYPE_DEBUG_BOX, add_box_to_viewport)

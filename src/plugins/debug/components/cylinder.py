@@ -94,11 +94,6 @@ def create_cylinder_component(comp_id: str, name: str) -> dict[str, Any]:
             "position": {"x": 0.0, "y": 0.0, "z": 0.0},
             "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
         },
-        "envelope": {
-            "shape": "cylinder",
-            "size_mm": {"x": 100.0, "y": 100.0, "z": 200.0},
-            "offset_mm": {"x": 0.0, "y": 0.0, "z": 0.0},
-        },
         "parameters": {
             "radius": 50.0,
             "length": 200.0,
@@ -149,8 +144,5 @@ def add_cylinder_to_viewport(
         envelope=envelope,
     )
 
-
-# Alias for backward compatibility
-render_cylinder = add_cylinder_to_viewport
 
 register_renderer(TYPE_DEBUG_CYLINDER, add_cylinder_to_viewport)

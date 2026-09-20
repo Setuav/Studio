@@ -74,11 +74,6 @@ def create_line_component(comp_id: str, name: str) -> dict[str, Any]:
             "position": {"x": 0.0, "y": 0.0, "z": 0.0},
             "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
         },
-        "envelope": {
-            "shape": "box",
-            "size_mm": {"x": 200.0, "y": 10.0, "z": 10.0},
-            "offset_mm": {"x": 0.0, "y": 0.0, "z": 0.0},
-        },
         "parameters": {
             "length": 200.0,
             "axis": "X",
@@ -124,8 +119,5 @@ def add_line_to_viewport(
         envelope=envelope,
     )
 
-
-# Alias for backward compatibility
-render_line = add_line_to_viewport
 
 register_renderer(TYPE_DEBUG_LINE, add_line_to_viewport)

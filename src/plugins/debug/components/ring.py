@@ -74,11 +74,6 @@ def create_ring_component(comp_id: str, name: str) -> dict[str, Any]:
             "position": {"x": 0.0, "y": 0.0, "z": 0.0},
             "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
         },
-        "envelope": {
-            "shape": "box",
-            "size_mm": {"x": 250.0, "y": 250.0, "z": 10.0},
-            "offset_mm": {"x": 0.0, "y": 0.0, "z": 0.0},
-        },
         "parameters": {
             "outer_radius": 125.0,
             "axis": "Z",
@@ -121,8 +116,5 @@ def add_ring_to_viewport(
         envelope=envelope,
     )
 
-
-# Alias for backward compatibility
-render_ring = add_ring_to_viewport
 
 register_renderer(TYPE_DEBUG_RING, add_ring_to_viewport)
