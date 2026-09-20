@@ -42,7 +42,13 @@ def _transform_tree_nodes(
             tooltip="Position and rotation relative to the parent frame",
         ),
     ]
-    if component.get("type") != "org.setuav.core:point-mass":
+    comp_type = str(component.get("type") or "").lower()
+    has_explicit_envelope = bool(component.get("envelope"))
+    is_non_geometric = any(
+        k in comp_type
+        for k in ("generic", "payload", "avionics", "battery", "equipment", "internal")
+    )
+    if (is_non_geometric or has_explicit_envelope) and comp_type != "org.setuav.core:point-mass":
         nodes.append(
             ComponentTreeNodeContribution(
                 id=envelope_node_id,

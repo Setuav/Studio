@@ -151,10 +151,6 @@ class Component:
         """Local center of gravity offset in mm relative to component origin."""
         val = self._raw_data.get("local_cg_mm") or self._raw_data.get("local_cg")
         if not isinstance(val, dict):
-            ext = self.extensions.get("org.setuav.weight-balance")
-            if isinstance(ext, dict) and isinstance(ext.get("local_cg_mm"), dict):
-                val = ext["local_cg_mm"]
-        if not isinstance(val, dict):
             val = self._raw_data.setdefault("local_cg_mm", {"x": 0.0, "y": 0.0, "z": 0.0})
         return val
 
@@ -170,12 +166,8 @@ class Component:
     def inertia(self) -> dict[str, float]:
         """Local inertia tensor moments and products in kg·m²."""
         val = self._raw_data.get("inertia_kg_m2") or self._raw_data.get("inertia")
-        if not isinstance(val, dict):
-            ext = self.extensions.get("org.setuav.weight-balance")
-            if isinstance(ext, dict) and isinstance(ext.get("inertia_kg_m2"), dict):
-                val = ext["inertia_kg_m2"]
-            elif isinstance(self.parameters.get("inertia"), dict):
-                val = self.parameters["inertia"]
+        if not isinstance(val, dict) and isinstance(self.parameters.get("inertia"), dict):
+            val = self.parameters["inertia"]
         if not isinstance(val, dict):
             val = self._raw_data.setdefault(
                 "inertia_kg_m2",
@@ -261,18 +253,18 @@ class Component:
         return self._raw_data.setdefault("parameters", {})
 
     @property
-    def plugins(self) -> dict[str, Any]:
-        """Plugin-specific namespaced storage."""
-        if "plugins" in self._raw_data and isinstance(self._raw_data["plugins"], dict):
-            return self._raw_data["plugins"]
+    def extensions(self) -> dict[str, Any]:
+        """Extension namespaced data storage for plugin contributions."""
         if "extensions" in self._raw_data and isinstance(self._raw_data["extensions"], dict):
             return self._raw_data["extensions"]
-        return self._raw_data.setdefault("plugins", {})
+        if "plugins" in self._raw_data and isinstance(self._raw_data["plugins"], dict):
+            return self._raw_data["plugins"]
+        return self._raw_data.setdefault("extensions", {})
 
     @property
-    def extensions(self) -> dict[str, Any]:
-        """Backward compatibility alias for plugins storage."""
-        return self.plugins
+    def plugins(self) -> dict[str, Any]:
+        """Backward compatibility alias for extensions storage."""
+        return self.extensions
 
     def get_exposed_properties(self) -> dict[str, Any]:
         """Return a dictionary of all property names and their current values."""

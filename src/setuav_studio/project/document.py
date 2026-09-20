@@ -45,32 +45,38 @@ class ProjectDocument:
         return bool(self.plugin_issues)
 
     def get_plugin_data(self, namespace: str, default: Any = None) -> Any:
-        """Retrieve root-level plugin data for a given namespace."""
-        plugins = self.data.get("plugins")
-        if isinstance(plugins, dict) and namespace in plugins:
-            return plugins[namespace]
+        """Retrieve root-level extension data for a given namespace."""
         extensions = self.data.get("extensions")
         if isinstance(extensions, dict) and namespace in extensions:
             return extensions[namespace]
-        return default
-
-    def set_plugin_data(self, namespace: str, value: Any) -> None:
-        """Set root-level plugin data for a given namespace."""
-        if "plugins" not in self.data or not isinstance(self.data["plugins"], dict):
-            self.data["plugins"] = {}
-        self.data["plugins"][namespace] = value
-        self.modified = True
-
-    def remove_plugin_data(self, namespace: str) -> None:
-        """Remove root-level plugin data for a given namespace."""
         plugins = self.data.get("plugins")
         if isinstance(plugins, dict) and namespace in plugins:
-            del plugins[namespace]
-            self.modified = True
+            return plugins[namespace]
+        return default
+
+    get_extension_data = get_plugin_data
+
+    def set_plugin_data(self, namespace: str, value: Any) -> None:
+        """Set root-level extension data for a given namespace."""
+        if "extensions" not in self.data or not isinstance(self.data["extensions"], dict):
+            self.data["extensions"] = {}
+        self.data["extensions"][namespace] = value
+        self.modified = True
+
+    set_extension_data = set_plugin_data
+
+    def remove_plugin_data(self, namespace: str) -> None:
+        """Remove root-level extension data for a given namespace."""
         extensions = self.data.get("extensions")
         if isinstance(extensions, dict) and namespace in extensions:
             del extensions[namespace]
             self.modified = True
+        plugins = self.data.get("plugins")
+        if isinstance(plugins, dict) and namespace in plugins:
+            del plugins[namespace]
+            self.modified = True
+
+    remove_extension_data = remove_plugin_data
 
     @property
     def analysis_results(self) -> dict[str, Any]:
@@ -167,19 +173,31 @@ class ProjectDocument:
     @property
     def vehicle(self) -> Any:
         """Return the typed domain Vehicle model constructed from project data."""
-        from setuav_studio.model.vehicle import Vehicle
+        v = getattr(self, "_vehicle", None)
+        if v is None:
+            from setuav_studio.model.vehicle import Vehicle
 
-        return Vehicle.from_dict(self.data)
+            v = Vehicle.from_dict(self.data)
+            object.__setattr__(self, "_vehicle", v)
+        return v
 
     def set_vehicle(self, vehicle: Any) -> None:
         """Update the underlying project dictionary from a Vehicle domain model."""
         self.data.clear()
         self.data.update(vehicle.to_dict())
+        object.__setattr__(self, "_vehicle", vehicle)
         self.modified = True
 
-    def get_typed_component(self, comp_id: str) -> Any:
-        """Find a component by ID and return its typed Component model."""
-        return self.vehicle.get_component(comp_id)
+    def get_typed_component(self, comp_id: str, api: Any | None = None) -> Any:
+        """Find a component by ID and return its live typed Component model."""
+        comp = self.get_component(comp_id)
+        if comp is None:
+            return None
+        if api is not None and hasattr(api, "create_component_model"):
+            return api.create_component_model(comp)
+        from setuav_studio.model.component import Component
+
+        return Component(comp)
 
     def get_component(self, comp_id: str) -> dict[str, Any] | None:
         """Find a component by its ID."""
@@ -189,27 +207,31 @@ class ProjectDocument:
         return next((c for c in components if isinstance(c, dict) and c.get("id") == comp_id), None)
 
     def get_component_plugin_data(self, comp_id: str, namespace: str, default: Any = None) -> Any:
-        """Retrieve component-level plugin data for a given namespace."""
+        """Retrieve component-level extension data for a given namespace."""
         comp = self.get_component(comp_id)
         if comp is None:
             return default
-        plugins = comp.get("plugins")
-        if isinstance(plugins, dict) and namespace in plugins:
-            return plugins[namespace]
         extensions = comp.get("extensions")
         if isinstance(extensions, dict) and namespace in extensions:
             return extensions[namespace]
+        plugins = comp.get("plugins")
+        if isinstance(plugins, dict) and namespace in plugins:
+            return plugins[namespace]
         return default
 
+    get_component_extension_data = get_component_plugin_data
+
     def set_component_plugin_data(self, comp_id: str, namespace: str, value: Any) -> None:
-        """Set component-level plugin data for a given namespace."""
+        """Set component-level extension data for a given namespace."""
         comp = self.get_component(comp_id)
         if comp is None:
             raise KeyError(f"Component '{comp_id}' not found in project")
-        if "plugins" not in comp or not isinstance(comp["plugins"], dict):
-            comp["plugins"] = {}
-        comp["plugins"][namespace] = value
+        if "extensions" not in comp or not isinstance(comp["extensions"], dict):
+            comp["extensions"] = {}
+        comp["extensions"][namespace] = value
         self.modified = True
+
+    set_component_extension_data = set_component_plugin_data
 
     def get_component_models(
         self, api: Any | None = None, config_id: str | None = None
