@@ -143,6 +143,8 @@ def _parse_spinbox_callback_value(
     max_val: float | None = None,
 ) -> Any:
     clean = new_text.strip()
+    if not clean:
+        return ""
     if clean.startswith("=") or not clean.replace(".", "", 1).replace("-", "", 1).isdigit():
         try:
             from setuav_studio.model.expression import ExpressionEvaluator
@@ -245,7 +247,11 @@ def set_table_spinbox(
             if (raw_callback or target_data is None) and is_expr:
                 cb(clean)
             else:
-                cb(_parse_spinbox_callback_value(new_text, resolved_api, min_val, max_val))
+                val = _parse_spinbox_callback_value(new_text, resolved_api, min_val, max_val)
+                if not isinstance(val, (int, float)):
+                    cur_num = target_data.get(prop_k) if target_data and prop_k else None
+                    val = cur_num if isinstance(cur_num, (int, float)) else 0.0
+                cb(val)
 
     if active_expr:
         init_str = str(active_expr)

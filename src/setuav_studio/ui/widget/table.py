@@ -359,21 +359,28 @@ class ExpressionPropertyCell(QWidget):
         else:
             self._on_changed(text)
 
-    def _commit_line_edit(self) -> None:
+    def _commit_line_edit(self, force: bool = False) -> None:
+        if not self._is_focused and not force:
+            return
         new_text = self.line_edit.text().strip()
+        if not new_text:
+            self._refresh_display()
+            return
         new_raw = self._convert_input_to_raw_storage(new_text)
         if new_raw != self._raw_expression:
             self._raw_expression = new_raw
             self._call_on_changed(self._raw_expression)
 
     def _on_focus_out(self) -> None:
-        self._is_focused = False
+        if not self._is_focused:
+            return
         self._commit_line_edit()
+        self._is_focused = False
         self._refresh_display()
 
     def _on_return_pressed(self) -> None:
+        self._commit_line_edit(force=True)
         self._is_focused = False
-        self._commit_line_edit()
         self._refresh_display()
         self.line_edit.clearFocus()
 

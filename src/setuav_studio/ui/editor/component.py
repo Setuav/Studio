@@ -58,7 +58,10 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
             self._create_parameters_section()
 
         self._content_layout.addStretch()
-        self._committed_params: dict[str, Any] = dict(self._component.get("parameters", {}))
+        params = self._component.get("parameters", {})
+        self._committed_params: dict[str, Any] = dict(params) if isinstance(params, dict) else {}
+        exprs = params.get("_expressions") if isinstance(params, dict) else None
+        self._committed_expressions: dict[str, str] = dict(exprs) if isinstance(exprs, dict) else {}
         self._load_component()
         if self._api is not None:
             self._api.on_project_content_changed(self._on_external_content_changed)
@@ -168,7 +171,10 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
                     on_changed=self._on_param_changed,
                     api=self._api,
                 )
-            self._committed_params = dict(self._component.get("parameters", {}))
+            params = self._component.get("parameters", {})
+            self._committed_params = dict(params) if isinstance(params, dict) else {}
+            exprs = params.get("_expressions") if isinstance(params, dict) else None
+            self._committed_expressions = dict(exprs) if isinstance(exprs, dict) else {}
         finally:
             self._loading = False
 
@@ -177,21 +183,44 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
             return
 
         old_val = self._committed_params.get(key)
-        if old_val == value:
+        old_expr = self._committed_expressions.get(key)
+
+        p = self._component.setdefault("parameters", {})
+        curr_exprs = p.get("_expressions")
+        new_expr = curr_exprs.get(key) if isinstance(curr_exprs, dict) else None
+
+        if old_val == value and old_expr == new_expr:
             return
 
-        # Restore component to previous value before edit_component starts,
-        # so edit_component correctly detects before != after and records undo.
-        p = self._component.setdefault("parameters", {})
+        # Restore component parameters and expressions to committed state before edit_component
+        # so edit_component accurately captures both value and formula diffs for undo/redo.
         if key in self._committed_params:
             p[key] = old_val
         else:
             p.pop(key, None)
 
+        if old_expr is not None:
+            p.setdefault("_expressions", {})[key] = old_expr
+        elif "_expressions" in p and isinstance(p["_expressions"], dict):
+            p["_expressions"].pop(key, None)
+            if not p["_expressions"]:
+                p.pop("_expressions", None)
+
         def apply_param() -> None:
             params = self._component.setdefault("parameters", {})
             params[key] = value
+            if new_expr is not None:
+                params.setdefault("_expressions", {})[key] = new_expr
+            elif "_expressions" in params and isinstance(params["_expressions"], dict):
+                params["_expressions"].pop(key, None)
+                if not params["_expressions"]:
+                    params.pop("_expressions", None)
+
             self._committed_params[key] = value
+            if new_expr is not None:
+                self._committed_expressions[key] = new_expr
+            else:
+                self._committed_expressions.pop(key, None)
 
         self._api.edit_component(
             self._component,
@@ -208,7 +237,8 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
         if self._loading:
             return
         curr_params = self._component.get("parameters", {})
-        if curr_params != self._committed_params:
+        curr_exprs = curr_params.get("_expressions") if isinstance(curr_params, dict) else None
+        if curr_params != self._committed_params or curr_exprs != self._committed_expressions:
             self._load_component()
             self.update_viewport()
 
@@ -220,20 +250,18 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
             return
         clean = val_text.strip() if isinstance(val_text, str) else str(val_text).strip()
         num_val: float | None = None
-        if clean.startswith("=") or not clean.replace(".", "", 1).replace("-", "", 1).isdigit():
-            self._component["mass_expression"] = clean
+        new_expr: str | None = None
+        if clean.startswith("=") or (
+            clean and not clean.replace(".", "", 1).replace("-", "", 1).isdigit()
+        ):
+            new_expr = clean
             if self._api is not None and getattr(self._api, "current_project", None) is not None:
                 try:
                     from setuav_studio.model.expression import ExpressionEvaluator
-                    from setuav_studio.model.symbol import build_evaluation_context
 
                     evaluator = ExpressionEvaluator()
                     project = self._api.current_project
-                    scope = (
-                        build_evaluation_context(project.data, api=self._api)
-                        if project is not None
-                        else {}
-                    )
+                    scope = project.get_scope(api=self._api) if project is not None else {}
                     expr = clean.lstrip("=").strip()
                     res = evaluator.evaluate(expr, scope)
                     if isinstance(res, (int, float)):
@@ -241,7 +269,6 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
                 except Exception:
                     pass
         else:
-            self._component.pop("mass_expression", None)
             with contextlib.suppress(ValueError):
                 num_val = float(clean)
 
@@ -252,6 +279,10 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
                     self._component["parameters"], dict
                 ):
                     self._component["parameters"]["mass"] = num_val
+            if new_expr is not None:
+                self._component["mass_expression"] = new_expr
+            else:
+                self._component.pop("mass_expression", None)
 
         self._api.edit_component(self._component, "Change component mass", change)
 

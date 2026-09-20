@@ -116,7 +116,6 @@ class PropertiesPanel(QWidget):
             from setuav_studio.ui.widget.table import ExpressionPropertyCell
 
             for cell in self._current_widget.findChildren(ExpressionPropertyCell):
-                cell._commit_line_edit()
                 if getattr(cell, "_is_focused", False):
                     cell._on_focus_out()
 
