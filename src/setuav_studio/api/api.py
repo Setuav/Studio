@@ -5,7 +5,7 @@ from collections.abc import Callable, Generator
 from contextlib import contextmanager, suppress
 from copy import deepcopy
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, TypeAlias, cast
 
 from PySide6.QtCore import QObject
 from PySide6.QtGui import QIcon, QUndoStack
@@ -38,6 +38,16 @@ from .host import _StudioHost
 from .undo import _ComponentEditCommand, _ProjectEditCommand
 
 logger = logging.getLogger(__name__)
+
+UnsubscribeCallable: TypeAlias = Callable[[], None]
+
+
+def _bind_qobject_destroyed(callback: Any, cleanup: Callable[[], None]) -> None:
+    """If callback is a bound method on a QObject, automatically invoke cleanup on destruction."""
+    owner = getattr(callback, "__self__", None)
+    if isinstance(owner, QObject):
+        with suppress(RuntimeError):
+            owner.destroyed.connect(lambda *_: cleanup())
 
 
 def _dispatch_listeners(listeners: list[Any], arg: Any) -> None:
@@ -210,23 +220,17 @@ class StudioAPI:
         """Hide the status-bar progress indicator."""
         self.report_progress(1, 1, "")
 
-    def subscribe(self, event_name: str, handler: Callable[[Any], None]) -> None:
+    def subscribe(self, event_name: str, handler: Callable[[Any], None]) -> UnsubscribeCallable:
         """Subscribe a callback handler to a named studio event (Event Bus).
 
         Bound methods owned by a QObject are removed automatically when that
-        QObject is destroyed.
+        QObject is destroyed. Returns an unsubscribe callable.
         """
-        self._event_subscribers.setdefault(event_name, []).append(handler)
-        owner = getattr(handler, "__self__", None)
-        if isinstance(owner, QObject):
-            # Panel callbacks commonly belong to widgets that are destroyed
-            # when their plugin is deactivated. Remove the callback with the
-            # QObject so a later event cannot target a deleted C++ object.
-            owner.destroyed.connect(
-                lambda _object=None, event=event_name, callback=handler: self.unsubscribe(
-                    event, callback
-                )
-            )
+        subscribers = self._event_subscribers.setdefault(event_name, [])
+        if handler not in subscribers:
+            subscribers.append(handler)
+            _bind_qobject_destroyed(handler, lambda: self.unsubscribe(event_name, handler))
+        return lambda: self.unsubscribe(event_name, handler)
 
     def unsubscribe(self, event_name: str, handler: Callable[[Any], None]) -> None:
         """Unsubscribe a callback handler from a named studio event."""
@@ -321,18 +325,35 @@ class StudioAPI:
         menu_path = f"Tools/{contribution.group}" if contribution.group else "Tools"
         self.unregister_action(menu_path, contribution.title)
 
-    def on_project_changed(self, listener: Callable[[ProjectDocument], None]) -> None:
-        """Subscribe to project replacement and receive the current project immediately."""
-        self._project_listeners.append(listener)
+    def on_project_changed(
+        self, listener: Callable[[ProjectDocument], None]
+    ) -> UnsubscribeCallable:
+        """Subscribe to project replacement and receive the current project immediately.
+
+        Returns an unsubscribe callable.
+        """
+        if listener not in self._project_listeners:
+            self._project_listeners.append(listener)
+            _bind_qobject_destroyed(listener, lambda: self.remove_project_listener(listener))
         if self.current_project is not None:
-            listener(self.current_project)
+            with suppress(RuntimeError):
+                listener(self.current_project)
+        return lambda: self.remove_project_listener(listener)
 
     def on_project_content_changed(
         self,
         listener: Callable[[ProjectDocument], None],
-    ) -> None:
-        """Subscribe to edits made within the current project."""
-        self._project_content_listeners.append(listener)
+    ) -> UnsubscribeCallable:
+        """Subscribe to edits made within the current project.
+
+        Returns an unsubscribe callable.
+        """
+        if listener not in self._project_content_listeners:
+            self._project_content_listeners.append(listener)
+            _bind_qobject_destroyed(
+                listener, lambda: self.remove_project_content_listener(listener)
+            )
+        return lambda: self.remove_project_content_listener(listener)
 
     def remove_project_content_listener(
         self,
@@ -342,11 +363,17 @@ class StudioAPI:
         if listener in self._project_content_listeners:
             self._project_content_listeners.remove(listener)
 
-    def on_modified_changed(self, listener: Callable[[bool], None]) -> None:
-        """Subscribe to project modified-state changes and receive current state."""
-        self._modified_listeners.append(listener)
+    def on_modified_changed(self, listener: Callable[[bool], None]) -> UnsubscribeCallable:
+        """Subscribe to project modified-state changes and receive current state.
+
+        Returns an unsubscribe callable.
+        """
+        if listener not in self._modified_listeners:
+            self._modified_listeners.append(listener)
+            _bind_qobject_destroyed(listener, lambda: self.remove_modified_listener(listener))
         with suppress(RuntimeError):
             listener(bool(self.current_project and self.current_project.modified))
+        return lambda: self.remove_modified_listener(listener)
 
     def remove_modified_listener(self, listener: Callable[[bool], None]) -> None:
         """Unsubscribe a project modified-state listener."""
@@ -571,10 +598,19 @@ class StudioAPI:
             self._notify_project_content_changed()
         return removed
 
-    def on_analysis_config_selection_changed(self, listener: Callable[[Any | None], None]) -> None:
-        """Subscribe to active analysis configuration selection changes."""
+    def on_analysis_config_selection_changed(
+        self, listener: Callable[[Any | None], None]
+    ) -> UnsubscribeCallable:
+        """Subscribe to active analysis configuration selection changes.
+
+        Returns an unsubscribe callable.
+        """
         if listener not in self._analysis_config_selection_listeners:
             self._analysis_config_selection_listeners.append(listener)
+            _bind_qobject_destroyed(
+                listener, lambda: self.remove_analysis_config_selection_listener(listener)
+            )
+        return lambda: self.remove_analysis_config_selection_listener(listener)
 
     def remove_analysis_config_selection_listener(
         self,
@@ -647,26 +683,42 @@ class StudioAPI:
         if self.current_project is not None:
             self.current_project.modified = modified
         _dispatch_listeners(self._modified_listeners, modified)
+        self.publish(StudioEvents.PROJECT_MODIFIED, modified)
 
-    def on_selection_changed(self, listener: Callable[[Any | None], None]) -> None:
-        """Subscribe to selection changes and receive the current selection."""
-        self._selection_listeners.append(listener)
+    def on_selection_changed(self, listener: Callable[[Any | None], None]) -> UnsubscribeCallable:
+        """Subscribe to selection changes and receive the current selection.
+
+        Returns an unsubscribe callable.
+        """
+        if listener not in self._selection_listeners:
+            self._selection_listeners.append(listener)
+            _bind_qobject_destroyed(listener, lambda: self.remove_selection_listener(listener))
         with suppress(RuntimeError):
             listener(self.current_selection)
+        return lambda: self.remove_selection_listener(listener)
 
     def set_selection(self, selection: Any | None) -> None:
         """Set the application selection and notify listeners."""
         self.current_selection = selection
         _dispatch_listeners(self._selection_listeners, selection)
+        self.publish(StudioEvents.SELECTION_CHANGED, selection)
 
     def on_section_selection_changed(
         self,
         listener: Callable[[tuple[str, int, int] | None], None],
-    ) -> None:
-        """Subscribe to geometry-section selection changes."""
-        self._section_selection_listeners.append(listener)
+    ) -> UnsubscribeCallable:
+        """Subscribe to geometry-section selection changes.
+
+        Returns an unsubscribe callable.
+        """
+        if listener not in self._section_selection_listeners:
+            self._section_selection_listeners.append(listener)
+            _bind_qobject_destroyed(
+                listener, lambda: self.remove_section_selection_listener(listener)
+            )
         with suppress(RuntimeError):
             listener(self.current_section_selection)
+        return lambda: self.remove_section_selection_listener(listener)
 
     def remove_section_selection_listener(
         self,
@@ -683,6 +735,7 @@ class StudioAPI:
         """Set the selected component, section, and side tuple."""
         self.current_section_selection = selection
         _dispatch_listeners(self._section_selection_listeners, selection)
+        self.publish(StudioEvents.SECTION_SELECTION_CHANGED, selection)
 
     def register_component_type(self, contribution: ComponentTypeContribution) -> None:
         """Register a component type descriptor defining name, icon, model, or editor."""

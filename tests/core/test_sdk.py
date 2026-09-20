@@ -23,6 +23,7 @@ class PluginAPIContractTests(unittest.TestCase):
         self.assertTrue(hasattr(api, "StudioEvents"))
         self.assertTrue(hasattr(api, "ParameterField"))
         self.assertTrue(hasattr(api, "Component"))
+        self.assertTrue(hasattr(api, "UnsubscribeCallable"))
 
     def test_component_type_registration(self) -> None:
         inst = api.StudioAPI()
@@ -101,6 +102,62 @@ class PluginAPIContractTests(unittest.TestCase):
             with self.subTest(reg=reg, unreg=unreg):
                 self.assertTrue(hasattr(inst, reg), f"Missing {reg}")
                 self.assertTrue(hasattr(inst, unreg), f"Missing {unreg}")
+
+    def test_listener_subscriptions_return_unsubscribe_callables(self) -> None:
+        inst = api.StudioAPI()
+
+        events_received: list[str] = []
+        unsub_event = inst.subscribe("test.custom", lambda p: events_received.append(str(p)))
+        inst.publish("test.custom", "first")
+        self.assertEqual(events_received, ["first"])
+        unsub_event()
+        inst.publish("test.custom", "second")
+        self.assertEqual(events_received, ["first"])
+
+        sel_received: list[object] = []
+        unsub_sel = inst.on_selection_changed(sel_received.append)
+        inst.set_selection("part-1")
+        self.assertIn("part-1", sel_received)
+        unsub_sel()
+        inst.set_selection("part-2")
+        self.assertNotIn("part-2", sel_received)
+
+        mod_received: list[bool] = []
+        unsub_mod = inst.on_modified_changed(mod_received.append)
+        inst._on_clean_changed(False)
+        self.assertIn(True, mod_received)
+        unsub_mod()
+        inst._on_clean_changed(True)
+        self.assertEqual(len(mod_received), 2)  # Initial False, and True
+
+    def test_state_changes_publish_to_event_bus(self) -> None:
+        from pathlib import Path
+
+        from setuav_studio.project import ProjectDocument
+
+        inst = api.StudioAPI()
+        selections: list[object] = []
+        sections: list[object] = []
+        opened: list[object] = []
+        modified: list[object] = []
+
+        inst.subscribe(api.StudioEvents.SELECTION_CHANGED, selections.append)
+        inst.subscribe(api.StudioEvents.SECTION_SELECTION_CHANGED, sections.append)
+        inst.subscribe(api.StudioEvents.PROJECT_OPENED, opened.append)
+        inst.subscribe(api.StudioEvents.PROJECT_MODIFIED, modified.append)
+
+        inst.set_selection("comp-a")
+        self.assertEqual(selections, ["comp-a"])
+
+        inst.set_section_selection(("comp-a", 1, 0))
+        self.assertEqual(sections, [("comp-a", 1, 0)])
+
+        doc = ProjectDocument(Path("test.suav"), "suav", {})
+        inst._host.set_project(doc)
+        self.assertEqual(opened, [doc])
+
+        inst._on_clean_changed(False)
+        self.assertEqual(modified, [True])
 
 
 if __name__ == "__main__":

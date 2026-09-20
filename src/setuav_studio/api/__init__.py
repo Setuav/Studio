@@ -5,7 +5,7 @@ from __future__ import annotations
 from setuav_studio.model.component import Component
 from setuav_studio.plugin.plugin import StudioPlugin
 
-from .api import StudioAPI
+from .api import StudioAPI, UnsubscribeCallable
 from .contributions import (
     ActionContribution,
     ComponentTreeNodeContribution,
@@ -43,6 +43,7 @@ __all__ = [
     "ToolContribution",
     "ToolbarContribution",
     "ToolbarMenuItemContribution",
+    "UnsubscribeCallable",
     "_ComponentEditCommand",
     "_ProjectEditCommand",
     "_StudioHost",

@@ -13,6 +13,7 @@ from .contributions import (
     SettingsPageContribution,
     ToolbarContribution,
 )
+from .events import StudioEvents
 
 if TYPE_CHECKING:
     from .api import StudioAPI
@@ -88,6 +89,7 @@ class _StudioHost:
         from .api import _dispatch_listeners
 
         _dispatch_listeners(api._project_listeners, project)
+        api.publish(StudioEvents.PROJECT_OPENED, project)
 
     def mark_project_saved(self) -> None:
         self._api._undo_stack.setClean()
