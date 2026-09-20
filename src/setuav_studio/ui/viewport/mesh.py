@@ -1,6 +1,7 @@
 import math
 from collections.abc import Sequence
 from itertools import pairwise
+from typing import Any
 
 from setuav_studio_sdk.primitives import (
     BoxPrimitive,
@@ -47,6 +48,7 @@ __all__ = [
     "build_primitive_wire_vertices",
     "build_section_ring_vertices",
     "hit_test_loft",
+    "hit_test_scene",
 ]
 
 SELECTED_WIRE = (0.95, 0.58, 0.28)
@@ -640,30 +642,7 @@ def hit_test_loft(
     origin: Point3D,
     direction: Point3D,
 ) -> str | None:
-    best_distance: float | None = None
-    best_id: str | None = None
-    for loft in data.lofts:
-        loops = _tessellated_loops(loft)
-        if not loops:
-            continue
-        for current, following in pairwise(loops):
-            for index in range(len(current)):
-                next_index = (index + 1) % len(current)
-                first, second = current[index], current[next_index]
-                third, fourth = following[index], following[next_index]
-                for triangle in ((first, second, third), (second, fourth, third)):
-                    distance = _ray_triangle_intersection(origin, direction, triangle)
-                    if distance is None or (
-                        best_distance is not None and distance >= best_distance
-                    ):
-                        continue
-                    best_distance = distance
-                    best_id = loft.component_id
-        cap_distance = _loft_cap_hit_distance(loft, loops, origin, direction, best_distance)
-        if cap_distance is not None:
-            best_distance = cap_distance
-            best_id = loft.component_id
-    return best_id
+    return hit_test_scene(data, None, origin, direction)
 
 
 def _loft_cap_hit_distance(
@@ -832,6 +811,180 @@ def _box_corners(
             rotated.append((cx + rx, cy + ry, cz + rz))
         return rotated
     return [(cx + x, cy + y, cz + z) for x, y, z in raw_corners]
+
+
+def _ray_primitive_intersection(  # noqa: C901
+    origin: Point3D,
+    direction: Point3D,
+    prim: VisualPrimitive,
+) -> float | None:
+    best: float | None = None
+
+    if isinstance(prim, BoxPrimitive):
+        c = _box_corners(prim.center, prim.size, getattr(prim, "rotation", (0.0, 0.0, 0.0)))
+        faces = (
+            (c[0], c[1], c[2], c[3]),  # bottom
+            (c[4], c[7], c[6], c[5]),  # top
+            (c[0], c[4], c[5], c[1]),  # front
+            (c[2], c[6], c[7], c[3]),  # back
+            (c[0], c[3], c[7], c[4]),  # left
+            (c[1], c[5], c[6], c[2]),  # right
+        )
+        for p0, p1, p2, p3 in faces:
+            for tri in ((p0, p1, p2), (p0, p2, p3)):
+                d = _ray_triangle_intersection(origin, direction, tri)
+                if d is not None and (best is None or d < best):
+                    best = d
+
+    elif isinstance(prim, CylinderPrimitive):
+        p1, p2 = prim.start, prim.end
+        axis = (p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2])
+        axis_len = math.sqrt(sum(a * a for a in axis))
+        if axis_len > 1e-6:
+            u, v = _ortho_basis(axis)
+            r = prim.radius
+            segs = getattr(prim, "segments", 24)
+            ring1: list[Point3D] = []
+            ring2: list[Point3D] = []
+            for i in range(segs):
+                angle = 2.0 * math.pi * i / segs
+                cos_a, sin_a = math.cos(angle), math.sin(angle)
+                offset = (
+                    r * (cos_a * u[0] + sin_a * v[0]),
+                    r * (cos_a * u[1] + sin_a * v[1]),
+                    r * (cos_a * u[2] + sin_a * v[2]),
+                )
+                ring1.append((p1[0] + offset[0], p1[1] + offset[1], p1[2] + offset[2]))
+                ring2.append((p2[0] + offset[0], p2[1] + offset[1], p2[2] + offset[2]))
+
+            for i in range(segs):
+                nxt = (i + 1) % segs
+                for tri in (
+                    (ring1[i], ring1[nxt], ring2[i]),
+                    (ring1[nxt], ring2[nxt], ring2[i]),
+                    (p1, ring1[nxt], ring1[i]),
+                    (p2, ring2[i], ring2[nxt]),
+                ):
+                    d = _ray_triangle_intersection(origin, direction, tri)
+                    if d is not None and (best is None or d < best):
+                        best = d
+
+    elif isinstance(prim, PlanePrimitive):
+        cx, cy, cz = prim.center
+        u, v = _ortho_basis(prim.normal)
+        hw, hh = prim.width * 0.5, prim.height * 0.5
+        p0 = (cx - hw * u[0] - hh * v[0], cy - hw * u[1] - hh * v[1], cz - hw * u[2] - hh * v[2])
+        p1 = (cx + hw * u[0] - hh * v[0], cy + hw * u[1] - hh * v[1], cz + hw * u[2] - hh * v[2])
+        p2 = (cx + hw * u[0] + hh * v[0], cy + hw * u[1] + hh * v[1], cz + hw * u[2] + hh * v[2])
+        p3 = (cx - hw * u[0] + hh * v[0], cy - hw * u[1] + hh * v[1], cz - hw * u[2] + hh * v[2])
+        for tri in ((p0, p1, p2), (p0, p2, p3)):
+            d = _ray_triangle_intersection(origin, direction, tri)
+            if d is not None and (best is None or d < best):
+                best = d
+
+    elif isinstance(prim, TrianglesPrimitive):
+        for tri in prim.triangles:
+            d = _ray_triangle_intersection(origin, direction, tri)
+            if d is not None and (best is None or d < best):
+                best = d
+
+    elif isinstance(prim, RingPrimitive):
+        n_len = math.sqrt(sum(c * c for c in prim.normal))
+        if n_len > 1e-9:
+            normal = (prim.normal[0] / n_len, prim.normal[1] / n_len, prim.normal[2] / n_len)
+            denom = _dot(normal, direction)
+            if abs(denom) > 1e-9:
+                offset = _subtract(prim.center, origin)
+                t = _dot(offset, normal) / denom
+                if t >= 0.0:
+                    hit_pt = (
+                        origin[0] + t * direction[0],
+                        origin[1] + t * direction[1],
+                        origin[2] + t * direction[2],
+                    )
+                    dist_sq = sum((hit_pt[i] - prim.center[i]) ** 2 for i in range(3))
+                    if dist_sq <= prim.radius * prim.radius:
+                        best = t
+
+    elif isinstance(prim, LoftPrimitive):
+        if prim.sections and len(prim.sections) >= 2:
+            loft = LoftGeometry(
+                component_id="primitive:loft",
+                sections=tuple(Section(pts) for pts in prim.sections),
+                color=(1.0, 1.0, 1.0),
+                interpolation=getattr(prim, "interpolation", "smooth"),
+                parameterization=getattr(prim, "parameterization", "centripetal"),
+                station_spacing=getattr(prim, "station_spacing", 10.0),
+                closed_ends=getattr(prim, "closed_ends", True),
+            )
+            loops = _tessellated_loops(loft)
+            if loops:
+                for current, following in pairwise(loops):
+                    for index in range(len(current)):
+                        next_index = (index + 1) % len(current)
+                        tri1 = (current[index], current[next_index], following[index])
+                        tri2 = (current[next_index], following[next_index], following[index])
+                        for tri in (tri1, tri2):
+                            d = _ray_triangle_intersection(origin, direction, tri)
+                            if d is not None and (best is None or d < best):
+                                best = d
+                cap_d = _loft_cap_hit_distance(loft, loops, origin, direction, best)
+                if cap_d is not None and (best is None or cap_d < best):
+                    best = cap_d
+
+    return best
+
+
+def hit_test_scene(
+    data: GeometryData | None,
+    scene_objects: dict[str, Any] | Sequence[Any] | None,
+    origin: Point3D,
+    direction: Point3D,
+) -> str | None:
+    best_distance: float | None = None
+    best_id: str | None = None
+
+    if data is not None:
+        for loft in data.lofts:
+            loops = _tessellated_loops(loft)
+            if not loops:
+                continue
+            for current, following in pairwise(loops):
+                for index in range(len(current)):
+                    next_index = (index + 1) % len(current)
+                    first, second = current[index], current[next_index]
+                    third, fourth = following[index], following[next_index]
+                    for triangle in ((first, second, third), (second, fourth, third)):
+                        distance = _ray_triangle_intersection(origin, direction, triangle)
+                        if distance is None or (
+                            best_distance is not None and distance >= best_distance
+                        ):
+                            continue
+                        best_distance = distance
+                        best_id = loft.component_id
+            cap_distance = _loft_cap_hit_distance(loft, loops, origin, direction, best_distance)
+            if cap_distance is not None and (best_distance is None or cap_distance < best_distance):
+                best_distance = cap_distance
+                best_id = loft.component_id
+
+    if scene_objects:
+        obj_items = (
+            scene_objects.items() if isinstance(scene_objects, dict) else enumerate(scene_objects)
+        )
+        for key, obj in obj_items:
+            if not getattr(obj, "visible", True):
+                continue
+            obj_id = getattr(obj, "object_id", str(key))
+            primitives = getattr(obj, "primitives", None)
+            if primitives is None:
+                primitives = [obj] if isinstance(obj, VisualPrimitive) else ()
+            for prim in primitives:
+                distance = _ray_primitive_intersection(origin, direction, prim)
+                if distance is not None and (best_distance is None or distance < best_distance):
+                    best_distance = distance
+                    best_id = obj_id
+
+    return best_id
 
 
 def build_primitive_solid_vertices(  # noqa: C901

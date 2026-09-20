@@ -672,3 +672,148 @@ class TestStudioViewport(unittest.TestCase):
         viewer.set_selected_component(None)
         self.assertEqual(len(viewer._build_highlight_vertices()), 0)
         viewer.deleteLater()
+
+    def test_ray_primitive_intersection(self) -> None:
+        from setuav_studio.ui.viewport.mesh import _ray_primitive_intersection
+
+        # 1. BoxPrimitive
+        box = BoxPrimitive(
+            center=(0.0, 0.0, 0.0),
+            size=(20.0, 20.0, 20.0),
+        )
+        # Ray from z=100 looking down (-z)
+        dist = _ray_primitive_intersection((0.0, 0.0, 100.0), (0.0, 0.0, -1.0), box)
+        self.assertIsNotNone(dist)
+        assert dist is not None
+        self.assertAlmostEqual(dist, 90.0)  # hits top face at z=10
+
+        # Ray missing box
+        miss = _ray_primitive_intersection((50.0, 50.0, 100.0), (0.0, 0.0, -1.0), box)
+        self.assertIsNone(miss)
+
+        # 2. CylinderPrimitive
+        cyl = CylinderPrimitive(
+            start=(0.0, 0.0, 0.0),
+            end=(0.0, 0.0, 50.0),
+            radius=10.0,
+        )
+        # Ray hitting top cap at z=50 from z=100
+        dist_cyl = _ray_primitive_intersection((0.0, 0.0, 100.0), (0.0, 0.0, -1.0), cyl)
+        self.assertIsNotNone(dist_cyl)
+        assert dist_cyl is not None
+        self.assertAlmostEqual(dist_cyl, 50.0)
+
+        # Ray hitting cylinder side wall from x=50, y=0, z=25 looking towards -x
+        dist_side = _ray_primitive_intersection((50.0, 0.0, 25.0), (-1.0, 0.0, 0.0), cyl)
+        self.assertIsNotNone(dist_side)
+        assert dist_side is not None
+        self.assertAlmostEqual(dist_side, 40.0)  # hits at x=10
+
+        # 3. PlanePrimitive
+        plane = PlanePrimitive(
+            center=(0.0, 0.0, 0.0),
+            normal=(0.0, 0.0, 1.0),
+            width=20.0,
+            height=20.0,
+        )
+        dist_plane = _ray_primitive_intersection((0.0, 0.0, 50.0), (0.0, 0.0, -1.0), plane)
+        self.assertIsNotNone(dist_plane)
+        assert dist_plane is not None
+        self.assertAlmostEqual(dist_plane, 50.0)
+
+        # 4. RingPrimitive
+        ring = RingPrimitive(
+            center=(0.0, 0.0, 0.0),
+            normal=(0.0, 0.0, 1.0),
+            radius=15.0,
+        )
+        dist_ring = _ray_primitive_intersection((5.0, 0.0, 50.0), (0.0, 0.0, -1.0), ring)
+        self.assertIsNotNone(dist_ring)
+        assert dist_ring is not None
+        self.assertAlmostEqual(dist_ring, 50.0)
+
+        # Ring miss (outside radius)
+        miss_ring = _ray_primitive_intersection((30.0, 0.0, 50.0), (0.0, 0.0, -1.0), ring)
+        self.assertIsNone(miss_ring)
+
+        # 5. TrianglesPrimitive
+        tri = TrianglesPrimitive(
+            triangles=[((-10.0, -10.0, 0.0), (10.0, -10.0, 0.0), (0.0, 10.0, 0.0))]
+        )
+        dist_tri = _ray_primitive_intersection((0.0, 0.0, 50.0), (0.0, 0.0, -1.0), tri)
+        self.assertIsNotNone(dist_tri)
+        assert dist_tri is not None
+        self.assertAlmostEqual(dist_tri, 50.0)
+
+    def test_hit_test_scene_ordering_and_visibility(self) -> None:
+        from setuav_studio.ui.viewport.mesh import hit_test_scene
+
+        box_near = SceneObject(
+            object_id="box.near",
+            primitives=[BoxPrimitive(center=(0.0, 0.0, 40.0), size=(20.0, 20.0, 20.0))],
+        )
+        box_far = SceneObject(
+            object_id="box.far",
+            primitives=[BoxPrimitive(center=(0.0, 0.0, 0.0), size=(20.0, 20.0, 20.0))],
+        )
+        scene_objs = {"box.near": box_near, "box.far": box_far}
+
+        # Ray from z=100 pointing down - hits box_near first
+        hit = hit_test_scene(None, scene_objs, (0.0, 0.0, 100.0), (0.0, 0.0, -1.0))
+        self.assertEqual(hit, "box.near")
+
+        # Ray from z=-100 pointing up - hits box_far first
+        hit_up = hit_test_scene(None, scene_objs, (0.0, 0.0, -100.0), (0.0, 0.0, 1.0))
+        self.assertEqual(hit_up, "box.far")
+
+        # When near box is hidden, hits box_far
+        box_near.visible = False
+        hit_hidden = hit_test_scene(None, scene_objs, (0.0, 0.0, 100.0), (0.0, 0.0, -1.0))
+        self.assertEqual(hit_hidden, "box.far")
+
+        # Ray completely missing
+        hit_miss = hit_test_scene(None, scene_objs, (500.0, 500.0, 100.0), (0.0, 0.0, -1.0))
+        self.assertIsNone(hit_miss)
+
+    def test_opengl_viewer_primitive_picking(self) -> None:
+        from PySide6.QtCore import QPoint
+        from PySide6.QtGui import QVector3D
+
+        from setuav_studio.ui.viewport.widget import OpenGLViewer
+
+        viewer = OpenGLViewer()
+        viewer.resize(800, 600)
+        viewer._target = QVector3D(0.0, 0.0, 0.0)
+        box_obj = SceneObject(
+            object_id="comp:debug_box",
+            primitives=[
+                BoxPrimitive(
+                    center=(0.0, 0.0, 0.0),
+                    size=(200.0, 200.0, 200.0),
+                    color=(0.2, 0.6, 1.0, 1.0),
+                )
+            ],
+        )
+        viewer.set_scene_objects({"comp:debug_box": box_obj})
+
+        picked_ids: list[str | None] = []
+        viewer.componentPicked.connect(picked_ids.append)
+
+        # Pick at center of screen (where camera looks at target (0,0,0))
+        viewer._pick(QPoint(400, 300))
+        self.assertEqual(len(picked_ids), 1)
+        self.assertEqual(picked_ids[0], "comp:debug_box")
+
+        # Pick far away corner (miss)
+        viewer._pick(QPoint(10, 10))
+        self.assertEqual(len(picked_ids), 2)
+        self.assertIsNone(picked_ids[1])
+
+        # Test hover picking
+        viewer._pick_hover(QPoint(400, 300))
+        self.assertEqual(viewer._hovered_component_id, "comp:debug_box")
+
+        viewer._pick_hover(QPoint(10, 10))
+        self.assertIsNone(viewer._hovered_component_id)
+
+        viewer.deleteLater()

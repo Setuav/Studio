@@ -45,7 +45,7 @@ from .mesh import (
     build_primitive_solid_vertices,
     build_primitive_wire_vertices,
     build_section_ring_vertices,
-    hit_test_loft,
+    hit_test_scene,
 )
 from .types import GeometryData
 
@@ -728,16 +728,30 @@ class OpenGLViewer(QOpenGLWidget):
 
     def _pick(self, point: QPoint) -> None:
         component_id = None
-        if self._solid_count > 0:
+        if (
+            self._solid_count > 0
+            or self._primitive_solid_count > 0
+            or bool(self._scene_objects)
+            or (self._geometry_data and self._geometry_data.lofts)
+        ):
             origin, direction = self._screen_ray(point)
-            component_id = hit_test_loft(self._geometry_data, origin, direction)
+            component_id = hit_test_scene(
+                self._geometry_data, self._scene_objects, origin, direction
+            )
         self.componentPicked.emit(component_id)
 
     def _pick_hover(self, point: QPoint) -> None:
         component_id = None
-        if self._solid_count > 0:
+        if (
+            self._solid_count > 0
+            or self._primitive_solid_count > 0
+            or bool(self._scene_objects)
+            or (self._geometry_data and self._geometry_data.lofts)
+        ):
             origin, direction = self._screen_ray(point)
-            component_id = hit_test_loft(self._geometry_data, origin, direction)
+            component_id = hit_test_scene(
+                self._geometry_data, self._scene_objects, origin, direction
+            )
         if self._hovered_component_id != component_id:
             self._hovered_component_id = component_id
             self._update_gpu_meshes()
