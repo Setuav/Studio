@@ -27,6 +27,7 @@ from .constants import (
 from .loft_mesh import (
     _SOLID_GREY,
     _WIRE_GREY,
+    FEATURE_EDGE_COLOR,
     SELECTED_WIRE,
     _add_line,
     _add_quad_strip,
@@ -159,8 +160,7 @@ def build_primitive_wire_vertices(  # noqa: C901
 ) -> list[float]:
     vertices: list[float] = []
     for prim in primitives:
-        raw_color = prim.color
-        color = raw_color[:3] if face_style in (FACE_COLORED, FACE_TRANSPARENT) else _WIRE_GREY
+        color = FEATURE_EDGE_COLOR if face_style in (FACE_COLORED, FACE_TRANSPARENT) else _WIRE_GREY
 
         if isinstance(prim, BoxPrimitive):
             if not getattr(prim, "wireframe", True):
@@ -187,7 +187,7 @@ def build_primitive_wire_vertices(  # noqa: C901
                     _add_line(vertices, c[i1], c[i2], color)
 
         elif isinstance(prim, CylinderPrimitive):
-            if not getattr(prim, "wireframe", False):
+            if not getattr(prim, "wireframe", True):
                 continue
             p1, p2 = prim.start, prim.end
             axis = (p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2])

@@ -30,7 +30,7 @@ class CylinderPrimitive:
     end: Point3D
     radius: float
     color: ColorRGBA = (0.2, 0.2, 0.2, 0.9)
-    wireframe: bool = False
+    wireframe: bool = True
     solid: bool = True
     segments: int = 24
 

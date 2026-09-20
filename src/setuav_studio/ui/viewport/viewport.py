@@ -627,7 +627,7 @@ class StudioViewport(QWidget):
         name: str = "",
         layer: str = "default",
         color: ColorRGBA = (0.2, 0.2, 0.2, 0.9),
-        wireframe: bool = False,
+        wireframe: bool = True,
         solid: bool = True,
         segments: int = 24,
         envelope: Any = None,

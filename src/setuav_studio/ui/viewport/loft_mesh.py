@@ -27,6 +27,7 @@ _DIM_FACTOR = 0.5
 _LONGITUDINAL_LINES = 12
 _WIRE_GREY: Point3D = (0.82, 0.82, 0.82)
 _SOLID_GREY: Point3D = (0.44, 0.44, 0.44)
+FEATURE_EDGE_COLOR: Point3D = (0.22, 0.24, 0.28)
 _SOLID_TINT = 0.88
 _WIRE_TINT = 0.30
 _MIN_STATIONS = 1
@@ -347,9 +348,7 @@ def build_loft_wire_vertices(
         loops = _tessellated_loops(loft)
         if not loops:
             continue
-        color = (
-            _wire_tint(loft.color) if face_style in (FACE_COLORED, FACE_TRANSPARENT) else _WIRE_GREY
-        )
+        color = FEATURE_EDGE_COLOR if face_style in (FACE_COLORED, FACE_TRANSPARENT) else _WIRE_GREY
         if wire_mode == WIRE_FEATURE:
             _append_loft_feature_wire(vertices, loft, loops, color)
         else:
