@@ -284,6 +284,22 @@ class BaseDebugComponentEditor(BaseComponentEditor):
         if vp is not None:
             update_component_in_viewport(vp, self._component, self._api.current_project)
 
+    def _on_param_changed(self, key: str, value: Any) -> None:
+        super()._on_param_changed(key, value)
+        if (
+            key in ("axis", "radius", "length", "width", "outer_radius", "height")
+            and "envelope" in self._component
+        ):
+            vp = getattr(self._api, "viewport", None)
+            if vp is not None:
+                comp_id = str(self._component.get("id") or "")
+                obj = vp.get_object(comp_id)
+                if obj is not None and hasattr(obj, "compute_envelope"):
+                    computed = obj.compute_envelope()
+                    if computed is not None:
+                        self._component["envelope"] = computed
+                        self.update_viewport()
+
 
 def generate_unique_identity(api: StudioAPI, base_id: str, base_name: str) -> tuple[str, str]:
     """Generate a collision-free ID and human-friendly display name."""

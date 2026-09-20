@@ -25,12 +25,16 @@ def _cylinder_envelope(prim: CylinderPrimitive) -> dict[str, Any]:
     dz = p2[2] - p1[2]
     length = math.sqrt(dx * dx + dy * dy + dz * dz)
     diam = 2.0 * prim.radius
-    if abs(dx) >= abs(dy) and abs(dx) >= abs(dz):
-        size = {"x": length, "y": diam, "z": diam}
-    elif abs(dy) >= abs(dx) and abs(dy) >= abs(dz):
-        size = {"x": diam, "y": length, "z": diam}
+    if length < 1e-6:
+        size = {"x": diam, "y": diam, "z": diam}
     else:
-        size = {"x": diam, "y": diam, "z": length}
+        ax = dx / length
+        ay = dy / length
+        az = dz / length
+        sx = length * abs(ax) + diam * math.sqrt(max(0.0, 1.0 - ax * ax))
+        sy = length * abs(ay) + diam * math.sqrt(max(0.0, 1.0 - ay * ay))
+        sz = length * abs(az) + diam * math.sqrt(max(0.0, 1.0 - az * az))
+        size = {"x": round(sx, 3), "y": round(sy, 3), "z": round(sz, 3)}
     return {
         "shape": "cylinder",
         "size_mm": size,
@@ -127,17 +131,41 @@ class SceneObject:
             return _loft_envelope(prim)
 
         if isinstance(prim, PlanePrimitive):
+            from .raycast import _ortho_basis
+
+            nx, ny, nz = prim.normal
+            norm_len = math.sqrt(nx * nx + ny * ny + nz * nz)
+            if norm_len > 1e-6:
+                norm = (nx / norm_len, ny / norm_len, nz / norm_len)
+            else:
+                norm = (0.0, 0.0, 1.0)
+            u, v = _ortho_basis(norm)
+            thick = 5.0
+            w, h = float(prim.width), float(prim.height)
+            sx = w * abs(u[0]) + h * abs(v[0]) + thick * abs(norm[0])
+            sy = w * abs(u[1]) + h * abs(v[1]) + thick * abs(norm[1])
+            sz = w * abs(u[2]) + h * abs(v[2]) + thick * abs(norm[2])
             return {
                 "shape": "box",
-                "size_mm": {"x": float(prim.width), "y": float(prim.height), "z": 5.0},
+                "size_mm": {"x": round(sx, 3), "y": round(sy, 3), "z": round(sz, 3)},
                 "offset_mm": {"x": 0.0, "y": 0.0, "z": 0.0},
             }
 
         if isinstance(prim, RingPrimitive):
             diam = 2.0 * prim.radius
+            nx, ny, nz = prim.normal
+            norm_len = math.sqrt(nx * nx + ny * ny + nz * nz)
+            if norm_len > 1e-6:
+                norm_x, norm_y, norm_z = nx / norm_len, ny / norm_len, nz / norm_len
+            else:
+                norm_x, norm_y, norm_z = 0.0, 0.0, 1.0
+            thick = 10.0
+            sx = diam * math.sqrt(max(0.0, 1.0 - norm_x * norm_x)) + thick * abs(norm_x)
+            sy = diam * math.sqrt(max(0.0, 1.0 - norm_y * norm_y)) + thick * abs(norm_y)
+            sz = diam * math.sqrt(max(0.0, 1.0 - norm_z * norm_z)) + thick * abs(norm_z)
             return {
                 "shape": "box",
-                "size_mm": {"x": float(diam), "y": float(diam), "z": 10.0},
+                "size_mm": {"x": round(sx, 3), "y": round(sy, 3), "z": round(sz, 3)},
                 "offset_mm": {"x": 0.0, "y": 0.0, "z": 0.0},
             }
 

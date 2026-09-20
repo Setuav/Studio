@@ -46,7 +46,7 @@ def _transform_tree_nodes(
     has_explicit_envelope = bool(component.get("envelope"))
     is_non_geometric = any(
         k in comp_type
-        for k in ("generic", "payload", "avionics", "battery", "equipment", "internal")
+        for k in ("generic", "payload", "avionics", "battery", "equipment", "internal", "debug")
     )
     if (is_non_geometric or has_explicit_envelope) and comp_type != "org.setuav.core:point-mass":
         nodes.append(

@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from setuav_studio_sdk.primitives import CylinderPrimitive, Point3D
+from setuav_studio_sdk.primitives import BoxPrimitive, CylinderPrimitive, Point3D
 
 from .loft_mesh import _add_line, _append_ring
 from .raycast import _box_corners, _ortho_basis
@@ -102,9 +102,59 @@ def _append_scene_object_envelope_wire(
 
         center = (base_center[0] + ox, base_center[1] + oy, base_center[2] + oz)
         if shape == "cylinder":
-            _append_cylinder_wire(vertices, center, max(sx, sy) * 0.5, sz, color)
+            cyl_axis: Point3D
+            cyl_len: float
+            cyl_radius: float
+            if isinstance(prim0, CylinderPrimitive):
+                dx = prim0.end[0] - prim0.start[0]
+                dy = prim0.end[1] - prim0.start[1]
+                dz = prim0.end[2] - prim0.start[2]
+                axis_len = math.sqrt(dx * dx + dy * dy + dz * dz)
+                if axis_len > 1e-6:
+                    cyl_axis = (dx / axis_len, dy / axis_len, dz / axis_len)
+                    cyl_len = axis_len
+                else:
+                    cyl_axis = (0.0, 0.0, 1.0)
+                    cyl_len = max(sz, 10.0)
+                cyl_radius = prim0.radius
+            elif prim0 is not None and hasattr(prim0, "normal"):
+                norm = prim0.normal
+                norm_len = math.sqrt(norm[0] ** 2 + norm[1] ** 2 + norm[2] ** 2)
+                cyl_axis = (
+                    (norm[0] / norm_len, norm[1] / norm_len, norm[2] / norm_len)
+                    if norm_len > 1e-6
+                    else (0.0, 0.0, 1.0)
+                )
+                cyl_len = max(sz, 10.0)
+                cyl_radius = max(sx, sy, sz) * 0.5
+            else:
+                if sx >= sy and sx >= sz:
+                    base_axis: Point3D = (1.0, 0.0, 0.0)
+                    cyl_len = sx
+                    cyl_radius = max(sy, sz) * 0.5
+                elif sy >= sx and sy >= sz:
+                    base_axis = (0.0, 1.0, 0.0)
+                    cyl_len = sy
+                    cyl_radius = max(sx, sz) * 0.5
+                else:
+                    base_axis = (0.0, 0.0, 1.0)
+                    cyl_len = sz
+                    cyl_radius = max(sx, sy) * 0.5
+                from .raycast import _rotate_vector
+
+                cyl_axis = (
+                    _rotate_vector(base_axis, rotation)
+                    if rotation != (0.0, 0.0, 0.0)
+                    else base_axis
+                )
+            _append_cylinder_wire(vertices, center, cyl_radius, cyl_len, color, axis=cyl_axis)
         else:
-            c = _box_corners(center, (sx, sy, sz), rotation)
+            box_rot = (
+                getattr(prim0, "rotation", (0.0, 0.0, 0.0))
+                if isinstance(prim0, BoxPrimitive)
+                else (0.0, 0.0, 0.0)
+            )
+            c = _box_corners(center, (sx, sy, sz), box_rot)
             edges = (
                 (0, 1),
                 (1, 2),

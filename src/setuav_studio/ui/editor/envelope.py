@@ -70,10 +70,30 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
         self._create_sections_section()
         self._content_layout.addStretch(1)
 
+        self._component_id = component_id
         if self._component is not None:
             self._load_component(self._component)
         else:
             self._set_enabled(False)
+
+        if hasattr(self._api, "on_project_content_changed"):
+            self._api.on_project_content_changed(self._on_project_content_changed)
+
+    def _on_project_content_changed(self, _project: Any = None) -> None:
+        if self._loading or not self._component_id:
+            return
+        project = getattr(self._api, "current_project", None)
+        if project is None:
+            return
+        comp = project.get_component(self._component_id)
+        if comp is not None:
+            self._component = comp
+            self._load_component(comp)
+
+    def closeEvent(self, event: Any) -> None:
+        if hasattr(self._api, "remove_project_content_listener"):
+            self._api.remove_project_content_listener(self._on_project_content_changed)
+        super().closeEvent(event)
 
     def update_theme_style(self) -> None:
         for label, icon_name in self._section_icons:
