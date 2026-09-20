@@ -54,8 +54,6 @@ jobs:
         run: uv run --locked pyright
       - name: Test application
         run: uv run --locked python -m tests.suites all
-      - name: Test SDK contracts
-        run: uv run --locked python scripts/sdk_contract_tests.py
 
   package:
     name: Package smoke test

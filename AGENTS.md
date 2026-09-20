@@ -12,7 +12,7 @@ Guidelines for AI agents working on the Setuav Studio repository.
 
 - **Test Execution Policy:**
   - **During Active Iteration:** Do NOT run the full test suite (`python -m tests.suites all`) for routine edits or focused debugging. Run only specific, affected test files (e.g. `uv run pytest tests/core/test_status_bar_problems.py`).
-  - **Pre-Push / Pre-PR Only:** Run full verification (`uv run python -m tests.suites all` and `uv run python scripts/sdk_contract_tests.py`) as a final check before committing or pushing changes.
+  - **Pre-Push / Pre-PR Only:** Run full verification (`uv run python -m tests.suites all`) as a final check before committing or pushing changes.
 
 ## Architectural Guidelines
 

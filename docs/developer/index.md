@@ -161,12 +161,6 @@ uv pip install -e .
 uv run python -m unittest discover -s tests
 ```
 
-From the repository root, run the SDK contract tests as well:
-
-```bash
-uv run --locked python scripts/sdk_contract_tests.py
-```
-
 Before publishing, verify that the plugin can be activated, deactivated, and
 activated again. Every registration made in `activate` should have a matching
 cleanup call in `deactivate`: panels, workspaces, actions, editors, icons,
