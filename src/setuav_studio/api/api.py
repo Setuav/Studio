@@ -35,7 +35,12 @@ if TYPE_CHECKING:
     from setuav_studio.units import UnitManager
 
 from .host import _StudioHost
-from .undo import _ComponentEditCommand, _ProjectEditCommand
+from .undo import (
+    _ComponentEditCommand,
+    _ProjectEditCommand,
+    apply_diff,
+    compute_dict_diff,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -413,26 +418,23 @@ class StudioAPI:
         before = deepcopy(target)
         change()
         if target is not component:
-            target.clear()
-            target.update(deepcopy(component))
-        after = deepcopy(target)
-        target.clear()
-        target.update(before)
-        if before == after:
+            comp_diffs = compute_dict_diff(target, component)
+            for path, _, val in comp_diffs:
+                apply_diff(target, path, val)
+
+        diffs = compute_dict_diff(before, target)
+        if not diffs:
             return
+
         self._undo_stack.push(
             _ComponentEditCommand(
                 target,
-                before,
-                after,
+                diffs,
                 description,
                 self._notify_project_content_changed,
                 source=component if target is not component else None,
             )
         )
-        if target is not component:
-            component.clear()
-            component.update(deepcopy(after))
 
     def edit_project(
         self,
@@ -445,16 +447,13 @@ class StudioAPI:
             return
         before = deepcopy(self.current_project.data)
         change()
-        after = deepcopy(self.current_project.data)
-        self.current_project.data.clear()
-        self.current_project.data.update(before)
-        if before == after:
+        diffs = compute_dict_diff(before, self.current_project.data)
+        if not diffs:
             return
         self._undo_stack.push(
             _ProjectEditCommand(
                 self.current_project,
-                before,
-                after,
+                diffs,
                 description,
                 self._notify_project_content_changed,
             )

@@ -612,6 +612,47 @@ class PluginSystemEdgeTests(unittest.TestCase):
         hooks.unregister_unsaved_changes_checker(unsaved_checker)
         self.assertFalse(hooks.has_plugin_unsaved_changes())
 
+    def test_granular_diff_undo_redo_multi_step(self) -> None:
+        """Verify 10-step consecutive undo/redo using granular diffs."""
+        comp = {
+            "id": "wing_test",
+            "name": "Initial Wing",
+            "mass": 1.0,
+            "parameters": {
+                "geometry": {"span": 1.0, "root_chord": 0.2},
+                "sweep": 5.0,
+            },
+        }
+        self.project.data["components"] = [comp]
+        self.api._host.set_project(self.project)
+
+        # Apply 10 consecutive edits (from 2.0 to 11.0)
+        for i in range(2, 12):
+            val = float(i)
+            self.api.edit_component(
+                comp,
+                f"Step {i}",
+                lambda v=val: comp["parameters"]["geometry"].__setitem__("span", v),
+            )
+            self.assertEqual(comp["parameters"]["geometry"]["span"], val)
+
+        self.assertEqual(self.api._host.undo_stack.count(), 10)
+        self.assertEqual(comp["parameters"]["geometry"]["span"], 11.0)
+
+        # Undo all 10 steps one by one
+        for i in range(10, 1, -1):
+            self.api.undo()
+            self.assertEqual(comp["parameters"]["geometry"]["span"], float(i))
+
+        # 10th undo returns to initial value (1.0)
+        self.api.undo()
+        self.assertEqual(comp["parameters"]["geometry"]["span"], 1.0)
+
+        # Redo all 10 steps one by one
+        for i in range(2, 12):
+            self.api.redo()
+            self.assertEqual(comp["parameters"]["geometry"]["span"], float(i))
+
 
 if __name__ == "__main__":
     unittest.main()
