@@ -137,8 +137,9 @@ class GeometrySettingsTests(unittest.TestCase):
         self.assertEqual(geometry_settings.editor_setting("missing", "fallback"), "fallback")
 
     def test_viewer_settings_page_dynamic_sync(self) -> None:
-        from setuav_studio.api import StudioAPI
         from setuav_studio_sdk import StudioEvents
+
+        from setuav_studio.api import StudioAPI
 
         api = StudioAPI()
         _FakeSettings.values[geometry_settings._VIEWER_GRID_KEY] = False
@@ -157,9 +158,10 @@ class GeometrySettingsTests(unittest.TestCase):
         self.assertTrue(page.show_solid.isChecked())
 
     def test_viewer_workspace_settings_sync_and_persistence(self) -> None:
+        from setuav_studio_sdk import StudioEvents
+
         from plugins.geometry.workspace import ViewerWorkspace
         from setuav_studio.api import StudioAPI
-        from setuav_studio_sdk import StudioEvents
 
         # 1. Verify startup with grid disabled
         _FakeSettings.values[geometry_settings._VIEWER_GRID_KEY] = False

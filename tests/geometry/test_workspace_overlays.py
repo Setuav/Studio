@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import unittest
 
+from setuav_studio_sdk.primitives import LineSegmentsPrimitive
+
 from plugins.geometry.workspace import ViewerWorkspace
 from setuav_studio.api import StudioAPI
-from setuav_studio_sdk.primitives import LineSegmentsPrimitive
 from tests._common import get_qapp
 
 

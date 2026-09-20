@@ -20,7 +20,6 @@ dependencies = [
     "setuav-pythrust>=0.2.1,<0.3",
     "numpy>=1.26,<3",
     "scipy>=1.11,<2",
-    "setuav-studio-sdk>=0.1,<0.2",
     "asteval>=1.0.5,<2",
 ]
 
@@ -59,9 +58,6 @@ security = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/setuav_studio", "src/plugins"]
 
-[tool.uv.sources]
-setuav-studio-sdk = { path = "packages/setuav-studio-sdk", editable = true }
-
 [tool.deptry.package_module_name_map]
 setuav-pythrust = "pythrust"
 qt-themes = "qt_themes"
@@ -75,14 +71,14 @@ fail-on = "GNU Affero General Public License v3;GNU Affero General Public Licens
 [tool.ruff]
 target-version = "py311"
 line-length = 100
-src = ["src", "tests", "packages/setuav-studio-sdk/src"]
+src = ["src", "tests"]
 
 [tool.ruff.lint]
 allowed-confusables = ["α", "γ", "ρ", "×", "–", "ℹ"]
 select = ["B", "C4", "C90", "E4", "E7", "E9", "F", "I", "RUF", "SIM", "UP"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["setuav_studio", "plugins", "setuav_studio_sdk"]
+known-first-party = ["setuav_studio", "plugins"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 15
@@ -107,9 +103,8 @@ directory = "htmlcov"
 title = "Setuav Studio Coverage"
 
 [tool.pyright]
-extraPaths = ["packages/setuav-studio-sdk/src", "src"]
+extraPaths = ["src"]
 include = [
-    "packages/setuav-studio-sdk/src/setuav_studio_sdk",
     "src/plugins/debug",
     "src/setuav_studio/ui/dialog/about.py",
     "src/setuav_studio/ui/dialog/plugin_manager.py",
@@ -153,11 +148,16 @@ include = [
     "src/setuav_studio/ui/editor/transform.py",
     "src/setuav_studio/api/__init__.py",
     "src/setuav_studio/api/api.py",
+    "src/setuav_studio/api/contributions.py",
+    "src/setuav_studio/api/events.py",
     "src/setuav_studio/api/hooks.py",
     "src/setuav_studio/api/host.py",
-    "src/setuav_studio/api/manager.py",
-    "src/setuav_studio/api/requirements.py",
     "src/setuav_studio/api/undo.py",
+    "src/setuav_studio/plugin/__init__.py",
+    "src/setuav_studio/plugin/installer.py",
+    "src/setuav_studio/plugin/manager.py",
+    "src/setuav_studio/plugin/plugin.py",
+    "src/setuav_studio/plugin/requirements.py",
     "src/setuav_studio/units/__init__.py",
     "src/setuav_studio/units/dimension.py",
     "src/setuav_studio/units/manager.py",
@@ -186,4 +186,4 @@ venv = ".venv"
 venvPath = "."
 
 [tool.pytest.ini_options]
-pythonpath = ["src", "packages/setuav-studio-sdk/src"]
+pythonpath = ["src"]

@@ -2210,8 +2210,9 @@ def _build_fuselage_component() -> dict:
 
     def test_geometry_screenshot_transparent_background(self) -> None:
         """Verify screenshot transparent background action and capture parameter."""
-        from plugins.geometry.workspace import GeometryWorkspace
         from setuav_studio_sdk import StudioAPI
+
+        from plugins.geometry.workspace import GeometryWorkspace
 
         api = StudioAPI()
         workspace = GeometryWorkspace(api)
