@@ -817,3 +817,64 @@ class TestStudioViewport(unittest.TestCase):
         self.assertIsNone(viewer._hovered_component_id)
 
         viewer.deleteLater()
+
+    def test_primitive_envelope_wire_vertices(self) -> None:
+        from setuav_studio.ui.viewport.mesh import build_envelope_wire_vertices
+
+        box_obj = SceneObject(
+            object_id="box-1",
+            primitives=[
+                BoxPrimitive(
+                    center=(0.0, 0.0, 0.0),
+                    size=(100.0, 80.0, 60.0),
+                )
+            ],
+            envelope={
+                "shape": "box",
+                "size_mm": {"x": 120.0, "y": 90.0, "z": 70.0},
+                "offset_mm": {"x": 10.0, "y": 0.0, "z": 5.0},
+            },
+        )
+        cyl_obj = SceneObject(
+            object_id="cyl-1",
+            primitives=[
+                CylinderPrimitive(
+                    start=(0.0, 0.0, 0.0),
+                    end=(0.0, 0.0, 100.0),
+                    radius=25.0,
+                )
+            ],
+        )
+        scene_objs = {"box-1": box_obj, "cyl-1": cyl_obj}
+        color = (0.15, 1.0, 0.25)
+
+        # 1. Select box-1 envelope: returns 12 box edges = 144 floats
+        env_box = build_envelope_wire_vertices(
+            None,
+            selected_envelope_component_id="box-1",
+            color=color,
+            scene_objects=scene_objs,
+        )
+        self.assertEqual(len(env_box), 12 * 2 * 6)
+        self.assertAlmostEqual(env_box[3], color[0])
+        self.assertAlmostEqual(env_box[4], color[1])
+        self.assertAlmostEqual(env_box[5], color[2])
+
+        # 2. Select cyl-1 envelope (auto-envelope from cylinder primitive)
+        env_cyl = build_envelope_wire_vertices(
+            None,
+            selected_envelope_component_id="cyl-1:envelope",
+            color=color,
+            scene_objects=scene_objs,
+        )
+        self.assertGreater(len(env_cyl), 0)
+        self.assertAlmostEqual(env_cyl[3], color[0])
+
+        # 3. None selected: returns 0 floats
+        env_none = build_envelope_wire_vertices(
+            None,
+            selected_envelope_component_id=None,
+            color=color,
+            scene_objects=scene_objs,
+        )
+        self.assertEqual(len(env_none), 0)
