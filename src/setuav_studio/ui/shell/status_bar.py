@@ -186,35 +186,58 @@ class StatusBarManager:
 
     def _connect_task_manager(self) -> None:
         try:
-            tm = self._api.tasks
-            if hasattr(tm, "task_started"):
-                tm.task_started.connect(self._on_task_started)
-            if hasattr(tm, "task_finished"):
-                tm.task_finished.connect(self._on_task_finished)
-            if hasattr(tm, "task_failed"):
-                tm.task_failed.connect(self._on_task_failed)
+            tm = getattr(self._api, "tasks", None)
+            if tm is None:
+                return
+            for sig_name, slot in (
+                ("task_started", self._on_task_started),
+                ("task_finished", self._on_task_finished),
+                ("task_cancelled", self._on_task_cancelled),
+                ("task_error", self._on_task_failed),
+            ):
+                sig = getattr(tm, sig_name, None)
+                if sig is not None and hasattr(sig, "connect"):
+                    sig.connect(slot)
+
+            sig_count = getattr(tm, "tasks_count_changed", None)
+            if sig_count is not None and hasattr(sig_count, "connect"):
+                sig_count.connect(lambda _count: self._check_hide_cancel_button())
         except Exception:
             pass
 
-    def _on_task_started(self, task: object) -> None:
+    def _on_task_started(self, task: object, *args: object) -> None:
         self.cancel_button.show()
 
-    def _on_task_finished(self, task: object) -> None:
+    def _on_task_finished(self, task: object, *args: object) -> None:
         self._check_hide_cancel_button()
 
-    def _on_task_failed(self, task: object, error: str) -> None:
+    def _on_task_cancelled(self, task: object, *args: object) -> None:
+        self._check_hide_cancel_button()
+
+    def _on_task_failed(self, task: object, *args: object) -> None:
         self._check_hide_cancel_button()
 
     def _check_hide_cancel_button(self) -> None:
         try:
             tm = getattr(self._api, "tasks", None)
-            if tm and hasattr(tm, "running_tasks"):
+            if tm and hasattr(tm, "active_tasks"):
+                if not tm.active_tasks:
+                    self.cancel_button.hide()
+                    self.progress_bar.hide()
+                else:
+                    self.cancel_button.show()
+            elif tm and hasattr(tm, "running_tasks"):
                 if not tm.running_tasks():
                     self.cancel_button.hide()
+                    self.progress_bar.hide()
+                else:
+                    self.cancel_button.show()
             else:
                 self.cancel_button.hide()
+                self.progress_bar.hide()
         except Exception:
             self.cancel_button.hide()
+            self.progress_bar.hide()
 
     def _on_cancel_tasks_clicked(self) -> None:
         try:
@@ -313,8 +336,9 @@ class StatusBarManager:
         dialog.exec()
 
     def open_command_palette_window(self) -> None:
-        if hasattr(self._window, "open_command_palette"):
-            self._window.open_command_palette()
+        palette_fn = getattr(self._window, "open_command_palette", None)
+        if callable(palette_fn):
+            palette_fn()
 
     def open_log_window(self) -> None:
         if self._log_window is None:

@@ -584,6 +584,11 @@ class ProjectExplorerOperations:
                     "error",
                     5000,
                 ),
+                on_cancelled=lambda: self._api.show_status(
+                    f"Analysis '{config.name}' cancelled.",
+                    "warning",
+                    3000,
+                ),
             )
         except Exception as exc:
             self._api.show_status(f"Failed to launch analysis: {exc}", "error", 5000)
