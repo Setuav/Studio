@@ -322,6 +322,8 @@ def register_native_kind_editors(api: StudioAPI) -> None:
     """Register built-in fallback editors for standard component and document kinds."""
     from setuav_studio.ui.editor import (
         AnalysisConfigPropertyEditor,
+        AnalysisPlotPropertyEditor,
+        AnalysisTablePropertyEditor,
         ConstraintPropertyEditor,
         EnvelopeEditor,
         MassPropertiesEditor,
@@ -337,6 +339,8 @@ def register_native_kind_editors(api: StudioAPI) -> None:
         "constraint": lambda selection: ConstraintPropertyEditor(api, selection),
         "analysis_config": lambda selection: AnalysisConfigPropertyEditor(api, selection),
         "analysis_result": lambda selection: AnalysisConfigPropertyEditor(api, selection),
+        "analysis_plot": lambda selection: AnalysisPlotPropertyEditor(api, selection),
+        "analysis_table": lambda selection: AnalysisTablePropertyEditor(api, selection),
     }
     for kind, factory in defaults.items():
         if kind not in getattr(api, "_kind_editors", {}):
