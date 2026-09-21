@@ -9,6 +9,7 @@ from setuav_studio.api import (
     StudioAPI,
     ToolbarContribution,
     ToolbarMenuItemContribution,
+    ToolContribution,
 )
 from setuav_studio.ui.viewport import ViewportProtocol
 
@@ -54,10 +55,12 @@ from .components import (
     create_triangle_component,
     sync_debug_components_to_viewport,
 )
+from .solver import SOLVER_ID_MOCK_GENERATOR, MockGeneratorSolver
 
 logger = logging.getLogger(__name__)
 
 TOOLBAR_ADD_PRIMITIVE_ID = "debug.toolbar.add_primitive"
+TOOLBAR_MOCK_ANALYSIS_ID = "debug.toolbar.mock_analysis"
 
 
 class DebugPlugin:
@@ -70,12 +73,14 @@ class DebugPlugin:
 
     def __init__(self) -> None:
         self._api: StudioAPI | None = None
+        self._tool_contributions: list[ToolContribution] = []
 
     def activate(self, api: StudioAPI) -> None:
         """Activate the debug plugin."""
         self._api = api
         self._register_component_types(api)
         self._register_toolbar_tools(api)
+        self._register_solvers(api)
 
         api.on_project_changed(self._on_project_changed)
         api.on_project_content_changed(self._on_project_content_changed)
@@ -88,6 +93,11 @@ class DebugPlugin:
     def deactivate(self, api: StudioAPI) -> None:
         """Deactivate the debug plugin."""
         api.unregister_toolbar_item(TOOLBAR_ADD_PRIMITIVE_ID)
+        api.unregister_toolbar_item(TOOLBAR_MOCK_ANALYSIS_ID)
+        for tool in self._tool_contributions:
+            api.unregister_tool(tool)
+        self._tool_contributions.clear()
+        self._unregister_solvers(api)
         api.remove_project_listener(self._on_project_changed)
         api.remove_project_content_listener(self._on_project_content_changed)
         self._unregister_component_types(api)
@@ -290,3 +300,57 @@ class DebugPlugin:
             order=10,
         )
         api.register_toolbar_item(contribution)
+
+        # Mock Analysis Toolbar & Menu Tools
+        api.register_toolbar_item(
+            ToolbarContribution(
+                id=TOOLBAR_MOCK_ANALYSIS_ID,
+                title="Add Mock Analysis",
+                callback=self._add_mock_analysis_config,
+                icon="fa6s.chart-line",
+                group="debug",
+                order=20,
+            )
+        )
+
+        tool_add = ToolContribution(
+            title="Add Mock Analysis",
+            callback=self._add_mock_analysis_config,
+            group="Debug",
+            icon="fa6s.plus",
+        )
+        api.register_tool(tool_add)
+        self._tool_contributions.append(tool_add)
+
+    # ------------------------------------------------------------------
+    # Solvers Registration & Execution
+    # ------------------------------------------------------------------
+
+    def _register_solvers(self, api: StudioAPI) -> None:
+        """Register the debug mock analysis solver."""
+        api.register_solver(SOLVER_ID_MOCK_GENERATOR, MockGeneratorSolver)
+
+    def _unregister_solvers(self, api: StudioAPI) -> None:
+        """Unregister the debug mock analysis solver."""
+        api.unregister_solver(SOLVER_ID_MOCK_GENERATOR)
+
+    def _add_mock_analysis_config(self) -> None:
+        """Add a configurable mock analysis to the active project."""
+        if self._api is None or self._api.current_project is None:
+            if self._api is not None:
+                self._api.show_status("Open or create a project first.", "warning", 3000)
+            return
+
+        from setuav_studio.model.analysis_config import AnalysisConfig
+
+        config = AnalysisConfig(
+            solver_id=SOLVER_ID_MOCK_GENERATOR,
+            name="Mock Analysis",
+            parameters={
+                "duration": 3.0,
+                "rows": 50,
+                "columns": 4,
+            },
+        )
+        self._api.add_analysis_config(config)
+        self._api.show_status("Added Mock Analysis configuration.", "success", 3000)
