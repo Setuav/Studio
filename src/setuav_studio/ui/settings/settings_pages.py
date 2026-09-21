@@ -11,14 +11,16 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
-    QFormLayout,
     QFrame,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QScrollArea,
+    QSizePolicy,
     QSpinBox,
     QStackedWidget,
+    QTableWidget,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -26,7 +28,9 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.api import SettingsPageContribution
+from setuav_studio.ui.style.icons import get_icon, set_label_icon
 from setuav_studio.ui.widget.button import set_button_role
+from setuav_studio.ui.widget.table import PropertyTableMixin
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +70,7 @@ class StudioSettings:
             theme = "blender"
         return cls(
             reopen_last_project=_as_bool(settings.value("general/reopen_last_project", False)),
-            recent_project_limit=int(settings.value("general/recent_project_limit", 10)),
+            recent_project_limit=int(str(settings.value("general/recent_project_limit", 10))),
             pythrust_data_dir=str(settings.value("propulsion/pythrust_data_dir", "")),
             validation_strictness=strictness,
             theme_mode=theme,
@@ -83,8 +87,8 @@ class StudioSettings:
         settings.setValue("appearance/theme_mode", self.theme_mode)
 
 
-class SettingsDialog(QDialog):
-    """Categorized application settings dialog with plugin-extensible pages."""
+class SettingsDialog(PropertyTableMixin, QDialog):
+    """Categorized application settings dialog with compact property tables and plugin pages."""
 
     def __init__(
         self,
@@ -93,8 +97,10 @@ class SettingsDialog(QDialog):
         pages: Iterable[SettingsPageContribution] = (),
     ) -> None:
         super().__init__(parent)
+        self._values = values
         self.setWindowTitle("Settings")
-        self.setFixedSize(720, 720)
+        self.resize(760, 620)
+        self.setMinimumSize(680, 520)
 
         self._plugin_pages: list[tuple[SettingsPageContribution, QWidget]] = []
         self._group_items: dict[str, QTreeWidgetItem] = {}
@@ -112,18 +118,17 @@ class SettingsDialog(QDialog):
         self.category_tree.setObjectName("settingsCategories")
         self.category_tree.setHeaderHidden(True)
         self.category_tree.setRootIsDecorated(True)
-        self.category_tree.setIndentation(18)
-        self.category_tree.setFixedWidth(220)
-        self.category_tree.setIconSize(QSize(0, 0))
+        self.category_tree.setIndentation(16)
+        self.category_tree.setFixedWidth(210)
+        self.category_tree.setIconSize(QSize(16, 16))
         self.category_tree.setAnimated(False)
         self.category_tree.setStyleSheet(
             "QTreeWidget#settingsCategories { font-size: 13px; }"
-            "QTreeWidget#settingsCategories::item { min-height: 30px; padding: 5px 8px; }"
+            "QTreeWidget#settingsCategories::item { min-height: 26px; padding: 2px 4px; }"
         )
         self.category_tree.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         content.addWidget(self.category_tree)
-        # Compatibility alias for callers that only need to inspect the
-        # navigation widget.
+        # Compatibility alias for callers that only need to inspect the navigation widget.
         self.category_list = self.category_tree
 
         self.page_stack = QStackedWidget(self)
@@ -134,7 +139,6 @@ class SettingsDialog(QDialog):
         self._build_general_page(values)
         self._build_appearance_page(values)
         self._build_units_page()
-        self._build_propulsion_page(values)
         for contribution in sorted(
             pages,
             key=lambda page: (page.order, page.title.casefold(), page.id),
@@ -154,6 +158,57 @@ class SettingsDialog(QDialog):
         if ok_button is not None:
             set_button_role(ok_button, "primary")
         outer.addWidget(buttons)
+
+    def _create_section(
+        self,
+        title: str,
+        icon_name: str | None = None,
+        parent_layout: QVBoxLayout | None = None,
+    ) -> tuple[QWidget, QVBoxLayout]:
+        section = QWidget()
+        section.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Maximum,
+        )
+        layout = QVBoxLayout(section)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+
+        header = QWidget()
+        header.setProperty("sectionHeader", True)
+        header.setFixedHeight(20)
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(5)
+
+        if icon_name:
+            icon_label = QLabel()
+            set_label_icon(icon_label, icon_name, 14)
+            icon_label.setFixedSize(14, 14)
+            header_layout.addWidget(icon_label)
+
+        title_label = QLabel(title)
+        title_font = title_label.font()
+        title_font.setBold(True)
+        title_label.setFont(title_font)
+        header_layout.addWidget(title_label)
+        header_layout.addStretch()
+
+        layout.addWidget(header)
+        if parent_layout is not None:
+            parent_layout.addWidget(section)
+        return section, layout
+
+    def _create_settings_table(
+        self,
+        definitions: list[tuple[str, str]],
+        col0_width: int = 180,
+    ) -> QTableWidget:
+        table = self._property_table(definitions)
+        table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        table.setColumnWidth(0, col0_width)
+        return table
 
     def _add_page(
         self,
@@ -177,15 +232,29 @@ class SettingsDialog(QDialog):
             if group_item is None:
                 group_item = QTreeWidgetItem([group_name])
                 group_item.setFirstColumnSpanned(True)
-                group_item.setFlags(group_item.flags() & ~Qt.ItemFlag.ItemIsSelectable)
+                group_item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
                 font = group_item.font(0)
                 font.setBold(True)
                 group_item.setFont(0, font)
+                if group_icon:
+                    group_item.setIcon(
+                        0,
+                        get_icon(group_icon)
+                        if isinstance(group_icon, str)
+                        else QIcon(str(group_icon)),
+                    )
+                elif group_name == "Application":
+                    group_item.setIcon(0, get_icon("fa6s.gears"))
+                else:
+                    group_item.setIcon(0, get_icon("fa6s.cubes"))
                 self.category_tree.addTopLevelItem(group_item)
                 self._group_items[group_name] = group_item
             item = QTreeWidgetItem(group_item, [title])
         else:
             item = QTreeWidgetItem(self.category_tree, [title])
+
+        if icon:
+            item.setIcon(0, get_icon(icon) if isinstance(icon, str) else QIcon(str(icon)))
         item.setData(0, Qt.ItemDataRole.UserRole, page_id)
         item.setData(0, Qt.ItemDataRole.UserRole + 1, page_index)
         if self._first_page_item is None:
@@ -201,32 +270,60 @@ class SettingsDialog(QDialog):
         index = current.data(0, Qt.ItemDataRole.UserRole + 1)
         if isinstance(index, int) and index >= 0:
             self.page_stack.setCurrentIndex(index)
+        elif current.childCount() > 0:
+            first_child = current.child(0)
+            if first_child is not None:
+                self.category_tree.setCurrentItem(first_child)
 
     @staticmethod
     def _page_container(title: str) -> tuple[QWidget, QVBoxLayout]:
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.setContentsMargins(4, 4, 8, 4)
-        layout.setSpacing(10)
+        layout.setContentsMargins(10, 8, 12, 8)
+        layout.setSpacing(12)
         heading = QLabel(title)
         heading.setObjectName("settingsPageTitle")
+        font = heading.font()
+        font.setPointSize(font.pointSize() + 2)
+        font.setBold(True)
+        heading.setFont(font)
         layout.addWidget(heading)
         return page, layout
 
     def _build_general_page(self, values: StudioSettings) -> None:
-        page, layout = self._page_container("General")
-        form = QFormLayout()
+        page, layout = self._page_container("General Settings")
 
+        # 1. Startup & Workspace
+        _, s1_layout = self._create_section("Startup & Workspace", "fa6s.clock-rotate-left", layout)
+        t1 = self._create_settings_table(
+            [
+                ("reopen_last_project", "Reopen Last Project"),
+                ("recent_project_limit", "Recent Projects Limit"),
+            ]
+        )
+        check_widget = QWidget()
+        check_layout = QHBoxLayout(check_widget)
+        check_layout.setContentsMargins(6, 0, 0, 0)
+        check_layout.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.reopen_check = QCheckBox("Reopen the last project at startup")
         self.reopen_check.setChecked(values.reopen_last_project)
-        form.addRow(self.reopen_check)
+        check_layout.addWidget(self.reopen_check)
+        t1.setCellWidget(0, 1, check_widget)
 
         self.recent_limit_spin = QSpinBox()
-        self.recent_limit_spin.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
         self.recent_limit_spin.setRange(1, 20)
         self.recent_limit_spin.setValue(values.recent_project_limit)
-        form.addRow("Recent projects:", self.recent_limit_spin)
+        self.recent_limit_spin.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
+        t1.setCellWidget(1, 1, self.recent_limit_spin)
 
+        self._fit_table_height(t1, 2)
+        s1_layout.addWidget(t1)
+
+        # 2. Validation & Diagnostics
+        _, s2_layout = self._create_section(
+            "Validation & Diagnostics", "fa6s.shield-halved", layout
+        )
+        t2 = self._create_settings_table([("validation_strictness", "Schema Validation")])
         self.validation_strictness_combo = QComboBox()
         self.validation_strictness_combo.addItem(
             "Strict: block on validation errors (read-only or cancel)",
@@ -241,18 +338,19 @@ class SettingsDialog(QDialog):
             "off",
         )
         idx = self.validation_strictness_combo.findData(values.validation_strictness)
-        if idx >= 0:
-            self.validation_strictness_combo.setCurrentIndex(idx)
-        form.addRow("Schema validation:", self.validation_strictness_combo)
+        self.validation_strictness_combo.setCurrentIndex(idx if idx >= 0 else 0)
+        t2.setCellWidget(0, 1, self.validation_strictness_combo)
+        self._fit_table_height(t2, 1)
+        s2_layout.addWidget(t2)
 
-        layout.addLayout(form)
         layout.addStretch(1)
-        self._add_page("general", "General", page, "fa6s.gear")
+        self._add_page("general", "General", page, "fa6s.gear", group="Application")
 
     def _build_appearance_page(self, values: StudioSettings) -> None:
-        page, layout = self._page_container("Appearance")
-        form = QFormLayout()
+        page, layout = self._page_container("Appearance Settings")
 
+        _, s1_layout = self._create_section("Theme & Styling", "fa6s.palette", layout)
+        t1 = self._create_settings_table([("theme_mode", "Application Theme")])
         self.theme_combo = QComboBox()
         self.theme_combo.addItem("Native Dark", "dark")
         self.theme_combo.addItem("Native Light", "light")
@@ -264,25 +362,25 @@ class SettingsDialog(QDialog):
         idx = self.theme_combo.findData(values.theme_mode)
         if idx >= 0:
             self.theme_combo.setCurrentIndex(idx)
-        form.addRow("Application theme:", self.theme_combo)
+        t1.setCellWidget(0, 1, self.theme_combo)
+        self._fit_table_height(t1, 1)
+        s1_layout.addWidget(t1)
 
-        layout.addLayout(form)
         layout.addStretch(1)
-        self._add_page("appearance", "Appearance", page, "fa6s.palette")
+        self._add_page("appearance", "Appearance", page, "fa6s.palette", group="Application")
 
     def _build_units_page(self) -> None:
         from setuav_studio.units import QUANTITIES, get_unit_manager
 
         um = get_unit_manager()
         page, layout = self._page_container("Units & Dimensions")
-        form = QFormLayout()
-        form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
-        form.setFormAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
 
         self._units_updating = True
         self._unit_combos: dict[str, QComboBox] = {}
 
-        # 1. Preset Selector
+        # 1. Preset System
+        _, s1_layout = self._create_section("Unit Preset", "fa6s.sliders", layout)
+        t1 = self._create_settings_table([("preset", "System Preset")])
         self.units_preset_combo = QComboBox()
         self.units_preset_combo.addItem("Metric (SI Standard)", "si")
         self.units_preset_combo.addItem("Aviation Standard", "aviation")
@@ -292,30 +390,33 @@ class SettingsDialog(QDialog):
         preset_idx = self.units_preset_combo.findData(um.get_active_preset())
         self.units_preset_combo.setCurrentIndex(preset_idx if preset_idx >= 0 else 0)
         self.units_preset_combo.currentIndexChanged.connect(self._on_units_preset_changed)
-        form.addRow("Preset System:", self.units_preset_combo)
+        t1.setCellWidget(0, 1, self.units_preset_combo)
+        self._fit_table_height(t1, 1)
+        s1_layout.addWidget(t1)
 
-        sep = QFrame()
-        sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setFrameShadow(QFrame.Shadow.Sunken)
-        form.addRow(sep)
+        # 2. Physical Quantities
+        _, s2_layout = self._create_section("Physical Quantities", "fa6s.ruler-combined", layout)
+        quantity_defs = [(q_id, q_def.name) for q_id, q_def in QUANTITIES.items()]
+        t2 = self._create_settings_table(quantity_defs, col0_width=180)
 
-        # 2. Individual Quantities
-        for q_id, q_def in QUANTITIES.items():
+        for row, (q_id, q_def) in enumerate(QUANTITIES.items()):
             combo = QComboBox()
             for u_id, u_def in q_def.units.items():
-                combo.addItem(f"{u_def.name}", u_id)
+                combo.addItem(f"{u_def.name} ({u_def.symbol})", u_id)
             cur_unit = um.get_display_unit(q_id)
             idx = combo.findData(cur_unit)
             if idx >= 0:
                 combo.setCurrentIndex(idx)
             combo.currentIndexChanged.connect(lambda _idx, q=q_id: self._on_single_unit_changed(q))
             self._unit_combos[q_id] = combo
-            form.addRow(f"{q_def.name}:", combo)
+            t2.setCellWidget(row, 1, combo)
+
+        self._fit_table_height(t2, len(QUANTITIES), maximum_visible_rows=None)
+        s2_layout.addWidget(t2)
 
         self._units_updating = False
-        layout.addLayout(form)
         layout.addStretch(1)
-        self._add_page("units", "Units", page, "fa6s.ruler-combined")
+        self._add_page("units", "Units", page, "fa6s.ruler-combined", group="Application")
 
     def _on_units_preset_changed(self) -> None:
         if getattr(self, "_units_updating", False):
@@ -369,20 +470,6 @@ class SettingsDialog(QDialog):
             um.set_display_unit(q_id, str(combo.currentData()))
         um.save_to_settings()
 
-    def _build_propulsion_page(self, values: StudioSettings) -> None:
-        page, layout = self._page_container("Propulsion")
-        form = QFormLayout()
-
-        self.pythrust_dir_edit = QLineEdit(values.pythrust_data_dir)
-        self.pythrust_dir_edit.setPlaceholderText(
-            "Bundled with the pythrust package; or set PYTHRUST_DATA_DIR"
-        )
-        form.addRow("PyThrust data directory:", self.pythrust_dir_edit)
-
-        layout.addLayout(form)
-        layout.addStretch(1)
-        self._add_page("propulsion", "Propulsion", page, "fa6s.bolt")
-
     def _add_plugin_page(self, contribution: SettingsPageContribution) -> None:
         try:
             page = contribution.factory()
@@ -403,11 +490,22 @@ class SettingsDialog(QDialog):
             contribution.group_icon,
         )
 
+    @property
+    def pythrust_dir_edit(self) -> QLineEdit:
+        if not hasattr(self, "_pythrust_dir_edit_compat"):
+            self._pythrust_dir_edit_compat = QLineEdit(
+                getattr(self._values, "pythrust_data_dir", "")
+            )
+        return self._pythrust_dir_edit_compat
+
     def values(self) -> StudioSettings:
+        pythrust = getattr(self._values, "pythrust_data_dir", "")
+        if hasattr(self, "_pythrust_dir_edit_compat"):
+            pythrust = self._pythrust_dir_edit_compat.text().strip()
         return StudioSettings(
             reopen_last_project=self.reopen_check.isChecked(),
             recent_project_limit=self.recent_limit_spin.value(),
-            pythrust_data_dir=self.pythrust_dir_edit.text().strip(),
+            pythrust_data_dir=pythrust.strip(),
             validation_strictness=str(self.validation_strictness_combo.currentData()),
             theme_mode=str(self.theme_combo.currentData()),
         )
@@ -421,6 +519,13 @@ class SettingsDialog(QDialog):
                 contribution.apply(page)
             except Exception:
                 logger.exception("Could not apply settings page %s", contribution.id)
+
+    def save_all(self) -> None:
+        """Persist all application settings, units, and plugin pages."""
+        values = self.values()
+        values.save()
+        self.apply_units()
+        self.apply_plugin_pages()
 
 
 def _as_bool(value: object) -> bool:

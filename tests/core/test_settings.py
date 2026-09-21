@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import unittest
-from typing import ClassVar
+from typing import Any, ClassVar, cast
 from unittest.mock import patch
 
 from PySide6.QtCore import Qt
@@ -68,7 +68,12 @@ class CoreSettingsTests(unittest.TestCase):
         dialog = SettingsDialog(StudioSettings(True, 12, " /pythrust ", "off", "github_light"))
         self.addCleanup(dialog.deleteLater)
 
-        self.assertEqual(dialog.category_tree.topLevelItemCount(), 4)
+        self.assertEqual(dialog.category_tree.topLevelItemCount(), 1)
+        app_item = dialog.category_tree.topLevelItem(0)
+        self.assertIsNotNone(app_item)
+        assert app_item is not None
+        self.assertEqual(app_item.text(0), "Application")
+        self.assertEqual(app_item.childCount(), 3)
         self.assertEqual(dialog.page_stack.currentIndex(), 0)
         self.assertEqual(
             dialog.values(),
@@ -102,7 +107,7 @@ class CoreSettingsTests(unittest.TestCase):
             ),
             SettingsPageContribution("plain", "Plain", QWidget, order=30),
             SettingsPageContribution("bad", "Bad", fail_factory, order=40, apply=fail_apply),
-            SettingsPageContribution("wrong", "Wrong", lambda: object(), order=50),
+            SettingsPageContribution("wrong", "Wrong", cast(Any, lambda: object()), order=50),
         )
         with self.assertLogs("setuav_studio.ui.settings.settings_pages", level="ERROR"):
             dialog = SettingsDialog(StudioSettings(), pages=pages)
