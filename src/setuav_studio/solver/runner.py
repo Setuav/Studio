@@ -7,7 +7,7 @@ import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-from setuav_studio.task import CancellationToken, TaskPriority
+from setuav_studio.task import CancellationToken, TaskCancelledError, TaskPriority
 
 from .base import AbstractSolver, SolverStatus
 from .results import AnalysisResult
@@ -22,6 +22,7 @@ def execute_solver(solver: AbstractSolver, token: CancellationToken) -> Analysis
     """Synchronous worker function that executes a solver and tracks timing/cancellation."""
     start_time = time.perf_counter()
     solver.status = SolverStatus.RUNNING
+    solver.token = token
     token.report_progress(0, 100, f"Running {solver.config.name}...")
 
     try:
@@ -42,6 +43,17 @@ def execute_solver(solver: AbstractSolver, token: CancellationToken) -> Analysis
         solver.status = result.status
         token.report_progress(100, 100, f"Completed {solver.config.name}.")
         return result
+    except TaskCancelledError:
+        elapsed_ms = (time.perf_counter() - start_time) * 1000.0
+        solver.status = SolverStatus.CANCELLED
+        token.report_progress(100, 100, "Solver run cancelled.")
+        return AnalysisResult(
+            solver_id=solver.config.solver_id,
+            config=solver.config,
+            name=solver.config.name,
+            status=SolverStatus.CANCELLED,
+            execution_time_ms=elapsed_ms,
+        )
     except Exception as exc:
         elapsed_ms = (time.perf_counter() - start_time) * 1000.0
         solver.status = SolverStatus.FAILED
@@ -81,6 +93,7 @@ class SolverRunner:
         solver: AbstractSolver,
         on_complete: Callable[[AnalysisResult], None] | None = None,
         on_error: Callable[[Exception], None] | None = None,
+        on_cancelled: Callable[[], None] | None = None,
         priority: TaskPriority = TaskPriority.NORMAL,
     ) -> Any:
         """Submit a solver instance to run asynchronously via TaskManager."""
@@ -95,10 +108,15 @@ class SolverRunner:
             if on_error:
                 on_error(exc)
 
+        def _on_cancelled() -> None:
+            if on_cancelled:
+                on_cancelled()
+
         return self._api.tasks.submit(
             name=name,
             target=lambda token: execute_solver(solver, token),
             priority=priority,
             on_finished=_on_finished,
             on_error=_on_err,
+            on_cancelled=_on_cancelled,
         )

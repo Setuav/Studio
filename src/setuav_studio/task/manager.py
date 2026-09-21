@@ -368,6 +368,8 @@ class TaskManager(QObject):
                 "percent": prog.percentage,
             },
         )
+        if self._api is not None:
+            self._api.report_progress(current, total, message)
         cb = self._callbacks.get(task_id, {}).get("progress")
         if cb is not None:
             cb(prog)
@@ -392,6 +394,8 @@ class TaskManager(QObject):
                 {"task_id": task_id, "name": handle.name, "result": result},
             )
             self.tasks_count_changed.emit(len(self.active_tasks))
+            if self._api is not None and not self.active_tasks:
+                self._api.clear_progress()
             cb = self._callbacks.get(task_id, {}).get("finished")
             if cb is not None:
                 cb(result)
@@ -417,6 +421,8 @@ class TaskManager(QObject):
                 {"task_id": task_id, "name": handle.name, "error": str(exc)},
             )
             self.tasks_count_changed.emit(len(self.active_tasks))
+            if self._api is not None and not self.active_tasks:
+                self._api.clear_progress()
             cb = self._callbacks.get(task_id, {}).get("error")
             if cb is not None:
                 cb(exc)
@@ -440,6 +446,8 @@ class TaskManager(QObject):
                 {"task_id": task_id, "name": handle.name},
             )
             self.tasks_count_changed.emit(len(self.active_tasks))
+            if self._api is not None and not self.active_tasks:
+                self._api.clear_progress()
             cb = self._callbacks.get(task_id, {}).get("cancelled")
             if cb is not None:
                 cb()
@@ -451,10 +459,13 @@ class TaskManager(QObject):
 
     def _publish_event(self, topic: str | StudioEvents, payload: Any) -> None:
         if self._api is not None:
-            if hasattr(self._api, "publish"):
-                self._api.publish(str(topic), payload)
-            elif hasattr(self._api, "publish_event"):
-                self._api.publish_event(str(topic), payload)
+            pub = getattr(self._api, "publish", None)
+            if callable(pub):
+                pub(str(topic), payload)
+            else:
+                pub_ev = getattr(self._api, "publish_event", None)
+                if callable(pub_ev):
+                    pub_ev(str(topic), payload)
 
 
 __all__ = [

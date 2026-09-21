@@ -36,6 +36,10 @@ class StudioEvents(StrEnum):
     # Geometry
     GEOMETRY_VIEWER_SETTINGS_CHANGED = "geometry.viewer.settings.changed"
 
+    # Analysis & Results
+    ANALYSIS_PLOT_UPDATED = "analysis.plot_updated"
+    ANALYSIS_PLOT_ACTION = "analysis.plot_action"
+
     # Tasks / Background Jobs
     TASK_STARTED = "task.started"
     TASK_PROGRESS = "task.progress"

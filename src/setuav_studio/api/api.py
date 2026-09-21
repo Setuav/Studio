@@ -602,6 +602,7 @@ class StudioAPI:
         solver: Any,
         on_complete: Callable[[Any], None] | None = None,
         on_error: Callable[[Exception], None] | None = None,
+        on_cancelled: Callable[[], None] | None = None,
         priority: Any = None,
     ) -> Any:
         """Run a solver asynchronously in the background via TaskManager."""
@@ -609,7 +610,11 @@ class StudioAPI:
 
         task_priority = priority if priority is not None else TaskPriority.NORMAL
         return self._solver_runner.run_solver(
-            solver, on_complete=on_complete, on_error=on_error, priority=task_priority
+            solver,
+            on_complete=on_complete,
+            on_error=on_error,
+            on_cancelled=on_cancelled,
+            priority=task_priority,
         )
 
     def get_analysis_results(self) -> dict[str, AnalysisResult]:

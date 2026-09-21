@@ -89,21 +89,33 @@ class ProjectDocument:
         """Return the dictionary of AnalysisResult objects stored in the project data."""
         from setuav_studio.solver.results import AnalysisResult
 
+        if not hasattr(self, "_analysis_results_cache"):
+            self._analysis_results_cache: dict[str, AnalysisResult] = {}
+
         raw_results = self.data.get("analysis_results")
         if not isinstance(raw_results, dict):
+            self._analysis_results_cache.clear()
             return {}
 
-        results: dict[str, AnalysisResult] = {}
+        # Remove deleted items from cache
+        for k in list(self._analysis_results_cache.keys()):
+            if k not in raw_results:
+                del self._analysis_results_cache[k]
+
+        # Deserialize new items into cache
         for res_id, res_data in raw_results.items():
-            if isinstance(res_data, dict):
+            if str(res_id) not in self._analysis_results_cache and isinstance(res_data, dict):
                 try:
-                    results[str(res_id)] = AnalysisResult.from_dict(res_data)
+                    self._analysis_results_cache[str(res_id)] = AnalysisResult.from_dict(res_data)
                 except Exception as exc:
                     logger.warning("Could not deserialize AnalysisResult %s: %s", res_id, exc)
-        return results
+        return self._analysis_results_cache
 
     def add_analysis_result(self, result: AnalysisResult) -> None:
         """Add or update an AnalysisResult in the project data."""
+        if not hasattr(self, "_analysis_results_cache"):
+            self._analysis_results_cache = {}
+        self._analysis_results_cache[result.id] = result
         if "analysis_results" not in self.data or not isinstance(
             self.data["analysis_results"], dict
         ):
@@ -117,6 +129,8 @@ class ProjectDocument:
 
     def remove_analysis_result(self, result_id: str) -> bool:
         """Remove an AnalysisResult by ID if present."""
+        if hasattr(self, "_analysis_results_cache") and result_id in self._analysis_results_cache:
+            del self._analysis_results_cache[result_id]
         raw_results = self.data.get("analysis_results")
         if isinstance(raw_results, dict) and result_id in raw_results:
             del raw_results[result_id]
@@ -126,6 +140,8 @@ class ProjectDocument:
 
     def clear_analysis_results(self) -> None:
         """Clear all analysis results from the project data."""
+        if hasattr(self, "_analysis_results_cache"):
+            self._analysis_results_cache.clear()
         if "analysis_results" in self.data:
             self.data["analysis_results"] = {}
             self.modified = True

@@ -9,6 +9,8 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from setuav_studio.task.types import CancellationToken
+
     from .results import AnalysisResult
 
 
@@ -81,6 +83,7 @@ class AbstractSolver(ABC):
         self.progress: float = 0.0
         self.error_message: str | None = None
         self._cancel_requested: bool = False
+        self.token: CancellationToken | None = None
 
     @property
     def is_cancel_requested(self) -> bool:
@@ -90,6 +93,9 @@ class AbstractSolver(ABC):
     def cancel(self) -> None:
         """Request cancellation of the solver run."""
         self._cancel_requested = True
+        cancel_fn = getattr(self.token, "cancel", None)
+        if callable(cancel_fn):
+            cancel_fn()
 
     @abstractmethod
     def run(self) -> AnalysisResult:
