@@ -13,6 +13,7 @@ from setuav_studio.ui.panels.project_explorer.style import (
     format_component_type,
 )
 from setuav_studio.ui.style.icons import get_icon
+from setuav_studio.ui.style.theme import status_color
 
 if TYPE_CHECKING:
     from setuav_studio.api import (
@@ -138,6 +139,8 @@ class ProjectTreeBuilder:
                 param_payload = {"kind": "parameter", "id": f"param_{k}", "key": k, "value": v}
                 self._tree._element_map[item] = param_payload
                 self._tree._item_map[f"param_{k}"] = item
+                if project.modified and self._tree._saved_parameters.get(k) != v:
+                    item.setForeground(0, QBrush(QColor(status_color("warning"))))
                 const_group.addChild(item)
 
         # 2. Equations Group (if any exist)
@@ -155,6 +158,8 @@ class ProjectTreeBuilder:
                 param_payload = {"kind": "parameter", "id": f"param_{k}", "key": k, "value": v}
                 self._tree._element_map[item] = param_payload
                 self._tree._item_map[f"param_{k}"] = item
+                if project.modified and self._tree._saved_parameters.get(k) != v:
+                    item.setForeground(0, QBrush(QColor(status_color("warning"))))
                 eq_group.addChild(item)
 
     def create_constraints_group(
@@ -190,6 +195,8 @@ class ProjectTreeBuilder:
             constraint_payload = {"kind": "constraint", "id": cid, **c}
             self._tree._element_map[item] = constraint_payload
             self._tree._item_map[cid] = item
+            if project.modified and self._tree._saved_constraints.get(cid) != c:
+                item.setForeground(0, QBrush(QColor(status_color("warning"))))
             constraint_group.addChild(item)
 
     def create_analysis_configs_group(
@@ -238,6 +245,8 @@ class ProjectTreeBuilder:
             }
             self._tree._element_map[item] = payload
             self._tree._item_map[cid] = item
+            if project.modified and self._tree._saved_solver_configs.get(cid) != config.to_dict():
+                item.setForeground(0, QBrush(QColor(status_color("warning"))))
             analysis_group.addChild(item)
 
             if res is not None:

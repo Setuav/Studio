@@ -451,6 +451,95 @@ class ShellProjectLifecycleTests(unittest.TestCase):
             self.window.save_project()
             mock_save_as.assert_called_once()
 
+    def test_undo_redo_does_not_color_clean_items(self) -> None:
+        from PySide6.QtCore import Qt
+
+        from setuav_studio.solver.base import SolverConfig
+        from setuav_studio.ui.panels.project_explorer.tree import ProjectExplorer
+
+        self.window.new_untitled_project()
+        proj = self.window.project
+        self.assertIsNotNone(proj)
+
+        proj.data["parameters"] = {"height_param": 15.0}
+        proj.data["constraints"] = [
+            {"id": "c1", "name": "Constraint 1", "expression": "height_param > 10"}
+        ]
+        proj.data["components"] = [{"id": "cyl1", "name": "Cylinder 1", "type": "fuselage"}]
+        proj.add_solver_config(
+            SolverConfig(config_id="mock_cfg", name="Mock Analysis", solver_id="mock")
+        )
+
+        tree = ProjectExplorer(self.api)
+        tree.set_project(proj)
+
+        param_item = tree._item_map.get("param_height_param")
+        const_item = tree._item_map.get("c1")
+        cyl_item = tree._item_map.get("cyl1")
+        cfg_item = tree._item_map.get("mock_cfg")
+
+        self.assertIsNotNone(param_item)
+        self.assertIsNotNone(const_item)
+        self.assertIsNotNone(cyl_item)
+        self.assertIsNotNone(cfg_item)
+
+        assert (
+            param_item is not None
+            and const_item is not None
+            and cyl_item is not None
+            and cfg_item is not None
+        )
+        self.assertIsNone(param_item.data(0, Qt.ItemDataRole.ForegroundRole))
+        self.assertIsNone(const_item.data(0, Qt.ItemDataRole.ForegroundRole))
+        self.assertIsNone(cyl_item.data(0, Qt.ItemDataRole.ForegroundRole))
+        self.assertIsNone(cfg_item.data(0, Qt.ItemDataRole.ForegroundRole))
+
+        # Edit a component
+        def edit_comp() -> None:
+            proj.data["components"][0]["name"] = "Cylinder 1 (Edited)"
+
+        self.api.edit_component(proj.data["components"][0], "Edit cylinder", edit_comp)
+
+        # cyl1 should be modified, others should remain clean
+        cyl_item = tree._item_map.get("cyl1")
+        self.assertIsNotNone(cyl_item)
+        assert cyl_item is not None
+        self.assertIsNotNone(cyl_item.data(0, Qt.ItemDataRole.ForegroundRole))
+        self.assertIsNone(
+            tree._item_map["param_height_param"].data(0, Qt.ItemDataRole.ForegroundRole)
+        )
+        self.assertIsNone(tree._item_map["c1"].data(0, Qt.ItemDataRole.ForegroundRole))
+        self.assertIsNone(tree._item_map["mock_cfg"].data(0, Qt.ItemDataRole.ForegroundRole))
+
+        # Undo back to clean state
+        self.api.undo()
+
+        # After undo, ALL items must have None foreground (clean, not orange)
+        self.assertIsNone(tree._item_map["cyl1"].data(0, Qt.ItemDataRole.ForegroundRole))
+        self.assertIsNone(
+            tree._item_map["param_height_param"].data(0, Qt.ItemDataRole.ForegroundRole)
+        )
+        self.assertIsNone(tree._item_map["c1"].data(0, Qt.ItemDataRole.ForegroundRole))
+        self.assertIsNone(tree._item_map["mock_cfg"].data(0, Qt.ItemDataRole.ForegroundRole))
+
+        # Redo
+        self.api.redo()
+        self.assertIsNotNone(tree._item_map["cyl1"].data(0, Qt.ItemDataRole.ForegroundRole))
+        self.assertIsNone(
+            tree._item_map["param_height_param"].data(0, Qt.ItemDataRole.ForegroundRole)
+        )
+        self.assertIsNone(tree._item_map["c1"].data(0, Qt.ItemDataRole.ForegroundRole))
+        self.assertIsNone(tree._item_map["mock_cfg"].data(0, Qt.ItemDataRole.ForegroundRole))
+
+        # Undo again
+        self.api.undo()
+        self.assertIsNone(tree._item_map["cyl1"].data(0, Qt.ItemDataRole.ForegroundRole))
+        self.assertIsNone(
+            tree._item_map["param_height_param"].data(0, Qt.ItemDataRole.ForegroundRole)
+        )
+        self.assertIsNone(tree._item_map["c1"].data(0, Qt.ItemDataRole.ForegroundRole))
+        self.assertIsNone(tree._item_map["mock_cfg"].data(0, Qt.ItemDataRole.ForegroundRole))
+
     @staticmethod
     def _project(name: str = "Demo") -> ProjectDocument:
         return ProjectDocument(

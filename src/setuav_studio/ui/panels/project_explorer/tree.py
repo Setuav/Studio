@@ -80,6 +80,9 @@ class ProjectExplorer(QTreeWidget):
         ] = {}
         self._saved_components: dict[str, dict[str, Any]] = {}
         self._saved_assemblies: dict[str, dict[str, Any]] = {}
+        self._saved_parameters: dict[str, Any] = {}
+        self._saved_constraints: dict[str, dict[str, Any]] = {}
+        self._saved_solver_configs: dict[str, dict[str, Any]] = {}
         self._saved_analysis_results: dict[str, dict[str, Any]] = {}
 
         self._ops = ProjectExplorerOperations(self, api)
@@ -152,6 +155,11 @@ class ProjectExplorer(QTreeWidget):
     def _capture_saved_state(self, project: ProjectDocument) -> None:
         self._saved_components = self._snapshot_collection(project, "components")
         self._saved_assemblies = self._snapshot_collection(project, "assemblies")
+        self._saved_parameters = deepcopy(project.data.get("parameters", {}))
+        self._saved_constraints = self._snapshot_collection(project, "constraints")
+        self._saved_solver_configs = {
+            cid: deepcopy(cfg.to_dict()) for cid, cfg in project.solver_configs.items()
+        }
         self._saved_analysis_results = self._snapshot_analysis_results(project)
 
     @staticmethod
@@ -187,12 +195,15 @@ class ProjectExplorer(QTreeWidget):
             if isinstance(element, dict) and (element_id := str(element.get("id") or ""))
         }
 
-    @staticmethod
     def _apply_modified_color(
+        self,
         item: QTreeWidgetItem,
         element: dict[str, Any],
         saved_elements: dict[str, dict[str, Any]],
     ) -> None:
+        project = self._api.current_project
+        if project is None or not getattr(project, "modified", False):
+            return
         element_id = str(element.get("id") or "")
         if element_id and saved_elements.get(element_id) != element:
             from setuav_studio.ui.style.theme import status_color
@@ -203,16 +214,53 @@ class ProjectExplorer(QTreeWidget):
             )
 
     def _on_modified_changed(self, modified: bool) -> None:
-        if modified:
-            return
         project = self._api.current_project
         if project is None:
             return
-        self._capture_saved_state(project)
+        if not modified:
+            self._capture_saved_state(project)
         self._refresh_modified_colors()
+
+    def _is_element_modified(
+        self,
+        element: dict[str, Any],
+        project: ProjectDocument | None,
+    ) -> bool:
+        kind = element.get("kind")
+        if kind == "parameter":
+            key = element.get("key")
+            return self._saved_parameters.get(key) != element.get("value")
+        if kind == "constraint":
+            cid = str(element.get("id") or "")
+            raw_c = {k: v for k, v in element.items() if k != "kind"}
+            return self._saved_constraints.get(cid) != raw_c
+        if kind == "analysis_config":
+            cid = str(element.get("id") or "")
+            current_cfg = project.get_solver_config(cid) if project else None
+            current_dict = current_cfg.to_dict() if current_cfg else None
+            return self._saved_solver_configs.get(cid) != current_dict
+        if kind in ("analysis_table", "analysis_plot"):
+            return False
+
+        element_id = str(element.get("id") or "")
+        if not element_id:
+            return False
+        if element_id in self._saved_components:
+            return self._saved_components[element_id] != element
+        if element_id in self._saved_assemblies:
+            return self._saved_assemblies[element_id] != element
+
+        components = project.data.get("components", []) if project else []
+        assemblies = project.data.get("assemblies", []) if project else []
+        is_comp = any(c.get("id") == element_id for c in components if isinstance(c, dict))
+        is_assem = any(a.get("id") == element_id for a in assemblies if isinstance(a, dict))
+        return is_comp or is_assem
 
     def _refresh_modified_colors(self) -> None:
         from setuav_studio.ui.style.theme import status_color
+
+        project = self._api.current_project
+        is_clean = project is None or not getattr(project, "modified", False)
 
         for item, element in list(self._element_map.items()):
             try:
@@ -220,26 +268,21 @@ class ProjectExplorer(QTreeWidget):
             except RuntimeError:
                 continue
 
+            if is_clean:
+                item.setData(0, Qt.ItemDataRole.ForegroundRole, None)
+                continue
+
+            is_modified = False
             if item in self._virtual_items:
                 analysis_id = element.get("analysis_id") if isinstance(element, dict) else None
                 if analysis_id:
-                    project = self._api.current_project
                     current_entries = self._snapshot_analysis_results(project) if project else {}
                     current_entry = current_entries.get(analysis_id)
                     saved_entry = self._saved_analysis_results.get(analysis_id)
-                    if saved_entry != current_entry:
-                        item.setForeground(0, QBrush(QColor(status_color("warning"))))
-                    else:
-                        item.setData(0, Qt.ItemDataRole.ForegroundRole, None)
-                continue
+                    is_modified = saved_entry != current_entry
+            elif isinstance(element, dict):
+                is_modified = self._is_element_modified(element, project)
 
-            element_id = str(element.get("id") or "") if isinstance(element, dict) else ""
-            if not element_id:
-                continue
-            is_modified = (
-                self._saved_components.get(element_id) != element
-                and self._saved_assemblies.get(element_id) != element
-            )
             if is_modified:
                 item.setForeground(0, QBrush(QColor(status_color("warning"))))
             else:
