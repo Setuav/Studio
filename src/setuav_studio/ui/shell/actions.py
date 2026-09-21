@@ -148,13 +148,14 @@ class ActionManager:
         self.tools_menu = menu_bar.addMenu("&Tools")
         self.menus["tools"] = self.tools_menu
         self.tools_menu.addAction(self.command_palette_action)
-        self.task_monitor_action = self.tools_menu.addAction(
+        self.task_manager_action = self.tools_menu.addAction(
             get_icon("fa6s.list-check"),
-            "Background Tasks…",
-            self.open_task_monitor,
+            "Task Manager…",
+            self.open_task_manager,
         )
-        self.task_monitor_action.setShortcut("Ctrl+T")
-        self.command_actions["core.tasks.manage"] = self.task_monitor_action
+        self.task_manager_action.setShortcut("Ctrl+T")
+        self.task_monitor_action = self.task_manager_action
+        self.command_actions["core.tasks.manage"] = self.task_manager_action
         self.plugin_manager_action = self.tools_menu.addAction(
             get_icon("package"),
             "Plugin Manager…",
@@ -366,13 +367,21 @@ class ActionManager:
     def open_about(self) -> None:
         AboutDialog(self._window).exec()
 
-    def open_task_monitor(self) -> None:
-        if hasattr(self._window, "open_task_monitor_window"):
+    def open_task_manager(self) -> None:
+        if hasattr(self._window, "open_task_manager_window"):
+            self._window.open_task_manager_window()
+        elif hasattr(self._window, "open_task_monitor_window"):
             self._window.open_task_monitor_window()
+        elif hasattr(self._window, "_status_bar_manager") and hasattr(
+            self._window._status_bar_manager, "open_task_manager_window"
+        ):
+            self._window._status_bar_manager.open_task_manager_window()
         elif hasattr(self._window, "_status_bar_manager") and hasattr(
             self._window._status_bar_manager, "open_task_monitor_window"
         ):
             self._window._status_bar_manager.open_task_monitor_window()
+
+    open_task_monitor = open_task_manager
 
     def open_constraints(self) -> None:
         from setuav_studio.ui.panels.project_explorer.dialog_actions import add_constraint_action

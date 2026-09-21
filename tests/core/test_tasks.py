@@ -16,7 +16,7 @@ from setuav_studio.task.manager import (
     TaskPriority,
     TaskStatus,
 )
-from setuav_studio.ui.dialog.task_monitor import TaskMonitorDialog
+from setuav_studio.ui.dialog.task_manager import TaskManagerDialog
 from tests._common import get_qapp
 
 
@@ -150,9 +150,10 @@ class TestTaskManager(unittest.TestCase):
         self.assertEqual(self.tm.max_workers, 8)
         self.tm.max_workers = original
 
-    def test_task_monitor_dialog(self) -> None:
-        dlg = TaskMonitorDialog(self.api)
+    def test_task_manager_dialog(self) -> None:
+        dlg = TaskManagerDialog(self.api)
         self.assertIsNotNone(dlg)
+        self.assertEqual(dlg.windowTitle(), "Task Manager")
 
         handle = self.tm.submit(name="Dialog Test Task", target=lambda token: 100)
         _wait_for_task(handle)

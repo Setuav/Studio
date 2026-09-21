@@ -413,8 +413,10 @@ class MainWindow(QMainWindow):
     def _open_log_window(self) -> None:
         self._status_manager.open_log_window()
 
-    def open_task_monitor_window(self) -> None:
-        self._status_manager.open_task_monitor_window()
+    def open_task_manager_window(self) -> None:
+        self._status_manager.open_task_manager_window()
+
+    open_task_monitor_window = open_task_manager_window
 
     def open_command_palette(self) -> None:
         self._action_manager.open_command_palette()

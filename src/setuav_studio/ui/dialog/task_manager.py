@@ -1,4 +1,4 @@
-"""Background task manager and monitor dialog for SetUAV Studio."""
+"""Task manager dialog for SetUAV Studio."""
 
 from __future__ import annotations
 
@@ -32,14 +32,15 @@ if TYPE_CHECKING:
     from setuav_studio.task.manager import TaskManager
 
 
-class TaskMonitorDialog(QDialog):
+class TaskManagerDialog(QDialog):
     """Dialog displaying active background tasks, live progress, and past task history."""
 
     def __init__(self, api: StudioAPI, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._api = api
         self._tm: TaskManager = api.tasks
-        self.setWindowTitle("Background Task Manager")
+        self.setObjectName("taskManagerDialog")
+        self.setWindowTitle("Task Manager")
         self.setWindowIcon(get_icon("fa6s.list-check"))
         self.setMinimumSize(780, 480)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
@@ -54,7 +55,7 @@ class TaskMonitorDialog(QDialog):
         top_layout.setContentsMargins(0, 0, 0, 0)
         top_layout.setSpacing(10)
 
-        title_label = QLabel("Background Tasks & Computations")
+        title_label = QLabel("Task Manager")
         title_label.setFont(QFont("Inter", 11, QFont.Weight.Bold))
         top_layout.addWidget(title_label)
         top_layout.addStretch()
@@ -255,4 +256,7 @@ class TaskMonitorDialog(QDialog):
             self._history_table.setItem(row, 4, detail_item)
 
 
-__all__ = ["TaskMonitorDialog"]
+# Backward compatibility alias
+TaskMonitorDialog = TaskManagerDialog
+
+__all__ = ["TaskManagerDialog", "TaskMonitorDialog"]

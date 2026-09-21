@@ -137,7 +137,7 @@ include = [
     "src/setuav_studio/ui/dialog/log.py",
     "src/setuav_studio/ui/dialog/plugin_manager.py",
     "src/setuav_studio/ui/dialog/problems.py",
-    "src/setuav_studio/ui/dialog/task_monitor.py",
+    "src/setuav_studio/ui/dialog/task_manager.py",
     "src/setuav_studio/ui/editor/component.py",
     "src/setuav_studio/ui/editor/constraint.py",
     "src/setuav_studio/ui/editor/envelope.py",

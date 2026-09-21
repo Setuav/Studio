@@ -40,7 +40,7 @@ class TestCommandPalette(unittest.TestCase):
         # Should include core commands
         titles = [c.title for c in commands]
         self.assertTrue(any("Open" in t or "New" in t for t in titles))
-        self.assertTrue(any("Background Tasks" in t for t in titles))
+        self.assertTrue(any("Task Manager" in t for t in titles))
         self.assertTrue(any("Command Palette" in t for t in titles))
         self.assertTrue(any("Settings" in t for t in titles))
 
@@ -49,12 +49,12 @@ class TestCommandPalette(unittest.TestCase):
         dlg.populate_and_show(self.am)
         QCoreApplication.processEvents()
 
-        # Filter for 'tasks'
-        dlg.search_edit.setText("tasks")
+        # Filter for 'task'
+        dlg.search_edit.setText("task")
         QCoreApplication.processEvents()
         self.assertGreater(len(dlg._filtered_commands), 0)
         top = dlg._filtered_commands[0]
-        self.assertIn("Tasks", top.title)
+        self.assertIn("Task", top.title)
 
         # Filter for non-existent text
         dlg.search_edit.setText("xyznonexistent123")

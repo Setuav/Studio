@@ -94,6 +94,7 @@ class StatusBarManager:
         self._api = api
         self._host = api._host
         self._log_window: QDialog | None = None
+        self._task_manager_window: QDialog | None = None
         self._task_monitor_window: QDialog | None = None
         self._problems_dialog: QDialog | None = None
         self._status_level = "info"
@@ -150,11 +151,11 @@ class StatusBarManager:
         self.tasks_button = QToolButton(self._window)
         self.tasks_button.setObjectName("studioStatusTasksButton")
         self.tasks_button.setIcon(get_icon("fa6s.list-check"))
-        self.tasks_button.setToolTip("Background Tasks Manager")
+        self.tasks_button.setToolTip("Task Manager")
         self.tasks_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.tasks_button.setAutoRaise(True)
         self.tasks_button.setFixedSize(22, 22)
-        self.tasks_button.clicked.connect(self.open_task_monitor_window)
+        self.tasks_button.clicked.connect(self.open_task_manager_window)
         status_bar.addPermanentWidget(self.tasks_button)
 
         self.log_button = QToolButton(self._window)
@@ -349,14 +350,17 @@ class StatusBarManager:
         self._log_window.raise_()
         self._log_window.activateWindow()
 
-    def open_task_monitor_window(self) -> None:
-        if self._task_monitor_window is None:
-            from setuav_studio.ui.dialog.task_monitor import TaskMonitorDialog
+    def open_task_manager_window(self) -> None:
+        if self._task_manager_window is None:
+            from setuav_studio.ui.dialog.task_manager import TaskManagerDialog
 
-            self._task_monitor_window = TaskMonitorDialog(self._api, self._window)
-        self._task_monitor_window.show()
-        self._task_monitor_window.raise_()
-        self._task_monitor_window.activateWindow()
+            self._task_manager_window = TaskManagerDialog(self._api, self._window)
+            self._task_monitor_window = self._task_manager_window
+        self._task_manager_window.show()
+        self._task_manager_window.raise_()
+        self._task_manager_window.activateWindow()
+
+    open_task_monitor_window = open_task_manager_window
 
     def show_degraded_details(self, project: ProjectDocument | None = None) -> None:
         self.open_problems_window()
