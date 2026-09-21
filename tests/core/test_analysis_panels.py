@@ -123,23 +123,38 @@ class TestAnalysisPanels(unittest.TestCase):
         panel.load_table(self.table, self.result)
         self.assertEqual(panel._stack.currentWidget(), panel._table_view)
         self.assertIsNotNone(panel._model)
-        self.assertEqual(panel._model.rowCount(), 3)
+        assert panel._model is not None
+        self.assertEqual(panel._meta_label.text(), "3 rows, 3 cols")
+        self.assertEqual(panel._meta_label.styleSheet(), "")
+        self.assertEqual(panel._model.rowCount(), 4)  # 1 unit row + 3 data rows
         self.assertEqual(panel._model.columnCount(), 3)
 
-        # Header with display units
+        # Horizontal header displays plain column label
         header_0 = panel._model.headerData(0, orientation=self.horizontalHeaderOrientation())
-        self.assertEqual(header_0, "AoA [°]")
+        self.assertEqual(header_0, "AoA")
 
-        # Values
-        val_0_0 = panel._model.data(panel._model.index(0, 0))
-        self.assertEqual(val_0_0, "0.0000")
+        # Vertical header row 0 indicates "Unit"
+        from PySide6.QtCore import Qt
+
+        vheader_0 = panel._model.headerData(0, orientation=Qt.Orientation.Vertical)
+        self.assertEqual(vheader_0, "Unit")
+
+        # Row 0 contains unit cell with display units
+        unit_0 = panel._model.data(panel._model.index(0, 0))
+        self.assertEqual(unit_0, "[°]")
+
+        # Data rows start at index 1
+        val_1_0 = panel._model.data(panel._model.index(1, 0))
+        self.assertEqual(val_1_0, "0.0000")
 
         # Toggle to SI units
         panel._toggle_units()
         self.assertFalse(panel._use_display_units)
         self.assertEqual(panel._units_toggle_btn.text(), "Units: SI")
-        header_si = panel._model.headerData(0, orientation=self.horizontalHeaderOrientation())
-        self.assertEqual(header_si, "AoA [deg]")
+
+        # Unit cell updates to SI unit [deg]
+        unit_si = panel._model.data(panel._model.index(0, 0))
+        self.assertEqual(unit_si, "[deg]")
 
     def test_analysis_table_panel_selection_response(self) -> None:
         panel = AnalysisTablePanel(self.api)
@@ -256,7 +271,9 @@ class TestAnalysisPanels(unittest.TestCase):
 
         run_called = []
         self.api.run_solver = (  # type: ignore
-            lambda solver, on_complete=None, on_error=None, priority=None: run_called.append(solver)
+            lambda solver, on_complete=None, on_error=None, on_cancelled=None, priority=None: (
+                run_called.append(solver)
+            )
         )
 
         class MockSolver:

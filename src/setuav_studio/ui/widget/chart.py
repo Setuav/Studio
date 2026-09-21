@@ -11,7 +11,7 @@ from PySide6.QtCharts import (
     QLineSeries,
     QValueAxis,
 )
-from PySide6.QtCore import QSettings, Qt
+from PySide6.QtCore import QEvent, QObject, QSettings, Qt
 from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import (
     QSplitter,
@@ -53,9 +53,20 @@ class StudioChartWidget(QWidget):
 
         self.view = QChartView(self.chart)
         self.view.setRenderHint(QPainter.RenderHint.Antialiasing)
+        self.view.setRubberBand(QChartView.RubberBand.RectangleRubberBand)
+        self.view.installEventFilter(self)
         layout.addWidget(self.view)
 
         self.update_theme_style()
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if watched is self.view and event.type() == QEvent.Type.MouseButtonPress:
+            from PySide6.QtGui import QMouseEvent
+
+            if isinstance(event, QMouseEvent) and event.button() == Qt.MouseButton.RightButton:
+                self.chart.zoomReset()
+                return True
+        return super().eventFilter(watched, event)
 
     def setTitle(self, title: str) -> None:
         """Set the chart title."""

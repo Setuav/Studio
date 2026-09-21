@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from setuav_studio.api.events import StudioEvents
 from setuav_studio.solver.results import AnalysisResult, TableDefinition
 from setuav_studio.ui.style.icons import get_icon
 
@@ -28,7 +29,11 @@ _EMPTY_INDEX = QModelIndex()
 
 
 class AnalysisTableModel(QAbstractTableModel):
-    """Read-only table model backed by a columnar TableDefinition."""
+    """Read-only table model backed by a columnar TableDefinition.
+
+    Presents column labels in the horizontal header, a dedicated Unit row
+    at index 0, and converted numeric data in the subsequent rows.
+    """
 
     def __init__(
         self,
@@ -50,6 +55,9 @@ class AnalysisTableModel(QAbstractTableModel):
             )
             for col in self._table.columns
         ]
+        self._col_units: list[str] = [
+            col.display_unit(self._use_display_units) for col in self._table.columns
+        ]
 
     def set_use_display_units(self, use_display: bool) -> None:
         self.beginResetModel()
@@ -60,7 +68,7 @@ class AnalysisTableModel(QAbstractTableModel):
     def rowCount(self, parent: QModelIndex = _EMPTY_INDEX) -> int:
         if parent.isValid():
             return 0
-        return self._table.row_count()
+        return self._table.row_count() + 1
 
     def columnCount(self, parent: QModelIndex = _EMPTY_INDEX) -> int:
         if parent.isValid():
@@ -73,31 +81,61 @@ class AnalysisTableModel(QAbstractTableModel):
         orientation: Qt.Orientation,
         role: int = Qt.ItemDataRole.DisplayRole,
     ) -> Any:
-        if role != Qt.ItemDataRole.DisplayRole:
-            return None
-        if orientation == Qt.Orientation.Horizontal:
-            if 0 <= section < len(self._table.columns):
-                return self._table.columns[section].header_text(
-                    use_display_units=self._use_display_units
-                )
-        elif orientation == Qt.Orientation.Vertical:
-            return str(section + 1)
+        if role == Qt.ItemDataRole.DisplayRole:
+            if orientation == Qt.Orientation.Horizontal:
+                if 0 <= section < len(self._table.columns):
+                    return self._table.columns[section].label
+            elif orientation == Qt.Orientation.Vertical:
+                if section == 0:
+                    return "Unit"
+                return str(section)
+        elif role == Qt.ItemDataRole.TextAlignmentRole:
+            return int(Qt.AlignmentFlag.AlignCenter)
         return None
 
     def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
-        if not index.isValid() or role != Qt.ItemDataRole.DisplayRole:
+        if not index.isValid():
             return None
+
         row = index.row()
         col = index.column()
-        if 0 <= col < len(self._col_data):
-            col_list = self._col_data[col]
-            if 0 <= row < len(col_list):
-                val = col_list[row]
-                if isinstance(val, float):
-                    if abs(val) < 1e-4 and val != 0.0:
-                        return f"{val:.4e}"
-                    return f"{val:.4f}"
-                return str(val)
+
+        # Row 0: Dedicated Unit Cell under column name
+        if row == 0:
+            if 0 <= col < len(self._col_units):
+                u = self._col_units[col]
+                unit_text = f"[{u}]" if u else "[-]"
+                if role == Qt.ItemDataRole.DisplayRole:
+                    return unit_text
+                elif role == Qt.ItemDataRole.TextAlignmentRole:
+                    return int(Qt.AlignmentFlag.AlignCenter)
+                elif role == Qt.ItemDataRole.ForegroundRole:
+                    from PySide6.QtGui import QColor
+
+                    return QColor("#888888")
+                elif role == Qt.ItemDataRole.FontRole:
+                    from PySide6.QtGui import QFont
+
+                    f = QFont()
+                    f.setItalic(True)
+                    return f
+            return None
+
+        # Data rows (index.row() >= 1)
+        data_row = row - 1
+        if role == Qt.ItemDataRole.DisplayRole:
+            if 0 <= col < len(self._col_data):
+                col_list = self._col_data[col]
+                if 0 <= data_row < len(col_list):
+                    val = col_list[data_row]
+                    if isinstance(val, float):
+                        if abs(val) < 1e-4 and val != 0.0:
+                            return f"{val:.4e}"
+                        return f"{val:.4f}"
+                    return str(val)
+        elif role == Qt.ItemDataRole.TextAlignmentRole:
+            return int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+
         return None
 
 
@@ -125,6 +163,7 @@ class AnalysisTablePanel(QWidget):
         self._init_ui()
         if self._auto_sync_selection:
             self._api.on_selection_changed(self._on_selection_changed)
+        self._api.subscribe(str(StudioEvents.UNITS_CHANGED), self._on_units_changed)
 
     def _init_ui(self) -> None:
         main_layout = QVBoxLayout(self)
@@ -137,22 +176,12 @@ class AnalysisTablePanel(QWidget):
         tb_layout.setContentsMargins(4, 2, 4, 2)
         tb_layout.setSpacing(8)
 
-        self._icon_label = QLabel()
-        self._icon_label.setPixmap(get_icon("fa6s.table").pixmap(16, 16))
-        tb_layout.addWidget(self._icon_label)
-
         self._title_label = QLabel("Analysis Table")
-        self._title_label.setStyleSheet("font-weight: bold; font-size: 11px;")
-        tb_layout.addWidget(self._title_label)
-
-        self._meta_label = QLabel()
-        self._meta_label.setStyleSheet(
-            "color: #888888; font-size: 10px; background: rgba(128,128,128,0.15); "
-            "padding: 2px 6px; border-radius: 3px;"
-        )
-        tb_layout.addWidget(self._meta_label)
 
         tb_layout.addStretch()
+
+        self._meta_label = QLabel()
+        tb_layout.addWidget(self._meta_label)
 
         # Unit system toggle
         self._units_toggle_btn = QPushButton("Units: Display")
@@ -199,8 +228,7 @@ class AnalysisTablePanel(QWidget):
         self._table_view.setAlternatingRowColors(True)
         self._table_view.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
         self._table_view.setSelectionMode(QTableView.SelectionMode.SingleSelection)
-        self._table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        self._table_view.horizontalHeader().setStretchLastSection(True)
+        self._table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self._table_view.verticalHeader().setDefaultSectionSize(22)
         self._stack.addWidget(self._table_view)
 
@@ -223,7 +251,7 @@ class AnalysisTablePanel(QWidget):
             table, use_display_units=self._use_display_units, parent=self
         )
         self._table_view.setModel(self._model)
-        self._table_view.resizeColumnsToContents()
+        self._table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
 
         self._toolbar.setVisible(True)
         self._stack.setCurrentWidget(self._table_view)
@@ -234,7 +262,10 @@ class AnalysisTablePanel(QWidget):
         self._units_toggle_btn.setText(label_text)
         if self._model is not None:
             self._model.set_use_display_units(self._use_display_units)
-            self._table_view.resizeColumnsToContents()
+
+    def _on_units_changed(self, _payload: Any = None) -> None:
+        if self._model is not None:
+            self._model.set_use_display_units(self._use_display_units)
 
     def _export_csv(self) -> None:
         if not self._current_table:

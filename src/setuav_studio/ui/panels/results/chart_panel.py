@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QPainter, QPixmap
+from PySide6.QtGui import QColor, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from setuav_studio.api.events import StudioEvents
 from setuav_studio.solver.results import AnalysisResult, PlotDefinition, TableDefinition
 from setuav_studio.ui.style.icons import get_icon
 from setuav_studio.ui.widget.chart import StudioChartWidget
@@ -36,12 +37,14 @@ class AnalysisChartPanel(QWidget):
         api: StudioAPI,
         auto_sync_selection: bool = True,
         show_close_button: bool = False,
+        show_toolbar: bool = False,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._api = api
         self._auto_sync_selection = auto_sync_selection
         self._show_close_button = show_close_button
+        self._show_toolbar = show_toolbar
         self._current_result: AnalysisResult | None = None
         self._current_plot: PlotDefinition | None = None
         self._current_table: TableDefinition | None = None
@@ -50,11 +53,12 @@ class AnalysisChartPanel(QWidget):
         self._init_ui()
         if self._auto_sync_selection:
             self._api.on_selection_changed(self._on_selection_changed)
+        self._api.subscribe(str(StudioEvents.UNITS_CHANGED), self._on_units_changed)
 
     def _init_ui(self) -> None:
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(4, 4, 4, 4)
-        main_layout.setSpacing(4)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
 
         # Top Toolbar
         self._toolbar = QWidget()
@@ -110,7 +114,8 @@ class AnalysisChartPanel(QWidget):
             self._close_btn.clicked.connect(self.close_requested.emit)
             tb_layout.addWidget(self._close_btn)
 
-        main_layout.addWidget(self._toolbar)
+        if self._show_toolbar:
+            main_layout.addWidget(self._toolbar)
 
         # Stacked view for content vs empty placeholder
         self._stack = QStackedWidget()
@@ -162,8 +167,79 @@ class AnalysisChartPanel(QWidget):
         self._x_combo.blockSignals(False)
 
         self._render_chart()
-        self._toolbar.setVisible(True)
+        if self._show_toolbar:
+            self._toolbar.setVisible(True)
+        else:
+            self._toolbar.setVisible(False)
         self._stack.setCurrentWidget(self._chart_widget)
+
+    def reload_plot(self) -> None:
+        """Re-render the active plot using updated definition/series."""
+        if hasattr(self._chart_widget, "chart"):
+            self._chart_widget.chart.zoomReset()
+        if self._current_plot is not None:
+            self._active_x_column = self._current_plot.x_column
+            self._title_label.setText(self._current_plot.title or self._current_plot.id)
+        self._render_chart()
+
+    def reset_view(self) -> None:
+        """Auto-scale axes to fit all curve data and reset zoom."""
+        if hasattr(self._chart_widget, "chart"):
+            self._chart_widget.chart.zoomReset()
+        self._render_chart()
+
+    def _on_units_changed(self, _payload: Any = None) -> None:
+        if self._current_plot is not None:
+            self.reload_plot()
+
+    def export_png(self, file_path: str | None = None) -> str | None:
+        """Export chart as a high-resolution PNG image."""
+        if not file_path:
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Export Chart Image",
+                f"{(self._current_plot.title if self._current_plot else 'chart').replace(' ', '_').lower()}.png",
+                "PNG Images (*.png);;All Files (*)",
+            )
+        if not file_path:
+            return None
+
+        pixmap = QPixmap(self._chart_widget.view.size())
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        self._chart_widget.view.render(painter)
+        painter.end()
+        pixmap.save(file_path, "PNG")
+        self._api.show_status(f"Chart image exported to {file_path}", "success")
+        return file_path
+
+    def export_csv(self, file_path: str | None = None) -> str | None:
+        """Export underlying table data to RFC 4180 CSV."""
+        if not self._current_table:
+            return None
+        if not file_path:
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Export Table Data",
+                f"{self._current_table.id}.csv",
+                "CSV Files (*.csv);;All Files (*)",
+            )
+        if not file_path:
+            return None
+
+        if self._current_result:
+            self._current_result.export_table_csv(
+                self._current_table.id, file_path, use_display_units=True
+            )
+        else:
+            from pathlib import Path
+
+            Path(file_path).write_text(
+                self._current_table.to_csv(use_display_units=True), encoding="utf-8"
+            )
+        self._api.show_status(f"Table data exported to {file_path}", "success")
+        return file_path
 
     def _on_x_column_changed(self) -> None:
         if not self._current_table or not self._current_plot:
@@ -198,10 +274,9 @@ class AnalysisChartPanel(QWidget):
         axis_x = self._chart_widget.create_axis(title=x_title)
 
         # Setup Y Axis
+        col_def = table.get_column_def(plot.series[0].y_column) if plot.series else None
         y_label = plot.y_label or (
-            table.get_column_def(plot.series[0].y_column).header_text(use_display_units=True)
-            if plot.series and table.get_column_def(plot.series[0].y_column)
-            else "Value"
+            col_def.header_text(use_display_units=True) if col_def is not None else "Value"
         )
         axis_y = self._chart_widget.create_axis(title=y_label)
 
@@ -235,10 +310,6 @@ class AnalysisChartPanel(QWidget):
                 width=2.0,
                 style=line_style,
             )
-            # Apply color
-            pen = line_series.pen()
-            pen.setColor(color)
-            line_series.setPen(pen)
 
             for x, y in zip(x_vals, y_vals, strict=False):
                 if isinstance(x, (int, float)) and isinstance(y, (int, float)):
@@ -246,6 +317,10 @@ class AnalysisChartPanel(QWidget):
                     all_y_numeric.append(float(y))
 
             self._chart_widget.add_line_series(line_series, axis_x, axis_y)
+
+            # Apply custom pen AFTER add_line_series so QChart doesn't overwrite it
+            pen = QPen(QColor(color), 2.0, line_style)
+            line_series.setPen(pen)
 
         # Set range with 5% margin
         dx = max(abs(max_x - min_x) * 0.05, 0.1)
@@ -259,50 +334,13 @@ class AnalysisChartPanel(QWidget):
         self._chart_widget.update_theme_style()
 
     def _reset_view(self) -> None:
-        self._render_chart()
+        self.reset_view()
 
     def _export_png(self) -> None:
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Export Chart Image",
-            f"{self._title_label.text().replace(' ', '_').lower()}.png",
-            "PNG Images (*.png);;All Files (*)",
-        )
-        if not file_path:
-            return
-
-        pixmap = QPixmap(self._chart_widget.view.size())
-        pixmap.fill(Qt.GlobalColor.transparent)
-        painter = QPainter(pixmap)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        self._chart_widget.view.render(painter)
-        painter.end()
-        pixmap.save(file_path, "PNG")
-        self._api.show_status(f"Chart image exported to {file_path}", "success")
+        self.export_png()
 
     def _export_csv(self) -> None:
-        if not self._current_table:
-            return
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Export Table Data",
-            f"{self._current_table.id}.csv",
-            "CSV Files (*.csv);;All Files (*)",
-        )
-        if not file_path:
-            return
-
-        if self._current_result:
-            self._current_result.export_table_csv(
-                self._current_table.id, file_path, use_display_units=True
-            )
-        else:
-            from pathlib import Path
-
-            Path(file_path).write_text(
-                self._current_table.to_csv(use_display_units=True), encoding="utf-8"
-            )
-        self._api.show_status(f"Table data exported to {file_path}", "success")
+        self.export_csv()
 
     def _on_selection_changed(self, selection: Any | None) -> None:
         if not isinstance(selection, dict):
