@@ -128,14 +128,27 @@ class Component:
 
     @property
     def parent_id(self) -> str | None:
-        """ID of the parent component to which this component attaches."""
+        """ID of the parent component in the hierarchy."""
         val = self._raw_data.get("parent") or self._raw_data.get("attach_to")
         return str(val) if val else None
 
     @parent_id.setter
     def parent_id(self, value: str | None) -> None:
-        self._raw_data["parent"] = value
-        self._raw_data["attach_to"] = value
+        if value is None:
+            self._raw_data.pop("parent", None)
+            self._raw_data.pop("attach_to", None)
+        else:
+            self._raw_data["parent"] = value
+            self._raw_data["attach_to"] = value
+
+    @property
+    def parent(self) -> str | None:
+        """ID of the parent component in the hierarchy."""
+        return self.parent_id
+
+    @parent.setter
+    def parent(self, value: str | None) -> None:
+        self.parent_id = value
 
     def reparent(
         self,

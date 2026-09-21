@@ -48,6 +48,11 @@ class TestModelHierarchy(unittest.TestCase):
         )
         self.assertEqual(comp.id, "motor-1")
         self.assertEqual(comp.parent_id, "fuselage-main")
+        self.assertEqual(comp.parent, "fuselage-main")
+        comp.parent = "wing-1"
+        self.assertEqual(comp.parent, "wing-1")
+        self.assertEqual(comp.parent_id, "wing-1")
+        comp.parent = "fuselage-main"
         self.assertEqual(comp.mass, 0.25)
         self.assertEqual(comp.x, 1.2)
         self.assertEqual(comp.kv, 920.0)

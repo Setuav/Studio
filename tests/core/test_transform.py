@@ -58,7 +58,7 @@ def test_resolve_world_transform_hierarchy() -> None:
     comp_b = {
         "id": "b",
         "name": "Comp B",
-        "attach_to": "a",
+        "parent": "a",
         "transform": {
             "position": {"x": 50.0, "y": 0.0, "z": 0.0},
             "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
@@ -97,6 +97,7 @@ def test_reparent_preserves_world_transform() -> None:
     # Reparent child to parent_a
     reparent_component(child, "parent_a", comps, preserve_world_transform=True)
 
+    assert child.get("parent") == "parent_a"
     assert child.get("attach_to") == "parent_a"
     w_pos_after, w_rot_after = resolve_world_transform("child", comps)
 
@@ -106,6 +107,7 @@ def test_reparent_preserves_world_transform() -> None:
 
     # Detach back to World
     reparent_component(child, None, comps, preserve_world_transform=True)
+    assert child.get("parent") is None
     assert child.get("attach_to") is None
     w_pos_detached, w_rot_detached = resolve_world_transform("child", comps)
 
@@ -141,6 +143,7 @@ def test_studio_api_reparent_undo_redo(qtbot: pytest.FixtureRequest) -> None:
 
     # Reparent via API
     api.reparent_component(cyl, "box_1", preserve_world_transform=True)
+    assert cyl.get("parent") == "box_1"
     assert cyl.get("attach_to") == "box_1"
 
     w_pos_after, w_rot_after = resolve_world_transform("cyl_1", proj)
@@ -150,6 +153,7 @@ def test_studio_api_reparent_undo_redo(qtbot: pytest.FixtureRequest) -> None:
 
     # Undo
     api.undo()
+    assert cyl.get("parent") is None
     assert cyl.get("attach_to") is None
     assert cyl["transform"]["position"]["x"] == 150.0
     w_pos_undo, _ = resolve_world_transform("cyl_1", proj)
@@ -157,6 +161,7 @@ def test_studio_api_reparent_undo_redo(qtbot: pytest.FixtureRequest) -> None:
 
     # Redo
     api.redo()
+    assert cyl.get("parent") == "box_1"
     assert cyl.get("attach_to") == "box_1"
     w_pos_redo, _ = resolve_world_transform("cyl_1", proj)
     assert abs(w_pos_before[0] - w_pos_redo[0]) < 1e-3

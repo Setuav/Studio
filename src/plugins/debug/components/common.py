@@ -211,7 +211,7 @@ def update_component_in_viewport(
         for other_id, other_comp in comps_by_id.items():
             if other_id == comp_id:
                 continue
-            parent = other_comp.get("attach_to") or other_comp.get("parent")
+            parent = other_comp.get("parent") or other_comp.get("attach_to")
             if parent and str(parent) == comp_id:
                 update_component_in_viewport(viewport, other_comp, project)
 
@@ -250,7 +250,7 @@ def sync_debug_components_to_viewport(viewport: ViewportProtocol, project: Any) 
 
 
 class BaseDebugComponentEditor(BaseComponentEditor):
-    """Base property editor for debug components with direct viewport updating and attachment support."""
+    """Base property editor for debug components with direct viewport updating and parent support."""
 
     def __init__(
         self,
@@ -267,28 +267,30 @@ class BaseDebugComponentEditor(BaseComponentEditor):
         super().__init__(api, raw_comp, parameter_fields=parameter_fields, parent=parent)
 
     def _create_custom_sections(self) -> None:
-        layout = self._create_section("Attachment", "fa6s.link")
-        self.attachment_table = self._property_table(
+        layout = self._create_section("Parent", "fa6s.sitemap")
+        self.parent_table = self._property_table(
             [
-                ("attach_to", "Attach To"),
+                ("parent", "Parent"),
             ]
         )
-        layout.addWidget(self.attachment_table)
+        self.attachment_table = self.parent_table
+        layout.addWidget(self.parent_table)
 
     def _load_custom_data(self) -> None:
-        if not hasattr(self, "attachment_table"):
+        table = getattr(self, "parent_table", getattr(self, "attachment_table", None))
+        if table is None:
             return
-        options = self._get_attachment_options()
-        curr_parent = str(self._component.get("attach_to") or self._component.get("parent") or "")
+        options = self._get_parent_options()
+        curr_parent = str(self._component.get("parent") or self._component.get("attach_to") or "")
         self._set_property_combo(
-            self.attachment_table,
-            "attach_to",
+            table,
+            "parent",
             curr_parent,
             options,
-            self._on_attach_to_changed,
+            self._on_parent_changed,
         )
 
-    def _get_attachment_options(self) -> list[tuple[str, str]]:
+    def _get_parent_options(self) -> list[tuple[str, str]]:
         options: list[tuple[str, str]] = [("", "None (World)")]
         project = getattr(self._api, "current_project", None)
         if project is None or not hasattr(project, "data") or not isinstance(project.data, dict):
@@ -321,7 +323,7 @@ class BaseDebugComponentEditor(BaseComponentEditor):
             ):
                 continue
 
-            # Prevent cyclic attachments: check if self_id is an ancestor of cid
+            # Prevent cyclic hierarchy: check if self_id is an ancestor of cid
             curr: str | None = cid
             is_cyclic = False
             visited: set[str] = set()
@@ -333,7 +335,7 @@ class BaseDebugComponentEditor(BaseComponentEditor):
                 parent_comp = comps_by_id.get(curr)
                 if not parent_comp:
                     break
-                p = parent_comp.get("attach_to") or parent_comp.get("parent")
+                p = parent_comp.get("parent") or parent_comp.get("attach_to")
                 curr = str(p) if p else None
 
             if not is_cyclic:
@@ -342,11 +344,14 @@ class BaseDebugComponentEditor(BaseComponentEditor):
 
         return options
 
-    def _on_attach_to_changed(self, new_parent: str) -> None:
+    def _get_attachment_options(self) -> list[tuple[str, str]]:
+        return self._get_parent_options()
+
+    def _on_parent_changed(self, new_parent: str) -> None:
         if self._loading:
             return
         clean_parent = new_parent.strip() or None
-        old_parent = self._component.get("attach_to") or self._component.get("parent")
+        old_parent = self._component.get("parent") or self._component.get("attach_to")
         if old_parent == clean_parent:
             return
 
@@ -357,6 +362,9 @@ class BaseDebugComponentEditor(BaseComponentEditor):
         )
         self._committed_parent = clean_parent or ""
         self.update_viewport()
+
+    def _on_attach_to_changed(self, new_parent: str) -> None:
+        self._on_parent_changed(new_parent)
 
     def update_viewport(self) -> None:
         """Update this component's 3D representation directly in the viewport."""

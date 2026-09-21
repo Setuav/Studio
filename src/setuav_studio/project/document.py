@@ -261,10 +261,15 @@ class ProjectDocument:
         # Link children (such as control surfaces) to their parent models
         model_by_id = {getattr(m, "id", ""): m for m in models if getattr(m, "id", "")}
         for model in models:
-            parent_id = getattr(model, "attach_to", None) or (
-                model.raw_data.get("attach_to") or model.raw_data.get("parent")
-                if hasattr(model, "raw_data") and isinstance(model.raw_data, dict)
-                else None
+            parent_id = (
+                getattr(model, "parent", None)
+                or getattr(model, "parent_id", None)
+                or getattr(model, "attach_to", None)
+                or (
+                    model.raw_data.get("parent") or model.raw_data.get("attach_to")
+                    if hasattr(model, "raw_data") and isinstance(model.raw_data, dict)
+                    else None
+                )
             )
             if parent_id and parent_id in model_by_id:
                 parent_model = model_by_id[parent_id]

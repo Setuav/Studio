@@ -289,7 +289,7 @@ class TransformEditor(PropertyTableMixin, QWidget):
         )
 
     def _parent_frame_name(self, component: dict[str, Any]) -> str:
-        parent_id = component.get("attach_to") or component.get("parent")
+        parent_id = component.get("parent") or component.get("attach_to")
         if not parent_id:
             return "SETUAV_BODY"
         project = self._api.current_project

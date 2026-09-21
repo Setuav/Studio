@@ -213,10 +213,10 @@ class ProjectExplorerOperations:
         for component in components:
             if not isinstance(component, dict):
                 continue
-            if str(component.get("attach_to") or "") in component_ids:
-                component["attach_to"] = None
             if str(component.get("parent") or "") in component_ids:
                 component["parent"] = None
+            if str(component.get("attach_to") or "") in component_ids:
+                component["attach_to"] = None
 
     @staticmethod
     def remove_assembly_member_references(
