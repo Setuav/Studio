@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING, Any, Literal
 from zipfile import ZIP_DEFLATED, BadZipFile, ZipFile
 
 if TYPE_CHECKING:
-    from setuav_studio.model.analysis_config import AnalysisConfig
-    from setuav_studio.solver.results import AnalysisResult
+    from setuav_studio.solver.base import SolverConfig
+    from setuav_studio.solver.results import SolverResult
 
 logger = logging.getLogger(__name__)
 
@@ -85,111 +85,107 @@ class ProjectDocument:
     remove_extension_data = remove_plugin_data
 
     @property
-    def analysis_results(self) -> dict[str, AnalysisResult]:
-        """Return the dictionary of AnalysisResult objects stored in the project data."""
-        from setuav_studio.solver.results import AnalysisResult
+    def solver_results(self) -> dict[str, SolverResult]:
+        """Return the dictionary of SolverResult objects stored in the project data."""
+        from setuav_studio.solver.results import SolverResult
 
-        if not hasattr(self, "_analysis_results_cache"):
-            self._analysis_results_cache: dict[str, AnalysisResult] = {}
+        if not hasattr(self, "_solver_results_cache"):
+            self._solver_results_cache: dict[str, SolverResult] = {}
 
-        raw_results = self.data.get("analysis_results")
+        raw_results = self.data.get("solver_results")
         if not isinstance(raw_results, dict):
-            self._analysis_results_cache.clear()
+            self._solver_results_cache.clear()
             return {}
 
         # Remove deleted items from cache
-        for k in list(self._analysis_results_cache.keys()):
+        for k in list(self._solver_results_cache.keys()):
             if k not in raw_results:
-                del self._analysis_results_cache[k]
+                del self._solver_results_cache[k]
 
         # Deserialize new items into cache
         for res_id, res_data in raw_results.items():
-            if str(res_id) not in self._analysis_results_cache and isinstance(res_data, dict):
+            if str(res_id) not in self._solver_results_cache and isinstance(res_data, dict):
                 try:
-                    self._analysis_results_cache[str(res_id)] = AnalysisResult.from_dict(res_data)
+                    self._solver_results_cache[str(res_id)] = SolverResult.from_dict(res_data)
                 except Exception as exc:
-                    logger.warning("Could not deserialize AnalysisResult %s: %s", res_id, exc)
-        return self._analysis_results_cache
+                    logger.warning("Could not deserialize SolverResult %s: %s", res_id, exc)
+        return self._solver_results_cache
 
-    def add_analysis_result(self, result: AnalysisResult) -> None:
-        """Add or update an AnalysisResult in the project data."""
-        if not hasattr(self, "_analysis_results_cache"):
-            self._analysis_results_cache = {}
-        self._analysis_results_cache[result.id] = result
-        if "analysis_results" not in self.data or not isinstance(
-            self.data["analysis_results"], dict
-        ):
-            self.data["analysis_results"] = {}
-        self.data["analysis_results"][result.id] = result.to_dict()
+    def add_solver_result(self, result: SolverResult) -> None:
+        """Add or update a SolverResult in the project data."""
+        if not hasattr(self, "_solver_results_cache"):
+            self._solver_results_cache = {}
+        self._solver_results_cache[result.id] = result
+        if "solver_results" not in self.data or not isinstance(self.data["solver_results"], dict):
+            self.data["solver_results"] = {}
+        self.data["solver_results"][result.id] = result.to_dict()
         self.modified = True
 
-    def get_analysis_result(self, result_id: str) -> AnalysisResult | None:
-        """Retrieve a specific AnalysisResult by ID."""
-        return self.analysis_results.get(result_id)
+    def get_solver_result(self, result_id: str) -> SolverResult | None:
+        """Retrieve a specific SolverResult by ID."""
+        return self.solver_results.get(result_id)
 
-    def remove_analysis_result(self, result_id: str) -> bool:
-        """Remove an AnalysisResult by ID if present."""
-        if hasattr(self, "_analysis_results_cache") and result_id in self._analysis_results_cache:
-            del self._analysis_results_cache[result_id]
-        raw_results = self.data.get("analysis_results")
+    def remove_solver_result(self, result_id: str) -> bool:
+        """Remove a SolverResult by ID if present."""
+        if hasattr(self, "_solver_results_cache") and result_id in self._solver_results_cache:
+            del self._solver_results_cache[result_id]
+        raw_results = self.data.get("solver_results")
         if isinstance(raw_results, dict) and result_id in raw_results:
             del raw_results[result_id]
             self.modified = True
             return True
         return False
 
-    def clear_analysis_results(self) -> None:
-        """Clear all analysis results from the project data."""
-        if hasattr(self, "_analysis_results_cache"):
-            self._analysis_results_cache.clear()
-        if "analysis_results" in self.data:
-            self.data["analysis_results"] = {}
+    def clear_solver_results(self) -> None:
+        """Clear all solver results from the project data."""
+        if hasattr(self, "_solver_results_cache"):
+            self._solver_results_cache.clear()
+        if "solver_results" in self.data:
+            self.data["solver_results"] = {}
             self.modified = True
 
     @property
-    def analysis_configs(self) -> dict[str, AnalysisConfig]:
-        """Return the dictionary of AnalysisConfig objects stored in the project data."""
-        from setuav_studio.model.analysis_config import AnalysisConfig
+    def solver_configs(self) -> dict[str, SolverConfig]:
+        """Return the dictionary of SolverConfig objects stored in the project data."""
+        from setuav_studio.solver.base import SolverConfig
 
-        raw_configs = self.data.get("analysis_configs")
+        raw_configs = self.data.get("solver_configs")
         if not isinstance(raw_configs, dict):
             return {}
 
-        configs: dict[str, AnalysisConfig] = {}
+        configs: dict[str, SolverConfig] = {}
         for cfg_id, cfg_data in raw_configs.items():
             if isinstance(cfg_data, dict):
                 try:
-                    configs[str(cfg_id)] = AnalysisConfig.from_dict(cfg_data)
+                    configs[str(cfg_id)] = SolverConfig.from_dict(cfg_data)
                 except Exception as exc:
-                    logger.warning("Could not deserialize AnalysisConfig %s: %s", cfg_id, exc)
+                    logger.warning("Could not deserialize SolverConfig %s: %s", cfg_id, exc)
         return configs
 
-    def add_analysis_config(self, config: AnalysisConfig) -> None:
-        """Add or update an AnalysisConfig in the project data."""
-        if "analysis_configs" not in self.data or not isinstance(
-            self.data["analysis_configs"], dict
-        ):
-            self.data["analysis_configs"] = {}
-        self.data["analysis_configs"][config.config_id] = config.to_dict()
+    def add_solver_config(self, config: SolverConfig) -> None:
+        """Add or update a SolverConfig in the project data."""
+        if "solver_configs" not in self.data or not isinstance(self.data["solver_configs"], dict):
+            self.data["solver_configs"] = {}
+        self.data["solver_configs"][config.config_id] = config.to_dict()
         self.modified = True
 
-    def get_analysis_config(self, config_id: str) -> AnalysisConfig | None:
-        """Retrieve a specific AnalysisConfig by ID."""
-        return self.analysis_configs.get(config_id)
+    def get_solver_config(self, config_id: str) -> SolverConfig | None:
+        """Retrieve a specific SolverConfig by ID."""
+        return self.solver_configs.get(config_id)
 
-    def remove_analysis_config(self, config_id: str) -> bool:
-        """Remove an AnalysisConfig by ID if present."""
-        raw_configs = self.data.get("analysis_configs")
+    def remove_solver_config(self, config_id: str) -> bool:
+        """Remove a SolverConfig by ID if present."""
+        raw_configs = self.data.get("solver_configs")
         if isinstance(raw_configs, dict) and config_id in raw_configs:
             del raw_configs[config_id]
             self.modified = True
             return True
         return False
 
-    def clear_analysis_configs(self) -> None:
-        """Clear all analysis configs from the project data."""
-        if "analysis_configs" in self.data:
-            self.data["analysis_configs"] = {}
+    def clear_solver_configs(self) -> None:
+        """Clear all solver configs from the project data."""
+        if "solver_configs" in self.data:
+            self.data["solver_configs"] = {}
             self.modified = True
 
     def get_typed_component(self, comp_id: str, api: Any | None = None) -> Any:

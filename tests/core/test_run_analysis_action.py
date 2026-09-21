@@ -5,9 +5,8 @@ from pathlib import Path
 from PySide6.QtWidgets import QApplication
 
 from setuav_studio.api import StudioAPI
-from setuav_studio.model.analysis_config import AnalysisConfig
 from setuav_studio.project import create_project
-from setuav_studio.solver import AbstractSolver, AnalysisResult, SolverStatus
+from setuav_studio.solver import AbstractSolver, SolverConfig, SolverResult, SolverStatus
 from setuav_studio.ui.shell.native_registrations import (
     _on_run_analysis_triggered,
     register_native_contributions,
@@ -15,8 +14,8 @@ from setuav_studio.ui.shell.native_registrations import (
 
 
 class MockNativeSolver(AbstractSolver):
-    def run(self) -> AnalysisResult:
-        return AnalysisResult(
+    def run(self) -> SolverResult:
+        return SolverResult(
             solver_id=self.config.solver_id,
             config=self.config,
             name=self.config.name,
@@ -59,8 +58,8 @@ class TestRunAnalysisAction(unittest.TestCase):
         )
 
     def test_trigger_run_analysis_unregistered_solver(self) -> None:
-        config = AnalysisConfig(solver_id="unknown_solver", name="Test Config")
-        self.api.add_analysis_config(config)
+        config = SolverConfig(solver_id="unknown_solver", name="Test Config")
+        self.api.add_solver_config(config)
 
         _on_run_analysis_triggered(self.api)
         self.assertTrue(
@@ -69,8 +68,8 @@ class TestRunAnalysisAction(unittest.TestCase):
 
     def test_trigger_run_analysis_success(self) -> None:
         self.api.register_solver("mock_native", MockNativeSolver)
-        config = AnalysisConfig(solver_id="mock_native", name="Mock Run")
-        self.api.add_analysis_config(config)
+        config = SolverConfig(solver_id="mock_native", name="Mock Run")
+        self.api.add_solver_config(config)
 
         _on_run_analysis_triggered(self.api)
 
@@ -78,7 +77,7 @@ class TestRunAnalysisAction(unittest.TestCase):
         for _ in range(50):
             QApplication.processEvents()
 
-        results = self.api.get_analysis_results()
+        results = self.api.get_solver_results()
         self.assertEqual(len(results), 1)
 
 

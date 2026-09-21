@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.api.events import StudioEvents
-from setuav_studio.solver.results import AnalysisResult, PlotDefinition, TableDefinition
+from setuav_studio.solver.results import PlotDefinition, SolverResult, TableDefinition
 from setuav_studio.ui.style.icons import get_icon
 from setuav_studio.ui.widget.chart import StudioChartWidget
 
@@ -45,7 +45,7 @@ class AnalysisChartPanel(QWidget):
         self._auto_sync_selection = auto_sync_selection
         self._show_close_button = show_close_button
         self._show_toolbar = show_toolbar
-        self._current_result: AnalysisResult | None = None
+        self._current_result: SolverResult | None = None
         self._current_plot: PlotDefinition | None = None
         self._current_table: TableDefinition | None = None
         self._active_x_column: str = ""
@@ -145,7 +145,7 @@ class AnalysisChartPanel(QWidget):
         self,
         plot: PlotDefinition,
         table: TableDefinition,
-        result: AnalysisResult | None = None,
+        result: SolverResult | None = None,
     ) -> None:
         """Load and plot curves from table according to PlotDefinition."""
         self._current_plot = plot
@@ -345,10 +345,10 @@ class AnalysisChartPanel(QWidget):
     def _on_selection_changed(self, selection: Any | None) -> None:
         if not isinstance(selection, dict):
             return
-        if selection.get("kind") == "analysis_plot":
+        if selection.get("kind") in ("analysis_plot", "solver_plot"):
             res_id = str(selection.get("result_id", ""))
             plot_id = str(selection.get("plot_id", ""))
-            result = self._api.get_analysis_result(res_id)
+            result = self._api.get_solver_result(res_id)
             if result and plot_id in result.plots:
                 plot = result.plots[plot_id]
                 table = result.tables.get(plot.table_id)

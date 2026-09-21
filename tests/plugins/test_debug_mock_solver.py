@@ -152,7 +152,7 @@ class TestDebugMockSolver(unittest.TestCase):
         self.assertIn("mock_data", res.tables)
 
         # Confirm result stored in current project
-        stored = self.api.get_analysis_result(res.id)
+        stored = self.api.get_solver_result(res.id)
         self.assertIsNotNone(stored)
 
     def test_mock_solver_async_cancellation(self) -> None:
@@ -202,7 +202,7 @@ class TestDebugMockSolver(unittest.TestCase):
 
         # Test adding mock analysis config
         plugin._add_mock_analysis_config()
-        configs = self.api.get_analysis_configs()
+        configs = self.api.get_solver_configs()
         self.assertEqual(len(configs), 1)
         cfg = next(iter(configs.values()))
         self.assertEqual(cfg.solver_id, SOLVER_ID_MOCK_GENERATOR)

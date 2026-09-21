@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.solver.results import AnalysisResult, TableDefinition
+from setuav_studio.solver.results import SolverResult, TableDefinition
 from setuav_studio.ui.style.icons import get_icon, set_label_icon
 from setuav_studio.ui.widget.table import PropertyTableMixin
 
@@ -58,10 +58,10 @@ class AnalysisTablePropertyEditor(PropertyTableMixin, QWidget):
 
         self._load_data()
 
-    def _get_result_and_table(self) -> tuple[AnalysisResult | None, TableDefinition | None]:
+    def _get_result_and_table(self) -> tuple[SolverResult | None, TableDefinition | None]:
         if not self._result_id or not self._table_id:
             return None, None
-        res = self._api.get_analysis_result(self._result_id)
+        res = self._api.get_solver_result(self._result_id)
         if res is None or self._table_id not in res.tables:
             return None, None
         table = res.tables[self._table_id]

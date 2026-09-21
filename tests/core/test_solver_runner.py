@@ -6,23 +6,23 @@ from PySide6.QtWidgets import QApplication
 
 from setuav_studio.api import StudioAPI
 from setuav_studio.project import create_project
-from setuav_studio.solver import AbstractSolver, AnalysisResult, SolverConfig, SolverStatus
+from setuav_studio.solver import AbstractSolver, SolverConfig, SolverResult, SolverStatus
 
 
 class AsyncDummySolver(AbstractSolver):
     """Dummy solver for testing asynchronous execution."""
 
-    def run(self) -> AnalysisResult:
+    def run(self) -> SolverResult:
         if self.is_cancel_requested:
             self.status = SolverStatus.CANCELLED
-            return AnalysisResult(
+            return SolverResult(
                 solver_id=self.config.solver_id,
                 config=self.config,
                 status=SolverStatus.CANCELLED,
             )
 
         self.status = SolverStatus.COMPLETED
-        return AnalysisResult(
+        return SolverResult(
             solver_id=self.config.solver_id,
             config=self.config,
             name=self.config.name,
@@ -34,7 +34,7 @@ class AsyncDummySolver(AbstractSolver):
 class FailingSolver(AbstractSolver):
     """Solver that raises an exception during execution."""
 
-    def run(self) -> AnalysisResult:
+    def run(self) -> SolverResult:
         raise ValueError("Computation failed due to convergence error")
 
 
@@ -60,9 +60,9 @@ class TestSolverRunner(unittest.TestCase):
         config = SolverConfig(solver_id="async_dummy", name="Async Run 1")
         solver = AsyncDummySolver(config)
 
-        completed_results: list[AnalysisResult] = []
+        completed_results: list[SolverResult] = []
 
-        def _on_complete(res: AnalysisResult) -> None:
+        def _on_complete(res: SolverResult) -> None:
             completed_results.append(res)
 
         handle = self.api.run_solver(solver, on_complete=_on_complete)
@@ -80,7 +80,7 @@ class TestSolverRunner(unittest.TestCase):
         self.assertEqual(res.metrics["lift"], 250.0)
 
         # Verify automatic registration in current_project
-        stored = self.api.get_analysis_result(res.id)
+        stored = self.api.get_solver_result(res.id)
         self.assertIsNotNone(stored)
         assert stored is not None
         self.assertEqual(stored.id, res.id)
@@ -89,9 +89,9 @@ class TestSolverRunner(unittest.TestCase):
         config = SolverConfig(solver_id="failing", name="Failing Run")
         solver = FailingSolver(config)
 
-        completed_results: list[AnalysisResult] = []
+        completed_results: list[SolverResult] = []
 
-        def _on_complete(res: AnalysisResult) -> None:
+        def _on_complete(res: SolverResult) -> None:
             completed_results.append(res)
 
         self.api.run_solver(solver, on_complete=_on_complete)

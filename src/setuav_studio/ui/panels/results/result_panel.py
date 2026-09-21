@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.api.events import StudioEvents
-from setuav_studio.solver.results import AnalysisResult, PlotDefinition, TableDefinition
+from setuav_studio.solver.results import PlotDefinition, SolverResult, TableDefinition
 from setuav_studio.ui.style.icons import get_icon
 
 from .chart_panel import AnalysisChartPanel
@@ -190,7 +190,7 @@ class ResultPanel(QWidget):
 
     def show_plot(
         self,
-        result: AnalysisResult,
+        result: SolverResult,
         plot: PlotDefinition,
         table: TableDefinition,
     ) -> None:
@@ -226,7 +226,7 @@ class ResultPanel(QWidget):
 
     def show_table(
         self,
-        result: AnalysisResult,
+        result: SolverResult,
         table: TableDefinition,
     ) -> None:
         """Display a tabular dataset in a dedicated dock widget."""
@@ -355,7 +355,7 @@ class ResultPanel(QWidget):
         key = f"plot:{result_id}:{plot_id}"
         if key in self._panes:
             dock = self._panes[key]
-            res = self._api.get_analysis_result(result_id)
+            res = self._api.get_solver_result(result_id)
             if res and plot_id in res.plots:
                 plot = res.plots[plot_id]
                 dock.setWindowTitle(plot.title or plot.id)
@@ -370,7 +370,7 @@ class ResultPanel(QWidget):
     def _handle_reset_action(
         self,
         action: str,
-        res: AnalysisResult | None,
+        res: SolverResult | None,
         chart: AnalysisChartPanel | None,
         plot_id: str,
     ) -> None:
@@ -388,7 +388,7 @@ class ResultPanel(QWidget):
 
     def _handle_export_png_action(
         self,
-        res: AnalysisResult | None,
+        res: SolverResult | None,
         chart: AnalysisChartPanel | None,
         result_id: str,
         plot_id: str,
@@ -406,7 +406,7 @@ class ResultPanel(QWidget):
 
     def _handle_export_csv_action(
         self,
-        res: AnalysisResult | None,
+        res: SolverResult | None,
         chart: AnalysisChartPanel | None,
         plot_id: str,
     ) -> None:
@@ -436,7 +436,7 @@ class ResultPanel(QWidget):
         action = str(payload.get("action", ""))
 
         chart = self.get_chart_panel(result_id, plot_id)
-        res = self._api.get_analysis_result(result_id)
+        res = self._api.get_solver_result(result_id)
 
         if action in ("reset_plot", "reset_view"):
             self._handle_reset_action(action, res, chart, plot_id)
@@ -463,19 +463,19 @@ class ResultPanel(QWidget):
         if not isinstance(selection, dict):
             return
         kind = selection.get("kind")
-        if kind == "analysis_plot":
+        if kind in ("analysis_plot", "solver_plot"):
             res_id = str(selection.get("result_id", ""))
             plot_id = str(selection.get("plot_id", ""))
-            result = self._api.get_analysis_result(res_id)
+            result = self._api.get_solver_result(res_id)
             if result and plot_id in result.plots:
                 plot = result.plots[plot_id]
                 table = result.tables.get(plot.table_id)
                 if table:
                     self.show_plot(result, plot, table)
-        elif kind == "analysis_table":
+        elif kind in ("analysis_table", "solver_table"):
             res_id = str(selection.get("result_id", ""))
             table_id = str(selection.get("table_id", ""))
-            result = self._api.get_analysis_result(res_id)
+            result = self._api.get_solver_result(res_id)
             if result and table_id in result.tables:
                 table = result.tables[table_id]
                 self.show_table(result, table)

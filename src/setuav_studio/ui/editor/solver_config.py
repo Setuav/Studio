@@ -20,17 +20,17 @@ from setuav_studio.ui.widget.table import PropertyTableMixin
 
 if TYPE_CHECKING:
     from setuav_studio.api import StudioAPI
-    from setuav_studio.model.analysis_config import AnalysisConfig
-    from setuav_studio.solver.results import AnalysisResult
+    from setuav_studio.solver.base import SolverConfig
+    from setuav_studio.solver.results import SolverResult
 
 
-class AnalysisConfigPropertyEditor(PropertyTableMixin, QWidget):
-    """Property editor for AnalysisConfig objects matching application UI standards."""
+class SolverConfigPropertyEditor(PropertyTableMixin, QWidget):
+    """Property editor for SolverConfig objects matching application UI standards."""
 
     def __init__(
         self,
         api: StudioAPI,
-        config_item: dict[str, Any] | AnalysisConfig,
+        config_item: dict[str, Any] | SolverConfig,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -43,7 +43,7 @@ class AnalysisConfigPropertyEditor(PropertyTableMixin, QWidget):
             self._result_id = None
 
         self._loading = False
-        self._cached_result: AnalysisResult | None = None
+        self._cached_result: SolverResult | None = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -158,17 +158,14 @@ class AnalysisConfigPropertyEditor(PropertyTableMixin, QWidget):
         parent_widget = layout.parentWidget()
         self._results_section_widget = parent_widget if parent_widget is not None else btn_bar
 
-    def _get_config(self) -> AnalysisConfig | None:
+    def _get_config(self) -> SolverConfig | None:
         if self._result_id:
-            res = self._api.get_analysis_result(self._result_id)
+            res = self._api.get_solver_result(self._result_id)
             if res is not None:
-                if hasattr(res, "analysis_config"):
-                    return res.analysis_config
-                if hasattr(res.config, "to_analysis_config"):
-                    return res.config.to_analysis_config()
+                return res.config
         if self._api.current_project is None or not self._config_id:
             return None
-        return self._api.current_project.get_analysis_config(self._config_id)
+        return self._api.current_project.get_solver_config(self._config_id)
 
     def _load_data(self) -> None:
         config = self._get_config()
@@ -211,7 +208,7 @@ class AnalysisConfigPropertyEditor(PropertyTableMixin, QWidget):
             # 4. Results Summary
             matching = [
                 r
-                for r in self._api.get_analysis_results().values()
+                for r in self._api.get_solver_results().values()
                 if getattr(getattr(r, "config", None), "config_id", None) == config.config_id
                 or getattr(r, "solver_id", None) == config.solver_id
             ]
@@ -278,7 +275,7 @@ class AnalysisConfigPropertyEditor(PropertyTableMixin, QWidget):
 
         if key == "name" and val_text.strip():
             config.name = val_text.strip()
-            self._api.add_analysis_config(config)
+            self._api.add_solver_config(config)
 
     def _on_parameter_cell_changed(self, row: int, column: int) -> None:
         if self._loading or column != 1:
@@ -298,7 +295,7 @@ class AnalysisConfigPropertyEditor(PropertyTableMixin, QWidget):
             parsed_val = val_text
 
         config.parameters[key] = parsed_val
-        self._api.add_analysis_config(config)
+        self._api.add_solver_config(config)
 
     def _on_option_cell_changed(self, row: int, column: int) -> None:
         if self._loading or column != 1:
@@ -318,4 +315,4 @@ class AnalysisConfigPropertyEditor(PropertyTableMixin, QWidget):
             parsed_val = val_text
 
         config.options[key] = parsed_val
-        self._api.add_analysis_config(config)
+        self._api.add_solver_config(config)

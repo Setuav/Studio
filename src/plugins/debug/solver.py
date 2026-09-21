@@ -8,9 +8,9 @@ from typing import Any
 
 from setuav_studio.solver.base import AbstractSolver, SolverConfig, SolverStatus
 from setuav_studio.solver.results import (
-    AnalysisResult,
     PlotDefinition,
     PlotSeriesDef,
+    SolverResult,
     SummaryItem,
     TableColumn,
     TableDefinition,
@@ -259,7 +259,7 @@ class MockGeneratorSolver(AbstractSolver):
     def __init__(self, config: SolverConfig) -> None:
         super().__init__(config)
 
-    def run(self) -> AnalysisResult:
+    def run(self) -> SolverResult:
         """Execute mock generation simulating long-running analysis and pairwise plotting."""
         duration = max(0.0, float(self.config.parameters.get("duration", 3.0)))
         rows = max(1, int(self.config.parameters.get("rows", 50)))
@@ -380,7 +380,7 @@ class MockGeneratorSolver(AbstractSolver):
         }
 
         self.status = SolverStatus.COMPLETED
-        return AnalysisResult(
+        return SolverResult(
             solver_id=self.config.solver_id,
             config=self.config,
             name=self.config.name,

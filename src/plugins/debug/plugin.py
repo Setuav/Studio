@@ -341,9 +341,9 @@ class DebugPlugin:
                 self._api.show_status("Open or create a project first.", "warning", 3000)
             return
 
-        from setuav_studio.model.analysis_config import AnalysisConfig
+        from setuav_studio.solver import SolverConfig
 
-        config = AnalysisConfig(
+        config = SolverConfig(
             solver_id=SOLVER_ID_MOCK_GENERATOR,
             name="Mock Analysis",
             parameters={
@@ -352,5 +352,5 @@ class DebugPlugin:
                 "columns": 4,
             },
         )
-        self._api.add_analysis_config(config)
+        self._api.add_solver_config(config)
         self._api.show_status("Added Mock Analysis configuration.", "success", 3000)

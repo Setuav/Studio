@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 from setuav_studio.task import CancellationToken, TaskCancelledError, TaskPriority
 
 from .base import AbstractSolver, SolverStatus
-from .results import AnalysisResult
+from .results import SolverResult
 
 if TYPE_CHECKING:
     from setuav_studio.api.api import StudioAPI
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def execute_solver(solver: AbstractSolver, token: CancellationToken) -> AnalysisResult:
+def execute_solver(solver: AbstractSolver, token: CancellationToken) -> SolverResult:
     """Synchronous worker function that executes a solver and tracks timing/cancellation."""
     start_time = time.perf_counter()
     solver.status = SolverStatus.RUNNING
@@ -30,7 +30,7 @@ def execute_solver(solver: AbstractSolver, token: CancellationToken) -> Analysis
         if solver.is_cancel_requested:
             solver.status = SolverStatus.CANCELLED
             token.report_progress(100, 100, "Solver run cancelled.")
-            return AnalysisResult(
+            return SolverResult(
                 solver_id=solver.config.solver_id,
                 config=solver.config,
                 name=solver.config.name,
@@ -47,7 +47,7 @@ def execute_solver(solver: AbstractSolver, token: CancellationToken) -> Analysis
         elapsed_ms = (time.perf_counter() - start_time) * 1000.0
         solver.status = SolverStatus.CANCELLED
         token.report_progress(100, 100, "Solver run cancelled.")
-        return AnalysisResult(
+        return SolverResult(
             solver_id=solver.config.solver_id,
             config=solver.config,
             name=solver.config.name,
@@ -59,7 +59,7 @@ def execute_solver(solver: AbstractSolver, token: CancellationToken) -> Analysis
         solver.status = SolverStatus.FAILED
         solver.error_message = str(exc)
         logger.error("Solver %s failed: %s", solver.config.name, exc, exc_info=True)
-        return AnalysisResult(
+        return SolverResult(
             solver_id=solver.config.solver_id,
             config=solver.config,
             name=solver.config.name,
@@ -91,7 +91,7 @@ class SolverRunner:
     def run_solver(
         self,
         solver: AbstractSolver,
-        on_complete: Callable[[AnalysisResult], None] | None = None,
+        on_complete: Callable[[SolverResult], None] | None = None,
         on_error: Callable[[Exception], None] | None = None,
         on_cancelled: Callable[[], None] | None = None,
         priority: TaskPriority = TaskPriority.NORMAL,
@@ -99,8 +99,8 @@ class SolverRunner:
         """Submit a solver instance to run asynchronously via TaskManager."""
         name = f"Solver: {solver.config.name}"
 
-        def _on_finished(result: AnalysisResult) -> None:
-            self._api.add_analysis_result(result)
+        def _on_finished(result: SolverResult) -> None:
+            self._api.add_solver_result(result)
             if on_complete:
                 on_complete(result)
 

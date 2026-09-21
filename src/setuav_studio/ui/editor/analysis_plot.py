@@ -19,9 +19,9 @@ from PySide6.QtWidgets import (
 
 from setuav_studio.api.events import StudioEvents
 from setuav_studio.solver.results import (
-    AnalysisResult,
     PlotDefinition,
     PlotSeriesDef,
+    SolverResult,
     TableDefinition,
 )
 from setuav_studio.ui.style.icons import get_icon, set_label_icon
@@ -73,10 +73,10 @@ class AnalysisPlotPropertyEditor(PropertyTableMixin, QWidget):
 
     def _get_result_and_plot(
         self,
-    ) -> tuple[AnalysisResult | None, PlotDefinition | None, TableDefinition | None]:
+    ) -> tuple[SolverResult | None, PlotDefinition | None, TableDefinition | None]:
         if not self._result_id or not self._plot_id:
             return None, None, None
-        res = self._api.get_analysis_result(self._result_id)
+        res = self._api.get_solver_result(self._result_id)
         if res is None or self._plot_id not in res.plots:
             return None, None, None
         plot = res.plots[self._plot_id]
@@ -439,11 +439,11 @@ class AnalysisPlotPropertyEditor(PropertyTableMixin, QWidget):
             self._notify_plot_changed()
 
     def _on_reset_plot_clicked(self) -> None:
-        res = self._api.get_analysis_result(self._result_id)
+        res = self._api.get_solver_result(self._result_id)
         if res is not None and hasattr(res, "reset_plot"):
             res.reset_plot(self._plot_id)
             if self._api.current_project is not None:
-                self._api.current_project.add_analysis_result(res)
+                self._api.current_project.add_solver_result(res)
         self._load_data()
         self._notify_plot_changed()
         self._api.publish(
@@ -471,7 +471,7 @@ class AnalysisPlotPropertyEditor(PropertyTableMixin, QWidget):
             return
         res, _, _ = self._get_result_and_plot()
         if res is not None and self._api.current_project is not None:
-            self._api.current_project.add_analysis_result(res)
+            self._api.current_project.add_solver_result(res)
         self._api.publish(
             str(StudioEvents.ANALYSIS_PLOT_UPDATED),
             {"result_id": self._result_id, "plot_id": self._plot_id},

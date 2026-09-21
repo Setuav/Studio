@@ -30,8 +30,8 @@ from .contributions import (
 from .events import StudioEvents
 
 if TYPE_CHECKING:
-    from setuav_studio.model.analysis_config import AnalysisConfig
-    from setuav_studio.solver.results import AnalysisResult
+    from setuav_studio.solver.base import SolverConfig
+    from setuav_studio.solver.results import SolverResult
     from setuav_studio.task.manager import TaskManager
     from setuav_studio.ui.viewport import StudioViewport
     from setuav_studio.units import UnitManager
@@ -88,7 +88,7 @@ class StudioAPI:
         self.current_project: ProjectDocument | None = None
         self.current_selection: Any | None = None
         self.current_section_selection: tuple[str, int, int] | None = None
-        self.current_analysis_config_id: str | None = None
+        self.current_solver_config_id: str | None = None
         self._register_panel: Callable[[PanelContribution], None] | None = None
         self._unregister_panel: Callable[[str], None] | None = None
         self._show_panel: Callable[[str], None] | None = None
@@ -108,9 +108,7 @@ class StudioAPI:
         self._modified_listeners: list[Callable[[bool], None]] = []
         self._selection_listeners: list[Callable[[Any | None], None]] = []
         self._section_selection_listeners: list[Callable[[tuple[str, int, int] | None], None]] = []
-        self._analysis_config_selection_listeners: list[
-            Callable[[AnalysisConfig | None], None]
-        ] = []
+        self._solver_config_selection_listeners: list[Callable[[SolverConfig | None], None]] = []
         self._is_recomputing_expressions: bool = False
         self._component_editors: dict[
             str,
@@ -617,96 +615,96 @@ class StudioAPI:
             priority=task_priority,
         )
 
-    def get_analysis_results(self) -> dict[str, AnalysisResult]:
-        """Return the dictionary of analysis results in the current project."""
+    def get_solver_results(self) -> dict[str, SolverResult]:
+        """Return the dictionary of solver results in the current project."""
         if self.current_project is None:
             return {}
-        return self.current_project.analysis_results
+        return self.current_project.solver_results
 
-    def get_analysis_result(self, result_id: str) -> AnalysisResult | None:
-        """Retrieve an analysis result by ID from the current project."""
+    def get_solver_result(self, result_id: str) -> SolverResult | None:
+        """Retrieve a solver result by ID from the current project."""
         if self.current_project is None:
             return None
-        return self.current_project.get_analysis_result(result_id)
+        return self.current_project.get_solver_result(result_id)
 
-    def add_analysis_result(self, result: AnalysisResult) -> None:
-        """Add or update an analysis result in the current project."""
+    def add_solver_result(self, result: SolverResult) -> None:
+        """Add or update a solver result in the current project."""
         if self.current_project is None:
             return
-        self.current_project.add_analysis_result(result)
+        self.current_project.add_solver_result(result)
         self._notify_project_content_changed()
 
-    def remove_analysis_result(self, result_id: str) -> bool:
-        """Remove an analysis result by ID from the current project."""
+    def remove_solver_result(self, result_id: str) -> bool:
+        """Remove a solver result by ID from the current project."""
         if self.current_project is None:
             return False
-        removed = self.current_project.remove_analysis_result(result_id)
+        removed = self.current_project.remove_solver_result(result_id)
         if removed:
             self._notify_project_content_changed()
         return removed
 
-    def on_analysis_config_selection_changed(
-        self, listener: Callable[[AnalysisConfig | None], None]
+    def on_solver_config_selection_changed(
+        self, listener: Callable[[SolverConfig | None], None]
     ) -> UnsubscribeCallable:
-        """Subscribe to active analysis configuration selection changes.
+        """Subscribe to active solver configuration selection changes.
 
         Returns an unsubscribe callable.
         """
-        if listener not in self._analysis_config_selection_listeners:
-            self._analysis_config_selection_listeners.append(listener)
+        if listener not in self._solver_config_selection_listeners:
+            self._solver_config_selection_listeners.append(listener)
             _bind_qobject_destroyed(
-                listener, lambda: self.remove_analysis_config_selection_listener(listener)
+                listener, lambda: self.remove_solver_config_selection_listener(listener)
             )
-        return lambda: self.remove_analysis_config_selection_listener(listener)
+        return lambda: self.remove_solver_config_selection_listener(listener)
 
-    def remove_analysis_config_selection_listener(
+    def remove_solver_config_selection_listener(
         self,
-        listener: Callable[[AnalysisConfig | None], None],
+        listener: Callable[[SolverConfig | None], None],
     ) -> None:
-        """Unsubscribe an analysis configuration selection listener."""
-        if listener in self._analysis_config_selection_listeners:
-            self._analysis_config_selection_listeners.remove(listener)
+        """Unsubscribe a solver configuration selection listener."""
+        if listener in self._solver_config_selection_listeners:
+            self._solver_config_selection_listeners.remove(listener)
 
-    def set_current_analysis_config(self, config_id: str | None) -> None:
-        """Set the active analysis config selection by ID and notify listeners."""
-        self.current_analysis_config_id = config_id
-        active_config = self.get_current_analysis_config()
-        _dispatch_listeners(self._analysis_config_selection_listeners, active_config)
+    def set_current_solver_config(self, config_id: str | None) -> None:
+        """Set the active solver config selection by ID and notify listeners."""
+        self.current_solver_config_id = config_id
+        active_config = self.get_current_solver_config()
+        _dispatch_listeners(self._solver_config_selection_listeners, active_config)
 
-    def get_current_analysis_config(self) -> AnalysisConfig | None:
-        """Return the currently selected AnalysisConfig, or None."""
-        if self.current_project is None or self.current_analysis_config_id is None:
+    def get_current_solver_config(self) -> SolverConfig | None:
+        """Return the currently selected SolverConfig, or None."""
+        if self.current_project is None or self.current_solver_config_id is None:
             return None
-        return self.current_project.get_analysis_config(self.current_analysis_config_id)
+        return self.current_project.get_solver_config(self.current_solver_config_id)
 
-    def get_analysis_configs(self) -> dict[str, AnalysisConfig]:
-        """Return all AnalysisConfig objects stored in the current project."""
+    def get_solver_configs(self) -> dict[str, SolverConfig]:
+        """Return all SolverConfig objects stored in the current project."""
         if self.current_project is None:
             return {}
-        return self.current_project.analysis_configs
+        return self.current_project.solver_configs
 
-    def get_analysis_config(self, config_id: str) -> AnalysisConfig | None:
-        """Retrieve an AnalysisConfig by ID from the current project."""
+    def get_solver_config(self, config_id: str) -> SolverConfig | None:
+        """Retrieve a SolverConfig by ID from the current project."""
         if self.current_project is None:
             return None
-        return self.current_project.get_analysis_config(config_id)
+        return self.current_project.get_solver_config(config_id)
 
-    def add_analysis_config(self, config: AnalysisConfig) -> None:
-        """Add an AnalysisConfig to the current project and set it as active."""
+    def add_solver_config(self, config: SolverConfig) -> None:
+        """Add a SolverConfig to the current project and set it as active."""
         if self.current_project is None:
             return
-        self.current_project.add_analysis_config(config)
-        self.set_current_analysis_config(config.config_id)
+        self.current_project.add_solver_config(config)
+        self.set_current_solver_config(config.config_id)
         self._notify_project_content_changed()
 
-    def remove_analysis_config(self, config_id: str) -> bool:
-        """Remove an AnalysisConfig by ID from the current project."""
+    def remove_solver_config(self, config_id: str) -> bool:
+        """Remove a SolverConfig by ID from the current project."""
         if self.current_project is None:
             return False
-        removed = self.current_project.remove_analysis_config(config_id)
+        removed = self.current_project.remove_solver_config(config_id)
         if removed:
-            if self.current_analysis_config_id == config_id:
-                self.set_current_analysis_config(None)
+            if self.current_solver_config_id == config_id:
+                self.set_current_solver_config(None)
             self._notify_project_content_changed()
         return removed
 

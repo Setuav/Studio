@@ -197,7 +197,7 @@ class ProjectTreeBuilder:
         project_item: QTreeWidgetItem,
         project: ProjectDocument,
     ) -> None:
-        configs = project.analysis_configs
+        configs = project.solver_configs
         if not configs:
             return
 
@@ -217,10 +217,10 @@ class ProjectTreeBuilder:
             else:
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
 
-            # Check if an AnalysisResult exists for this config
+            # Check if a SolverResult exists for this config
             matching_results = [
                 r
-                for r in project.analysis_results.values()
+                for r in project.solver_results.values()
                 if (
                     getattr(getattr(r, "config", None), "config_id", None) == cid
                     or getattr(r, "solver_id", None) == config.solver_id

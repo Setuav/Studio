@@ -1,18 +1,18 @@
 import unittest
 
-from setuav_studio.solver import AbstractSolver, AnalysisResult, SolverConfig, SolverStatus
+from setuav_studio.solver import AbstractSolver, SolverConfig, SolverResult, SolverStatus
 
 
 class DummySolver(AbstractSolver):
     """Concrete dummy solver for testing AbstractSolver contract."""
 
-    def run(self) -> AnalysisResult:
+    def run(self) -> SolverResult:
         self.status = SolverStatus.RUNNING
         self.progress = 50.0
 
         if self.is_cancel_requested:
             self.status = SolverStatus.CANCELLED
-            return AnalysisResult(
+            return SolverResult(
                 solver_id=self.config.solver_id,
                 config=self.config,
                 status=SolverStatus.CANCELLED,
@@ -20,7 +20,7 @@ class DummySolver(AbstractSolver):
 
         self.status = SolverStatus.COMPLETED
         self.progress = 100.0
-        return AnalysisResult(
+        return SolverResult(
             solver_id=self.config.solver_id,
             config=self.config,
             status=SolverStatus.COMPLETED,
@@ -56,9 +56,9 @@ class TestSolverBase(unittest.TestCase):
         self.assertEqual(deserialized.parameters, config.parameters)
         self.assertEqual(deserialized.options, config.options)
 
-    def test_analysis_result_serialization(self) -> None:
+    def test_solver_result_serialization(self) -> None:
         config = SolverConfig(solver_id="thrust_calc", name="Prop Calc")
-        result = AnalysisResult(
+        result = SolverResult(
             solver_id="thrust_calc",
             config=config,
             name="Prop Result 1",
@@ -73,7 +73,7 @@ class TestSolverBase(unittest.TestCase):
         self.assertEqual(data["metrics"]["thrust_n"], 85.0)
         self.assertEqual(data["status"], "completed")
 
-        deserialized = AnalysisResult.from_dict(data)
+        deserialized = SolverResult.from_dict(data)
         self.assertEqual(deserialized.id, result.id)
         self.assertEqual(deserialized.solver_id, result.solver_id)
         self.assertEqual(deserialized.status, SolverStatus.COMPLETED)

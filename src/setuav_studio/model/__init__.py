@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from setuav_studio.model.analysis_config import AnalysisConfig
 from setuav_studio.model.atmosphere import Atmosphere
 from setuav_studio.model.component import (
     Component,
@@ -38,9 +37,9 @@ from setuav_studio.model.symbol import (
     create_model_for_component,
     get_available_symbols_metadata,
 )
+from setuav_studio.solver.base import SolverConfig
 
 __all__ = [
-    "AnalysisConfig",
     "Atmosphere",
     "CircularDependencyError",
     "Component",
@@ -56,6 +55,7 @@ __all__ = [
     "MassProperties",
     "ParameterResolutionError",
     "ParameterResolver",
+    "SolverConfig",
     "Vector3",
     "build_evaluation_context",
     "build_universal_scope",

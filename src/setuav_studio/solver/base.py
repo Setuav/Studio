@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from setuav_studio.task.types import CancellationToken
 
-    from .results import AnalysisResult
+    from .results import SolverResult
 
 
 class SolverStatus(StrEnum):
@@ -58,23 +58,11 @@ class SolverConfig:
             options=dict(data.get("options", {})),
         )
 
-    def to_analysis_config(self) -> Any:
-        """Convert this SolverConfig into an AnalysisConfig."""
-        from setuav_studio.model.analysis_config import AnalysisConfig
-
-        return AnalysisConfig(
-            config_id=self.config_id,
-            solver_id=self.solver_id,
-            name=self.name,
-            parameters=dict(self.parameters),
-            options=dict(self.options),
-        )
-
 
 class AbstractSolver(ABC):
     """Abstract base class for all engineering solvers in Setuav Studio.
 
-    Solvers receive a immutable SolverConfig and produce an AnalysisResult.
+    Solvers receive an immutable SolverConfig and produce a SolverResult.
     """
 
     def __init__(self, config: SolverConfig) -> None:
@@ -98,8 +86,8 @@ class AbstractSolver(ABC):
             cancel_fn()
 
     @abstractmethod
-    def run(self) -> AnalysisResult:
-        """Execute the solver algorithm and return the analysis result.
+    def run(self) -> SolverResult:
+        """Execute the solver algorithm and return the solver result.
 
         Must be implemented by concrete solvers. Long-running solvers should
         periodically check self.is_cancel_requested and update self.progress.

@@ -7,15 +7,14 @@ from pathlib import Path
 from PySide6.QtWidgets import QApplication
 
 from setuav_studio.api import StudioAPI
-from setuav_studio.model.analysis_config import AnalysisConfig
 from setuav_studio.project import create_project
-from setuav_studio.solver.base import SolverStatus
+from setuav_studio.solver.base import SolverConfig, SolverStatus
 from setuav_studio.solver.results import (
-    AnalysisResult,
     PlotSeriesDef,
+    SolverResult,
     TableColumn,
 )
-from setuav_studio.ui.editor.analysis_config import AnalysisConfigPropertyEditor
+from setuav_studio.ui.editor.solver_config import SolverConfigPropertyEditor
 from setuav_studio.ui.panels.project_explorer.panel import ProjectExplorerPanel
 from setuav_studio.ui.panels.results import (
     AnalysisChartPanel,
@@ -35,18 +34,17 @@ class TestAnalysisPanels(unittest.TestCase):
         self.api = StudioAPI()
         self.api.current_project = create_project(self.project_path)
 
-        self.config = AnalysisConfig(
+        self.config = SolverConfig(
             solver_id="vlm_solver",
             name="VLM Baseline Run",
             parameters={"velocity": 20.0},
         )
-        self.api.add_analysis_config(self.config)
+        self.api.add_solver_config(self.config)
 
-        # Build an AnalysisResult matching this config
-        solver_cfg = self.config.to_solver_config()
-        self.result = AnalysisResult(
+        # Build a SolverResult matching this config
+        self.result = SolverResult(
             solver_id="vlm_solver",
-            config=solver_cfg,
+            config=self.config,
             name="VLM Baseline Result",
             status=SolverStatus.COMPLETED,
             execution_time_ms=85.0,
@@ -77,7 +75,7 @@ class TestAnalysisPanels(unittest.TestCase):
             series=[PlotSeriesDef(y_column="cl", label="CL Curve")],
         )
 
-        self.api.current_project.add_analysis_result(self.result)
+        self.api.current_project.add_solver_result(self.result)
 
         # Track show_panel calls
         self.shown_panels: list[str] = []
@@ -174,7 +172,7 @@ class TestAnalysisPanels(unittest.TestCase):
             "id": self.config.config_id,
             "config_id": self.config.config_id,
         }
-        editor = AnalysisConfigPropertyEditor(self.api, selection)
+        editor = SolverConfigPropertyEditor(self.api, selection)
         self.assertFalse(editor._results_section_widget.isHidden())
 
         # Test View Plot button
@@ -203,7 +201,7 @@ class TestAnalysisPanels(unittest.TestCase):
         self.assertEqual(self.api.current_selection.get("config_id"), self.config.config_id)
 
         # Editor with this selection loads the configuration and results
-        cfg_editor = AnalysisConfigPropertyEditor(self.api, self.api.current_selection)
+        cfg_editor = SolverConfigPropertyEditor(self.api, self.api.current_selection)
         self.assertEqual(
             cfg_editor._property_text(cfg_editor.general_table, 0),
             "VLM Baseline Run",
@@ -233,8 +231,9 @@ class TestAnalysisPanels(unittest.TestCase):
 
         # In Qt, editing item text emits itemChanged -> ops.rename_item automatically
         analysis_item.setText(0, "Renamed Polar Run")
-        updated_cfg = self.api.get_analysis_config(self.config.config_id)
+        updated_cfg = self.api.get_solver_config(self.config.config_id)
         self.assertIsNotNone(updated_cfg)
+        assert updated_cfg is not None
         self.assertEqual(updated_cfg.name, "Renamed Polar Run")
 
         # Test empty name restoration using ops.rename_item directly
@@ -254,16 +253,16 @@ class TestAnalysisPanels(unittest.TestCase):
         ops.confirm_delete = lambda title, details=None: True
 
         # Ensure config and result exist before delete
-        self.assertIn(self.config.config_id, self.api.get_analysis_configs())
-        self.assertIn(self.result.id, self.api.get_analysis_results())
+        self.assertIn(self.config.config_id, self.api.get_solver_configs())
+        self.assertIn(self.result.id, self.api.get_solver_results())
 
         # Delete the main analysis config item
         analysis_item = tree._item_map[self.config.config_id]
         ops.delete_item(analysis_item)
 
         # Both config and associated results should be deleted
-        self.assertNotIn(self.config.config_id, self.api.get_analysis_configs())
-        self.assertNotIn(self.result.id, self.api.get_analysis_results())
+        self.assertNotIn(self.config.config_id, self.api.get_solver_configs())
+        self.assertNotIn(self.result.id, self.api.get_solver_results())
 
     def test_analysis_operations_run(self) -> None:
         panel = ProjectExplorerPanel(self.api)

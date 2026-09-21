@@ -357,7 +357,7 @@ def _parse_plots_from_dict(raw: Any) -> dict[str, PlotDefinition]:
     return plots
 
 
-class AnalysisResult:
+class SolverResult:
     """Standardized output result produced by a solver execution.
 
     Holds summary metrics, tabular data (single source of truth),
@@ -369,7 +369,7 @@ class AnalysisResult:
         solver_id: str,
         config: SolverConfig,
         id: str | None = None,
-        name: str = "Analysis Result",
+        name: str = "Solver Result",
         timestamp: str | None = None,
         status: SolverStatus = SolverStatus.COMPLETED,
         execution_time_ms: float = 0.0,
@@ -420,12 +420,12 @@ class AnalysisResult:
 
     def __repr__(self) -> str:
         return (
-            f"AnalysisResult(id={self.id!r}, solver_id={self.solver_id!r}, "
+            f"SolverResult(id={self.id!r}, solver_id={self.solver_id!r}, "
             f"status={self.status}, tables={list(self.tables.keys())})"
         )
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, AnalysisResult):
+        if not isinstance(other, SolverResult):
             return False
         return (
             self.id == other.id
@@ -545,19 +545,6 @@ class AnalysisResult:
             return restored
         return None
 
-    @property
-    def analysis_config(self) -> Any:
-        """Return the configuration snapshot of this run as an AnalysisConfig."""
-        from setuav_studio.model.analysis_config import AnalysisConfig
-
-        return AnalysisConfig(
-            config_id=self.config.config_id,
-            solver_id=self.config.solver_id,
-            name=self.config.name,
-            parameters=dict(self.config.parameters),
-            options=dict(self.config.options),
-        )
-
     # ------------------------------------------------------------------
     # Backward Compatibility
     # ------------------------------------------------------------------
@@ -600,7 +587,7 @@ class AnalysisResult:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> AnalysisResult:
+    def from_dict(cls, data: dict[str, Any]) -> SolverResult:
         """Deserialize result from a dictionary."""
         raw_status = data.get("status", "completed")
         try:

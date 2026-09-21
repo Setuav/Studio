@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.api.events import StudioEvents
-from setuav_studio.solver.results import AnalysisResult, TableDefinition
+from setuav_studio.solver.results import SolverResult, TableDefinition
 from setuav_studio.ui.style.icons import get_icon
 
 if TYPE_CHECKING:
@@ -155,7 +155,7 @@ class AnalysisTablePanel(QWidget):
         self._api = api
         self._auto_sync_selection = auto_sync_selection
         self._show_close_button = show_close_button
-        self._current_result: AnalysisResult | None = None
+        self._current_result: SolverResult | None = None
         self._current_table: TableDefinition | None = None
         self._use_display_units: bool = True
         self._model: AnalysisTableModel | None = None
@@ -238,7 +238,7 @@ class AnalysisTablePanel(QWidget):
     def load_table(
         self,
         table: TableDefinition,
-        result: AnalysisResult | None = None,
+        result: SolverResult | None = None,
     ) -> None:
         """Populate the table view with columnar data from TableDefinition."""
         self._current_table = table
@@ -295,9 +295,9 @@ class AnalysisTablePanel(QWidget):
     def _on_selection_changed(self, selection: Any | None) -> None:
         if not isinstance(selection, dict):
             return
-        if selection.get("kind") == "analysis_table":
+        if selection.get("kind") in ("analysis_table", "solver_table"):
             res_id = str(selection.get("result_id", ""))
             table_id = str(selection.get("table_id", ""))
-            result = self._api.get_analysis_result(res_id)
+            result = self._api.get_solver_result(res_id)
             if result and table_id in result.tables:
                 self.load_table(result.tables[table_id], result)

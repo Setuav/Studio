@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from setuav_studio.ui.editor.analysis_config import AnalysisConfigPropertyEditor
 from setuav_studio.ui.editor.analysis_plot import AnalysisPlotPropertyEditor
 from setuav_studio.ui.editor.analysis_table import AnalysisTablePropertyEditor
 from setuav_studio.ui.editor.component import BaseComponentEditor
@@ -10,10 +9,10 @@ from setuav_studio.ui.editor.constraint import ConstraintPropertyEditor
 from setuav_studio.ui.editor.envelope import EnvelopeEditor
 from setuav_studio.ui.editor.mass import MassPropertiesEditor
 from setuav_studio.ui.editor.parameter import ParameterPropertyEditor
+from setuav_studio.ui.editor.solver_config import SolverConfigPropertyEditor
 from setuav_studio.ui.editor.transform import TransformEditor
 
 __all__ = [
-    "AnalysisConfigPropertyEditor",
     "AnalysisPlotPropertyEditor",
     "AnalysisTablePropertyEditor",
     "BaseComponentEditor",
@@ -21,5 +20,6 @@ __all__ = [
     "EnvelopeEditor",
     "MassPropertiesEditor",
     "ParameterPropertyEditor",
+    "SolverConfigPropertyEditor",
     "TransformEditor",
 ]

@@ -108,12 +108,12 @@ def _on_add_constraint_triggered(api: StudioAPI) -> None:
 
 def _on_run_analysis_triggered(api: StudioAPI) -> None:
     """Trigger execution of the currently active analysis configuration."""
-    active_config = api.get_current_analysis_config()
+    active_config = api.get_current_solver_config()
     if active_config is None:
-        all_configs = api.get_analysis_configs()
+        all_configs = api.get_solver_configs()
         if all_configs:
             active_config = next(iter(all_configs.values()))
-            api.set_current_analysis_config(active_config.config_id)
+            api.set_current_solver_config(active_config.config_id)
 
     if active_config is None:
         api.show_status("No analysis configuration available to run.", "warning")
@@ -128,8 +128,7 @@ def _on_run_analysis_triggered(api: StudioAPI) -> None:
         return
 
     try:
-        solver_config = active_config.to_solver_config()
-        solver = solver_cls(solver_config)
+        solver = solver_cls(active_config)
         api.show_status(f"Starting analysis '{active_config.name}'...", "info")
         api.run_solver(
             solver,
@@ -321,13 +320,13 @@ def register_native_component_types(api: StudioAPI) -> None:
 def register_native_kind_editors(api: StudioAPI) -> None:
     """Register built-in fallback editors for standard component and document kinds."""
     from setuav_studio.ui.editor import (
-        AnalysisConfigPropertyEditor,
         AnalysisPlotPropertyEditor,
         AnalysisTablePropertyEditor,
         ConstraintPropertyEditor,
         EnvelopeEditor,
         MassPropertiesEditor,
         ParameterPropertyEditor,
+        SolverConfigPropertyEditor,
         TransformEditor,
     )
 
@@ -337,8 +336,10 @@ def register_native_kind_editors(api: StudioAPI) -> None:
         "mass-properties": lambda selection: MassPropertiesEditor(api, selection),
         "parameter": lambda selection: ParameterPropertyEditor(api, selection),
         "constraint": lambda selection: ConstraintPropertyEditor(api, selection),
-        "analysis_config": lambda selection: AnalysisConfigPropertyEditor(api, selection),
-        "analysis_result": lambda selection: AnalysisConfigPropertyEditor(api, selection),
+        "solver_config": lambda selection: SolverConfigPropertyEditor(api, selection),
+        "solver_result": lambda selection: SolverConfigPropertyEditor(api, selection),
+        "analysis_config": lambda selection: SolverConfigPropertyEditor(api, selection),
+        "analysis_result": lambda selection: SolverConfigPropertyEditor(api, selection),
         "analysis_plot": lambda selection: AnalysisPlotPropertyEditor(api, selection),
         "analysis_table": lambda selection: AnalysisTablePropertyEditor(api, selection),
     }

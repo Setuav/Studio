@@ -287,13 +287,13 @@ class ProjectExplorer(QTreeWidget):
         element = self._element_map.get(current) if current else None
         if isinstance(element, dict):
             kind = element.get("kind")
-            if kind == "analysis_config":
+            if kind in ("analysis_config", "solver_config"):
                 config_id = str(element.get("config_id") or element.get("id") or "")
                 if config_id:
-                    self._api.set_current_analysis_config(config_id)
-            elif kind == "analysis_result":
+                    self._api.set_current_solver_config(config_id)
+            elif kind in ("analysis_result", "solver_result"):
                 self._api.show_panel("core:properties")
-            elif kind in ("analysis_table", "analysis_plot"):
+            elif kind in ("analysis_table", "solver_table", "analysis_plot", "solver_plot"):
                 self._api.show_panel("core:result")
         self._api.set_selection(element)
 

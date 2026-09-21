@@ -1,4 +1,4 @@
-"""Tests for AnalysisResult, SummaryItem, TableDefinition, PlotDefinition, and export utilities."""
+"""Tests for SolverResult, SummaryItem, TableDefinition, PlotDefinition, and export utilities."""
 
 import json
 import tempfile
@@ -7,9 +7,9 @@ from pathlib import Path
 
 from setuav_studio.solver.base import SolverConfig, SolverStatus
 from setuav_studio.solver.results import (
-    AnalysisResult,
     PlotDefinition,
     PlotSeriesDef,
+    SolverResult,
     SummaryItem,
     TableColumn,
     TableDefinition,
@@ -17,7 +17,7 @@ from setuav_studio.solver.results import (
 from setuav_studio.units import get_unit_manager
 
 
-class TestAnalysisResultComponents(unittest.TestCase):
+class TestSolverResultComponents(unittest.TestCase):
     def setUp(self) -> None:
         self.config = SolverConfig(solver_id="vlm_solver", name="VLM Baseline")
 
@@ -148,8 +148,8 @@ class TestAnalysisResultComponents(unittest.TestCase):
         self.assertEqual(restored.series[0].y_column, "cl")
         self.assertEqual(restored.series[0].style, "solid")
 
-    def test_analysis_result_builders_and_exports(self) -> None:
-        result = AnalysisResult(
+    def test_solver_result_builders_and_exports(self) -> None:
+        result = SolverResult(
             solver_id="vlm",
             config=self.config,
             name="Test Result",
@@ -217,10 +217,10 @@ class TestAnalysisResultComponents(unittest.TestCase):
             result.export_json(json_path)
             self.assertTrue(json_path.is_file())
 
-            # Verify JSON can be deserialized back to an identical AnalysisResult
+            # Verify JSON can be deserialized back to an identical SolverResult
             with open(json_path, encoding="utf-8") as f:
                 loaded_dict = json.load(f)
-            restored = AnalysisResult.from_dict(loaded_dict)
+            restored = SolverResult.from_dict(loaded_dict)
             self.assertEqual(restored.id, result.id)
             self.assertEqual(restored.solver_id, result.solver_id)
             self.assertEqual(restored.status, SolverStatus.COMPLETED)

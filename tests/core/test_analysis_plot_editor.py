@@ -9,12 +9,11 @@ from pathlib import Path
 from PySide6.QtWidgets import QApplication, QComboBox, QDockWidget
 
 from setuav_studio.api import StudioAPI
-from setuav_studio.model.analysis_config import AnalysisConfig
 from setuav_studio.project import create_project
-from setuav_studio.solver.base import SolverStatus
+from setuav_studio.solver.base import SolverConfig, SolverStatus
 from setuav_studio.solver.results import (
-    AnalysisResult,
     PlotSeriesDef,
+    SolverResult,
     TableColumn,
 )
 from setuav_studio.ui.editor.analysis_plot import AnalysisPlotPropertyEditor
@@ -34,17 +33,16 @@ class TestAnalysisPlotEditor(unittest.TestCase):
         self.api = StudioAPI()
         self.api.current_project = create_project(self.project_path)
 
-        self.config = AnalysisConfig(
+        self.config = SolverConfig(
             solver_id="debug_solver",
             name="Aerodynamic Sweep",
             parameters={"duration": 1, "rows": 10, "columns": 4},
         )
-        self.api.add_analysis_config(self.config)
+        self.api.add_solver_config(self.config)
 
-        solver_cfg = self.config.to_solver_config()
-        self.result = AnalysisResult(
+        self.result = SolverResult(
             solver_id="debug_solver",
-            config=solver_cfg,
+            config=self.config,
             name="Sweep Result",
             status=SolverStatus.COMPLETED,
             execution_time_ms=120.0,
@@ -79,7 +77,7 @@ class TestAnalysisPlotEditor(unittest.TestCase):
             ],
         )
 
-        self.api.current_project.add_analysis_result(self.result)
+        self.api.current_project.add_solver_result(self.result)
 
     def tearDown(self) -> None:
         self.temp_dir.cleanup()
