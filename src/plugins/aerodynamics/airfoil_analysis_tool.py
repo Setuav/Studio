@@ -31,6 +31,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from setuav_studio_sdk import StudioAPI
 
 from plugins.geometry.engine.airfoil import (
     PRESET_AIRFOILS,
@@ -38,7 +39,6 @@ from plugins.geometry.engine.airfoil import (
 )
 from setuav_studio.ui.widget.button import set_button_role, set_native_button
 from setuav_studio.ui.widget.spinbox import NumericSpinBox
-from setuav_studio_sdk import StudioAPI
 
 from .charts_dock import SingleChartWidget
 from .engine.aerosandbox_engine import HAS_AEROSANDBOX, AeroSandboxEngine

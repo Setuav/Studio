@@ -6,8 +6,6 @@ from pathlib import Path
 from typing import ClassVar
 
 from PySide6.QtCore import Qt
-
-from setuav_studio.ui.style.icons import register_plugin_icons
 from setuav_studio_sdk import (
     PanelContribution,
     StudioAPI,
@@ -16,6 +14,8 @@ from setuav_studio_sdk import (
     WorkspaceContribution,
     WorkspaceLayoutContext,
 )
+
+from setuav_studio.ui.style.icons import register_plugin_icons
 
 from .balance_view_dock import WeightBalanceViewDock
 from .engine.base import WeightBalanceError

@@ -5,8 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 from PySide6.QtCore import Qt
-
-from setuav_studio.project import ProjectDocument
 from setuav_studio_sdk import (
     PanelContribution,
     ProjectTreeNodeContribution,
@@ -15,6 +13,8 @@ from setuav_studio_sdk import (
     WorkspaceContribution,
     WorkspaceLayoutContext,
 )
+
+from setuav_studio.project import ProjectDocument
 
 from .analysis_store import (
     EXTENSION_ID,

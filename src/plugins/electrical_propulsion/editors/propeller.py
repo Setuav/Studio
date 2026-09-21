@@ -5,11 +5,11 @@ from __future__ import annotations
 from typing import Any
 
 from PySide6.QtWidgets import QDialog, QPushButton, QWidget
+from setuav_studio_sdk import ParameterField, StudioAPI
 
 from plugins.electrical_propulsion.catalog_dialog import ComponentCatalogDialog
 from setuav_studio.ui.editor.component import BaseComponentEditor
 from setuav_studio.ui.widget.button import set_native_button
-from setuav_studio_sdk import ParameterField, StudioAPI
 
 
 class PropellerEditor(BaseComponentEditor):

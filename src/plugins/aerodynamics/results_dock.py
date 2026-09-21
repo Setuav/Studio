@@ -20,11 +20,11 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from setuav_studio_sdk import StudioAPI, StudioEvents
 
 from setuav_studio.ui.style.icons import get_icon
 from setuav_studio.ui.widget.button import refresh_button_role, set_native_button
 from setuav_studio.ui.widget.table import ContentFitTableWidget, PropertyTableMixin
-from setuav_studio_sdk import StudioAPI, StudioEvents
 
 from .analysis_store import (
     EXTENSION_ID,

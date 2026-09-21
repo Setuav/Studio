@@ -1,9 +1,3 @@
-from setuav_studio.ui.viewport.types import (
-    EnvelopeWireGeometry,
-    GeometryData,
-    LoftGeometry,
-    Section,
-)
 from setuav_studio_sdk.primitives import (
     BoxPrimitive,
     ColorRGB,
@@ -16,6 +10,13 @@ from setuav_studio_sdk.primitives import (
     RingPrimitive,
     TrianglesPrimitive,
     VisualPrimitive,
+)
+
+from setuav_studio.ui.viewport.types import (
+    EnvelopeWireGeometry,
+    GeometryData,
+    LoftGeometry,
+    Section,
 )
 
 __all__ = [

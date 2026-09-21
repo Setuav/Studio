@@ -21,13 +21,13 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from setuav_studio_sdk import StudioAPI
 
 from setuav_studio.ui.style.icons import set_label_icon
 from setuav_studio.ui.style.theme import tokens
 from setuav_studio.ui.widget.button import refresh_button_role, set_button_role, set_native_button
 from setuav_studio.ui.widget.spinbox import NumericSpinBox
 from setuav_studio.ui.widget.table import PropertyTableMixin
-from setuav_studio_sdk import StudioAPI
 
 from .engine.aerosandbox_engine import AeroSandboxEngine
 from .engine.base import (

@@ -2,8 +2,6 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 from PySide6.QtWidgets import QWidget
-
-from setuav_studio.ui.style.icons import register_plugin_icons
 from setuav_studio_sdk import (
     PanelContribution,
     SettingsPageContribution,
@@ -12,6 +10,8 @@ from setuav_studio_sdk import (
     WorkspaceContribution,
     WorkspaceLayoutContext,
 )
+
+from setuav_studio.ui.style.icons import register_plugin_icons
 
 from .creation import GeometryCreationController
 from .editors.control_surface import ControlSurfaceEditor

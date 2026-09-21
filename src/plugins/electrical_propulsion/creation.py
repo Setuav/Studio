@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 from PySide6.QtWidgets import QApplication, QInputDialog
-
 from setuav_studio_sdk import (
     StudioAPI,
     ToolbarContribution,

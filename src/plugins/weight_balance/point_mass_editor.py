@@ -17,11 +17,11 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from setuav_studio_sdk import StudioAPI
 
 from setuav_studio.ui.style.icons import set_label_icon
 from setuav_studio.ui.widget.spinbox import set_table_spinbox
 from setuav_studio.ui.widget.table import PropertyTableMixin
-from setuav_studio_sdk import StudioAPI
 
 
 class PointMassEditor(PropertyTableMixin, QWidget):

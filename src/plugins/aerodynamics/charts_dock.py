@@ -19,9 +19,9 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from setuav_studio_sdk import StudioAPI, StudioEvents
 
 from setuav_studio.ui.widget import StudioChartWidget, StudioSplitterGrid
-from setuav_studio_sdk import StudioAPI, StudioEvents
 
 from .engine.base import AeroResult, PolarPoint, SweepType
 

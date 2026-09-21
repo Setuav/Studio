@@ -5,7 +5,6 @@ from typing import Any
 
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QCheckBox, QComboBox, QFormLayout, QWidget
-
 from setuav_studio_sdk import StudioEvents
 
 from .viewport.palettes import DEFAULT_PALETTE, palette_names, set_active_palette
