@@ -24,8 +24,8 @@ Guidelines for AI agents working on the Setuav Studio repository.
   - Use `setuav_studio.ui.style` (`icons` and `theme`) for styling and icon resolution.
   - Plugin icon assets are registered dynamically via `register_plugin_icons(...)`. Do not pollute core asset manifests.
 
-- **SDK Contracts & Thread Safety:**
-  - Preserve `setuav_studio_sdk` API compatibility.
+- **Plugin API Contracts & Thread Safety:**
+  - Preserve `setuav_studio.api` API compatibility.
   - Do not invoke blocking calls (`time.sleep`, synchronous locks) on the main Qt UI event loop thread.
 
 ## Code Quality Standards

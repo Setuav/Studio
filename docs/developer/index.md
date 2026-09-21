@@ -3,7 +3,7 @@
 Build Python packages that extend Setuav Studio with panels, workspaces, menu
 commands, editors, project-tree nodes, schemas, and analysis providers.
 
-Only symbols imported from `setuav_studio_sdk` are public. Application modules
+Only symbols imported from `setuav_studio.api` are public. Application modules
 outside this package are implementation details and may change at any time.
 
 ## Start here
@@ -16,7 +16,7 @@ outside this package are implementation details and may change at any time.
 ```python
 from PySide6.QtWidgets import QLabel
 
-from setuav_studio_sdk import PanelContribution, StudioAPI
+from setuav_studio.api import PanelContribution, StudioAPI
 
 
 class ExamplePlugin:
@@ -66,7 +66,7 @@ Declare the plugin package and its entry point in `pyproject.toml`:
 ```toml
 [project]
 name = "acme-uav-tools"
-dependencies = ["setuav-studio-sdk>=0.1,<0.2"]
+dependencies = ["setuav-studio"]
 
 [project.entry-points."setuav_studio.plugins"]
 "com.acme.uav-tools" = "acme_uav_tools.plugin:AcmePlugin"
@@ -118,7 +118,7 @@ shell only applies the callback when no user perspective is saved; the layout
 definition stays with the plugin.
 
 ```python
-from setuav_studio_sdk import WorkspaceContribution, WorkspaceLayoutContext
+from setuav_studio.api import WorkspaceContribution, WorkspaceLayoutContext
 
 
 def default_layout(layout: WorkspaceLayoutContext) -> None:
@@ -149,17 +149,9 @@ actionable errors through the application logger or status service.
 
 ## Plugin template and tests
 
-The repository contains a minimal installable plugin in the
-[`example-plugin` repository directory](https://github.com/Setuav/Studio/tree/main/packages/example-plugin). Copy it as a
-starting point, replace its reverse-domain IDs, and declare the SDK dependency
-in `pyproject.toml`.
-
-Run the plugin's lifecycle test from its directory:
-
-```bash
-uv pip install -e .
-uv run python -m unittest discover -s tests
-```
+You can use existing plugins in `src/plugins/` as reference implementations.
+Copy a plugin as a starting point, configure its reverse-domain identifier, and
+declare its dependencies in `pyproject.toml`.
 
 Before publishing, verify that the plugin can be activated, deactivated, and
 activated again. Every registration made in `activate` should have a matching
@@ -168,9 +160,8 @@ providers, listeners, and background resources.
 
 ## Compatibility
 
-`PLUGIN_API_VERSION` versions the public plugin contract independently from the
-application. The SDK package is released independently using the
-`sdk-vX.Y.Z` release process documented in the SDK release guide.
+`PLUGIN_API_VERSION` versions the public plugin contract. Plugins declare
+their supported compatibility range with Setuav Studio.
 
 ## Security
 

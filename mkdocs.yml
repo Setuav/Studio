@@ -5,8 +5,6 @@ site_url: https://setuav.github.io/Studio/
 repo_url: https://github.com/Setuav/Studio
 repo_name: Setuav/Studio
 edit_uri: edit/main/docs/
-hooks:
-  - docs/hooks.py
 
 theme:
   name: material
@@ -62,7 +60,5 @@ nav:
       - Plugin Manager: user-guide/plugins.md
   - Developer Guide:
       - Overview: developer/index.md
-      - SDK API Reference: developer/sdk-api-reference.md
-      - SDK release: developer/sdk-release.md
 
 site_dir: build/docs/site

@@ -15,9 +15,6 @@
   <a href="https://github.com/Setuav/Studio/releases">
     <img src="https://img.shields.io/github/v/release/Setuav/Studio?sort=semver" alt="Latest GitHub release">
   </a>
-  <a href="https://pypi.org/project/setuav-studio-sdk/">
-    <img src="https://img.shields.io/pypi/v/setuav-studio-sdk" alt="PyPI SDK version">
-  </a>
   <a href="LICENSE">
     <img src="https://img.shields.io/github/license/Setuav/Studio" alt="MIT license">
   </a>
@@ -138,15 +135,13 @@ At runtime, use **Tools → Plugin Manager** to review active plugins and any
 discovery or activation issues. User plugins can be enabled or disabled from
 the same screen; the core plugin remains protected.
 
-With MkDocs, Doxygen, and Graphviz installed, generate the documentation site:
+With MkDocs installed, generate the documentation site:
 
 ```bash
-mkdocs build
+uv run --group docs mkdocs build
 ```
 
-The build hook runs Doxygen and places the SDK reference under
-`Developer Guide → SDK API Reference`. Open `build/docs/site/index.html` in a
-browser to view the site.
+Open `build/docs/site/index.html` in a browser to view the site.
 
 ## License
 
