@@ -144,7 +144,7 @@ class AnalysisPlotPropertyEditor(PropertyTableMixin, QWidget):
         layout.addWidget(self.axes_table)
 
     def _create_series_section(self) -> None:
-        self._add_curve_btn = QPushButton("+ Add Curve")
+        self._add_curve_btn = QPushButton("Add Curve")
         self._add_curve_btn.setIcon(get_icon("fa6s.plus"))
         self._add_curve_btn.setToolTip("Add a new data series / curve to this plot")
         self._add_curve_btn.clicked.connect(self._on_add_curve_clicked)
