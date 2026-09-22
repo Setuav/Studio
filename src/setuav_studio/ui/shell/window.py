@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QByteArray, QEvent, QPoint, QSettings, Qt
+from PySide6.QtCore import QByteArray, QEvent, QSettings
 from PySide6.QtGui import QAction, QCloseEvent
 from PySide6.QtWidgets import (
     QApplication,
@@ -52,14 +52,6 @@ class MainWindow(QMainWindow):
         self._normal_geometry: QByteArray | None = None
         self._normal_dock_state: QByteArray | None = None
         self._was_maximized: bool = False
-        self._dragging_separator: bool = False
-        self._drag_dock_a: QDockWidget | None = None
-        self._drag_dock_b: QDockWidget | None = None
-        self._drag_orientation: Qt.Orientation | None = None
-        self._drag_start_pos: QPoint | None = None
-        self._drag_start_size_a: int = 0
-        self._drag_start_size_b: int = 0
-        self._cursor_overridden: bool = False
 
         # Register built-in native UI contributions (Explorer, Properties, Parameters, Editors, Settings)
         register_native_contributions(api)
@@ -137,7 +129,7 @@ class MainWindow(QMainWindow):
         self._host.bind_action_handlers(self._register_action, self._unregister_action)
 
         self.setWindowTitle("Setuav Studio")
-        self.resize(1200, 800)
+        self.resize(1280, 720)
         self.setCentralWidget(None)  # type: ignore[arg-type]
 
         self._api.on_modified_changed(self._on_modified_changed)
@@ -475,145 +467,6 @@ class MainWindow(QMainWindow):
             from PySide6.QtCore import QTimer
 
             QTimer.singleShot(0, self._enable_layout_persistence)
-
-    def _find_adjacent_docks_at(
-        self, pt: QPoint
-    ) -> tuple[QDockWidget, QDockWidget, Qt.Orientation] | None:
-        visible_docks = [
-            dock
-            for dock in self.findChildren(QDockWidget)
-            if dock.isVisible() and not dock.isFloating() and dock.parent() is self
-        ]
-        if len(visible_docks) < 2:
-            return None
-
-        best_h: tuple[QDockWidget, QDockWidget, Qt.Orientation] | None = None
-        min_dist_h = float("inf")
-
-        best_v: tuple[QDockWidget, QDockWidget, Qt.Orientation] | None = None
-        min_dist_v = float("inf")
-
-        for a in visible_docks:
-            ga = a.geometry()
-            for b in visible_docks:
-                if a is b:
-                    continue
-                gb = b.geometry()
-
-                # Horizontal resizing (vertical separator dividing left dock A and right dock B)
-                if -2 <= (gb.left() - ga.right()) <= 20:
-                    y_overlap = min(ga.bottom(), gb.bottom()) - max(ga.top(), gb.top())
-                    if y_overlap > 10 and (max(ga.top(), gb.top()) - 4) <= pt.y() <= (
-                        min(ga.bottom(), gb.bottom()) + 4
-                    ):
-                        sep_x = (ga.right() + gb.left()) / 2.0
-                        dist = abs(pt.x() - sep_x)
-                        if dist <= 12 and dist < min_dist_h:
-                            min_dist_h = dist
-                            best_h = (a, b, Qt.Orientation.Horizontal)
-
-                # Vertical resizing (horizontal separator dividing top dock A and bottom dock B)
-                if -2 <= (gb.top() - ga.bottom()) <= 20:
-                    x_overlap = min(ga.right(), gb.right()) - max(ga.left(), gb.left())
-                    if x_overlap > 10 and (max(ga.left(), gb.left()) - 4) <= pt.x() <= (
-                        min(ga.right(), gb.right()) + 4
-                    ):
-                        sep_y = (ga.bottom() + gb.top()) / 2.0
-                        dist = abs(pt.y() - sep_y)
-                        if dist <= 12 and dist < min_dist_v:
-                            min_dist_v = dist
-                            best_v = (a, b, Qt.Orientation.Vertical)
-
-        if best_h is not None and best_v is not None:
-            return best_h if min_dist_h <= min_dist_v else best_v
-        return best_h or best_v
-
-    def _finish_separator_drag(self) -> None:
-        if self._dragging_separator:
-            self._dragging_separator = False
-            self._drag_dock_a = None
-            self._drag_dock_b = None
-            self._drag_orientation = None
-            self._drag_start_pos = None
-            if self._cursor_overridden:
-                QApplication.restoreOverrideCursor()
-                self._cursor_overridden = False
-            self._schedule_layout_save()
-
-    def mousePressEvent(self, event: Any) -> None:
-        if event.button() == Qt.MouseButton.LeftButton:
-            pt = event.position().toPoint()
-            adj = self._find_adjacent_docks_at(pt)
-            if adj is not None:
-                dock_a, dock_b, orientation = adj
-                self._drag_dock_a = dock_a
-                self._drag_dock_b = dock_b
-                self._drag_orientation = orientation
-                self._drag_start_pos = pt
-                if orientation == Qt.Orientation.Horizontal:
-                    self._drag_start_size_a = dock_a.width()
-                    self._drag_start_size_b = dock_b.width()
-                    QApplication.setOverrideCursor(Qt.CursorShape.SplitHCursor)
-                else:
-                    self._drag_start_size_a = dock_a.height()
-                    self._drag_start_size_b = dock_b.height()
-                    QApplication.setOverrideCursor(Qt.CursorShape.SplitVCursor)
-                self._cursor_overridden = True
-                self._dragging_separator = True
-                event.accept()
-                return
-        super().mousePressEvent(event)
-
-    def mouseMoveEvent(self, event: Any) -> None:
-        if (
-            self._dragging_separator
-            and self._drag_dock_a is not None
-            and self._drag_dock_b is not None
-            and self._drag_start_pos is not None
-            and self._drag_orientation is not None
-        ):
-            pt = event.position().toPoint()
-            if self._drag_orientation == Qt.Orientation.Horizontal:
-                delta = pt.x() - self._drag_start_pos.x()
-                min_a = max(self._drag_dock_a.minimumWidth(), 50)
-                min_b = max(self._drag_dock_b.minimumWidth(), 50)
-            else:
-                delta = pt.y() - self._drag_start_pos.y()
-                min_a = max(self._drag_dock_a.minimumHeight(), 50)
-                min_b = max(self._drag_dock_b.minimumHeight(), 50)
-
-            total = self._drag_start_size_a + self._drag_start_size_b
-            new_a = self._drag_start_size_a + delta
-            new_b = total - new_a
-            if new_a < min_a:
-                new_a = min_a
-                new_b = total - new_a
-            elif new_b < min_b:
-                new_b = min_b
-                new_a = total - new_b
-
-            self.resizeDocks(
-                [self._drag_dock_a, self._drag_dock_b],
-                [int(new_a), int(new_b)],
-                self._drag_orientation,
-            )
-            event.accept()
-            return
-        super().mouseMoveEvent(event)
-
-    def mouseReleaseEvent(self, event: Any) -> None:
-        if self._dragging_separator:
-            self._finish_separator_drag()
-            event.accept()
-            return
-        super().mouseReleaseEvent(event)
-
-    def leaveEvent(self, event: Any) -> None:
-        if self._dragging_separator and not (
-            QApplication.mouseButtons() & Qt.MouseButton.LeftButton
-        ):
-            self._finish_separator_drag()
-        super().leaveEvent(event)
 
     def eventFilter(self, watched: Any, event: QEvent) -> bool:
         if isinstance(watched, QDockWidget) and event.type() in (

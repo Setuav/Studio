@@ -9,10 +9,20 @@ if TYPE_CHECKING:
     from setuav_studio.api import StudioAPI
 
 
+_LEGACY_PANEL_IDS = {
+    "core:project-explorer": "studio:project-explorer",
+    "project.explorer": "studio:project-explorer",
+    "core:properties": "studio:properties",
+    "studio.properties": "studio:properties",
+    "core:result": "studio:result",
+    "studio.viewer.opengl": "studio:viewer-3d",
+}
+
+
 class LayoutManager:
     """Manages unified workbench dock layout and window geometry."""
 
-    LAYOUT_VERSION = 13
+    LAYOUT_VERSION = 1
     LAYOUT_DEFAULTS_KEY = "workbench_layout_version"
 
     def __init__(self, window: QMainWindow, api: StudioAPI) -> None:
@@ -61,32 +71,45 @@ class LayoutManager:
         """Arrange panels into standard unified CAE workbench positions."""
         panels = getattr(self._window, "_panels", {})
 
-        # Default standard positions
-        left_dock = self.dock("core:project-explorer")
-        if left_dock is not None:
-            self._window.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, left_dock)
-            left_dock.show()
+        tree_dock = self.dock("studio:project-explorer")
+        prop_dock = self.dock("studio:properties")
+        view_dock = self.dock("studio:viewer-3d")
+        result_dock = self.dock("studio:result")
 
-        right_dock = self.dock("core:properties")
-        if right_dock is not None:
-            self._window.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, right_dock)
-            right_dock.show()
+        # 1. Project Explorer on Left
+        if tree_dock is not None:
+            self._window.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, tree_dock)
+            tree_dock.show()
 
-        # Center / other docks
-        viewer_dock = self.dock("studio.viewer.opengl")
-        if viewer_dock is not None:
-            self._window.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, viewer_dock)
-            viewer_dock.show()
+        # 2. 3D Viewer in Center, Properties on Right
+        if view_dock is not None:
+            self._window.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, view_dock)
+            view_dock.show()
 
-        # Analysis Result dock (placed in standard area, revealed on demand)
-        result_dock = self.dock("core:result")
-        if result_dock is not None:
-            self._window.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, result_dock)
-            result_dock.hide()
+        if prop_dock is not None:
+            if view_dock is not None:
+                self._window.splitDockWidget(view_dock, prop_dock, Qt.Orientation.Horizontal)
+            else:
+                self._window.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, prop_dock)
+            prop_dock.show()
+
+        # 3. Tabify Result with 3D Viewer in Center
+        if view_dock is not None and result_dock is not None:
+            self._window.tabifyDockWidget(view_dock, result_dock)
+            view_dock.raise_()
+            result_dock.show()
+
+        # 4. Proportional default sizing (Left: ~260px, Center: ~720px, Right: ~300px)
+        if tree_dock is not None and view_dock is not None and prop_dock is not None:
+            self._window.resizeDocks(
+                [tree_dock, view_dock, prop_dock],
+                [260, 720, 300],
+                Qt.Orientation.Horizontal,
+            )
 
         # Ensure all registered docks are shown unless explicitly hidden
         for _cid, (_panel_contrib, dock) in panels.items():
-            if dock not in (left_dock, right_dock, viewer_dock, result_dock):
+            if dock not in (tree_dock, prop_dock, view_dock, result_dock):
                 dock.show()
 
     def schedule_layout_save(self) -> None:
@@ -122,6 +145,10 @@ class LayoutManager:
         self.save_layout()
 
     def dock(self, panel_id: str) -> QDockWidget | None:
+        target_id = _LEGACY_PANEL_IDS.get(panel_id, panel_id)
+        d = self._window.findChild(QDockWidget, target_id)
+        if d is not None:
+            return d
         return self._window.findChild(QDockWidget, panel_id)
 
     def resize_visible_docks(

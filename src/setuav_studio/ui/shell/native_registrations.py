@@ -153,7 +153,7 @@ def register_native_contributions(api: StudioAPI) -> None:
     # 1. Native Panels
     api.register_panel(
         PanelContribution(
-            id="core:project-explorer",
+            id="studio:project-explorer",
             title="Project Explorer",
             factory=lambda: ProjectExplorerPanel(api),
             area=Qt.DockWidgetArea.LeftDockWidgetArea,
@@ -162,7 +162,7 @@ def register_native_contributions(api: StudioAPI) -> None:
     )
     api.register_panel(
         PanelContribution(
-            id="studio.viewer.opengl",
+            id="studio:viewer-3d",
             title="3D Viewer",
             factory=lambda: StudioViewport(api=api),
             area=Qt.DockWidgetArea.RightDockWidgetArea,
@@ -171,7 +171,7 @@ def register_native_contributions(api: StudioAPI) -> None:
     )
     api.register_panel(
         PanelContribution(
-            id="core:properties",
+            id="studio:properties",
             title="Properties",
             factory=lambda: PropertiesPanel(api),
             area=Qt.DockWidgetArea.RightDockWidgetArea,
@@ -182,7 +182,7 @@ def register_native_contributions(api: StudioAPI) -> None:
 
     api.register_panel(
         PanelContribution(
-            id="core:result",
+            id="studio:result",
             title="Result",
             factory=lambda: ResultPanel(api),
             area=Qt.DockWidgetArea.RightDockWidgetArea,

@@ -214,7 +214,7 @@ class DebugPlugin:
             return None
         vp = self._api.viewport
         if vp is None:
-            self._api.show_panel("studio.viewer.opengl")
+            self._api.show_panel("studio:viewer-3d")
             vp = self._api.viewport
         return vp
 

@@ -326,9 +326,9 @@ class ProjectExplorer(QTreeWidget):
                 if config_id:
                     self._api.set_current_solver_config(config_id)
             elif kind in ("analysis_result", "solver_result"):
-                self._api.show_panel("core:properties")
+                self._api.show_panel("studio:properties")
             elif kind in ("analysis_table", "solver_table", "analysis_plot", "solver_plot"):
-                self._api.show_panel("core:result")
+                self._api.show_panel("studio:result")
         self._api.set_selection(element)
 
     def _sync_selection(self, selection: object | None) -> None:

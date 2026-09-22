@@ -177,7 +177,7 @@ class AnalysisTablePropertyEditor(PropertyTableMixin, QWidget):
         res, table = self._get_result_and_table()
         if res is None or table is None:
             return
-        self._api.show_panel("core:result")
+        self._api.show_panel("studio:result")
         self._api.set_selection(
             {
                 "kind": "analysis_table",

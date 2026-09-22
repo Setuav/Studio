@@ -233,7 +233,7 @@ class SolverConfigPropertyEditor(PropertyTableMixin, QWidget):
             self._loading = False
 
     def _on_open_chart_clicked(self) -> None:
-        self._api.show_panel("core:result")
+        self._api.show_panel("studio:result")
         if self._cached_result and self._cached_result.plots:
             first_plot_id = next(iter(self._cached_result.plots))
             self._api.set_selection(
@@ -245,7 +245,7 @@ class SolverConfigPropertyEditor(PropertyTableMixin, QWidget):
             )
 
     def _on_open_table_clicked(self) -> None:
-        self._api.show_panel("core:result")
+        self._api.show_panel("studio:result")
         if self._cached_result and self._cached_result.tables:
             first_table_id = next(iter(self._cached_result.tables))
             self._api.set_selection(

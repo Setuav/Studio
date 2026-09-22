@@ -98,10 +98,10 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(
             [panel.id for panel in self.panels],
             [
-                "core:project-explorer",
-                "studio.viewer.opengl",
-                "core:properties",
-                "core:result",
+                "studio:project-explorer",
+                "studio:viewer-3d",
+                "studio:properties",
+                "studio:result",
             ],
         )
 

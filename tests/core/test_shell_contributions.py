@@ -7,8 +7,8 @@ from pathlib import Path
 from typing import Any, ClassVar, cast
 from unittest.mock import Mock, patch
 
-from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
-from PySide6.QtGui import QAction, QCloseEvent, QMouseEvent
+from PySide6.QtCore import QEvent, Qt
+from PySide6.QtGui import QAction, QCloseEvent
 from PySide6.QtWidgets import QDialog, QDockWidget, QWidget
 
 from setuav_studio.api import (
@@ -429,68 +429,29 @@ class ShellContributionTests(unittest.TestCase):
             self.window._layout_manager.save_layout()
             self.assertNotIn("main_window/state", _FakeSettings.values)
 
-    def test_separator_drag_resizes_only_adjacent_docks(self) -> None:
-        d1 = QDockWidget("D1", self.window)
-        d1.setObjectName("test_d1")
-        d2 = QDockWidget("D2", self.window)
-        d2.setObjectName("test_d2")
-        d3 = QDockWidget("D3", self.window)
-        d3.setObjectName("test_d3")
+    def test_default_workbench_layout(self) -> None:
+        self.window._layout_manager.apply_default_layout()
+        tree_dock = self.window._layout_manager.dock("studio:project-explorer")
+        view_dock = self.window._layout_manager.dock("studio:viewer-3d")
+        prop_dock = self.window._layout_manager.dock("studio:properties")
+        result_dock = self.window._layout_manager.dock("studio:result")
 
-        self.window.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, d1)
-        self.window.splitDockWidget(d1, d2, Qt.Orientation.Horizontal)
-        self.window.splitDockWidget(d2, d3, Qt.Orientation.Horizontal)
+        self.assertIsNotNone(tree_dock)
+        self.assertIsNotNone(view_dock)
+        self.assertIsNotNone(prop_dock)
+        self.assertIsNotNone(result_dock)
 
-        sep_pt = QPoint(200, 200)
-        with patch.object(
-            self.window, "_find_adjacent_docks_at", return_value=(d1, d2, Qt.Orientation.Horizontal)
-        ):
-            press = QMouseEvent(
-                QEvent.Type.MouseButtonPress,
-                QPointF(sep_pt),
-                QPointF(sep_pt),
-                Qt.MouseButton.LeftButton,
-                Qt.MouseButton.LeftButton,
-                Qt.KeyboardModifier.NoModifier,
-            )
-            self.window.mousePressEvent(press)
-            self.assertTrue(self.window._dragging_separator)
-            self.assertEqual(self.window._drag_dock_a, d1)
-            self.assertEqual(self.window._drag_dock_b, d2)
-
-        with patch.object(self.window, "resizeDocks") as resize_mock:
-            move = QMouseEvent(
-                QEvent.Type.MouseMove,
-                QPointF(250, 200),
-                QPointF(250, 200),
-                Qt.MouseButton.LeftButton,
-                Qt.MouseButton.LeftButton,
-                Qt.KeyboardModifier.NoModifier,
-            )
-            self.window.mouseMoveEvent(move)
-            resize_mock.assert_called_once()
-            args, _ = resize_mock.call_args
-            self.assertEqual(args[0], [d1, d2])
-            self.assertEqual(args[2], Qt.Orientation.Horizontal)
-
-        release = QMouseEvent(
-            QEvent.Type.MouseButtonRelease,
-            QPointF(250, 200),
-            QPointF(250, 200),
-            Qt.MouseButton.LeftButton,
-            Qt.MouseButton.NoButton,
-            Qt.KeyboardModifier.NoModifier,
+        self.assertEqual(
+            self.window.dockWidgetArea(tree_dock), Qt.DockWidgetArea.LeftDockWidgetArea
         )
-        self.window.mouseReleaseEvent(release)
-        self.assertFalse(self.window._dragging_separator)
-        self.assertIsNone(self.window._drag_dock_a)
-        self.assertIsNone(self.window._drag_dock_b)
+        tabbed_with_view = self.window.tabifiedDockWidgets(view_dock)
+        self.assertIn(result_dock, tabbed_with_view)
 
     def test_native_3d_viewer_panel(self) -> None:
         from setuav_studio.ui.viewport import StudioViewport
 
-        self.assertIn("studio.viewer.opengl", self.window._panels)
-        _, dock = self.window._panels["studio.viewer.opengl"]
+        self.assertIn("studio:viewer-3d", self.window._panels)
+        _, dock = self.window._panels["studio:viewer-3d"]
         self.assertIsNotNone(dock)
         self.assertIsNotNone(self.api.viewport)
         self.assertIsInstance(self.api.viewport, StudioViewport)

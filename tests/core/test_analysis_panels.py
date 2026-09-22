@@ -177,11 +177,11 @@ class TestAnalysisPanels(unittest.TestCase):
 
         # Test View Plot button
         editor._open_chart_btn.click()
-        self.assertIn("core:result", self.shown_panels)
+        self.assertIn("studio:result", self.shown_panels)
 
         # Test View Table button
         editor._open_table_btn.click()
-        self.assertIn("core:result", self.shown_panels)
+        self.assertIn("studio:result", self.shown_panels)
 
     def test_project_explorer_tree_shows_tables_and_plots(self) -> None:
         panel = ProjectExplorerPanel(self.api)
@@ -214,12 +214,12 @@ class TestAnalysisPanels(unittest.TestCase):
         # Clicking table item triggers show_panel
         table_item = tree._item_map[table_elem_id]
         tree.setCurrentItem(table_item)
-        self.assertIn("core:result", self.shown_panels)
+        self.assertIn("studio:result", self.shown_panels)
 
         # Clicking plot item triggers show_panel
         plot_item = tree._item_map[plot_elem_id]
         tree.setCurrentItem(plot_item)
-        self.assertIn("core:result", self.shown_panels)
+        self.assertIn("studio:result", self.shown_panels)
 
     def test_analysis_config_rename(self) -> None:
         panel = ProjectExplorerPanel(self.api)
