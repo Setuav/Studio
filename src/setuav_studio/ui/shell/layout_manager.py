@@ -107,10 +107,13 @@ class LayoutManager:
                 Qt.Orientation.Horizontal,
             )
 
-        # Ensure all registered docks are shown unless explicitly hidden
-        for _cid, (_panel_contrib, dock) in panels.items():
+        # Ensure all registered docks are shown unless explicitly configured hidden
+        for _cid, (panel_contrib, dock) in panels.items():
             if dock not in (tree_dock, prop_dock, view_dock, result_dock):
-                dock.show()
+                if getattr(panel_contrib, "default_visible", True):
+                    dock.show()
+                else:
+                    dock.hide()
 
     def schedule_layout_save(self) -> None:
         """Schedule saving the current dock layout to persistent settings."""

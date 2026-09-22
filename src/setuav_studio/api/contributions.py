@@ -175,6 +175,7 @@ class PanelContribution:
     factory: Callable[[], QWidget]
     area: Qt.DockWidgetArea = Qt.DockWidgetArea.LeftDockWidgetArea
     icon: IconSource = None
+    default_visible: bool = True
 
 
 @dataclass(frozen=True)

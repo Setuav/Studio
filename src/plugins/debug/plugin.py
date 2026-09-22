@@ -6,6 +6,7 @@ import logging
 from typing import Any
 
 from setuav_studio.api import (
+    PanelContribution,
     StudioAPI,
     ToolbarContribution,
     ToolbarMenuItemContribution,
@@ -61,6 +62,7 @@ logger = logging.getLogger(__name__)
 
 TOOLBAR_ADD_PRIMITIVE_ID = "debug.toolbar.add_primitive"
 TOOLBAR_MOCK_ANALYSIS_ID = "debug.toolbar.mock_analysis"
+PANEL_ID_DEBUG = "debug:panel"
 
 
 class DebugPlugin:
@@ -78,6 +80,7 @@ class DebugPlugin:
     def activate(self, api: StudioAPI) -> None:
         """Activate the debug plugin."""
         self._api = api
+        self._register_panel(api)
         self._register_component_types(api)
         self._register_toolbar_tools(api)
         self._register_solvers(api)
@@ -101,6 +104,7 @@ class DebugPlugin:
         api.remove_project_listener(self._on_project_changed)
         api.remove_project_content_listener(self._on_project_content_changed)
         self._unregister_component_types(api)
+        self._unregister_panel(api)
 
         vp = self._get_viewport()
         if vp is not None:
@@ -321,6 +325,40 @@ class DebugPlugin:
         )
         api.register_tool(tool_add)
         self._tool_contributions.append(tool_add)
+
+        tool_panel = ToolContribution(
+            title="Open Debug Panel",
+            callback=lambda: api.show_panel(PANEL_ID_DEBUG),
+            group="Debug",
+            icon="fa6s.bug",
+        )
+        api.register_tool(tool_panel)
+        self._tool_contributions.append(tool_panel)
+
+    # ------------------------------------------------------------------
+    # Panel Registration
+    # ------------------------------------------------------------------
+
+    def _register_panel(self, api: StudioAPI) -> None:
+        """Register the debug dock panel (hidden by default)."""
+        from PySide6.QtCore import Qt
+
+        from .panel import DebugPanel
+
+        api.register_panel(
+            PanelContribution(
+                id=PANEL_ID_DEBUG,
+                title="Debug",
+                factory=lambda: DebugPanel(api),
+                area=Qt.DockWidgetArea.RightDockWidgetArea,
+                icon="fa6s.bug",
+                default_visible=False,
+            )
+        )
+
+    def _unregister_panel(self, api: StudioAPI) -> None:
+        """Unregister the debug dock panel."""
+        api.unregister_panel(PANEL_ID_DEBUG)
 
     # ------------------------------------------------------------------
     # Solvers Registration & Execution
