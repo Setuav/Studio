@@ -245,6 +245,16 @@ class ProjectTreeBuilder:
                 if res.tables:
                     tables_group = QTreeWidgetItem(["Tables"])
                     tables_group.setIcon(0, get_icon("fa6s.table"))
+                    tables_group.setToolTip(0, "Tables (Right-click to add plot)")
+                    tables_payload = {
+                        "kind": "analysis_tables_group",
+                        "id": f"{res.id}:tables",
+                        "result_id": res.id,
+                        "config_id": cid,
+                        "name": "Tables",
+                    }
+                    self._tree._element_map[tables_group] = tables_payload
+                    self._tree._item_map[tables_payload["id"]] = tables_group
                     item.addChild(tables_group)
                     for t_id, tbl in res.tables.items():
                         t_name = tbl.title or t_id
@@ -262,11 +272,22 @@ class ProjectTreeBuilder:
                         self._tree._item_map[t_payload["id"]] = t_item
                         tables_group.addChild(t_item)
 
-                # Plots Group directly under Analysis Config
+                # Plots Group directly under Analysis Config (always available if results exist)
+                plots_group = QTreeWidgetItem(["Plots"])
+                plots_group.setIcon(0, get_icon("fa6s.chart-line"))
+                plots_group.setToolTip(0, "Plots (Right-click to add plot)")
+                plots_payload = {
+                    "kind": "analysis_plots_group",
+                    "id": f"{res.id}:plots",
+                    "result_id": res.id,
+                    "config_id": cid,
+                    "name": "Plots",
+                }
+                self._tree._element_map[plots_group] = plots_payload
+                self._tree._item_map[plots_payload["id"]] = plots_group
+                item.addChild(plots_group)
+
                 if res.plots:
-                    plots_group = QTreeWidgetItem(["Plots"])
-                    plots_group.setIcon(0, get_icon("fa6s.chart-line"))
-                    item.addChild(plots_group)
                     for p_id, plt in res.plots.items():
                         p_name = plt.title or p_id
                         p_item = QTreeWidgetItem([p_name])

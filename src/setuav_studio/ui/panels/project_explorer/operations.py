@@ -487,3 +487,32 @@ class ProjectExplorerOperations:
             )
         except Exception as exc:
             self._api.show_status(f"Failed to launch analysis: {exc}", "error", 5000)
+
+    def add_plot_action(
+        self,
+        element: dict[str, Any] | None = None,
+        parent: QWidget | None = None,
+    ) -> Any | None:
+        from setuav_studio.ui.panels.project_explorer.dialog_actions import (
+            add_plot_action,
+        )
+
+        return add_plot_action(self._api, element, parent or self._tree)
+
+    def delete_plot_action(self, element: dict[str, Any]) -> None:
+        result_id = str(element.get("result_id") or "")
+        plot_id = str(element.get("plot_id") or "")
+        result = self._api.get_solver_result(result_id)
+        if result is None or plot_id not in result.plots:
+            return
+        plot = result.plots[plot_id]
+        plot_title = plot.title or plot_id
+
+        def _apply() -> None:
+            if plot_id in result.plots:
+                del result.plots[plot_id]
+            if self._api.current_project is not None:
+                self._api.current_project.add_solver_result(result)
+
+        self._api.edit_project(f"Delete plot '{plot_title}'", _apply)
+        self._api.set_selection(None)

@@ -61,6 +61,18 @@ class ProjectExplorerContextMenu:
             self.open_constraint_element_menu(item, element, position, can_edit)
             return
 
+        if (element and element.get("kind") == "analysis_plots_group") or (
+            item is not None and item.text(0) == "Plots"
+        ):
+            self.open_analysis_plots_group_menu(item, element, position)
+            return
+
+        if (element and element.get("kind") == "analysis_tables_group") or (
+            item is not None and item.text(0) == "Tables"
+        ):
+            self.open_analysis_tables_group_menu(item, element, position)
+            return
+
         if element and element.get("kind") in ("analysis_config", "solver_config"):
             self.open_analysis_config_menu(item, element, position, can_edit)
             return
@@ -211,6 +223,30 @@ class ProjectExplorerContextMenu:
         elif chosen is del_act:
             self._ops.delete_item(item)
 
+    def open_analysis_plots_group_menu(
+        self,
+        _item: QTreeWidgetItem,
+        element: dict[str, Any] | None,
+        position: QPoint,
+    ) -> None:
+        menu = QMenu(self._tree)
+        add_plot_act = menu.addAction(get_icon("fa6s.chart-line"), "Add Plot…")
+        chosen = menu.exec(self._tree.viewport().mapToGlobal(position))
+        if chosen is add_plot_act:
+            self._ops.add_plot_action(element)
+
+    def open_analysis_tables_group_menu(
+        self,
+        _item: QTreeWidgetItem,
+        element: dict[str, Any] | None,
+        position: QPoint,
+    ) -> None:
+        menu = QMenu(self._tree)
+        add_plot_act = menu.addAction(get_icon("fa6s.chart-line"), "Add Plot…")
+        chosen = menu.exec(self._tree.viewport().mapToGlobal(position))
+        if chosen is add_plot_act:
+            self._ops.add_plot_action(element)
+
     def open_analysis_table_menu(
         self,
         _item: QTreeWidgetItem,
@@ -219,10 +255,13 @@ class ProjectExplorerContextMenu:
     ) -> None:
         menu = QMenu(self._tree)
         open_act = menu.addAction(get_icon("fa6s.table-cells"), "Open Table")
+        add_plot_act = menu.addAction(get_icon("fa6s.chart-line"), "Add Plot…")
         chosen = menu.exec(self._tree.viewport().mapToGlobal(position))
         if chosen is open_act:
             self._api.set_selection(element)
             self._api.show_panel("studio:result")
+        elif chosen is add_plot_act:
+            self._ops.add_plot_action(element)
 
     def open_analysis_plot_menu(
         self,
@@ -232,7 +271,10 @@ class ProjectExplorerContextMenu:
     ) -> None:
         menu = QMenu(self._tree)
         open_act = menu.addAction(get_icon("fa6s.chart-simple"), "Open Chart")
+        del_act = menu.addAction(get_icon("remove"), "Delete Plot")
         chosen = menu.exec(self._tree.viewport().mapToGlobal(position))
         if chosen is open_act:
             self._api.set_selection(element)
             self._api.show_panel("studio:result")
+        elif chosen is del_act:
+            self._ops.delete_plot_action(element)

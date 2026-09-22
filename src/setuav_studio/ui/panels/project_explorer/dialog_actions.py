@@ -78,3 +78,96 @@ def toggle_constraint(
                 break
 
     api.edit_project("Toggle constraint", _apply)
+
+
+def add_plot_action(
+    api: StudioAPI,
+    element: dict[str, Any] | None = None,
+    parent: QWidget | None = None,
+) -> Any | None:
+    project = api.current_project
+    if project is None:
+        return None
+
+    element = element or {}
+    result_id = str(element.get("result_id") or "")
+    config_id = str(element.get("config_id") or "")
+
+    if not result_id and config_id:
+        matching = [
+            r
+            for r in project.solver_results.values()
+            if getattr(getattr(r, "config", None), "config_id", None) == config_id
+        ]
+        if matching:
+            result_id = matching[-1].id
+
+    if not result_id:
+        if project.solver_results:
+            result_id = next(reversed(project.solver_results.keys()))
+        else:
+            return None
+
+    result = api.get_solver_result(result_id)
+    if result is None or not result.tables:
+        return None
+
+    table_id = str(element.get("table_id") or "")
+    if not table_id or table_id not in result.tables:
+        table_id = next(iter(result.tables.keys()))
+
+    table = result.tables[table_id]
+    if not table.columns:
+        return None
+
+    # Determine X column and Y column
+    x_col = table.columns[0].key
+    x_label = table.columns[0].label
+    y_col = table.columns[1].key if len(table.columns) > 1 else table.columns[0].key
+    y_label = table.columns[1].label if len(table.columns) > 1 else table.columns[0].label
+
+    existing_y_cols = {
+        s.y_column for p in result.plots.values() if p.table_id == table_id for s in p.series
+    }
+    for col in table.columns[1:]:
+        if col.key not in existing_y_cols:
+            y_col = col.key
+            y_label = col.label
+            break
+
+    base_id = f"{table_id}_plot"
+    idx = len(result.plots) + 1
+    while f"{base_id}_{idx}" in result.plots:
+        idx += 1
+    plot_id = f"{base_id}_{idx}"
+    title = f"{y_label} vs {x_label}"
+
+    from setuav_studio.solver.results import PlotDefinition, PlotSeriesDef
+
+    new_plot: PlotDefinition | None = None
+
+    def _apply() -> None:
+        nonlocal new_plot
+        new_plot = result.add_plot(
+            plot_id=plot_id,
+            table_id=table_id,
+            x_column=x_col,
+            series=[PlotSeriesDef(y_column=y_col, label=f"{y_label} Curve")],
+            title=title,
+        )
+        project.add_solver_result(result)
+
+    api.edit_project(f"Add plot '{title}'", _apply)
+
+    plot_payload = {
+        "kind": "analysis_plot",
+        "id": f"{result.id}:plot:{plot_id}",
+        "result_id": result.id,
+        "plot_id": plot_id,
+        "config_id": config_id or getattr(getattr(result, "config", None), "config_id", None),
+        "name": title,
+    }
+    api.set_selection(plot_payload)
+    api.show_panel("studio:result")
+
+    return new_plot
