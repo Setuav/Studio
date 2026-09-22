@@ -101,6 +101,57 @@ class TestStatusBarProblems(unittest.TestCase):
         window.close()
         window.deleteLater()
 
+    def test_elided_status_label(self) -> None:
+        from PySide6.QtCore import QSize
+        from PySide6.QtWidgets import QSizePolicy
+
+        from setuav_studio.ui.shell.status_bar import ElidedStatusLabel
+
+        label = ElidedStatusLabel()
+        self.assertEqual(label.text(), "")
+        self.assertEqual(label.sizePolicy().horizontalPolicy(), QSizePolicy.Policy.Ignored)
+        self.assertEqual(label.minimumSizeHint().width(), 0)
+
+        # Short text
+        label.setText("Ready")
+        self.assertEqual(label.text(), "Ready")
+        self.assertEqual(label.toolTip(), "")
+
+        # Long text
+        long_msg = "Plugin load issues: plugins.aerodynamics: failed to import backend module because dependency is missing"
+        label.setText(long_msg)
+        self.assertEqual(label.text(), long_msg)
+        self.assertEqual(label.toolTip(), long_msg)
+
+        # With constrained width, displayed_text should be elided
+        label.resize(QSize(100, 24))
+        label._update_elided()
+        self.assertTrue(len(label.displayed_text()) < len(long_msg))
+        self.assertTrue(
+            label.displayed_text().endswith("…") or label.displayed_text().endswith("...")
+        )
+
+        label.clear()
+        self.assertEqual(label.text(), "")
+        self.assertEqual(label.toolTip(), "")
+        label.deleteLater()
+
+    def test_studio_status_bar_delegates_show_message(self) -> None:
+        api = StudioAPI()
+        window = MainWindow(api)
+        window.statusBar().showMessage("Plugin load issues: failed to load test plugin")
+        self.assertIn("Plugin load issues: failed to load test plugin", window._status_label.text())
+        self.assertEqual(window._status_manager._status_level, "error")
+
+        window.statusBar().showMessage("Operation completed successfully")
+        self.assertEqual(window._status_label.text(), "Operation completed successfully")
+        self.assertEqual(window._status_manager._status_level, "info")
+
+        window.statusBar().clearMessage()
+        self.assertEqual(window._status_label.text(), "")
+        window.close()
+        window.deleteLater()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -149,9 +149,11 @@ def main() -> int:
         logger = logging.getLogger(__name__)
         for issue in plugin_issues:
             logger.warning("Plugin load issue (%s): %s", issue.source, issue.message)
-        window.statusBar().showMessage(
+        api.show_status(
             "Plugin load issues: "
-            + "; ".join(f"{issue.source}: {issue.message}" for issue in plugin_issues)
+            + "; ".join(f"{issue.source}: {issue.message}" for issue in plugin_issues),
+            level="warning",
+            timeout_ms=0,
         )
         if arguments.smoke_test:
             return 1

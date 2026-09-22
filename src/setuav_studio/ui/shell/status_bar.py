@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QPalette
+from PySide6.QtCore import QEvent, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QPalette, QResizeEvent, QShowEvent
 from PySide6.QtWidgets import (
     QDialog,
     QFrame,
@@ -11,6 +11,8 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QProgressBar,
+    QSizePolicy,
+    QStatusBar,
     QToolButton,
     QWidget,
 )
@@ -86,6 +88,81 @@ class ProblemsBadge(QFrame):
         super().mousePressEvent(event)
 
 
+class ElidedStatusLabel(QLabel):
+    """Status bar label that automatically elides long messages with an ellipsis (...) to prevent overflow."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._full_text: str = ""
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+
+    def setText(self, text: str) -> None:
+        self._full_text = text
+        self.setToolTip(text if len(text) > 30 else "")
+        self._update_elided()
+
+    def text(self) -> str:
+        return self._full_text
+
+    def displayed_text(self) -> str:
+        """Return the visible, elided text currently rendered."""
+        return super().text()
+
+    def clear(self) -> None:
+        self._full_text = ""
+        self.setToolTip("")
+        super().clear()
+
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        super().resizeEvent(event)
+        self._update_elided()
+
+    def showEvent(self, event: QShowEvent) -> None:
+        super().showEvent(event)
+        self._update_elided()
+
+    def changeEvent(self, event: QEvent) -> None:
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.FontChange:
+            self._update_elided()
+
+    def minimumSizeHint(self) -> QSize:
+        return QSize(0, super().minimumSizeHint().height())
+
+    def _update_elided(self) -> None:
+        if not self._full_text:
+            super().setText("")
+            return
+        avail_width = max(self.width() - 4, 0)
+        if avail_width > 0:
+            fm = self.fontMetrics()
+            elided = fm.elidedText(self._full_text, Qt.TextElideMode.ElideRight, avail_width)
+            super().setText(elided)
+        else:
+            super().setText("")
+
+
+class StudioStatusBar(QStatusBar):
+    """Custom status bar routing showMessage and clearMessage to StatusBarManager's elided label."""
+
+    def __init__(self, manager: StatusBarManager, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._manager = manager
+
+    def showMessage(self, message: str, timeout: int = 0) -> None:
+        lower = message.lower()
+        if "error" in lower or "failed" in lower:
+            level = "error"
+        elif "warning" in lower or "issue" in lower:
+            level = "warning"
+        else:
+            level = "info"
+        self._manager.show_status_message(message, level=level, timeout_ms=timeout)
+
+    def clearMessage(self) -> None:
+        self._manager.clear_status_message()
+
+
 class StatusBarManager:
     """Manages status messages, progress indicator, logs button, task monitor, and problems badge."""
 
@@ -101,7 +178,9 @@ class StatusBarManager:
         self._problems: list[Problem] = []
         self._checker = ConstraintChecker()
 
-        status_bar = self._window.statusBar()
+        self.status_bar = StudioStatusBar(self, self._window)
+        self._window.setStatusBar(self.status_bar)
+        status_bar = self.status_bar
 
         # 1. Left side widgets (Badges en solda, ardindan anlik mesaj)
         self.problems_badge = ProblemsBadge(self._window)
@@ -113,9 +192,9 @@ class StatusBarManager:
         self.warning_icon_label = self.problems_badge.warning_icon_label
         self.warning_count_label = self.problems_badge.warning_count_label
 
-        self.status_label = QLabel(self._window)
+        self.status_label = ElidedStatusLabel(self._window)
         self.status_label.setObjectName("studioStatusMessage")
-        status_bar.addWidget(self.status_label)
+        status_bar.addWidget(self.status_label, 1)
 
         # 2. Right side permanent widgets (Progress -> Cancel -> Command Palette -> Tasks -> Log en sağda)
         self.progress_bar = QProgressBar(self._window)
@@ -366,4 +445,4 @@ class StatusBarManager:
         self.open_problems_window()
 
 
-__all__ = ["ProblemsBadge", "StatusBarManager"]
+__all__ = ["ElidedStatusLabel", "ProblemsBadge", "StatusBarManager", "StudioStatusBar"]
