@@ -189,7 +189,7 @@ def resolve_world_transform(
         return (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)
 
     local_pos, local_rot = get_local_transform(comp)
-    parent_id = comp.get("parent") or comp.get("attach_to")
+    parent_id = comp.get("parent")
     if not parent_id or str(parent_id) not in comps_map:
         return local_pos, local_rot
 
@@ -310,7 +310,5 @@ def reparent_component(
 
     if clean_parent:
         comp["parent"] = clean_parent
-        comp["attach_to"] = clean_parent
     else:
         comp.pop("parent", None)
-        comp.pop("attach_to", None)

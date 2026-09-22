@@ -116,11 +116,7 @@ def build_universal_scope(  # noqa: C901
             parent_id = (
                 getattr(model, "parent_id", None)
                 or getattr(model, "parent", None)
-                or (
-                    raw_data.get("parent") or raw_data.get("attach_to")
-                    if isinstance(raw_data, dict)
-                    else None
-                )
+                or (raw_data.get("parent") if isinstance(raw_data, dict) else None)
             )
             if parent_id and parent_id in model_by_id:
                 parent_model = model_by_id[parent_id]

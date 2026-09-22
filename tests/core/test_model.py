@@ -38,7 +38,7 @@ class TestModelHierarchy(unittest.TestCase):
                 "name": "Front Motor",
                 "type": "org.setuav.core:motor",
                 "mass": 0.25,
-                "attach_to": "fuselage-main",
+                "parent": "fuselage-main",
                 "transform": {
                     "position": {"x": 1.2, "y": 0.0, "z": -0.1},
                     "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},

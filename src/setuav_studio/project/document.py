@@ -264,9 +264,8 @@ class ProjectDocument:
             parent_id = (
                 getattr(model, "parent", None)
                 or getattr(model, "parent_id", None)
-                or getattr(model, "attach_to", None)
                 or (
-                    model.raw_data.get("parent") or model.raw_data.get("attach_to")
+                    model.raw_data.get("parent")
                     if hasattr(model, "raw_data") and isinstance(model.raw_data, dict)
                     else None
                 )
@@ -320,8 +319,10 @@ def create_project(path: str | Path) -> ProjectDocument:
             "name": project_name,
             "plugins": [],
             "components": [],
-            "assemblies": [],
             "parameters": {},
+            "constraints": [],
+            "solver_configs": {},
+            "solver_results": {},
             "extensions": {},
         },
         modified=True,
@@ -350,6 +351,21 @@ def open_project(path: str | Path) -> ProjectDocument:
     return doc
 
 
+def _json_default(obj: Any) -> Any:
+    """Handle non-standard JSON types such as NumPy scalars/arrays, Path, sets, and dates."""
+    if hasattr(obj, "tolist") and callable(obj.tolist):
+        return obj.tolist()
+    if hasattr(obj, "item") and callable(obj.item):
+        return obj.item()
+    if isinstance(obj, Path):
+        return str(obj)
+    if isinstance(obj, (set, frozenset)):
+        return list(obj)
+    if hasattr(obj, "isoformat") and callable(obj.isoformat):
+        return obj.isoformat()
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
+
 def save_project(
     project: ProjectDocument,
     path: str | Path | None = None,
@@ -361,7 +377,21 @@ def save_project(
     target = project.path if path is None else Path(path).expanduser().resolve()
     logger.info("Saving project: %s", target)
 
+    # 1. Recompute parametric expressions to ensure latest evaluated numbers
+    from setuav_studio.project.evaluator import recompute_project_expressions
+
+    recompute_project_expressions(project)
+
     save_data = project.data
+
+    # 2. Pre-save validation: prevent writing corrupted project documents to disk
+    from setuav_studio.project.validation import validate_project
+
+    issues = validate_project(save_data)
+    errors = [i for i in issues if i.severity == "error"]
+    if errors:
+        error_msgs = "; ".join(e.message for e in errors[:5])
+        raise ProjectSaveError(f"Cannot save invalid project: {error_msgs}")
 
     try:
         if target.suffix.lower() == ".suav":
@@ -418,7 +448,7 @@ def _write_json_file(path: Path, data: dict[str, Any]) -> None:
             suffix=".tmp",
             delete=False,
         ) as temporary_file:
-            json.dump(data, temporary_file, ensure_ascii=False, indent=2)
+            json.dump(data, temporary_file, ensure_ascii=False, indent=2, default=_json_default)
             temporary_file.write("\n")
             temporary_path = Path(temporary_file.name)
         os.replace(temporary_path, path)
@@ -444,7 +474,7 @@ def _write_suav(project: ProjectDocument, target: Path, data: dict[str, Any] | N
             _copy_project_files_to_archive(project, destination)
             destination.writestr(
                 "project.json",
-                json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+                json.dumps(payload, ensure_ascii=False, indent=2, default=_json_default) + "\n",
             )
         os.replace(temporary_path, target)
     finally:

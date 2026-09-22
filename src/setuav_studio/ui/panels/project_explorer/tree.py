@@ -20,8 +20,6 @@ from setuav_studio.ui.panels.project_explorer.operations import (
 from setuav_studio.ui.panels.project_explorer.style import (
     ProjectExplorerDelegate,
     _ProjectExplorerBranchStyle,
-    format_assembly_icon,
-    format_assembly_type,
     format_component_name,
     format_component_type,
 )
@@ -79,7 +77,6 @@ class ProjectExplorer(QTreeWidget):
             ComponentTreeNodeContribution,
         ] = {}
         self._saved_components: dict[str, dict[str, Any]] = {}
-        self._saved_assemblies: dict[str, dict[str, Any]] = {}
         self._saved_parameters: dict[str, Any] = {}
         self._saved_constraints: dict[str, dict[str, Any]] = {}
         self._saved_solver_configs: dict[str, dict[str, Any]] = {}
@@ -154,7 +151,6 @@ class ProjectExplorer(QTreeWidget):
 
     def _capture_saved_state(self, project: ProjectDocument) -> None:
         self._saved_components = self._snapshot_collection(project, "components")
-        self._saved_assemblies = self._snapshot_collection(project, "assemblies")
         self._saved_parameters = deepcopy(project.data.get("parameters", {}))
         self._saved_constraints = self._snapshot_collection(project, "constraints")
         self._saved_solver_configs = {
@@ -247,14 +243,9 @@ class ProjectExplorer(QTreeWidget):
             return False
         if element_id in self._saved_components:
             return self._saved_components[element_id] != element
-        if element_id in self._saved_assemblies:
-            return self._saved_assemblies[element_id] != element
 
         components = project.data.get("components", []) if project else []
-        assemblies = project.data.get("assemblies", []) if project else []
-        is_comp = any(c.get("id") == element_id for c in components if isinstance(c, dict))
-        is_assem = any(a.get("id") == element_id for a in assemblies if isinstance(a, dict))
-        return is_comp or is_assem
+        return any(c.get("id") == element_id for c in components if isinstance(c, dict))
 
     def _refresh_modified_colors(self) -> None:
         from setuav_studio.ui.style.theme import status_color
@@ -403,12 +394,6 @@ class ProjectExplorer(QTreeWidget):
     @staticmethod
     def _component_name_text(component: dict[str, object]) -> str:
         return format_component_name(component)
-
-    def _assembly_type_text(self, assembly: dict[str, object]) -> str:
-        return format_assembly_type(assembly, self._api)
-
-    def _assembly_icon(self, assembly: dict[str, object]) -> Any:
-        return format_assembly_icon(assembly, self._api)
 
     def _component_type_text(
         self,

@@ -64,9 +64,7 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
         exprs = params.get("_expressions") if isinstance(params, dict) else None
         self._committed_expressions: dict[str, str] = dict(exprs) if isinstance(exprs, dict) else {}
         self._committed_name: str = str(self._component.get("name") or "")
-        self._committed_parent: str = str(
-            self._component.get("parent") or self._component.get("attach_to") or ""
-        )
+        self._committed_parent: str = str(self._component.get("parent") or "")
         self._load_component()
         if self._api is not None:
             self._api.on_project_content_changed(self._on_external_content_changed)
@@ -186,9 +184,7 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
             exprs = params.get("_expressions") if isinstance(params, dict) else None
             self._committed_expressions = dict(exprs) if isinstance(exprs, dict) else {}
             self._committed_name = str(self._component.get("name") or "")
-            self._committed_parent = str(
-                self._component.get("parent") or self._component.get("attach_to") or ""
-            )
+            self._committed_parent = str(self._component.get("parent") or "")
         finally:
             self._loading = False
 
@@ -257,7 +253,7 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
         curr_params = self._component.get("parameters", {})
         curr_exprs = curr_params.get("_expressions") if isinstance(curr_params, dict) else None
         curr_name = str(self._component.get("name") or "")
-        curr_parent = str(self._component.get("parent") or self._component.get("attach_to") or "")
+        curr_parent = str(self._component.get("parent") or "")
         if (
             curr_params != self._committed_params
             or curr_exprs != self._committed_expressions

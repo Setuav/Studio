@@ -13,8 +13,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.ui.style.icons import get_icon
-
 if TYPE_CHECKING:
     from setuav_studio.api import StudioAPI
 
@@ -167,20 +165,6 @@ def format_component_name(component: dict[str, Any]) -> str:
         return name or tag or str(component.get("id") or "Unnamed")
 
     return str(component.get("name") or component.get("id") or "Unnamed")
-
-
-def format_assembly_type(assembly: dict[str, Any], api: StudioAPI | None = None) -> str:
-    atype = str(assembly.get("type") or "Assembly")
-    if api is not None:
-        return api.get_component_type_label(atype)
-    clean = atype.split(":")[-1] if ":" in atype else atype
-    return clean.replace("-", " ").replace("_", " ").title()
-
-
-def format_assembly_icon(assembly: dict[str, Any], api: StudioAPI | None = None) -> Any:
-    if api is not None:
-        return api.get_component_icon(assembly)
-    return get_icon("assembly_generic")
 
 
 def format_component_type(

@@ -41,18 +41,10 @@ def validate_project(
         issues.append(Issue("error", "'components' field must be an array", "$.components"))
         components = []
 
-    component_issues, component_ids, components_by_id = _index_components(components)
+    component_issues, component_ids, _ = _index_components(components)
     issues.extend(component_issues)
     issues.extend(_validate_component_links(components, component_ids))
     issues.extend(_validate_component_parameters(components))
-
-    # 3. Assemblies validation
-    assemblies = project.get("assemblies", [])
-    if not isinstance(assemblies, list):
-        issues.append(Issue("error", "'assemblies' field must be an array", "$.assemblies"))
-        assemblies = []
-
-    issues.extend(_validate_assemblies(assemblies, component_ids, components_by_id))
 
     return issues
 
@@ -107,10 +99,9 @@ def _validate_component_links(
     component_ids: set[str],
 ) -> list[Issue]:
     issues: list[Issue] = []
-    for field, label in (("parent", "Parent"), ("attach_to", "attach_to")):
-        link_map, field_issues = _component_link_map(components, component_ids, field)
-        issues.extend(field_issues)
-        issues.extend(_component_cycle_issues(component_ids, link_map, label))
+    link_map, field_issues = _component_link_map(components, component_ids, "parent")
+    issues.extend(field_issues)
+    issues.extend(_component_cycle_issues(component_ids, link_map, "Parent"))
     return issues
 
 
@@ -191,54 +182,6 @@ def _validate_component_parameters(
                     f"$.components[{index}].parameters",
                 )
             )
-    return issues
-
-
-def _validate_assemblies(
-    assemblies: list[dict[str, Any]],
-    component_ids: set[str],
-    components_by_id: dict[str, dict[str, Any]],
-) -> list[Issue]:
-    issues: list[Issue] = []
-    assembly_ids: set[str] = set()
-    for index, assembly in enumerate(assemblies):
-        if not isinstance(assembly, dict):
-            issues.append(
-                Issue("error", "Assembly entry must be an object", f"$.assemblies[{index}]")
-            )
-            continue
-
-        aid = assembly.get("id")
-        if not aid or not isinstance(aid, str) or not aid.strip():
-            issues.append(
-                Issue(
-                    "error",
-                    "Assembly ID is required and must be a non-empty string",
-                    f"$.assemblies[{index}].id",
-                )
-            )
-            continue
-
-        if aid in assembly_ids or aid in component_ids:
-            issues.append(
-                Issue("error", f"Duplicate assembly ID '{aid}'", f"$.assemblies[{index}].id")
-            )
-        assembly_ids.add(aid)
-
-        # Validate members reference existing components
-        members = assembly.get("members", {})
-        if isinstance(members, dict):
-            for role, value in members.items():
-                references = value if isinstance(value, list) else [value]
-                for reference in references:
-                    if reference and reference not in components_by_id:
-                        issues.append(
-                            Issue(
-                                "error",
-                                f"Assembly member '{reference}' for role '{role}' does not exist",
-                                f"$.assemblies[{index}].members.{role}",
-                            )
-                        )
     return issues
 
 

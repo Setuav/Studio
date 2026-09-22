@@ -255,7 +255,7 @@ class ShellProjectLifecycleTests(unittest.TestCase):
             self.assertTrue(self.window.save_project_as())
         save.assert_called_once_with(self.window._project, "output.suav")
 
-    def test_collect_unsaved_changes_compares_components_assemblies_and_analyses(self) -> None:
+    def test_collect_unsaved_changes_compares_components_and_analyses(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             project_file = Path(temporary_directory) / "project.json"
             disk_data = {
@@ -264,7 +264,6 @@ class ShellProjectLifecycleTests(unittest.TestCase):
                     {"id": "modified", "name": "Old"},
                     {"id": "deleted", "name": "Deleted"},
                 ],
-                "assemblies": [{"id": "assembly", "name": "Old Assembly"}],
             }
             project_file.write_text(json.dumps(disk_data), encoding="utf-8")
             self.window._project = ProjectDocument(
@@ -276,11 +275,6 @@ class ShellProjectLifecycleTests(unittest.TestCase):
                         "invalid",
                         {"id": "modified", "name": "Changed"},
                         {"id": "new", "name": "New"},
-                    ],
-                    "assemblies": [
-                        "invalid",
-                        {"id": "assembly", "name": "Changed Assembly"},
-                        {"id": "new-assembly", "name": "New Assembly"},
                     ],
                     "plugins": {
                         "org.setuav.studio.aerodynamics": {
@@ -300,8 +294,6 @@ class ShellProjectLifecycleTests(unittest.TestCase):
                 "Modified Component: Changed",
                 "New Component: New",
                 "Deleted Component: Deleted",
-                "Modified Assembly: Changed Assembly",
-                "New Assembly: New Assembly",
                 "Unsaved Aerodynamics entry: Aero",
                 "Unsaved Flight Performance entry: Performance",
             ],
@@ -545,7 +537,7 @@ class ShellProjectLifecycleTests(unittest.TestCase):
         return ProjectDocument(
             Path("project.json"),
             "json",
-            {"name": name, "components": [], "assemblies": []},
+            {"name": name, "components": []},
         )
 
 

@@ -86,7 +86,6 @@ _ICON_MAP = {
     # Default Component Types
     "component": "fa6s.cube",
     "instance": "fa6s.clone",
-    "assembly_generic": "fa6s.cubes",
     "component_fuselage": "fa6s.shuttle-space",
     "component_lifting_surface": "fa6s.plane",
     "component_control_surface": "fa6s.sliders",

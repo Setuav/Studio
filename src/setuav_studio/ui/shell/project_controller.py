@@ -228,12 +228,6 @@ class ProjectController:
                 "Component",
                 include_deleted=True,
             )
-            _append_entity_changes(
-                changes,
-                _items_by_id(disk_data, "assemblies"),
-                _items_by_id(curr_data, "assemblies"),
-                "Assembly",
-            )
             self.append_unsaved_plugin_entries(changes, disk_data, curr_data)
 
         except Exception as exc:

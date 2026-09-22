@@ -13,10 +13,12 @@ from setuav_studio.project import (
     ProjectDocument,
     ProjectOpenError,
     ProjectSaveError,
-    _write_json_file,
-    _write_suav,
     open_project,
     save_project,
+)
+from setuav_studio.project.document import (
+    _write_json_file,
+    _write_suav,
 )
 
 

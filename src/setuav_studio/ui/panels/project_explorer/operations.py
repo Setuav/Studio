@@ -25,13 +25,6 @@ class ProjectExplorerOperations:
         return project is not None and not project.read_only
 
     def element_kind(self, element_id: str) -> str:
-        project = self._api.current_project
-        if project is not None:
-            assemblies = project.data.get("assemblies")
-            if isinstance(assemblies, list):
-                for assembly in assemblies:
-                    if isinstance(assembly, dict) and str(assembly.get("id") or "") == element_id:
-                        return "assembly"
         return "component"
 
     def find_element(self, element_id: str, kind: str) -> dict[str, Any] | None:
@@ -40,8 +33,7 @@ class ProjectExplorerOperations:
             return None
         if kind == "project":
             return project.data
-        collection_name = "assemblies" if kind == "assembly" else "components"
-        collection = project.data.get(collection_name)
+        collection = project.data.get("components")
         if not isinstance(collection, list):
             return None
         return next(
@@ -79,82 +71,22 @@ class ProjectExplorerOperations:
                     changed = True
         return deleted_ids
 
-    @staticmethod
-    def assembly_member_ids(assembly: dict[str, Any]) -> set[str]:
-        members = assembly.get("members")
-        if not isinstance(members, dict):
-            return set()
-        member_ids: set[str] = set()
-        for member in members.values():
-            if isinstance(member, str) and member:
-                member_ids.add(member)
-            elif isinstance(member, list):
-                member_ids.update(value for value in member if isinstance(value, str) and value)
-        return member_ids
-
-    def assemblies_invalidated_by(self, component_ids: set[str]) -> set[str]:
-        project = self._api.current_project
-        assemblies = project.data.get("assemblies") if project is not None else None
-        if not isinstance(assemblies, list) or not component_ids:
-            return set()
-
-        invalidated: set[str] = set()
-        for assembly in assemblies:
-            if not isinstance(assembly, dict):
-                continue
-            members = assembly.get("members")
-            if not isinstance(members, dict):
-                continue
-            for member in members.values():
-                if isinstance(member, str) and member in component_ids:
-                    invalidated.add(str(assembly.get("id") or ""))
-                    break
-                if isinstance(member, list):
-                    remaining = [value for value in member if value not in component_ids]
-                    if member and not remaining:
-                        invalidated.add(str(assembly.get("id") or ""))
-                        break
-        invalidated.discard("")
-        return invalidated
-
     def deletion_scope(
         self,
         element: dict[str, Any],
         element_id: str,
-        kind: str,
-    ) -> tuple[set[str], set[str]]:
-        if kind == "assembly":
-            member_ids = self.assembly_member_ids(element)
-            component_ids = self.dependent_component_ids_from(member_ids)
-            assembly_ids = {element_id}
-            assembly_ids.update(self.assemblies_invalidated_by(component_ids))
-            return component_ids, assembly_ids
-        component_ids = self.dependent_component_ids(element_id)
-        return component_ids, self.assemblies_invalidated_by(component_ids)
+    ) -> set[str]:
+        return self.dependent_component_ids(element_id)
 
     @staticmethod
     def deletion_details(
-        element_id: str,
-        kind: str,
         component_ids: set[str],
-        assembly_ids: set[str],
     ) -> list[str]:
         details: list[str] = []
-        if kind == "assembly" and component_ids:
+        dependent_count = max(0, len(component_ids) - 1)
+        if dependent_count:
             details.append(
-                f"All {len(component_ids)} member and dependent component(s) will also be deleted."
-            )
-        elif kind != "assembly":
-            dependent_count = max(0, len(component_ids) - 1)
-            if dependent_count:
-                details.append(
-                    f"{dependent_count} structurally dependent item(s) will also be deleted."
-                )
-        additional_assemblies = assembly_ids - {element_id}
-        if additional_assemblies:
-            details.append(
-                f"{len(additional_assemblies)} other assembly group(s) that would "
-                "become invalid will also be removed; their remaining components will be kept."
+                f"{dependent_count} structurally dependent item(s) will also be deleted."
             )
         return details
 
@@ -178,7 +110,6 @@ class ProjectExplorerOperations:
     def apply_deletion(
         self,
         component_ids: set[str],
-        assembly_ids: set[str],
     ) -> None:
         project = self._api.current_project
         if project is None:
@@ -194,17 +125,6 @@ class ProjectExplorerOperations:
             ]
             self.clear_deleted_component_links(components, component_ids)
 
-        assemblies = project.data.get("assemblies")
-        if isinstance(assemblies, list):
-            assemblies[:] = [
-                assembly
-                for assembly in assemblies
-                if not (
-                    isinstance(assembly, dict) and str(assembly.get("id") or "") in assembly_ids
-                )
-            ]
-            self.remove_assembly_member_references(assemblies, component_ids)
-
     @staticmethod
     def clear_deleted_component_links(
         components: list[Any],
@@ -215,27 +135,6 @@ class ProjectExplorerOperations:
                 continue
             if str(component.get("parent") or "") in component_ids:
                 component["parent"] = None
-            if str(component.get("attach_to") or "") in component_ids:
-                component["attach_to"] = None
-
-    @staticmethod
-    def remove_assembly_member_references(
-        assemblies: list[Any],
-        component_ids: set[str],
-    ) -> None:
-        if not component_ids:
-            return
-        for assembly in assemblies:
-            if not isinstance(assembly, dict):
-                continue
-            members = assembly.get("members")
-            if not isinstance(members, dict):
-                continue
-            for role, member in list(members.items()):
-                if isinstance(member, str) and member in component_ids:
-                    members.pop(role)
-                elif isinstance(member, list):
-                    members[role] = [value for value in member if value not in component_ids]
 
     def delete_item(self, item: QTreeWidgetItem | None) -> None:
         if item is None:
@@ -307,8 +206,9 @@ class ProjectExplorerOperations:
 
         self._api.set_selection(None)
         self._api.edit_project(f"Delete parameter '{param_name}'", _apply_param_del)
-        if hasattr(self._api.current_project, "recompute_expressions"):
-            self._api.current_project.recompute_expressions(self._api)
+        proj = self._api.current_project
+        if proj is not None and hasattr(proj, "recompute_expressions"):
+            proj.recompute_expressions(self._api)
         self._api.show_status(f'Deleted parameter "{param_name}"', "success", 3000)
 
     def delete_constraint_item(self, element: dict[str, Any]) -> None:
@@ -331,17 +231,12 @@ class ProjectExplorerOperations:
         if not element_id:
             return
         element_name = str(element.get("name") or element_id)
-        kind = self.element_kind(element_id)
-        component_ids, assembly_ids = self.deletion_scope(
+        component_ids = self.deletion_scope(
             element,
             element_id,
-            kind,
         )
         details = self.deletion_details(
-            element_id,
-            kind,
             component_ids,
-            assembly_ids,
         )
 
         pdata = self._api.current_project.data if self._api.current_project else {}
@@ -363,12 +258,13 @@ class ProjectExplorerOperations:
             return
 
         def change() -> None:
-            self.apply_deletion(component_ids, assembly_ids)
+            self.apply_deletion(component_ids)
 
         self._api.set_selection(None)
         self._api.edit_project(f"Delete {element_name}", change)
-        if hasattr(self._api.current_project, "recompute_expressions"):
-            self._api.current_project.recompute_expressions(self._api)
+        proj = self._api.current_project
+        if proj is not None and hasattr(proj, "recompute_expressions"):
+            proj.recompute_expressions(self._api)
         self._api.show_status(f'Deleted "{element_name}"', "success", 3000)
 
     def delete_analysis_config_item(self, element: dict[str, Any]) -> None:
@@ -447,7 +343,7 @@ class ProjectExplorerOperations:
         old_name = str(element.get("name") or "").strip()
         old_label = (
             str(element.get("name") or element_id or "Unnamed Project")
-            if kind in {"project", "assembly"}
+            if kind == "project"
             else format_component_name(element)
         )
         new_name = item.text(0).strip()

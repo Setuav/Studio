@@ -38,7 +38,6 @@ class ProjectTests(unittest.TestCase):
         self.assertEqual(project.data["name"], "new")
         self.assertEqual(project.data["plugins"], [])
         self.assertEqual(project.data["components"], [])
-        self.assertEqual(project.data["assemblies"], [])
 
         with self.assertRaises(ProjectSaveError):
             create_project(self.root / "new.txt")
@@ -233,6 +232,37 @@ class ProjectTests(unittest.TestCase):
         comp = project.get_typed_component("main_wing")
         self.assertIsNotNone(comp)
         self.assertEqual(comp.name, "Main Wing")
+
+    def test_save_project_validation_error_on_corrupted_model(self) -> None:
+        """Pre-save validation prevents writing corrupted project documents."""
+        self.project_data["components"] = [
+            {"id": "a", "name": "A", "parent": "b"},
+            {"id": "b", "name": "B", "parent": "a"},
+        ]
+        project = open_project(self._write_project_json())
+        with self.assertRaises(ProjectSaveError):
+            save_project(project)
+
+    def test_save_project_serializes_numpy_and_custom_types(self) -> None:
+        """Safe JSON serializer handles numpy numbers, arrays, Paths and sets."""
+        import numpy as np
+
+        project = create_project(self.root / "project.json")
+        project.data["parameters"] = {
+            "scalar_float": np.float64(3.14159),
+            "scalar_int": np.int64(42),
+            "vector": np.array([1.0, 2.0, 3.0]),
+            "path": Path("/some/path"),
+            "tags": {"a", "b"},
+        }
+        save_project(project)
+        reloaded = open_project(project.path)
+        params = reloaded.data.get("parameters", {})
+        self.assertAlmostEqual(params["scalar_float"], 3.14159)
+        self.assertEqual(params["scalar_int"], 42)
+        self.assertEqual(params["vector"], [1.0, 2.0, 3.0])
+        self.assertEqual(params["path"], "/some/path")
+        self.assertCountEqual(params["tags"], ["a", "b"])
 
     def _write_project_json(self) -> Path:
         project_file = self.root / "project.json"

@@ -7,8 +7,6 @@ from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import QTreeWidgetItem
 
 from setuav_studio.ui.panels.project_explorer.style import (
-    format_assembly_icon,
-    format_assembly_type,
     format_component_name,
     format_component_type,
 )
@@ -38,14 +36,11 @@ class ProjectTreeBuilder:
         try:
             self.reset_project_tree()
             project_item = self.create_project_item(project)
-            components, assemblies = self.project_elements(project)
-            component_assemblies = self.component_assembly_map(assemblies)
-            self.create_assembly_items(project_item, assemblies, project.read_only)
+            components = self.project_elements(project)
             self.create_component_items(components, project.read_only)
             self.attach_component_items(
                 project_item,
                 components,
-                component_assemblies,
             )
             self.create_parameters_group(project_item, project)
             self.create_constraints_group(project_item, project)
@@ -95,13 +90,9 @@ class ProjectTreeBuilder:
     @staticmethod
     def project_elements(
         project: ProjectDocument,
-    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    ) -> list[dict[str, Any]]:
         components = project.data.get("components", [])
-        assemblies = project.data.get("assemblies", [])
-        return (
-            [item for item in components if isinstance(item, dict)],
-            [item for item in assemblies if isinstance(item, dict)],
-        )
+        return [item for item in components if isinstance(item, dict)]
 
     def create_parameters_group(
         self,
@@ -294,43 +285,6 @@ class ProjectTreeBuilder:
 
                 item.setExpanded(True)
 
-    @staticmethod
-    def component_assembly_map(
-        assemblies: list[dict[str, Any]],
-    ) -> dict[str, str]:
-        result: dict[str, str] = {}
-        for assembly in assemblies:
-            assembly_id = str(assembly.get("id") or "")
-            members = assembly.get("members")
-            members = members if isinstance(members, dict) else {}
-            for value in members.values():
-                references = value if isinstance(value, list) else [value]
-                for reference in references:
-                    if isinstance(reference, str):
-                        result[reference] = assembly_id
-        return result
-
-    def create_assembly_items(
-        self,
-        project_item: QTreeWidgetItem,
-        assemblies: list[dict[str, Any]],
-        read_only: bool,
-    ) -> None:
-        for assembly in assemblies:
-            assembly_id = str(assembly.get("id") or "")
-            name = str(assembly.get("name") or assembly_id or "Unnamed Assembly")
-            assembly_type = format_assembly_type(assembly, self._api)
-            item = QTreeWidgetItem([name])
-            if not read_only:
-                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
-            item.setIcon(0, format_assembly_icon(assembly, self._api))
-            item.setToolTip(0, f"{name} ({assembly_type})")
-            item.setData(0, Qt.ItemDataRole.UserRole, assembly_id)
-            self._tree._apply_modified_color(item, assembly, self._tree._saved_assemblies)
-            self._tree._item_map[assembly_id] = item
-            self._tree._element_map[item] = assembly
-            project_item.addChild(item)
-
     def create_component_items(
         self,
         components: list[dict[str, Any]],
@@ -380,38 +334,27 @@ class ProjectTreeBuilder:
         self,
         project_item: QTreeWidgetItem,
         components: list[dict[str, Any]],
-        component_assemblies: dict[str, str],
     ) -> None:
         for component in components:
             component_id = str(component.get("id") or "")
             item = self._tree._item_map.get(component_id)
             if item is None:
                 continue
-            parent_id = str(component.get("parent") or component.get("attach_to") or "")
+            parent_id = str(component.get("parent") or "")
             parent_item = self._tree._item_map.get(parent_id) if parent_id else None
             target = self.component_tree_parent(
                 project_item,
-                component,
-                component_id,
                 item,
                 parent_item,
-                component_assemblies,
-                components,
             )
             target.addChild(item)
 
+    @staticmethod
     def component_tree_parent(
-        self,
         project_item: QTreeWidgetItem,
-        component: dict[str, Any],
-        component_id: str,
         item: QTreeWidgetItem,
         parent_item: QTreeWidgetItem | None,
-        component_assemblies: dict[str, str],
-        components: list[dict[str, Any]],
     ) -> QTreeWidgetItem:
-        if component_id in component_assemblies:
-            return self._tree._item_map.get(component_assemblies[component_id]) or project_item
         if parent_item is not None and parent_item is not item:
             return parent_item
         return project_item

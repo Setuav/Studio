@@ -67,7 +67,7 @@ def get_available_symbols_metadata(  # noqa: C901
             raw_id = str(comp.get("id") or "")
             cid = raw_id.replace("-", "_")
             cname = str(comp.get("name") or cid)
-            parent_raw = str(comp.get("parent") or comp.get("attach_to") or "")
+            parent_raw = str(comp.get("parent") or "")
             parent_id = parent_raw.replace("-", "_") if parent_raw else None
             proxy_or_model = context.get(cid)
             model = getattr(proxy_or_model, "_target", proxy_or_model)

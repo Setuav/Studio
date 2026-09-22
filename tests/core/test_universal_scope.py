@@ -61,7 +61,6 @@ class TestUniversalScope(unittest.TestCase):
                     "name": "Aileron",
                     "type": "org.setuav.core:control-surface",
                     "parent": "main-wing",
-                    "attach_to": "main-wing",
                     "parameters": {
                         "type": "aileron",
                         "geometry": {

@@ -942,9 +942,6 @@ class StudioAPI:
                         return self.get_component_icon(src_dict)
             return get_icon("instance")
 
-        if component_kind == "assembly":
-            return get_icon("assembly_generic")
-
         return get_icon("component")
 
     def register_component_model(
