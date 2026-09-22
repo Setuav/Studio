@@ -46,11 +46,23 @@ def main() -> int:
     ]
     if not metadata_files:
         missing.append("setuav_studio distribution metadata")
+    plugin_package_root = PROJECT_ROOT / "src" / "plugins"
+    expected_plugin_resources = {
+        path.relative_to(plugin_package_root)
+        for path in plugin_package_root.rglob("*")
+        if path.is_file() and path.suffix not in (".py", ".pyc") and "__pycache__" not in path.parts
+    }
+    missing.extend(
+        f"plugins/{resource}"
+        for resource in sorted(expected_plugin_resources)
+        if not any((root / "plugins" / resource).is_file() for root in internal_roots)
+    )
     if missing:
         formatted = "\n  - ".join(missing)
         raise RuntimeError(f"Desktop bundle resources are missing:\n  - {formatted}")
 
-    print(f"Desktop resources verified: {len(expected_resources)} files in {bundle}")
+    total_count = len(expected_resources) + len(expected_plugin_resources)
+    print(f"Desktop resources verified: {total_count} files in {bundle}")
     return 0
 
 

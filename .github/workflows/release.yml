@@ -93,7 +93,7 @@ jobs:
       - name: Install locked dependencies
         run: uv sync --locked --all-extras --group desktop
       - name: Build desktop application
-        run: uv run --locked --all-extras --group desktop pyinstaller --noconfirm --clean setuav-studio.spec
+        run: uv run --locked --all-extras --group desktop pyinstaller --noconfirm --clean packaging/setuav-studio.spec
       - name: Install NSIS
         if: runner.os == 'Windows'
         shell: pwsh

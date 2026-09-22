@@ -12,7 +12,8 @@ from PyInstaller.utils.hooks import (
 )
 
 
-PROJECT_ROOT = Path(SPEC).resolve().parent
+SPEC_DIR = Path(SPEC).resolve().parent
+PROJECT_ROOT = SPEC_DIR.parent if SPEC_DIR.name == "packaging" else SPEC_DIR
 SOURCE_ROOT = PROJECT_ROOT / "src"
 PROJECT_VERSION = tomllib.loads(
     (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
@@ -26,6 +27,7 @@ PACKAGE_DATA = [
     *copy_metadata("setuav-studio"),
     *collect_data_files("setuav_studio", subdir="assets"),
     *collect_data_files("setuav_studio", subdir="data"),
+    *collect_data_files("plugins"),
     *collect_data_files("aerosandbox"),
     *collect_data_files("neuralfoil", subdir="nn_weights_and_biases"),
     *collect_data_files("pythrust", subdir="data"),

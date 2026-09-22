@@ -117,7 +117,7 @@ Create a local PyInstaller build:
 ```bash
 uv sync --locked --all-extras --group desktop
 uv run --locked --all-extras --group desktop \
-  pyinstaller --noconfirm --clean setuav-studio.spec
+  pyinstaller --noconfirm --clean packaging/setuav-studio.spec
 ```
 
 The application is created under `dist/setuav-studio/`. CI runs the full package,
