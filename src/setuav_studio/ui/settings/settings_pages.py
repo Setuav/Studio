@@ -293,8 +293,8 @@ class SettingsDialog(PropertyTableMixin, QDialog):
     def _build_general_page(self, values: StudioSettings) -> None:
         page, layout = self._page_container("General Settings")
 
-        # 1. Startup & Workspace
-        _, s1_layout = self._create_section("Startup & Workspace", "fa6s.clock-rotate-left", layout)
+        # 1. Startup
+        _, s1_layout = self._create_section("Startup", "fa6s.clock-rotate-left", layout)
         t1 = self._create_settings_table(
             [
                 ("reopen_last_project", "Reopen Last Project"),

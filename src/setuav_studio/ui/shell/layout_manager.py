@@ -9,12 +9,6 @@ if TYPE_CHECKING:
     from setuav_studio.api import StudioAPI
 
 
-_DOCK_ALIASES = {
-    "project.explorer": "core:project-explorer",
-    "studio.properties": "core:properties",
-}
-
-
 class LayoutManager:
     """Manages unified workbench dock layout and window geometry."""
 
@@ -128,10 +122,6 @@ class LayoutManager:
         self.save_layout()
 
     def dock(self, panel_id: str) -> QDockWidget | None:
-        target_id = _DOCK_ALIASES.get(panel_id, panel_id)
-        d = self._window.findChild(QDockWidget, target_id)
-        if d is not None:
-            return d
         return self._window.findChild(QDockWidget, panel_id)
 
     def resize_visible_docks(
