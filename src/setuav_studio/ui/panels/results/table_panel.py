@@ -2,14 +2,25 @@
 
 from __future__ import annotations
 
+from contextlib import suppress
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, Signal
+from PySide6.QtCore import (
+    QAbstractItemModel,
+    QAbstractTableModel,
+    QModelIndex,
+    QPoint,
+    Qt,
+    Signal,
+)
+from PySide6.QtGui import QResizeEvent, QWheelEvent
 from PySide6.QtWidgets import (
+    QAbstractScrollArea,
     QFileDialog,
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QMenu,
     QPushButton,
     QStackedWidget,
     QTableView,
@@ -139,6 +150,97 @@ class AnalysisTableModel(QAbstractTableModel):
         return None
 
 
+class FrozenRowView(QTableView):
+    """Child table view specifically displaying the frozen row (Unit row)."""
+
+    def __init__(self, parent_view: FrozenUnitTableView) -> None:
+        super().__init__(parent_view)
+        self._parent_view = parent_view
+        self.setObjectName("frozenUnitView")
+
+    def wheelEvent(self, event: QWheelEvent) -> None:
+        # Forward scroll wheel events to parent table so scrolling works on frozen row
+        self._parent_view.wheelEvent(event)
+
+
+class FrozenUnitTableView(QTableView):
+    """QTableView keeping row 0 (Unit row) frozen at the top under the horizontal header."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.frozen_view = FrozenRowView(self)
+        self.frozen_view.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.frozen_view.horizontalHeader().hide()
+        self.frozen_view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.frozen_view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.frozen_view.setAlternatingRowColors(True)
+        self.frozen_view.setStyleSheet(
+            "#frozenUnitView { border: none; border-bottom: 1px solid rgba(128, 128, 128, 0.3); background-color: palette(base); }"
+        )
+
+        self.viewport().stackUnder(self.frozen_view)
+
+        self.horizontalHeader().sectionResized.connect(self._on_section_resized)
+        self.horizontalHeader().geometriesChanged.connect(self.update_frozen_geometry)
+        self.verticalHeader().geometriesChanged.connect(self.update_frozen_geometry)
+        self.horizontalScrollBar().valueChanged.connect(
+            self.frozen_view.horizontalScrollBar().setValue
+        )
+        self.frozen_view.horizontalScrollBar().valueChanged.connect(
+            self.horizontalScrollBar().setValue
+        )
+
+    def setModel(self, model: QAbstractItemModel | None) -> None:
+        old_model = self.model()
+        if old_model is not None:
+            with suppress(Exception):
+                old_model.modelReset.disconnect(self._sync_frozen_rows)
+        super().setModel(model)
+        self.frozen_view.setModel(model)
+        if model is not None:
+            model.modelReset.connect(self._sync_frozen_rows)
+            if self.selectionModel() is not None:
+                self.frozen_view.setSelectionModel(self.selectionModel())
+        self._sync_frozen_rows()
+
+    def _sync_frozen_rows(self) -> None:
+        m = self.model()
+        if not m or m.rowCount() == 0:
+            self.frozen_view.hide()
+            return
+        self.frozen_view.show()
+        self.frozen_view.setRowHidden(0, False)
+        for r in range(1, m.rowCount()):
+            self.frozen_view.setRowHidden(r, True)
+        self.update_frozen_geometry()
+
+    def _on_section_resized(self, logical_index: int, _old_size: int, new_size: int) -> None:
+        self.frozen_view.setColumnWidth(logical_index, new_size)
+        self.update_frozen_geometry()
+
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        super().resizeEvent(event)
+        self.update_frozen_geometry()
+
+    def update_frozen_geometry(self) -> None:
+        m = self.model()
+        if not m or m.rowCount() == 0:
+            return
+        vh_w = self.verticalHeader().width() if self.verticalHeader().isVisible() else 0
+        self.frozen_view.verticalHeader().setFixedWidth(vh_w)
+        self.frozen_view.verticalHeader().setDefaultSectionSize(
+            self.verticalHeader().defaultSectionSize()
+        )
+        hh_h = self.horizontalHeader().height()
+        r0_h = self.rowHeight(0) or 22
+        w = self.viewport().width() + vh_w
+        x = self.frameWidth()
+        y = self.frameWidth() + hh_h
+        self.frozen_view.setGeometry(x, y, w, r0_h)
+        for c in range(m.columnCount()):
+            self.frozen_view.setColumnWidth(c, self.columnWidth(c))
+
+
 class AnalysisTablePanel(QWidget):
     """Themed dock panel dedicated to displaying tabular simulation datasets."""
 
@@ -183,11 +285,9 @@ class AnalysisTablePanel(QWidget):
         self._meta_label = QLabel()
         tb_layout.addWidget(self._meta_label)
 
-        # Unit system toggle
+        # Hidden units toggle kept for programmatic/test compatibility
         self._units_toggle_btn = QPushButton("Units: Display")
-        self._units_toggle_btn.setToolTip("Toggle between User Display Units and Raw SI Units")
-        self._units_toggle_btn.clicked.connect(self._toggle_units)
-        tb_layout.addWidget(self._units_toggle_btn)
+        self._units_toggle_btn.hide()
 
         # Export CSV button
         self._export_csv_btn = QPushButton("Export CSV")
@@ -224,12 +324,16 @@ class AnalysisTablePanel(QWidget):
         self._stack.addWidget(self._empty_view)
 
         # 2. Table View
-        self._table_view = QTableView(self)
+        self._table_view = FrozenUnitTableView(self)
         self._table_view.setAlternatingRowColors(True)
         self._table_view.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
         self._table_view.setSelectionMode(QTableView.SelectionMode.SingleSelection)
         self._table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self._table_view.verticalHeader().setDefaultSectionSize(22)
+        self._table_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._table_view.customContextMenuRequested.connect(self._on_table_context_menu)
+        self._table_view.frozen_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._table_view.frozen_view.customContextMenuRequested.connect(self._on_table_context_menu)
         self._stack.addWidget(self._table_view)
 
         self._stack.setCurrentWidget(self._empty_view)
@@ -301,3 +405,43 @@ class AnalysisTablePanel(QWidget):
             result = self._api.get_solver_result(res_id)
             if result and table_id in result.tables:
                 self.load_table(result.tables[table_id], result)
+
+    def _on_table_context_menu(self, pos: QPoint) -> None:
+        if self._current_table is None:
+            return
+
+        sender = self.sender()
+        if isinstance(sender, QAbstractScrollArea) and sender.viewport() is not None:
+            viewport = sender.viewport()
+        else:
+            viewport = self._table_view.viewport()
+        global_pos = viewport.mapToGlobal(pos)
+
+        menu = QMenu(self)
+        add_plot_act = menu.addAction(get_icon("fa6s.chart-line"), "Add Plot…")
+        menu.addSeparator()
+        export_act = menu.addAction(get_icon("fa6s.file-csv"), "Export CSV…")
+
+        chosen = menu.exec(global_pos)
+        if chosen is add_plot_act:
+            self._add_plot()
+        elif chosen is export_act:
+            self._export_csv()
+
+    def _add_plot(self) -> None:
+        if self._current_table is None:
+            return
+        from setuav_studio.ui.panels.project_explorer.dialog_actions import (
+            add_plot_action,
+        )
+
+        element = {
+            "result_id": self._current_result.id if self._current_result else None,
+            "table_id": self._current_table.id,
+            "config_id": (
+                getattr(getattr(self._current_result, "config", None), "config_id", None)
+                if self._current_result
+                else None
+            ),
+        }
+        add_plot_action(self._api, element, parent=self)

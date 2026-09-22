@@ -8,7 +8,6 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QDockWidget,
-    QHBoxLayout,
     QLabel,
     QMainWindow,
     QPushButton,
@@ -20,7 +19,6 @@ from PySide6.QtWidgets import (
 
 from setuav_studio.api.events import StudioEvents
 from setuav_studio.solver.results import PlotDefinition, SolverResult, TableDefinition
-from setuav_studio.ui.style.icons import get_icon
 
 from .chart_panel import AnalysisChartPanel
 from .table_panel import AnalysisTablePanel
@@ -94,50 +92,13 @@ class ResultPanel(QWidget):
         main_layout.setContentsMargins(4, 4, 4, 4)
         main_layout.setSpacing(4)
 
-        # Top Panel Toolbar
-        self._toolbar = QWidget()
-        tb_layout = QHBoxLayout(self._toolbar)
-        tb_layout.setContentsMargins(4, 2, 4, 2)
-        tb_layout.setSpacing(6)
-
-        tb_layout.addStretch()
-
+        self._toolbar = QWidget(self)
+        self._toolbar.hide()
         self._count_label = QLabel()
-        tb_layout.addWidget(self._count_label)
-
-        # Tabify all views button
         self._tabify_btn = QPushButton()
-        self._tabify_btn.setIcon(get_icon("fa6s.clone"))
-        self._tabify_btn.setToolTip("Tabify all open views")
-        self._tabify_btn.setFixedSize(26, 26)
-        self._tabify_btn.clicked.connect(self.tabify_all)
-        tb_layout.addWidget(self._tabify_btn)
-
-        # Tile horizontally button (side by side)
         self._tile_h_btn = QPushButton()
-        self._tile_h_btn.setIcon(get_icon("fa6s.table-columns"))
-        self._tile_h_btn.setToolTip("Tile views side by side")
-        self._tile_h_btn.setFixedSize(26, 26)
-        self._tile_h_btn.clicked.connect(self.tile_horizontally)
-        tb_layout.addWidget(self._tile_h_btn)
-
-        # Tile vertically button (stacked)
         self._tile_v_btn = QPushButton()
-        self._tile_v_btn.setIcon(get_icon("fa6s.bars"))
-        self._tile_v_btn.setToolTip("Tile views stacked vertically")
-        self._tile_v_btn.setFixedSize(26, 26)
-        self._tile_v_btn.clicked.connect(self.tile_vertically)
-        tb_layout.addWidget(self._tile_v_btn)
-
-        # Clear all views button
         self._clear_btn = QPushButton()
-        self._clear_btn.setIcon(get_icon("fa6s.trash-can"))
-        self._clear_btn.setToolTip("Close all result views")
-        self._clear_btn.setFixedSize(26, 26)
-        self._clear_btn.clicked.connect(self.clear_all)
-        tb_layout.addWidget(self._clear_btn)
-
-        main_layout.addWidget(self._toolbar)
 
         # Stacked Widget: Page 0 = Empty state, Page 1 = Dock Container
         self._stack = QStackedWidget()
@@ -157,7 +118,9 @@ class ResultPanel(QWidget):
 
         self._dock_window = QMainWindow(self._dock_container)
         self._dock_window.setWindowFlags(Qt.WindowType.Widget)
-        self._dock_window.setDockNestingEnabled(True)
+        self._dock_window.setDockOptions(
+            QMainWindow.DockOption.AnimatedDocks | QMainWindow.DockOption.AllowNestedDocks
+        )
         dock_container_layout.addWidget(self._dock_window)
         self._dock_window.show()
 
@@ -448,15 +411,12 @@ class ResultPanel(QWidget):
     def _update_toolbar(self) -> None:
         """Update toolbar visibility, badges, and controls based on open pane count."""
         count = len(self._panes)
-        if count == 0:
-            self._toolbar.setVisible(False)
-        else:
-            self._toolbar.setVisible(True)
-            self._count_label.setText(f"{count} view{'s' if count != 1 else ''}")
-            self._tabify_btn.setEnabled(count > 1)
-            self._tile_h_btn.setEnabled(count > 1)
-            self._tile_v_btn.setEnabled(count > 1)
-            self._clear_btn.setEnabled(True)
+        self._count_label.setText(f"{count} view{'s' if count != 1 else ''}")
+        self._tabify_btn.setEnabled(count > 1)
+        self._tile_h_btn.setEnabled(count > 1)
+        self._tile_v_btn.setEnabled(count > 1)
+        self._clear_btn.setEnabled(True)
+        self._toolbar.setVisible(False)
 
     def _on_selection_changed(self, selection: Any | None) -> None:
         """Respond to global selection changes to open selected tables or plots."""

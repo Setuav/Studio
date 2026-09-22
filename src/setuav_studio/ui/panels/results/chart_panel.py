@@ -134,7 +134,11 @@ class AnalysisChartPanel(QWidget):
         self._stack.addWidget(self._empty_view)
 
         # 2. Chart Widget
-        self._chart_widget = StudioChartWidget(parent=self)
+        self._chart_widget = StudioChartWidget(
+            parent=self,
+            legend_alignment=Qt.AlignmentFlag.AlignBottom,
+            mouse_interaction=False,
+        )
         self._chart_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._stack.addWidget(self._chart_widget)
 
@@ -258,7 +262,7 @@ class AnalysisChartPanel(QWidget):
         x_col = self._active_x_column
 
         self._chart_widget.clear()
-        self._chart_widget.setTitle(plot.title)
+        self._chart_widget.setTitle("")
 
         x_vals = table.get_column_display_values(x_col)
         if not x_vals:

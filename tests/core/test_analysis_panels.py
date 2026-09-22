@@ -395,6 +395,89 @@ class TestAnalysisPanels(unittest.TestCase):
         self.assertEqual(len(panel.open_pane_keys), 0)
         self.assertEqual(panel._stack.currentWidget(), panel._empty_view)
 
+    def test_frozen_unit_row_scrolling(self) -> None:
+        from setuav_studio.ui.panels.results.table_panel import FrozenUnitTableView
+
+        panel = AnalysisTablePanel(self.api)
+        # Create a table with 50 rows
+        large_table = self.result.add_table(
+            table_id="large_polar",
+            title="Large Polar",
+            columns=[
+                TableColumn(key="alpha", label="AoA", unit="deg"),
+                TableColumn(key="cl", label="Lift Coeff"),
+            ],
+            data={
+                "alpha": [float(i) for i in range(50)],
+                "cl": [float(i) * 0.1 for i in range(50)],
+            },
+        )
+        panel.load_table(large_table, self.result)
+        panel.resize(600, 300)
+        panel.show()
+        self._app.processEvents()
+
+        self.assertIsInstance(panel._table_view, FrozenUnitTableView)
+        self.assertTrue(panel._table_view.frozen_view.isVisible())
+
+        # Row 0 shows unit in frozen view
+        m = panel._table_view.model()
+        self.assertIsNotNone(m)
+        assert m is not None
+        self.assertEqual(panel._table_view.frozen_view.model().data(m.index(0, 0)), "[°]")
+
+        # Initial geometry under horizontal header
+        hh_h = panel._table_view.horizontalHeader().height()
+        fw = panel._table_view.frameWidth()
+        self.assertEqual(panel._table_view.frozen_view.y(), fw + hh_h)
+
+        # Scroll down
+        panel._table_view.verticalScrollBar().setValue(25)
+        self._app.processEvents()
+
+        # Frozen view must continue to be visible and anchored at the top
+        self.assertTrue(panel._table_view.frozen_view.isVisible())
+        self.assertEqual(panel._table_view.frozen_view.y(), fw + hh_h)
+
+        # Toggle units
+        panel._toggle_units()
+        self._app.processEvents()
+        self.assertEqual(panel._table_view.frozen_view.model().data(m.index(0, 0)), "[deg]")
+        panel.close()
+        panel.deleteLater()
+
+    def test_add_plot_from_tree_and_table(self) -> None:
+        from setuav_studio.ui.panels.project_explorer.dialog_actions import add_plot_action
+
+        # Explorer tree has plots group
+        pe = ProjectExplorerPanel(self.api)
+        plots_elem_id = f"{self.result.id}:plots"
+        self.assertIn(plots_elem_id, pe.explorer._item_map)
+        plots_item = pe.explorer._item_map[plots_elem_id]
+        self.assertEqual(plots_item.text(0), "Plots")
+
+        # Initial plots count
+        initial_plot_count = len(self.result.plots)
+
+        # Add plot from plots group
+        new_plot = add_plot_action(self.api, {"result_id": self.result.id})
+        self.assertIsNotNone(new_plot)
+        assert new_plot is not None
+        self.assertEqual(len(self.result.plots), initial_plot_count + 1)
+        self.assertEqual(self.api.current_selection.get("kind"), "analysis_plot")
+        self.assertEqual(self.api.current_selection.get("plot_id"), new_plot.id)
+        self.assertIn("studio:result", self.shown_panels)
+
+        # Add plot from AnalysisTablePanel
+        table_panel = AnalysisTablePanel(self.api)
+        table_panel.load_table(self.table, self.result)
+        table_panel._add_plot()
+        self.assertEqual(len(self.result.plots), initial_plot_count + 2)
+        table_panel.close()
+        table_panel.deleteLater()
+        pe.close()
+        pe.deleteLater()
+
     @staticmethod
     def horizontalHeaderOrientation():
         from PySide6.QtCore import Qt
