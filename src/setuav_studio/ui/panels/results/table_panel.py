@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMenu,
     QPushButton,
+    QSizePolicy,
     QStackedWidget,
     QTableView,
     QVBoxLayout,
@@ -319,6 +320,8 @@ class AnalysisTablePanel(QWidget):
             "No analysis table selected.\nRun an analysis or select a table in Project Explorer."
         )
         placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        placeholder.setWordWrap(True)
+        placeholder.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         placeholder.setStyleSheet("color: #888888; font-size: 12px; line-height: 150%;")
         empty_layout.addWidget(placeholder)
         self._stack.addWidget(self._empty_view)

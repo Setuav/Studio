@@ -67,6 +67,10 @@ class ResultDockWidget(QDockWidget):
 
     def __init__(self, title: str, parent: QWidget | None = None) -> None:
         super().__init__(title, parent)
+        self.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetClosable
+            | QDockWidget.DockWidgetFeature.DockWidgetMovable
+        )
 
     def closeEvent(self, event: QCloseEvent) -> None:
         self.closed.emit()
@@ -121,6 +125,9 @@ class ResultPanel(QWidget):
         self._dock_window.setDockOptions(
             QMainWindow.DockOption.AnimatedDocks | QMainWindow.DockOption.AllowNestedDocks
         )
+        dummy_central = QWidget(self._dock_container)
+        dummy_central.setMaximumSize(0, 0)
+        self._dock_window.setCentralWidget(dummy_central)
         dock_container_layout.addWidget(self._dock_window)
         self._dock_window.show()
 

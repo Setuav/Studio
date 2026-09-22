@@ -129,6 +129,8 @@ class AnalysisChartPanel(QWidget):
             "No analysis plot selected.\nRun an analysis or select a plot in Project Explorer."
         )
         placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        placeholder.setWordWrap(True)
+        placeholder.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         placeholder.setStyleSheet("color: #888888; font-size: 12px; line-height: 150%;")
         empty_layout.addWidget(placeholder)
         self._stack.addWidget(self._empty_view)

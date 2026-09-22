@@ -71,7 +71,6 @@ class StudioChartWidget(QWidget):
                     QEvent.Type.MouseButtonPress,
                     QEvent.Type.MouseButtonRelease,
                     QEvent.Type.MouseButtonDblClick,
-                    QEvent.Type.MouseMove,
                     QEvent.Type.Wheel,
                 ):
                     return True
