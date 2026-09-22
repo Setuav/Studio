@@ -432,11 +432,10 @@ class FuselageCanvasWidget(QWidget):
         height = self.height()
 
         # Canvas background
-        from setuav_studio.ui.style.theme import is_light_theme, tokens
+        from setuav_studio.ui.style.theme import tokens
 
         tok = tokens()
-        is_light = is_light_theme()
-        bg_color = QColor(tok.get("elevated", "#ffffff" if is_light else "#1a1a1c"))
+        bg_color = QColor(tok.get("elevated", "#1a1a1c"))
         painter.fillRect(0, 0, width, height, bg_color)
 
         ox = width / 2.0 + self._pan_offset.x()
@@ -620,12 +619,11 @@ class FuselageCanvasWidget(QWidget):
         ox: float,
         oy: float,
     ) -> None:
-        from setuav_studio.ui.style.theme import is_light_theme, tokens
+        from setuav_studio.ui.style.theme import tokens
 
         tok = tokens()
-        is_light = is_light_theme()
-        grid_color = QColor(tok.get("grid", "#e2e4e8" if is_light else "#262626"))
-        dim_text = QColor(tok.get("text_dim", "#787878" if is_light else "#555555"))
+        grid_color = QColor(tok.get("grid", "#262626"))
+        dim_text = QColor(tok.get("text_dim", "#555555"))
 
         raw_step = 60.0 / max(self._scale, 1e-4)
         magnitude = 10.0 ** math.floor(math.log10(max(raw_step, 1.0)))
@@ -667,12 +665,11 @@ class FuselageCanvasWidget(QWidget):
         ox: float,
         oy: float,
     ) -> None:
-        from setuav_studio.ui.style.theme import is_light_theme, tokens
+        from setuav_studio.ui.style.theme import tokens
 
         tok = tokens()
-        is_light = is_light_theme()
-        axis_color = QColor(tok.get("border_strong", "#b0b4bc" if is_light else "#404040"))
-        dim_text = QColor(tok.get("text_dim", "#787878" if is_light else "#777777"))
+        axis_color = QColor(tok.get("border_strong", "#404040"))
+        dim_text = QColor(tok.get("text_dim", "#777777"))
 
         axis_pen = QPen(axis_color, 1.2, Qt.PenStyle.SolidLine)
         painter.setPen(axis_pen)

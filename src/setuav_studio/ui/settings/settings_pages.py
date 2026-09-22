@@ -39,11 +39,9 @@ VALIDATION_STRICTNESS_LEVELS: tuple[str, ...] = ("strict", "warn", "off")
 
 
 THEME_MODES: tuple[str, ...] = (
-    "dark",
-    "light",
+    "native",
     "blender",
-    "github_dark",
-    "github_light",
+    "github",
     "monokai",
     "nord",
 )
@@ -55,7 +53,7 @@ class StudioSettings:
     recent_project_limit: int = 10
     pythrust_data_dir: str = ""
     validation_strictness: str = "strict"
-    theme_mode: str = "blender"
+    theme_mode: str = "native"
 
     @classmethod
     def load(cls) -> "StudioSettings":
@@ -65,9 +63,9 @@ class StudioSettings:
         strictness = str(settings.value("general/validation_strictness", "strict"))
         if strictness not in VALIDATION_STRICTNESS_LEVELS:
             strictness = "strict"
-        theme = str(settings.value("appearance/theme_mode", "blender")).lower()
+        theme = str(settings.value("appearance/theme_mode", "native")).lower()
         if theme not in THEME_MODES:
-            theme = "blender"
+            theme = "native"
         return cls(
             reopen_last_project=_as_bool(settings.value("general/reopen_last_project", False)),
             recent_project_limit=int(str(settings.value("general/recent_project_limit", 10))),
@@ -352,11 +350,9 @@ class SettingsDialog(PropertyTableMixin, QDialog):
         _, s1_layout = self._create_section("Theme & Styling", "fa6s.palette", layout)
         t1 = self._create_settings_table([("theme_mode", "Application Theme")])
         self.theme_combo = QComboBox()
-        self.theme_combo.addItem("Native Dark", "dark")
-        self.theme_combo.addItem("Native Light", "light")
-        self.theme_combo.addItem("Blender Theme", "blender")
-        self.theme_combo.addItem("GitHub Dark", "github_dark")
-        self.theme_combo.addItem("GitHub Light", "github_light")
+        self.theme_combo.addItem("Native", "native")
+        self.theme_combo.addItem("Blender", "blender")
+        self.theme_combo.addItem("GitHub", "github")
         self.theme_combo.addItem("Monokai", "monokai")
         self.theme_combo.addItem("Nord", "nord")
         idx = self.theme_combo.findData(values.theme_mode)

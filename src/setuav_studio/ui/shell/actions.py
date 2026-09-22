@@ -130,15 +130,9 @@ class ActionManager:
         self.theme_action_group = QActionGroup(self._window)
         self.theme_action_group.setExclusive(True)
 
-        self.dark_theme_action = self._create_theme_action("Native Dark", "dark", cur_mode)
-        self.light_theme_action = self._create_theme_action("Native Light", "light", cur_mode)
-        self.blender_theme_action = self._create_theme_action("Blender Theme", "blender", cur_mode)
-        self.github_dark_theme_action = self._create_theme_action(
-            "GitHub Dark", "github_dark", cur_mode
-        )
-        self.github_light_theme_action = self._create_theme_action(
-            "GitHub Light", "github_light", cur_mode
-        )
+        self.native_theme_action = self._create_theme_action("Native", "native", cur_mode)
+        self.blender_theme_action = self._create_theme_action("Blender", "blender", cur_mode)
+        self.github_theme_action = self._create_theme_action("GitHub", "github", cur_mode)
         self.monokai_theme_action = self._create_theme_action("Monokai", "monokai", cur_mode)
         self.nord_theme_action = self._create_theme_action("Nord", "nord", cur_mode)
 
@@ -199,11 +193,9 @@ class ActionManager:
             if hasattr(self._window, "_update_main_toolbar_style"):
                 self._window._update_main_toolbar_style()
             self.update_all_icons()
-            self.dark_theme_action.setChecked(mode == "dark")
-            self.light_theme_action.setChecked(mode == "light")
+            self.native_theme_action.setChecked(mode == "native")
             self.blender_theme_action.setChecked(mode == "blender")
-            self.github_dark_theme_action.setChecked(mode == "github_dark")
-            self.github_light_theme_action.setChecked(mode == "github_light")
+            self.github_theme_action.setChecked(mode == "github")
             self.monokai_theme_action.setChecked(mode == "monokai")
             self.nord_theme_action.setChecked(mode == "nord")
             if hasattr(self._window, "_refresh_status_color"):
@@ -252,12 +244,9 @@ class ActionManager:
     def populate_view_menu(self) -> None:
         self.view_menu.clear()
         theme_menu = self.view_menu.addMenu("Theme")
-        theme_menu.addAction(self.dark_theme_action)
-        theme_menu.addAction(self.light_theme_action)
-        theme_menu.addSeparator()
+        theme_menu.addAction(self.native_theme_action)
         theme_menu.addAction(self.blender_theme_action)
-        theme_menu.addAction(self.github_dark_theme_action)
-        theme_menu.addAction(self.github_light_theme_action)
+        theme_menu.addAction(self.github_theme_action)
         theme_menu.addAction(self.monokai_theme_action)
         theme_menu.addAction(self.nord_theme_action)
         self.view_menu.addSeparator()

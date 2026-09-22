@@ -4,7 +4,7 @@ from importlib import resources
 from PySide6.QtGui import QPalette
 
 from setuav_studio.ui.settings.settings_pages import StudioSettings
-from setuav_studio.ui.style.icons import application_icon, get_icon
+from setuav_studio.ui.style.icons import application_icon
 from setuav_studio.ui.style.theme import (
     ACCENT_COLOR,
     DEFAULT_FONT_SIZE,
@@ -29,7 +29,7 @@ class ThemeTests(unittest.TestCase):
         settings = StudioSettings()
         self.assertEqual(settings.reopen_last_project, False)
         self.assertEqual(settings.recent_project_limit, 10)
-        self.assertEqual(settings.theme_mode, "blender")
+        self.assertEqual(settings.theme_mode, "native")
 
     def test_inter_font_files_are_bundled(self) -> None:
         font_root = resources.files("setuav_studio").joinpath("assets", "fonts", "Inter")
@@ -45,85 +45,74 @@ class ThemeTests(unittest.TestCase):
         from setuav_studio.ui.style.theme import (
             BLENDER_TOKENS,
             DARK_TOKENS,
-            LIGHT_TOKENS,
             accent_color,
             current_theme_mode,
-            is_light_theme,
             set_theme_mode,
             tokens,
         )
 
-        set_theme_mode("dark")
-        self.assertEqual(current_theme_mode(), "dark")
+        set_theme_mode("native")
+        self.assertEqual(current_theme_mode(), "native")
         self.assertEqual(tokens()["window"], DARK_TOKENS["window"])
         self.assertEqual(accent_color(), DARK_TOKENS["accent"])
-
-        set_theme_mode("light")
-        self.assertEqual(current_theme_mode(), "light")
-        self.assertEqual(tokens()["window"], LIGHT_TOKENS["window"])
-        self.assertEqual(accent_color(), LIGHT_TOKENS["accent"])
 
         set_theme_mode("blender")
         self.assertEqual(current_theme_mode(), "blender")
         self.assertEqual(tokens()["window"], BLENDER_TOKENS["window"])
         self.assertEqual(accent_color(), BLENDER_TOKENS["accent"])
 
-        for mode in ("github_dark", "github_light", "monokai", "nord"):
+        for mode in ("github", "monokai", "nord"):
             set_theme_mode(mode)
             self.assertEqual(current_theme_mode(), mode)
             self.assertTrue(tokens()["window"].startswith("#"))
             self.assertTrue(accent_color().startswith("#"))
 
-        set_theme_mode("github_light")
-        self.assertTrue(is_light_theme())
-        set_theme_mode("github_dark")
-        self.assertFalse(is_light_theme())
-
-        # Reset back to dark
-        set_theme_mode("dark")
+        # Reset back to native
+        set_theme_mode("native")
 
     def test_application_palette_and_existing_icons_follow_theme(self) -> None:
         from setuav_studio.ui.style.theme import apply_theme, tokens
 
         app = get_qapp()
 
-        apply_theme(app, "dark")
-        icon_dark = get_icon("fa6s.floppy-disk")
-        dark_icon = icon_dark.pixmap(24, 24).toImage().pixelColor(12, 12)
+        apply_theme(app, "native")
         self.assertEqual(
             app.palette().color(QPalette.ColorRole.Window).name(),
             tokens()["window"],
         )
 
-        apply_theme(app, "light")
-        icon_light = get_icon("fa6s.floppy-disk")
-        light_icon = icon_light.pixmap(24, 24).toImage().pixelColor(12, 12)
+        apply_theme(app, "nord")
         self.assertEqual(
             app.palette().color(QPalette.ColorRole.Window).name(),
             tokens()["window"],
         )
-        self.assertGreater(dark_icon.lightness(), light_icon.lightness())
 
-        apply_theme(app, "dark")
+        apply_theme(app, "native")
 
     def test_chart_series_and_axes_are_rethemed(self) -> None:
-        from plugins.aerodynamics.charts_dock import SingleChartWidget
+        from PySide6.QtCore import Qt
+
         from setuav_studio.ui.style.theme import apply_theme, chart_color, tokens
+        from setuav_studio.ui.widget.chart import StudioChartWidget
 
         app = get_qapp()
-        apply_theme(app, "dark")
-        widget = SingleChartWidget("Theme test")
-        widget.plot_single([0.0, 1.0], [0.0, 1.0], "CL", "blue")
-        series = widget.series()[0]
+        apply_theme(app, "native")
+        widget = StudioChartWidget("Theme test")
+        axis_x = widget.create_axis("X")
+        axis_y = widget.create_axis("Y")
+        widget.chart.addAxis(axis_x, Qt.AlignmentFlag.AlignBottom)
+        widget.chart.addAxis(axis_y, Qt.AlignmentFlag.AlignLeft)
+        series = widget.create_line_series("CL", "blue")
+        widget.add_line_series(series, axis_x, axis_y)
         self.assertEqual(series.pen().color().name(), chart_color("blue"))
 
-        apply_theme(app, "light")
+        apply_theme(app, "nord")
         widget.update_theme_style()
         self.assertEqual(series.pen().color().name(), chart_color("blue"))
         self.assertEqual(widget.axes()[0].linePenColor().name(), tokens()["text_dim"])
 
         widget.deleteLater()
-        apply_theme(app, "dark")
+        apply_theme(app, "native")
 
 
 if __name__ == "__main__":

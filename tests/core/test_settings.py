@@ -62,10 +62,10 @@ class CoreSettingsTests(unittest.TestCase):
             values = StudioSettings.load()
 
         self.assertEqual(values.validation_strictness, "strict")
-        self.assertEqual(values.theme_mode, "blender")
+        self.assertEqual(values.theme_mode, "native")
 
     def test_dialog_round_trips_built_in_values(self) -> None:
-        dialog = SettingsDialog(StudioSettings(True, 12, " /pythrust ", "off", "github_light"))
+        dialog = SettingsDialog(StudioSettings(True, 12, " /pythrust ", "off", "github"))
         self.addCleanup(dialog.deleteLater)
 
         self.assertEqual(dialog.category_tree.topLevelItemCount(), 1)
@@ -77,14 +77,14 @@ class CoreSettingsTests(unittest.TestCase):
         self.assertEqual(dialog.page_stack.currentIndex(), 0)
         self.assertEqual(
             dialog.values(),
-            StudioSettings(True, 12, "/pythrust", "off", "github_light"),
+            StudioSettings(True, 12, "/pythrust", "off", "github"),
         )
 
         invalid_values = StudioSettings(validation_strictness="invalid", theme_mode="invalid")
         invalid_dialog = SettingsDialog(invalid_values)
         self.addCleanup(invalid_dialog.deleteLater)
         self.assertEqual(invalid_dialog.validation_strictness_combo.currentData(), "strict")
-        self.assertEqual(invalid_dialog.theme_combo.currentData(), "dark")
+        self.assertEqual(invalid_dialog.theme_combo.currentData(), "native")
 
     def test_plugin_pages_are_grouped_sorted_and_applied_safely(self) -> None:
         applied: list[QWidget] = []

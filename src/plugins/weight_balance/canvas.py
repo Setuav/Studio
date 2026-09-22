@@ -10,8 +10,6 @@ from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QFontMetrics, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QToolTip, QWidget
 
-from setuav_studio.ui.style.theme import is_light_theme
-
 from .scene import ColorValue, View2DMarker, View2DPath, View2DScene
 
 
@@ -442,13 +440,7 @@ class View2DCanvas(QWidget):
 
     @staticmethod
     def _display_color(value: ColorValue) -> QColor:
-        color = View2DCanvas._color(value)
-        # Titanium/pearl geometry colours are intentionally pale for the 3D
-        # viewer. Darken them only in light 2D plots where white outlines
-        # otherwise disappear against the plot background.
-        if is_light_theme() and color.lightness() > 185:
-            return color.darker(170)
-        return color
+        return View2DCanvas._color(value)
 
     @staticmethod
     def _format_axis(value: float) -> str:

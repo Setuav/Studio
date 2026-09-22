@@ -33,7 +33,6 @@ class ComboBoxWheelFilter(QObject):
 FONT_FAMILY = "Inter"
 DEFAULT_FONT_SIZE = 10
 ACCENT_COLOR = "#c5a9eb"
-INACTIVE_SELECTION_COLOR = "#404040"
 STATUS_COLORS = {
     "info": "#cccccc",
     "success": "#6fce9c",
@@ -50,24 +49,6 @@ DARK_CHART_COLORS: dict[str, str] = {
     "red": "#e06c75",
     "cyan": "#56b6c2",
     "teal": "#56b6c2",
-}
-
-LIGHT_CHART_COLORS: dict[str, str] = {
-    "blue": "#0969da",
-    "green": "#1a7f37",
-    "orange": "#bc4c00",
-    "magenta": "#8250df",
-    "purple": "#8250df",
-    "red": "#cf222e",
-    "cyan": "#0a7f8c",
-    "teal": "#0a7f8c",
-}
-
-LIGHT_STATUS_COLORS: dict[str, str] = {
-    "info": "#57606a",
-    "success": "#1a7f37",
-    "warning": "#9a6700",
-    "error": "#cf222e",
 }
 
 DARK_TOKENS: dict[str, str] = {
@@ -95,33 +76,6 @@ DARK_TOKENS: dict[str, str] = {
     "viewer_fuselage": "#555866",
     "viewer_fuselage_edge": "#9a9dab",
     "viewer_panel_edge": "#e0e0e0",
-}
-
-LIGHT_TOKENS: dict[str, str] = {
-    "window": "#f4f4f4",
-    "title_bar": "#e8e8e8",
-    "dock": "#f4f4f4",
-    "surface": "#ffffff",
-    "surface_alt": "#e8e8e8",
-    "elevated": "#f5f5f5",
-    "row_alt": "#fafafa",
-    "plot": "#ffffff",
-    "grid": "#e0e0e0",
-    "border": "#dddddd",
-    "border_strong": "#b0b0b0",
-    "text": "#1e1e1e",
-    "text_muted": "#555555",
-    "text_dim": "#777777",
-    "text_bright": "#1a73e8",
-    "axis": "#777777",
-    "accent": "#7048e8",
-    "accent_text": "#ffffff",
-    "inactive_selection": "#e4e4e4",
-    "viewer_surface": "#7894aa",
-    "viewer_surface_edge": "#2b4860",
-    "viewer_fuselage": "#8b8e99",
-    "viewer_fuselage_edge": "#4b4e58",
-    "viewer_panel_edge": "#303030",
 }
 
 BLENDER_TOKENS: dict[str, str] = {
@@ -153,14 +107,12 @@ BLENDER_TOKENS: dict[str, str] = {
 
 QT_THEME_NAMES: dict[str, str] = {
     "blender": "blender",
-    "github_dark": "github_dark",
-    "github_light": "github_light",
+    "github": "github_dark",
     "monokai": "monokai",
     "nord": "nord",
 }
-LIGHT_THEME_MODES = {"light", "github_light"}
 
-_current_mode: str = "blender"
+_current_mode: str = "native"
 
 
 @cache
@@ -171,10 +123,7 @@ def _load_qt_theme(mode: str):
     try:
         from qt_themes import get_theme
     except ModuleNotFoundError:
-        logger.error(
-            "Theme %s requested but qt-themes is not installed",
-            theme_name,
-        )
+        logger.error("Theme %s requested but qt-themes is not installed", theme_name)
         return None
     return get_theme(theme_name)
 
@@ -186,7 +135,7 @@ def _named_theme_tokens(mode: str) -> dict[str, str]:
 
     theme = _load_qt_theme(mode)
     if theme is None:
-        return LIGHT_TOKENS if mode in LIGHT_THEME_MODES else DARK_TOKENS
+        return DARK_TOKENS
 
     def color(name: str, fallback: str) -> str:
         value = getattr(theme, name, None)
@@ -195,7 +144,6 @@ def _named_theme_tokens(mode: str) -> dict[str, str]:
     text = color("text", "#ffffff")
     primary = color("primary", "#4772b3")
     mantle = color("mantle", "#282828")
-    is_dark = theme.is_dark_theme()
     accent_text = mantle if QColor(primary).valueF() > 0.5 else text
     return {
         "window": color("base", "#303030"),
@@ -205,9 +153,9 @@ def _named_theme_tokens(mode: str) -> dict[str, str]:
         "surface_alt": color("surface0", "#3d3d3d"),
         "elevated": color("crust", "#1d1d1d"),
         "row_alt": color("base", "#303030"),
-        "plot": color("crust", "#1d1d1d" if is_dark else "#ffffff"),
+        "plot": color("crust", "#1d1d1d"),
         "grid": color("surface0", "#3d3d3d"),
-        "border": mantle if is_dark else color("surface1", "#bbbbbb"),
+        "border": mantle,
         "border_strong": color("surface2", "#6c6c6c"),
         "text": text,
         "text_muted": color("overlay2", "#b9b9b9"),
@@ -229,7 +177,7 @@ def _named_theme_tokens(mode: str) -> dict[str, str]:
 def _named_theme_chart_colors(mode: str) -> dict[str, str]:
     theme = _load_qt_theme(mode)
     if theme is None:
-        return LIGHT_CHART_COLORS if mode in LIGHT_THEME_MODES else DARK_CHART_COLORS
+        return DARK_CHART_COLORS
 
     fallback = _named_theme_tokens(mode)["accent"]
     return {
@@ -243,7 +191,7 @@ def _named_theme_chart_colors(mode: str) -> dict[str, str]:
 def _named_theme_status_colors(mode: str) -> dict[str, str]:
     theme = _load_qt_theme(mode)
     if theme is None:
-        return LIGHT_STATUS_COLORS if mode in LIGHT_THEME_MODES else STATUS_COLORS
+        return STATUS_COLORS
 
     colors = _named_theme_chart_colors(mode)
     overlay = getattr(theme, "overlay2", None)
@@ -259,7 +207,7 @@ def _named_theme_status_colors(mode: str) -> dict[str, str]:
 def set_theme_mode(mode: str) -> None:
     """Set the active built-in or qt-themes mode."""
     global _current_mode
-    if mode in {"dark", "light", *QT_THEME_NAMES}:
+    if mode in {"native", *QT_THEME_NAMES}:
         _current_mode = mode
 
 
@@ -268,16 +216,11 @@ def current_theme_mode() -> str:
     return _current_mode
 
 
-def is_light_theme() -> bool:
-    """Return whether the active palette is a light theme."""
-    return _current_mode in LIGHT_THEME_MODES
-
-
 def tokens() -> dict[str, str]:
     """Return active theme tokens dictionary."""
     if _current_mode in QT_THEME_NAMES:
         return _named_theme_tokens(_current_mode)
-    return LIGHT_TOKENS if _current_mode == "light" else DARK_TOKENS
+    return DARK_TOKENS
 
 
 def accent_color() -> str:
@@ -290,7 +233,7 @@ def chart_color(role: str) -> str:
     if _current_mode in QT_THEME_NAMES:
         palette = _named_theme_chart_colors(_current_mode)
     else:
-        palette = LIGHT_CHART_COLORS if _current_mode == "light" else DARK_CHART_COLORS
+        palette = DARK_CHART_COLORS
     return palette.get(role, palette["blue"])
 
 
@@ -299,7 +242,7 @@ def status_color(level: str) -> str:
     if _current_mode in QT_THEME_NAMES:
         palette = _named_theme_status_colors(_current_mode)
     else:
-        palette = LIGHT_STATUS_COLORS if _current_mode == "light" else STATUS_COLORS
+        palette = STATUS_COLORS
     return palette.get(level, palette["info"])
 
 
@@ -336,8 +279,7 @@ def rgba(color: str, alpha: float) -> str:
 
 def _create_dark_palette() -> QPalette:
     """Create complete robust dark palette for Qt Fusion."""
-    dark_palette = QPalette()
-
+    palette = QPalette()
     window = QColor("#242424")
     base = QColor("#1c1c1c")
     alt_base = QColor("#222222")
@@ -347,131 +289,66 @@ def _create_dark_palette() -> QPalette:
     highlight = QColor(DARK_TOKENS["accent"])
     highlighted_text = QColor(DARK_TOKENS["accent_text"])
 
-    for group in (QPalette.ColorGroup.Active, QPalette.ColorGroup.Inactive):
-        dark_palette.setColor(group, QPalette.ColorRole.Window, window)
-        dark_palette.setColor(group, QPalette.ColorRole.WindowText, text)
-        dark_palette.setColor(group, QPalette.ColorRole.Base, base)
-        dark_palette.setColor(group, QPalette.ColorRole.AlternateBase, alt_base)
-        dark_palette.setColor(group, QPalette.ColorRole.ToolTipBase, window)
-        dark_palette.setColor(group, QPalette.ColorRole.ToolTipText, text)
-        dark_palette.setColor(group, QPalette.ColorRole.Text, text)
-        dark_palette.setColor(group, QPalette.ColorRole.Button, button)
-        dark_palette.setColor(group, QPalette.ColorRole.ButtonText, text)
-        dark_palette.setColor(group, QPalette.ColorRole.BrightText, QColor("#ffffff"))
-        dark_palette.setColor(group, QPalette.ColorRole.Light, QColor("#3c3c3c"))
-        dark_palette.setColor(group, QPalette.ColorRole.Midlight, QColor("#303030"))
-        dark_palette.setColor(group, QPalette.ColorRole.Dark, QColor("#1c1c1c"))
-        dark_palette.setColor(group, QPalette.ColorRole.Mid, QColor("#282828"))
-        dark_palette.setColor(group, QPalette.ColorRole.Shadow, QColor("#181818"))
-        dark_palette.setColor(group, QPalette.ColorRole.Highlight, highlight)
-        dark_palette.setColor(group, QPalette.ColorRole.HighlightedText, highlighted_text)
-        dark_palette.setColor(group, QPalette.ColorRole.Link, QColor("#61afef"))
-        dark_palette.setColor(group, QPalette.ColorRole.LinkVisited, QColor("#c678dd"))
-        dark_palette.setColor(group, QPalette.ColorRole.Accent, highlight)
-        dark_palette.setColor(group, QPalette.ColorRole.PlaceholderText, disabled_text)
-
-    disabled = QPalette.ColorGroup.Disabled
-    dark_palette.setColor(disabled, QPalette.ColorRole.Window, window)
-    dark_palette.setColor(disabled, QPalette.ColorRole.WindowText, disabled_text)
-    dark_palette.setColor(disabled, QPalette.ColorRole.Base, base)
-    dark_palette.setColor(disabled, QPalette.ColorRole.AlternateBase, alt_base)
-    dark_palette.setColor(disabled, QPalette.ColorRole.ToolTipBase, window)
-    dark_palette.setColor(disabled, QPalette.ColorRole.ToolTipText, disabled_text)
-    dark_palette.setColor(disabled, QPalette.ColorRole.Text, disabled_text)
-    dark_palette.setColor(disabled, QPalette.ColorRole.Button, button)
-    dark_palette.setColor(disabled, QPalette.ColorRole.ButtonText, disabled_text)
-    dark_palette.setColor(disabled, QPalette.ColorRole.BrightText, disabled_text)
-    dark_palette.setColor(disabled, QPalette.ColorRole.Light, QColor("#3c3c3c"))
-    dark_palette.setColor(disabled, QPalette.ColorRole.Midlight, QColor("#303030"))
-    dark_palette.setColor(disabled, QPalette.ColorRole.Dark, QColor("#1c1c1c"))
-    dark_palette.setColor(disabled, QPalette.ColorRole.Mid, QColor("#282828"))
-    dark_palette.setColor(disabled, QPalette.ColorRole.Shadow, QColor("#181818"))
-    dark_palette.setColor(disabled, QPalette.ColorRole.Highlight, QColor("#353535"))
-    dark_palette.setColor(disabled, QPalette.ColorRole.HighlightedText, disabled_text)
-    dark_palette.setColor(disabled, QPalette.ColorRole.Link, disabled_text)
-    dark_palette.setColor(disabled, QPalette.ColorRole.LinkVisited, disabled_text)
-    dark_palette.setColor(disabled, QPalette.ColorRole.Accent, QColor("#353535"))
-    dark_palette.setColor(disabled, QPalette.ColorRole.PlaceholderText, disabled_text)
-
-    return dark_palette
-
-
-def _create_light_palette() -> QPalette:
-    """Create complete robust clean light palette for Qt Fusion."""
-    light_palette = QPalette()
-
-    window = QColor("#f4f4f4")
-    base = QColor("#ffffff")
-    alt_base = QColor("#fafafa")
-    text = QColor("#1e1e1e")
-    disabled_text = QColor("#8a8a8a")
-    button = QColor("#e8e8e8")
-    highlight = QColor("#7048e8")
-    highlighted_text = QColor("#ffffff")
+    active_roles = {
+        QPalette.ColorRole.Window: window,
+        QPalette.ColorRole.WindowText: text,
+        QPalette.ColorRole.Base: base,
+        QPalette.ColorRole.AlternateBase: alt_base,
+        QPalette.ColorRole.ToolTipBase: window,
+        QPalette.ColorRole.ToolTipText: text,
+        QPalette.ColorRole.Text: text,
+        QPalette.ColorRole.Button: button,
+        QPalette.ColorRole.ButtonText: text,
+        QPalette.ColorRole.BrightText: QColor("#ffffff"),
+        QPalette.ColorRole.Light: QColor("#3c3c3c"),
+        QPalette.ColorRole.Midlight: QColor("#303030"),
+        QPalette.ColorRole.Dark: QColor("#1c1c1c"),
+        QPalette.ColorRole.Mid: QColor("#282828"),
+        QPalette.ColorRole.Shadow: QColor("#181818"),
+        QPalette.ColorRole.Highlight: highlight,
+        QPalette.ColorRole.HighlightedText: highlighted_text,
+        QPalette.ColorRole.Link: QColor("#61afef"),
+        QPalette.ColorRole.LinkVisited: QColor("#c678dd"),
+        QPalette.ColorRole.Accent: highlight,
+        QPalette.ColorRole.PlaceholderText: disabled_text,
+    }
 
     for group in (QPalette.ColorGroup.Active, QPalette.ColorGroup.Inactive):
-        light_palette.setColor(group, QPalette.ColorRole.Window, window)
-        light_palette.setColor(group, QPalette.ColorRole.WindowText, text)
-        light_palette.setColor(group, QPalette.ColorRole.Base, base)
-        light_palette.setColor(group, QPalette.ColorRole.AlternateBase, alt_base)
-        light_palette.setColor(group, QPalette.ColorRole.ToolTipBase, QColor("#ffffdc"))
-        light_palette.setColor(group, QPalette.ColorRole.ToolTipText, text)
-        light_palette.setColor(group, QPalette.ColorRole.Text, text)
-        light_palette.setColor(group, QPalette.ColorRole.Button, button)
-        light_palette.setColor(group, QPalette.ColorRole.ButtonText, text)
-        light_palette.setColor(group, QPalette.ColorRole.BrightText, QColor("#ffffff"))
-        light_palette.setColor(group, QPalette.ColorRole.Light, QColor("#ffffff"))
-        light_palette.setColor(group, QPalette.ColorRole.Midlight, QColor("#f0f0f0"))
-        light_palette.setColor(group, QPalette.ColorRole.Dark, QColor("#cccccc"))
-        light_palette.setColor(group, QPalette.ColorRole.Mid, QColor("#dddddd"))
-        light_palette.setColor(group, QPalette.ColorRole.Shadow, QColor("#b8b8b8"))
-        light_palette.setColor(group, QPalette.ColorRole.Highlight, highlight)
-        light_palette.setColor(group, QPalette.ColorRole.HighlightedText, highlighted_text)
-        light_palette.setColor(group, QPalette.ColorRole.Link, QColor("#0969da"))
-        light_palette.setColor(group, QPalette.ColorRole.LinkVisited, QColor("#8250df"))
-        light_palette.setColor(group, QPalette.ColorRole.Accent, highlight)
-        light_palette.setColor(group, QPalette.ColorRole.PlaceholderText, disabled_text)
+        for role, color in active_roles.items():
+            palette.setColor(group, role, color)
 
-    disabled = QPalette.ColorGroup.Disabled
-    light_palette.setColor(disabled, QPalette.ColorRole.Window, window)
-    light_palette.setColor(disabled, QPalette.ColorRole.WindowText, disabled_text)
-    light_palette.setColor(disabled, QPalette.ColorRole.Base, base)
-    light_palette.setColor(disabled, QPalette.ColorRole.AlternateBase, alt_base)
-    light_palette.setColor(disabled, QPalette.ColorRole.ToolTipBase, QColor("#ffffdc"))
-    light_palette.setColor(disabled, QPalette.ColorRole.ToolTipText, disabled_text)
-    light_palette.setColor(disabled, QPalette.ColorRole.Text, disabled_text)
-    light_palette.setColor(disabled, QPalette.ColorRole.Button, button)
-    light_palette.setColor(disabled, QPalette.ColorRole.ButtonText, disabled_text)
-    light_palette.setColor(disabled, QPalette.ColorRole.BrightText, disabled_text)
-    light_palette.setColor(disabled, QPalette.ColorRole.Light, QColor("#ffffff"))
-    light_palette.setColor(disabled, QPalette.ColorRole.Midlight, QColor("#f0f0f0"))
-    light_palette.setColor(disabled, QPalette.ColorRole.Dark, QColor("#cccccc"))
-    light_palette.setColor(disabled, QPalette.ColorRole.Mid, QColor("#dddddd"))
-    light_palette.setColor(disabled, QPalette.ColorRole.Shadow, QColor("#b8b8b8"))
-    light_palette.setColor(disabled, QPalette.ColorRole.Highlight, QColor("#d0d0d0"))
-    light_palette.setColor(disabled, QPalette.ColorRole.HighlightedText, disabled_text)
-    light_palette.setColor(disabled, QPalette.ColorRole.Link, disabled_text)
-    light_palette.setColor(disabled, QPalette.ColorRole.LinkVisited, disabled_text)
-    light_palette.setColor(disabled, QPalette.ColorRole.Accent, QColor("#d0d0d0"))
-    light_palette.setColor(disabled, QPalette.ColorRole.PlaceholderText, disabled_text)
+    disabled_roles = {
+        **active_roles,
+        QPalette.ColorRole.WindowText: disabled_text,
+        QPalette.ColorRole.ToolTipText: disabled_text,
+        QPalette.ColorRole.Text: disabled_text,
+        QPalette.ColorRole.ButtonText: disabled_text,
+        QPalette.ColorRole.BrightText: disabled_text,
+        QPalette.ColorRole.Highlight: QColor("#353535"),
+        QPalette.ColorRole.HighlightedText: disabled_text,
+        QPalette.ColorRole.Link: disabled_text,
+        QPalette.ColorRole.LinkVisited: disabled_text,
+        QPalette.ColorRole.Accent: QColor("#353535"),
+        QPalette.ColorRole.PlaceholderText: disabled_text,
+    }
 
-    return light_palette
+    for role, color in disabled_roles.items():
+        palette.setColor(QPalette.ColorGroup.Disabled, role, color)
+
+    return palette
 
 
 def _create_named_theme_palette(mode: str) -> QPalette:
     """Create a qt-themes palette without resetting the active Qt style."""
     theme = _load_qt_theme(mode)
     if theme is None:
-        return _create_light_palette() if mode in LIGHT_THEME_MODES else _create_dark_palette()
+        return _create_dark_palette()
 
     from qt_themes import update_palette
 
     palette = QPalette()
     update_palette(palette, theme)
 
-    # qt-themes already defines the principal Disabled roles. Complete the
-    # remaining ones explicitly so native Fusion controls never fall back to
-    # platform-dependent black brushes.
     disabled = QPalette.ColorGroup.Disabled
     disabled_text = theme.overlay1
     palette.setColor(disabled, QPalette.ColorRole.Window, theme.base)
@@ -486,7 +363,7 @@ def _create_named_theme_palette(mode: str) -> QPalette:
 
 
 def apply_theme(app: QApplication, mode: str | None = None) -> None:
-    """Pure 100% native Qt Fusion styling with instant dynamic light/dark palette."""
+    """Pure 100% native Qt Fusion styling with instant dynamic palette."""
     if mode is not None:
         set_theme_mode(mode)
 
@@ -494,8 +371,6 @@ def apply_theme(app: QApplication, mode: str | None = None) -> None:
         app.setStyle("Fusion")
     if current_theme_mode() in QT_THEME_NAMES:
         palette = _create_named_theme_palette(current_theme_mode())
-    elif current_theme_mode() == "light":
-        palette = _create_light_palette()
     else:
         palette = _create_dark_palette()
     if app.styleSheet():
@@ -509,8 +384,6 @@ def apply_theme(app: QApplication, mode: str | None = None) -> None:
     from setuav_studio.ui.widget.button import refresh_all_button_roles
 
     for widget in app.allWidgets():
-        # Application palette propagation preserves intentional per-widget
-        # palette overrides and emits Qt's normal palette-change events.
         if isinstance(widget, QLabel):
             refresh_label_icon(widget)
         widget.update()
@@ -520,11 +393,6 @@ def apply_theme(app: QApplication, mode: str | None = None) -> None:
     if _combobox_wheel_filter is None:
         _combobox_wheel_filter = ComboBoxWheelFilter(app)
         app.installEventFilter(_combobox_wheel_filter)
-
-
-def build_stylesheet(font_size: int = DEFAULT_FONT_SIZE) -> str:
-    """Return empty stylesheet to allow pure native Qt Fusion rendering."""
-    return ""
 
 
 _INTER_FONT_FILES = (
@@ -573,14 +441,12 @@ __all__ = [
     "ACCENT_COLOR",
     "DEFAULT_FONT_SIZE",
     "FONT_FAMILY",
-    "INACTIVE_SELECTION_COLOR",
     "STATUS_COLORS",
     "ComboBoxWheelFilter",
     "accent_color",
     "apply_theme",
     "chart_color",
     "current_theme_mode",
-    "is_light_theme",
     "semantic_color",
     "status_color",
     "tokens",

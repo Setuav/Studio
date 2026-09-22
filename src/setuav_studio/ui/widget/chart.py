@@ -28,11 +28,13 @@ class StudioChartWidget(QWidget):
         title: str = "",
         parent: QWidget | None = None,
         legend_visible: bool = True,
-        legend_alignment: Qt.AlignmentFlag = Qt.AlignmentFlag.AlignTop,
+        legend_alignment: Qt.AlignmentFlag = Qt.AlignmentFlag.AlignBottom,
         animated: bool = False,
+        mouse_interaction: bool = False,
     ) -> None:
         super().__init__(parent)
         self._overlay_refs: list[Any] = []
+        self._mouse_interaction = mouse_interaction
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(2, 2, 2, 2)
@@ -53,19 +55,32 @@ class StudioChartWidget(QWidget):
 
         self.view = QChartView(self.chart)
         self.view.setRenderHint(QPainter.RenderHint.Antialiasing)
-        self.view.setRubberBand(QChartView.RubberBand.RectangleRubberBand)
+        if self._mouse_interaction:
+            self.view.setRubberBand(QChartView.RubberBand.RectangleRubberBand)
+        else:
+            self.view.setRubberBand(QChartView.RubberBand.NoRubberBand)
         self.view.installEventFilter(self)
         layout.addWidget(self.view)
 
         self.update_theme_style()
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
-        if watched is self.view and event.type() == QEvent.Type.MouseButtonPress:
-            from PySide6.QtGui import QMouseEvent
+        if watched is self.view:
+            if not self._mouse_interaction:
+                if event.type() in (
+                    QEvent.Type.MouseButtonPress,
+                    QEvent.Type.MouseButtonRelease,
+                    QEvent.Type.MouseButtonDblClick,
+                    QEvent.Type.MouseMove,
+                    QEvent.Type.Wheel,
+                ):
+                    return True
+            elif event.type() == QEvent.Type.MouseButtonPress:
+                from PySide6.QtGui import QMouseEvent
 
-            if isinstance(event, QMouseEvent) and event.button() == Qt.MouseButton.RightButton:
-                self.chart.zoomReset()
-                return True
+                if isinstance(event, QMouseEvent) and event.button() == Qt.MouseButton.RightButton:
+                    self.chart.zoomReset()
+                    return True
         return super().eventFilter(watched, event)
 
     def setTitle(self, title: str) -> None:
@@ -74,16 +89,15 @@ class StudioChartWidget(QWidget):
 
     def update_theme_style(self) -> None:
         """Synchronize colors and pens with current application theme tokens."""
-        from setuav_studio.ui.style.theme import chart_color, is_light_theme, tokens
+        from setuav_studio.ui.style.theme import chart_color, tokens
 
         tok = tokens()
-        is_light = is_light_theme()
-        text_col = QColor(tok.get("text", "#1e1e1e" if is_light else "#e0e0e0"))
-        dim_col = QColor(tok.get("text_dim", "#666666" if is_light else "#888888"))
-        bg_col = QColor(tok.get("surface", "#ffffff" if is_light else "#1e1e1e"))
-        plot_bg_col = QColor(tok.get("plot", "#ffffff" if is_light else "#141414"))
-        grid_col = QColor(tok.get("grid", "#e0e0e0" if is_light else "#333333"))
-        border_col = QColor(tok.get("border", "#dddddd" if is_light else "#282828"))
+        text_col = QColor(tok.get("text", "#e0e0e0"))
+        dim_col = QColor(tok.get("text_dim", "#888888"))
+        bg_col = QColor(tok.get("surface", "#1e1e1e"))
+        plot_bg_col = QColor(tok.get("plot", "#141414"))
+        grid_col = QColor(tok.get("grid", "#333333"))
+        border_col = QColor(tok.get("border", "#282828"))
 
         self.chart.setTitleBrush(text_col)
         self.chart.setBackgroundBrush(bg_col)
@@ -115,12 +129,11 @@ class StudioChartWidget(QWidget):
 
     def get_theme_colors(self) -> tuple[QColor, QColor]:
         """Return (grid_color, dim_text_color) based on current theme."""
-        from setuav_studio.ui.style.theme import is_light_theme, tokens
+        from setuav_studio.ui.style.theme import tokens
 
         tok = tokens()
-        is_light = is_light_theme()
-        dim_col = QColor(tok.get("text_dim", "#555555" if is_light else "#888888"))
-        grid_col = QColor(tok.get("grid", "#e2e4e8" if is_light else "#2d2d35"))
+        dim_col = QColor(tok.get("text_dim", "#888888"))
+        grid_col = QColor(tok.get("grid", "#2d2d35"))
         return grid_col, dim_col
 
     def create_axis(

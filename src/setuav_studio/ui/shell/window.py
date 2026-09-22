@@ -104,11 +104,9 @@ class MainWindow(QMainWindow):
         self._settings_action = self._action_manager.settings_action
         self._plugin_manager_action = self._action_manager.plugin_manager_action
         self._about_action = self._action_manager.about_action
-        self._dark_theme_action = self._action_manager.dark_theme_action
-        self._light_theme_action = self._action_manager.light_theme_action
+        self._native_theme_action = self._action_manager.native_theme_action
         self._blender_theme_action = self._action_manager.blender_theme_action
-        self._github_dark_theme_action = self._action_manager.github_dark_theme_action
-        self._github_light_theme_action = self._action_manager.github_light_theme_action
+        self._github_theme_action = self._action_manager.github_theme_action
         self._monokai_theme_action = self._action_manager.monokai_theme_action
         self._nord_theme_action = self._action_manager.nord_theme_action
 
@@ -182,6 +180,8 @@ class MainWindow(QMainWindow):
         dock.setObjectName(contribution.id)
         dock.setWidget(self._wrap_panel(contribution.factory()))
         self.addDockWidget(contribution.area, dock)
+        if not getattr(contribution, "default_visible", True):
+            dock.hide()
         self._panels[contribution.id] = (contribution, dock)
 
         action = QAction(contribution.title, self)

@@ -58,7 +58,7 @@ class ShellContributionTests(unittest.TestCase):
         with (
             patch("setuav_studio.ui.style.theme.apply_theme") as apply_theme,
             patch("setuav_studio.ui.widget.button.refresh_all_button_roles") as refresh_roles,
-            patch.object(StudioSettings, "load", return_value=StudioSettings(theme_mode="dark")),
+            patch.object(StudioSettings, "load", return_value=StudioSettings(theme_mode="native")),
             patch.object(StudioSettings, "save") as save_settings,
         ):
             self.window._switch_theme("nord")
@@ -349,7 +349,7 @@ class ShellContributionTests(unittest.TestCase):
         cancelled.exec.return_value = QDialog.DialogCode.Rejected
         accepted = Mock()
         accepted.exec.return_value = QDialog.DialogCode.Accepted
-        accepted.values.return_value = StudioSettings(theme_mode="light", recent_project_limit=3)
+        accepted.values.return_value = StudioSettings(theme_mode="nord", recent_project_limit=3)
 
         with patch(
             "setuav_studio.ui.shell.actions.SettingsDialog", side_effect=[cancelled, accepted]
@@ -364,7 +364,7 @@ class ShellContributionTests(unittest.TestCase):
                 self.window._open_settings()
         save.assert_called_once()
         accepted.apply_plugin_pages.assert_called_once()
-        switch_theme.assert_called_once_with("light")
+        switch_theme.assert_called_once_with("nord")
         trim.assert_called_once_with(3)
         update_recent.assert_called_once()
 
