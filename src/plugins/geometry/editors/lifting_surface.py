@@ -76,7 +76,6 @@ class LiftingSurfaceEditor(
         layout.addWidget(scroll)
 
         self._create_general_section()
-        self._create_attachment_section()
         self._create_planform_sizing_section()
         self._create_wing_angles_section()
         self._create_sections_section()
@@ -129,6 +128,7 @@ class LiftingSurfaceEditor(
                 ("name", "Name"),
                 ("type", "Type"),
                 ("attach_to", "Attach to"),
+                ("mirror", "Symmetry / Mirror"),
             ]
         )
         self.general_table.cellChanged.connect(self._update_general)
@@ -213,8 +213,15 @@ class LiftingSurfaceEditor(
             lambda val: self._update_attach_to(val if val else None),
         )
 
-        # Attachment / Component Transform
-        self._load_attachment_transform()
+        # Symmetry / Mirror
+        is_mirror = "true" if self._geometry().get("mirror") is True else "false"
+        self._set_property_combo(
+            self.general_table,
+            "mirror",
+            is_mirror,
+            [("false", "Single (No Mirror)"), ("true", "Bilateral (Mirror XZ)")],
+            lambda val: self._update_mirror(val == "true"),
+        )
 
         # Sections (Panels)
         self._populate_sections()

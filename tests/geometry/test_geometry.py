@@ -309,17 +309,15 @@ class GeometryTests(unittest.TestCase):
         editor._on_section_selected(0, 0)
         self.assertEqual(api.current_section_selection, ("main-wing", 0, 0))
 
-        # Check Attachment (Component Transform)
-        self.assertAlmostEqual(
-            editor.attachment_table.cellWidget(0, 0).value(),
-            wing_comp["transform"]["position"]["x"],
-        )
-        self.assertAlmostEqual(editor.attachment_table.cellWidget(0, 1).value(), 75.00)
-        self.assertAlmostEqual(editor.attachment_table.cellWidget(0, 2).value(), 40.00)
-
-        # Edit Attachment Transform
-        editor.attachment_table.cellWidget(0, 0).setValue(320.00)
-        self.assertEqual(wing_comp["transform"]["position"]["x"], 320.0)
+        # Check Symmetry / Mirror in general_table
+        mirror_combo = editor.general_table.cellWidget(3, 1)
+        self.assertIsNotNone(mirror_combo)
+        self.assertEqual(mirror_combo.currentData(), "true")
+        self.assertEqual(mirror_combo.currentText(), "Bilateral (Mirror XZ)")
+        editor._update_mirror(False)
+        self.assertNotIn("mirror", wing_comp["parameters"]["geometry"])
+        editor._update_mirror(True)
+        self.assertTrue(wing_comp["parameters"]["geometry"]["mirror"])
 
         # Edit tip_chord in section_planform_table
         sec_values = editor.section_planform_table.get_current_values()
