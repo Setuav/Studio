@@ -83,7 +83,6 @@ class LoftPrimitive:
     sections: tuple[tuple[Point3D, ...], ...]
     color: ColorRGBA = (1.0, 0.82, 0.10, 1.0)
     interpolation: Literal["linear", "smooth"] = "smooth"
-    parameterization: Literal["uniform", "chord_length", "centripetal"] = "centripetal"
     station_spacing: float = 10.0
     closed_ends: bool = True
     wireframe: bool = True

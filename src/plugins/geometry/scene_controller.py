@@ -78,7 +78,6 @@ class GeometrySceneController:
                 sections=sections_pts,
                 color=_to_rgba(loft.color),
                 interpolation=getattr(loft, "interpolation", "smooth"),
-                parameterization=getattr(loft, "parameterization", "centripetal"),
                 station_spacing=getattr(loft, "station_spacing", 10.0),
                 closed_ends=getattr(loft, "closed_ends", True),
                 wireframe=True,

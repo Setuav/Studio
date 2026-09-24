@@ -433,8 +433,7 @@ def _tessellated_loops(loft: LoftGeometry) -> list[tuple[Point3D, ...]]:
     spacing = loft.station_spacing
     if spacing <= 0.0:
         return sections
-    param_mode = getattr(loft, "parameterization", "centripetal")
-    parameters = _section_parameters(sections, parameterization=param_mode)
+    parameters = _section_parameters(sections)
     use_spline = loft.interpolation == "smooth" and len(sections) > 2
     splines = _build_splines(sections, parameters) if use_spline else None
     centres = [
@@ -478,11 +477,7 @@ def _station_count(gap_length: float, spacing: float) -> int:
 
 def _section_parameters(
     sections: list[tuple[Point3D, ...]],
-    parameterization: str = "centripetal",
 ) -> list[float]:
-    if parameterization == "uniform":
-        return [float(index) for index in range(len(sections))]
-
     centres = [
         tuple(sum(point[axis] for point in section) / len(section) for axis in range(3))
         for section in sections
@@ -493,11 +488,7 @@ def _section_parameters(
 
     values = [0.0]
     for distance in distances:
-        if parameterization == "centripetal":
-            step = math.sqrt(max(distance, 1e-9))
-        else:
-            step = max(distance, 1e-9)
-        values.append(values[-1] + step)
+        values.append(values[-1] + max(distance, 1e-9))
     return values
 
 

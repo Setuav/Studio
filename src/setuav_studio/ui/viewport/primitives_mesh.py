@@ -137,7 +137,6 @@ def build_primitive_solid_vertices(  # noqa: C901
                 sections=tuple(Section(pts) for pts in prim.sections),
                 color=color,
                 interpolation=getattr(prim, "interpolation", "smooth"),
-                parameterization=getattr(prim, "parameterization", "centripetal"),
                 station_spacing=getattr(prim, "station_spacing", 10.0),
                 closed_ends=getattr(prim, "closed_ends", True),
             )
@@ -264,7 +263,6 @@ def build_primitive_wire_vertices(  # noqa: C901
                 sections=tuple(Section(pts) for pts in prim.sections),
                 color=color,
                 interpolation=getattr(prim, "interpolation", "smooth"),
-                parameterization=getattr(prim, "parameterization", "centripetal"),
                 station_spacing=getattr(prim, "station_spacing", 10.0),
                 closed_ends=getattr(prim, "closed_ends", True),
             )
@@ -429,7 +427,6 @@ def build_primitive_highlight_vertices(  # noqa: C901
                 sections=tuple(Section(pts) for pts in prim.sections),
                 color=color,
                 interpolation=getattr(prim, "interpolation", "smooth"),
-                parameterization=getattr(prim, "parameterization", "centripetal"),
                 station_spacing=getattr(prim, "station_spacing", 10.0),
                 closed_ends=getattr(prim, "closed_ends", True),
             )

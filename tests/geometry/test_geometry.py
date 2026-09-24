@@ -1856,12 +1856,11 @@ class GeometryTests(unittest.TestCase):
         self.assertEqual(editor.general_table.item(0, 1).text(), "Main Fuselage")
         self.assertEqual(editor.general_table.item(1, 1).text(), "org.setuav.core:fuselage")
 
-        # Segments table: tags, method/parameterization combos
+        # Segments table: tags, method combos
         self.assertEqual(editor.segments_table.rowCount(), 2)
         self.assertEqual(editor.segments_table.item(0, 0).text(), "nose")
         self.assertEqual(editor.segments_table.item(0, 1).text(), "3")
         self.assertEqual(editor.segments_table.cellWidget(0, 2).currentData(), "smooth")
-        self.assertEqual(editor.segments_table.cellWidget(0, 3).currentData(), "centripetal")
         self.assertEqual(editor.segments_table.cellWidget(1, 2).currentData(), "ruled")
 
         # First segment auto-loaded -> sections populated
@@ -2037,11 +2036,6 @@ class GeometryTests(unittest.TestCase):
             comp["parameters"]["geometry"]["segments"][0]["loft"]["profile_correspondence"],
             "cardinal_quadrants",
         )
-        editor._update_segment_choice(1, "parameterization", "chord_length")
-        self.assertEqual(
-            comp["parameters"]["geometry"]["segments"][1]["loft"]["parameterization"],
-            "chord_length",
-        )
 
     def test_fuselage_editor_property_expression_changes(self) -> None:
         """Verify editing section properties via expressions or numbers applies correctly."""
@@ -2116,7 +2110,7 @@ def _build_fuselage_component() -> dict:
                 "segments": [
                     {
                         "tag": "nose",
-                        "loft": {"method": "smooth", "parameterization": "centripetal"},
+                        "loft": {"method": "smooth"},
                         "sections": [
                             {
                                 "position": {"x": 0.0, "y": 0.0, "z": 0.0},
@@ -2137,7 +2131,7 @@ def _build_fuselage_component() -> dict:
                     },
                     {
                         "tag": "tail",
-                        "loft": {"method": "ruled", "parameterization": "uniform"},
+                        "loft": {"method": "ruled"},
                         "sections": [
                             {
                                 "position": {"x": 0.0, "y": 0.0, "z": 0.0},

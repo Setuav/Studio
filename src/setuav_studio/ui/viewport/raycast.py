@@ -247,7 +247,6 @@ def _ray_primitive_intersection(  # noqa: C901
                 sections=tuple(Section(pts) for pts in prim.sections),
                 color=(1.0, 1.0, 1.0),
                 interpolation=getattr(prim, "interpolation", "smooth"),
-                parameterization=getattr(prim, "parameterization", "centripetal"),
                 station_spacing=getattr(prim, "station_spacing", 10.0),
                 closed_ends=getattr(prim, "closed_ends", True),
             )

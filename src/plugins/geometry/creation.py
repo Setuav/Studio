@@ -195,7 +195,6 @@ class GeometryCreationController:
                             "tag": "main",
                             "loft": {
                                 "method": "smooth",
-                                "parameterization": "centripetal",
                                 "profile_correspondence": "cardinal_quadrants",
                             },
                             "sections": sections,

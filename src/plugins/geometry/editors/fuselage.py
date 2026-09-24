@@ -100,7 +100,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
     def _create_segments_section(self) -> None:
         layout = self._create_section("Segments", "fa6s.layer-group")
 
-        self.segments_table = self._table(["Tag", "Sections", "Method", "Parameterization"])
+        self.segments_table = self._table(["Tag", "Sections", "Method"])
         self.segments_table.setEditTriggers(
             QAbstractItemView.EditTrigger.DoubleClicked
             | QAbstractItemView.EditTrigger.EditKeyPressed
@@ -295,7 +295,6 @@ class FuselageEditor(PropertyTableMixin, QWidget):
                 str(segment.get("tag") or ""),
                 str(len(segment.get("sections") or [])),
                 str(loft.get("method") or "smooth"),
-                str(loft.get("parameterization") or "centripetal"),
             )
             for column, value in enumerate(values):
                 item = QTableWidgetItem(value)
@@ -310,20 +309,6 @@ class FuselageEditor(PropertyTableMixin, QWidget):
                 [("auto", "Auto"), ("smooth", "Smooth"), ("ruled", "Ruled")],
                 lambda value, segment_index=row: self._update_segment_choice(
                     segment_index, "method", value
-                ),
-            )
-            self._set_table_combo(
-                self.segments_table,
-                row,
-                3,
-                values[3],
-                [
-                    ("uniform", "Uniform"),
-                    ("chord_length", "Chord Length"),
-                    ("centripetal", "Centripetal"),
-                ],
-                lambda value, segment_index=row: self._update_segment_choice(
-                    segment_index, "parameterization", value
                 ),
             )
         self._fit_table_height(self.segments_table, len(segments))
@@ -766,7 +751,6 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         segments = self._segments()
         allowed = {
             "method": {"auto", "smooth", "ruled"},
-            "parameterization": {"uniform", "chord_length", "centripetal"},
         }
         if self._loading or not 0 <= index < len(segments) or value not in allowed.get(key, set()):
             return
@@ -1236,7 +1220,6 @@ class FuselageEditor(PropertyTableMixin, QWidget):
                 if isinstance(loft, dict)
                 else {
                     "method": "smooth",
-                    "parameterization": "centripetal",
                     "profile_correspondence": "cardinal_quadrants",
                 }
             )
