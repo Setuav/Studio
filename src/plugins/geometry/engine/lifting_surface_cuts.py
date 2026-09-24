@@ -7,7 +7,6 @@ from collections.abc import Callable
 from itertools import pairwise
 from typing import Any, Literal
 
-from ..viewport.palettes import control_surface_color, wing_color
 from .data import LoftGeometry, Point3D, Section
 from .lifting_surface_math import (
     mapping,
@@ -15,6 +14,7 @@ from .lifting_surface_math import (
     rotate_section_around_axis,
     sample_structured_airfoil_round,
 )
+from .palettes import control_surface_color, wing_color
 from .transforms import section_transform, transform_point
 
 

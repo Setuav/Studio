@@ -1,41 +1,23 @@
 from pathlib import Path
 from typing import Any, ClassVar
 
-from PySide6.QtWidgets import QWidget
-from setuav_studio_sdk import (
-    PanelContribution,
+from setuav_studio.api import (
     SettingsPageContribution,
     StudioAPI,
     StudioEvents,
-    WorkspaceContribution,
-    WorkspaceLayoutContext,
 )
-
 from setuav_studio.ui.style.icons import register_plugin_icons
 
-from .creation import GeometryCreationController
+from .creation import GeometryCreationController, ensure_airframe_component
+from .editors.airframe import AirframeEditor
 from .editors.control_surface import ControlSurfaceEditor
 from .editors.fuselage import FuselageEditor
 from .editors.lifting_surface import LiftingSurfaceEditor
+from .scene_controller import GeometrySceneController
 from .settings import (
     apply_editor_settings,
-    apply_viewer_settings,
     create_editor_settings_page,
-    create_viewer_settings_page,
 )
-from .workspace import ViewerWorkspace
-
-
-def _apply_design_workspace_layout(layout: WorkspaceLayoutContext) -> None:
-    """Set the default Design workspace arrangement owned by this plugin."""
-    layout.split("project.explorer", "studio.viewer.opengl")
-    layout.split("studio.viewer.opengl", "studio.properties")
-    layout.show("project.explorer", "studio.viewer.opengl", "studio.properties")
-    layout.raise_dock("studio.viewer.opengl")
-    layout.resize(
-        ("project.explorer", "studio.viewer.opengl", "studio.properties"),
-        (240, 680, 270),
-    )
 
 
 class GeometryPlugin:
@@ -46,6 +28,7 @@ class GeometryPlugin:
     def __init__(self) -> None:
         self._api: StudioAPI | None = None
         self._providers: dict[str, Any] = {}
+        self._scene_controller: GeometrySceneController | None = None
 
     def activate(self, api: StudioAPI) -> None:
         register_plugin_icons(
@@ -56,34 +39,7 @@ class GeometryPlugin:
         for contribution in self._creation_controller.contributions():
             api.add_toolbar_item(contribution)
 
-        # 1. 3D Design Workspace & Viewport
-        api.add_workspace(
-            WorkspaceContribution(
-                id="studio.workspace.design",
-                title="Design",
-                order=0,
-                default_layout=_apply_design_workspace_layout,
-            )
-        )
-        api.add_panel(
-            PanelContribution(
-                id="studio.viewer.opengl",
-                title="3D Viewer",
-                factory=lambda: ViewerWorkspace(api),
-                workspace_id=None,
-                icon="viewer_3d",
-            )
-        )
-        api.add_settings_page(
-            SettingsPageContribution(
-                id="geometry.settings.viewer",
-                title="3D Viewer",
-                factory=lambda: create_viewer_settings_page(api),
-                apply=lambda page: self._apply_viewer_settings(api, page),
-                group="Geometry Engine",
-                order=10,
-            )
-        )
+        # 1. Settings
         api.add_settings_page(
             SettingsPageContribution(
                 id="geometry.settings.editor",
@@ -111,9 +67,7 @@ class GeometryPlugin:
             ControlSurfaceModel,
         )
 
-        # 3. Component & Assembly Editors
-        from .editors.structural_system import StructuralSystemEditor
-
+        # 3. Component Editors
         api.register_component_editor(
             "org.setuav.core:fuselage",
             lambda component: FuselageEditor(api, component),
@@ -127,11 +81,11 @@ class GeometryPlugin:
             lambda component: ControlSurfaceEditor(api, component),
         )
         api.register_component_editor(
-            "org.setuav.core:structural-system",
-            lambda assembly: StructuralSystemEditor(api, assembly),
+            "org.setuav.core:airframe",
+            lambda component: AirframeEditor(api, component),
         )
 
-        # 4. Component & Assembly Icons
+        # 4. Component Icons
         api.register_component_icon(
             "org.setuav.core:fuselage",
             "geometry_add_fuselage",
@@ -145,7 +99,7 @@ class GeometryPlugin:
             "geometry_add_control_surface",
         )
         api.register_component_icon(
-            "org.setuav.core:structural-system",
+            "org.setuav.core:airframe",
             "component_structural_system",
         )
 
@@ -158,7 +112,14 @@ class GeometryPlugin:
             "org.setuav.core:lifting-surface": build_lifting_surface_geometry,
         }
 
-        # 6. Auto-sync physical envelopes from geometry
+        # 6. Central Viewport Synchronization
+        self._scene_controller = GeometrySceneController(api, self._providers)
+        api.on_project_changed(self._scene_controller.on_project_changed)
+        api.on_project_content_changed(self._scene_controller.on_project_content_changed)
+        if api.current_project is not None:
+            self._scene_controller.sync(api.current_project)
+
+        # 7. Auto-sync physical envelopes from geometry
         api.subscribe(StudioEvents.PROJECT_OPENED, self._on_project_opened)
         if api.current_project is not None:
             self._on_project_opened()
@@ -169,7 +130,7 @@ class GeometryPlugin:
         Returns an empty GeometryData when no project is available.
         """
         from .engine.data import GeometryData
-        from .viewport.scene import build_project_geometry
+        from .engine.scene import build_project_geometry
 
         api = getattr(self, "_api", None)
         doc = project if project is not None else (api.current_project if api is not None else None)
@@ -260,28 +221,24 @@ class GeometryPlugin:
         api.remove_component_model("org.setuav.core:fuselage")
         api.remove_component_model("org.setuav.core:control-surface")
         self._providers = {}
+        if self._scene_controller is not None:
+            self._scene_controller.dispose()
+            self._scene_controller = None
         self._api = None
         api.remove_component_icon("org.setuav.core:fuselage")
         api.remove_component_icon("org.setuav.core:lifting-surface")
         api.remove_component_icon("org.setuav.core:control-surface")
-        api.remove_component_icon("org.setuav.core:structural-system")
+        api.remove_component_icon("org.setuav.core:airframe")
         api.remove_component_editor("org.setuav.core:fuselage")
         api.remove_component_editor("org.setuav.core:lifting-surface")
         api.remove_component_editor("org.setuav.core:control-surface")
-        api.remove_component_editor("org.setuav.core:structural-system")
-        api.remove_panel("studio.viewer.opengl")
-        api.remove_workspace("studio.workspace.design")
-        api.remove_settings_page("geometry.settings.viewer")
+        api.remove_component_editor("org.setuav.core:airframe")
         api.remove_settings_page("geometry.settings.editor")
         api.unsubscribe(StudioEvents.PROJECT_OPENED, self._on_project_opened)
 
     def _on_project_opened(self, *args: Any) -> None:
         if self._api is not None and self._api.current_project is not None:
+            ensure_airframe_component(self._api.current_project)
             from .engine.envelope import sync_project_geometry_envelopes
 
             sync_project_geometry_envelopes(self._api.current_project)
-
-    @staticmethod
-    def _apply_viewer_settings(api: StudioAPI, page: QWidget) -> None:
-        apply_viewer_settings(page)
-        api.publish(StudioEvents.GEOMETRY_VIEWER_SETTINGS_CHANGED)

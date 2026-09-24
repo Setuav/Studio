@@ -5,7 +5,6 @@ from __future__ import annotations
 import math
 from typing import Any, Literal
 
-from ..viewport.palettes import wing_color
 from .airfoil import apply_airfoil_shaping, sample_airfoil_points
 from .data import LoftGeometry, Section
 from .lifting_surface_cuts import build_lifting_surface_with_control_surfaces
@@ -22,6 +21,7 @@ from .lifting_surface_tips import (
     build_winglet_loft,
     compute_winglet_projected_dimensions,
 )
+from .palettes import wing_color
 from .transforms import Matrix4, section_transform, transform_point
 
 sample_airfoil = sample_airfoil_points

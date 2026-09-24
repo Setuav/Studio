@@ -248,7 +248,7 @@ class MotorMountTests(unittest.TestCase):
         self.assertEqual(exposed["mount_position"], "rear")
 
     def test_viewport_scene_propeller_clearance_circle(self) -> None:
-        from plugins.geometry.viewport.scene import build_project_geometry
+        from plugins.geometry.engine.scene import build_project_geometry
 
         geom_data = build_project_geometry(self.project_data, {})
 
@@ -266,8 +266,8 @@ class MotorMountTests(unittest.TestCase):
         self.assertGreater(len(prop_env.lines), 40)
 
     def test_viewport_mesh_renders_propeller_clearance(self) -> None:
-        from plugins.geometry.viewport.mesh import build_envelope_wire_vertices
-        from plugins.geometry.viewport.scene import build_project_geometry
+        from plugins.geometry.engine.scene import build_project_geometry
+        from setuav_studio.ui.viewport.mesh import build_envelope_wire_vertices
 
         geom_data = build_project_geometry(self.project_data, {})
 

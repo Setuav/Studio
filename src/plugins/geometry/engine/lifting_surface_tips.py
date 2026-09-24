@@ -5,7 +5,6 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from ..viewport.palettes import wing_color
 from .airfoil import apply_airfoil_shaping, sample_airfoil_points
 from .data import LoftGeometry, Point3D, Section
 from .lifting_surface_math import (
@@ -13,6 +12,7 @@ from .lifting_surface_math import (
     number,
     split_airfoil_upper_lower,
 )
+from .palettes import wing_color
 from .transforms import section_transform, transform_point
 
 

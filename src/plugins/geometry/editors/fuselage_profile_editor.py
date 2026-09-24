@@ -5,7 +5,7 @@ from __future__ import annotations
 import contextlib
 from typing import Any
 
-from setuav_studio_sdk import StudioAPI
+from setuav_studio.api import StudioAPI
 
 from ..engine.fuselage_geometry import FUSELAGE_PROFILE_TYPES, get_default_profile
 

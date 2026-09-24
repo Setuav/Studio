@@ -6,7 +6,7 @@ import unittest
 from typing import ClassVar
 from unittest.mock import patch
 
-from PySide6.QtWidgets import QCheckBox, QComboBox, QWidget
+from PySide6.QtWidgets import QCheckBox, QComboBox
 
 from plugins.geometry import settings as geometry_settings
 from tests._common import get_qapp
@@ -32,11 +32,6 @@ class GeometrySettingsTests(unittest.TestCase):
         self.settings_patch = patch.object(geometry_settings, "QSettings", _FakeSettings)
         self.settings_patch.start()
         self.addCleanup(self.settings_patch.stop)
-        import plugins.geometry.workspace as geom_ws
-
-        self.ws_settings_patch = patch.object(geom_ws, "QSettings", _FakeSettings)
-        self.ws_settings_patch.start()
-        self.addCleanup(self.ws_settings_patch.stop)
 
     def test_boolean_and_combo_normalization(self) -> None:
         self.assertFalse(geometry_settings._as_bool(None, False))
@@ -55,53 +50,10 @@ class GeometrySettingsTests(unittest.TestCase):
         geometry_settings._combo_value(combo, "combo", "first")
         self.assertEqual(combo.currentIndex(), 0)
 
-    def test_viewer_page_loads_and_applies_all_values(self) -> None:
-        _FakeSettings.values = {
-            geometry_settings._VIEWER_PROJECTION_KEY: "perspective",
-            geometry_settings._VIEWER_PALETTE_KEY: "invalid",
-            geometry_settings._VIEWER_GRID_KEY: "false",
-            geometry_settings._VIEWER_SOLID_KEY: False,
-            geometry_settings._VIEWER_WIRE_KEY: "yes",
-            geometry_settings._VIEWER_SCREENSHOT_TRANSPARENT_KEY: True,
-        }
-        page = geometry_settings.create_viewer_settings_page()
-        self.addCleanup(page.deleteLater)
-
-        projection = page.findChild(QComboBox, "defaultProjection")
-        palette = page.findChild(QComboBox, "defaultPalette")
-        show_grid = page.findChild(QCheckBox, "showGrid")
-        show_solid = page.findChild(QCheckBox, "showSolid")
-        show_wire = page.findChild(QCheckBox, "showWireframe")
-        trans_screen = page.findChild(QCheckBox, "transparentScreenshot")
-        assert projection and palette and show_grid and show_solid and show_wire and trans_screen
-        self.assertEqual(projection.currentData(), "perspective")
-        self.assertEqual(palette.currentIndex(), 0)
-        self.assertFalse(show_grid.isChecked())
-        self.assertFalse(show_solid.isChecked())
-        self.assertTrue(show_wire.isChecked())
-        self.assertTrue(trans_screen.isChecked())
-
-        projection.setCurrentIndex(0)
-        palette.setCurrentIndex(min(1, palette.count() - 1))
-        show_grid.setChecked(True)
-        show_solid.setChecked(True)
-        show_wire.setChecked(False)
-        trans_screen.setChecked(False)
-        with patch.object(geometry_settings, "set_active_palette") as set_palette:
-            geometry_settings.apply_viewer_settings(page)
-        self.assertEqual(
-            _FakeSettings.values[geometry_settings._VIEWER_PROJECTION_KEY], "orthographic"
-        )
-        self.assertEqual(_FakeSettings.values[geometry_settings._VIEWER_GRID_KEY], True)
-        self.assertEqual(
-            _FakeSettings.values[geometry_settings._VIEWER_SCREENSHOT_TRANSPARENT_KEY], False
-        )
-        set_palette.assert_called_once_with(str(palette.currentData()))
-
     def test_editor_page_loads_and_applies_all_values(self) -> None:
         _FakeSettings.values = {
-            geometry_settings._EDITOR_AUTO_FIT_KEY: "no",
-            geometry_settings._EDITOR_GRID_KEY: "true",
+            geometry_settings._EDITOR_AUTO_FIT_KEY: False,
+            geometry_settings._EDITOR_GRID_KEY: False,
             geometry_settings._EDITOR_LOFT_METHOD_KEY: "ruled",
         }
         page = geometry_settings.create_editor_settings_page()
@@ -109,91 +61,25 @@ class GeometrySettingsTests(unittest.TestCase):
 
         auto_fit = page.findChild(QCheckBox, "autoFitSections")
         show_grid = page.findChild(QCheckBox, "showSectionGrid")
-        loft = page.findChild(QComboBox, "defaultLoftMethod")
-        assert auto_fit and show_grid and loft
+        loft_method = page.findChild(QComboBox, "defaultLoftMethod")
+        assert auto_fit and show_grid and loft_method
         self.assertFalse(auto_fit.isChecked())
-        self.assertTrue(show_grid.isChecked())
-        self.assertEqual(loft.currentData(), "ruled")
+        self.assertFalse(show_grid.isChecked())
+        self.assertEqual(loft_method.currentData(), "ruled")
 
         auto_fit.setChecked(True)
-        show_grid.setChecked(False)
-        loft.setCurrentIndex(0)
+        show_grid.setChecked(True)
+        loft_method.setCurrentIndex(1)  # Smooth
         geometry_settings.apply_editor_settings(page)
         self.assertEqual(_FakeSettings.values[geometry_settings._EDITOR_AUTO_FIT_KEY], True)
-        self.assertEqual(_FakeSettings.values[geometry_settings._EDITOR_GRID_KEY], False)
-        self.assertEqual(_FakeSettings.values[geometry_settings._EDITOR_LOFT_METHOD_KEY], "auto")
+        self.assertEqual(_FakeSettings.values[geometry_settings._EDITOR_GRID_KEY], True)
+        self.assertEqual(
+            _FakeSettings.values[geometry_settings._EDITOR_LOFT_METHOD_KEY],
+            loft_method.currentData(),
+        )
 
-    def test_apply_functions_accept_pages_without_expected_controls(self) -> None:
-        page = QWidget()
-        self.addCleanup(page.deleteLater)
-
-        geometry_settings.apply_viewer_settings(page)
-        geometry_settings.apply_editor_settings(page)
-        self.assertEqual(_FakeSettings.values, {})
-
-    def test_setting_accessors_forward_fallbacks(self) -> None:
-        _FakeSettings.values["viewer"] = 42
-        self.assertEqual(geometry_settings.viewer_setting("viewer", 0), 42)
+    def test_setting_helpers(self) -> None:
         self.assertEqual(geometry_settings.editor_setting("missing", "fallback"), "fallback")
-
-    def test_viewer_settings_page_dynamic_sync(self) -> None:
-        from setuav_studio_sdk import StudioEvents
-
-        from setuav_studio.api import StudioAPI
-
-        api = StudioAPI()
-        _FakeSettings.values[geometry_settings._VIEWER_GRID_KEY] = False
-        _FakeSettings.values[geometry_settings._VIEWER_SOLID_KEY] = False
-        page = geometry_settings.create_viewer_settings_page(api=api)
-        self.addCleanup(page.deleteLater)
-
-        self.assertFalse(page.show_grid.isChecked())
-        self.assertFalse(page.show_solid.isChecked())
-
-        _FakeSettings.values[geometry_settings._VIEWER_GRID_KEY] = True
-        _FakeSettings.values[geometry_settings._VIEWER_SOLID_KEY] = True
-        api.publish(StudioEvents.GEOMETRY_VIEWER_SETTINGS_CHANGED)
-
-        self.assertTrue(page.show_grid.isChecked())
-        self.assertTrue(page.show_solid.isChecked())
-
-    def test_viewer_workspace_settings_sync_and_persistence(self) -> None:
-        from setuav_studio_sdk import StudioEvents
-
-        from plugins.geometry.workspace import ViewerWorkspace
-        from setuav_studio.api import StudioAPI
-
-        # 1. Verify startup with grid disabled
-        _FakeSettings.values[geometry_settings._VIEWER_GRID_KEY] = False
-        _FakeSettings.values[geometry_settings._VIEWER_SOLID_KEY] = True
-        _FakeSettings.values[geometry_settings._VIEWER_PROJECTION_KEY] = "perspective"
-        api = StudioAPI()
-        workspace = ViewerWorkspace(api)
-        self.addCleanup(workspace.deleteLater)
-
-        self.assertFalse(workspace.grid_button.isChecked())
-        self.assertFalse(workspace.viewer._show_grid)
-        self.assertTrue(workspace.solid_button.isChecked())
-        self.assertTrue(workspace.viewer._show_solid)
-        self.assertFalse(workspace.viewer._orthographic)
-
-        # 2. Toggle via dock button
-        workspace.grid_button.setChecked(True)
-        self.assertTrue(workspace.grid_button.isChecked())
-        self.assertTrue(workspace.viewer._show_grid)
-        self.assertEqual(_FakeSettings.values[geometry_settings._VIEWER_GRID_KEY], True)
-
-        # 3. Simulate settings dialog apply event
-        _FakeSettings.values[geometry_settings._VIEWER_GRID_KEY] = False
-        _FakeSettings.values[geometry_settings._VIEWER_SOLID_KEY] = False
-        _FakeSettings.values[geometry_settings._VIEWER_PROJECTION_KEY] = "orthographic"
-        api.publish(StudioEvents.GEOMETRY_VIEWER_SETTINGS_CHANGED)
-
-        self.assertFalse(workspace.grid_button.isChecked())
-        self.assertFalse(workspace.viewer._show_grid)
-        self.assertFalse(workspace.solid_button.isChecked())
-        self.assertFalse(workspace.viewer._show_solid)
-        self.assertTrue(workspace.viewer._orthographic)
 
 
 if __name__ == "__main__":

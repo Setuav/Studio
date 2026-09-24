@@ -26,19 +26,25 @@ class GeometryCreationTests(unittest.TestCase):
         self.api._host.set_project(self.project)
         self.controller = GeometryCreationController(self.api)
 
-    def test_add_structural_system_creates_empty_assembly_without_auto_components(self) -> None:
-        self.controller.add_structural_system()
-        components = self.project.data.get("components", [])
-        self.assertEqual(len(components), 0)
-        assemblies = self.project.data.get("assemblies", [])
-        self.assertEqual(len(assemblies), 1)
-        self.assertEqual(assemblies[0]["members"], {"fuselage": None, "wings": []})
+    def test_airframe_root_component_ensured(self) -> None:
+        from plugins.geometry.creation import ensure_airframe_component
+
+        airframe = ensure_airframe_component(self.project)
+        self.assertEqual(airframe["id"], "airframe")
+        self.assertEqual(airframe["type"], "org.setuav.core:airframe")
+        self.assertIsNone(airframe["parent"])
+        self.assertEqual(self.project.data["components"][0], airframe)
 
     def test_add_fuselage_allows_adding_sections_and_updates_table(self) -> None:
         from plugins.geometry.editors.fuselage import FuselageEditor
 
         self.controller.add_fuselage()
-        fuse = self.project.data["components"][0]
+        fuse = next(
+            c
+            for c in self.project.data["components"]
+            if c.get("type") == "org.setuav.core:fuselage"
+        )
+        self.assertEqual(fuse["parent"], "airframe")
         editor = FuselageEditor(self.api, fuse)
         self.assertEqual(editor.sections_table.rowCount(), 3)
         self.assertEqual(editor.segments_table.item(0, 1).text(), "3")
@@ -50,50 +56,73 @@ class GeometryCreationTests(unittest.TestCase):
 
     def test_add_fuselage_populates_mass_transform_envelope(self) -> None:
         self.controller.add_fuselage()
-        components = self.project.data.get("components", [])
-        self.assertEqual(len(components), 1)
-        comp = components[0]
-        self._assert_valid_physical_contract(comp)
-        self.assertEqual(comp["envelope"]["shape"], "trapezoid")
-        self.assertEqual(comp["mass"], 350.0)
+        fuse = next(
+            c
+            for c in self.project.data["components"]
+            if c.get("type") == "org.setuav.core:fuselage"
+        )
+        self._assert_valid_physical_contract(fuse)
+        self.assertEqual(fuse["envelope"]["shape"], "trapezoid")
+        self.assertEqual(fuse["mass"], 350.0)
+        self.assertEqual(fuse["parent"], "airframe")
 
     def test_add_lifting_surface_presets_populate_mass_transform_envelope(self) -> None:
         for preset in ("main-wing", "horizontal-tail", "vertical-tail", "generic"):
             self.controller.add_lifting_surface(preset)
 
-        components = self.project.data.get("components", [])
-        self.assertEqual(len(components), 4)
+        wings = [
+            c
+            for c in self.project.data["components"]
+            if c.get("type") == "org.setuav.core:lifting-surface"
+        ]
+        self.assertEqual(len(wings), 4)
 
-        for comp in components:
+        for comp in wings:
             self._assert_valid_physical_contract(comp)
             self.assertEqual(comp["envelope"]["shape"], "box")
+            self.assertEqual(comp["parent"], "airframe")
 
     def test_add_control_surface_populates_mass_transform_envelope(self) -> None:
         self.controller.add_lifting_surface("main-wing")
-        wing = self.project.data["components"][0]
+        wing = next(
+            c
+            for c in self.project.data["components"]
+            if c.get("type") == "org.setuav.core:lifting-surface"
+        )
         self.api.set_selection(wing)
 
         self.controller.add_control_surface("aileron")
-        components = self.project.data.get("components", [])
-        self.assertEqual(len(components), 2)
-        cs = components[1]
+        cs = next(
+            c
+            for c in self.project.data["components"]
+            if c.get("type") == "org.setuav.core:control-surface"
+        )
         self._assert_valid_physical_contract(cs)
         self.assertEqual(cs["mass"], 25.0)
         self.assertEqual(cs["envelope"]["shape"], "box")
+        self.assertEqual(cs["parent"], wing["id"])
+        self.assertEqual(cs["attach_to"], wing["id"])
 
     def test_editor_add_control_surface_populates_mass_transform_envelope(self) -> None:
         from plugins.geometry.editors.lifting_surface import LiftingSurfaceEditor
 
         self.controller.add_lifting_surface("main-wing")
-        wing = self.project.data["components"][0]
+        wing = next(
+            c
+            for c in self.project.data["components"]
+            if c.get("type") == "org.setuav.core:lifting-surface"
+        )
         editor = LiftingSurfaceEditor(self.api, wing)
         editor._add_control_surface()
-        components = self.project.data.get("components", [])
-        self.assertEqual(len(components), 2)
-        cs = components[1]
+        cs = next(
+            c
+            for c in self.project.data["components"]
+            if c.get("type") == "org.setuav.core:control-surface"
+        )
         self._assert_valid_physical_contract(cs)
         self.assertEqual(cs["mass"], 25.0)
         self.assertEqual(cs["envelope"]["shape"], "box")
+        self.assertEqual(cs["parent"], wing["id"])
 
     def _assert_valid_physical_contract(self, comp: dict) -> None:
         self.assertIn("mass", comp)

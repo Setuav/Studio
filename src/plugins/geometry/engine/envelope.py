@@ -82,7 +82,9 @@ def sync_project_geometry_envelopes(project: Any) -> int:
         ctype = str(comp.get("type") or "")
         if ctype not in GEOMETRY_COMPONENT_TYPES:
             continue
-        parent_id = comp.get("attach_to") or comp.get("parent")
+        parent_id = comp.get("attach_to") or (
+            comp.get("parent") if comp.get("parent") != "airframe" else None
+        )
         parent = by_id.get(str(parent_id)) if parent_id else None
         if sync_component_envelope(comp, parent):
             updated += 1

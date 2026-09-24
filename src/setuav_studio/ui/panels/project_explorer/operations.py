@@ -134,7 +134,9 @@ class ProjectExplorerOperations:
             if not isinstance(component, dict):
                 continue
             if str(component.get("parent") or "") in component_ids:
-                component["parent"] = None
+                component["parent"] = (
+                    "airframe" if str(component.get("id") or "") != "airframe" else None
+                )
 
     def delete_item(self, item: QTreeWidgetItem | None) -> None:
         if item is None:
@@ -229,6 +231,9 @@ class ProjectExplorerOperations:
     def delete_component_item(self, element: dict[str, Any]) -> None:
         element_id = str(element.get("id") or "")
         if not element_id:
+            return
+        if element_id == "airframe" or element.get("type") == "org.setuav.core:airframe":
+            self._api.show_status("Airframe component cannot be deleted", "warning", 3000)
             return
         element_name = str(element.get("name") or element_id)
         component_ids = self.deletion_scope(
@@ -346,6 +351,10 @@ class ProjectExplorerOperations:
             if kind == "project"
             else format_component_name(element)
         )
+        if element_id == "airframe" or element.get("type") == "org.setuav.core:airframe":
+            self.restore_item_text(item, old_label)
+            self._api.show_status("Airframe component cannot be renamed", "warning", 3000)
+            return
         new_name = item.text(0).strip()
         if not self.can_edit_project():
             self.restore_item_text(item, old_label)

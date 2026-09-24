@@ -151,15 +151,21 @@ class ProjectExplorerContextMenu:
         position: QPoint,
         can_edit: bool,
     ) -> None:
+        element = self._tree._element_map.get(item)
+        is_airframe = False
+        if element:
+            is_airframe = (
+                element.get("id") == "airframe" or element.get("type") == "org.setuav.core:airframe"
+            )
         menu = QMenu(self._tree)
         rename_action = menu.addAction(get_icon("edit"), "Rename")
-        rename_action.setEnabled(can_edit)
+        rename_action.setEnabled(can_edit and not is_airframe)
         delete_action = None
         add_const_act = None
         add_constr_act = None
         if item is not self._tree._project_root_item:
             delete_action = menu.addAction(get_icon("remove"), "Delete")
-            delete_action.setEnabled(can_edit)
+            delete_action.setEnabled(can_edit and not is_airframe)
         else:
             menu.addSeparator()
             add_const_act = menu.addAction(get_icon("constant"), "Add Constant…")

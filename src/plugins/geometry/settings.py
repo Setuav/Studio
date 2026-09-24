@@ -1,21 +1,9 @@
 """Persistent settings pages for the geometry plugin."""
 
-from contextlib import suppress
-from typing import Any
+from __future__ import annotations
 
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QCheckBox, QComboBox, QFormLayout, QWidget
-from setuav_studio_sdk import StudioEvents
-
-from .viewport.palettes import DEFAULT_PALETTE, palette_names, set_active_palette
-
-_VIEWER_PROJECTION_KEY = "geometry/viewer/default_projection"
-_VIEWER_PALETTE_KEY = "geometry/viewer/default_palette"
-_VIEWER_GRID_KEY = "geometry/viewer/show_grid"
-_VIEWER_SOLID_KEY = "geometry/viewer/show_solid"
-_VIEWER_WIRE_KEY = "geometry/viewer/show_wireframe"
-_VIEWER_WIRE_MODE_KEY = "geometry/viewer/wireframe_mode"
-_VIEWER_SCREENSHOT_TRANSPARENT_KEY = "geometry/viewer/screenshot_transparent_bg"
 
 _EDITOR_AUTO_FIT_KEY = "geometry/editor/auto_fit_sections"
 _EDITOR_GRID_KEY = "geometry/editor/show_section_grid"
@@ -34,112 +22,6 @@ def _combo_value(combo: QComboBox, key: str, fallback: str) -> None:
     value = str(QSettings().value(key, fallback)).lower()
     index = combo.findData(value)
     combo.setCurrentIndex(index if index >= 0 else 0)
-
-
-class ViewerSettingsPage(QWidget):
-    """Settings page widget for 3D viewer preferences."""
-
-    def __init__(self, api: Any = None, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self._api = api
-        form = QFormLayout(self)
-
-        self.projection = QComboBox(self)
-        self.projection.setObjectName("defaultProjection")
-        self.projection.addItem("Orthographic", "orthographic")
-        self.projection.addItem("Perspective", "perspective")
-        form.addRow("Default projection:", self.projection)
-
-        self.palette = QComboBox(self)
-        self.palette.setObjectName("defaultPalette")
-        for name in palette_names():
-            self.palette.addItem(name.capitalize(), name)
-        form.addRow("Default palette:", self.palette)
-
-        self.wire_mode = QComboBox(self)
-        self.wire_mode.setObjectName("wireframeMode")
-        self.wire_mode.addItem("Feature Edges", "feature")
-        self.wire_mode.addItem("Full Mesh", "full")
-        form.addRow("Wireframe style:", self.wire_mode)
-
-        self.show_grid = QCheckBox("Show reference grid", self)
-        self.show_grid.setObjectName("showGrid")
-        form.addRow(self.show_grid)
-
-        self.show_solid = QCheckBox("Show solid surfaces", self)
-        self.show_solid.setObjectName("showSolid")
-        form.addRow(self.show_solid)
-
-        self.show_wire = QCheckBox("Show wireframe", self)
-        self.show_wire.setObjectName("showWireframe")
-        form.addRow(self.show_wire)
-
-        self.transparent_screenshot = QCheckBox("Transparent background in screenshots", self)
-        self.transparent_screenshot.setObjectName("transparentScreenshot")
-        form.addRow(self.transparent_screenshot)
-
-        self.load_from_settings()
-
-        if self._api is not None:
-            self._api.subscribe(
-                StudioEvents.GEOMETRY_VIEWER_SETTINGS_CHANGED,
-                self._on_settings_changed,
-            )
-            self.destroyed.connect(self._detach)
-
-    def load_from_settings(self) -> None:
-        settings = QSettings()
-        _combo_value(self.projection, _VIEWER_PROJECTION_KEY, "orthographic")
-        _combo_value(self.palette, _VIEWER_PALETTE_KEY, DEFAULT_PALETTE)
-        _combo_value(self.wire_mode, _VIEWER_WIRE_MODE_KEY, "feature")
-        self.show_grid.setChecked(_as_bool(settings.value(_VIEWER_GRID_KEY, True), True))
-        self.show_solid.setChecked(_as_bool(settings.value(_VIEWER_SOLID_KEY, True), True))
-        self.show_wire.setChecked(_as_bool(settings.value(_VIEWER_WIRE_KEY, True), True))
-        self.transparent_screenshot.setChecked(
-            _as_bool(settings.value(_VIEWER_SCREENSHOT_TRANSPARENT_KEY, False), False)
-        )
-
-    def _on_settings_changed(self, _payload: object = None) -> None:
-        self.load_from_settings()
-
-    def _detach(self, *_args: object) -> None:
-        if self._api is not None:
-            with suppress(Exception):
-                self._api.unsubscribe(
-                    StudioEvents.GEOMETRY_VIEWER_SETTINGS_CHANGED,
-                    self._on_settings_changed,
-                )
-
-
-def create_viewer_settings_page(api: Any = None) -> QWidget:
-    return ViewerSettingsPage(api=api)
-
-
-def apply_viewer_settings(page: QWidget) -> None:
-    settings = QSettings()
-    projection = page.findChild(QComboBox, "defaultProjection")
-    palette = page.findChild(QComboBox, "defaultPalette")
-    wire_mode = page.findChild(QComboBox, "wireframeMode")
-    show_grid = page.findChild(QCheckBox, "showGrid")
-    show_solid = page.findChild(QCheckBox, "showSolid")
-    show_wire = page.findChild(QCheckBox, "showWireframe")
-    transparent_screenshot = page.findChild(QCheckBox, "transparentScreenshot")
-    if projection is not None:
-        settings.setValue(_VIEWER_PROJECTION_KEY, projection.currentData())
-    if palette is not None:
-        value = str(palette.currentData())
-        settings.setValue(_VIEWER_PALETTE_KEY, value)
-        set_active_palette(value)
-    if wire_mode is not None:
-        settings.setValue(_VIEWER_WIRE_MODE_KEY, wire_mode.currentData())
-    if show_grid is not None:
-        settings.setValue(_VIEWER_GRID_KEY, show_grid.isChecked())
-    if show_solid is not None:
-        settings.setValue(_VIEWER_SOLID_KEY, show_solid.isChecked())
-    if show_wire is not None:
-        settings.setValue(_VIEWER_WIRE_KEY, show_wire.isChecked())
-    if transparent_screenshot is not None:
-        settings.setValue(_VIEWER_SCREENSHOT_TRANSPARENT_KEY, transparent_screenshot.isChecked())
 
 
 def create_editor_settings_page() -> QWidget:
@@ -179,10 +61,6 @@ def apply_editor_settings(page: QWidget) -> None:
         settings.setValue(_EDITOR_LOFT_METHOD_KEY, loft_method.currentData())
 
 
-def viewer_setting(key: str, fallback: object) -> object:
-    return QSettings().value(key, fallback)
-
-
 def editor_setting(key: str, fallback: object) -> object:
     return QSettings().value(key, fallback)
 
@@ -191,18 +69,7 @@ __all__ = [
     "_EDITOR_AUTO_FIT_KEY",
     "_EDITOR_GRID_KEY",
     "_EDITOR_LOFT_METHOD_KEY",
-    "_VIEWER_GRID_KEY",
-    "_VIEWER_PALETTE_KEY",
-    "_VIEWER_PROJECTION_KEY",
-    "_VIEWER_SCREENSHOT_TRANSPARENT_KEY",
-    "_VIEWER_SOLID_KEY",
-    "_VIEWER_WIRE_KEY",
-    "_VIEWER_WIRE_MODE_KEY",
-    "ViewerSettingsPage",
     "apply_editor_settings",
-    "apply_viewer_settings",
     "create_editor_settings_page",
-    "create_viewer_settings_page",
     "editor_setting",
-    "viewer_setting",
 ]

@@ -26,7 +26,9 @@ def _resolve_component_world_matrix(
     if comp_id in resolving or comp_id not in comp_map:
         return identity_matrix()
     comp = comp_map[comp_id]
-    attach_to = comp.get("attach_to") or comp.get("parent")
+    attach_to = comp.get("attach_to") or (
+        comp.get("parent") if comp.get("parent") != "airframe" else None
+    )
     parent_mat = (
         _resolve_component_world_matrix(attach_to, comp_map, resolving | {comp_id})
         if isinstance(attach_to, str) and attach_to

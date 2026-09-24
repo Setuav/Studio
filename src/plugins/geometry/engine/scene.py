@@ -4,8 +4,9 @@ from collections.abc import Callable
 from copy import deepcopy
 from typing import Any
 
-from ..engine.data import EnvelopeWireGeometry, GeometryData, LoftGeometry, Point3D, Section
-from ..engine.transforms import (
+from .data import EnvelopeWireGeometry, GeometryData, LoftGeometry, Point3D, Section
+from .palettes import segment_colors
+from .transforms import (
     Matrix4,
     derivation_matrix,
     identity_matrix,
@@ -13,7 +14,6 @@ from ..engine.transforms import (
     transform_matrix,
     transform_point,
 )
-from .palettes import segment_colors
 
 GeometryProvider = Callable[[dict[str, Any]], tuple[LoftGeometry, ...]]
 
@@ -24,7 +24,9 @@ def _frame_parent(item: dict[str, Any]) -> str | None:
     if isinstance(attach_to, str) and attach_to:
         return attach_to
     parent = item.get("parent")
-    return parent if isinstance(parent, str) and parent else None
+    if isinstance(parent, str) and parent and parent != "airframe":
+        return parent
+    return None
 
 
 def build_project_geometry(
@@ -1026,7 +1028,7 @@ def _append_single_motor_geometry(
     if not target_id or not isinstance(target_id, str):
         return
 
-    from ..engine.mount import (
+    from .mount import (
         generate_clearance_circle_points,
         generate_mount_targets,
         resolve_mount_point,

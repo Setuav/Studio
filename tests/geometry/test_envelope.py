@@ -352,7 +352,7 @@ class EnvelopeEditorUiTests(unittest.TestCase):
 
         from plugins.geometry.engine.fuselage_geometry import build_fuselage_geometry
         from plugins.geometry.engine.lifting_surface_geometry import build_lifting_surface_geometry
-        from plugins.geometry.viewport.scene import build_project_geometry
+        from plugins.geometry.engine.scene import build_project_geometry
         from setuav_studio.project import ProjectDocument
 
         fuse = _sample_fuselage()
@@ -377,7 +377,7 @@ class EnvelopeEditorUiTests(unittest.TestCase):
 
     def test_build_envelope_wire_vertices_and_colors(self) -> None:
         from plugins.geometry.engine.data import EnvelopeWireGeometry, GeometryData
-        from plugins.geometry.viewport.mesh import (
+        from setuav_studio.ui.viewport.mesh import (
             ENVELOPE_HIGHLIGHT,
             build_envelope_wire_vertices,
         )
@@ -409,9 +409,9 @@ class EnvelopeEditorUiTests(unittest.TestCase):
     def test_workspace_selection_sets_envelope_in_viewer(self) -> None:
         from pathlib import Path
 
-        from plugins.geometry.workspace import ViewerWorkspace
         from setuav_studio.api import StudioAPI
         from setuav_studio.project import ProjectDocument
+        from setuav_studio.ui.viewport import StudioViewport
 
         api = StudioAPI()
         fuse = _sample_fuselage()
@@ -419,7 +419,10 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         doc = ProjectDocument(Path("test.uav"), "uav", {"components": [fuse]})
         api.current_project = doc
 
-        workspace = ViewerWorkspace(api)
+        viewport = StudioViewport(api=api)
+        self.addCleanup(viewport.deleteLater)
+        renderer = viewport.viewer
+        assert renderer is not None
 
         # 1. Select Envelope node in tree -> envelope selected, component wireframe not selected
         api.set_selection(
@@ -430,22 +433,22 @@ class EnvelopeEditorUiTests(unittest.TestCase):
                 "component_id": "test-fuse",
             }
         )
-        self.assertEqual(workspace.viewer._selected_envelope_component_id, "test-fuse")
-        self.assertIsNone(workspace.viewer._selected_component_id)
+        self.assertEqual(renderer._selected_envelope_component_id, "test-fuse")
+        self.assertIsNone(renderer._selected_component_id)
 
         # 2. Select component itself -> envelope selection is cleared, component wireframe is selected
         api.set_selection(fuse)
-        self.assertIsNone(workspace.viewer._selected_envelope_component_id)
-        self.assertEqual(workspace.viewer._selected_component_id, "test-fuse")
+        self.assertIsNone(renderer._selected_envelope_component_id)
+        self.assertEqual(renderer._selected_component_id, "test-fuse")
 
         # 3. Clear selection -> envelope and component selections are cleared
         api.set_selection(None)
-        self.assertIsNone(workspace.viewer._selected_envelope_component_id)
-        self.assertIsNone(workspace.viewer._selected_component_id)
+        self.assertIsNone(renderer._selected_envelope_component_id)
+        self.assertIsNone(renderer._selected_component_id)
 
     def test_lifting_surface_tip_cap_envelope_lines(self) -> None:
+        from plugins.geometry.engine.scene import _append_lifting_surface_tip_envelope_lines
         from plugins.geometry.engine.transforms import identity_matrix
-        from plugins.geometry.viewport.scene import _append_lifting_surface_tip_envelope_lines
 
         wing_round = _sample_wing(mirror=False)
         wing_round["parameters"]["geometry"]["tip_treatment"] = {
@@ -478,8 +481,8 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         self.assertAlmostEqual(max(ys_sharp), 620.0, delta=1.0)
 
     def test_lifting_surface_winglet_envelope_lines(self) -> None:
+        from plugins.geometry.engine.scene import _append_lifting_surface_tip_envelope_lines
         from plugins.geometry.engine.transforms import identity_matrix
-        from plugins.geometry.viewport.scene import _append_lifting_surface_tip_envelope_lines
 
         wing_wl = _sample_wing(mirror=False)
         wing_wl["parameters"]["geometry"]["tip_treatment"] = {
@@ -515,7 +518,7 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         self.assertIn("hinge_axis", env_0)
 
         # Viewer rotation rotates the envelope wireframe
-        from plugins.geometry.viewport.scene import _rotate_control_surface_envelope
+        from plugins.geometry.engine.scene import _rotate_control_surface_envelope
 
         rotated_env = _rotate_control_surface_envelope(env_0, 20.0)
         sec0_corners = env_0["sections"][0]["corners_3d"]

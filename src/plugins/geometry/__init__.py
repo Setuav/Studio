@@ -2,9 +2,12 @@
 
 import sys
 
-from . import editors, engine, viewport
+from setuav_studio.ui.viewport import mesh as core_mesh
+from setuav_studio.ui.viewport import widget as core_widget
+
+from . import editors, engine
 from .plugin import GeometryPlugin
-from .workspace import ViewerWorkspace
+from .scene_controller import GeometrySceneController
 
 # Alias sub-modules for backwards-compatible imports
 sys.modules["plugins.geometry.data"] = engine.data
@@ -16,11 +19,11 @@ sys.modules["plugins.geometry.wing_driver_solver"] = engine.wing_driver_solver
 sys.modules["plugins.geometry.wing_planform_engine"] = engine.wing_planform_engine
 sys.modules["plugins.geometry.wing_sections_engine"] = engine.wing_sections_engine
 sys.modules["plugins.geometry.mount"] = engine.mount
+sys.modules["plugins.geometry.palettes"] = engine.palettes
+sys.modules["plugins.geometry.scene"] = engine.scene
 
-sys.modules["plugins.geometry.widget"] = viewport.widget
-sys.modules["plugins.geometry.scene"] = viewport.scene
-sys.modules["plugins.geometry.mesh"] = viewport.mesh
-sys.modules["plugins.geometry.palettes"] = viewport.palettes
+sys.modules["plugins.geometry.widget"] = core_widget
+sys.modules["plugins.geometry.mesh"] = core_mesh
 
 sys.modules["plugins.geometry.lifting_surface"] = editors.lifting_surface
 sys.modules["plugins.geometry.fuselage"] = editors.fuselage
@@ -102,9 +105,9 @@ def get_clearance_circle(
 __all__ = [
     "PLUGIN",
     "GeometryPlugin",
+    "GeometrySceneController",
     "MountFrame",
     "MountTarget",
-    "ViewerWorkspace",
     "check_propeller_clearance",
     "compute_mount_point",
     "editors",
@@ -112,5 +115,4 @@ __all__ = [
     "get_clearance_circle",
     "get_geometry",
     "get_mount_targets",
-    "viewport",
 ]

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from setuav_studio_sdk import (
+from setuav_studio.api import (
     StudioAPI,
     ToolbarContribution,
     ToolbarMenuItemContribution,
@@ -15,15 +15,81 @@ from .engine.fuselage_geometry import create_default_section
 _FUSELAGE_TYPE = "org.setuav.core:fuselage"
 _LIFTING_SURFACE_TYPE = "org.setuav.core:lifting-surface"
 _CONTROL_SURFACE_TYPE = "org.setuav.core:control-surface"
-_STRUCTURAL_SYSTEM_TYPE = "org.setuav.core:structural-system"
-_DESIGN_WORKSPACE = "studio.workspace.design"
+_AIRFRAME_TYPE = "org.setuav.core:airframe"
+_AIRFRAME_ID = "airframe"
+_AIRFRAME_NAME = "Airframe"
+
+
+def create_default_airframe_component() -> dict[str, Any]:
+    return {
+        "kind": "component",
+        "id": _AIRFRAME_ID,
+        "name": _AIRFRAME_NAME,
+        "type": _AIRFRAME_TYPE,
+        "parent": None,
+        "parameters": {},
+    }
+
+
+def ensure_airframe_component(project: Any) -> dict[str, Any]:
+    """Ensure the fixed Airframe root component exists in the project and reparent top-level geometry."""
+    data = getattr(project, "data", project) if project is not None else {}
+    components = data.setdefault("components", [])
+    if not isinstance(components, list):
+        components = []
+        data["components"] = components
+
+    airframe: dict[str, Any] | None = None
+    for comp in components:
+        if isinstance(comp, dict) and (
+            comp.get("id") == _AIRFRAME_ID or comp.get("type") == _AIRFRAME_TYPE
+        ):
+            airframe = comp
+            break
+
+    if airframe is None:
+        airframe = create_default_airframe_component()
+        components.insert(0, airframe)
+    else:
+        airframe.setdefault("kind", "component")
+        airframe["id"] = _AIRFRAME_ID
+        airframe["type"] = _AIRFRAME_TYPE
+        airframe["parent"] = None
+        if not airframe.get("name"):
+            airframe["name"] = _AIRFRAME_NAME
+
+    # Ensure all fuselages and lifting surfaces with no parent default to airframe
+    for comp in components:
+        if not isinstance(comp, dict) or comp is airframe:
+            continue
+        comp_type = comp.get("type")
+        if comp_type in (_FUSELAGE_TYPE, _LIFTING_SURFACE_TYPE):
+            parent = comp.get("parent")
+            if (
+                not parent
+                or parent.startswith("airframe-structure")
+                or parent.startswith("airframe-main")
+            ):
+                comp["parent"] = _AIRFRAME_ID
+
+    # Purge obsolete structural-system assemblies if present
+    assemblies = data.get("assemblies")
+    if isinstance(assemblies, list):
+        data["assemblies"] = [
+            asm
+            for asm in assemblies
+            if not (
+                isinstance(asm, dict) and asm.get("type") == "org.setuav.core:structural-system"
+            )
+        ]
+
+    return airframe
 
 
 class GeometryCreationController:
     """Create valid starter geometry and publish it through the Studio API."""
 
     toolbar_ids = (
-        "geometry.create-structural-system",
         "geometry.create-fuselage",
         "geometry.create-lifting-surface",
         "geometry.create-control-surface",
@@ -36,26 +102,15 @@ class GeometryCreationController:
         return (
             ToolbarContribution(
                 id=self.toolbar_ids[0],
-                title="New Airframe Structure",
-                callback=self.add_structural_system,
-                icon="component_structural_system",
-                enabled_when=self._can_edit_project,
-                group="geometry-creation",
-                order=90,
-                workspace_id=_DESIGN_WORKSPACE,
-            ),
-            ToolbarContribution(
-                id=self.toolbar_ids[1],
                 title="Add Fuselage",
                 callback=self.add_fuselage,
                 icon="geometry_add_fuselage",
                 enabled_when=self._can_edit_project,
                 group="geometry-creation",
                 order=100,
-                workspace_id=_DESIGN_WORKSPACE,
             ),
             ToolbarContribution(
-                id=self.toolbar_ids[2],
+                id=self.toolbar_ids[1],
                 title="Add Lifting Surface",
                 icon="geometry_add_lifting_surface",
                 menu_items=(
@@ -73,10 +128,9 @@ class GeometryCreationController:
                 enabled_when=self._can_edit_project,
                 group="geometry-creation",
                 order=110,
-                workspace_id=_DESIGN_WORKSPACE,
             ),
             ToolbarContribution(
-                id=self.toolbar_ids[3],
+                id=self.toolbar_ids[2],
                 title="Add Control Surface",
                 icon="geometry_add_control_surface",
                 menu_items=tuple(
@@ -97,50 +151,15 @@ class GeometryCreationController:
                 enabled_when=self._can_add_control_surface,
                 group="geometry-creation",
                 order=120,
-                workspace_id=_DESIGN_WORKSPACE,
             ),
         )
-
-    def add_structural_system(self) -> None:
-        if not self._require_editable_project():
-            return
-        project = self._api.current_project
-        if project is None:
-            return
-
-        assembly_id, assembly_name = self._unique_identity(
-            "airframe-structure", "Airframe Structure", include_assemblies=True
-        )
-
-        assembly_dict: dict[str, Any] = {
-            "kind": "assembly",
-            "id": assembly_id,
-            "name": assembly_name,
-            "type": _STRUCTURAL_SYSTEM_TYPE,
-            "members": {"fuselage": None, "wings": []},
-        }
-
-        def change() -> None:
-            asms = project.data.setdefault("assemblies", [])
-            if isinstance(asms, list):
-                asms.append(assembly_dict)
-
-        self._api.edit_project(f"Create structural system {assembly_name}", change)
-        created = next(
-            (
-                item
-                for item in project.data.get("assemblies", [])
-                if isinstance(item, dict) and item.get("id") == assembly_id
-            ),
-            None,
-        )
-        if created is not None:
-            self._api.set_selection(created)
-            self._api.show_status(f"Created {assembly_name}", "success", 3000)
 
     def add_fuselage(self) -> None:
         if not self._require_editable_project():
             return
+        project = self._api.current_project
+        if project is not None:
+            ensure_airframe_component(project)
         component_id, name = self._unique_identity("fuselage", "Fuselage")
         sections = [
             create_default_section(0.0, "circle"),
@@ -154,7 +173,7 @@ class GeometryCreationController:
             "id": component_id,
             "name": name,
             "type": _FUSELAGE_TYPE,
-            "parent": None,
+            "parent": _AIRFRAME_ID,
             "mass": 350.0,
             "transform": {
                 "position": {"x": 0.0, "y": 0.0, "z": 0.0},
@@ -189,6 +208,9 @@ class GeometryCreationController:
     def add_lifting_surface(self, preset: str) -> None:
         if not self._require_editable_project():
             return
+        project = self._api.current_project
+        if project is not None:
+            ensure_airframe_component(project)
         # (base_id, base_name, span, root_chord, tip_chord, mirrored, roll, airfoil, mass, thickness)
         presets: dict[str, tuple[str, str, float, float, float, bool, float, str, float, float]] = {
             "main-wing": (
@@ -263,6 +285,7 @@ class GeometryCreationController:
             "id": component_id,
             "name": name,
             "type": _LIFTING_SURFACE_TYPE,
+            "parent": _AIRFRAME_ID,
             "attach_to": attach_to,
             "mass": mass,
             "transform": {
@@ -510,4 +533,8 @@ class GeometryCreationController:
         return max(abs(semi_span), 1.0), max(chords[0] if chords else 100.0, 1.0)
 
 
-__all__ = ["GeometryCreationController"]
+__all__ = [
+    "GeometryCreationController",
+    "create_default_airframe_component",
+    "ensure_airframe_component",
+]

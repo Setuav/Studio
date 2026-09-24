@@ -1,4 +1,4 @@
-from setuav_studio_sdk.primitives import (
+from setuav_studio.ui.viewport.primitives import (
     BoxPrimitive,
     ColorRGB,
     ColorRGBA,
@@ -11,7 +11,6 @@ from setuav_studio_sdk.primitives import (
     TrianglesPrimitive,
     VisualPrimitive,
 )
-
 from setuav_studio.ui.viewport.types import (
     EnvelopeWireGeometry,
     GeometryData,

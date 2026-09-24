@@ -316,8 +316,13 @@ class ProjectTreeBuilder:
             name = format_component_name(component)
             component_type = format_component_type(component, components, api=self._api)
             item = QTreeWidgetItem([name])
-            if not read_only:
+            is_airframe = (
+                component_id == "airframe" or component.get("type") == "org.setuav.core:airframe"
+            )
+            if not read_only and not is_airframe:
                 item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
+            else:
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             item.setIcon(0, self._api.get_component_icon(component))
             item.setToolTip(0, f"{name} ({component_type})")
             item.setData(0, Qt.ItemDataRole.UserRole, component_id)
