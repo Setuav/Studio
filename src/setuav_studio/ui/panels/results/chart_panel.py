@@ -138,7 +138,7 @@ class AnalysisChartPanel(QWidget):
         # 2. Chart Widget
         self._chart_widget = StudioChartWidget(
             parent=self,
-            legend_alignment=Qt.AlignmentFlag.AlignBottom,
+            legend_alignment=Qt.AlignmentFlag.AlignTop,
             mouse_interaction=False,
         )
         self._chart_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)

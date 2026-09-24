@@ -28,7 +28,7 @@ class StudioChartWidget(QWidget):
         title: str = "",
         parent: QWidget | None = None,
         legend_visible: bool = True,
-        legend_alignment: Qt.AlignmentFlag = Qt.AlignmentFlag.AlignBottom,
+        legend_alignment: Qt.AlignmentFlag = Qt.AlignmentFlag.AlignTop,
         animated: bool = False,
         mouse_interaction: bool = False,
     ) -> None:
