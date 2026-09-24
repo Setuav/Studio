@@ -141,7 +141,7 @@ class TestFormulaAssistant(unittest.TestCase):
         self.assertFalse(popup.isVisible())
         self.assertEqual(edit.text(), "=SP")
 
-    def test_focus_aware_line_edit_function_parentheses_placement(self) -> None:
+    def test_focus_aware_line_edit_function_completion_cursor_at_end(self) -> None:
         widget = QWidget()
         self.addCleanup(widget.deleteLater)
 
@@ -151,9 +151,34 @@ class TestFormulaAssistant(unittest.TestCase):
         key_tab = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Tab, Qt.KeyboardModifier.NoModifier)
         QApplication.sendEvent(edit, key_tab)
 
-        self.assertEqual(edit.text(), "=sqrt()")
-        # Cursor should be placed inside parentheses: '=sqrt()' -> index 6
-        self.assertEqual(edit.cursorPosition(), 6)
+        self.assertEqual(edit.text(), "=sqrt(")
+        # Cursor should remain at the very end of the text in the input
+        self.assertEqual(edit.cursorPosition(), len(edit.text()))
+
+    def test_focus_aware_line_edit_arrow_navigation_and_tab(self) -> None:
+        widget = QWidget()
+        self.addCleanup(widget.deleteLater)
+
+        edit = FocusAwareLineEdit(widget, api=self.api)
+        edit.setText("=SP")
+        self.assertIsNotNone(edit._completer)
+        assert edit._completer is not None
+        popup = edit._completer.popup()
+        self.assertIsNotNone(popup)
+        assert popup is not None
+        popup.show()
+
+        # Press Down arrow to navigate through suggestions
+        key_down = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Down, Qt.KeyboardModifier.NoModifier)
+        QApplication.sendEvent(edit, key_down)
+        self.assertGreaterEqual(popup.currentIndex().row(), 0)
+
+        # Press Tab to accept selected item
+        key_tab = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Tab, Qt.KeyboardModifier.NoModifier)
+        QApplication.sendEvent(edit, key_tab)
+
+        self.assertEqual(edit.text(), "=SPAN")
+        self.assertEqual(edit.cursorPosition(), len(edit.text()))
 
     def test_expression_property_cell_focus_tracking(self) -> None:
         cell = ExpressionPropertyCell(

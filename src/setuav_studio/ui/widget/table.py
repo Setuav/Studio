@@ -168,19 +168,33 @@ class FocusAwareLineEdit(QLineEdit):
         if popup is None or not popup.isVisible() or completer is None:
             return False
         current_idx = popup.currentIndex()
+        if not current_idx.isValid() and popup.model() is not None and popup.model().rowCount() > 0:
+            current_idx = popup.model().index(0, 0)
+
         completion = ""
         if current_idx.isValid():
-            val = current_idx.data(Qt.ItemDataRole.UserRole) or current_idx.data(
-                Qt.ItemDataRole.DisplayRole
-            )
+            val = current_idx.data(Qt.ItemDataRole.UserRole)
+            if not val:
+                val = current_idx.data(Qt.ItemDataRole.DisplayRole)
+                if val:
+                    val = str(val).split()[0]
             if val:
                 completion = str(val)
         if not completion:
             completion = str(completer.currentCompletion() or "")
         if completion:
             self._insert_completion(completion)
+        self.setCursorPosition(len(self.text()))
+        self.setFocus()
         popup.hide()
         return True
+
+    def _handle_navigation_key(self, popup: QAbstractItemView | None, event: QKeyEvent) -> bool:
+        if popup is not None and popup.isVisible():
+            popup.keyPressEvent(event)
+            event.accept()
+            return True
+        return False
 
     def _trigger_manual_completion(self) -> None:
         if not self._enable_autocomplete:
@@ -198,31 +212,67 @@ class FocusAwareLineEdit(QLineEdit):
             self._completer.complete(cr)
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        completer = self._completer
+        popup = completer.popup() if completer is not None else None
+        popup_visible = popup is not None and popup.isVisible()
+
+        if event.type() == QEvent.Type.ShortcutOverride and isinstance(event, QKeyEvent):
+            key = event.key()
+            if popup_visible and key in (
+                Qt.Key.Key_Tab,
+                Qt.Key.Key_Backtab,
+                Qt.Key.Key_Down,
+                Qt.Key.Key_Up,
+                Qt.Key.Key_PageDown,
+                Qt.Key.Key_PageUp,
+            ):
+                event.accept()
+                return True
+
         if event.type() == QEvent.Type.KeyPress and isinstance(event, QKeyEvent):
             key = event.key()
-            completer = self._completer
-            popup = completer.popup() if completer is not None else None
-            popup_visible = popup is not None and popup.isVisible()
+
+            if (
+                watched is self
+                and popup_visible
+                and key
+                in (
+                    Qt.Key.Key_Down,
+                    Qt.Key.Key_Up,
+                    Qt.Key.Key_PageDown,
+                    Qt.Key.Key_PageUp,
+                )
+            ):
+                return self._handle_navigation_key(popup, event)
 
             if key == Qt.Key.Key_Tab:
                 if self._handle_tab_key(popup, completer):
+                    event.accept()
                     return True
 
             elif key == Qt.Key.Key_Escape:
                 if popup_visible and popup is not None:
                     popup.hide()
+                    event.accept()
                     return True
 
             elif (
                 key == Qt.Key.Key_Space and event.modifiers() == Qt.KeyboardModifier.ControlModifier
             ):
                 self._trigger_manual_completion()
+                event.accept()
                 return True
 
             elif key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
                 if popup_visible and popup is not None:
+                    current_idx = popup.currentIndex()
+                    if current_idx.isValid():
+                        val = current_idx.data(Qt.ItemDataRole.UserRole)
+                        if val:
+                            self._insert_completion(str(val))
                     popup.hide()
                 self._finish_and_exit_editing()
+                event.accept()
                 return True
 
         return super().eventFilter(watched, event)
@@ -404,21 +454,9 @@ class FocusAwareLineEdit(QLineEdit):
     def _insert_completion(self, completion: str) -> None:
         _, start_pos, end_pos = self._get_current_token()
         text = self.text()
-        if completion.endswith("("):
-            rest = text[end_pos:].lstrip()
-            if not rest.startswith(")"):
-                insert_str = completion + ")"
-                cursor_target = start_pos + len(completion)
-            else:
-                insert_str = completion
-                cursor_target = start_pos + len(completion)
-        else:
-            insert_str = completion
-            cursor_target = start_pos + len(insert_str)
-
-        new_text = text[:start_pos] + insert_str + text[end_pos:]
+        new_text = text[:start_pos] + completion + text[end_pos:]
         self.setText(new_text)
-        self.setCursorPosition(cursor_target)
+        self.setCursorPosition(len(self.text()))
 
 
 def format_engineering_value(val: Any, decimals: int | None = 2) -> str:
