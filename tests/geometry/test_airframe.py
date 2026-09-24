@@ -129,12 +129,19 @@ class AirframeTests(unittest.TestCase):
         self.assertIn("1 (Aileron)", editor._property_text(editor.structure_table, 2))
 
         # Metrics table
-        # Total mass = 350 + 250 + 25 = 625.0 g
-        self.assertEqual(editor._property_text(editor.metrics_table, 0), "625.0 g")
         # Max span = 600 * 2 = 1200 mm -> 1.200 m
-        self.assertEqual(editor._property_text(editor.metrics_table, 1), "1.200 m")
+        self.assertEqual(editor._property_text(editor.metrics_table, 0), "1.200 m")
         # Fuselage length = 800 mm -> 0.800 m
-        self.assertEqual(editor._property_text(editor.metrics_table, 2), "0.800 m")
+        self.assertEqual(editor._property_text(editor.metrics_table, 1), "0.800 m")
+
+    def test_airframe_has_no_transform_or_mass_tree_nodes(self) -> None:
+        from setuav_studio.ui.shell.native_registrations import register_native_contributions
+
+        register_native_contributions(self.api)
+        ensure_airframe_component(self.project)
+        airframe = self.project.data["components"][0]
+        nodes = list(self.api.component_tree_nodes(airframe))
+        self.assertEqual(len(nodes), 0)
 
     def test_airframe_deletion_and_rename_protection(self) -> None:
         ensure_airframe_component(self.project)

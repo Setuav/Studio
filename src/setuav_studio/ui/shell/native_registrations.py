@@ -22,6 +22,13 @@ def _transform_tree_nodes(
     component_id = str(component.get("id") or "")
     if not component_id:
         return ()
+    comp_type = str(component.get("type") or "").lower()
+    if (
+        component_id == "airframe"
+        or comp_type == "org.setuav.core:airframe"
+        or component.get("has_transform") is False
+    ):
+        return ()
     transform_node_id = f"{component_id}:transform"
     envelope_node_id = f"{component_id}:envelope"
     nodes = [
@@ -38,7 +45,6 @@ def _transform_tree_nodes(
             tooltip="Position and rotation relative to the parent frame",
         ),
     ]
-    comp_type = str(component.get("type") or "").lower()
     has_explicit_envelope = bool(component.get("envelope"))
     is_non_geometric = any(
         k in comp_type
@@ -67,6 +73,13 @@ def _mass_tree_nodes(
 ) -> tuple[ComponentTreeNodeContribution, ...]:
     component_id = str(component.get("id") or "")
     if not component_id:
+        return ()
+    comp_type = str(component.get("type") or "").lower()
+    if (
+        component_id == "airframe"
+        or comp_type == "org.setuav.core:airframe"
+        or component.get("has_mass") is False
+    ):
         return ()
     node_id = f"{component_id}:mass-properties"
     return (

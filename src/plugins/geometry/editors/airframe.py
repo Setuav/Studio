@@ -5,9 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from PySide6.QtWidgets import (
-    QFrame,
+    QHBoxLayout,
     QLabel,
     QScrollArea,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -29,64 +30,57 @@ class AirframeEditor(PropertyTableMixin, QWidget):
         self._component = component
         self._loading = False
 
-        scroll = QScrollArea(self)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        content = QWidget()
+        self._content_layout = QVBoxLayout(content)
+        self._content_layout.setContentsMargins(6, 6, 6, 8)
+        self._content_layout.setSpacing(10)
+
+        scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll.setWidget(content)
+        layout.addWidget(scroll)
 
-        container = QWidget()
-        self._main_layout = QVBoxLayout(container)
-        self._main_layout.setContentsMargins(12, 12, 12, 12)
-        self._main_layout.setSpacing(16)
-
-        self._build_header()
         self._build_general_section()
         self._build_structure_section()
         self._build_metrics_section()
-
-        self._main_layout.addStretch()
-        scroll.setWidget(container)
-
-        outer = QVBoxLayout(self)
-        outer.setContentsMargins(0, 0, 0, 0)
-        outer.addWidget(scroll)
+        self._content_layout.addStretch()
 
         self._load_airframe()
 
-    def _build_header(self) -> None:
-        header = QFrame()
-        header.setObjectName("editor_header")
-        layout = QVBoxLayout(header)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(4)
-
-        title = QLabel("Airframe")
-        title.setStyleSheet("font-size: 14px; font-weight: bold;")
-        subtitle = QLabel(
-            "Fixed root assembly for airframe geometry (fuselages, wings, control surfaces)"
-        )
-        subtitle.setStyleSheet("color: #888888; font-size: 11px;")
-
-        layout.addWidget(title)
-        layout.addWidget(subtitle)
-        self._main_layout.addWidget(header)
-
     def _create_section(self, title: str, icon_name: str | None = None) -> QVBoxLayout:
-        section = QFrame()
-        section.setObjectName("editor_section")
+        section = QWidget()
+        section.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
         layout = QVBoxLayout(section)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(8)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(3)
 
-        header = QLabel(title)
-        header.setStyleSheet("font-weight: bold; font-size: 12px;")
+        header = QWidget()
+        header.setProperty("sectionHeader", True)
+        header.setFixedHeight(20)
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(5)
+
         if icon_name:
-            set_label_icon(header, icon_name)
+            icon_label = QLabel()
+            set_label_icon(icon_label, icon_name)
+            icon_label.setFixedSize(14, 14)
+            header_layout.addWidget(icon_label)
+
+        title_label = QLabel(title)
+        header_layout.addWidget(title_label)
+        header_layout.addStretch()
+
         layout.addWidget(header)
-        self._main_layout.addWidget(section)
+        self._content_layout.addWidget(section)
         return layout
 
     def _build_general_section(self) -> None:
-        layout = self._create_section("General Information", "fa6s.circle-info")
+        layout = self._create_section("General", "fa6s.circle-info")
         self.general_table = self._property_table(
             [
                 ("name", "Name"),
@@ -111,7 +105,6 @@ class AirframeEditor(PropertyTableMixin, QWidget):
         layout = self._create_section("Reference Metrics", "fa6s.ruler-combined")
         self.metrics_table = self._property_table(
             [
-                ("total_mass", "Total Airframe Mass"),
                 ("max_span", "Max Wingspan"),
                 ("primary_fuselage_length", "Primary Fuselage Length"),
             ]
@@ -170,14 +163,6 @@ class AirframeEditor(PropertyTableMixin, QWidget):
                 "control_surfaces",
                 f"{len(ctrl_surfaces)} ({ctrl_names})",
                 editable=False,
-            )
-
-            # Mass calculation (sum of all geometry components under airframe)
-            total_mass = sum(
-                float(c.get("mass") or 0.0) for c in (*fuselages, *wings, *ctrl_surfaces)
-            )
-            self._set_property_value(
-                self.metrics_table, "total_mass", f"{total_mass:.1f} g", editable=False
             )
 
             # Max wingspan calculation

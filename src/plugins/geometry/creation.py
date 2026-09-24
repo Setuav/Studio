@@ -28,6 +28,8 @@ def create_default_airframe_component() -> dict[str, Any]:
         "type": _AIRFRAME_TYPE,
         "parent": None,
         "parameters": {},
+        "has_transform": False,
+        "has_mass": False,
     }
 
 
@@ -55,6 +57,8 @@ def ensure_airframe_component(project: Any) -> dict[str, Any]:
         airframe["id"] = _AIRFRAME_ID
         airframe["type"] = _AIRFRAME_TYPE
         airframe["parent"] = None
+        airframe["has_transform"] = False
+        airframe["has_mass"] = False
         if not airframe.get("name"):
             airframe["name"] = _AIRFRAME_NAME
 
