@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from plugins.geometry.engine.wing_planform_engine import compute_planform_metrics
 from setuav_studio.model import Component
+
+from ..engine.wing_planform_engine import compute_planform_metrics
 
 
 class WingSectionModel:

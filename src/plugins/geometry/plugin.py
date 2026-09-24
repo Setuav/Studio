@@ -1,3 +1,5 @@
+import contextlib
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -29,6 +31,7 @@ class GeometryPlugin:
         self._api: StudioAPI | None = None
         self._providers: dict[str, Any] = {}
         self._scene_controller: GeometrySceneController | None = None
+        self._unsubscribers: list[Callable[[], None]] = []
 
     def activate(self, api: StudioAPI) -> None:
         register_plugin_icons(
@@ -37,10 +40,10 @@ class GeometryPlugin:
         self._api = api
         self._creation_controller = GeometryCreationController(api)
         for contribution in self._creation_controller.contributions():
-            api.add_toolbar_item(contribution)
+            api.register_toolbar_item(contribution)
 
         # 1. Settings
-        api.add_settings_page(
+        api.register_settings_page(
             SettingsPageContribution(
                 id="geometry.settings.editor",
                 title="Geometry Editor",
@@ -114,8 +117,12 @@ class GeometryPlugin:
 
         # 6. Central Viewport Synchronization
         self._scene_controller = GeometrySceneController(api, self._providers)
-        api.on_project_changed(self._scene_controller.on_project_changed)
-        api.on_project_content_changed(self._scene_controller.on_project_content_changed)
+        self._unsubscribers.append(
+            api.on_project_changed(self._scene_controller.on_project_changed)
+        )
+        self._unsubscribers.append(
+            api.on_project_content_changed(self._scene_controller.on_project_content_changed)
+        )
         if api.current_project is not None:
             self._scene_controller.sync(api.current_project)
 
@@ -216,24 +223,28 @@ class GeometryPlugin:
         controller = getattr(self, "_creation_controller", None)
         if controller is not None:
             for contribution_id in controller.toolbar_ids:
-                api.remove_toolbar_item(contribution_id)
-        api.remove_component_model("org.setuav.core:lifting-surface")
-        api.remove_component_model("org.setuav.core:fuselage")
-        api.remove_component_model("org.setuav.core:control-surface")
+                api.unregister_toolbar_item(contribution_id)
+        api.unregister_component_model("org.setuav.core:lifting-surface")
+        api.unregister_component_model("org.setuav.core:fuselage")
+        api.unregister_component_model("org.setuav.core:control-surface")
         self._providers = {}
         if self._scene_controller is not None:
             self._scene_controller.dispose()
             self._scene_controller = None
+        for unsub in getattr(self, "_unsubscribers", []):
+            with contextlib.suppress(Exception):
+                unsub()
+        self._unsubscribers = []
         self._api = None
-        api.remove_component_icon("org.setuav.core:fuselage")
-        api.remove_component_icon("org.setuav.core:lifting-surface")
-        api.remove_component_icon("org.setuav.core:control-surface")
-        api.remove_component_icon("org.setuav.core:airframe")
-        api.remove_component_editor("org.setuav.core:fuselage")
-        api.remove_component_editor("org.setuav.core:lifting-surface")
-        api.remove_component_editor("org.setuav.core:control-surface")
-        api.remove_component_editor("org.setuav.core:airframe")
-        api.remove_settings_page("geometry.settings.editor")
+        api.unregister_component_icon("org.setuav.core:fuselage")
+        api.unregister_component_icon("org.setuav.core:lifting-surface")
+        api.unregister_component_icon("org.setuav.core:control-surface")
+        api.unregister_component_icon("org.setuav.core:airframe")
+        api.unregister_component_editor("org.setuav.core:fuselage")
+        api.unregister_component_editor("org.setuav.core:lifting-surface")
+        api.unregister_component_editor("org.setuav.core:control-surface")
+        api.unregister_component_editor("org.setuav.core:airframe")
+        api.unregister_settings_page("geometry.settings.editor")
         api.unsubscribe(StudioEvents.PROJECT_OPENED, self._on_project_opened)
 
     def _on_project_opened(self, *args: Any) -> None:

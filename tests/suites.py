@@ -43,6 +43,7 @@ GEOMETRY_MODULES = (
     "tests.geometry.test_motor_mount",
     "tests.geometry.test_settings",
     "tests.geometry.test_airframe",
+    "tests.geometry.test_plugin",
     "tests.geometry.test_wing_driver_solver",
 )
 AERODYNAMICS_FAST_MODULES = (

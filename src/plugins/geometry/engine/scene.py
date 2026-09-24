@@ -560,7 +560,7 @@ def _build_component_envelope_geometry(
             )
         ):
             try:
-                from plugins.geometry.engine.envelope import compute_geometry_envelope
+                from .envelope import compute_geometry_envelope
 
                 fresh = compute_geometry_envelope(source or item, parent_source)
                 if isinstance(fresh, dict) and fresh:
@@ -571,7 +571,7 @@ def _build_component_envelope_geometry(
                 pass
     elif not isinstance(envelope, dict):
         try:
-            from plugins.geometry.engine.envelope import compute_geometry_envelope
+            from .envelope import compute_geometry_envelope
 
             envelope = compute_geometry_envelope(source or item, parent_source)
         except Exception:
@@ -877,7 +877,7 @@ def _append_lifting_surface_tip_envelope_lines(  # noqa: C901
     matrix: Matrix4,
 ) -> None:
     try:
-        from plugins.geometry.engine.lifting_surface_geometry import build_lifting_surface_geometry
+        from .lifting_surface_geometry import build_lifting_surface_geometry
 
         lofts = build_lifting_surface_geometry(source)
     except Exception:

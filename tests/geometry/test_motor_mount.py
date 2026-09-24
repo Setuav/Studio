@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import unittest
 
-from plugins.electrical_propulsion.models.motor import MotorModel
 from plugins.geometry.engine.mount import (
     MountFrame,
     MountTarget,
@@ -234,6 +233,11 @@ class MotorMountTests(unittest.TestCase):
                 },
             },
         }
+        try:
+            from plugins.electrical_propulsion.models.motor import MotorModel
+        except (ImportError, ModuleNotFoundError):
+            self.skipTest("electrical_propulsion plugin is not available")
+            return
         model = MotorModel(comp_dict)
         self.assertEqual(model.kv, 950.0)
         self.assertEqual(model.mount_target_id, "main-wing")
