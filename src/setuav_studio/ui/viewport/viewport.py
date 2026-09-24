@@ -897,15 +897,19 @@ class StudioViewport(QWidget):
             kind = selection.get("kind")
             comp_id = selection.get("component_id") or selection.get("id")
             comp_str = str(comp_id) if comp_id is not None else None
-            if kind == "envelope":
+            if kind == "envelope" or (comp_str and comp_str.endswith(":envelope")):
                 envelope_id = comp_str
                 component_id = None
             else:
                 component_id = comp_str
                 envelope_id = None
         elif isinstance(selection, str):
-            component_id = selection
-            envelope_id = None
+            if selection.endswith(":envelope"):
+                envelope_id = selection
+                component_id = None
+            else:
+                component_id = selection
+                envelope_id = None
         else:
             component_id = None
             envelope_id = None

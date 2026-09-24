@@ -422,7 +422,27 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         viewport = StudioViewport(api=api)
         self.addCleanup(viewport.deleteLater)
         renderer = viewport.viewer
-        assert renderer is not None
+        from plugins.geometry.engine.fuselage_geometry import build_fuselage_geometry
+        from plugins.geometry.engine.scene import build_project_geometry
+        from setuav_studio.ui.viewport import LoftPrimitive, SceneObject
+
+        geom = build_project_geometry(doc, {"org.setuav.core:fuselage": build_fuselage_geometry})
+        loft = geom.lofts[0]
+        env = geom.envelopes[0]
+        sections_pts = tuple(tuple(pt for pt in sec.points) for sec in loft.sections)
+        obj = SceneObject(
+            object_id="test-fuse",
+            layer="geometry",
+            name="Fuselage",
+            primitives=[LoftPrimitive(sections=sections_pts, color=loft.color)],
+            envelope=env,
+        )
+        viewport.add_object(obj)
+
+        # 0. Nothing selected -> no envelope lines drawn
+        api.set_selection(None)
+        renderer._upload_meshes()
+        self.assertEqual(renderer._envelope_count, 0)
 
         # 1. Select Envelope node in tree -> envelope selected, component wireframe not selected
         api.set_selection(
@@ -435,16 +455,22 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         )
         self.assertEqual(renderer._selected_envelope_component_id, "test-fuse")
         self.assertIsNone(renderer._selected_component_id)
+        renderer._upload_meshes()
+        self.assertGreater(renderer._envelope_count, 0)
 
         # 2. Select component itself -> envelope selection is cleared, component wireframe is selected
         api.set_selection(fuse)
         self.assertIsNone(renderer._selected_envelope_component_id)
         self.assertEqual(renderer._selected_component_id, "test-fuse")
+        renderer._upload_meshes()
+        self.assertEqual(renderer._envelope_count, 0)
 
         # 3. Clear selection -> envelope and component selections are cleared
         api.set_selection(None)
         self.assertIsNone(renderer._selected_envelope_component_id)
         self.assertIsNone(renderer._selected_component_id)
+        renderer._upload_meshes()
+        self.assertEqual(renderer._envelope_count, 0)
 
     def test_lifting_surface_tip_cap_envelope_lines(self) -> None:
         from plugins.geometry.engine.scene import _append_lifting_surface_tip_envelope_lines

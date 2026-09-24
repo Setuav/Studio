@@ -6,7 +6,6 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from setuav_studio.ui.viewport import (
-    LineSegmentsPrimitive,
     LoftPrimitive,
     SceneObject,
     VisualPrimitive,
@@ -87,28 +86,28 @@ class GeometrySceneController:
             )
             comp_primitives.setdefault(loft.component_id, []).append(prim)
 
-        # 2. Envelope Geometries (wireframes)
+        # 2. Envelope Geometries (stored on SceneObject.envelope, rendered only when envelope is selected)
+        comp_envelopes: dict[str, Any] = {}
         for env in geom.envelopes:
             if env.lines:
-                line_prim = LineSegmentsPrimitive(
-                    lines=tuple(env.lines),
-                    color=(0.15, 1.0, 0.25, 1.0),
-                )
-                comp_primitives.setdefault(env.component_id, []).append(line_prim)
+                comp_envelopes[env.component_id] = env
 
-        active_ids = set(comp_primitives.keys())
+        active_ids = set(comp_primitives.keys()) | set(comp_envelopes.keys())
         existing_ids = set(viewport.object_ids(layer=GEOMETRY_LAYER))
 
         for removed_id in existing_ids - active_ids:
             viewport.remove(removed_id)
 
-        for comp_id, prims in comp_primitives.items():
+        for comp_id in active_ids:
+            prims = comp_primitives.get(comp_id, [])
+            env = comp_envelopes.get(comp_id)
             name = comp_names.get(comp_id, comp_id)
             obj = SceneObject(
                 object_id=comp_id,
                 layer=GEOMETRY_LAYER,
                 name=name,
                 primitives=prims,
+                envelope=env,
             )
             viewport.add_object(obj)
 
