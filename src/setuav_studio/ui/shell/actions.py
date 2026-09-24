@@ -143,7 +143,7 @@ class ActionManager:
         self.menus["tools"] = self.tools_menu
         self.tools_menu.addAction(self.command_palette_action)
         self.task_manager_action = self.tools_menu.addAction(
-            get_icon("fa6s.list-check"),
+            get_icon("task_manager"),
             "Task Manager…",
             self.open_task_manager,
         )

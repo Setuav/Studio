@@ -229,7 +229,7 @@ class StatusBarManager:
 
         self.tasks_button = QToolButton(self._window)
         self.tasks_button.setObjectName("studioStatusTasksButton")
-        self.tasks_button.setIcon(get_icon("fa6s.list-check"))
+        self.tasks_button.setIcon(get_icon("task_manager"))
         self.tasks_button.setToolTip("Task Manager")
         self.tasks_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.tasks_button.setAutoRaise(True)

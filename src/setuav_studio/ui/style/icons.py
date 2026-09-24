@@ -47,7 +47,7 @@ _ICON_MAP = {
     "split": "mdi6.call-split",
     "call_split": "mdi6.call-split",
     "fit": "fa6s.expand",
-    "log": "mdi6.message-text-outline",
+    "log": "mdi6.message-reply-text-outline",
     "export_csv": "fa6s.file-export",
     "success": "fa6s.check",
     "check": "fa6s.check",
@@ -58,6 +58,8 @@ _ICON_MAP = {
     "equation": "fa6s.code",
     "package": "fa6s.box-open",
     "plugin": "fa6s.box-open",
+    "task_manager": "ei.tasks",
+    "tasks": "ei.tasks",
     # 3D Viewport Controls & Overlays
     "view_solid": "mdi6.cube",
     "view_wireframe": "mdi6.cube-outline",

@@ -41,7 +41,7 @@ class TaskManagerDialog(QDialog):
         self._tm: TaskManager = api.tasks
         self.setObjectName("taskManagerDialog")
         self.setWindowTitle("Task Manager")
-        self.setWindowIcon(get_icon("fa6s.list-check"))
+        self.setWindowIcon(get_icon("task_manager"))
         self.setMinimumSize(780, 480)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
 
