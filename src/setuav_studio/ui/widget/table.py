@@ -20,12 +20,13 @@ copying the implementation:
 
 from __future__ import annotations
 
+import contextlib
 import weakref
 from collections.abc import Callable, Sequence
-from typing import Any
+from typing import Any, ClassVar
 
-from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QFocusEvent, QResizeEvent
+from PySide6.QtCore import QEvent, QObject, Qt, QTimer, Signal
+from PySide6.QtGui import QFocusEvent, QKeyEvent, QResizeEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -35,8 +36,8 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QLineEdit,
-    QPushButton,
     QSizePolicy,
+    QStyledItemDelegate,
     QTableWidget,
     QTableWidgetItem,
     QWidget,
@@ -94,11 +95,54 @@ class ContentFitTableWidget(QTableWidget):
             self._fitting_columns = False
 
 
+class ExpressionFocusTracker:
+    """Tracks the currently active/focused formula-capable editor across the studio."""
+
+    _active_editor: Any | None = None
+    _listeners: ClassVar[list[Callable[[], None]]] = []
+
+    @classmethod
+    def set_active_editor(cls, editor: Any | None) -> None:
+        if cls._active_editor is not editor:
+            cls._active_editor = editor
+            for cb in list(cls._listeners):
+                with contextlib.suppress(Exception):
+                    cb()
+
+    @classmethod
+    def get_active_editor(cls) -> Any | None:
+        return cls._active_editor
+
+    @classmethod
+    def has_active_editor(cls) -> bool:
+        return cls._active_editor is not None
+
+    @classmethod
+    def add_listener(cls, cb: Callable[[], None]) -> None:
+        if cb not in cls._listeners:
+            cls._listeners.append(cb)
+
+    @classmethod
+    def remove_listener(cls, cb: Callable[[], None]) -> None:
+        with contextlib.suppress(ValueError):
+            cls._listeners.remove(cb)
+
+
 class FocusAwareLineEdit(QLineEdit):
-    """QLineEdit that emits focus signals to support dual-state evaluated/formula display."""
+    """QLineEdit that emits focus signals and provides token-aware formula autocompletion."""
 
     focused_in = Signal()
     focused_out = Signal()
+
+    def __init__(self, parent: QWidget | None = None, api: Any | None = None) -> None:
+        super().__init__(parent)
+        self._api = api
+        self._completer: Any | None = None
+        self.installEventFilter(self)
+        self.textChanged.connect(self._on_text_changed)
+
+    def set_api(self, api: Any) -> None:
+        self._api = api
 
     def focusInEvent(self, event: QFocusEvent) -> None:
         super().focusInEvent(event)
@@ -107,6 +151,170 @@ class FocusAwareLineEdit(QLineEdit):
     def focusOutEvent(self, event: QFocusEvent) -> None:
         super().focusOutEvent(event)
         self.focused_out.emit()
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if event.type() == QEvent.Type.KeyPress and isinstance(event, QKeyEvent):
+            key = event.key()
+            completer = self._completer
+            popup = completer.popup() if completer is not None else None
+            popup_visible = popup is not None and popup.isVisible()
+
+            if key == Qt.Key.Key_Tab:
+                if popup_visible and completer is not None and popup is not None:
+                    current_idx = popup.currentIndex()
+                    completion = ""
+                    if current_idx.isValid():
+                        val = current_idx.data(Qt.ItemDataRole.DisplayRole)
+                        if val:
+                            completion = str(val)
+                    if not completion:
+                        completion = completer.currentCompletion()
+                    if completion:
+                        self._insert_completion(completion)
+                    popup.hide()
+                    return True
+
+            elif key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                if popup_visible and popup is not None:
+                    popup.hide()
+                self._finish_and_exit_editing()
+                return True
+
+        return super().eventFilter(watched, event)
+
+    def _finish_and_exit_editing(self) -> None:
+        if self._completer is not None and self._completer.popup().isVisible():
+            self._completer.popup().hide()
+
+        p: QWidget | None = self.parentWidget()
+        view = None
+        while p is not None:
+            if isinstance(p, QAbstractItemView):
+                view = p
+                break
+            p = p.parentWidget()
+
+        if view is not None:
+            view.commitData(self)
+            view.closeEditor(self, QStyledItemDelegate.EndEditHint.SubmitModelCache)
+            view.setFocus()
+        else:
+            self.returnPressed.emit()
+            self.editingFinished.emit()
+            self.clearFocus()
+
+    def _get_symbols(self) -> list[str]:
+        symbols = [
+            "pi",
+            "e",
+            "g",
+            "sqrt(",
+            "sin(",
+            "cos(",
+            "tan(",
+            "asin(",
+            "acos(",
+            "atan(",
+            "atan2(",
+            "radians(",
+            "degrees(",
+            "exp(",
+            "log(",
+            "log10(",
+            "pow(",
+            "abs(",
+            "min(",
+            "max(",
+            "ceil(",
+            "floor(",
+            "round(",
+        ]
+        resolved_api = self._api
+        if resolved_api is None and hasattr(self.parent(), "_api"):
+            resolved_api = getattr(self.parent(), "_api", None)
+        if resolved_api is not None and getattr(resolved_api, "current_project", None) is not None:
+            proj = resolved_api.current_project
+            data = getattr(proj, "data", None)
+            if isinstance(data, dict):
+                params = data.get("parameters", {})
+                if isinstance(params, dict):
+                    for k in params:
+                        clean = str(k).replace("-", "_")
+                        symbols.append(clean)
+                        if clean != str(k):
+                            symbols.append(str(k))
+                comps = data.get("components", [])
+                if isinstance(comps, list):
+                    for c in comps:
+                        if isinstance(c, dict):
+                            cid = str(c.get("id") or "").replace("-", "_")
+                            symbols.append(cid)
+                            c_params = c.get("parameters", {})
+                            if isinstance(c_params, dict):
+                                for pk in c_params:
+                                    symbols.append(f"{cid}.{pk}")
+        return sorted(set(symbols))
+
+    def _ensure_completer(self) -> None:
+        if self._completer is not None:
+            return
+        from PySide6.QtCore import QStringListModel
+        from PySide6.QtWidgets import QCompleter
+
+        symbols = self._get_symbols()
+        model = QStringListModel(symbols, self)
+        completer = QCompleter(model, self)
+        completer.setWidget(self)
+        completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        completer.activated.connect(self._insert_completion)
+        self._completer = completer
+        self.removeEventFilter(self)
+        self.installEventFilter(self)
+        popup = completer.popup()
+        if popup is not None:
+            popup.installEventFilter(self)
+
+    def _on_text_changed(self, text: str) -> None:
+        if text.startswith("="):
+            self._ensure_completer()
+            if self._completer is not None:
+                token, _, _ = self._get_current_token()
+                if token:
+                    self._completer.setCompletionPrefix(token)
+                    cr = self.cursorRect()
+                    cr.setWidth(
+                        self._completer.popup().sizeHintForColumn(0)
+                        + self._completer.popup().verticalScrollBar().sizeHint().width()
+                        + 20
+                    )
+                    self._completer.complete(cr)
+                elif text == "=":
+                    self._completer.setCompletionPrefix("")
+                    self._completer.complete()
+        else:
+            if self._completer is not None and self._completer.popup().isVisible():
+                self._completer.popup().hide()
+
+    def _get_current_token(self) -> tuple[str, int, int]:
+        text = self.text()
+        cursor_pos = self.cursorPosition()
+        left_text = text[:cursor_pos]
+        import re
+
+        match = re.search(r"([A-Za-z_0-9\-\.]+)$", left_text)
+        if not match:
+            return "", cursor_pos, cursor_pos
+        token = match.group(1)
+        start_pos = cursor_pos - len(token)
+        return token, start_pos, cursor_pos
+
+    def _insert_completion(self, completion: str) -> None:
+        _, start_pos, end_pos = self._get_current_token()
+        text = self.text()
+        new_text = text[:start_pos] + completion + text[end_pos:]
+        self.setText(new_text)
+        self.setCursorPosition(start_pos + len(completion))
 
 
 def format_engineering_value(val: Any, decimals: int | None = 2) -> str:
@@ -133,7 +341,7 @@ def format_engineering_value(val: Any, decimals: int | None = 2) -> str:
 
 
 class ExpressionPropertyCell(QWidget):
-    """Table cell editor widget with dual display (evaluated value when idle, formula when editing) and 'fx' assistant button."""
+    """Table cell editor widget with dual display (evaluated value when idle, formula when editing)."""
 
     def __init__(
         self,
@@ -191,7 +399,7 @@ class ExpressionPropertyCell(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(2)
 
-        self.line_edit = FocusAwareLineEdit(self)
+        self.line_edit = FocusAwareLineEdit(self, api=api)
         self.line_edit.focused_in.connect(self._on_focus_in)
         self.line_edit.focused_out.connect(self._on_focus_out)
         self.line_edit.returnPressed.connect(self._on_return_pressed)
@@ -204,16 +412,6 @@ class ExpressionPropertyCell(QWidget):
         )
         self.unit_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         layout.addWidget(self.unit_label)
-
-        self.fx_button = QPushButton("fx", self)
-        self.fx_button.setToolTip("Open Equation / Expression Assistant")
-        self.fx_button.setFixedWidth(24)
-        self.fx_button.setFixedHeight(20)
-        self.fx_button.setStyleSheet(
-            "QPushButton { font-style: italic; font-weight: bold; padding: 0px; font-size: 11px; }"
-        )
-        self.fx_button.clicked.connect(self._handle_button_clicked)
-        layout.addWidget(self.fx_button)
 
         get_unit_manager().units_changed.connect(self._refresh_display)
         self.destroyed.connect(self._disconnect_units_changed)
@@ -332,6 +530,7 @@ class ExpressionPropertyCell(QWidget):
 
     def _on_focus_in(self) -> None:
         self._is_focused = True
+        ExpressionFocusTracker.set_active_editor(self)
         self._refresh_display()
         self.line_edit.selectAll()
 
@@ -377,6 +576,30 @@ class ExpressionPropertyCell(QWidget):
         self._commit_line_edit()
         self._is_focused = False
         self._refresh_display()
+        QTimer.singleShot(400, self._maybe_clear_focus_tracker)
+
+    def _maybe_clear_focus_tracker(self) -> None:
+        if not self._is_focused and ExpressionFocusTracker.get_active_editor() is self:
+            ExpressionFocusTracker.set_active_editor(None)
+
+    def get_expression(self) -> str:
+        return self._raw_expression.strip()
+
+    def set_expression(self, expr: str) -> None:
+        self._raw_expression = expr.strip()
+        self._call_on_changed(self._raw_expression)
+        self._refresh_display()
+
+    def get_label(self) -> str:
+        return self._label
+
+    def open_assistant(self) -> None:
+        self._handle_button_clicked()
+
+    def hideEvent(self, event: Any) -> None:
+        if ExpressionFocusTracker.get_active_editor() is self:
+            ExpressionFocusTracker.set_active_editor(None)
+        super().hideEvent(event)
 
     def _on_return_pressed(self) -> None:
         self._commit_line_edit(force=True)

@@ -133,6 +133,9 @@ class MainWindow(QMainWindow):
         self._api.on_modified_changed(self._on_modified_changed)
         self._api.on_project_content_changed(self._on_project_content_changed)
         self._api.on_selection_changed(self._on_toolbar_context_changed)
+        from setuav_studio.ui.widget.table import ExpressionFocusTracker
+
+        ExpressionFocusTracker.add_listener(self._refresh_toolbar_action_states)
         self.destroyed.connect(self._detach_api_listeners)
 
     @property
@@ -432,6 +435,9 @@ class MainWindow(QMainWindow):
         self._api.remove_modified_listener(self._on_modified_changed)
         self._api.remove_project_content_listener(self._on_project_content_changed)
         self._api.remove_selection_listener(self._on_toolbar_context_changed)
+        from setuav_studio.ui.widget.table import ExpressionFocusTracker
+
+        ExpressionFocusTracker.remove_listener(self._refresh_toolbar_action_states)
 
     def resizeEvent(self, event: Any) -> None:
         super().resizeEvent(event)

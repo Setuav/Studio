@@ -8,8 +8,6 @@ from typing import TYPE_CHECKING, Any
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
-    QLineEdit,
-    QPushButton,
     QScrollArea,
     QSizePolicy,
     QVBoxLayout,
@@ -18,46 +16,59 @@ from PySide6.QtWidgets import (
 
 from setuav_studio.model.constraint import ConstraintChecker
 from setuav_studio.ui.style.icons import set_label_icon
-from setuav_studio.ui.widget.table import PropertyTableMixin
+from setuav_studio.ui.widget.table import (
+    ExpressionFocusTracker,
+    FocusAwareLineEdit,
+    PropertyTableMixin,
+)
 
 if TYPE_CHECKING:
     from setuav_studio.api import StudioAPI
 
 
 class ConstraintExpressionCell(QWidget):
-    """Expression editor widget for boolean constraints with direct text editing and fx assistant."""
+    """Expression editor widget for boolean constraints with direct text editing."""
 
     def __init__(
         self,
         initial_value: str = "",
         on_changed: Callable[[str], None] | None = None,
         on_open_assistant: Callable[[str], None] | None = None,
+        api: Any | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._on_changed = on_changed
         self._on_open_assistant = on_open_assistant
+        self._api = api
         self._committed_text = initial_value
+        self._is_focused = False
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(2)
 
-        self.line_edit = QLineEdit(self)
+        self.line_edit = FocusAwareLineEdit(self, api=api)
         self.line_edit.setText(initial_value)
+        self.line_edit.focused_in.connect(self._on_focus_in)
+        self.line_edit.focused_out.connect(self._on_focus_out)
         self.line_edit.editingFinished.connect(self._on_editing_finished)
         self.line_edit.returnPressed.connect(self.line_edit.clearFocus)
         layout.addWidget(self.line_edit, 1)
 
-        self.fx_button = QPushButton("fx", self)
-        self.fx_button.setToolTip("Open Constraint Assistant")
-        self.fx_button.setFixedWidth(24)
-        self.fx_button.setFixedHeight(20)
-        self.fx_button.setStyleSheet(
-            "QPushButton { font-style: italic; font-weight: bold; padding: 0px; font-size: 11px; }"
-        )
-        self.fx_button.clicked.connect(self._on_fx_clicked)
-        layout.addWidget(self.fx_button)
+    def _on_focus_in(self) -> None:
+        self._is_focused = True
+        ExpressionFocusTracker.set_active_editor(self)
+
+    def _on_focus_out(self) -> None:
+        self._is_focused = False
+        from PySide6.QtCore import QTimer
+
+        QTimer.singleShot(400, self._maybe_clear_focus_tracker)
+
+    def _maybe_clear_focus_tracker(self) -> None:
+        if not self._is_focused and ExpressionFocusTracker.get_active_editor() is self:
+            ExpressionFocusTracker.set_active_editor(None)
 
     def _on_editing_finished(self) -> None:
         text = self.line_edit.text().strip()
@@ -66,18 +77,30 @@ class ConstraintExpressionCell(QWidget):
             if self._on_changed:
                 self._on_changed(text)
 
-    def _on_fx_clicked(self) -> None:
+    def open_assistant(self) -> None:
         self._on_editing_finished()
         if self._on_open_assistant:
             self._on_open_assistant(self.line_edit.text().strip())
 
+    def get_expression(self) -> str:
+        return self.line_edit.text().strip()
+
+    def set_expression(self, text: str) -> None:
+        self.setText(text)
+        if self._on_changed:
+            self._on_changed(text)
+
     def setText(self, text: str) -> None:
         self._committed_text = text
-        if self.line_edit.text() != text:
-            self.line_edit.setText(text)
+        self.line_edit.setText(text)
 
     def text(self) -> str:
-        return self.line_edit.text()
+        return self.line_edit.text().strip()
+
+    def hideEvent(self, event: Any) -> None:
+        if ExpressionFocusTracker.get_active_editor() is self:
+            ExpressionFocusTracker.set_active_editor(None)
+        super().hideEvent(event)
 
 
 class ConstraintPropertyEditor(PropertyTableMixin, QWidget):
@@ -199,6 +222,7 @@ class ConstraintPropertyEditor(PropertyTableMixin, QWidget):
                     initial_value=c.get("expression", ""),
                     on_changed=self._on_expression_changed,
                     on_open_assistant=self._open_assistant,
+                    api=self._api,
                     parent=self.general_table,
                 )
                 self.general_table.setCellWidget(expr_row, 1, cell)

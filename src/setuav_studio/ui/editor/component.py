@@ -7,14 +7,18 @@ from collections.abc import Sequence
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QModelIndex, Qt, QTimer
+from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QLineEdit,
     QScrollArea,
     QSizePolicy,
+    QStyledItemDelegate,
+    QTableWidget,
     QTableWidgetItem,
     QToolButton,
     QVBoxLayout,
@@ -25,12 +29,189 @@ from setuav_studio.api import ParameterField, TableParameterField
 from setuav_studio.ui.style.icons import get_icon, set_label_icon
 from setuav_studio.ui.widget.table import (
     ContentFitTableWidget,
+    ExpressionFocusTracker,
     ExpressionPropertyCell,
+    FocusAwareLineEdit,
     PropertyTableMixin,
 )
 
 if TYPE_CHECKING:
     from setuav_studio.api import StudioAPI
+
+
+class _TableCellAssistantAdapter:
+    """Adapts table cell editor to Equation Assistant dialog."""
+
+    def __init__(
+        self,
+        edit: FocusAwareLineEdit,
+        label: str,
+        api: Any,
+        table: QTableWidget | None,
+        row: int,
+        col: int,
+    ) -> None:
+        self._edit = edit
+        self._label = label
+        self._api = api
+        self._table = table
+        self._row = row
+        self._col = col
+
+    def get_expression(self) -> str:
+        try:
+            return self._edit.text().strip()
+        except RuntimeError:
+            if self._table is not None:
+                item = self._table.item(self._row, self._col)
+                if item is not None:
+                    user_val = item.data(Qt.ItemDataRole.UserRole)
+                    return str(user_val if user_val is not None else item.text()).strip()
+            return ""
+
+    def set_expression(self, expr: str) -> None:
+        with contextlib.suppress(RuntimeError):
+            self._edit.setText(expr)
+        if self._table is not None:
+            item = self._table.item(self._row, self._col)
+            if item is not None:
+                item.setData(Qt.ItemDataRole.UserRole, expr)
+                item.setText(expr)
+
+    def get_label(self) -> str:
+        return self._label
+
+    def open_assistant(self) -> None:
+        from setuav_studio.ui.dialog.expression_dialog import AdvancedExpressionDialog
+
+        parent_win = self._table.window() if self._table else None
+        dlg = AdvancedExpressionDialog(
+            api=self._api,
+            initial_expression=self.get_expression(),
+            title=f"Equation Editor — {self._label}",
+            is_boolean_constraint=False,
+            parent=parent_win,
+        )
+        if dlg.exec():
+            new_expr = dlg.get_expression().strip()
+            if (
+                new_expr
+                and not new_expr.startswith("=")
+                and not new_expr.replace(".", "", 1).isdigit()
+            ):
+                new_expr = f"={new_expr}"
+            self.set_expression(new_expr)
+
+
+class TableExpressionDelegate(QStyledItemDelegate):
+    """Item delegate for TableParameterField tables providing autocomplete and Formula Assistant integration."""
+
+    def __init__(
+        self,
+        api: StudioAPI | None,
+        table_field: TableParameterField,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self._api = api
+        self._tf = table_field
+
+    def createEditor(
+        self,
+        parent: QWidget,
+        option: Any,
+        index: QModelIndex,
+    ) -> QWidget | None:
+        if index.row() == 0 or index.column() == 0:
+            return None
+        col_idx = index.column() - 1
+        if not (0 <= col_idx < len(self._tf.columns)):
+            return None
+        col_field = self._tf.columns[col_idx]
+        if self._tf.readonly or col_field.readonly:
+            return None
+
+        line_edit = FocusAwareLineEdit(parent, api=self._api)
+        table_widget = parent if isinstance(parent, QTableWidget) else None
+
+        adapter = _TableCellAssistantAdapter(
+            line_edit,
+            f"{self._tf.label} {col_field.label}",
+            self._api,
+            table_widget,
+            index.row(),
+            index.column(),
+        )
+        line_edit.focused_in.connect(lambda: ExpressionFocusTracker.set_active_editor(adapter))
+        line_edit.focused_out.connect(
+            lambda: QTimer.singleShot(
+                400,
+                lambda: (
+                    ExpressionFocusTracker.set_active_editor(None)
+                    if ExpressionFocusTracker.get_active_editor() is adapter
+                    else None
+                ),
+            )
+        )
+        return line_edit
+
+    def setEditorData(self, editor: QWidget, index: QModelIndex) -> None:
+        if isinstance(editor, QLineEdit):
+            raw = index.data(Qt.ItemDataRole.UserRole)
+            if raw is not None and str(raw).startswith("="):
+                editor.setText(str(raw))
+            else:
+                editor.setText(str(index.data(Qt.ItemDataRole.DisplayRole) or ""))
+
+    def setModelData(self, editor: QWidget, model: Any, index: QModelIndex) -> None:
+        if isinstance(editor, QLineEdit):
+            text = editor.text().strip()
+            model.setData(index, text, Qt.ItemDataRole.EditRole)
+
+
+def _format_table_cell_value(
+    val: Any, col_field: ParameterField, api: StudioAPI | None
+) -> tuple[str, str]:
+    """Return formatted display text and tooltip for a table cell."""
+    if isinstance(val, str) and val.startswith("="):
+        eval_val = None
+        eval_err = None
+        if api and getattr(api, "current_project", None):
+            try:
+                from setuav_studio.model.expression import ExpressionEvaluator
+
+                evaluator = ExpressionEvaluator()
+                proj = getattr(api, "current_project", None)
+                scope = (
+                    proj.get_scope(api=api)
+                    if proj is not None and hasattr(proj, "get_scope")
+                    else {}
+                )
+                eval_val = evaluator.evaluate(val.lstrip("=").strip(), scope)
+            except Exception as exc:
+                eval_err = str(exc)
+
+        if eval_val is not None:
+            if col_field.field_type is float:
+                txt = f"{float(eval_val):.{col_field.decimals}f}"
+            elif col_field.field_type is int:
+                txt = str(int(eval_val))
+            else:
+                txt = str(eval_val)
+            return txt, f"Formula: {val}\nCalculated: {txt}"
+        return str(val), f"Formula Error: {eval_err}" if eval_err else ""
+
+    if col_field.field_type is float:
+        try:
+            return f"{float(val):.{col_field.decimals}f}", ""
+        except (ValueError, TypeError):
+            return str(val or ""), ""
+    elif col_field.field_type is int:
+        try:
+            return str(int(val)), ""
+        except (ValueError, TypeError):
+            return str(val if val is not None else ""), ""
+    return str(val if val is not None else ""), ""
 
 
 class BaseComponentEditor(PropertyTableMixin, QWidget):
@@ -182,9 +363,7 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
 
             layout = self._create_section(tf.label, "mdi6.table-large", action_widget=action_bar)
 
-            headers = ["#"] + [
-                f"{col.label} [{col.unit}]" if col.unit else col.label for col in tf.columns
-            ]
+            headers = ["#"] + [col.label for col in tf.columns]
             table = ContentFitTableWidget(0, len(headers))
             table.setHorizontalHeaderLabels(headers)
             table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -198,6 +377,7 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
             for c_idx in range(1, len(headers)):
                 table.horizontalHeader().setSectionResizeMode(c_idx, QHeaderView.ResizeMode.Stretch)
             table.setAlternatingRowColors(True)
+            table.setItemDelegate(TableExpressionDelegate(self._api, tf, parent=table))
 
             table.cellChanged.connect(
                 lambda row, col, k=tf.key: self._on_table_cell_changed(k, row, col)
@@ -270,23 +450,49 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
             return
         table.blockSignals(True)
         try:
-            table.setRowCount(len(rows))
+            table.setRowCount(len(rows) + 1)
+
+            # Row 0: Dedicated Unit row (matching Result Table style)
+            italic_font = QFont()
+            italic_font.setItalic(True)
+            unit_color = QColor("#888888")
+
+            unit_hdr = QTableWidgetItem("Unit")
+            unit_hdr.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            unit_hdr.setFont(italic_font)
+            unit_hdr.setForeground(unit_color)
+            unit_hdr.setFlags(
+                unit_hdr.flags() & ~Qt.ItemFlag.ItemIsEditable & ~Qt.ItemFlag.ItemIsSelectable
+            )
+            table.setItem(0, 0, unit_hdr)
+
+            for c_idx, col_field in enumerate(tf.columns):
+                u = col_field.unit
+                unit_text = f"[{u}]" if u else "[-]"
+                u_item = QTableWidgetItem(unit_text)
+                u_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                u_item.setFont(italic_font)
+                u_item.setForeground(unit_color)
+                u_item.setFlags(
+                    u_item.flags() & ~Qt.ItemFlag.ItemIsEditable & ~Qt.ItemFlag.ItemIsSelectable
+                )
+                table.setItem(0, c_idx + 1, u_item)
+
             for r_idx, row_data in enumerate(rows):
+                table_row = r_idx + 1
                 idx_item = QTableWidgetItem(str(r_idx + 1))
                 idx_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 idx_item.setFlags(idx_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                table.setItem(r_idx, 0, idx_item)
+                table.setItem(table_row, 0, idx_item)
 
                 for c_idx, col_field in enumerate(tf.columns):
                     val = row_data.get(col_field.key, col_field.default)
-                    if col_field.field_type is float:
-                        try:
-                            text_val = f"{float(val):.{col_field.decimals}f}"
-                        except (ValueError, TypeError):
-                            text_val = str(val or "")
-                    else:
-                        text_val = str(val if val is not None else "")
-                    cell_item = QTableWidgetItem(text_val)
+                    display_text, tooltip = _format_table_cell_value(val, col_field, self._api)
+
+                    cell_item = QTableWidgetItem(display_text)
+                    cell_item.setData(Qt.ItemDataRole.UserRole, val)
+                    if tooltip:
+                        cell_item.setToolTip(tooltip)
                     if col_field.field_type in (float, int):
                         cell_item.setTextAlignment(
                             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
@@ -297,8 +503,8 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
                         )
                     if tf.readonly or col_field.readonly:
                         cell_item.setFlags(cell_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                    table.setItem(r_idx, c_idx + 1, cell_item)
-            self._fit_table_height(table, len(rows), maximum_visible_rows=10)
+                    table.setItem(table_row, c_idx + 1, cell_item)
+            self._fit_table_height(table, len(rows) + 1, maximum_visible_rows=10)
             table.schedule_column_fit()
         finally:
             table.blockSignals(False)
@@ -341,15 +547,17 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
         if not isinstance(rows, list) or len(rows) <= tf.min_rows:
             return
 
-        selected_rows = sorted({idx.row() for idx in table.selectedIndexes()}, reverse=True)
-        target_idx = selected_rows[0] if selected_rows else len(rows) - 1
+        selected_data_rows = sorted(
+            {idx.row() - 1 for idx in table.selectedIndexes() if idx.row() > 0}, reverse=True
+        )
+        target_idx = selected_data_rows[0] if selected_data_rows else len(rows) - 1
         if 0 <= target_idx < len(rows):
             new_rows = deepcopy(rows)
             new_rows.pop(target_idx)
             self._commit_table_param(key, new_rows)
 
     def _on_table_cell_changed(self, key: str, row: int, col: int) -> None:
-        if self._loading or col == 0:
+        if self._loading or row == 0 or col == 0:
             return
         tf = next((f for f in self._table_fields if f.key == key), None)
         table = self._table_widgets.get(key)
@@ -365,7 +573,9 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
         raw_text = item.text().strip()
 
         parsed_val: Any = raw_text
-        if col_field.field_type is float:
+        if raw_text.startswith("="):
+            parsed_val = raw_text
+        elif col_field.field_type is float:
             try:
                 parsed_val = float(raw_text)
             except ValueError:
@@ -378,13 +588,14 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
 
         params = self._component.setdefault("parameters", {})
         rows = params.get(key)
-        if not isinstance(rows, list) or not (0 <= row < len(rows)):
+        data_row = row - 1
+        if not isinstance(rows, list) or not (0 <= data_row < len(rows)):
             return
-        if rows[row].get(col_field.key) == parsed_val:
+        if rows[data_row].get(col_field.key) == parsed_val:
             return
 
         new_rows = deepcopy(rows)
-        new_rows[row][col_field.key] = parsed_val
+        new_rows[data_row][col_field.key] = parsed_val
         self._commit_table_param(key, new_rows)
 
     def _commit_table_param(self, key: str, new_rows: list[dict[str, Any]]) -> None:

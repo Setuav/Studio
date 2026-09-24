@@ -106,6 +106,34 @@ def _on_add_constraint_triggered(api: StudioAPI) -> None:
     add_constraint_action(api)
 
 
+def _can_open_expression_assistant(api: StudioAPI) -> bool:
+    if not _can_edit_project(api):
+        return False
+    from setuav_studio.ui.widget.table import ExpressionFocusTracker
+
+    return ExpressionFocusTracker.has_active_editor()
+
+
+def _on_open_expression_assistant(api: StudioAPI) -> None:
+    from setuav_studio.ui.widget.table import ExpressionFocusTracker
+
+    editor = ExpressionFocusTracker.get_active_editor()
+    if editor is not None and hasattr(editor, "open_assistant"):
+        editor.open_assistant()
+    else:
+        from setuav_studio.ui.dialog.expression_dialog import AdvancedExpressionDialog
+
+        window = getattr(api, "main_window", None) or getattr(api, "_window", None)
+        dlg = AdvancedExpressionDialog(
+            api=api,
+            initial_expression="",
+            title="Formula Assistant",
+            is_boolean_constraint=False,
+            parent=window,
+        )
+        dlg.exec()
+
+
 def _on_run_analysis_triggered(api: StudioAPI) -> None:
     """Trigger execution of the currently active analysis configuration."""
     active_config = api.get_current_solver_config()
@@ -200,6 +228,17 @@ def register_native_contributions(api: StudioAPI) -> None:
             enabled_when=lambda: _can_edit_project(api),
             group="parameters",
             order=10,
+        )
+    )
+    api.register_toolbar_item(
+        ToolbarContribution(
+            id="org.setuav.studio.toolbar.expression_assistant",
+            title="Formula Assistant",
+            callback=lambda: _on_open_expression_assistant(api),
+            icon="formula",
+            enabled_when=lambda: _can_open_expression_assistant(api),
+            group="parameters",
+            order=15,
         )
     )
     api.register_toolbar_item(

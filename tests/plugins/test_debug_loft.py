@@ -67,14 +67,19 @@ class TestDebugLoft(unittest.TestCase):
 
         self.assertIn("sections", editor._table_widgets)
         table = editor._table_widgets["sections"]
-        self.assertEqual(table.rowCount(), 3)
-        # Check column headers: #, Offset [mm], Chord [mm], Twist [°]
+        self.assertEqual(table.rowCount(), 4)  # 1 unit row + 3 stations
+        # Check column headers: #, Offset, Chord, Twist
         self.assertIn("Offset", table.horizontalHeaderItem(1).text())
         self.assertIn("Chord", table.horizontalHeaderItem(2).text())
         self.assertIn("Twist", table.horizontalHeaderItem(3).text())
+        # Check Row 0 is Unit row
+        self.assertEqual(table.item(0, 0).text(), "Unit")
+        self.assertEqual(table.item(0, 1).text(), "[mm]")
+        self.assertEqual(table.item(0, 2).text(), "[mm]")
+        self.assertEqual(table.item(0, 3).text(), "[°]")
 
-        # Edit station 1 chord to 160.0
-        table.item(1, 2).setText("160.0")
+        # Edit station 1 chord to 160.0 (table row 2)
+        table.item(2, 2).setText("160.0")
         self.assertEqual(comp_dict["parameters"]["sections"][1]["chord"], 160.0)
 
         # Test Undo
@@ -88,12 +93,12 @@ class TestDebugLoft(unittest.TestCase):
         # Add Row
         editor._on_add_table_row("sections")
         self.assertEqual(len(comp_dict["parameters"]["sections"]), 4)
-        self.assertEqual(table.rowCount(), 4)
+        self.assertEqual(table.rowCount(), 5)  # 1 unit row + 4 stations
 
         # Remove Row
         editor._on_remove_table_row("sections")
         self.assertEqual(len(comp_dict["parameters"]["sections"]), 3)
-        self.assertEqual(table.rowCount(), 3)
+        self.assertEqual(table.rowCount(), 4)
 
     def test_loft_viewport_rendering_with_stations(self) -> None:
         viewport = StudioViewport()

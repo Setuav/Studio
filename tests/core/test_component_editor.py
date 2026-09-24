@@ -243,14 +243,19 @@ class TestComponentEditor(unittest.TestCase):
 
         self.assertIn("sections", editor._table_widgets)
         table = editor._table_widgets["sections"]
-        self.assertEqual(table.rowCount(), 2)
-        # Column 0 is index "#", Column 1 is offset, Column 2 is chord, Column 3 is twist
-        self.assertEqual(table.item(0, 0).text(), "1")
-        self.assertEqual(table.item(0, 2).text(), "200.00")
-        self.assertEqual(table.item(1, 2).text(), "100.00")
+        self.assertEqual(table.rowCount(), 3)  # 1 unit row + 2 data rows
+        # Row 0 is Unit row
+        self.assertEqual(table.item(0, 0).text(), "Unit")
+        self.assertEqual(table.item(0, 1).text(), "[mm]")
+        self.assertEqual(table.item(0, 2).text(), "[mm]")
+        self.assertEqual(table.item(0, 3).text(), "[°]")
+        # Row 1 is Station 1, Row 2 is Station 2
+        self.assertEqual(table.item(1, 0).text(), "1")
+        self.assertEqual(table.item(1, 2).text(), "200.00")
+        self.assertEqual(table.item(2, 2).text(), "100.00")
 
         # Edit a cell: change chord of second station to 120.0
-        table.item(1, 2).setText("120.0")
+        table.item(2, 2).setText("120.0")
         self.assertEqual(comp["parameters"]["sections"][1]["chord"], 120.0)
 
         # Test Undo cell edit
@@ -261,16 +266,20 @@ class TestComponentEditor(unittest.TestCase):
         api.redo()
         self.assertEqual(comp["parameters"]["sections"][1]["chord"], 120.0)
 
+        # Test Formula support in table cell
+        table.item(2, 2).setText("=SPAN / 2")
+        self.assertEqual(comp["parameters"]["sections"][1]["chord"], "=SPAN / 2")
+
         # Test Add Row
         editor._on_add_table_row("sections")
         self.assertEqual(len(comp["parameters"]["sections"]), 3)
-        self.assertEqual(table.rowCount(), 3)
+        self.assertEqual(table.rowCount(), 4)  # 1 unit row + 3 data rows
         self.assertEqual(comp["parameters"]["sections"][2]["offset"], 600.0)
 
         # Test Remove Row
         editor._on_remove_table_row("sections")
         self.assertEqual(len(comp["parameters"]["sections"]), 2)
-        self.assertEqual(table.rowCount(), 2)
+        self.assertEqual(table.rowCount(), 3)  # 1 unit row + 2 data rows
 
         # Respect min_rows: cannot remove below min_rows (2)
         editor._on_remove_table_row("sections")

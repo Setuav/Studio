@@ -55,6 +55,8 @@ _ICON_MAP = {
     "error": "fa6s.circle-xmark",
     "constant": "mdi6.pi",
     "constraint": "mdi6.link-variant",
+    "formula": "mdi6.function-variant",
+    "fx": "mdi6.function-variant",
     "equation": "fa6s.code",
     "package": "fa6s.box-open",
     "plugin": "fa6s.box-open",

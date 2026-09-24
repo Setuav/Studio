@@ -25,6 +25,7 @@ from setuav_studio.ui.widget.spinbox import (
 )
 from setuav_studio.ui.widget.table import (
     ContentFitTableWidget,
+    ExpressionFocusTracker,
     ExpressionPropertyCell,
     FocusAwareLineEdit,
     PropertyTableMixin,
@@ -34,6 +35,7 @@ from setuav_studio.ui.widget.table import (
 __all__ = [
     "ColorPickerWidget",
     "ContentFitTableWidget",
+    "ExpressionFocusTracker",
     "ExpressionPropertyCell",
     "FocusAwareLineEdit",
     "NoWheelComboBox",
