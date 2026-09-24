@@ -57,7 +57,12 @@ class Component:
         params = self._raw_data.setdefault("parameters", {})
         for f in fields:
             if f.key and f.key not in params:
-                params[f.key] = f.default
+                if hasattr(f, "columns"):
+                    params[f.key] = [
+                        dict(r) if isinstance(r, dict) else r for r in (f.default or ())
+                    ]
+                else:
+                    params[f.key] = f.default
 
         if id:
             self.id = id
@@ -87,6 +92,20 @@ class Component:
                 if isinstance(v, ParameterField) and v not in fields:
                     fields.append(v)
         return tuple(fields)
+
+    @classmethod
+    def get_table_fields(cls) -> tuple[Any, ...]:
+        """Return all TableParameterField descriptors defined on this component class."""
+        from setuav_studio.api.contributions import TableParameterField
+
+        return tuple(f for f in cls.get_fields() if isinstance(f, TableParameterField))
+
+    @classmethod
+    def get_scalar_fields(cls) -> tuple[ParameterField, ...]:
+        """Return all scalar ParameterField descriptors defined on this component class."""
+        from setuav_studio.api.contributions import TableParameterField
+
+        return tuple(f for f in cls.get_fields() if not isinstance(f, TableParameterField))
 
     @property
     def raw_data(self) -> dict[str, Any]:
@@ -352,6 +371,10 @@ class Component:
         for k, v in self.parameters.items():
             if isinstance(v, (int, float, str, bool)):
                 props[k] = v
+            elif isinstance(v, list):
+                from setuav_studio.model.scope import to_dot_dict
+
+                props[k] = [to_dot_dict(x) for x in v]
         return props
 
     def to_dict(self) -> dict[str, Any]:
@@ -416,7 +439,8 @@ class Component:
         from setuav_studio.model.scope import to_dot_dict
 
         profs = (
-            self.parameters.get("geometry", {}).get("profiles")
+            self.parameters.get("sections")
+            or self.parameters.get("geometry", {}).get("profiles")
             or self.parameters.get("profiles")
             or []
         )

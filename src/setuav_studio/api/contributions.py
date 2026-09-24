@@ -26,6 +26,7 @@ __all__ = [
     "ProjectTreeNodeContribution",
     "ProjectTreeProvider",
     "SettingsPageContribution",
+    "TableParameterField",
     "ToolContribution",
     "ToolbarContribution",
     "ToolbarMenuItemContribution",
@@ -88,6 +89,47 @@ class ParameterField:
         if isinstance(params, dict):
             return params.get(self.key, self.default)
         return self.default
+
+    def __set__(self, instance: Any, value: Any) -> None:
+        params = getattr(instance, "parameters", None)
+        if isinstance(params, dict):
+            params[self.key] = value
+
+
+@dataclass(frozen=True)
+class TableParameterField(ParameterField):
+    """Descriptor for tabular/collection parameters (e.g. wing sections, stages, stations).
+
+    @ingroup contributions
+    @param key Parameter key in component parameters dictionary.
+    @param label Human-readable table section label.
+    @param columns Sequence of ParameterField descriptors defining each column.
+    @param default Sequence of default row dictionaries.
+    @param min_rows Minimum number of rows required (default 0).
+    @param max_rows Optional maximum number of rows allowed.
+    @param tooltip Optional explanatory tooltip.
+    @param readonly Whether table rows cannot be added/removed/edited.
+    """
+
+    columns: tuple[ParameterField, ...] = ()
+    default: Any = ()
+    min_rows: int = 0
+    max_rows: int | None = None
+
+    def __get__(self, instance: Any, owner: type | None = None) -> Any:
+        if instance is None:
+            return self
+        params = getattr(instance, "parameters", None)
+        if isinstance(params, dict):
+            val = params.get(self.key)
+            if val is not None:
+                return val
+            if self.default:
+                default_rows = [dict(r) if isinstance(r, dict) else r for r in self.default]
+                params[self.key] = default_rows
+                return default_rows
+            return []
+        return [dict(r) if isinstance(r, dict) else r for r in self.default] if self.default else []
 
     def __set__(self, instance: Any, value: Any) -> None:
         params = getattr(instance, "parameters", None)

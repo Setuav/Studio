@@ -4,20 +4,30 @@ from __future__ import annotations
 
 import contextlib
 from collections.abc import Sequence
+from copy import deepcopy
 from typing import TYPE_CHECKING, Any
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QScrollArea,
     QSizePolicy,
+    QTableWidgetItem,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
-from setuav_studio.api import ParameterField
-from setuav_studio.ui.style.icons import set_label_icon
-from setuav_studio.ui.widget.table import ExpressionPropertyCell, PropertyTableMixin
+from setuav_studio.api import ParameterField, TableParameterField
+from setuav_studio.ui.style.icons import get_icon, set_label_icon
+from setuav_studio.ui.widget.table import (
+    ContentFitTableWidget,
+    ExpressionPropertyCell,
+    PropertyTableMixin,
+)
 
 if TYPE_CHECKING:
     from setuav_studio.api import StudioAPI
@@ -37,6 +47,10 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
         self._api = api
         self._component = component
         self._fields = list(parameter_fields)
+        self._scalar_fields = [f for f in self._fields if not isinstance(f, TableParameterField)]
+        self._table_fields = [f for f in self._fields if isinstance(f, TableParameterField)]
+        self._table_widgets: dict[str, ContentFitTableWidget] = {}
+        self._committed_table_params: dict[str, list[dict[str, Any]]] = {}
         self._loading = False
 
         layout = QVBoxLayout(self)
@@ -54,8 +68,10 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
         layout.addWidget(scroll)
 
         self._create_general_section()
-        if self._fields:
+        if self._scalar_fields:
             self._create_parameters_section()
+        if self._table_fields:
+            self._create_table_parameters_sections()
         self._create_custom_sections()
 
         self._content_layout.addStretch()
@@ -130,14 +146,64 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
         layout.addWidget(self.general_table)
 
     def _create_parameters_section(self) -> None:
+        if not self._scalar_fields:
+            return
         layout = self._create_section("Parameters", "fa6s.sliders")
         defs: list[tuple[str, str]] = []
-        for f in self._fields:
+        for f in self._scalar_fields:
             defs.append((f.key, f.label))
 
         self.parameters_table = self._property_table(defs)
         self.parameters_table.cellChanged.connect(self._update_parameter_cell)
         layout.addWidget(self.parameters_table)
+
+    def _create_table_parameters_sections(self) -> None:
+        for tf in self._table_fields:
+            action_bar = QWidget()
+            ab_layout = QHBoxLayout(action_bar)
+            ab_layout.setContentsMargins(0, 0, 0, 0)
+            ab_layout.setSpacing(4)
+
+            add_btn = QToolButton()
+            add_btn.setIcon(get_icon("add"))
+            add_btn.setToolTip(f"Add row to {tf.label}")
+            add_btn.setAutoRaise(True)
+            add_btn.setFixedSize(20, 20)
+            add_btn.clicked.connect(lambda checked=False, k=tf.key: self._on_add_table_row(k))
+            ab_layout.addWidget(add_btn)
+
+            remove_btn = QToolButton()
+            remove_btn.setIcon(get_icon("remove"))
+            remove_btn.setToolTip(f"Remove selected row from {tf.label}")
+            remove_btn.setAutoRaise(True)
+            remove_btn.setFixedSize(20, 20)
+            remove_btn.clicked.connect(lambda checked=False, k=tf.key: self._on_remove_table_row(k))
+            ab_layout.addWidget(remove_btn)
+
+            layout = self._create_section(tf.label, "mdi6.table-large", action_widget=action_bar)
+
+            headers = ["#"] + [
+                f"{col.label} [{col.unit}]" if col.unit else col.label for col in tf.columns
+            ]
+            table = ContentFitTableWidget(0, len(headers))
+            table.setHorizontalHeaderLabels(headers)
+            table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+            table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+            table.verticalHeader().setVisible(False)
+            table.verticalHeader().setDefaultSectionSize(22)
+            table.horizontalHeader().setFixedHeight(23)
+            table.horizontalHeader().setSectionResizeMode(
+                0, QHeaderView.ResizeMode.ResizeToContents
+            )
+            for c_idx in range(1, len(headers)):
+                table.horizontalHeader().setSectionResizeMode(c_idx, QHeaderView.ResizeMode.Stretch)
+            table.setAlternatingRowColors(True)
+
+            table.cellChanged.connect(
+                lambda row, col, k=tf.key: self._on_table_cell_changed(k, row, col)
+            )
+            self._table_widgets[tf.key] = table
+            layout.addWidget(table)
 
     def _create_custom_sections(self) -> None:
         """Hook for subclasses to add custom property sections."""
@@ -169,15 +235,25 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
                 unit="g",
             )
 
-            # Load Parameters
-            if hasattr(self, "parameters_table") and self._fields:
+            # Load Scalar Parameters
+            if hasattr(self, "parameters_table") and self._scalar_fields:
                 self.bind_parametric_properties(
                     self.parameters_table,
                     params,
-                    self._fields,
+                    self._scalar_fields,
                     on_changed=self._on_param_changed,
                     api=self._api,
                 )
+
+            # Load Table Parameters
+            for tf in self._table_fields:
+                rows = params.get(tf.key)
+                if not isinstance(rows, list):
+                    rows = [dict(r) if isinstance(r, dict) else r for r in (tf.default or ())]
+                    params[tf.key] = rows
+                self._populate_table_widget(tf, rows)
+                self._committed_table_params[tf.key] = deepcopy(rows)
+
             self._load_custom_data()
             params = self._component.get("parameters", {})
             self._committed_params = dict(params) if isinstance(params, dict) else {}
@@ -187,6 +263,148 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
             self._committed_parent = str(self._component.get("parent") or "")
         finally:
             self._loading = False
+
+    def _populate_table_widget(self, tf: TableParameterField, rows: list[dict[str, Any]]) -> None:
+        table = self._table_widgets.get(tf.key)
+        if table is None:
+            return
+        table.blockSignals(True)
+        try:
+            table.setRowCount(len(rows))
+            for r_idx, row_data in enumerate(rows):
+                idx_item = QTableWidgetItem(str(r_idx + 1))
+                idx_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                idx_item.setFlags(idx_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                table.setItem(r_idx, 0, idx_item)
+
+                for c_idx, col_field in enumerate(tf.columns):
+                    val = row_data.get(col_field.key, col_field.default)
+                    if col_field.field_type is float:
+                        try:
+                            text_val = f"{float(val):.{col_field.decimals}f}"
+                        except (ValueError, TypeError):
+                            text_val = str(val or "")
+                    else:
+                        text_val = str(val if val is not None else "")
+                    cell_item = QTableWidgetItem(text_val)
+                    if col_field.field_type in (float, int):
+                        cell_item.setTextAlignment(
+                            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+                        )
+                    else:
+                        cell_item.setTextAlignment(
+                            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+                        )
+                    if tf.readonly or col_field.readonly:
+                        cell_item.setFlags(cell_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                    table.setItem(r_idx, c_idx + 1, cell_item)
+            self._fit_table_height(table, len(rows), maximum_visible_rows=10)
+            table.schedule_column_fit()
+        finally:
+            table.blockSignals(False)
+
+    def _on_add_table_row(self, key: str) -> None:
+        if self._loading:
+            return
+        tf = next((f for f in self._table_fields if f.key == key), None)
+        if tf is None or tf.readonly:
+            return
+        params = self._component.setdefault("parameters", {})
+        rows = params.get(key)
+        if not isinstance(rows, list):
+            rows = []
+            params[key] = rows
+        if tf.max_rows is not None and len(rows) >= tf.max_rows:
+            return
+
+        new_row = {col.key: col.default for col in tf.columns}
+        if rows and "offset" in new_row and "offset" in rows[-1]:
+            try:
+                prev_offset = float(rows[-1]["offset"])
+                delta = prev_offset - float(rows[-2]["offset"]) if len(rows) >= 2 else 100.0
+                new_row["offset"] = prev_offset + max(delta, 10.0)
+            except Exception:
+                pass
+        new_rows = deepcopy(rows)
+        new_rows.append(new_row)
+        self._commit_table_param(key, new_rows)
+
+    def _on_remove_table_row(self, key: str) -> None:
+        if self._loading:
+            return
+        tf = next((f for f in self._table_fields if f.key == key), None)
+        table = self._table_widgets.get(key)
+        if tf is None or table is None or tf.readonly:
+            return
+        params = self._component.setdefault("parameters", {})
+        rows = params.get(key)
+        if not isinstance(rows, list) or len(rows) <= tf.min_rows:
+            return
+
+        selected_rows = sorted({idx.row() for idx in table.selectedIndexes()}, reverse=True)
+        target_idx = selected_rows[0] if selected_rows else len(rows) - 1
+        if 0 <= target_idx < len(rows):
+            new_rows = deepcopy(rows)
+            new_rows.pop(target_idx)
+            self._commit_table_param(key, new_rows)
+
+    def _on_table_cell_changed(self, key: str, row: int, col: int) -> None:
+        if self._loading or col == 0:
+            return
+        tf = next((f for f in self._table_fields if f.key == key), None)
+        table = self._table_widgets.get(key)
+        if tf is None or table is None or tf.readonly:
+            return
+        col_idx = col - 1
+        if not (0 <= col_idx < len(tf.columns)):
+            return
+        col_field = tf.columns[col_idx]
+        item = table.item(row, col)
+        if item is None:
+            return
+        raw_text = item.text().strip()
+
+        parsed_val: Any = raw_text
+        if col_field.field_type is float:
+            try:
+                parsed_val = float(raw_text)
+            except ValueError:
+                parsed_val = col_field.default
+        elif col_field.field_type is int:
+            try:
+                parsed_val = int(raw_text)
+            except ValueError:
+                parsed_val = col_field.default
+
+        params = self._component.setdefault("parameters", {})
+        rows = params.get(key)
+        if not isinstance(rows, list) or not (0 <= row < len(rows)):
+            return
+        if rows[row].get(col_field.key) == parsed_val:
+            return
+
+        new_rows = deepcopy(rows)
+        new_rows[row][col_field.key] = parsed_val
+        self._commit_table_param(key, new_rows)
+
+    def _commit_table_param(self, key: str, new_rows: list[dict[str, Any]]) -> None:
+        tf = next((f for f in self._table_fields if f.key == key), None)
+
+        def change() -> None:
+            self._component.setdefault("parameters", {})[key] = new_rows
+
+        if self._api is not None:
+            self._api.edit_component(
+                self._component,
+                f"Edit {tf.label if tf else key}",
+                change,
+            )
+        else:
+            change()
+        self._committed_table_params[key] = deepcopy(new_rows)
+        if tf is not None:
+            self._populate_table_widget(tf, new_rows)
+        self.update_viewport()
 
     def _load_custom_data(self) -> None:
         """Hook for subclasses to populate data in custom sections."""

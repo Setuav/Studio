@@ -8,6 +8,7 @@ from pathlib import Path
 from setuav_studio.api import (
     ParameterField,
     StudioAPI,
+    TableParameterField,
 )
 from setuav_studio.project import ProjectDocument
 from setuav_studio.ui.editor import BaseComponentEditor
@@ -191,6 +192,89 @@ class TestComponentEditor(unittest.TestCase):
         cell.line_edit.setText("300.0")
         cell._on_return_pressed()
         self.assertEqual(comp["parameters"]["length"], 300.0)
+
+    def test_table_parameter_field_in_editor(self) -> None:
+        api = StudioAPI()
+        doc = ProjectDocument(
+            path=Path("/tmp/test_table.json"),
+            kind="json",
+            data={
+                "components": [
+                    {
+                        "id": "loft-1",
+                        "type": "test:loft",
+                        "name": "Loft Wing",
+                        "parameters": {
+                            "color": "#4A90E2",
+                            "sections": [
+                                {"offset": 0.0, "chord": 200.0, "twist": 0.0},
+                                {"offset": 300.0, "chord": 100.0, "twist": 2.0},
+                            ],
+                        },
+                    }
+                ]
+            },
+        )
+        api._host.set_project(doc)
+        comp = doc.data["components"][0]
+
+        fields = [
+            ParameterField(key="color", label="Color", default="#4A90E2"),
+            TableParameterField(
+                key="sections",
+                label="Wing Stations",
+                columns=(
+                    ParameterField(
+                        key="offset", label="Offset", unit="mm", field_type=float, default=0.0
+                    ),
+                    ParameterField(
+                        key="chord", label="Chord", unit="mm", field_type=float, default=150.0
+                    ),
+                    ParameterField(
+                        key="twist", label="Twist", unit="°", field_type=float, default=0.0
+                    ),
+                ),
+                min_rows=2,
+            ),
+        ]
+
+        editor = BaseComponentEditor(api, comp, parameter_fields=fields)
+        self.addCleanup(editor.deleteLater)
+
+        self.assertIn("sections", editor._table_widgets)
+        table = editor._table_widgets["sections"]
+        self.assertEqual(table.rowCount(), 2)
+        # Column 0 is index "#", Column 1 is offset, Column 2 is chord, Column 3 is twist
+        self.assertEqual(table.item(0, 0).text(), "1")
+        self.assertEqual(table.item(0, 2).text(), "200.00")
+        self.assertEqual(table.item(1, 2).text(), "100.00")
+
+        # Edit a cell: change chord of second station to 120.0
+        table.item(1, 2).setText("120.0")
+        self.assertEqual(comp["parameters"]["sections"][1]["chord"], 120.0)
+
+        # Test Undo cell edit
+        api.undo()
+        self.assertEqual(comp["parameters"]["sections"][1]["chord"], 100.0)
+
+        # Test Redo cell edit
+        api.redo()
+        self.assertEqual(comp["parameters"]["sections"][1]["chord"], 120.0)
+
+        # Test Add Row
+        editor._on_add_table_row("sections")
+        self.assertEqual(len(comp["parameters"]["sections"]), 3)
+        self.assertEqual(table.rowCount(), 3)
+        self.assertEqual(comp["parameters"]["sections"][2]["offset"], 600.0)
+
+        # Test Remove Row
+        editor._on_remove_table_row("sections")
+        self.assertEqual(len(comp["parameters"]["sections"]), 2)
+        self.assertEqual(table.rowCount(), 2)
+
+        # Respect min_rows: cannot remove below min_rows (2)
+        editor._on_remove_table_row("sections")
+        self.assertEqual(len(comp["parameters"]["sections"]), 2)
 
 
 if __name__ == "__main__":

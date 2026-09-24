@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from PySide6.QtWidgets import QWidget
 
-from setuav_studio.api import Component, ParameterField
+from setuav_studio.api import Component, ParameterField, TableParameterField
 from setuav_studio.ui.viewport import ViewportProtocol
 
 from .common import (
@@ -76,36 +76,6 @@ class LoftComponent(Component):
 
     COMPONENT_TYPE = TYPE_DEBUG_LOFT
 
-    span = ParameterField(
-        label="Wingspan",
-        unit="mm",
-        field_type=float,
-        default=400.0,
-        min_value=1.0,
-        max_value=50000.0,
-        decimals=1,
-        tooltip="Span distance along Y axis",
-    )
-    root_chord = ParameterField(
-        label="Root Chord",
-        unit="mm",
-        field_type=float,
-        default=180.0,
-        min_value=1.0,
-        max_value=10000.0,
-        decimals=1,
-        tooltip="Chord length at root section",
-    )
-    tip_chord = ParameterField(
-        label="Tip Chord",
-        unit="mm",
-        field_type=float,
-        default=90.0,
-        min_value=1.0,
-        max_value=10000.0,
-        decimals=1,
-        tooltip="Chord length at tip section",
-    )
     sweep = ParameterField(
         label="Sweep Angle",
         unit="°",
@@ -132,6 +102,47 @@ class LoftComponent(Component):
         default="#3498DB",
         widget_type="color",
         tooltip="Loft surface color in Hex",
+    )
+    stations = TableParameterField(
+        key="sections",
+        label="Stations",
+        columns=(
+            ParameterField(
+                key="offset",
+                label="Offset",
+                unit="mm",
+                field_type=float,
+                default=0.0,
+                decimals=1,
+                tooltip="Spanwise station offset along Y",
+            ),
+            ParameterField(
+                key="chord",
+                label="Chord",
+                unit="mm",
+                field_type=float,
+                default=150.0,
+                min_value=1.0,
+                decimals=1,
+                tooltip="Chord length at this station",
+            ),
+            ParameterField(
+                key="twist",
+                label="Twist",
+                unit="°",
+                field_type=float,
+                default=0.0,
+                decimals=1,
+                tooltip="Twist angle in degrees",
+            ),
+        ),
+        default=(
+            {"offset": 0.0, "chord": 180.0, "twist": 0.0},
+            {"offset": 200.0, "chord": 135.0, "twist": 1.0},
+            {"offset": 400.0, "chord": 90.0, "twist": 2.0},
+        ),
+        min_rows=2,
+        tooltip="Parametric airfoil stations defining the loft",
     )
 
 
@@ -162,24 +173,55 @@ def add_loft_to_viewport(
 ) -> None:
     """Add or update a loft primitive in the 3D viewport."""
     loft = params if isinstance(params, LoftComponent) else LoftComponent(params)
-    span = float(loft.span)
-    rc = float(loft.root_chord)
-    tc = float(loft.tip_chord)
+    color = parse_color_rgba(loft.color)
     sweep_deg = float(loft.sweep)
     dihedral_deg = float(loft.dihedral)
-    color = parse_color_rgba(loft.color)
     sweep_rad = math.radians(sweep_deg)
     dih_rad = math.radians(dihedral_deg)
-    tip_x = px + span * math.sin(sweep_rad)
-    tip_y = py + span * math.cos(dih_rad)
-    tip_z = pz + span * math.sin(dih_rad)
-    mid_x = (px + tip_x) / 2.0
-    mid_y = (py + tip_y) / 2.0
-    mid_z = (pz + tip_z) / 2.0
-    mid_chord = (rc + tc) / 2.0
-    sec_root = naca_airfoil_loop(chord=rc, origin_x=px, y=py, origin_z=pz)
-    sec_mid = naca_airfoil_loop(chord=mid_chord, origin_x=mid_x, y=mid_y, origin_z=mid_z)
-    sec_tip = naca_airfoil_loop(chord=tc, origin_x=tip_x, y=tip_y, origin_z=tip_z)
+
+    stations_data = loft.sections or getattr(loft, "parameters", {}).get("sections")
+    if stations_data and isinstance(stations_data, list):
+        sec_loops: list[tuple[tuple[float, float, float], ...]] = []
+        for st in stations_data:
+            st_dict = (
+                st
+                if isinstance(st, dict)
+                else (st.to_dict() if hasattr(st, "to_dict") else vars(st))
+            )
+            offset = float(st_dict.get("offset", 0.0))
+            chord = float(st_dict.get("chord", 100.0))
+            twist = float(st_dict.get("twist", 0.0))
+            st_x = px + offset * math.sin(sweep_rad)
+            st_y = py + offset * math.cos(dih_rad)
+            st_z = pz + offset * math.sin(dih_rad)
+            loop = naca_airfoil_loop(chord=chord, origin_x=st_x, y=st_y, origin_z=st_z)
+            if abs(twist) > 1e-6:
+                t_rad = math.radians(twist)
+                loop = tuple(
+                    (
+                        st_x + (lx - st_x) * math.cos(t_rad) + (lz - st_z) * math.sin(t_rad),
+                        ly,
+                        st_z - (lx - st_x) * math.sin(t_rad) + (lz - st_z) * math.cos(t_rad),
+                    )
+                    for lx, ly, lz in loop
+                )
+            sec_loops.append(loop)
+    else:
+        span = float(getattr(loft, "span", 400.0))
+        rc = float(getattr(loft, "root_chord", 180.0))
+        tc = float(getattr(loft, "tip_chord", 90.0))
+        tip_x = px + span * math.sin(sweep_rad)
+        tip_y = py + span * math.cos(dih_rad)
+        tip_z = pz + span * math.sin(dih_rad)
+        mid_x = (px + tip_x) / 2.0
+        mid_y = (py + tip_y) / 2.0
+        mid_z = (pz + tip_z) / 2.0
+        mid_chord = (rc + tc) / 2.0
+        sec_loops = [
+            naca_airfoil_loop(chord=rc, origin_x=px, y=py, origin_z=pz),
+            naca_airfoil_loop(chord=mid_chord, origin_x=mid_x, y=mid_y, origin_z=mid_z),
+            naca_airfoil_loop(chord=tc, origin_x=tip_x, y=tip_y, origin_z=tip_z),
+        ]
 
     if abs(rotation[0]) > 1e-6 or abs(rotation[1]) > 1e-6 or abs(rotation[2]) > 1e-6:
 
@@ -192,13 +234,11 @@ def add_loft_to_viewport(
                 res.append((px + rx, py + ry, pz + rz))
             return tuple(res)
 
-        sec_root = rot_loop(sec_root)
-        sec_mid = rot_loop(sec_mid)
-        sec_tip = rot_loop(sec_tip)
+        sec_loops = [rot_loop(loop) for loop in sec_loops]
 
     viewport.add_loft(
         comp_id,
-        sections=[sec_root, sec_mid, sec_tip],
+        sections=sec_loops,
         name=name,
         layer=DEBUG_LAYER,
         color=color,
