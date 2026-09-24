@@ -222,6 +222,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
 
         self.vertices_table = self._table(["Y", "Z", "Radius"])
         self.vertices_table.cellChanged.connect(self._update_vertices)
+        self.vertices_table.setVisible(False)
         properties_layout.addWidget(self.vertices_table)
 
     def _create_section(self, title: str, icon_name: str | None = None) -> QVBoxLayout:
@@ -387,6 +388,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         sections = self._sections()
         if not 0 <= index < len(sections):
             self._section_index = -1
+            self.vertices_table.setVisible(False)
             return
 
         self._loading = True
@@ -1006,6 +1008,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         profile_type = str(profile.get("type") or "circle")
         definitions = [("type", "Profile"), *PROFILE_FIELDS.get(profile_type, [])]
         self._configure_property_table(self.section_properties_table, definitions)
+        self.vertices_table.setVisible(profile_type == "polygon")
         for key, _label in definitions:
             if key == "type":
                 continue
@@ -1103,6 +1106,11 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         self._refresh_section_row()
 
     def _populate_vertices(self, profile: dict[str, Any]) -> None:
+        is_polygon = profile.get("type") == "polygon"
+        self.vertices_table.setVisible(is_polygon)
+        if not is_polygon:
+            self.vertices_table.setRowCount(0)
+            return
         self_ref = weakref.ref(self)
         vertices = profile.get("vertices")
         if not isinstance(vertices, list):
