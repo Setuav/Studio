@@ -26,7 +26,13 @@ from collections.abc import Callable, Sequence
 from typing import Any, ClassVar
 
 from PySide6.QtCore import QEvent, QObject, Qt, QTimer, Signal
-from PySide6.QtGui import QFocusEvent, QKeyEvent, QResizeEvent
+from PySide6.QtGui import (
+    QFocusEvent,
+    QKeyEvent,
+    QResizeEvent,
+    QStandardItem,
+    QStandardItemModel,
+)
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -134,9 +140,15 @@ class FocusAwareLineEdit(QLineEdit):
     focused_in = Signal()
     focused_out = Signal()
 
-    def __init__(self, parent: QWidget | None = None, api: Any | None = None) -> None:
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        api: Any | None = None,
+        enable_autocomplete: bool = True,
+    ) -> None:
         super().__init__(parent)
         self._api = api
+        self._enable_autocomplete = enable_autocomplete
         self._completer: Any | None = None
         self.installEventFilter(self)
         self.textChanged.connect(self._on_text_changed)
@@ -152,6 +164,39 @@ class FocusAwareLineEdit(QLineEdit):
         super().focusOutEvent(event)
         self.focused_out.emit()
 
+    def _handle_tab_key(self, popup: QAbstractItemView | None, completer: Any | None) -> bool:
+        if popup is None or not popup.isVisible() or completer is None:
+            return False
+        current_idx = popup.currentIndex()
+        completion = ""
+        if current_idx.isValid():
+            val = current_idx.data(Qt.ItemDataRole.UserRole) or current_idx.data(
+                Qt.ItemDataRole.DisplayRole
+            )
+            if val:
+                completion = str(val)
+        if not completion:
+            completion = str(completer.currentCompletion() or "")
+        if completion:
+            self._insert_completion(completion)
+        popup.hide()
+        return True
+
+    def _trigger_manual_completion(self) -> None:
+        if not self._enable_autocomplete:
+            return
+        self._ensure_completer()
+        if self._completer is not None:
+            token, _, _ = self._get_current_token()
+            self._completer.setCompletionPrefix(token)
+            cr = self.cursorRect()
+            pop = self._completer.popup()
+            if pop is not None:
+                col_w = pop.sizeHintForColumn(0)
+                sb_w = pop.verticalScrollBar().sizeHint().width()
+                cr.setWidth(max(col_w + sb_w + 30, 240))
+            self._completer.complete(cr)
+
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         if event.type() == QEvent.Type.KeyPress and isinstance(event, QKeyEvent):
             key = event.key()
@@ -160,19 +205,19 @@ class FocusAwareLineEdit(QLineEdit):
             popup_visible = popup is not None and popup.isVisible()
 
             if key == Qt.Key.Key_Tab:
-                if popup_visible and completer is not None and popup is not None:
-                    current_idx = popup.currentIndex()
-                    completion = ""
-                    if current_idx.isValid():
-                        val = current_idx.data(Qt.ItemDataRole.DisplayRole)
-                        if val:
-                            completion = str(val)
-                    if not completion:
-                        completion = completer.currentCompletion()
-                    if completion:
-                        self._insert_completion(completion)
+                if self._handle_tab_key(popup, completer):
+                    return True
+
+            elif key == Qt.Key.Key_Escape:
+                if popup_visible and popup is not None:
                     popup.hide()
                     return True
+
+            elif (
+                key == Qt.Key.Key_Space and event.modifiers() == Qt.KeyboardModifier.ControlModifier
+            ):
+                self._trigger_manual_completion()
+                return True
 
             elif key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
                 if popup_visible and popup is not None:
@@ -183,8 +228,10 @@ class FocusAwareLineEdit(QLineEdit):
         return super().eventFilter(watched, event)
 
     def _finish_and_exit_editing(self) -> None:
-        if self._completer is not None and self._completer.popup().isVisible():
-            self._completer.popup().hide()
+        if self._completer is not None:
+            popup = self._completer.popup()
+            if popup is not None and popup.isVisible():
+                popup.hide()
 
         p: QWidget | None = self.parentWidget()
         view = None
@@ -203,98 +250,143 @@ class FocusAwareLineEdit(QLineEdit):
             self.editingFinished.emit()
             self.clearFocus()
 
-    def _get_symbols(self) -> list[str]:
-        symbols = [
-            "pi",
-            "e",
-            "g",
-            "sqrt(",
-            "sin(",
-            "cos(",
-            "tan(",
-            "asin(",
-            "acos(",
-            "atan(",
-            "atan2(",
-            "radians(",
-            "degrees(",
-            "exp(",
-            "log(",
-            "log10(",
-            "pow(",
-            "abs(",
-            "min(",
-            "max(",
-            "ceil(",
-            "floor(",
-            "round(",
-        ]
+    def _build_completion_items(self) -> list[tuple[str, str]]:
+        """Return list of (insert_text, display_text) in priority order."""
+        items: list[tuple[str, str]] = []
+
         resolved_api = self._api
         if resolved_api is None and hasattr(self.parent(), "_api"):
             resolved_api = getattr(self.parent(), "_api", None)
+
         if resolved_api is not None and getattr(resolved_api, "current_project", None) is not None:
             proj = resolved_api.current_project
             data = getattr(proj, "data", None)
             if isinstance(data, dict):
+                # 1. Project Parameters (Highest priority)
                 params = data.get("parameters", {})
                 if isinstance(params, dict):
-                    for k in params:
+                    for k, val in params.items():
                         clean = str(k).replace("-", "_")
-                        symbols.append(clean)
+                        val_str = (
+                            f"{val:g}"
+                            if isinstance(val, (int, float))
+                            else str(val if val is not None else "")
+                        )
+                        label = f"{clean:<18} ({val_str})" if val_str else clean
+                        items.append((clean, label))
                         if clean != str(k):
-                            symbols.append(str(k))
+                            orig_label = f"{k!s:<18} ({val_str})" if val_str else str(k)
+                            items.append((str(k), orig_label))
+
+                # 2. Components and Component Parameters
                 comps = data.get("components", [])
                 if isinstance(comps, list):
                     for c in comps:
                         if isinstance(c, dict):
                             cid = str(c.get("id") or "").replace("-", "_")
-                            symbols.append(cid)
+                            c_type = str(c.get("type") or "component")
+                            items.append((cid, f"{cid:<18} [{c_type}]"))
                             c_params = c.get("parameters", {})
                             if isinstance(c_params, dict):
-                                for pk in c_params:
-                                    symbols.append(f"{cid}.{pk}")
-        return sorted(set(symbols))
+                                for pk, pv in c_params.items():
+                                    if not pk.startswith("_"):
+                                        p_val_str = (
+                                            f"{pv:g}"
+                                            if isinstance(pv, (int, float))
+                                            else str(pv if pv is not None else "")
+                                        )
+                                        full_k = f"{cid}.{pk}"
+                                        items.append((full_k, f"{full_k:<18} ({p_val_str})"))
+
+        # 3. Mathematical Constants
+        items.append(("pi", f"{'pi':<18} (3.14159...)"))
+        items.append(("e", f"{'e':<18} (2.71828...)"))
+        items.append(("g", f"{'g':<18} (9.80665 m/s²)"))
+
+        # 4. Mathematical Functions
+        funcs = [
+            ("sqrt(", f"{'sqrt(x)':<18} [func]"),
+            ("sin(", f"{'sin(x)':<18} [func]"),
+            ("cos(", f"{'cos(x)':<18} [func]"),
+            ("tan(", f"{'tan(x)':<18} [func]"),
+            ("asin(", f"{'asin(x)':<18} [func]"),
+            ("acos(", f"{'acos(x)':<18} [func]"),
+            ("atan(", f"{'atan(x)':<18} [func]"),
+            ("atan2(", f"{'atan2(y, x)':<18} [func]"),
+            ("radians(", f"{'radians(deg)':<18} [func]"),
+            ("degrees(", f"{'degrees(rad)':<18} [func]"),
+            ("exp(", f"{'exp(x)':<18} [func]"),
+            ("log(", f"{'log(x)':<18} [func]"),
+            ("log10(", f"{'log10(x)':<18} [func]"),
+            ("pow(", f"{'pow(x, y)':<18} [func]"),
+            ("abs(", f"{'abs(x)':<18} [func]"),
+            ("min(", f"{'min(a, b)':<18} [func]"),
+            ("max(", f"{'max(a, b)':<18} [func]"),
+            ("ceil(", f"{'ceil(x)':<18} [func]"),
+            ("floor(", f"{'floor(x)':<18} [func]"),
+            ("round(", f"{'round(x, n)':<18} [func]"),
+        ]
+        for insert_t, disp_t in funcs:
+            items.append((insert_t, disp_t))
+
+        return items
+
+    def _get_symbols(self) -> list[str]:
+        """Backward-compatible helper returning list of insertable symbols."""
+        return [insert_text for insert_text, _ in self._build_completion_items()]
 
     def _ensure_completer(self) -> None:
         if self._completer is not None:
             return
-        from PySide6.QtCore import QStringListModel
         from PySide6.QtWidgets import QCompleter
 
-        symbols = self._get_symbols()
-        model = QStringListModel(symbols, self)
+        model = QStandardItemModel(self)
+        items = self._build_completion_items()
+        for insert_text, display_text in items:
+            item = QStandardItem(display_text)
+            item.setData(insert_text, Qt.ItemDataRole.UserRole)
+            model.appendRow(item)
+
         completer = QCompleter(model, self)
+        completer.setCompletionRole(Qt.ItemDataRole.UserRole)
         completer.setWidget(self)
         completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-        completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        completer.setFilterMode(Qt.MatchFlag.MatchStartsWith)
         completer.activated.connect(self._insert_completion)
         self._completer = completer
         self.removeEventFilter(self)
         self.installEventFilter(self)
         popup = completer.popup()
         if popup is not None:
+            popup.setStyleSheet(
+                "QListView { font-family: monospace; font-size: 11px; padding: 2px; } "
+                "QListView::item { padding: 2px 4px; } "
+                "QListView::item:selected { background-color: #264f78; color: #ffffff; }"
+            )
             popup.installEventFilter(self)
 
     def _on_text_changed(self, text: str) -> None:
-        if text.startswith("="):
+        if not self._enable_autocomplete:
+            return
+
+        token, _, _ = self._get_current_token()
+        # Open completion popup only when at least 1 character of an identifier is typed
+        if len(token) >= 1:
             self._ensure_completer()
             if self._completer is not None:
-                token, _, _ = self._get_current_token()
-                if token:
-                    self._completer.setCompletionPrefix(token)
-                    cr = self.cursorRect()
-                    cr.setWidth(
-                        self._completer.popup().sizeHintForColumn(0)
-                        + self._completer.popup().verticalScrollBar().sizeHint().width()
-                        + 20
-                    )
-                    self._completer.complete(cr)
-                elif text == "=":
-                    self._completer.setCompletionPrefix("")
-                    self._completer.complete()
+                self._completer.setCompletionPrefix(token)
+                cr = self.cursorRect()
+                popup = self._completer.popup()
+                if popup is not None:
+                    col_w = popup.sizeHintForColumn(0)
+                    sb_w = popup.verticalScrollBar().sizeHint().width()
+                    cr.setWidth(max(col_w + sb_w + 30, 240))
+                self._completer.complete(cr)
         else:
-            if self._completer is not None and self._completer.popup().isVisible():
-                self._completer.popup().hide()
+            if self._completer is not None:
+                popup = self._completer.popup()
+                if popup is not None and popup.isVisible():
+                    popup.hide()
 
     def _get_current_token(self) -> tuple[str, int, int]:
         text = self.text()
@@ -302,7 +394,7 @@ class FocusAwareLineEdit(QLineEdit):
         left_text = text[:cursor_pos]
         import re
 
-        match = re.search(r"([A-Za-z_0-9\-\.]+)$", left_text)
+        match = re.search(r"([A-Za-z_][A-Za-z_0-9\.\-]*)$", left_text)
         if not match:
             return "", cursor_pos, cursor_pos
         token = match.group(1)
@@ -312,9 +404,21 @@ class FocusAwareLineEdit(QLineEdit):
     def _insert_completion(self, completion: str) -> None:
         _, start_pos, end_pos = self._get_current_token()
         text = self.text()
-        new_text = text[:start_pos] + completion + text[end_pos:]
+        if completion.endswith("("):
+            rest = text[end_pos:].lstrip()
+            if not rest.startswith(")"):
+                insert_str = completion + ")"
+                cursor_target = start_pos + len(completion)
+            else:
+                insert_str = completion
+                cursor_target = start_pos + len(completion)
+        else:
+            insert_str = completion
+            cursor_target = start_pos + len(insert_str)
+
+        new_text = text[:start_pos] + insert_str + text[end_pos:]
         self.setText(new_text)
-        self.setCursorPosition(start_pos + len(completion))
+        self.setCursorPosition(cursor_target)
 
 
 def format_engineering_value(val: Any, decimals: int | None = 2) -> str:

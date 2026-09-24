@@ -150,7 +150,7 @@ class ColorPickerWidget(QWidget):
         )
         layout.addWidget(self.prefix_label)
 
-        self.line_edit = FocusAwareLineEdit(self)
+        self.line_edit = FocusAwareLineEdit(self, enable_autocomplete=False)
         self.line_edit.setPlaceholderText("4A90E2")
         self.line_edit.setMaxLength(7)
         validator = QRegularExpressionValidator(

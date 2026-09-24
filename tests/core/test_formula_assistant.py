@@ -101,13 +101,59 @@ class TestFormulaAssistant(unittest.TestCase):
         self.addCleanup(widget.deleteLater)
 
         edit = FocusAwareLineEdit(widget, api=self.api)
-        # Type '=' should create completer
+        # Type '=' alone should NOT open completer popup
         edit.setText("=")
-        self.assertIsNotNone(edit._completer)
+        self.assertTrue(edit._completer is None or not edit._completer.popup().isVisible())
 
-        # Type '=SP' should set prefix 'SP'
+        # Type '=120' (number) should NOT open popup
+        edit.setText("=120")
+        self.assertTrue(edit._completer is None or not edit._completer.popup().isVisible())
+
+        # Type '=SP' should trigger completer with prefix 'SP' and suggest 'SPAN'
         edit.setText("=SP")
+        self.assertIsNotNone(edit._completer)
+        assert edit._completer is not None
         self.assertEqual(edit._completer.completionPrefix(), "SP")
+        self.assertEqual(edit._completer.currentCompletion(), "SPAN")
+
+        # Priority: project parameters come before functions in completion items
+        items = edit._build_completion_items()
+        keys = [k for k, _ in items]
+        span_idx = keys.index("SPAN")
+        sqrt_idx = keys.index("sqrt(")
+        self.assertLess(span_idx, sqrt_idx)
+
+    def test_focus_aware_line_edit_escape_closes_popup(self) -> None:
+        widget = QWidget()
+        self.addCleanup(widget.deleteLater)
+
+        edit = FocusAwareLineEdit(widget, api=self.api)
+        edit.setText("=SP")
+        self.assertIsNotNone(edit._completer)
+        assert edit._completer is not None
+        popup = edit._completer.popup()
+        popup.show()
+        self.assertTrue(popup.isVisible())
+
+        # Press Escape
+        key_esc = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier)
+        QApplication.sendEvent(edit, key_esc)
+        self.assertFalse(popup.isVisible())
+        self.assertEqual(edit.text(), "=SP")
+
+    def test_focus_aware_line_edit_function_parentheses_placement(self) -> None:
+        widget = QWidget()
+        self.addCleanup(widget.deleteLater)
+
+        edit = FocusAwareLineEdit(widget, api=self.api)
+        edit.setText("=sq")
+
+        key_tab = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Tab, Qt.KeyboardModifier.NoModifier)
+        QApplication.sendEvent(edit, key_tab)
+
+        self.assertEqual(edit.text(), "=sqrt()")
+        # Cursor should be placed inside parentheses: '=sqrt()' -> index 6
+        self.assertEqual(edit.cursorPosition(), 6)
 
     def test_expression_property_cell_focus_tracking(self) -> None:
         cell = ExpressionPropertyCell(
@@ -190,7 +236,6 @@ class TestFormulaAssistant(unittest.TestCase):
         self.addCleanup(cell.deleteLater)
 
         cell.line_edit.setText("=SPAN * 2")
-        self.assertTrue(cell.line_edit._completer is not None)
 
         # Press Enter: should commit current text, close popup, and clear focus / exit editing
         key_enter = QKeyEvent(
