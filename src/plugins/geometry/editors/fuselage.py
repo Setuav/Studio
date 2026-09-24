@@ -306,7 +306,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
                 row,
                 2,
                 values[2],
-                [("auto", "Auto"), ("smooth", "Smooth"), ("ruled", "Ruled")],
+                [("smooth", "Smooth"), ("ruled", "Ruled")],
                 lambda value, segment_index=row: self._update_segment_choice(
                     segment_index, "method", value
                 ),
@@ -750,7 +750,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
     def _update_segment_choice(self, index: int, key: str, value: str) -> None:
         segments = self._segments()
         allowed = {
-            "method": {"auto", "smooth", "ruled"},
+            "method": {"smooth", "ruled"},
         }
         if self._loading or not 0 <= index < len(segments) or value not in allowed.get(key, set()):
             return

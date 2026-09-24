@@ -41,7 +41,7 @@ def create_editor_settings_page() -> QWidget:
 
     loft_method = QComboBox()
     loft_method.setObjectName("defaultLoftMethod")
-    for name in ("auto", "smooth", "ruled"):
+    for name in ("smooth", "ruled"):
         loft_method.addItem(name.capitalize(), name)
     _combo_value(loft_method, _EDITOR_LOFT_METHOD_KEY, "smooth")
     form.addRow("Default loft method:", loft_method)
