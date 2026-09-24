@@ -162,6 +162,10 @@ class FocusAwareLineEdit(QLineEdit):
 
     def focusOutEvent(self, event: QFocusEvent) -> None:
         super().focusOutEvent(event)
+        if self._completer is not None:
+            popup = self._completer.popup()
+            if popup is not None and popup.isVisible():
+                return
         self.focused_out.emit()
 
     def _handle_tab_key(self, popup: QAbstractItemView | None, completer: Any | None) -> bool:
@@ -185,7 +189,6 @@ class FocusAwareLineEdit(QLineEdit):
         if completion:
             self._insert_completion(completion)
         self.setCursorPosition(len(self.text()))
-        self.setFocus()
         popup.hide()
         return True
 
@@ -284,14 +287,23 @@ class FocusAwareLineEdit(QLineEdit):
                 popup.hide()
 
         p: QWidget | None = self.parentWidget()
-        view = None
-        while p is not None:
+        is_delegate_editor = False
+        view: QAbstractItemView | None = None
+        if p is not None:
             if isinstance(p, QAbstractItemView):
                 view = p
-                break
-            p = p.parentWidget()
+                is_delegate_editor = True
+            else:
+                grandparent = p.parentWidget()
+                if (
+                    grandparent is not None
+                    and isinstance(grandparent, QAbstractItemView)
+                    and not isinstance(p, ExpressionPropertyCell)
+                ):
+                    view = grandparent
+                    is_delegate_editor = True
 
-        if view is not None:
+        if is_delegate_editor and view is not None:
             view.commitData(self)
             view.closeEditor(self, QStyledItemDelegate.EndEditHint.SubmitModelCache)
             view.setFocus()
@@ -607,6 +619,15 @@ class ExpressionPropertyCell(QWidget):
         self.unit_label.setText(active_sym)
         self.unit_label.setVisible(bool(active_sym))
 
+        # While being actively edited by the user, only update styling, DO NOT overwrite ongoing input!
+        if self._is_focused:
+            clean_text = self.line_edit.text().strip()
+            if clean_text.startswith("="):
+                self.line_edit.setStyleSheet("color: #4CAF50; font-weight: bold;")
+            else:
+                self.line_edit.setStyleSheet("")
+            return
+
         clean = self._raw_expression.strip()
         if not clean:
             self.line_edit.blockSignals(True)
@@ -616,64 +637,65 @@ class ExpressionPropertyCell(QWidget):
             self.line_edit.blockSignals(False)
             return
 
-        if self._is_focused:
-            # Editing mode: show raw formula or current display number
+        # Idle / Display mode: show evaluated calculated value if it is a formula
+        if self._is_formula(clean):
+            ok, val, err_msg = self._evaluate_expression(clean)
             self.line_edit.blockSignals(True)
-            if self._is_formula(clean):
-                self.line_edit.setText(self._raw_expression)
-                if clean.startswith("="):
-                    self.line_edit.setStyleSheet("color: #4CAF50; font-weight: bold;")
-                else:
-                    self.line_edit.setStyleSheet("")
+            if ok and isinstance(val, (int, float)):
+                disp_val, sym = self._display_number(float(val))
+                self.line_edit.setText(disp_val)
+                self.line_edit.setStyleSheet(
+                    "color: #4CAF50; font-style: italic; font-weight: bold;"
+                )
+                tip = f"Bound to: {self._raw_expression}\nCalculated value: {disp_val}"
+                if sym:
+                    tip += f" {sym}"
+                self.line_edit.setToolTip(tip)
             else:
-                try:
-                    num_val = float(clean)
-                    disp_val, _ = self._display_number(num_val)
-                    self.line_edit.setText(disp_val)
-                except ValueError:
-                    self.line_edit.setText(self._raw_expression)
-                self.line_edit.setStyleSheet("")
+                self.line_edit.setText(f"#REF! {self._raw_expression}")
+                self.line_edit.setStyleSheet(
+                    "color: #e53935; font-weight: bold; background-color: rgba(229, 57, 53, 0.08); border: 1px solid #e53935;"
+                )
+                tip = (
+                    f"Formula Error in '{self._raw_expression}':\n{err_msg or 'Failed to evaluate'}"
+                )
+                self.line_edit.setToolTip(tip)
             self.line_edit.blockSignals(False)
         else:
-            # Idle / Display mode: show evaluated calculated value if it is a formula
-            if self._is_formula(clean):
-                ok, val, err_msg = self._evaluate_expression(clean)
-                self.line_edit.blockSignals(True)
-                if ok and isinstance(val, (int, float)):
-                    disp_val, sym = self._display_number(float(val))
-                    self.line_edit.setText(disp_val)
-                    self.line_edit.setStyleSheet(
-                        "color: #4CAF50; font-style: italic; font-weight: bold;"
-                    )
-                    tip = f"Bound to: {self._raw_expression}\nCalculated value: {disp_val}"
-                    if sym:
-                        tip += f" {sym}"
-                    self.line_edit.setToolTip(tip)
-                else:
-                    self.line_edit.setText(f"#REF! {self._raw_expression}")
-                    self.line_edit.setStyleSheet(
-                        "color: #e53935; font-weight: bold; background-color: rgba(229, 57, 53, 0.08); border: 1px solid #e53935;"
-                    )
-                    tip = f"Formula Error in '{self._raw_expression}':\n{err_msg or 'Failed to evaluate'}"
-                    self.line_edit.setToolTip(tip)
-                self.line_edit.blockSignals(False)
-            else:
-                self.line_edit.blockSignals(True)
-                try:
-                    num_val = float(clean)
-                    disp_val, sym = self._display_number(num_val)
-                    self.line_edit.setText(disp_val)
-                    self.line_edit.setToolTip(f"{disp_val} {sym}" if sym else "")
-                except ValueError:
-                    self.line_edit.setText(self._raw_expression)
-                    self.line_edit.setToolTip("")
-                self.line_edit.setStyleSheet("")
-                self.line_edit.blockSignals(False)
+            self.line_edit.blockSignals(True)
+            try:
+                num_val = float(clean)
+                disp_val, sym = self._display_number(num_val)
+                self.line_edit.setText(disp_val)
+                self.line_edit.setToolTip(f"{disp_val} {sym}" if sym else "")
+            except ValueError:
+                self.line_edit.setText(self._raw_expression)
+                self.line_edit.setToolTip("")
+            self.line_edit.setStyleSheet("")
+            self.line_edit.blockSignals(False)
 
     def _on_focus_in(self) -> None:
+        if self._is_focused:
+            return
         self._is_focused = True
         ExpressionFocusTracker.set_active_editor(self)
-        self._refresh_display()
+        clean = self._raw_expression.strip()
+        self.line_edit.blockSignals(True)
+        if self._is_formula(clean):
+            self.line_edit.setText(self._raw_expression)
+            if clean.startswith("="):
+                self.line_edit.setStyleSheet("color: #4CAF50; font-weight: bold;")
+            else:
+                self.line_edit.setStyleSheet("")
+        else:
+            try:
+                num_val = float(clean)
+                disp_val, _ = self._display_number(num_val)
+                self.line_edit.setText(disp_val)
+            except ValueError:
+                self.line_edit.setText(self._raw_expression)
+            self.line_edit.setStyleSheet("")
+        self.line_edit.blockSignals(False)
         self.line_edit.selectAll()
 
     def _convert_input_to_raw_storage(self, text: str) -> str:

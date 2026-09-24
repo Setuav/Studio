@@ -273,6 +273,49 @@ class TestFormulaAssistant(unittest.TestCase):
         self.assertEqual(cell.value(), 4000.0)
         self.assertFalse(cell.line_edit.hasFocus())
 
+    def test_expression_property_cell_tab_completion_does_not_revert(self) -> None:
+        cell = ExpressionPropertyCell(
+            initial_value="=2 * SPAN",
+            label="Span",
+            api=self.api,
+        )
+        self.addCleanup(cell.deleteLater)
+        cell.show()
+
+        # Enter edit mode (focus in)
+        cell._on_focus_in()
+        self.assertEqual(cell.line_edit.text(), "=2 * SPAN")
+
+        # User deletes and types '=SP'
+        cell.line_edit.setText("=SP")
+        self.assertIsNotNone(cell.line_edit._completer)
+        assert cell.line_edit._completer is not None
+        popup = cell.line_edit._completer.popup()
+        self.assertIsNotNone(popup)
+        assert popup is not None
+        popup.show()
+
+        # Press Down arrow to select SPAN
+        key_down = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Down, Qt.KeyboardModifier.NoModifier)
+        QApplication.sendEvent(cell.line_edit, key_down)
+
+        # Press Tab to accept completion
+        key_tab = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Tab, Qt.KeyboardModifier.NoModifier)
+        QApplication.sendEvent(cell.line_edit, key_tab)
+
+        # Crucial check: input text must be '=SPAN', NOT reverted to '=2 * SPAN'
+        self.assertEqual(cell.line_edit.text(), "=SPAN")
+        self.assertEqual(cell.line_edit.cursorPosition(), len("=SPAN"))
+
+        # Press Enter to commit and exit
+        key_enter = QKeyEvent(
+            QEvent.Type.KeyPress, Qt.Key.Key_Return, Qt.KeyboardModifier.NoModifier
+        )
+        QApplication.sendEvent(cell.line_edit, key_enter)
+
+        self.assertEqual(cell.text(), "=SPAN")
+        self.assertEqual(cell.value(), 2000.0)
+
     def test_table_expression_delegate_enter_commits_and_closes_editor(self) -> None:
         table = QTableWidget(3, 2)
         self.addCleanup(table.deleteLater)
