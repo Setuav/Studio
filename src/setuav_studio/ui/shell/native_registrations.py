@@ -284,6 +284,12 @@ def register_native_component_types(api: StudioAPI) -> None:
     """Register built-in component types, labels and icons."""
     native_types = [
         ComponentTypeContribution(
+            id="org.setuav.core:airframe",
+            name="Airframe",
+            icon="component_structural_system",
+            category="Structure",
+        ),
+        ComponentTypeContribution(
             id="org.setuav.core:fuselage",
             name="Fuselage",
             icon="geometry_add_fuselage",

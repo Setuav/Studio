@@ -227,6 +227,11 @@ class StudioViewport(QWidget):
         if hasattr(api, "on_section_selection_changed"):
             api.on_section_selection_changed(self._on_api_section_selection_changed)
         self.object_picked.connect(self._on_object_picked_to_api)
+        current_project = getattr(api, "current_project", None)
+        if current_project is not None and hasattr(api, "_project_listeners"):
+            from setuav_studio.api.api import _dispatch_listeners
+
+            _dispatch_listeners(api._project_listeners, current_project)
 
     # ------------------------------------------------------------------
     # Layer management

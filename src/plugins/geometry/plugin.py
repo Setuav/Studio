@@ -89,22 +89,16 @@ class GeometryPlugin:
         )
 
         # 4. Component Icons
-        api.register_component_icon(
-            "org.setuav.core:fuselage",
-            "geometry_add_fuselage",
-        )
-        api.register_component_icon(
-            "org.setuav.core:lifting-surface",
-            "geometry_add_lifting_surface",
-        )
-        api.register_component_icon(
-            "org.setuav.core:control-surface",
-            "geometry_add_control_surface",
-        )
-        api.register_component_icon(
-            "org.setuav.core:airframe",
-            "component_structural_system",
-        )
+        self._registered_icons: list[str] = []
+        for comp_type, icon_name in (
+            ("org.setuav.core:fuselage", "geometry_add_fuselage"),
+            ("org.setuav.core:lifting-surface", "geometry_add_lifting_surface"),
+            ("org.setuav.core:control-surface", "geometry_add_control_surface"),
+            ("org.setuav.core:airframe", "component_structural_system"),
+        ):
+            if comp_type not in getattr(api, "_component_icons", {}):
+                api.register_component_icon(comp_type, icon_name)
+                self._registered_icons.append(comp_type)
 
         # 5. Geometry Providers (internal — not exposed through StudioAPI)
         from .engine.fuselage_geometry import build_fuselage_geometry
@@ -236,10 +230,9 @@ class GeometryPlugin:
                 unsub()
         self._unsubscribers = []
         self._api = None
-        api.unregister_component_icon("org.setuav.core:fuselage")
-        api.unregister_component_icon("org.setuav.core:lifting-surface")
-        api.unregister_component_icon("org.setuav.core:control-surface")
-        api.unregister_component_icon("org.setuav.core:airframe")
+        for comp_type in getattr(self, "_registered_icons", []):
+            api.unregister_component_icon(comp_type)
+        self._registered_icons = []
         api.unregister_component_editor("org.setuav.core:fuselage")
         api.unregister_component_editor("org.setuav.core:lifting-surface")
         api.unregister_component_editor("org.setuav.core:control-surface")

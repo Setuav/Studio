@@ -601,8 +601,49 @@ class OpenGLViewer(QOpenGLWidget):
         self._orthographic = enabled
         self.update()
 
-    def fit_view(self) -> None:
+    def _scene_points(self) -> list[tuple[float, float, float]]:
         points = list(self._geometry_data.points())
+        if not points and self._scene_objects:
+            from .primitives import (
+                BoxPrimitive,
+                CylinderPrimitive,
+                LineSegmentsPrimitive,
+                LoftPrimitive,
+                PlanePrimitive,
+                RingPrimitive,
+                TrianglesPrimitive,
+            )
+            from .raycast import _box_corners
+
+            for obj in self._scene_objects.values():
+                for prim in getattr(obj, "primitives", ()):
+                    if isinstance(prim, LoftPrimitive):
+                        for sec in prim.sections:
+                            points.extend(sec)
+                    elif isinstance(prim, BoxPrimitive):
+                        points.extend(
+                            _box_corners(
+                                prim.center,
+                                prim.size,
+                                getattr(prim, "rotation", (0.0, 0.0, 0.0)),
+                            )
+                        )
+                    elif isinstance(prim, CylinderPrimitive):
+                        points.append(prim.start)
+                        points.append(prim.end)
+                    elif isinstance(prim, LineSegmentsPrimitive):
+                        for p1, p2 in prim.lines:
+                            points.append(p1)
+                            points.append(p2)
+                    elif isinstance(prim, TrianglesPrimitive):
+                        for tri in prim.triangles:
+                            points.extend(tri)
+                    elif isinstance(prim, (PlanePrimitive, RingPrimitive)):
+                        points.append(prim.center)
+        return points
+
+    def fit_view(self) -> None:
+        points = self._scene_points()
         if not points:
             self._target = QVector3D(0.0, 0.0, 0.0)
             self._distance = 1500.0
@@ -848,6 +889,20 @@ class OpenGLViewer(QOpenGLWidget):
                 _color_rgb(chart_color("orange")),
                 wire_mode=self._wire_mode,
             )
+            if not ring_values and self._scene_objects and component_id:
+                from .loft_mesh import _append_ring
+                from .primitives import LoftPrimitive
+
+                for obj_id, obj in self._scene_objects.items():
+                    if obj_id == component_id or obj_id.startswith(f"{component_id}:"):
+                        for prim in getattr(obj, "primitives", ()):
+                            if (
+                                isinstance(prim, LoftPrimitive)
+                                and prim.sections
+                                and 0 <= section_index < len(prim.sections)
+                            ):
+                                loop = prim.sections[section_index]
+                                _append_ring(ring_values, loop, _color_rgb(chart_color("orange")))
         envelope_color = (0.15, 1.0, 0.25)
         envelope_values = build_envelope_wire_vertices(
             self._geometry_data,
@@ -1166,8 +1221,11 @@ class OpenGLViewer(QOpenGLWidget):
 
     def set_scene_objects(self, objects: dict[str, Any]) -> None:
         """Set active scene objects mapped by object_id for rendering, picking and highlighting."""
+        had_objects = bool(self._scene_objects)
         self._scene_objects = dict(objects)
         self._mesh_dirty = True
+        if not had_objects and self._scene_objects:
+            self.fit_view()
         self.update()
 
     def clear_scene_objects(self) -> None:
