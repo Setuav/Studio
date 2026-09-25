@@ -40,7 +40,7 @@ _CS_COLORS: dict[str, tuple[float, float, float]] = {
 
 # Studio colors are the default for aircraft geometry
 DEFAULT_PALETTE = "studio"
-_active_palette = DEFAULT_PALETTE
+_VIEWPORT_PALETTE_KEY = "geometry/viewport/palette"
 
 
 def palette_names() -> tuple[str, ...]:
@@ -50,24 +50,31 @@ def palette_names() -> tuple[str, ...]:
 def set_active_palette(name: str) -> None:
     if name not in _COLORS:
         raise ValueError(f"Unknown palette: {name}")
-    global _active_palette
-    _active_palette = name
+    from PySide6.QtCore import QSettings
+
+    QSettings().setValue(_VIEWPORT_PALETTE_KEY, name)
 
 
 def active_palette() -> str:
-    return _active_palette
+    from PySide6.QtCore import QSettings
+
+    val = str(QSettings().value(_VIEWPORT_PALETTE_KEY, DEFAULT_PALETTE))
+    return val if val in _COLORS else DEFAULT_PALETTE
 
 
-def segment_colors() -> tuple[tuple[float, float, float], ...]:
-    return _COLORS[_active_palette]
+def segment_colors(palette: str | None = None) -> tuple[tuple[float, float, float], ...]:
+    pal = palette if (palette and palette in _COLORS) else active_palette()
+    return _COLORS[pal]
 
 
-def lifting_surface_color() -> tuple[float, float, float]:
-    return _LIFTING_SURFACE_COLORS[_active_palette]
+def lifting_surface_color(palette: str | None = None) -> tuple[float, float, float]:
+    pal = palette if (palette and palette in _LIFTING_SURFACE_COLORS) else active_palette()
+    return _LIFTING_SURFACE_COLORS[pal]
 
 
-def control_surface_color() -> tuple[float, float, float]:
-    return _CS_COLORS.get(_active_palette, (0.92, 0.28, 0.25))
+def control_surface_color(palette: str | None = None) -> tuple[float, float, float]:
+    pal = palette if (palette and palette in _CS_COLORS) else active_palette()
+    return _CS_COLORS.get(pal, (0.92, 0.28, 0.25))
 
 
 __all__ = [

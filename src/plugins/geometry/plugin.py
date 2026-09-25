@@ -166,7 +166,12 @@ class GeometryPlugin:
 
     def _on_project_opened(self, *args: Any) -> None:
         if self._api is not None and self._api.current_project is not None:
-            ensure_airframe_component(self._api.current_project)
-            from .engine.envelope import sync_project_geometry_envelopes
+            project = self._api.current_project
 
-            sync_project_geometry_envelopes(self._api.current_project)
+            def _sync() -> None:
+                ensure_airframe_component(project)
+                from .engine.envelope import sync_project_geometry_envelopes
+
+                sync_project_geometry_envelopes(project)
+
+            self._api.edit_project("Sync geometry airframe and envelopes", _sync)

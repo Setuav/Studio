@@ -84,6 +84,24 @@ class GeometryPluginLifecycleTests(unittest.TestCase):
         manager.deactivate(plugin.id)
         self.assertFalse(manager.is_active(plugin.id))
 
+    def test_on_project_opened_syncs_airframe_via_edit_project(self) -> None:
+        from pathlib import Path
+
+        from setuav_studio.project import ProjectDocument
+
+        api = StudioAPI()
+        plugin = GeometryPlugin()
+        plugin.activate(api)
+
+        doc = ProjectDocument(Path("/tmp/test_proj.json"), "json", {"components": []})
+        api.current_project = doc
+
+        plugin._on_project_opened()
+        # Verify airframe was inserted
+        self.assertTrue(any(c.get("id") == "airframe" for c in doc.data["components"]))
+
+        plugin.deactivate(api)
+
 
 if __name__ == "__main__":
     unittest.main()
