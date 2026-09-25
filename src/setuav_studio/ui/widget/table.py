@@ -1183,7 +1183,11 @@ class PropertyTableMixin:
                 on_changed(k, new_v)
 
         val = target_data.get(f.key, f.default)
-        if (
+        if getattr(f, "readonly", False):
+            unit_str = f" {f.unit}" if f.unit else ""
+            disp_str = f"{val}{unit_str}" if isinstance(val, (int, float, str)) else str(val)
+            self._set_property_value(table, f.key, disp_str, editable=False)
+        elif (
             getattr(f, "widget_type", None) == "color"
             or getattr(f, "field_type", None) == "color"
             or (f.key.lower().endswith("color") and not f.options)

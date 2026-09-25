@@ -65,8 +65,10 @@ class AbstractSolver(ABC):
     Solvers receive an immutable SolverConfig and produce a SolverResult.
     """
 
-    def __init__(self, config: SolverConfig) -> None:
+    def __init__(self, config: SolverConfig, project: Any | None = None) -> None:
         self.config = config
+        self.project = project
+        self.api: Any | None = None
         self.status = SolverStatus.QUEUED
         self.progress: float = 0.0
         self.error_message: str | None = None

@@ -351,8 +351,8 @@ def register_native_component_types(api: StudioAPI) -> None:
             category="Electrical",
         ),
         ComponentTypeContribution(
-            id="org.setuav.core:electric-propulsion-system",
-            name="Electric Propulsion System",
+            id="org.setuav.core:propulsion-system",
+            name="Propulsion",
             icon="component_propulsion_system",
             category="Propulsion",
         ),
