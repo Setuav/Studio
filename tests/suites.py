@@ -37,13 +37,17 @@ CORE_MODULES = (
     "tests.core.test_workbench",
 )
 GEOMETRY_MODULES = (
+    "tests.geometry.test_airfoil",
+    "tests.geometry.test_airframe",
+    "tests.geometry.test_control_surface",
     "tests.geometry.test_creation",
     "tests.geometry.test_envelope",
-    "tests.geometry.test_geometry",
-    "tests.geometry.test_settings",
-    "tests.geometry.test_airframe",
-    "tests.geometry.test_plugin",
+    "tests.geometry.test_fuselage",
+    "tests.geometry.test_lifting_surface",
     "tests.geometry.test_lifting_surface_driver_solver",
+    "tests.geometry.test_plugin",
+    "tests.geometry.test_scene",
+    "tests.geometry.test_settings",
 )
 AERODYNAMICS_FAST_MODULES = (
     "tests.aerodynamics.test_aero_engine_base",
