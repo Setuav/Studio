@@ -228,13 +228,13 @@ class GeometryTests(unittest.TestCase):
             places=1,
         )
 
-        # Test Wing Angles table
-        self.assertEqual(editor.wing_angles_table.rowCount(), 6)
-        editor._on_wing_angle_changed("dihedral", 3.0)
+        # Test Angles table
+        self.assertEqual(editor.angles_table.rowCount(), 6)
+        editor._on_angle_changed("dihedral", 3.0)
         self.assertGreater(
             float(wing_comp["parameters"]["geometry"]["profiles"][-1]["position"]["z"]), 0.0
         )
-        editor._on_wing_angle_changed("sweep_curvature", 25.0)
+        editor._on_angle_changed("sweep_curvature", 25.0)
         self.assertEqual(wing_comp["parameters"]["geometry"].get("sweep_curvature"), 25.0)
 
         # Check sections table, section planform sizing, angles, and airfoils
@@ -1331,11 +1331,20 @@ class GeometryTests(unittest.TestCase):
         self.assertEqual(tt["te_sweep_tip"], -15.0)
         self.assertEqual(tt["tip_thickness_scale"], 0.6)
 
-        # Check 4-cell projected metrics live update widget
+        # Check two-column single-row projected metrics live update widgets
         self.assertTrue(hasattr(editor, "metric_height_val"))
         self.assertTrue(hasattr(editor, "metric_span_val"))
         self.assertIn("mm", editor.metric_height_val.text())
         self.assertIn("mm", editor.metric_span_val.text())
+        m_row = -1
+        for r in range(editor.tip_caps_table.rowCount()):
+            if editor._property_key(editor.tip_caps_table, r) == "winglet_projected_metrics":
+                m_row = r
+                break
+        self.assertGreaterEqual(m_row, 0)
+        self.assertEqual(editor.tip_caps_table.columnSpan(m_row, 0), 1)
+        self.assertIsNotNone(editor.tip_caps_table.cellWidget(m_row, 0))
+        self.assertIsNotNone(editor.tip_caps_table.cellWidget(m_row, 1))
 
     def test_winglet_geometry(self) -> None:
         """Verify _build_winglet_loft generates correct curved/scimitar geometry."""

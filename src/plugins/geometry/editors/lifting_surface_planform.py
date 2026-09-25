@@ -27,25 +27,25 @@ class PlanformMixin:
     # UI Sections Creation
     # -------------------------------------------------------------------------
 
-    def _create_planform_sizing_section(self) -> None:
-        """Parametric Wing Planform table (8 parameters with 3-driver checkbox system)."""
-        layout = self._create_section("Wing Planform", "fa6s.ruler-combined")
+    def _create_planform_section(self) -> None:
+        """Parametric Planform table (8 parameters with 3-driver checkbox system)."""
+        layout = self._create_section("Planform", "fa6s.ruler-combined")
 
         geom = self._geometry()
         init_drivers = geom.get("active_drivers") or ["span", "root_chord", "tip_chord"]
         self.planform_table = DriverPlanformTable(
             default_drivers=init_drivers,
-            on_values_changed=self._on_wing_driver_values_changed,
-            on_drivers_changed=self._on_wing_drivers_changed,
+            on_values_changed=self._on_planform_driver_values_changed,
+            on_drivers_changed=self._on_planform_drivers_changed,
             api=getattr(self, "_api", None),
         )
         layout.addWidget(self.planform_table)
 
-    def _create_wing_angles_section(self) -> None:
-        """Global Wing Sweep, Dihedral, Twist/Washout, and Reference Axes table section."""
-        layout = self._create_section("Wing Angles", "fa6s.arrows-spin")
+    def _create_angles_section(self) -> None:
+        """Global Sweep, Dihedral, Twist/Washout, and Reference Axes table section."""
+        layout = self._create_section("Angles", "fa6s.arrows-spin")
 
-        self.wing_angles_table = self._property_table(
+        self.angles_table = self._property_table(
             [
                 ("sweep", "Sweep Angle"),
                 ("sweep_loc", "Sweep Location"),
@@ -55,7 +55,7 @@ class PlanformMixin:
                 ("twist_axis", "Twist Axis Location"),
             ]
         )
-        layout.addWidget(self.wing_angles_table)
+        layout.addWidget(self.angles_table)
 
     # -------------------------------------------------------------------------
     # Planform Sizing & Angles Logic
@@ -70,7 +70,7 @@ class PlanformMixin:
     def _on_driver_mode_changed(self, mode_val: str) -> None:
         pass
 
-    def _on_wing_drivers_changed(self, active_drivers: list[str]) -> None:
+    def _on_planform_drivers_changed(self, active_drivers: list[str]) -> None:
         if self._loading:
             return
 
@@ -163,23 +163,23 @@ class PlanformMixin:
                 y_offset=self._y_offset(),
             )
 
-            # 2. Update Wing Angles & Alignment Table
-            if hasattr(self, "wing_angles_table"):
+            # 2. Update Angles & Alignment Table
+            if hasattr(self, "angles_table"):
                 sw_val = (
                     geom.get("sweep_expression")
                     or geom.get("sweep")
                     or float(metrics.get("sweep", 0.0))
                 )
                 self._set_property_expression(
-                    self.wing_angles_table,
+                    self.angles_table,
                     "sweep",
                     sw_val,
-                    on_changed=lambda val: self._on_wing_angle_changed("sweep", val),
+                    on_changed=lambda val: self._on_angle_changed("sweep", val),
                     label="Sweep Angle",
                     unit="deg",
                 )
                 self._set_property_combo(
-                    self.wing_angles_table,
+                    self.angles_table,
                     "sweep_loc",
                     str(sw_loc),
                     [(str(val), label) for val, label in SWEEP_LOCATIONS],
@@ -189,41 +189,41 @@ class PlanformMixin:
                     geom.get("sweep_curvature", 0.0)
                 )
                 self._set_property_expression(
-                    self.wing_angles_table,
+                    self.angles_table,
                     "sweep_curvature",
                     sw_curv,
-                    on_changed=lambda val: self._on_wing_angle_changed("sweep_curvature", val),
+                    on_changed=lambda val: self._on_angle_changed("sweep_curvature", val),
                     label="Sweep Curvature",
                     unit="mm",
                 )
                 di_val = geom.get("dihedral_expression") or float(metrics.get("dihedral", 0.0))
                 self._set_property_expression(
-                    self.wing_angles_table,
+                    self.angles_table,
                     "dihedral",
                     di_val,
-                    on_changed=lambda val: self._on_wing_angle_changed("dihedral", val),
+                    on_changed=lambda val: self._on_angle_changed("dihedral", val),
                     label="Dihedral Angle",
                     unit="deg",
                 )
                 tw_val = geom.get("twist_expression") or float(metrics.get("washout", 0.0))
                 self._set_property_expression(
-                    self.wing_angles_table,
+                    self.angles_table,
                     "twist",
                     tw_val,
-                    on_changed=lambda val: self._on_wing_angle_changed("twist", val),
+                    on_changed=lambda val: self._on_angle_changed("twist", val),
                     label="Twist / Washout",
                     unit="deg",
                 )
                 twist_loc = float(self._geometry().get("twist_location", 0.25))
                 self._set_property_combo(
-                    self.wing_angles_table,
+                    self.angles_table,
                     "twist_axis",
                     str(twist_loc),
                     [(str(val), label) for val, label in TWIST_LOCATIONS],
                     self._on_twist_loc_changed,
                 )
 
-            self._update_profiles_table_interactivity()
+            self._update_sections_table_interactivity()
         finally:
             self._loading = was_loading
 
@@ -256,7 +256,7 @@ class PlanformMixin:
                 pass
         return None
 
-    def _on_wing_angle_changed(self, key: str, value: Any) -> None:
+    def _on_angle_changed(self, key: str, value: Any) -> None:
         if self._loading:
             return
         profiles = self._profiles()
@@ -313,7 +313,7 @@ class PlanformMixin:
         if 0 <= getattr(self, "_section_index", -1) < len(self._get_sections()):
             self._load_section(self._section_index)
 
-    def _on_wing_driver_values_changed(self, new_metrics: dict[str, float]) -> None:
+    def _on_planform_driver_values_changed(self, new_metrics: dict[str, float]) -> None:
         if self._loading:
             return
 
@@ -374,7 +374,7 @@ class PlanformMixin:
             return
         inputs = self.planform_table.get_current_values()
         inputs[key] = float(val_num)
-        self._on_wing_driver_values_changed(inputs)
+        self._on_planform_driver_values_changed(inputs)
 
     def _on_planform_parameter_edited(self, row: int, column: int) -> None:
         pass
@@ -397,7 +397,9 @@ class PlanformMixin:
                 and "aspect_ratio" in inputs
             ):
                 params["wing_aspect_ratio"]["value"] = float(inputs["aspect_ratio"])
-            if "wingspan" in params and isinstance(params["wingspan"], dict) and "span" in inputs:
+            if "span" in params and isinstance(params["span"], dict) and "span" in inputs:
+                params["span"]["value"] = float(inputs["span"])
+            elif "wingspan" in params and isinstance(params["wingspan"], dict) and "span" in inputs:
                 params["wingspan"]["value"] = float(inputs["span"])
         else:
             comp_area_key = f"{comp_id}_area"
@@ -415,7 +417,7 @@ class PlanformMixin:
             ):
                 params[comp_span_key]["value"] = float(inputs["span"])
 
-    def _update_profiles_table_interactivity(self) -> None:
+    def _update_sections_table_interactivity(self) -> None:
         """Ensure sections table is fully interactive."""
         table = getattr(self, "sections_table", None)
         if table is not None:

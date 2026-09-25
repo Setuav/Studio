@@ -30,7 +30,7 @@ PLANFORM_PARAM_KEYS = [
 
 PLANFORM_PARAM_LABELS = {
     "area": "Planform Area",
-    "span": "Wingspan",
+    "span": "Span",
     "aspect_ratio": "Aspect Ratio",
     "taper_ratio": "Taper Ratio",
     "root_chord": "Root Chord",

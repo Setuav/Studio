@@ -105,7 +105,7 @@ class AirframeEditor(PropertyTableMixin, QWidget):
         layout = self._create_section("Reference Metrics", "fa6s.ruler-combined")
         self.metrics_table = self._property_table(
             [
-                ("max_span", "Max Wingspan"),
+                ("max_span", "Max Span"),
                 ("primary_fuselage_length", "Primary Fuselage Length"),
             ]
         )

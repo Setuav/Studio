@@ -130,12 +130,12 @@ class LiftingSurfaceModel(Component):
         return self.planform_area
 
     @property
-    def wingspan(self) -> float:
+    def span(self) -> float:
         return float(self.planform_metrics.get("span", 0.0))
 
     @property
-    def span(self) -> float:
-        return self.wingspan
+    def wingspan(self) -> float:
+        return self.span
 
     @property
     def aspect_ratio(self) -> float:
@@ -193,6 +193,7 @@ class LiftingSurfaceModel(Component):
         props.update(
             {
                 "planform_area": self.planform_area,
+                "span": self.span,
                 "wingspan": self.wingspan,
                 "aspect_ratio": self.aspect_ratio,
                 "taper_ratio": self.taper_ratio,

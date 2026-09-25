@@ -92,9 +92,9 @@ class TipCapsMixin:
         else:  # winglet
             definitions = [
                 ("tip_type", "Tip Cap Type"),
-                ("match_wing_tangent", "Match Wing Tangent"),
-                ("winglet_height", "Winglet Arc Span"),
-                ("winglet_projected_metrics", "Height / Span"),
+                ("match_wing_tangent", "Match Tangent"),
+                ("winglet_height", "Arc Span"),
+                ("winglet_projected_metrics", ""),
                 ("cant_root", "Cant Root"),
                 ("cant_tip", "Cant Tip"),
                 ("blend_radius", "Blend Radius"),
@@ -349,7 +349,7 @@ class TipCapsMixin:
                     on_changed=lambda val: self._on_tip_cap_spinbox_changed("taper_curve", val),
                 )
 
-                # 4-cell live metric widget: | Height | height_value | Span | span_value |
+                # Two-column single-row live metric widgets: | Height: h_val | Span: s_val |
                 metrics_row = -1
                 for r in range(self.tip_caps_table.rowCount()):
                     if self._property_key(self.tip_caps_table, r) == "winglet_projected_metrics":
@@ -357,38 +357,34 @@ class TipCapsMixin:
                         break
 
                 if metrics_row >= 0:
-                    self.tip_caps_table.setSpan(metrics_row, 0, 1, 2)
-                    self.winglet_metrics_widget = QFrame()
-                    m_layout = QHBoxLayout(self.winglet_metrics_widget)
-                    m_layout.setContentsMargins(0, 0, 0, 0)
-                    m_layout.setSpacing(4)
+                    self.metric_height_widget = QFrame()
+                    h_layout = QHBoxLayout(self.metric_height_widget)
+                    h_layout.setContentsMargins(6, 0, 6, 0)
+                    h_layout.setSpacing(6)
 
                     self.lbl_metric_h_tag = QLabel("Height:")
-                    self.lbl_metric_h_tag.setAlignment(
-                        Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-                    )
-
                     self.metric_height_val = QLabel("0.0 mm")
-                    self.metric_height_val.setAlignment(
-                        Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
-                    )
+                    h_layout.addWidget(self.lbl_metric_h_tag)
+                    h_layout.addWidget(self.metric_height_val)
+                    h_layout.addStretch()
+
+                    self.metric_span_widget = QFrame()
+                    s_layout = QHBoxLayout(self.metric_span_widget)
+                    s_layout.setContentsMargins(6, 0, 6, 0)
+                    s_layout.setSpacing(6)
 
                     self.lbl_metric_span_tag = QLabel("Span:")
-                    self.lbl_metric_span_tag.setAlignment(
-                        Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-                    )
-
                     self.metric_span_val = QLabel("0.0 mm")
-                    self.metric_span_val.setAlignment(
-                        Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
-                    )
+                    s_layout.addWidget(self.lbl_metric_span_tag)
+                    s_layout.addWidget(self.metric_span_val)
+                    s_layout.addStretch()
 
-                    m_layout.addWidget(self.lbl_metric_h_tag)
-                    m_layout.addWidget(self.metric_height_val)
-                    m_layout.addWidget(self.lbl_metric_span_tag)
-                    m_layout.addWidget(self.metric_span_val)
+                    val_item = QTableWidgetItem("")
+                    val_item.setFlags(val_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                    self.tip_caps_table.setItem(metrics_row, 1, val_item)
 
-                    self.tip_caps_table.setCellWidget(metrics_row, 0, self.winglet_metrics_widget)
+                    self.tip_caps_table.setCellWidget(metrics_row, 0, self.metric_height_widget)
+                    self.tip_caps_table.setCellWidget(metrics_row, 1, self.metric_span_widget)
 
                 self._update_winglet_projected_display(tip_treatment)
 

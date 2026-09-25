@@ -40,7 +40,7 @@ class SectionsMixin:
 
     def _create_sections_section(self) -> None:
         """Section panel list table and panel action buttons."""
-        layout = self._create_section("Wing Sections", "mdi6.vector-polygon")
+        layout = self._create_section("Sections", "mdi6.vector-polygon")
 
         self.sections_table = self._table(
             [
@@ -115,10 +115,6 @@ class SectionsMixin:
             self._on_section_property_selection_changed
         )
         props_layout.addWidget(self.section_properties_table)
-
-        # Backward compatibility aliases
-        self.section_angles_table = self.section_properties_table
-        self.section_airfoils_table = self.section_properties_table
 
     def _create_airfoil_shaping_section(self) -> None:
         """Airfoil Shaping: TE blunting, thickness/camber scalers, and dihedral section alignment."""

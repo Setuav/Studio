@@ -55,7 +55,6 @@ class LiftingSurfaceEditor(
         self._api = api
         self._component = component
         self._section_index = -1
-        self._profile_index = -1
         self._control_surface_index = -1
         self._driver_mode = "area_ar_taper"
         self._sweep_loc = float(self._geometry().get("sweep_location", 0.25))
@@ -76,21 +75,14 @@ class LiftingSurfaceEditor(
         layout.addWidget(scroll)
 
         self._create_general_section()
-        self._create_planform_sizing_section()
-        self._create_wing_angles_section()
+        self._create_planform_section()
+        self._create_angles_section()
         self._create_sections_section()
         self._create_section_properties_section()
         self._create_tip_caps_section()
         self._create_control_surfaces_section()
         self._create_airfoil_shaping_section()
         self._content_layout.addStretch()
-
-        # Aliases for backward compatibility
-        self.profiles_table = self.sections_table
-        self.profile_properties_table = self.section_properties_table
-        self.add_profile_button = self.insert_section_button
-        self.duplicate_profile_button = self.split_section_button
-        self.delete_profile_button = self.delete_section_button
 
         from setuav_studio.units import get_unit_manager
 
