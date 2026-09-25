@@ -22,7 +22,6 @@ CS_HIGHLIGHT = SELECTED_WIRE
 AIRFOIL_HIGHLIGHT = SELECTED_WIRE
 AIRFOIL_CHORD_HIGHLIGHT = SELECTED_WIRE
 
-_DIM_FACTOR = 0.5
 _LONGITUDINAL_LINES = 12
 _WIRE_GREY: Point3D = (0.82, 0.82, 0.82)
 _SOLID_GREY: Point3D = (0.44, 0.44, 0.44)
@@ -386,15 +385,6 @@ def build_loft_solid_vertices(
     face_style: str = FACE_COLORED,
 ) -> list[float]:
     vertices: list[float] = []
-
-    has_3d_selection = False
-    if selected_component_id is not None:
-        has_3d_selection = any(
-            _is_matching_component(loft.component_id, selected_component_id)
-            for loft in data.lofts
-            if ":stations" not in loft.component_id
-        )
-
     for loft in data.lofts:
         if ":stations" in loft.component_id:
             continue
@@ -405,12 +395,6 @@ def build_loft_solid_vertices(
             color = tuple(channel * _SOLID_TINT for channel in loft.color)
         else:
             color = _SOLID_GREY
-
-        if has_3d_selection:
-            is_sel = _is_matching_component(loft.component_id, selected_component_id)
-            is_hov = _is_matching_component(loft.component_id, hovered_component_id)
-            if not is_sel and not is_hov:
-                color = tuple(channel * _DIM_FACTOR for channel in color)
 
         for current, following in pairwise(loops):
             _add_quad_strip(vertices, current, following, color)

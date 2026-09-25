@@ -155,6 +155,7 @@ def build_primitive_wire_vertices(  # noqa: C901
     primitives: Sequence[VisualPrimitive],
     face_style: str = FACE_COLORED,
     wire_mode: str = WIRE_FEATURE,
+    object_id: str = "",
 ) -> list[float]:
     vertices: list[float] = []
     for prim in primitives:
@@ -259,7 +260,7 @@ def build_primitive_wire_vertices(  # noqa: C901
             if not getattr(prim, "wireframe", True) or not prim.sections or len(prim.sections) < 2:
                 continue
             loft = LoftGeometry(
-                component_id="primitive:loft",
+                component_id=object_id or getattr(prim, "tag", "primitive:loft"),
                 sections=tuple(Section(pts) for pts in prim.sections),
                 color=color,
                 interpolation=getattr(prim, "interpolation", "smooth"),
@@ -314,6 +315,8 @@ def build_primitive_annotation_vertices(
 def build_primitive_highlight_vertices(  # noqa: C901
     primitives: Sequence[VisualPrimitive],
     color: Point3D = SELECTED_WIRE,
+    wire_mode: str = WIRE_FEATURE,
+    object_id: str = "",
 ) -> list[float]:
     """Build wireframe highlight vertices in specified highlight color for primitives."""
     vertices: list[float] = []
@@ -423,7 +426,7 @@ def build_primitive_highlight_vertices(  # noqa: C901
             if not prim.sections or len(prim.sections) < 2:
                 continue
             loft = LoftGeometry(
-                component_id="primitive:loft",
+                component_id=object_id or getattr(prim, "tag", "primitive:loft"),
                 sections=tuple(Section(pts) for pts in prim.sections),
                 color=color,
                 interpolation=getattr(prim, "interpolation", "smooth"),
@@ -432,6 +435,9 @@ def build_primitive_highlight_vertices(  # noqa: C901
             )
             loops = _tessellated_loops(loft)
             if loops:
-                _append_loft_feature_wire(vertices, loft, loops, color)
+                if wire_mode == WIRE_FEATURE:
+                    _append_loft_feature_wire(vertices, loft, loops, color)
+                else:
+                    _append_loft_wire(vertices, loops, color)
 
     return vertices

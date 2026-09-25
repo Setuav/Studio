@@ -25,7 +25,10 @@ from setuav_studio.ui.viewport.primitives import (
     TrianglesPrimitive,
     VisualPrimitive,
 )
-from setuav_studio.ui.viewport.scene_object import SceneObject
+from setuav_studio.ui.viewport.scene_object import (
+    SceneObject,
+    is_scene_object_matching,
+)
 from setuav_studio.ui.viewport.types import (
     EnvelopeWireGeometry,
     GeometryData,
@@ -63,6 +66,7 @@ __all__ = [
     "TrianglesPrimitive",
     "ViewportProtocol",
     "VisualPrimitive",
+    "is_scene_object_matching",
 ]
 
 ViewportProtocol = StudioViewport

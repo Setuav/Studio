@@ -8,7 +8,11 @@ from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QApplication, QWidget
 
 from setuav_studio.api import StudioAPI
-from setuav_studio.ui.viewport import SceneObject, StudioViewport
+from setuav_studio.ui.viewport import (
+    SceneObject,
+    StudioViewport,
+    is_scene_object_matching,
+)
 from setuav_studio.ui.viewport.primitives import (
     BoxPrimitive,
     CylinderPrimitive,
@@ -366,9 +370,68 @@ class TestStudioViewport(unittest.TestCase):
             viewport.object_picked.emit("fuse_1")
             self.assertEqual(api.current_selection, {"id": "fuse_1", "name": "Fuselage"})
 
-            # 3. Sub-part tag match (e.g. "wing_1:control_1") -> selects "wing_1"
+            # 3. Sub-part tag fallback when no child component exists (e.g. "wing_1:control_1") -> selects "wing_1"
             viewport.object_picked.emit("wing_1:control_1")
             self.assertEqual(api.current_selection, {"id": "wing_1", "name": "Main Wing"})
+
+            # 4. Mirrored tip-cap pick -> resolves to base wing
+            viewport.object_picked.emit("wing_1:mirror:tip-cap")
+            self.assertEqual(api.current_selection, {"id": "wing_1", "name": "Main Wing"})
+
+            # 5. Dedicated child control surface pick -> resolves to child component
+            project.data["components"].append(
+                {"id": "aileron_1", "name": "Aileron 1", "parent": "wing_1"}
+            )
+            viewport.object_picked.emit("wing_1:mirror:aileron_1")
+            self.assertEqual(
+                api.current_selection,
+                {"id": "aileron_1", "name": "Aileron 1", "parent": "wing_1"},
+            )
+
+    def test_scene_object_matching_hierarchy(self) -> None:
+        """Verify scene object hierarchy matching for wings, mirrors, tip-caps, and control surfaces."""
+        # 1. Wing selection matches main wing, bilateral mirror, and tip caps
+        self.assertTrue(is_scene_object_matching("wing", "wing"))
+        self.assertTrue(is_scene_object_matching("wing:mirror", "wing"))
+        self.assertTrue(is_scene_object_matching("wing:tip-cap", "wing"))
+        self.assertTrue(is_scene_object_matching("wing:mirror:tip-cap", "wing"))
+
+        # 2. Wing selection does NOT match child control surfaces
+        self.assertFalse(is_scene_object_matching("wing:aileron-1", "wing"))
+        self.assertFalse(is_scene_object_matching("wing:mirror:aileron-1", "wing"))
+
+        # 3. Control surface selection matches only control surface lofts
+        self.assertTrue(is_scene_object_matching("wing:aileron-1", "aileron-1"))
+        self.assertTrue(is_scene_object_matching("wing:mirror:aileron-1", "aileron-1"))
+        self.assertFalse(is_scene_object_matching("wing", "aileron-1"))
+        self.assertFalse(is_scene_object_matching("wing:mirror", "aileron-1"))
+        self.assertFalse(is_scene_object_matching("wing:tip-cap", "aileron-1"))
+        self.assertFalse(is_scene_object_matching("wing:mirror:tip-cap", "aileron-1"))
+        self.assertFalse(is_scene_object_matching("wing:flap-1", "aileron-1"))
+
+        # 4. Fuselage selection matches fuselage, mirror, and root stubs
+        self.assertTrue(is_scene_object_matching("fuselage", "fuselage"))
+        self.assertTrue(is_scene_object_matching("fuselage:mirror", "fuselage"))
+        self.assertTrue(is_scene_object_matching("fuselage:stub:wing", "fuselage"))
+        self.assertFalse(is_scene_object_matching("wing", "fuselage"))
+
+        # 5. None or invalid
+        self.assertFalse(is_scene_object_matching("wing", None))
+
+        # 6. StudioViewport.is_selected core integration
+        self.viewport.set_selected("wing")
+        self.assertTrue(self.viewport.is_selected("wing"))
+        self.assertTrue(self.viewport.is_selected("wing:mirror"))
+        self.assertTrue(self.viewport.is_selected("wing:tip-cap"))
+        self.assertTrue(self.viewport.is_selected("wing:mirror:tip-cap"))
+        self.assertFalse(self.viewport.is_selected("wing:aileron-1"))
+        self.assertFalse(self.viewport.is_selected("fuselage"))
+
+        self.viewport.set_selected("aileron-1")
+        self.assertTrue(self.viewport.is_selected("wing:aileron-1"))
+        self.assertTrue(self.viewport.is_selected("wing:mirror:aileron-1"))
+        self.assertFalse(self.viewport.is_selected("wing"))
+        self.assertFalse(self.viewport.is_selected("wing:tip-cap"))
 
     def test_camera_controls(self) -> None:
         # fit_view

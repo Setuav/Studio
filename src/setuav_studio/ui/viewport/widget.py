@@ -46,6 +46,7 @@ from .mesh import (
     hit_test_scene,
 )
 from .primitives import Point3D, VisualPrimitive
+from .scene_object import is_scene_object_matching
 from .types import GeometryData
 
 logger = logging.getLogger(__name__)
@@ -417,10 +418,6 @@ class OpenGLViewer(QOpenGLWidget):
             self._grid_vao.bind()
             self._functions.glDrawArrays(_GL_LINES, 0, self._grid_count)
             self._grid_vao.release()
-        if self._highlight_count > 0:
-            self._highlight_vao.bind()
-            self._functions.glDrawArrays(_GL_LINES, 0, self._highlight_count)
-            self._highlight_vao.release()
         if self._section_ring_count > 0:
             self._section_ring_vao.bind()
             self._functions.glDrawArrays(_GL_LINES, 0, self._section_ring_count)
@@ -462,6 +459,11 @@ class OpenGLViewer(QOpenGLWidget):
             self._wire_vao.release()
             self._functions.glUniform1f(alpha_location, 1.0)
             self._functions.glDisable(_GL_BLEND)
+        if self._highlight_count > 0:
+            self._functions.glUniform1f(alpha_location, 1.0)
+            self._highlight_vao.bind()
+            self._functions.glDrawArrays(_GL_LINES, 0, self._highlight_count)
+            self._highlight_vao.release()
         self._wire_program.release()
 
     def _draw_axis_gizmo(self) -> None:
@@ -505,6 +507,10 @@ class OpenGLViewer(QOpenGLWidget):
             return
         self._selected_component_id = component_id
         self._update_gpu_meshes()
+
+    def is_selected(self, object_id: str) -> bool:
+        """Return True if the object matches the active selected component in core."""
+        return is_scene_object_matching(object_id, self._selected_component_id)
 
     def set_selected_envelope(self, component_id: str | None) -> None:
         if self._selected_envelope_component_id == component_id:
@@ -827,14 +833,17 @@ class OpenGLViewer(QOpenGLWidget):
             wire_mode=self._wire_mode,
         )
         if self._selected_component_id and self._scene_objects:
-            selected_obj = self._scene_objects.get(self._selected_component_id)
-            if selected_obj is not None:
-                highlight_values.extend(
-                    build_primitive_highlight_vertices(
-                        getattr(selected_obj, "primitives", ()),
-                        _color_rgb(chart_color("orange")),
+            sel_color = _color_rgb(chart_color("orange"))
+            for obj_id, obj in self._scene_objects.items():
+                if is_scene_object_matching(obj_id, self._selected_component_id):
+                    highlight_values.extend(
+                        build_primitive_highlight_vertices(
+                            getattr(obj, "primitives", ()),
+                            sel_color,
+                            wire_mode=self._wire_mode,
+                            object_id=obj_id,
+                        )
                     )
-                )
 
         hovered = (
             self._hovered_component_id
@@ -850,14 +859,17 @@ class OpenGLViewer(QOpenGLWidget):
             )
         )
         if hovered and self._scene_objects:
-            hovered_obj = self._scene_objects.get(hovered)
-            if hovered_obj is not None:
-                highlight_values.extend(
-                    build_primitive_highlight_vertices(
-                        getattr(hovered_obj, "primitives", ()),
-                        _color_rgb(tok["text"]),
+            hov_color = _color_rgb(tok["text"])
+            for obj_id, obj in self._scene_objects.items():
+                if is_scene_object_matching(obj_id, hovered):
+                    highlight_values.extend(
+                        build_primitive_highlight_vertices(
+                            getattr(obj, "primitives", ()),
+                            hov_color,
+                            wire_mode=self._wire_mode,
+                            object_id=obj_id,
+                        )
                     )
-                )
         return highlight_values
 
     def _upload_meshes(self) -> None:
@@ -918,27 +930,73 @@ class OpenGLViewer(QOpenGLWidget):
         self._section_ring_count = self._allocate(self._section_ring_vbo, ring_values, 6)
         self._envelope_count = self._allocate(self._envelope_vbo, envelope_values, 6)
 
-        # Collect primitives from both GeometryData and dynamic overlay layers / scene objects
-        all_primitives = list(getattr(self._geometry_data, "primitives", ()))
+        # Collect and build primitive meshes from SceneObjects and overlay layers
+        has_selection = bool(self._selected_component_id)
+
+        primitive_solid_values: list[float] = []
+        primitive_wire_values: list[float] = []
+        scene_primitives: list[VisualPrimitive] = []
+
         if self._scene_objects:
-            for obj in self._scene_objects.values():
-                all_primitives.extend(getattr(obj, "primitives", ()))
+            for obj_id, obj in self._scene_objects.items():
+                if not getattr(obj, "visible", True):
+                    continue
+                prims = getattr(obj, "primitives", ())
+                if not prims:
+                    continue
+                scene_primitives.extend(prims)
+
+                is_sel = has_selection and is_scene_object_matching(
+                    obj_id, self._selected_component_id
+                )
+                is_hov = bool(self._hovered_component_id) and is_scene_object_matching(
+                    obj_id, self._hovered_component_id
+                )
+                primitive_solid_values.extend(
+                    build_primitive_solid_vertices(
+                        prims,
+                        face_style=self._face_style,
+                    )
+                )
+
+                # Skip wireframe for selected or hovered objects; their wireframe is rendered by _highlight_vbo
+                if is_sel or is_hov:
+                    continue
+
+                primitive_wire_values.extend(
+                    build_primitive_wire_vertices(
+                        prims,
+                        face_style=self._face_style,
+                        wire_mode=self._wire_mode,
+                        object_id=obj_id,
+                    )
+                )
+
+        # Overlay layers / GeometryData primitives
+        overlay_prims = list(getattr(self._geometry_data, "primitives", ()))
         for layer_id, layer_prims in self._overlay_layers.items():
             if layer_id == "_viewport_api" and self._scene_objects:
                 continue
-            all_primitives.extend(layer_prims)
+            overlay_prims.extend(layer_prims)
 
-        primitive_solid_values = build_primitive_solid_vertices(
-            all_primitives,
-            face_style=self._face_style,
-        )
-        primitive_wire_values = build_primitive_wire_vertices(
-            all_primitives,
-            face_style=self._face_style,
-            wire_mode=self._wire_mode,
-        )
+        if overlay_prims:
+            primitive_solid_values.extend(
+                build_primitive_solid_vertices(
+                    overlay_prims,
+                    face_style=self._face_style,
+                )
+            )
+            primitive_wire_values.extend(
+                build_primitive_wire_vertices(
+                    overlay_prims,
+                    face_style=self._face_style,
+                    wire_mode=self._wire_mode,
+                )
+            )
+
+        all_prims_for_annotation = scene_primitives + overlay_prims
         primitive_annotation_values = build_primitive_annotation_vertices(
-            all_primitives,
+            all_prims_for_annotation,
             face_style=self._face_style,
         )
 

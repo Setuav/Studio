@@ -37,7 +37,7 @@ from .primitives import (
     TrianglesPrimitive,
     VisualPrimitive,
 )
-from .scene_object import SceneObject
+from .scene_object import SceneObject, is_scene_object_matching
 from .widget import OpenGLViewer
 
 logger = logging.getLogger(__name__)
@@ -374,6 +374,10 @@ class StudioViewport(QWidget):
     def selected_object_id(self) -> str | None:
         """Return the currently selected object ID, or None."""
         return self._selected_object_id
+
+    def is_selected(self, object_id: str) -> bool:
+        """Return True if the given object_id matches the active viewport selection in core."""
+        return is_scene_object_matching(object_id, self._selected_object_id)
 
     def set_selected_section(
         self,
@@ -945,26 +949,42 @@ class StudioViewport(QWidget):
                 self._api.set_selection(component)
                 return
 
-        # 2. Match control surface sub-tag or child component (e.g. "main-wing:control_1")
-        parts = object_id.split(":")
-        sub_tag = parts[-1]
+        parts = [p.strip() for p in object_id.split(":") if p.strip()]
+        if not parts:
+            return
         base_id = parts[0]
-        for component in raw_components:
-            cid = str(component.get("id") or "")
-            raw_params = component.get("parameters")
-            params = raw_params if isinstance(raw_params, dict) else {}
-            raw_geom = params.get("geometry")
-            geom = raw_geom if isinstance(raw_geom, dict) else {}
-            tag = str(geom.get("tag") or component.get("name") or cid)
-            if (
-                cid in (sub_tag, f"{base_id}-{sub_tag}", f"{base_id}_{sub_tag}")
-                or tag == sub_tag
-                or sub_tag.endswith(cid)
-            ):
-                self._api.set_selection(component)
-                return
 
-        # 3. Match base component if mirrored or sub-tagged (e.g. "main-wing:mirror" -> "main-wing")
+        # 2. Match control surface sub-tag or child component (e.g. "main-wing:control_1", "main-wing:mirror:aileron-1")
+        sub_candidates = [
+            p
+            for p in parts[1:]
+            if p.lower() not in ("mirror", "tip-cap", "stub", "root-stub", "stations", "winglet")
+        ]
+        if sub_candidates:
+            sub_tag = sub_candidates[-1]
+            for component in raw_components:
+                cid = str(component.get("id") or "")
+                raw_params = component.get("parameters")
+                params = raw_params if isinstance(raw_params, dict) else {}
+                raw_geom = params.get("geometry")
+                geom = raw_geom if isinstance(raw_geom, dict) else {}
+                tag = str(geom.get("tag") or component.get("name") or cid)
+                if (
+                    cid
+                    in (
+                        sub_tag,
+                        f"{base_id}-{sub_tag}",
+                        f"{base_id}_{sub_tag}",
+                        f"{base_id}:{sub_tag}",
+                    )
+                    or tag == sub_tag
+                    or sub_tag.endswith(cid)
+                    or cid.endswith(sub_tag)
+                ):
+                    self._api.set_selection(component)
+                    return
+
+        # 3. Match base component if mirrored or sub-tagged (e.g. "main-wing:mirror" -> "main-wing", "main-wing:tip-cap" -> "main-wing")
         for component in raw_components:
             if str(component.get("id") or "") == base_id:
                 self._api.set_selection(component)
