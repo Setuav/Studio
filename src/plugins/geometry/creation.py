@@ -94,6 +94,7 @@ class GeometryCreationController:
     """Create valid starter geometry and publish it through the Studio API."""
 
     toolbar_ids = (
+        "geometry.create-airframe",
         "geometry.create-fuselage",
         "geometry.create-lifting-surface",
         "geometry.create-control-surface",
@@ -106,15 +107,24 @@ class GeometryCreationController:
         return (
             ToolbarContribution(
                 id=self.toolbar_ids[0],
+                title="Add Airframe",
+                callback=self.add_airframe,
+                icon="component_structural_system",
+                enabled_when=self._can_add_airframe,
+                group="geometry-creation",
+                order=90,
+            ),
+            ToolbarContribution(
+                id=self.toolbar_ids[1],
                 title="Add Fuselage",
                 callback=self.add_fuselage,
                 icon="geometry_add_fuselage",
-                enabled_when=self._can_edit_project,
+                enabled_when=self._can_add_geometry,
                 group="geometry-creation",
                 order=100,
             ),
             ToolbarContribution(
-                id=self.toolbar_ids[1],
+                id=self.toolbar_ids[2],
                 title="Add Lifting Surface",
                 icon="geometry_add_lifting_surface",
                 menu_items=(
@@ -129,12 +139,12 @@ class GeometryCreationController:
                         "generic",
                     ),
                 ),
-                enabled_when=self._can_edit_project,
+                enabled_when=self._can_add_geometry,
                 group="geometry-creation",
                 order=110,
             ),
             ToolbarContribution(
-                id=self.toolbar_ids[2],
+                id=self.toolbar_ids[3],
                 title="Add Control Surface",
                 icon="geometry_add_control_surface",
                 menu_items=tuple(
@@ -144,6 +154,7 @@ class GeometryCreationController:
                             surface_type
                         ),
                         icon="geometry_add_control_surface",
+                        enabled_when=self._can_add_control_surface,
                     )
                     for surface_type, title in (
                         ("aileron", "Aileron"),
@@ -158,12 +169,76 @@ class GeometryCreationController:
             ),
         )
 
+    def _has_airframe_component(self) -> bool:
+        project = self._api.current_project
+        if project is None or not isinstance(getattr(project, "data", None), dict):
+            return False
+        components = project.data.get("components", [])
+        if not isinstance(components, list):
+            return False
+        return any(
+            isinstance(c, dict) and (c.get("id") == _AIRFRAME_ID or c.get("type") == _AIRFRAME_TYPE)
+            for c in components
+        )
+
+    def _can_add_airframe(self) -> bool:
+        return self._can_edit_project() and not self._has_airframe_component()
+
+    def _can_add_geometry(self) -> bool:
+        return self._can_edit_project() and self._has_airframe_component()
+
+    def add_airframe(self) -> None:
+        if not self._require_editable_project():
+            return
+        if self._has_airframe_component():
+            self._api.show_status(
+                "Airframe already exists in the project",
+                "warning",
+                3000,
+            )
+            return
+        project = self._api.current_project
+        if project is None:
+            return
+
+        airframe = create_default_airframe_component()
+
+        def change() -> None:
+            components = project.data.setdefault("components", [])
+            components.insert(0, airframe)
+
+            for comp in components:
+                if not isinstance(comp, dict) or comp is airframe:
+                    continue
+                comp_type = comp.get("type")
+                if comp_type in (_FUSELAGE_TYPE, _LIFTING_SURFACE_TYPE):
+                    parent = comp.get("parent")
+                    if (
+                        not parent
+                        or parent.startswith("airframe-structure")
+                        or parent.startswith("airframe-main")
+                    ):
+                        comp["parent"] = _AIRFRAME_ID
+
+        self._api.edit_project("Add Airframe", change)
+        created = self._find_component(_AIRFRAME_ID)
+        if created is not None:
+            self._api.set_selection(created)
+            self._api.show_status("Added Airframe", "success", 3000)
+
     def add_fuselage(self) -> None:
         if not self._require_editable_project():
             return
+        if not self._has_airframe_component():
+            self._api.show_status(
+                "Please add an Airframe before adding geometry",
+                "warning",
+                3000,
+            )
+            return
         project = self._api.current_project
-        if project is not None:
-            ensure_airframe_component(project)
+        if project is None:
+            return
         component_id, name = self._unique_identity("fuselage", "Fuselage")
         sections = [
             create_default_section(0.0, "circle"),
@@ -211,9 +286,16 @@ class GeometryCreationController:
     def add_lifting_surface(self, preset: str) -> None:
         if not self._require_editable_project():
             return
+        if not self._has_airframe_component():
+            self._api.show_status(
+                "Please add an Airframe before adding geometry",
+                "warning",
+                3000,
+            )
+            return
         project = self._api.current_project
-        if project is not None:
-            ensure_airframe_component(project)
+        if project is None:
+            return
         # (base_id, base_name, span, root_chord, tip_chord, mirrored, roll, airfoil, mass, thickness)
         presets: dict[str, tuple[str, str, float, float, float, bool, float, str, float, float]] = {
             "main-wing": (
@@ -320,6 +402,13 @@ class GeometryCreationController:
     def add_control_surface(self, surface_type: str) -> None:
         if not self._require_editable_project():
             return
+        if not self._has_airframe_component():
+            self._api.show_status(
+                "Please add an Airframe before adding geometry",
+                "warning",
+                3000,
+            )
+            return
         parent = self._selected_lifting_surface()
         if parent is None:
             self._api.show_status(
@@ -402,6 +491,7 @@ class GeometryCreationController:
             title=title,
             callback=lambda preset=preset: self.add_lifting_surface(preset),
             icon="geometry_add_lifting_surface",
+            enabled_when=self._can_add_geometry,
         )
 
     def _can_edit_project(self) -> bool:
@@ -409,7 +499,7 @@ class GeometryCreationController:
         return project is not None and not project.read_only
 
     def _can_add_control_surface(self) -> bool:
-        return self._can_edit_project() and self._selected_lifting_surface() is not None
+        return self._can_add_geometry() and self._selected_lifting_surface() is not None
 
     def _require_editable_project(self) -> bool:
         project = self._api.current_project

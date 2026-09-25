@@ -22,8 +22,9 @@ class GeometryPluginLifecycleTests(unittest.TestCase):
         plugin.activate(api)
 
         # Check toolbar items registered (pending since no host bound yet)
-        self.assertEqual(len(api._pending_toolbar_items), 3)
+        self.assertEqual(len(api._pending_toolbar_items), 4)
         toolbar_ids = [item.id for item in api._pending_toolbar_items]
+        self.assertIn("geometry.create-airframe", toolbar_ids)
         self.assertIn("geometry.create-fuselage", toolbar_ids)
         self.assertIn("geometry.create-lifting-surface", toolbar_ids)
         self.assertIn("geometry.create-control-surface", toolbar_ids)
@@ -84,7 +85,7 @@ class GeometryPluginLifecycleTests(unittest.TestCase):
         manager.deactivate(plugin.id)
         self.assertFalse(manager.is_active(plugin.id))
 
-    def test_on_project_opened_syncs_airframe_via_edit_project(self) -> None:
+    def test_on_project_opened_does_not_insert_airframe_by_default(self) -> None:
         from pathlib import Path
 
         from setuav_studio.project import ProjectDocument
@@ -97,8 +98,8 @@ class GeometryPluginLifecycleTests(unittest.TestCase):
         api.current_project = doc
 
         plugin._on_project_opened()
-        # Verify airframe was inserted
-        self.assertTrue(any(c.get("id") == "airframe" for c in doc.data["components"]))
+        # Verify airframe was NOT automatically inserted
+        self.assertFalse(any(c.get("id") == "airframe" for c in doc.data["components"]))
 
         plugin.deactivate(api)
 

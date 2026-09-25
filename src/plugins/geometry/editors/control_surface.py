@@ -127,7 +127,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
             [
                 ("name", "Name"),
                 ("type", "Type"),
-                ("parent", "Parent Wing"),
+                ("parent", "Parent"),
             ]
         )
         self.general_table.cellChanged.connect(self._update_general)

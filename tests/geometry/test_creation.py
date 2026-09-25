@@ -18,6 +18,10 @@ class GeometryCreationTests(unittest.TestCase):
 
     def setUp(self) -> None:
         self.api = StudioAPI()
+        self.statuses: list[tuple[str, str, int]] = []
+        self.api._host.bind_status_handler(
+            lambda message, level, timeout: self.statuses.append((message, level, timeout))
+        )
         self.project = ProjectDocument(
             Path("geometry-creation.json"),
             "json",
@@ -25,6 +29,52 @@ class GeometryCreationTests(unittest.TestCase):
         )
         self.api._host.set_project(self.project)
         self.controller = GeometryCreationController(self.api)
+
+    def test_toolbar_contributions_dispatch_and_predicates(self) -> None:
+        contributions = self.controller.contributions()
+        self.assertEqual(len(contributions), 4)
+        airframe_act, fuse_act, wing_act, cs_act = contributions
+
+        self.assertEqual(
+            tuple(c.id for c in contributions),
+            GeometryCreationController.toolbar_ids,
+        )
+
+        # Before airframe:
+        self.assertTrue(airframe_act.enabled_when())
+        self.assertFalse(fuse_act.enabled_when())
+        self.assertFalse(wing_act.enabled_when())
+        self.assertFalse(cs_act.enabled_when())
+        for item in wing_act.menu_items:
+            self.assertFalse(item.enabled_when())
+
+        # Add airframe
+        self.controller.add_airframe()
+        self.assertFalse(airframe_act.enabled_when())
+        self.assertTrue(fuse_act.enabled_when())
+        self.assertTrue(wing_act.enabled_when())
+        for item in wing_act.menu_items:
+            self.assertTrue(item.enabled_when())
+        # Control surface still false until wing is selected
+        self.assertFalse(cs_act.enabled_when())
+
+    def test_cannot_add_geometry_without_airframe(self) -> None:
+        self.controller.add_fuselage()
+        self.assertEqual(len(self.project.data["components"]), 0)
+        self.assertIn("Please add an Airframe before adding geometry", self.statuses[-1][0])
+
+        self.controller.add_lifting_surface("main-wing")
+        self.assertEqual(len(self.project.data["components"]), 0)
+        self.assertIn("Please add an Airframe before adding geometry", self.statuses[-1][0])
+
+    def test_cannot_add_multiple_airframes(self) -> None:
+        self.controller.add_airframe()
+        self.assertEqual(len(self.project.data["components"]), 1)
+        self.assertEqual(self.project.data["components"][0]["id"], "airframe")
+
+        self.controller.add_airframe()
+        self.assertEqual(len(self.project.data["components"]), 1)
+        self.assertIn("Airframe already exists", self.statuses[-1][0])
 
     def test_airframe_root_component_ensured(self) -> None:
         from plugins.geometry.creation import ensure_airframe_component
@@ -38,6 +88,7 @@ class GeometryCreationTests(unittest.TestCase):
     def test_add_fuselage_allows_adding_sections_and_updates_table(self) -> None:
         from plugins.geometry.editors.fuselage import FuselageEditor
 
+        self.controller.add_airframe()
         self.controller.add_fuselage()
         fuse = next(
             c
@@ -55,6 +106,7 @@ class GeometryCreationTests(unittest.TestCase):
         self.assertEqual(editor.segments_table.item(0, 1).text(), "4")
 
     def test_add_fuselage_populates_mass_transform_envelope(self) -> None:
+        self.controller.add_airframe()
         self.controller.add_fuselage()
         fuse = next(
             c
@@ -67,6 +119,7 @@ class GeometryCreationTests(unittest.TestCase):
         self.assertEqual(fuse["parent"], "airframe")
 
     def test_add_lifting_surface_presets_populate_mass_transform_envelope(self) -> None:
+        self.controller.add_airframe()
         for preset in ("main-wing", "horizontal-tail", "vertical-tail", "generic"):
             self.controller.add_lifting_surface(preset)
 
@@ -83,6 +136,7 @@ class GeometryCreationTests(unittest.TestCase):
             self.assertEqual(comp["parent"], "airframe")
 
     def test_add_control_surface_populates_mass_transform_envelope(self) -> None:
+        self.controller.add_airframe()
         self.controller.add_lifting_surface("main-wing")
         wing = next(
             c
@@ -106,6 +160,7 @@ class GeometryCreationTests(unittest.TestCase):
     def test_editor_add_control_surface_populates_mass_transform_envelope(self) -> None:
         from plugins.geometry.editors.lifting_surface import LiftingSurfaceEditor
 
+        self.controller.add_airframe()
         self.controller.add_lifting_surface("main-wing")
         wing = next(
             c

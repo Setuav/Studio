@@ -11,7 +11,7 @@ from setuav_studio.api import (
 )
 from setuav_studio.ui.style.icons import register_plugin_icons
 
-from .creation import GeometryCreationController, ensure_airframe_component
+from .creation import GeometryCreationController
 from .editors.airframe import AirframeEditor
 from .editors.control_surface import ControlSurfaceEditor
 from .editors.fuselage import FuselageEditor
@@ -169,9 +169,8 @@ class GeometryPlugin:
             project = self._api.current_project
 
             def _sync() -> None:
-                ensure_airframe_component(project)
                 from .engine.envelope import sync_project_geometry_envelopes
 
                 sync_project_geometry_envelopes(project)
 
-            self._api.edit_project("Sync geometry airframe and envelopes", _sync)
+            self._api.edit_project("Sync geometry envelopes", _sync)
