@@ -7,17 +7,17 @@ from typing import Any
 
 from PySide6.QtCore import Qt
 
-from ..engine.wing_driver_solver import compute_all_8_parameters
-from ..engine.wing_planform_engine import (
+from ..engine.lifting_surface_driver_solver import compute_all_8_parameters
+from ..engine.lifting_surface_planform_engine import (
     SWEEP_LOCATIONS,
     TWIST_LOCATIONS,
     compute_planform_metrics,
-    set_wing_global_dihedral,
-    set_wing_global_sweep,
-    set_wing_global_twist,
-    solve_wing_planform,
+    set_global_dihedral,
+    set_global_sweep,
+    set_global_twist,
+    solve_planform,
 )
-from .wing_driver_table import DriverPlanformTable
+from .planform_driver_table import DriverPlanformTable
 
 
 class PlanformMixin:
@@ -280,9 +280,7 @@ class PlanformMixin:
             curv_val = float(
                 num_val if key == "sweep_curvature" else geom.get("sweep_curvature", 0.0)
             )
-            new_profiles = set_wing_global_sweep(
-                profiles, sweep_val, sw_loc, sweep_curvature=curv_val
-            )
+            new_profiles = set_global_sweep(profiles, sweep_val, sw_loc, sweep_curvature=curv_val)
 
             def change() -> None:
                 g = self._geometry()
@@ -290,14 +288,14 @@ class PlanformMixin:
                 g["sweep"] = sweep_val
                 g["sweep_curvature"] = curv_val
         elif key == "dihedral":
-            new_profiles = set_wing_global_dihedral(profiles, num_val)
+            new_profiles = set_global_dihedral(profiles, num_val)
 
             def change() -> None:
                 g = self._geometry()
                 g["profiles"] = deepcopy(new_profiles)
                 g["dihedral"] = num_val
         elif key == "twist":
-            new_profiles = set_wing_global_twist(profiles, num_val)
+            new_profiles = set_global_twist(profiles, num_val)
 
             def change() -> None:
                 g = self._geometry()
@@ -307,7 +305,7 @@ class PlanformMixin:
         else:
             return
 
-        self._edit_component(f"Change wing {key}", change)
+        self._edit_component(f"Change {key}", change)
         self._populate_sections()
         self._refresh_planform_table()
         if 0 <= getattr(self, "_section_index", -1) < len(self._get_sections()):
@@ -336,7 +334,7 @@ class PlanformMixin:
             "sweep": float(metrics.get("sweep", 0.0)),
         }
 
-        new_profiles, _ = solve_wing_planform(
+        new_profiles, _ = solve_planform(
             "span_root_tip",
             inputs,
             profiles,

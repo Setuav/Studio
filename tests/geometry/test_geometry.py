@@ -99,10 +99,10 @@ class GeometryTests(unittest.TestCase):
         from plugins.geometry.engine.palettes import (
             DEFAULT_PALETTE,
             active_palette,
+            lifting_surface_color,
             palette_names,
             segment_colors,
             set_active_palette,
-            wing_color,
         )
 
         self.assertEqual(len(palette_names()), 3)
@@ -111,8 +111,8 @@ class GeometryTests(unittest.TestCase):
                 set_active_palette(name)
                 self.assertEqual(active_palette(), name)
                 self.assertEqual(len(segment_colors()), 5)
-                self.assertEqual(len(wing_color()), 3)
-                for color in (*segment_colors(), wing_color()):
+                self.assertEqual(len(lifting_surface_color()), 3)
+                for color in (*segment_colors(), lifting_surface_color()):
                     self.assertTrue(all(0.0 <= channel <= 1.0 for channel in color))
         set_active_palette(DEFAULT_PALETTE)
         with self.assertRaises(ValueError):
@@ -340,10 +340,10 @@ class GeometryTests(unittest.TestCase):
         self.assertEqual(editor.sections_table.rowCount(), init_secs)
 
     def test_wing_planform_engine_modes(self) -> None:
-        from plugins.geometry.engine.wing_planform_engine import (
+        from plugins.geometry.engine.lifting_surface_planform_engine import (
             calc_tan_sweep_at,
             compute_planform_metrics,
-            solve_wing_planform,
+            solve_planform,
         )
 
         profiles = [
@@ -353,7 +353,7 @@ class GeometryTests(unittest.TestCase):
         ]
 
         # Mode: area_ar_taper with sweep
-        new_p, m = solve_wing_planform(
+        new_p, m = solve_planform(
             "area_ar_taper",
             {"area": 200000.0, "aspect_ratio": 8.0, "taper_ratio": 0.5, "sweep": 10.0},
             profiles,
@@ -364,7 +364,7 @@ class GeometryTests(unittest.TestCase):
         self.assertEqual(m["sweep"], 10.0)
 
         # Mode: span_root_tip with multi-station morphing (preserves intermediate relative chord)
-        new_p2, m2 = solve_wing_planform(
+        new_p2, m2 = solve_planform(
             "span_root_tip",
             {"span": 1400.0, "root_chord": 300.0, "tip_chord": 150.0, "sweep": 0.0},
             profiles,
@@ -385,7 +385,7 @@ class GeometryTests(unittest.TestCase):
             {"position": {"x": 0, "y": 0, "z": 0}, "chord": 300.0},
             {"position": {"x": 0, "y": 500, "z": 0}, "chord": 150.0},
         ]
-        _new_p_2s, m_2s = solve_wing_planform(
+        _new_p_2s, m_2s = solve_planform(
             "span_root_tip",
             {"span": 1400.0, "root_chord": 300.0, "tip_chord": 150.0, "sweep": 0.0},
             profiles_2s,
@@ -395,7 +395,7 @@ class GeometryTests(unittest.TestCase):
         self.assertEqual(m_2s["area"], 1400.0 * (300.0 + 150.0) / 2.0)
 
         # Mode with y_offset = 100.0 mm and symmetric = True
-        new_p3, m3 = solve_wing_planform(
+        new_p3, m3 = solve_planform(
             "span_root_tip",
             {"span": 1400.0, "root_chord": 300.0, "tip_chord": 150.0, "sweep": 0.0},
             profiles,
@@ -417,7 +417,7 @@ class GeometryTests(unittest.TestCase):
         self.assertAlmostEqual(sw_qc, 27.55, places=1)
 
     def test_wing_sections_engine_kinematics(self) -> None:
-        from plugins.geometry.engine.wing_sections_engine import (
+        from plugins.geometry.engine.lifting_surface_sections_engine import (
             delete_section,
             insert_section,
             profiles_to_sections,
@@ -1162,9 +1162,9 @@ class GeometryTests(unittest.TestCase):
 
     def test_wing_planform_washout_and_twist_location(self) -> None:
         """Verify planform engine distributes washout linearly and computes metrics correctly."""
-        from plugins.geometry.engine.wing_planform_engine import (
+        from plugins.geometry.engine.lifting_surface_planform_engine import (
             compute_planform_metrics,
-            solve_wing_planform,
+            solve_planform,
         )
 
         profiles = [
@@ -1191,7 +1191,7 @@ class GeometryTests(unittest.TestCase):
             "sweep": 5.0,
             "washout": -3.0,
         }
-        new_profiles, metrics = solve_wing_planform("span_root_tip", inputs, profiles)
+        new_profiles, metrics = solve_planform("span_root_tip", inputs, profiles)
         self.assertEqual(len(new_profiles), 3)
         self.assertAlmostEqual(metrics["washout"], -3.0, places=3)
         self.assertAlmostEqual(new_profiles[0]["rotation"]["y"], 0.0, places=3)
@@ -1347,8 +1347,8 @@ class GeometryTests(unittest.TestCase):
         self.assertIsNotNone(editor.tip_caps_table.cellWidget(m_row, 1))
 
     def test_winglet_geometry(self) -> None:
-        """Verify _build_winglet_loft generates correct curved/scimitar geometry."""
-        from plugins.geometry.engine.lifting_surface_geometry import _build_winglet_loft
+        """Verify build_winglet_loft generates correct curved/scimitar geometry."""
+        from plugins.geometry.engine.lifting_surface_tips import build_winglet_loft
 
         tip_profile = {
             "chord": 100.0,
@@ -1358,7 +1358,7 @@ class GeometryTests(unittest.TestCase):
         }
 
         # Basic vertical winglet (cant=90°)
-        loft = _build_winglet_loft(
+        loft = build_winglet_loft(
             comp_id="wing",
             tip_profile=tip_profile,
             span_dir=1.0,
@@ -1390,11 +1390,11 @@ class GeometryTests(unittest.TestCase):
         self.assertGreater(max(tip_zs), max(root_zs))
 
         # Zero winglet_height → None
-        none_loft = _build_winglet_loft(comp_id="wing", tip_profile=tip_profile, winglet_height=0.0)
+        none_loft = build_winglet_loft(comp_id="wing", tip_profile=tip_profile, winglet_height=0.0)
         self.assertIsNone(none_loft)
 
         # Curved scimitar winglet with independent LE/TE curves and thickness taper
-        scimitar_loft = _build_winglet_loft(
+        scimitar_loft = build_winglet_loft(
             comp_id="wing",
             tip_profile=tip_profile,
             winglet_height=140.0,

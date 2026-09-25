@@ -97,13 +97,13 @@ class ControlSurfaceModel(Component):
             semi_span=semi_span,
             root_chord=root_chord,
             tip_chord=tip_chord,
-            parent_wing_area=parent_area,
+            parent_surface_area=parent_area,
         )
         return float(metrics.get("area_dm2", 0.0))
 
     @property
     def area_ratio(self) -> float:
-        """Area percentage relative to parent wing."""
+        """Area percentage relative to parent lifting surface."""
         from ..engine.control_surface_geometry import (
             compute_control_surface_metrics,
         )
@@ -114,7 +114,7 @@ class ControlSurfaceModel(Component):
             semi_span=semi_span,
             root_chord=root_chord,
             tip_chord=tip_chord,
-            parent_wing_area=parent_area,
+            parent_surface_area=parent_area,
         )
         return float(metrics.get("area_ratio", 0.0))
 

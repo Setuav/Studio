@@ -26,7 +26,7 @@ _COLORS: dict[str, tuple[tuple[float, float, float], ...]] = {
     ),
 }
 
-_WING_COLORS: dict[str, tuple[float, float, float]] = {
+_LIFTING_SURFACE_COLORS: dict[str, tuple[float, float, float]] = {
     "studio": (0.88, 0.88, 0.90),  # pearl white / studio off-white
     "titanium": (0.86, 0.89, 0.93),  # composite aero white-grey
     "carbon": (0.82, 0.85, 0.88),  # matte aero grey
@@ -62,8 +62,8 @@ def segment_colors() -> tuple[tuple[float, float, float], ...]:
     return _COLORS[_active_palette]
 
 
-def wing_color() -> tuple[float, float, float]:
-    return _WING_COLORS[_active_palette]
+def lifting_surface_color() -> tuple[float, float, float]:
+    return _LIFTING_SURFACE_COLORS[_active_palette]
 
 
 def control_surface_color() -> tuple[float, float, float]:
@@ -74,8 +74,8 @@ __all__ = [
     "DEFAULT_PALETTE",
     "active_palette",
     "control_surface_color",
+    "lifting_surface_color",
     "palette_names",
     "segment_colors",
     "set_active_palette",
-    "wing_color",
 ]

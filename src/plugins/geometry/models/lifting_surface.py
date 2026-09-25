@@ -6,7 +6,7 @@ from typing import Any
 
 from setuav_studio.model import Component
 
-from ..engine.wing_planform_engine import compute_planform_metrics
+from ..engine.lifting_surface_planform_engine import compute_planform_metrics
 
 
 class LiftingSurfaceSectionModel:

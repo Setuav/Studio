@@ -38,18 +38,36 @@ from .fuselage_geometry import (
     get_default_profile,
     sample_profile,
 )
+from .lifting_surface_driver_solver import compute_all_8_parameters
 from .lifting_surface_geometry import (
     build_lifting_surface_geometry,
     compute_winglet_projected_dimensions,
+)
+from .lifting_surface_planform_engine import (
+    SWEEP_LOCATIONS,
+    TWIST_LOCATIONS,
+    calc_tan_sweep_at,
+    compute_planform_metrics,
+    set_global_dihedral,
+    set_global_sweep,
+    set_global_twist,
+    solve_planform,
+)
+from .lifting_surface_sections_engine import (
+    delete_section,
+    insert_section,
+    profiles_to_sections,
+    sections_to_profiles,
+    split_section,
 )
 from .palettes import (
     DEFAULT_PALETTE,
     active_palette,
     control_surface_color,
+    lifting_surface_color,
     palette_names,
     segment_colors,
     set_active_palette,
-    wing_color,
 )
 from .scene import GeometryProvider, build_project_geometry
 from .transforms import (
@@ -60,24 +78,6 @@ from .transforms import (
     section_transform,
     transform_matrix,
     transform_point,
-)
-from .wing_driver_solver import compute_all_8_parameters
-from .wing_planform_engine import (
-    SWEEP_LOCATIONS,
-    TWIST_LOCATIONS,
-    calc_tan_sweep_at,
-    compute_planform_metrics,
-    set_wing_global_dihedral,
-    set_wing_global_sweep,
-    set_wing_global_twist,
-    solve_wing_planform,
-)
-from .wing_sections_engine import (
-    delete_section,
-    insert_section,
-    profiles_to_sections,
-    sections_to_profiles,
-    split_section,
 )
 
 __all__ = [
@@ -121,6 +121,7 @@ __all__ = [
     "get_default_profile",
     "identity_matrix",
     "insert_section",
+    "lifting_surface_color",
     "multiply_matrix",
     "naca4",
     "naca5",
@@ -135,16 +136,15 @@ __all__ = [
     "sections_to_profiles",
     "segment_colors",
     "set_active_palette",
-    "set_wing_global_dihedral",
-    "set_wing_global_sweep",
-    "set_wing_global_twist",
+    "set_global_dihedral",
+    "set_global_sweep",
+    "set_global_twist",
     "solve_control_surface_from_area",
-    "solve_wing_planform",
+    "solve_planform",
     "split_section",
     "sync_component_envelope",
     "sync_project_geometry_envelopes",
     "sync_sizing_values",
     "transform_matrix",
     "transform_point",
-    "wing_color",
 ]

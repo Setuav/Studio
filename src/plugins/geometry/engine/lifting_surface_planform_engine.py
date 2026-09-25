@@ -64,7 +64,7 @@ def calc_tan_sweep_at(
     return math.degrees(math.atan(tan_target))
 
 
-def solve_wing_planform(
+def solve_planform(
     mode: str,
     inputs: dict[str, float],
     current_profiles: list[dict[str, Any]],
@@ -370,13 +370,13 @@ def compute_planform_metrics(
     }
 
 
-def set_wing_global_sweep(
+def set_global_sweep(
     profiles: list[dict[str, Any]],
     sweep_deg: float,
     sweep_loc: float = 0.25,
     sweep_curvature: float = 0.0,
 ) -> list[dict[str, Any]]:
-    """Set global wing sweep angle at sweep_loc with optional progressive spanwise curvature (scimitar curve)."""
+    """Set global lifting surface sweep angle at sweep_loc with optional progressive spanwise curvature (scimitar curve)."""
     if len(profiles) < 2:
         return profiles
 
@@ -401,11 +401,11 @@ def set_wing_global_sweep(
     return new_profs
 
 
-def set_wing_global_dihedral(
+def set_global_dihedral(
     profiles: list[dict[str, Any]],
     dihedral_deg: float,
 ) -> list[dict[str, Any]]:
-    """Set global wing dihedral angle, adjusting all profile Z positions."""
+    """Set global lifting surface dihedral angle, adjusting all profile Z positions."""
     if len(profiles) < 2:
         return profiles
 
@@ -423,11 +423,11 @@ def set_wing_global_dihedral(
     return new_profs
 
 
-def set_wing_global_twist(
+def set_global_twist(
     profiles: list[dict[str, Any]],
     washout_deg: float,
 ) -> list[dict[str, Any]]:
-    """Set global wing twist/washout linearly from root to tip."""
+    """Set global lifting surface twist/washout linearly from root to tip."""
     if len(profiles) < 2:
         return profiles
 

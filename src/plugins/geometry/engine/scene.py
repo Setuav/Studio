@@ -51,7 +51,7 @@ def build_project_geometry(
             providers,
             world_matrix,
         )
-    lofts.extend(_build_wing_root_stubs(items, providers, world_matrix))
+    lofts.extend(_build_lifting_surface_root_stubs(items, providers, world_matrix))
 
     envelopes: list[EnvelopeWireGeometry] = []
     for item_id, item in items.items():
@@ -289,7 +289,7 @@ def _merge(target: dict[str, Any], overrides: dict[str, Any]) -> None:
             target[key] = deepcopy(value)
 
 
-def _build_wing_root_stubs(
+def _build_lifting_surface_root_stubs(
     items: dict[str, Any],
     providers: dict[str, GeometryProvider],
     world_matrix_fn: Callable[[str], Matrix4],
@@ -307,7 +307,7 @@ def _build_wing_root_stubs(
         for item_id, item in items.items():
             if _frame_parent(item) != fuselage_id:
                 continue
-            wing = _wing_root_geometry(item, items, provider)
+            wing = _lifting_surface_root_geometry(item, items, provider)
             if wing is None:
                 continue
             source, root_section = wing
@@ -321,7 +321,7 @@ def _build_wing_root_stubs(
     return stubs
 
 
-def _wing_root_geometry(
+def _lifting_surface_root_geometry(
     item: dict[str, Any], items: dict[str, Any], provider: GeometryProvider
 ) -> tuple[dict[str, Any], Section] | None:
     source = _geometry_source(item, items)

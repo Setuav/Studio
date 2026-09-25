@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import unittest
 
-from plugins.geometry.engine.wing_driver_solver import (
+from plugins.geometry.engine.lifting_surface_driver_solver import (
     PLANFORM_PARAM_KEYS,
     compute_all_8_parameters,
     solve_8_parameter_driver,
 )
 
 
-class WingDriverSolverTests(unittest.TestCase):
+class LiftingSurfaceDriverSolverTests(unittest.TestCase):
     def assert_planform_matches(
         self,
         result: dict[str, float],

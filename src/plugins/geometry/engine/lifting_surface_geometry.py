@@ -9,32 +9,17 @@ from .airfoil import apply_airfoil_shaping, sample_airfoil_points
 from .data import LoftGeometry, Section
 from .lifting_surface_cuts import build_lifting_surface_with_control_surfaces
 from .lifting_surface_math import (
-    interp_branch_z,
     mapping,
     number,
-    rotate_section_around_axis,
     sample_structured_airfoil_round,
-    split_airfoil_upper_lower,
 )
 from .lifting_surface_tips import (
     build_tip_cap_loft,
     build_winglet_loft,
     compute_winglet_projected_dimensions,
 )
-from .palettes import wing_color
+from .palettes import lifting_surface_color
 from .transforms import Matrix4, section_transform, transform_point
-
-sample_airfoil = sample_airfoil_points
-
-# Compatibility aliases
-_split_airfoil_upper_lower = split_airfoil_upper_lower
-_interp_branch_z = interp_branch_z
-_sample_structured_airfoil_round = sample_structured_airfoil_round
-_rotate_section_around_axis = rotate_section_around_axis
-_build_tip_cap_loft = build_tip_cap_loft
-_build_winglet_loft = build_winglet_loft
-_mapping = mapping
-_number = number
 
 
 def build_lifting_surface_geometry(
@@ -93,7 +78,7 @@ def build_lifting_surface_geometry(
             LoftGeometry(
                 component_id=comp_id,
                 sections=sections,
-                color=wing_color(),
+                color=lifting_surface_color(),
                 interpolation=interpolation,
                 station_spacing=15.0,
                 closed_ends=True,
@@ -370,7 +355,7 @@ def _plain_lifting_surface(
         LoftGeometry(
             component_id=comp_id,
             sections=sections,
-            color=wing_color(),
+            color=lifting_surface_color(),
             interpolation=interpolation,
             station_spacing=15.0,
             closed_ends=True,
@@ -455,5 +440,4 @@ def _interpolate_station_props(
 __all__ = [
     "build_lifting_surface_geometry",
     "compute_winglet_projected_dimensions",
-    "sample_airfoil",
 ]

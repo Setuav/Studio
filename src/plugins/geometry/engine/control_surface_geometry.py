@@ -57,7 +57,7 @@ def compute_control_surface_metrics(
     semi_span: float,
     root_chord: float,
     tip_chord: float | None = None,
-    parent_wing_area: float | None = None,
+    parent_surface_area: float | None = None,
 ) -> dict[str, float]:
     """Compute all geometric metrics including area, area ratio, span length, and chords."""
     span_start, eta_start, span_end, eta_end = resolve_span_values(geometry, semi_span)
@@ -73,11 +73,11 @@ def compute_control_surface_metrics(
     area_mm2 = span_length * c_local_mid * chord_fraction
     area_dm2 = area_mm2 / 10000.0
 
-    if parent_wing_area and parent_wing_area > 0:
-        area_ratio = (area_dm2 / parent_wing_area) * 100.0
+    if parent_surface_area and parent_surface_area > 0:
+        area_ratio = (area_dm2 / parent_surface_area) * 100.0
     else:
-        semi_wing_area_dm2 = max((semi_span * (root_chord + tc) / 2.0) / 10000.0, 1e-4)
-        area_ratio = (area_dm2 / semi_wing_area_dm2) * 100.0
+        semi_surface_area_dm2 = max((semi_span * (root_chord + tc) / 2.0) / 10000.0, 1e-4)
+        area_ratio = (area_dm2 / semi_surface_area_dm2) * 100.0
 
     return {
         "span_start": span_start,
