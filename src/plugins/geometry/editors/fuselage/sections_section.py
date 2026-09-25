@@ -1,7 +1,10 @@
+"""Station sections management for the Fuselage Editor."""
+
+from __future__ import annotations
+
 import weakref
-from collections.abc import Callable
 from copy import deepcopy
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -9,137 +12,34 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QHBoxLayout,
     QHeaderView,
-    QLabel,
     QPushButton,
-    QScrollArea,
-    QSizePolicy,
     QTableWidget,
     QTableWidgetItem,
-    QToolButton,
-    QVBoxLayout,
-    QWidget,
 )
 
-from setuav_studio.api import StudioAPI
-from setuav_studio.ui.style.icons import set_label_icon
 from setuav_studio.ui.widget.button import set_native_button
-from setuav_studio.ui.widget.spinbox import (
-    NoWheelComboBox,
-    set_table_spinbox,
-)
-from setuav_studio.ui.widget.table import ExpressionPropertyCell, PropertyTableMixin
+from setuav_studio.ui.widget.spinbox import set_table_spinbox
+from setuav_studio.ui.widget.table import ExpressionPropertyCell
 
-from ..engine.fuselage_geometry import (
-    FUSELAGE_PROFILE_TYPES,
+from ...engine.fuselage_geometry import (
     create_default_section,
-    create_default_segment,
     get_default_profile,
 )
-from .fuselage_profile_editor import (
+from .profile_editor import (
     PROFILE_FIELDS,
     evaluate_expression_or_number,
     format_profile_size,
 )
-from .fuselage_section_dialog import FuselageSectionDialog
+from .section_dialog import FuselageSectionDialog
+
+if TYPE_CHECKING:
+    from .editor import FuselageEditor
 
 
-class FuselageEditor(PropertyTableMixin, QWidget):
-    table_combo_cls = NoWheelComboBox
-    table_scroll_policy_off = True
-    table_max_visible_rows = None
-    table_property_text_spinbox = True
+class SectionsSectionMixin:
+    """Manages fuselage cross-section stations, transforms, and profiles."""
 
-    PROFILE_TYPES = FUSELAGE_PROFILE_TYPES
-
-    def __init__(self, api: StudioAPI, component: dict[str, Any]) -> None:
-        super().__init__()
-        self._api = api
-        self._component = component
-        self._segment_index = -1
-        self._section_index = -1
-        self._loading = False
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-
-        content = QWidget()
-        self._content_layout = QVBoxLayout(content)
-        self._content_layout.setContentsMargins(6, 6, 6, 8)
-        self._content_layout.setSpacing(10)
-
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        scroll.setWidget(content)
-        layout.addWidget(scroll)
-
-        self._create_general_section()
-        self._create_segments_section()
-        self._create_sections_section()
-        self._content_layout.addStretch()
-
-        from setuav_studio.units import get_unit_manager
-
-        get_unit_manager().units_changed.connect(self._on_units_changed)
-
-        self._load_component()
-
-    def _on_units_changed(self) -> None:
-        if not hasattr(self, "sections_table"):
-            return
-        self._populate_sections()
-        if self._section_index >= 0:
-            self._load_section(self._section_index)
-
-    def _create_general_section(self) -> None:
-        layout = self._create_section("General", "fa6s.circle-info")
-        self.general_table = self._property_table([("name", "Name"), ("type", "Type")])
-        self.general_table.cellChanged.connect(self._update_general)
-        layout.addWidget(self.general_table)
-
-    def _create_segments_section(self) -> None:
-        layout = self._create_section("Segments", "fa6s.layer-group")
-
-        self.segments_table = self._table(["Tag", "Sections", "Method"])
-        self.segments_table.setEditTriggers(
-            QAbstractItemView.EditTrigger.DoubleClicked
-            | QAbstractItemView.EditTrigger.EditKeyPressed
-            | QAbstractItemView.EditTrigger.SelectedClicked
-        )
-        self.segments_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
-        self.segments_table.setColumnWidth(1, 58)
-        self.segments_table.currentCellChanged.connect(self._on_segment_selected)
-        self.segments_table.cellChanged.connect(self._update_segment_cell)
-        layout.addWidget(self.segments_table)
-
-        segment_actions = QHBoxLayout()
-        segment_actions.setContentsMargins(0, 2, 0, 2)
-        segment_actions.setSpacing(2)
-        self.add_segment_button = self._action_button("add", "Add segment", self._add_segment)
-        self.duplicate_segment_button = self._action_button(
-            "instance", "Duplicate segment", self._duplicate_segment
-        )
-        self.move_segment_up_button = self._action_button(
-            "fa6s.arrow-up", "Move segment up", self._move_segment_up
-        )
-        self.move_segment_down_button = self._action_button(
-            "fa6s.arrow-down", "Move segment down", self._move_segment_down
-        )
-        self.delete_segment_button = self._action_button(
-            "remove", "Delete segment", self._delete_segment
-        )
-        for button in (
-            self.add_segment_button,
-            self.duplicate_segment_button,
-            self.move_segment_up_button,
-            self.move_segment_down_button,
-            self.delete_segment_button,
-        ):
-            segment_actions.addWidget(button)
-        segment_actions.addStretch()
-        layout.addLayout(segment_actions)
-
-    def _create_sections_section(self) -> None:
+    def _create_sections_section(self: FuselageEditor) -> None:
         layout = self._create_section("Sections", "mdi6.vector-polygon")
 
         self.sections_table = self._table(["#", "Profile", "X", "Size"])
@@ -225,120 +125,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         self.vertices_table.setVisible(False)
         properties_layout.addWidget(self.vertices_table)
 
-    def _create_section(self, title: str, icon_name: str | None = None) -> QVBoxLayout:
-        section = QWidget()
-        section.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
-        layout = QVBoxLayout(section)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(3)
-
-        header = QWidget()
-        header.setProperty("sectionHeader", True)
-        header.setFixedHeight(20)
-        header_layout = QHBoxLayout(header)
-        header_layout.setContentsMargins(0, 0, 0, 0)
-        header_layout.setSpacing(5)
-
-        if icon_name:
-            icon_label = QLabel()
-            set_label_icon(icon_label, icon_name)
-            icon_label.setFixedSize(14, 14)
-            header_layout.addWidget(icon_label)
-
-        title_label = QLabel(title)
-        header_layout.addWidget(title_label)
-        header_layout.addStretch()
-
-        layout.addWidget(header)
-        self._content_layout.addWidget(section)
-        return layout
-
-    @staticmethod
-    def _action_button(
-        icon_name: str,
-        tooltip: str,
-        callback: Callable[[], None],
-    ) -> QToolButton:
-        button = QToolButton()
-        set_native_button(button, icon_name)
-        button.setToolTip(tooltip)
-        button.setFixedSize(24, 24)
-        button.setAutoRaise(True)
-        button.clicked.connect(callback)
-        return button
-
-    def _load_component(self) -> None:
-        self._loading = True
-        self._set_property_value(self.general_table, "name", str(self._component.get("name") or ""))
-        self._set_property_value(
-            self.general_table,
-            "type",
-            str(self._component.get("type") or ""),
-            editable=False,
-        )
-        self._populate_segments()
-        self._loading = False
-
-        if self._segments():
-            self.segments_table.selectRow(0)
-            self._load_segment(0)
-        else:
-            self._update_section_actions()
-        self._update_segment_actions()
-
-    def _populate_segments(self) -> None:
-        segments = self._segments()
-        self.segments_table.setRowCount(len(segments))
-        for row, segment in enumerate(segments):
-            loft = segment.get("loft") if isinstance(segment.get("loft"), dict) else {}
-            values = (
-                str(segment.get("tag") or ""),
-                str(len(segment.get("sections") or [])),
-                str(loft.get("method") or "smooth"),
-            )
-            for column, value in enumerate(values):
-                item = QTableWidgetItem(value)
-                if column != 0:
-                    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                self.segments_table.setItem(row, column, item)
-            self._set_table_combo(
-                self.segments_table,
-                row,
-                2,
-                values[2],
-                [("smooth", "Smooth"), ("ruled", "Ruled")],
-                lambda value, segment_index=row: self._update_segment_choice(
-                    segment_index, "method", value
-                ),
-            )
-        self._fit_table_height(self.segments_table, len(segments))
-
-    def _load_segment(self, index: int) -> None:
-        segments = self._segments()
-        if not 0 <= index < len(segments):
-            self._segment_index = -1
-            self.sections_table.setRowCount(0)
-            self._update_segment_actions()
-            self._update_section_actions()
-            self._publish_section_selection()
-            return
-
-        self._loading = True
-        self._segment_index = index
-        self._section_index = -1
-        self._populate_sections()
-        self._loading = False
-
-        sections = self._sections()
-        if sections:
-            self.sections_table.selectRow(0)
-            self._load_section(0)
-        else:
-            self._update_section_actions()
-            self._publish_section_selection()
-        self._update_segment_actions()
-
-    def _populate_sections(self) -> None:
+    def _populate_sections(self: FuselageEditor) -> None:
         from setuav_studio.units import get_unit_manager
 
         um = get_unit_manager()
@@ -369,7 +156,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
                 self.sections_table.setItem(row, column, QTableWidgetItem(value))
         self._fit_table_height(self.sections_table, len(sections))
 
-    def _load_section(self, index: int) -> None:
+    def _load_section(self: FuselageEditor, index: int) -> None:
         sections = self._sections()
         if not 0 <= index < len(sections):
             self._section_index = -1
@@ -391,120 +178,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         self._populate_vertices(profile)
         self._loading = False
 
-    def _on_segment_selected(self, row: int, _column: int, *_previous: int) -> None:
-        if self._loading:
-            return
-        if row >= 0:
-            self._load_segment(row)
-        else:
-            self._segment_index = -1
-            self._publish_section_selection()
-        self._update_segment_actions()
-
-    def _edit_component(self, description: str, change_fn: Callable[[], Any]) -> None:
-        def wrapped() -> None:
-            change_fn()
-            from ..engine.envelope import sync_component_envelope
-
-            sync_component_envelope(self._component)
-
-        if hasattr(self._api, "edit_component"):
-            self._api.edit_component(self._component, description, wrapped)
-        else:
-            wrapped()
-
-    def _add_segment(self) -> None:
-        segments = self._segments()
-        insert_at = (
-            self._segment_index + 1 if 0 <= self._segment_index < len(segments) else len(segments)
-        )
-        new_segment = self._new_segment(segments)
-        self._edit_component(
-            "Add fuselage segment",
-            lambda: segments.insert(insert_at, new_segment),
-        )
-        self._reload_segments(insert_at)
-
-    def _duplicate_segment(self) -> None:
-        segments = self._segments()
-        index = self._segment_index
-        if not 0 <= index < len(segments):
-            return
-        insert_at = index + 1
-        duplicate = deepcopy(segments[index])
-        source_tag = str(duplicate.get("tag") or "segment")
-        duplicate["tag"] = self._unique_segment_tag(
-            segments,
-            f"{source_tag}-copy",
-        )
-        self._edit_component(
-            "Duplicate fuselage segment",
-            lambda: segments.insert(insert_at, duplicate),
-        )
-        self._reload_segments(insert_at)
-
-    def _move_segment_up(self) -> None:
-        self._move_segment(-1)
-
-    def _move_segment_down(self) -> None:
-        self._move_segment(1)
-
-    def _move_segment(self, offset: int) -> None:
-        segments = self._segments()
-        source = self._segment_index
-        target = source + offset
-        if not 0 <= source < len(segments) or not 0 <= target < len(segments):
-            return
-
-        def change() -> None:
-            segments.insert(target, segments.pop(source))
-
-        self._edit_component(
-            "Move fuselage segment",
-            change,
-        )
-        self._reload_segments(target)
-
-    def _delete_segment(self) -> None:
-        segments = self._segments()
-        index = self._segment_index
-        if len(segments) <= 1 or not 0 <= index < len(segments):
-            return
-        self._edit_component(
-            "Delete fuselage segment",
-            lambda: segments.pop(index),
-        )
-        self._reload_segments(min(index, len(segments) - 1))
-
-    def _reload_segments(self, selected_index: int) -> None:
-        self._loading = True
-        self._populate_segments()
-        segments = self._segments()
-        if segments:
-            selected_index = min(max(selected_index, 0), len(segments) - 1)
-            self.segments_table.selectRow(selected_index)
-        else:
-            selected_index = -1
-        self._loading = False
-        if selected_index >= 0:
-            self._load_segment(selected_index)
-        else:
-            self._segment_index = -1
-            self.sections_table.setRowCount(0)
-            self._update_section_actions()
-        self._update_segment_actions()
-
-    def _update_segment_actions(self) -> None:
-        segments = self._segments()
-        index = self._segment_index
-        has_segment = 0 <= index < len(segments)
-        self.add_segment_button.setEnabled(True)
-        self.duplicate_segment_button.setEnabled(has_segment)
-        self.move_segment_up_button.setEnabled(has_segment and index > 0)
-        self.move_segment_down_button.setEnabled(has_segment and index < len(segments) - 1)
-        self.delete_segment_button.setEnabled(has_segment and len(segments) > 1)
-
-    def _on_section_selected(self, row: int, _column: int, *_previous: int) -> None:
+    def _on_section_selected(self: FuselageEditor, row: int, _column: int, *_previous: int) -> None:
         if self._loading:
             return
         if row >= 0:
@@ -514,7 +188,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         self._update_section_actions()
         self._publish_section_selection()
 
-    def _publish_section_selection(self) -> None:
+    def _publish_section_selection(self: FuselageEditor) -> None:
         component_id = self._component.get("id")
         if isinstance(component_id, str) and self._segment_index >= 0 and self._section_index >= 0:
             self._api.set_section_selection(
@@ -523,14 +197,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         else:
             self._api.set_section_selection(None)
 
-    def _update_segment_sections_cell(self) -> None:
-        if 0 <= self._segment_index < self.segments_table.rowCount():
-            sections = self._sections()
-            item = self.segments_table.item(self._segment_index, 1)
-            if item is not None:
-                item.setText(str(len(sections)))
-
-    def _add_section(self) -> None:
+    def _add_section(self: FuselageEditor) -> None:
         segment = self._current_segment()
         if segment is None:
             self._add_segment()
@@ -549,7 +216,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         self._reload_sections(insert_at)
         self._update_segment_sections_cell()
 
-    def _duplicate_section(self) -> None:
+    def _duplicate_section(self: FuselageEditor) -> None:
         sections = self._sections()
         index = self._section_index
         if not 0 <= index < len(sections):
@@ -563,13 +230,13 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         self._reload_sections(insert_at)
         self._update_segment_sections_cell()
 
-    def _move_section_up(self) -> None:
+    def _move_section_up(self: FuselageEditor) -> None:
         self._move_section(-1)
 
-    def _move_section_down(self) -> None:
+    def _move_section_down(self: FuselageEditor) -> None:
         self._move_section(1)
 
-    def _move_section(self, offset: int) -> None:
+    def _move_section(self: FuselageEditor, offset: int) -> None:
         sections = self._sections()
         source = self._section_index
         target = source + offset
@@ -585,7 +252,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         )
         self._reload_sections(target)
 
-    def _delete_section(self) -> None:
+    def _delete_section(self: FuselageEditor) -> None:
         sections = self._sections()
         index = self._section_index
         if len(sections) <= 2 or not 0 <= index < len(sections):
@@ -597,7 +264,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         self._reload_sections(min(index, len(sections) - 1))
         self._update_segment_sections_cell()
 
-    def _reload_sections(self, selected_index: int) -> None:
+    def _reload_sections(self: FuselageEditor, selected_index: int) -> None:
         self._loading = True
         self._populate_sections()
         sections = self._sections()
@@ -614,7 +281,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         self._update_section_actions()
         self._publish_section_selection()
 
-    def _update_section_actions(self) -> None:
+    def _update_section_actions(self: FuselageEditor) -> None:
         sections = self._sections()
         index = self._section_index
         has_segment = self._current_segment() is not None
@@ -627,10 +294,10 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         self.move_section_down_button.setEnabled(has_section and index < len(sections) - 1)
         self.delete_section_button.setEnabled(has_section and len(sections) > 2)
 
-    def _on_section_double_clicked(self, _index: Any = None) -> None:
+    def _on_section_double_clicked(self: FuselageEditor, _index: Any = None) -> None:
         self._inspect_section()
 
-    def _inspect_section(self) -> None:
+    def _inspect_section(self: FuselageEditor) -> None:
         if self._segment_index < 0 or self._section_index < 0:
             return
         segs = self._segments()
@@ -660,24 +327,6 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         return cls._default_section(x)
 
     @classmethod
-    def _new_segment(cls, segments: list[dict[str, Any]]) -> dict[str, Any]:
-        tag = cls._unique_segment_tag(segments, "segment")
-        return create_default_segment(tag=tag, x_start=0.0, x_end=100.0)
-
-    @staticmethod
-    def _unique_segment_tag(
-        segments: list[dict[str, Any]],
-        base: str,
-    ) -> str:
-        existing = {str(segment.get("tag") or "") for segment in segments}
-        if base not in existing:
-            return base
-        suffix = 2
-        while f"{base}-{suffix}" in existing:
-            suffix += 1
-        return f"{base}-{suffix}"
-
-    @classmethod
     def _default_section(cls, x: float) -> dict[str, Any]:
         section = create_default_section(x, "circle")
         section["rotation"] = {"x": 0.0, "y": 0.0, "z": 0.0}
@@ -705,36 +354,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
             return x_at(insert_at) - 100.0
         return 0.0
 
-    def _update_general(self, row: int, column: int) -> None:
-        if self._loading or column != 1:
-            return
-
-        key = self._property_key(self.general_table, row)
-        value = self._property_text(self.general_table, row)
-        if key != "name":
-            return
-
-        def change() -> None:
-            if key == "name":
-                self._component["name"] = value.strip()
-
-        self._edit_component("Edit fuselage properties", change)
-
-    def _update_segment_cell(self, row: int, column: int) -> None:
-        segments = self._segments()
-        if self._loading or column != 0 or not 0 <= row < len(segments):
-            return
-        item = self.segments_table.item(row, column)
-        if item is None:
-            return
-        segment = segments[row]
-        value = item.text().strip()
-        self._edit_component(
-            "Edit fuselage segment",
-            lambda: segment.__setitem__("tag", value),
-        )
-
-    def _change_profile_type(self, profile_type: str) -> None:
+    def _change_profile_type(self: FuselageEditor, profile_type: str) -> None:
         section = self._current_section()
         if self._loading or section is None:
             return
@@ -747,23 +367,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         self._populate_sections()
         self.sections_table.selectRow(self._section_index)
 
-    def _update_segment_choice(self, index: int, key: str, value: str) -> None:
-        segments = self._segments()
-        allowed = {
-            "method": {"smooth", "ruled"},
-        }
-        if self._loading or not 0 <= index < len(segments) or value not in allowed.get(key, set()):
-            return
-        segment = segments[index]
-
-        def change() -> None:
-            loft = self._object(segment, "loft")
-            loft[key] = value
-            loft["profile_correspondence"] = "cardinal_quadrants"
-
-        self._edit_component("Edit fuselage segment", change)
-
-    def _update_section(self, *_args: object) -> None:
+    def _update_section(self: FuselageEditor, *_args: object) -> None:
         section = self._current_section()
         if self._loading or section is None:
             return
@@ -787,7 +391,9 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         self._edit_component("Edit section transform", change)
         self._refresh_section_row()
 
-    def _on_transform_expression_changed(self, transform_type: str, axis: str, value: Any) -> None:
+    def _on_transform_expression_changed(
+        self: FuselageEditor, transform_type: str, axis: str, value: Any
+    ) -> None:
         if self._loading:
             return
         section = self._current_section()
@@ -795,8 +401,6 @@ class FuselageEditor(PropertyTableMixin, QWidget):
             return
         target = self._object(section, transform_type)
 
-        # Read the raw text from the cell widget to detect expressions,
-        # because the callback value is always the resolved numeric float.
         row = 0 if transform_type == "position" else 1
         col = ("x", "y", "z").index(axis)
         widget = self.transform_table.cellWidget(row, col)
@@ -805,7 +409,6 @@ class FuselageEditor(PropertyTableMixin, QWidget):
             raw_text = widget.text().strip()
 
         num_val, is_expr = evaluate_expression_or_number(raw_text, self._api)
-        # Fallback to callback value if raw_text couldn't resolve
         if num_val is None and isinstance(value, (int, float)):
             num_val = float(value)
 
@@ -820,7 +423,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         self._edit_component(f"Change fuselage section {transform_type} {axis}", change)
         self._refresh_section_row()
 
-    def _update_section_property(self, row: int, column: int) -> None:
+    def _update_section_property(self: FuselageEditor, row: int, column: int) -> None:
         section = self._current_section()
         if self._loading or section is None or column != 1:
             return
@@ -854,7 +457,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         )
         self._refresh_section_row()
 
-    def _update_section_choice(self, key: str, value: str) -> None:
+    def _update_section_choice(self: FuselageEditor, key: str, value: str) -> None:
         if self._loading:
             return
         if key == "type":
@@ -875,7 +478,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         self._refresh_section_row()
 
     def _set_transform_values(
-        self,
+        self: FuselageEditor,
         position: dict[str, Any] | tuple[float, float, float],
         rotation: dict[str, Any] | tuple[float, float, float],
     ) -> None:
@@ -941,7 +544,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
             )
 
     def _transform_values(
-        self,
+        self: FuselageEditor,
     ) -> tuple[tuple[float, float, float], tuple[float, float, float]] | None:
         rows: list[tuple[float, float, float]] = []
         for row in range(2):
@@ -962,7 +565,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
             return rows[0], rows[1]
         return None
 
-    def _update_vertices(self, row: int, column: int) -> None:
+    def _update_vertices(self: FuselageEditor, row: int, column: int) -> None:
         if self._loading:
             return
         section = self._current_section()
@@ -988,7 +591,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
                 lambda: vertices[row].__setitem__(key, value),
             )
 
-    def _populate_section_properties(self, profile: dict[str, Any]) -> None:
+    def _populate_section_properties(self: FuselageEditor, profile: dict[str, Any]) -> None:
         profile_type = str(profile.get("type") or "circle")
         definitions = [("type", "Profile"), *PROFILE_FIELDS.get(profile_type, [])]
         self._configure_property_table(self.section_properties_table, definitions)
@@ -1046,7 +649,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
                 lambda value: self._update_section_choice("orientation", value),
             )
 
-    def _on_property_expression_changed(self, key: str, value: Any) -> None:
+    def _on_property_expression_changed(self: FuselageEditor, key: str, value: Any) -> None:
         if self._loading:
             return
         section = self._current_section()
@@ -1076,7 +679,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         self._refresh_section_row()
         self.vertices_table.setVisible(profile.get("type") == "polygon")
 
-    def _on_property_spin_changed(self, key: str, value: float) -> None:
+    def _on_property_spin_changed(self: FuselageEditor, key: str, value: float) -> None:
         if self._loading:
             return
         section = self._current_section()
@@ -1089,7 +692,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         )
         self._refresh_section_row()
 
-    def _populate_vertices(self, profile: dict[str, Any]) -> None:
+    def _populate_vertices(self: FuselageEditor, profile: dict[str, Any]) -> None:
         is_polygon = profile.get("type") == "polygon"
         self.vertices_table.setVisible(is_polygon)
         if not is_polygon:
@@ -1148,7 +751,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
             )
         self._fit_table_height(self.vertices_table, len(vertices))
 
-    def _on_vertex_spin_changed(self, row: int, column: int, value: float) -> None:
+    def _on_vertex_spin_changed(self: FuselageEditor, row: int, column: int, value: float) -> None:
         if self._loading:
             return
         section = self._current_section()
@@ -1165,7 +768,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
                 lambda: vertices[row].__setitem__(key, float(value)),
             )
 
-    def _refresh_section_row(self) -> None:
+    def _refresh_section_row(self: FuselageEditor) -> None:
         section = self._current_section()
         if section is None:
             return
@@ -1199,56 +802,7 @@ class FuselageEditor(PropertyTableMixin, QWidget):
         if item3 is not None:
             item3.setText(self._profile_size(profile))
 
-    def _parameters(self) -> dict[str, Any]:
-        return self._object(self._component, "parameters")
-
-    def _segments(self) -> list[dict[str, Any]]:
-        parameters = self._parameters()
-        geometry = parameters.get("geometry")
-        if not isinstance(geometry, dict):
-            geometry = {}
-            parameters["geometry"] = geometry
-        segments = geometry.get("segments")
-        if not isinstance(segments, list) or not all(
-            isinstance(segment, dict) for segment in segments
-        ):
-            # Check for legacy top-level sections
-            legacy_sections = geometry.pop("sections", None)
-            loft = geometry.get("loft")
-            loft_dict = (
-                loft
-                if isinstance(loft, dict)
-                else {
-                    "method": "smooth",
-                    "profile_correspondence": "cardinal_quadrants",
-                }
-            )
-            if isinstance(legacy_sections, list) and legacy_sections:
-                segments = [
-                    {
-                        "tag": "main",
-                        "loft": loft_dict,
-                        "sections": legacy_sections,
-                    }
-                ]
-            else:
-                segments = [create_default_segment("main", 0.0, 500.0)]
-            geometry["segments"] = segments
-
-        # If top-level sections existed alongside empty segments, migrate them
-        legacy_sections = geometry.pop("sections", None)
-        if isinstance(legacy_sections, list) and legacy_sections and segments:
-            first_seg = segments[0]
-            if not first_seg.get("sections"):
-                first_seg["sections"] = legacy_sections
-
-        for seg in segments:
-            if not isinstance(seg.get("sections"), list):
-                seg["sections"] = []
-
-        return segments
-
-    def _sections(self) -> list[dict[str, Any]]:
+    def _sections(self: FuselageEditor) -> list[dict[str, Any]]:
         segment = self._current_segment()
         if segment is None:
             return []
@@ -1258,28 +812,11 @@ class FuselageEditor(PropertyTableMixin, QWidget):
             segment["sections"] = sections
         return sections
 
-    def _current_segment(self) -> dict[str, Any] | None:
-        segments = self._segments()
-        if 0 <= self._segment_index < len(segments):
-            return segments[self._segment_index]
-        if segments:
-            self._segment_index = 0
-            return segments[0]
-        return None
-
-    def _current_section(self) -> dict[str, Any] | None:
+    def _current_section(self: FuselageEditor) -> dict[str, Any] | None:
         sections = self._sections()
         if 0 <= self._section_index < len(sections):
             return sections[self._section_index]
         return None
-
-    @staticmethod
-    def _object(owner: dict[str, Any], key: str) -> dict[str, Any]:
-        value = owner.get(key)
-        if not isinstance(value, dict):
-            value = {}
-            owner[key] = value
-        return value
 
     @staticmethod
     def _profile_size(profile: dict[str, Any]) -> str:

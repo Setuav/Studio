@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 
 from setuav_studio.ui.style.theme import accent_color, tokens
 
-from ..engine.fuselage_geometry import compute_section_metrics, sample_profile
+from ...engine.fuselage_geometry import compute_section_metrics, sample_profile
 
 
 class FuselageCanvasWidget(QWidget):

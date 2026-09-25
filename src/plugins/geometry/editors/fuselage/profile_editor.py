@@ -7,7 +7,7 @@ from typing import Any
 
 from setuav_studio.api import StudioAPI
 
-from ..engine.fuselage_geometry import FUSELAGE_PROFILE_TYPES, get_default_profile
+from ...engine.fuselage_geometry import FUSELAGE_PROFILE_TYPES, get_default_profile
 
 PROFILE_FIELDS: dict[str, list[tuple[str, str]]] = {
     "circle": [("diameter", "Diameter")],

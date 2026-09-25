@@ -39,9 +39,9 @@ from setuav_studio.ui.widget.spinbox import (
 )
 from setuav_studio.ui.widget.table import ExpressionPropertyCell
 
-from ..settings import _EDITOR_AUTO_FIT_KEY, _EDITOR_GRID_KEY, _as_bool, editor_setting
-from .fuselage_canvas import FuselageCanvasWidget
-from .fuselage_commands import (
+from ...settings import _EDITOR_AUTO_FIT_KEY, _EDITOR_GRID_KEY, _as_bool, editor_setting
+from .canvas import FuselageCanvasWidget
+from .commands import (
     AddVertexCommand,
     ChangeProfileTypeCommand,
     ChangePropertyCommand,
@@ -711,7 +711,7 @@ class FuselageSectionDialog(QDialog):
             target = {}
             sec[transform_type] = target
 
-        from .fuselage_profile_editor import evaluate_expression_or_number
+        from .profile_editor import evaluate_expression_or_number
 
         # Read the raw text from the cell widget to detect expressions,
         # because the callback value is always the resolved numeric float.
@@ -848,7 +848,7 @@ class FuselageSectionDialog(QDialog):
         if not isinstance(prof, dict):
             return
 
-        from .fuselage_profile_editor import evaluate_expression_or_number
+        from .profile_editor import evaluate_expression_or_number
 
         val_str = str(value).strip() if value is not None else ""
         num_val, is_expr = evaluate_expression_or_number(val_str, self._api)
@@ -1139,7 +1139,7 @@ class FuselageSectionDialog(QDialog):
 
         def apply_change() -> None:
             self._component.update(after_data)
-            from ..engine.envelope import sync_component_envelope
+            from ...engine.envelope import sync_component_envelope
 
             sync_component_envelope(self._component)
 
@@ -1158,7 +1158,7 @@ class FuselageSectionDialog(QDialog):
 
         def ok_change() -> None:
             self._component.update(after_data)
-            from ..engine.envelope import sync_component_envelope
+            from ...engine.envelope import sync_component_envelope
 
             sync_component_envelope(self._component)
 
@@ -1177,7 +1177,7 @@ class FuselageSectionDialog(QDialog):
             def cancel_change() -> None:
                 self._component.clear()
                 self._component.update(orig)
-                from ..engine.envelope import sync_component_envelope
+                from ...engine.envelope import sync_component_envelope
 
                 sync_component_envelope(self._component)
 

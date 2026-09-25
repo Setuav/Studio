@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 from PySide6.QtGui import QUndoCommand
 
 if TYPE_CHECKING:
-    from .fuselage_section_dialog import FuselageSectionDialog
+    from .section_dialog import FuselageSectionDialog
 
 
 class MoveVertexCommand(QUndoCommand):

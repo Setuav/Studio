@@ -1432,7 +1432,7 @@ class GeometryTests(unittest.TestCase):
 
     def test_fuselage_section_dialog_and_metrics(self) -> None:
         """Verify 2D fuselage section metrics calculation and dialog functionality."""
-        from plugins.geometry.editors.fuselage_section_dialog import (
+        from plugins.geometry.editors.fuselage import (
             FuselageCanvasWidget,
             FuselageSectionDialog,
         )
