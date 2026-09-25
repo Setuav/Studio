@@ -30,7 +30,7 @@ def _resolve_pythrust_data_dir() -> Path | None:
     if env_dir and Path(env_dir).exists():
         return Path(env_dir)
 
-    settings_dir = QSettings().value(_PYTHRUST_SETTINGS_KEY, "", type=str)
+    settings_dir = str(QSettings().value(_PYTHRUST_SETTINGS_KEY, "", type=str) or "")
     if settings_dir and Path(settings_dir).exists():
         return Path(settings_dir)
 

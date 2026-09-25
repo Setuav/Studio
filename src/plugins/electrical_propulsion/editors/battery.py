@@ -12,8 +12,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from setuav_studio_sdk import StudioAPI
 
+from setuav_studio.api import StudioAPI
 from setuav_studio.ui.style.icons import set_label_icon
 from setuav_studio.ui.widget.table import PropertyTableMixin
 
@@ -532,3 +532,6 @@ class BatteryEditor(PropertyTableMixin, QWidget):
             total_m = (s * par * defaults["cell_mass"]) + pkg_m
             self._component["mass"] = total_m
             p["mass"] = total_m
+
+        self._api.edit_component(self._component, f"Set battery chemistry '{new_chem}'", apply_chem)
+        self._load_battery()

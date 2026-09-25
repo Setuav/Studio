@@ -1,7 +1,15 @@
-"""Electrical Propulsion plugin package for Setuav Studio."""
+"""Electrical Propulsion Plugin package."""
 
+from __future__ import annotations
+
+from . import editors, models
 from .plugin import ElectricalPropulsionPlugin
 
-PLUGIN = ElectricalPropulsionPlugin
+PLUGIN = ElectricalPropulsionPlugin()
 
-__all__ = ["PLUGIN", "ElectricalPropulsionPlugin"]
+__all__ = [
+    "PLUGIN",
+    "ElectricalPropulsionPlugin",
+    "editors",
+    "models",
+]

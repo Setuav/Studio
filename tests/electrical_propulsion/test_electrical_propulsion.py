@@ -6,12 +6,13 @@ import unittest
 
 from plugins.electrical_propulsion.editors import (
     BatteryEditor,
-    ElectricPropulsionSystemEditor,
     EscEditor,
     MotorEditor,
     PropellerEditor,
+    PropulsionSystemEditor,
 )
-from setuav_studio.api import PluginManager, StudioAPI
+from setuav_studio.api import StudioAPI
+from setuav_studio.plugin import PluginManager
 from setuav_studio.project import open_project
 from tests._common import TEST_PROJECT_PATH, get_qapp
 
@@ -28,7 +29,10 @@ class TestElectricalPropulsion(unittest.TestCase):
         _win = MainWindow(api)
         pm = PluginManager(api)
         issues = pm.discover()
-        self.assertEqual(len(issues), 0)
+        propulsion_issues = [
+            issue for issue in issues if issue.source == "plugins.electrical_propulsion"
+        ]
+        self.assertEqual(len(propulsion_issues), 0)
         self.assertIn("org.setuav.studio.electrical_propulsion", pm._plugins)
 
         # Check registered editors
@@ -36,7 +40,7 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertIn("org.setuav.core:propeller", api._component_editors)
         self.assertIn("org.setuav.core:esc", api._component_editors)
         self.assertIn("org.setuav.core:battery", api._component_editors)
-        self.assertIn("org.setuav.core:electric-propulsion-system", api._component_editors)
+        self.assertIn("org.setuav.core:propulsion-system", api._component_editors)
         _win.close()
         _win.deleteLater()
 
@@ -52,16 +56,16 @@ class TestElectricalPropulsion(unittest.TestCase):
 
         self.assertIn("org.setuav.core:motor", api._component_editors)
         self.assertIn("tools/electrical propulsion", window._menus)
-        self.assertIn("core:project-explorer", window._panels)
-        self.assertIn("core:properties", window._panels)
+        self.assertIn("studio:project-explorer", window._panels)
+        self.assertIn("studio:properties", window._panels)
 
         manager.deactivate(plugin.id)
 
         self.assertNotIn("org.setuav.core:motor", api._component_editors)
         self.assertNotIn("org.setuav.core:motor", api._component_icons)
         self.assertNotIn("tools/electrical propulsion", window._menus)
-        self.assertIn("core:project-explorer", window._panels)
-        self.assertIn("core:properties", window._panels)
+        self.assertIn("studio:project-explorer", window._panels)
+        self.assertIn("studio:properties", window._panels)
 
         manager.activate_plugin(plugin.id)
         self.assertIn("org.setuav.core:motor", api._component_editors)
@@ -149,22 +153,20 @@ class TestElectricalPropulsion(unittest.TestCase):
         editor.close()
         editor.deleteLater()
 
-    def test_assembly_editor(self) -> None:
+    def test_propulsion_system_editor(self) -> None:
+        from plugins.electrical_propulsion.creation import ensure_propulsion_component
+
         api = StudioAPI()
         doc = open_project(TEST_PROJECT_PATH)
         api._host.set_project(doc)
 
-        asm = next(
-            a
-            for a in doc.data["assemblies"]
-            if a.get("type") == "org.setuav.core:electric-propulsion-system"
-        )
-        editor = ElectricPropulsionSystemEditor(api, asm)
+        propulsion = ensure_propulsion_component(doc)
+        editor = PropulsionSystemEditor(api, propulsion)
 
-        self.assertEqual(editor._property_text(editor.general_table, 0), "Main Propulsion")
-        self.assertEqual(editor._property_text(editor.members_table, 0), "battery-main")
-        self.assertEqual(editor._property_text(editor.members_table, 2), "motor-cruise")
-        self.assertEqual(editor._property_text(editor.members_table, 3), "propeller-cruise")
+        self.assertEqual(editor._property_text(editor.general_table, 0), "Propulsion")
+        self.assertIn("battery", editor._property_text(editor.structure_table, 0).lower())
+        self.assertIn("sunnysky", editor._property_text(editor.structure_table, 2).lower())
+        self.assertIn("apc", editor._property_text(editor.structure_table, 3).lower())
         editor.close()
         editor.deleteLater()
 

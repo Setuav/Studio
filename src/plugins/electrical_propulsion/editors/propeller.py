@@ -5,9 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from PySide6.QtWidgets import QDialog, QPushButton, QWidget
-from setuav_studio_sdk import ParameterField, StudioAPI
 
 from plugins.electrical_propulsion.catalog_dialog import ComponentCatalogDialog
+from plugins.electrical_propulsion.models.propeller import PropellerModel
+from setuav_studio.api import StudioAPI
 from setuav_studio.ui.editor.component import BaseComponentEditor
 from setuav_studio.ui.widget.button import set_native_button
 
@@ -15,60 +16,7 @@ from setuav_studio.ui.widget.button import set_native_button
 class PropellerEditor(BaseComponentEditor):
     """Property editor for propellers and rotors (org.setuav.core:propeller / rotor)."""
 
-    FIELDS = (
-        ParameterField(
-            key="diameter",
-            label="Diameter",
-            unit="mm",
-            field_type=float,
-            default=330.0,
-            min_value=10.0,
-            max_value=3000.0,
-            decimals=1,
-            tooltip="Propeller overall tip-to-tip diameter in millimeters.",
-        ),
-        ParameterField(
-            key="pitch",
-            label="Pitch",
-            unit="mm",
-            field_type=float,
-            default=165.0,
-            min_value=5.0,
-            max_value=2000.0,
-            decimals=1,
-            tooltip="Geometric pitch advance per revolution in millimeters.",
-        ),
-        ParameterField(
-            key="blade_count",
-            label="Blade Count",
-            unit="",
-            field_type=int,
-            default=2,
-            min_value=1,
-            max_value=8,
-            tooltip="Number of propeller blades.",
-        ),
-        ParameterField(
-            key="hub_diameter",
-            label="Hub Diameter",
-            unit="mm",
-            field_type=float,
-            default=25.0,
-            min_value=0.0,
-            max_value=300.0,
-            decimals=1,
-            tooltip="Propeller central hub diameter.",
-        ),
-        ParameterField(
-            key="rotation_direction",
-            label="Rotation Direction",
-            unit="",
-            field_type=str,
-            default="ccw",
-            options=["ccw", "cw"],
-            tooltip="Direction of rotation viewed from front/top (CCW or CW).",
-        ),
-    )
+    FIELDS = PropellerModel.get_scalar_fields()
 
     def __init__(
         self, api: StudioAPI, component: dict[str, Any], parent: QWidget | None = None
@@ -92,6 +40,21 @@ class PropellerEditor(BaseComponentEditor):
         )
         self.general_table.cellChanged.connect(self._update_general)
         layout.addWidget(self.general_table)
+
+    def _load_component(self) -> None:
+        super()._load_component()
+        self._set_property_value(
+            self.general_table,
+            "manufacturer",
+            str(self._component.get("manufacturer") or ""),
+            editable=False,
+        )
+        self._set_property_value(
+            self.general_table,
+            "model",
+            str(self._component.get("model") or ""),
+            editable=False,
+        )
 
     def _open_catalog(self) -> None:
         dialog = ComponentCatalogDialog(component_type="propeller", parent=self.window())

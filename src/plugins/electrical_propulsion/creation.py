@@ -1,20 +1,18 @@
-"""Toolbar commands for creating electrical propulsion systems and members."""
+"""Toolbar commands for creating electrical propulsion components and root system."""
 
 from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtWidgets import QApplication, QInputDialog
-from setuav_studio_sdk import (
+from setuav_studio.api import (
     StudioAPI,
     ToolbarContribution,
     ToolbarMenuItemContribution,
 )
 
-_ASSEMBLY_TYPE = "org.setuav.core:electric-propulsion-system"
-_DESIGN_WORKSPACE = "studio.workspace.design"
-_PROPULSION_WORKSPACE = "studio.workspace.propulsion"
-_WORKSPACES = (_PROPULSION_WORKSPACE, _DESIGN_WORKSPACE)
+_PROPULSION_TYPE = "org.setuav.core:propulsion-system"
+_PROPULSION_ID = "propulsion"
+_PROPULSION_NAME = "Propulsion"
 
 _COMPONENT_SPECS: dict[str, tuple[str, str, str]] = {
     "battery": ("org.setuav.core:battery", "Battery", "component"),
@@ -29,11 +27,71 @@ _COMPONENT_SPECS: dict[str, tuple[str, str, str]] = {
 }
 
 
+def create_default_propulsion_component() -> dict[str, Any]:
+    return {
+        "kind": "component",
+        "id": _PROPULSION_ID,
+        "name": _PROPULSION_NAME,
+        "type": _PROPULSION_TYPE,
+        "parent": None,
+        "parameters": {},
+        "has_transform": False,
+        "has_mass": False,
+    }
+
+
+def ensure_propulsion_component(project: Any) -> dict[str, Any]:
+    """Ensure the fixed Propulsion root component exists in the project and reparent top-level propulsion components."""
+    data = getattr(project, "data", project) if project is not None else {}
+    components = data.setdefault("components", [])
+    if not isinstance(components, list):
+        components = []
+        data["components"] = components
+
+    propulsion: dict[str, Any] | None = None
+    for comp in components:
+        if isinstance(comp, dict) and (
+            comp.get("id") == _PROPULSION_ID or comp.get("type") == _PROPULSION_TYPE
+        ):
+            propulsion = comp
+            break
+
+    if propulsion is None:
+        propulsion = create_default_propulsion_component()
+        insert_idx = 1 if (components and components[0].get("id") == "airframe") else 0
+        components.insert(insert_idx, propulsion)
+    else:
+        propulsion.setdefault("kind", "component")
+        propulsion["id"] = _PROPULSION_ID
+        propulsion["type"] = _PROPULSION_TYPE
+        propulsion["parent"] = None
+        propulsion["has_transform"] = False
+        propulsion["has_mass"] = False
+
+    # Reparent unparented propulsion components to root propulsion
+    propulsion_types = {
+        "org.setuav.core:battery",
+        "org.setuav.core:esc",
+        "org.setuav.core:motor",
+        "org.setuav.core:propeller",
+        "org.setuav.core:rotor",
+    }
+    for comp in components:
+        if (
+            isinstance(comp, dict)
+            and comp.get("type") in propulsion_types
+            and not comp.get("parent")
+        ):
+            comp["parent"] = _PROPULSION_ID
+
+    return propulsion
+
+
 class PropulsionCreationController:
-    """Create valid propulsion assemblies and add members to existing ones."""
+    """Create electrical propulsion system and components."""
 
     toolbar_ids = (
-        "propulsion.create-assembly",
+        "propulsion.add-system",
         "propulsion.add-component",
     )
 
@@ -44,17 +102,16 @@ class PropulsionCreationController:
         return (
             ToolbarContribution(
                 id=self.toolbar_ids[0],
-                title="New Propulsion Assembly",
-                callback=self.add_assembly,
+                title="Add Electrical Propulsion",
                 icon="component_propulsion_system",
-                enabled_when=self._can_edit_project,
+                callback=self.add_propulsion_system,
+                enabled_when=self._can_add_propulsion_system,
                 group="propulsion-creation",
                 order=100,
-                workspace_id=_WORKSPACES,
             ),
             ToolbarContribution(
                 id=self.toolbar_ids[1],
-                title="Add Component to Propulsion Assembly",
+                title="Add Propulsion Component",
                 icon="add",
                 menu_items=tuple(
                     ToolbarMenuItemContribution(
@@ -71,159 +128,170 @@ class PropulsionCreationController:
                         icon,
                     ) in _COMPONENT_SPECS.items()
                 ),
-                enabled_when=self._can_edit_project,
+                enabled_when=self._can_add_component,
                 group="propulsion-creation",
                 order=110,
-                workspace_id=_WORKSPACES,
             ),
         )
 
-    def add_assembly(self) -> None:
+    def _has_propulsion_component(self) -> bool:
+        project = self._api.current_project
+        if project is None or not isinstance(getattr(project, "data", None), dict):
+            return False
+        components = project.data.get("components", [])
+        if not isinstance(components, list):
+            return False
+        return any(
+            isinstance(c, dict)
+            and (c.get("id") == _PROPULSION_ID or c.get("type") == _PROPULSION_TYPE)
+            for c in components
+        )
+
+    def _can_add_propulsion_system(self) -> bool:
+        return self._can_edit_project() and not self._has_propulsion_component()
+
+    def _can_add_component(self) -> bool:
+        return self._can_edit_project() and self._has_propulsion_component()
+
+    def add_propulsion_system(self) -> None:
         if not self._require_editable_project():
+            return
+        if self._has_propulsion_component():
+            self._api.show_status(
+                "Electrical Propulsion already exists in the project",
+                "warning",
+                3000,
+            )
             return
         project = self._api.current_project
         if project is None:
             return
 
-        assembly_id, assembly_name = self._unique_identity(
-            "propulsion-system",
-            "Propulsion System",
-            include_assemblies=True,
-        )
-        battery_id, battery_name = self._unique_identity(
-            f"{assembly_id}-battery",
-            "Battery",
-        )
-        esc_id, esc_name = self._unique_identity(
-            f"{assembly_id}-esc",
-            "ESC",
-        )
-        motor_id, motor_name = self._unique_identity(
-            f"{assembly_id}-motor",
-            "Motor",
-        )
-        propeller_id, propeller_name = self._unique_identity(
-            f"{assembly_id}-propeller",
-            "Propeller",
-        )
-        battery = self._new_component("battery", battery_id, battery_name)
-        esc = self._new_component("esc", esc_id, esc_name)
-        motor = self._new_component("motor", motor_id, motor_name)
-        propeller = self._new_component(
-            "propeller",
-            propeller_id,
-            propeller_name,
-            attach_to=str(motor["id"]),
-        )
-        new_components = [battery, esc, motor, propeller]
-        assembly = {
-            "id": assembly_id,
-            "name": assembly_name,
-            "type": _ASSEMBLY_TYPE,
-            "members": {
-                "battery": battery["id"],
-                "controllers": [esc["id"]],
-                "motors": [motor["id"]],
-                "propulsors": [propeller["id"]],
-            },
-        }
+        propulsion = create_default_propulsion_component()
 
         def change() -> None:
-            components = project.data.get("components")
-            assemblies = project.data.get("assemblies")
-            if assemblies is None:
-                assemblies = []
-                project.data["assemblies"] = assemblies
-            if not isinstance(components, list) or not isinstance(assemblies, list):
-                return
-            components.extend(new_components)
-            assemblies.append(assembly)
+            components = project.data.setdefault("components", [])
+            insert_idx = 1 if (components and components[0].get("id") == "airframe") else 0
+            components.insert(insert_idx, propulsion)
 
-        self._api.edit_project(f"Add {assembly_name}", change)
-        created = self._find_assembly(assembly_id)
+            # Reparent any unparented propulsion components
+            propulsion_types = {
+                "org.setuav.core:battery",
+                "org.setuav.core:esc",
+                "org.setuav.core:motor",
+                "org.setuav.core:propeller",
+                "org.setuav.core:rotor",
+            }
+            for comp in components:
+                if (
+                    isinstance(comp, dict)
+                    and comp.get("type") in propulsion_types
+                    and not comp.get("parent")
+                ):
+                    comp["parent"] = _PROPULSION_ID
+
+        self._api.edit_project("Add Electrical Propulsion", change)
+        created = self._find_component(_PROPULSION_ID)
         if created is not None:
             self._api.set_selection(created)
-            self._api.show_status(f"Created {assembly_name}", "success", 3000)
+            self._api.show_status("Added Electrical Propulsion", "success", 3000)
 
     def add_component(self, component_kind: str) -> None:
         if component_kind not in _COMPONENT_SPECS:
             return
         if not self._require_editable_project():
             return
-        assembly = self._choose_target_assembly()
-        if assembly is None:
+        if not self._has_propulsion_component():
+            self._api.show_status(
+                "Please add Electrical Propulsion before adding components",
+                "warning",
+                3000,
+            )
             return
-
         project = self._api.current_project
         if project is None:
             return
-        assembly_id = str(assembly.get("id") or "")
+
+        selected_motor = None
+        selected_propeller = None
+
+        if component_kind == "motor":
+            from PySide6.QtWidgets import QDialog
+
+            from plugins.electrical_propulsion.catalog_dialog import ComponentCatalogDialog
+
+            dialog = ComponentCatalogDialog(component_type="motor")
+            if dialog.exec() != QDialog.DialogCode.Accepted or not dialog.selected_motor:
+                return
+            selected_motor = dialog.selected_motor
+        elif component_kind in {"propeller", "rotor"}:
+            from PySide6.QtWidgets import QDialog
+
+            from plugins.electrical_propulsion.catalog_dialog import ComponentCatalogDialog
+
+            dialog = ComponentCatalogDialog(component_type="propeller")
+            if dialog.exec() != QDialog.DialogCode.Accepted or not dialog.selected_propeller:
+                return
+            selected_propeller = dialog.selected_propeller
+
         _component_type, base_name, _icon = _COMPONENT_SPECS[component_kind]
+        if selected_motor is not None:
+            initial_name = selected_motor.name or base_name
+        elif selected_propeller is not None:
+            initial_name = (
+                f"APC {selected_propeller.metadata.model}"
+                if selected_propeller.metadata.model
+                else base_name
+            )
+        else:
+            initial_name = base_name
+
         component_id, component_name = self._unique_identity(
-            f"{assembly_id}-{component_kind}",
-            base_name,
+            component_kind,
+            initial_name,
         )
-        attach_to = self._propulsor_attachment(component_kind, assembly)
+
+        attach_to = self._propulsor_attachment(component_kind)
         component = self._new_component(
             component_kind,
             component_id,
             component_name,
+            parent=_PROPULSION_ID,
             attach_to=attach_to,
+            selected_motor=selected_motor,
+            selected_propeller=selected_propeller,
         )
 
         def change() -> None:
-            self._append_component(project.data, assembly_id, component_kind, component)
+            components = project.data.setdefault("components", [])
+            components.append(component)
 
-        assembly_name = str(assembly.get("name") or assembly_id)
         self._api.edit_project(
-            f"Add {component_name} to {assembly_name}",
+            f"Add {component_name} to Propulsion",
             change,
         )
         created = self._find_component(component_id)
         if created is not None:
             self._api.set_selection(created)
             self._api.show_status(
-                f"Added {component_name} to {assembly_name}",
+                f"Added {component_name} to Propulsion",
                 "success",
                 3000,
             )
 
-    @staticmethod
-    def _propulsor_attachment(component_kind: str, assembly: dict[str, Any]) -> str | None:
+    def _propulsor_attachment(self, component_kind: str) -> str | None:
         if component_kind not in {"propeller", "rotor"}:
             return None
-        members = assembly.get("members")
-        motors = members.get("motors") if isinstance(members, dict) else None
-        return str(motors[-1]) if isinstance(motors, list) and motors else None
-
-    def _append_component(
-        self,
-        project_data: dict[str, Any],
-        assembly_id: str,
-        component_kind: str,
-        component: dict[str, Any],
-    ) -> None:
-        components = project_data.get("components")
-        target = self._find_assembly(assembly_id)
-        if not isinstance(components, list) or target is None:
-            return
-        components.append(component)
-        members = target.setdefault("members", {})
-        component_id = str(component.get("id") or "")
-        if component_kind == "battery":
-            members["battery"] = component_id
-            return
-        role = {
-            "esc": "controllers",
-            "motor": "motors",
-            "propeller": "propulsors",
-            "rotor": "propulsors",
-        }[component_kind]
-        values = members.setdefault(role, [])
-        if isinstance(values, list):
-            values.append(component_id)
-        else:
-            members[role] = [component_id]
+        project = self._api.current_project
+        if project is None:
+            return None
+        components = project.data.get("components", [])
+        motors = [
+            c
+            for c in components
+            if isinstance(c, dict) and c.get("type") == "org.setuav.core:motor"
+        ]
+        return str(motors[-1]["id"]) if motors else None
 
     def _new_component(
         self,
@@ -231,22 +299,49 @@ class PropulsionCreationController:
         component_id: str,
         component_name: str | None = None,
         *,
+        parent: str | None = _PROPULSION_ID,
         attach_to: str | None = None,
+        selected_motor: Any | None = None,
+        selected_propeller: Any | None = None,
     ) -> dict[str, Any]:
         component_type, base_name, _icon = _COMPONENT_SPECS[component_kind]
+        params = self._default_parameters(component_kind)
+        mass = self._default_mass(component_kind)
+        manufacturer = ""
+        model = ""
+
+        if selected_motor is not None:
+            manufacturer = selected_motor.manufacturer or ""
+            model = selected_motor.name or ""
+            if selected_motor.weight_g:
+                mass = float(selected_motor.weight_g)
+            params["kv"] = float(selected_motor.kv)
+            params["resistance"] = float(selected_motor.resistance)
+            params["no_load_current"] = float(selected_motor.io or 0.0)
+            params["max_current"] = float(selected_motor.max_current)
+            params["max_power"] = float(selected_motor.max_power)
+        elif selected_propeller is not None:
+            manufacturer = selected_propeller.metadata.manufacturer or ""
+            model = selected_propeller.metadata.model or ""
+            params["diameter"] = round(selected_propeller.diameter_m * 1000.0, 1)
+            params["pitch"] = round(selected_propeller.pitch_m * 1000.0, 1)
+            params["blade_count"] = int(selected_propeller.metadata.blade_count)
+
         component: dict[str, Any] = {
             "kind": "component",
             "id": component_id,
             "name": component_name or base_name,
             "type": component_type,
-            "parent": None,
-            "mass": self._default_mass(component_kind),
+            "parent": parent,
+            "manufacturer": manufacturer,
+            "model": model,
+            "mass": mass,
             "transform": {
                 "position": {"x": 0.0, "y": 0.0, "z": 0.0},
                 "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
             },
             "envelope": self._default_envelope(component_kind),
-            "parameters": self._default_parameters(component_kind),
+            "parameters": params,
         }
         if attach_to:
             component["attach_to"] = attach_to
@@ -328,94 +423,26 @@ class PropulsionCreationController:
                 "blade_count": 2,
                 "hub_diameter": 25.0,
                 "collective_pitch": 0.0,
-                "rotation_direction": "ccw",
             }
         return {
             "diameter": 330.0,
             "pitch": 165.0,
             "blade_count": 2,
             "hub_diameter": 25.0,
-            "rotation_direction": "ccw",
         }
-
-    def _choose_target_assembly(self) -> dict[str, Any] | None:
-        assemblies = self._propulsion_assemblies()
-        if not assemblies:
-            self._api.show_status(
-                "Create a propulsion assembly before adding components",
-                "warning",
-                4000,
-            )
-            return None
-
-        selected = self._selected_assembly(assemblies)
-        if selected is not None:
-            return selected
-        if len(assemblies) == 1:
-            return assemblies[0]
-
-        labels = [f"{item.get('name') or item.get('id')} ({item.get('id')})" for item in assemblies]
-        selected_label, accepted = QInputDialog.getItem(
-            QApplication.activeWindow(),
-            "Select Propulsion Assembly",
-            "Add the component to:",
-            labels,
-            0,
-            False,
-        )
-        if not accepted:
-            return None
-        selected_index = labels.index(selected_label)
-        return assemblies[selected_index]
-
-    def _selected_assembly(
-        self,
-        assemblies: list[dict[str, Any]],
-    ) -> dict[str, Any] | None:
-        selection = self._api.current_selection
-        if not isinstance(selection, dict):
-            return None
-        selection_id = str(selection.get("id") or "")
-        if selection.get("type") == _ASSEMBLY_TYPE:
-            return next(
-                (
-                    assembly
-                    for assembly in assemblies
-                    if str(assembly.get("id") or "") == selection_id
-                ),
-                None,
-            )
-        if not selection_id:
-            return None
-        for assembly in assemblies:
-            members = assembly.get("members")
-            if not isinstance(members, dict):
-                continue
-            for value in members.values():
-                if value == selection_id:
-                    return assembly
-                if isinstance(value, list) and selection_id in value:
-                    return assembly
-        return None
 
     def _unique_identity(
         self,
         base_id: str,
         base_name: str,
-        *,
-        include_assemblies: bool = False,
     ) -> tuple[str, str]:
         project = self._api.current_project
         if project is None:
             return base_id, base_name
         components = project.data.get("components")
-        assemblies = project.data.get("assemblies")
         raw_components = components if isinstance(components, list) else []
-        raw_assemblies = assemblies if isinstance(assemblies, list) else []
-        identity_items = raw_components + raw_assemblies
-        name_items = raw_assemblies if include_assemblies else raw_components
-        ids = {str(item.get("id") or "") for item in identity_items if isinstance(item, dict)}
-        names = {str(item.get("name") or "") for item in name_items if isinstance(item, dict)}
+        ids = {str(item.get("id") or "") for item in raw_components if isinstance(item, dict)}
+        names = {str(item.get("name") or "") for item in raw_components if isinstance(item, dict)}
         if base_id not in ids and base_name not in names:
             return base_id, base_name
         suffix = 2
@@ -426,9 +453,6 @@ class PropulsionCreationController:
     def _can_edit_project(self) -> bool:
         project = self._api.current_project
         return project is not None and not project.read_only
-
-    def _can_add_component(self) -> bool:
-        return self._can_edit_project() and bool(self._propulsion_assemblies())
 
     def _require_editable_project(self) -> bool:
         project = self._api.current_project
@@ -444,32 +468,7 @@ class PropulsionCreationController:
         if not isinstance(project.data.get("components"), list):
             self._api.show_status("Project components are invalid", "error")
             return False
-        assemblies = project.data.get("assemblies")
-        if assemblies is not None and not isinstance(assemblies, list):
-            self._api.show_status("Project assemblies are invalid", "error")
-            return False
         return True
-
-    def _propulsion_assemblies(self) -> list[dict[str, Any]]:
-        project = self._api.current_project
-        assemblies = project.data.get("assemblies") if project is not None else None
-        if not isinstance(assemblies, list):
-            return []
-        return [
-            assembly
-            for assembly in assemblies
-            if isinstance(assembly, dict) and assembly.get("type") == _ASSEMBLY_TYPE
-        ]
-
-    def _find_assembly(self, assembly_id: str) -> dict[str, Any] | None:
-        return next(
-            (
-                assembly
-                for assembly in self._propulsion_assemblies()
-                if str(assembly.get("id") or "") == assembly_id
-            ),
-            None,
-        )
 
     def _find_component(self, component_id: str) -> dict[str, Any] | None:
         project = self._api.current_project

@@ -300,6 +300,14 @@ class PropellerCatalogModel(QAbstractTableModel):
         self._entries.sort(key=key_func, reverse=rev)
 
 
+class _CatalogTableView(QTableView):
+    """Table view that exposes rowCount() directly for inspection."""
+
+    def rowCount(self) -> int:
+        model = self.model()
+        return model.rowCount() if model is not None else 0
+
+
 class ComponentCatalogDialog(QDialog):
     """High-performance catalog dialog for selecting motors or propellers."""
 
@@ -405,7 +413,7 @@ class ComponentCatalogDialog(QDialog):
 
         # Virtualized Table
         self.motor_model = MotorCatalogModel(self)
-        self.motor_view = QTableView(page)
+        self.motor_view = _CatalogTableView(page)
         self.motor_view.setModel(self.motor_model)
         self._style_table_view(self.motor_view)
 
@@ -423,7 +431,6 @@ class ComponentCatalogDialog(QDialog):
         self.motor_view.selectionModel().selectionChanged.connect(self._on_motor_selection_changed)
         self.motor_view.doubleClicked.connect(self._on_motor_double_clicked)
         self.motor_table = self.motor_view
-        self.motor_table.rowCount = lambda: self.motor_model.rowCount()
         layout.addWidget(self.motor_view)
 
         return page
@@ -448,7 +455,7 @@ class ComponentCatalogDialog(QDialog):
 
         # Virtualized Table
         self.prop_model = PropellerCatalogModel(self)
-        self.prop_view = QTableView(page)
+        self.prop_view = _CatalogTableView(page)
         self.prop_view.setModel(self.prop_model)
         self._style_table_view(self.prop_view)
 
@@ -464,7 +471,6 @@ class ComponentCatalogDialog(QDialog):
         self.prop_view.selectionModel().selectionChanged.connect(self._on_prop_selection_changed)
         self.prop_view.doubleClicked.connect(self._on_prop_double_clicked)
         self.prop_table = self.prop_view
-        self.prop_table.rowCount = lambda: self.prop_model.rowCount()
         layout.addWidget(self.prop_view)
 
         return page
