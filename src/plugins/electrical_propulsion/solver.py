@@ -1,10 +1,10 @@
-"""Electrical Propulsion Analysis Solver integrating PyThrust with Core Studio Solver Architecture."""
+"""Electrical Propulsion Analysis Solvers integrating PyThrust with Core Studio Solver Architecture."""
 
 from __future__ import annotations
 
 import logging
 import math
-from typing import Any
+from typing import Any, ClassVar
 
 from pythrust.propellers.database import (
     PropellerDataPoint,
@@ -21,6 +21,7 @@ from pythrust.propulsion.models import (
 from pythrust.propulsion.solver import PropulsionSolver
 
 from plugins.electrical_propulsion.database import get_propeller_database
+from setuav_studio.api import ParameterField
 from setuav_studio.solver.base import AbstractSolver, SolverConfig, SolverStatus
 from setuav_studio.solver.results import (
     PlotDefinition,
@@ -34,7 +35,9 @@ from setuav_studio.task.types import TaskCancelledError
 
 logger = logging.getLogger(__name__)
 
-SOLVER_ID_PROPULSION = "org.setuav.propulsion.analysis"
+SOLVER_ID_THROTTLE_SWEEP = "org.setuav.propulsion.throttle_sweep"
+SOLVER_ID_AIRSPEED_SWEEP = "org.setuav.propulsion.airspeed_sweep"
+SOLVER_ID_OPERATING_POINT = "org.setuav.propulsion.operating_point"
 
 
 def _build_fallback_propeller(
@@ -75,8 +78,8 @@ def _compute_air_density(altitude_m: float, temperature_c: float) -> float:
     return p_pa / (287.058 * t_kelvin)
 
 
-class ElectricalPropulsionSolver(AbstractSolver):
-    """Core engineering solver for electrical propulsion performance and operating point analysis."""
+class BasePropulsionSolver(AbstractSolver):
+    """Base class for electrical propulsion solvers resolving project powertrain entities."""
 
     def __init__(self, config: SolverConfig, project: Any | None = None) -> None:
         super().__init__(config, project)
@@ -143,7 +146,6 @@ class ElectricalPropulsionSolver(AbstractSolver):
         assert prop_comp is not None
         assert battery_comp is not None
 
-        # Motor spec
         motor_params = motor_comp.get("parameters", {})
         kv = float(motor_params.get("kv", 900.0))
         rm = float(motor_params.get("resistance", 0.055))
@@ -156,7 +158,6 @@ class ElectricalPropulsionSolver(AbstractSolver):
             current_max_a=imax,
         )
 
-        # Propeller spec & entry
         prop_params = prop_comp.get("parameters", {})
         diameter_mm = float(prop_params.get("diameter", 330.0))
         pitch_mm = float(prop_params.get("pitch", 165.0))
@@ -181,7 +182,6 @@ class ElectricalPropulsionSolver(AbstractSolver):
         if prop_entry is None:
             prop_entry = _build_fallback_propeller(d_in, p_in, blade_count)
 
-        # Battery spec
         battery_params = battery_comp.get("parameters", {})
         cell_count = int(battery_params.get("cell_count", 6))
         cell_v = float(battery_params.get("cell_voltage", 3.7))
@@ -193,110 +193,14 @@ class ElectricalPropulsionSolver(AbstractSolver):
         capacity_mah = float(battery_params.get("capacity", 5000.0))
         battery_spec = BatterySpec(voltage_v=v_nom, discharge_efficiency=0.98)
 
-        # System spec
         esc_params = esc_comp.get("parameters", {}) if esc_comp is not None else {}
         esc_r = float(esc_params.get("resistance", 0.005))
         system_spec = SystemSpec(resistance_ohm=esc_r)
 
         return motor_spec, prop_spec, prop_entry, battery_spec, system_spec, capacity_mah
 
-    def _determine_sweep_points(self) -> tuple[str, str, str, list[tuple[float, float]]]:
-        mode = str(self.config.parameters.get("mode", "airspeed_sweep"))
-        pairs: list[tuple[float, float]] = []
-
-        if mode == "airspeed_sweep":
-            v_min = float(self.config.parameters.get("v_min", 0.0))
-            v_max = float(self.config.parameters.get("v_max", 35.0))
-            v_step = max(0.5, float(self.config.parameters.get("v_step", 1.0)))
-            throttle_pct = max(
-                1.0, min(100.0, float(self.config.parameters.get("throttle", 100.0)))
-            )
-            throttle = throttle_pct / 100.0
-
-            curr_v = v_min
-            while curr_v <= v_max + 1e-4:
-                pairs.append((round(curr_v, 2), throttle))
-                curr_v += v_step
-            return mode, "airspeed", "Airspeed", pairs
-
-        if mode == "throttle_sweep":
-            v_fixed = max(0.0, float(self.config.parameters.get("airspeed", 15.0)))
-            t_min = max(5.0, float(self.config.parameters.get("t_min", 10.0)))
-            t_max = min(100.0, float(self.config.parameters.get("t_max", 100.0)))
-            t_step = max(1.0, float(self.config.parameters.get("t_step", 5.0)))
-
-            curr_t = t_min
-            while curr_t <= t_max + 1e-4:
-                pairs.append((v_fixed, round(curr_t / 100.0, 3)))
-                curr_t += t_step
-            return mode, "throttle", "Throttle", pairs
-
-        # Single Operating Point
-        v_val = max(0.0, float(self.config.parameters.get("airspeed", 18.0)))
-        t_pct = max(1.0, min(100.0, float(self.config.parameters.get("throttle", 75.0))))
-        pairs.append((v_val, t_pct / 100.0))
-        return "operating_point", "airspeed", "Airspeed", pairs
-
-    def run(self) -> SolverResult:
-        """Execute propulsion analysis using PyThrust solver."""
-        if self.is_cancel_requested or (self.token is not None and self.token.is_cancelled):
-            self.status = SolverStatus.CANCELLED
-            raise TaskCancelledError("Analysis cancelled before execution.")
-
-        motor_spec, prop_spec, prop_entry, battery_spec, system_spec, capacity_mah = (
-            self._resolve_powertrain()
-        )
-
-        altitude_m = float(self.config.parameters.get("altitude", 0.0))
-        temperature_c = float(self.config.parameters.get("temperature", 15.0))
-        rho = _compute_air_density(altitude_m, temperature_c)
-
-        mode, plot_x_col, plot_x_label, sweep_pairs = self._determine_sweep_points()
-        pythrust_solver = PropulsionSolver()
-
-        total_points = len(sweep_pairs)
-        points_data: list[tuple[float, OperatingPoint]] = []
-
-        for idx, (v_val, t_val) in enumerate(sweep_pairs):
-            if self.is_cancel_requested or (self.token is not None and self.token.is_cancelled):
-                self.status = SolverStatus.CANCELLED
-                raise TaskCancelledError("Analysis cancelled during sweep.")
-
-            if self.token is not None:
-                pct = int((idx + 1) / total_points * 100)
-                status_msg = (
-                    f"Throttle Sweep {t_val * 100:.0f}% ({pct}%)"
-                    if plot_x_col == "throttle"
-                    else f"Airspeed Sweep {v_val:.1f} m/s ({pct}%)"
-                )
-                self.token.report_progress(idx + 1, total_points, status_msg)
-
-            op = pythrust_solver.solve_operating_point(
-                motor=motor_spec,
-                battery=battery_spec,
-                system=system_spec,
-                propeller=prop_spec,
-                prop_entry=prop_entry,
-                rho=rho,
-                airspeed_mps=v_val,
-                throttle=t_val,
-                battery_state=None,
-            )
-            x_coord = t_val * 100.0 if plot_x_col == "throttle" else v_val
-            points_data.append((x_coord, op))
-
-        return self._build_result(
-            mode=mode,
-            plot_x_col=plot_x_col,
-            plot_x_label=plot_x_label,
-            points_data=points_data,
-            v_nom=battery_spec.voltage_v,
-            capacity_mah=capacity_mah,
-        )
-
     def _build_result(
         self,
-        mode: str,
         plot_x_col: str,
         plot_x_label: str,
         points_data: list[tuple[float, OperatingPoint]],
@@ -469,4 +373,370 @@ class ElectricalPropulsionSolver(AbstractSolver):
             summary=summary,
             tables={"propulsion_data": dataset_table},
             plots=plots,
+        )
+
+
+class ThrottleSweepSolver(BasePropulsionSolver):
+    """Evaluates propulsion performance across a range of throttle settings at a constant airspeed."""
+
+    PARAMETER_FIELDS: ClassVar[list[ParameterField]] = [
+        ParameterField(
+            key="airspeed",
+            label="Airspeed",
+            unit="m/s",
+            quantity="velocity",
+            field_type=float,
+            default=15.0,
+            min_value=0.0,
+            max_value=200.0,
+            decimals=1,
+            tooltip="Constant flight airspeed for throttle sweep.",
+        ),
+        ParameterField(
+            key="t_min",
+            label="Throttle Min",
+            unit="%",
+            field_type=float,
+            default=10.0,
+            min_value=1.0,
+            max_value=100.0,
+            decimals=0,
+            tooltip="Starting throttle percentage.",
+        ),
+        ParameterField(
+            key="t_max",
+            label="Throttle Max",
+            unit="%",
+            field_type=float,
+            default=100.0,
+            min_value=1.0,
+            max_value=100.0,
+            decimals=0,
+            tooltip="Ending throttle percentage.",
+        ),
+        ParameterField(
+            key="t_step",
+            label="Throttle Step",
+            unit="%",
+            field_type=float,
+            default=5.0,
+            min_value=1.0,
+            max_value=50.0,
+            decimals=0,
+            tooltip="Throttle evaluation increment.",
+        ),
+        ParameterField(
+            key="altitude",
+            label="Altitude",
+            unit="m",
+            quantity="length",
+            field_type=float,
+            default=0.0,
+            min_value=-500.0,
+            max_value=25000.0,
+            decimals=0,
+            tooltip="Atmospheric flight altitude.",
+        ),
+        ParameterField(
+            key="temperature",
+            label="Temperature",
+            unit="°C",
+            field_type=float,
+            default=15.0,
+            min_value=-50.0,
+            max_value=60.0,
+            decimals=1,
+            tooltip="Ambient air temperature.",
+        ),
+    ]
+
+    def run(self) -> SolverResult:
+        if self.is_cancel_requested or (self.token is not None and self.token.is_cancelled):
+            self.status = SolverStatus.CANCELLED
+            raise TaskCancelledError("Analysis cancelled before execution.")
+
+        motor_spec, prop_spec, prop_entry, battery_spec, system_spec, capacity_mah = (
+            self._resolve_powertrain()
+        )
+
+        altitude_m = float(self.config.parameters.get("altitude", 0.0))
+        temperature_c = float(self.config.parameters.get("temperature", 15.0))
+        rho = _compute_air_density(altitude_m, temperature_c)
+
+        v_fixed = max(0.0, float(self.config.parameters.get("airspeed", 15.0)))
+        t_min = max(1.0, float(self.config.parameters.get("t_min", 10.0)))
+        t_max = min(100.0, float(self.config.parameters.get("t_max", 100.0)))
+        t_step = max(1.0, float(self.config.parameters.get("t_step", 5.0)))
+
+        t_list: list[float] = []
+        curr_t = t_min
+        while curr_t <= t_max + 1e-4:
+            t_list.append(round(curr_t, 1))
+            curr_t += t_step
+
+        total_points = len(t_list)
+        points_data: list[tuple[float, OperatingPoint]] = []
+        pythrust_solver = PropulsionSolver()
+
+        for idx, t_val in enumerate(t_list):
+            if self.is_cancel_requested or (self.token is not None and self.token.is_cancelled):
+                self.status = SolverStatus.CANCELLED
+                raise TaskCancelledError("Analysis cancelled during sweep.")
+
+            if self.token is not None:
+                pct = int((idx + 1) / total_points * 100)
+                self.token.report_progress(
+                    idx + 1, total_points, f"Throttle Sweep {t_val:.0f}% ({pct}%)"
+                )
+
+            op = pythrust_solver.solve_operating_point(
+                motor=motor_spec,
+                battery=battery_spec,
+                system=system_spec,
+                propeller=prop_spec,
+                prop_entry=prop_entry,
+                rho=rho,
+                airspeed_mps=v_fixed,
+                throttle=t_val / 100.0,
+                battery_state=None,
+            )
+            points_data.append((t_val, op))
+
+        return self._build_result(
+            plot_x_col="throttle",
+            plot_x_label="Throttle",
+            points_data=points_data,
+            v_nom=battery_spec.voltage_v,
+            capacity_mah=capacity_mah,
+        )
+
+
+class AirspeedSweepSolver(BasePropulsionSolver):
+    """Evaluates propulsion performance across an airspeed range at a constant throttle setting."""
+
+    PARAMETER_FIELDS: ClassVar[list[ParameterField]] = [
+        ParameterField(
+            key="v_min",
+            label="Airspeed Min",
+            unit="m/s",
+            quantity="velocity",
+            field_type=float,
+            default=0.0,
+            min_value=0.0,
+            max_value=200.0,
+            decimals=1,
+            tooltip="Starting flight airspeed.",
+        ),
+        ParameterField(
+            key="v_max",
+            label="Airspeed Max",
+            unit="m/s",
+            quantity="velocity",
+            field_type=float,
+            default=35.0,
+            min_value=0.5,
+            max_value=200.0,
+            decimals=1,
+            tooltip="Ending flight airspeed.",
+        ),
+        ParameterField(
+            key="v_step",
+            label="Airspeed Step",
+            unit="m/s",
+            quantity="velocity",
+            field_type=float,
+            default=1.0,
+            min_value=0.1,
+            max_value=20.0,
+            decimals=1,
+            tooltip="Airspeed evaluation step.",
+        ),
+        ParameterField(
+            key="throttle",
+            label="Throttle",
+            unit="%",
+            field_type=float,
+            default=100.0,
+            min_value=1.0,
+            max_value=100.0,
+            decimals=0,
+            tooltip="Constant throttle percentage during airspeed sweep.",
+        ),
+        ParameterField(
+            key="altitude",
+            label="Altitude",
+            unit="m",
+            quantity="length",
+            field_type=float,
+            default=0.0,
+            min_value=-500.0,
+            max_value=25000.0,
+            decimals=0,
+            tooltip="Atmospheric flight altitude.",
+        ),
+        ParameterField(
+            key="temperature",
+            label="Temperature",
+            unit="°C",
+            field_type=float,
+            default=15.0,
+            min_value=-50.0,
+            max_value=60.0,
+            decimals=1,
+            tooltip="Ambient air temperature.",
+        ),
+    ]
+
+    def run(self) -> SolverResult:
+        if self.is_cancel_requested or (self.token is not None and self.token.is_cancelled):
+            self.status = SolverStatus.CANCELLED
+            raise TaskCancelledError("Analysis cancelled before execution.")
+
+        motor_spec, prop_spec, prop_entry, battery_spec, system_spec, capacity_mah = (
+            self._resolve_powertrain()
+        )
+
+        altitude_m = float(self.config.parameters.get("altitude", 0.0))
+        temperature_c = float(self.config.parameters.get("temperature", 15.0))
+        rho = _compute_air_density(altitude_m, temperature_c)
+
+        v_min = float(self.config.parameters.get("v_min", 0.0))
+        v_max = float(self.config.parameters.get("v_max", 35.0))
+        v_step = max(0.5, float(self.config.parameters.get("v_step", 1.0)))
+        throttle_pct = max(1.0, min(100.0, float(self.config.parameters.get("throttle", 100.0))))
+        throttle = throttle_pct / 100.0
+
+        v_list: list[float] = []
+        curr_v = v_min
+        while curr_v <= v_max + 1e-4:
+            v_list.append(round(curr_v, 2))
+            curr_v += v_step
+
+        total_points = len(v_list)
+        points_data: list[tuple[float, OperatingPoint]] = []
+        pythrust_solver = PropulsionSolver()
+
+        for idx, v_val in enumerate(v_list):
+            if self.is_cancel_requested or (self.token is not None and self.token.is_cancelled):
+                self.status = SolverStatus.CANCELLED
+                raise TaskCancelledError("Analysis cancelled during sweep.")
+
+            if self.token is not None:
+                pct = int((idx + 1) / total_points * 100)
+                self.token.report_progress(
+                    idx + 1, total_points, f"Airspeed Sweep {v_val:.1f} m/s ({pct}%)"
+                )
+
+            op = pythrust_solver.solve_operating_point(
+                motor=motor_spec,
+                battery=battery_spec,
+                system=system_spec,
+                propeller=prop_spec,
+                prop_entry=prop_entry,
+                rho=rho,
+                airspeed_mps=v_val,
+                throttle=throttle,
+                battery_state=None,
+            )
+            points_data.append((v_val, op))
+
+        return self._build_result(
+            plot_x_col="airspeed",
+            plot_x_label="Airspeed",
+            points_data=points_data,
+            v_nom=battery_spec.voltage_v,
+            capacity_mah=capacity_mah,
+        )
+
+
+class OperatingPointSolver(BasePropulsionSolver):
+    """Evaluates propulsion performance at a single discrete operating airspeed and throttle."""
+
+    PARAMETER_FIELDS: ClassVar[list[ParameterField]] = [
+        ParameterField(
+            key="airspeed",
+            label="Airspeed",
+            unit="m/s",
+            quantity="velocity",
+            field_type=float,
+            default=18.0,
+            min_value=0.0,
+            max_value=200.0,
+            decimals=1,
+            tooltip="Flight airspeed.",
+        ),
+        ParameterField(
+            key="throttle",
+            label="Throttle",
+            unit="%",
+            field_type=float,
+            default=75.0,
+            min_value=1.0,
+            max_value=100.0,
+            decimals=0,
+            tooltip="Throttle setting percentage.",
+        ),
+        ParameterField(
+            key="altitude",
+            label="Altitude",
+            unit="m",
+            quantity="length",
+            field_type=float,
+            default=0.0,
+            min_value=-500.0,
+            max_value=25000.0,
+            decimals=0,
+            tooltip="Atmospheric flight altitude.",
+        ),
+        ParameterField(
+            key="temperature",
+            label="Temperature",
+            unit="°C",
+            field_type=float,
+            default=15.0,
+            min_value=-50.0,
+            max_value=60.0,
+            decimals=1,
+            tooltip="Ambient air temperature.",
+        ),
+    ]
+
+    def run(self) -> SolverResult:
+        if self.is_cancel_requested or (self.token is not None and self.token.is_cancelled):
+            self.status = SolverStatus.CANCELLED
+            raise TaskCancelledError("Analysis cancelled before execution.")
+
+        motor_spec, prop_spec, prop_entry, battery_spec, system_spec, capacity_mah = (
+            self._resolve_powertrain()
+        )
+
+        altitude_m = float(self.config.parameters.get("altitude", 0.0))
+        temperature_c = float(self.config.parameters.get("temperature", 15.0))
+        rho = _compute_air_density(altitude_m, temperature_c)
+
+        v_val = max(0.0, float(self.config.parameters.get("airspeed", 18.0)))
+        t_pct = max(1.0, min(100.0, float(self.config.parameters.get("throttle", 75.0))))
+
+        if self.token is not None:
+            self.token.report_progress(1, 1, f"Operating Point (V={v_val:.1f} m/s)")
+
+        pythrust_solver = PropulsionSolver()
+        op = pythrust_solver.solve_operating_point(
+            motor=motor_spec,
+            battery=battery_spec,
+            system=system_spec,
+            propeller=prop_spec,
+            prop_entry=prop_entry,
+            rho=rho,
+            airspeed_mps=v_val,
+            throttle=t_pct / 100.0,
+            battery_state=None,
+        )
+
+        return self._build_result(
+            plot_x_col="airspeed",
+            plot_x_label="Airspeed",
+            points_data=[(v_val, op)],
+            v_nom=battery_spec.voltage_v,
+            capacity_mah=capacity_mah,
         )

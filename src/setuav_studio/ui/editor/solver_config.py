@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
@@ -184,15 +185,32 @@ class SolverConfigPropertyEditor(PropertyTableMixin, QWidget):
             )
 
             # 2. Analysis Parameters
-            param_fields = [(k, k.replace("_", " ").title()) for k in config.parameters]
-            if not param_fields:
-                param_fields = [("empty", "No Parameters")]
-            self._configure_property_table(self.parameters_table, param_fields)
-            if "empty" not in dict(param_fields):
-                for k, v in config.parameters.items():
-                    self._set_property_value(self.parameters_table, k, str(v))
+            solver_cls = self._api.solvers.get_solver_class(config.solver_id)
+            get_fields = getattr(solver_cls, "get_parameter_fields", None)
+            fields = (
+                get_fields(config.parameters)
+                if callable(get_fields)
+                else getattr(solver_cls, "PARAMETER_FIELDS", None)
+            )
+
+            if fields:
+                self.bind_parametric_properties(
+                    self.parameters_table,
+                    config.parameters,
+                    fields,
+                    on_changed=self._on_schema_parameter_changed,
+                    api=self._api,
+                )
             else:
-                self._set_property_value(self.parameters_table, "empty", "—", editable=False)
+                param_fields = [(k, k.replace("_", " ").title()) for k in config.parameters]
+                if not param_fields:
+                    param_fields = [("empty", "No Parameters")]
+                self._configure_property_table(self.parameters_table, param_fields)
+                if "empty" not in dict(param_fields):
+                    for k, v in config.parameters.items():
+                        self._set_property_value(self.parameters_table, k, str(v))
+                else:
+                    self._set_property_value(self.parameters_table, "empty", "—", editable=False)
 
             # 3. Execution Options
             opt_fields = [(k, k.replace("_", " ").title()) for k in config.options]
@@ -295,6 +313,25 @@ class SolverConfigPropertyEditor(PropertyTableMixin, QWidget):
             parsed_val = val_text
 
         config.parameters[key] = parsed_val
+        self._api.add_solver_config(config)
+
+    def _on_schema_parameter_changed(self, key: str, new_val: Any) -> None:
+        if self._loading:
+            return
+        config = self._get_config()
+        if config is None:
+            return
+        config.parameters[key] = new_val
+
+        if key == "mode":
+            solver_cls = self._api.solvers.get_solver_class(config.solver_id)
+            adapt_fn = getattr(solver_cls, "adapt_parameters_for_mode", None)
+            if callable(adapt_fn):
+                adapt_fn(config.parameters, str(new_val))
+            self._api.add_solver_config(config)
+            QTimer.singleShot(0, self._load_data)
+            return
+
         self._api.add_solver_config(config)
 
     def _on_option_cell_changed(self, row: int, column: int) -> None:
