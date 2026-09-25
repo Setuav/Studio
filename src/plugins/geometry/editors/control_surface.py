@@ -213,7 +213,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
         )
 
     def _load_properties(self) -> None:
-        from .control_surface_values import compute_control_surface_metrics
+        from ..engine.control_surface_geometry import compute_control_surface_metrics
 
         was_loading = self._loading
         self._loading = True
@@ -398,7 +398,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
         root_chord: float,
         tip_chord: float = 100.0,
     ) -> None:
-        from .control_surface_values import solve_control_surface_from_area
+        from ..engine.control_surface_geometry import solve_control_surface_from_area
 
         if key == "area":
             driver_mode = str(geometry.get("sizing_mode", "area_chord")).lower()

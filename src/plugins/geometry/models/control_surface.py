@@ -87,7 +87,7 @@ class ControlSurfaceModel(Component):
     @property
     def area(self) -> float:
         """Area in dm^2."""
-        from ..editors.control_surface_values import (
+        from ..engine.control_surface_geometry import (
             compute_control_surface_metrics,
         )
 
@@ -104,7 +104,7 @@ class ControlSurfaceModel(Component):
     @property
     def area_ratio(self) -> float:
         """Area percentage relative to parent wing."""
-        from ..editors.control_surface_values import (
+        from ..engine.control_surface_geometry import (
             compute_control_surface_metrics,
         )
 

@@ -5,9 +5,8 @@ from typing import ClassVar
 from PySide6.QtWidgets import QWidget
 
 from plugins.geometry import GeometryPlugin
-from plugins.geometry.data import GeometryData, LoftGeometry, Section
-from plugins.geometry.fuselage import FuselageEditor
-from plugins.geometry.mesh import build_loft_wire_vertices
+from plugins.geometry.editors.fuselage import FuselageEditor
+from plugins.geometry.engine.data import GeometryData, LoftGeometry, Section
 from plugins.weight_balance.canvas import View2DCanvas
 from plugins.weight_balance.scene import View2DScene
 from setuav_studio.api import (
@@ -22,6 +21,7 @@ from setuav_studio.ui.editor.mass import MassPropertiesEditor
 from setuav_studio.ui.editor.transform import TransformEditor
 from setuav_studio.ui.panels.project_explorer import ProjectExplorer
 from setuav_studio.ui.shell.native_registrations import register_native_contributions
+from setuav_studio.ui.viewport.mesh import build_loft_wire_vertices
 from tests._common import get_qapp
 
 

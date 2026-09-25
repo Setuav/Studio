@@ -1,4 +1,4 @@
-"""Shared control-surface sizing, planform shaping, and area calculation helpers."""
+"""Analytical geometry calculations for control surfaces (sizing, shaping, metrics)."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from typing import Any
 def resolve_span_values(
     geometry: dict[str, Any], semi_span: float
 ) -> tuple[float, float, float, float]:
+    """Resolve start and end span/eta values from control surface geometry."""
     start, eta_start = _resolve_span_endpoint(geometry, "start", semi_span, 0.4)
     end, eta_end = _resolve_span_endpoint(geometry, "end", semi_span, 0.85)
     return start, eta_start, end, eta_end
@@ -35,6 +36,7 @@ def _resolve_span_endpoint(
 
 
 def resolve_chord_values(geometry: dict[str, Any], root_chord: float) -> tuple[float, float]:
+    """Resolve absolute chord length and chord fraction from geometry."""
     if "chord_fraction" in geometry and geometry.get("chord_fraction") is not None:
         fraction = float(geometry.get("chord_fraction", 0.25))
         chord = float(geometry.get("chord", round(fraction * root_chord, 1)))
@@ -136,6 +138,7 @@ def solve_control_surface_from_area(
 
 
 def sync_sizing_values(geometry: dict[str, Any], semi_span: float, root_chord: float) -> None:
+    """Synchronize span/chord units between ratio and absolute values."""
     sizing_mode = str(geometry.get("sizing_mode", geometry.get("span_mode", "ratio"))).lower()
     if "ratio" in sizing_mode:
         _span_start, eta_start, _span_end, eta_end = resolve_span_values(geometry, semi_span)
@@ -150,3 +153,12 @@ def sync_sizing_values(geometry: dict[str, Any], semi_span: float, root_chord: f
         geometry["chord"] = round(fraction * root_chord, 1)
     else:
         geometry["chord_fraction"] = round(float(geometry.get("chord", 40.0)) / root_chord, 3)
+
+
+__all__ = [
+    "compute_control_surface_metrics",
+    "resolve_chord_values",
+    "resolve_span_values",
+    "solve_control_surface_from_area",
+    "sync_sizing_values",
+]

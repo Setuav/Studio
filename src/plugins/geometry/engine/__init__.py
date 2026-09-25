@@ -12,6 +12,13 @@ from .airfoil import (
     parse_airfoil_dat,
     sample_airfoil_points,
 )
+from .control_surface_geometry import (
+    compute_control_surface_metrics,
+    resolve_chord_values,
+    resolve_span_values,
+    solve_control_surface_from_area,
+    sync_sizing_values,
+)
 from .data import EnvelopeWireGeometry, GeometryData, LoftGeometry, Point3D, Section
 from .envelope import (
     GEOMETRY_COMPONENT_TYPES,
@@ -110,6 +117,7 @@ __all__ = [
     "calc_tan_sweep_at",
     "compute_airfoil_metrics",
     "compute_all_8_parameters",
+    "compute_control_surface_metrics",
     "compute_geometry_envelope",
     "compute_planform_metrics",
     "compute_propeller_clearance",
@@ -132,7 +140,9 @@ __all__ = [
     "palette_names",
     "parse_airfoil_dat",
     "profiles_to_sections",
+    "resolve_chord_values",
     "resolve_mount_point",
+    "resolve_span_values",
     "sample_airfoil_points",
     "sample_profile",
     "section_transform",
@@ -142,10 +152,12 @@ __all__ = [
     "set_wing_global_dihedral",
     "set_wing_global_sweep",
     "set_wing_global_twist",
+    "solve_control_surface_from_area",
     "solve_wing_planform",
     "split_section",
     "sync_component_envelope",
     "sync_project_geometry_envelopes",
+    "sync_sizing_values",
     "transform_matrix",
     "transform_point",
     "wing_color",

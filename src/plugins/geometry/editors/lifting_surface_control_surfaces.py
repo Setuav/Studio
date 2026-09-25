@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
 )
 
-from .control_surface_values import sync_sizing_values
+from ..engine.control_surface_geometry import sync_sizing_values
 
 
 class ControlSurfacesMixin:
@@ -224,7 +224,7 @@ class ControlSurfacesMixin:
         was_loading = self._loading
         self._loading = True
         try:
-            from .control_surface_values import compute_control_surface_metrics
+            from ..engine.control_surface_geometry import compute_control_surface_metrics
 
             self._cs_spinboxes: dict[str, Any] = {}
 
@@ -419,7 +419,7 @@ class ControlSurfacesMixin:
         root_chord: float,
         tip_chord: float = 100.0,
     ) -> None:
-        from .control_surface_values import solve_control_surface_from_area
+        from ..engine.control_surface_geometry import solve_control_surface_from_area
 
         if key == "area":
             driver_mode = str(geometry.get("sizing_mode", "area_chord")).lower()

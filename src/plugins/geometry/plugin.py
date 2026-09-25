@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 from setuav_studio.api import (
+    ComponentTypeContribution,
     SettingsPageContribution,
     StudioAPI,
     StudioEvents,
@@ -32,6 +33,7 @@ class GeometryPlugin:
         self._providers: dict[str, Any] = {}
         self._scene_controller: GeometrySceneController | None = None
         self._unsubscribers: list[Callable[[], None]] = []
+        self._component_types: list[ComponentTypeContribution] = []
 
     def activate(self, api: StudioAPI) -> None:
         register_plugin_icons(
@@ -54,51 +56,45 @@ class GeometryPlugin:
             )
         )
 
-        # 2. Component Models
+        # 2. Component Types (models, editors, icons)
         from .models import ControlSurfaceModel, FuselageModel, LiftingSurfaceModel
 
-        api.register_component_model(
-            "org.setuav.core:lifting-surface",
-            LiftingSurfaceModel,
-        )
-        api.register_component_model(
-            "org.setuav.core:fuselage",
-            FuselageModel,
-        )
-        api.register_component_model(
-            "org.setuav.core:control-surface",
-            ControlSurfaceModel,
-        )
-
-        # 3. Component Editors
-        api.register_component_editor(
-            "org.setuav.core:fuselage",
-            lambda component: FuselageEditor(api, component),
-        )
-        api.register_component_editor(
-            "org.setuav.core:lifting-surface",
-            lambda component: LiftingSurfaceEditor(api, component),
-        )
-        api.register_component_editor(
-            "org.setuav.core:control-surface",
-            lambda component: ControlSurfaceEditor(api, component),
-        )
-        api.register_component_editor(
-            "org.setuav.core:airframe",
-            lambda component: AirframeEditor(api, component),
-        )
-
-        # 4. Component Icons
-        self._registered_icons: list[str] = []
-        for comp_type, icon_name in (
-            ("org.setuav.core:fuselage", "geometry_add_fuselage"),
-            ("org.setuav.core:lifting-surface", "geometry_add_lifting_surface"),
-            ("org.setuav.core:control-surface", "geometry_add_control_surface"),
-            ("org.setuav.core:airframe", "component_structural_system"),
-        ):
-            if comp_type not in getattr(api, "_component_icons", {}):
-                api.register_component_icon(comp_type, icon_name)
-                self._registered_icons.append(comp_type)
+        self._component_types = [
+            ComponentTypeContribution(
+                id="org.setuav.core:fuselage",
+                name="Fuselage",
+                icon="geometry_add_fuselage",
+                model=FuselageModel,
+                editor=lambda component: FuselageEditor(api, component),
+                category="Geometry",
+            ),
+            ComponentTypeContribution(
+                id="org.setuav.core:lifting-surface",
+                name="Lifting Surface",
+                icon="geometry_add_lifting_surface",
+                model=LiftingSurfaceModel,
+                editor=lambda component: LiftingSurfaceEditor(api, component),
+                category="Geometry",
+            ),
+            ComponentTypeContribution(
+                id="org.setuav.core:control-surface",
+                name="Control Surface",
+                icon="geometry_add_control_surface",
+                model=ControlSurfaceModel,
+                editor=lambda component: ControlSurfaceEditor(api, component),
+                category="Geometry",
+            ),
+            ComponentTypeContribution(
+                id="org.setuav.core:airframe",
+                name="Airframe",
+                icon="component_structural_system",
+                model=None,
+                editor=lambda component: AirframeEditor(api, component),
+                category="Geometry",
+            ),
+        ]
+        for contrib in self._component_types:
+            api.register_component_type(contrib)
 
         # 5. Geometry Providers (internal — not exposed through StudioAPI)
         from .engine.fuselage_geometry import build_fuselage_geometry
@@ -218,9 +214,9 @@ class GeometryPlugin:
         if controller is not None:
             for contribution_id in controller.toolbar_ids:
                 api.unregister_toolbar_item(contribution_id)
-        api.unregister_component_model("org.setuav.core:lifting-surface")
-        api.unregister_component_model("org.setuav.core:fuselage")
-        api.unregister_component_model("org.setuav.core:control-surface")
+        for contrib in getattr(self, "_component_types", []):
+            api.unregister_component_type(contrib.id)
+        self._component_types = []
         self._providers = {}
         if self._scene_controller is not None:
             self._scene_controller.dispose()
@@ -230,13 +226,6 @@ class GeometryPlugin:
                 unsub()
         self._unsubscribers = []
         self._api = None
-        for comp_type in getattr(self, "_registered_icons", []):
-            api.unregister_component_icon(comp_type)
-        self._registered_icons = []
-        api.unregister_component_editor("org.setuav.core:fuselage")
-        api.unregister_component_editor("org.setuav.core:lifting-surface")
-        api.unregister_component_editor("org.setuav.core:control-surface")
-        api.unregister_component_editor("org.setuav.core:airframe")
         api.unregister_settings_page("geometry.settings.editor")
         api.unsubscribe(StudioEvents.PROJECT_OPENED, self._on_project_opened)
 

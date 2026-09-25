@@ -9,8 +9,8 @@ from setuav_studio.model import Component
 from ..engine.wing_planform_engine import compute_planform_metrics
 
 
-class WingSectionModel:
-    """Domain model for a single Wing station / profile section."""
+class LiftingSurfaceSectionModel:
+    """Domain model for a single LiftingSurface station / profile section."""
 
     def __init__(self, data: dict[str, Any], index: int = 0) -> None:
         self._data = data
@@ -63,7 +63,7 @@ class WingSectionModel:
     def __getattr__(self, name: str) -> Any:
         if name in self._data:
             return self._data[name]
-        raise AttributeError(f"'WingSectionModel' object has no attribute '{name}'")
+        raise AttributeError(f"'LiftingSurfaceSectionModel' object has no attribute '{name}'")
 
 
 class LiftingSurfaceModel(Component):
@@ -79,17 +79,21 @@ class LiftingSurfaceModel(Component):
         return geom.get("profiles") or geom.get("sections") or []
 
     @property
-    def sections(self) -> list[WingSectionModel]:
+    def sections(self) -> list[LiftingSurfaceSectionModel]:
         """List of typed domain models for each station section."""
-        return [WingSectionModel(p, i) for i, p in enumerate(self.profiles) if isinstance(p, dict)]
+        return [
+            LiftingSurfaceSectionModel(p, i)
+            for i, p in enumerate(self.profiles)
+            if isinstance(p, dict)
+        ]
 
     @property
-    def root_section(self) -> WingSectionModel | None:
+    def root_section(self) -> LiftingSurfaceSectionModel | None:
         secs = self.sections
         return secs[0] if secs else None
 
     @property
-    def tip_section(self) -> WingSectionModel | None:
+    def tip_section(self) -> LiftingSurfaceSectionModel | None:
         secs = self.sections
         return secs[-1] if secs else None
 
