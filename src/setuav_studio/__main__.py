@@ -103,7 +103,7 @@ def _configure_opengl() -> None:
     surface_format.setProfile(QSurfaceFormat.OpenGLContextProfile.CoreProfile)
     surface_format.setDepthBufferSize(24)
     surface_format.setStencilBufferSize(8)
-    surface_format.setSamples(0)
+    surface_format.setSamples(4)
     surface_format.setSwapBehavior(QSurfaceFormat.SwapBehavior.DoubleBuffer)
     QSurfaceFormat.setDefaultFormat(surface_format)
 

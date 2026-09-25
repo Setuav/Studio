@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 from itertools import pairwise
+from typing import Any
 
 from .constants import (
     FACE_COLORED,
@@ -17,10 +18,10 @@ from .types import GeometryData, LoftGeometry, Section
 
 SELECTED_WIRE: Point3D = (0.95, 0.58, 0.28)
 HOVERED_WIRE: Point3D = (1.0, 1.0, 1.0)
-SECTION_RING: Point3D = (1.0, 0.85, 0.20)
-CS_HIGHLIGHT = SELECTED_WIRE
-AIRFOIL_HIGHLIGHT = SELECTED_WIRE
-AIRFOIL_CHORD_HIGHLIGHT = SELECTED_WIRE
+SECTION_RING: Point3D = (0.0, 0.85, 1.0)
+CS_HIGHLIGHT: Point3D = (0.0, 0.85, 1.0)
+AIRFOIL_HIGHLIGHT: Point3D = (0.0, 0.85, 1.0)
+AIRFOIL_CHORD_HIGHLIGHT: Point3D = (0.0, 0.85, 1.0)
 
 _LONGITUDINAL_LINES = 12
 _WIRE_GREY: Point3D = (0.82, 0.82, 0.82)
@@ -60,18 +61,6 @@ def _append_ring(
 ) -> None:
     for index, point in enumerate(loop):
         _add_line(vertices, point, loop[(index + 1) % len(loop)], color)
-
-
-def _append_panel_rails(
-    vertices: list[float],
-    root_loop: tuple[Point3D, ...],
-    tip_loop: tuple[Point3D, ...],
-    color: Point3D,
-) -> None:
-    point_count = min(len(root_loop), len(tip_loop))
-    for fraction in (0.0, 0.25, 0.5, 0.75):
-        point_index = int(fraction * point_count) % point_count
-        _add_line(vertices, root_loop[point_index], tip_loop[point_index], color)
 
 
 def _matches_subpart(
@@ -268,6 +257,7 @@ def _build_station_highlight(
     data: GeometryData,
     component_id: str,
     section_index: int,
+    color: Point3D = SECTION_RING,
 ) -> list[float]:
     vertices: list[float] = []
     for is_mirror in (False, True):
@@ -275,14 +265,7 @@ def _build_station_highlight(
         if not 0 <= section_index < len(sections):
             continue
         loop = sections[section_index].points
-        _append_ring(vertices, loop, AIRFOIL_HIGHLIGHT)
-        if loop:
-            _add_line(
-                vertices,
-                min(loop, key=lambda p: p[0]),
-                max(loop, key=lambda p: p[0]),
-                AIRFOIL_CHORD_HIGHLIGHT,
-            )
+        _append_ring(vertices, loop, color)
     return vertices
 
 
@@ -290,42 +273,70 @@ def _build_panel_highlight(
     data: GeometryData,
     component_id: str,
     section_index: int,
-    color: Point3D,
+    color: Point3D = SECTION_RING,
 ) -> list[float]:
     vertices: list[float] = []
     for is_mirror in (False, True):
         sections = _station_sections(_matching_station_lofts(data, component_id, is_mirror))
         if not 0 <= section_index < len(sections):
             continue
-        root_loop = sections[section_index].points
-        _append_ring(vertices, root_loop, color)
-
-        tip_index = section_index + 1
-        if tip_index >= len(sections):
-            continue
-        tip_loop = sections[tip_index].points
-        _append_ring(vertices, tip_loop, color)
-        _append_panel_rails(vertices, root_loop, tip_loop, color)
+        loop = sections[section_index].points
+        _append_ring(vertices, loop, color)
     return vertices
 
 
 def build_section_ring_vertices(
-    data: GeometryData,
+    data: GeometryData | None,
     component_id: str | None,
     segment_index: int | None,
     section_index: int | None,
     color: Point3D = SECTION_RING,
     wire_mode: str = WIRE_FEATURE,
+    scene_objects: dict[str, Any] | None = None,
 ) -> list[float]:
     if component_id is None or section_index is None:
         return []
-    if segment_index == 1:
-        return _build_control_surface_highlight(
-            data, component_id, section_index, color=color, wire_mode=wire_mode
-        )
-    if segment_index == 2:
-        return _build_station_highlight(data, component_id, section_index)
-    return _build_panel_highlight(data, component_id, section_index, color)
+
+    # 1. Primary path: query modern SceneObjects
+    if scene_objects:
+        from .primitives import LoftPrimitive
+        from .scene_object import is_scene_object_matching
+
+        vertices: list[float] = []
+        for obj_id, obj in scene_objects.items():
+            if not is_scene_object_matching(obj_id, component_id):
+                continue
+            prims = [
+                p
+                for p in getattr(obj, "primitives", ())
+                if isinstance(p, LoftPrimitive) and p.sections
+            ]
+            if not prims:
+                continue
+
+            target_prim: LoftPrimitive | None = None
+            if segment_index is not None and 0 <= segment_index < len(prims):
+                target_prim = prims[segment_index]
+            elif prims:
+                target_prim = prims[0]
+
+            if target_prim and 0 <= section_index < len(target_prim.sections):
+                _append_ring(vertices, target_prim.sections[section_index], color)
+
+        if vertices:
+            return vertices
+
+    # 2. Fallback path: query legacy GeometryData (e.g. for offline unit tests)
+    if data is not None and data.lofts:
+        if segment_index == 1:
+            control_lofts, _ = _control_surface_lofts(data, component_id)
+            if control_lofts:
+                return _build_control_surface_highlight(
+                    data, component_id, section_index, color=color, wire_mode=wire_mode
+                )
+        return _build_station_highlight(data, component_id, section_index, color=color)
+
+    return []
 
 
 def build_loft_wire_vertices(

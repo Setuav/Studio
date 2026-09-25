@@ -77,6 +77,7 @@ _GL_SRC_ALPHA = 0x0302
 _GL_ONE_MINUS_SRC_ALPHA = 0x0303
 _GL_ZERO = 0
 _GL_ONE = 1
+_GL_MULTISAMPLE = 0x809D
 
 _WIRE_VERTEX_SHADER = """
 #version 330 core
@@ -105,30 +106,67 @@ _SOLID_VERTEX_SHADER = """
 layout(location = 0) in vec3 position;
 layout(location = 1) in vec3 normal;
 layout(location = 2) in vec3 color;
+
 uniform mat4 mvp;
-out vec3 vertexNormal;
+uniform mat4 view;
+
+out vec3 fragNormalView;
+out vec3 fragPosView;
 out vec3 vertexColor;
+
 void main() {
     gl_Position = mvp * vec4(position, 1.0);
-    vertexNormal = normal;
+    vec4 viewPos = view * vec4(position, 1.0);
+    fragPosView = viewPos.xyz;
+    fragNormalView = mat3(view) * normal;
     vertexColor = color;
 }
 """
 
 _SOLID_FRAGMENT_SHADER = """
 #version 330 core
-in vec3 vertexNormal;
+in vec3 fragNormalView;
+in vec3 fragPosView;
 in vec3 vertexColor;
-uniform vec3 eyeDirection;
+
 uniform float alpha;
+uniform int isOrtho;
+
 out vec4 fragmentColor;
+
 void main() {
-    vec3 normal = normalize(vertexNormal);
-    vec3 eye = normalize(eyeDirection);
-    float diffuse = abs(dot(normal, eye));
-    vec3 shaded = vertexColor * (0.45 + 0.55 * diffuse);
-    float specular = pow(max(diffuse, 0.0), 32.0) * 0.04;
-    shaded += vec3(specular);
+    vec3 N = normalize(fragNormalView);
+    vec3 V = (isOrtho != 0) ? vec3(0.0, 0.0, 1.0) : normalize(-fragPosView);
+
+    // Double-sided lighting: flip normal if viewing back face
+    if (dot(N, V) < 0.0) {
+        N = -N;
+    }
+
+    // CAD Studio 3-Point Lighting in View Space:
+    // 1. Key Light: Upper-Right-Front (primary contour definition)
+    vec3 keyDir = normalize(vec3(0.40, 0.65, 0.65));
+    float diffKey = max(dot(N, keyDir), 0.0);
+    vec3 H_key = normalize(keyDir + V);
+    float specKey = pow(max(dot(N, H_key), 0.0), 32.0) * 0.16;
+
+    // 2. Fill Light: Lower-Left-Front (softens underside/shadows)
+    vec3 fillDir = normalize(vec3(-0.55, -0.35, 0.50));
+    float diffFill = max(dot(N, fillDir), 0.0);
+
+    // 3. Back / Rim Light: Top-Rear (aerodynamic silhouette separation)
+    vec3 backDir = normalize(vec3(-0.25, 0.75, -0.60));
+    float diffBack = max(dot(N, backDir), 0.0);
+
+    // 4. Subtle Fresnel Rim (highlights curvature boundaries and leading edges)
+    float nDotV = max(dot(N, V), 0.0);
+    float fresnel = pow(1.0 - nDotV, 3.0) * 0.16;
+
+    // Balanced ambient light
+    vec3 ambient = vec3(0.38);
+    vec3 diffuseLight = ambient + (diffKey * 0.42) + (diffFill * 0.16) + (diffBack * 0.10);
+
+    vec3 shaded = vertexColor * diffuseLight + vec3(specKey + fresnel);
     fragmentColor = vec4(shaded, alpha);
 }
 """
@@ -154,7 +192,7 @@ class OpenGLViewer(QOpenGLWidget):
         surface_format.setDepthBufferSize(24)
         surface_format.setStencilBufferSize(8)
         surface_format.setAlphaBufferSize(0)
-        surface_format.setSamples(0)
+        surface_format.setSamples(4)
         super().__init__(parent)
         self.setFormat(surface_format)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -211,6 +249,7 @@ class OpenGLViewer(QOpenGLWidget):
         self._selected_component_id: str | None = None
         self._hovered_component_id: str | None = None
         self._section_selection: tuple[str, int, int] | None = None
+        self._section_color: tuple[float, float, float] | str | None = None
         self._selected_envelope_component_id: str | None = None
 
         self._azimuth = 30.0
@@ -229,6 +268,7 @@ class OpenGLViewer(QOpenGLWidget):
             self._functions = functions
             functions.glClearColor(0.12, 0.12, 0.12, 1.0)
             functions.glEnable(_GL_DEPTH_TEST)
+            functions.glEnable(_GL_MULTISAMPLE)
             functions.glLineWidth(1.0)
 
             self._wire_program = self._create_program(
@@ -342,14 +382,14 @@ class OpenGLViewer(QOpenGLWidget):
 
     def _draw_solid_mesh(self, mvp: QMatrix4x4, lines_overlay: bool) -> None:
         if self._show_solid and self._solid_program is not None and self._solid_count > 0:
-            eye_direction = self._eye_position() - self._target
-            eye_direction.normalize()
             if lines_overlay:
                 self._functions.glEnable(_GL_POLYGON_OFFSET_FILL)
                 self._functions.glPolygonOffset(1.0, 1.0)
+            view_matrix = self._view()
             self._solid_program.bind()
             self._solid_program.setUniformValue("mvp", mvp)
-            self._solid_program.setUniformValue("eyeDirection", eye_direction)
+            self._solid_program.setUniformValue("view", view_matrix)
+            self._solid_program.setUniformValue("isOrtho", 1 if self._orthographic else 0)
             transparent = self._transparent or (self._face_style == FACE_TRANSPARENT)
             alpha_location = self._solid_program.uniformLocation("alpha")
             self._functions.glUniform1f(
@@ -376,14 +416,14 @@ class OpenGLViewer(QOpenGLWidget):
 
         # Draw primitive solids
         if self._show_solid and self._primitive_solid_count > 0 and self._solid_program is not None:
-            eye_direction = self._eye_position() - self._target
-            eye_direction.normalize()
+            view_matrix = self._view()
             if lines_overlay:
                 self._functions.glEnable(_GL_POLYGON_OFFSET_FILL)
                 self._functions.glPolygonOffset(1.0, 1.0)
             self._solid_program.bind()
             self._solid_program.setUniformValue("mvp", mvp)
-            self._solid_program.setUniformValue("eyeDirection", eye_direction)
+            self._solid_program.setUniformValue("view", view_matrix)
+            self._solid_program.setUniformValue("isOrtho", 1 if self._orthographic else 0)
             transparent = self._transparent or (self._face_style == FACE_TRANSPARENT)
             alpha_location = self._solid_program.uniformLocation("alpha")
             self._functions.glUniform1f(
@@ -521,15 +561,18 @@ class OpenGLViewer(QOpenGLWidget):
     def set_selected_section(
         self,
         component_id: str | None,
-        segment_index: int | None,
-        section_index: int | None,
+        segment_index: int | None = None,
+        section_index: int | None = None,
+        color: tuple[float, float, float] | str | None = None,
     ) -> None:
-        selection = None
-        if component_id is not None and segment_index is not None and section_index is not None:
-            selection = (component_id, segment_index, section_index)
-        if self._section_selection == selection:
+        selection: tuple[str, int, int] | None = None
+        if component_id is not None and section_index is not None:
+            seg = segment_index if segment_index is not None else 0
+            selection = (component_id, seg, section_index)
+        if self._section_selection == selection and self._section_color == color:
             return
         self._section_selection = selection
+        self._section_color = color
         self._update_gpu_meshes()
 
     def set_show_solid(self, show: bool) -> None:
@@ -892,29 +935,36 @@ class OpenGLViewer(QOpenGLWidget):
         highlight_values = self._build_highlight_vertices()
         ring_values = []
         if self._section_selection is not None:
+            from setuav_studio.ui.style.theme import chart_color
+
             component_id, segment_index, section_index = self._section_selection
+            wire_col: tuple[float, float, float]
+            if isinstance(self._section_color, str):
+                role = self._section_color
+                hex_color = (
+                    chart_color(role)
+                    if role in ("cyan", "orange", "blue", "green", "red", "magenta")
+                    else role
+                )
+                wire_col = _color_rgb(hex_color)
+            elif self._section_color is not None:
+                wire_col = (
+                    float(self._section_color[0]),
+                    float(self._section_color[1]),
+                    float(self._section_color[2]),
+                )
+            else:
+                wire_col = _color_rgb(chart_color("cyan"))
+
             ring_values = build_section_ring_vertices(
                 self._geometry_data,
                 component_id,
                 segment_index,
                 section_index,
-                _color_rgb(chart_color("orange")),
+                color=wire_col,
                 wire_mode=self._wire_mode,
+                scene_objects=self._scene_objects,
             )
-            if not ring_values and self._scene_objects and component_id:
-                from .loft_mesh import _append_ring
-                from .primitives import LoftPrimitive
-
-                for obj_id, obj in self._scene_objects.items():
-                    if obj_id == component_id or obj_id.startswith(f"{component_id}:"):
-                        for prim in getattr(obj, "primitives", ()):
-                            if (
-                                isinstance(prim, LoftPrimitive)
-                                and prim.sections
-                                and 0 <= section_index < len(prim.sections)
-                            ):
-                                loop = prim.sections[section_index]
-                                _append_ring(ring_values, loop, _color_rgb(chart_color("orange")))
         envelope_color = (0.15, 1.0, 0.25)
         envelope_values = build_envelope_wire_vertices(
             self._geometry_data,
@@ -1147,7 +1197,7 @@ class OpenGLViewer(QOpenGLWidget):
             fmt.setAttachment(
                 QOpenGLFramebufferObject.Attachment.CombinedDepthStencil,
             )
-            fmt.setSamples(0)
+            fmt.setSamples(4)
             fbo = QOpenGLFramebufferObject(QSize(width, height), fmt)
             if not fbo.isValid():
                 return None

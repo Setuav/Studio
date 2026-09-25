@@ -231,12 +231,11 @@ class SectionsSectionMixin:
         idx = getattr(self, "_section_index", 0)
         if key == "root_airfoil":
             # Highlight specifically the Root Airfoil Station (Station i)
-            self._api.set_section_selection((comp_id, 2, idx))
+            self._api.set_section_selection((comp_id, 0, idx))
         elif key == "tip_airfoil":
             # Highlight specifically the Tip Airfoil Station (Station i + 1)
-            self._api.set_section_selection((comp_id, 2, idx + 1))
+            self._api.set_section_selection((comp_id, 0, idx + 1))
         else:
-            # Highlight the full panel
             self._api.set_section_selection((comp_id, 0, idx))
 
     def _load_section(self, idx: int) -> None:
@@ -596,7 +595,7 @@ class SectionsSectionMixin:
 
         comp_id = str(self._component.get("id") or "")
         station_idx = idx if is_root else idx + 1
-        self._api.set_section_selection((comp_id, 2, station_idx))
+        self._api.set_section_selection((comp_id, 0, station_idx))
 
         key = "root_airfoil" if is_root else "tip_airfoil"
         curr_af = sections[idx].get(key, "2412")
@@ -625,7 +624,7 @@ class SectionsSectionMixin:
             self._populate_sections()
             self.sections_table.selectRow(idx)
             self._load_section(idx)
-            self._api.set_section_selection((comp_id, 2, station_idx))
+            self._api.set_section_selection((comp_id, 0, station_idx))
 
     def _on_section_align_changed(self, value: str) -> None:
         if self._loading:

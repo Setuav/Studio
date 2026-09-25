@@ -330,6 +330,44 @@ class TestStudioViewport(unittest.TestCase):
         self.assertIsNone(self.viewport.selected_section())
         self.assertIsNone(self.mock_renderer.selected_section)
 
+    def test_set_wire_color_api(self) -> None:
+        self.viewport.set_wire_color("fuselage", 1, color="cyan", segment_index=0)
+        self.assertEqual(self.viewport.selected_section(), ("fuselage", 0, 1))
+
+    def test_build_section_ring_vertices_cyan_only(self) -> None:
+        from setuav_studio.ui.viewport.mesh import build_section_ring_vertices
+        from setuav_studio.ui.viewport.primitives import LoftPrimitive
+        from setuav_studio.ui.viewport.scene_object import SceneObject
+
+        # Wing with 3 station loops
+        loop0 = ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (1.0, 0.0, 0.1), (0.0, 0.0, 0.1))
+        loop1 = ((0.0, 5.0, 0.0), (0.8, 5.0, 0.0), (0.8, 5.0, 0.08), (0.0, 5.0, 0.08))
+        loop2 = ((0.0, 10.0, 0.0), (0.5, 10.0, 0.0), (0.5, 10.0, 0.05), (0.0, 10.0, 0.05))
+
+        prim = LoftPrimitive(sections=(loop0, loop1, loop2))
+        scene_objs = {
+            "main-wing": SceneObject(object_id="main-wing", primitives=[prim]),
+        }
+
+        cyan_color = (0.0, 0.85, 1.0)
+        verts = build_section_ring_vertices(
+            None,
+            "main-wing",
+            0,
+            1,  # Select station 1
+            color=cyan_color,
+            scene_objects=scene_objs,
+        )
+
+        # 4 points closed loop = 4 line segments = 8 vertices * 6 floats (x,y,z,r,g,b) = 48 floats
+        self.assertEqual(len(verts), 48)
+        # Verify color is cyan on all vertices
+        for i in range(0, len(verts), 6):
+            r, g, b = verts[i + 3], verts[i + 4], verts[i + 5]
+            self.assertAlmostEqual(r, 0.0)
+            self.assertAlmostEqual(g, 0.85)
+            self.assertAlmostEqual(b, 1.0)
+
     def test_renderer_pick_signal_forwards_to_viewport(self) -> None:
         picked_events: list[str] = []
         self.viewport.object_picked.connect(picked_events.append)

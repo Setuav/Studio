@@ -384,16 +384,31 @@ class StudioViewport(QWidget):
         component_id: str | None,
         segment_index: int | None = None,
         section_index: int | None = None,
+        color: tuple[float, float, float] | str | None = None,
     ) -> None:
         """Set the selected section or station highlight."""
-        if component_id is not None and segment_index is not None and section_index is not None:
-            self._selected_section = (component_id, segment_index, section_index)
+        if component_id is not None and section_index is not None:
+            seg = segment_index if segment_index is not None else 0
+            self._selected_section = (component_id, seg, section_index)
         else:
             self._selected_section = None
         if self._renderer is not None:
             set_sec = getattr(self._renderer, "set_selected_section", None)
             if callable(set_sec):
-                set_sec(component_id, segment_index, section_index)
+                try:
+                    set_sec(component_id, segment_index, section_index, color=color)
+                except TypeError:
+                    set_sec(component_id, segment_index, section_index)
+
+    def set_wire_color(
+        self,
+        object_id: str | None,
+        section_index: int | None = None,
+        color: tuple[float, float, float] | str = "cyan",
+        segment_index: int | None = None,
+    ) -> None:
+        """Set the wire color for a specific section wire loop of an object."""
+        self.set_selected_section(object_id, segment_index, section_index, color=color)
 
     def selected_section(self) -> tuple[str, int, int] | None:
         """Return the currently selected section tuple, or None."""
@@ -922,13 +937,20 @@ class StudioViewport(QWidget):
             if callable(set_env):
                 set_env(envelope_id)
 
-    def _on_api_section_selection_changed(self, selection: tuple[str, int, int] | None) -> None:
+    def _on_api_section_selection_changed(
+        self,
+        selection: tuple[str, int, int] | tuple[str, int, int, Any] | None,
+    ) -> None:
         """Respond to section selection events from StudioAPI."""
         if selection is None:
             self.set_selected_section(None)
             return
-        comp_id, seg_idx, sec_idx = selection
-        self.set_selected_section(comp_id, seg_idx, sec_idx)
+        if len(selection) == 4:
+            comp_id, seg_idx, sec_idx, color = selection
+            self.set_selected_section(comp_id, seg_idx, sec_idx, color=color)
+        else:
+            comp_id, seg_idx, sec_idx = selection
+            self.set_selected_section(comp_id, seg_idx, sec_idx)
 
     def _on_object_picked_to_api(self, object_id: str) -> None:
         """Bridge a 3D click event to StudioAPI so the Tree and Properties panel update."""
