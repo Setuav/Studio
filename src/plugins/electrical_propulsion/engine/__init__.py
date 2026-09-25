@@ -1,6 +1,8 @@
-"""Electrical Propulsion Engine package."""
+"""Electrical propulsion analytical engine package."""
 
-from .base import PropulsionPoint, PropulsionResult
+from __future__ import annotations
+
+from .base import PropulsionPoint
 from .solver import PropulsionSolverEngine
 
-__all__ = ["PropulsionPoint", "PropulsionResult", "PropulsionSolverEngine"]
+__all__ = ["PropulsionPoint", "PropulsionSolverEngine"]

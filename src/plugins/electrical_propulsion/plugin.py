@@ -2,185 +2,186 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
-from setuav_studio_sdk import (
-    PanelContribution,
+from plugins.electrical_propulsion.catalog_dialog import ComponentCatalogDialog
+from plugins.electrical_propulsion.creation import (
+    PropulsionCreationController,
+)
+from plugins.electrical_propulsion.editors import (
+    BatteryEditor,
+    EscEditor,
+    MotorEditor,
+    PropellerEditor,
+    PropulsionSystemEditor,
+)
+from plugins.electrical_propulsion.models import (
+    BatteryModel,
+    ESCModel,
+    MotorModel,
+    PropellerModel,
+    PropulsionSystemModel,
+)
+from setuav_studio.api import (
+    ComponentTypeContribution,
     StudioAPI,
+    StudioPlugin,
     ToolContribution,
-    WorkspaceContribution,
-    WorkspaceLayoutContext,
 )
 
-from .catalog_dialog import ComponentCatalogDialog
-from .charts_dock import PropulsionChartsDock
-from .controls_dock import PropulsionControlsDock
-from .creation import PropulsionCreationController
-from .editors.assembly import ElectricPropulsionSystemEditor
-from .editors.battery import BatteryEditor
-from .editors.esc import EscEditor
-from .editors.motor import MotorEditor
-from .editors.propeller import PropellerEditor
-from .results_dock import PropulsionResultsDock
 
-
-def _apply_propulsion_workspace_layout(layout: WorkspaceLayoutContext) -> None:
-    """Set the default Propulsion workspace arrangement owned by this plugin."""
-    layout.hide("studio.viewer.opengl", "studio.properties")
-    layout.split("project.explorer", "propulsion.controls_dock")
-    layout.split("propulsion.controls_dock", "propulsion.results_dock")
-    layout.split("propulsion.results_dock", "propulsion.charts_dock")
-    layout.show(
-        "project.explorer",
-        "propulsion.controls_dock",
-        "propulsion.results_dock",
-        "propulsion.charts_dock",
-    )
-    layout.resize(
-        (
-            "project.explorer",
-            "propulsion.controls_dock",
-            "propulsion.results_dock",
-            "propulsion.charts_dock",
-        ),
-        (240, 230, 230, 490),
-    )
-
-
-class ElectricalPropulsionPlugin:
-    """Plugin providing electrical propulsion component editors, icons, database, and assemblies."""
+class ElectricalPropulsionPlugin(StudioPlugin):
+    """Integrates electrical propulsion systems, motors, propellers, ESCs, and batteries."""
 
     id = "org.setuav.studio.electrical_propulsion"
-    priority = 70
+    name = "Electrical Propulsion"
+    version = "0.3.0"
+    author = "Setuav Team"
+    description = "Electric motors, propellers, ESCs, batteries and fixed propulsion root system."
 
     def activate(self, api: StudioAPI) -> None:
+        self._api = api
+
+        # Register Creation Toolbar Actions
         self._creation_controller = PropulsionCreationController(api)
         for contribution in self._creation_controller.contributions():
-            api.add_toolbar_item(contribution)
+            api.register_toolbar_item(contribution)
 
-        # Register Component Models
-        from .models import BatteryModel, ESCModel, MotorModel, PropellerModel
+        # Register Component Types
+        self._component_types = [
+            ComponentTypeContribution(
+                id="org.setuav.core:propulsion-system",
+                name="Propulsion",
+                icon="component_propulsion_system",
+                model=PropulsionSystemModel,
+                editor=lambda comp: PropulsionSystemEditor(api, comp),
+                category="Propulsion",
+            ),
+            ComponentTypeContribution(
+                id="org.setuav.core:motor",
+                name="Electric Motor",
+                icon="component",
+                model=MotorModel,
+                editor=lambda comp: MotorEditor(api, comp),
+                category="Propulsion",
+            ),
+            ComponentTypeContribution(
+                id="org.setuav.core:propeller",
+                name="Propeller",
+                icon="component",
+                model=PropellerModel,
+                editor=lambda comp: PropellerEditor(api, comp),
+                category="Propulsion",
+            ),
+            ComponentTypeContribution(
+                id="org.setuav.core:rotor",
+                name="Rotor",
+                icon="component",
+                model=PropellerModel,
+                editor=lambda comp: PropellerEditor(api, comp),
+                category="Propulsion",
+            ),
+            ComponentTypeContribution(
+                id="org.setuav.core:esc",
+                name="ESC (Speed Controller)",
+                icon="component",
+                model=ESCModel,
+                editor=lambda comp: EscEditor(api, comp),
+                category="Propulsion",
+            ),
+            ComponentTypeContribution(
+                id="org.setuav.core:battery",
+                name="Battery",
+                icon="component",
+                model=BatteryModel,
+                editor=lambda comp: BatteryEditor(api, comp),
+                category="Electrical",
+            ),
+        ]
+        for ct in self._component_types:
+            api.register_component_type(ct)
 
-        api.register_component_model("org.setuav.core:motor", MotorModel)
-        api.register_component_model("org.setuav.core:battery", BatteryModel)
-        api.register_component_model("org.setuav.core:esc", ESCModel)
-        api.register_component_model("org.setuav.core:propeller", PropellerModel)
-        api.register_component_model("org.setuav.core:rotor", PropellerModel)
-
-        # Register Component Editors
-        api.register_component_editor(
-            "org.setuav.core:motor",
-            lambda comp: MotorEditor(api, comp),
-        )
-        api.register_component_editor(
-            "org.setuav.core:propeller",
-            lambda comp: PropellerEditor(api, comp),
-        )
-        api.register_component_editor(
-            "org.setuav.core:rotor",
-            lambda comp: PropellerEditor(api, comp),
-        )
-        api.register_component_editor(
-            "org.setuav.core:esc",
-            lambda comp: EscEditor(api, comp),
-        )
-        api.register_component_editor(
-            "org.setuav.core:battery",
-            lambda comp: BatteryEditor(api, comp),
-        )
-        api.register_component_editor(
-            "org.setuav.core:electric-propulsion-system",
-            lambda comp: ElectricPropulsionSystemEditor(api, comp),
-        )
-
-        # Register Component & Assembly Icons
-        api.register_component_icon("org.setuav.core:motor", "component")
-        api.register_component_icon("org.setuav.core:propeller", "component")
-        api.register_component_icon("org.setuav.core:rotor", "component")
-        api.register_component_icon("org.setuav.core:esc", "component")
-        api.register_component_icon("org.setuav.core:battery", "component")
-        api.register_component_icon(
-            "org.setuav.core:electric-propulsion-system",
-            "component_propulsion_system",
-        )
-
-        # Register Propulsion Workspace
-        api.add_workspace(
-            WorkspaceContribution(
-                id="studio.workspace.propulsion",
-                title="Propulsion",
-                order=20,
-                default_layout=_apply_propulsion_workspace_layout,
-            )
-        )
-
-        # Register Propulsion Controls Dock (Left dock in Propulsion workspace)
-        api.add_panel(
-            PanelContribution(
-                id="propulsion.controls_dock",
-                title="Propulsion Controls",
-                factory=lambda: PropulsionControlsDock(api),
-                workspace_id="studio.workspace.propulsion",
-                area=Qt.DockWidgetArea.LeftDockWidgetArea,
-                icon="fa6s.gear",
-            )
-        )
-
-        # Register Propulsion Charts Dock (Center/Right dock in Propulsion workspace)
-        api.add_panel(
-            PanelContribution(
-                id="propulsion.charts_dock",
-                title="Propulsion Charts",
-                factory=lambda: PropulsionChartsDock(api),
-                workspace_id="studio.workspace.propulsion",
-                area=Qt.DockWidgetArea.RightDockWidgetArea,
-                icon="fa6s.chart-line",
-            )
-        )
-
-        # Register Propulsion Results Dock (Bottom-Right dock in Propulsion workspace)
-        api.add_panel(
-            PanelContribution(
-                id="propulsion.results_dock",
-                title="Propulsion Results",
-                factory=lambda: PropulsionResultsDock(api),
-                workspace_id="studio.workspace.propulsion",
-                area=Qt.DockWidgetArea.RightDockWidgetArea,
-                icon="fa6s.table",
-            )
-        )
-
-        # Register Tools menu item
+        # Register Component Database Tool
         def open_component_database() -> None:
             dialog = ComponentCatalogDialog(component_type="all")
             dialog.exec()
 
-        api.register_tool(
-            ToolContribution(
-                group="Electrical Propulsion",
-                title="Component Database…",
-                callback=open_component_database,
-                icon="fa6s.database",
+        self._tool_contribution = ToolContribution(
+            group="Electrical Propulsion",
+            title="Component Database…",
+            callback=open_component_database,
+            icon="fa6s.database",
+        )
+        api.register_tool(self._tool_contribution)
+
+        # Register Propulsion Solver
+        from plugins.electrical_propulsion.solver import (
+            SOLVER_ID_PROPULSION,
+            ElectricalPropulsionSolver,
+        )
+        from setuav_studio.api import ToolbarContribution
+
+        api.register_solver(SOLVER_ID_PROPULSION, ElectricalPropulsionSolver)
+
+        def add_propulsion_analysis() -> None:
+            if api.current_project is None:
+                api.show_status("Open or create a project first.", "warning", 3000)
+                return
+            from setuav_studio.solver import SolverConfig
+
+            config = SolverConfig(
+                solver_id=SOLVER_ID_PROPULSION,
+                name="Propulsion Analysis",
+                parameters={
+                    "mode": "airspeed_sweep",
+                    "v_min": 0.0,
+                    "v_max": 35.0,
+                    "v_step": 1.0,
+                    "throttle": 100.0,
+                    "altitude": 0.0,
+                    "temperature": 15.0,
+                },
+            )
+            api.add_solver_config(config)
+            api.show_status("Added Propulsion Analysis configuration.", "success", 3000)
+
+        self._analysis_toolbar_id = "propulsion.add-analysis"
+        api.register_toolbar_item(
+            ToolbarContribution(
+                id=self._analysis_toolbar_id,
+                title="Add Propulsion Analysis",
+                icon="fa6s.chart-line",
+                callback=add_propulsion_analysis,
+                enabled_when=lambda: api.current_project is not None,
+                group="propulsion-creation",
+                order=120,
             )
         )
+
+        self._analysis_tool = ToolContribution(
+            group="Electrical Propulsion",
+            title="Add Propulsion Analysis",
+            callback=add_propulsion_analysis,
+            icon="fa6s.chart-line",
+        )
+        api.register_tool(self._analysis_tool)
 
     def deactivate(self, api: StudioAPI) -> None:
         controller = getattr(self, "_creation_controller", None)
         if controller is not None:
             for contribution_id in controller.toolbar_ids:
-                api.remove_toolbar_item(contribution_id)
-        for component_type in (
-            "org.setuav.core:motor",
-            "org.setuav.core:propeller",
-            "org.setuav.core:rotor",
-            "org.setuav.core:esc",
-            "org.setuav.core:battery",
-            "org.setuav.core:electric-propulsion-system",
-        ):
-            api.remove_component_model(component_type)
-            api.remove_component_editor(component_type)
-            api.remove_component_icon(component_type)
-        api.remove_panel("propulsion.controls_dock")
-        api.remove_panel("propulsion.results_dock")
-        api.remove_panel("propulsion.charts_dock")
-        api.remove_action("Tools/Electrical Propulsion", "Component Database…")
-        api.remove_workspace("studio.workspace.propulsion")
+                api.unregister_toolbar_item(contribution_id)
+
+        if hasattr(self, "_analysis_toolbar_id"):
+            api.unregister_toolbar_item(self._analysis_toolbar_id)
+
+        for ct in getattr(self, "_component_types", ()):
+            api.unregister_component_type(ct.id)
+
+        if getattr(self, "_tool_contribution", None) is not None:
+            api.unregister_tool(self._tool_contribution)
+
+        if getattr(self, "_analysis_tool", None) is not None:
+            api.unregister_tool(self._analysis_tool)
+
+        from plugins.electrical_propulsion.solver import SOLVER_ID_PROPULSION
+
+        api.unregister_solver(SOLVER_ID_PROPULSION)
