@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 
 from setuav_studio.ui.widget.table import ExpressionPropertyCell
 
-from ..engine.lifting_surface_driver_solver import (
+from ...engine.lifting_surface_driver_solver import (
     PLANFORM_PARAM_KEYS,
     PLANFORM_PARAM_LABELS,
     PLANFORM_PARAM_UNITS,

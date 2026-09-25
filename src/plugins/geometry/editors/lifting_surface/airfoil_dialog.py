@@ -40,7 +40,7 @@ from PySide6.QtWidgets import (
 from setuav_studio.ui.style.theme import tokens
 from setuav_studio.ui.widget.button import set_button_role, set_native_button
 
-from ..engine.airfoil import (
+from ...engine.airfoil import (
     PRESET_AIRFOILS,
     compute_airfoil_metrics,
     naca4,

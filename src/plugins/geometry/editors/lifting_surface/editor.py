@@ -26,21 +26,21 @@ from setuav_studio.ui.widget.spinbox import (
 )
 from setuav_studio.ui.widget.table import PropertyTableMixin
 
-from ..engine.airfoil import PRESET_AIRFOILS
-from .lifting_surface_attachment import AttachmentMixin
-from .lifting_surface_control_surfaces import ControlSurfacesMixin
-from .lifting_surface_planform import PlanformMixin
-from .lifting_surface_sections import SectionsMixin
-from .lifting_surface_tip_caps import TipCapsMixin
+from ...engine.airfoil import PRESET_AIRFOILS
+from .control_surfaces_section import ControlSurfacesSectionMixin
+from .general_section import GeneralSectionMixin
+from .planform_section import PlanformSectionMixin
+from .sections_section import SectionsSectionMixin
+from .tip_caps_section import TipCapsSectionMixin
 
 
 class LiftingSurfaceEditor(
     PropertyTableMixin,
-    AttachmentMixin,
-    PlanformMixin,
-    SectionsMixin,
-    TipCapsMixin,
-    ControlSurfacesMixin,
+    GeneralSectionMixin,
+    PlanformSectionMixin,
+    SectionsSectionMixin,
+    TipCapsSectionMixin,
+    ControlSurfacesSectionMixin,
     QWidget,
 ):
     """Component property editor for org.setuav.core:lifting-surface."""
@@ -113,19 +113,6 @@ class LiftingSurfaceEditor(
     # UI Sections Creation
     # -------------------------------------------------------------------------
 
-    def _create_general_section(self) -> None:
-        layout = self._create_section("General", "fa6s.circle-info")
-        self.general_table = self._property_table(
-            [
-                ("name", "Name"),
-                ("type", "Type"),
-                ("attach_to", "Attach to"),
-                ("mirror", "Symmetry / Mirror"),
-            ]
-        )
-        self.general_table.cellChanged.connect(self._update_general)
-        layout.addWidget(self.general_table)
-
     def _create_section(self, title: str, icon_name: str | None = None) -> QVBoxLayout:
         section = QWidget()
         section.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
@@ -176,44 +163,7 @@ class LiftingSurfaceEditor(
         self._loading = True
 
         # General
-        self._set_property_value(self.general_table, "name", str(self._component.get("name") or ""))
-        self._set_property_value(
-            self.general_table, "type", str(self._component.get("type") or ""), editable=False
-        )
-
-        # Parent Selection Combo (Only fuselage and lifting surfaces)
-        current_attach = str(
-            self._component.get("attach_to") or self._component.get("parent") or ""
-        )
-        parent_options = [("", "(None)")]
-        project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
-        if project and isinstance(project.data.get("components"), list):
-            for comp in project.data["components"]:
-                if isinstance(comp, dict) and comp.get("type") in (
-                    "org.setuav.core:fuselage",
-                    "org.setuav.core:lifting-surface",
-                ):
-                    cid = str(comp.get("id") or "")
-                    if cid and cid != self._component.get("id"):
-                        cname = str(comp.get("name") or cid)
-                        parent_options.append((cid, f"{cname} ({cid})"))
-        self._set_property_combo(
-            self.general_table,
-            "attach_to",
-            current_attach,
-            parent_options,
-            lambda val: self._update_attach_to(val if val else None),
-        )
-
-        # Symmetry / Mirror
-        is_mirror = "true" if self._geometry().get("mirror") is True else "false"
-        self._set_property_combo(
-            self.general_table,
-            "mirror",
-            is_mirror,
-            [("false", "Single (No Mirror)"), ("true", "Bilateral (Mirror XZ)")],
-            lambda val: self._update_mirror(val == "true"),
-        )
+        self._load_general()
 
         # Sections (Panels)
         self._populate_sections()
@@ -246,22 +196,6 @@ class LiftingSurfaceEditor(
             self._update_cs_actions()
 
     # -------------------------------------------------------------------------
-    # General Mutations
-    # -------------------------------------------------------------------------
-
-    def _update_general(self, row: int, column: int) -> None:
-        if self._loading or column != 1:
-            return
-        key = self._property_key(self.general_table, row)
-        val_str = self._property_text(self.general_table, row)
-
-        def change() -> None:
-            if key == "name":
-                self._component["name"] = val_str.strip()
-
-        self._edit_component(f"Edit {key}", change)
-
-    # -------------------------------------------------------------------------
     # Helpers & Edit Component Transaction
     # -------------------------------------------------------------------------
 
@@ -270,7 +204,7 @@ class LiftingSurfaceEditor(
     ) -> None:
         def wrapped_cs_change() -> None:
             change_fn()
-            from ..engine.envelope import sync_component_envelope
+            from ...engine.envelope import sync_component_envelope
 
             sync_component_envelope(cs, self._component)
 
@@ -292,7 +226,7 @@ class LiftingSurfaceEditor(
     def _edit_component(self, description: str, change_fn: Callable[[], None]) -> None:
         def wrapped_change() -> None:
             change_fn()
-            from ..engine.envelope import sync_component_envelope
+            from ...engine.envelope import sync_component_envelope
 
             sync_component_envelope(self._component)
 

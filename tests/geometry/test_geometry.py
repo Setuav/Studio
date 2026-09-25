@@ -985,7 +985,7 @@ class GeometryTests(unittest.TestCase):
 
         # 2. Scale the wing span from 1000 to 2000 mm
         wing_comp["parameters"]["geometry"]["profiles"][1]["position"]["y"] = 2000.0
-        editor._sync_control_surfaces_with_wing()
+        editor._sync_control_surfaces_with_surface()
 
         # Ratio aileron should scale its span_start from 600mm to 1200mm (0.6 * 2000)
         self.assertAlmostEqual(geom0["span_start"], 1200.0)
@@ -1714,7 +1714,7 @@ class GeometryTests(unittest.TestCase):
 
     def test_airfoil_dialog_initial_selection(self) -> None:
         """Verify initial selection resolves preset names, NACA codes, and dict specs."""
-        from plugins.geometry.editors.airfoil_dialog import AirfoilDialog
+        from plugins.geometry.editors.lifting_surface import AirfoilDialog
 
         # Full preset name -> preset row selected on library tab
         dlg = AirfoilDialog("NACA 0012")
@@ -1737,7 +1737,7 @@ class GeometryTests(unittest.TestCase):
 
     def test_airfoil_dialog_preset_selection_and_metrics(self) -> None:
         """Verify preset selection updates canvas, metrics, and selected spec."""
-        from plugins.geometry.editors.airfoil_dialog import AirfoilDialog
+        from plugins.geometry.editors.lifting_surface import AirfoilDialog
         from plugins.geometry.engine.airfoil import PRESET_AIRFOILS
 
         dialog = AirfoilDialog("NACA 2412")
@@ -1767,7 +1767,7 @@ class GeometryTests(unittest.TestCase):
 
     def test_airfoil_dialog_naca_generation(self) -> None:
         """Verify 4/5-digit NACA generation, radio swapping, and desc label."""
-        from plugins.geometry.editors.airfoil_dialog import AirfoilDialog
+        from plugins.geometry.editors.lifting_surface import AirfoilDialog
 
         dialog = AirfoilDialog("2412")
         self.assertEqual(dialog.tabs.currentIndex(), 1)
@@ -1794,7 +1794,7 @@ class GeometryTests(unittest.TestCase):
         """Verify .dat import populates coordinates table, canvas, and spec."""
         from PySide6.QtWidgets import QFileDialog
 
-        from plugins.geometry.editors.airfoil_dialog import AirfoilDialog
+        from plugins.geometry.editors.lifting_surface import AirfoilDialog
 
         with tempfile.TemporaryDirectory() as tmp:
             dat_path = Path(tmp) / "custom.dat"
@@ -1823,7 +1823,7 @@ class GeometryTests(unittest.TestCase):
 
     def test_airfoil_dialog_category_filter_and_apply_semantics(self) -> None:
         """Verify category filtering and apply/apply-all result semantics."""
-        from plugins.geometry.editors.airfoil_dialog import AirfoilDialog
+        from plugins.geometry.editors.lifting_surface import AirfoilDialog
         from plugins.geometry.engine.airfoil import PRESET_AIRFOILS
 
         dialog = AirfoilDialog("2412")

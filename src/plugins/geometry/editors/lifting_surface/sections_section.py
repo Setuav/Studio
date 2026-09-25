@@ -18,9 +18,9 @@ from PySide6.QtWidgets import (
 
 from setuav_studio.ui.widget.button import set_native_button
 
-from ..engine.lifting_surface_driver_solver import compute_all_8_parameters
-from ..engine.lifting_surface_planform_engine import SWEEP_LOCATIONS
-from ..engine.lifting_surface_sections_engine import (
+from ...engine.lifting_surface_driver_solver import compute_all_8_parameters
+from ...engine.lifting_surface_planform_engine import SWEEP_LOCATIONS
+from ...engine.lifting_surface_sections_engine import (
     delete_section,
     insert_section,
     profiles_to_sections,
@@ -31,8 +31,8 @@ from .airfoil_dialog import AirfoilDialog
 from .planform_driver_table import DriverPlanformTable
 
 
-class SectionsMixin:
-    """Parametric wing sections, section-level driver sizing, and section properties."""
+class SectionsSectionMixin:
+    """Parametric lifting surface sections, section-level driver sizing, and section properties."""
 
     # -------------------------------------------------------------------------
     # UI Sections Creation
@@ -485,8 +485,8 @@ class SectionsMixin:
         self._populate_sections()
         self.sections_table.selectRow(idx)
         self._refresh_planform_table()
-        if hasattr(self, "_sync_control_surfaces_with_wing"):
-            self._sync_control_surfaces_with_wing()
+        if hasattr(self, "_sync_control_surfaces_with_surface"):
+            self._sync_control_surfaces_with_surface()
 
     def _on_section_angle_changed(self, key: str, value: float) -> None:
         if self._loading:

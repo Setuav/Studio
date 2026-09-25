@@ -7,8 +7,8 @@ from typing import Any
 
 from PySide6.QtCore import Qt
 
-from ..engine.lifting_surface_driver_solver import compute_all_8_parameters
-from ..engine.lifting_surface_planform_engine import (
+from ...engine.lifting_surface_driver_solver import compute_all_8_parameters
+from ...engine.lifting_surface_planform_engine import (
     SWEEP_LOCATIONS,
     TWIST_LOCATIONS,
     compute_planform_metrics,
@@ -20,8 +20,8 @@ from ..engine.lifting_surface_planform_engine import (
 from .planform_driver_table import DriverPlanformTable
 
 
-class PlanformMixin:
-    """8-Variable 3-Driver Wing Planform Sizing and Wing Angles/Alignment logic."""
+class PlanformSectionMixin:
+    """8-Variable 3-Driver Lifting Surface Planform Sizing and Angles/Alignment logic."""
 
     # -------------------------------------------------------------------------
     # UI Sections Creation
@@ -364,8 +364,8 @@ class PlanformMixin:
         elif self._get_sections():
             self._load_section(0)
 
-        if hasattr(self, "_sync_control_surfaces_with_wing"):
-            self._sync_control_surfaces_with_wing()
+        if hasattr(self, "_sync_control_surfaces_with_surface"):
+            self._sync_control_surfaces_with_surface()
 
     def _on_planform_spinbox_changed(self, key: str, val_num: float) -> None:
         if self._loading:

@@ -15,10 +15,10 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
 )
 
-from ..engine.control_surface_geometry import sync_sizing_values
+from ...engine.control_surface_geometry import sync_sizing_values
 
 
-class ControlSurfacesMixin:
+class ControlSurfacesSectionMixin:
     """Control surface listing, properties, and mutation handling."""
 
     CONTROL_SURFACE_TYPES = (
@@ -119,7 +119,7 @@ class ControlSurfacesMixin:
         self.cs_properties_table.cellChanged.connect(self._update_cs_property)
         layout.addWidget(self.cs_properties_table)
 
-    def _wing_span_info(self) -> tuple[float, float, float, float]:
+    def _surface_span_info(self) -> tuple[float, float, float, float]:
         """Return (semi_span, root_chord, tip_chord, parent_wing_area_dm2) for this lifting surface."""
         profiles = self._profiles()
         if profiles:
@@ -142,12 +142,12 @@ class ControlSurfacesMixin:
             )
         return 400.0, 150.0, 100.0, 10.0
 
-    def _sync_control_surfaces_with_wing(self) -> None:
+    def _sync_control_surfaces_with_surface(self) -> None:
         """Synchronize control surface span/chord values according to their span_mode and chord_mode."""
         cs_list = self._control_surfaces()
         if not cs_list:
             return
-        semi_span, root_chord, *_ = self._wing_span_info()
+        semi_span, root_chord, *_ = self._surface_span_info()
         for cs in cs_list:
             sync_sizing_values(self._cs_geom(cs), semi_span, root_chord)
 
@@ -216,7 +216,7 @@ class ControlSurfacesMixin:
         self._control_surface_index = row
         cs = cs_list[row]
         geom = self._cs_geom(cs)
-        semi_span, root_chord, tip_chord, wing_area = self._wing_span_info()
+        semi_span, root_chord, tip_chord, wing_area = self._surface_span_info()
 
         comp_id = str(self._component.get("id") or "")
         self._api.set_section_selection((comp_id, 1, row))
@@ -224,7 +224,7 @@ class ControlSurfacesMixin:
         was_loading = self._loading
         self._loading = True
         try:
-            from ..engine.control_surface_geometry import compute_control_surface_metrics
+            from ...engine.control_surface_geometry import compute_control_surface_metrics
 
             self._cs_spinboxes: dict[str, Any] = {}
 
@@ -377,7 +377,7 @@ class ControlSurfacesMixin:
             return
         cs = cs_list[self._control_surface_index]
         geom = self._cs_geom(cs)
-        semi_span, root_chord, tip_chord, _wing_area = self._wing_span_info()
+        semi_span, root_chord, tip_chord, _wing_area = self._surface_span_info()
 
         val_str = str(value).strip() if value is not None else ""
         num_val: float | None = None
@@ -419,7 +419,7 @@ class ControlSurfacesMixin:
         root_chord: float,
         tip_chord: float = 100.0,
     ) -> None:
-        from ..engine.control_surface_geometry import solve_control_surface_from_area
+        from ...engine.control_surface_geometry import solve_control_surface_from_area
 
         if key == "area":
             driver_mode = str(geometry.get("sizing_mode", "area_chord")).lower()
@@ -579,7 +579,7 @@ class ControlSurfacesMixin:
         new_id = f"{wing_id}-{new_tag}"
         project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
 
-        semi_span, root_chord, *_ = self._wing_span_info()
+        semi_span, root_chord, *_ = self._surface_span_info()
         def_start = round(max(semi_span * 0.4, 20.0), 1)
         def_end = round(max(semi_span * 0.85, def_start + 50.0), 1)
         def_chord = round(max(root_chord * 0.25, 10.0), 1)
@@ -830,7 +830,7 @@ class ControlSurfacesMixin:
             return
         cs = cs_list[row]
         geom = self._cs_geom(cs)
-        semi_span, root_chord, *_ = self._wing_span_info()
+        semi_span, root_chord, *_ = self._surface_span_info()
         s_start = float(geom.get("span_start", 0.0))
         s_end = float(geom.get("span_end", 0.0))
         eta_start = float(geom.get("eta_start", round(s_start / semi_span, 3)))
