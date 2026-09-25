@@ -42,14 +42,6 @@ from .lifting_surface_geometry import (
     build_lifting_surface_geometry,
     compute_winglet_projected_dimensions,
 )
-from .mount import (
-    MountFrame,
-    MountTarget,
-    compute_propeller_clearance,
-    generate_clearance_circle_points,
-    generate_mount_targets,
-    resolve_mount_point,
-)
 from .palettes import (
     DEFAULT_PALETTE,
     active_palette,
@@ -104,8 +96,6 @@ __all__ = [
     "GeometryProvider",
     "LoftGeometry",
     "Matrix4",
-    "MountFrame",
-    "MountTarget",
     "Point3D",
     "Section",
     "active_palette",
@@ -120,7 +110,6 @@ __all__ = [
     "compute_control_surface_metrics",
     "compute_geometry_envelope",
     "compute_planform_metrics",
-    "compute_propeller_clearance",
     "compute_section_metrics",
     "compute_winglet_projected_dimensions",
     "control_surface_color",
@@ -129,8 +118,6 @@ __all__ = [
     "delete_section",
     "derivation_matrix",
     "format_profile_size",
-    "generate_clearance_circle_points",
-    "generate_mount_targets",
     "get_default_profile",
     "identity_matrix",
     "insert_section",
@@ -141,7 +128,6 @@ __all__ = [
     "parse_airfoil_dat",
     "profiles_to_sections",
     "resolve_chord_values",
-    "resolve_mount_point",
     "resolve_span_values",
     "sample_airfoil_points",
     "sample_profile",
