@@ -782,9 +782,19 @@ class StudioAPI:
         _dispatch_listeners(self._section_selection_listeners, selection)
         self.publish(StudioEvents.SECTION_SELECTION_CHANGED, selection)
 
-    def register_component_type(self, contribution: ComponentTypeContribution) -> None:
-        """Register a component type descriptor defining name, icon, model, or editor."""
-        if contribution.id in self._component_types:
+    def register_component_type(
+        self,
+        contribution: ComponentTypeContribution,
+        *,
+        override: bool = True,
+    ) -> None:
+        """Register a component type descriptor defining name, icon, model, or editor.
+
+        @param contribution Component type descriptor.
+        @param override Whether to override or enrich an existing component type registration.
+                        Defaults to True to allow plugins to register implementations for native types.
+        """
+        if contribution.id in self._component_types and not override:
             raise ValueError(f"A component type is already registered for: {contribution.id}")
         self._component_types[contribution.id] = contribution
         if contribution.icon is not None:

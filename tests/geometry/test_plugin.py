@@ -102,6 +102,21 @@ class GeometryPluginLifecycleTests(unittest.TestCase):
 
         plugin.deactivate(api)
 
+    def test_activate_after_native_registrations(self) -> None:
+        from setuav_studio.ui.shell.native_registrations import register_native_contributions
+
+        api = StudioAPI()
+        register_native_contributions(api)
+
+        plugin = GeometryPlugin()
+        plugin.activate(api)
+
+        # Fuselage model and editor should now be registered
+        self.assertIn("org.setuav.core:fuselage", api._component_models)
+        self.assertIn("org.setuav.core:fuselage", api._component_editors)
+
+        plugin.deactivate(api)
+
 
 if __name__ == "__main__":
     unittest.main()

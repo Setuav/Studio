@@ -42,6 +42,21 @@ class PluginAPIContractTests(unittest.TestCase):
         self.assertIsNone(inst.get_component_type("org.test:sensor"))
         self.assertEqual(inst.get_component_type_label("org.test:sensor"), "Sensor")
 
+        # Test re-registration with override=False raises ValueError
+        inst.register_component_type(contrib)
+        with self.assertRaises(ValueError):
+            inst.register_component_type(contrib, override=False)
+
+        # Test re-registration with default override=True succeeds and updates
+        updated_contrib = api.ComponentTypeContribution(
+            id="org.test:sensor",
+            name="Updated Sensor",
+            category="Sensors",
+        )
+        inst.register_component_type(updated_contrib)
+        self.assertEqual(inst.get_component_type("org.test:sensor"), updated_contrib)
+        self.assertEqual(inst.get_component_type_label("org.test:sensor"), "Updated Sensor")
+
     def test_plugin_entry_point_group_is_stable(self) -> None:
         self.assertEqual(plugin.PLUGIN_ENTRY_POINT_GROUP, "setuav_studio.plugins")
 
