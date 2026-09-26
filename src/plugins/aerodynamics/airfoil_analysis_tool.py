@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QObject, Qt, QThread, Signal, Slot
-from PySide6.QtGui import QCloseEvent
+from PySide6.QtCharts import QLineSeries, QValueAxis
+from PySide6.QtCore import QObject, QPointF, Qt, QThread, Signal, Slot
+from PySide6.QtGui import QCloseEvent, QColor, QPen
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -37,12 +39,82 @@ from plugins.geometry.engine.airfoil import (
     PRESET_AIRFOILS,
     parse_airfoil_dat,
 )
+from setuav_studio.ui.style.theme import chart_color
+from setuav_studio.ui.widget import StudioChartWidget
 from setuav_studio.ui.widget.button import set_button_role, set_native_button
 from setuav_studio.ui.widget.spinbox import NumericSpinBox
 
-from .charts_dock import SingleChartWidget
 from .engine.aerosandbox_engine import HAS_AEROSANDBOX, AeroSandboxEngine
 from .engine.airfoil_engine import AirfoilAnalysisEngine
+
+
+class SingleChartWidget(StudioChartWidget):
+    """Sub-chart widget providing themed QtCharts plotting capabilities."""
+
+    def __init__(self, title: str, parent: QWidget | None = None) -> None:
+        super().__init__(
+            title=title,
+            parent=parent,
+            legend_visible=False,
+            animated=False,
+        )
+
+    def _create_axis(self, title: str = "") -> QValueAxis:
+        return self.create_axis(title=title)
+
+    @staticmethod
+    def _padded_range(values: Sequence[float]) -> tuple[float, float]:
+        lo = float(min(values))
+        hi = float(max(values))
+        span = hi - lo
+        pad = max(span * 0.05, 1e-6)
+        if span <= 1e-12:
+            pad = max(abs(lo) * 0.05, 1e-3)
+
+        lower = lo - pad
+        upper = hi + pad
+        if lo >= 0.0:
+            lower = max(0.0, lower)
+        elif hi <= 0.0:
+            upper = min(0.0, upper)
+        return lower, upper
+
+    def plot_single(
+        self,
+        x_vals: Sequence[float],
+        y_vals: Sequence[float],
+        name: str,
+        color_role: str,
+        x_title: str = "",
+        y_title: str = "",
+    ) -> None:
+        self.clear()
+        if not x_vals or not y_vals:
+            return
+        self.chart.legend().setVisible(False)
+
+        series = QLineSeries()
+        series.setName(name)
+        series.setProperty("themeColorRole", color_role)
+
+        pen = QPen(QColor(chart_color(color_role)), 2.5)
+        series.setPen(pen)
+
+        for x, y in zip(x_vals, y_vals, strict=True):
+            series.append(QPointF(x, y))
+
+        self.chart.addSeries(series)
+
+        axis_x = self._create_axis(x_title)
+        axis_x.setRange(*self._padded_range(x_vals))
+
+        axis_y = self._create_axis(y_title)
+        axis_y.setRange(*self._padded_range(y_vals))
+
+        self.chart.addAxis(axis_x, Qt.AlignmentFlag.AlignBottom)
+        self.chart.addAxis(axis_y, Qt.AlignmentFlag.AlignLeft)
+        series.attachAxis(axis_x)
+        series.attachAxis(axis_y)
 
 
 @dataclass(frozen=True)
