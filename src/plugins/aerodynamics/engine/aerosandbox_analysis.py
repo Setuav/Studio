@@ -3,10 +3,7 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
-
-from setuav_studio.project import ProjectDocument
 
 from .aerosandbox_results import AeroSandboxResultMixin
 from .base import (
@@ -502,22 +499,15 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
     def _resolve_mass_cg(
         components: list[dict[str, Any]],
     ) -> tuple[tuple[float, float, float] | None, str]:
-        """Resolve the aircraft CG from the shared Weight-Balance model."""
+        """Resolve the aircraft CG from the core Mass-Balance model."""
         try:
-            from plugins.weight_balance.engine.solver import WeightBalanceSolver
+            from setuav_studio.utilities.mass_balance import resolve_aircraft_mass_properties
 
-            project = ProjectDocument(
-                path=Path("<aerodynamics>"),
-                kind="json",
-                data={"components": components},
-            )
-            result = WeightBalanceSolver().evaluate(project)
-            has_missing_mass = any(
-                "mass is missing; component excluded" in warning for warning in result.warnings
-            )
-            source = "weight_balance_incomplete" if has_missing_mass else "weight_balance"
-            cg_x, cg_y, cg_z = result.total.cg_body_m
-            return (float(cg_x), float(cg_y), float(cg_z)), source
+            mass_props = resolve_aircraft_mass_properties(components)
+            if mass_props.mass_kg > 0.0:
+                cg_x, cg_y, cg_z = mass_props.cg_body_m
+                return (float(cg_x), float(cg_y), float(cg_z)), "weight_balance"
+            return None, "aerodynamic_reference"
         except Exception as err:
             logger.info("Weight-Balance CG unavailable; using aerodynamic reference: %s", err)
             return None, "aerodynamic_reference"

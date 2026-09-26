@@ -5,15 +5,13 @@ from __future__ import annotations
 from typing import Any
 
 from PySide6.QtCore import Qt
-from setuav_studio_sdk import (
+
+from setuav_studio.api import (
     PanelContribution,
     ProjectTreeNodeContribution,
     StudioAPI,
     StudioEvents,
-    WorkspaceContribution,
-    WorkspaceLayoutContext,
 )
-
 from setuav_studio.project import ProjectDocument
 
 from .analysis_store import (
@@ -29,29 +27,6 @@ from .charts_dock import PerformanceChartsDock
 from .controls_dock import PerformanceControlsDock
 from .engine.models import FlightEnvelopeResult
 from .results_dock import PerformanceResultsDock
-
-
-def _apply_flight_performance_workspace_layout(layout: WorkspaceLayoutContext) -> None:
-    """Set the default Performance workspace arrangement owned by this plugin."""
-    layout.hide("studio.viewer.opengl", "studio.properties")
-    layout.split("project.explorer", "flight_performance.controls_dock")
-    layout.split("flight_performance.controls_dock", "flight_performance.results_dock")
-    layout.split("flight_performance.results_dock", "flight_performance.charts_dock")
-    layout.show(
-        "project.explorer",
-        "flight_performance.controls_dock",
-        "flight_performance.results_dock",
-        "flight_performance.charts_dock",
-    )
-    layout.resize(
-        (
-            "project.explorer",
-            "flight_performance.controls_dock",
-            "flight_performance.results_dock",
-            "flight_performance.charts_dock",
-        ),
-        (240, 220, 240, 490),
-    )
 
 
 class FlightPerformancePlugin:
@@ -72,47 +47,34 @@ class FlightPerformancePlugin:
         # 2. Register Selection Listener to restore saved results on tree click
         api.on_selection_changed(self._on_selection_changed)
 
-        # 3. Register Flight Performance Workspace
-        api.add_workspace(
-            WorkspaceContribution(
-                id="studio.workspace.flight_performance",
-                order=25,
-                title="Performance",
-                default_layout=_apply_flight_performance_workspace_layout,
-            )
-        )
-
-        # 4. Register Controls Dock (Left dock)
-        api.add_panel(
+        # 3. Register Controls Dock (Left dock)
+        api.register_panel(
             PanelContribution(
                 id="flight_performance.controls_dock",
                 title="Performance Controls",
                 factory=lambda: PerformanceControlsDock(api),
-                workspace_id="studio.workspace.flight_performance",
                 area=Qt.DockWidgetArea.LeftDockWidgetArea,
                 icon="fa6s.sliders",
             )
         )
 
-        # 5. Register Charts Dock (Right dock)
-        api.add_panel(
+        # 4. Register Charts Dock (Right dock)
+        api.register_panel(
             PanelContribution(
                 id="flight_performance.charts_dock",
                 title="Performance Curves",
                 factory=lambda: PerformanceChartsDock(api),
-                workspace_id="studio.workspace.flight_performance",
                 area=Qt.DockWidgetArea.RightDockWidgetArea,
                 icon="fa6s.chart-line",
             )
         )
 
-        # 6. Register Results Dock (Right dock)
-        api.add_panel(
+        # 5. Register Results Dock (Right dock)
+        api.register_panel(
             PanelContribution(
                 id="flight_performance.results_dock",
                 title="Flight Summary",
                 factory=lambda: PerformanceResultsDock(api),
-                workspace_id="studio.workspace.flight_performance",
                 area=Qt.DockWidgetArea.RightDockWidgetArea,
                 icon="fa6s.table-list",
             )
@@ -120,11 +82,10 @@ class FlightPerformancePlugin:
 
     def deactivate(self, api: StudioAPI) -> None:
         api.remove_selection_listener(self._on_selection_changed)
-        api.remove_project_tree_provider(self.id)
-        api.remove_panel("flight_performance.controls_dock")
-        api.remove_panel("flight_performance.charts_dock")
-        api.remove_panel("flight_performance.results_dock")
-        api.remove_workspace("studio.workspace.flight_performance")
+        api.unregister_project_tree_provider(self.id)
+        api.unregister_panel("flight_performance.controls_dock")
+        api.unregister_panel("flight_performance.charts_dock")
+        api.unregister_panel("flight_performance.results_dock")
         self._api = None
 
     def _on_selection_changed(self, selection: dict[str, Any] | None) -> None:

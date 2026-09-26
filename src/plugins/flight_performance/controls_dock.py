@@ -20,11 +20,10 @@ from PySide6.QtWidgets import (
 )
 from pythrust.propulsion.models.motor import MotorSpec
 from pythrust.propulsion.models.propeller import PropellerSpec
-from setuav_studio_sdk import StudioAPI, StudioEvents
 
 from plugins.electrical_propulsion.database import get_propeller_database
 from plugins.electrical_propulsion.engine.solver import PropulsionSolverEngine
-from plugins.weight_balance.engine.solver import WeightBalanceSolver
+from setuav_studio.api import StudioAPI, StudioEvents
 from setuav_studio.ui.style.icons import set_label_icon
 from setuav_studio.ui.widget.button import refresh_button_role, set_button_role
 from setuav_studio.ui.widget.table import PropertyTableMixin
@@ -360,10 +359,9 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
             return
 
         try:
-            wb_solver = WeightBalanceSolver()
-            wb_res = wb_solver.evaluate(proj)
-            if wb_res and wb_res.total.mass_kg > 0:
-                self._empty_mass_kg = float(wb_res.total.mass_kg)
+            mass_props = getattr(proj, "mass_properties", None)
+            if mass_props is not None and mass_props.mass_kg > 0:
+                self._empty_mass_kg = float(mass_props.mass_kg)
                 empty_g = self._empty_mass_kg * 1000.0
                 self._set_property_value(self.mass_table, "empty_mass", f"{empty_g:.1f} g")
                 self._update_takeoff_mass()

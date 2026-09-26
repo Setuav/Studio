@@ -2,6 +2,7 @@
 
 from .plugin import FlightPerformancePlugin
 
-PLUGIN = FlightPerformancePlugin
+# Plugin is temporarily disabled
+PLUGIN = None
 
 __all__ = ["PLUGIN", "FlightPerformancePlugin"]

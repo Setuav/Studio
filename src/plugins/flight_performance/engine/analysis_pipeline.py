@@ -19,7 +19,6 @@ from plugins.aerodynamics.engine.aerosandbox_engine import (
     FlightCondition,
 )
 from plugins.electrical_propulsion.engine.solver import PropulsionSolverEngine
-from plugins.weight_balance.engine.solver import WeightBalanceSolver
 
 from .analysis_results import FlightPerformanceResultBuilder
 from .models import FlightEnvelopeResult
@@ -160,9 +159,11 @@ class FlightPerformanceAnalysisPipeline:
         project = context.get("project")
         if mass_kg <= 0.0 and project is not None:
             try:
-                mass_kg = float(WeightBalanceSolver().evaluate(project).total.mass_kg)
+                mass_props = getattr(project, "mass_properties", None)
+                if mass_props is not None and mass_props.mass_kg > 0:
+                    mass_kg = float(mass_props.mass_kg)
             except Exception as exc:
-                logger.debug("WeightBalance evaluate failed; trying component mass sum: %s", exc)
+                logger.debug("Core mass_properties failed; trying component mass sum: %s", exc)
             if mass_kg <= 0.0:
                 components = project.data.get("components", [])
                 mass_kg = (

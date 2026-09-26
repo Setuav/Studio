@@ -15,8 +15,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from setuav_studio_sdk import StudioAPI, StudioEvents
 
+from setuav_studio.api import StudioAPI, StudioEvents
 from setuav_studio.ui.widget import StudioChartWidget, StudioSplitterGrid
 
 from .engine.models import FlightEnvelopeResult
