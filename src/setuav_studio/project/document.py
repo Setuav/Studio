@@ -206,6 +206,17 @@ class ProjectDocument:
             return None
         return next((c for c in components if isinstance(c, dict) and c.get("id") == comp_id), None)
 
+    @property
+    def mass_properties(self) -> Any:
+        """Aggregate total aircraft mass, center of gravity, and 3D inertia tensor."""
+        from setuav_studio.utilities.mass_balance import resolve_aircraft_mass_properties
+
+        return resolve_aircraft_mass_properties(self)
+
+    def get_mass_properties(self) -> Any:
+        """Return the current aggregate aircraft mass properties."""
+        return self.mass_properties
+
     def get_component_plugin_data(self, comp_id: str, namespace: str, default: Any = None) -> Any:
         """Retrieve component-level extension data for a given namespace."""
         comp = self.get_component(comp_id)

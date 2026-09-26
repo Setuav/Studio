@@ -2,6 +2,24 @@
 
 from __future__ import annotations
 
+from setuav_studio.utilities.envelope import (
+    UnitInertia6D,
+    compute_box_envelope,
+    compute_cylinder_envelope,
+    compute_loft_envelope,
+    compute_mesh_mass_properties,
+    resolve_component_aggregate_envelope,
+    resolve_component_envelope,
+)
+from setuav_studio.utilities.mass_balance import (
+    get_component_children,
+    get_component_intrinsic_mass_g,
+    resolve_aircraft_mass_properties,
+    resolve_component_aggregate_mass_properties,
+    resolve_component_intrinsic_mass_properties,
+    resolve_component_local_cg,
+    resolve_component_local_inertia,
+)
 from setuav_studio.utilities.transform import (
     Matrix3,
     Point3D,
@@ -22,13 +40,27 @@ __all__ = [
     "Matrix3",
     "Point3D",
     "Rotation3D",
+    "UnitInertia6D",
+    "compute_box_envelope",
+    "compute_cylinder_envelope",
+    "compute_loft_envelope",
+    "compute_mesh_mass_properties",
     "compute_reparented_transform",
     "euler_to_matrix",
+    "get_component_children",
+    "get_component_intrinsic_mass_g",
     "get_local_transform",
     "inverse_rotate_vector",
     "matrix_to_euler",
     "multiply_rotations",
     "reparent_component",
+    "resolve_aircraft_mass_properties",
+    "resolve_component_aggregate_envelope",
+    "resolve_component_aggregate_mass_properties",
+    "resolve_component_envelope",
+    "resolve_component_intrinsic_mass_properties",
+    "resolve_component_local_cg",
+    "resolve_component_local_inertia",
     "resolve_world_transform",
     "rotate_vector",
     "transpose_matrix",
