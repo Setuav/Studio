@@ -95,6 +95,7 @@ class StudioAPI:
         self._pending_panels: list[PanelContribution] = []
         self._register_toolbar_item: Callable[[ToolbarContribution], None] | None = None
         self._unregister_toolbar_item: Callable[[str], None] | None = None
+        self._refresh_toolbar_handler: Callable[[], None] | None = None
         self._pending_toolbar_items: list[ToolbarContribution] = []
         self._register_action: Callable[[ActionContribution], None] | None = None
         self._unregister_action: Callable[[str, str], None] | None = None
@@ -284,6 +285,11 @@ class StudioAPI:
         ]
         if self._unregister_toolbar_item is not None:
             self._unregister_toolbar_item(contribution_id)
+
+    def refresh_toolbar_states(self) -> None:
+        """Request the shell to re-evaluate and refresh all toolbar item states."""
+        if self._refresh_toolbar_handler is not None:
+            self._refresh_toolbar_handler()
 
     def register_action(self, contribution: ActionContribution) -> None:
         """Register an action to the menu path declared by the contribution."""
@@ -708,6 +714,18 @@ class StudioAPI:
             self._notify_project_content_changed()
         return removed
 
+    def get_aircraft_mass_properties(self) -> Any:
+        """Calculate and return aggregate aircraft mass, center of gravity, and inertia tensor."""
+        if self.current_project is None:
+            from setuav_studio.model.mass import InertiaTensor, MassProperties
+
+            return MassProperties(
+                mass_kg=0.0,
+                cg_body_m=(0.0, 0.0, 0.0),
+                inertia_cg_kg_m2=InertiaTensor(),
+            )
+        return self.current_project.mass_properties
+
     def _notify_project_content_changed(self) -> None:
         if self.current_project is None:
             return
@@ -834,9 +852,11 @@ class StudioAPI:
         self,
         component_type: str,
         factory: Callable[[dict[str, Any]], QWidget],
+        *,
+        override: bool = True,
     ) -> None:
         """Register an editor factory for one fully qualified component type."""
-        if component_type in self._component_editors:
+        if component_type in self._component_editors and not override:
             raise ValueError(f"A component editor is already registered for: {component_type}")
         self._component_editors[component_type] = factory
 
@@ -848,9 +868,11 @@ class StudioAPI:
         self,
         component_kind: str,
         factory: Callable[[dict[str, Any]], QWidget],
+        *,
+        override: bool = True,
     ) -> None:
         """Register a fallback editor factory for a component kind."""
-        if component_kind in self._kind_editors:
+        if component_kind in self._kind_editors and not override:
             raise ValueError(
                 f"An editor is already registered for component kind: {component_kind}"
             )
@@ -901,9 +923,11 @@ class StudioAPI:
         self,
         component_type: str,
         icon: str | Path | QIcon,
+        *,
+        override: bool = True,
     ) -> None:
         """Register an icon for one fully qualified component type."""
-        if component_type in self._component_icons:
+        if component_type in self._component_icons and not override:
             raise ValueError(f"An icon is already registered for component type: {component_type}")
         self._component_icons[component_type] = icon
 
@@ -915,9 +939,11 @@ class StudioAPI:
         self,
         component_kind: str,
         icon: str | Path | QIcon,
+        *,
+        override: bool = True,
     ) -> None:
         """Register a fallback icon for a component kind."""
-        if component_kind in self._kind_icons:
+        if component_kind in self._kind_icons and not override:
             raise ValueError(f"An icon is already registered for component kind: {component_kind}")
         self._kind_icons[component_kind] = icon
 

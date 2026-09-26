@@ -60,9 +60,11 @@ class _StudioHost:
         self,
         register_handler: Callable[[ToolbarContribution], None],
         unregister_handler: Callable[[str], None] | None = None,
+        refresh_handler: Callable[[], None] | None = None,
     ) -> None:
         self._api._register_toolbar_item = register_handler
         self._api._unregister_toolbar_item = unregister_handler
+        self._api._refresh_toolbar_handler = refresh_handler
         for contribution in self._api._pending_toolbar_items:
             register_handler(contribution)
         self._api._pending_toolbar_items.clear()

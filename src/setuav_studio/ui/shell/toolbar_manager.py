@@ -92,6 +92,8 @@ class ToolbarManager:
         action = self.toolbar_actions.get(contribution.id)
         if action is not None:
             action.setToolTip(contribution.title)
+            if contribution.checkable:
+                action.setCheckable(True)
             if contribution.icon:
                 action.setIcon(get_icon(contribution.icon))
             if contribution.menu_items:
@@ -164,6 +166,13 @@ class ToolbarManager:
                 menu_action.setEnabled(enabled and item_enabled)
                 menu_has_enabled_item = menu_has_enabled_item or item_enabled
             action.setEnabled(enabled and menu_has_enabled_item)
+            if contribution.checked_when is not None and action.isCheckable():
+                try:
+                    action.blockSignals(True)
+                    action.setChecked(bool(contribution.checked_when()))
+                    action.blockSignals(False)
+                except Exception:
+                    pass
 
     def rebuild_toolbar_tools(self) -> None:
         grouped_actions, group_order = self._toolbar_actions_by_group()

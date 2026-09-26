@@ -40,7 +40,7 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
         super().__init__(parent)
         self.setObjectName("core.envelope_editor")
         self._api = api
-        component_id = str(selection.get("component_id") or "")
+        component_id = str(selection.get("component_id") or selection.get("id") or "")
         self._component = (
             api.current_project.get_component(component_id)
             if api.current_project is not None and component_id
@@ -332,6 +332,15 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
                 }
             )
             component["envelope"] = new_env
+            from setuav_studio.utilities.envelope import resolve_component_envelope
+
+            resolved = resolve_component_envelope(component)
+            new_env.update(
+                {
+                    "volume_mm3": resolved["volume_mm3"],
+                    "unit_inertia": resolved["unit_inertia"],
+                }
+            )
 
         self._api.edit_component(
             component,
@@ -386,6 +395,14 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
         return volume_mm3
 
     def _envelope(self, component: dict[str, Any]) -> dict[str, Any]:
+        from setuav_studio.utilities.envelope import resolve_component_aggregate_envelope
+
+        proj = self._api.current_project
+        if proj is not None:
+            agg_env = resolve_component_aggregate_envelope(component, proj)
+            if agg_env and agg_env.get("size_mm") and any(agg_env["size_mm"].values()):
+                return agg_env
+
         envelope = component.get("envelope")
         if isinstance(envelope, dict) and envelope.get("size_mm"):
             return envelope

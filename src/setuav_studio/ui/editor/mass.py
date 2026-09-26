@@ -43,7 +43,7 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
         super().__init__(parent)
         self.setObjectName("core.mass_properties_editor")
         self._api = api
-        component_id = str(selection.get("component_id") or "")
+        component_id = str(selection.get("component_id") or selection.get("id") or "")
         self._component = (
             api.current_project.get_component(component_id)
             if api.current_project is not None and component_id
@@ -278,62 +278,54 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
     def _load_component(self, component: dict[str, Any]) -> None:
         self._loading = True
         try:
-            source = self._source_component(component)
-            parameters = component.get("parameters")
-            parameters = parameters if isinstance(parameters, dict) else {}
-            source_parameters = source.get("parameters")
-            source_parameters = source_parameters if isinstance(source_parameters, dict) else {}
-            mass = component.get(
-                "mass",
-                parameters.get(
+            comp_id = str(component.get("id") or "")
+            proj = self._api.current_project
+            from setuav_studio.utilities.mass_balance import (
+                get_component_children,
+                resolve_component_aggregate_mass_properties,
+                resolve_component_local_cg,
+                resolve_component_local_inertia,
+            )
+
+            has_children = bool(
+                comp_id
+                and proj is not None
+                and get_component_children(comp_id, proj, recursive=False)
+            )
+            if has_children and proj is not None:
+                agg = resolve_component_aggregate_mass_properties(comp_id, proj)
+                self.mass_g.setValue(round(agg.mass_kg * 1000.0, 3))
+                self.cg_spins["x"].setValue(round(agg.cg_local_m[0] * 1000.0, 3))
+                self.cg_spins["y"].setValue(round(agg.cg_local_m[1] * 1000.0, 3))
+                self.cg_spins["z"].setValue(round(agg.cg_local_m[2] * 1000.0, 3))
+                for key, spin in self.inertia_spins.items():
+                    spin.setValue(float(getattr(agg.inertia_local_kg_m2, key, 0.0) or 0.0))
+            else:
+                source = self._source_component(component)
+                parameters = component.get("parameters")
+                parameters = parameters if isinstance(parameters, dict) else {}
+                source_parameters = source.get("parameters")
+                source_parameters = source_parameters if isinstance(source_parameters, dict) else {}
+                mass = component.get(
                     "mass",
-                    source.get("mass", source_parameters.get("mass", 0.0)),
-                ),
-            )
-            self.mass_g.setValue(_number(mass))
-
-            # 1. CG resolution: check root first, then extensions, then envelope
-            cg = (
-                component.get("local_cg_mm")
-                or component.get("local_cg")
-                or source.get("local_cg_mm")
-            )
-            source_extensions = source.get("extensions")
-            source_extensions = source_extensions if isinstance(source_extensions, dict) else {}
-            source_definition = source_extensions.get(WB_EXTENSION_ID)
-            source_definition = source_definition if isinstance(source_definition, dict) else {}
-            extensions = component.get("extensions")
-            extensions = extensions if isinstance(extensions, dict) else {}
-            own_definition = extensions.get(WB_EXTENSION_ID)
-            own_definition = own_definition if isinstance(own_definition, dict) else {}
-            definition = dict(source_definition)
-            definition.update(own_definition)
-            if not isinstance(cg, dict):
-                cg = definition.get("local_cg_mm")
-            if not isinstance(cg, dict):
-                envelope = component.get("envelope") or source.get("envelope")
-                if isinstance(envelope, dict):
-                    candidate = envelope.get("offset_mm")
-                    if isinstance(candidate, dict):
-                        cg = candidate
-            cg = cg if isinstance(cg, dict) else {}
-            for axis, spin in self.cg_spins.items():
-                spin.setValue(_number(cg.get(axis)))
-
-            # 2. Inertia resolution: check root first, then extensions, then parameters
-            inertia = (
-                component.get("inertia_kg_m2")
-                or component.get("inertia")
-                or source.get("inertia_kg_m2")
-            )
-            if not isinstance(inertia, dict):
-                inertia = definition.get(
-                    "inertia_kg_m2",
-                    parameters.get("inertia", source_parameters.get("inertia")),
+                    parameters.get(
+                        "mass",
+                        source.get("mass", source_parameters.get("mass", 0.0)),
+                    ),
                 )
-            inertia = inertia if isinstance(inertia, dict) else {}
-            for key, spin in self.inertia_spins.items():
-                spin.setValue(_number(inertia.get(key)))
+                self.mass_g.setValue(_number(mass))
+
+                # 1. CG resolution via core mass_balance
+                cg_x, cg_y, cg_z = resolve_component_local_cg(component)
+                self.cg_spins["x"].setValue(cg_x)
+                self.cg_spins["y"].setValue(cg_y)
+                self.cg_spins["z"].setValue(cg_z)
+
+                # 2. Inertia resolution via core mass_balance
+                mass_kg = _number(mass) / 1000.0
+                inertia_tensor = resolve_component_local_inertia(component, mass_kg)
+                for key, spin in self.inertia_spins.items():
+                    spin.setValue(float(getattr(inertia_tensor, key, 0.0) or 0.0))
         finally:
             self._loading = False
 
@@ -358,24 +350,13 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
             component["local_cg_mm"] = cg
             component["inertia_kg_m2"] = inertia
 
-            # Backward-compatibility mirror in extensions
-            extensions = component.setdefault("extensions", {})
-            if not isinstance(extensions, dict):
-                extensions = {}
-                component["extensions"] = extensions
-            definition = extensions.setdefault(WB_EXTENSION_ID, {})
-            if not isinstance(definition, dict):
-                definition = {}
-                extensions[WB_EXTENSION_ID] = definition
-            definition.update(
-                {
-                    "mass_source": "declared",
-                    "local_cg_mm": cg,
-                    "inertia_kg_m2": inertia,
-                }
-            )
-
         change()
+        viewport = getattr(self._api, "viewport", getattr(self._api, "_viewport", None))
+        if viewport is not None:
+            if hasattr(viewport, "update_component_cg"):
+                viewport.update_component_cg()
+            if hasattr(viewport, "update_aircraft_cg"):
+                viewport.update_aircraft_cg()
         self._commit_timer.start(0)
 
     def _commit_pending(self) -> None:

@@ -123,6 +123,7 @@ class MainWindow(QMainWindow):
         self._host.bind_toolbar_handlers(
             self._register_toolbar_item,
             self._unregister_toolbar_item,
+            self._refresh_toolbar_action_states,
         )
         self._host.bind_action_handlers(self._register_action, self._unregister_action)
 

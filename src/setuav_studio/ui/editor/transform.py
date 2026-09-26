@@ -39,7 +39,7 @@ class TransformEditor(PropertyTableMixin, QWidget):
         super().__init__(parent)
         self.setObjectName("core.transform_editor")
         self._api = api
-        component_id = str(selection.get("component_id") or "")
+        component_id = str(selection.get("component_id") or selection.get("id") or "")
         self._component = (
             api.current_project.get_component(component_id)
             if api.current_project is not None and component_id

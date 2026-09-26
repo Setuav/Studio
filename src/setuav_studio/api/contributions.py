@@ -294,6 +294,8 @@ class ToolbarContribution:
     enabled_when: Callable[[], bool] | None = None
     group: str = "default"
     order: int = 0
+    checkable: bool = False
+    checked_when: Callable[[], bool] | None = None
 
     def __post_init__(self) -> None:
         action_forms = sum(

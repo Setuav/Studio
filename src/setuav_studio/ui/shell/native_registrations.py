@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt
 
 from setuav_studio.api import (
-    ComponentTreeNodeContribution,
     ComponentTypeContribution,
     PanelContribution,
 )
@@ -14,88 +13,6 @@ from setuav_studio.ui.panels.properties import PropertiesPanel
 
 if TYPE_CHECKING:
     from setuav_studio.api import StudioAPI
-
-
-def _transform_tree_nodes(
-    component: dict[str, Any],
-) -> tuple[ComponentTreeNodeContribution, ...]:
-    component_id = str(component.get("id") or "")
-    if not component_id:
-        return ()
-    comp_type = str(component.get("type") or "").lower()
-    if (
-        component_id == "airframe"
-        or comp_type == "org.setuav.core:airframe"
-        or component.get("has_transform") is False
-    ):
-        return ()
-    transform_node_id = f"{component_id}:transform"
-    envelope_node_id = f"{component_id}:envelope"
-    nodes = [
-        ComponentTreeNodeContribution(
-            id=transform_node_id,
-            title="Transform",
-            selection={
-                "id": transform_node_id,
-                "name": "Transform",
-                "kind": "transform",
-                "component_id": component_id,
-            },
-            icon="transform",
-            tooltip="Position and rotation relative to the parent frame",
-        ),
-    ]
-    has_explicit_envelope = bool(component.get("envelope"))
-    is_non_geometric = any(
-        k in comp_type
-        for k in ("generic", "payload", "avionics", "battery", "equipment", "internal", "debug")
-    )
-    if (is_non_geometric or has_explicit_envelope) and comp_type != "org.setuav.core:point-mass":
-        nodes.append(
-            ComponentTreeNodeContribution(
-                id=envelope_node_id,
-                title="Envelope",
-                selection={
-                    "id": envelope_node_id,
-                    "name": "Envelope",
-                    "kind": "envelope",
-                    "component_id": component_id,
-                },
-                icon="envelope",
-                tooltip="Local dimensions, offset and occupied volume",
-            )
-        )
-    return tuple(nodes)
-
-
-def _mass_tree_nodes(
-    component: dict[str, Any],
-) -> tuple[ComponentTreeNodeContribution, ...]:
-    component_id = str(component.get("id") or "")
-    if not component_id:
-        return ()
-    comp_type = str(component.get("type") or "").lower()
-    if (
-        component_id == "airframe"
-        or comp_type == "org.setuav.core:airframe"
-        or component.get("has_mass") is False
-    ):
-        return ()
-    node_id = f"{component_id}:mass-properties"
-    return (
-        ComponentTreeNodeContribution(
-            id=node_id,
-            title="Mass",
-            selection={
-                "id": node_id,
-                "name": "Mass",
-                "kind": "mass-properties",
-                "component_id": component_id,
-            },
-            icon="mass",
-            tooltip=f"Mass, local CG and inertia for {component.get('name') or component_id}",
-        ),
-    )
 
 
 def _can_edit_project(api: StudioAPI) -> bool:
@@ -184,6 +101,18 @@ def _on_run_analysis_triggered(api: StudioAPI) -> None:
         )
     except Exception as exc:
         api.show_status(f"Failed to launch analysis: {exc}", "error")
+
+
+def _on_toggle_aircraft_cg(api: StudioAPI) -> None:
+    """Toggle visibility of the aircraft aggregate Center of Gravity marker in the Viewport."""
+    viewport = getattr(api, "viewport", getattr(api, "_viewport", None))
+    if viewport is not None and hasattr(viewport, "set_show_aircraft_cg"):
+        current = bool(viewport.is_show_aircraft_cg())
+        viewport.set_show_aircraft_cg(not current)
+        state_label = "enabled" if not current else "disabled"
+        api.show_status(f"Aircraft CG visualization {state_label}.", "info", 2000)
+    elif api is not None:
+        api.show_status("3D Viewport is not ready.", "info", 2000)
 
 
 def register_native_contributions(api: StudioAPI) -> None:
@@ -275,18 +204,26 @@ def register_native_contributions(api: StudioAPI) -> None:
             order=10,
         )
     )
-
-    # 3. Native Tree Providers
-    api.register_component_tree_provider(
-        "org.setuav.studio.core.transform",
-        _transform_tree_nodes,
+    api.register_toolbar_item(
+        ToolbarContribution(
+            id="org.setuav.studio.toolbar.toggle_aircraft_cg",
+            title="Toggle Aircraft CG",
+            callback=lambda: _on_toggle_aircraft_cg(api),
+            icon="point_mass",
+            checkable=True,
+            checked_when=lambda: bool(
+                getattr(
+                    getattr(api, "viewport", getattr(api, "_viewport", None)),
+                    "is_show_aircraft_cg",
+                    lambda: False,
+                )()
+            ),
+            group="view",
+            order=50,
+        )
     )
-    api.register_component_tree_provider(
-        "org.setuav.studio.core.mass",
-        _mass_tree_nodes,
-    )
 
-    # 4. Native Kind Editors
+    # 3. Native Kind Editors
     register_native_kind_editors(api)
 
     # 5. Native Component Types
@@ -319,6 +256,12 @@ def register_native_component_types(api: StudioAPI) -> None:
             name="Control Surface",
             icon="geometry_add_control_surface",
             category="Aerodynamics",
+        ),
+        ComponentTypeContribution(
+            id="org.setuav.core:point-mass",
+            name="Point Mass",
+            icon="component",
+            category="Structure",
         ),
         ComponentTypeContribution(
             id="org.setuav.core:motor",
