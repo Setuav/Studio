@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import uuid
 from typing import Any, ClassVar
 
 from plugins.aerodynamics.engine.aerosandbox_engine import AeroSandboxEngine
@@ -383,12 +382,12 @@ class AlphaSweepSolver(BaseAerodynamicsSolver):
 
         return SolverResult(
             solver_id=self.config.solver_id,
-            run_id=str(uuid.uuid4())[:8],
-            title="Alpha Sweep (Polar) Results",
-            summary=summary,
-            tables=[table],
-            plots=plots,
-            raw_data=res.to_dict(),
+            config=self.config,
+            name=self.config.name,
+            status=SolverStatus.COMPLETED,
+            summary={item.key: item for item in summary},
+            tables={table.id: table},
+            plots={plot.id: plot for plot in plots},
         )
 
 
@@ -675,12 +674,12 @@ class BetaSweepSolver(BaseAerodynamicsSolver):
 
         return SolverResult(
             solver_id=self.config.solver_id,
-            run_id=str(uuid.uuid4())[:8],
-            title="Beta Sweep (Sideslip) Results",
-            summary=summary,
-            tables=[table],
-            plots=plots,
-            raw_data=res.to_dict(),
+            config=self.config,
+            name=self.config.name,
+            status=SolverStatus.COMPLETED,
+            summary={item.key: item for item in summary},
+            tables={table.id: table},
+            plots={plot.id: plot for plot in plots},
         )
 
 
@@ -987,12 +986,12 @@ class ControlDeflectionSolver(BaseAerodynamicsSolver):
 
         return SolverResult(
             solver_id=self.config.solver_id,
-            run_id=str(uuid.uuid4())[:8],
-            title=f"Control Deflection Analysis ({channel.capitalize()})",
-            summary=summary,
-            tables=[table],
-            plots=plots,
-            raw_data=res.to_dict(),
+            config=self.config,
+            name=self.config.name,
+            status=SolverStatus.COMPLETED,
+            summary={item.key: item for item in summary},
+            tables={table.id: table},
+            plots={plot.id: plot for plot in plots},
         )
 
 
@@ -1224,10 +1223,10 @@ class OperatingPointSolver(BaseAerodynamicsSolver):
 
         return SolverResult(
             solver_id=self.config.solver_id,
-            run_id=str(uuid.uuid4())[:8],
-            title="Aerodynamic Operating Point Results",
-            summary=summary,
-            tables=[table],
-            plots=[],
-            raw_data=res.to_dict(),
+            config=self.config,
+            name=self.config.name,
+            status=SolverStatus.COMPLETED,
+            summary={item.key: item for item in summary},
+            tables={table.id: table},
+            plots={},
         )
