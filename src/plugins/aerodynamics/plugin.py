@@ -4,13 +4,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from setuav_studio_sdk import (
-    StudioAPI,
-    ToolbarContribution,
-    ToolbarMenuItemContribution,
-    ToolContribution,
-)
-
 from plugins.aerodynamics.solver import (
     SOLVER_ID_ALPHA_SWEEP,
     SOLVER_ID_BETA_SWEEP,
@@ -20,6 +13,12 @@ from plugins.aerodynamics.solver import (
     BetaSweepSolver,
     ControlDeflectionSolver,
     OperatingPointSolver,
+)
+from setuav_studio.api import (
+    StudioAPI,
+    ToolbarContribution,
+    ToolbarMenuItemContribution,
+    ToolContribution,
 )
 from setuav_studio.solver import SolverConfig
 

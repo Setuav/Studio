@@ -33,12 +33,12 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from setuav_studio_sdk import StudioAPI
 
 from plugins.geometry.engine.airfoil import (
     PRESET_AIRFOILS,
     parse_airfoil_dat,
 )
+from setuav_studio.api import StudioAPI
 from setuav_studio.ui.style.theme import chart_color
 from setuav_studio.ui.widget import StudioChartWidget
 from setuav_studio.ui.widget.button import set_button_role, set_native_button
