@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import math
 from array import array
+from collections.abc import Sequence
 from typing import Any
 
 from PySide6.QtCore import QPoint, QSize, Qt, QTimer, Signal
@@ -250,7 +251,7 @@ class OpenGLViewer(QOpenGLWidget):
         self._hovered_component_id: str | None = None
         self._section_selection: tuple[str, int, int] | None = None
         self._section_color: tuple[float, float, float] | str | None = None
-        self._selected_envelope_component_id: str | None = None
+        self._selected_envelope_component_id: str | Sequence[str] | None = None
 
         self._azimuth = 30.0
         self._elevation = 20.0
@@ -552,7 +553,7 @@ class OpenGLViewer(QOpenGLWidget):
         """Return True if the object matches the active selected component in core."""
         return is_scene_object_matching(object_id, self._selected_component_id)
 
-    def set_selected_envelope(self, component_id: str | None) -> None:
+    def set_selected_envelope(self, component_id: str | Sequence[str] | None) -> None:
         if self._selected_envelope_component_id == component_id:
             return
         self._selected_envelope_component_id = component_id

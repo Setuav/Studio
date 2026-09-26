@@ -99,6 +99,8 @@ class StudioViewport(QWidget):
         # Selection state
         self._selected_object_id: str | None = None
         self._selected_section: tuple[str, int, int] | None = None
+        self._selected_cg_component_id: str | None = None
+        self._show_aircraft_cg: bool = False
 
         # Camera & Display state
         settings = QSettings()
@@ -132,6 +134,7 @@ class StudioViewport(QWidget):
         self._layers: dict[str, Layer] = {}
         self.add_layer("default", name="Default")
         self.add_layer("geometry", name="Geometry")
+        self.add_layer("mass", name="Center of Gravity")
 
         # Floating bottom HUD bar
         self.hud = StudioViewportHUD(self)
@@ -232,6 +235,12 @@ class StudioViewport(QWidget):
             from setuav_studio.api.api import _dispatch_listeners
 
             _dispatch_listeners(api._project_listeners, current_project)
+        if hasattr(api, "on_project_content_changed"):
+            api.on_project_content_changed(lambda _doc: self._on_project_content_changed())
+
+    def _on_project_content_changed(self) -> None:
+        self.update_component_cg()
+        self.update_aircraft_cg()
 
     # ------------------------------------------------------------------
     # Layer management
@@ -895,6 +904,106 @@ class StudioViewport(QWidget):
         if callable(set_overlays):
             set_overlays("_viewport_api", primitives)
 
+    def set_overlays(self, layer_id: str, primitives: Sequence[VisualPrimitive]) -> None:
+        """Set an overlay primitive layer directly on the underlying renderer."""
+        if self._renderer is not None:
+            set_ov = getattr(self._renderer, "set_overlays", None)
+            if callable(set_ov):
+                set_ov(layer_id, list(primitives))
+
+    def clear_overlays(self, layer_id: str | None = None) -> None:
+        """Clear an overlay layer on the underlying renderer."""
+        if self._renderer is not None:
+            clear_ov = getattr(self._renderer, "clear_overlays", None)
+            if callable(clear_ov):
+                clear_ov(layer_id)
+
+    def set_selected_cg(self, component_id: str | None) -> None:
+        """Update 3D CG marker overlay for the selected component."""
+        self._selected_cg_component_id = component_id
+        if component_id is None or self._api is None:
+            self.clear_overlays("component_cg")
+            return
+        project = getattr(self._api, "current_project", None)
+        if project is None:
+            self.clear_overlays("component_cg")
+            return
+        from .cg_marker import build_component_cg_primitives
+
+        prims = build_component_cg_primitives(component_id, project)
+        if prims:
+            self.set_overlays("component_cg", prims)
+        else:
+            self.clear_overlays("component_cg")
+
+    def update_component_cg(self) -> None:
+        """Refresh the active component CG marker (e.g. after mass/geometry edit)."""
+        if getattr(self, "_selected_cg_component_id", None):
+            self.set_selected_cg(self._selected_cg_component_id)
+
+    def set_selected_envelope(self, component_id: str | None) -> None:
+        """Update 3D envelope wireframe (volume lines) display for the selected component or assembly."""
+        self._selected_envelope_component_id = component_id
+        if component_id is None or self._api is None:
+            if self._renderer is not None:
+                set_env = getattr(self._renderer, "set_selected_envelope", None)
+                if callable(set_env):
+                    set_env(None)
+            return
+
+        target_ids = [component_id]
+        project = getattr(self._api, "current_project", None)
+        if project is not None:
+            from setuav_studio.utilities.mass_balance import get_component_children
+
+            children = get_component_children(component_id, project, recursive=True)
+            for ch in children:
+                ch_id = str(ch.get("id") or "")
+                if ch_id and ch_id not in target_ids:
+                    target_ids.append(ch_id)
+
+        if self._renderer is not None:
+            set_env = getattr(self._renderer, "set_selected_envelope", None)
+            if callable(set_env):
+                set_env(target_ids if len(target_ids) > 1 else component_id)
+
+    def is_selected_envelope(self, component_id: str) -> bool:
+        """Return True if component_id matches the active envelope wireframe selection."""
+        active = getattr(self, "_selected_envelope_component_id", None)
+        return bool(active and active == component_id)
+
+    def set_show_aircraft_cg(self, show: bool) -> None:
+        """Toggle visualization of the aircraft total center of gravity."""
+        self._show_aircraft_cg = bool(show)
+        if hasattr(self, "hud") and hasattr(self.hud, "cg_button"):
+            self.hud.cg_button.blockSignals(True)
+            self.hud.cg_button.setChecked(self._show_aircraft_cg)
+            self.hud.cg_button.blockSignals(False)
+        self.update_aircraft_cg()
+        if self._api is not None and hasattr(self._api, "refresh_toolbar_states"):
+            self._api.refresh_toolbar_states()
+
+    def is_show_aircraft_cg(self) -> bool:
+        """Return whether aircraft total CG marker is currently displayed."""
+        return getattr(self, "_show_aircraft_cg", False)
+
+    def update_aircraft_cg(self) -> None:
+        """Refresh the aircraft total CG marker overlay."""
+        if not getattr(self, "_show_aircraft_cg", False) or self._api is None:
+            self.clear_overlays("aircraft_cg")
+            return
+        project = getattr(self._api, "current_project", None)
+        if project is None:
+            self.clear_overlays("aircraft_cg")
+            return
+        from .cg_marker import build_aircraft_cg_primitives
+
+        prims = build_aircraft_cg_primitives(project)
+        if prims:
+            self.set_overlays("aircraft_cg", prims)
+        else:
+            self.clear_overlays("aircraft_cg")
+
     # ------------------------------------------------------------------
     # Selection event handlers
     # ------------------------------------------------------------------
@@ -910,32 +1019,55 @@ class StudioViewport(QWidget):
 
     def _on_api_selection_changed(self, selection: Any | None) -> None:
         """Respond to selection events from StudioAPI (e.g. ProjectExplorer tree click)."""
+        cg_component_id: str | None = None
+        envelope_id: str | None = None
+        component_id: str | None = None
         if isinstance(selection, dict):
             kind = selection.get("kind")
             comp_id = selection.get("component_id") or selection.get("id")
             comp_str = str(comp_id) if comp_id is not None else None
             if kind == "envelope" or (comp_str and comp_str.endswith(":envelope")):
                 envelope_id = comp_str
-                component_id = None
+                component_id = comp_str.split(":")[0] if comp_str else None
+            elif kind == "mass-properties" or (comp_str and comp_str.endswith(":mass-properties")):
+                component_id = str(
+                    selection.get("component_id") or (comp_str.split(":")[0] if comp_str else "")
+                )
+                cg_component_id = component_id
             else:
                 component_id = comp_str
-                envelope_id = None
         elif isinstance(selection, str):
             if selection.endswith(":envelope"):
                 envelope_id = selection
-                component_id = None
+                component_id = selection.split(":")[0]
+            elif selection.endswith(":mass-properties"):
+                component_id = selection.split(":")[0]
+                cg_component_id = component_id
             else:
                 component_id = selection
-                envelope_id = None
         else:
             component_id = None
-            envelope_id = None
+
+        if selection is None:
+            self.set_selected(None)
+            self.set_selected_cg(None)
+            self.set_selected_envelope(None)
+            return
 
         self.set_selected(component_id)
-        if self._renderer is not None:
-            set_env = getattr(self._renderer, "set_selected_envelope", None)
-            if callable(set_env):
-                set_env(envelope_id)
+
+        if envelope_id is not None:
+            self.set_selected_envelope(envelope_id)
+            self.set_selected_cg(None)
+        elif cg_component_id is not None:
+            self.set_selected_cg(cg_component_id)
+            self.set_selected_envelope(None)
+        else:
+            # Component selection: if envelope or CG mode is currently active, update to the new component
+            if getattr(self, "_selected_envelope_component_id", None) and component_id:
+                self.set_selected_envelope(component_id)
+            elif getattr(self, "_selected_cg_component_id", None) and component_id:
+                self.set_selected_cg(component_id)
 
     def _on_api_section_selection_changed(
         self,

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from typing import Any
 
 from .loft_mesh import _add_line, _append_ring
@@ -174,17 +175,20 @@ def _append_scene_object_envelope_wire(
 
 def build_envelope_wire_vertices(
     data: GeometryData | None,
-    selected_envelope_component_id: str | None,
+    selected_envelope_component_id: str | Sequence[str] | None,
     color: Point3D = ENVELOPE_HIGHLIGHT,
     selected_component_id: str | None = None,
     scene_objects: dict[str, Any] | None = None,
 ) -> list[float]:
     """Build vertices for the green wireframe envelope highlighting the selected component's bounding volume."""
-    target_clean = (
-        selected_envelope_component_id.lower().replace(":envelope", "")
-        if selected_envelope_component_id
-        else ""
-    )
+    target_cleans: set[str] = set()
+    if isinstance(selected_envelope_component_id, (list, tuple, set)):
+        target_cleans = {
+            str(x).lower().replace(":envelope", "") for x in selected_envelope_component_id if x
+        }
+    elif isinstance(selected_envelope_component_id, str) and selected_envelope_component_id:
+        target_cleans = {selected_envelope_component_id.lower().replace(":envelope", "")}
+
     comp_clean = (
         selected_component_id.lower().replace(":envelope", "") if selected_component_id else ""
     )
@@ -199,8 +203,10 @@ def build_envelope_wire_vertices(
             )
 
             is_selected = False
-            if target_clean:
-                is_selected = env_clean == target_clean or env_clean.startswith(f"{target_clean}:")
+            if target_cleans:
+                is_selected = any(
+                    env_clean == tc or env_clean.startswith(f"{tc}:") for tc in target_cleans
+                )
             if not is_selected and comp_clean and is_prop_clearance:
                 is_selected = env_clean == comp_clean or env_clean.startswith(f"{comp_clean}:")
 
@@ -214,13 +220,12 @@ def build_envelope_wire_vertices(
             for start, end in env.lines:
                 _add_line(vertices, start, end, line_color)
 
-    if scene_objects and target_clean:
+    if scene_objects and target_cleans:
         for obj_id, obj in scene_objects.items():
             clean_id = obj_id.lower().replace(":envelope", "")
-            if (
-                clean_id == target_clean
-                or clean_id.startswith(f"{target_clean}:")
-                or target_clean.startswith(f"{clean_id}:")
+            if any(
+                clean_id == tc or clean_id.startswith(f"{tc}:") or tc.startswith(f"{clean_id}:")
+                for tc in target_cleans
             ):
                 _append_scene_object_envelope_wire(vertices, obj, color)
 
