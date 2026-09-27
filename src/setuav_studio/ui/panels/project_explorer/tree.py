@@ -327,7 +327,16 @@ class ProjectExplorer(QTreeWidget):
                     self._api.set_current_solver_config(config_id)
             elif kind in ("analysis_result", "solver_result"):
                 self._api.show_panel("studio:properties")
-            elif kind in ("analysis_table", "solver_table", "analysis_plot", "solver_plot"):
+            elif kind in (
+                "analysis_table",
+                "solver_table",
+                "analysis_plot",
+                "solver_plot",
+                "analysis_plots_group",
+                "solver_plots_group",
+                "analysis_tables_group",
+                "solver_tables_group",
+            ):
                 self._api.show_panel("studio:result")
         self._api.set_selection(element)
 

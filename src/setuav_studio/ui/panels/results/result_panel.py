@@ -276,15 +276,13 @@ class ResultPanel(QWidget):
 
     def _place_dock_progressive(self, dock: ResultDockWidget) -> None:
         """Place dock into a 2-row x 3-column progressive layout."""
-        self._layout_docks = [
-            d for d in self._layout_docks if d in self._panes.values() and not d.isHidden()
-        ]
+        self._layout_docks = [d for d in self._layout_docks if d in self._panes.values()]
         n = len(self._layout_docks)
 
         def _safe_split(
             base: ResultDockWidget, target: ResultDockWidget, orientation: Qt.Orientation
         ) -> None:
-            if base in self._panes.values() and not base.isHidden():
+            if base in self._panes.values():
                 self._dock_window.splitDockWidget(base, target, orientation)
             elif self._layout_docks:
                 self._dock_window.splitDockWidget(self._layout_docks[-1], target, orientation)
@@ -354,6 +352,7 @@ class ResultPanel(QWidget):
         dock = self._panes.pop(key)
         if dock in self._layout_docks:
             self._layout_docks.remove(dock)
+        self._dock_window.removeDockWidget(dock)
         dock.setParent(None)
         dock.deleteLater()
 
@@ -534,27 +533,59 @@ class ResultPanel(QWidget):
         self._clear_btn.setEnabled(True)
         self._toolbar.setVisible(False)
 
+    def _open_plots_group(self, result: SolverResult, mode: str = "add") -> None:
+        """Open all plots belonging to a solver result."""
+        if not result.plots:
+            if mode == "replace":
+                self.clear_all()
+                self._api.show_status("No plots available for this analysis.", "info", 2000)
+            return
+        if mode == "replace":
+            self.clear_all()
+        for plot in result.plots.values():
+            table = result.tables.get(plot.table_id)
+            if table is None and result.tables:
+                table = next(iter(result.tables.values()))
+            if table:
+                self.show_plot(result, plot, table, mode="add")
+
+    def _open_tables_group(self, result: SolverResult, mode: str = "add") -> None:
+        """Open all tables belonging to a solver result."""
+        if not result.tables:
+            if mode == "replace":
+                self.clear_all()
+                self._api.show_status("No tables available for this analysis.", "info", 2000)
+            return
+        if mode == "replace":
+            self.clear_all()
+        for table in result.tables.values():
+            self.show_table(result, table, mode="add")
+
     def _on_selection_changed(self, selection: Any | None) -> None:
         """Respond to global selection changes to open selected tables or plots in single-view mode."""
         if not isinstance(selection, dict):
             return
         kind = selection.get("kind")
+        res_id = str(selection.get("result_id", ""))
+        result = self._api.get_solver_result(res_id)
+        if not result:
+            return
+
         if kind in ("analysis_plot", "solver_plot"):
-            res_id = str(selection.get("result_id", ""))
             plot_id = str(selection.get("plot_id", ""))
-            result = self._api.get_solver_result(res_id)
-            if result and plot_id in result.plots:
+            if plot_id in result.plots:
                 plot = result.plots[plot_id]
                 table = result.tables.get(plot.table_id)
                 if table:
                     self.show_plot(result, plot, table, mode="replace")
         elif kind in ("analysis_table", "solver_table"):
-            res_id = str(selection.get("result_id", ""))
             table_id = str(selection.get("table_id", ""))
-            result = self._api.get_solver_result(res_id)
-            if result and table_id in result.tables:
-                table = result.tables[table_id]
-                self.show_table(result, table, mode="replace")
+            if table_id in result.tables:
+                self.show_table(result, result.tables[table_id], mode="replace")
+        elif kind in ("analysis_plots_group", "solver_plots_group"):
+            self._open_plots_group(result, mode="replace")
+        elif kind in ("analysis_tables_group", "solver_tables_group"):
+            self._open_tables_group(result, mode="replace")
 
     def _on_add_to_view(self, payload: Any) -> None:
         """Handle 'Add to View' action triggered from context menu to append to 2x3 grid."""
@@ -575,8 +606,11 @@ class ResultPanel(QWidget):
         elif kind in ("analysis_table", "solver_table"):
             table_id = str(payload.get("table_id", ""))
             if table_id in result.tables:
-                table = result.tables[table_id]
-                self.show_table(result, table, mode="add")
+                self.show_table(result, result.tables[table_id], mode="add")
+        elif kind in ("analysis_plots_group", "solver_plots_group"):
+            self._open_plots_group(result, mode="add")
+        elif kind in ("analysis_tables_group", "solver_tables_group"):
+            self._open_tables_group(result, mode="add")
 
     def _on_project_changed(self, _project: Any) -> None:
         """Clear all active result panes when switching or closing projects."""

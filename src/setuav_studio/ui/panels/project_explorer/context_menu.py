@@ -235,27 +235,49 @@ class ProjectExplorerContextMenu:
 
     def open_analysis_plots_group_menu(
         self,
-        _item: QTreeWidgetItem,
+        item: QTreeWidgetItem,
         element: dict[str, Any] | None,
         position: QPoint,
     ) -> None:
+        elem = element or self._tree._element_map.get(item)
         menu = QMenu(self._tree)
+        open_all_act = menu.addAction(get_icon("fa6s.chart-line"), "Open All Plots")
+        add_to_view_act = menu.addAction(get_icon("fa6s.table-columns"), "Görünüme Ekle")
         add_plot_act = menu.addAction(get_icon("fa6s.chart-line"), "Add Plot…")
         chosen = menu.exec(self._tree.viewport().mapToGlobal(position))
-        if chosen is add_plot_act:
-            self._ops.add_plot_action(element)
+        if chosen is open_all_act:
+            if elem:
+                self._api.set_selection(elem)
+                self._api.show_panel("studio:result")
+        elif chosen is add_to_view_act:
+            if elem:
+                self._api.publish(str(StudioEvents.ANALYSIS_ADD_TO_VIEW), elem)
+                self._api.show_panel("studio:result")
+        elif chosen is add_plot_act:
+            self._ops.add_plot_action(elem)
 
     def open_analysis_tables_group_menu(
         self,
-        _item: QTreeWidgetItem,
+        item: QTreeWidgetItem,
         element: dict[str, Any] | None,
         position: QPoint,
     ) -> None:
+        elem = element or self._tree._element_map.get(item)
         menu = QMenu(self._tree)
+        open_all_act = menu.addAction(get_icon("fa6s.table"), "Open All Tables")
+        add_to_view_act = menu.addAction(get_icon("fa6s.table-columns"), "Görünüme Ekle")
         add_plot_act = menu.addAction(get_icon("fa6s.chart-line"), "Add Plot…")
         chosen = menu.exec(self._tree.viewport().mapToGlobal(position))
-        if chosen is add_plot_act:
-            self._ops.add_plot_action(element)
+        if chosen is open_all_act:
+            if elem:
+                self._api.set_selection(elem)
+                self._api.show_panel("studio:result")
+        elif chosen is add_to_view_act:
+            if elem:
+                self._api.publish(str(StudioEvents.ANALYSIS_ADD_TO_VIEW), elem)
+                self._api.show_panel("studio:result")
+        elif chosen is add_plot_act:
+            self._ops.add_plot_action(elem)
 
     def open_analysis_table_menu(
         self,
