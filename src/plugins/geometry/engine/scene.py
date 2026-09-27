@@ -542,36 +542,29 @@ def _build_component_envelope_geometry(
     parent_item = items.get(str(parent_id)) if parent_id else None
     parent_source = _geometry_source(parent_item, items) if parent_item else None
 
-    if component_type in (
+    if component_type not in (
         "org.setuav.core:lifting-surface",
         "org.setuav.core:fuselage",
         "org.setuav.core:control-surface",
     ):
-        secs = envelope.get("sections") if isinstance(envelope, dict) else None
-        if (
-            not secs
-            or not all(isinstance(s, dict) and "corners_3d" in s for s in secs)
-            or (
-                component_type == "org.setuav.core:control-surface" and "hinge_axis" not in envelope
-            )
-        ):
-            try:
-                from .envelope import compute_geometry_envelope
+        return None
 
-                fresh = compute_geometry_envelope(source or item, parent_source)
-                if isinstance(fresh, dict) and fresh:
-                    envelope = fresh
-                    if isinstance(source, dict):
-                        source["envelope"] = fresh
-            except Exception:
-                pass
-    elif not isinstance(envelope, dict):
+    secs = envelope.get("sections") if isinstance(envelope, dict) else None
+    if (
+        not secs
+        or not all(isinstance(s, dict) and "corners_3d" in s for s in secs)
+        or (component_type == "org.setuav.core:control-surface" and "hinge_axis" not in envelope)
+    ):
         try:
             from .envelope import compute_geometry_envelope
 
-            envelope = compute_geometry_envelope(source or item, parent_source)
+            fresh = compute_geometry_envelope(source or item, parent_source)
+            if isinstance(fresh, dict) and fresh:
+                envelope = fresh
+                if isinstance(source, dict):
+                    source["envelope"] = fresh
         except Exception:
-            envelope = None
+            pass
     if not isinstance(envelope, dict) or not envelope:
         return None
 

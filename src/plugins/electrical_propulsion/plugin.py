@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import contextlib
+from collections.abc import Callable
+
 from plugins.electrical_propulsion.catalog_dialog import ComponentCatalogDialog
 from plugins.electrical_propulsion.creation import (
     PropulsionCreationController,
@@ -20,6 +23,7 @@ from plugins.electrical_propulsion.models import (
     PropellerModel,
     PropulsionSystemModel,
 )
+from plugins.electrical_propulsion.scene_controller import PropulsionSceneController
 from setuav_studio.api import (
     ComponentTypeContribution,
     StudioAPI,
@@ -36,6 +40,12 @@ class ElectricalPropulsionPlugin(StudioPlugin):
     version = "0.3.0"
     author = "Setuav Team"
     description = "Electric motors, propellers, ESCs, batteries and fixed propulsion root system."
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._api: StudioAPI | None = None
+        self._scene_controller: PropulsionSceneController | None = None
+        self._unsubscribers: list[Callable[[], None]] = []
 
     def activate(self, api: StudioAPI) -> None:
         self._api = api
@@ -241,7 +251,27 @@ class ElectricalPropulsionPlugin(StudioPlugin):
         for tool in self._analysis_tools:
             api.register_tool(tool)
 
+        # Viewport 3D Propeller Scene Synchronization
+        self._scene_controller = PropulsionSceneController(api)
+        self._unsubscribers.append(
+            api.on_project_changed(self._scene_controller.on_project_changed)
+        )
+        self._unsubscribers.append(
+            api.on_project_content_changed(self._scene_controller.on_project_content_changed)
+        )
+        if api.current_project is not None:
+            self._scene_controller.sync(api.current_project)
+
     def deactivate(self, api: StudioAPI) -> None:
+        if self._scene_controller is not None:
+            self._scene_controller.dispose()
+            self._scene_controller = None
+
+        for unsub in getattr(self, "_unsubscribers", []):
+            with contextlib.suppress(Exception):
+                unsub()
+        self._unsubscribers = []
+
         controller = getattr(self, "_creation_controller", None)
         if controller is not None:
             for contribution_id in controller.toolbar_ids:

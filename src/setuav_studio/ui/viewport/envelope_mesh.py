@@ -196,11 +196,7 @@ def build_envelope_wire_vertices(
     if data is not None:
         for env in getattr(data, "envelopes", ()):
             env_clean = env.component_id.lower().replace(":envelope", "")
-            is_prop_clearance = (
-                ":propeller_clearance" in env_clean
-                or ":clearance" in env_clean
-                or "motor" in env_clean
-            )
+            is_prop_clearance = ":propeller_clearance" in env_clean or ":clearance" in env_clean
 
             is_selected = False
             if target_cleans:

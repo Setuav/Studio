@@ -995,7 +995,6 @@ class OpenGLViewer(QOpenGLWidget):
                 prims = getattr(obj, "primitives", ())
                 if not prims:
                     continue
-                scene_primitives.extend(prims)
 
                 is_sel = has_selection and is_scene_object_matching(
                     obj_id, self._selected_component_id
@@ -1010,9 +1009,11 @@ class OpenGLViewer(QOpenGLWidget):
                     )
                 )
 
-                # Skip wireframe for selected or hovered objects; their wireframe is rendered by _highlight_vbo
+                # Skip wireframe and annotations for selected or hovered objects; their visual is rendered by _highlight_vbo
                 if is_sel or is_hov:
                     continue
+
+                scene_primitives.extend(prims)
 
                 primitive_wire_values.extend(
                     build_primitive_wire_vertices(

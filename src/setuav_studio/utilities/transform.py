@@ -189,7 +189,17 @@ def resolve_world_transform(
         return (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)
 
     local_pos, local_rot = get_local_transform(comp)
-    parent_id = comp.get("parent")
+
+    # 1. Prefer attach_to if specified and exists in comps_map
+    parent_id = comp.get("attach_to")
+    if not parent_id or str(parent_id) not in comps_map:
+        # 2. Fall back to parent if not a non-spatial container
+        p = comp.get("parent")
+        if p and str(p) not in ("airframe", "propulsion") and str(p) in comps_map:
+            parent_id = p
+        else:
+            parent_id = None
+
     if not parent_id or str(parent_id) not in comps_map:
         return local_pos, local_rot
 
