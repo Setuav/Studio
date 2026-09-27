@@ -975,10 +975,6 @@ class StudioViewport(QWidget):
     def set_show_aircraft_cg(self, show: bool) -> None:
         """Toggle visualization of the aircraft total center of gravity."""
         self._show_aircraft_cg = bool(show)
-        if hasattr(self, "hud") and hasattr(self.hud, "cg_button"):
-            self.hud.cg_button.blockSignals(True)
-            self.hud.cg_button.setChecked(self._show_aircraft_cg)
-            self.hud.cg_button.blockSignals(False)
         self.update_aircraft_cg()
         if self._api is not None and hasattr(self._api, "refresh_toolbar_states"):
             self._api.refresh_toolbar_states()

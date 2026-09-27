@@ -136,18 +136,7 @@ class StudioViewportHUD(QFrame):
         layout.addWidget(self.projection_button)
         self._update_projection_state()
 
-        # 7. Aircraft Center of Gravity (CG) toggle
-        self.cg_button = QToolButton(self)
-        self.cg_button.setCheckable(True)
-        self.cg_button.setChecked(self._viewport.is_show_aircraft_cg())
-        self.cg_button.setIcon(get_icon("point_mass"))
-        self.cg_button.setToolTip("Toggle Aircraft Center of Gravity (CG)")
-        self.cg_button.setFixedSize(24, 24)
-        self.cg_button.setAutoRaise(True)
-        self.cg_button.toggled.connect(self._viewport.set_show_aircraft_cg)
-        layout.addWidget(self.cg_button)
-
-        # 8. Layers button with checkable visibility menu
+        # 7. Layers button with checkable visibility menu
         self.layers_button = QToolButton(self)
         self.layers_button.setIcon(get_icon("view_layers"))
         self.layers_button.setToolTip("Layers")
