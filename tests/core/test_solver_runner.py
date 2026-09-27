@@ -1,111 +1,164 @@
-import tempfile
-import unittest
-from pathlib import Path
+"""Unit tests for solver execution, cancellation, and SolverRunner task lifecycle."""
 
-from PySide6.QtWidgets import QApplication
+from __future__ import annotations
+
+from typing import Any
+
+import pytest
 
 from setuav_studio.api import StudioAPI
-from setuav_studio.project import create_project
-from setuav_studio.solver import AbstractSolver, SolverConfig, SolverResult, SolverStatus
+from setuav_studio.project import ProjectDocument
+from setuav_studio.solver import (
+    AbstractSolver,
+    SolverConfig,
+    SolverResult,
+    SolverRunner,
+    SolverStatus,
+    execute_solver,
+)
+from setuav_studio.task.types import TaskCancelledError
+from tests._common import get_qapp
 
 
-class AsyncDummySolver(AbstractSolver):
-    """Dummy solver for testing asynchronous execution."""
+@pytest.fixture(autouse=True)
+def qapp() -> Any:
+    return get_qapp()
 
+
+class DummyCancellationToken:
+    def __init__(self, cancelled: bool = False) -> None:
+        self._cancelled = cancelled
+
+    @property
+    def is_cancelled(self) -> bool:
+        return self._cancelled
+
+    def check_cancelled(self) -> None:
+        if self._cancelled:
+            raise TaskCancelledError("Cancelled")
+
+    def report_progress(self, current: int, total: int, message: str = "") -> None:
+        pass
+
+    def cancel(self) -> None:
+        self._cancelled = True
+
+
+class SuccessSolver(AbstractSolver):
     def run(self) -> SolverResult:
-        if self.is_cancel_requested:
-            self.status = SolverStatus.CANCELLED
-            return SolverResult(
-                solver_id=self.config.solver_id,
-                config=self.config,
-                status=SolverStatus.CANCELLED,
-            )
-
-        self.status = SolverStatus.COMPLETED
+        self.progress = 50.0
         return SolverResult(
             solver_id=self.config.solver_id,
             config=self.config,
             name=self.config.name,
             status=SolverStatus.COMPLETED,
-            metrics={"lift": 250.0},
+            metrics={"lift": 120.0, "drag": 15.0},
+        )
+
+
+class CancelableSolver(AbstractSolver):
+    def run(self) -> SolverResult:
+        if self.token:
+            self.token.check_cancelled()
+        if self.is_cancel_requested:
+            raise TaskCancelledError("Cancelled by solver flag")
+        return SolverResult(
+            solver_id=self.config.solver_id,
+            config=self.config,
+            name=self.config.name,
+            status=SolverStatus.COMPLETED,
         )
 
 
 class FailingSolver(AbstractSolver):
-    """Solver that raises an exception during execution."""
-
     def run(self) -> SolverResult:
-        raise ValueError("Computation failed due to convergence error")
+        raise ValueError("Simulation diverged")
 
 
-class TestSolverRunner(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
-        cls._app = QApplication.instance() or QApplication([])
-
-    def setUp(self) -> None:
-        self.temp_dir = tempfile.TemporaryDirectory()
-        self.project_path = Path(self.temp_dir.name) / "test_project.suav"
-        self.api = StudioAPI()
-        self.api.current_project = create_project(self.project_path)
-
-    def tearDown(self) -> None:
-        self.temp_dir.cleanup()
-
-    def test_register_and_run_solver_async(self) -> None:
-        self.api.register_solver("async_dummy", AsyncDummySolver)
-        solver_cls = self.api.solvers.get_solver_class("async_dummy")
-        self.assertIs(solver_cls, AsyncDummySolver)
-
-        config = SolverConfig(solver_id="async_dummy", name="Async Run 1")
-        solver = AsyncDummySolver(config)
-
-        completed_results: list[SolverResult] = []
-
-        def _on_complete(res: SolverResult) -> None:
-            completed_results.append(res)
-
-        handle = self.api.run_solver(solver, on_complete=_on_complete)
-        self.assertIsNotNone(handle)
-
-        # Process Qt event loop until task finishes
-        for _ in range(50):
-            QApplication.processEvents()
-            if completed_results:
-                break
-
-        self.assertEqual(len(completed_results), 1)
-        res = completed_results[0]
-        self.assertEqual(res.status, SolverStatus.COMPLETED)
-        self.assertEqual(res.metrics["lift"], 250.0)
-
-        # Verify automatic registration in current_project
-        stored = self.api.get_solver_result(res.id)
-        self.assertIsNotNone(stored)
-        assert stored is not None
-        self.assertEqual(stored.id, res.id)
-
-    def test_run_failing_solver(self) -> None:
-        config = SolverConfig(solver_id="failing", name="Failing Run")
-        solver = FailingSolver(config)
-
-        completed_results: list[SolverResult] = []
-
-        def _on_complete(res: SolverResult) -> None:
-            completed_results.append(res)
-
-        self.api.run_solver(solver, on_complete=_on_complete)
-
-        for _ in range(50):
-            QApplication.processEvents()
-            if completed_results:
-                break
-
-        self.assertEqual(len(completed_results), 1)
-        res = completed_results[0]
-        self.assertEqual(res.status, SolverStatus.FAILED)
-        self.assertIn("Computation failed", str(res.error_message))
+# ==============================================================================
+# 1. execute_solver Worker Function Tests
+# ==============================================================================
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_execute_solver_success() -> None:
+    config = SolverConfig(solver_id="org.test:aero", name="Aero Run")
+    solver = SuccessSolver(config)
+    token = DummyCancellationToken()
+
+    result = execute_solver(solver, token)  # type: ignore[arg-type]
+
+    assert result.status == SolverStatus.COMPLETED
+    assert solver.status == SolverStatus.COMPLETED
+    assert result.metrics["lift"] == 120.0
+    assert result.execution_time_ms > 0.0
+
+
+def test_execute_solver_cancellation() -> None:
+    config = SolverConfig(solver_id="org.test:aero", name="Aero Cancel")
+    solver = CancelableSolver(config)
+    token = DummyCancellationToken(cancelled=True)
+
+    result = execute_solver(solver, token)  # type: ignore[arg-type]
+
+    assert result.status == SolverStatus.CANCELLED
+    assert solver.status == SolverStatus.CANCELLED
+
+
+def test_execute_solver_failure() -> None:
+    config = SolverConfig(solver_id="org.test:aero", name="Aero Failure")
+    solver = FailingSolver(config)
+    token = DummyCancellationToken()
+
+    result = execute_solver(solver, token)  # type: ignore[arg-type]
+
+    assert result.status == SolverStatus.FAILED
+    assert solver.status == SolverStatus.FAILED
+    assert "Simulation diverged" in (result.error_message or "")
+
+
+# ==============================================================================
+# 2. SolverRunner Registry & Execution Tests
+# ==============================================================================
+
+
+def test_solver_runner_registry() -> None:
+    studio_api = StudioAPI()
+    runner = SolverRunner(studio_api)
+
+    runner.register_solver("org.test:success", SuccessSolver)
+    assert runner.get_solver_class("org.test:success") is SuccessSolver
+    assert runner.get_solver_class("org.test:missing") is None
+
+    runner.unregister_solver("org.test:success")
+    assert runner.get_solver_class("org.test:success") is None
+
+
+def test_solver_runner_executes_and_adds_result_to_project() -> None:
+    studio_api = StudioAPI()
+    project = ProjectDocument(path=None, kind="json", data={"components": []})  # type: ignore[arg-type]
+    studio_api.current_project = project
+
+    runner = SolverRunner(studio_api)
+    config = SolverConfig(solver_id="org.test:aero", name="Async Run")
+    solver = SuccessSolver(config)
+
+    completed_results: list[SolverResult] = []
+
+    # Run solver asynchronously via task manager
+    _ = runner.run_solver(
+        solver,
+        on_complete=completed_results.append,
+    )
+
+    # Wait for the task to finish on Qt thread pool
+    assert studio_api.tasks.thread_pool.waitForDone(5000)
+    get_qapp().processEvents()
+
+    # Result was passed to callback
+    assert len(completed_results) == 1
+    res = completed_results[0]
+    assert res.status == SolverStatus.COMPLETED
+    assert res.metrics["lift"] == 120.0
+
+    # Result was automatically added to current project
+    assert res.id in project.solver_results

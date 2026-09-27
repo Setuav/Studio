@@ -136,7 +136,7 @@ class TestStudioViewport(unittest.TestCase):
         super().tearDown()
 
     def test_initial_state(self) -> None:
-        self.assertEqual(self.viewport.layers(), ["default", "geometry"])
+        self.assertEqual(self.viewport.layers(), ["default", "geometry", "mass"])
         self.assertEqual(self.viewport.object_ids(), [])
         self.assertIs(self.viewport.renderer, self.mock_renderer)
 
