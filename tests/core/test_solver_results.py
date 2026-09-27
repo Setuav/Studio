@@ -141,6 +141,43 @@ def test_solver_result_tables_plots_serialization() -> None:
     assert restored_plot.series[0].y_column == "cl"
 
 
+def test_solver_result_csv_and_json_export(tmp_path: Path) -> None:
+    config = SolverConfig(solver_id="aero", name="Export Case")
+    result = SolverResult(
+        solver_id="aero",
+        config=config,
+        name="Export Result",
+        status=SolverStatus.COMPLETED,
+    )
+    result.add_summary("cl_max", 1.45, label="Max CL")
+    result.add_table(
+        table_id="sweep",
+        columns=[TableColumn(key="alpha", label="AoA", unit="deg"), TableColumn(key="cl", label="CL")],
+        data={"alpha": [0.0, 5.0], "cl": [0.2, 0.7]},
+    )
+
+    # 1. Export CSV
+    exported_csvs = result.export_csv(tmp_path)
+    assert len(exported_csvs) == 2  # summary.csv and sweep.csv
+    assert (tmp_path / "summary.csv").is_file()
+    assert (tmp_path / "sweep.csv").is_file()
+    assert "AoA [deg],CL" in (tmp_path / "sweep.csv").read_text(encoding="utf-8")
+
+    # 2. Export JSON
+    json_path = tmp_path / "result.json"
+    result.export_json(json_path)
+    assert json_path.is_file()
+
+    # 3. Reload from exported JSON
+    import json
+
+    with open(json_path, encoding="utf-8") as f:
+        loaded = json.load(f)
+    from_json = SolverResult.from_dict(loaded)
+    assert from_json.id == result.id
+    assert from_json.tables["sweep"].get_column("cl") == [0.2, 0.7]
+
+
 # ==============================================================================
 # 3. Project Integration & Persistence
 # ==============================================================================
