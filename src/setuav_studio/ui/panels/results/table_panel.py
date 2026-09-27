@@ -15,6 +15,7 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import QResizeEvent, QWheelEvent
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QAbstractScrollArea,
     QFileDialog,
     QHBoxLayout,
@@ -38,6 +39,34 @@ if TYPE_CHECKING:
 
 
 _EMPTY_INDEX = QModelIndex()
+
+
+_SHORT_LABEL_MAP: dict[str, str] = {
+    "L/D Ratio": "L/D",
+    "Lift Coeff (CL)": "CL",
+    "Lift Coefficient (CL)": "CL",
+    "Drag Coeff (CD)": "CD",
+    "Drag Coefficient (CD)": "CD",
+    "Pitching Moment (Cm)": "Cm",
+    "Pitching Moment Coefficient (Cm)": "Cm",
+    "Induced Drag (CDi)": "CDi",
+    "Profile Drag (CDp)": "CDp",
+    "Lift Force": "Lift",
+    "Drag Force": "Drag",
+    "Sideforce Coeff (CY)": "CY",
+    "Sideforce Coefficient (CY)": "CY",
+    "Rolling Moment (Cl)": "Cl",
+    "Rolling Moment Coefficient (Cl)": "Cl",
+    "Yawing Moment (Cn)": "Cn",
+    "Yawing Moment Coefficient (Cn)": "Cn",
+    "Sideforce": "Side Force",
+    "Advance Ratio (J)": "J (Advance)",
+    "System Efficiency": "Sys Eff",
+    "Propeller Efficiency": "Prop Eff",
+    "Motor Efficiency": "Motor Eff",
+    "Electrical Power": "Power",
+    "Battery Voltage": "Voltage",
+}
 
 
 class AnalysisTableModel(QAbstractTableModel):
@@ -93,11 +122,16 @@ class AnalysisTableModel(QAbstractTableModel):
         orientation: Qt.Orientation,
         role: int = Qt.ItemDataRole.DisplayRole,
     ) -> Any:
-        if role == Qt.ItemDataRole.DisplayRole:
-            if orientation == Qt.Orientation.Horizontal:
-                if 0 <= section < len(self._table.columns):
-                    return self._table.columns[section].label
-            elif orientation == Qt.Orientation.Vertical:
+        if orientation == Qt.Orientation.Horizontal:
+            if 0 <= section < len(self._table.columns):
+                col = self._table.columns[section]
+                if role == Qt.ItemDataRole.DisplayRole:
+                    label = col.label
+                    return _SHORT_LABEL_MAP.get(label, label)
+                elif role == Qt.ItemDataRole.ToolTipRole:
+                    return col.label or col.key
+        elif orientation == Qt.Orientation.Vertical:
+            if role == Qt.ItemDataRole.DisplayRole:
                 if section == 0:
                     return "Unit"
                 return str(section)
@@ -169,11 +203,23 @@ class FrozenUnitTableView(QTableView):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self._natural_widths: list[int] = []
+
+        self.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.horizontalHeader().setStretchLastSection(False)
+
         self.frozen_view = FrozenRowView(self)
         self.frozen_view.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.frozen_view.horizontalHeader().hide()
+        self.frozen_view.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self.frozen_view.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self.frozen_view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.frozen_view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.frozen_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.frozen_view.horizontalHeader().setStretchLastSection(False)
         self.frozen_view.setAlternatingRowColors(True)
         self.frozen_view.setStyleSheet(
             "#frozenUnitView { border: none; border-bottom: 1px solid rgba(128, 128, 128, 0.3); background-color: palette(base); }"
@@ -203,6 +249,7 @@ class FrozenUnitTableView(QTableView):
             if self.selectionModel() is not None:
                 self.frozen_view.setSelectionModel(self.selectionModel())
         self._sync_frozen_rows()
+        self.auto_fit_columns()
 
     def _sync_frozen_rows(self) -> None:
         m = self.model()
@@ -215,12 +262,51 @@ class FrozenUnitTableView(QTableView):
             self.frozen_view.setRowHidden(r, True)
         self.update_frozen_geometry()
 
+    def auto_fit_columns(self) -> None:
+        """Size every column according to its widest cell and header, with breathing room."""
+        m = self.model()
+        if not m or m.columnCount() == 0:
+            return
+
+        self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.resizeColumnsToContents()
+
+        col_count = m.columnCount()
+        self._natural_widths = [max(70, self.columnWidth(c) + 16) for c in range(col_count)]
+        self._relayout_columns()
+        self.update_frozen_geometry()
+
+    def _relayout_columns(self) -> None:
+        """Ensure columns fit naturally or expand to fill available viewport space."""
+        m = self.model()
+        if not m or m.columnCount() == 0 or not self._natural_widths:
+            return
+        col_count = m.columnCount()
+        if len(self._natural_widths) != col_count:
+            return
+
+        total_natural = sum(self._natural_widths)
+        viewport_w = self.viewport().width()
+
+        if total_natural < viewport_w and col_count > 0:
+            extra = viewport_w - total_natural
+            extra_per_col = extra // col_count
+            remainder = extra % col_count
+            for c in range(col_count):
+                add = extra_per_col + (1 if c < remainder else 0)
+                self.setColumnWidth(c, self._natural_widths[c] + add)
+        else:
+            for c in range(col_count):
+                if self.columnWidth(c) < self._natural_widths[c]:
+                    self.setColumnWidth(c, self._natural_widths[c])
+
     def _on_section_resized(self, logical_index: int, _old_size: int, new_size: int) -> None:
         self.frozen_view.setColumnWidth(logical_index, new_size)
         self.update_frozen_geometry()
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
+        self._relayout_columns()
         self.update_frozen_geometry()
 
     def update_frozen_geometry(self) -> None:
@@ -331,7 +417,6 @@ class AnalysisTablePanel(QWidget):
         self._table_view.setAlternatingRowColors(True)
         self._table_view.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
         self._table_view.setSelectionMode(QTableView.SelectionMode.SingleSelection)
-        self._table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self._table_view.verticalHeader().setDefaultSectionSize(22)
         self._table_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._table_view.customContextMenuRequested.connect(self._on_table_context_menu)
@@ -358,7 +443,7 @@ class AnalysisTablePanel(QWidget):
             table, use_display_units=self._use_display_units, parent=self
         )
         self._table_view.setModel(self._model)
-        self._table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self._table_view.auto_fit_columns()
 
         self._toolbar.setVisible(True)
         self._stack.setCurrentWidget(self._table_view)
