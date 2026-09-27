@@ -152,7 +152,10 @@ def test_solver_result_csv_and_json_export(tmp_path: Path) -> None:
     result.add_summary("cl_max", 1.45, label="Max CL")
     result.add_table(
         table_id="sweep",
-        columns=[TableColumn(key="alpha", label="AoA", unit="deg"), TableColumn(key="cl", label="CL")],
+        columns=[
+            TableColumn(key="alpha", label="AoA", unit="deg"),
+            TableColumn(key="cl", label="CL"),
+        ],
         data={"alpha": [0.0, 5.0], "cl": [0.2, 0.7]},
     )
 

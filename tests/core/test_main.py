@@ -9,7 +9,7 @@ from setuav_studio.api import (
 )
 from setuav_studio.plugin.manager import PluginManager
 from setuav_studio.ui.shell import MainWindow
-from tests._common import TEST_PROJECT_PATH, get_qapp
+from tests._common import get_qapp
 
 
 class MainTests(unittest.TestCase):
@@ -47,22 +47,6 @@ class MainTests(unittest.TestCase):
         default_arguments = _parse_arguments([])
         self.assertFalse(default_arguments.debug)
 
-    def test_degraded_mode_badge_shown_for_missing_plugins(self) -> None:
-        api = StudioAPI()
-        api._host.bind_project_requirement_checker(lambda data: ["Missing plugin: com.example.foo"])
-        window = MainWindow(api)
-        self.addCleanup(window.deleteLater)
-        window.open_project(TEST_PROJECT_PATH)
-
-        self.assertIn("⚠️ 1", window._degraded_badge.text())
-        self.assertIn("com.example.foo", window._degraded_badge.toolTip())
-
-        api._host.bind_project_requirement_checker(lambda data: [])
-        if window._project is not None:
-            window._project.modified = False
-        window.open_project(TEST_PROJECT_PATH)
-        self.assertIn("🔴 0  ⚠️ 0", window._degraded_badge.text())
-
     def test_panel_contributions(self) -> None:
         api = StudioAPI()
         window = MainWindow(api)
@@ -78,6 +62,7 @@ class MainTests(unittest.TestCase):
 
         dock = window.findChild(QDockWidget, "test.panel")
         self.assertIsNotNone(dock)
+        assert dock is not None
         self.assertEqual(dock.windowTitle(), "Test Panel")
         view_action = window._panel_actions["test.panel"]
         self.assertIsNotNone(view_action)

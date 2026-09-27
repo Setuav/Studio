@@ -63,11 +63,15 @@ class TestComponentEditor(unittest.TestCase):
         self.assertEqual(editor._property_numeric(editor.parameters_table, 0), 400.0)
 
         # Edit a field in general table (row 0 = name)
-        editor.general_table.item(0, 1).setText("Updated Motor Name")
+        item_gen = editor.general_table.item(0, 1)
+        assert item_gen is not None
+        item_gen.setText("Updated Motor Name")
         self.assertEqual(comp["name"], "Updated Motor Name")
 
         # Edit a parameter in parameters table (row 0 = kv)
-        editor.parameters_table.item(0, 1).setText("450.0")
+        item_param = editor.parameters_table.item(0, 1)
+        assert item_param is not None
+        item_param.setText("450.0")
         self.assertEqual(comp["parameters"]["kv"], 450.0)
 
         # Test Undo
@@ -99,7 +103,9 @@ class TestComponentEditor(unittest.TestCase):
         api._host.set_project(doc)
 
         # Detached copy of the component
-        detached = copy.deepcopy(doc.get_component("wing-1"))
+        raw_comp = doc.get_component("wing-1")
+        assert raw_comp is not None
+        detached = copy.deepcopy(raw_comp)
 
         def mutate() -> None:
             detached["parameters"]["span"] = 3.2
@@ -108,15 +114,20 @@ class TestComponentEditor(unittest.TestCase):
 
         # Live project must be updated to 3.2
         live = doc.get_component("wing-1")
+        assert live is not None
         self.assertEqual(live["parameters"]["span"], 3.2)
         self.assertEqual(detached["parameters"]["span"], 3.2)
 
         # Undo must restore live and detached
         api.undo()
-        self.assertEqual(live["parameters"]["span"], 1.5)
+        live_undone = doc.get_component("wing-1")
+        assert live_undone is not None
+        self.assertEqual(live_undone["parameters"]["span"], 1.5)
 
     def test_properties_panel_refreshes_on_project_content_change(self) -> None:
         import copy
+
+        from PySide6.QtWidgets import QTabWidget
 
         from setuav_studio.ui.editor import BaseComponentEditor
         from setuav_studio.ui.panels.properties import PropertiesPanel
@@ -141,19 +152,31 @@ class TestComponentEditor(unittest.TestCase):
 
         panel = PropertiesPanel(api)
         self.addCleanup(panel.deleteLater)
-        api.set_selection(doc.get_component("wing-1"))
+        comp = doc.get_component("wing-1")
+        assert comp is not None
+        api.set_selection(comp)
 
         self.assertIsNotNone(panel._current_widget)
-        self.assertEqual(panel._current_widget._component["parameters"]["span"], 1.5)
+        widget = panel._current_widget
+        assert isinstance(widget, QTabWidget)
+        editor = widget.widget(0)
+        assert isinstance(editor, BaseComponentEditor)
+        self.assertEqual(editor._component["parameters"]["span"], 1.5)
 
         # Deepcopy project components simulating config switch or edit_project
         doc.data["components"] = copy.deepcopy(doc.data["components"])
-        doc.get_component("wing-1")["parameters"]["span"] = 4.0
+        comp_to_edit = doc.get_component("wing-1")
+        assert comp_to_edit is not None
+        comp_to_edit["parameters"]["span"] = 4.0
         api.notify_project_content_changed()
 
         # Panel must have refreshed and point to the live component
         self.assertIsNotNone(panel._current_widget)
-        self.assertEqual(panel._current_widget._component["parameters"]["span"], 4.0)
+        widget2 = panel._current_widget
+        assert isinstance(widget2, QTabWidget)
+        editor2 = widget2.widget(0)
+        assert isinstance(editor2, BaseComponentEditor)
+        self.assertEqual(editor2._component["parameters"]["span"], 4.0)
 
     def test_on_expression_cell_changed_with_float_and_spinbox_callback(self) -> None:
         api = StudioAPI()
@@ -245,17 +268,23 @@ class TestComponentEditor(unittest.TestCase):
         table = editor._table_widgets["sections"]
         self.assertEqual(table.rowCount(), 3)  # 1 unit row + 2 data rows
         # Row 0 is Unit row
-        self.assertEqual(table.item(0, 0).text(), "Unit")
-        self.assertEqual(table.item(0, 1).text(), "[mm]")
-        self.assertEqual(table.item(0, 2).text(), "[mm]")
-        self.assertEqual(table.item(0, 3).text(), "[°]")
-        # Row 1 is Station 1, Row 2 is Station 2
-        self.assertEqual(table.item(1, 0).text(), "1")
-        self.assertEqual(table.item(1, 2).text(), "200.00")
-        self.assertEqual(table.item(2, 2).text(), "100.00")
+        for r, c, val in [
+            (0, 0, "Unit"),
+            (0, 1, "[mm]"),
+            (0, 2, "[mm]"),
+            (0, 3, "[°]"),
+            (1, 0, "1"),
+            (1, 2, "200.00"),
+            (2, 2, "100.00"),
+        ]:
+            it = table.item(r, c)
+            assert it is not None
+            self.assertEqual(it.text(), val)
 
         # Edit a cell: change chord of second station to 120.0
-        table.item(2, 2).setText("120.0")
+        it_edit = table.item(2, 2)
+        assert it_edit is not None
+        it_edit.setText("120.0")
         self.assertEqual(comp["parameters"]["sections"][1]["chord"], 120.0)
 
         # Test Undo cell edit
@@ -267,7 +296,9 @@ class TestComponentEditor(unittest.TestCase):
         self.assertEqual(comp["parameters"]["sections"][1]["chord"], 120.0)
 
         # Test Formula support in table cell
-        table.item(2, 2).setText("=SPAN / 2")
+        it_formula = table.item(2, 2)
+        assert it_formula is not None
+        it_formula.setText("=SPAN / 2")
         self.assertEqual(comp["parameters"]["sections"][1]["chord"], "=SPAN / 2")
 
         # Test Add Row

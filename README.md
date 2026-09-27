@@ -92,7 +92,7 @@ Run the code checks and test suite:
 
 ```bash
 uv run --locked pre-commit run --all-files
-uv run --locked python -m tests.suites all
+uv run --locked pytest
 ```
 
 Automatic checks before each commit can be enabled optionally:
@@ -104,11 +104,10 @@ uv run --locked pre-commit install
 Tests can also be run for a single area while developing:
 
 ```bash
-uv run --locked python -m tests.suites geometry
-uv run --locked python -m tests.suites aerodynamics
+uv run --locked pytest tests/core/
+uv run --locked pytest tests/geometry/
+uv run --locked pytest tests/aerodynamics/
 ```
-
-Run `uv run --locked python -m tests.suites --help` to list all test groups.
 
 ## Desktop build
 

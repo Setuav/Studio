@@ -53,7 +53,7 @@ jobs:
       - name: Type check
         run: uv run --locked pyright
       - name: Test application
-        run: uv run --locked python -m tests.suites all
+        run: uv run --locked pytest
 
   package:
     name: Package smoke test

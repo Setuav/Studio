@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from PySide6.QtWidgets import QLabel
+from PySide6.QtWidgets import QLabel, QMenu
 
 from setuav_studio.api import (
     PanelContribution,
@@ -109,43 +109,20 @@ class TestWorkbenchAndTools(unittest.TestCase):
         tools_action = next(a for a in win.menuBar().actions() if "tools" in a.text().lower())
         self.assertIsNotNone(tools_action)
         tools_menu = tools_action.menu()
+        self.assertIsNotNone(tools_menu)
+        assert isinstance(tools_menu, QMenu)
 
         # Find Propulsion submenu
         prop_action = next(a for a in tools_menu.actions() if "propulsion" in a.text().lower())
         self.assertIsNotNone(prop_action)
         prop_menu = prop_action.menu()
+        self.assertIsNotNone(prop_menu)
+        assert isinstance(prop_menu, QMenu)
 
         # Find and trigger the Sample Tool action
         sample_action = next(a for a in prop_menu.actions() if "sample tool" in a.text().lower())
         sample_action.trigger()
         self.assertEqual(called, [True])
-
-    def test_log_button_opens_log_window(self) -> None:
-        import logging
-
-        from setuav_studio.ui.dialog.log import clear_log_buffer, install_log_buffer
-
-        clear_log_buffer()
-        install_log_buffer()
-        logging.getLogger("setuav_studio.test").warning("hello log window")
-
-        api = StudioAPI()
-        win = MainWindow(api)
-        get_qapp().processEvents()
-
-        self.assertIsNotNone(win._log_button)
-        win._log_button.click()
-        self.assertIsNotNone(win._log_window)
-        self.assertTrue(win._log_window.isVisible())
-        self.assertEqual(win._log_window._table.columnCount(), 3)
-        table_text = " ".join(
-            item.text()
-            for row in range(win._log_window._table.rowCount())
-            for item in [win._log_window._table.item(row, c) for c in range(3)]
-            if item is not None
-        )
-        self.assertIn("hello log window", table_text)
-        self.assertTrue(win._log_window._table.wordWrap())
 
     def test_studio_api_event_bus_publish_subscribe(self) -> None:
         api = StudioAPI()

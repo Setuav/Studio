@@ -839,7 +839,7 @@ class TestStudioViewport(unittest.TestCase):
 
         # 5. TrianglesPrimitive
         tri = TrianglesPrimitive(
-            triangles=[((-10.0, -10.0, 0.0), (10.0, -10.0, 0.0), (0.0, 10.0, 0.0))]
+            triangles=(((-10.0, -10.0, 0.0), (10.0, -10.0, 0.0), (0.0, 10.0, 0.0)),)
         )
         dist_tri = _ray_primitive_intersection((0.0, 0.0, 50.0), (0.0, 0.0, -1.0), tri)
         self.assertIsNotNone(dist_tri)
