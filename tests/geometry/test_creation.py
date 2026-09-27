@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-from plugins.geometry.creation import GeometryCreationController
+from plugins.geometry.creation import AirframeCreationController
 from setuav_studio.api import StudioAPI
 from setuav_studio.project import ProjectDocument
 from tests._common import get_qapp
@@ -28,7 +28,7 @@ class GeometryCreationTests(unittest.TestCase):
             {"components": [], "assemblies": []},
         )
         self.api._host.set_project(self.project)
-        self.controller = GeometryCreationController(self.api)
+        self.controller = AirframeCreationController(self.api)
 
     def test_toolbar_contributions_dispatch_and_predicates(self) -> None:
         contributions = self.controller.contributions()
@@ -37,7 +37,7 @@ class GeometryCreationTests(unittest.TestCase):
 
         self.assertEqual(
             tuple(c.id for c in contributions),
-            GeometryCreationController.toolbar_ids,
+            AirframeCreationController.toolbar_ids,
         )
 
         # Before airframe:

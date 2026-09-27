@@ -432,7 +432,7 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         sections_pts = tuple(tuple(pt for pt in sec.points) for sec in loft.sections)
         obj = SceneObject(
             object_id="test-fuse",
-            layer="geometry",
+            layer="airframe",
             name="Fuselage",
             primitives=[LoftPrimitive(sections=sections_pts, color=loft.color)],
             envelope=env,

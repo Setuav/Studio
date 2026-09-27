@@ -4,7 +4,7 @@ from typing import ClassVar
 
 from PySide6.QtWidgets import QWidget
 
-from plugins.geometry import GeometryPlugin
+from plugins.geometry import AirframeDesignPlugin
 from plugins.geometry.editors.fuselage import FuselageEditor
 from plugins.geometry.engine.data import GeometryData, LoftGeometry, Section
 from plugins.weight_balance.canvas import View2DCanvas
@@ -181,8 +181,8 @@ class PluginTests(unittest.TestCase):
         )
 
     @unittest.skip("Plugins disabled temporarily during core refactoring")
-    def test_geometry_plugin_registers_fuselage_editor(self) -> None:
-        self.manager.activate(GeometryPlugin())
+    def test_airframe_design_plugin_registers_fuselage_editor(self) -> None:
+        self.manager.activate(AirframeDesignPlugin())
 
         factory = self.api._component_editors["org.setuav.core:fuselage"]
         self.assertIsNotNone(factory)
@@ -239,7 +239,7 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(segment["loft"]["method"], "smooth")
 
     @unittest.skip("Plugins disabled temporarily during core refactoring")
-    def test_discovers_bundled_geometry_plugin(self) -> None:
+    def test_discovers_bundled_airframe_design_plugin(self) -> None:
         issues = self.manager.discover()
 
         self.assertEqual(issues, [])

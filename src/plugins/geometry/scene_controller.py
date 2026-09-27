@@ -1,4 +1,4 @@
-"""GeometrySceneController — Synchronizes geometry engine output with StudioViewport."""
+"""AirframeSceneController — Synchronizes geometry engine output with StudioViewport."""
 
 from __future__ import annotations
 
@@ -18,7 +18,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-GEOMETRY_LAYER = "geometry"
+AIRFRAME_LAYER = "airframe"
+AIRFRAME_LAYER_NAME = "Airframe Design"
 
 
 def _to_rgba(c: Any) -> tuple[float, float, float, float]:
@@ -30,7 +31,38 @@ def _to_rgba(c: Any) -> tuple[float, float, float, float]:
     return (0.65, 0.68, 0.72, 1.0)
 
 
-class GeometrySceneController:
+def _extract_component_names(comps: Any) -> dict[str, str]:
+    if not isinstance(comps, list):
+        return {}
+    return {
+        str(c.get("id")): str(c.get("name") or c.get("id"))
+        for c in comps
+        if isinstance(c, dict) and c.get("id")
+    }
+
+
+def _collect_primitives(lofts: Any) -> dict[str, list[VisualPrimitive]]:
+    comp_primitives: dict[str, list[VisualPrimitive]] = {}
+    for loft in lofts:
+        if ":stations" in loft.component_id:
+            continue
+        sections_pts = tuple(tuple(pt for pt in sec.points) for sec in loft.sections)
+        if len(sections_pts) < 2:
+            continue
+        prim = LoftPrimitive(
+            sections=sections_pts,
+            color=_to_rgba(loft.color),
+            interpolation=getattr(loft, "interpolation", "smooth"),
+            station_spacing=getattr(loft, "station_spacing", 10.0),
+            closed_ends=getattr(loft, "closed_ends", True),
+            wireframe=True,
+            solid=True,
+        )
+        comp_primitives.setdefault(loft.component_id, []).append(prim)
+    return comp_primitives
+
+
+class AirframeSceneController:
     """Manages 3D visualization of aircraft geometry in the central StudioViewport."""
 
     def __init__(self, api: StudioAPI, providers: dict[str, GeometryProvider]) -> None:
@@ -43,9 +75,12 @@ class GeometrySceneController:
         if viewport is None:
             return
 
+        if not viewport.has_layer(AIRFRAME_LAYER):
+            viewport.add_layer(AIRFRAME_LAYER, name=AIRFRAME_LAYER_NAME, visible=True)
+
         doc = project if project is not None else getattr(self._api, "current_project", None)
         if doc is None or not hasattr(doc, "data") or not isinstance(doc.data, dict):
-            viewport.clear(layer=GEOMETRY_LAYER)
+            viewport.clear(layer=AIRFRAME_LAYER)
             return
 
         from .engine.scene import build_project_geometry
@@ -56,43 +91,15 @@ class GeometrySceneController:
             logger.warning("Failed to build geometry for viewport: %s", exc)
             return
 
-        comps = doc.data.get("components", [])
-        comp_names: dict[str, str] = {}
-        if isinstance(comps, list):
-            for c in comps:
-                if isinstance(c, dict):
-                    cid = str(c.get("id") or "")
-                    if cid:
-                        comp_names[cid] = str(c.get("name") or cid)
+        comp_names = _extract_component_names(doc.data.get("components"))
+        comp_primitives = _collect_primitives(geom.lofts)
 
-        comp_primitives: dict[str, list[VisualPrimitive]] = {}
-
-        # 1. Loft Geometries (wings, fuselages, control surfaces, wing root stubs)
-        for loft in geom.lofts:
-            if ":stations" in loft.component_id:
-                continue
-            sections_pts = tuple(tuple(pt for pt in sec.points) for sec in loft.sections)
-            if len(sections_pts) < 2:
-                continue
-            prim = LoftPrimitive(
-                sections=sections_pts,
-                color=_to_rgba(loft.color),
-                interpolation=getattr(loft, "interpolation", "smooth"),
-                station_spacing=getattr(loft, "station_spacing", 10.0),
-                closed_ends=getattr(loft, "closed_ends", True),
-                wireframe=True,
-                solid=True,
-            )
-            comp_primitives.setdefault(loft.component_id, []).append(prim)
-
-        # 2. Envelope Geometries (stored on SceneObject.envelope, rendered only when envelope is selected)
-        comp_envelopes: dict[str, Any] = {}
-        for env in geom.envelopes:
-            if env.lines:
-                comp_envelopes[env.component_id] = env
+        comp_envelopes: dict[str, Any] = {
+            env.component_id: env for env in geom.envelopes if env.lines
+        }
 
         active_ids = set(comp_primitives.keys()) | set(comp_envelopes.keys())
-        existing_ids = set(viewport.object_ids(layer=GEOMETRY_LAYER))
+        existing_ids = set(viewport.object_ids(layer=AIRFRAME_LAYER))
 
         for removed_id in existing_ids - active_ids:
             viewport.remove(removed_id)
@@ -103,7 +110,7 @@ class GeometrySceneController:
             name = comp_names.get(comp_id, comp_id)
             obj = SceneObject(
                 object_id=comp_id,
-                layer=GEOMETRY_LAYER,
+                layer=AIRFRAME_LAYER,
                 name=name,
                 primitives=prims,
                 envelope=env,
@@ -120,4 +127,4 @@ class GeometrySceneController:
         """Clean up geometry objects from viewport."""
         viewport = getattr(self._api, "viewport", None)
         if viewport is not None:
-            viewport.clear(layer=GEOMETRY_LAYER)
+            viewport.clear(layer=AIRFRAME_LAYER)

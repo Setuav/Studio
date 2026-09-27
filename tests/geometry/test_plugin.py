@@ -1,22 +1,22 @@
-"""Tests for GeometryPlugin lifecycle (activate / deactivate)."""
+"""Tests for AirframeDesignPlugin lifecycle (activate / deactivate)."""
 
 from __future__ import annotations
 
 import unittest
 
-from plugins.geometry import GeometryPlugin
+from plugins.geometry import AirframeDesignPlugin
 from setuav_studio.api import StudioAPI
 from tests._common import get_qapp
 
 
-class GeometryPluginLifecycleTests(unittest.TestCase):
+class AirframeDesignPluginLifecycleTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.app = get_qapp()
 
     def test_activate_and_deactivate_lifecycle(self) -> None:
         api = StudioAPI()
-        plugin = GeometryPlugin()
+        plugin = AirframeDesignPlugin()
 
         # 1. Activate
         plugin.activate(api)
@@ -24,10 +24,10 @@ class GeometryPluginLifecycleTests(unittest.TestCase):
         # Check toolbar items registered (pending since no host bound yet)
         self.assertEqual(len(api._pending_toolbar_items), 4)
         toolbar_ids = [item.id for item in api._pending_toolbar_items]
-        self.assertIn("geometry.create-airframe", toolbar_ids)
-        self.assertIn("geometry.create-fuselage", toolbar_ids)
-        self.assertIn("geometry.create-lifting-surface", toolbar_ids)
-        self.assertIn("geometry.create-control-surface", toolbar_ids)
+        self.assertIn("airframe.create-airframe", toolbar_ids)
+        self.assertIn("airframe.create-fuselage", toolbar_ids)
+        self.assertIn("airframe.create-lifting-surface", toolbar_ids)
+        self.assertIn("airframe.create-control-surface", toolbar_ids)
 
         # Check component models registered
         self.assertIn("org.setuav.core:lifting-surface", api._component_models)
@@ -47,7 +47,7 @@ class GeometryPluginLifecycleTests(unittest.TestCase):
         self.assertIn("org.setuav.core:airframe", api._component_icons)
 
         # Check settings page registered
-        self.assertIn("geometry.settings.editor", api._settings_pages)
+        self.assertIn("airframe_design.settings.editor", api._settings_pages)
 
         # 2. Deactivate
         plugin.deactivate(api)
@@ -68,14 +68,14 @@ class GeometryPluginLifecycleTests(unittest.TestCase):
         self.assertNotIn("org.setuav.core:control-surface", api._component_icons)
         self.assertNotIn("org.setuav.core:airframe", api._component_icons)
 
-        self.assertNotIn("geometry.settings.editor", api._settings_pages)
+        self.assertNotIn("airframe_design.settings.editor", api._settings_pages)
 
-    def test_plugin_manager_toggle_geometry_plugin(self) -> None:
+    def test_plugin_manager_toggle_airframe_design_plugin(self) -> None:
         from setuav_studio.plugin.manager import PluginManager
 
         api = StudioAPI()
         manager = PluginManager(api)
-        plugin = GeometryPlugin()
+        plugin = AirframeDesignPlugin()
 
         # Toggle on (this is what Plugin Manager UI does)
         manager.activate(plugin)
@@ -91,7 +91,7 @@ class GeometryPluginLifecycleTests(unittest.TestCase):
         from setuav_studio.project import ProjectDocument
 
         api = StudioAPI()
-        plugin = GeometryPlugin()
+        plugin = AirframeDesignPlugin()
         plugin.activate(api)
 
         doc = ProjectDocument(Path("/tmp/test_proj.json"), "json", {"components": []})
@@ -109,7 +109,7 @@ class GeometryPluginLifecycleTests(unittest.TestCase):
         api = StudioAPI()
         register_native_contributions(api)
 
-        plugin = GeometryPlugin()
+        plugin = AirframeDesignPlugin()
         plugin.activate(api)
 
         # Fuselage model and editor should now be registered

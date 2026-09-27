@@ -5,9 +5,9 @@ from __future__ import annotations
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QCheckBox, QComboBox, QFormLayout, QWidget
 
-_EDITOR_AUTO_FIT_KEY = "geometry/editor/auto_fit_sections"
-_EDITOR_GRID_KEY = "geometry/editor/show_section_grid"
-_EDITOR_LOFT_METHOD_KEY = "geometry/editor/default_loft_method"
+_EDITOR_AUTO_FIT_KEY = "airframe_design/editor/auto_fit_sections"
+_EDITOR_GRID_KEY = "airframe_design/editor/show_section_grid"
+_EDITOR_LOFT_METHOD_KEY = "airframe_design/editor/default_loft_method"
 
 
 def _as_bool(value: object, default: bool) -> bool:

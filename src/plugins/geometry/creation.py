@@ -90,14 +90,14 @@ def ensure_airframe_component(project: Any) -> dict[str, Any]:
     return airframe
 
 
-class GeometryCreationController:
+class AirframeCreationController:
     """Create valid starter geometry and publish it through the Studio API."""
 
     toolbar_ids = (
-        "geometry.create-airframe",
-        "geometry.create-fuselage",
-        "geometry.create-lifting-surface",
-        "geometry.create-control-surface",
+        "airframe.create-airframe",
+        "airframe.create-fuselage",
+        "airframe.create-lifting-surface",
+        "airframe.create-control-surface",
     )
 
     def __init__(self, api: StudioAPI) -> None:
@@ -111,7 +111,7 @@ class GeometryCreationController:
                 callback=self.add_airframe,
                 icon="component_structural_system",
                 enabled_when=self._can_add_airframe,
-                group="geometry-creation",
+                group="airframe-creation",
                 order=90,
             ),
             ToolbarContribution(
@@ -120,7 +120,7 @@ class GeometryCreationController:
                 callback=self.add_fuselage,
                 icon="geometry_add_fuselage",
                 enabled_when=self._can_add_geometry,
-                group="geometry-creation",
+                group="airframe-creation",
                 order=100,
             ),
             ToolbarContribution(
@@ -140,7 +140,7 @@ class GeometryCreationController:
                     ),
                 ),
                 enabled_when=self._can_add_geometry,
-                group="geometry-creation",
+                group="airframe-creation",
                 order=110,
             ),
             ToolbarContribution(
@@ -164,7 +164,7 @@ class GeometryCreationController:
                     )
                 ),
                 enabled_when=self._can_add_control_surface,
-                group="geometry-creation",
+                group="airframe-creation",
                 order=120,
             ),
         )
@@ -627,7 +627,7 @@ class GeometryCreationController:
 
 
 __all__ = [
-    "GeometryCreationController",
+    "AirframeCreationController",
     "create_default_airframe_component",
     "ensure_airframe_component",
 ]

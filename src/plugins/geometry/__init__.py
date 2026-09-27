@@ -1,10 +1,10 @@
-"""Geometry Plugin package."""
+"""Airframe Design Plugin package."""
 
 from . import editors, engine
-from .plugin import GeometryPlugin
-from .scene_controller import GeometrySceneController
+from .plugin import AirframeDesignPlugin
+from .scene_controller import AirframeSceneController
 
-PLUGIN = GeometryPlugin()
+PLUGIN = AirframeDesignPlugin()
 
 
 def get_geometry(project: object = None) -> object:
@@ -23,8 +23,8 @@ def get_geometry(project: object = None) -> object:
 
 __all__ = [
     "PLUGIN",
-    "GeometryPlugin",
-    "GeometrySceneController",
+    "AirframeDesignPlugin",
+    "AirframeSceneController",
     "editors",
     "engine",
     "get_geometry",

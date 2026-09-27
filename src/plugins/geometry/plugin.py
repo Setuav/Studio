@@ -11,47 +11,47 @@ from setuav_studio.api import (
 )
 from setuav_studio.ui.style.icons import register_plugin_icons
 
-from .creation import GeometryCreationController
+from .creation import AirframeCreationController
 from .editors.airframe import AirframeEditor
 from .editors.control_surface import ControlSurfaceEditor
 from .editors.fuselage import FuselageEditor
 from .editors.lifting_surface import LiftingSurfaceEditor
-from .scene_controller import GeometrySceneController
+from .scene_controller import AirframeSceneController
 from .settings import (
     apply_editor_settings,
     create_editor_settings_page,
 )
 
 
-class GeometryPlugin:
-    id = "org.setuav.studio.geometry"
+class AirframeDesignPlugin:
+    id = "org.setuav.studio.airframe_design"
     priority = 80
     provides: ClassVar[dict[str, str]] = {"org.setuav.core": "1.0.0"}
 
     def __init__(self) -> None:
         self._api: StudioAPI | None = None
         self._providers: dict[str, Any] = {}
-        self._scene_controller: GeometrySceneController | None = None
+        self._scene_controller: AirframeSceneController | None = None
         self._unsubscribers: list[Callable[[], None]] = []
         self._component_types: list[ComponentTypeContribution] = []
 
     def activate(self, api: StudioAPI) -> None:
         register_plugin_icons(
-            "org.setuav.studio.geometry", Path(__file__).parent / "assets" / "icons"
+            "org.setuav.studio.airframe_design", Path(__file__).parent / "assets" / "icons"
         )
         self._api = api
-        self._creation_controller = GeometryCreationController(api)
+        self._creation_controller = AirframeCreationController(api)
         for contribution in self._creation_controller.contributions():
             api.register_toolbar_item(contribution)
 
         # 1. Settings
         api.register_settings_page(
             SettingsPageContribution(
-                id="geometry.settings.editor",
-                title="Geometry Editor",
+                id="airframe_design.settings.editor",
+                title="Airframe Editor",
                 factory=create_editor_settings_page,
                 apply=apply_editor_settings,
-                group="Geometry Engine",
+                group="Airframe Design",
                 order=20,
             )
         )
@@ -66,7 +66,7 @@ class GeometryPlugin:
                 icon="geometry_add_fuselage",
                 model=FuselageModel,
                 editor=lambda component: FuselageEditor(api, component),
-                category="Geometry",
+                category="Airframe Design",
             ),
             ComponentTypeContribution(
                 id="org.setuav.core:lifting-surface",
@@ -74,7 +74,7 @@ class GeometryPlugin:
                 icon="geometry_add_lifting_surface",
                 model=LiftingSurfaceModel,
                 editor=lambda component: LiftingSurfaceEditor(api, component),
-                category="Geometry",
+                category="Airframe Design",
             ),
             ComponentTypeContribution(
                 id="org.setuav.core:control-surface",
@@ -82,7 +82,7 @@ class GeometryPlugin:
                 icon="geometry_add_control_surface",
                 model=ControlSurfaceModel,
                 editor=lambda component: ControlSurfaceEditor(api, component),
-                category="Geometry",
+                category="Airframe Design",
             ),
             ComponentTypeContribution(
                 id="org.setuav.core:airframe",
@@ -90,7 +90,7 @@ class GeometryPlugin:
                 icon="component_structural_system",
                 model=None,
                 editor=lambda component: AirframeEditor(api, component),
-                category="Geometry",
+                category="Airframe Design",
             ),
         ]
         for contrib in self._component_types:
@@ -106,7 +106,7 @@ class GeometryPlugin:
         }
 
         # 6. Central Viewport Synchronization
-        self._scene_controller = GeometrySceneController(api, self._providers)
+        self._scene_controller = AirframeSceneController(api, self._providers)
         self._unsubscribers.append(
             api.on_project_changed(self._scene_controller.on_project_changed)
         )
@@ -161,7 +161,7 @@ class GeometryPlugin:
                 unsub()
         self._unsubscribers = []
         self._api = None
-        api.unregister_settings_page("geometry.settings.editor")
+        api.unregister_settings_page("airframe_design.settings.editor")
         api.unsubscribe(StudioEvents.PROJECT_OPENED, self._on_project_opened)
 
     def _on_project_opened(self, *args: Any) -> None:
