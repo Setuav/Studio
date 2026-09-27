@@ -91,14 +91,10 @@ uv sync --locked --all-extras --group dev
 Run the code checks and test suite:
 
 ```bash
-uv run --locked pre-commit run --all-files
+uv run --locked ruff check .
+uv run --locked ruff format --check .
+uv run --locked pyright
 uv run --locked pytest
-```
-
-Automatic checks before each commit can be enabled optionally:
-
-```bash
-uv run --locked pre-commit install
 ```
 
 Tests can also be run for a single area while developing:
