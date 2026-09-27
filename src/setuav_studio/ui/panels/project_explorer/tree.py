@@ -4,7 +4,7 @@ from copy import deepcopy
 from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import QPoint, QSize, Qt
-from PySide6.QtGui import QBrush, QColor, QKeyEvent
+from PySide6.QtGui import QBrush, QColor, QKeyEvent, QMouseEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QTreeWidget,
@@ -378,6 +378,18 @@ class ProjectExplorer(QTreeWidget):
             event.accept()
             return
         super().keyPressEvent(event)
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.RightButton:
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.RightButton:
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
 
     def _open_context_menu(self, position: QPoint) -> None:
         self._context_menu.open_context_menu(position)

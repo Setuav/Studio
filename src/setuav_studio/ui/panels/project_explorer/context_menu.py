@@ -38,7 +38,6 @@ class ProjectExplorerContextMenu:
             self.open_virtual_context_menu(item, position)
             return
 
-        item.setSelected(True)
         can_edit = self._ops.can_edit_project()
 
         if item is self._tree._parameters_group_item or (
@@ -195,7 +194,6 @@ class ProjectExplorerContextMenu:
         ) or self._tree._component_contributions.get(item)
         if contribution is None or (contribution.rename is None and contribution.delete is None):
             return
-        item.setSelected(True)
         menu = QMenu(self._tree)
         rename_action = menu.addAction(get_icon("edit"), "Rename") if contribution.rename else None
         delete_action = (
