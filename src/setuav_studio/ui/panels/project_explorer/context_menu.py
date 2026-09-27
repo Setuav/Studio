@@ -38,7 +38,7 @@ class ProjectExplorerContextMenu:
             self.open_virtual_context_menu(item, position)
             return
 
-        self._tree.setCurrentItem(item)
+        item.setSelected(True)
         can_edit = self._ops.can_edit_project()
 
         if item is self._tree._parameters_group_item or (
@@ -195,7 +195,7 @@ class ProjectExplorerContextMenu:
         ) or self._tree._component_contributions.get(item)
         if contribution is None or (contribution.rename is None and contribution.delete is None):
             return
-        self._tree.setCurrentItem(item)
+        item.setSelected(True)
         menu = QMenu(self._tree)
         rename_action = menu.addAction(get_icon("edit"), "Rename") if contribution.rename else None
         delete_action = (
@@ -274,7 +274,7 @@ class ProjectExplorerContextMenu:
             self._api.set_selection(element)
             self._api.show_panel("studio:result")
         elif chosen is add_to_view_act:
-            self._api.emit(str(StudioEvents.ANALYSIS_ADD_TO_VIEW), element)
+            self._api.publish(str(StudioEvents.ANALYSIS_ADD_TO_VIEW), element)
             self._api.show_panel("studio:result")
         elif chosen is add_plot_act:
             self._ops.add_plot_action(element)
@@ -294,7 +294,7 @@ class ProjectExplorerContextMenu:
             self._api.set_selection(element)
             self._api.show_panel("studio:result")
         elif chosen is add_to_view_act:
-            self._api.emit(str(StudioEvents.ANALYSIS_ADD_TO_VIEW), element)
+            self._api.publish(str(StudioEvents.ANALYSIS_ADD_TO_VIEW), element)
             self._api.show_panel("studio:result")
         elif chosen is del_act:
             self._ops.delete_plot_action(element)

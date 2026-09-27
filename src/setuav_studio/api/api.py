@@ -271,6 +271,8 @@ class StudioAPI:
                     "Error executing subscriber for event '%s': %s", event_name, exc, exc_info=True
                 )
 
+    emit = publish
+
     def register_toolbar_item(self, contribution: ToolbarContribution) -> None:
         """Register an action to the main toolbar."""
         if self._register_toolbar_item is not None:
