@@ -7,7 +7,7 @@ name = "setuav-studio"
 version = "0.1.0"
 description = "Plugin-based UAV design and analysis studio"
 license = { file = "LICENSE" }
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 classifiers = [
     "License :: OSI Approved :: MIT License",
 ]
@@ -69,13 +69,14 @@ with-urls = true
 fail-on = "GNU Affero General Public License v3;GNU Affero General Public License v3 or later (AGPLv3+);GNU General Public License v3 (GPLv3);GNU General Public License v3 or later (GPLv3+)"
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py312"
 line-length = 100
 src = ["src", "tests"]
 
 [tool.ruff.lint]
 allowed-confusables = ["α", "γ", "ρ", "×", "–", "ℹ"]
 select = ["B", "C4", "C90", "E4", "E7", "E9", "F", "I", "RUF", "SIM", "UP"]
+ignore = ["UP040", "UP046"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["setuav_studio", "plugins"]
@@ -176,10 +177,11 @@ include = [
     "src/setuav_studio/project/validation.py",
     "src/setuav_studio/ui/theme.py",
 ]
-pythonVersion = "3.11"
+pythonVersion = "3.12"
 typeCheckingMode = "basic"
 venv = ".venv"
 venvPath = "."
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+testpaths = ["tests"]

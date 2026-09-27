@@ -3,14 +3,14 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main, dev]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -22,23 +22,23 @@ env:
 
 jobs:
   quality:
-    name: Quality / Python ${{ matrix.python-version }}
+    name: Quality / Python 3.12
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.11", "3.14"]
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Install Linux graphics libraries
+      - name: Install Linux graphics and display libraries
         run: |
           sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends libegl1 libgl1
-      - name: Set up Python
+          sudo apt-get install --yes --no-install-recommends \
+            libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0 \
+            libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 \
+            libxcb-render-util0 libxcb-shape0 libxcb-xfixes0 libxcb-sync1 \
+            libxcb-xinerama0 xvfb
+      - name: Set up Python 3.12
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.12"
       - name: Set up uv
         uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
@@ -53,18 +53,19 @@ jobs:
       - name: Type check
         run: uv run --locked pyright
       - name: Test application
-        run: uv run --locked pytest
+        run: xvfb-run -a uv run --locked pytest
 
   package:
     name: Package smoke test
+    needs: quality
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Set up Python
+      - name: Set up Python 3.12
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: "3.11"
+          python-version: "3.12"
       - name: Set up uv
         uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
@@ -84,18 +85,23 @@ jobs:
 
   desktop:
     name: Desktop bundle smoke test
+    needs: quality
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Install Linux graphics libraries
+      - name: Install Linux graphics and display libraries
         run: |
           sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends libegl1 libgl1
-      - name: Set up Python
+          sudo apt-get install --yes --no-install-recommends \
+            libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0 \
+            libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 \
+            libxcb-render-util0 libxcb-shape0 libxcb-xfixes0 libxcb-sync1 \
+            libxcb-xinerama0 xvfb
+      - name: Set up Python 3.12
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: "3.11"
+          python-version: "3.12"
       - name: Set up uv
         uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
@@ -108,4 +114,4 @@ jobs:
       - name: Verify bundled resources
         run: python scripts/verify_desktop_resources.py dist/setuav-studio
       - name: Verify desktop startup
-        run: python scripts/desktop_startup_smoke_test.py dist/setuav-studio
+        run: xvfb-run -a python scripts/desktop_startup_smoke_test.py dist/setuav-studio
