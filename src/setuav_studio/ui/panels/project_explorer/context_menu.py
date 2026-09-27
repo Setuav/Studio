@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any
 from PySide6.QtCore import QPoint
 from PySide6.QtWidgets import QMenu, QTreeWidgetItem
 
+from setuav_studio.api.events import StudioEvents
 from setuav_studio.ui.style.icons import get_icon
 
 if TYPE_CHECKING:
@@ -266,10 +267,14 @@ class ProjectExplorerContextMenu:
     ) -> None:
         menu = QMenu(self._tree)
         open_act = menu.addAction(get_icon("fa6s.table-cells"), "Open Table")
+        add_to_view_act = menu.addAction(get_icon("fa6s.table-columns"), "Görünüme Ekle")
         add_plot_act = menu.addAction(get_icon("fa6s.chart-line"), "Add Plot…")
         chosen = menu.exec(self._tree.viewport().mapToGlobal(position))
         if chosen is open_act:
             self._api.set_selection(element)
+            self._api.show_panel("studio:result")
+        elif chosen is add_to_view_act:
+            self._api.emit(str(StudioEvents.ANALYSIS_ADD_TO_VIEW), element)
             self._api.show_panel("studio:result")
         elif chosen is add_plot_act:
             self._ops.add_plot_action(element)
@@ -282,10 +287,14 @@ class ProjectExplorerContextMenu:
     ) -> None:
         menu = QMenu(self._tree)
         open_act = menu.addAction(get_icon("fa6s.chart-simple"), "Open Chart")
+        add_to_view_act = menu.addAction(get_icon("fa6s.table-columns"), "Görünüme Ekle")
         del_act = menu.addAction(get_icon("remove"), "Delete Plot")
         chosen = menu.exec(self._tree.viewport().mapToGlobal(position))
         if chosen is open_act:
             self._api.set_selection(element)
+            self._api.show_panel("studio:result")
+        elif chosen is add_to_view_act:
+            self._api.emit(str(StudioEvents.ANALYSIS_ADD_TO_VIEW), element)
             self._api.show_panel("studio:result")
         elif chosen is del_act:
             self._ops.delete_plot_action(element)

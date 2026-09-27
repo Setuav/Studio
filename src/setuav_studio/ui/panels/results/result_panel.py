@@ -84,12 +84,14 @@ class ResultPanel(QWidget):
         super().__init__(parent)
         self._api = api
         self._panes: dict[str, ResultDockWidget] = {}
+        self._layout_docks: list[ResultDockWidget] = []
 
         self._init_ui()
         self._api.on_selection_changed(self._on_selection_changed)
         self._api.on_project_changed(self._on_project_changed)
         self._api.subscribe(str(StudioEvents.ANALYSIS_PLOT_UPDATED), self._on_plot_updated)
         self._api.subscribe(str(StudioEvents.ANALYSIS_PLOT_ACTION), self._on_plot_action)
+        self._api.subscribe(str(StudioEvents.ANALYSIS_ADD_TO_VIEW), self._on_add_to_view)
 
     def _init_ui(self) -> None:
         main_layout = QVBoxLayout(self)
@@ -163,15 +165,37 @@ class ResultPanel(QWidget):
         result: SolverResult,
         plot: PlotDefinition,
         table: TableDefinition,
+        mode: str = "replace",
     ) -> None:
         """Display a plot definition in a dedicated dock widget."""
         key = f"plot:{result.id}:{plot.id}"
-        if key in self._panes:
-            dock = self._panes[key]
-            dock.raise_()
-            dock.setFocus()
-            self._stack.setCurrentWidget(self._dock_container)
-            return
+        if mode == "replace":
+            if len(self._panes) == 1 and key in self._panes:
+                dock = self._panes[key]
+                dock.raise_()
+                dock.setFocus()
+                self._stack.setCurrentWidget(self._dock_container)
+                return
+
+            for other_key in list(self._panes.keys()):
+                if other_key != key:
+                    self.close_pane(other_key)
+
+            if key in self._panes:
+                dock = self._panes[key]
+                dock.raise_()
+                dock.setFocus()
+                self._stack.setCurrentWidget(self._dock_container)
+                return
+        elif mode == "add":
+            if key in self._panes:
+                dock = self._panes[key]
+                dock.raise_()
+                dock.setFocus()
+                self._stack.setCurrentWidget(self._dock_container)
+                title = plot.title or plot.id
+                self._api.show_status(f"'{title}' is already in view.", "info", 2000)
+                return
 
         dock = ResultDockWidget(plot.title or plot.id, self._dock_window)
 
@@ -189,7 +213,7 @@ class ResultPanel(QWidget):
         dock.closed.connect(lambda: self.close_pane(key))
 
         self._panes[key] = dock
-        self._add_dock(dock)
+        self._place_dock_progressive(dock)
 
         self._stack.setCurrentWidget(self._dock_container)
         self._update_toolbar()
@@ -198,15 +222,37 @@ class ResultPanel(QWidget):
         self,
         result: SolverResult,
         table: TableDefinition,
+        mode: str = "replace",
     ) -> None:
         """Display a tabular dataset in a dedicated dock widget."""
         key = f"table:{result.id}:{table.id}"
-        if key in self._panes:
-            dock = self._panes[key]
-            dock.raise_()
-            dock.setFocus()
-            self._stack.setCurrentWidget(self._dock_container)
-            return
+        if mode == "replace":
+            if len(self._panes) == 1 and key in self._panes:
+                dock = self._panes[key]
+                dock.raise_()
+                dock.setFocus()
+                self._stack.setCurrentWidget(self._dock_container)
+                return
+
+            for other_key in list(self._panes.keys()):
+                if other_key != key:
+                    self.close_pane(other_key)
+
+            if key in self._panes:
+                dock = self._panes[key]
+                dock.raise_()
+                dock.setFocus()
+                self._stack.setCurrentWidget(self._dock_container)
+                return
+        elif mode == "add":
+            if key in self._panes:
+                dock = self._panes[key]
+                dock.raise_()
+                dock.setFocus()
+                self._stack.setCurrentWidget(self._dock_container)
+                title = table.title or table.id
+                self._api.show_status(f"'{title}' is already in view.", "info", 2000)
+                return
 
         dock = ResultDockWidget(table.title or table.id, self._dock_window)
 
@@ -223,39 +269,102 @@ class ResultPanel(QWidget):
         dock.closed.connect(lambda: self.close_pane(key))
 
         self._panes[key] = dock
-        self._add_dock(dock)
+        self._place_dock_progressive(dock)
 
         self._stack.setCurrentWidget(self._dock_container)
         self._update_toolbar()
 
+    def _place_dock_progressive(self, dock: ResultDockWidget) -> None:
+        """Place dock into a 2-row x 3-column progressive layout."""
+        self._layout_docks = [
+            d for d in self._layout_docks if d in self._panes.values() and not d.isHidden()
+        ]
+        n = len(self._layout_docks)
+
+        def _safe_split(
+            base: ResultDockWidget, target: ResultDockWidget, orientation: Qt.Orientation
+        ) -> None:
+            if base in self._panes.values() and not base.isHidden():
+                self._dock_window.splitDockWidget(base, target, orientation)
+            elif self._layout_docks:
+                self._dock_window.splitDockWidget(self._layout_docks[-1], target, orientation)
+            else:
+                self._dock_window.addDockWidget(Qt.DockWidgetArea.TopDockWidgetArea, target)
+
+        if n == 0:
+            self._dock_window.addDockWidget(Qt.DockWidgetArea.TopDockWidgetArea, dock)
+        elif n == 1:
+            d0 = self._layout_docks[0]
+            _safe_split(d0, dock, Qt.Orientation.Vertical)
+            self._dock_window.resizeDocks([d0, dock], [5000, 5000], Qt.Orientation.Vertical)
+        elif n == 2:
+            d0 = self._layout_docks[0]
+            d1 = self._layout_docks[1]
+            _safe_split(d0, dock, Qt.Orientation.Horizontal)
+            self._dock_window.resizeDocks([d0, dock], [5000, 5000], Qt.Orientation.Horizontal)
+            self._dock_window.resizeDocks([d0, d1], [5000, 5000], Qt.Orientation.Vertical)
+        elif n == 3:
+            d0 = self._layout_docks[0]
+            d1 = self._layout_docks[1]
+            d2 = self._layout_docks[2]
+            _safe_split(d1, dock, Qt.Orientation.Horizontal)
+            self._dock_window.resizeDocks([d0, d2], [5000, 5000], Qt.Orientation.Horizontal)
+            self._dock_window.resizeDocks([d1, dock], [5000, 5000], Qt.Orientation.Horizontal)
+            self._dock_window.resizeDocks([d0, d1], [5000, 5000], Qt.Orientation.Vertical)
+        elif n == 4:
+            d0 = self._layout_docks[0]
+            d1 = self._layout_docks[1]
+            d2 = self._layout_docks[2]
+            d3 = self._layout_docks[3]
+            _safe_split(d2, dock, Qt.Orientation.Horizontal)
+            self._dock_window.resizeDocks(
+                [d0, d2, dock], [3333, 3333, 3333], Qt.Orientation.Horizontal
+            )
+            self._dock_window.resizeDocks([d1, d3], [5000, 5000], Qt.Orientation.Horizontal)
+            self._dock_window.resizeDocks([d0, d1], [5000, 5000], Qt.Orientation.Vertical)
+        elif n == 5:
+            d0 = self._layout_docks[0]
+            d1 = self._layout_docks[1]
+            d2 = self._layout_docks[2]
+            d3 = self._layout_docks[3]
+            d4 = self._layout_docks[4]
+            _safe_split(d3, dock, Qt.Orientation.Horizontal)
+            self._dock_window.resizeDocks(
+                [d0, d2, d4], [3333, 3333, 3333], Qt.Orientation.Horizontal
+            )
+            self._dock_window.resizeDocks(
+                [d1, d3, dock], [3333, 3333, 3333], Qt.Orientation.Horizontal
+            )
+            self._dock_window.resizeDocks([d0, d1], [5000, 5000], Qt.Orientation.Vertical)
+        else:
+            self._dock_window.tabifyDockWidget(self._layout_docks[-1], dock)
+            dock.raise_()
+
+        dock.show()
+        self._layout_docks.append(dock)
+
     def _add_dock(self, dock: ResultDockWidget) -> None:
         """Add a dock widget to the inner docking window."""
-        existing_docks = [
-            d
-            for d in self._dock_window.findChildren(QDockWidget)
-            if d is not dock and not d.isHidden()
-        ]
-        if not existing_docks:
-            self._dock_window.addDockWidget(Qt.DockWidgetArea.TopDockWidgetArea, dock)
-        else:
-            last_dock = existing_docks[-1]
-            self._dock_window.splitDockWidget(last_dock, dock, Qt.Orientation.Vertical)
-        dock.show()
+        self._place_dock_progressive(dock)
 
     def close_pane(self, key: str) -> None:
         """Close and remove a specific dock pane."""
         if key not in self._panes:
             return
         dock = self._panes.pop(key)
+        if dock in self._layout_docks:
+            self._layout_docks.remove(dock)
         dock.setParent(None)
         dock.deleteLater()
 
         if not self._panes:
+            self._layout_docks.clear()
             self._stack.setCurrentWidget(self._empty_view)
         self._update_toolbar()
 
     def clear_all(self) -> None:
         """Close all open result dock panes and reset to empty state."""
+        self._layout_docks.clear()
         for key in list(self._panes.keys()):
             self.close_pane(key)
 
@@ -426,7 +535,7 @@ class ResultPanel(QWidget):
         self._toolbar.setVisible(False)
 
     def _on_selection_changed(self, selection: Any | None) -> None:
-        """Respond to global selection changes to open selected tables or plots."""
+        """Respond to global selection changes to open selected tables or plots in single-view mode."""
         if not isinstance(selection, dict):
             return
         kind = selection.get("kind")
@@ -438,14 +547,36 @@ class ResultPanel(QWidget):
                 plot = result.plots[plot_id]
                 table = result.tables.get(plot.table_id)
                 if table:
-                    self.show_plot(result, plot, table)
+                    self.show_plot(result, plot, table, mode="replace")
         elif kind in ("analysis_table", "solver_table"):
             res_id = str(selection.get("result_id", ""))
             table_id = str(selection.get("table_id", ""))
             result = self._api.get_solver_result(res_id)
             if result and table_id in result.tables:
                 table = result.tables[table_id]
-                self.show_table(result, table)
+                self.show_table(result, table, mode="replace")
+
+    def _on_add_to_view(self, payload: Any) -> None:
+        """Handle 'Add to View' action triggered from context menu to append to 2x3 grid."""
+        if not isinstance(payload, dict):
+            return
+        kind = payload.get("kind")
+        res_id = str(payload.get("result_id", ""))
+        result = self._api.get_solver_result(res_id)
+        if not result:
+            return
+        if kind in ("analysis_plot", "solver_plot"):
+            plot_id = str(payload.get("plot_id", ""))
+            if plot_id in result.plots:
+                plot = result.plots[plot_id]
+                table = result.tables.get(plot.table_id)
+                if table:
+                    self.show_plot(result, plot, table, mode="add")
+        elif kind in ("analysis_table", "solver_table"):
+            table_id = str(payload.get("table_id", ""))
+            if table_id in result.tables:
+                table = result.tables[table_id]
+                self.show_table(result, table, mode="add")
 
     def _on_project_changed(self, _project: Any) -> None:
         """Clear all active result panes when switching or closing projects."""

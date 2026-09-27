@@ -39,6 +39,7 @@ class StudioEvents(StrEnum):
     # Analysis & Results
     ANALYSIS_PLOT_UPDATED = "analysis.plot_updated"
     ANALYSIS_PLOT_ACTION = "analysis.plot_action"
+    ANALYSIS_ADD_TO_VIEW = "analysis.add_to_view"
 
     # Tasks / Background Jobs
     TASK_STARTED = "task.started"
