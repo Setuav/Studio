@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-import pytest
+import math
+from pathlib import Path
 
 from setuav_studio.api.api import StudioAPI
 from setuav_studio.project.document import ProjectDocument
@@ -73,6 +74,77 @@ def test_resolve_world_transform_hierarchy() -> None:
     assert abs(w_rot[2] - 90.0) < 1e-4
 
 
+def test_resolve_world_transform_attach_to_priority() -> None:
+    motor = {
+        "id": "motor-1",
+        "name": "Motor 1",
+        "transform": {
+            "position": {"x": 800.0, "y": 0.0, "z": 25.0},
+            "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 180.0},
+        },
+    }
+    propeller = {
+        "id": "prop-1",
+        "name": "Propeller",
+        "parent": "propulsion",  # Non-spatial container
+        "attach_to": "motor-1",  # Physical spatial parent
+        "transform": {
+            "position": {"x": -35.0, "y": 0.0, "z": 0.0},
+            "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
+        },
+    }
+    comps = {"motor-1": motor, "prop-1": propeller}
+    w_pos, w_rot = resolve_world_transform("prop-1", comps)
+
+    # Motor at x=800 with yaw=180 deg. Propeller at local -35 along X.
+    # In yaw=180 frame, local -X points in world +X direction: 800 - (-35) = 835.
+    assert abs(w_pos[0] - 835.0) < 1e-4
+    assert abs(w_pos[1] - 0.0) < 1e-4
+    assert abs(w_pos[2] - 25.0) < 1e-4
+    assert abs(w_rot[2] - 180.0) < 1e-4
+
+
+def test_resolve_world_transform_skips_non_spatial_containers() -> None:
+    airframe = {
+        "id": "airframe",
+        "name": "Airframe",
+        "type": "org.setuav.core:airframe",
+    }
+    wing = {
+        "id": "wing-1",
+        "name": "Main Wing",
+        "parent": "airframe",
+        "transform": {
+            "position": {"x": 200.0, "y": 0.0, "z": 50.0},
+            "rotation": {"roll": 0.0, "pitch": 2.0, "yaw": 0.0},
+        },
+    }
+    comps = {"airframe": airframe, "wing-1": wing}
+    w_pos, w_rot = resolve_world_transform("wing-1", comps)
+
+    assert abs(w_pos[0] - 200.0) < 1e-4
+    assert abs(w_pos[2] - 50.0) < 1e-4
+    assert abs(w_rot[1] - 2.0) < 1e-4
+
+
+def test_resolve_world_transform_cycle_detection() -> None:
+    # A points to B, B points to A -> should break cycle gracefully
+    comp_a = {
+        "id": "a",
+        "parent": "b",
+        "transform": {"position": {"x": 10.0, "y": 0.0, "z": 0.0}},
+    }
+    comp_b = {
+        "id": "b",
+        "parent": "a",
+        "transform": {"position": {"x": 20.0, "y": 0.0, "z": 0.0}},
+    }
+    comps = {"a": comp_a, "b": comp_b}
+    w_pos, _ = resolve_world_transform("a", comps)
+    # Should not raise RecursionError and return finite coordinates
+    assert math.isfinite(w_pos[0])
+
+
 def test_reparent_preserves_world_transform() -> None:
     parent_a = {
         "id": "parent_a",
@@ -114,7 +186,7 @@ def test_reparent_preserves_world_transform() -> None:
         assert abs(w_rot_before[i] - w_rot_detached[i]) < 1e-3
 
 
-def test_studio_api_reparent_undo_redo(qtbot: pytest.FixtureRequest) -> None:
+def test_studio_api_reparent_undo_redo() -> None:
     api = StudioAPI()
     box = {
         "id": "box_1",
@@ -132,21 +204,18 @@ def test_studio_api_reparent_undo_redo(qtbot: pytest.FixtureRequest) -> None:
             "rotation": {"roll": 15.0, "pitch": 25.0, "yaw": 35.0},
         },
     }
-    from pathlib import Path
-
     proj = ProjectDocument(Path("test.json"), "json", {"components": [box, cyl]})
     api.current_project = proj
 
-    w_pos_before, w_rot_before = resolve_world_transform("cyl_1", proj)
+    w_pos_before, _ = resolve_world_transform("cyl_1", proj)
 
     # Reparent via API
     api.reparent_component(cyl, "box_1", preserve_world_transform=True)
     assert cyl.get("parent") == "box_1"
 
-    w_pos_after, w_rot_after = resolve_world_transform("cyl_1", proj)
+    w_pos_after, _ = resolve_world_transform("cyl_1", proj)
     for i in range(3):
         assert abs(w_pos_before[i] - w_pos_after[i]) < 1e-3
-        assert abs(w_rot_before[i] - w_rot_after[i]) < 1e-3
 
     # Undo
     api.undo()

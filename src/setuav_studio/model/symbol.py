@@ -33,17 +33,20 @@ def build_evaluation_context(
 
 
 def get_available_symbols_metadata(  # noqa: C901
-    project_data: dict[str, Any],
+    project_data: dict[str, Any] | Any,
     api: Any | None = None,
 ) -> dict[str, Any]:
     """Return categorized symbols with documentation and current evaluated values for UI assistance."""
+    raw_data = getattr(project_data, "data", project_data)
+    p_dict: dict[str, Any] = raw_data if isinstance(raw_data, dict) else {}
+
     context = build_evaluation_context(project_data, api)
 
     constants_list: list[dict[str, Any]] = []
     components_list: list[dict[str, Any]] = []
 
     # 1. Global Project Parameters
-    raw_params = project_data.get("parameters", {})
+    raw_params = p_dict.get("parameters", {})
     for k, v in raw_params.items():
         curr_val = context.get(k, v)
         if hasattr(curr_val, "unwrap"):
@@ -59,7 +62,7 @@ def get_available_symbols_metadata(  # noqa: C901
         )
 
     # 2. Components and their properties
-    components = project_data.get("components", [])
+    components = p_dict.get("components", [])
     if isinstance(components, list):
         for comp in components:
             if not isinstance(comp, dict):
@@ -130,7 +133,7 @@ def get_available_symbols_metadata(  # noqa: C901
             )
 
     # 3. Extension Features (e.g. Manufacturing spars, ribs, covers)
-    extensions = project_data.get("extensions", {})
+    extensions = p_dict.get("extensions", {})
     if isinstance(extensions, dict):
         for ext_key, ext_val in extensions.items():
             if not isinstance(ext_val, dict):

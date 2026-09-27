@@ -72,7 +72,7 @@ def to_dot_dict(val: Any) -> Any:
 
 
 def build_universal_scope(  # noqa: C901
-    project_data: dict[str, Any],
+    project_data: dict[str, Any] | Any,
     api: Any | None = None,
     config_id: str | None = None,
 ) -> dict[str, Any]:
@@ -80,8 +80,11 @@ def build_universal_scope(  # noqa: C901
     from setuav_studio.model.component import GenericComponent
     from setuav_studio.model.parameter import ParameterResolver
 
+    raw_data = getattr(project_data, "data", project_data)
+    p_dict: dict[str, Any] = raw_data if isinstance(raw_data, dict) else {}
+
     resolver = ParameterResolver()
-    raw_params = project_data.get("parameters", {}) if isinstance(project_data, dict) else {}
+    raw_params = p_dict.get("parameters", {})
     resolved_params = resolver.resolve_all(raw_params) if isinstance(raw_params, dict) else {}
 
     scope: dict[str, Any] = {}
@@ -94,7 +97,7 @@ def build_universal_scope(  # noqa: C901
             scope[clean_k] = v
 
     # 2. Materialized & Resolved Components
-    components = project_data.get("components", []) if isinstance(project_data, dict) else []
+    components = p_dict.get("components", [])
     models_list: list[Any] = []
     total_mass = 0.0
 
@@ -151,7 +154,7 @@ def build_universal_scope(  # noqa: C901
             total_mass += getattr(model, "mass", 0.0)
 
     # 3. Generic Plugin Extensions (e.g. Manufacturing, Propulsion, Structures, etc.)
-    extensions = project_data.get("extensions", {})
+    extensions = p_dict.get("extensions", {})
     if isinstance(extensions, dict):
         for ext_key, ext_val in extensions.items():
             if not isinstance(ext_val, dict):
