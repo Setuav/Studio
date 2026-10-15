@@ -151,7 +151,13 @@ def _build_comps_map(comps_or_project: Any) -> dict[str, dict[str, Any]]:
 
 
 def get_local_transform(comp: dict[str, Any]) -> tuple[Point3D, Rotation3D]:
-    """Extract local (position, rotation) from a component dictionary."""
+    """Extract local (position, rotation) from a component dictionary.
+
+    Components with ``has_transform: False`` (non-spatial containers such as the
+    airframe or propulsion roots) contribute an identity transform.
+    """
+    if comp.get("has_transform") is False:
+        return (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)
     tf = comp.get("transform")
     tf_dict = tf if isinstance(tf, dict) else {}
     pos = tf_dict.get("position")
@@ -159,13 +165,13 @@ def get_local_transform(comp: dict[str, Any]) -> tuple[Point3D, Rotation3D]:
     rot = tf_dict.get("rotation")
     rot_dict = rot if isinstance(rot, dict) else {}
 
-    lx = float(pos_dict.get("x", comp.get("x", 0.0)) or 0.0)
-    ly = float(pos_dict.get("y", comp.get("y", 0.0)) or 0.0)
-    lz = float(pos_dict.get("z", comp.get("z", 0.0)) or 0.0)
+    lx = float(pos_dict.get("x", 0.0) or 0.0)
+    ly = float(pos_dict.get("y", 0.0) or 0.0)
+    lz = float(pos_dict.get("z", 0.0) or 0.0)
 
-    l_roll = float(rot_dict.get("roll", rot_dict.get("x", comp.get("roll", 0.0))) or 0.0)
-    l_pitch = float(rot_dict.get("pitch", rot_dict.get("y", comp.get("pitch", 0.0))) or 0.0)
-    l_yaw = float(rot_dict.get("yaw", rot_dict.get("z", comp.get("yaw", 0.0))) or 0.0)
+    l_roll = float(rot_dict.get("roll", 0.0) or 0.0)
+    l_pitch = float(rot_dict.get("pitch", 0.0) or 0.0)
+    l_yaw = float(rot_dict.get("yaw", 0.0) or 0.0)
 
     return (lx, ly, lz), (l_roll, l_pitch, l_yaw)
 
@@ -175,7 +181,7 @@ def resolve_world_transform(
     comps_or_project: Any,
     resolving: frozenset[str] = frozenset(),
 ) -> tuple[Point3D, Rotation3D]:
-    """Compute (world_position, world_rotation) by traversing the attachment parent chain."""
+    """Compute (world_position, world_rotation) by traversing the parent chain."""
     comps_map = _build_comps_map(comps_or_project)
 
     if isinstance(comp_or_id, str):
@@ -190,16 +196,7 @@ def resolve_world_transform(
 
     local_pos, local_rot = get_local_transform(comp)
 
-    # 1. Prefer attach_to if specified and exists in comps_map
-    parent_id = comp.get("attach_to")
-    if not parent_id or str(parent_id) not in comps_map:
-        # 2. Fall back to parent if not a non-spatial container
-        p = comp.get("parent")
-        if p and str(p) not in ("airframe", "propulsion") and str(p) in comps_map:
-            parent_id = p
-        else:
-            parent_id = None
-
+    parent_id = comp.get("parent")
     if not parent_id or str(parent_id) not in comps_map:
         return local_pos, local_rot
 
@@ -300,23 +297,11 @@ def reparent_component(
         rot["pitch"] = round(new_rot[1], 4)
         rot["yaw"] = round(new_rot[2], 4)
 
-        if "x" in comp:
-            comp["x"] = pos["x"]
-        if "y" in comp:
-            comp["y"] = pos["y"]
-        if "z" in comp:
-            comp["z"] = pos["z"]
-
         # Clear expressions on transform so they don't overwrite the recalculated local transform
         if isinstance(pos, dict) and "_expressions" in pos:
             pos.pop("_expressions", None)
         if isinstance(rot, dict) and "_expressions" in rot:
             rot.pop("_expressions", None)
-        if "transform_expressions" in comp:
-            comp.pop("transform_expressions", None)
-        params = comp.get("parameters")
-        if isinstance(params, dict) and "transform_expressions" in params:
-            params.pop("transform_expressions", None)
 
     if clean_parent:
         comp["parent"] = clean_parent

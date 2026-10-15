@@ -40,53 +40,6 @@ def create_default_propulsion_component() -> dict[str, Any]:
     }
 
 
-def ensure_propulsion_component(project: Any) -> dict[str, Any]:
-    """Ensure the fixed Propulsion root component exists in the project and reparent top-level propulsion components."""
-    data = getattr(project, "data", project) if project is not None else {}
-    components = data.setdefault("components", [])
-    if not isinstance(components, list):
-        components = []
-        data["components"] = components
-
-    propulsion: dict[str, Any] | None = None
-    for comp in components:
-        if isinstance(comp, dict) and (
-            comp.get("id") == _PROPULSION_ID or comp.get("type") == _PROPULSION_TYPE
-        ):
-            propulsion = comp
-            break
-
-    if propulsion is None:
-        propulsion = create_default_propulsion_component()
-        insert_idx = 1 if (components and components[0].get("id") == "airframe") else 0
-        components.insert(insert_idx, propulsion)
-    else:
-        propulsion.setdefault("kind", "component")
-        propulsion["id"] = _PROPULSION_ID
-        propulsion["type"] = _PROPULSION_TYPE
-        propulsion["parent"] = None
-        propulsion["has_transform"] = False
-        propulsion["has_mass"] = False
-
-    # Reparent unparented propulsion components to root propulsion
-    propulsion_types = {
-        "org.setuav.core:battery",
-        "org.setuav.core:esc",
-        "org.setuav.core:motor",
-        "org.setuav.core:propeller",
-        "org.setuav.core:rotor",
-    }
-    for comp in components:
-        if (
-            isinstance(comp, dict)
-            and comp.get("type") in propulsion_types
-            and not comp.get("parent")
-        ):
-            comp["parent"] = _PROPULSION_ID
-
-    return propulsion
-
-
 class PropulsionCreationController:
     """Create electrical propulsion system and components."""
 
@@ -174,22 +127,6 @@ class PropulsionCreationController:
             insert_idx = 1 if (components and components[0].get("id") == "airframe") else 0
             components.insert(insert_idx, propulsion)
 
-            # Reparent any unparented propulsion components
-            propulsion_types = {
-                "org.setuav.core:battery",
-                "org.setuav.core:esc",
-                "org.setuav.core:motor",
-                "org.setuav.core:propeller",
-                "org.setuav.core:rotor",
-            }
-            for comp in components:
-                if (
-                    isinstance(comp, dict)
-                    and comp.get("type") in propulsion_types
-                    and not comp.get("parent")
-                ):
-                    comp["parent"] = _PROPULSION_ID
-
         self._api.edit_project("Add Electrical Propulsion", change)
         created = self._find_component(_PROPULSION_ID)
         if created is not None:
@@ -211,6 +148,14 @@ class PropulsionCreationController:
         project = self._api.current_project
         if project is None:
             return
+
+        # Propellers and rotors are mounted on (and positioned relative to) a motor.
+        parent_id = _PROPULSION_ID
+        if component_kind in {"propeller", "rotor"}:
+            motor_id = self._propulsor_motor()
+            if motor_id is None:
+                return
+            parent_id = motor_id
 
         selected_motor = None
         selected_propeller = None
@@ -251,13 +196,11 @@ class PropulsionCreationController:
             initial_name,
         )
 
-        attach_to = self._propulsor_attachment(component_kind)
         component = self._new_component(
             component_kind,
             component_id,
             component_name,
-            parent=_PROPULSION_ID,
-            attach_to=attach_to,
+            parent=parent_id,
             selected_motor=selected_motor,
             selected_propeller=selected_propeller,
         )
@@ -279,19 +222,26 @@ class PropulsionCreationController:
                 3000,
             )
 
-    def _propulsor_attachment(self, component_kind: str) -> str | None:
-        if component_kind not in {"propeller", "rotor"}:
+    def _propulsor_motor(self) -> str | None:
+        """Motor a new propeller/rotor mounts on: the selected motor, or the only one."""
+        motors = [c for c in self._components() if c.get("type") == "org.setuav.core:motor"]
+        if not motors:
+            self._api.show_status("Add a motor before adding a propeller", "warning", 4000)
             return None
+        selection = self._api.current_selection
+        if isinstance(selection, dict) and selection.get("type") == "org.setuav.core:motor":
+            return str(selection.get("id"))
+        if len(motors) == 1:
+            return str(motors[0]["id"])
+        self._api.show_status("Select the motor to mount the propeller on", "warning", 4000)
+        return None
+
+    def _components(self) -> list[dict[str, Any]]:
         project = self._api.current_project
-        if project is None:
-            return None
-        components = project.data.get("components", [])
-        motors = [
-            c
-            for c in components
-            if isinstance(c, dict) and c.get("type") == "org.setuav.core:motor"
-        ]
-        return str(motors[-1]["id"]) if motors else None
+        components = project.data.get("components") if project is not None else None
+        if not isinstance(components, list):
+            return []
+        return [item for item in components if isinstance(item, dict)]
 
     def _new_component(
         self,
@@ -300,7 +250,6 @@ class PropulsionCreationController:
         component_name: str | None = None,
         *,
         parent: str | None = _PROPULSION_ID,
-        attach_to: str | None = None,
         selected_motor: Any | None = None,
         selected_propeller: Any | None = None,
     ) -> dict[str, Any]:
@@ -343,8 +292,6 @@ class PropulsionCreationController:
             "envelope": self._default_envelope(component_kind),
             "parameters": params,
         }
-        if attach_to:
-            component["attach_to"] = attach_to
         return component
 
     @staticmethod

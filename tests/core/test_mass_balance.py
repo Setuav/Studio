@@ -92,7 +92,7 @@ def test_resolve_aircraft_mass_properties_hierarchy() -> None:
     }
     prop = {
         "id": "prop-1",
-        "attach_to": "motor-1",
+        "parent": "motor-1",
         "mass": 1000.0,
         "transform": {"position": {"x": 500.0, "y": 0.0, "z": 0.0}},
     }

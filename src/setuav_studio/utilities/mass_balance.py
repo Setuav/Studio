@@ -481,7 +481,7 @@ def _effective_component(
     if source is None:
         return deepcopy(component)
     effective = deepcopy(source)
-    for key in ("id", "name", "kind", "source", "parent", "attach_to", "derivation"):
+    for key in ("id", "name", "kind", "source", "parent", "derivation"):
         if key in component:
             effective[key] = deepcopy(component[key])
     if "mass" in component:

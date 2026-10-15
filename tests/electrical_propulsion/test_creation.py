@@ -6,15 +6,33 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from PySide6.QtWidgets import QDialog
+
 from plugins.electrical_propulsion.creation import (
     _PROPULSION_ID,
-    _PROPULSION_TYPE,
     PropulsionCreationController,
-    ensure_propulsion_component,
 )
+from plugins.electrical_propulsion.database import get_motor_database, get_propeller_database
 from setuav_studio.api import StudioAPI
 from setuav_studio.project import ProjectDocument
 from tests._common import get_qapp
+
+
+class _AcceptingCatalogDialog:
+    """Catalog dialog stand-in that accepts the first catalog entry."""
+
+    def __init__(self, component_type: str, *args: object, **kwargs: object) -> None:
+        self.selected_motor = None
+        self.selected_propeller = None
+        if component_type == "motor":
+            db = get_motor_database()
+            self.selected_motor = db.get(db.list_motors()[0])
+        else:
+            db = get_propeller_database()
+            self.selected_propeller = db.get(db.list_propellers()[0])
+
+    def exec(self) -> QDialog.DialogCode:
+        return QDialog.DialogCode.Accepted
 
 
 class PropulsionCreationTests(unittest.TestCase):
@@ -35,21 +53,22 @@ class PropulsionCreationTests(unittest.TestCase):
         )
         self.api._host.set_project(self.project)
         self.controller = PropulsionCreationController(self.api)
+        dialog_patch = patch(
+            "plugins.electrical_propulsion.catalog_dialog.ComponentCatalogDialog",
+            _AcceptingCatalogDialog,
+        )
+        dialog_patch.start()
+        self.addCleanup(dialog_patch.stop)
 
-    def test_propulsion_root_component_ensured(self) -> None:
-        propulsion = ensure_propulsion_component(self.project)
+    def test_propulsion_root_inserted_after_airframe(self) -> None:
+        self.project.data["components"] = [{"id": "airframe", "type": "org.setuav.core:airframe"}]
+        self.controller.add_propulsion_system()
+        self.assertEqual(self.project.data["components"][0]["id"], "airframe")
+        propulsion = self.project.data["components"][1]
         self.assertEqual(propulsion["id"], _PROPULSION_ID)
-        self.assertEqual(propulsion["type"], _PROPULSION_TYPE)
         self.assertIsNone(propulsion["parent"])
         self.assertFalse(propulsion["has_transform"])
         self.assertFalse(propulsion["has_mass"])
-        self.assertEqual(self.project.data["components"][0], propulsion)
-
-    def test_propulsion_root_component_inserted_after_airframe(self) -> None:
-        self.project.data["components"] = [{"id": "airframe", "type": "org.setuav.core:airframe"}]
-        ensure_propulsion_component(self.project)
-        self.assertEqual(self.project.data["components"][0]["id"], "airframe")
-        self.assertEqual(self.project.data["components"][1]["id"], _PROPULSION_ID)
 
     def test_toolbar_contributions_dispatch_each_component_kind(self) -> None:
         contributions = self.controller.contributions()
@@ -108,7 +127,7 @@ class PropulsionCreationTests(unittest.TestCase):
         self.assertEqual(motor["type"], "org.setuav.core:motor")
         self.assertEqual(motor["parent"], _PROPULSION_ID)
         self.assertIs(self.api.current_selection, motor)
-        self.assertIn("Added Motor to Propulsion", self.statuses[-1][0])
+        self.assertIn(f"Added {motor['name']} to Propulsion", self.statuses[-1][0])
 
         self.assertIn("mass", motor)
         self.assertGreater(motor["mass"], 0.0)
@@ -134,8 +153,18 @@ class PropulsionCreationTests(unittest.TestCase):
         propulsion_comps = [c for c in self.project.data["components"] if c["id"] != _PROPULSION_ID]
         self.assertEqual(len(propulsion_comps), 5)
 
+        motor_id = next(c["id"] for c in propulsion_comps if c["type"] == "org.setuav.core:motor")
         for comp in propulsion_comps:
-            self.assertEqual(comp["parent"], _PROPULSION_ID)
+            expected_parent = (
+                motor_id
+                if comp["type"]
+                in {
+                    "org.setuav.core:propeller",
+                    "org.setuav.core:rotor",
+                }
+                else _PROPULSION_ID
+            )
+            self.assertEqual(comp["parent"], expected_parent)
             self.assertIn("mass", comp)
             self.assertIsInstance(comp["mass"], (int, float))
             self.assertGreater(comp["mass"], 0.0)
@@ -159,23 +188,46 @@ class PropulsionCreationTests(unittest.TestCase):
         motors = [
             c for c in self.project.data["components"] if c.get("type") == "org.setuav.core:motor"
         ]
+        name = motors[0]["name"]
         self.assertEqual(
             [(item["id"], item["name"]) for item in motors],
             [
-                ("motor", "Motor"),
-                ("motor-2", "Motor 2"),
+                ("motor", name),
+                ("motor-2", f"{name} 2"),
             ],
         )
 
-    def test_propeller_attaches_to_existing_motor(self) -> None:
+    def test_propeller_is_child_of_its_motor(self) -> None:
         self.controller.add_propulsion_system()
         self.controller.add_component("motor")
         self.controller.add_component("propeller")
 
         propeller = self.controller._find_component("propeller")
         assert propeller is not None
-        self.assertEqual(propeller["attach_to"], "motor")
-        self.assertEqual(propeller["parent"], _PROPULSION_ID)
+        self.assertEqual(propeller["parent"], "motor")
+        self.assertNotIn("attach_to", propeller)
+
+    def test_propeller_requires_a_motor(self) -> None:
+        self.controller.add_propulsion_system()
+        self.controller.add_component("propeller")
+        self.assertIsNone(self.controller._find_component("propeller"))
+        self.assertIn("Add a motor", self.statuses[-1][0])
+
+    def test_propeller_uses_selected_motor_when_several_exist(self) -> None:
+        self.controller.add_propulsion_system()
+        self.controller.add_component("motor")
+        self.controller.add_component("motor")
+
+        self.api.set_selection(self.project.data["components"][0])
+        self.controller.add_component("propeller")
+        self.assertIsNone(self.controller._find_component("propeller"))
+        self.assertIn("Select the motor", self.statuses[-1][0])
+
+        self.api.set_selection(self.controller._find_component("motor"))
+        self.controller.add_component("propeller")
+        propeller = self.controller._find_component("propeller")
+        assert propeller is not None
+        self.assertEqual(propeller["parent"], "motor")
 
     def test_editability_validation_reports_each_invalid_project_state(self) -> None:
         self.api.current_project = None

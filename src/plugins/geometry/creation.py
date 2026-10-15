@@ -33,63 +33,6 @@ def create_default_airframe_component() -> dict[str, Any]:
     }
 
 
-def ensure_airframe_component(project: Any) -> dict[str, Any]:
-    """Ensure the fixed Airframe root component exists in the project and reparent top-level geometry."""
-    data = getattr(project, "data", project) if project is not None else {}
-    components = data.setdefault("components", [])
-    if not isinstance(components, list):
-        components = []
-        data["components"] = components
-
-    airframe: dict[str, Any] | None = None
-    for comp in components:
-        if isinstance(comp, dict) and (
-            comp.get("id") == _AIRFRAME_ID or comp.get("type") == _AIRFRAME_TYPE
-        ):
-            airframe = comp
-            break
-
-    if airframe is None:
-        airframe = create_default_airframe_component()
-        components.insert(0, airframe)
-    else:
-        airframe.setdefault("kind", "component")
-        airframe["id"] = _AIRFRAME_ID
-        airframe["type"] = _AIRFRAME_TYPE
-        airframe["parent"] = None
-        airframe["has_transform"] = False
-        airframe["has_mass"] = False
-        if not airframe.get("name"):
-            airframe["name"] = _AIRFRAME_NAME
-
-    # Ensure all fuselages and lifting surfaces with no parent default to airframe
-    for comp in components:
-        if not isinstance(comp, dict) or comp is airframe:
-            continue
-        comp_type = comp.get("type")
-        if comp_type in (_FUSELAGE_TYPE, _LIFTING_SURFACE_TYPE):
-            parent = comp.get("parent")
-            if (
-                not parent
-                or parent.startswith("airframe-structure")
-                or parent.startswith("airframe-main")
-            ):
-                comp["parent"] = _AIRFRAME_ID
-
-    # Purge obsolete structural-system assemblies if present
-    assemblies = data.get("assemblies")
-    if isinstance(assemblies, list):
-        data["assemblies"] = [
-            asm
-            for asm in assemblies
-            if not (
-                isinstance(asm, dict) and asm.get("type") == "org.setuav.core:structural-system"
-            )
-        ]
-
-    return airframe
-
-
 class AirframeCreationController:
     """Create valid starter geometry and publish it through the Studio API."""
 
@@ -206,19 +149,6 @@ class AirframeCreationController:
         def change() -> None:
             components = project.data.setdefault("components", [])
             components.insert(0, airframe)
-
-            for comp in components:
-                if not isinstance(comp, dict) or comp is airframe:
-                    continue
-                comp_type = comp.get("type")
-                if comp_type in (_FUSELAGE_TYPE, _LIFTING_SURFACE_TYPE):
-                    parent = comp.get("parent")
-                    if (
-                        not parent
-                        or parent.startswith("airframe-structure")
-                        or parent.startswith("airframe-main")
-                    ):
-                        comp["parent"] = _AIRFRAME_ID
 
         self._api.edit_project("Add Airframe", change)
         created = self._find_component(_AIRFRAME_ID)
@@ -440,7 +370,6 @@ class AirframeCreationController:
             "name": name,
             "type": _CONTROL_SURFACE_TYPE,
             "parent": parent_id,
-            "attach_to": parent_id,
             "mass": 25.0,
             "transform": {
                 "position": {"x": 0.0, "y": 0.0, "z": 0.0},
@@ -530,14 +459,7 @@ class AirframeCreationController:
                 components.append(component)
 
         self._api.edit_project(description, change)
-        created = next(
-            (
-                item
-                for item in project.data.get("components", [])
-                if isinstance(item, dict) and item.get("id") == component["id"]
-            ),
-            None,
-        )
+        created = self._find_component(str(component["id"]))
         if created is not None:
             self._api.set_selection(created)
             self._api.show_status(f"Created {component['name']}", "success", 3000)
@@ -546,16 +468,8 @@ class AirframeCreationController:
         self,
         base_id: str,
         base_name: str,
-        *,
-        include_assemblies: bool = False,
     ) -> tuple[str, str]:
-        elements: list[dict[str, Any]] = list(self._components())
-        if include_assemblies:
-            project = self._api.current_project
-            if project is not None:
-                asms = project.data.get("assemblies", [])
-                if isinstance(asms, list):
-                    elements.extend(item for item in asms if isinstance(item, dict))
+        elements = self._components()
         ids = {str(item.get("id") or "") for item in elements}
         names = {str(item.get("name") or "") for item in elements}
         if base_id not in ids and base_name not in names:
@@ -582,6 +496,12 @@ class AirframeCreationController:
             if component.get("id") == selection_id:
                 return component
         return None
+
+    def _find_component(self, component_id: str) -> dict[str, Any] | None:
+        return next(
+            (item for item in self._components() if item.get("id") == component_id),
+            None,
+        )
 
     def _components(self) -> list[dict[str, Any]]:
         project = self._api.current_project
@@ -629,5 +549,4 @@ class AirframeCreationController:
 __all__ = [
     "AirframeCreationController",
     "create_default_airframe_component",
-    "ensure_airframe_component",
 ]

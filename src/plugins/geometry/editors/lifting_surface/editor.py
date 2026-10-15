@@ -272,7 +272,7 @@ class LiftingSurfaceEditor(
                 if (
                     isinstance(comp, dict)
                     and comp.get("type") == "org.setuav.core:control-surface"
-                    and (comp.get("attach_to") or comp.get("parent")) == wing_id
+                    and comp.get("parent") == wing_id
                 ):
                     child_cs.append(comp)
 

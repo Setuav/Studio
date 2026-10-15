@@ -56,9 +56,7 @@ class GeneralSectionMixin:
         )
 
         # Parent Selection Combo (fuselage and other lifting surfaces)
-        current_attach = str(
-            self._component.get("attach_to") or self._component.get("parent") or ""
-        )
+        current_attach = str(self._component.get("attach_to") or "")
         parent_options = [("", "(None)")]
         project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
         if project and isinstance(project.data.get("components"), list):

@@ -42,9 +42,7 @@ class AeroSandboxGeometryMixin:
         comp_by_id: dict[str, dict[str, Any]],
     ) -> tuple[Any, Any]:
         """Return the world frame of a component's parent (or the aircraft frame)."""
-        transform = comp.get("transform")
-        transform = transform if isinstance(transform, dict) else {}
-        parent_id = comp.get("parent") or comp.get("attach_to") or transform.get("parent")
+        parent_id = comp.get("parent")
         if parent_id and str(parent_id) in comp_by_id:
             return self._resolve_world_transform(comp_by_id[str(parent_id)], comp_by_id)
         return np.zeros(3), np.eye(3)
@@ -191,9 +189,7 @@ class AeroSandboxGeometryMixin:
 
     @staticmethod
     def _component_parent_id(component: dict[str, Any]) -> Any:
-        transform = component.get("transform")
-        transform_parent = transform.get("parent") if isinstance(transform, dict) else None
-        return component.get("parent") or component.get("attach_to") or transform_parent
+        return component.get("parent")
 
     @staticmethod
     def _tag_control_surfaces(comp: dict[str, Any]) -> list[dict[str, Any]]:

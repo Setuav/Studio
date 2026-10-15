@@ -215,7 +215,6 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
             "name": "Aileron",
             "type": "org.setuav.core:control-surface",
             "parent": "main-wing",
-            "attach_to": "main-wing",
             "parameters": {
                 "mass": 25.0,
                 "geometry": {
@@ -366,7 +365,6 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
                     "name": "Aileron 1",
                     "type": "org.setuav.core:control-surface",
                     "parent": "wing",
-                    "attach_to": "wing",
                     "parameters": {
                         "geometry": {
                             "tag": "aileron_1",

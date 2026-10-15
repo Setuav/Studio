@@ -74,10 +74,16 @@ def test_resolve_world_transform_hierarchy() -> None:
     assert abs(w_rot[2] - 90.0) < 1e-4
 
 
-def test_resolve_world_transform_attach_to_priority() -> None:
+def test_resolve_world_transform_child_follows_parent_frame() -> None:
+    propulsion = {
+        "id": "propulsion",
+        "name": "Propulsion",
+        "has_transform": False,
+    }
     motor = {
         "id": "motor-1",
         "name": "Motor 1",
+        "parent": "propulsion",
         "transform": {
             "position": {"x": 800.0, "y": 0.0, "z": 25.0},
             "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 180.0},
@@ -86,14 +92,13 @@ def test_resolve_world_transform_attach_to_priority() -> None:
     propeller = {
         "id": "prop-1",
         "name": "Propeller",
-        "parent": "propulsion",  # Non-spatial container
-        "attach_to": "motor-1",  # Physical spatial parent
+        "parent": "motor-1",
         "transform": {
             "position": {"x": -35.0, "y": 0.0, "z": 0.0},
             "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
         },
     }
-    comps = {"motor-1": motor, "prop-1": propeller}
+    comps = {"propulsion": propulsion, "motor-1": motor, "prop-1": propeller}
     w_pos, w_rot = resolve_world_transform("prop-1", comps)
 
     # Motor at x=800 with yaw=180 deg. Propeller at local -35 along X.
@@ -109,6 +114,8 @@ def test_resolve_world_transform_skips_non_spatial_containers() -> None:
         "id": "airframe",
         "name": "Airframe",
         "type": "org.setuav.core:airframe",
+        "has_transform": False,
+        "transform": {"position": {"x": 999.0, "y": 0.0, "z": 0.0}},
     }
     wing = {
         "id": "wing-1",

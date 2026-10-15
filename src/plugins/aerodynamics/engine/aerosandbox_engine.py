@@ -223,9 +223,7 @@ class AeroSandboxEngine(AeroSandboxAnalysisMixin, AeroSandboxGeometryMixin, Aero
 
         local_pos, local_rot = self._local_transform(comp)
 
-        transform = comp.get("transform")
-        transform = transform if isinstance(transform, dict) else {}
-        parent_id = comp.get("parent") or comp.get("attach_to") or transform.get("parent")
+        parent_id = comp.get("parent")
         if parent_id and str(parent_id) in comp_by_id:
             parent_comp = comp_by_id[str(parent_id)]
             parent_pos, parent_rot = self._resolve_world_transform(parent_comp, comp_by_id, visited)

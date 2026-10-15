@@ -211,7 +211,7 @@ def update_component_in_viewport(
         for other_id, other_comp in comps_by_id.items():
             if other_id == comp_id:
                 continue
-            parent = other_comp.get("parent") or other_comp.get("attach_to")
+            parent = other_comp.get("parent")
             if parent and str(parent) == comp_id:
                 update_component_in_viewport(viewport, other_comp, project)
 
@@ -273,15 +273,14 @@ class BaseDebugComponentEditor(BaseComponentEditor):
                 ("parent", "Parent"),
             ]
         )
-        self.attachment_table = self.parent_table
         layout.addWidget(self.parent_table)
 
     def _load_custom_data(self) -> None:
-        table = getattr(self, "parent_table", getattr(self, "attachment_table", None))
+        table = getattr(self, "parent_table", None)
         if table is None:
             return
         options = self._get_parent_options()
-        curr_parent = str(self._component.get("parent") or self._component.get("attach_to") or "")
+        curr_parent = str(self._component.get("parent") or "")
         self._set_property_combo(
             table,
             "parent",
@@ -335,7 +334,7 @@ class BaseDebugComponentEditor(BaseComponentEditor):
                 parent_comp = comps_by_id.get(curr)
                 if not parent_comp:
                     break
-                p = parent_comp.get("parent") or parent_comp.get("attach_to")
+                p = parent_comp.get("parent")
                 curr = str(p) if p else None
 
             if not is_cyclic:
@@ -344,14 +343,11 @@ class BaseDebugComponentEditor(BaseComponentEditor):
 
         return options
 
-    def _get_attachment_options(self) -> list[tuple[str, str]]:
-        return self._get_parent_options()
-
     def _on_parent_changed(self, new_parent: str) -> None:
         if self._loading:
             return
         clean_parent = new_parent.strip() or None
-        old_parent = self._component.get("parent") or self._component.get("attach_to")
+        old_parent = self._component.get("parent")
         if old_parent == clean_parent:
             return
 
@@ -362,9 +358,6 @@ class BaseDebugComponentEditor(BaseComponentEditor):
         )
         self._committed_parent = clean_parent or ""
         self.update_viewport()
-
-    def _on_attach_to_changed(self, new_parent: str) -> None:
-        self._on_parent_changed(new_parent)
 
     def update_viewport(self) -> None:
         """Update this component's 3D representation directly in the viewport."""

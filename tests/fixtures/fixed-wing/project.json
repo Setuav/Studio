@@ -19,10 +19,30 @@
   "components": [
     {
       "kind": "component",
+      "id": "airframe",
+      "name": "Airframe",
+      "type": "org.setuav.core:airframe",
+      "parent": null,
+      "parameters": {},
+      "has_transform": false,
+      "has_mass": false
+    },
+    {
+      "kind": "component",
+      "id": "propulsion",
+      "name": "Propulsion",
+      "type": "org.setuav.core:propulsion-system",
+      "parent": null,
+      "parameters": {},
+      "has_transform": false,
+      "has_mass": false
+    },
+    {
+      "kind": "component",
       "id": "fuselage",
       "name": "Fuselage",
       "type": "org.setuav.core:fuselage",
-      "parent": null,
+      "parent": "airframe",
       "transform": {},
       "parameters": {
         "mass": 450.0,
@@ -2316,7 +2336,8 @@
             }
           }
         ]
-      }
+      },
+      "parent": "airframe"
     },
     {
       "kind": "component",
@@ -2324,7 +2345,6 @@
       "name": "Aileron",
       "type": "org.setuav.core:control-surface",
       "parent": "main-wing",
-      "attach_to": "main-wing",
       "parameters": {
         "mass": 25,
         "geometry": {
@@ -2554,7 +2574,8 @@
             }
           }
         ]
-      }
+      },
+      "parent": "airframe"
     },
     {
       "kind": "component",
@@ -2562,7 +2583,6 @@
       "name": "Ruddervator",
       "type": "org.setuav.core:control-surface",
       "parent": "v-tail",
-      "attach_to": "v-tail",
       "parameters": {
         "mass": 10,
         "geometry": {
@@ -2635,7 +2655,7 @@
       "id": "motor-cruise",
       "name": "SunnySky X2814",
       "type": "org.setuav.core:motor",
-      "parent": null,
+      "parent": "propulsion",
       "transform": {
         "position": {
           "x": 850.0,
@@ -2679,7 +2699,6 @@
       "id": "propeller-cruise",
       "name": "APC 12x6E",
       "type": "org.setuav.core:propeller",
-      "attach_to": "motor-cruise",
       "transform": {
         "position": {
           "x": -35,
@@ -2697,14 +2716,15 @@
       },
       "manufacturer": "APC",
       "model": "12x6E",
-      "mass": 28.0
+      "mass": 28.0,
+      "parent": "motor-cruise"
     },
     {
       "kind": "component",
       "id": "esc-cruise",
       "name": "ESC 50A",
       "type": "org.setuav.core:esc",
-      "parent": null,
+      "parent": "propulsion",
       "parameters": {
         "max_current": 60,
         "continuous_current": 50,
@@ -2749,7 +2769,7 @@
       "id": "battery-main",
       "name": "LiPo Battery",
       "type": "org.setuav.core:battery",
-      "parent": null,
+      "parent": "propulsion",
       "transform": {
         "position": {
           "x": 200.0,
@@ -2847,7 +2867,6 @@
       "name": "Flap",
       "type": "org.setuav.core:control-surface",
       "parent": "main-wing",
-      "attach_to": "main-wing",
       "parameters": {
         "geometry": {
           "tag": "Flap",
@@ -2936,37 +2955,6 @@
       }
     }
   ],
-  "assemblies": [
-    {
-      "id": "airframe-main",
-      "name": "Main Airframe",
-      "type": "org.setuav.core:structural-system",
-      "members": {
-        "fuselage": "fuselage",
-        "wings": [
-          "main-wing",
-          "v-tail"
-        ]
-      }
-    },
-    {
-      "id": "propulsion-main",
-      "name": "Main Propulsion",
-      "type": "org.setuav.core:electric-propulsion-system",
-      "members": {
-        "battery": "battery-main",
-        "controllers": [
-          "esc-cruise"
-        ],
-        "motors": [
-          "motor-cruise"
-        ],
-        "propulsors": [
-          "propeller-cruise"
-        ]
-      }
-    }
-  ],
   "parameter_relations": [
     {
       "id": "wing-sizing",
@@ -3007,461 +2995,6 @@
         }
       ],
       "selected": 0
-    }
-  ],
-  "configurations": [
-    {
-      "id": "rev-t",
-      "name": "Conventional Tail",
-      "tag": "REV-T",
-      "description": "Conventional tail configuration with horizontal stabilizer and vertical rudder",
-      "color": "#ffa348",
-      "excluded_components": [
-        "v-tail",
-        "ruddervator"
-      ],
-      "added_components": [
-        {
-          "kind": "component",
-          "id": "horizontal-stabilizer",
-          "name": "Horizontal Stabilizer",
-          "type": "org.setuav.core:lifting-surface",
-          "attach_to": "fuselage",
-          "transform": {
-            "position": {
-              "x": 650.0,
-              "y": 45.0,
-              "z": 45.0
-            },
-            "rotation": {
-              "roll": 0.0,
-              "pitch": 0.0,
-              "yaw": 0.0
-            }
-          },
-          "parameters": {
-            "geometry": {
-              "mirror": true,
-              "symmetric": true,
-              "profiles": [
-                {
-                  "position": {
-                    "x": 0.0,
-                    "y": 0.0,
-                    "z": 0.0
-                  },
-                  "chord": 160.0,
-                  "rotation": {
-                    "x": 0.0,
-                    "y": 0.0,
-                    "z": 0.0
-                  },
-                  "airfoil": "0012"
-                },
-                {
-                  "position": {
-                    "x": 60.0,
-                    "y": 200.0,
-                    "z": 0.0
-                  },
-                  "chord": 100.0,
-                  "rotation": {
-                    "x": 0.0,
-                    "y": 0.0,
-                    "z": 0.0
-                  },
-                  "airfoil": "0012"
-                }
-              ],
-              "sweep_curvature": 0.0,
-              "tip_treatment": {
-                "type": "round",
-                "length": 12.0
-              }
-            }
-          },
-          "envelope": {
-            "shape": "box",
-            "size_mm": {
-              "x": 160.0,
-              "y": 424.0,
-              "z": 19.2
-            },
-            "offset_mm": {
-              "x": 82.0,
-              "y": 0.0,
-              "z": 0.0
-            },
-            "volume_mm3": 565375.9,
-            "unit_inertia": {
-              "ixx": 0.01037687,
-              "iyy": 0.00107653,
-              "izz": 0.01141284,
-              "ixy": 0.0,
-              "ixz": 0.0,
-              "iyz": 0.0
-            },
-            "sections": [
-              {
-                "index": 0,
-                "span_y_mm": 0.0,
-                "position": {
-                  "x": 0.0,
-                  "y": 0.0,
-                  "z": 0.0
-                },
-                "chord_mm": 160.0,
-                "thickness_mm": 19.2,
-                "x_bounds_mm": [
-                  0.0,
-                  160.0
-                ],
-                "z_bounds_mm": [
-                  -9.6,
-                  9.6
-                ],
-                "area_mm2": 2103.72,
-                "shape": "airfoil"
-              },
-              {
-                "index": 1,
-                "span_y_mm": 200.0,
-                "position": {
-                  "x": 60.0,
-                  "y": 200.0,
-                  "z": 0.0
-                },
-                "chord_mm": 100.0,
-                "thickness_mm": 12.0,
-                "x_bounds_mm": [
-                  60.0,
-                  160.0
-                ],
-                "z_bounds_mm": [
-                  -6.0,
-                  6.0
-                ],
-                "area_mm2": 821.77,
-                "shape": "airfoil"
-              }
-            ],
-            "slices": [
-              {
-                "index": 0,
-                "start_section_index": 0,
-                "end_section_index": 1,
-                "span_start_mm": 0.0,
-                "span_end_mm": 200.0,
-                "length_mm": 200.0,
-                "chord_start_mm": 160.0,
-                "chord_end_mm": 100.0,
-                "volume_mm3": 282687.97,
-                "centroid_mm": {
-                  "x": 82.04,
-                  "y": 84.88,
-                  "z": 0.0
-                }
-              }
-            ]
-          }
-        },
-        {
-          "kind": "component",
-          "id": "elevator",
-          "name": "Elevator",
-          "type": "org.setuav.core:control-surface",
-          "parent": "horizontal-stabilizer",
-          "parameters": {
-            "geometry": {
-              "tag": "Elevator",
-              "type": "elevator",
-              "span_mode": "ratio",
-              "span_start": 10.0,
-              "span_end": 190.0,
-              "eta_start": 0.05,
-              "eta_end": 0.95,
-              "chord_mode": "ratio",
-              "chord_fraction": 0.3,
-              "chord": 48.0,
-              "hinge_sweep": 0.0,
-              "deflection": 0.0,
-              "symmetry_mode": "auto"
-            }
-          },
-          "envelope": {
-            "shape": "box",
-            "size_mm": {
-              "x": 48.0,
-              "y": 180.0,
-              "z": 5.0
-            },
-            "offset_mm": {
-              "x": 144.0,
-              "y": 100.0,
-              "z": 0.0
-            },
-            "volume_mm3": 21600.0,
-            "unit_inertia": {
-              "ixx": 0.00270139,
-              "iyy": 0.00012939,
-              "izz": 0.002828,
-              "ixy": 0.0,
-              "ixz": 0.0,
-              "iyz": 0.0
-            },
-            "sections": [
-              {
-                "index": 0,
-                "span_start_mm": 10.0,
-                "span_end_mm": 190.0,
-                "chord_mm": 48.0,
-                "thickness_mm": 5.0,
-                "shape": "wedge"
-              }
-            ],
-            "slices": [
-              {
-                "index": 0,
-                "start_section_index": 0,
-                "end_section_index": 0,
-                "span_start_mm": 10.0,
-                "span_end_mm": 190.0,
-                "length_mm": 180.0,
-                "chord_start_mm": 48.0,
-                "chord_end_mm": 48.0,
-                "volume_mm3": 21600.0,
-                "centroid_mm": {
-                  "x": 144.0,
-                  "y": 100.0,
-                  "z": 0.0
-                }
-              }
-            ]
-          }
-        },
-        {
-          "kind": "component",
-          "id": "vertical-tail",
-          "name": "Vertical Tail",
-          "type": "org.setuav.core:lifting-surface",
-          "attach_to": "fuselage",
-          "transform": {
-            "position": {
-              "x": 645.0,
-              "y": 0.0,
-              "z": 70.0
-            },
-            "rotation": {
-              "roll": 90.0,
-              "pitch": 2.0,
-              "yaw": 0.0
-            }
-          },
-          "parameters": {
-            "geometry": {
-              "mirror": false,
-              "symmetric": false,
-              "profiles": [
-                {
-                  "position": {
-                    "x": 0.0,
-                    "y": 0.0,
-                    "z": 0.0
-                  },
-                  "chord": 160.0,
-                  "rotation": {
-                    "x": 0.0,
-                    "y": 0.0,
-                    "z": 0.0
-                  },
-                  "airfoil": "0012"
-                },
-                {
-                  "position": {
-                    "x": 85.0,
-                    "y": 170.0,
-                    "z": 0.0
-                  },
-                  "chord": 75.0,
-                  "rotation": {
-                    "x": 0.0,
-                    "y": 0.0,
-                    "z": 0.0
-                  },
-                  "airfoil": "0012"
-                }
-              ],
-              "tip_treatment": {
-                "type": "round",
-                "length": 12.0
-              },
-              "control_surfaces": [],
-              "sweep_curvature": 0.0
-            }
-          },
-          "envelope": {
-            "shape": "box",
-            "size_mm": {
-              "x": 160.0,
-              "y": 182.0,
-              "z": 19.2
-            },
-            "offset_mm": {
-              "x": 86.2,
-              "y": 65.4,
-              "z": 0.0
-            },
-            "volume_mm3": 201285.1,
-            "unit_inertia": {
-              "ixx": 0.00211968,
-              "iyy": 0.00087946,
-              "izz": 0.00296601,
-              "ixy": 0.0,
-              "ixz": 0.0,
-              "iyz": 0.0
-            },
-            "sections": [
-              {
-                "index": 0,
-                "span_y_mm": 0.0,
-                "position": {
-                  "x": 0.0,
-                  "y": 0.0,
-                  "z": 0.0
-                },
-                "chord_mm": 160.0,
-                "thickness_mm": 19.2,
-                "x_bounds_mm": [
-                  0.0,
-                  160.0
-                ],
-                "z_bounds_mm": [
-                  -9.6,
-                  9.6
-                ],
-                "area_mm2": 2103.72,
-                "shape": "airfoil"
-              },
-              {
-                "index": 1,
-                "span_y_mm": 170.0,
-                "position": {
-                  "x": 85.0,
-                  "y": 170.0,
-                  "z": 0.0
-                },
-                "chord_mm": 75.0,
-                "thickness_mm": 9.0,
-                "x_bounds_mm": [
-                  85.0,
-                  160.0
-                ],
-                "z_bounds_mm": [
-                  -4.5,
-                  4.5
-                ],
-                "area_mm2": 462.24,
-                "shape": "airfoil"
-              }
-            ],
-            "slices": [
-              {
-                "index": 0,
-                "start_section_index": 0,
-                "end_section_index": 1,
-                "span_start_mm": 0.0,
-                "span_end_mm": 170.0,
-                "length_mm": 170.0,
-                "chord_start_mm": 160.0,
-                "chord_end_mm": 75.0,
-                "volume_mm3": 201285.07,
-                "centroid_mm": {
-                  "x": 86.22,
-                  "y": 65.36,
-                  "z": 0.0
-                }
-              }
-            ]
-          }
-        },
-        {
-          "kind": "component",
-          "id": "vertical-tail-control_1",
-          "name": "Rudder",
-          "type": "org.setuav.core:control-surface",
-          "parent": "vertical-tail",
-          "parameters": {
-            "geometry": {
-              "tag": "Rudder",
-              "type": "rudder",
-              "span_mode": "ratio",
-              "span_start": 17.0,
-              "span_end": 153.0,
-              "eta_start": 0.1,
-              "eta_end": 0.9,
-              "chord_mode": "ratio",
-              "chord_fraction": 0.3,
-              "chord": 48.0,
-              "hinge_sweep": 1.0,
-              "deflection": 0.0,
-              "symmetry_mode": "auto"
-            }
-          },
-          "envelope": {
-            "shape": "box",
-            "size_mm": {
-              "x": 48.0,
-              "y": 136.0,
-              "z": 5.0
-            },
-            "offset_mm": {
-              "x": 144.0,
-              "y": 85.0,
-              "z": 0.0
-            },
-            "volume_mm3": 16320.0,
-            "unit_inertia": {
-              "ixx": 0.00154272,
-              "iyy": 0.00012939,
-              "izz": 0.00166933,
-              "ixy": 0.0,
-              "ixz": 0.0,
-              "iyz": 0.0
-            },
-            "sections": [
-              {
-                "index": 0,
-                "span_start_mm": 17.0,
-                "span_end_mm": 153.0,
-                "chord_mm": 48.0,
-                "thickness_mm": 5.0,
-                "shape": "wedge"
-              }
-            ],
-            "slices": [
-              {
-                "index": 0,
-                "start_section_index": 0,
-                "end_section_index": 0,
-                "span_start_mm": 17.0,
-                "span_end_mm": 153.0,
-                "length_mm": 136.0,
-                "chord_start_mm": 48.0,
-                "chord_end_mm": 48.0,
-                "volume_mm3": 16320.0,
-                "centroid_mm": {
-                  "x": 144.0,
-                  "y": 85.0,
-                  "z": 0.0
-                }
-              }
-            ]
-          }
-        }
-      ],
-      "component_overrides": {},
-      "parameter_overrides": {},
-      "is_default": false
     }
   ],
   "extensions": {

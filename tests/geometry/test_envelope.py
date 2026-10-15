@@ -79,7 +79,6 @@ def _sample_control_surface(parent_id: str = "test-wing") -> dict[str, Any]:
         "name": "Test Aileron",
         "type": "org.setuav.core:control-surface",
         "parent": parent_id,
-        "attach_to": parent_id,
         "parameters": {
             "geometry": {
                 "tag": "aileron",

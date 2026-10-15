@@ -18,12 +18,9 @@ GeometryProvider = Callable[[dict[str, Any]], tuple[LoftGeometry, ...]]
 
 
 def _frame_parent(item: dict[str, Any]) -> str | None:
-    """Return the geometric coordinate-frame parent (attach_to, fallback parent)."""
-    attach_to = item.get("attach_to")
-    if isinstance(attach_to, str) and attach_to:
-        return attach_to
+    """Return the component whose frame this component's transform is relative to."""
     parent = item.get("parent")
-    if isinstance(parent, str) and parent and parent != "airframe":
+    if isinstance(parent, str) and parent:
         return parent
     return None
 
@@ -110,6 +107,8 @@ class _WorldMatrixResolver:
         return result
 
     def _local_matrix(self, item: dict[str, Any]) -> Matrix4:
+        if item.get("has_transform") is False:
+            return identity_matrix()
         local = transform_matrix(item.get("transform"))
         if item.get("kind") != "instance":
             return local
@@ -305,7 +304,7 @@ def _build_lifting_surface_root_stubs(
             continue
         color = _fuselage_stub_color()
         for item_id, item in items.items():
-            if _frame_parent(item) != fuselage_id:
+            if item.get("attach_to") != fuselage_id:
                 continue
             wing = _lifting_surface_root_geometry(item, items, provider)
             if wing is None:
@@ -313,7 +312,7 @@ def _build_lifting_surface_root_stubs(
             source, root_section = wing
             matrices = [world_matrix_fn(item_id)]
             if _is_bilateral(source):
-                matrices.append(_mirrored_root_matrix(item, fuselage_id, world_matrix_fn))
+                matrices.append(_mirrored_root_matrix(item, world_matrix_fn))
             for matrix in matrices:
                 stub = _build_root_stub(fuselage, fuselage_id, root_section, matrix, color)
                 if stub is not None:
@@ -348,10 +347,10 @@ def _fuselage_stub_color() -> tuple[float, float, float, float]:
 
 def _mirrored_root_matrix(
     item: dict[str, Any],
-    fuselage_id: str,
     world_matrix_fn: Callable[[str], Matrix4],
 ) -> Matrix4:
-    parent_matrix = world_matrix_fn(fuselage_id)
+    parent_id = _frame_parent(item)
+    parent_matrix = world_matrix_fn(parent_id) if parent_id else identity_matrix()
     local_matrix = transform_matrix(item.get("transform"))
     mirror = derivation_matrix({"type": "mirror", "plane": "XZ"})
     return multiply_matrix(parent_matrix, multiply_matrix(mirror, local_matrix))
@@ -538,7 +537,7 @@ def _build_component_envelope_geometry(
     envelope = item.get("envelope") or source.get("envelope")
     component_type = source.get("type")
 
-    parent_id = _frame_parent(item) or item.get("parent") or item.get("attach_to")
+    parent_id = _frame_parent(item)
     parent_item = items.get(str(parent_id)) if parent_id else None
     parent_source = _geometry_source(parent_item, items) if parent_item else None
 

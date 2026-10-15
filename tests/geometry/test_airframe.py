@@ -7,7 +7,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 
-from plugins.geometry.creation import ensure_airframe_component
+from plugins.geometry.creation import create_default_airframe_component
 from plugins.geometry.editors.airframe import AirframeEditor
 from setuav_studio.api import StudioAPI
 from setuav_studio.project import ProjectDocument
@@ -27,12 +27,13 @@ class AirframeTests(unittest.TestCase):
         self.project_data = {
             "name": "Test UAV",
             "components": [
+                create_default_airframe_component(),
                 {
                     "id": "fuse-1",
                     "name": "Main Fuselage",
                     "type": "org.setuav.core:fuselage",
                     "mass": 350.0,
-                    "parent": None,
+                    "parent": "airframe",
                     "envelope": {"size_mm": {"x": 800.0, "y": 100.0, "z": 100.0}},
                     "parameters": {},
                 },
@@ -41,7 +42,7 @@ class AirframeTests(unittest.TestCase):
                     "name": "Main Wing",
                     "type": "org.setuav.core:lifting-surface",
                     "mass": 250.0,
-                    "parent": None,
+                    "parent": "airframe",
                     "attach_to": "fuse-1",
                     "parameters": {
                         "geometry": {
@@ -59,17 +60,8 @@ class AirframeTests(unittest.TestCase):
                     "type": "org.setuav.core:control-surface",
                     "mass": 25.0,
                     "parent": "wing-1",
-                    "attach_to": "wing-1",
                     "parameters": {},
                 },
-            ],
-            "assemblies": [
-                {
-                    "id": "old-struct",
-                    "name": "Old Structure",
-                    "type": "org.setuav.core:structural-system",
-                    "members": {"fuselage": "fuse-1", "wings": ["wing-1"]},
-                }
             ],
         }
         self.project = ProjectDocument(
@@ -79,36 +71,7 @@ class AirframeTests(unittest.TestCase):
         )
         self.api._host.set_project(self.project)
 
-    def test_ensure_airframe_component_creates_and_reparents(self) -> None:
-        airframe = ensure_airframe_component(self.project)
-        self.assertEqual(airframe["id"], "airframe")
-        self.assertEqual(airframe["name"], "Airframe")
-        self.assertEqual(airframe["type"], "org.setuav.core:airframe")
-        self.assertIsNone(airframe["parent"])
-
-        # Check that airframe is at index 0
-        components = self.project.data["components"]
-        self.assertIs(components[0], airframe)
-
-        # Fuselage and wing should now have parent="airframe"
-        fuse = next(c for c in components if c["id"] == "fuse-1")
-        self.assertEqual(fuse["parent"], "airframe")
-
-        wing = next(c for c in components if c["id"] == "wing-1")
-        self.assertEqual(wing["parent"], "airframe")
-        # attach_to must be preserved
-        self.assertEqual(wing["attach_to"], "fuse-1")
-
-        # Control surface parent must remain wing-1
-        aileron = next(c for c in components if c["id"] == "aileron-1")
-        self.assertEqual(aileron["parent"], "wing-1")
-
-        # Obsolete structural system assembly should be purged
-        assemblies = self.project.data.get("assemblies", [])
-        self.assertEqual(len(assemblies), 0)
-
     def test_airframe_editor_metrics_and_hierarchy(self) -> None:
-        ensure_airframe_component(self.project)
         airframe = self.project.data["components"][0]
         editor = AirframeEditor(self.api, airframe)
 
@@ -138,13 +101,11 @@ class AirframeTests(unittest.TestCase):
         from setuav_studio.ui.shell.native_registrations import register_native_contributions
 
         register_native_contributions(self.api)
-        ensure_airframe_component(self.project)
         airframe = self.project.data["components"][0]
         nodes = list(self.api.component_tree_nodes(airframe))
         self.assertEqual(len(nodes), 0)
 
     def test_airframe_deletion_and_rename_protection(self) -> None:
-        ensure_airframe_component(self.project)
         tree = ProjectExplorer(self.api)
         ops = ProjectExplorerOperations(tree, self.api)
         builder = ProjectTreeBuilder(tree, self.api)

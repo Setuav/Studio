@@ -159,7 +159,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
 
     def _parent_wing_info(self) -> tuple[float, float, float, float]:
         """Return (semi_span, root_chord, tip_chord, parent_wing_area_dm2) for parent lifting surface."""
-        parent_id = str(self._component.get("parent") or self._component.get("attach_to") or "")
+        parent_id = str(self._component.get("parent") or "")
         project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
         if project and isinstance(project.data.get("components"), list):
             for c in project.data["components"]:
@@ -190,7 +190,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
     def _load_general(self) -> None:
         name = str(self._component.get("name") or self._component.get("id") or "")
         comp_type = str(self._component.get("type") or "org.setuav.core:control-surface")
-        parent = str(self._component.get("parent") or self._component.get("attach_to") or "")
+        parent = str(self._component.get("parent") or "")
 
         self._set_property_value(self.general_table, "name", name)
         self._set_property_value(self.general_table, "type", comp_type, editable=False)
@@ -567,12 +567,11 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
 
         def change() -> None:
             self._component["parent"] = new_parent if new_parent else None
-            self._component["attach_to"] = new_parent if new_parent else None
 
         self._edit_component("Change control surface parent wing", change)
 
     def _parent_component(self) -> dict[str, Any] | None:
-        parent_id = str(self._component.get("parent") or self._component.get("attach_to") or "")
+        parent_id = str(self._component.get("parent") or "")
         if self._api.current_project and parent_id:
             for c in self._api.current_project.data.get("components", []):
                 if isinstance(c, dict) and str(c.get("id") or "") == parent_id:

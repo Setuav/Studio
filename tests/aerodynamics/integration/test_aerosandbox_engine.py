@@ -694,7 +694,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
                 "id": "elev-1",
                 "name": "Elevator",
                 "type": "org.setuav.core:control-surface",
-                "transform": {"parent": "htail-1"},
+                "parent": "htail-1",
                 "parameters": {
                     "geometry": {
                         "tag": "elevator",

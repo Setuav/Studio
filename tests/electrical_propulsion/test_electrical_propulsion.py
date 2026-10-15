@@ -154,13 +154,11 @@ class TestElectricalPropulsion(unittest.TestCase):
         editor.deleteLater()
 
     def test_propulsion_system_editor(self) -> None:
-        from plugins.electrical_propulsion.creation import ensure_propulsion_component
-
         api = StudioAPI()
         doc = open_project(TEST_PROJECT_PATH)
         api._host.set_project(doc)
 
-        propulsion = ensure_propulsion_component(doc)
+        propulsion = next(c for c in doc.data["components"] if c["id"] == "propulsion")
         editor = PropulsionSystemEditor(api, propulsion)
 
         self.assertEqual(editor._property_text(editor.general_table, 0), "Propulsion")

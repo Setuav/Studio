@@ -67,7 +67,7 @@ class PropulsionSceneController:
             active_ids.add(comp_id)
             comp_name = str(comp.get("name") or comp_id)
 
-            # Resolve world position and rotation traversing attach_to/parent hierarchy
+            # Resolve world position and rotation along the parent chain
             world_pos, world_rot = resolve_world_transform(comp, doc)
 
             # Extract diameter (defaults to 330.0 mm if not specified)

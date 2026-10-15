@@ -76,15 +76,6 @@ class GeometryCreationTests(unittest.TestCase):
         self.assertEqual(len(self.project.data["components"]), 1)
         self.assertIn("Airframe already exists", self.statuses[-1][0])
 
-    def test_airframe_root_component_ensured(self) -> None:
-        from plugins.geometry.creation import ensure_airframe_component
-
-        airframe = ensure_airframe_component(self.project)
-        self.assertEqual(airframe["id"], "airframe")
-        self.assertEqual(airframe["type"], "org.setuav.core:airframe")
-        self.assertIsNone(airframe["parent"])
-        self.assertEqual(self.project.data["components"][0], airframe)
-
     def test_add_fuselage_allows_adding_sections_and_updates_table(self) -> None:
         from plugins.geometry.editors.fuselage import FuselageEditor
 
@@ -155,7 +146,7 @@ class GeometryCreationTests(unittest.TestCase):
         self.assertEqual(cs["mass"], 25.0)
         self.assertEqual(cs["envelope"]["shape"], "box")
         self.assertEqual(cs["parent"], wing["id"])
-        self.assertEqual(cs["attach_to"], wing["id"])
+        self.assertNotIn("attach_to", cs)
 
     def test_editor_add_control_surface_populates_mass_transform_envelope(self) -> None:
         from plugins.geometry.editors.lifting_surface import LiftingSurfaceEditor
