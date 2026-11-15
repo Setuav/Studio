@@ -394,20 +394,25 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
 
     def _envelope(self, component: dict[str, Any]) -> dict[str, Any]:
         from setuav_studio.utilities.envelope import resolve_component_aggregate_envelope
+        from setuav_studio.utilities.mass_balance import get_component_children
 
         proj = self._api.project
+        comp_id = str(component.get("id") or "")
+        envelope = component.get("envelope")
+        has_children = proj is not None and bool(
+            get_component_children(comp_id, proj, recursive=False)
+        )
+        if not has_children and isinstance(envelope, dict) and envelope.get("size_mm"):
+            return envelope
+
         if proj is not None:
             agg_env = resolve_component_aggregate_envelope(component, proj)
             if agg_env and agg_env.get("size_mm") and any(agg_env["size_mm"].values()):
                 return agg_env
 
-        envelope = component.get("envelope")
-        if isinstance(envelope, dict) and envelope.get("size_mm"):
-            return envelope
         if self._api.viewport is not None:
-            comp_id = str(component.get("id") or "")
             scene_obj = self._api.viewport.get_object(comp_id)
-            if scene_obj is not None and hasattr(scene_obj, "get_envelope"):
+            if scene_obj is not None:
                 computed = scene_obj.get_envelope()
                 if isinstance(computed, dict) and computed.get("size_mm"):
                     return computed

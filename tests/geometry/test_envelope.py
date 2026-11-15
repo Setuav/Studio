@@ -344,6 +344,45 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         self.assertIn("300.0", editor.sections_table.item(1, 0).text())
         self.assertIn("800.0", editor.sections_table.item(2, 0).text())
 
+    def test_envelope_editor_shows_aggregate_envelope_for_assembly(self) -> None:
+        from pathlib import Path
+
+        from setuav_studio.api import StudioAPI
+        from setuav_studio.project import ProjectDocument
+
+        api = StudioAPI()
+        fuse = _sample_fuselage()
+        sync_component_envelope(fuse)
+        battery = {
+            "id": "battery-1",
+            "type": "org.setuav.core:battery",
+            "parent": "test-fuse",
+            "transform": {
+                "position": {"x": 1000.0, "y": 0.0, "z": 0.0},
+                "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
+            },
+            "envelope": {
+                "shape": "box",
+                "size_mm": {"x": 100.0, "y": 50.0, "z": 30.0},
+                "offset_mm": {"x": 0.0, "y": 0.0, "z": 0.0},
+            },
+        }
+        doc = ProjectDocument(Path("test.uav"), "uav", {"components": [fuse, battery]})
+        api._host.set_project(doc)
+
+        editor = EnvelopeEditor(
+            api,
+            {"component_id": "test-fuse", "kind": "envelope"},
+        )
+        self.assertIsNotNone(editor.shape_combo)
+        assert editor.shape_combo is not None
+        self.assertEqual(editor.shape_combo.currentData(), "box")
+        self.assertTrue(editor._sections_container.isHidden())
+        # Union spans the fuselage nose through the battery's aft face at x = 1050 mm
+        self.assertGreater(
+            editor.dimension_spins["x"].value(), fuse["envelope"]["size_mm"]["x"] + 200.0
+        )
+
     def test_build_project_geometry_includes_envelopes(self) -> None:
         from pathlib import Path
 
@@ -441,7 +480,7 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         renderer._upload_meshes()
         self.assertEqual(renderer._envelope_count, 0)
 
-        # 1. Select Envelope node in tree -> envelope selected, component wireframe not selected
+        # 1. Select Envelope node in tree -> envelope shown, owning component selected
         api.set_selection(
             {
                 "id": "test-fuse:envelope",
@@ -451,18 +490,32 @@ class EnvelopeEditorUiTests(unittest.TestCase):
             }
         )
         self.assertEqual(renderer._selected_envelope_component_id, "test-fuse")
-        self.assertIsNone(renderer._selected_component_id)
+        self.assertEqual(renderer._selected_component_id, "test-fuse")
         renderer._upload_meshes()
         self.assertGreater(renderer._envelope_count, 0)
 
-        # 2. Select component itself -> envelope selection is cleared, component wireframe is selected
+        # 2. Select component while envelope display is active -> envelope follows the component
+        api.set_selection(fuse)
+        self.assertEqual(renderer._selected_envelope_component_id, "test-fuse")
+        self.assertEqual(renderer._selected_component_id, "test-fuse")
+        renderer._upload_meshes()
+        self.assertGreater(renderer._envelope_count, 0)
+
+        # 3. Envelope display turned off (e.g. leaving the Envelope tab) -> component stays selected
+        viewport.set_selected_envelope(None)
+        self.assertIsNone(renderer._selected_envelope_component_id)
+        self.assertEqual(renderer._selected_component_id, "test-fuse")
+        renderer._upload_meshes()
+        self.assertEqual(renderer._envelope_count, 0)
+
+        # 4. Plain component selection does not turn envelope display on
         api.set_selection(fuse)
         self.assertIsNone(renderer._selected_envelope_component_id)
         self.assertEqual(renderer._selected_component_id, "test-fuse")
         renderer._upload_meshes()
         self.assertEqual(renderer._envelope_count, 0)
 
-        # 3. Clear selection -> envelope and component selections are cleared
+        # 5. Clear selection -> envelope and component selections are cleared
         api.set_selection(None)
         self.assertIsNone(renderer._selected_envelope_component_id)
         self.assertIsNone(renderer._selected_component_id)

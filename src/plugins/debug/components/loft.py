@@ -179,7 +179,7 @@ def add_loft_to_viewport(
     sweep_rad = math.radians(sweep_deg)
     dih_rad = math.radians(dihedral_deg)
 
-    stations_data = loft.sections or getattr(loft, "parameters", {}).get("sections")
+    stations_data = loft.stations
     if stations_data and isinstance(stations_data, list):
         sec_loops: list[tuple[tuple[float, float, float], ...]] = []
         for st in stations_data:

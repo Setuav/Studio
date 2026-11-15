@@ -17,7 +17,7 @@ from plugins.debug.components.loft import (
 )
 from setuav_studio.api import StudioAPI, TableParameterField
 from setuav_studio.project import create_project
-from setuav_studio.ui.viewport import StudioViewport
+from setuav_studio.ui.viewport import LoftPrimitive, StudioViewport
 
 
 class TestDebugLoft(unittest.TestCase):
@@ -48,14 +48,15 @@ class TestDebugLoft(unittest.TestCase):
         self.assertIsInstance(table_fields[0], TableParameterField)
         self.assertEqual(table_fields[0].key, "sections")
 
-        # Initial default sections (3 stations)
-        self.assertEqual(len(loft.sections), 3)
-        self.assertEqual(loft.sections[0].offset, 0.0)
-        self.assertEqual(loft.sections[0].chord, 180.0)
-        self.assertEqual(loft.sections[1].offset, 200.0)
-        self.assertEqual(loft.sections[1].chord, 135.0)
-        self.assertEqual(loft.sections[2].offset, 400.0)
-        self.assertEqual(loft.sections[2].chord, 90.0)
+        # Initial default stations, stored under parameters["sections"]
+        self.assertEqual(len(loft.stations), 3)
+        self.assertIs(loft.stations, loft.parameters["sections"])
+        self.assertEqual(loft.stations[0].offset, 0.0)
+        self.assertEqual(loft.stations[0].chord, 180.0)
+        self.assertEqual(loft.stations[1].offset, 200.0)
+        self.assertEqual(loft.stations[1].chord, 135.0)
+        self.assertEqual(loft.stations[2].offset, 400.0)
+        self.assertEqual(loft.stations[2].chord, 90.0)
 
     def test_loft_component_editor_table_rendering(self) -> None:
         loft = create_loft_component("loft-test", "Test Wing")
@@ -118,7 +119,12 @@ class TestDebugLoft(unittest.TestCase):
 
         obj = viewport.get_object("loft-render")
         self.assertIsNotNone(obj)
+        assert obj is not None
         self.assertEqual(obj.layer, "debug")
+        primitive = obj.primitives[0]
+        self.assertIsInstance(primitive, LoftPrimitive)
+        assert isinstance(primitive, LoftPrimitive)
+        self.assertEqual(len(primitive.sections), len(loft.stations))
 
 
 if __name__ == "__main__":
