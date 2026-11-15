@@ -157,7 +157,7 @@ class ProjectController:
         if status_mgr:
             status_mgr.evaluate_problems(project)
         if self._api.expression_diagnostics:
-            self._api._report_expression_diagnostics(self._api.expression_diagnostics)
+            self._api._show_expression_diagnostics()
         elif project.degraded:
             self._api.show_status(
                 "Degraded mode — " + "; ".join(project.plugin_issues),

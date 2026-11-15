@@ -264,12 +264,6 @@ class ProjectDocument:
 
         return build_universal_scope(self.data, api=api, config_id=config_id)
 
-    def recompute_expressions(self, api: Any | None = None) -> list[dict[str, str]]:
-        """Re-evaluate all mathematical formulas across the project against current scope."""
-        from setuav_studio.project.evaluator import recompute_project_expressions
-
-        return recompute_project_expressions(self, api=api)
-
 
 def create_project(path: str | Path) -> ProjectDocument:
     """Create a new, empty project document at ``path``.

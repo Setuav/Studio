@@ -86,7 +86,7 @@ class _StudioHost:
         api._undo_stack.clear()
         api._undo_stack.setClean()
         project.modified = False
-        api._report_expression_diagnostics(project.expression_diagnostics)
+        api._show_expression_diagnostics()
         api.set_selection(None)
         api.set_section_selection(None)
         from .api import _dispatch_listeners

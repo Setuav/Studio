@@ -111,7 +111,6 @@ class StudioAPI:
         self._section_selection_listeners: list[Callable[[tuple[str, int, int] | None], None]] = []
         self._solver_config_selection_listeners: list[Callable[[SolverConfig | None], None]] = []
         self._is_recomputing_expressions: bool = False
-        self._expression_diagnostics: list[dict[str, str]] = []
         self._component_editors: dict[
             str,
             Callable[[dict[str, Any]], QWidget],
@@ -601,10 +600,10 @@ class StudioAPI:
     @property
     def expression_diagnostics(self) -> list[dict[str, str]]:
         """Diagnostics collected from the most recent project expression evaluation."""
-        return list(self._expression_diagnostics)
+        return list(self._project.expression_diagnostics) if self._project is not None else []
 
-    def _report_expression_diagnostics(self, diagnostics: list[dict[str, str]]) -> None:
-        self._expression_diagnostics = list(diagnostics)
+    def _show_expression_diagnostics(self) -> None:
+        diagnostics = self.expression_diagnostics
         if not diagnostics:
             return
         first = diagnostics[0]
@@ -623,12 +622,11 @@ class StudioAPI:
     def recompute_project_expressions(self) -> list[dict[str, str]]:
         """Evaluate all parametric formulas across the project and return any diagnostics."""
         if self._project is None:
-            self._expression_diagnostics = []
             return []
         from setuav_studio.project.evaluator import recompute_project_expressions
 
         diagnostics = recompute_project_expressions(self._project, api=self)
-        self._report_expression_diagnostics(diagnostics)
+        self._show_expression_diagnostics()
         return diagnostics
 
     def register_solver(self, solver_id: str, solver_cls: Any) -> None:
@@ -773,8 +771,8 @@ class StudioAPI:
             try:
                 from setuav_studio.project.evaluator import recompute_project_expressions
 
-                diagnostics = recompute_project_expressions(self._project, api=self)
-                self._report_expression_diagnostics(diagnostics)
+                recompute_project_expressions(self._project, api=self)
+                self._show_expression_diagnostics()
             finally:
                 self._is_recomputing_expressions = False
 
