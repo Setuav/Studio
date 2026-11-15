@@ -13,6 +13,7 @@ from setuav_studio.model.expression import (
     ExpressionEvaluator,
     get_expression,
 )
+from setuav_studio.model.parameter import ParameterResolver
 
 
 def recompute_project_expressions(project: Any, api: Any | None = None) -> list[dict[str, str]]:
@@ -31,6 +32,12 @@ def recompute_project_expressions(project: Any, api: Any | None = None) -> list[
         return []
 
     evaluator = ExpressionEvaluator()
+    raw_params = project.data.get("parameters", {})
+    parameter_diagnostics = (
+        ParameterResolver(evaluator).resolve_all(raw_params).diagnostics
+        if isinstance(raw_params, dict)
+        else []
+    )
     components = project.data.get("components", [])
     extensions = project.data.get("extensions", {})
     max_passes = len(components) + 1 if isinstance(components, list) else 1
@@ -39,7 +46,7 @@ def recompute_project_expressions(project: Any, api: Any | None = None) -> list[
     for _ in range(max_passes):
         scope = project.get_scope(api=api)
         changed = False
-        diagnostics = []
+        diagnostics = list(parameter_diagnostics)
 
         if isinstance(components, list):
             for comp in components:

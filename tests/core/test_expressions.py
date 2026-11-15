@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import math
 from pathlib import Path
 
@@ -16,12 +17,16 @@ from setuav_studio.model.expression import (
 )
 from setuav_studio.model.parameter import (
     CircularDependencyError,
-    ParameterResolutionError,
     ParameterResolver,
 )
 from setuav_studio.model.scope import DotDict, to_dot_dict
 from setuav_studio.model.symbol import get_available_symbols_metadata
-from setuav_studio.project.document import ProjectDocument, create_project
+from setuav_studio.project.document import (
+    ProjectDocument,
+    create_project,
+    open_project,
+    save_project,
+)
 from setuav_studio.project.evaluator import recompute_project_expressions
 
 # ==============================================================================
@@ -96,8 +101,9 @@ def test_evaluation_error_on_unknown_variable() -> None:
 def test_resolve_scalars_only() -> None:
     resolver = ParameterResolver()
     params = {"aspect_ratio": 8.5, "wing_area": 0.85, "name": "TestWing"}
-    resolved = resolver.resolve_all(params)
-    assert resolved == params
+    resolution = resolver.resolve_all(params)
+    assert resolution.values == params
+    assert resolution.diagnostics == []
 
 
 def test_resolve_derived_parameters() -> None:
@@ -108,7 +114,7 @@ def test_resolve_derived_parameters() -> None:
         "wing_span": "= sqrt(aspect_ratio * wing_area)",
         "mean_chord": "= wing_area / wing_span",
     }
-    resolved = resolver.resolve_all(params)
+    resolved = resolver.resolve_all(params).values
     assert math.isclose(resolved["aspect_ratio"], 8.0)
     assert math.isclose(resolved["wing_area"], 2.0)
     assert math.isclose(resolved["wing_span"], 4.0)
@@ -124,8 +130,7 @@ def test_evaluation_order() -> None:
     }
     order = resolver.get_evaluation_order(params)
     assert order == ["a", "b", "c"]
-    resolved = resolver.resolve_all(params)
-    assert resolved == {"a": 10, "b": 15, "c": 30}
+    assert resolver.resolve_all(params).values == {"a": 10, "b": 15, "c": 30}
 
 
 def test_detect_circular_dependency() -> None:
@@ -137,7 +142,35 @@ def test_detect_circular_dependency() -> None:
     cycles = resolver.detect_cycles(params)
     assert len(cycles) > 0
     with pytest.raises(CircularDependencyError):
-        resolver.resolve_all(params)
+        resolver.get_evaluation_order(params)
+
+
+def test_resolve_all_reports_cycles_and_dependents() -> None:
+    resolver = ParameterResolver()
+    params = {
+        "a": "= b + 1",
+        "b": "= a + 1",
+        "c": "= a * 2",
+        "d": 4.0,
+    }
+    resolution = resolver.resolve_all(params)
+    assert resolution.values == {"d": 4.0}
+    messages = {d["path"]: d["message"] for d in resolution.diagnostics}
+    assert messages["parameters.a"].startswith("Circular dependency")
+    assert messages["parameters.b"].startswith("Circular dependency")
+    assert messages["parameters.c"] == "Depends on invalid parameter 'a'"
+
+
+def test_resolve_all_reports_failed_expression() -> None:
+    resolver = ParameterResolver()
+    params = {"bad": "= missing + 1", "uses_bad": "= bad * 2", "ok": "= 2 * 3"}
+    resolution = resolver.resolve_all(params)
+    assert resolution.values == {"ok": 6}
+    assert [d["path"] for d in resolution.diagnostics] == [
+        "parameters.bad",
+        "parameters.uses_bad",
+    ]
+    assert resolution.diagnostics[0]["expression"] == "= missing + 1"
 
 
 def test_get_dependents() -> None:
@@ -456,17 +489,42 @@ def test_recompute_invalid_expression_produces_diagnostic_and_preserves_value(
     editor.deleteLater()
 
 
-def test_recompute_propagates_global_scope_error(tmp_path: Path) -> None:
-    proj = ProjectDocument(
-        tmp_path / "bad_global.json",
-        "json",
-        {
-            "parameters": {"bad": "= missing_global_var + 1"},
-            "components": [],
-        },
+def test_invalid_global_parameter_is_reported_not_raised(tmp_path: Path) -> None:
+    from setuav_studio.api import StudioAPI
+    from setuav_studio.ui.widget.spinbox import evaluate_table_cell_input
+    from tests._common import get_qapp
+
+    get_qapp()
+    project_file = tmp_path / "project.json"
+    project_file.write_text(
+        json.dumps(
+            {
+                "name": "Bad Global",
+                "parameters": {"bad": "= missing_global_var + 1", "k": 0.5},
+                "components": [
+                    {"id": "a", "type": "x", "mass": 3.0, "_expressions": {"mass": "= bad * 2"}},
+                    {"id": "b", "type": "x", "mass": 1.0, "_expressions": {"mass": "= k * 10"}},
+                ],
+            }
+        ),
+        encoding="utf-8",
     )
-    with pytest.raises(ParameterResolutionError):
-        recompute_project_expressions(proj)
+    proj = open_project(project_file)
+
+    paths = [(d["component_id"], d["path"]) for d in proj.expression_diagnostics]
+    assert paths == [("", "parameters.bad"), ("a", "mass")]
+    assert proj.data["components"][0]["mass"] == 3.0
+    assert proj.data["components"][1]["mass"] == 5.0
+
+    save_project(proj)
+    assert json.loads(project_file.read_text(encoding="utf-8"))["parameters"]["bad"] == (
+        "= missing_global_var + 1"
+    )
+
+    api = StudioAPI()
+    api._host.set_project(proj)
+    assert evaluate_table_cell_input("5.0", api) == (5.0, None)
+    assert evaluate_table_cell_input("= k * 4", api) == (2.0, "= k * 4")
 
 
 def test_get_and_set_expression_helper() -> None:

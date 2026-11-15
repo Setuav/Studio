@@ -20,10 +20,10 @@ from PySide6.QtWidgets import (
 
 from setuav_studio.model.expression import (
     ExpressionEvaluationError,
+    ExpressionEvaluator,
     evaluate_numeric_input,
     get_expression,
 )
-from setuav_studio.model.parameter import ParameterResolutionError
 
 
 class NoWheelComboBox(QComboBox):
@@ -159,10 +159,10 @@ def evaluate_table_cell_input(
     """
     try:
         scope: dict[str, Any] = {}
-        if api is not None and api.project is not None:
+        if ExpressionEvaluator.is_expression(value) and api is not None and api.project is not None:
             scope = api.project.get_scope(api=api)
         num_val, expr = evaluate_numeric_input(value, scope)
-    except (ExpressionEvaluationError, ParameterResolutionError, ValueError, TypeError) as exc:
+    except (ExpressionEvaluationError, ValueError, TypeError) as exc:
         msg = f"Invalid {label or 'value'}: {exc}"
         if cell is not None and hasattr(cell, "set_error"):
             cell.set_error(msg)

@@ -88,7 +88,9 @@ def build_universal_scope(  # noqa: C901
 
     resolver = ParameterResolver()
     raw_params = p_dict.get("parameters", {})
-    resolved_params = resolver.resolve_all(raw_params) if isinstance(raw_params, dict) else {}
+    resolved_params = (
+        resolver.resolve_all(raw_params).values if isinstance(raw_params, dict) else {}
+    )
 
     scope: dict[str, Any] = {}
 

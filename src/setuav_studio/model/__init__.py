@@ -26,7 +26,7 @@ from setuav_studio.model.mass import (
 )
 from setuav_studio.model.parameter import (
     CircularDependencyError,
-    ParameterResolutionError,
+    ParameterResolution,
     ParameterResolver,
 )
 from setuav_studio.model.scope import (
@@ -55,7 +55,7 @@ __all__ = [
     "GenericComponent",
     "InertiaTensor",
     "MassProperties",
-    "ParameterResolutionError",
+    "ParameterResolution",
     "ParameterResolver",
     "SolverConfig",
     "Vector3",

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import math
 from typing import TYPE_CHECKING, Any
 
@@ -16,7 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.model.expression import ExpressionEvaluator, normalize_equation_input
-from setuav_studio.model.parameter import ParameterResolver
+from setuav_studio.model.parameter import ParameterResolution, ParameterResolver
 from setuav_studio.ui.style.icons import set_label_icon
 from setuav_studio.ui.widget.table import PropertyTableMixin
 
@@ -169,24 +168,51 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
             self._set_property_value(self.general_table, "unit", active_sym, editable=False)
 
             raw_params = data.get("parameters", {}) if isinstance(data, dict) else {}
-            res_str = "—"
-            with contextlib.suppress(Exception):
-                resolved = self._resolver.resolve_all(raw_params)
-                res_val = resolved.get(self._param_key, "—")
-                if isinstance(res_val, (int, float)):
-                    disp_val = (
-                        um.to_display(res_val, self._current_quantity)
-                        if self._current_quantity
-                        else res_val
-                    )
-                    unit_suffix = f" {active_sym}" if active_sym and active_sym != "—" else ""
-                    res_str = f"{disp_val:.4g}{unit_suffix}"
-                else:
-                    res_str = str(res_val)
+            resolution = self._resolver.resolve_all(raw_params)
+            error = self._parameter_error(resolution)
+            res_val = resolution.values.get(self._param_key, "—")
+            if error is not None:
+                res_str = f"#ERR! {error}"
+            elif isinstance(res_val, (int, float)):
+                disp_val = (
+                    um.to_display(res_val, self._current_quantity)
+                    if self._current_quantity
+                    else res_val
+                )
+                unit_suffix = f" {active_sym}" if active_sym and active_sym != "—" else ""
+                res_str = f"{disp_val:.4g}{unit_suffix}"
+            else:
+                res_str = str(res_val)
 
             self._set_property_value(self.general_table, "resolved", res_str, editable=False)
         finally:
             self._loading = False
+
+    def _validated_value(self, new_val: Any, raw_params: dict[str, Any]) -> Any:
+        """Parse editor input and check that it resolves; raise ValueError otherwise."""
+        if isinstance(new_val, bool):
+            raise ValueError("Boolean value is not numeric")
+        if isinstance(new_val, (int, float)):
+            parsed: Any = new_val
+            if not math.isfinite(float(parsed)):
+                raise ValueError("Numeric value must be finite")
+        else:
+            parsed = str(new_val).strip()
+            if not ExpressionEvaluator.is_expression(parsed):
+                parsed = float(parsed)
+                if not math.isfinite(parsed):
+                    raise ValueError("Numeric value must be finite")
+        error = self._parameter_error(
+            self._resolver.resolve_all({**raw_params, self._param_key: parsed})
+        )
+        if error is not None:
+            raise ValueError(error)
+        return parsed
+
+    def _parameter_error(self, resolution: ParameterResolution) -> str | None:
+        """Return the resolution error message for this editor's parameter, if any."""
+        path = f"parameters.{self._param_key}"
+        return next((d["message"] for d in resolution.diagnostics if d["path"] == path), None)
 
     def _open_assistant(self, current_val: str) -> None:
         from PySide6.QtWidgets import QDialog
@@ -214,23 +240,8 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
         raw_params: dict[str, Any] = data.setdefault("parameters", {})
         cell = self._property_cell(self.general_table, "value")
 
-        parsed: Any
         try:
-            if isinstance(new_val, bool):
-                raise ValueError("Boolean value is not numeric")
-            if isinstance(new_val, (int, float)):
-                if not math.isfinite(float(new_val)):
-                    raise ValueError("Numeric value must be finite")
-                parsed = new_val
-            else:
-                val_str = str(new_val).strip()
-                if ExpressionEvaluator.is_expression(val_str):
-                    parsed = val_str
-                else:
-                    num = float(val_str)
-                    if not math.isfinite(num):
-                        raise ValueError("Numeric value must be finite")
-                    parsed = num
+            parsed = self._validated_value(new_val, raw_params)
         except ValueError as exc:
             msg = f"Invalid parameter value: {exc}"
             if cell is not None:

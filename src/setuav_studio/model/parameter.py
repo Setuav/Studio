@@ -2,16 +2,13 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import Any
 
 from setuav_studio.model.expression import ExpressionEvaluationError, ExpressionEvaluator
 
 
-class ParameterResolutionError(Exception):
-    """Raised when parameter resolution fails."""
-
-
-class CircularDependencyError(ParameterResolutionError):
+class CircularDependencyError(Exception):
     """Raised when a cycle is detected among parameters."""
 
     def __init__(self, cycle_path: list[str]) -> None:
@@ -19,8 +16,20 @@ class CircularDependencyError(ParameterResolutionError):
         super().__init__(f"Circular dependency detected: {' -> '.join(cycle_path)}")
 
 
-def _topological_sort(graph: dict[str, set[str]]) -> list[str]:
-    """Sort dependency DAG in topological order using Kahn's algorithm."""
+@dataclass
+class ParameterResolution:
+    """Resolved parameter values and diagnostics for parameters that failed."""
+
+    values: dict[str, Any] = field(default_factory=dict)
+    diagnostics: list[dict[str, str]] = field(default_factory=list)
+
+
+def _raw_value(entry: Any) -> Any:
+    return entry.get("value") if isinstance(entry, dict) and "value" in entry else entry
+
+
+def _topological_order(graph: dict[str, set[str]]) -> list[str]:
+    """Return the nodes reachable in topological order (Kahn); nodes on or behind a cycle are left out."""
     adj: dict[str, set[str]] = {k: set() for k in graph}
     in_deg: dict[str, int] = dict.fromkeys(graph, 0)
     for node, deps in graph.items():
@@ -41,12 +50,6 @@ def _topological_sort(graph: dict[str, set[str]]) -> list[str]:
                 queue.append(neighbor)
                 queue.sort()
 
-    if len(order) != len(graph):
-        remaining = [k for k in graph if k not in order]
-        raise ParameterResolutionError(
-            f"Could not determine evaluation order for parameters: {remaining}"
-        )
-
     return order
 
 
@@ -60,7 +63,7 @@ class ParameterResolver:
         """Build dependency graph mapping each parameter to set of parameters it depends on."""
         graph: dict[str, set[str]] = {}
         for key, val in parameters.items():
-            raw_val = val.get("value") if isinstance(val, dict) and "value" in val else val
+            raw_val = _raw_value(val)
             if self.evaluator.is_expression(raw_val):
                 symbols = self.evaluator.extract_symbols(str(raw_val))
                 # Only keep symbols (or root identifiers) that exist in parameters
@@ -111,43 +114,55 @@ class ParameterResolver:
             raise CircularDependencyError(cycles[0])
 
         graph = self.build_dependency_graph(parameters)
-        return _topological_sort(graph)
+        return _topological_order(graph)
 
-    def resolve_all(
-        self,
-        parameters: dict[str, Any],
-        extra_context: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        """Resolve all parameters into concrete scalar/string values.
+    def resolve_all(self, parameters: dict[str, Any]) -> ParameterResolution:
+        """Resolve every parameter that can be evaluated.
 
-        Raises:
-            ParameterResolutionError: If an expression fails or cannot be resolved.
+        A parameter whose expression fails, that lies on a dependency cycle, or that
+        depends on such a parameter is left out of ``values`` and reported in
+        ``diagnostics``.
         """
-        order = self.get_evaluation_order(parameters)
-        resolved: dict[str, Any] = dict(extra_context or {})
+        graph = self.build_dependency_graph(parameters)
+        errors: dict[str, str] = {}
+        for cycle in self.detect_cycles(parameters):
+            message = f"Circular dependency: {' -> '.join(cycle)}"
+            for node in cycle[:-1]:
+                errors.setdefault(node, message)
 
-        for key in order:
-            val = parameters[key]
-            raw_val = val.get("value") if isinstance(val, dict) and "value" in val else val
-            if self.evaluator.is_expression(raw_val):
-                try:
-                    res = self.evaluator.evaluate(str(raw_val), resolved)
-                    resolved[key] = res
-                except ExpressionEvaluationError as exc:
-                    raise ParameterResolutionError(
-                        f"Failed to evaluate parameter '{key}': {exc}"
-                    ) from exc
-            else:
-                resolved[key] = raw_val
+        order = _topological_order(graph)
+        ordered = set(order)
+        values: dict[str, Any] = {}
+        for key in [*order, *(k for k in parameters if k not in ordered)]:
+            if key in errors:
+                continue
+            invalid_dep = next((dep for dep in sorted(graph[key]) if dep not in values), None)
+            if invalid_dep is not None:
+                errors[key] = f"Depends on invalid parameter '{invalid_dep}'"
+                continue
+            raw_val = _raw_value(parameters[key])
+            if not self.evaluator.is_expression(raw_val):
+                values[key] = raw_val
+                continue
+            try:
+                values[key] = self.evaluator.evaluate(str(raw_val), values)
+            except ExpressionEvaluationError as exc:
+                errors[key] = str(exc)
 
-        return {k: resolved[k] for k in parameters}
-
-    def resolve_single(self, key: str, parameters: dict[str, Any]) -> Any:
-        """Resolve a single parameter, evaluating dependencies as needed."""
-        if key not in parameters:
-            raise KeyError(f"Parameter '{key}' not found.")
-        resolved = self.resolve_all(parameters)
-        return resolved[key]
+        diagnostics = [
+            {
+                "component_id": "",
+                "path": f"parameters.{key}",
+                "expression": str(_raw_value(parameters[key])),
+                "message": errors[key],
+            }
+            for key in parameters
+            if key in errors
+        ]
+        return ParameterResolution(
+            values={k: values[k] for k in parameters if k in values},
+            diagnostics=diagnostics,
+        )
 
     def get_dependents(self, parameters: dict[str, Any], key: str) -> set[str]:
         """Find all parameters in the dictionary that directly or indirectly depend on key."""
