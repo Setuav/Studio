@@ -225,8 +225,8 @@ class ActionManager:
         self.undo_action.setIcon(get_icon("undo"))
         self.redo_action.setIcon(get_icon("redo"))
         self.settings_action.setIcon(get_icon("fa6s.gear"))
-        self._window._log_button.setIcon(get_icon("log"))
-        self._window._command_palette_button.setIcon(get_icon("fa6s.terminal"))
+        self._window._status_manager.log_button.setIcon(get_icon("log"))
+        self._window._status_manager.command_palette_button.setIcon(get_icon("fa6s.terminal"))
         self._window._update_toolbar_contribution_icons()
 
     def populate_view_menu(self) -> None:

@@ -7,7 +7,6 @@ from PySide6.QtCore import QByteArray, QEvent, QSettings
 from PySide6.QtGui import QAction, QCloseEvent
 from PySide6.QtWidgets import (
     QApplication,
-    QDialog,
     QDockWidget,
     QMainWindow,
     QVBoxLayout,
@@ -76,45 +75,6 @@ class MainWindow(QMainWindow):
             self._action_manager.redo_action,
         )
 
-        # Expose sub-manager properties for inspection
-        self._standard_toolbar = self._toolbar_manager.standard_toolbar
-        self._toolbar_contributions = self._toolbar_manager.toolbar_contributions
-        self._toolbar_actions = self._toolbar_manager.toolbar_actions
-        self._toolbar_menu_actions = self._toolbar_manager.toolbar_menu_actions
-        self._owned_toolbar_actions = self._toolbar_manager.owned_toolbar_actions
-        self._toolset_bars = self._toolbar_manager.toolset_bars
-
-        self._menus = self._action_manager.menus
-        self._command_actions = self._action_manager.command_actions
-        self._panel_actions = self._action_manager.panel_actions
-        self._file_menu = self._action_manager.file_menu
-        self._view_menu = self._action_manager.view_menu
-        self._tools_menu = self._action_manager.tools_menu
-        self._help_menu = self._action_manager.help_menu
-        self._recent_menu = self._action_manager.recent_menu
-        self._new_project_action = self._action_manager.new_project_action
-        self._open_project_action = self._action_manager.open_action
-        self._open_folder_action = self._action_manager.open_folder_action
-        self._open_directory_action = self._action_manager.open_directory_action
-        self._save_action = self._action_manager.save_action
-        self._save_as_action = self._action_manager.save_as_action
-        self._exit_action = self._action_manager.exit_action
-        self._undo_action = self._action_manager.undo_action
-        self._redo_action = self._action_manager.redo_action
-        self._settings_action = self._action_manager.settings_action
-        self._plugin_manager_action = self._action_manager.plugin_manager_action
-        self._about_action = self._action_manager.about_action
-        self._native_theme_action = self._action_manager.native_theme_action
-        self._blender_theme_action = self._action_manager.blender_theme_action
-        self._github_theme_action = self._action_manager.github_theme_action
-        self._monokai_theme_action = self._action_manager.monokai_theme_action
-        self._nord_theme_action = self._action_manager.nord_theme_action
-
-        self._status_label = self._status_manager.status_label
-        self._progress_bar = self._status_manager.progress_bar
-        self._command_palette_button = self._status_manager.command_palette_button
-        self._log_button = self._status_manager.log_button
-
         # Host bridge bindings
         self._host.bind_panel_handlers(
             self._register_panel, self._unregister_panel, self._show_panel_by_id
@@ -137,38 +97,6 @@ class MainWindow(QMainWindow):
 
         ExpressionFocusTracker.add_listener(self._refresh_toolbar_action_states)
         self.destroyed.connect(self._detach_api_listeners)
-
-    @property
-    def _log_window(self) -> QDialog | None:
-        return self._status_manager._log_window
-
-    @_log_window.setter
-    def _log_window(self, value: QDialog | None) -> None:
-        self._status_manager._log_window = value
-
-    @property
-    def _restoring_layout(self) -> bool:
-        return self._layout_manager.restoring_layout
-
-    @_restoring_layout.setter
-    def _restoring_layout(self, value: bool) -> None:
-        self._layout_manager.restoring_layout = value
-
-    @property
-    def _layout_persistence_enabled(self) -> bool:
-        return self._layout_manager.layout_persistence_enabled
-
-    @_layout_persistence_enabled.setter
-    def _layout_persistence_enabled(self, value: bool) -> None:
-        self._layout_manager.layout_persistence_enabled = value
-
-    @property
-    def _layout_save_scheduled(self) -> bool:
-        return self._layout_manager.layout_save_scheduled
-
-    @_layout_save_scheduled.setter
-    def _layout_save_scheduled(self, value: bool) -> None:
-        self._layout_manager.layout_save_scheduled = value
 
     # Panel Management
     def _register_panel(self, contribution: PanelContribution) -> None:
@@ -201,7 +129,7 @@ class MainWindow(QMainWindow):
         dock.topLevelChanged.connect(self._schedule_layout_save)
         dock.visibilityChanged.connect(self._schedule_layout_save)
         dock.installEventFilter(self)
-        self._panel_actions[contribution.id] = action
+        self._action_manager.panel_actions[contribution.id] = action
         self._update_panel_action_icon(contribution.id)
 
         self._update_view_menu()
@@ -213,7 +141,7 @@ class MainWindow(QMainWindow):
         _, dock = entry
         dock.close()
         dock.deleteLater()
-        action = self._panel_actions.pop(panel_id, None)
+        action = self._action_manager.panel_actions.pop(panel_id, None)
         if action is not None:
             action.deleteLater()
         self._update_view_menu()
@@ -465,7 +393,7 @@ class MainWindow(QMainWindow):
                 self._normal_geometry = self.saveGeometry()
             if self._normal_dock_state is None:
                 self._normal_dock_state = self.saveState(self._LAYOUT_VERSION)
-        if not self._layout_persistence_enabled:
+        if not self._layout_manager.layout_persistence_enabled:
             from PySide6.QtCore import QTimer
 
             QTimer.singleShot(0, self._enable_layout_persistence)

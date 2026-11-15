@@ -81,7 +81,7 @@ class ToolbarManager:
             self.toolbar_actions[contribution.id] = action
             self.owned_toolbar_actions.add(contribution.id)
         elif contribution.command is not None:
-            action = self._window._command_actions.get(contribution.command or "")
+            action = self._window._action_manager.command_actions.get(contribution.command or "")
             if action is not None:
                 self.toolbar_actions[contribution.id] = action
         else:
@@ -188,7 +188,7 @@ class ToolbarManager:
             self.toolbar_contributions.values(),
             key=lambda item: (item.order, item.group, item.title.casefold()),
         )
-        command_actions = self._window._command_actions
+        command_actions = self._window._action_manager.command_actions
 
         for contribution in contributions:
             action = self.toolbar_actions.get(contribution.id)

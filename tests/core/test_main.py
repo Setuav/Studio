@@ -22,9 +22,9 @@ class MainTests(unittest.TestCase):
         window = MainWindow(api)
         self.addCleanup(window.deleteLater)
 
-        self.assertFalse(window._plugin_manager_action.isEnabled())
+        self.assertFalse(window._action_manager.plugin_manager_action.isEnabled())
         window.bind_plugin_manager(PluginManager(api))
-        self.assertTrue(window._plugin_manager_action.isEnabled())
+        self.assertTrue(window._action_manager.plugin_manager_action.isEnabled())
 
     def test_accepts_optional_project_path(self) -> None:
         arguments = _parse_arguments(["example/project.json"])
@@ -64,15 +64,19 @@ class MainTests(unittest.TestCase):
         self.assertIsNotNone(dock)
         assert dock is not None
         self.assertEqual(dock.windowTitle(), "Test Panel")
-        view_action = window._panel_actions["test.panel"]
+        view_action = window._action_manager.panel_actions["test.panel"]
         self.assertIsNotNone(view_action)
         self.assertTrue(view_action.isCheckable())
-        self.assertIn(view_action, window._view_menu.actions())
-        self.assertTrue(any(a.text() == "Theme" for a in window._view_menu.actions()))
+        self.assertIn(view_action, window._action_manager.view_menu.actions())
+        self.assertTrue(
+            any(a.text() == "Theme" for a in window._action_manager.view_menu.actions())
+        )
 
         window._update_view_menu()
-        self.assertTrue(any(a.text() == "Theme" for a in window._view_menu.actions()))
-        self.assertIn(view_action, window._view_menu.actions())
+        self.assertTrue(
+            any(a.text() == "Theme" for a in window._action_manager.view_menu.actions())
+        )
+        self.assertIn(view_action, window._action_manager.view_menu.actions())
         window.close()
 
     def test_runtime_validation_strictness_outcomes(self) -> None:

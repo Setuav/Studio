@@ -393,7 +393,7 @@ class TestFlightPerformance(unittest.TestCase):
         self.assertGreater(len(charts.chart_electrical.series()), 0)  # type: ignore
 
         # Check status label
-        self.assertIn("Performance complete", win._status_label.text())
+        self.assertIn("Performance complete", win._status_manager.status_label.text())
 
         # Check project extension storage
         assert api.project is not None
