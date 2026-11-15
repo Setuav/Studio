@@ -402,7 +402,9 @@ class FlightPerformanceAnalysisPipeline:
             powertrain=powertrain, rho=inputs.rho, v_mps=velocity
         )
         if safe_throttle > 0.0:
-            maximum = powertrain.solve(rho=inputs.rho, airspeed_mps=velocity, throttle=safe_throttle)
+            maximum = powertrain.solve(
+                rho=inputs.rho, airspeed_mps=velocity, throttle=safe_throttle
+            )
             thrust[index] = maximum.thrust_n
             power[index] = maximum.thrust_n * velocity
         required_throttle, electric_power, amperage, point_feasible = (
