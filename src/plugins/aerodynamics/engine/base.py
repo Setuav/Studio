@@ -807,58 +807,6 @@ class ControlChannelAnalysis:
         )
 
 
-@dataclass(frozen=True)
-class PropulsionPoint:
-    """Propulsion installation / attachment point and thrust line definition."""
-
-    id: str
-    name: str
-    component_type: str
-    position: tuple[float, float, float]  # (x, y, z) in meters in geometry/body frame
-    thrust_vector: tuple[float, float, float] = (
-        1.0,
-        0.0,
-        0.0,
-    )  # Normalized thrust direction vector
-    diameter: float = 0.0  # Propeller/rotor diameter in meters
-    pitch: float = 0.0  # Propeller pitch in meters or inches
-    rotation_direction: str = "CW"  # "CW" or "CCW"
-    max_thrust: float = 0.0  # Max static thrust in Newtons (if known)
-    motor_kv: float = 0.0  # Motor KV (RPM/V)
-    properties: dict[str, Any] = field(default_factory=dict)
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "id": self.id,
-            "name": self.name,
-            "component_type": self.component_type,
-            "position": list(self.position),
-            "thrust_vector": list(self.thrust_vector),
-            "diameter": self.diameter,
-            "pitch": self.pitch,
-            "rotation_direction": self.rotation_direction,
-            "max_thrust": self.max_thrust,
-            "motor_kv": self.motor_kv,
-            "properties": dict(self.properties),
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> PropulsionPoint:
-        return cls(
-            id=str(data.get("id", "")),
-            name=str(data.get("name", "")),
-            component_type=str(data.get("component_type", "")),
-            position=_float_vector3(data.get("position"), (0.0, 0.0, 0.0)),
-            thrust_vector=_float_vector3(data.get("thrust_vector"), (1.0, 0.0, 0.0)),
-            diameter=float(data.get("diameter", 0.0)),
-            pitch=float(data.get("pitch", 0.0)),
-            rotation_direction=str(data.get("rotation_direction", "CW")),
-            max_thrust=float(data.get("max_thrust", 0.0)),
-            motor_kv=float(data.get("motor_kv", 0.0)),
-            properties=dict(data.get("properties") or {}),
-        )
-
-
 @dataclass
 class AeroResult:
     """Complete analysis result returned by an aerodynamic engine."""
@@ -886,8 +834,6 @@ class AeroResult:
     control_analysis: ControlChannelAnalysis | None = None
     # Flight condition specified for this analysis
     condition: FlightCondition = field(default_factory=FlightCondition)
-    # Propulsion attachment points and thrust lines identified in project
-    propulsion_points: list[PropulsionPoint] = field(default_factory=list)
     # Raw engine specific payload (for custom downstream rendering or debugging)
     raw: dict[str, Any] = field(default_factory=dict)
 
@@ -942,7 +888,6 @@ class AeroResult:
             "control_analysis": self.control_analysis.to_dict()
             if self.control_analysis is not None
             else None,
-            "propulsion_points": [p.to_dict() for p in self.propulsion_points],
             "condition": self.condition.to_dict(),
             # Don't serialize non-JSON raw object instances in to_dict
             "raw": _json_safe(self.raw),
@@ -959,11 +904,6 @@ class AeroResult:
 
         ref = ReferenceValues.from_dict(data.get("reference") or {})
         cond = FlightCondition.from_dict(data.get("condition") or {})
-        prop_pts = [
-            PropulsionPoint.from_dict(p)
-            for p in data.get("propulsion_points", [])
-            if isinstance(p, dict)
-        ]
 
         sweep_data = data.get("sweep_result")
         sweep = (
@@ -1006,7 +946,6 @@ class AeroResult:
             sweep_result=sweep,
             control_analysis=control_analysis,
             condition=cond,
-            propulsion_points=prop_pts,
             raw=_string_keyed_dict(data.get("raw")),
         )
 

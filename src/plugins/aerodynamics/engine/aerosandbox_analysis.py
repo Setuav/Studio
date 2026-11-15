@@ -56,12 +56,6 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
 
         def _compute_reference_geometry(self, airplane: Any) -> tuple[float, float]: ...
 
-        def _extract_propulsion_points(
-            self,
-            components: list[dict[str, Any]],
-            comp_by_id: dict[str, dict[str, Any]],
-        ) -> list[Any]: ...
-
     def analyze(
         self,
         components: list[dict[str, Any]],
@@ -142,11 +136,6 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
         )
         if not airplane.wings:
             raise ValueError("No valid lifting surfaces found in project for aerodynamic analysis.")
-        comp_by_id = {
-            str(comp.get("id")): comp
-            for comp in components
-            if isinstance(comp, dict) and comp.get("id")
-        }
         span, area = self._compute_reference_geometry(airplane)
         mean_chord = area / span if span > 0 else 0.0
         reference_xyz = mass_cg or tuple(float(value) for value in airplane.xyz_ref)
@@ -154,7 +143,6 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
             "mass_cg": mass_cg,
             "mass_cg_source": mass_cg_source,
             "airplane": airplane,
-            "propulsion_points": self._extract_propulsion_points(components, comp_by_id),
             "mean_chord": mean_chord,
             "ref_area": area if area > 0 else 1.0,
             "reference_xyz": reference_xyz,

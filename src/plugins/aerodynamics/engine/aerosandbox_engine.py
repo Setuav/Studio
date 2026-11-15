@@ -21,7 +21,6 @@ from .base import (
     AnalysisType,
     EngineCapabilities,
     FlightCondition,
-    PropulsionPoint,
 )
 
 logger = logging.getLogger(__name__)
@@ -139,72 +138,6 @@ class AeroSandboxEngine(AeroSandboxAnalysisMixin, AeroSandboxGeometryMixin, Aero
             b_ref=main_span,
             xyz_ref=reference_xyz,
         )
-
-    def _extract_propulsion_points(
-        self,
-        components: list[dict[str, Any]],
-        comp_by_id: dict[str, dict[str, Any]],
-    ) -> list[PropulsionPoint]:
-        """Extract propulsion installation positions, thrust vectors, and geometry for aero analysis."""
-        prop_types = {
-            "org.setuav.core:motor",
-            "org.setuav.core:propeller",
-            "org.setuav.core:rotor",
-            "org.setuav.core:electric-propulsion-system",
-        }
-        prop_points: list[PropulsionPoint] = []
-        for comp in components:
-            if not isinstance(comp, dict):
-                continue
-            ctype = str(comp.get("type") or "")
-            if ctype not in prop_types:
-                continue
-
-            cid = str(comp.get("id") or "")
-            cname = str(comp.get("name") or cid)
-            pos_m, rot_m = self._resolve_world_transform(comp, comp_by_id)
-
-            # Default forward thrust direction is along +X body axis
-            thrust_vec = rot_m @ np.array([1.0, 0.0, 0.0])
-            norm = float(np.linalg.norm(thrust_vec))
-            t_dir = tuple((thrust_vec / norm).tolist()) if norm > 1e-6 else (1.0, 0.0, 0.0)
-
-            parameters = comp.get("parameters")
-            params = parameters if isinstance(parameters, dict) else {}
-
-            # Extract diameter in meters
-            diameter_val = float(
-                params.get("diameter")
-                or params.get("propeller_diameter")
-                or params.get("rotor_diameter")
-                or 0.0
-            )
-            if diameter_val > 5.0:  # Value given in mm
-                diameter_val /= 1000.0
-
-            pitch_val = float(params.get("pitch") or params.get("propeller_pitch") or 0.0)
-            rot_dir = str(
-                params.get("rotation_direction") or params.get("direction") or "CW"
-            ).upper()
-            max_thrust = float(params.get("max_thrust") or params.get("thrust") or 0.0)
-            kv = float(params.get("kv") or params.get("motor_kv") or 0.0)
-
-            prop_points.append(
-                PropulsionPoint(
-                    id=cid,
-                    name=cname,
-                    component_type=ctype,
-                    position=(float(pos_m[0]), float(pos_m[1]), float(pos_m[2])),
-                    thrust_vector=(float(t_dir[0]), float(t_dir[1]), float(t_dir[2])),
-                    diameter=diameter_val,
-                    pitch=pitch_val,
-                    rotation_direction=rot_dir,
-                    max_thrust=max_thrust,
-                    motor_kv=kv,
-                    properties=dict(params),
-                )
-            )
-        return prop_points
 
     def _resolve_world_transform(
         self,

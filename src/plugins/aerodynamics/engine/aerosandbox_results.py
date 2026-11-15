@@ -286,7 +286,6 @@ class AeroSandboxResultMixin:
             sweep_result=sweep_result,
             control_analysis=control_analysis,
             condition=condition,
-            propulsion_points=setup["propulsion_points"],
             raw={
                 "airplane": setup["airplane"],
                 "method": method.value,

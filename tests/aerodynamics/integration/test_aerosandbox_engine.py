@@ -978,66 +978,6 @@ class AeroSandboxEngineTests(unittest.TestCase):
         self.assertAlmostEqual(float(right_tip[2]), float(left_tip[2]), places=6)
 
     @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
-    def test_propulsion_points_extraction(self) -> None:
-        """Verify motor and propeller attachment points and thrust lines extraction."""
-        engine = AeroSandboxEngine()
-        components = [
-            {
-                "id": "wing-1",
-                "name": "Wing",
-                "type": "org.setuav.core:lifting-surface",
-                "parameters": {
-                    "geometry": {
-                        "mirror": True,
-                        "profiles": [
-                            {
-                                "position": {"x": 0, "y": 0, "z": 0},
-                                "chord": 200,
-                                "twist": 0,
-                                "airfoil": "naca2412",
-                            },
-                            {
-                                "position": {"x": 50, "y": 500, "z": 0},
-                                "chord": 150,
-                                "twist": 0,
-                                "airfoil": "naca2412",
-                            },
-                        ],
-                    }
-                },
-            },
-            {
-                "id": "motor-1",
-                "name": "Front Motor",
-                "type": "org.setuav.core:motor",
-                "transform": {
-                    "position": {"x": -150, "y": 0, "z": 10},
-                    "rotation": {"pitch": -2.0, "yaw": 0.0, "roll": 0.0},
-                },
-                "parameters": {
-                    "diameter": 254.0,  # 10 inch in mm
-                    "pitch": 4.5,
-                    "max_thrust": 18.5,
-                    "kv": 920.0,
-                },
-            },
-        ]
-
-        cond = FlightCondition(velocity=20.0, alpha=2.0, sweep_steps=1)
-        result = engine.analyze(components, cond, method=AnalysisMethod.AERO_BUILDUP)
-
-        self.assertEqual(len(result.propulsion_points), 1)
-        prop = result.propulsion_points[0]
-        self.assertEqual(prop.id, "motor-1")
-        self.assertEqual(prop.name, "Front Motor")
-        self.assertAlmostEqual(prop.position[0], -0.150, places=3)
-        self.assertAlmostEqual(prop.position[2], 0.010, places=3)
-        self.assertAlmostEqual(prop.diameter, 0.254, places=3)
-        self.assertEqual(prop.max_thrust, 18.5)
-        self.assertEqual(prop.motor_kv, 920.0)
-        self.assertAlmostEqual(prop.thrust_vector[0], math.cos(math.radians(-2.0)), places=3)
-
-    @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_aero_buildup_primary_solver(self) -> None:
         """Verify native AeroBuildup primary solver executes cleanly and computes 3D aerodynamics."""
         engine = AeroSandboxEngine()
