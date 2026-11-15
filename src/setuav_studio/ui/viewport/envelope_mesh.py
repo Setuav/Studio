@@ -6,6 +6,8 @@ import math
 from collections.abc import Sequence
 from typing import Any
 
+from setuav_studio.utilities.transform import rotate_vector
+
 from .loft_mesh import _add_line, _append_ring
 from .primitives import BoxPrimitive, CylinderPrimitive, Point3D
 from .raycast import _box_corners, _ortho_basis
@@ -140,12 +142,8 @@ def _append_scene_object_envelope_wire(
                     base_axis = (0.0, 0.0, 1.0)
                     cyl_len = sz
                     cyl_radius = max(sx, sy) * 0.5
-                from .raycast import _rotate_vector
-
                 cyl_axis = (
-                    _rotate_vector(base_axis, rotation)
-                    if rotation != (0.0, 0.0, 0.0)
-                    else base_axis
+                    rotate_vector(base_axis, rotation) if rotation != (0.0, 0.0, 0.0) else base_axis
                 )
             _append_cylinder_wire(vertices, center, cyl_radius, cyl_len, color, axis=cyl_axis)
         else:

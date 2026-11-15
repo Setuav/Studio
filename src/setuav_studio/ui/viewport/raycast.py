@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from itertools import pairwise
 from typing import Any
 
-from .loft_mesh import _tessellated_loops
+from .loft_mesh import _centroid, _tessellated_loops
 from .primitives import (
     BoxPrimitive,
     CylinderPrimitive,
@@ -136,7 +136,7 @@ def _loft_cap_hit_distance(
     best = current_best
     found = False
     for loop, flip in ((loops[0], True), (loops[-1], False)):
-        centre = tuple(sum(point[axis] for point in loop) / len(loop) for axis in range(3))
+        centre = _centroid(loop)
         for index, point in enumerate(loop):
             following = loop[(index + 1) % len(loop)]
             triangle = (centre, following, point) if flip else (centre, point, following)

@@ -4,6 +4,7 @@ import logging
 import math
 from array import array
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Any
 
 from PySide6.QtCore import QPoint, QSize, Qt, QTimer, Signal
@@ -185,6 +186,53 @@ def _cross(left: Point3D, right: Point3D) -> Point3D:
     )
 
 
+@dataclass(frozen=True, slots=True)
+class _WireShader:
+    """Linked line shader and its uniform locations."""
+
+    program: QOpenGLShaderProgram
+    mvp: int
+    alpha: int
+
+    @classmethod
+    def from_program(cls, program: QOpenGLShaderProgram) -> _WireShader:
+        return cls(
+            program=program,
+            mvp=program.uniformLocation("mvp"),
+            alpha=program.uniformLocation("alpha"),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class _SolidShader:
+    """Linked shaded-surface shader and its uniform locations."""
+
+    program: QOpenGLShaderProgram
+    mvp: int
+    view: int
+    is_ortho: int
+    alpha: int
+
+    @classmethod
+    def from_program(cls, program: QOpenGLShaderProgram) -> _SolidShader:
+        return cls(
+            program=program,
+            mvp=program.uniformLocation("mvp"),
+            view=program.uniformLocation("view"),
+            is_ortho=program.uniformLocation("isOrtho"),
+            alpha=program.uniformLocation("alpha"),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class _GLResources:
+    """OpenGL function table and shaders that belong to the current context."""
+
+    functions: QOpenGLFunctions_3_3_Core
+    wire: _WireShader
+    solid: _SolidShader
+
+
 class OpenGLViewer(QOpenGLWidget):
     componentPicked = Signal(object)
 
@@ -200,9 +248,7 @@ class OpenGLViewer(QOpenGLWidget):
         self._initialization_error: str | None = None
         self._mesh_dirty = True
 
-        self._functions: QOpenGLFunctions_3_3_Core | None = None
-        self._wire_program: QOpenGLShaderProgram | None = None
-        self._solid_program: QOpenGLShaderProgram | None = None
+        self._gl: _GLResources | None = None
         self._wire_vao = QOpenGLVertexArrayObject()
         self._wire_vbo = QOpenGLBuffer(QOpenGLBuffer.Type.VertexBuffer)
         self._solid_vao = QOpenGLVertexArrayObject()
@@ -266,17 +312,16 @@ class OpenGLViewer(QOpenGLWidget):
             functions = QOpenGLFunctions_3_3_Core()
             if not functions.initializeOpenGLFunctions():
                 raise RuntimeError("OpenGL 3.3 functions are unavailable")
-            self._functions = functions
             functions.glClearColor(0.12, 0.12, 0.12, 1.0)
             functions.glEnable(_GL_DEPTH_TEST)
             functions.glEnable(_GL_MULTISAMPLE)
             functions.glLineWidth(1.0)
 
-            self._wire_program = self._create_program(
+            wire_program = self._create_program(
                 _WIRE_VERTEX_SHADER,
                 _WIRE_FRAGMENT_SHADER,
             )
-            self._solid_program = self._create_program(
+            solid_program = self._create_program(
                 _SOLID_VERTEX_SHADER,
                 _SOLID_FRAGMENT_SHADER,
             )
@@ -290,7 +335,7 @@ class OpenGLViewer(QOpenGLWidget):
                 (self._primitive_wire_vao, self._primitive_wire_vbo),
                 (self._primitive_annotation_vao, self._primitive_annotation_vbo),
             ):
-                self._setup_buffer(vao, vbo, self._wire_program, 6, ((0, 0, 3), (1, 3, 3)))
+                self._setup_buffer(vao, vbo, wire_program, 6, ((0, 0, 3), (1, 3, 3)))
             for vao, vbo in (
                 (self._solid_vao, self._solid_vbo),
                 (self._primitive_solid_vao, self._primitive_solid_vbo),
@@ -298,20 +343,23 @@ class OpenGLViewer(QOpenGLWidget):
                 self._setup_buffer(
                     vao,
                     vbo,
-                    self._solid_program,
+                    solid_program,
                     9,
                     ((0, 0, 3), (1, 3, 3), (2, 6, 3)),
                 )
             self._upload_meshes()
+            self._gl = _GLResources(
+                functions=functions,
+                wire=_WireShader.from_program(wire_program),
+                solid=_SolidShader.from_program(solid_program),
+            )
             self._mesh_dirty = False
             self._initialization_error = None
             context = self.context()
             if context is not None:
                 context.aboutToBeDestroyed.connect(self._release_resources)
         except Exception as exc:
-            self._functions = None
-            self._wire_program = None
-            self._solid_program = None
+            self._gl = None
             self._initialization_error = str(exc)
             logger.exception("Geometry OpenGL viewer initialization failed")
             QTimer.singleShot(0, self.update)
@@ -342,11 +390,12 @@ class OpenGLViewer(QOpenGLWidget):
         )
 
     def resizeGL(self, width: int, height: int) -> None:
-        if self._functions is not None:
-            self._functions.glViewport(0, 0, width, height)
+        if self._gl is not None:
+            self._gl.functions.glViewport(0, 0, width, height)
 
     def paintGL(self) -> None:
-        if self._functions is None:
+        gl = self._gl
+        if gl is None:
             return
         if self._mesh_dirty:
             try:
@@ -363,8 +412,8 @@ class OpenGLViewer(QOpenGLWidget):
         from PySide6.QtGui import QColor
 
         qbg = QColor(bg_hex)
-        self._functions.glClearColor(qbg.redF(), qbg.greenF(), qbg.blueF(), 1.0)
-        self._functions.glClear(_GL_COLOR_BUFFER_BIT | _GL_DEPTH_BUFFER_BIT)
+        gl.functions.glClearColor(qbg.redF(), qbg.greenF(), qbg.blueF(), 1.0)
+        gl.functions.glClear(_GL_COLOR_BUFFER_BIT | _GL_DEPTH_BUFFER_BIT)
         mvp = self._projection() * self._view()
 
         lines_overlay = (
@@ -375,139 +424,111 @@ class OpenGLViewer(QOpenGLWidget):
             or (self._show_wireframe and self._primitive_wire_count > 0)
             or self._primitive_annotation_count > 0
         )
-        self._draw_solid_mesh(mvp, lines_overlay)
-        if self._wire_program is None:
+        self._draw_solid_mesh(gl, mvp, lines_overlay)
+        self._draw_wire_mesh(gl, mvp)
+        self._draw_axis_gizmo(gl)
+
+    def _draw_solid_mesh(self, gl: _GLResources, mvp: QMatrix4x4, lines_overlay: bool) -> None:
+        if not self._show_solid:
             return
-        self._draw_wire_mesh(mvp)
-        self._draw_axis_gizmo()
+        for vao, count in (
+            (self._solid_vao, self._solid_count),
+            (self._primitive_solid_vao, self._primitive_solid_count),
+        ):
+            if count > 0:
+                self._draw_solid_batch(gl, vao, count, mvp, lines_overlay)
 
-    def _draw_solid_mesh(self, mvp: QMatrix4x4, lines_overlay: bool) -> None:
-        if self._show_solid and self._solid_program is not None and self._solid_count > 0:
-            if lines_overlay:
-                self._functions.glEnable(_GL_POLYGON_OFFSET_FILL)
-                self._functions.glPolygonOffset(1.0, 1.0)
-            view_matrix = self._view()
-            self._solid_program.bind()
-            self._solid_program.setUniformValue("mvp", mvp)
-            self._solid_program.setUniformValue("view", view_matrix)
-            self._solid_program.setUniformValue("isOrtho", 1 if self._orthographic else 0)
-            transparent = self._transparent or (self._face_style == FACE_TRANSPARENT)
-            alpha_location = self._solid_program.uniformLocation("alpha")
-            self._functions.glUniform1f(
-                alpha_location,
-                0.35 if transparent else 1.0,
-            )
-            if transparent:
-                self._functions.glEnable(_GL_BLEND)
-                self._functions.glBlendFuncSeparate(
-                    _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA, _GL_ZERO, _GL_ONE
-                )
-                self._functions.glColorMask(True, True, True, False)
-                self._functions.glDepthMask(False)
-            self._solid_vao.bind()
-            self._functions.glDrawArrays(_GL_TRIANGLES, 0, self._solid_count)
-            self._solid_vao.release()
-            self._solid_program.release()
-            if transparent:
-                self._functions.glDepthMask(True)
-                self._functions.glColorMask(True, True, True, True)
-                self._functions.glDisable(_GL_BLEND)
-            if lines_overlay:
-                self._functions.glDisable(_GL_POLYGON_OFFSET_FILL)
+    def _draw_solid_batch(
+        self,
+        gl: _GLResources,
+        vao: QOpenGLVertexArrayObject,
+        count: int,
+        mvp: QMatrix4x4,
+        lines_overlay: bool,
+    ) -> None:
+        functions = gl.functions
+        shader = gl.solid
+        if lines_overlay:
+            functions.glEnable(_GL_POLYGON_OFFSET_FILL)
+            functions.glPolygonOffset(1.0, 1.0)
+        shader.program.bind()
+        shader.program.setUniformValue(shader.mvp, mvp)
+        shader.program.setUniformValue(shader.view, self._view())
+        functions.glUniform1i(shader.is_ortho, 1 if self._orthographic else 0)
+        transparent = self._transparent or (self._face_style == FACE_TRANSPARENT)
+        functions.glUniform1f(shader.alpha, 0.35 if transparent else 1.0)
+        if transparent:
+            functions.glEnable(_GL_BLEND)
+            functions.glBlendFuncSeparate(_GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA, _GL_ZERO, _GL_ONE)
+            functions.glColorMask(True, True, True, False)
+            functions.glDepthMask(False)
+        vao.bind()
+        functions.glDrawArrays(_GL_TRIANGLES, 0, count)
+        vao.release()
+        shader.program.release()
+        if transparent:
+            functions.glDepthMask(True)
+            functions.glColorMask(True, True, True, True)
+            functions.glDisable(_GL_BLEND)
+        if lines_overlay:
+            functions.glDisable(_GL_POLYGON_OFFSET_FILL)
 
-        # Draw primitive solids
-        if self._show_solid and self._primitive_solid_count > 0 and self._solid_program is not None:
-            view_matrix = self._view()
-            if lines_overlay:
-                self._functions.glEnable(_GL_POLYGON_OFFSET_FILL)
-                self._functions.glPolygonOffset(1.0, 1.0)
-            self._solid_program.bind()
-            self._solid_program.setUniformValue("mvp", mvp)
-            self._solid_program.setUniformValue("view", view_matrix)
-            self._solid_program.setUniformValue("isOrtho", 1 if self._orthographic else 0)
-            transparent = self._transparent or (self._face_style == FACE_TRANSPARENT)
-            alpha_location = self._solid_program.uniformLocation("alpha")
-            self._functions.glUniform1f(
-                alpha_location,
-                0.35 if transparent else 1.0,
-            )
-            if transparent:
-                self._functions.glEnable(_GL_BLEND)
-                self._functions.glBlendFuncSeparate(
-                    _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA, _GL_ZERO, _GL_ONE
-                )
-                self._functions.glColorMask(True, True, True, False)
-                self._functions.glDepthMask(False)
-            self._primitive_solid_vao.bind()
-            self._functions.glDrawArrays(_GL_TRIANGLES, 0, self._primitive_solid_count)
-            self._primitive_solid_vao.release()
-            self._solid_program.release()
-            if transparent:
-                self._functions.glDepthMask(True)
-                self._functions.glColorMask(True, True, True, True)
-                self._functions.glDisable(_GL_BLEND)
-            if lines_overlay:
-                self._functions.glDisable(_GL_POLYGON_OFFSET_FILL)
-
-    def _draw_wire_mesh(self, mvp: QMatrix4x4) -> None:
-        assert self._wire_program is not None
-        self._wire_program.bind()
-        self._wire_program.setUniformValue("mvp", mvp)
-        alpha_location = self._wire_program.uniformLocation("alpha")
-        self._functions.glUniform1f(alpha_location, 1.0)
+    def _draw_wire_mesh(self, gl: _GLResources, mvp: QMatrix4x4) -> None:
+        functions = gl.functions
+        program = gl.wire.program
+        alpha_location = gl.wire.alpha
+        program.bind()
+        program.setUniformValue(gl.wire.mvp, mvp)
+        functions.glUniform1f(alpha_location, 1.0)
         if self._show_grid:
             self._grid_vao.bind()
-            self._functions.glDrawArrays(_GL_LINES, 0, self._grid_count)
+            functions.glDrawArrays(_GL_LINES, 0, self._grid_count)
             self._grid_vao.release()
         if self._section_ring_count > 0:
             self._section_ring_vao.bind()
-            self._functions.glDrawArrays(_GL_LINES, 0, self._section_ring_count)
+            functions.glDrawArrays(_GL_LINES, 0, self._section_ring_count)
             self._section_ring_vao.release()
         if self._envelope_count > 0:
             self._envelope_vao.bind()
-            self._functions.glDrawArrays(_GL_LINES, 0, self._envelope_count)
+            functions.glDrawArrays(_GL_LINES, 0, self._envelope_count)
             self._envelope_vao.release()
         if self._primitive_annotation_count > 0:
-            self._functions.glEnable(_GL_BLEND)
-            self._functions.glBlendFuncSeparate(
-                _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA, _GL_ZERO, _GL_ONE
-            )
-            self._functions.glColorMask(True, True, True, False)
-            self._functions.glUniform1f(alpha_location, 1.0)
+            functions.glEnable(_GL_BLEND)
+            functions.glBlendFuncSeparate(_GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA, _GL_ZERO, _GL_ONE)
+            functions.glColorMask(True, True, True, False)
+            functions.glUniform1f(alpha_location, 1.0)
             self._primitive_annotation_vao.bind()
-            self._functions.glDrawArrays(_GL_LINES, 0, self._primitive_annotation_count)
+            functions.glDrawArrays(_GL_LINES, 0, self._primitive_annotation_count)
             self._primitive_annotation_vao.release()
-            self._functions.glColorMask(True, True, True, True)
-            self._functions.glDisable(_GL_BLEND)
+            functions.glColorMask(True, True, True, True)
+            functions.glDisable(_GL_BLEND)
         if self._show_wireframe and self._primitive_wire_count > 0:
-            self._functions.glEnable(_GL_BLEND)
-            self._functions.glBlendFuncSeparate(
-                _GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA, _GL_ZERO, _GL_ONE
-            )
-            self._functions.glColorMask(True, True, True, False)
-            self._functions.glUniform1f(alpha_location, 0.9)
+            functions.glEnable(_GL_BLEND)
+            functions.glBlendFuncSeparate(_GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA, _GL_ZERO, _GL_ONE)
+            functions.glColorMask(True, True, True, False)
+            functions.glUniform1f(alpha_location, 0.9)
             self._primitive_wire_vao.bind()
-            self._functions.glDrawArrays(_GL_LINES, 0, self._primitive_wire_count)
+            functions.glDrawArrays(_GL_LINES, 0, self._primitive_wire_count)
             self._primitive_wire_vao.release()
-            self._functions.glColorMask(True, True, True, True)
-            self._functions.glDisable(_GL_BLEND)
+            functions.glColorMask(True, True, True, True)
+            functions.glDisable(_GL_BLEND)
         if self._show_wireframe:
-            self._functions.glEnable(_GL_BLEND)
-            self._functions.glBlendFunc(_GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA)
-            self._functions.glUniform1f(alpha_location, 0.9)
+            functions.glEnable(_GL_BLEND)
+            functions.glBlendFunc(_GL_SRC_ALPHA, _GL_ONE_MINUS_SRC_ALPHA)
+            functions.glUniform1f(alpha_location, 0.9)
             self._wire_vao.bind()
-            self._functions.glDrawArrays(_GL_LINES, 0, self._wire_count)
+            functions.glDrawArrays(_GL_LINES, 0, self._wire_count)
             self._wire_vao.release()
-            self._functions.glUniform1f(alpha_location, 1.0)
-            self._functions.glDisable(_GL_BLEND)
+            functions.glUniform1f(alpha_location, 1.0)
+            functions.glDisable(_GL_BLEND)
         if self._highlight_count > 0:
-            self._functions.glUniform1f(alpha_location, 1.0)
+            functions.glUniform1f(alpha_location, 1.0)
             self._highlight_vao.bind()
-            self._functions.glDrawArrays(_GL_LINES, 0, self._highlight_count)
+            functions.glDrawArrays(_GL_LINES, 0, self._highlight_count)
             self._highlight_vao.release()
-        self._wire_program.release()
+        program.release()
 
-    def _draw_axis_gizmo(self) -> None:
+    def _draw_axis_gizmo(self, gl: _GLResources) -> None:
         if self.width() < 1 or self.height() < 1:
             return
         rotation = self._view()
@@ -519,23 +540,24 @@ class OpenGLViewer(QOpenGLWidget):
         margin = 12
         x = margin
         y = margin
-        self._functions.glViewport(x, y, size, size)
-        self._functions.glDisable(_GL_DEPTH_TEST)
+        functions = gl.functions
+        functions.glViewport(x, y, size, size)
+        functions.glDisable(_GL_DEPTH_TEST)
         projection = QMatrix4x4()
         projection.ortho(-1.0, 1.0, -1.0, 1.0, -1.0, 1.0)
 
         count = self._allocate(self._axis_vbo, vertices, 6)
-        self._wire_program.bind()
-        self._wire_program.setUniformValue("mvp", projection)
-        alpha_location = self._wire_program.uniformLocation("alpha")
-        self._functions.glUniform1f(alpha_location, 1.0)
+        program = gl.wire.program
+        program.bind()
+        program.setUniformValue(gl.wire.mvp, projection)
+        functions.glUniform1f(gl.wire.alpha, 1.0)
         self._axis_vao.bind()
-        self._functions.glDrawArrays(_GL_TRIANGLES, 0, count)
+        functions.glDrawArrays(_GL_TRIANGLES, 0, count)
         self._axis_vao.release()
-        self._wire_program.release()
+        program.release()
 
-        self._functions.glEnable(_GL_DEPTH_TEST)
-        self._functions.glViewport(0, 0, self.width(), self.height())
+        functions.glEnable(_GL_DEPTH_TEST)
+        functions.glViewport(0, 0, self.width(), self.height())
 
     def set_geometry(self, data: GeometryData, fit: bool = False) -> None:
         self._geometry_data = data
@@ -1025,7 +1047,7 @@ class OpenGLViewer(QOpenGLWidget):
                 )
 
         # Overlay layers / GeometryData primitives
-        overlay_prims = list(getattr(self._geometry_data, "primitives", ()))
+        overlay_prims = list(self._geometry_data.primitives)
         for layer_id, layer_prims in self._overlay_layers.items():
             if layer_id == "_viewport_api" and self._scene_objects:
                 continue
@@ -1140,7 +1162,8 @@ class OpenGLViewer(QOpenGLWidget):
             corners = (offset, -offset, tip - offset, tip + offset)
             for a, b, c in ((0, 1, 2), (0, 2, 3)):
                 for index in (a, b, c):
-                    vertices.extend((*corners[index].toTuple(), *color))
+                    corner = corners[index]
+                    vertices.extend((corner.x(), corner.y(), corner.z(), *color))
         return vertices
 
     def _eye_position(self) -> QVector3D:
@@ -1190,7 +1213,8 @@ class OpenGLViewer(QOpenGLWidget):
 
         Returns ``None`` if the OpenGL context is unavailable.
         """
-        if self._functions is None or not self.isValid():
+        gl = self._gl
+        if gl is None or not self.isValid():
             return None
 
         self.makeCurrent()
@@ -1205,7 +1229,7 @@ class OpenGLViewer(QOpenGLWidget):
                 return None
 
             fbo.bind()
-            self._functions.glViewport(0, 0, width, height)
+            gl.functions.glViewport(0, 0, width, height)
 
             # Re-upload meshes so the FBO gets the latest data
             if self._mesh_dirty:
@@ -1217,7 +1241,7 @@ class OpenGLViewer(QOpenGLWidget):
 
             # Clear
             if transparent_background:
-                self._functions.glClearColor(0.0, 0.0, 0.0, 0.0)
+                gl.functions.glClearColor(0.0, 0.0, 0.0, 0.0)
             else:
                 from PySide6.QtGui import QColor
 
@@ -1226,8 +1250,8 @@ class OpenGLViewer(QOpenGLWidget):
                 tok = tokens()
                 bg_hex = tok.get("plot", "#141414")
                 qbg = QColor(bg_hex)
-                self._functions.glClearColor(qbg.redF(), qbg.greenF(), qbg.blueF(), 1.0)
-            self._functions.glClear(_GL_COLOR_BUFFER_BIT | _GL_DEPTH_BUFFER_BIT)
+                gl.functions.glClearColor(qbg.redF(), qbg.greenF(), qbg.blueF(), 1.0)
+            gl.functions.glClear(_GL_COLOR_BUFFER_BIT | _GL_DEPTH_BUFFER_BIT)
 
             aspect = width / max(1, height)
             mvp = self._projection(aspect_override=aspect) * self._view()
@@ -1240,15 +1264,14 @@ class OpenGLViewer(QOpenGLWidget):
                 or (self._show_wireframe and self._primitive_wire_count > 0)
                 or self._primitive_annotation_count > 0
             )
-            self._draw_solid_mesh(mvp, lines_overlay)
-            if self._wire_program is not None:
-                self._draw_wire_mesh(mvp)
+            self._draw_solid_mesh(gl, mvp, lines_overlay)
+            self._draw_wire_mesh(gl, mvp)
 
             image = fbo.toImage()
             fbo.release()
 
             # Restore widget viewport
-            self._functions.glViewport(0, 0, self.width(), self.height())
+            gl.functions.glViewport(0, 0, self.width(), self.height())
             return image
         except Exception:
             logger.exception("Screenshot capture failed")
@@ -1295,9 +1318,7 @@ class OpenGLViewer(QOpenGLWidget):
             # A QOpenGLWidget can receive a fresh context after native widget
             # or screen changes. Never let wrappers from the old context be
             # reused by the next initializeGL call.
-            self._functions = None
-            self._wire_program = None
-            self._solid_program = None
+            self._gl = None
             self._wire_count = 0
             self._solid_count = 0
             self._grid_count = 0

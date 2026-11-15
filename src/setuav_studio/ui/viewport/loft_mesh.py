@@ -50,6 +50,15 @@ def _lerp(start: Point3D, end: Point3D, fraction: float) -> Point3D:
     )
 
 
+def _centroid(loop: Sequence[Point3D]) -> Point3D:
+    count = len(loop)
+    return (
+        sum(point[0] for point in loop) / count,
+        sum(point[1] for point in loop) / count,
+        sum(point[2] for point in loop) / count,
+    )
+
+
 def _add_line(vertices: list[float], start: Point3D, end: Point3D, color: Point3D) -> None:
     vertices.extend((*start, *color, *end, *color))
 
@@ -402,8 +411,10 @@ def build_loft_solid_vertices(
         loops = _tessellated_loops(loft)
         if not loops:
             continue
+        color: Point3D
         if face_style in (FACE_COLORED, FACE_TRANSPARENT):
-            color = tuple(channel * _SOLID_TINT for channel in loft.color)
+            red, green, blue = loft.color
+            color = (red * _SOLID_TINT, green * _SOLID_TINT, blue * _SOLID_TINT)
         else:
             color = _SOLID_GREY
 
@@ -431,10 +442,7 @@ def _tessellated_loops(loft: LoftGeometry) -> list[tuple[Point3D, ...]]:
     parameters = _section_parameters(sections)
     use_spline = loft.interpolation == "smooth" and len(sections) > 2
     splines = _build_splines(sections, parameters) if use_spline else None
-    centres = [
-        tuple(sum(point[axis] for point in section) / len(section) for axis in range(3))
-        for section in sections
-    ]
+    centres = [_centroid(section) for section in sections]
     result: list[tuple[Point3D, ...]] = []
     for gap in range(len(sections) - 1):
         result.append(sections[gap])
@@ -473,10 +481,7 @@ def _station_count(gap_length: float, spacing: float) -> int:
 def _section_parameters(
     sections: list[tuple[Point3D, ...]],
 ) -> list[float]:
-    centres = [
-        tuple(sum(point[axis] for point in section) / len(section) for axis in range(3))
-        for section in sections
-    ]
+    centres = [_centroid(section) for section in sections]
     distances = [math.dist(start, end) for start, end in pairwise(centres)]
     if any(distance < 1e-6 for distance in distances):
         return [float(index) for index in range(len(sections))]
@@ -551,8 +556,8 @@ def _spline_eval(
 
 def _add_quad_strip(
     vertices: list[float],
-    first: tuple[Point3D, ...],
-    second: tuple[Point3D, ...],
+    first: Sequence[Point3D],
+    second: Sequence[Point3D],
     color: Point3D,
 ) -> None:
     for index in range(len(first)):
@@ -565,11 +570,11 @@ def _add_quad_strip(
 
 def _cap_loop(
     vertices: list[float],
-    loop: tuple[Point3D, ...],
+    loop: Sequence[Point3D],
     color: Point3D,
     flip: bool,
 ) -> None:
-    centre = tuple(sum(point[axis] for point in loop) / len(loop) for axis in range(3))
+    centre = _centroid(loop)
     for index, point in enumerate(loop):
         following = loop[(index + 1) % len(loop)]
         if flip:
