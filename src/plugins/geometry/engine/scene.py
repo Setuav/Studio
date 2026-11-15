@@ -14,7 +14,7 @@ from .transforms import (
     transform_point,
 )
 
-GeometryProvider = Callable[..., tuple[LoftGeometry, ...]]
+GeometryProvider = Callable[[dict[str, Any], list[dict[str, Any]]], tuple[LoftGeometry, ...]]
 
 
 def _frame_parent(item: dict[str, Any]) -> str | None:
@@ -167,19 +167,14 @@ def _child_control_surfaces(
 ) -> list[dict[str, Any]]:
     if source.get("type") != "org.setuav.core:lifting-surface":
         return []
+    owner_id = item.get("source") if item.get("kind") == "instance" else item_id
+    if not isinstance(owner_id, str) or not owner_id:
+        return []
     controls = [
         control
         for child in items.values()
-        if (control := _child_control_surface(child, item_id)) is not None
+        if (control := _child_control_surface(child, owner_id)) is not None
     ]
-    if not controls and item.get("kind") == "instance":
-        source_id = item.get("source")
-        if isinstance(source_id, str) and source_id:
-            controls = [
-                control
-                for child in items.values()
-                if (control := _child_control_surface(child, source_id)) is not None
-            ]
     if _is_xz_mirror(item.get("derivation")):
         _invert_differential_controls(controls)
     return controls
@@ -198,7 +193,10 @@ def _child_control_surface(
     parameters = parameters if isinstance(parameters, dict) else {}
     geometry = parameters.get("geometry")
     control = deepcopy(geometry) if isinstance(geometry, dict) else {}
-    control.setdefault("tag", child.get("id") or child.get("name"))
+    if "id" in child:
+        control["id"] = child["id"]
+    if "name" in child:
+        control["name"] = child["name"]
     return control
 
 
@@ -216,7 +214,7 @@ def _append_component_geometry(
     if provider is None:
         return
     matrix = world_matrix(item_id)
-    source_lofts = provider(source, controls) if controls else provider(source)
+    source_lofts = provider(source, controls)
     lofts.extend(_transform_loft(loft, matrix, item_id) for loft in source_lofts)
     if component_type == "org.setuav.core:lifting-surface" and _is_bilateral(source):
         _append_mirrored_geometry(
@@ -257,7 +255,7 @@ def _append_mirrored_geometry(
     )
     mirrored_controls = deepcopy(controls)
     _invert_differential_controls(mirrored_controls)
-    mirrored_lofts = provider(source, mirrored_controls) if mirrored_controls else provider(source)
+    mirrored_lofts = provider(source, mirrored_controls)
     lofts.extend(
         _transform_loft(loft, mirrored_matrix, f"{item_id}:mirror") for loft in mirrored_lofts
     )
@@ -330,7 +328,7 @@ def _lifting_surface_root_geometry(
     source = _geometry_source(item, items)
     if source is None or source.get("type") != "org.setuav.core:lifting-surface":
         return None
-    lofts = provider(source)
+    lofts = provider(source, [])
     if not lofts or not lofts[0].sections:
         return None
     return source, lofts[0].sections[0]

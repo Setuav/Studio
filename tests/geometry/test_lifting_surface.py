@@ -66,7 +66,7 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
             },
         )
 
-        def provider(_component):
+        def provider(_component, _controls):
             return (
                 LoftGeometry(
                     "wing-left",

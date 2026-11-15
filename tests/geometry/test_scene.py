@@ -284,9 +284,77 @@ def _build_fuselage_component() -> dict:
             viewport.capture_screenshot(1920, 1080, transparent_background=True)
             mock_capture.assert_called_with(1920, 1080, transparent_background=True)
 
+    def test_provider_uniform_signature_and_instance_source_controls(self) -> None:
+        from pathlib import Path
 
-if __name__ == "__main__":
-    unittest.main()
+        from setuav_studio.project import ProjectDocument
+
+        wing = {
+            "kind": "component",
+            "id": "wing-src",
+            "type": "org.setuav.core:lifting-surface",
+            "parameters": {
+                "geometry": {
+                    "profiles": [
+                        {
+                            "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+                            "chord": 200.0,
+                            "airfoil": "2412",
+                        },
+                        {
+                            "position": {"x": 20.0, "y": 500.0, "z": 0.0},
+                            "chord": 150.0,
+                            "airfoil": "2412",
+                        },
+                    ]
+                }
+            },
+        }
+        source_aileron = {
+            "kind": "component",
+            "id": "src-aileron",
+            "type": "org.setuav.core:control-surface",
+            "parent": "wing-src",
+            "parameters": {
+                "geometry": {
+                    "type": "aileron",
+                    "span_start": 200.0,
+                    "span_end": 450.0,
+                    "chord": 40.0,
+                    "deflection": 15.0,
+                }
+            },
+        }
+        inst_wing = {
+            "kind": "instance",
+            "id": "wing-inst",
+            "source": "wing-src",
+            "derivation": {"type": "mirror", "plane": "XZ"},
+        }
+        doc = ProjectDocument(
+            Path("/tmp/scene-inst.json"),
+            "json",
+            {"components": [wing, source_aileron, inst_wing]},
+        )
+        seen_calls: list[tuple[str, list[dict]]] = []
+
+        def tracking_wing_provider(
+            component: dict, controls: list[dict]
+        ) -> tuple[LoftGeometry, ...]:
+            seen_calls.append((str(component.get("id")), controls))
+            return build_lifting_surface_geometry(component, controls)
+
+        scene_geom = build_project_geometry(
+            doc, {"org.setuav.core:lifting-surface": tracking_wing_provider}
+        )
+        self.assertEqual(len(seen_calls), 2)
+        self.assertTrue(all(len(ctrls) == 1 for _, ctrls in seen_calls))
+        inst_aileron_loft = next(
+            (loft for loft in scene_geom.lofts if loft.component_id == "wing-inst:src-aileron"),
+            None,
+        )
+        self.assertIsNotNone(inst_aileron_loft)
+
 
 if __name__ == "__main__":
     unittest.main()

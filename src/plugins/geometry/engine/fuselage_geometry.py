@@ -8,7 +8,10 @@ from .transforms import section_transform, transform_point
 SECTION_SAMPLES = 128
 
 
-def build_fuselage_geometry(component: dict[str, Any]) -> tuple[LoftGeometry, ...]:
+def build_fuselage_geometry(
+    component: dict[str, Any],
+    _controls: list[dict[str, Any]] | None = None,
+) -> tuple[LoftGeometry, ...]:
     parameters = component.get("parameters")
     parameters = parameters if isinstance(parameters, dict) else {}
     geometry = parameters.get("geometry")
