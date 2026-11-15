@@ -14,7 +14,7 @@ from .transforms import (
     transform_point,
 )
 
-GeometryProvider = Callable[[dict[str, Any]], tuple[LoftGeometry, ...]]
+GeometryProvider = Callable[..., tuple[LoftGeometry, ...]]
 
 
 def _frame_parent(item: dict[str, Any]) -> str | None:
@@ -39,12 +39,13 @@ def build_project_geometry(
         source = _geometry_source(item, items)
         if source is None:
             continue
-        _attach_child_control_surfaces(source, item_id, items)
+        controls = _child_control_surfaces(item, source, item_id, items)
         _append_component_geometry(
             lofts,
             item_id,
             item,
             source,
+            controls,
             providers,
             world_matrix,
         )
@@ -140,8 +141,6 @@ def _geometry_source(
             parameters = {}
             source["parameters"] = parameters
         _merge(parameters, overrides)
-    if _is_xz_mirror(item.get("derivation")):
-        _invert_differential_controls(source)
     return source
 
 
@@ -151,14 +150,7 @@ def _is_xz_mirror(derivation: Any) -> bool:
     return derivation.get("plane", "XZ") in ("XZ", "1", None)
 
 
-def _invert_differential_controls(source: dict[str, Any]) -> None:
-    parameters = source.get("parameters")
-    parameters = parameters if isinstance(parameters, dict) else {}
-    geometry = parameters.get("geometry")
-    geometry = geometry if isinstance(geometry, dict) else {}
-    controls = geometry.get("control_surfaces")
-    if not isinstance(controls, list):
-        return
+def _invert_differential_controls(controls: list[dict[str, Any]]) -> None:
     for control in controls:
         if isinstance(control, dict) and str(control.get("type", "aileron")).lower() in (
             "aileron",
@@ -167,22 +159,30 @@ def _invert_differential_controls(source: dict[str, Any]) -> None:
             control["deflection"] = -float(control.get("deflection", 0.0))
 
 
-def _attach_child_control_surfaces(
+def _child_control_surfaces(
+    item: dict[str, Any],
     source: dict[str, Any],
     item_id: str,
     items: dict[str, dict[str, Any]],
-) -> None:
+) -> list[dict[str, Any]]:
     if source.get("type") != "org.setuav.core:lifting-surface":
-        return
+        return []
     controls = [
         control
         for child in items.values()
         if (control := _child_control_surface(child, item_id)) is not None
     ]
-    if controls:
-        parameters = source.setdefault("parameters", {})
-        geometry = parameters.setdefault("geometry", {})
-        geometry["control_surfaces"] = controls
+    if not controls and item.get("kind") == "instance":
+        source_id = item.get("source")
+        if isinstance(source_id, str) and source_id:
+            controls = [
+                control
+                for child in items.values()
+                if (control := _child_control_surface(child, source_id)) is not None
+            ]
+    if _is_xz_mirror(item.get("derivation")):
+        _invert_differential_controls(controls)
+    return controls
 
 
 def _child_control_surface(
@@ -207,6 +207,7 @@ def _append_component_geometry(
     item_id: str,
     item: dict[str, Any],
     source: dict[str, Any],
+    controls: list[dict[str, Any]],
     providers: dict[str, GeometryProvider],
     world_matrix: Callable[[str], Matrix4],
 ) -> None:
@@ -215,13 +216,15 @@ def _append_component_geometry(
     if provider is None:
         return
     matrix = world_matrix(item_id)
-    lofts.extend(_transform_loft(loft, matrix, item_id) for loft in provider(source))
+    source_lofts = provider(source, controls) if controls else provider(source)
+    lofts.extend(_transform_loft(loft, matrix, item_id) for loft in source_lofts)
     if component_type == "org.setuav.core:lifting-surface" and _is_bilateral(source):
         _append_mirrored_geometry(
             lofts,
             item_id,
             item,
             source,
+            controls,
             provider,
             world_matrix,
         )
@@ -240,6 +243,7 @@ def _append_mirrored_geometry(
     item_id: str,
     item: dict[str, Any],
     source: dict[str, Any],
+    controls: list[dict[str, Any]],
     provider: GeometryProvider,
     world_matrix: Callable[[str], Matrix4],
 ) -> None:
@@ -251,11 +255,11 @@ def _append_mirrored_geometry(
         parent_matrix,
         multiply_matrix(mirror, local_matrix),
     )
-    mirrored_source = deepcopy(source)
-    _invert_differential_controls(mirrored_source)
+    mirrored_controls = deepcopy(controls)
+    _invert_differential_controls(mirrored_controls)
+    mirrored_lofts = provider(source, mirrored_controls) if mirrored_controls else provider(source)
     lofts.extend(
-        _transform_loft(loft, mirrored_matrix, f"{item_id}:mirror")
-        for loft in provider(mirrored_source)
+        _transform_loft(loft, mirrored_matrix, f"{item_id}:mirror") for loft in mirrored_lofts
     )
 
 

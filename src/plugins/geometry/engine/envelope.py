@@ -1122,22 +1122,13 @@ def _compute_control_surface_envelope(
 
             from .lifting_surface_geometry import build_lifting_surface_geometry
 
-            parent_copy = deepcopy(parent)
-            p_params = parent_copy.setdefault("parameters", {})
-            p_geom = p_params.setdefault("geometry", {})
-            p_controls = [
-                c
-                for c in (p_geom.get("control_surfaces") or [])
-                if isinstance(c, dict) and str(c.get("tag") or "").lower() != ctrl_tag.lower()
-            ]
             ctrl_geom = deepcopy(geometry)
             ctrl_geom["tag"] = ctrl_tag
             ctrl_geom["deflection"] = 0.0
-            ctrl_geom["deflection_expression"] = None
-            p_controls.append(ctrl_geom)
-            p_geom["control_surfaces"] = p_controls
+            if isinstance(ctrl_geom.get("_expressions"), dict):
+                ctrl_geom["_expressions"].pop("deflection", None)
 
-            lofts = build_lifting_surface_geometry(parent_copy)
+            lofts = build_lifting_surface_geometry(parent, control_surfaces=[ctrl_geom])
             control_loft = next(
                 (
                     loft

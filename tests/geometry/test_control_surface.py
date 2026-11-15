@@ -42,21 +42,19 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
                             "airfoil": "2412",
                         },
                     ],
-                    "control_surfaces": [
-                        {
-                            "tag": "aileron_1",
-                            "type": "aileron",
-                            "span_start": 200.0,
-                            "span_end": 450.0,
-                            "chord": 40.0,
-                            "deflection": 20.0,
-                        }
-                    ],
                 }
             },
         }
+        cs_geom = {
+            "tag": "aileron_1",
+            "type": "aileron",
+            "span_start": 200.0,
+            "span_end": 450.0,
+            "chord": 40.0,
+            "deflection": 20.0,
+        }
 
-        lofts = build_lifting_surface_geometry(wing_component)
+        lofts = build_lifting_surface_geometry(wing_component, control_surfaces=[cs_geom])
         # Should produce:
         # 1. Inboard wing segment (0 - 200 mm)
         # 2. Main wing body at CS segment (200 - 450 mm)
@@ -75,9 +73,11 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
                 self.assertEqual(len(sec.points), 64)
 
         # Compare neutral (deflection=0) vs deflected (deflection=20)
-        wing_neutral = deepcopy(wing_component)
-        wing_neutral["parameters"]["geometry"]["control_surfaces"][0]["deflection"] = 0.0
-        lofts_neutral = build_lifting_surface_geometry(wing_neutral)
+        cs_neutral_geom = deepcopy(cs_geom)
+        cs_neutral_geom["deflection"] = 0.0
+        lofts_neutral = build_lifting_surface_geometry(
+            wing_component, control_surfaces=[cs_neutral_geom]
+        )
         cs_neutral = next(loft for loft in lofts_neutral if "aileron_1" in loft.component_id)
 
         # Find trailing edge index (maximum X)
@@ -93,6 +93,13 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
         proj_data = {
             "components": [
                 wing_component,
+                {
+                    "kind": "component",
+                    "id": "aileron_1",
+                    "type": "org.setuav.core:control-surface",
+                    "parent": "test-wing",
+                    "parameters": {"geometry": cs_geom},
+                },
                 {
                     "kind": "instance",
                     "id": "test-wing-mirrored",
@@ -138,21 +145,21 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
                             "airfoil": "0012",
                         },
                     ],
-                    "control_surfaces": [
-                        {
-                            "tag": "elevator",
-                            "type": "elevator",
-                            "span_start": 50.0,
-                            "span_end": 100.0,
-                            "chord": 30.0,
-                            "deflection": 10.0,
-                        }
-                    ],
                 }
             },
         }
+        cs_list = [
+            {
+                "tag": "elevator",
+                "type": "elevator",
+                "span_start": 50.0,
+                "span_end": 100.0,
+                "chord": 30.0,
+                "deflection": 10.0,
+            }
+        ]
 
-        lofts = build_lifting_surface_geometry(v_tail_left)
+        lofts = build_lifting_surface_geometry(v_tail_left, control_surfaces=cs_list)
         self.assertEqual(len(lofts), 4)
         cs_loft = next((loft for loft in lofts if "elevator" in loft.component_id), None)
         self.assertIsNotNone(cs_loft)
@@ -180,22 +187,22 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
                             "airfoil": "0012",
                         },
                     ],
-                    "control_surfaces": [
-                        {
-                            "tag": "aileron",
-                            "type": "aileron",
-                            "span_start": 100.0,
-                            "span_end": 400.0,
-                            "chord": 40.0,
-                            "hinge_sweep": 0.0,  # Parallel to Y axis (zero sweep)
-                            "deflection": 0.0,
-                        }
-                    ],
                 }
             },
         }
+        cs_list = [
+            {
+                "tag": "aileron",
+                "type": "aileron",
+                "span_start": 100.0,
+                "span_end": 400.0,
+                "chord": 40.0,
+                "hinge_sweep": 0.0,  # Parallel to Y axis (zero sweep)
+                "deflection": 0.0,
+            }
+        ]
 
-        lofts = build_lifting_surface_geometry(wing_with_sweep)
+        lofts = build_lifting_surface_geometry(wing_with_sweep, control_surfaces=cs_list)
         cs_loft = next(loft for loft in lofts if "aileron" in loft.component_id)
         self.assertEqual(len(cs_loft.sections), 2)
         # Top hinge line X location should be exactly 150.0 mm at both section 0 and section 1
@@ -264,36 +271,52 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
                         {"chord": 200.0, "position": {"x": 0.0, "y": 0.0, "z": 0.0}},
                         {"chord": 100.0, "position": {"x": 50.0, "y": 1000.0, "z": 0.0}},
                     ],
-                    "control_surfaces": [
-                        {
-                            "tag": "aileron_ratio",
-                            "type": "aileron",
-                            "span_mode": "ratio",
-                            "eta_start": 0.5,
-                            "eta_end": 0.9,
-                            "span_start": 500.0,
-                            "span_end": 900.0,
-                            "chord_mode": "ratio",
-                            "chord_fraction": 0.25,
-                            "chord": 50.0,
-                        },
-                        {
-                            "tag": "flap_dim",
-                            "type": "flap",
-                            "span_mode": "dimension",
-                            "span_start": 100.0,
-                            "span_end": 400.0,
-                            "eta_start": 0.1,
-                            "eta_end": 0.4,
-                            "chord_mode": "dimension",
-                            "chord": 45.0,
-                            "chord_fraction": 0.225,
-                        },
-                    ],
                 }
             },
         }
-        doc = ProjectDocument(Path("/tmp/test.json"), "json", {"components": [wing_comp]})
+        cs0_comp = {
+            "kind": "component",
+            "id": "aileron_ratio",
+            "type": "org.setuav.core:control-surface",
+            "parent": "main-wing",
+            "parameters": {
+                "geometry": {
+                    "tag": "aileron_ratio",
+                    "type": "aileron",
+                    "span_mode": "ratio",
+                    "eta_start": 0.5,
+                    "eta_end": 0.9,
+                    "span_start": 500.0,
+                    "span_end": 900.0,
+                    "chord_mode": "ratio",
+                    "chord_fraction": 0.25,
+                    "chord": 50.0,
+                }
+            },
+        }
+        cs1_comp = {
+            "kind": "component",
+            "id": "flap_dim",
+            "type": "org.setuav.core:control-surface",
+            "parent": "main-wing",
+            "parameters": {
+                "geometry": {
+                    "tag": "flap_dim",
+                    "type": "flap",
+                    "span_mode": "dimension",
+                    "span_start": 100.0,
+                    "span_end": 400.0,
+                    "eta_start": 0.1,
+                    "eta_end": 0.4,
+                    "chord_mode": "dimension",
+                    "chord": 45.0,
+                    "chord_fraction": 0.225,
+                }
+            },
+        }
+        doc = ProjectDocument(
+            Path("/tmp/test.json"), "json", {"components": [wing_comp, cs0_comp, cs1_comp]}
+        )
         api = StudioAPI()
         api._host.set_project(doc)
         editor = LiftingSurfaceEditor(api, wing_comp)
@@ -301,7 +324,7 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
         # 1. Test live spinbox sync when user edits eta_start on aileron (index 0)
         editor._load_control_surface(0)
         editor._on_cs_prop_spinbox_changed("eta_start", 0.6)
-        geom0 = editor._geometry()["control_surfaces"][0]
+        geom0 = cs0_comp["parameters"]["geometry"]
         self.assertAlmostEqual(geom0["eta_start"], 0.6)
         self.assertAlmostEqual(geom0["span_start"], 600.0)  # 0.6 * 1000.0
 
@@ -314,7 +337,7 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
         self.assertAlmostEqual(geom0["span_end"], 1800.0)  # 0.9 * 2000
 
         # Dimension flap should keep its fixed 100-400mm span, but eta updates to 0.05 - 0.20
-        geom1 = editor._geometry()["control_surfaces"][1]
+        geom1 = cs1_comp["parameters"]["geometry"]
         self.assertAlmostEqual(geom1["span_start"], 100.0)
         self.assertAlmostEqual(geom1["span_end"], 400.0)
         self.assertAlmostEqual(geom1["eta_start"], 0.05)

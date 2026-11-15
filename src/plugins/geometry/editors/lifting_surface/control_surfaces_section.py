@@ -258,11 +258,13 @@ class ControlSurfacesSectionMixin:
                 lambda val: self._update_cs_choice("sizing_mode", val),
             )
 
+            exprs = geom.get("_expressions") if isinstance(geom.get("_expressions"), dict) else {}
+
             self._setup_param(
                 "area",
                 "Area",
                 metrics["area_dm2"],
-                geom.get("area_expression"),
+                exprs.get("area"),
                 "dm²",
                 3,
                 driver_keys,
@@ -274,7 +276,7 @@ class ControlSurfacesSectionMixin:
                 "span_start",
                 "Span start",
                 metrics["span_start"],
-                geom.get("span_start_expression"),
+                exprs.get("span_start"),
                 "mm",
                 2,
                 driver_keys,
@@ -283,7 +285,7 @@ class ControlSurfacesSectionMixin:
                 "span_end",
                 "Span end",
                 metrics["span_end"],
-                geom.get("span_end_expression"),
+                exprs.get("span_end"),
                 "mm",
                 2,
                 driver_keys,
@@ -292,7 +294,7 @@ class ControlSurfacesSectionMixin:
                 "span_length",
                 "Span length",
                 metrics["span_length"],
-                geom.get("span_length_expression"),
+                exprs.get("span_length"),
                 "mm",
                 2,
                 driver_keys,
@@ -301,7 +303,7 @@ class ControlSurfacesSectionMixin:
                 "eta_start",
                 "Span start fraction",
                 metrics["eta_start"],
-                geom.get("eta_start_expression"),
+                exprs.get("eta_start"),
                 "",
                 3,
                 driver_keys,
@@ -310,7 +312,7 @@ class ControlSurfacesSectionMixin:
                 "eta_end",
                 "Span end fraction",
                 metrics["eta_end"],
-                geom.get("eta_end_expression"),
+                exprs.get("eta_end"),
                 "",
                 3,
                 driver_keys,
@@ -319,7 +321,7 @@ class ControlSurfacesSectionMixin:
                 "chord_fraction",
                 "Chord fraction",
                 metrics["chord_fraction"],
-                geom.get("chord_fraction_expression"),
+                exprs.get("chord_fraction"),
                 "c",
                 3,
                 driver_keys,
@@ -328,13 +330,13 @@ class ControlSurfacesSectionMixin:
                 "chord",
                 "Control chord",
                 metrics["chord"],
-                geom.get("chord_expression"),
+                exprs.get("chord"),
                 "mm",
                 2,
                 driver_keys,
             )
 
-            hs_val = geom.get("hinge_sweep_expression") or hinge_sweep
+            hs_val = exprs.get("hinge_sweep") or hinge_sweep
             self._set_property_expression(
                 self.cs_properties_table,
                 "hinge_sweep",
@@ -346,7 +348,7 @@ class ControlSurfacesSectionMixin:
                 decimals=2,
             )
 
-            def_val = geom.get("deflection_expression") or deflection
+            def_val = exprs.get("deflection") or deflection
             self._set_property_expression(
                 self.cs_properties_table,
                 "deflection",
@@ -382,7 +384,7 @@ class ControlSurfacesSectionMixin:
         val_str = str(value).strip() if value is not None else ""
         num_val: float | None = None
         if val_str.startswith("=") or not val_str.replace(".", "", 1).replace("-", "", 1).isdigit():
-            geom[f"{key}_expression"] = val_str
+            geom.setdefault("_expressions", {})[key] = val_str
             if self._api is not None and getattr(self._api, "current_project", None) is not None:
                 try:
                     from setuav_studio.model.expression import ExpressionEvaluator
@@ -396,7 +398,10 @@ class ControlSurfacesSectionMixin:
                 except Exception:
                     pass
         else:
-            geom.pop(f"{key}_expression", None)
+            if isinstance(geom.get("_expressions"), dict):
+                geom["_expressions"].pop(key, None)
+                if not geom["_expressions"]:
+                    geom.pop("_expressions", None)
             with contextlib.suppress(ValueError):
                 num_val = float(val_str)
 
@@ -637,27 +642,6 @@ class ControlSurfacesSectionMixin:
                 self._api.edit_project("Add control surface", change)
             else:
                 change()
-        else:
-            new_cs = {
-                "tag": new_tag,
-                "type": "aileron",
-                "span_mode": "ratio",
-                "span_start": def_start,
-                "span_end": def_end,
-                "eta_start": round(def_start / semi_span, 3),
-                "eta_end": round(def_end / semi_span, 3),
-                "chord_mode": "ratio",
-                "chord_fraction": 0.25,
-                "chord": def_chord,
-                "hinge_sweep": 0.0,
-                "deflection": 0.0,
-                "symmetry_mode": "auto",
-            }
-
-            def change() -> None:
-                self._geometry().setdefault("control_surfaces", []).append(new_cs)
-
-            self._edit_component("Add control surface", change)
 
         self._populate_control_surfaces()
         insert_at = len(self._control_surfaces()) - 1
@@ -673,7 +657,7 @@ class ControlSurfacesSectionMixin:
         target = deepcopy(cs_list[idx])
         project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
 
-        if project and isinstance(project.data.get("components"), list) and "parameters" in target:
+        if project and isinstance(project.data.get("components"), list):
             base_id = str(target.get("id") or "cs")
             target["id"] = f"{base_id}-copy"
             target["name"] = f"{target.get('name', base_id)} (Copy)"
@@ -687,13 +671,6 @@ class ControlSurfacesSectionMixin:
                 self._api.edit_project("Duplicate control surface", change)
             else:
                 change()
-        else:
-            target["tag"] = f"{target.get('tag', 'cs')}_copy"
-
-            def change() -> None:
-                self._geometry().setdefault("control_surfaces", []).insert(idx + 1, target)
-
-            self._edit_component("Duplicate control surface", change)
 
         self._populate_control_surfaces()
         insert_at = len(self._control_surfaces()) - 1
@@ -719,19 +696,11 @@ class ControlSurfacesSectionMixin:
                 i1 = comps.index(cs_list[idx])
                 i2 = comps.index(cs_list[target])
                 comps[i1], comps[i2] = comps[i2], comps[i1]
-            elif "control_surfaces" in self._geometry():
-                cs_arr = self._geometry()["control_surfaces"]
-                cs_arr.insert(target, cs_arr.pop(idx))
 
-        if (
-            project
-            and isinstance(project.data.get("components"), list)
-            and cs_list[idx] in project.data["components"]
-            and hasattr(self._api, "edit_project")
-        ):
+        if hasattr(self._api, "edit_project"):
             self._api.edit_project("Move control surface up", change)
         else:
-            self._edit_component("Move control surface up", change)
+            change()
 
         self._populate_control_surfaces()
         self.control_surfaces_table.selectRow(target)
@@ -755,19 +724,11 @@ class ControlSurfacesSectionMixin:
                 i1 = comps.index(cs_list[idx])
                 i2 = comps.index(cs_list[target])
                 comps[i1], comps[i2] = comps[i2], comps[i1]
-            elif "control_surfaces" in self._geometry():
-                cs_arr = self._geometry()["control_surfaces"]
-                cs_arr.insert(target, cs_arr.pop(idx))
 
-        if (
-            project
-            and isinstance(project.data.get("components"), list)
-            and cs_list[idx] in project.data["components"]
-            and hasattr(self._api, "edit_project")
-        ):
+        if hasattr(self._api, "edit_project"):
             self._api.edit_project("Move control surface down", change)
         else:
-            self._edit_component("Move control surface down", change)
+            change()
 
         self._populate_control_surfaces()
         self.control_surfaces_table.selectRow(target)
@@ -789,22 +750,11 @@ class ControlSurfacesSectionMixin:
                 and target_item in project.data["components"]
             ):
                 project.data["components"].remove(target_item)
-            elif "control_surfaces" in self._geometry():
-                cs_arr = self._geometry()["control_surfaces"]
-                if target_item in cs_arr:
-                    cs_arr.remove(target_item)
-                elif 0 <= idx < len(cs_arr):
-                    cs_arr.pop(idx)
 
-        if (
-            project
-            and isinstance(project.data.get("components"), list)
-            and target_item in project.data["components"]
-            and hasattr(self._api, "edit_project")
-        ):
+        if hasattr(self._api, "edit_project"):
             self._api.edit_project("Delete control surface", change)
         else:
-            self._edit_component("Delete control surface", change)
+            change()
 
         self._populate_control_surfaces()
         new_idx = min(idx, len(self._control_surfaces()) - 1)

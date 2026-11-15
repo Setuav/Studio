@@ -24,6 +24,7 @@ from .transforms import Matrix4, section_transform, transform_point
 
 def build_lifting_surface_geometry(
     component: dict[str, Any],
+    control_surfaces: list[dict[str, Any]] | None = None,
 ) -> tuple[LoftGeometry, ...]:
     """Generate loft geometries for a lifting surface and its control surfaces."""
     parameters = component.get("parameters")
@@ -37,7 +38,6 @@ def build_lifting_surface_geometry(
     comp_id = str(component.get("id") or "lifting-surface")
     interpolation = "smooth" if len(profiles) > 2 else "linear"
 
-    control_surfaces = geometry.get("control_surfaces")
     twist_location = float(geometry.get("twist_location", 0.25))
 
     # Airfoil Shaping parameters

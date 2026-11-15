@@ -175,15 +175,6 @@ class TestStabilityAnalysisEngine(unittest.TestCase):
                 "parameters": {
                     "geometry": {
                         "mirror": True,
-                        "control_surfaces": [
-                            {
-                                "tag": "aileron",
-                                "type": "aileron",
-                                "eta_start": 0.6,
-                                "eta_end": 1.0,
-                                "chord_fraction": 0.25,
-                            }
-                        ],
                         "profiles": [
                             {
                                 "position": {"x": 0, "y": 0, "z": 0},
@@ -206,18 +197,8 @@ class TestStabilityAnalysisEngine(unittest.TestCase):
                 "name": "Horizontal Tail",
                 "type": "org.setuav.core:lifting-surface",
                 "parameters": {
-                    "tags": ["elevator"],
                     "geometry": {
                         "mirror": True,
-                        "control_surfaces": [
-                            {
-                                "tag": "elevator",
-                                "type": "elevator",
-                                "eta_start": 0.0,
-                                "eta_end": 1.0,
-                                "chord_fraction": 0.35,
-                            }
-                        ],
                         "profiles": [
                             {
                                 "position": {"x": 500, "y": 0, "z": 50},
@@ -240,18 +221,8 @@ class TestStabilityAnalysisEngine(unittest.TestCase):
                 "name": "Vertical Fin",
                 "type": "org.setuav.core:lifting-surface",
                 "parameters": {
-                    "tags": ["rudder"],
                     "geometry": {
                         "mirror": False,
-                        "control_surfaces": [
-                            {
-                                "tag": "rudder",
-                                "type": "rudder",
-                                "eta_start": 0.0,
-                                "eta_end": 1.0,
-                                "chord_fraction": 0.35,
-                            }
-                        ],
                         "profiles": [
                             {
                                 "position": {"x": 480, "y": 0, "z": 0},
@@ -267,6 +238,51 @@ class TestStabilityAnalysisEngine(unittest.TestCase):
                             },
                         ],
                     },
+                },
+            },
+            {
+                "id": "aileron-1",
+                "name": "Aileron",
+                "type": "org.setuav.core:control-surface",
+                "parent": "wing-1",
+                "parameters": {
+                    "geometry": {
+                        "tag": "aileron",
+                        "type": "aileron",
+                        "eta_start": 0.6,
+                        "eta_end": 1.0,
+                        "chord_fraction": 0.25,
+                    }
+                },
+            },
+            {
+                "id": "elevator-1",
+                "name": "Elevator",
+                "type": "org.setuav.core:control-surface",
+                "parent": "htail-1",
+                "parameters": {
+                    "geometry": {
+                        "tag": "elevator",
+                        "type": "elevator",
+                        "eta_start": 0.0,
+                        "eta_end": 1.0,
+                        "chord_fraction": 0.35,
+                    }
+                },
+            },
+            {
+                "id": "rudder-1",
+                "name": "Rudder",
+                "type": "org.setuav.core:control-surface",
+                "parent": "vfin-1",
+                "parameters": {
+                    "geometry": {
+                        "tag": "rudder",
+                        "type": "rudder",
+                        "eta_start": 0.0,
+                        "eta_end": 1.0,
+                        "chord_fraction": 0.35,
+                    }
                 },
             },
         ]

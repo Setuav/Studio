@@ -148,22 +148,11 @@ class AeroSandboxGeometryMixin:
     def _collect_control_surfaces(
         self,
         comp: dict[str, Any],
-        geometry: dict[str, Any],
         comp_by_id: dict[str, dict[str, Any]] | None,
     ) -> list[dict[str, Any]]:
-        controls = self._inline_control_surfaces(geometry)
-        if comp_by_id:
-            controls.extend(self._child_control_surfaces(str(comp.get("id") or ""), comp_by_id))
-        if not controls:
-            controls.extend(self._tag_control_surfaces(comp))
-        return controls
-
-    @staticmethod
-    def _inline_control_surfaces(geometry: dict[str, Any]) -> list[dict[str, Any]]:
-        values = geometry.get("control_surfaces")
-        if not isinstance(values, list):
+        if not comp_by_id:
             return []
-        return [value for value in values if isinstance(value, dict)]
+        return self._child_control_surfaces(str(comp.get("id") or ""), comp_by_id)
 
     @staticmethod
     def _child_control_surfaces(
@@ -183,47 +172,12 @@ class AeroSandboxGeometryMixin:
             control = deepcopy(geometry)
             control.setdefault("tag", other.get("name") or other.get("id"))
             control.setdefault("id", other.get("id"))
-            control["_child_component"] = True
             controls.append(control)
         return controls
 
     @staticmethod
     def _component_parent_id(component: dict[str, Any]) -> Any:
         return component.get("parent")
-
-    @staticmethod
-    def _tag_control_surfaces(comp: dict[str, Any]) -> list[dict[str, Any]]:
-        parameters = comp.get("parameters")
-        tags = parameters.get("tags", []) if isinstance(parameters, dict) else []
-        normalized_tags = {str(tag).lower() for tag in tags}
-        candidates = (
-            "elevator",
-            "rudder",
-            "aileron",
-            "flap",
-            "elevon",
-            "ruddervator",
-            "vtail",
-            "v-tail",
-        )
-        return [
-            AeroSandboxGeometryMixin._tag_control_surface(candidate)
-            for candidate in candidates
-            if candidate in normalized_tags
-        ]
-
-    @staticmethod
-    def _tag_control_surface(tag: str) -> dict[str, Any]:
-        is_ruddervator = tag in ("ruddervator", "vtail", "v-tail")
-        control_type = "ruddervator" if is_ruddervator else tag
-        return {
-            "tag": control_type,
-            "type": control_type,
-            "eta_start": 0.0,
-            "eta_end": 1.0,
-            "chord_fraction": 0.35,
-            "symmetry_mode": "antisymmetric" if tag in ("aileron", "elevon") else "symmetric",
-        }
 
     def _parse_control_surfaces(
         self,
@@ -540,7 +494,7 @@ class AeroSandboxGeometryMixin:
 
         total_span = self._assign_span_coordinates(station_raw)
 
-        cs_list = self._collect_control_surfaces(comp, geometry, comp_by_id)
+        cs_list = self._collect_control_surfaces(comp, comp_by_id)
 
         parsed_cs = self._parse_control_surfaces(cs_list, condition, total_span, station_raw)
 

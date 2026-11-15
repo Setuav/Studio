@@ -208,20 +208,12 @@ class LiftingSurfaceEditor(
 
             sync_component_envelope(cs, self._component)
 
-        project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
-        if (
-            project
-            and isinstance(project.data.get("components"), list)
-            and cs in project.data["components"]
-        ):
-            if hasattr(self._api, "edit_component"):
-                self._api.edit_component(cs, description, wrapped_cs_change)
-            elif hasattr(self._api, "edit_project"):
-                self._api.edit_project(description, wrapped_cs_change)
-            else:
-                wrapped_cs_change()
+        if hasattr(self._api, "edit_component"):
+            self._api.edit_component(cs, description, wrapped_cs_change)
+        elif hasattr(self._api, "edit_project"):
+            self._api.edit_project(description, wrapped_cs_change)
         else:
-            self._edit_component(description, change_fn)
+            wrapped_cs_change()
 
     def _edit_component(self, description: str, change_fn: Callable[[], None]) -> None:
         def wrapped_change() -> None:
@@ -257,33 +249,21 @@ class LiftingSurfaceEditor(
         return profs
 
     def _cs_geom(self, cs: dict[str, Any]) -> dict[str, Any]:
-        if "parameters" in cs and isinstance(cs["parameters"], dict):
-            geom = cs["parameters"].get("geometry")
-            if isinstance(geom, dict):
-                return geom
-        return cs
+        params = cs.setdefault("parameters", {})
+        return params.setdefault("geometry", {})
 
     def _control_surfaces(self) -> list[dict[str, Any]]:
         project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
-        child_cs: list[dict[str, Any]] = []
-        if project and isinstance(project.data.get("components"), list):
-            wing_id = self._component.get("id")
-            for comp in project.data["components"]:
-                if (
-                    isinstance(comp, dict)
-                    and comp.get("type") == "org.setuav.core:control-surface"
-                    and comp.get("parent") == wing_id
-                ):
-                    child_cs.append(comp)
-
-        if child_cs:
-            return child_cs
-
-        cs = self._geometry().get("control_surfaces")
-        if not isinstance(cs, list):
-            cs = []
-            self._geometry()["control_surfaces"] = cs
-        return cs
+        if not project or not isinstance(project.data.get("components"), list):
+            return []
+        wing_id = self._component.get("id")
+        return [
+            comp
+            for comp in project.data["components"]
+            if isinstance(comp, dict)
+            and comp.get("type") == "org.setuav.core:control-surface"
+            and comp.get("parent") == wing_id
+        ]
 
     @staticmethod
     def _format_airfoil_label(value: object) -> str:
