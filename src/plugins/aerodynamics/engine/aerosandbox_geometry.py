@@ -170,8 +170,10 @@ class AeroSandboxGeometryMixin:
             parameters = other.get("parameters")
             geometry = parameters.get("geometry", {}) if isinstance(parameters, dict) else {}
             control = deepcopy(geometry)
-            control.setdefault("tag", other.get("name") or other.get("id"))
-            control.setdefault("id", other.get("id"))
+            if "id" in other:
+                control["id"] = other["id"]
+            if "name" in other:
+                control["name"] = other["name"]
             controls.append(control)
         return controls
 
@@ -199,11 +201,9 @@ class AeroSandboxGeometryMixin:
         stations: list[dict[str, Any]],
     ) -> dict[str, Any]:
         control_type = ControlSurfaceType.from_str(control.get("type")) or ControlSurfaceType.FLAP
-        tag = str(
-            control.get("tag") or control.get("name") or control.get("id") or control_type.value
-        )
-        control_id = str(control.get("id") or tag)
-        inputs = self._control_inputs(condition, tag, control_id, control_type)
+        control_id = str(control.get("id") or control_type.value)
+        control_name = str(control.get("name") or control_id)
+        inputs = self._control_inputs(condition, control_name, control_id, control_type)
         symmetry_mode = str(control.get("symmetry_mode") or "auto").lower()
         delta_right, delta_left = self._surface_deflections(
             control_type,
@@ -214,7 +214,8 @@ class AeroSandboxGeometryMixin:
         eta_start, eta_end = self._control_span_range(control, total_span)
         chord_fraction = self._control_chord_fraction(control, eta_start, eta_end, stations)
         return {
-            "tag": tag,
+            "id": control_id,
+            "name": control_name,
             "type": control_type.value,
             "symmetry_mode": symmetry_mode,
             "eta_start": eta_start,
@@ -228,14 +229,14 @@ class AeroSandboxGeometryMixin:
     @staticmethod
     def _control_inputs(
         condition: FlightCondition | None,
-        tag: str,
+        control_name: str,
         control_id: str,
         control_type: ControlSurfaceType,
     ) -> dict[str, float]:
         inputs = {"elevator": 0.0, "rudder": 0.0, "aileron": 0.0, "direct": 0.0}
         if not condition or not condition.control_deflections:
             return inputs
-        direct_names = (tag.lower(), control_type.value, control_id.lower())
+        direct_names = (control_name.lower(), control_type.value, control_id.lower())
         for key, value in condition.control_deflections.items():
             normalized = key.strip().lower()
             if normalized in ("elevator", "rudder", "aileron"):
@@ -408,7 +409,7 @@ class AeroSandboxGeometryMixin:
         eta_mid = 0.5 * (eta_start + eta_end)
         return [
             asb.ControlSurface(
-                name=control["tag"],
+                name=control["name"],
                 symmetric=self._control_is_symmetric(control),
                 deflection=(
                     0.0

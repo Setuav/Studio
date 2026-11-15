@@ -189,7 +189,7 @@ def control_channels_for_components(
         parameters = parameters if isinstance(parameters, dict) else {}
         geometry = parameters.get("geometry")
         geometry = geometry if isinstance(geometry, dict) else {}
-        add_surface(geometry.get("type") or geometry.get("tag"))
+        add_surface(geometry.get("type"))
 
     return tuple(channel for channel in CONTROL_CHANNELS if channel in discovered)
 

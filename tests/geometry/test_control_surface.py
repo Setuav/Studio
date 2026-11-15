@@ -46,7 +46,7 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
             },
         }
         cs_geom = {
-            "tag": "aileron_1",
+            "id": "aileron_1",
             "type": "aileron",
             "span_start": 200.0,
             "span_end": 450.0,
@@ -150,7 +150,7 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
         }
         cs_list = [
             {
-                "tag": "elevator",
+                "id": "elevator",
                 "type": "elevator",
                 "span_start": 50.0,
                 "span_end": 100.0,
@@ -192,7 +192,7 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
         }
         cs_list = [
             {
-                "tag": "aileron",
+                "id": "aileron",
                 "type": "aileron",
                 "span_start": 100.0,
                 "span_end": 400.0,
@@ -225,7 +225,6 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
             "mass": 25.0,
             "parameters": {
                 "geometry": {
-                    "tag": "aileron",
                     "type": "aileron",
                     "span_start": 250.0,
                     "span_end": 500.0,
@@ -238,7 +237,7 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
 
         editor = ControlSurfaceEditor(api, cs_comp)
         self.assertEqual(editor._property_text(editor.general_table, 0), "Aileron")
-        type_widget = editor.properties_table.cellWidget(1, 1)
+        type_widget = editor.properties_table.cellWidget(0, 1)
         self.assertEqual(type_widget.currentData(), "aileron")
 
         # Edit deflection
@@ -281,7 +280,6 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
             "parent": "main-wing",
             "parameters": {
                 "geometry": {
-                    "tag": "aileron_ratio",
                     "type": "aileron",
                     "span_mode": "ratio",
                     "eta_start": 0.5,
@@ -301,7 +299,6 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
             "parent": "main-wing",
             "parameters": {
                 "geometry": {
-                    "tag": "flap_dim",
                     "type": "flap",
                     "span_mode": "dimension",
                     "span_start": 100.0,
@@ -342,7 +339,6 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
         self.assertAlmostEqual(geom1["span_end"], 400.0)
         self.assertAlmostEqual(geom1["eta_start"], 0.05)
         self.assertAlmostEqual(geom1["eta_end"], 0.20)
-
 
     def test_control_surface_expression_error_propagates(self) -> None:
         from plugins.geometry.editors.lifting_surface import LiftingSurfaceEditor
@@ -436,7 +432,6 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
                     "parent": "wing",
                     "parameters": {
                         "geometry": {
-                            "tag": "aileron_1",
                             "type": "aileron",
                             "span_start": 200.0,
                             "span_end": 450.0,

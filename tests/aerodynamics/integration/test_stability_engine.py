@@ -247,7 +247,6 @@ class TestStabilityAnalysisEngine(unittest.TestCase):
                 "parent": "wing-1",
                 "parameters": {
                     "geometry": {
-                        "tag": "aileron",
                         "type": "aileron",
                         "eta_start": 0.6,
                         "eta_end": 1.0,
@@ -262,7 +261,6 @@ class TestStabilityAnalysisEngine(unittest.TestCase):
                 "parent": "htail-1",
                 "parameters": {
                     "geometry": {
-                        "tag": "elevator",
                         "type": "elevator",
                         "eta_start": 0.0,
                         "eta_end": 1.0,
@@ -277,7 +275,6 @@ class TestStabilityAnalysisEngine(unittest.TestCase):
                 "parent": "vfin-1",
                 "parameters": {
                     "geometry": {
-                        "tag": "rudder",
                         "type": "rudder",
                         "eta_start": 0.0,
                         "eta_end": 1.0,

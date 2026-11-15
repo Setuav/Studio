@@ -180,7 +180,7 @@ def normalized_control_surface(
     span_start = min(start, end)
     span_end = max(start, end)
     return {
-        "tag": str(control.get("tag") or f"CS_{index + 1}"),
+        "id": str(control.get("id") or f"CS_{index + 1}"),
         "type": str(control.get("type") or "aileron"),
         "y_min": y_min,
         "y_max": y_max,
@@ -358,7 +358,7 @@ def build_control_segment(
             closed_ends=True,
         ),
         LoftGeometry(
-            component_id=f"{comp_id}:{control['tag']}",
+            component_id=f"{comp_id}:{control['id']}",
             sections=tuple(flap_sections),
             color=control_surface_color(),
             interpolation=interpolation,

@@ -389,7 +389,6 @@ class AirframeCreationController:
             },
             "parameters": {
                 "geometry": {
-                    "tag": component_id.removeprefix(f"{parent_id}-"),
                     "type": surface_type,
                     "span_mode": "ratio",
                     "span_start": round(semi_span * eta_start, 1),

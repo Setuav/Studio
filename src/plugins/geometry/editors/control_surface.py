@@ -138,7 +138,6 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
         layout = self._create_section("Control Surfaces", "geometry_add_control_surface")
         self.properties_table = self._property_table(
             [
-                ("tag", "Tag / Label"),
                 ("type", "Type"),
                 ("sizing_mode", "Sizing Driver Mode"),
                 ("area", "Area"),
@@ -227,9 +226,6 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
                 geom, semi_span, root_chord, tip_chord, wing_area
             )
 
-            tag_val = str(
-                geom.get("tag") or self._component.get("name") or self._component.get("id") or ""
-            )
             cs_type = str(geom.get("type") or "aileron").lower()
             sizing_mode = str(geom.get("sizing_mode", geom.get("span_mode", "ratio"))).lower()
 
@@ -239,7 +235,6 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
 
             driver_keys = self._get_driver_keys_for_mode(sizing_mode)
 
-            self._set_property_value(self.properties_table, "tag", tag_val)
             self._set_property_combo(
                 self.properties_table,
                 "type",
@@ -524,20 +519,6 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
         self._edit_component(f"Edit control surface {key}", change)
         self._load_properties()
 
-    def _update_property_cell(self, row: int, column: int) -> None:
-        if self._loading or column != 1:
-            return
-        key = self._property_key(self.properties_table, row)
-        val_str = self._property_text(self.properties_table, row).strip()
-        if key == "tag":
-            geom = self._geometry()
-
-            def change() -> None:
-                geom["tag"] = val_str
-                self._component["name"] = val_str
-
-            self._edit_component("Rename control surface tag", change)
-
     def _geometry(self) -> dict[str, Any]:
         params = self._component.get("parameters")
         if not isinstance(params, dict):
@@ -558,7 +539,6 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
 
             def change() -> None:
                 self._component["name"] = val_str
-                self._geometry()["tag"] = val_str
 
             self._edit_component("Rename control surface", change)
 

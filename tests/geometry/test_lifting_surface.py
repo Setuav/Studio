@@ -185,11 +185,9 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
             editor._on_cs_prop_spinbox_changed("hinge_sweep", 5.0)
         self.assertEqual(editor._cs_geom(editor._control_surfaces()[cs_idx])["hinge_sweep"], 5.0)
 
-        # Edit tag inline via control_surfaces_table
+        # Edit name inline via control_surfaces_table
         editor.control_surfaces_table.item(cs_idx, 0).setText("aileron_custom")
-        self.assertEqual(
-            editor._cs_geom(editor._control_surfaces()[cs_idx])["tag"], "aileron_custom"
-        )
+        self.assertEqual(editor._control_surfaces()[cs_idx]["name"], "aileron_custom")
         self.assertEqual(editor.cs_properties_table.item(0, 1).text(), "aileron_custom")
 
         # Section Selection in 3D Viewport

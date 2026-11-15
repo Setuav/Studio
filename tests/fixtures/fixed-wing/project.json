@@ -2345,7 +2345,6 @@
       "parent": "main-wing",
       "parameters": {
         "geometry": {
-          "tag": "Aileron",
           "type": "aileron",
           "span_start": 304.3,
           "span_end": 642.4,
@@ -2581,7 +2580,6 @@
       "parent": "v-tail",
       "parameters": {
         "geometry": {
-          "tag": "Ruddervator",
           "type": "ruddervator",
           "span_start": 22.2,
           "span_end": 177.5,
@@ -2859,7 +2857,6 @@
       "parent": "main-wing",
       "parameters": {
         "geometry": {
-          "tag": "Flap",
           "type": "flap",
           "span_mode": "ratio",
           "span_start": 54.1,

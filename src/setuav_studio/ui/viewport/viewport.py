@@ -1103,32 +1103,27 @@ class StudioViewport(QWidget):
             return
         base_id = parts[0]
 
-        # 2. Match control surface sub-tag or child component (e.g. "main-wing:control_1", "main-wing:mirror:aileron-1")
+        # 2. Match control surface sub-id or child component (e.g. "main-wing:control_1", "main-wing:mirror:aileron-1")
         sub_candidates = [
             p
             for p in parts[1:]
             if p.lower() not in ("mirror", "tip-cap", "stub", "root-stub", "stations", "winglet")
         ]
         if sub_candidates:
-            sub_tag = sub_candidates[-1]
+            sub_id = sub_candidates[-1]
             for component in raw_components:
                 cid = str(component.get("id") or "")
-                raw_params = component.get("parameters")
-                params = raw_params if isinstance(raw_params, dict) else {}
-                raw_geom = params.get("geometry")
-                geom = raw_geom if isinstance(raw_geom, dict) else {}
-                tag = str(geom.get("tag") or component.get("name") or cid)
+                cname = str(component.get("name") or "")
                 if (
                     cid
                     in (
-                        sub_tag,
-                        f"{base_id}-{sub_tag}",
-                        f"{base_id}_{sub_tag}",
-                        f"{base_id}:{sub_tag}",
+                        sub_id,
+                        f"{base_id}-{sub_id}",
+                        f"{base_id}_{sub_id}",
+                        f"{base_id}:{sub_id}",
                     )
-                    or tag == sub_tag
-                    or sub_tag.endswith(cid)
-                    or cid.endswith(sub_tag)
+                    or cname == sub_id
+                    or (cid and (sub_id.endswith(cid) or cid.endswith(sub_id)))
                 ):
                     self._api.set_selection(component)
                     return

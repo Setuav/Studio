@@ -55,7 +55,7 @@ class ControlSurfacesSectionMixin:
 
         self.control_surfaces_table = self._table(
             [
-                "Tag",
+                "Name",
                 "Type",
                 "Defl",
             ]
@@ -101,7 +101,7 @@ class ControlSurfacesSectionMixin:
 
         self.cs_properties_table = self._property_table(
             [
-                ("tag", "Tag / Label"),
+                ("name", "Name"),
                 ("type", "Type"),
                 ("sizing_mode", "Sizing Driver Mode"),
                 ("area", "Area"),
@@ -179,13 +179,11 @@ class ControlSurfacesSectionMixin:
                     f"{disp_defl:+.1f} {angle_sym}" if abs(disp_defl) > 1e-4 else f"0.0 {angle_sym}"
                 )
 
-                tag_label = str(
-                    geom.get("tag") or cs.get("name") or cs.get("id") or f"CS_{row + 1}"
-                )
+                name_label = str(cs.get("name") or cs.get("id") or f"CS_{row + 1}")
                 cs_type = str(geom.get("type") or "aileron").capitalize()
 
                 values = (
-                    tag_label,
+                    name_label,
                     cs_type,
                     defl_str,
                 )
@@ -234,7 +232,7 @@ class ControlSurfacesSectionMixin:
                 geom, semi_span, root_chord, tip_chord, wing_area
             )
 
-            tag_val = str(geom.get("tag") or cs.get("name") or cs.get("id") or "")
+            name_val = str(cs.get("name") or cs.get("id") or "")
             cs_type = str(geom.get("type") or "aileron").lower()
             sizing_mode = str(geom.get("sizing_mode", geom.get("span_mode", "ratio"))).lower()
 
@@ -244,7 +242,7 @@ class ControlSurfacesSectionMixin:
 
             driver_keys = self._get_driver_keys_for_mode(sizing_mode)
 
-            self._set_property_value(self.cs_properties_table, "tag", tag_val)
+            self._set_property_value(self.cs_properties_table, "name", name_val)
             self._set_property_combo(
                 self.cs_properties_table,
                 "type",
@@ -563,9 +561,7 @@ class ControlSurfacesSectionMixin:
 
         def change() -> None:
             if column == 0:
-                geom["tag"] = text_val
-                if "name" in cs:
-                    cs["name"] = text_val
+                cs["name"] = text_val
             elif column == 1:
                 geom["type"] = text_val.lower()
 
@@ -576,8 +572,8 @@ class ControlSurfacesSectionMixin:
     def _add_control_surface(self) -> None:
         cs_list = self._control_surfaces()
         wing_id = str(self._component.get("id") or "wing")
-        new_tag = f"control_{len(cs_list) + 1}"
-        new_id = f"{wing_id}-{new_tag}"
+        new_slug = f"control_{len(cs_list) + 1}"
+        new_id = f"{wing_id}-{new_slug}"
         project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
 
         semi_span, root_chord, *_ = self._surface_span_info()
@@ -591,7 +587,7 @@ class ControlSurfacesSectionMixin:
             new_comp = {
                 "kind": "component",
                 "id": new_id,
-                "name": new_tag.replace("_", " ").title(),
+                "name": new_slug.replace("_", " ").title(),
                 "type": "org.setuav.core:control-surface",
                 "parent": wing_id,
                 "mass": 25.0,
@@ -614,7 +610,6 @@ class ControlSurfacesSectionMixin:
                 },
                 "parameters": {
                     "geometry": {
-                        "tag": new_tag,
                         "type": "aileron",
                         "span_mode": "ratio",
                         "span_start": def_start,
@@ -657,8 +652,6 @@ class ControlSurfacesSectionMixin:
             base_id = str(target.get("id") or "cs")
             target["id"] = f"{base_id}-copy"
             target["name"] = f"{target.get('name', base_id)} (Copy)"
-            geom = target.setdefault("parameters", {}).setdefault("geometry", {})
-            geom["tag"] = f"{geom.get('tag', base_id)}_copy"
 
             def change() -> None:
                 project.data["components"].append(target)
@@ -788,10 +781,8 @@ class ControlSurfacesSectionMixin:
         self._loading = True
         try:
             if self.control_surfaces_table.item(row, 0):
-                tag_label = str(
-                    geom.get("tag") or cs.get("name") or cs.get("id") or f"CS_{row + 1}"
-                )
-                self.control_surfaces_table.item(row, 0).setText(tag_label)
+                name_label = str(cs.get("name") or cs.get("id") or f"CS_{row + 1}")
+                self.control_surfaces_table.item(row, 0).setText(name_label)
             if self.control_surfaces_table.item(row, 1):
                 self.control_surfaces_table.item(row, 1).setText(
                     str(geom.get("type") or "aileron").capitalize()
@@ -820,13 +811,10 @@ class ControlSurfacesSectionMixin:
         if not (0 <= self._control_surface_index < len(cs_list)):
             return
         cs = cs_list[self._control_surface_index]
-        geom = self._cs_geom(cs)
 
         def change() -> None:
-            if key == "tag":
-                geom["tag"] = val_str.strip()
-                if "name" in cs:
-                    cs["name"] = val_str.strip()
+            if key == "name":
+                cs["name"] = val_str.strip()
 
         self._edit_control_surface_item(cs, f"Edit control surface {key}", change)
         self._refresh_cs_table_row(self._control_surface_index)

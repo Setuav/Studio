@@ -629,20 +629,22 @@ class AerodynamicsPluginTests(unittest.TestCase):
                 data={
                     "components": [
                         {
+                            "id": "left-elevon",
+                            "name": "left-elevon",
                             "type": "org.setuav.core:control-surface",
                             "parameters": {
                                 "geometry": {
                                     "type": "elevon",
-                                    "tag": "left-elevon",
                                 }
                             },
                         },
                         {
+                            "id": "right-ruddervator",
+                            "name": "right-ruddervator",
                             "type": "org.setuav.core:control-surface",
                             "parameters": {
                                 "geometry": {
                                     "type": "ruddervator",
-                                    "tag": "right-ruddervator",
                                 }
                             },
                         },

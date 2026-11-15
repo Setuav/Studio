@@ -602,7 +602,6 @@ class AeroSandboxEngineTests(unittest.TestCase):
                 "parent": "wing-1",
                 "parameters": {
                     "geometry": {
-                        "tag": "aileron",
                         "type": "aileron",
                         "eta_start": 0.5,
                         "eta_end": 0.95,
@@ -703,7 +702,6 @@ class AeroSandboxEngineTests(unittest.TestCase):
                 "parent": "htail-1",
                 "parameters": {
                     "geometry": {
-                        "tag": "elevator",
                         "type": "elevator",
                         "eta_start": 0.0,
                         "eta_end": 1.0,
@@ -764,7 +762,6 @@ class AeroSandboxEngineTests(unittest.TestCase):
                 "parent": "wing-1",
                 "parameters": {
                     "geometry": {
-                        "tag": "flap",
                         "type": "flap",
                         "eta_start": 0.10,
                         "eta_end": 0.65,
@@ -780,7 +777,6 @@ class AeroSandboxEngineTests(unittest.TestCase):
                 "parent": "wing-1",
                 "parameters": {
                     "geometry": {
-                        "tag": "aileron",
                         "type": "aileron",
                         "eta_start": 0.45,
                         "eta_end": 0.90,
@@ -864,7 +860,6 @@ class AeroSandboxEngineTests(unittest.TestCase):
                     "parent": "wing-1",
                     "parameters": {
                         "geometry": {
-                            "tag": surface_type,
                             "type": surface_type,
                             "eta_start": 0.2,
                             "eta_end": 0.9,
@@ -940,7 +935,6 @@ class AeroSandboxEngineTests(unittest.TestCase):
                     "parent": component_id,
                     "parameters": {
                         "geometry": {
-                            "tag": surface_type,
                             "type": surface_type,
                             "eta_start": 0.2,
                             "eta_end": 0.9,

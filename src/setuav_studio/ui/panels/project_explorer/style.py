@@ -155,15 +155,6 @@ class _ProjectExplorerBranchStyle(QProxyStyle):
 
 
 def format_component_name(component: dict[str, Any]) -> str:
-    ctype = str(component.get("type") or component.get("kind") or "")
-    params = component.get("parameters") if isinstance(component.get("parameters"), dict) else {}
-    geom = params.get("geometry") if isinstance(params.get("geometry"), dict) else {}
-
-    if ctype == "org.setuav.core:control-surface":
-        name = str(component.get("name") or "").strip()
-        tag = str(geom.get("tag") or "").strip()
-        return name or tag or str(component.get("id") or "Unnamed")
-
     return str(component.get("name") or component.get("id") or "Unnamed")
 
 
