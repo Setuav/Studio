@@ -487,18 +487,14 @@ class DebugPanel(PropertyTableMixin, QWidget):
 
         # 3. Project Summary Table
         if project is not None:
-            p_data = getattr(project, "data", {})
-            p_name = (
-                p_data.get("name", "Untitled Project")
-                if isinstance(p_data, dict)
-                else "Untitled Project"
-            )
-            p_path = getattr(project, "path", None)
+            p_data = project.data
+            p_name = p_data.get("name", "Untitled Project")
+            p_path = project.path
             p_file = str(p_path) if p_path else "(Unsaved)"
             status_text = "Modified (Unsaved)" if project.modified else "Clean / Saved"
 
             # Breakdown of components by type
-            raw_comps = p_data.get("components", []) if isinstance(p_data, dict) else []
+            raw_comps = p_data.get("components", [])
             type_counts: dict[str, int] = {}
             for c in raw_comps:
                 if isinstance(c, dict):
@@ -516,9 +512,9 @@ class DebugPanel(PropertyTableMixin, QWidget):
 
             # Units
             units = self._api.units
-            u_len = units.get_display_unit("length") if hasattr(units, "get_display_unit") else "m"
-            u_spd = units.get_display_unit("speed") if hasattr(units, "get_display_unit") else "m/s"
-            u_mass = units.get_display_unit("mass") if hasattr(units, "get_display_unit") else "kg"
+            u_len = units.get_display_unit("length")
+            u_spd = units.get_display_unit("speed")
+            u_mass = units.get_display_unit("mass")
             units_summary = f"length={u_len}, speed={u_spd}, mass={u_mass}"
 
             self._set_property_value(self.project_table, "name", p_name)
@@ -540,19 +536,13 @@ class DebugPanel(PropertyTableMixin, QWidget):
         rss_mb, vms_mb = _get_process_memory_mb()
         uptime_str = _format_duration(time.monotonic() - _START_TIME)
 
-        undo_stack = getattr(self._api, "_undo_stack", None)
-        undo_count = undo_stack.count() if undo_stack is not None else 0
-        can_undo = undo_stack.canUndo() if undo_stack is not None else False
-        can_redo = undo_stack.canRedo() if undo_stack is not None else False
-        undo_text = f"'{undo_stack.undoText()}'" if (undo_stack is not None and can_undo) else "-"
-        redo_text = f"'{undo_stack.redoText()}'" if (undo_stack is not None and can_redo) else "-"
+        undo_count = self._api.undo_count
+        can_undo = self._api.can_undo
+        can_redo = self._api.can_redo
+        undo_text = f"'{self._api.undo_text}'" if can_undo else "-"
+        redo_text = f"'{self._api.redo_text}'" if can_redo else "-"
 
-        tasks_mgr = getattr(self._api, "tasks", None)
-        active_tasks = 0
-        if tasks_mgr is not None and hasattr(tasks_mgr, "all_tasks"):
-            active_tasks = sum(
-                1 for t in tasks_mgr.all_tasks() if getattr(t, "is_running", lambda: False)()
-            )
+        active_tasks = len(self._api.tasks.active_tasks)
 
         py_ver = sys.version.split()[0]
         os_info = f"{platform.system()} {platform.release()} ({platform.machine()})"

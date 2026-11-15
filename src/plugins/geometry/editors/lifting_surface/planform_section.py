@@ -8,6 +8,7 @@ from typing import Any
 from PySide6.QtCore import Qt
 
 from setuav_studio.model.expression import get_expression, set_expression
+from setuav_studio.ui.widget.spinbox import evaluate_table_cell_input
 
 from ...engine.lifting_surface_driver_solver import compute_all_8_parameters
 from ...engine.lifting_surface_planform_engine import (
@@ -176,6 +177,8 @@ class PlanformSectionMixin:
                     self.angles_table,
                     "sweep",
                     sw_val,
+                    target_data=geom,
+                    raw_callback=True,
                     on_changed=lambda val: self._on_angle_changed("sweep", val),
                     label="Sweep Angle",
                     unit="deg",
@@ -194,6 +197,8 @@ class PlanformSectionMixin:
                     self.angles_table,
                     "sweep_curvature",
                     sw_curv,
+                    target_data=geom,
+                    raw_callback=True,
                     on_changed=lambda val: self._on_angle_changed("sweep_curvature", val),
                     label="Sweep Curvature",
                     unit="mm",
@@ -203,6 +208,8 @@ class PlanformSectionMixin:
                     self.angles_table,
                     "dihedral",
                     di_val,
+                    target_data=geom,
+                    raw_callback=True,
                     on_changed=lambda val: self._on_angle_changed("dihedral", val),
                     label="Dihedral Angle",
                     unit="deg",
@@ -212,6 +219,8 @@ class PlanformSectionMixin:
                     self.angles_table,
                     "twist",
                     tw_val,
+                    target_data=geom,
+                    raw_callback=True,
                     on_changed=lambda val: self._on_angle_changed("twist", val),
                     label="Twist / Washout",
                     unit="deg",
@@ -229,35 +238,6 @@ class PlanformSectionMixin:
         finally:
             self._loading = was_loading
 
-    def _resolve_angle_expression(self, key: str, value: Any, geom: dict[str, Any]) -> float | None:
-        val_str = str(value).strip() if value is not None else ""
-        if not val_str:
-            return None
-
-        # Check if plain numeric float
-        try:
-            num_val = float(val_str)
-            set_expression(geom, key, None)
-            return num_val
-        except ValueError:
-            pass
-
-        # Otherwise treat as formula expression
-        set_expression(geom, key, val_str)
-        api = self._api
-        if api is not None and api.project is not None:
-            try:
-                from setuav_studio.model.expression import ExpressionEvaluator
-
-                evaluator = ExpressionEvaluator()
-                scope = api.project.get_scope(api=api)
-                res = evaluator.evaluate(val_str.lstrip("=").strip(), scope)
-                if isinstance(res, (int, float)):
-                    return float(res)
-            except Exception:
-                pass
-        return None
-
     def _on_angle_changed(self, key: str, value: Any) -> None:
         if self._loading:
             return
@@ -271,9 +251,13 @@ class PlanformSectionMixin:
             y_offset=self._y_offset(),
         )
 
-        num_val = self._resolve_angle_expression(key, value, geom)
-        if num_val is None:
+        cell = (
+            self._property_cell(self.angles_table, key) if hasattr(self, "angles_table") else None
+        )
+        parsed = evaluate_table_cell_input(value, self._api, cell=cell, label=key)
+        if parsed is None:
             return
+        num_val, expr_to_store = parsed
 
         if key in ("sweep", "sweep_curvature"):
             sweep_val = float(
@@ -286,6 +270,7 @@ class PlanformSectionMixin:
 
             def change() -> None:
                 g = self._geometry()
+                set_expression(g, key, expr_to_store)
                 g["profiles"] = deepcopy(new_profiles)
                 g["sweep"] = sweep_val
                 g["sweep_curvature"] = curv_val
@@ -294,6 +279,7 @@ class PlanformSectionMixin:
 
             def change() -> None:
                 g = self._geometry()
+                set_expression(g, key, expr_to_store)
                 g["profiles"] = deepcopy(new_profiles)
                 g["dihedral"] = num_val
         elif key == "twist":
@@ -301,6 +287,7 @@ class PlanformSectionMixin:
 
             def change() -> None:
                 g = self._geometry()
+                set_expression(g, key, expr_to_store)
                 g["profiles"] = deepcopy(new_profiles)
                 g["washout"] = num_val
                 g["twist"] = num_val

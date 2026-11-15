@@ -138,7 +138,9 @@ def _mat_vec_mul(matrix: Matrix3 | Matrix3x3, vec: Vector3) -> Vector3:
 
 
 def _get_all_components(project_or_components: Any) -> list[dict[str, Any]]:
-    if hasattr(project_or_components, "data") and isinstance(project_or_components.data, dict):
+    from setuav_studio.project.document import ProjectDocument
+
+    if isinstance(project_or_components, ProjectDocument):
         raw_components = project_or_components.data.get("components", [])
     elif isinstance(project_or_components, dict):
         raw_components = project_or_components.get("components", [])

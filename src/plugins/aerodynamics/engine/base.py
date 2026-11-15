@@ -138,12 +138,14 @@ class SweepType(enum.Enum):
     @classmethod
     def from_variable(cls, variable: str) -> SweepType:
         """Derive the sweep category from the canonical sweep variable name."""
-        normalized = str(variable or "alpha").strip().lower()
+        normalized = variable.strip().lower() if isinstance(variable, str) else ""
         if normalized == "alpha":
             return cls.ALPHA
         if normalized == "beta":
             return cls.BETA
-        return cls.CONTROL_DEFLECTION
+        if normalized in CONTROL_CHANNELS:
+            return cls.CONTROL_DEFLECTION
+        raise ValueError(f"Unsupported sweep variable: {variable!r}")
 
 
 class ControlSurfaceType(enum.Enum):

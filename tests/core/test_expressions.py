@@ -16,11 +16,13 @@ from setuav_studio.model.expression import (
 )
 from setuav_studio.model.parameter import (
     CircularDependencyError,
+    ParameterResolutionError,
     ParameterResolver,
 )
 from setuav_studio.model.scope import DotDict, to_dot_dict
 from setuav_studio.model.symbol import get_available_symbols_metadata
-from setuav_studio.project.document import create_project
+from setuav_studio.project.document import ProjectDocument, create_project
+from setuav_studio.project.evaluator import recompute_project_expressions
 
 # ==============================================================================
 # 1. ExpressionEvaluator Tests
@@ -151,36 +153,48 @@ def test_get_dependents() -> None:
     assert resolver.get_dependents(params, "d") == set()
 
 
-def test_evaluate_component_parameters() -> None:
-    resolver = ParameterResolver()
-    project_params = {
-        "aspect_ratio": 8.0,
-        "wing_area": 2.0,
-        "wing_span": "= sqrt(aspect_ratio * wing_area)",
-    }
-    resolved_project = resolver.resolve_all(project_params)
-
-    component_params = {
-        "geometry": {
-            "span": 0.0,
-            "_expressions": {"span": "= wing_span * 1000"},
-            "profiles": [
+def test_evaluate_component_parameters(tmp_path: Path) -> None:
+    proj = ProjectDocument(
+        tmp_path / "test.json",
+        "json",
+        {
+            "parameters": {
+                "aspect_ratio": 8.0,
+                "wing_area": 2.0,
+                "wing_span": "= sqrt(aspect_ratio * wing_area)",
+            },
+            "components": [
                 {
-                    "chord": 0.0,
-                    "_expressions": {"chord": "= wing_span / 4 * 1000"},
-                    "position": 0.0,
-                },
-                {"chord": 200.0, "position": 1.0},
+                    "id": "main-wing",
+                    "name": "Main Wing",
+                    "type": "org.setuav.core:lifting-surface",
+                    "parameters": {
+                        "geometry": {
+                            "span": 0.0,
+                            "_expressions": {"span": "= wing_span * 1000"},
+                            "profiles": [
+                                {
+                                    "chord": 0.0,
+                                    "_expressions": {"chord": "= wing_span / 4 * 1000"},
+                                    "position": 0.0,
+                                },
+                                {"chord": 200.0, "position": 1.0},
+                            ],
+                        },
+                        "name": "Main Wing",
+                    },
+                }
             ],
         },
-        "name": "Main Wing",
-    }
+    )
 
-    evaluated = resolver.evaluate_component_parameters(component_params, resolved_project)
-    assert evaluated["name"] == "Main Wing"
-    assert math.isclose(evaluated["geometry"]["span"], 4000.0)
-    assert math.isclose(evaluated["geometry"]["profiles"][0]["chord"], 1000.0)
-    assert evaluated["geometry"]["profiles"][1]["chord"] == 200.0
+    diagnostics = recompute_project_expressions(proj)
+    assert diagnostics == []
+    comp = proj.data["components"][0]
+    geom = comp["parameters"]["geometry"]
+    assert math.isclose(geom["span"], 4000.0)
+    assert math.isclose(geom["profiles"][0]["chord"], 1000.0)
+    assert geom["profiles"][1]["chord"] == 200.0
 
 
 # ==============================================================================
@@ -335,16 +349,124 @@ def test_hierarchical_json_scope_access(tmp_path: Path) -> None:
     assert "battery" in component_ids
 
 
-def test_evaluate_component_parameters_propagates_errors() -> None:
-    resolver = ParameterResolver()
-    bad_params = {
-        "geometry": {
-            "span": 0.0,
-            "_expressions": {"span": "= missing_symbol * 2"},
-        }
-    }
-    with pytest.raises(ExpressionEvaluationError):
-        resolver.evaluate_component_parameters(bad_params, {})
+def test_component_referencing_expression_evaluates_and_readers_use_stored_values(
+    tmp_path: Path,
+) -> None:
+    from plugins.geometry.engine.scene import build_project_geometry
+
+    proj = ProjectDocument(
+        tmp_path / "component_ref.json",
+        "json",
+        {
+            "parameters": {"wing_mass_base": 400.0},
+            "components": [
+                {
+                    "id": "main-wing",
+                    "name": "Main Wing",
+                    "type": "org.setuav.core:lifting-surface",
+                    "mass": 120.0,
+                    "_expressions": {"mass": "= wing_mass_base"},
+                },
+                {
+                    "id": "ballast",
+                    "name": "Ballast",
+                    "type": "org.setuav.core:point-mass",
+                    "mass": 10.0,
+                    "_expressions": {"mass": "= main_wing.mass * 0.1"},
+                },
+            ],
+        },
+    )
+
+    # Readers must read stored values directly without re-evaluating component expressions.
+    scope_before = proj.get_scope()
+    assert math.isclose(scope_before["ballast"].mass, 10.0)
+    models_before = proj.get_component_models()
+    assert math.isclose(next(m for m in models_before if m.id == "ballast").mass, 10.0)
+    scene_before = build_project_geometry(proj, {})
+    assert scene_before is not None
+
+    diagnostics = recompute_project_expressions(proj)
+    assert diagnostics == []
+    assert math.isclose(proj.data["components"][0]["mass"], 400.0)
+    assert math.isclose(proj.data["components"][1]["mass"], 40.0)
+
+    scope_after = proj.get_scope()
+    assert math.isclose(scope_after["ballast"].mass, 40.0)
+
+
+def test_recompute_invalid_expression_produces_diagnostic_and_preserves_value(
+    tmp_path: Path,
+) -> None:
+    from setuav_studio.api import StudioAPI
+    from setuav_studio.ui.editor import BaseComponentEditor
+    from setuav_studio.ui.widget.table import ExpressionPropertyCell
+    from tests._common import get_qapp
+
+    get_qapp()
+    proj = ProjectDocument(
+        tmp_path / "invalid_expr.json",
+        "json",
+        {
+            "components": [
+                {
+                    "id": "main-wing",
+                    "name": "Main Wing",
+                    "type": "org.setuav.core:lifting-surface",
+                    "mass": 250.0,
+                    "_expressions": {"mass": "= missing_symbol * 2"},
+                    "parameters": {
+                        "geometry": {
+                            "span": 1200.0,
+                            "_expressions": {"span": "= unknown_var + 10"},
+                        }
+                    },
+                }
+            ]
+        },
+    )
+
+    statuses: list[tuple[str, str, int]] = []
+    api = StudioAPI()
+    api._host.bind_status_handler(lambda msg, lvl, ms: statuses.append((msg, lvl, ms)))
+    api._host.set_project(proj)
+
+    diagnostics = api.recompute_project_expressions()
+    assert len(diagnostics) == 2
+    by_path = {d["path"]: d for d in diagnostics}
+    assert by_path["mass"]["component_id"] == "main-wing"
+    assert by_path["mass"]["expression"] == "= missing_symbol * 2"
+    assert "missing_symbol" in by_path["mass"]["message"]
+    assert by_path["parameters.geometry.span"]["expression"] == "= unknown_var + 10"
+
+    # Last valid values remain untouched.
+    assert math.isclose(proj.data["components"][0]["mass"], 250.0)
+    assert math.isclose(proj.data["components"][0]["parameters"]["geometry"]["span"], 1200.0)
+
+    # Diagnostic surfaced via API and status bar.
+    assert api.expression_diagnostics == diagnostics
+    assert any(lvl == "error" and "main-wing.mass" in msg for msg, lvl, _ in statuses)
+
+    # Editor marks erroneous cell.
+    editor = BaseComponentEditor(api, proj.data["components"][0])
+    mass_cell = editor.general_table.cellWidget(2, 1)
+    assert isinstance(mass_cell, ExpressionPropertyCell)
+    assert mass_cell._has_error
+    assert mass_cell.line_edit.text().startswith("#REF!")
+    editor.deleteLater()
+
+
+def test_recompute_propagates_global_scope_error(tmp_path: Path) -> None:
+    proj = ProjectDocument(
+        tmp_path / "bad_global.json",
+        "json",
+        {
+            "parameters": {"bad": "= missing_global_var + 1"},
+            "components": [],
+        },
+    )
+    with pytest.raises(ParameterResolutionError):
+        recompute_project_expressions(proj)
 
 
 def test_get_and_set_expression_helper() -> None:
@@ -357,10 +479,91 @@ def test_get_and_set_expression_helper() -> None:
     assert get_expression(node, "span") == "= b_ref * 1000"
 
     set_expression(node, "chord", "= 200")
+    set_expression(node, "dihedral", "wing_dihedral * 2")
+    assert get_expression(node, "dihedral") == "=wing_dihedral * 2"
+
     set_expression(node, "span", None)
     assert get_expression(node, "span") is None
-    assert node["_expressions"] == {"chord": "= 200"}
+    assert node["_expressions"] == {"chord": "= 200", "dihedral": "=wing_dihedral * 2"}
 
     set_expression(node, "chord", "   ")
+    set_expression(node, "dihedral", "")
     assert "_expressions" not in node
     assert get_expression(node, "chord") is None
+
+
+def test_single_expression_detection_and_scientific_notation(tmp_path: Path) -> None:
+    from setuav_studio.api import StudioAPI
+    from setuav_studio.model.expression import (
+        evaluate_numeric_input,
+        normalize_equation_input,
+    )
+    from setuav_studio.ui.editor import BaseComponentEditor
+    from setuav_studio.ui.editor.parameter import ParameterPropertyEditor
+    from setuav_studio.ui.widget.spinbox import evaluate_table_cell_input
+    from setuav_studio.ui.widget.table import ExpressionPropertyCell
+    from tests._common import get_qapp
+
+    get_qapp()
+
+    # Scientific notation is parsed as a float, never as an expression.
+    num_val, expr = evaluate_numeric_input("1e-3")
+    assert math.isclose(num_val, 0.001)
+    assert expr is None
+    with pytest.raises(ValueError):
+        evaluate_numeric_input("not_a_number")
+
+    assert normalize_equation_input("1e-3") == "1e-3"
+    assert normalize_equation_input("-5.5") == "-5.5"
+    assert normalize_equation_input("b_ref * 2") == "=b_ref * 2"
+
+    proj = ProjectDocument(
+        tmp_path / "sci.json",
+        "json",
+        {
+            "parameters": {"k": 1.0},
+            "components": [
+                {
+                    "id": "wing-1",
+                    "type": "org.setuav.core:lifting-surface",
+                    "mass": 25.0,
+                    "parameters": {},
+                }
+            ],
+        },
+    )
+    statuses: list[tuple[str, str, int]] = []
+    api = StudioAPI()
+    api._host.bind_status_handler(lambda msg, lvl, ms: statuses.append((msg, lvl, ms)))
+    api._host.set_project(proj)
+
+    editor = BaseComponentEditor(api, proj.data["components"][0])
+    mass_cell = editor._property_cell(editor.general_table, "mass")
+    assert isinstance(mass_cell, ExpressionPropertyCell)
+    assert not mass_cell._is_formula("1e-3")
+    assert not mass_cell._is_formula("not_a_number")
+    assert mass_cell._is_formula("=k * 2")
+
+    assert evaluate_table_cell_input("1e-3", api, cell=mass_cell, label="Mass") == (0.001, None)
+    editor._on_mass_changed("1e-3")
+    assert math.isclose(proj.data["components"][0]["mass"], 0.001)
+    assert get_expression(proj.data["components"][0], "mass") is None
+
+    # Non-'=' non-float text produces a field error and preserves stored value.
+    editor._on_mass_changed("bad_text")
+    assert mass_cell._has_error
+    assert math.isclose(proj.data["components"][0]["mass"], 0.001)
+    assert get_expression(proj.data["components"][0], "mass") is None
+    assert any(lvl == "error" for _, lvl, _ in statuses)
+    editor.deleteLater()
+
+    # ParameterPropertyEditor follows the same rule for global parameters.
+    param_editor = ParameterPropertyEditor(api, {"key": "k"})
+    param_editor._on_value_expression_changed("1e-3")
+    assert math.isclose(proj.data["parameters"]["k"], 0.001)
+    param_editor._on_value_expression_changed("bad_text")
+    val_cell = param_editor._property_cell(param_editor.general_table, "value")
+    assert isinstance(val_cell, ExpressionPropertyCell)
+    assert val_cell._has_error
+    assert math.isclose(proj.data["parameters"]["k"], 0.001)
+    param_editor.deleteLater()

@@ -33,7 +33,7 @@ class PropulsionSceneController:
 
     def sync(self, project: Any = None) -> None:
         """Rebuild propeller disk wire loop visualization in the central viewport."""
-        viewport = getattr(self._api, "viewport", None)
+        viewport = self._api.viewport
         if viewport is None:
             return
 
@@ -42,7 +42,7 @@ class PropulsionSceneController:
             viewport.add_layer(PROPULSION_LAYER, name=PROPULSION_LAYER_NAME, visible=True)
 
         doc = project if project is not None else self._api.project
-        if doc is None or not hasattr(doc, "data") or not isinstance(doc.data, dict):
+        if doc is None:
             viewport.clear(layer=PROPULSION_LAYER)
             return
 
@@ -110,6 +110,6 @@ class PropulsionSceneController:
 
     def dispose(self) -> None:
         """Clean up propulsion objects from viewport."""
-        viewport = getattr(self._api, "viewport", None)
+        viewport = self._api.viewport
         if viewport is not None:
             viewport.clear(layer=PROPULSION_LAYER)

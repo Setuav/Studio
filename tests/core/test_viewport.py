@@ -634,7 +634,7 @@ class TestStudioViewport(unittest.TestCase):
     def test_studio_api_viewport_property(self) -> None:
         api = StudioAPI()
         self.assertIsNone(api.viewport)
-        api._viewport = self.viewport
+        api._host.bind_viewport(self.viewport)
         self.assertIs(api.viewport, self.viewport)
 
     def test_viewport_settings_persistence(self) -> None:

@@ -223,19 +223,11 @@ class StudioViewport(QWidget):
     def bind_api(self, api: Any) -> None:
         """Bind StudioAPI to synchronize selections bi-directionally with the app."""
         self._api = api
-        api._viewport = self
-        if hasattr(api, "on_selection_changed"):
-            api.on_selection_changed(self._on_api_selection_changed)
-        if hasattr(api, "on_section_selection_changed"):
-            api.on_section_selection_changed(self._on_api_section_selection_changed)
+        api._host.bind_viewport(self)
+        api.on_selection_changed(self._on_api_selection_changed)
+        api.on_section_selection_changed(self._on_api_section_selection_changed)
         self.object_picked.connect(self._on_object_picked_to_api)
-        current_project = api.project
-        if current_project is not None and hasattr(api, "_project_listeners"):
-            from setuav_studio.api.api import _dispatch_listeners
-
-            _dispatch_listeners(api._project_listeners, current_project)
-        if hasattr(api, "on_project_content_changed"):
-            api.on_project_content_changed(lambda _doc: self._on_project_content_changed())
+        api.on_project_content_changed(lambda _doc: self._on_project_content_changed())
 
     def _on_project_content_changed(self) -> None:
         self.update_component_cg()
@@ -975,7 +967,7 @@ class StudioViewport(QWidget):
         """Toggle visualization of the aircraft total center of gravity."""
         self._show_aircraft_cg = bool(show)
         self.update_aircraft_cg()
-        if self._api is not None and hasattr(self._api, "refresh_toolbar_states"):
+        if self._api is not None:
             self._api.refresh_toolbar_states()
 
     def is_show_aircraft_cg(self) -> bool:
@@ -1081,13 +1073,13 @@ class StudioViewport(QWidget):
 
     def _on_object_picked_to_api(self, object_id: str) -> None:
         """Bridge a 3D click event to StudioAPI so the Tree and Properties panel update."""
-        if self._api is None or not hasattr(self._api, "set_selection"):
+        if self._api is None:
             return
         if not object_id:
             self._api.set_selection(None)
             return
         project = self._api.project
-        if project is None or not hasattr(project, "data") or not isinstance(project.data, dict):
+        if project is None:
             return
         components = project.data.get("components", [])
         raw_components = [c for c in components if isinstance(c, dict)]

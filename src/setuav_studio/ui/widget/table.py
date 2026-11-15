@@ -320,8 +320,7 @@ class FocusAwareLineEdit(QLineEdit):
             resolved_api = getattr(self.parent(), "_api", None)
 
         if resolved_api is not None and resolved_api.project is not None:
-            proj = resolved_api.project
-            data = getattr(proj, "data", None)
+            data = resolved_api.project.data
             if isinstance(data, dict):
                 # 1. Project Parameters (Highest priority)
                 params = data.get("parameters", {})
@@ -521,6 +520,7 @@ class ExpressionPropertyCell(QWidget):
         self._label = label
         self._raw_expression = str(initial_value)
         self._is_focused = False
+        self._has_error = False
 
         from setuav_studio.units import get_quantity_for_unit, get_unit_manager
 
@@ -566,9 +566,35 @@ class ExpressionPropertyCell(QWidget):
         self.unit_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         layout.addWidget(self.unit_label)
 
+        from setuav_studio.api import StudioAPI
+
+        if isinstance(api, StudioAPI):
+            api.on_project_content_changed(self._on_project_content_changed)
         get_unit_manager().units_changed.connect(self._refresh_display)
         self.destroyed.connect(self._disconnect_units_changed)
         self._refresh_display()
+
+    def _on_project_content_changed(self, _project: Any) -> None:
+        if not self._is_focused:
+            self._refresh_display()
+
+    def set_error(self, message: str, *, display_text: str | None = None) -> None:
+        """Mark the input cell as erroneous with red highlighting and diagnostic tooltip."""
+        self._has_error = True
+        self.setProperty("expressionError", True)
+        self.line_edit.setProperty("expressionError", True)
+        if display_text is not None:
+            self.line_edit.setText(display_text)
+        self.line_edit.setStyleSheet(
+            "color: #e53935; font-weight: bold; background-color: rgba(229, 57, 53, 0.08); border: 1px solid #e53935;"
+        )
+        self.line_edit.setToolTip(message)
+
+    def clear_error(self) -> None:
+        """Clear any erroneous state styling on the input cell."""
+        self._has_error = False
+        self.setProperty("expressionError", False)
+        self.line_edit.setProperty("expressionError", False)
 
     def _disconnect_units_changed(self) -> None:
         try:
@@ -579,11 +605,9 @@ class ExpressionPropertyCell(QWidget):
             pass
 
     def _is_formula(self, text: str) -> bool:
-        clean = text.strip()
-        return bool(
-            clean.startswith("=")
-            or (clean and not clean.replace(".", "", 1).replace("-", "", 1).isdigit())
-        )
+        from setuav_studio.model.expression import ExpressionEvaluator
+
+        return ExpressionEvaluator.is_expression(text)
 
     def _evaluate_expression(self, expr_text: str) -> tuple[bool, Any, str | None]:
         """Evaluate expression against current project scope (or math fallback)."""
@@ -621,7 +645,7 @@ class ExpressionPropertyCell(QWidget):
         # While being actively edited by the user, only update styling, DO NOT overwrite ongoing input!
         if self._is_focused:
             clean_text = self.line_edit.text().strip()
-            if clean_text.startswith("="):
+            if self._is_formula(clean_text):
                 self.line_edit.setStyleSheet("color: #4CAF50; font-weight: bold;")
             else:
                 self.line_edit.setStyleSheet("")
@@ -630,6 +654,7 @@ class ExpressionPropertyCell(QWidget):
         clean = self._raw_expression.strip()
         if not clean:
             self.line_edit.blockSignals(True)
+            self.clear_error()
             self.line_edit.setText("")
             self.line_edit.setStyleSheet("")
             self.line_edit.setToolTip("")
@@ -640,7 +665,8 @@ class ExpressionPropertyCell(QWidget):
         if self._is_formula(clean):
             ok, val, err_msg = self._evaluate_expression(clean)
             self.line_edit.blockSignals(True)
-            if ok and isinstance(val, (int, float)):
+            if ok and not isinstance(val, bool) and isinstance(val, (int, float)):
+                self.clear_error()
                 disp_val, sym = self._display_number(float(val))
                 self.line_edit.setText(disp_val)
                 self.line_edit.setStyleSheet(
@@ -651,14 +677,10 @@ class ExpressionPropertyCell(QWidget):
                     tip += f" {sym}"
                 self.line_edit.setToolTip(tip)
             else:
-                self.line_edit.setText(f"#REF! {self._raw_expression}")
-                self.line_edit.setStyleSheet(
-                    "color: #e53935; font-weight: bold; background-color: rgba(229, 57, 53, 0.08); border: 1px solid #e53935;"
-                )
                 tip = (
                     f"Formula Error in '{self._raw_expression}':\n{err_msg or 'Failed to evaluate'}"
                 )
-                self.line_edit.setToolTip(tip)
+                self.set_error(tip, display_text=f"#REF! {self._raw_expression}")
             self.line_edit.blockSignals(False)
         else:
             self.line_edit.blockSignals(True)
@@ -666,11 +688,14 @@ class ExpressionPropertyCell(QWidget):
                 num_val = float(clean)
                 disp_val, sym = self._display_number(num_val)
                 self.line_edit.setText(disp_val)
-                self.line_edit.setToolTip(f"{disp_val} {sym}" if sym else "")
+                if not self._has_error:
+                    self.line_edit.setToolTip(f"{disp_val} {sym}" if sym else "")
+                    self.line_edit.setStyleSheet("")
             except ValueError:
-                self.line_edit.setText(self._raw_expression)
-                self.line_edit.setToolTip("")
-            self.line_edit.setStyleSheet("")
+                self.set_error(
+                    f"Invalid numeric value: '{clean}'",
+                    display_text=self._raw_expression,
+                )
             self.line_edit.blockSignals(False)
 
     def _on_focus_in(self) -> None:
@@ -682,10 +707,7 @@ class ExpressionPropertyCell(QWidget):
         self.line_edit.blockSignals(True)
         if self._is_formula(clean):
             self.line_edit.setText(self._raw_expression)
-            if clean.startswith("="):
-                self.line_edit.setStyleSheet("color: #4CAF50; font-weight: bold;")
-            else:
-                self.line_edit.setStyleSheet("")
+            self.line_edit.setStyleSheet("color: #4CAF50; font-weight: bold;")
         else:
             try:
                 num_val = float(clean)
@@ -730,6 +752,7 @@ class ExpressionPropertyCell(QWidget):
             return
         new_raw = self._convert_input_to_raw_storage(new_text)
         if new_raw != self._raw_expression:
+            self.clear_error()
             self._raw_expression = new_raw
             self._call_on_changed(self._raw_expression)
 
@@ -747,6 +770,11 @@ class ExpressionPropertyCell(QWidget):
 
     def get_expression(self) -> str:
         return self._raw_expression.strip()
+
+    def stored_expression(self) -> str | None:
+        """Return formula expression if current value is a formula, else None."""
+        clean = self._raw_expression.strip()
+        return clean if clean and self._is_formula(clean) else None
 
     def set_expression(self, expr: str) -> None:
         self._raw_expression = expr.strip()
@@ -789,13 +817,9 @@ class ExpressionPropertyCell(QWidget):
                 parent=self.window(),
             )
             if dlg.exec():
-                new_expr = dlg.get_expression().strip()
-                if (
-                    new_expr
-                    and not new_expr.startswith("=")
-                    and not new_expr.replace(".", "", 1).isdigit()
-                ):
-                    new_expr = f"={new_expr}"
+                from setuav_studio.model.expression import normalize_equation_input
+
+                new_expr = normalize_equation_input(dlg.get_expression())
                 self.setText(new_expr)
                 self._call_on_changed(new_expr)
 
@@ -1175,11 +1199,14 @@ class PropertyTableMixin:
         target_data: dict[str, Any],
         on_changed: Callable[[str, Any], None] | None,
         resolved_api: Any,
+        *,
+        raw_callback: bool = False,
     ) -> None:
         def _update_field(k: str, new_v: Any) -> None:
-            target_data[k] = new_v
             if on_changed:
                 on_changed(k, new_v)
+            else:
+                target_data[k] = new_v
 
         val = target_data.get(f.key, f.default)
         if getattr(f, "readonly", False):
@@ -1233,6 +1260,7 @@ class PropertyTableMixin:
                 unit=f.unit,
                 target_data=target_data,
                 on_changed=lambda new_v, k=f.key: _update_field(k, new_v),
+                raw_callback=raw_callback,
                 api=resolved_api,
                 label=f.label,
             )
@@ -1247,6 +1275,7 @@ class PropertyTableMixin:
         *,
         on_changed: Callable[[str, Any], None] | None = None,
         api: Any | None = None,
+        raw_callback: bool = False,
     ) -> None:
         """Declaratively bind a schema of parameter fields to a property table.
 
@@ -1259,7 +1288,14 @@ class PropertyTableMixin:
 
         resolved_api = api or getattr(self, "_api", None)
         for f in normalized:
-            self._bind_single_parametric_field(table, f, target_data, on_changed, resolved_api)
+            self._bind_single_parametric_field(
+                table,
+                f,
+                target_data,
+                on_changed,
+                resolved_api,
+                raw_callback=raw_callback,
+            )
 
     def _set_property_expression(
         self,
@@ -1297,6 +1333,16 @@ class PropertyTableMixin:
         if item is None:
             return ""
         return str(item.data(Qt.ItemDataRole.UserRole) or "")
+
+    @classmethod
+    def _property_cell(cls, table: QTableWidget, key: str) -> ExpressionPropertyCell | None:
+        """Return the ExpressionPropertyCell in column 1 matching property key, if any."""
+        for row in range(table.rowCount()):
+            if cls._property_key(table, row) == key:
+                widget = table.cellWidget(row, 1)
+                if isinstance(widget, ExpressionPropertyCell):
+                    return widget
+        return None
 
     @classmethod
     def _property_text(cls, table: QTableWidget, row: int) -> str:

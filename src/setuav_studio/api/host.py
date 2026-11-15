@@ -86,6 +86,7 @@ class _StudioHost:
         api._undo_stack.clear()
         api._undo_stack.setClean()
         project.modified = False
+        api._report_expression_diagnostics(project.expression_diagnostics)
         api.set_selection(None)
         api.set_section_selection(None)
         from .api import _dispatch_listeners
@@ -96,6 +97,15 @@ class _StudioHost:
     def mark_project_saved(self) -> None:
         self._api._undo_stack.setClean()
         self._api._on_clean_changed(True)
+
+    def bind_viewport(self, viewport: Any) -> None:
+        """Bind the application viewport onto the API and notify project listeners."""
+        api = self._api
+        api._viewport = viewport
+        if api._project is not None:
+            from .api import _dispatch_listeners
+
+            _dispatch_listeners(api._project_listeners, api._project)
 
     def bind_project_requirement_checker(
         self,

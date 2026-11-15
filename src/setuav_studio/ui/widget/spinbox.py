@@ -18,7 +18,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.model.expression import get_expression, set_expression
+from setuav_studio.model.expression import (
+    ExpressionEvaluationError,
+    evaluate_numeric_input,
+    get_expression,
+)
+from setuav_studio.model.parameter import ParameterResolutionError
 
 
 class NoWheelComboBox(QComboBox):
@@ -138,43 +143,40 @@ def _resolve_table_api(table: QTableWidget, explicit_api: Any | None) -> Any | N
     return None
 
 
-def _parse_spinbox_callback_value(
-    new_text: str,
+def evaluate_table_cell_input(
+    value: Any,
     api: Any | None,
+    *,
+    cell: Any | None = None,
+    label: str = "",
     min_val: float | None = None,
     max_val: float | None = None,
-) -> Any:
-    clean = new_text.strip()
-    if not clean:
-        return ""
-    if clean.startswith("=") or not clean.replace(".", "", 1).replace("-", "", 1).isdigit():
-        try:
-            from setuav_studio.model.expression import ExpressionEvaluator
+) -> tuple[float, str | None] | None:
+    """Evaluate a number or '=...' expression for an editor cell without mutating model state.
 
-            evaluator = ExpressionEvaluator()
-            scope = {}
-            if api is not None and api.project is not None:
-                scope = api.project.get_scope(api=api)
-            res = evaluator.evaluate(clean.lstrip("=").strip(), scope)
-            if isinstance(res, (int, float)):
-                num = float(res)
-                if min_val is not None:
-                    num = max(min_val, num)
-                if max_val is not None:
-                    num = min(max_val, num)
-                return num
-        except Exception:
-            pass
-        return clean
+    Returns ``(numeric_value, stored_expression_or_none)`` on success. On failure,
+    marks ``cell`` erroneous, shows a status bar error, and returns ``None``.
+    """
     try:
-        num = float(clean)
-        if min_val is not None:
-            num = max(min_val, num)
-        if max_val is not None:
-            num = min(max_val, num)
-        return num
-    except ValueError:
-        return clean
+        scope: dict[str, Any] = {}
+        if api is not None and api.project is not None:
+            scope = api.project.get_scope(api=api)
+        num_val, expr = evaluate_numeric_input(value, scope)
+    except (ExpressionEvaluationError, ParameterResolutionError, ValueError, TypeError) as exc:
+        msg = f"Invalid {label or 'value'}: {exc}"
+        if cell is not None and hasattr(cell, "set_error"):
+            cell.set_error(msg)
+        if api is not None:
+            api.show_status(msg, "error")
+        return None
+
+    if min_val is not None:
+        num_val = max(min_val, num_val)
+    if max_val is not None:
+        num_val = min(max_val, num_val)
+    if cell is not None and hasattr(cell, "clear_error"):
+        cell.clear_error()
+    return num_val, expr
 
 
 def set_table_spinbox(
@@ -230,23 +232,24 @@ def set_table_spinbox(
 
     def handle_cell_changed(new_text: str) -> None:
         clean = new_text.strip()
-        is_expr = bool(
-            clean.startswith("=")
-            or (clean and not clean.replace(".", "", 1).replace("-", "", 1).isdigit())
-        )
-        if target_data is not None and isinstance(target_data, dict) and prop_k:
-            set_expression(target_data, prop_k, clean if is_expr else None)
-
         cb = on_changed_ref() if isinstance(on_changed_ref, weakref.WeakMethod) else on_changed_ref
-        if cb is not None:
-            if (raw_callback or target_data is None) and is_expr:
-                cb(clean)
-            else:
-                val = _parse_spinbox_callback_value(new_text, resolved_api, min_val, max_val)
-                if not isinstance(val, (int, float)):
-                    cur_num = target_data.get(prop_k) if target_data and prop_k else None
-                    val = cur_num if isinstance(cur_num, (int, float)) else 0.0
-                cb(val)
+        if cb is None:
+            return
+        if raw_callback:
+            cb(clean)
+            return
+
+        parsed = evaluate_table_cell_input(
+            clean,
+            resolved_api,
+            cell=cell,
+            label=label or prop_k,
+            min_val=min_val,
+            max_val=max_val,
+        )
+        if parsed is None:
+            return
+        cb(parsed[0])
 
     if active_expr:
         init_str = str(active_expr)

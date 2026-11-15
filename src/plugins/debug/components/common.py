@@ -184,9 +184,12 @@ def update_component_in_viewport(
     raw_params = comp_dict.get("parameters")
     params: dict[str, Any] = dict(raw_params) if isinstance(raw_params, dict) else {}
 
+    from setuav_studio.project.document import ProjectDocument
+
     comps_by_id: dict[str, dict[str, Any]] = {}
-    if project is not None and hasattr(project, "data") and isinstance(project.data, dict):
-        comps = project.data.get("components", [])
+    project_data = project.data if isinstance(project, ProjectDocument) else project
+    if isinstance(project_data, dict):
+        comps = project_data.get("components", [])
         if isinstance(comps, list):
             comps_by_id = {
                 str(d["id"]): d
@@ -220,11 +223,14 @@ def sync_debug_components_to_viewport(viewport: ViewportProtocol, project: Any) 
     """Synchronize all debug components in the project with the viewport."""
     if viewport is None:
         return
-    if project is None or not hasattr(project, "data") or not isinstance(project.data, dict):
+    from setuav_studio.project.document import ProjectDocument
+
+    project_data = project.data if isinstance(project, ProjectDocument) else project
+    if not isinstance(project_data, dict):
         viewport.clear(layer=DEBUG_LAYER)
         return
 
-    comps = project.data.get("components", [])
+    comps = project_data.get("components", [])
     if not isinstance(comps, list):
         viewport.clear(layer=DEBUG_LAYER)
         return
@@ -292,7 +298,7 @@ class BaseDebugComponentEditor(BaseComponentEditor):
     def _get_parent_options(self) -> list[tuple[str, str]]:
         options: list[tuple[str, str]] = [("", "None (World)")]
         project = self._api.project
-        if project is None or not hasattr(project, "data") or not isinstance(project.data, dict):
+        if project is None:
             return options
 
         self_id = str(self._component.get("id") or "")
@@ -361,7 +367,7 @@ class BaseDebugComponentEditor(BaseComponentEditor):
 
     def update_viewport(self) -> None:
         """Update this component's 3D representation directly in the viewport."""
-        vp = getattr(self._api, "viewport", None)
+        vp = self._api.viewport
         if vp is not None:
             update_component_in_viewport(vp, self._component, self._api.project)
 
@@ -371,7 +377,7 @@ class BaseDebugComponentEditor(BaseComponentEditor):
             key in ("axis", "radius", "length", "width", "outer_radius", "height")
             and "envelope" in self._component
         ):
-            vp = getattr(self._api, "viewport", None)
+            vp = self._api.viewport
             if vp is not None:
                 comp_id = str(self._component.get("id") or "")
                 obj = vp.get_object(comp_id)
@@ -403,11 +409,6 @@ def add_debug_component(
 ) -> Any | None:
     """Create and append a debug component into the active project with undo support."""
     project = api.project
-    if project is None:
-        window = getattr(api, "_window", None) or getattr(api, "main_window", None)
-        if window is not None and hasattr(window, "new_untitled_project"):
-            window.new_untitled_project()
-            project = api.project
     if project is None or project.read_only:
         api.show_status("Cannot add component to read-only project", "warning")
         return None
@@ -431,7 +432,7 @@ def add_debug_component(
         raw,
     )
     # Render component directly into viewport
-    vp = getattr(api, "viewport", None)
+    vp = api.viewport
     if vp is not None:
         update_component_in_viewport(vp, created, project)
 
@@ -467,7 +468,7 @@ def clear_debug_components(api: StudioAPI) -> None:
     count = len(debug_ids)
     api.edit_project("Clear Debug Primitives", change)
     # Clear viewport layer directly
-    vp = getattr(api, "viewport", None)
+    vp = api.viewport
     if vp is not None:
         vp.clear(layer=DEBUG_LAYER)
 

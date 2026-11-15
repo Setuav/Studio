@@ -158,22 +158,9 @@ class FlightPerformanceAnalysisPipeline:
         mass_kg = float(context.get("mass_kg", 0.0))
         project = context.get("project")
         if mass_kg <= 0.0 and project is not None:
-            try:
-                mass_props = getattr(project, "mass_properties", None)
-                if mass_props is not None and mass_props.mass_kg > 0:
-                    mass_kg = float(mass_props.mass_kg)
-            except Exception as exc:
-                logger.debug("Core mass_properties failed; trying component mass sum: %s", exc)
-            if mass_kg <= 0.0:
-                components = project.data.get("components", [])
-                mass_kg = (
-                    sum(
-                        float(component.get("mass", 0.0) or 0.0)
-                        for component in components
-                        if isinstance(component, dict)
-                    )
-                    / 1000.0
-                )
+            mass_props = project.mass_properties
+            if mass_props.mass_kg > 0:
+                mass_kg = float(mass_props.mass_kg)
         if mass_kg <= 0.0:
             raise ValueError(
                 "Mass properties are unavailable. Define component masses or run Weight Balance before analysis."

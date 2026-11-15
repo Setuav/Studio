@@ -38,16 +38,7 @@ class PropertiesPanel(QWidget):
         proj = self._api.project
         if proj is None or not comp_id:
             return None
-        if hasattr(proj, "get_component"):
-            return proj.get_component(comp_id)
-        if isinstance(getattr(proj, "data", None), dict):
-            comps = proj.data.get("components", [])
-            if isinstance(comps, list):
-                return next(
-                    (c for c in comps if isinstance(c, dict) and str(c.get("id") or "") == comp_id),
-                    None,
-                )
-        return None
+        return proj.get_component(comp_id)
 
     def _on_project_content_changed(self, project: Any) -> None:
         if self._current_widget is None or self._current_selection_key is None:
@@ -216,16 +207,16 @@ class PropertiesPanel(QWidget):
             self._clear_selected_cg()
 
     def _set_selected_envelope(self, comp_id: str | None) -> None:
-        viewport = getattr(self._api, "viewport", getattr(self._api, "_viewport", None))
-        if viewport is not None and hasattr(viewport, "set_selected_envelope"):
+        viewport = self._api.viewport
+        if viewport is not None:
             viewport.set_selected_envelope(comp_id)
 
     def _clear_selected_envelope(self) -> None:
         self._set_selected_envelope(None)
 
     def _set_selected_cg(self, comp_id: str | None) -> None:
-        viewport = getattr(self._api, "viewport", getattr(self._api, "_viewport", None))
-        if viewport is not None and hasattr(viewport, "set_selected_cg"):
+        viewport = self._api.viewport
+        if viewport is not None:
             viewport.set_selected_cg(comp_id)
 
     def _clear_selected_cg(self) -> None:

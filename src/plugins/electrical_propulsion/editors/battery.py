@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.api import StudioAPI
+from setuav_studio.model.expression import set_expression
 from setuav_studio.ui.style.icons import set_label_icon
 from setuav_studio.ui.widget.table import PropertyTableMixin
 
@@ -442,9 +443,12 @@ class BatteryEditor(PropertyTableMixin, QWidget):
             num = float(value)
         except (ValueError, TypeError):
             return
+        cell = self._property_cell(self.pack_table, key)
+        expr_to_store = cell.stored_expression() if cell is not None else None
 
         def apply_edit() -> None:
             p = self._component.setdefault("parameters", {})
+            set_expression(p, key, expr_to_store)
             if key in {"cell_count", "parallel_count"}:
                 p[key] = max(1, int(num))
             else:
@@ -476,9 +480,12 @@ class BatteryEditor(PropertyTableMixin, QWidget):
             num = float(value)
         except (ValueError, TypeError):
             return
+        cell = self._property_cell(self.cell_table, key)
+        expr_to_store = cell.stored_expression() if cell is not None else None
 
         def apply_edit() -> None:
             p = self._component.setdefault("parameters", {})
+            set_expression(p, key, expr_to_store)
             p[key] = float(num)
 
             # Recalculate derived totals

@@ -51,15 +51,16 @@ def _on_open_expression_assistant(api: StudioAPI) -> None:
     if editor is not None and hasattr(editor, "open_assistant"):
         editor.open_assistant()
     else:
+        from PySide6.QtWidgets import QApplication
+
         from setuav_studio.ui.dialog.expression_dialog import AdvancedExpressionDialog
 
-        window = getattr(api, "main_window", None) or getattr(api, "_window", None)
         dlg = AdvancedExpressionDialog(
             api=api,
             initial_expression="",
             title="Formula Assistant",
             is_boolean_constraint=False,
-            parent=window,
+            parent=QApplication.activeWindow(),
         )
         dlg.exec()
 
@@ -105,13 +106,13 @@ def _on_run_analysis_triggered(api: StudioAPI) -> None:
 
 def _on_toggle_aircraft_cg(api: StudioAPI) -> None:
     """Toggle visibility of the aircraft aggregate Center of Gravity marker in the Viewport."""
-    viewport = getattr(api, "viewport", getattr(api, "_viewport", None))
-    if viewport is not None and hasattr(viewport, "set_show_aircraft_cg"):
+    viewport = api.viewport
+    if viewport is not None:
         current = bool(viewport.is_show_aircraft_cg())
         viewport.set_show_aircraft_cg(not current)
         state_label = "enabled" if not current else "disabled"
         api.show_status(f"Aircraft CG visualization {state_label}.", "info", 2000)
-    elif api is not None:
+    else:
         api.show_status("3D Viewport is not ready.", "info", 2000)
 
 
@@ -212,11 +213,7 @@ def register_native_contributions(api: StudioAPI) -> None:
             icon="point_mass",
             checkable=True,
             checked_when=lambda: bool(
-                getattr(
-                    getattr(api, "viewport", getattr(api, "_viewport", None)),
-                    "is_show_aircraft_cg",
-                    lambda: False,
-                )()
+                api.viewport is not None and api.viewport.is_show_aircraft_cg()
             ),
             group="view",
             order=50,
@@ -314,7 +311,7 @@ def register_native_component_types(api: StudioAPI) -> None:
         ComponentTypeContribution(id="org.setuav.debug:arrow", name="Arrow", category="Debug"),
     ]
     for contrib in native_types:
-        if contrib.id not in getattr(api, "_component_types", {}):
+        if contrib.id not in api._component_types:
             api.register_component_type(contrib)
 
 
@@ -345,5 +342,5 @@ def register_native_kind_editors(api: StudioAPI) -> None:
         "analysis_table": lambda selection: AnalysisTablePropertyEditor(api, selection),
     }
     for kind, factory in defaults.items():
-        if kind not in getattr(api, "_kind_editors", {}):
+        if kind not in api._kind_editors:
             api.register_kind_editor(kind, factory)

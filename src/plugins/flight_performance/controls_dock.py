@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from PySide6.QtCore import Qt, QThreadPool
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QComboBox,
@@ -36,7 +36,6 @@ from .analysis_store import (
     performance_selection,
 )
 from .engine.models import FlightEnvelopeResult
-from .worker import FlightPerformanceWorker
 
 
 class PerformanceControlsDock(PropertyTableMixin, QWidget):
@@ -47,7 +46,6 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
         self.setObjectName("flight_performance.controls_widget")
         self._api = api
         self._is_running = False
-        self._worker: FlightPerformanceWorker | None = None
         self._empty_mass_kg = 0.0
         self._current_density = 1.225
         self._section_icons: list[tuple[QLabel, str]] = []
@@ -352,26 +350,14 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
 
     def _refresh_mass(self) -> None:
         proj = self._api.project if self._api else None
-        if not proj:
+        if proj is None:
             self._empty_mass_kg = 0.0
             self._set_property_value(self.mass_table, "empty_mass", "0.0 g")
             self._update_takeoff_mass()
             return
 
-        try:
-            mass_props = getattr(proj, "mass_properties", None)
-            if mass_props is not None and mass_props.mass_kg > 0:
-                self._empty_mass_kg = float(mass_props.mass_kg)
-                empty_g = self._empty_mass_kg * 1000.0
-                self._set_property_value(self.mass_table, "empty_mass", f"{empty_g:.1f} g")
-                self._update_takeoff_mass()
-                return
-        except Exception:
-            pass
-
-        comps = proj.data.get("components", [])
-        total_g = sum(float(c.get("mass", 0.0) or 0.0) for c in comps if isinstance(c, dict))
-        self._empty_mass_kg = total_g / 1000.0 if total_g > 0 else 0.0
+        mass_props = proj.mass_properties
+        self._empty_mass_kg = float(mass_props.mass_kg) if mass_props.mass_kg > 0 else 0.0
         empty_g = self._empty_mass_kg * 1000.0
         self._set_property_value(self.mass_table, "empty_mass", f"{empty_g:.1f} g")
         self._update_takeoff_mass()
@@ -561,21 +547,14 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
                 progress_callback=on_progress,
             )
 
-        if self._api and hasattr(self._api, "tasks"):
-            self._task_handle = self._api.tasks.submit(
-                name="Flight Performance",
-                target=run_target,
-                on_finished=self._on_analysis_finished,
-                on_error=self._on_analysis_error,
-                on_progress=lambda p: self._on_analysis_progress(p.current, p.total, p.message),
-                on_cancelled=self._on_analysis_cancelled,
-            )
-        else:
-            self._worker = FlightPerformanceWorker(context)
-            self._worker.signals.progress.connect(self._on_analysis_progress)
-            self._worker.signals.finished.connect(self._on_analysis_finished)
-            self._worker.signals.error.connect(self._on_analysis_error)
-            QThreadPool.globalInstance().start(self._worker)
+        self._task_handle = self._api.tasks.submit(
+            name="Flight Performance",
+            target=run_target,
+            on_finished=self._on_analysis_finished,
+            on_error=self._on_analysis_error,
+            on_progress=lambda p: self._on_analysis_progress(p.current, p.total, p.message),
+            on_cancelled=self._on_analysis_cancelled,
+        )
 
     def _on_analysis_progress(self, current: int, total: int, msg: str) -> None:
         if self._api:

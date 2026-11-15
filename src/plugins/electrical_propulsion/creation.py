@@ -89,7 +89,7 @@ class PropulsionCreationController:
 
     def _has_propulsion_component(self) -> bool:
         project = self._api.project
-        if project is None or not isinstance(getattr(project, "data", None), dict):
+        if project is None:
             return False
         components = project.data.get("components", [])
         if not isinstance(components, list):

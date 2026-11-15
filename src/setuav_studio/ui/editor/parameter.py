@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import math
 from typing import TYPE_CHECKING, Any
 
 from PySide6.QtWidgets import (
@@ -14,6 +15,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from setuav_studio.model.expression import ExpressionEvaluator, normalize_equation_input
 from setuav_studio.model.parameter import ParameterResolver
 from setuav_studio.ui.style.icons import set_label_icon
 from setuav_studio.ui.widget.table import PropertyTableMixin
@@ -199,7 +201,7 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
             parent=self,
         )
         if dlg.exec() == QDialog.DialogCode.Accepted:
-            new_expr = dlg.get_expression()
+            new_expr = normalize_equation_input(dlg.get_expression())
             self._on_value_expression_changed(new_expr)
             self._load_data()
 
@@ -210,19 +212,35 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
         if not data:
             return
         raw_params: dict[str, Any] = data.setdefault("parameters", {})
+        cell = self._property_cell(self.general_table, "value")
 
         parsed: Any
-        if isinstance(new_val, (int, float)):
-            parsed = new_val
-        else:
-            val_str = str(new_val).strip()
-            if self._resolver.evaluator.is_expression(val_str):
-                parsed = val_str
+        try:
+            if isinstance(new_val, bool):
+                raise ValueError("Boolean value is not numeric")
+            if isinstance(new_val, (int, float)):
+                if not math.isfinite(float(new_val)):
+                    raise ValueError("Numeric value must be finite")
+                parsed = new_val
             else:
-                try:
-                    parsed = float(val_str) if "." in val_str else int(val_str)
-                except ValueError:
+                val_str = str(new_val).strip()
+                if ExpressionEvaluator.is_expression(val_str):
                     parsed = val_str
+                else:
+                    num = float(val_str)
+                    if not math.isfinite(num):
+                        raise ValueError("Numeric value must be finite")
+                    parsed = num
+        except ValueError as exc:
+            msg = f"Invalid parameter value: {exc}"
+            if cell is not None:
+                cell.set_error(msg)
+            if self._api is not None:
+                self._api.show_status(msg, "error")
+            return
+
+        if cell is not None:
+            cell.clear_error()
 
         curr_entry = raw_params.get(self._param_key)
         curr_val = curr_entry.get("value") if isinstance(curr_entry, dict) else curr_entry

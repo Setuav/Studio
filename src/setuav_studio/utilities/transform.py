@@ -127,6 +127,8 @@ def _get_comp_dict(item: Any) -> dict[str, Any] | None:
 
 
 def _build_comps_map(comps_or_project: Any) -> dict[str, dict[str, Any]]:
+    from setuav_studio.project.document import ProjectDocument
+
     if isinstance(comps_or_project, dict):
         if "components" in comps_or_project and isinstance(comps_or_project["components"], list):
             comps = comps_or_project["components"]
@@ -137,7 +139,7 @@ def _build_comps_map(comps_or_project: Any) -> dict[str, dict[str, Any]]:
                 for d in [_get_comp_dict(v)]
                 if d is not None
             }
-    elif hasattr(comps_or_project, "data") and isinstance(comps_or_project.data, dict):
+    elif isinstance(comps_or_project, ProjectDocument):
         comps = comps_or_project.data.get("components", [])
     elif isinstance(comps_or_project, (list, tuple, set)):
         comps = comps_or_project

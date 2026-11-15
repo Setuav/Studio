@@ -77,10 +77,13 @@ def build_universal_scope(  # noqa: C901
     config_id: str | None = None,
 ) -> dict[str, Any]:
     """Build the universal evaluation scope containing resolved parameters, models, and extensions."""
+    from copy import deepcopy
+
     from setuav_studio.model.component import GenericComponent
     from setuav_studio.model.parameter import ParameterResolver
+    from setuav_studio.project.document import ProjectDocument
 
-    raw_data = getattr(project_data, "data", project_data)
+    raw_data = project_data.data if isinstance(project_data, ProjectDocument) else project_data
     p_dict: dict[str, Any] = raw_data if isinstance(raw_data, dict) else {}
 
     resolver = ParameterResolver()
@@ -96,7 +99,7 @@ def build_universal_scope(  # noqa: C901
         if clean_k != k:
             scope[clean_k] = v
 
-    # 2. Materialized & Resolved Components
+    # 2. Materialized Components (reading stored evaluated values directly)
     components = p_dict.get("components", [])
     models_list: list[Any] = []
     total_mass = 0.0
@@ -105,22 +108,18 @@ def build_universal_scope(  # noqa: C901
         for comp in components:
             if not isinstance(comp, dict):
                 continue
-            resolved_comp = resolver.evaluate_component_parameters(comp, resolved_params)
-            if api is not None and hasattr(api, "create_component_model"):
-                model = api.create_component_model(resolved_comp)
-            else:
-                model = GenericComponent(resolved_comp)
+            comp_copy = deepcopy(comp)
+            model = (
+                api.create_component_model(comp_copy)
+                if api is not None
+                else GenericComponent(comp_copy)
+            )
             models_list.append(model)
 
         # Link child models (e.g. control surfaces, attached motors) to their parent models
         model_by_id = {getattr(m, "id", ""): m for m in models_list if getattr(m, "id", "")}
         for model in models_list:
-            raw_data = getattr(model, "raw_data", {})
-            parent_id = (
-                getattr(model, "parent_id", None)
-                or getattr(model, "parent", None)
-                or (raw_data.get("parent") if isinstance(raw_data, dict) else None)
-            )
+            parent_id = model.parent
             if parent_id and parent_id in model_by_id:
                 parent_model = model_by_id[parent_id]
                 if hasattr(model, "set_parent_model"):

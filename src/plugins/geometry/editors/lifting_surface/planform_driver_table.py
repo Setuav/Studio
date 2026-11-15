@@ -8,7 +8,6 @@ Provides an 8-row table with:
 
 from __future__ import annotations
 
-import contextlib
 from collections.abc import Callable
 from typing import Any
 
@@ -23,6 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from setuav_studio.ui.widget.spinbox import evaluate_table_cell_input
 from setuav_studio.ui.widget.table import ExpressionPropertyCell
 
 from ...engine.lifting_surface_driver_solver import (
@@ -274,36 +274,30 @@ class DriverPlanformTable(QTableWidget):
         if not clean:
             return
 
-        eval_val: float | None = None
-        if clean.startswith("=") or not clean.replace(".", "", 1).replace("-", "", 1).isdigit():
-            # Formula
-            self._driver_expressions[edited_key] = clean
-            if self._api is not None and self._api.project is not None:
-                try:
-                    from setuav_studio.model.expression import ExpressionEvaluator
+        row = PLANFORM_PARAM_KEYS.index(edited_key)
+        cell = self.cellWidget(row, 2)
+        parsed = evaluate_table_cell_input(
+            clean,
+            self._api,
+            cell=cell if isinstance(cell, ExpressionPropertyCell) else None,
+            label=PLANFORM_PARAM_LABELS.get(edited_key, edited_key),
+        )
+        if parsed is None:
+            return
 
-                    evaluator = ExpressionEvaluator()
-                    scope = self._api.project.get_scope(api=self._api)
-                    expr = clean.lstrip("=").strip()
-                    res = evaluator.evaluate(expr, scope)
-                    if isinstance(res, (int, float)):
-                        eval_val = float(res)
-                except Exception:
-                    pass
+        num_val, expr_to_store = parsed
+        if expr_to_store is not None:
+            self._driver_expressions[edited_key] = expr_to_store
+            eval_val = num_val
         else:
             self._driver_expressions.pop(edited_key, None)
-            with contextlib.suppress(ValueError):
-                disp_num = float(clean)
-                from setuav_studio.units import get_quantity_for_unit, get_unit_manager
+            from setuav_studio.units import get_quantity_for_unit, get_unit_manager
 
-                unit = PLANFORM_PARAM_UNITS.get(edited_key, "")
-                q_id = get_quantity_for_unit(unit)
-                eval_val = get_unit_manager().to_base(disp_num, q_id) if q_id else disp_num
+            unit = PLANFORM_PARAM_UNITS.get(edited_key, "")
+            q_id = get_quantity_for_unit(unit)
+            eval_val = get_unit_manager().to_base(num_val, q_id) if q_id else num_val
 
-        if eval_val is not None:
-            self._on_spinbox_value_changed(edited_key, eval_val)
-        elif self._on_values_changed:
-            self._on_values_changed(self._current_values)
+        self._on_spinbox_value_changed(edited_key, eval_val)
 
     def _on_spinbox_value_changed(self, edited_key: str, value: float) -> None:
         inputs = dict(self._current_values)

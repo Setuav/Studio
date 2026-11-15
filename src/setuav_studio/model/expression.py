@@ -220,10 +220,7 @@ def walk_expressions(  # noqa: C901
         if "_expressions" in obj and isinstance(obj["_expressions"], dict):
             for prop in list(obj["_expressions"]):
                 expr = get_expression(obj, prop)
-                if expr is not None and (
-                    expr.strip().startswith("=")
-                    or not expr.replace(".", "", 1).replace("-", "", 1).isdigit()
-                ):
+                if expr is not None and ExpressionEvaluator.is_expression(expr):
                     loc = f"{path} -> {prop}" if path else prop
                     res = callback(expr, loc)
                     if res is not None and res != expr:
@@ -235,7 +232,7 @@ def walk_expressions(  # noqa: C901
             if k == "_expressions":
                 continue
             item_path = f"{path} -> {k}" if path else k
-            if isinstance(v, str) and v.strip().startswith("="):
+            if ExpressionEvaluator.is_expression(v):
                 res = callback(v, item_path)
                 if res is not None and res != v:
                     obj[k] = res
@@ -335,6 +332,60 @@ def find_symbol_usages_in_project(
     return usages
 
 
+def evaluate_numeric_input(
+    value: Any,
+    scope: dict[str, Any] | None = None,
+) -> tuple[float, str | None]:
+    """Evaluate a numeric literal or '=...' formula without mutating model state.
+
+    Returns ``(numeric_value, stored_expression_or_none)``.
+    Raises ``ExpressionEvaluationError`` or ``ValueError`` when invalid.
+    """
+    if isinstance(value, bool):
+        raise ValueError("Boolean value is not numeric")
+    if isinstance(value, (int, float)):
+        num = float(value)
+        if not math.isfinite(num):
+            raise ValueError("Numeric value must be finite")
+        return num, None
+
+    val_str = str(value).strip() if value is not None else ""
+    if not val_str:
+        raise ValueError("Value cannot be empty")
+
+    if ExpressionEvaluator.is_expression(val_str):
+        res = ExpressionEvaluator().evaluate(val_str, scope or {})
+        if isinstance(res, bool) or not isinstance(res, (int, float)):
+            raise ExpressionEvaluationError(f"Expression '{val_str}' did not evaluate to a number")
+        num = float(res)
+        if not math.isfinite(num):
+            raise ExpressionEvaluationError(
+                f"Expression '{val_str}' evaluated to a non-finite number"
+            )
+        return num, val_str
+
+    num = float(val_str)
+    if not math.isfinite(num):
+        raise ValueError("Numeric value must be finite")
+    return num, None
+
+
+def normalize_equation_input(text: str) -> str:
+    """Normalize input from an equation editor dialog.
+
+    Finite numeric literals (including scientific notation like '1e-3') remain numeric
+    strings; non-numeric formula text is prefixed with '=' if not already prefixed.
+    """
+    clean = text.strip()
+    if not clean or ExpressionEvaluator.is_expression(clean):
+        return clean
+    try:
+        num = float(clean)
+    except ValueError:
+        return f"={clean}"
+    return clean if math.isfinite(num) else f"={clean}"
+
+
 def get_expression(node: Any, key: str) -> str | None:
     """Return the stored expression string for key on node, or None if unset."""
     if not isinstance(node, dict):
@@ -354,6 +405,8 @@ def set_expression(node: Any, key: str, expr: str | None) -> None:
         return
     clean = expr.strip() if isinstance(expr, str) else ""
     if clean:
+        if not clean.startswith("="):
+            clean = f"={clean}"
         exprs = node.get("_expressions")
         if not isinstance(exprs, dict):
             exprs = {}

@@ -18,8 +18,9 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.api import StudioAPI
-from setuav_studio.model.expression import get_expression
+from setuav_studio.model.expression import get_expression, set_expression
 from setuav_studio.ui.style.icons import set_label_icon
+from setuav_studio.ui.widget.spinbox import evaluate_table_cell_input
 from setuav_studio.ui.widget.table import PropertyTableMixin
 
 CONTROL_SURFACE_TYPES = [
@@ -336,6 +337,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
                 quantity="angle",
                 suffix="°",
                 target_data=geom,
+                raw_callback=True,
                 on_changed=lambda val: self._on_prop_spinbox_changed("hinge_sweep", val),
                 api=self._api,
                 label="Hinge sweep angle",
@@ -352,6 +354,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
                 quantity="angle",
                 suffix="°",
                 target_data=geom,
+                raw_callback=True,
                 on_changed=lambda val: self._on_prop_spinbox_changed("deflection", val),
                 api=self._api,
                 label="Deflection angle",
@@ -373,12 +376,14 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
         geom = self._geometry()
         semi_span, root_chord, tip_chord, _wing_area = self._parent_wing_info()
 
-        try:
-            num_val = float(value)
-        except (ValueError, TypeError):
+        cell = self._property_cell(self.properties_table, key)
+        parsed = evaluate_table_cell_input(value, self._api, cell=cell, label=key)
+        if parsed is None:
             return
+        num_val, expr_to_store = parsed
 
         def change() -> None:
+            set_expression(geom, key, expr_to_store)
             self._apply_spinbox_change(geom, key, num_val, semi_span, root_chord, tip_chord)
 
         self._edit_component(f"Edit control surface {key}", change)
@@ -467,6 +472,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
                 unit=unit,
                 decimals=dec,
                 target_data=self._geometry(),
+                raw_callback=True,
                 on_changed=lambda val, k=key: self._on_prop_spinbox_changed(k, val),
                 api=self._api,
                 label=label_text,

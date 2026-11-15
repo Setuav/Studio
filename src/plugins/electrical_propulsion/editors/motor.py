@@ -75,7 +75,7 @@ class MotorEditor(BaseComponentEditor):
 
             # Collect geometry mount targets directly from project components
             target_options: list[tuple[str, str]] = [("", "-- Select Target --")]
-            if self._api.project and hasattr(self._api.project, "data"):
+            if self._api.project is not None:
                 comps = self._api.project.data.get("components", [])
                 for c in comps:
                     if isinstance(c, dict):

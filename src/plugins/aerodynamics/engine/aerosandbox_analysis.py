@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Any
 
 from .aerosandbox_results import AeroSandboxResultMixin
 from .base import (
-    CONTROL_CHANNELS,
     AeroResult,
     AeroState,
     AnalysisMethod,
@@ -174,10 +173,6 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
         if condition.sweep_type != SweepType.CONTROL_DEFLECTION:
             return
         channel = str(condition.sweep_variable).strip().lower()
-        if channel not in CONTROL_CHANNELS:
-            raise ValueError(
-                f"'{condition.sweep_variable}' is a surface name, not a supported control channel"
-            )
         if channel not in control_channels_for_components(components):
             raise ValueError(
                 f"Control channel '{channel}' is not provided by the aircraft geometry"

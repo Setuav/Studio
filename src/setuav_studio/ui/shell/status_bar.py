@@ -256,29 +256,15 @@ class StatusBarManager:
         self._api.show_status("Ready", "info", 0)
         install_log_buffer()
 
-        if hasattr(self._api, "tasks"):
-            self._connect_task_manager()
+        self._connect_task_manager()
 
     def _connect_task_manager(self) -> None:
-        try:
-            tm = getattr(self._api, "tasks", None)
-            if tm is None:
-                return
-            for sig_name, slot in (
-                ("task_started", self._on_task_started),
-                ("task_finished", self._on_task_finished),
-                ("task_cancelled", self._on_task_cancelled),
-                ("task_error", self._on_task_failed),
-            ):
-                sig = getattr(tm, sig_name, None)
-                if sig is not None and hasattr(sig, "connect"):
-                    sig.connect(slot)
-
-            sig_count = getattr(tm, "tasks_count_changed", None)
-            if sig_count is not None and hasattr(sig_count, "connect"):
-                sig_count.connect(lambda _count: self._check_hide_cancel_button())
-        except Exception:
-            pass
+        tm = self._api.tasks
+        tm.task_started.connect(self._on_task_started)
+        tm.task_finished.connect(self._on_task_finished)
+        tm.task_cancelled.connect(self._on_task_cancelled)
+        tm.task_error.connect(self._on_task_failed)
+        tm.tasks_count_changed.connect(lambda _count: self._check_hide_cancel_button())
 
     def _on_task_started(self, task: object, *args: object) -> None:
         self.cancel_button.show()
@@ -293,36 +279,16 @@ class StatusBarManager:
         self._check_hide_cancel_button()
 
     def _check_hide_cancel_button(self) -> None:
-        try:
-            tm = getattr(self._api, "tasks", None)
-            if tm and hasattr(tm, "active_tasks"):
-                if not tm.active_tasks:
-                    self.cancel_button.hide()
-                    self.progress_bar.hide()
-                else:
-                    self.cancel_button.show()
-            elif tm and hasattr(tm, "running_tasks"):
-                if not tm.running_tasks():
-                    self.cancel_button.hide()
-                    self.progress_bar.hide()
-                else:
-                    self.cancel_button.show()
-            else:
-                self.cancel_button.hide()
-                self.progress_bar.hide()
-        except Exception:
+        if not self._api.tasks.active_tasks:
             self.cancel_button.hide()
             self.progress_bar.hide()
+        else:
+            self.cancel_button.show()
 
     def _on_cancel_tasks_clicked(self) -> None:
-        try:
-            tm = getattr(self._api, "tasks", None)
-            if tm and hasattr(tm, "cancel_all"):
-                tm.cancel_all()
-            self.cancel_button.hide()
-            self.show_status_message("Background task cancelled", "warning", 3000)
-        except Exception:
-            self.cancel_button.hide()
+        self._api.tasks.cancel_all()
+        self.cancel_button.hide()
+        self.show_status_message("Background task cancelled", "warning", 3000)
 
     def show_status_message(
         self, message: str, level: str = "info", timeout_ms: int = 5000
@@ -354,7 +320,7 @@ class StatusBarManager:
 
     def evaluate_problems(self, project: ProjectDocument | None = None) -> list[Problem]:
         """Evaluate project constraints and system/plugin warnings, updating the status bar badge."""
-        proj = project or getattr(self._window, "_project", None)
+        proj = project or self._api.project
         problems: list[Problem] = []
 
         if proj is not None:
@@ -386,6 +352,23 @@ class StatusBarManager:
                             source="Plugin",
                         )
                     )
+
+            # 3. Expression evaluation diagnostics
+            for idx, diag in enumerate(proj.expression_diagnostics, start=1):
+                loc = (
+                    f"{diag['component_id']}.{diag['path']}"
+                    if diag.get("component_id")
+                    else diag.get("path", "")
+                )
+                problems.append(
+                    Problem(
+                        id=f"expr_error_{idx}",
+                        title=f"Expression Error ({loc})",
+                        message=diag["message"],
+                        severity="error",
+                        source="Expression",
+                    )
+                )
 
         self._problems = problems
         self._update_problems_badge()

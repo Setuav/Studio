@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import contextlib
 from copy import deepcopy
 from typing import Any
 
@@ -16,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.model.expression import get_expression, set_expression
+from setuav_studio.ui.widget.spinbox import evaluate_table_cell_input
 
 from ...engine.control_surface_geometry import sync_sizing_values
 
@@ -339,6 +339,8 @@ class ControlSurfacesSectionMixin:
                 self.cs_properties_table,
                 "hinge_sweep",
                 hs_val,
+                target_data=geom,
+                raw_callback=True,
                 on_changed=lambda val: self._on_cs_prop_spinbox_changed("hinge_sweep", val),
                 api=self._api,
                 label="Hinge sweep angle",
@@ -351,6 +353,8 @@ class ControlSurfacesSectionMixin:
                 self.cs_properties_table,
                 "deflection",
                 def_val,
+                target_data=geom,
+                raw_callback=True,
                 on_changed=lambda val: self._on_cs_prop_spinbox_changed("deflection", val),
                 api=self._api,
                 label="Deflection angle",
@@ -379,30 +383,14 @@ class ControlSurfacesSectionMixin:
         geom = self._cs_geom(cs)
         semi_span, root_chord, tip_chord, _wing_area = self._surface_span_info()
 
-        val_str = str(value).strip() if value is not None else ""
-        num_val: float | None = None
-        is_expr = (
-            val_str.startswith("=") or not val_str.replace(".", "", 1).replace("-", "", 1).isdigit()
-        )
-        set_expression(geom, key, val_str if is_expr else None)
-        if is_expr:
-            if self._api is not None and self._api.project is not None:
-                from setuav_studio.model.expression import ExpressionEvaluator
-
-                evaluator = ExpressionEvaluator()
-                scope = self._api.project.get_scope(api=self._api)
-                expr = val_str.lstrip("=").strip()
-                res = evaluator.evaluate(expr, scope)
-                if isinstance(res, (int, float)):
-                    num_val = float(res)
-        else:
-            with contextlib.suppress(ValueError):
-                num_val = float(val_str)
-
-        if num_val is None:
+        cell = self._property_cell(self.cs_properties_table, key)
+        parsed = evaluate_table_cell_input(value, self._api, cell=cell, label=key)
+        if parsed is None:
             return
+        num_val, expr_to_store = parsed
 
         def change() -> None:
+            set_expression(geom, key, expr_to_store)
             self._apply_cs_spinbox_change(geom, key, num_val, semi_span, root_chord, tip_chord)
 
         self._edit_control_surface_item(cs, f"Edit control surface {key}", change)
@@ -504,10 +492,13 @@ class ControlSurfacesSectionMixin:
 
         if is_driver:
             val_to_pass = raw_expr if raw_expr else current_val
+            geom = self._cs_geom(self._control_surfaces()[self._control_surface_index])
             self._set_property_expression(
                 self.cs_properties_table,
                 key,
                 val_to_pass,
+                target_data=geom,
+                raw_callback=True,
                 on_changed=lambda val, k=key: self._on_cs_prop_spinbox_changed(k, val),
                 api=self._api,
                 label=label_text,

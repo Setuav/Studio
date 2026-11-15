@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import contextlib
 from typing import Any
-
-from setuav_studio.api import StudioAPI
 
 from ...engine.fuselage_geometry import FUSELAGE_PROFILE_TYPES, get_default_profile
 
@@ -64,39 +61,9 @@ def format_profile_size(profile: dict[str, Any]) -> str:
     return ""
 
 
-def evaluate_expression_or_number(
-    val_str: str,
-    api: StudioAPI | None,
-) -> tuple[float | None, bool]:
-    """Evaluate expression string or parse numeric float.
-
-    Returns:
-        tuple[num_val, is_expression]
-    """
-    val_clean = val_str.strip()
-    if val_clean.startswith("=") or not val_clean.replace(".", "", 1).replace("-", "", 1).isdigit():
-        if api is not None and api.project is not None:
-            try:
-                from setuav_studio.model.expression import ExpressionEvaluator
-
-                evaluator = ExpressionEvaluator()
-                scope = api.project.get_scope(api=api)
-                expr = val_clean.lstrip("=").strip()
-                res = evaluator.evaluate(expr, scope)
-                if isinstance(res, (int, float)):
-                    return float(res), True
-            except Exception:
-                pass
-        return None, True
-    with contextlib.suppress(ValueError):
-        return float(val_clean), False
-    return None, False
-
-
 __all__ = [
     "FUSELAGE_PROFILE_TYPES",
     "PROFILE_FIELDS",
-    "evaluate_expression_or_number",
     "format_profile_size",
     "get_default_profile",
 ]

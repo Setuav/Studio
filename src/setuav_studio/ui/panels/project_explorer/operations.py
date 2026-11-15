@@ -208,9 +208,8 @@ class ProjectExplorerOperations:
 
         self._api.set_selection(None)
         self._api.edit_project(f"Delete parameter '{param_name}'", _apply_param_del)
-        proj = self._api.project
-        if proj is not None and hasattr(proj, "recompute_expressions"):
-            proj.recompute_expressions(self._api)
+        if self._api.project is not None:
+            self._api.project.recompute_expressions(self._api)
         self._api.show_status(f'Deleted parameter "{param_name}"', "success", 3000)
 
     def delete_constraint_item(self, element: dict[str, Any]) -> None:
@@ -267,9 +266,8 @@ class ProjectExplorerOperations:
 
         self._api.set_selection(None)
         self._api.edit_project(f"Delete {element_name}", change)
-        proj = self._api.project
-        if proj is not None and hasattr(proj, "recompute_expressions"):
-            proj.recompute_expressions(self._api)
+        if self._api.project is not None:
+            self._api.project.recompute_expressions(self._api)
         self._api.show_status(f'Deleted "{element_name}"', "success", 3000)
 
     def delete_analysis_config_item(self, element: dict[str, Any]) -> None:

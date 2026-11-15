@@ -374,7 +374,7 @@ class AeroSandboxEngine(AeroSandboxAnalysisMixin, AeroSandboxGeometryMixin, Aero
                 )
 
             if xsecs:
-                segment_tag = str(seg.get("tag") or seg.get("name") or "").strip()
+                segment_tag = str(seg.get("tag") or "").strip()
                 base_name = str(comp.get("name") or comp.get("id") or "Fuselage")
                 if len(segments) > 1:
                     segment_name = f"{base_name} - {segment_tag or f'Segment {segment_index + 1}'}"

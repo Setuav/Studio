@@ -156,7 +156,9 @@ class ProjectController:
         project_name = str(project.data.get("name") or project.location.name or project.path.name)
         if status_mgr:
             status_mgr.evaluate_problems(project)
-        if project.degraded:
+        if self._api.expression_diagnostics:
+            self._api._report_expression_diagnostics(self._api.expression_diagnostics)
+        elif project.degraded:
             self._api.show_status(
                 "Degraded mode — " + "; ".join(project.plugin_issues),
                 "warning",

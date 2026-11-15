@@ -18,8 +18,13 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.api import StudioAPI
+from setuav_studio.model.expression import set_expression
 from setuav_studio.ui.style.icons import set_label_icon
-from setuav_studio.ui.widget.spinbox import NumericSpinBox, set_table_spinbox
+from setuav_studio.ui.widget.spinbox import (
+    NumericSpinBox,
+    evaluate_table_cell_input,
+    set_table_spinbox,
+)
 from setuav_studio.ui.widget.table import PropertyTableMixin
 
 
@@ -198,7 +203,8 @@ class TransformEditor(PropertyTableMixin, QWidget):
         quantity: str,
         suffix: str,
         target_data: dict[str, Any] | None = None,
-        property_key: str | None = None,
+        transform_kind: str = "position",
+        axis: str = "x",
         value: float | str = 0.0,
         label: str = "",
     ) -> NumericSpinBox:
@@ -214,10 +220,11 @@ class TransformEditor(PropertyTableMixin, QWidget):
             quantity=quantity,
             suffix=suffix,
             target_data=target_data,
-            property_key=property_key,
+            property_key=axis,
+            raw_callback=True,
             api=self._api,
             label=label,
-            on_changed=lambda _value: self._update_transform(),
+            on_changed=lambda val, k=transform_kind, a=axis: self._on_transform_changed(k, a, val),
         )
 
     def _load_component(self, component: dict[str, Any]) -> None:
@@ -249,7 +256,8 @@ class TransformEditor(PropertyTableMixin, QWidget):
                     quantity="length",
                     suffix="mm",
                     target_data=pos,
-                    property_key=axis,
+                    transform_kind="position",
+                    axis=axis,
                     value=pos.get(axis, 0.0),
                     label=f"Position {axis.upper()}",
                 )
@@ -264,23 +272,36 @@ class TransformEditor(PropertyTableMixin, QWidget):
                     quantity="angle",
                     suffix="°",
                     target_data=rot,
-                    property_key=axis,
+                    transform_kind="rotation",
+                    axis=axis,
                     value=rot.get(axis, 0.0),
                     label=f"Rotation {axis.title()}",
                 )
         finally:
             self._loading = False
 
-    def _update_transform(self) -> None:
+    def _on_transform_changed(self, kind: str, axis: str, value: Any) -> None:
         if self._loading or self._component is None:
             return
+        spins = self.position_spins if kind == "position" else self.rotation_spins
+        spin = spins.get(axis)
+        parsed = evaluate_table_cell_input(
+            value,
+            self._api,
+            cell=spin,
+            label=f"{kind.title()} {axis.upper()}",
+            min_val=-360.0 if kind == "rotation" else -1_000_000_000.0,
+            max_val=360.0 if kind == "rotation" else 1_000_000_000.0,
+        )
+        if parsed is None:
+            return
+        num_val, expr_to_store = parsed
         component = self._component
-        position = {axis: spin.value() for axis, spin in self.position_spins.items()}
-        rotation = {axis: spin.value() for axis, spin in self.rotation_spins.items()}
 
         def change() -> None:
-            self._position().update(position)
-            self._rotation().update(rotation)
+            target = self._position() if kind == "position" else self._rotation()
+            target[axis] = num_val
+            set_expression(target, axis, expr_to_store)
 
         self._api.edit_component(
             component,

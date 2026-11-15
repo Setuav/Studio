@@ -208,6 +208,68 @@ class TestComponentEditor(unittest.TestCase):
         editor._on_mass_changed(120.0)
         self.assertEqual(comp["mass"], 120.0)
 
+    def test_expression_write_order_and_atomic_undo(self) -> None:
+        from setuav_studio.model.expression import get_expression
+
+        statuses: list[tuple[str, str, int]] = []
+        api = StudioAPI()
+        api._host.bind_status_handler(lambda msg, lvl, ms: statuses.append((msg, lvl, ms)))
+        doc = ProjectDocument(
+            path=Path("/tmp/test-order.json"),
+            kind="json",
+            data={
+                "parameters": {"base_mass": 50.0, "base_len": 100.0},
+                "components": [
+                    {
+                        "id": "box-1",
+                        "type": "test:box",
+                        "name": "Box 1",
+                        "mass": 100.0,
+                        "parameters": {"length": 200.0},
+                    }
+                ],
+            },
+        )
+        api._host.set_project(doc)
+        comp = doc.data["components"][0]
+        fields = [ParameterField(key="length", label="Length", unit="mm", default=100.0)]
+        editor = BaseComponentEditor(api, comp, parameter_fields=fields)
+        self.addCleanup(editor.deleteLater)
+
+        # Invalid expressions mark cells erroneous and persist nothing.
+        editor._on_mass_changed("=missing_var")
+        editor._on_expression_cell_changed("length", "=missing_var")
+
+        mass_cell = editor._property_cell(editor.general_table, "mass")
+        len_cell = editor._property_cell(editor.parameters_table, "length")
+        assert isinstance(mass_cell, ExpressionPropertyCell)
+        assert isinstance(len_cell, ExpressionPropertyCell)
+        self.assertTrue(mass_cell._has_error)
+        self.assertTrue(len_cell._has_error)
+        self.assertGreaterEqual(sum(1 for _, lvl, _ in statuses if lvl == "error"), 2)
+        self.assertEqual(comp["mass"], 100.0)
+        self.assertEqual(comp["parameters"]["length"], 200.0)
+        self.assertIsNone(get_expression(comp, "mass"))
+        self.assertIsNone(get_expression(comp["parameters"], "length"))
+        self.assertFalse(api._host.undo_stack.canUndo())
+
+        # Valid expressions store value + formula together and undo atomically.
+        editor._on_mass_changed("=base_mass * 3")
+        editor._on_expression_cell_changed("length", "=base_len * 2.5")
+        self.assertEqual(comp["mass"], 150.0)
+        self.assertEqual(get_expression(comp, "mass"), "=base_mass * 3")
+        self.assertEqual(comp["parameters"]["length"], 250.0)
+        self.assertEqual(get_expression(comp["parameters"], "length"), "=base_len * 2.5")
+
+        api.undo()
+        self.assertEqual(comp["parameters"]["length"], 200.0)
+        self.assertIsNone(get_expression(comp["parameters"], "length"))
+        self.assertEqual(comp["mass"], 150.0)
+
+        api.undo()
+        self.assertEqual(comp["mass"], 100.0)
+        self.assertIsNone(get_expression(comp, "mass"))
+
         # Test ExpressionPropertyCell callback commit
         cell = editor.parameters_table.cellWidget(0, 1)
         self.assertIsInstance(cell, ExpressionPropertyCell)

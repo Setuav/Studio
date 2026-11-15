@@ -39,6 +39,7 @@ class ProjectDocument:
     modified: bool = field(default=False, compare=False)
     plugin_issues: list[str] = field(default_factory=list, compare=False)
     read_only: bool = field(default=False, compare=False)
+    expression_diagnostics: list[dict[str, str]] = field(default_factory=list, compare=False)
 
     @property
     def location(self) -> Path:
@@ -180,7 +181,7 @@ class ProjectDocument:
         comp = self.get_component(comp_id)
         if comp is None:
             return None
-        if api is not None and hasattr(api, "create_component_model"):
+        if api is not None:
             return api.create_component_model(comp)
         from setuav_studio.model.component import Component
 
@@ -224,12 +225,10 @@ class ProjectDocument:
         self, api: Any | None = None, config_id: str | None = None
     ) -> list[Any]:
         """Return the list of typed domain model instances for all project components."""
-        from setuav_studio.model import GenericComponent
-        from setuav_studio.model.parameter import ParameterResolver
+        from copy import deepcopy
 
-        resolver = ParameterResolver()
-        raw_params = self.data.get("parameters", {}) if isinstance(self.data, dict) else {}
-        resolved_params = resolver.resolve_all(raw_params) if isinstance(raw_params, dict) else {}
+        from setuav_studio.model import GenericComponent
+
         components = self.data.get("components", []) if isinstance(self.data, dict) else []
         models: list[Any] = []
         if not isinstance(components, list):
@@ -238,25 +237,18 @@ class ProjectDocument:
         for comp in components:
             if not isinstance(comp, dict):
                 continue
-            resolved_comp = resolver.evaluate_component_parameters(comp, resolved_params)
-            if api is not None and hasattr(api, "create_component_model"):
-                model = api.create_component_model(resolved_comp)
-            else:
-                model = GenericComponent(resolved_comp)
+            comp_copy = deepcopy(comp)
+            model = (
+                api.create_component_model(comp_copy)
+                if api is not None
+                else GenericComponent(comp_copy)
+            )
             models.append(model)
 
         # Link children (such as control surfaces) to their parent models
         model_by_id = {getattr(m, "id", ""): m for m in models if getattr(m, "id", "")}
         for model in models:
-            parent_id = (
-                getattr(model, "parent", None)
-                or getattr(model, "parent_id", None)
-                or (
-                    model.raw_data.get("parent")
-                    if hasattr(model, "raw_data") and isinstance(model.raw_data, dict)
-                    else None
-                )
-            )
+            parent_id = model.parent
             if parent_id and parent_id in model_by_id:
                 parent_model = model_by_id[parent_id]
                 if hasattr(model, "set_parent_model"):
@@ -272,7 +264,7 @@ class ProjectDocument:
 
         return build_universal_scope(self.data, api=api, config_id=config_id)
 
-    def recompute_expressions(self, api: Any | None = None) -> bool:
+    def recompute_expressions(self, api: Any | None = None) -> list[dict[str, str]]:
         """Re-evaluate all mathematical formulas across the project against current scope."""
         from setuav_studio.project.evaluator import recompute_project_expressions
 

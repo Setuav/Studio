@@ -62,17 +62,19 @@ def build_project_geometry(
 
 
 def _project_items(project: Any) -> dict[str, dict[str, Any]] | None:
-    project_data = getattr(project, "data", project) if project is not None else {}
+    from setuav_studio.project.document import ProjectDocument
+
+    if isinstance(project, ProjectDocument):
+        project_data: Any = project.data
+    elif project is not None:
+        project_data = project
+    else:
+        project_data = {}
     components = project_data.get("components") if isinstance(project_data, dict) else None
     if not isinstance(components, list):
         return None
-    from setuav_studio.model.parameter import ParameterResolver
-
-    resolver = ParameterResolver()
-    raw_params = project_data.get("parameters", {}) if isinstance(project_data, dict) else {}
-    resolved_params = resolver.resolve_all(raw_params) if isinstance(raw_params, dict) else {}
     return {
-        item["id"]: resolver.evaluate_component_parameters(item, resolved_params)
+        item["id"]: item
         for item in components
         if isinstance(item, dict) and isinstance(item.get("id"), str)
     }

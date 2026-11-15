@@ -76,8 +76,7 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
         else:
             self._set_enabled(False)
 
-        if hasattr(self._api, "on_project_content_changed"):
-            self._api.on_project_content_changed(self._on_project_content_changed)
+        self._api.on_project_content_changed(self._on_project_content_changed)
 
     def _on_project_content_changed(self, _project: Any = None) -> None:
         if self._loading or not self._component_id:
@@ -91,8 +90,7 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
             self._load_component(comp)
 
     def closeEvent(self, event: Any) -> None:
-        if hasattr(self._api, "remove_project_content_listener"):
-            self._api.remove_project_content_listener(self._on_project_content_changed)
+        self._api.remove_project_content_listener(self._on_project_content_changed)
         super().closeEvent(event)
 
     def update_theme_style(self) -> None:

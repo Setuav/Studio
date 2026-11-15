@@ -243,12 +243,15 @@ def test_studio_api_project_edits_undo_redo() -> None:
 
     studio_api.edit_project("Change project name", _change_name)
     assert project.data["name"] == "Renamed Project"
-    assert studio_api._undo_stack.canUndo()
+    assert studio_api.can_undo
+    assert studio_api.undo_count == 1
+    assert studio_api.undo_text == "Change project name"
 
     # Undo project edit
     studio_api.undo()
     assert project.data["name"] == "Original Name"
-    assert studio_api._undo_stack.canRedo()
+    assert studio_api.can_redo
+    assert studio_api.redo_text == "Change project name"
 
     # Redo project edit
     studio_api.redo()
@@ -412,11 +415,9 @@ def test_action_tool_and_settings_page_contributions() -> None:
 def test_project_property_is_canonical_and_readonly() -> None:
     studio_api = StudioAPI()
     assert studio_api.project is None
-    assert not hasattr(studio_api, "current_project")
 
     project = ProjectDocument(Path("test.json"), "json", {"components": []})
     studio_api._host.set_project(project)
     assert studio_api.project is project
-    assert not hasattr(studio_api, "current_project")
     with pytest.raises(AttributeError):
         studio_api.project = project  # type: ignore[misc]

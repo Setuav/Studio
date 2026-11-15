@@ -6,6 +6,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import QTreeWidgetItem
 
+from setuav_studio.model.expression import ExpressionEvaluator
 from setuav_studio.ui.panels.project_explorer.style import (
     format_component_name,
     format_component_type,
@@ -105,7 +106,7 @@ class ProjectTreeBuilder:
 
         for k, v in raw_params.items():
             raw_val = v.get("value") if isinstance(v, dict) and "value" in v else v
-            if isinstance(raw_val, str) and raw_val.strip().startswith("="):
+            if ExpressionEvaluator.is_expression(raw_val):
                 equations[k] = v
             else:
                 constants[k] = v

@@ -31,11 +31,16 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.api import StudioAPI
-from setuav_studio.model.expression import get_expression, set_expression
+from setuav_studio.model.expression import (
+    evaluate_numeric_input,
+    get_expression,
+    set_expression,
+)
 from setuav_studio.ui.style.icons import get_icon
 from setuav_studio.ui.widget.button import set_button_role, set_native_button
 from setuav_studio.ui.widget.spinbox import (
     NoWheelComboBox,
+    evaluate_table_cell_input,
     set_table_spinbox,
 )
 from setuav_studio.ui.widget.table import ExpressionPropertyCell
@@ -552,11 +557,21 @@ class FuselageSectionDialog(QDialog):
                 decimals=2,
                 quantity="length",
                 suffix="mm",
+                target_data=profile,
+                raw_callback=True,
                 api=self._api,
                 label=label,
                 property_key=key,
                 on_changed=lambda _v, k=key: self._on_prop_spin_changed(k, _v),
             )
+
+    def _find_prop_cell(self, key: str) -> ExpressionPropertyCell | None:
+        for r in range(self.props_table.rowCount()):
+            item = self.props_table.item(r, 0)
+            if item is not None and item.data(Qt.ItemDataRole.UserRole) == key:
+                widget = self.props_table.cellWidget(r, 1)
+                return widget if isinstance(widget, ExpressionPropertyCell) else None
+        return None
 
     def _on_prop_spin_changed(self, key: str, new_val: Any) -> None:
         if self._loading:
@@ -568,11 +583,39 @@ class FuselageSectionDialog(QDialog):
         if not isinstance(prof, dict):
             return
 
-        old_val = get_expression(prof, key) or prof.get(key)
-        if old_val == new_val:
+        if key == "orientation":
+            old_val = prof.get(key)
+            if old_val == new_val:
+                return
+            cmd = ChangePropertyCommand(self, key, old_val, new_val)
+            self.undo_stack.push(cmd)
             return
 
-        cmd = ChangePropertyCommand(self, key, old_val, new_val)
+        cell = self._find_prop_cell(key)
+        parsed = evaluate_table_cell_input(
+            new_val,
+            self._api,
+            cell=cell,
+            label=key,
+        )
+        if parsed is None:
+            return
+        num_val, expr_to_store = parsed
+        if num_val < 0.0:
+            msg = f"Invalid {key}: must be non-negative"
+            if cell is not None:
+                cell.set_error(msg)
+            if self._api is not None:
+                self._api.show_status(msg, "error")
+            return
+
+        stored_new: Any = expr_to_store if expr_to_store is not None else num_val
+        old_expr = get_expression(prof, key)
+        old_val = old_expr if old_expr is not None else prof.get(key)
+        if old_val == stored_new:
+            return
+
+        cmd = ChangePropertyCommand(self, key, old_val, stored_new)
         self.undo_stack.push(cmd)
 
     def _populate_vertices_table(self, profile: dict[str, Any]) -> None:
@@ -669,6 +712,8 @@ class FuselageSectionDialog(QDialog):
                 decimals=2,
                 quantity="length",
                 suffix="mm",
+                target_data=pos,
+                raw_callback=True,
                 api=self._api,
                 label=f"Position {axis.upper()}",
                 property_key=axis,
@@ -693,6 +738,8 @@ class FuselageSectionDialog(QDialog):
                 decimals=2,
                 quantity="angle",
                 suffix="°",
+                target_data=rot,
+                raw_callback=True,
                 api=self._api,
                 label=f"Rotation {axis.upper()}",
                 property_key=axis,
@@ -707,29 +754,30 @@ class FuselageSectionDialog(QDialog):
         sec = self._current_section()
         if not sec:
             return
+
+        row = 0 if transform_type == "position" else 1
+        col = ("x", "y", "z").index(axis)
+        widget = self.trans_table.cellWidget(row, col)
+        cell = widget if isinstance(widget, ExpressionPropertyCell) else None
+        parsed = evaluate_table_cell_input(
+            value,
+            self._api,
+            cell=cell,
+            label=f"{transform_type.title()} {axis.upper()}",
+            min_val=-360.0 if transform_type == "rotation" else None,
+            max_val=360.0 if transform_type == "rotation" else None,
+        )
+        if parsed is None:
+            return
+
+        num_val, expr_to_store = parsed
         target = sec.get(transform_type)
         if not isinstance(target, dict):
             target = {}
             sec[transform_type] = target
 
-        from .profile_editor import evaluate_expression_or_number
-
-        # Read the raw text from the cell widget to detect expressions,
-        # because the callback value is always the resolved numeric float.
-        row = 0 if transform_type == "position" else 1
-        col = ("x", "y", "z").index(axis)
-        widget = self.trans_table.cellWidget(row, col)
-        raw_text = ""
-        if hasattr(widget, "text"):
-            raw_text = widget.text().strip()
-
-        num_val, is_expr = evaluate_expression_or_number(raw_text, self._api)
-        if num_val is None and isinstance(value, (int, float)):
-            num_val = float(value)
-
-        set_expression(target, axis, raw_text if is_expr else None)
-        if num_val is not None:
-            target[axis] = num_val
+        set_expression(target, axis, expr_to_store)
+        target[axis] = num_val
 
         self._refresh_canvas_and_metrics()
 
@@ -831,15 +879,21 @@ class FuselageSectionDialog(QDialog):
         if not isinstance(prof, dict):
             return
 
-        from .profile_editor import evaluate_expression_or_number
-
-        val_str = str(value).strip() if value is not None else ""
-        num_val, is_expr = evaluate_expression_or_number(val_str, self._api)
-        set_expression(prof, key, val_str if is_expr else None)
-        if num_val is not None:
-            prof[key] = num_val
-        elif not is_expr:
+        if key == "orientation":
+            set_expression(prof, key, None)
             prof[key] = value
+        elif value is None:
+            prof.pop(key, None)
+            set_expression(prof, key, None)
+        else:
+            scope = (
+                self._api.project.get_scope(api=self._api)
+                if self._api is not None and self._api.project is not None
+                else {}
+            )
+            num_val, expr_to_store = evaluate_numeric_input(value, scope)
+            set_expression(prof, key, expr_to_store)
+            prof[key] = num_val
 
         self._loading = True
         try:

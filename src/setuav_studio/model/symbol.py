@@ -16,7 +16,7 @@ def create_model_for_component(
     api: Any | None = None,
 ) -> Component:
     """Instantiate the registered domain model for a component."""
-    if api is not None and hasattr(api, "create_component_model"):
+    if api is not None:
         return api.create_component_model(component)
     return GenericComponent(component)
 
@@ -37,10 +37,12 @@ def get_available_symbols_metadata(  # noqa: C901
     api: Any | None = None,
 ) -> dict[str, Any]:
     """Return categorized symbols with documentation and current evaluated values for UI assistance."""
-    raw_data = getattr(project_data, "data", project_data)
+    from setuav_studio.project.document import ProjectDocument
+
+    raw_data = project_data.data if isinstance(project_data, ProjectDocument) else project_data
     p_dict: dict[str, Any] = raw_data if isinstance(raw_data, dict) else {}
 
-    context = build_evaluation_context(project_data, api)
+    context = build_evaluation_context(p_dict, api)
 
     constants_list: list[dict[str, Any]] = []
     components_list: list[dict[str, Any]] = []

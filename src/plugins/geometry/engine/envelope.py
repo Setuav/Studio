@@ -64,7 +64,9 @@ def sync_project_geometry_envelopes(project: Any) -> int:
     """
     if project is None:
         return 0
-    data = getattr(project, "data", project) if not isinstance(project, dict) else project
+    from setuav_studio.project.document import ProjectDocument
+
+    data = project.data if isinstance(project, ProjectDocument) else project
     if not isinstance(data, dict):
         return 0
     components = data.get("components")

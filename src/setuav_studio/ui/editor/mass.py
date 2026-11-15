@@ -331,12 +331,10 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
             component["inertia_kg_m2"] = inertia
 
         change()
-        viewport = getattr(self._api, "viewport", getattr(self._api, "_viewport", None))
+        viewport = self._api.viewport
         if viewport is not None:
-            if hasattr(viewport, "update_component_cg"):
-                viewport.update_component_cg()
-            if hasattr(viewport, "update_aircraft_cg"):
-                viewport.update_aircraft_cg()
+            viewport.update_component_cg()
+            viewport.update_aircraft_cg()
         self._commit_timer.start(0)
 
     def _commit_pending(self) -> None:

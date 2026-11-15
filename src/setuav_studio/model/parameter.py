@@ -2,14 +2,9 @@
 
 from __future__ import annotations
 
-import copy
 from typing import Any
 
-from setuav_studio.model.expression import (
-    ExpressionEvaluationError,
-    ExpressionEvaluator,
-    get_expression,
-)
+from setuav_studio.model.expression import ExpressionEvaluationError, ExpressionEvaluator
 
 
 class ParameterResolutionError(Exception):
@@ -172,34 +167,3 @@ class ParameterResolver:
                 dependents.add(curr)
                 queue.extend(adj.get(curr, set()))
         return dependents
-
-    def evaluate_component_value(self, value: Any, resolved_parameters: dict[str, Any]) -> Any:
-        """Evaluate an arbitrary component parameter value (scalar, dict, or list)."""
-        if isinstance(value, dict):
-            res_dict = {
-                k: (
-                    v
-                    if k == "_expressions"
-                    else self.evaluate_component_value(v, resolved_parameters)
-                )
-                for k, v in value.items()
-            }
-            exprs = value.get("_expressions")
-            if isinstance(exprs, dict):
-                for prop in list(exprs):
-                    expr = get_expression(value, str(prop))
-                    if expr is not None and self.evaluator.is_expression(expr):
-                        res_dict[prop] = self.evaluator.evaluate(expr, resolved_parameters)
-            return res_dict
-
-        if isinstance(value, list):
-            return [self.evaluate_component_value(elem, resolved_parameters) for elem in value]
-
-        return value
-
-    def evaluate_component_parameters(
-        self, component_params: dict[str, Any], resolved_parameters: dict[str, Any]
-    ) -> dict[str, Any]:
-        """Deep copy and resolve all expressions in a component's parameters dictionary."""
-        params_copy = copy.deepcopy(component_params)
-        return self.evaluate_component_value(params_copy, resolved_parameters)

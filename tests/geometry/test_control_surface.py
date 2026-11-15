@@ -340,10 +340,11 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
         self.assertAlmostEqual(geom1["eta_start"], 0.05)
         self.assertAlmostEqual(geom1["eta_end"], 0.20)
 
-    def test_control_surface_expression_error_propagates(self) -> None:
+    def test_control_surface_expression_error_and_atomic_undo(self) -> None:
         from plugins.geometry.editors.lifting_surface import LiftingSurfaceEditor
         from setuav_studio.api import StudioAPI
-        from setuav_studio.model.expression import ExpressionEvaluationError
+        from setuav_studio.model.expression import get_expression
+        from setuav_studio.ui.widget.table import ExpressionPropertyCell
 
         wing_comp = {
             "kind": "component",
@@ -375,15 +376,39 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
             },
         }
         doc = ProjectDocument(
-            Path("/tmp/test-err.json"), "json", {"components": [wing_comp, cs_comp]}
+            Path("/tmp/test-err.json"),
+            "json",
+            {"parameters": {"ref_eta": 0.5}, "components": [wing_comp, cs_comp]},
         )
+        statuses: list[tuple[str, str, int]] = []
         api = StudioAPI()
+        api._host.bind_status_handler(lambda msg, lvl, ms: statuses.append((msg, lvl, ms)))
         api._host.set_project(doc)
         editor = LiftingSurfaceEditor(api, wing_comp)
+        self.addCleanup(editor.deleteLater)
         editor._load_control_surface(0)
 
-        with self.assertRaises(ExpressionEvaluationError):
-            editor._on_cs_prop_spinbox_changed("eta_start", "=missing_symbol * 2")
+        editor._on_cs_prop_spinbox_changed("eta_start", "=missing_symbol * 2")
+
+        eta_cell = editor._property_cell(editor.cs_properties_table, "eta_start")
+        assert isinstance(eta_cell, ExpressionPropertyCell)
+        self.assertTrue(eta_cell._has_error)
+        self.assertTrue(any(lvl == "error" and "missing_symbol" in msg for msg, lvl, _ in statuses))
+
+        cs_geom = cs_comp["parameters"]["geometry"]
+        self.assertAlmostEqual(cs_geom["eta_start"], 0.5)
+        self.assertIsNone(get_expression(cs_geom, "eta_start"))
+        self.assertFalse(api._host.undo_stack.canUndo())
+
+        # Valid expression writes both numeric value and formula inside one undo step.
+        editor._on_cs_prop_spinbox_changed("eta_start", "=ref_eta + 0.1")
+        self.assertAlmostEqual(cs_geom["eta_start"], 0.6)
+        self.assertEqual(get_expression(cs_geom, "eta_start"), "=ref_eta + 0.1")
+        self.assertTrue(api._host.undo_stack.canUndo())
+
+        api.undo()
+        self.assertAlmostEqual(cs_geom["eta_start"], 0.5)
+        self.assertIsNone(get_expression(cs_geom, "eta_start"))
 
     def test_control_surface_add_delete_no_duplication(self) -> None:
         from plugins.geometry.editors.lifting_surface import LiftingSurfaceEditor

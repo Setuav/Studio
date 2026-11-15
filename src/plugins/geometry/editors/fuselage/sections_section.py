@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
 
 from setuav_studio.model.expression import get_expression, set_expression
 from setuav_studio.ui.widget.button import set_native_button
-from setuav_studio.ui.widget.spinbox import set_table_spinbox
+from setuav_studio.ui.widget.spinbox import evaluate_table_cell_input, set_table_spinbox
 from setuav_studio.ui.widget.table import ExpressionPropertyCell
 
 from ...engine.fuselage_geometry import (
@@ -28,7 +28,6 @@ from ...engine.fuselage_geometry import (
 )
 from .profile_editor import (
     PROFILE_FIELDS,
-    evaluate_expression_or_number,
     format_profile_size,
 )
 from .section_dialog import FuselageSectionDialog
@@ -405,18 +404,24 @@ class SectionsSectionMixin:
         row = 0 if transform_type == "position" else 1
         col = ("x", "y", "z").index(axis)
         widget = self.transform_table.cellWidget(row, col)
-        raw_text = ""
-        if hasattr(widget, "text"):
-            raw_text = widget.text().strip()
+        cell = widget if isinstance(widget, ExpressionPropertyCell) else None
+        raw_input: Any = value
+        if (raw_input is None or raw_input == "") and hasattr(widget, "text"):
+            raw_input = widget.text().strip()
 
-        num_val, is_expr = evaluate_expression_or_number(raw_text, self._api)
-        if num_val is None and isinstance(value, (int, float)):
-            num_val = float(value)
+        parsed = evaluate_table_cell_input(
+            raw_input,
+            self._api,
+            cell=cell,
+            label=f"section {transform_type} {axis}",
+        )
+        if parsed is None:
+            return
+        num_val, expr_to_store = parsed
 
         def change() -> None:
-            set_expression(target, axis, raw_text if is_expr else None)
-            if num_val is not None:
-                target[axis] = num_val
+            set_expression(target, axis, expr_to_store)
+            target[axis] = num_val
 
         self._edit_component(f"Change fuselage section {transform_type} {axis}", change)
         self._refresh_section_row()
@@ -506,6 +511,7 @@ class SectionsSectionMixin:
                 api=self._api,
                 label=f"Position {axis.upper()}",
                 property_key=axis,
+                raw_callback=True,
                 on_changed=lambda _v, a=axis: (
                     self_ref()._on_transform_expression_changed("position", a, _v)
                     if self_ref() is not None
@@ -534,6 +540,7 @@ class SectionsSectionMixin:
                 api=self._api,
                 label=f"Rotation {axis.upper()}",
                 property_key=axis,
+                raw_callback=True,
                 on_changed=lambda _v, a=axis: (
                     self_ref()._on_transform_expression_changed("rotation", a, _v)
                     if self_ref() is not None
@@ -620,6 +627,8 @@ class SectionsSectionMixin:
                     self.section_properties_table,
                     key,
                     raw_val,
+                    target_data=profile,
+                    raw_callback=True,
                     on_changed=lambda v, k=key: self._on_property_expression_changed(k, v),
                     api=self._api,
                     label=_label,
@@ -654,18 +663,22 @@ class SectionsSectionMixin:
         if section is None:
             return
         profile = self._object(section, "profile")
-        val_str = str(value).strip() if value is not None else ""
-
-        num_val, is_expr = evaluate_expression_or_number(val_str, self._api)
-        if not is_expr and (num_val is None or num_val < 0):
-            self._load_section(self._section_index)
+        cell = self._property_cell(self.section_properties_table, key)
+        parsed = evaluate_table_cell_input(value, self._api, cell=cell, label=key)
+        if parsed is None:
+            return
+        num_val, expr_to_store = parsed
+        if num_val < 0:
+            msg = f"Invalid {key}: value must be non-negative"
+            if cell is not None:
+                cell.set_error(msg)
+            if self._api is not None:
+                self._api.show_status(msg, "error")
             return
 
         def change() -> None:
-            set_expression(profile, key, val_str if is_expr else None)
-
-            if num_val is not None:
-                profile[key] = num_val
+            set_expression(profile, key, expr_to_store)
+            profile[key] = num_val
 
         self._edit_component(
             f"Change fuselage section {key}",

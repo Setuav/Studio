@@ -57,6 +57,11 @@ class TestSweepConfiguration(unittest.TestCase):
         self.assertEqual(FlightCondition(sweep_variable="alpha").sweep_type, SweepType.ALPHA)
         self.assertEqual(FlightCondition(sweep_variable="beta").sweep_type, SweepType.BETA)
 
+    def test_sweep_type_rejects_unsupported_variables(self) -> None:
+        for invalid in ("", "velocity", "left-elevator"):
+            with self.assertRaises(ValueError):
+                SweepType.from_variable(invalid)
+
     def test_composite_surfaces_expose_canonical_control_channels(self) -> None:
         components = [
             {
@@ -250,7 +255,7 @@ class TestParametricSweeps(unittest.TestCase):
             sweep_max=10.0,
             sweep_steps=3,
         )
-        with self.assertRaisesRegex(ValueError, "surface name"):
+        with self.assertRaisesRegex(ValueError, "Unsupported sweep variable"):
             self.engine.analyze(
                 self.components,
                 cond,

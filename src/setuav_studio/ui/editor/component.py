@@ -26,8 +26,14 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.api import ParameterField, TableParameterField
-from setuav_studio.model.expression import get_expression, set_expression
+from setuav_studio.model.expression import (
+    ExpressionEvaluator,
+    get_expression,
+    normalize_equation_input,
+    set_expression,
+)
 from setuav_studio.ui.style.icons import get_icon, set_label_icon
+from setuav_studio.ui.widget.spinbox import evaluate_table_cell_input
 from setuav_studio.ui.widget.table import (
     ContentFitTableWidget,
     ExpressionFocusTracker,
@@ -94,13 +100,7 @@ class _TableCellAssistantAdapter:
             parent=parent_win,
         )
         if dlg.exec():
-            new_expr = dlg.get_expression().strip()
-            if (
-                new_expr
-                and not new_expr.startswith("=")
-                and not new_expr.replace(".", "", 1).isdigit()
-            ):
-                new_expr = f"={new_expr}"
+            new_expr = normalize_equation_input(dlg.get_expression())
             self.set_expression(new_expr)
 
 
@@ -159,7 +159,7 @@ class TableExpressionDelegate(QStyledItemDelegate):
     def setEditorData(self, editor: QWidget, index: QModelIndex) -> None:
         if isinstance(editor, QLineEdit):
             raw = index.data(Qt.ItemDataRole.UserRole)
-            if raw is not None and str(raw).startswith("="):
+            if raw is not None and ExpressionEvaluator.is_expression(str(raw)):
                 editor.setText(str(raw))
             else:
                 editor.setText(str(index.data(Qt.ItemDataRole.DisplayRole) or ""))
@@ -174,20 +174,13 @@ def _format_table_cell_value(
     val: Any, col_field: ParameterField, api: StudioAPI | None
 ) -> tuple[str, str]:
     """Return formatted display text and tooltip for a table cell."""
-    if isinstance(val, str) and val.startswith("="):
+    if ExpressionEvaluator.is_expression(val):
         eval_val = None
         eval_err = None
         if api and api.project:
             try:
-                from setuav_studio.model.expression import ExpressionEvaluator
-
                 evaluator = ExpressionEvaluator()
-                proj = api.project
-                scope = (
-                    proj.get_scope(api=api)
-                    if proj is not None and hasattr(proj, "get_scope")
-                    else {}
-                )
+                scope = api.project.get_scope(api=api)
                 eval_val = evaluator.evaluate(val.lstrip("=").strip(), scope)
             except Exception as exc:
                 eval_err = str(exc)
@@ -261,6 +254,8 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
         self._committed_params: dict[str, Any] = dict(params) if isinstance(params, dict) else {}
         exprs = params.get("_expressions") if isinstance(params, dict) else None
         self._committed_expressions: dict[str, str] = dict(exprs) if isinstance(exprs, dict) else {}
+        self._committed_mass: Any = self._component.get("mass")
+        self._committed_mass_expr: str | None = get_expression(self._component, "mass")
         self._committed_name: str = str(self._component.get("name") or "")
         self._committed_parent: str = str(self._component.get("parent") or "")
         self._load_component()
@@ -408,6 +403,8 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
                 self.general_table,
                 "mass",
                 mass_val,
+                target_data=self._component,
+                raw_callback=True,
                 on_changed=self._on_mass_changed,
                 label="Mass",
                 unit="g",
@@ -422,6 +419,7 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
                     self._scalar_fields,
                     on_changed=self._on_param_changed,
                     api=self._api,
+                    raw_callback=True,
                 )
 
             # Load Table Parameters
@@ -438,6 +436,8 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
             self._committed_params = dict(params) if isinstance(params, dict) else {}
             exprs = params.get("_expressions") if isinstance(params, dict) else None
             self._committed_expressions = dict(exprs) if isinstance(exprs, dict) else {}
+            self._committed_mass = self._component.get("mass")
+            self._committed_mass_expr = get_expression(self._component, "mass")
             self._committed_name = str(self._component.get("name") or "")
             self._committed_parent = str(self._component.get("parent") or "")
         finally:
@@ -572,7 +572,7 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
         raw_text = item.text().strip()
 
         parsed_val: Any = raw_text
-        if raw_text.startswith("="):
+        if ExpressionEvaluator.is_expression(raw_text):
             parsed_val = raw_text
         elif col_field.field_type is float:
             try:
@@ -624,30 +624,42 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
         if self._loading:
             return
 
+        field = next((f for f in self._scalar_fields if f.key == key), None)
+        new_expr: str | None = None
+        if field is not None and field.field_type not in (int, float):
+            final_val: Any = value
+        else:
+            cell = (
+                self._property_cell(self.parameters_table, key)
+                if hasattr(self, "parameters_table")
+                else None
+            )
+            parsed = evaluate_table_cell_input(
+                value,
+                self._api,
+                cell=cell,
+                label=field.label if field is not None else key,
+                min_val=field.min_value if field is not None else None,
+                max_val=field.max_value if field is not None else None,
+            )
+            if parsed is None:
+                return
+            num_val, new_expr = parsed
+            final_val = (
+                round(num_val) if (field is not None and field.field_type is int) else num_val
+            )
+
         old_val = self._committed_params.get(key)
         old_expr = self._committed_expressions.get(key)
-
-        p = self._component.setdefault("parameters", {})
-        new_expr = get_expression(p, key)
-
-        if old_val == value and old_expr == new_expr:
+        if old_val == final_val and old_expr == new_expr:
             return
-
-        # Restore component parameters and expressions to committed state before edit_component
-        # so edit_component accurately captures both value and formula diffs for undo/redo.
-        if key in self._committed_params:
-            p[key] = old_val
-        else:
-            p.pop(key, None)
-
-        set_expression(p, key, old_expr)
 
         def apply_param() -> None:
             params = self._component.setdefault("parameters", {})
-            params[key] = value
+            params[key] = final_val
             set_expression(params, key, new_expr)
 
-            self._committed_params[key] = value
+            self._committed_params[key] = final_val
             if new_expr is not None:
                 self._committed_expressions[key] = new_expr
             else:
@@ -668,12 +680,17 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
         if self._loading:
             return
         curr_params = self._component.get("parameters", {})
-        curr_exprs = curr_params.get("_expressions") if isinstance(curr_params, dict) else None
+        curr_exprs_raw = curr_params.get("_expressions") if isinstance(curr_params, dict) else None
+        curr_exprs = dict(curr_exprs_raw) if isinstance(curr_exprs_raw, dict) else {}
+        curr_mass = self._component.get("mass")
+        curr_mass_expr = get_expression(self._component, "mass")
         curr_name = str(self._component.get("name") or "")
         curr_parent = str(self._component.get("parent") or "")
         if (
             curr_params != self._committed_params
             or curr_exprs != self._committed_expressions
+            or curr_mass != self._committed_mass
+            or curr_mass_expr != self._committed_mass_expr
             or curr_name != self._committed_name
             or curr_parent != self._committed_parent
         ):
@@ -688,34 +705,27 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
     def _on_mass_changed(self, val_text: Any) -> None:
         if self._loading:
             return
-        clean = val_text.strip() if isinstance(val_text, str) else str(val_text).strip()
-        num_val: float | None = None
-        new_expr: str | None = None
-        if clean.startswith("=") or (
-            clean and not clean.replace(".", "", 1).replace("-", "", 1).isdigit()
+        cell = self._property_cell(self.general_table, "mass")
+        parsed = evaluate_table_cell_input(
+            val_text,
+            self._api,
+            cell=cell,
+            label="Mass",
+        )
+        if parsed is None:
+            return
+        num_val, new_expr = parsed
+        if (
+            self._component.get("mass") == num_val
+            and get_expression(self._component, "mass") == new_expr
         ):
-            new_expr = clean
-            if self._api is not None and self._api.project is not None:
-                try:
-                    from setuav_studio.model.expression import ExpressionEvaluator
-
-                    evaluator = ExpressionEvaluator()
-                    project = self._api.project
-                    scope = project.get_scope(api=self._api) if project is not None else {}
-                    expr = clean.lstrip("=").strip()
-                    res = evaluator.evaluate(expr, scope)
-                    if isinstance(res, (int, float)):
-                        num_val = float(res)
-                except Exception:
-                    pass
-        else:
-            with contextlib.suppress(ValueError):
-                num_val = float(clean)
+            return
 
         def change() -> None:
-            if num_val is not None:
-                self._component["mass"] = num_val
+            self._component["mass"] = num_val
             set_expression(self._component, "mass", new_expr)
+            self._committed_mass = num_val
+            self._committed_mass_expr = new_expr
 
         self._api.edit_component(self._component, "Change component mass", change)
 

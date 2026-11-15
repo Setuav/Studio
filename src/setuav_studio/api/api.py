@@ -111,6 +111,7 @@ class StudioAPI:
         self._section_selection_listeners: list[Callable[[tuple[str, int, int] | None], None]] = []
         self._solver_config_selection_listeners: list[Callable[[SolverConfig | None], None]] = []
         self._is_recomputing_expressions: bool = False
+        self._expression_diagnostics: list[dict[str, str]] = []
         self._component_editors: dict[
             str,
             Callable[[dict[str, Any]], QWidget],
@@ -408,21 +409,9 @@ class StudioAPI:
         @param change Callback that performs the mutation.
         """
         comp_id = str(component.get("id") or "")
-        live_component = None
-        if self._project is not None and comp_id:
-            if hasattr(self._project, "get_component"):
-                live_component = self._project.get_component(comp_id)
-            elif isinstance(getattr(self._project, "data", None), dict):
-                comps = self._project.data.get("components", [])
-                if isinstance(comps, list):
-                    live_component = next(
-                        (
-                            c
-                            for c in comps
-                            if isinstance(c, dict) and str(c.get("id") or "") == comp_id
-                        ),
-                        None,
-                    )
+        live_component = (
+            self._project.get_component(comp_id) if self._project is not None and comp_id else None
+        )
         target = live_component if live_component is not None else component
 
         before = deepcopy(target)
@@ -580,17 +569,67 @@ class StudioAPI:
             self._undo_stack.redo()
             self.set_selection(self.current_selection)
 
+    @property
+    def can_undo(self) -> bool:
+        """Return whether an undo step is currently available."""
+        return self._undo_stack.canUndo()
+
+    @property
+    def can_redo(self) -> bool:
+        """Return whether a redo step is currently available."""
+        return self._undo_stack.canRedo()
+
+    @property
+    def undo_count(self) -> int:
+        """Return the number of commands currently on the undo stack."""
+        return self._undo_stack.count()
+
+    @property
+    def undo_text(self) -> str:
+        """Return the description of the next command to undo, if any."""
+        return self._undo_stack.undoText()
+
+    @property
+    def redo_text(self) -> str:
+        """Return the description of the next command to redo, if any."""
+        return self._undo_stack.redoText()
+
     def notify_project_content_changed(self) -> None:
         """Explicitly notify listeners that project content was updated or needs refresh."""
         self._notify_project_content_changed()
 
-    def recompute_project_expressions(self) -> bool:
-        """Evaluate all parametric formulas across the project and update numbers."""
+    @property
+    def expression_diagnostics(self) -> list[dict[str, str]]:
+        """Diagnostics collected from the most recent project expression evaluation."""
+        return list(self._expression_diagnostics)
+
+    def _report_expression_diagnostics(self, diagnostics: list[dict[str, str]]) -> None:
+        self._expression_diagnostics = list(diagnostics)
+        if not diagnostics:
+            return
+        first = diagnostics[0]
+        loc = (
+            f"{first['component_id']}.{first['path']}"
+            if first.get("component_id")
+            else first.get("path", "")
+        )
+        extra = f" (+{len(diagnostics) - 1} more)" if len(diagnostics) > 1 else ""
+        self.show_status(
+            f"Expression error at {loc}: {first['message']}{extra}",
+            "error",
+            6000,
+        )
+
+    def recompute_project_expressions(self) -> list[dict[str, str]]:
+        """Evaluate all parametric formulas across the project and return any diagnostics."""
         if self._project is None:
-            return False
+            self._expression_diagnostics = []
+            return []
         from setuav_studio.project.evaluator import recompute_project_expressions
 
-        return recompute_project_expressions(self._project, api=self)
+        diagnostics = recompute_project_expressions(self._project, api=self)
+        self._report_expression_diagnostics(diagnostics)
+        return diagnostics
 
     def register_solver(self, solver_id: str, solver_cls: Any) -> None:
         """Register a solver class by solver ID."""
@@ -734,7 +773,8 @@ class StudioAPI:
             try:
                 from setuav_studio.project.evaluator import recompute_project_expressions
 
-                recompute_project_expressions(self._project, api=self)
+                diagnostics = recompute_project_expressions(self._project, api=self)
+                self._report_expression_diagnostics(diagnostics)
             finally:
                 self._is_recomputing_expressions = False
 
@@ -967,14 +1007,8 @@ class StudioAPI:
             source_id = component.get("source")
             if source_id and self._project is not None:
                 source = self._project.get_component(str(source_id))
-                if source is not None:
-                    src_dict = (
-                        source
-                        if isinstance(source, dict)
-                        else getattr(source, "raw_data", getattr(source, "data", {}))
-                    )
-                    if isinstance(src_dict, dict) and src_dict.get("id") != component.get("id"):
-                        return self.get_component_icon(src_dict)
+                if source is not None and source.get("id") != component.get("id"):
+                    return self.get_component_icon(source)
             return get_icon("instance")
 
         return get_icon("component")

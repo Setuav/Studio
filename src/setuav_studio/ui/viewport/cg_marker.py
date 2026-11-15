@@ -47,15 +47,12 @@ def build_component_cg_primitives(
     if project_or_components is None or not component_id:
         return []
 
+    from setuav_studio.project.document import ProjectDocument
+
     # 1. Resolve component dictionary
     comp: dict[str, Any] | None = None
-    if hasattr(project_or_components, "get_component"):
+    if isinstance(project_or_components, ProjectDocument):
         comp = project_or_components.get_component(component_id)
-    elif hasattr(project_or_components, "data") and isinstance(project_or_components.data, dict):
-        components = project_or_components.data.get("components", [])
-        comp = next(
-            (c for c in components if isinstance(c, dict) and c.get("id") == component_id), None
-        )
     elif isinstance(project_or_components, dict):
         components = project_or_components.get("components", [])
         if isinstance(components, list):
