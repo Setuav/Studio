@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import copy
 from typing import Any
 
@@ -190,8 +189,7 @@ class ParameterResolver:
                 for prop in list(exprs):
                     expr = get_expression(value, str(prop))
                     if expr is not None and self.evaluator.is_expression(expr):
-                        with contextlib.suppress(ExpressionEvaluationError):
-                            res_dict[prop] = self.evaluator.evaluate(expr, resolved_parameters)
+                        res_dict[prop] = self.evaluator.evaluate(expr, resolved_parameters)
             return res_dict
 
         if isinstance(value, list):

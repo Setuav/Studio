@@ -389,17 +389,14 @@ class ControlSurfacesSectionMixin:
         set_expression(geom, key, val_str if is_expr else None)
         if is_expr:
             if self._api is not None and getattr(self._api, "current_project", None) is not None:
-                try:
-                    from setuav_studio.model.expression import ExpressionEvaluator
+                from setuav_studio.model.expression import ExpressionEvaluator
 
-                    evaluator = ExpressionEvaluator()
-                    scope = self._api.current_project.get_scope(api=self._api)
-                    expr = val_str.lstrip("=").strip()
-                    res = evaluator.evaluate(expr, scope)
-                    if isinstance(res, (int, float)):
-                        num_val = float(res)
-                except Exception:
-                    pass
+                evaluator = ExpressionEvaluator()
+                scope = self._api.current_project.get_scope(api=self._api)
+                expr = val_str.lstrip("=").strip()
+                res = evaluator.evaluate(expr, scope)
+                if isinstance(res, (int, float)):
+                    num_val = float(res)
         else:
             with contextlib.suppress(ValueError):
                 num_val = float(val_str)

@@ -343,6 +343,52 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
         self.assertAlmostEqual(geom1["eta_start"], 0.05)
         self.assertAlmostEqual(geom1["eta_end"], 0.20)
 
+
+    def test_control_surface_expression_error_propagates(self) -> None:
+        from plugins.geometry.editors.lifting_surface import LiftingSurfaceEditor
+        from setuav_studio.api import StudioAPI
+        from setuav_studio.model.expression import ExpressionEvaluationError
+
+        wing_comp = {
+            "kind": "component",
+            "id": "main-wing",
+            "type": "org.setuav.core:lifting-surface",
+            "parameters": {
+                "geometry": {
+                    "profiles": [
+                        {"chord": 200.0, "position": {"x": 0.0, "y": 0.0, "z": 0.0}},
+                        {"chord": 100.0, "position": {"x": 50.0, "y": 1000.0, "z": 0.0}},
+                    ],
+                }
+            },
+        }
+        cs_comp = {
+            "kind": "component",
+            "id": "aileron-1",
+            "type": "org.setuav.core:control-surface",
+            "parent": "main-wing",
+            "parameters": {
+                "geometry": {
+                    "type": "aileron",
+                    "span_mode": "ratio",
+                    "eta_start": 0.5,
+                    "eta_end": 0.9,
+                    "chord_mode": "ratio",
+                    "chord_fraction": 0.25,
+                }
+            },
+        }
+        doc = ProjectDocument(
+            Path("/tmp/test-err.json"), "json", {"components": [wing_comp, cs_comp]}
+        )
+        api = StudioAPI()
+        api._host.set_project(doc)
+        editor = LiftingSurfaceEditor(api, wing_comp)
+        editor._load_control_surface(0)
+
+        with self.assertRaises(ExpressionEvaluationError):
+            editor._on_cs_prop_spinbox_changed("eta_start", "=missing_symbol * 2")
+
     def test_control_surface_add_delete_no_duplication(self) -> None:
         from plugins.geometry.editors.lifting_surface import LiftingSurfaceEditor
         from plugins.geometry.engine.lifting_surface_geometry import (

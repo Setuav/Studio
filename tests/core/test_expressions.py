@@ -338,6 +338,19 @@ def test_hierarchical_json_scope_access(tmp_path: Path) -> None:
 
 
 
+
+def test_evaluate_component_parameters_propagates_errors() -> None:
+    resolver = ParameterResolver()
+    bad_params = {
+        "geometry": {
+            "span": 0.0,
+            "_expressions": {"span": "= missing_symbol * 2"},
+        }
+    }
+    with pytest.raises(ExpressionEvaluationError):
+        resolver.evaluate_component_parameters(bad_params, {})
+
+
 def test_get_and_set_expression_helper() -> None:
     node: dict[str, object] = {"span": 1000.0}
     assert get_expression(node, "span") is None
