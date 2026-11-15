@@ -20,8 +20,8 @@ from PySide6.QtWidgets import (
 
 from setuav_studio.api import StudioAPI
 from setuav_studio.ui.style.icons import set_label_icon
-from setuav_studio.ui.widget.spinbox import NumericSpinBox, set_table_spinbox
-from setuav_studio.ui.widget.table import PropertyTableMixin
+from setuav_studio.ui.widget.spinbox import set_table_spinbox
+from setuav_studio.ui.widget.table import ExpressionPropertyCell, PropertyTableMixin
 
 
 class EnvelopeEditor(PropertyTableMixin, QWidget):
@@ -232,7 +232,7 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
         table: QTableWidget,
         column: int,
         _axis: str,
-    ) -> NumericSpinBox:
+    ) -> ExpressionPropertyCell:
         return set_table_spinbox(
             table,
             0,
@@ -414,7 +414,7 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
         return envelope if isinstance(envelope, dict) else {}
 
     @staticmethod
-    def _load_vector(spins: dict[str, NumericSpinBox], value: object) -> None:
+    def _load_vector(spins: dict[str, ExpressionPropertyCell], value: object) -> None:
         values = value if isinstance(value, dict) else {}
         for axis, spin in spins.items():
             spin.setValue(_number(values.get(axis)))

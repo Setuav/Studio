@@ -21,8 +21,8 @@ from PySide6.QtWidgets import (
 from setuav_studio.api import StudioAPI
 from setuav_studio.model.expression import set_expression
 from setuav_studio.ui.style.icons import set_label_icon
-from setuav_studio.ui.widget.spinbox import NumericSpinBox, set_table_spinbox
-from setuav_studio.ui.widget.table import PropertyTableMixin
+from setuav_studio.ui.widget.spinbox import set_table_spinbox
+from setuav_studio.ui.widget.table import ExpressionPropertyCell, PropertyTableMixin
 
 WB_EXTENSION_ID = "org.setuav.weight-balance"
 EXTENSION_ID = WB_EXTENSION_ID
@@ -250,7 +250,7 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
         quantity: str = "",
         suffix: str,
         on_changed: Any | None = None,
-    ) -> NumericSpinBox:
+    ) -> ExpressionPropertyCell:
         for row in range(table.rowCount()):
             if self._property_key(table, row) == key:
                 return set_table_spinbox(

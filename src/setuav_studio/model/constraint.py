@@ -8,7 +8,6 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from setuav_studio.model.expression import ExpressionEvaluator
-from setuav_studio.model.parameter import ParameterResolver
 
 
 def parse_path_segments(path: str) -> list[str | int]:
@@ -58,13 +57,8 @@ class ConstraintResult:
 class ConstraintChecker:
     """Evaluates mathematical design constraints against project state."""
 
-    def __init__(
-        self,
-        evaluator: ExpressionEvaluator | None = None,
-        resolver: ParameterResolver | None = None,
-    ) -> None:
+    def __init__(self, evaluator: ExpressionEvaluator | None = None) -> None:
         self.evaluator = evaluator or ExpressionEvaluator()
-        self.resolver = resolver or ParameterResolver(self.evaluator)
 
     def extract_context(
         self,

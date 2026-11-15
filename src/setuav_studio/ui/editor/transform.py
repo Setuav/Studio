@@ -20,12 +20,8 @@ from PySide6.QtWidgets import (
 from setuav_studio.api import StudioAPI
 from setuav_studio.model.expression import set_expression
 from setuav_studio.ui.style.icons import set_label_icon
-from setuav_studio.ui.widget.spinbox import (
-    NumericSpinBox,
-    evaluate_table_cell_input,
-    set_table_spinbox,
-)
-from setuav_studio.ui.widget.table import PropertyTableMixin
+from setuav_studio.ui.widget.spinbox import evaluate_table_cell_input, set_table_spinbox
+from setuav_studio.ui.widget.table import ExpressionPropertyCell, PropertyTableMixin
 
 
 class TransformEditor(PropertyTableMixin, QWidget):
@@ -207,7 +203,7 @@ class TransformEditor(PropertyTableMixin, QWidget):
         axis: str = "x",
         value: float | str = 0.0,
         label: str = "",
-    ) -> NumericSpinBox:
+    ) -> ExpressionPropertyCell:
         return set_table_spinbox(
             self.transform_table,
             row,

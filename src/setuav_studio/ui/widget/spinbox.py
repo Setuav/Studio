@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import weakref
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtGui import QWheelEvent
@@ -17,6 +17,9 @@ from PySide6.QtWidgets import (
     QTableWidget,
     QWidget,
 )
+
+if TYPE_CHECKING:
+    from setuav_studio.ui.widget.table import ExpressionPropertyCell
 
 from setuav_studio.model.expression import (
     ExpressionEvaluationError,
@@ -147,7 +150,7 @@ def evaluate_table_cell_input(
     value: Any,
     api: Any | None,
     *,
-    cell: Any | None = None,
+    cell: ExpressionPropertyCell | None = None,
     label: str = "",
     min_val: float | None = None,
     max_val: float | None = None,
@@ -164,7 +167,7 @@ def evaluate_table_cell_input(
         num_val, expr = evaluate_numeric_input(value, scope)
     except (ExpressionEvaluationError, ValueError, TypeError) as exc:
         msg = f"Invalid {label or 'value'}: {exc}"
-        if cell is not None and hasattr(cell, "set_error"):
+        if cell is not None:
             cell.set_error(msg)
         if api is not None:
             api.show_status(msg, "error")
@@ -174,7 +177,7 @@ def evaluate_table_cell_input(
         num_val = max(min_val, num_val)
     if max_val is not None:
         num_val = min(max_val, num_val)
-    if cell is not None and hasattr(cell, "clear_error"):
+    if cell is not None:
         cell.clear_error()
     return num_val, expr
 
@@ -200,7 +203,7 @@ def set_table_spinbox(
     raw_callback: bool = False,
     api: Any | None = None,
     label: str = "",
-) -> Any:
+) -> ExpressionPropertyCell:
     """Helper to cleanly place an ExpressionPropertyCell with fx assistant into a QTableWidget cell."""
     from setuav_studio.ui.widget.table import ExpressionPropertyCell, format_engineering_value
 

@@ -198,7 +198,7 @@ class ProjectExplorer(QTreeWidget):
         saved_elements: dict[str, dict[str, Any]],
     ) -> None:
         project = self._api.project
-        if project is None or not getattr(project, "modified", False):
+        if project is None or not project.modified:
             return
         element_id = str(element.get("id") or "")
         if element_id and saved_elements.get(element_id) != element:
@@ -251,7 +251,7 @@ class ProjectExplorer(QTreeWidget):
         from setuav_studio.ui.style.theme import status_color
 
         project = self._api.project
-        is_clean = project is None or not getattr(project, "modified", False)
+        is_clean = project is None or not project.modified
 
         for item, element in list(self._element_map.items()):
             try:

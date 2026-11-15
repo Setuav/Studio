@@ -427,7 +427,9 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
             "org.setuav.core:lifting-surface": build_lifting_surface_geometry,
         }
 
-        scene_geom = build_project_geometry(mock_project, providers)
+        scene_geom = build_project_geometry(
+            ProjectDocument(Path("mock.json"), "json", mock_project), providers
+        )
         wing_lofts = [loft for loft in scene_geom.lofts if loft.component_id == "wing"]
         self.assertEqual(len(wing_lofts), 1)
         wing_loft = wing_lofts[0]

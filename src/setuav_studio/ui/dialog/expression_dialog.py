@@ -28,7 +28,6 @@ from PySide6.QtWidgets import (
 
 from setuav_studio.model.constraint import ConstraintChecker
 from setuav_studio.model.expression import ExpressionEvaluator
-from setuav_studio.model.parameter import ParameterResolver
 from setuav_studio.model.symbol import (
     get_available_symbols_metadata,
 )
@@ -262,8 +261,7 @@ class AdvancedExpressionDialog(QDialog):
         self._api = api
         self._is_constraint = is_boolean_constraint
         self._evaluator = ExpressionEvaluator()
-        self._resolver = ParameterResolver(self._evaluator)
-        self._checker = ConstraintChecker(self._evaluator, self._resolver)
+        self._checker = ConstraintChecker(self._evaluator)
 
         project_data = api.project.data if api.project else {}
         self._metadata = get_available_symbols_metadata(project_data, api=api)

@@ -459,9 +459,7 @@ class TaskManager(QObject):
 
     def _publish_event(self, topic: str | StudioEvents, payload: Any) -> None:
         if self._api is not None:
-            pub = getattr(self._api, "publish", None)
-            if callable(pub):
-                pub(str(topic), payload)
+            self._api.publish(str(topic), payload)
 
 
 __all__ = [

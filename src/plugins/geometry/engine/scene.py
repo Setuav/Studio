@@ -1,7 +1,12 @@
+from __future__ import annotations
+
 import math
 from collections.abc import Callable
 from copy import deepcopy
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from setuav_studio.project import ProjectDocument
 
 from .data import EnvelopeWireGeometry, GeometryData, LoftGeometry, Point3D, Section
 from .palettes import segment_colors
@@ -26,7 +31,7 @@ def _frame_parent(item: dict[str, Any]) -> str | None:
 
 
 def build_project_geometry(
-    project: Any,
+    project: ProjectDocument,
     providers: dict[str, GeometryProvider],
 ) -> GeometryData:
     items = _project_items(project)
@@ -61,16 +66,8 @@ def build_project_geometry(
     return GeometryData(tuple(lofts), tuple(envelopes))
 
 
-def _project_items(project: Any) -> dict[str, dict[str, Any]] | None:
-    from setuav_studio.project.document import ProjectDocument
-
-    if isinstance(project, ProjectDocument):
-        project_data: Any = project.data
-    elif project is not None:
-        project_data = project
-    else:
-        project_data = {}
-    components = project_data.get("components") if isinstance(project_data, dict) else None
+def _project_items(project: ProjectDocument) -> dict[str, dict[str, Any]] | None:
+    components = project.data.get("components")
     if not isinstance(components, list):
         return None
     return {

@@ -39,6 +39,7 @@ class ProjectDocument:
     modified: bool = field(default=False, compare=False)
     plugin_issues: list[str] = field(default_factory=list, compare=False)
     read_only: bool = field(default=False, compare=False)
+    untitled: bool = field(default=False, compare=False)
     expression_diagnostics: list[dict[str, str]] = field(default_factory=list, compare=False)
 
     @property

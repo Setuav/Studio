@@ -104,7 +104,7 @@ class ProjectController:
         doc = create_project("untitled.suav")
         doc.modified = False
         doc.data["name"] = "Untitled Project"
-        doc._is_untitled = True  # type: ignore[attr-defined]
+        doc.untitled = True
         return self.activate_project(doc, confirm_close=False)
 
     def open_last_project(self) -> bool:
@@ -114,8 +114,7 @@ class ProjectController:
         return False
 
     def activate_project(self, project: ProjectDocument, *, confirm_close: bool = True) -> bool:
-        is_untitled = getattr(project, "_is_untitled", False)
-        if is_untitled:
+        if project.untitled:
             project.read_only = False
             validation_issues = []
         else:
@@ -140,7 +139,7 @@ class ProjectController:
         self.project = project
         project.plugin_issues = self._host.check_project_requirements(project.data)
         self._host.set_project(project)
-        if not is_untitled:
+        if not project.untitled:
             self._window._add_recent_project(project.location)
         self._window._update_window_title()
         if hasattr(self._window, "_update_actions"):
@@ -164,7 +163,7 @@ class ProjectController:
                 "warning",
                 0,
             )
-        elif is_untitled:
+        elif project.untitled:
             self._api.show_status("New project ready", "info", 4000)
         elif not project.read_only:
             self._api.show_status(f"Project opened: {project_name}", "info", 4000)
@@ -173,7 +172,7 @@ class ProjectController:
     def save_project(self) -> bool:
         if self.project is None:
             return False
-        if getattr(self.project, "_is_untitled", False):
+        if self.project.untitled:
             return self._window.save_project_as()
         try:
             save_project(self.project)
@@ -203,7 +202,7 @@ class ProjectController:
         except ProjectSaveError as exc:
             QMessageBox.critical(self._window, "Cannot Save Project", str(exc))
             return False
-        self.project._is_untitled = False  # type: ignore[attr-defined]
+        self.project.untitled = False
         self._host.mark_project_saved()
         self._window._add_recent_project(self.project.location)
         self._window._update_window_title()
