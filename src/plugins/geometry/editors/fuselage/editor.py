@@ -151,10 +151,7 @@ class FuselageEditor(
 
             sync_component_envelope(self._component)
 
-        if hasattr(self._api, "edit_component"):
-            self._api.edit_component(self._component, description, wrapped)
-        else:
-            wrapped()
+        self._api.edit_component(self._component, description, wrapped)
 
     def _parameters(self) -> dict[str, Any]:
         return self._object(self._component, "parameters")

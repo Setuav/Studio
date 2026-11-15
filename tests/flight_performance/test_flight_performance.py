@@ -357,7 +357,8 @@ class TestFlightPerformance(unittest.TestCase):
         self.assertIn("Performance complete", win._status_label.text())
 
         # Check project extension storage
-        stored = get_stored_performance_result(api.current_project)
+        assert api.project is not None
+        stored = get_stored_performance_result(api.project)
         self.assertIsNotNone(stored)
         self.assertTrue(stored.feasible)  # type: ignore
 

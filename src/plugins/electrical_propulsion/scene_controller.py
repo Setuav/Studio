@@ -41,7 +41,7 @@ class PropulsionSceneController:
         if not viewport.has_layer(PROPULSION_LAYER):
             viewport.add_layer(PROPULSION_LAYER, name=PROPULSION_LAYER_NAME, visible=True)
 
-        doc = project if project is not None else getattr(self._api, "current_project", None)
+        doc = project if project is not None else self._api.project
         if doc is None or not hasattr(doc, "data") or not isinstance(doc.data, dict):
             viewport.clear(layer=PROPULSION_LAYER)
             return

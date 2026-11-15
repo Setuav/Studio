@@ -41,8 +41,8 @@ class BaseAerodynamicsSolver(AbstractSolver):
 
     def _extract_components(self) -> list[dict[str, Any]]:
         project = self.project
-        if project is None and hasattr(self, "api"):
-            project = getattr(self.api, "current_project", None)
+        if project is None and self.api is not None:
+            project = self.api.project
 
         if project is None or not hasattr(project, "data") or not isinstance(project.data, dict):
             raise RuntimeError("No active project available for aerodynamic analysis.")

@@ -26,7 +26,7 @@ class TestDebugMockSolver(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.project_path = Path(self.temp_dir.name) / "test_project.suav"
         self.api = StudioAPI()
-        self.api.current_project = create_project(self.project_path)
+        self.api._host.set_project(create_project(self.project_path))
 
     def tearDown(self) -> None:
         self.temp_dir.cleanup()

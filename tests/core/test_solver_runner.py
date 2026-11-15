@@ -136,7 +136,7 @@ def test_solver_runner_registry() -> None:
 def test_solver_runner_executes_and_adds_result_to_project() -> None:
     studio_api = StudioAPI()
     project = ProjectDocument(path=None, kind="json", data={"components": []})  # type: ignore[arg-type]
-    studio_api.current_project = project
+    studio_api._host.set_project(project)
 
     runner = SolverRunner(studio_api)
     config = SolverConfig(solver_id="org.test:aero", name="Async Run")

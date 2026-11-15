@@ -208,12 +208,7 @@ class LiftingSurfaceEditor(
 
             sync_component_envelope(cs, self._component)
 
-        if hasattr(self._api, "edit_component"):
-            self._api.edit_component(cs, description, wrapped_cs_change)
-        elif hasattr(self._api, "edit_project"):
-            self._api.edit_project(description, wrapped_cs_change)
-        else:
-            wrapped_cs_change()
+        self._api.edit_component(cs, description, wrapped_cs_change)
 
     def _edit_component(self, description: str, change_fn: Callable[[], None]) -> None:
         def wrapped_change() -> None:
@@ -222,10 +217,7 @@ class LiftingSurfaceEditor(
 
             sync_component_envelope(self._component)
 
-        if hasattr(self._api, "edit_component"):
-            self._api.edit_component(self._component, description, wrapped_change)
-        else:
-            wrapped_change()
+        self._api.edit_component(self._component, description, wrapped_change)
 
     def _parameters(self) -> dict[str, Any]:
         params = self._component.get("parameters")
@@ -253,7 +245,7 @@ class LiftingSurfaceEditor(
         return params.setdefault("geometry", {})
 
     def _control_surfaces(self) -> list[dict[str, Any]]:
-        project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
+        project = self._api.project
         if not project or not isinstance(project.data.get("components"), list):
             return []
         wing_id = self._component.get("id")

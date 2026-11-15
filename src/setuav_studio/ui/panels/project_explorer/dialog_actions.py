@@ -14,7 +14,7 @@ def add_parameter_action(
     is_constant: bool = False,
     parent: QWidget | None = None,
 ) -> None:
-    data = api.current_project.data if api.current_project else {}
+    data = api.project.data if api.project else {}
     raw = data.get("parameters", {}) if isinstance(data, dict) else {}
     prefix = "const_" if is_constant else "param_"
     idx = 1
@@ -23,7 +23,7 @@ def add_parameter_action(
     param_name = f"{prefix}{idx}"
 
     def _apply() -> None:
-        pdata = api.current_project.data if api.current_project else {}
+        pdata = api.project.data if api.project else {}
         pdata.setdefault("parameters", {})[param_name] = 0.0
 
     action_name = "constant" if is_constant else "parameter"
@@ -38,7 +38,7 @@ def add_constraint_action(
     tree: QWidget | None = None,
     parent: QWidget | None = None,
 ) -> None:
-    data = api.current_project.data if api.current_project else {}
+    data = api.project.data if api.project else {}
     raw = data.get("constraints", []) if isinstance(data, dict) else []
     idx = 1
     existing_ids = {str(c.get("id")) for c in raw if isinstance(c, dict)}
@@ -56,7 +56,7 @@ def add_constraint_action(
     }
 
     def _apply() -> None:
-        pdata = api.current_project.data if api.current_project else {}
+        pdata = api.project.data if api.project else {}
         pdata.setdefault("constraints", []).append(new_constraint)
 
     api.edit_project(f"Add constraint '{cname}'", _apply)
@@ -71,7 +71,7 @@ def toggle_constraint(
     cid = str(element.get("id") or "")
 
     def _apply() -> None:
-        pdata = api.current_project.data if api.current_project else {}
+        pdata = api.project.data if api.project else {}
         for c in pdata.get("constraints", []):
             if c.get("id") == cid:
                 c["enabled"] = not c.get("enabled", True)
@@ -85,7 +85,7 @@ def add_plot_action(
     element: dict[str, Any] | None = None,
     parent: QWidget | None = None,
 ) -> Any | None:
-    project = api.current_project
+    project = api.project
     if project is None:
         return None
 

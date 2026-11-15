@@ -97,8 +97,8 @@ class SolverRunner:
         priority: TaskPriority = TaskPriority.NORMAL,
     ) -> Any:
         """Submit a solver instance to run asynchronously via TaskManager."""
-        if getattr(solver, "project", None) is None and self._api.current_project is not None:
-            solver.project = self._api.current_project
+        if getattr(solver, "project", None) is None and self._api.project is not None:
+            solver.project = self._api.project
         if getattr(solver, "api", None) is None:
             solver.api = self._api
 

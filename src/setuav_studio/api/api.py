@@ -85,7 +85,7 @@ class StudioAPI:
     """
 
     def __init__(self) -> None:
-        self.current_project: ProjectDocument | None = None
+        self._project: ProjectDocument | None = None
         self.current_selection: Any | None = None
         self.current_section_selection: tuple[str, int, int] | None = None
         self.current_solver_config_id: str | None = None
@@ -172,7 +172,7 @@ class StudioAPI:
     @property
     def project(self) -> ProjectDocument | None:
         """Return the currently open project, or `None` when no project is open."""
-        return self.current_project
+        return self._project
 
     def register_panel(self, contribution: PanelContribution) -> None:
         """Register a dockable panel contribution.
@@ -350,9 +350,9 @@ class StudioAPI:
         if listener not in self._project_listeners:
             self._project_listeners.append(listener)
             _bind_qobject_destroyed(listener, lambda: self.remove_project_listener(listener))
-        if self.current_project is not None:
+        if self._project is not None:
             with suppress(RuntimeError):
-                listener(self.current_project)
+                listener(self._project)
         return lambda: self.remove_project_listener(listener)
 
     def on_project_content_changed(
@@ -387,7 +387,7 @@ class StudioAPI:
             self._modified_listeners.append(listener)
             _bind_qobject_destroyed(listener, lambda: self.remove_modified_listener(listener))
         with suppress(RuntimeError):
-            listener(bool(self.current_project and self.current_project.modified))
+            listener(bool(self._project and self._project.modified))
         return lambda: self.remove_modified_listener(listener)
 
     def remove_modified_listener(self, listener: Callable[[bool], None]) -> None:
@@ -409,11 +409,11 @@ class StudioAPI:
         """
         comp_id = str(component.get("id") or "")
         live_component = None
-        if self.current_project is not None and comp_id:
-            if hasattr(self.current_project, "get_component"):
-                live_component = self.current_project.get_component(comp_id)
-            elif isinstance(getattr(self.current_project, "data", None), dict):
-                comps = self.current_project.data.get("components", [])
+        if self._project is not None and comp_id:
+            if hasattr(self._project, "get_component"):
+                live_component = self._project.get_component(comp_id)
+            elif isinstance(getattr(self._project, "data", None), dict):
+                comps = self._project.data.get("components", [])
                 if isinstance(comps, list):
                     live_component = next(
                         (
@@ -479,7 +479,7 @@ class StudioAPI:
             reparent_component(
                 raw,
                 clean_parent,
-                self.current_project,
+                self._project,
                 preserve_world_transform=preserve_world_transform,
             )
 
@@ -491,17 +491,17 @@ class StudioAPI:
         change: Callable[[], None],
     ) -> None:
         """Apply one undoable edit to the current project data."""
-        if self.current_project is None:
+        if self._project is None:
             change()
             return
-        before = deepcopy(self.current_project.data)
+        before = deepcopy(self._project.data)
         change()
-        diffs = compute_dict_diff(before, self.current_project.data)
+        diffs = compute_dict_diff(before, self._project.data)
         if not diffs:
             return
         self._undo_stack.push(
             _ProjectEditCommand(
-                self.current_project,
+                self._project,
                 diffs,
                 description,
                 self._notify_project_content_changed,
@@ -515,16 +515,16 @@ class StudioAPI:
         change: Callable[[dict[str, Any]], None],
     ) -> None:
         """Edit root-level extension data for a given namespace with full Undo/Redo tracking."""
-        if self.current_project is None:
+        if self._project is None:
             return
 
         def wrapper() -> None:
-            assert self.current_project is not None
-            if "extensions" not in self.current_project.data or not isinstance(
-                self.current_project.data["extensions"], dict
+            assert self._project is not None
+            if "extensions" not in self._project.data or not isinstance(
+                self._project.data["extensions"], dict
             ):
-                self.current_project.data["extensions"] = {}
-            ext = self.current_project.data["extensions"].setdefault(namespace, {})
+                self._project.data["extensions"] = {}
+            ext = self._project.data["extensions"].setdefault(namespace, {})
             change(ext)
 
         self.edit_project(description, wrapper)
@@ -537,9 +537,9 @@ class StudioAPI:
         change: Callable[[dict[str, Any]], None],
     ) -> None:
         """Edit component-level extension data for a given namespace with full Undo/Redo tracking."""
-        if self.current_project is None:
+        if self._project is None:
             return
-        comp = self.current_project.get_component(component_id)
+        comp = self._project.get_component(component_id)
         if comp is None:
             return
 
@@ -586,11 +586,11 @@ class StudioAPI:
 
     def recompute_project_expressions(self) -> bool:
         """Evaluate all parametric formulas across the project and update numbers."""
-        if self.current_project is None:
+        if self._project is None:
             return False
         from setuav_studio.project.evaluator import recompute_project_expressions
 
-        return recompute_project_expressions(self.current_project, api=self)
+        return recompute_project_expressions(self._project, api=self)
 
     def register_solver(self, solver_id: str, solver_cls: Any) -> None:
         """Register a solver class by solver ID."""
@@ -622,28 +622,28 @@ class StudioAPI:
 
     def get_solver_results(self) -> dict[str, SolverResult]:
         """Return the dictionary of solver results in the current project."""
-        if self.current_project is None:
+        if self._project is None:
             return {}
-        return self.current_project.solver_results
+        return self._project.solver_results
 
     def get_solver_result(self, result_id: str) -> SolverResult | None:
         """Retrieve a solver result by ID from the current project."""
-        if self.current_project is None:
+        if self._project is None:
             return None
-        return self.current_project.get_solver_result(result_id)
+        return self._project.get_solver_result(result_id)
 
     def add_solver_result(self, result: SolverResult) -> None:
         """Add or update a solver result in the current project."""
-        if self.current_project is None:
+        if self._project is None:
             return
-        self.current_project.add_solver_result(result)
+        self._project.add_solver_result(result)
         self._notify_project_content_changed()
 
     def remove_solver_result(self, result_id: str) -> bool:
         """Remove a solver result by ID from the current project."""
-        if self.current_project is None:
+        if self._project is None:
             return False
-        removed = self.current_project.remove_solver_result(result_id)
+        removed = self._project.remove_solver_result(result_id)
         if removed:
             self._notify_project_content_changed()
         return removed
@@ -678,35 +678,35 @@ class StudioAPI:
 
     def get_current_solver_config(self) -> SolverConfig | None:
         """Return the currently selected SolverConfig, or None."""
-        if self.current_project is None or self.current_solver_config_id is None:
+        if self._project is None or self.current_solver_config_id is None:
             return None
-        return self.current_project.get_solver_config(self.current_solver_config_id)
+        return self._project.get_solver_config(self.current_solver_config_id)
 
     def get_solver_configs(self) -> dict[str, SolverConfig]:
         """Return all SolverConfig objects stored in the current project."""
-        if self.current_project is None:
+        if self._project is None:
             return {}
-        return self.current_project.solver_configs
+        return self._project.solver_configs
 
     def get_solver_config(self, config_id: str) -> SolverConfig | None:
         """Retrieve a SolverConfig by ID from the current project."""
-        if self.current_project is None:
+        if self._project is None:
             return None
-        return self.current_project.get_solver_config(config_id)
+        return self._project.get_solver_config(config_id)
 
     def add_solver_config(self, config: SolverConfig) -> None:
         """Add a SolverConfig to the current project and set it as active."""
-        if self.current_project is None:
+        if self._project is None:
             return
-        self.current_project.add_solver_config(config)
+        self._project.add_solver_config(config)
         self.set_current_solver_config(config.config_id)
         self._notify_project_content_changed()
 
     def remove_solver_config(self, config_id: str) -> bool:
         """Remove a SolverConfig by ID from the current project."""
-        if self.current_project is None:
+        if self._project is None:
             return False
-        removed = self.current_project.remove_solver_config(config_id)
+        removed = self._project.remove_solver_config(config_id)
         if removed:
             if self.current_solver_config_id == config_id:
                 self.set_current_solver_config(None)
@@ -715,7 +715,7 @@ class StudioAPI:
 
     def get_aircraft_mass_properties(self) -> Any:
         """Calculate and return aggregate aircraft mass, center of gravity, and inertia tensor."""
-        if self.current_project is None:
+        if self._project is None:
             from setuav_studio.model.mass import InertiaTensor, MassProperties
 
             return MassProperties(
@@ -723,10 +723,10 @@ class StudioAPI:
                 cg_body_m=(0.0, 0.0, 0.0),
                 inertia_cg_kg_m2=InertiaTensor(),
             )
-        return self.current_project.mass_properties
+        return self._project.mass_properties
 
     def _notify_project_content_changed(self) -> None:
-        if self.current_project is None:
+        if self._project is None:
             return
 
         if not self._is_recomputing_expressions:
@@ -734,16 +734,16 @@ class StudioAPI:
             try:
                 from setuav_studio.project.evaluator import recompute_project_expressions
 
-                recompute_project_expressions(self.current_project, api=self)
+                recompute_project_expressions(self._project, api=self)
             finally:
                 self._is_recomputing_expressions = False
 
-        _dispatch_listeners(self._project_content_listeners, self.current_project)
+        _dispatch_listeners(self._project_content_listeners, self._project)
 
     def _on_clean_changed(self, clean: bool) -> None:
         modified = not clean
-        if self.current_project is not None:
-            self.current_project.modified = modified
+        if self._project is not None:
+            self._project.modified = modified
         _dispatch_listeners(self._modified_listeners, modified)
         self.publish(StudioEvents.PROJECT_MODIFIED, modified)
 
@@ -965,8 +965,8 @@ class StudioAPI:
 
         if component_kind == "instance":
             source_id = component.get("source")
-            if source_id and self.current_project is not None:
-                source = self.current_project.get_component(str(source_id))
+            if source_id and self._project is not None:
+                source = self._project.get_component(str(source_id))
                 if source is not None:
                     src_dict = (
                         source
@@ -1038,13 +1038,13 @@ class StudioAPI:
         if provider_id in self._project_tree_providers:
             raise ValueError(f"A project tree provider is already registered for: {provider_id}")
         self._project_tree_providers[provider_id] = provider
-        if self.current_project is not None:
+        if self._project is not None:
             self.notify_project_content_changed()
 
     def unregister_project_tree_provider(self, provider_id: str) -> None:
         """Unregister a project-tree provider and refresh the project tree."""
         removed = self._project_tree_providers.pop(provider_id, None)
-        if removed is not None and self.current_project is not None:
+        if removed is not None and self._project is not None:
             self.notify_project_content_changed()
 
     def project_tree_nodes(

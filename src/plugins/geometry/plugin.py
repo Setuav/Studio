@@ -113,12 +113,12 @@ class AirframeDesignPlugin:
         self._unsubscribers.append(
             api.on_project_content_changed(self._scene_controller.on_project_content_changed)
         )
-        if api.current_project is not None:
-            self._scene_controller.sync(api.current_project)
+        if api.project is not None:
+            self._scene_controller.sync(api.project)
 
         # 7. Auto-sync physical envelopes from geometry
         api.subscribe(StudioEvents.PROJECT_OPENED, self._on_project_opened)
-        if api.current_project is not None:
+        if api.project is not None:
             self._on_project_opened()
 
     def get_geometry(self, project: Any = None) -> Any:
@@ -130,7 +130,7 @@ class AirframeDesignPlugin:
         from .engine.scene import build_project_geometry
 
         api = getattr(self, "_api", None)
-        doc = project if project is not None else (api.current_project if api is not None else None)
+        doc = project if project is not None else (api.project if api is not None else None)
         if doc is None:
             return GeometryData()
         providers = getattr(self, "_providers", {})
@@ -165,8 +165,8 @@ class AirframeDesignPlugin:
         api.unsubscribe(StudioEvents.PROJECT_OPENED, self._on_project_opened)
 
     def _on_project_opened(self, *args: Any) -> None:
-        if self._api is not None and self._api.current_project is not None:
-            project = self._api.current_project
+        if self._api is not None and self._api.project is not None:
+            project = self._api.project
 
             def _sync() -> None:
                 from .engine.envelope import sync_project_geometry_envelopes

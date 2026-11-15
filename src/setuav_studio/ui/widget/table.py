@@ -319,8 +319,8 @@ class FocusAwareLineEdit(QLineEdit):
         if resolved_api is None and hasattr(self.parent(), "_api"):
             resolved_api = getattr(self.parent(), "_api", None)
 
-        if resolved_api is not None and getattr(resolved_api, "current_project", None) is not None:
-            proj = resolved_api.current_project
+        if resolved_api is not None and resolved_api.project is not None:
+            proj = resolved_api.project
             data = getattr(proj, "data", None)
             if isinstance(data, dict):
                 # 1. Project Parameters (Highest priority)
@@ -592,8 +592,8 @@ class ExpressionPropertyCell(QWidget):
 
             evaluator = ExpressionEvaluator()
             scope = {}
-            if self._api is not None and getattr(self._api, "current_project", None) is not None:
-                scope = self._api.current_project.get_scope(api=self._api)
+            if self._api is not None and self._api.project is not None:
+                scope = self._api.project.get_scope(api=self._api)
             expr = expr_text.lstrip("=").strip()
             val = evaluator.evaluate(expr, scope)
             return True, val, None

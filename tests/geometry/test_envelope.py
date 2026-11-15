@@ -286,7 +286,7 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         fuse = _sample_fuselage()
         sync_component_envelope(fuse)
         doc = ProjectDocument(Path("test.uav"), "uav", {"components": [fuse]})
-        api.current_project = doc
+        api._host.set_project(doc)
 
         editor = EnvelopeEditor(
             api,
@@ -323,7 +323,7 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         fuse = _sample_fuselage()
         sync_component_envelope(fuse)
         doc = ProjectDocument(Path("test.uav"), "uav", {"components": [fuse]})
-        api.current_project = doc
+        api._host.set_project(doc)
 
         editor = EnvelopeEditor(
             api,
@@ -414,7 +414,7 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         fuse = _sample_fuselage()
         sync_component_envelope(fuse)
         doc = ProjectDocument(Path("test.uav"), "uav", {"components": [fuse]})
-        api.current_project = doc
+        api._host.set_project(doc)
 
         viewport = StudioViewport(api=api)
         self.addCleanup(viewport.deleteLater)

@@ -402,7 +402,7 @@ class DebugPanel(PropertyTableMixin, QWidget):
 
     def _refresh_inspector(self) -> None:
         """Update active selection, component details and project summary."""
-        project = self._api.current_project
+        project = self._api.project
         sel = self._api.current_selection
         sec_sel = self._api.current_section_selection
         sol_id = self._api.current_solver_config_id

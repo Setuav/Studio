@@ -88,8 +88,8 @@ class DebugPlugin:
         api.on_project_changed(self._on_project_changed)
         api.on_project_content_changed(self._on_project_content_changed)
 
-        if api.current_project is not None:
-            self._sync_viewport(api.current_project)
+        if api.project is not None:
+            self._sync_viewport(api.project)
 
         logger.info("DebugPlugin activated")
 
@@ -374,7 +374,7 @@ class DebugPlugin:
 
     def _add_mock_analysis_config(self) -> None:
         """Add a configurable mock analysis to the active project."""
-        if self._api is None or self._api.current_project is None:
+        if self._api is None or self._api.project is None:
             if self._api is not None:
                 self._api.show_status("Open or create a project first.", "warning", 3000)
             return

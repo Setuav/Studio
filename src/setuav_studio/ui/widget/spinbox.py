@@ -153,8 +153,8 @@ def _parse_spinbox_callback_value(
 
             evaluator = ExpressionEvaluator()
             scope = {}
-            if api is not None and getattr(api, "current_project", None) is not None:
-                scope = api.current_project.get_scope(api=api)
+            if api is not None and api.project is not None:
+                scope = api.project.get_scope(api=api)
             res = evaluator.evaluate(clean.lstrip("=").strip(), scope)
             if isinstance(res, (int, float)):
                 num = float(res)

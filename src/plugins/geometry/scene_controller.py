@@ -78,7 +78,7 @@ class AirframeSceneController:
         if not viewport.has_layer(AIRFRAME_LAYER):
             viewport.add_layer(AIRFRAME_LAYER, name=AIRFRAME_LAYER_NAME, visible=True)
 
-        doc = project if project is not None else getattr(self._api, "current_project", None)
+        doc = project if project is not None else self._api.project
         if doc is None or not hasattr(doc, "data") or not isinstance(doc.data, dict):
             viewport.clear(layer=AIRFRAME_LAYER)
             return

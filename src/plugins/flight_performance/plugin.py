@@ -94,10 +94,10 @@ class FlightPerformancePlugin:
         if selection.get("kind") != RESULT_SELECTION_KIND:
             return
         analysis_id = str(selection.get("id") or "")
-        if not analysis_id or not self._api or not self._api.current_project:
+        if not analysis_id or not self._api or not self._api.project:
             return
 
-        for entry in analysis_entries(self._api.current_project):
+        for entry in analysis_entries(self._api.project):
             if str(entry.get("id")) == analysis_id:
                 payload = entry.get("result")
                 if isinstance(payload, dict):
@@ -109,7 +109,7 @@ class FlightPerformancePlugin:
                 return
 
     def _delete_analysis(self, analysis_id: str) -> None:
-        if self._api and self._api.current_project:
+        if self._api and self._api.project:
             self._api.edit_project_extension(
                 EXTENSION_ID,
                 "Delete flight performance analysis",
@@ -117,7 +117,7 @@ class FlightPerformancePlugin:
             )
 
     def _delete_all_analyses(self) -> None:
-        if self._api and self._api.current_project:
+        if self._api and self._api.project:
             self._api.edit_project_extension(
                 EXTENSION_ID,
                 "Delete all flight performance analyses",
@@ -125,7 +125,7 @@ class FlightPerformancePlugin:
             )
 
     def _rename_analysis(self, analysis_id: str, new_name: str) -> None:
-        if self._api and self._api.current_project:
+        if self._api and self._api.project:
             self._api.edit_project_extension(
                 EXTENSION_ID,
                 f"Rename flight performance analysis to '{new_name}'",

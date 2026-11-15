@@ -88,7 +88,7 @@ class PropulsionCreationController:
         )
 
     def _has_propulsion_component(self) -> bool:
-        project = self._api.current_project
+        project = self._api.project
         if project is None or not isinstance(getattr(project, "data", None), dict):
             return False
         components = project.data.get("components", [])
@@ -116,7 +116,7 @@ class PropulsionCreationController:
                 3000,
             )
             return
-        project = self._api.current_project
+        project = self._api.project
         if project is None:
             return
 
@@ -145,7 +145,7 @@ class PropulsionCreationController:
                 3000,
             )
             return
-        project = self._api.current_project
+        project = self._api.project
         if project is None:
             return
 
@@ -237,7 +237,7 @@ class PropulsionCreationController:
         return None
 
     def _components(self) -> list[dict[str, Any]]:
-        project = self._api.current_project
+        project = self._api.project
         components = project.data.get("components") if project is not None else None
         if not isinstance(components, list):
             return []
@@ -383,7 +383,7 @@ class PropulsionCreationController:
         base_id: str,
         base_name: str,
     ) -> tuple[str, str]:
-        project = self._api.current_project
+        project = self._api.project
         if project is None:
             return base_id, base_name
         components = project.data.get("components")
@@ -398,11 +398,11 @@ class PropulsionCreationController:
         return f"{base_id}-{suffix}", f"{base_name} {suffix}"
 
     def _can_edit_project(self) -> bool:
-        project = self._api.current_project
+        project = self._api.project
         return project is not None and not project.read_only
 
     def _require_editable_project(self) -> bool:
-        project = self._api.current_project
+        project = self._api.project
         if project is None:
             self._api.show_status(
                 "Open a project before adding propulsion components",
@@ -418,7 +418,7 @@ class PropulsionCreationController:
         return True
 
     def _find_component(self, component_id: str) -> dict[str, Any] | None:
-        project = self._api.current_project
+        project = self._api.project
         components = project.data.get("components") if project is not None else None
         if not isinstance(components, list):
             return None

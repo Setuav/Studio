@@ -45,8 +45,8 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
         self._api = api
         component_id = str(selection.get("component_id") or selection.get("id") or "")
         self._component = (
-            api.current_project.get_component(component_id)
-            if api.current_project is not None and component_id
+            api.project.get_component(component_id)
+            if api.project is not None and component_id
             else None
         )
         self._loading = False
@@ -272,7 +272,7 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
         self._loading = True
         try:
             comp_id = str(component.get("id") or "")
-            proj = self._api.current_project
+            proj = self._api.project
             from setuav_studio.utilities.mass_balance import (
                 get_component_children,
                 resolve_component_aggregate_mass_properties,
@@ -356,10 +356,10 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
         )
 
     def _source_component(self, component: dict[str, Any]) -> dict[str, Any]:
-        if component.get("kind") != "instance" or self._api.current_project is None:
+        if component.get("kind") != "instance" or self._api.project is None:
             return component
         source_id = component.get("source")
-        source = self._api.current_project.get_component(str(source_id or ""))
+        source = self._api.project.get_component(str(source_id or ""))
         return source if source is not None else component
 
 

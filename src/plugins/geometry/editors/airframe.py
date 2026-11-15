@@ -130,7 +130,7 @@ class AirframeEditor(PropertyTableMixin, QWidget):
                 self.general_table, "status", "Fixed Root Component (Read-Only)", editable=False
             )
 
-            project = self._api.current_project
+            project = self._api.project
             components: list[dict[str, Any]] = (
                 [c for c in project.data.get("components", []) if isinstance(c, dict)]
                 if project is not None

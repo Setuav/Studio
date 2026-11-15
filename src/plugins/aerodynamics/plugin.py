@@ -49,7 +49,7 @@ class AerodynamicsPlugin:
 
         # 2. Solver Config Creation Callbacks
         def add_alpha_sweep_analysis() -> None:
-            if api.current_project is None:
+            if api.project is None:
                 api.show_status("Open or create a project first.", "warning", 3000)
                 return
             config = SolverConfig(
@@ -71,7 +71,7 @@ class AerodynamicsPlugin:
             api.show_status("Added Alpha Sweep (Polar) configuration.", "success", 3000)
 
         def add_beta_sweep_analysis() -> None:
-            if api.current_project is None:
+            if api.project is None:
                 api.show_status("Open or create a project first.", "warning", 3000)
                 return
             config = SolverConfig(
@@ -93,7 +93,7 @@ class AerodynamicsPlugin:
             api.show_status("Added Beta Sweep (Sideslip) configuration.", "success", 3000)
 
         def add_control_deflection_analysis() -> None:
-            if api.current_project is None:
+            if api.project is None:
                 api.show_status("Open or create a project first.", "warning", 3000)
                 return
             config = SolverConfig(
@@ -115,7 +115,7 @@ class AerodynamicsPlugin:
             api.show_status("Added Control Deflection configuration.", "success", 3000)
 
         def add_operating_point_analysis() -> None:
-            if api.current_project is None:
+            if api.project is None:
                 api.show_status("Open or create a project first.", "warning", 3000)
                 return
             config = SolverConfig(
@@ -146,28 +146,28 @@ class AerodynamicsPlugin:
                         title="Alpha Sweep (Polar) Analysis",
                         callback=add_alpha_sweep_analysis,
                         icon="fa6s.chart-line",
-                        enabled_when=lambda: api.current_project is not None,
+                        enabled_when=lambda: api.project is not None,
                     ),
                     ToolbarMenuItemContribution(
                         title="Beta Sweep (Sideslip) Analysis",
                         callback=add_beta_sweep_analysis,
                         icon="fa6s.arrows-left-right",
-                        enabled_when=lambda: api.current_project is not None,
+                        enabled_when=lambda: api.project is not None,
                     ),
                     ToolbarMenuItemContribution(
                         title="Control Deflection Analysis",
                         callback=add_control_deflection_analysis,
                         icon="fa6s.sliders",
-                        enabled_when=lambda: api.current_project is not None,
+                        enabled_when=lambda: api.project is not None,
                     ),
                     ToolbarMenuItemContribution(
                         title="Operating Point Analysis",
                         callback=add_operating_point_analysis,
                         icon="fa6s.crosshairs",
-                        enabled_when=lambda: api.current_project is not None,
+                        enabled_when=lambda: api.project is not None,
                     ),
                 ),
-                enabled_when=lambda: api.current_project is not None,
+                enabled_when=lambda: api.project is not None,
                 group="aerodynamics-creation",
                 order=130,
             )

@@ -142,7 +142,7 @@ class ElectricalPropulsionPlugin(StudioPlugin):
         api.register_solver(SOLVER_ID_OPERATING_POINT, OperatingPointSolver)
 
         def add_throttle_sweep_analysis() -> None:
-            if api.current_project is None:
+            if api.project is None:
                 api.show_status("Open or create a project first.", "warning", 3000)
                 return
             config = SolverConfig(
@@ -161,7 +161,7 @@ class ElectricalPropulsionPlugin(StudioPlugin):
             api.show_status("Added Throttle Sweep Analysis configuration.", "success", 3000)
 
         def add_airspeed_sweep_analysis() -> None:
-            if api.current_project is None:
+            if api.project is None:
                 api.show_status("Open or create a project first.", "warning", 3000)
                 return
             config = SolverConfig(
@@ -180,7 +180,7 @@ class ElectricalPropulsionPlugin(StudioPlugin):
             api.show_status("Added Airspeed Sweep Analysis configuration.", "success", 3000)
 
         def add_operating_point_analysis() -> None:
-            if api.current_project is None:
+            if api.project is None:
                 api.show_status("Open or create a project first.", "warning", 3000)
                 return
             config = SolverConfig(
@@ -207,22 +207,22 @@ class ElectricalPropulsionPlugin(StudioPlugin):
                         title="Throttle Sweep Analysis",
                         callback=add_throttle_sweep_analysis,
                         icon="fa6s.gauge-high",
-                        enabled_when=lambda: api.current_project is not None,
+                        enabled_when=lambda: api.project is not None,
                     ),
                     ToolbarMenuItemContribution(
                         title="Airspeed Sweep Analysis",
                         callback=add_airspeed_sweep_analysis,
                         icon="fa6s.wind",
-                        enabled_when=lambda: api.current_project is not None,
+                        enabled_when=lambda: api.project is not None,
                     ),
                     ToolbarMenuItemContribution(
                         title="Operating Point Analysis",
                         callback=add_operating_point_analysis,
                         icon="fa6s.crosshairs",
-                        enabled_when=lambda: api.current_project is not None,
+                        enabled_when=lambda: api.project is not None,
                     ),
                 ),
-                enabled_when=lambda: api.current_project is not None,
+                enabled_when=lambda: api.project is not None,
                 group="propulsion-creation",
                 order=120,
             )
@@ -259,8 +259,8 @@ class ElectricalPropulsionPlugin(StudioPlugin):
         self._unsubscribers.append(
             api.on_project_content_changed(self._scene_controller.on_project_content_changed)
         )
-        if api.current_project is not None:
-            self._scene_controller.sync(api.current_project)
+        if api.project is not None:
+            self._scene_controller.sync(api.project)
 
     def deactivate(self, api: StudioAPI) -> None:
         if self._scene_controller is not None:

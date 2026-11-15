@@ -164,9 +164,9 @@ class SolverConfigPropertyEditor(PropertyTableMixin, QWidget):
             res = self._api.get_solver_result(self._result_id)
             if res is not None:
                 return res.config
-        if self._api.current_project is None or not self._config_id:
+        if self._api.project is None or not self._config_id:
             return None
-        return self._api.current_project.get_solver_config(self._config_id)
+        return self._api.project.get_solver_config(self._config_id)
 
     def _load_data(self) -> None:
         config = self._get_config()

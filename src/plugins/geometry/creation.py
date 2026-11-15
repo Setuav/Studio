@@ -113,7 +113,7 @@ class AirframeCreationController:
         )
 
     def _has_airframe_component(self) -> bool:
-        project = self._api.current_project
+        project = self._api.project
         if project is None or not isinstance(getattr(project, "data", None), dict):
             return False
         components = project.data.get("components", [])
@@ -140,7 +140,7 @@ class AirframeCreationController:
                 3000,
             )
             return
-        project = self._api.current_project
+        project = self._api.project
         if project is None:
             return
 
@@ -166,7 +166,7 @@ class AirframeCreationController:
                 3000,
             )
             return
-        project = self._api.current_project
+        project = self._api.project
         if project is None:
             return
         component_id, name = self._unique_identity("fuselage", "Fuselage")
@@ -223,7 +223,7 @@ class AirframeCreationController:
                 3000,
             )
             return
-        project = self._api.current_project
+        project = self._api.project
         if project is None:
             return
         # (base_id, base_name, span, root_chord, tip_chord, mirrored, roll, airfoil, mass, thickness)
@@ -422,14 +422,14 @@ class AirframeCreationController:
         )
 
     def _can_edit_project(self) -> bool:
-        project = self._api.current_project
+        project = self._api.project
         return project is not None and not project.read_only
 
     def _can_add_control_surface(self) -> bool:
         return self._can_add_geometry() and self._selected_lifting_surface() is not None
 
     def _require_editable_project(self) -> bool:
-        project = self._api.current_project
+        project = self._api.project
         if project is None:
             self._api.show_status("Open a project before adding geometry", "warning")
             return False
@@ -447,7 +447,7 @@ class AirframeCreationController:
         component: dict[str, Any],
         description: str,
     ) -> None:
-        project = self._api.current_project
+        project = self._api.project
         if project is None:
             return
 
@@ -502,7 +502,7 @@ class AirframeCreationController:
         )
 
     def _components(self) -> list[dict[str, Any]]:
-        project = self._api.current_project
+        project = self._api.project
         if project is None:
             return []
         components = project.data.get("components")

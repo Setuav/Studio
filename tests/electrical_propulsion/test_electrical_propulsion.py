@@ -247,7 +247,8 @@ class TestElectricalPropulsion(unittest.TestCase):
         self._drain_events()
         self.assertIn("Analysis complete", win._status_label.text())
 
-        for comp in api.current_project.data["components"]:
+        assert api.project is not None
+        for comp in api.project.data["components"]:
             if comp["id"] == "motor-cruise":
                 comp["parameters"]["max_current"] = 0.001
         controls.run_button.click()

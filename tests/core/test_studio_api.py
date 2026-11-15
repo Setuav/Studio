@@ -407,3 +407,16 @@ def test_action_tool_and_settings_page_contributions() -> None:
     assert studio_api._host.settings_pages() == (settings,)
     studio_api.unregister_settings_page("org.test:settings")
     assert studio_api._host.settings_pages() == ()
+
+
+def test_project_property_is_canonical_and_readonly() -> None:
+    studio_api = StudioAPI()
+    assert studio_api.project is None
+    assert not hasattr(studio_api, "current_project")
+
+    project = ProjectDocument(Path("test.json"), "json", {"components": []})
+    studio_api._host.set_project(project)
+    assert studio_api.project is project
+    assert not hasattr(studio_api, "current_project")
+    with pytest.raises(AttributeError):
+        studio_api.project = project  # type: ignore[misc]

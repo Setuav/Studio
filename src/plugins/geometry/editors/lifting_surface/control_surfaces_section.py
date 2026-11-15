@@ -386,11 +386,11 @@ class ControlSurfacesSectionMixin:
         )
         set_expression(geom, key, val_str if is_expr else None)
         if is_expr:
-            if self._api is not None and getattr(self._api, "current_project", None) is not None:
+            if self._api is not None and self._api.project is not None:
                 from setuav_studio.model.expression import ExpressionEvaluator
 
                 evaluator = ExpressionEvaluator()
-                scope = self._api.current_project.get_scope(api=self._api)
+                scope = self._api.project.get_scope(api=self._api)
                 expr = val_str.lstrip("=").strip()
                 res = evaluator.evaluate(expr, scope)
                 if isinstance(res, (int, float)):
@@ -574,7 +574,7 @@ class ControlSurfacesSectionMixin:
         wing_id = str(self._component.get("id") or "wing")
         new_slug = f"control_{len(cs_list) + 1}"
         new_id = f"{wing_id}-{new_slug}"
-        project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
+        project = self._api.project
 
         semi_span, root_chord, *_ = self._surface_span_info()
         def_start = round(max(semi_span * 0.4, 20.0), 1)
@@ -629,10 +629,7 @@ class ControlSurfacesSectionMixin:
             def change() -> None:
                 project.data["components"].append(new_comp)
 
-            if hasattr(self._api, "edit_project"):
-                self._api.edit_project("Add control surface", change)
-            else:
-                change()
+            self._api.edit_project("Add control surface", change)
 
         self._populate_control_surfaces()
         insert_at = len(self._control_surfaces()) - 1
@@ -646,7 +643,7 @@ class ControlSurfacesSectionMixin:
         if not (0 <= idx < len(cs_list)):
             return
         target = deepcopy(cs_list[idx])
-        project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
+        project = self._api.project
 
         if project and isinstance(project.data.get("components"), list):
             base_id = str(target.get("id") or "cs")
@@ -656,10 +653,7 @@ class ControlSurfacesSectionMixin:
             def change() -> None:
                 project.data["components"].append(target)
 
-            if hasattr(self._api, "edit_project"):
-                self._api.edit_project("Duplicate control surface", change)
-            else:
-                change()
+            self._api.edit_project("Duplicate control surface", change)
 
         self._populate_control_surfaces()
         insert_at = len(self._control_surfaces()) - 1
@@ -673,7 +667,7 @@ class ControlSurfacesSectionMixin:
             return
         cs_list = self._control_surfaces()
         target = idx - 1
-        project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
+        project = self._api.project
 
         def change() -> None:
             if (
@@ -686,10 +680,7 @@ class ControlSurfacesSectionMixin:
                 i2 = comps.index(cs_list[target])
                 comps[i1], comps[i2] = comps[i2], comps[i1]
 
-        if hasattr(self._api, "edit_project"):
-            self._api.edit_project("Move control surface up", change)
-        else:
-            change()
+        self._api.edit_project("Move control surface up", change)
 
         self._populate_control_surfaces()
         self.control_surfaces_table.selectRow(target)
@@ -701,7 +692,7 @@ class ControlSurfacesSectionMixin:
         if idx < 0 or idx >= len(cs_list) - 1:
             return
         target = idx + 1
-        project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
+        project = self._api.project
 
         def change() -> None:
             if (
@@ -714,10 +705,7 @@ class ControlSurfacesSectionMixin:
                 i2 = comps.index(cs_list[target])
                 comps[i1], comps[i2] = comps[i2], comps[i1]
 
-        if hasattr(self._api, "edit_project"):
-            self._api.edit_project("Move control surface down", change)
-        else:
-            change()
+        self._api.edit_project("Move control surface down", change)
 
         self._populate_control_surfaces()
         self.control_surfaces_table.selectRow(target)
@@ -730,7 +718,7 @@ class ControlSurfacesSectionMixin:
             return
 
         target_item = cs_list[idx]
-        project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
+        project = self._api.project
 
         def change() -> None:
             if (
@@ -740,10 +728,7 @@ class ControlSurfacesSectionMixin:
             ):
                 project.data["components"].remove(target_item)
 
-        if hasattr(self._api, "edit_project"):
-            self._api.edit_project("Delete control surface", change)
-        else:
-            change()
+        self._api.edit_project("Delete control surface", change)
 
         self._populate_control_surfaces()
         new_idx = min(idx, len(self._control_surfaces()) - 1)

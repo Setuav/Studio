@@ -58,7 +58,7 @@ class GeneralSectionMixin:
         # Mounting Target Combo (attach_to fuselage or lifting surface)
         current_attach = str(self._component.get("attach_to") or "")
         parent_options = [("", "(None)")]
-        project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
+        project = self._api.project
         if project and isinstance(project.data.get("components"), list):
             for comp in project.data["components"]:
                 if isinstance(comp, dict) and comp.get("type") in (

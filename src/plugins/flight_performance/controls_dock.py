@@ -331,7 +331,7 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
     def _refresh_assemblies(self) -> None:
         self.combo_assembly.blockSignals(True)
         self.combo_assembly.clear()
-        proj = self._api.current_project if self._api else None
+        proj = self._api.project if self._api else None
         if proj:
             assemblies = proj.data.get("assemblies", [])
             for a in assemblies:
@@ -351,7 +351,7 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
         self.combo_assembly.blockSignals(False)
 
     def _refresh_mass(self) -> None:
-        proj = self._api.current_project if self._api else None
+        proj = self._api.project if self._api else None
         if not proj:
             self._empty_mass_kg = 0.0
             self._set_property_value(self.mass_table, "empty_mass", "0.0 g")
@@ -377,7 +377,7 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
         self._update_takeoff_mass()
 
     def _build_analysis_context(self) -> dict[str, Any] | None:
-        proj = self._api.current_project if self._api else None
+        proj = self._api.project if self._api else None
         if not proj:
             QMessageBox.warning(self, "No Project", "Please open or create a project first.")
             return None
@@ -589,7 +589,7 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
 
         if self._api:
             self._api.clear_progress()
-            proj = self._api.current_project
+            proj = self._api.project
             entry = None
             if proj and not proj.read_only:
                 entry = make_analysis_entry(result)

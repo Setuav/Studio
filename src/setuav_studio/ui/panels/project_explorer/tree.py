@@ -101,7 +101,7 @@ class ProjectExplorer(QTreeWidget):
         self._rebuild_project(project)
 
     def refresh_project(self, project: ProjectDocument | None = None) -> None:
-        current_project = project or self._api.current_project
+        current_project = project or self._api.project
         if current_project is not None:
             self._rebuild_project(current_project)
 
@@ -197,7 +197,7 @@ class ProjectExplorer(QTreeWidget):
         element: dict[str, Any],
         saved_elements: dict[str, dict[str, Any]],
     ) -> None:
-        project = self._api.current_project
+        project = self._api.project
         if project is None or not getattr(project, "modified", False):
             return
         element_id = str(element.get("id") or "")
@@ -210,7 +210,7 @@ class ProjectExplorer(QTreeWidget):
             )
 
     def _on_modified_changed(self, modified: bool) -> None:
-        project = self._api.current_project
+        project = self._api.project
         if project is None:
             return
         if not modified:
@@ -250,7 +250,7 @@ class ProjectExplorer(QTreeWidget):
     def _refresh_modified_colors(self) -> None:
         from setuav_studio.ui.style.theme import status_color
 
-        project = self._api.current_project
+        project = self._api.project
         is_clean = project is None or not getattr(project, "modified", False)
 
         for item, element in list(self._element_map.items()):
@@ -351,7 +351,7 @@ class ProjectExplorer(QTreeWidget):
             self.clearSelection()
             self.setCurrentItem(None)
             return
-        project = self._api.current_project
+        project = self._api.project
         if project is not None and selection is project.data:
             if (
                 self._project_root_item is not None

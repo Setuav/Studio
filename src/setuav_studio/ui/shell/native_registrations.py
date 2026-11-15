@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 
 def _can_edit_project(api: StudioAPI) -> bool:
-    project = api.current_project
+    project = api.project
     return project is not None and not project.read_only
 
 

@@ -21,14 +21,14 @@ class ProjectExplorerOperations:
         self._api = api
 
     def can_edit_project(self) -> bool:
-        project = self._api.current_project
+        project = self._api.project
         return project is not None and not project.read_only
 
     def element_kind(self, element_id: str) -> str:
         return "component"
 
     def find_element(self, element_id: str, kind: str) -> dict[str, Any] | None:
-        project = self._api.current_project
+        project = self._api.project
         if project is None:
             return None
         if kind == "project":
@@ -49,7 +49,7 @@ class ProjectExplorerOperations:
         return self.dependent_component_ids_from({root_id})
 
     def dependent_component_ids_from(self, root_ids: set[str]) -> set[str]:
-        project = self._api.current_project
+        project = self._api.project
         components = project.data.get("components") if project is not None else None
         if not isinstance(components, list):
             return set(root_ids)
@@ -111,7 +111,7 @@ class ProjectExplorerOperations:
         self,
         component_ids: set[str],
     ) -> None:
-        project = self._api.current_project
+        project = self._api.project
         if project is None:
             return
         components = project.data.get("components")
@@ -186,7 +186,7 @@ class ProjectExplorerOperations:
 
     def delete_parameter_item(self, element: dict[str, Any]) -> None:
         param_name = str(element.get("key") or "")
-        pdata = self._api.current_project.data if self._api.current_project else {}
+        pdata = self._api.project.data if self._api.project else {}
         from setuav_studio.model.expression import find_symbol_usages_in_project
 
         usages = find_symbol_usages_in_project(pdata, param_name)
@@ -203,12 +203,12 @@ class ProjectExplorerOperations:
             return
 
         def _apply_param_del() -> None:
-            pdata = self._api.current_project.data if self._api.current_project else {}
+            pdata = self._api.project.data if self._api.project else {}
             pdata.get("parameters", {}).pop(param_name, None)
 
         self._api.set_selection(None)
         self._api.edit_project(f"Delete parameter '{param_name}'", _apply_param_del)
-        proj = self._api.current_project
+        proj = self._api.project
         if proj is not None and hasattr(proj, "recompute_expressions"):
             proj.recompute_expressions(self._api)
         self._api.show_status(f'Deleted parameter "{param_name}"', "success", 3000)
@@ -220,7 +220,7 @@ class ProjectExplorerOperations:
             return
 
         def _apply_c_del() -> None:
-            pdata = self._api.current_project.data if self._api.current_project else {}
+            pdata = self._api.project.data if self._api.project else {}
             constraints = pdata.get("constraints", [])
             pdata["constraints"] = [c for c in constraints if c.get("id") != cid]
 
@@ -244,7 +244,7 @@ class ProjectExplorerOperations:
             component_ids,
         )
 
-        pdata = self._api.current_project.data if self._api.current_project else {}
+        pdata = self._api.project.data if self._api.project else {}
         from setuav_studio.model.expression import find_symbol_usages_in_project
 
         all_usages: list[tuple[str, str]] = []
@@ -267,7 +267,7 @@ class ProjectExplorerOperations:
 
         self._api.set_selection(None)
         self._api.edit_project(f"Delete {element_name}", change)
-        proj = self._api.current_project
+        proj = self._api.project
         if proj is not None and hasattr(proj, "recompute_expressions"):
             proj.recompute_expressions(self._api)
         self._api.show_status(f'Deleted "{element_name}"', "success", 3000)
@@ -278,7 +278,7 @@ class ProjectExplorerOperations:
         if not config_id:
             return
 
-        project = self._api.current_project
+        project = self._api.project
         if project is None:
             return
 
@@ -317,7 +317,7 @@ class ProjectExplorerOperations:
         if new_name == old_name:
             self.restore_item_text(item, new_name)
             return
-        project = self._api.current_project
+        project = self._api.project
         if project is not None:
             config = project.get_solver_config(config_id)
             if config is not None:
@@ -528,8 +528,8 @@ class ProjectExplorerOperations:
         def _apply() -> None:
             if plot_id in result.plots:
                 del result.plots[plot_id]
-            if self._api.current_project is not None:
-                self._api.current_project.add_solver_result(result)
+            if self._api.project is not None:
+                self._api.project.add_solver_result(result)
 
         self._api.edit_project(f"Delete plot '{plot_title}'", _apply)
         self._api.set_selection(None)

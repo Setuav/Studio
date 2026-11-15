@@ -75,12 +75,12 @@ def evaluate_expression_or_number(
     """
     val_clean = val_str.strip()
     if val_clean.startswith("=") or not val_clean.replace(".", "", 1).replace("-", "", 1).isdigit():
-        if api is not None and getattr(api, "current_project", None) is not None:
+        if api is not None and api.project is not None:
             try:
                 from setuav_studio.model.expression import ExpressionEvaluator
 
                 evaluator = ExpressionEvaluator()
-                scope = api.current_project.get_scope(api=api)
+                scope = api.project.get_scope(api=api)
                 expr = val_clean.lstrip("=").strip()
                 res = evaluator.evaluate(expr, scope)
                 if isinstance(res, (int, float)):

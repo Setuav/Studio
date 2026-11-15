@@ -241,7 +241,8 @@ class WeightBalancePluginTests(unittest.TestCase):
 
         toolbar[0].callback()
 
-        component = api.current_project.data["components"][0]
+        assert api.project is not None
+        component = api.project.data["components"][0]
         self.assertEqual(component["type"], "org.setuav.core:point-mass")
         self.assertEqual(component["name"], "Point Mass")
         self.assertEqual(component["mass"], 100.0)

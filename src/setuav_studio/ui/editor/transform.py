@@ -41,8 +41,8 @@ class TransformEditor(PropertyTableMixin, QWidget):
         self._api = api
         component_id = str(selection.get("component_id") or selection.get("id") or "")
         self._component = (
-            api.current_project.get_component(component_id)
-            if api.current_project is not None and component_id
+            api.project.get_component(component_id)
+            if api.project is not None and component_id
             else None
         )
         self._loading = False
@@ -292,7 +292,7 @@ class TransformEditor(PropertyTableMixin, QWidget):
         parent_id = component.get("parent")
         if not parent_id:
             return "SETUAV_BODY"
-        project = self._api.current_project
+        project = self._api.project
         if project is None:
             return str(parent_id)
         parent = project.get_component(str(parent_id))

@@ -230,12 +230,12 @@ class PropulsionCreationTests(unittest.TestCase):
         self.assertEqual(propeller["parent"], "motor")
 
     def test_editability_validation_reports_each_invalid_project_state(self) -> None:
-        self.api.current_project = None
+        self.api._project = None
         self.assertFalse(self.controller._can_edit_project())
         self.assertFalse(self.controller._require_editable_project())
         self.assertIn("Open a project", self.statuses[-1][0])
 
-        self.api.current_project = self.project
+        self.api._host.set_project(self.project)
         self.project.read_only = True
         self.assertFalse(self.controller._can_edit_project())
         self.assertFalse(self.controller._require_editable_project())
@@ -256,10 +256,10 @@ class PropulsionCreationTests(unittest.TestCase):
         self.assertEqual(defaults["motor"]["parameters"]["kv"], 900.0)
         self.assertEqual(defaults["propeller"]["name"], "Propeller")
 
-        self.api.current_project = None
+        self.api._project = None
         self.assertEqual(self.controller._unique_identity("id", "Name"), ("id", "Name"))
         self.assertIsNone(self.controller._find_component("missing"))
-        self.api.current_project = self.project
+        self.api._host.set_project(self.project)
         self.project.data = {
             "components": ["invalid", {"id": "id"}, {"id": "id-2", "name": "Name 2"}],
         }

@@ -722,8 +722,8 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
                 }
             },
         }
-        mock_doc = type("Doc", (), {"data": {"components": [wing_comp]}})()
-        api.current_project = mock_doc
+        doc = ProjectDocument(Path("/tmp/test_tip_caps.json"), "json", {"components": [wing_comp]})
+        api._host.set_project(doc)
 
         editor = LiftingSurfaceEditor(api, wing_comp)
         # Default tip cap is flat — table has 1 row: tip_type

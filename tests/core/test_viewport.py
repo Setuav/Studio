@@ -395,7 +395,7 @@ class TestStudioViewport(unittest.TestCase):
                 {"id": "wing_1", "name": "Main Wing"},
                 {"id": "fuse_1", "name": "Fuselage"},
             ]
-            api.current_project = project
+            api._host.set_project(project)
 
             viewport = StudioViewport(api=api)
             self.assertIs(api.viewport, viewport)

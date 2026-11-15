@@ -212,7 +212,7 @@ def test_studio_api_reparent_undo_redo() -> None:
         },
     }
     proj = ProjectDocument(Path("test.json"), "json", {"components": [box, cyl]})
-    api.current_project = proj
+    api._host.set_project(proj)
 
     w_pos_before, _ = resolve_world_transform("cyl_1", proj)
 

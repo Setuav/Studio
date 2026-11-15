@@ -42,8 +42,8 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
         self._api = api
         component_id = str(selection.get("component_id") or selection.get("id") or "")
         self._component = (
-            api.current_project.get_component(component_id)
-            if api.current_project is not None and component_id
+            api.project.get_component(component_id)
+            if api.project is not None and component_id
             else None
         )
         self._loading = False
@@ -82,7 +82,7 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
     def _on_project_content_changed(self, _project: Any = None) -> None:
         if self._loading or not self._component_id:
             return
-        project = getattr(self._api, "current_project", None)
+        project = self._api.project
         if project is None:
             return
         comp = project.get_component(self._component_id)
@@ -397,7 +397,7 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
     def _envelope(self, component: dict[str, Any]) -> dict[str, Any]:
         from setuav_studio.utilities.envelope import resolve_component_aggregate_envelope
 
-        proj = self._api.current_project
+        proj = self._api.project
         if proj is not None:
             agg_env = resolve_component_aggregate_envelope(component, proj)
             if agg_env and agg_env.get("size_mm") and any(agg_env["size_mm"].values()):

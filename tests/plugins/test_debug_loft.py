@@ -29,7 +29,7 @@ class TestDebugLoft(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.project_path = Path(self.temp_dir.name) / "test_debug_loft.suav"
         self.api = StudioAPI()
-        self.api.current_project = create_project(self.project_path)
+        self.api._host.set_project(create_project(self.project_path))
         self.plugin = DebugPlugin()
         self.plugin.activate(self.api)
 
@@ -60,7 +60,8 @@ class TestDebugLoft(unittest.TestCase):
     def test_loft_component_editor_table_rendering(self) -> None:
         loft = create_loft_component("loft-test", "Test Wing")
         comp_dict = loft.raw_data
-        self.api.current_project.data["components"].append(comp_dict)
+        assert self.api.project is not None
+        self.api.project.data["components"].append(comp_dict)
 
         editor = LoftComponentEditor(self.api, comp_dict)
         self.addCleanup(editor.deleteLater)

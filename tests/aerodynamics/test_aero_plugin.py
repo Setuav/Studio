@@ -284,7 +284,7 @@ class AerodynamicsPluginTests(unittest.TestCase):
         self.assertEqual(tool.airfoil_combo.currentText(), "NACA 2412")
         self.assertEqual(tool.model_combo.currentData(), "large")
         self.assertEqual(tool.results_table.columnCount(), 7)
-        self.assertIsNone(self.api.current_project)
+        self.assertIsNone(self.api.project)
 
         tool._populate_results(
             [

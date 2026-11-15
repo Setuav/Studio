@@ -291,7 +291,7 @@ class BaseDebugComponentEditor(BaseComponentEditor):
 
     def _get_parent_options(self) -> list[tuple[str, str]]:
         options: list[tuple[str, str]] = [("", "None (World)")]
-        project = getattr(self._api, "current_project", None)
+        project = self._api.project
         if project is None or not hasattr(project, "data") or not isinstance(project.data, dict):
             return options
 
@@ -363,7 +363,7 @@ class BaseDebugComponentEditor(BaseComponentEditor):
         """Update this component's 3D representation directly in the viewport."""
         vp = getattr(self._api, "viewport", None)
         if vp is not None:
-            update_component_in_viewport(vp, self._component, self._api.current_project)
+            update_component_in_viewport(vp, self._component, self._api.project)
 
     def _on_param_changed(self, key: str, value: Any) -> None:
         super()._on_param_changed(key, value)
@@ -384,7 +384,7 @@ class BaseDebugComponentEditor(BaseComponentEditor):
 
 def generate_unique_identity(api: StudioAPI, base_id: str, base_name: str) -> tuple[str, str]:
     """Generate a collision-free ID and human-friendly display name."""
-    project = api.current_project
+    project = api.project
     if project is None or not isinstance(project.data.get("components"), list):
         return f"{base_id}-1", f"{base_name} 1"
     existing_ids = {str(c.get("id")) for c in project.data["components"] if isinstance(c, dict)}
@@ -402,12 +402,12 @@ def add_debug_component(
     base_name: str,
 ) -> Any | None:
     """Create and append a debug component into the active project with undo support."""
-    project = api.current_project
+    project = api.project
     if project is None:
         window = getattr(api, "_window", None) or getattr(api, "main_window", None)
         if window is not None and hasattr(window, "new_untitled_project"):
             window.new_untitled_project()
-            project = api.current_project
+            project = api.project
     if project is None or project.read_only:
         api.show_status("Cannot add component to read-only project", "warning")
         return None
@@ -442,7 +442,7 @@ def add_debug_component(
 
 def clear_debug_components(api: StudioAPI) -> None:
     """Remove all debug primitive components from the active project."""
-    project = api.current_project
+    project = api.project
     if project is None or project.read_only:
         return
     comps = project.data.get("components", [])

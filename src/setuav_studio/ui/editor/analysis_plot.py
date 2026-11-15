@@ -442,8 +442,8 @@ class AnalysisPlotPropertyEditor(PropertyTableMixin, QWidget):
         res = self._api.get_solver_result(self._result_id)
         if res is not None and hasattr(res, "reset_plot"):
             res.reset_plot(self._plot_id)
-            if self._api.current_project is not None:
-                self._api.current_project.add_solver_result(res)
+            if self._api.project is not None:
+                self._api.project.add_solver_result(res)
         self._load_data()
         self._notify_plot_changed()
         self._api.publish(
@@ -470,8 +470,8 @@ class AnalysisPlotPropertyEditor(PropertyTableMixin, QWidget):
         if self._loading:
             return
         res, _, _ = self._get_result_and_plot()
-        if res is not None and self._api.current_project is not None:
-            self._api.current_project.add_solver_result(res)
+        if res is not None and self._api.project is not None:
+            self._api.project.add_solver_result(res)
         self._api.publish(
             str(StudioEvents.ANALYSIS_PLOT_UPDATED),
             {"result_id": self._result_id, "plot_id": self._plot_id},

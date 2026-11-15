@@ -265,7 +265,7 @@ class AdvancedExpressionDialog(QDialog):
         self._resolver = ParameterResolver(self._evaluator)
         self._checker = ConstraintChecker(self._evaluator, self._resolver)
 
-        project_data = api.current_project.data if api.current_project else {}
+        project_data = api.project.data if api.project else {}
         self._metadata = get_available_symbols_metadata(project_data, api=api)
         self._context = self._metadata.get("context", {})
 

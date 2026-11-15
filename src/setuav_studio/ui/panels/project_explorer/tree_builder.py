@@ -415,7 +415,7 @@ class ProjectTreeBuilder:
             else None
         )
         if analysis_id:
-            project = self._api.current_project
+            project = self._api.project
             current_entries = self._tree._snapshot_analysis_results(project) if project else {}
             current_entry = current_entries.get(analysis_id)
             saved_entry = self._tree._saved_analysis_results.get(analysis_id)

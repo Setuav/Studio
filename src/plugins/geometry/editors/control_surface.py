@@ -154,13 +154,12 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
                 ("symmetry_mode", "Symmetry Mode"),
             ]
         )
-        self.properties_table.cellChanged.connect(self._update_property_cell)
         layout.addWidget(self.properties_table)
 
     def _parent_wing_info(self) -> tuple[float, float, float, float]:
         """Return (semi_span, root_chord, tip_chord, parent_wing_area_dm2) for parent lifting surface."""
         parent_id = str(self._component.get("parent") or "")
-        project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
+        project = self._api.project
         if project and isinstance(project.data.get("components"), list):
             for c in project.data["components"]:
                 if isinstance(c, dict) and str(c.get("id") or "") == parent_id:
@@ -195,7 +194,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
         self._set_property_value(self.general_table, "name", name)
         self._set_property_value(self.general_table, "type", comp_type, editable=False)
 
-        project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
+        project = self._api.project
         options: list[tuple[str, str]] = [("", "-- None --")]
         if project and isinstance(project.data.get("components"), list):
             for c in project.data["components"]:
@@ -553,8 +552,8 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
 
     def _parent_component(self) -> dict[str, Any] | None:
         parent_id = str(self._component.get("parent") or "")
-        if self._api.current_project and parent_id:
-            for c in self._api.current_project.data.get("components", []):
+        if self._api.project and parent_id:
+            for c in self._api.project.data.get("components", []):
                 if isinstance(c, dict) and str(c.get("id") or "") == parent_id:
                     return c
         return None
@@ -567,7 +566,4 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
             parent = self._parent_component()
             sync_component_envelope(self._component, parent)
 
-        if hasattr(self._api, "edit_component"):
-            self._api.edit_component(self._component, action_name, wrapped)
-        else:
-            wrapped()
+        self._api.edit_component(self._component, action_name, wrapped)

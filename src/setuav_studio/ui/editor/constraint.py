@@ -191,9 +191,9 @@ class ConstraintPropertyEditor(PropertyTableMixin, QWidget):
         layout.addWidget(self.general_table)
 
     def _get_project_data(self) -> dict[str, Any] | None:
-        if self._api.current_project is None:
+        if self._api.project is None:
             return None
-        return self._api.current_project.data
+        return self._api.project.data
 
     def _load_data(self) -> None:
         data = self._get_project_data()

@@ -229,7 +229,7 @@ class StudioViewport(QWidget):
         if hasattr(api, "on_section_selection_changed"):
             api.on_section_selection_changed(self._on_api_section_selection_changed)
         self.object_picked.connect(self._on_object_picked_to_api)
-        current_project = getattr(api, "current_project", None)
+        current_project = api.project
         if current_project is not None and hasattr(api, "_project_listeners"):
             from setuav_studio.api.api import _dispatch_listeners
 
@@ -923,7 +923,7 @@ class StudioViewport(QWidget):
         if component_id is None or self._api is None:
             self.clear_overlays("component_cg")
             return
-        project = getattr(self._api, "current_project", None)
+        project = self._api.project
         if project is None:
             self.clear_overlays("component_cg")
             return
@@ -951,7 +951,7 @@ class StudioViewport(QWidget):
             return
 
         target_ids = [component_id]
-        project = getattr(self._api, "current_project", None)
+        project = self._api.project
         if project is not None:
             from setuav_studio.utilities.mass_balance import get_component_children
 
@@ -987,7 +987,7 @@ class StudioViewport(QWidget):
         if not getattr(self, "_show_aircraft_cg", False) or self._api is None:
             self.clear_overlays("aircraft_cg")
             return
-        project = getattr(self._api, "current_project", None)
+        project = self._api.project
         if project is None:
             self.clear_overlays("aircraft_cg")
             return
@@ -1086,7 +1086,7 @@ class StudioViewport(QWidget):
         if not object_id:
             self._api.set_selection(None)
             return
-        project = getattr(self._api, "current_project", None)
+        project = self._api.project
         if project is None or not hasattr(project, "data") or not isinstance(project.data, dict):
             return
         components = project.data.get("components", [])

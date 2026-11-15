@@ -1150,7 +1150,7 @@ class FuselageSectionDialog(QDialog):
     def _on_cancel_clicked(self) -> None:
         """Discard changes and restore original component state."""
         orig = copy.deepcopy(self._original_component)
-        if self._component != orig and self._api.current_project:
+        if self._component != orig and self._api.project:
 
             def cancel_change() -> None:
                 self._component.clear()

@@ -95,7 +95,7 @@ class AirframeDesignPluginLifecycleTests(unittest.TestCase):
         plugin.activate(api)
 
         doc = ProjectDocument(Path("/tmp/test_proj.json"), "json", {"components": []})
-        api.current_project = doc
+        api._host.set_project(doc)
 
         plugin._on_project_opened()
         # Verify airframe was NOT automatically inserted

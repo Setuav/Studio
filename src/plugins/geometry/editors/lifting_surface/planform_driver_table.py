@@ -278,12 +278,12 @@ class DriverPlanformTable(QTableWidget):
         if clean.startswith("=") or not clean.replace(".", "", 1).replace("-", "", 1).isdigit():
             # Formula
             self._driver_expressions[edited_key] = clean
-            if self._api is not None and getattr(self._api, "current_project", None) is not None:
+            if self._api is not None and self._api.project is not None:
                 try:
                     from setuav_studio.model.expression import ExpressionEvaluator
 
                     evaluator = ExpressionEvaluator()
-                    scope = self._api.current_project.get_scope(api=self._api)
+                    scope = self._api.project.get_scope(api=self._api)
                     expr = clean.lstrip("=").strip()
                     res = evaluator.evaluate(expr, scope)
                     if isinstance(res, (int, float)):

@@ -177,12 +177,12 @@ def _format_table_cell_value(
     if isinstance(val, str) and val.startswith("="):
         eval_val = None
         eval_err = None
-        if api and getattr(api, "current_project", None):
+        if api and api.project:
             try:
                 from setuav_studio.model.expression import ExpressionEvaluator
 
                 evaluator = ExpressionEvaluator()
-                proj = getattr(api, "current_project", None)
+                proj = api.project
                 scope = (
                     proj.get_scope(api=api)
                     if proj is not None and hasattr(proj, "get_scope")
@@ -695,12 +695,12 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
             clean and not clean.replace(".", "", 1).replace("-", "", 1).isdigit()
         ):
             new_expr = clean
-            if self._api is not None and getattr(self._api, "current_project", None) is not None:
+            if self._api is not None and self._api.project is not None:
                 try:
                     from setuav_studio.model.expression import ExpressionEvaluator
 
                     evaluator = ExpressionEvaluator()
-                    project = self._api.current_project
+                    project = self._api.project
                     scope = project.get_scope(api=self._api) if project is not None else {}
                     expr = clean.lstrip("=").strip()
                     res = evaluator.evaluate(expr, scope)

@@ -244,13 +244,13 @@ class PlanformSectionMixin:
 
         # Otherwise treat as formula expression
         set_expression(geom, key, val_str)
-        api = getattr(self, "_api", None)
-        if api is not None and getattr(api, "current_project", None) is not None:
+        api = self._api
+        if api is not None and api.project is not None:
             try:
                 from setuav_studio.model.expression import ExpressionEvaluator
 
                 evaluator = ExpressionEvaluator()
-                scope = api.current_project.get_scope(api=api)
+                scope = api.project.get_scope(api=api)
                 res = evaluator.evaluate(val_str.lstrip("=").strip(), scope)
                 if isinstance(res, (int, float)):
                     return float(res)
@@ -381,7 +381,7 @@ class PlanformSectionMixin:
 
     def _sync_project_parameters(self, inputs: dict[str, float], edited_key: str) -> None:
         """Sync updated macro parameters to project.data['parameters'] if present."""
-        project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
+        project = self._api.project
         if not project or not isinstance(project.data.get("parameters"), dict):
             return
         params = project.data["parameters"]

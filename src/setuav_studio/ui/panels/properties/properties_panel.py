@@ -35,7 +35,7 @@ class PropertiesPanel(QWidget):
         api.on_project_changed(self._on_project_changed)
 
     def _resolve_live_component(self, comp_id: str) -> dict[str, Any] | None:
-        proj = self._api.current_project
+        proj = self._api.project
         if proj is None or not comp_id:
             return None
         if hasattr(proj, "get_component"):
