@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.api import StudioAPI
+from setuav_studio.model.expression import set_expression
 from setuav_studio.ui.style.icons import set_label_icon
 from setuav_studio.ui.widget.spinbox import NumericSpinBox, set_table_spinbox
 from setuav_studio.ui.widget.table import PropertyTableMixin
@@ -333,11 +334,7 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
 
         def change() -> None:
             component["mass"] = mass_g
-            comp_exprs = component.get("_expressions")
-            if isinstance(comp_exprs, dict):
-                comp_exprs.pop("mass", None)
-                if not comp_exprs:
-                    component.pop("_expressions", None)
+            set_expression(component, "mass", None)
             parameters = component.get("parameters")
             if isinstance(parameters, dict) and "mass" in parameters:
                 parameters["mass"] = mass_g

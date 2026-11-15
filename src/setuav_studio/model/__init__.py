@@ -15,6 +15,8 @@ from setuav_studio.model.environment import Environment
 from setuav_studio.model.expression import (
     ExpressionEvaluationError,
     ExpressionEvaluator,
+    get_expression,
+    set_expression,
 )
 from setuav_studio.model.mass import (
     ComponentMassProperties,
@@ -61,5 +63,7 @@ __all__ = [
     "build_universal_scope",
     "create_model_for_component",
     "get_available_symbols_metadata",
+    "get_expression",
+    "set_expression",
     "to_dot_dict",
 ]

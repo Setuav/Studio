@@ -11,6 +11,8 @@ from setuav_studio.model.constraint import ConstraintChecker
 from setuav_studio.model.expression import (
     ExpressionEvaluationError,
     ExpressionEvaluator,
+    get_expression,
+    set_expression,
 )
 from setuav_studio.model.parameter import (
     CircularDependencyError,
@@ -333,3 +335,23 @@ def test_hierarchical_json_scope_access(tmp_path: Path) -> None:
     assert "c_ref" in constant_keys
     assert "main_wing" in component_ids
     assert "battery" in component_ids
+
+
+
+def test_get_and_set_expression_helper() -> None:
+    node: dict[str, object] = {"span": 1000.0}
+    assert get_expression(node, "span") is None
+    assert get_expression(None, "span") is None
+
+    set_expression(node, "span", "  = b_ref * 1000 ")
+    assert node["_expressions"] == {"span": "= b_ref * 1000"}
+    assert get_expression(node, "span") == "= b_ref * 1000"
+
+    set_expression(node, "chord", "= 200")
+    set_expression(node, "span", None)
+    assert get_expression(node, "span") is None
+    assert node["_expressions"] == {"chord": "= 200"}
+
+    set_expression(node, "chord", "   ")
+    assert "_expressions" not in node
+    assert get_expression(node, "chord") is None

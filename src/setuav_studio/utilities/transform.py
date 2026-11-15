@@ -5,6 +5,8 @@ from __future__ import annotations
 import math
 from typing import Any, cast
 
+from setuav_studio.model.expression import set_expression
+
 Point3D = tuple[float, float, float]
 Rotation3D = tuple[float, float, float]
 Matrix3 = tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]]
@@ -298,10 +300,10 @@ def reparent_component(
         rot["yaw"] = round(new_rot[2], 4)
 
         # Clear expressions on transform so they don't overwrite the recalculated local transform
-        if isinstance(pos, dict) and "_expressions" in pos:
-            pos.pop("_expressions", None)
-        if isinstance(rot, dict) and "_expressions" in rot:
-            rot.pop("_expressions", None)
+        for axis in ("x", "y", "z"):
+            set_expression(pos, axis, None)
+        for axis in ("x", "y", "z", "roll", "pitch", "yaw"):
+            set_expression(rot, axis, None)
 
     if clean_parent:
         comp["parent"] = clean_parent

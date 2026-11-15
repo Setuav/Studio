@@ -15,6 +15,8 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
 )
 
+from setuav_studio.model.expression import get_expression, set_expression
+
 from ...engine.control_surface_geometry import sync_sizing_values
 
 
@@ -258,13 +260,11 @@ class ControlSurfacesSectionMixin:
                 lambda val: self._update_cs_choice("sizing_mode", val),
             )
 
-            exprs = geom.get("_expressions") if isinstance(geom.get("_expressions"), dict) else {}
-
             self._setup_param(
                 "area",
                 "Area",
                 metrics["area_dm2"],
-                exprs.get("area"),
+                get_expression(geom, "area"),
                 "dm²",
                 3,
                 driver_keys,
@@ -276,7 +276,7 @@ class ControlSurfacesSectionMixin:
                 "span_start",
                 "Span start",
                 metrics["span_start"],
-                exprs.get("span_start"),
+                get_expression(geom, "span_start"),
                 "mm",
                 2,
                 driver_keys,
@@ -285,7 +285,7 @@ class ControlSurfacesSectionMixin:
                 "span_end",
                 "Span end",
                 metrics["span_end"],
-                exprs.get("span_end"),
+                get_expression(geom, "span_end"),
                 "mm",
                 2,
                 driver_keys,
@@ -294,7 +294,7 @@ class ControlSurfacesSectionMixin:
                 "span_length",
                 "Span length",
                 metrics["span_length"],
-                exprs.get("span_length"),
+                get_expression(geom, "span_length"),
                 "mm",
                 2,
                 driver_keys,
@@ -303,7 +303,7 @@ class ControlSurfacesSectionMixin:
                 "eta_start",
                 "Span start fraction",
                 metrics["eta_start"],
-                exprs.get("eta_start"),
+                get_expression(geom, "eta_start"),
                 "",
                 3,
                 driver_keys,
@@ -312,7 +312,7 @@ class ControlSurfacesSectionMixin:
                 "eta_end",
                 "Span end fraction",
                 metrics["eta_end"],
-                exprs.get("eta_end"),
+                get_expression(geom, "eta_end"),
                 "",
                 3,
                 driver_keys,
@@ -321,7 +321,7 @@ class ControlSurfacesSectionMixin:
                 "chord_fraction",
                 "Chord fraction",
                 metrics["chord_fraction"],
-                exprs.get("chord_fraction"),
+                get_expression(geom, "chord_fraction"),
                 "c",
                 3,
                 driver_keys,
@@ -330,13 +330,13 @@ class ControlSurfacesSectionMixin:
                 "chord",
                 "Control chord",
                 metrics["chord"],
-                exprs.get("chord"),
+                get_expression(geom, "chord"),
                 "mm",
                 2,
                 driver_keys,
             )
 
-            hs_val = exprs.get("hinge_sweep") or hinge_sweep
+            hs_val = get_expression(geom, "hinge_sweep") or hinge_sweep
             self._set_property_expression(
                 self.cs_properties_table,
                 "hinge_sweep",
@@ -348,7 +348,7 @@ class ControlSurfacesSectionMixin:
                 decimals=2,
             )
 
-            def_val = exprs.get("deflection") or deflection
+            def_val = get_expression(geom, "deflection") or deflection
             self._set_property_expression(
                 self.cs_properties_table,
                 "deflection",
@@ -383,8 +383,11 @@ class ControlSurfacesSectionMixin:
 
         val_str = str(value).strip() if value is not None else ""
         num_val: float | None = None
-        if val_str.startswith("=") or not val_str.replace(".", "", 1).replace("-", "", 1).isdigit():
-            geom.setdefault("_expressions", {})[key] = val_str
+        is_expr = (
+            val_str.startswith("=") or not val_str.replace(".", "", 1).replace("-", "", 1).isdigit()
+        )
+        set_expression(geom, key, val_str if is_expr else None)
+        if is_expr:
             if self._api is not None and getattr(self._api, "current_project", None) is not None:
                 try:
                     from setuav_studio.model.expression import ExpressionEvaluator
@@ -398,10 +401,6 @@ class ControlSurfacesSectionMixin:
                 except Exception:
                     pass
         else:
-            if isinstance(geom.get("_expressions"), dict):
-                geom["_expressions"].pop(key, None)
-                if not geom["_expressions"]:
-                    geom.pop("_expressions", None)
             with contextlib.suppress(ValueError):
                 num_val = float(val_str)
 

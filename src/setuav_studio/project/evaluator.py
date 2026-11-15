@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from setuav_studio.model.expression import ExpressionEvaluator
+from setuav_studio.model.expression import ExpressionEvaluator, get_expression
 
 logger = logging.getLogger(__name__)
 
@@ -53,36 +53,55 @@ def recompute_project_expressions(project: Any, api: Any | None = None) -> bool:
     return updated
 
 
+def _recompute_node_expressions(
+    node: Any,
+    evaluator: ExpressionEvaluator,
+    scope: dict[str, Any],
+    keys: tuple[str, ...] | None = None,
+) -> bool:
+    """Recompute evaluated values for stored expressions on a mapping node."""
+    if not isinstance(node, dict):
+        return False
+    if keys is None:
+        raw_exprs = node.get("_expressions")
+        if not isinstance(raw_exprs, dict):
+            return False
+        target_keys = tuple(str(k) for k in raw_exprs)
+    else:
+        target_keys = keys
+
+    changed = False
+    for key in target_keys:
+        expr = get_expression(node, key)
+        if expr is not None:
+            val = _safe_eval(evaluator, expr, scope)
+            if val is not None and node.get(key) != val:
+                node[key] = val
+                changed = True
+    return changed
+
+
 def _recompute_component(
     comp: dict[str, Any],
     evaluator: ExpressionEvaluator,
     scope: dict[str, Any],
 ) -> bool:
     """Recompute expressions for a single component (mass, transform, parameters)."""
-    changed = False
-
-    # 1. Component-level _expressions (e.g. mass)
-    comp_exprs = comp.get("_expressions")
-    if isinstance(comp_exprs, dict):
-        for k, expr in comp_exprs.items():
-            if isinstance(expr, str) and expr.strip():
-                val = _safe_eval(evaluator, expr, scope)
-                if val is not None and comp.get(k) != val:
-                    comp[k] = val
-                    if (
-                        k == "mass"
-                        and isinstance(comp.get("parameters"), dict)
-                        and "mass" in comp["parameters"]
-                    ):
-                        comp["parameters"]["mass"] = val
-                    changed = True
+    changed = _recompute_node_expressions(comp, evaluator, scope)
+    if (
+        changed
+        and isinstance(comp.get("parameters"), dict)
+        and "mass" in comp["parameters"]
+        and "mass" in comp
+    ):
+        comp["parameters"]["mass"] = comp["mass"]
 
     # 2. Transform position and rotation expressions
     tf = comp.get("transform")
     if isinstance(tf, dict):
-        if _recompute_transform_node(tf.get("position"), evaluator, scope, ("x", "y", "z")):
+        if _recompute_node_expressions(tf.get("position"), evaluator, scope, ("x", "y", "z")):
             changed = True
-        if _recompute_transform_node(
+        if _recompute_node_expressions(
             tf.get("rotation"), evaluator, scope, ("roll", "pitch", "yaw")
         ):
             changed = True
@@ -97,46 +116,13 @@ def _recompute_component(
     return changed
 
 
-def _recompute_transform_node(
-    node: Any,
-    evaluator: ExpressionEvaluator,
-    scope: dict[str, Any],
-    axes: tuple[str, ...],
-) -> bool:
-    """Recompute position or rotation transform dictionary."""
-    if not isinstance(node, dict):
-        return False
-
-    changed = False
-    exprs = node.get("_expressions")
-    if isinstance(exprs, dict):
-        for axis in axes:
-            expr = exprs.get(axis)
-            if isinstance(expr, str) and expr.strip():
-                val = _safe_eval(evaluator, expr, scope)
-                if val is not None and node.get(axis) != val:
-                    node[axis] = val
-                    changed = True
-
-    return changed
-
-
 def _recompute_generic_dict(
     d: dict[str, Any],
     evaluator: ExpressionEvaluator,
     scope: dict[str, Any],
 ) -> bool:
     """Recursively recompute expressions in arbitrary nested dictionary or list structures."""
-    changed = False
-
-    exprs = d.get("_expressions")
-    if isinstance(exprs, dict):
-        for k, expr in exprs.items():
-            if isinstance(expr, str) and expr.strip():
-                val = _safe_eval(evaluator, expr, scope)
-                if val is not None and d.get(k) != val:
-                    d[k] = val
-                    changed = True
+    changed = _recompute_node_expressions(d, evaluator, scope)
 
     for k, v in list(d.items()):
         if k == "_expressions":

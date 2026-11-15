@@ -7,6 +7,8 @@ from typing import Any
 
 from PySide6.QtCore import Qt
 
+from setuav_studio.model.expression import get_expression, set_expression
+
 from ...engine.lifting_surface_driver_solver import compute_all_8_parameters
 from ...engine.lifting_surface_planform_engine import (
     SWEEP_LOCATIONS,
@@ -165,10 +167,11 @@ class PlanformSectionMixin:
 
             # 2. Update Angles & Alignment Table
             if hasattr(self, "angles_table"):
-                exprs = (
-                    geom.get("_expressions") if isinstance(geom.get("_expressions"), dict) else {}
+                sw_val = (
+                    get_expression(geom, "sweep")
+                    or geom.get("sweep")
+                    or float(metrics.get("sweep", 0.0))
                 )
-                sw_val = exprs.get("sweep") or geom.get("sweep") or float(metrics.get("sweep", 0.0))
                 self._set_property_expression(
                     self.angles_table,
                     "sweep",
@@ -184,7 +187,9 @@ class PlanformSectionMixin:
                     [(str(val), label) for val, label in SWEEP_LOCATIONS],
                     self._on_sweep_loc_changed,
                 )
-                sw_curv = exprs.get("sweep_curvature") or float(geom.get("sweep_curvature", 0.0))
+                sw_curv = get_expression(geom, "sweep_curvature") or float(
+                    geom.get("sweep_curvature", 0.0)
+                )
                 self._set_property_expression(
                     self.angles_table,
                     "sweep_curvature",
@@ -193,7 +198,7 @@ class PlanformSectionMixin:
                     label="Sweep Curvature",
                     unit="mm",
                 )
-                di_val = exprs.get("dihedral") or float(metrics.get("dihedral", 0.0))
+                di_val = get_expression(geom, "dihedral") or float(metrics.get("dihedral", 0.0))
                 self._set_property_expression(
                     self.angles_table,
                     "dihedral",
@@ -202,7 +207,7 @@ class PlanformSectionMixin:
                     label="Dihedral Angle",
                     unit="deg",
                 )
-                tw_val = exprs.get("twist") or float(metrics.get("washout", 0.0))
+                tw_val = get_expression(geom, "twist") or float(metrics.get("washout", 0.0))
                 self._set_property_expression(
                     self.angles_table,
                     "twist",
@@ -232,16 +237,13 @@ class PlanformSectionMixin:
         # Check if plain numeric float
         try:
             num_val = float(val_str)
-            if isinstance(geom.get("_expressions"), dict):
-                geom["_expressions"].pop(key, None)
-                if not geom["_expressions"]:
-                    geom.pop("_expressions", None)
+            set_expression(geom, key, None)
             return num_val
         except ValueError:
             pass
 
         # Otherwise treat as formula expression
-        geom.setdefault("_expressions", {})[key] = val_str
+        set_expression(geom, key, val_str)
         api = getattr(self, "_api", None)
         if api is not None and getattr(api, "current_project", None) is not None:
             try:

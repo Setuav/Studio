@@ -218,15 +218,16 @@ def walk_expressions(  # noqa: C901
     if isinstance(obj, dict):
         # 1. '_expressions' sub-dictionary
         if "_expressions" in obj and isinstance(obj["_expressions"], dict):
-            for prop, expr in list(obj["_expressions"].items()):
-                if isinstance(expr, str) and (
+            for prop in list(obj["_expressions"]):
+                expr = get_expression(obj, prop)
+                if expr is not None and (
                     expr.strip().startswith("=")
                     or not expr.replace(".", "", 1).replace("-", "", 1).isdigit()
                 ):
                     loc = f"{path} -> {prop}" if path else prop
                     res = callback(expr, loc)
                     if res is not None and res != expr:
-                        obj["_expressions"][prop] = res
+                        set_expression(obj, prop, res)
                         count += 1
 
         # 2. Iterate through dictionary items
@@ -332,3 +333,36 @@ def find_symbol_usages_in_project(
 
     walk_expressions(project_data, _inspect)
     return usages
+
+
+def get_expression(node: Any, key: str) -> str | None:
+    """Return the stored expression string for key on node, or None if unset."""
+    if not isinstance(node, dict):
+        return None
+    exprs = node.get("_expressions")
+    if not isinstance(exprs, dict):
+        return None
+    expr = exprs.get(key)
+    if isinstance(expr, str) and expr.strip():
+        return expr
+    return None
+
+
+def set_expression(node: Any, key: str, expr: str | None) -> None:
+    """Store or clear an expression string for key under node['_expressions']."""
+    if not isinstance(node, dict):
+        return
+    clean = expr.strip() if isinstance(expr, str) else ""
+    if clean:
+        exprs = node.get("_expressions")
+        if not isinstance(exprs, dict):
+            exprs = {}
+            node["_expressions"] = exprs
+        exprs[key] = clean
+        return
+
+    exprs = node.get("_expressions")
+    if isinstance(exprs, dict):
+        exprs.pop(key, None)
+        if not exprs:
+            node.pop("_expressions", None)

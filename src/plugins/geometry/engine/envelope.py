@@ -10,6 +10,8 @@ from __future__ import annotations
 import math
 from typing import Any
 
+from setuav_studio.model.expression import set_expression
+
 _LIFTING_SURFACE_TYPE = "org.setuav.core:lifting-surface"
 _FUSELAGE_TYPE = "org.setuav.core:fuselage"
 _CONTROL_SURFACE_TYPE = "org.setuav.core:control-surface"
@@ -1113,7 +1115,7 @@ def _compute_control_surface_envelope(
     chord = geometry.get("chord")
     chord_fraction = _number(geometry.get("chord_fraction", 0.25))
 
-    ctrl_tag = str(geometry.get("tag") or component.get("id") or component.get("name") or "CS")
+    ctrl_id = str(component.get("id") or "CS")
     control_loft = None
 
     if parent is not None and parent.get("type") == "org.setuav.core:lifting-surface":
@@ -1123,17 +1125,16 @@ def _compute_control_surface_envelope(
             from .lifting_surface_geometry import build_lifting_surface_geometry
 
             ctrl_geom = deepcopy(geometry)
-            ctrl_geom["tag"] = ctrl_tag
+            ctrl_geom["id"] = ctrl_id
             ctrl_geom["deflection"] = 0.0
-            if isinstance(ctrl_geom.get("_expressions"), dict):
-                ctrl_geom["_expressions"].pop("deflection", None)
+            set_expression(ctrl_geom, "deflection", None)
 
             lofts = build_lifting_surface_geometry(parent, control_surfaces=[ctrl_geom])
             control_loft = next(
                 (
                     loft
                     for loft in lofts
-                    if loft.component_id.lower().endswith(f":{ctrl_tag.lower()}")
+                    if loft.component_id.lower().endswith(f":{ctrl_id.lower()}")
                 ),
                 None,
             )

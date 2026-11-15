@@ -18,6 +18,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from setuav_studio.model.expression import get_expression, set_expression
+
 
 class NoWheelComboBox(QComboBox):
     """QComboBox that ignores mouse wheel events to prevent accidental changes while scrolling."""
@@ -217,10 +219,8 @@ def set_table_spinbox(
     resolved_api = _resolve_table_api(table, api)
 
     active_expr = expression
-    if active_expr is None and target_data is not None and isinstance(target_data, dict) and prop_k:
-        exprs = target_data.get("_expressions")
-        if isinstance(exprs, dict):
-            active_expr = exprs.get(prop_k)
+    if active_expr is None and prop_k:
+        active_expr = get_expression(target_data, prop_k)
 
     on_changed_ref = (
         weakref.WeakMethod(on_changed)
@@ -235,10 +235,7 @@ def set_table_spinbox(
             or (clean and not clean.replace(".", "", 1).replace("-", "", 1).isdigit())
         )
         if target_data is not None and isinstance(target_data, dict) and prop_k:
-            if is_expr:
-                target_data.setdefault("_expressions", {})[prop_k] = clean
-            elif "_expressions" in target_data and isinstance(target_data["_expressions"], dict):
-                target_data["_expressions"].pop(prop_k, None)
+            set_expression(target_data, prop_k, clean if is_expr else None)
 
         cb = on_changed_ref() if isinstance(on_changed_ref, weakref.WeakMethod) else on_changed_ref
         if cb is not None:

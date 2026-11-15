@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.api import StudioAPI
+from setuav_studio.model.expression import get_expression
 from setuav_studio.ui.style.icons import set_label_icon
 from setuav_studio.ui.widget.table import PropertyTableMixin
 
@@ -254,13 +255,11 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
                 lambda val: self._on_prop_combo_changed("sizing_mode", val),
             )
 
-            exprs = geom.get("_expressions") if isinstance(geom.get("_expressions"), dict) else {}
-
             self._setup_param(
                 "area",
                 "Area",
                 metrics["area_dm2"],
-                exprs.get("area"),
+                get_expression(geom, "area"),
                 "dm²",
                 3,
                 driver_keys,
@@ -272,7 +271,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
                 "span_start",
                 "Span start",
                 metrics["span_start"],
-                exprs.get("span_start"),
+                get_expression(geom, "span_start"),
                 "mm",
                 2,
                 driver_keys,
@@ -281,7 +280,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
                 "span_end",
                 "Span end",
                 metrics["span_end"],
-                exprs.get("span_end"),
+                get_expression(geom, "span_end"),
                 "mm",
                 2,
                 driver_keys,
@@ -290,7 +289,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
                 "span_length",
                 "Span length",
                 metrics["span_length"],
-                exprs.get("span_length"),
+                get_expression(geom, "span_length"),
                 "mm",
                 2,
                 driver_keys,
@@ -299,7 +298,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
                 "eta_start",
                 "Span start fraction",
                 metrics["eta_start"],
-                exprs.get("eta_start"),
+                get_expression(geom, "eta_start"),
                 "",
                 3,
                 driver_keys,
@@ -308,7 +307,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
                 "eta_end",
                 "Span end fraction",
                 metrics["eta_end"],
-                exprs.get("eta_end"),
+                get_expression(geom, "eta_end"),
                 "",
                 3,
                 driver_keys,
@@ -317,7 +316,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
                 "chord_fraction",
                 "Chord fraction",
                 metrics["chord_fraction"],
-                exprs.get("chord_fraction"),
+                get_expression(geom, "chord_fraction"),
                 "c",
                 3,
                 driver_keys,
@@ -326,7 +325,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
                 "chord",
                 "Control chord",
                 metrics["chord"],
-                exprs.get("chord"),
+                get_expression(geom, "chord"),
                 "mm",
                 2,
                 driver_keys,

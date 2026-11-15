@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.api import ParameterField, TableParameterField
+from setuav_studio.model.expression import get_expression, set_expression
 from setuav_studio.ui.style.icons import get_icon, set_label_icon
 from setuav_studio.ui.widget.table import (
     ContentFitTableWidget,
@@ -403,8 +404,7 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
                 editable=False,
             )
             params = self._component.get("parameters", {})
-            comp_exprs = self._component.get("_expressions")
-            mass_expr = comp_exprs.get("mass") if isinstance(comp_exprs, dict) else None
+            mass_expr = get_expression(self._component, "mass")
             mass_val = mass_expr or self._component.get("mass", params.get("mass", 0.0))
             self._set_property_expression(
                 self.general_table,
@@ -629,8 +629,7 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
         old_expr = self._committed_expressions.get(key)
 
         p = self._component.setdefault("parameters", {})
-        curr_exprs = p.get("_expressions")
-        new_expr = curr_exprs.get(key) if isinstance(curr_exprs, dict) else None
+        new_expr = get_expression(p, key)
 
         if old_val == value and old_expr == new_expr:
             return
@@ -642,22 +641,12 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
         else:
             p.pop(key, None)
 
-        if old_expr is not None:
-            p.setdefault("_expressions", {})[key] = old_expr
-        elif "_expressions" in p and isinstance(p["_expressions"], dict):
-            p["_expressions"].pop(key, None)
-            if not p["_expressions"]:
-                p.pop("_expressions", None)
+        set_expression(p, key, old_expr)
 
         def apply_param() -> None:
             params = self._component.setdefault("parameters", {})
             params[key] = value
-            if new_expr is not None:
-                params.setdefault("_expressions", {})[key] = new_expr
-            elif "_expressions" in params and isinstance(params["_expressions"], dict):
-                params["_expressions"].pop(key, None)
-                if not params["_expressions"]:
-                    params.pop("_expressions", None)
+            set_expression(params, key, new_expr)
 
             self._committed_params[key] = value
             if new_expr is not None:
@@ -731,12 +720,7 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
                     self._component["parameters"], dict
                 ):
                     self._component["parameters"]["mass"] = num_val
-            if new_expr is not None:
-                self._component.setdefault("_expressions", {})["mass"] = new_expr
-            elif isinstance(self._component.get("_expressions"), dict):
-                self._component["_expressions"].pop("mass", None)
-                if not self._component["_expressions"]:
-                    self._component.pop("_expressions", None)
+            set_expression(self._component, "mass", new_expr)
 
         self._api.edit_component(self._component, "Change component mass", change)
 

@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
 )
 
+from setuav_studio.model.expression import get_expression, set_expression
 from setuav_studio.ui.widget.button import set_native_button
 from setuav_studio.ui.widget.spinbox import set_table_spinbox
 from setuav_studio.ui.widget.table import ExpressionPropertyCell
@@ -413,12 +414,7 @@ class SectionsSectionMixin:
             num_val = float(value)
 
         def change() -> None:
-            if is_expr:
-                target.setdefault("_expressions", {})[axis] = raw_text
-            elif isinstance(target.get("_expressions"), dict):
-                target["_expressions"].pop(axis, None)
-                if not target["_expressions"]:
-                    target.pop("_expressions", None)
+            set_expression(target, axis, raw_text if is_expr else None)
             if num_val is not None:
                 target[axis] = num_val
 
@@ -495,15 +491,9 @@ class SectionsSectionMixin:
             if isinstance(rotation, dict)
             else {"x": rotation[0], "y": rotation[1], "z": rotation[2]}
         )
-        pos_exprs = (
-            pos_dict.get("_expressions") if isinstance(pos_dict.get("_expressions"), dict) else {}
-        )
-        rot_exprs = (
-            rot_dict.get("_expressions") if isinstance(rot_dict.get("_expressions"), dict) else {}
-        )
         axes = ("x", "y", "z")
         for column, axis in enumerate(axes):
-            raw_val = pos_exprs.get(axis) or pos_dict.get(axis, 0.0)
+            raw_val = get_expression(pos_dict, axis) or pos_dict.get(axis, 0.0)
             set_table_spinbox(
                 self.transform_table,
                 0,
@@ -526,8 +516,8 @@ class SectionsSectionMixin:
         for column, axis in enumerate(axes):
             alias = rot_aliases[axis]
             raw_val = (
-                rot_exprs.get(axis)
-                or rot_exprs.get(alias)
+                get_expression(rot_dict, axis)
+                or get_expression(rot_dict, alias)
                 or rot_dict.get(axis, rot_dict.get(alias, 0.0))
             )
             set_table_spinbox(
@@ -625,10 +615,7 @@ class SectionsSectionMixin:
                 "corner_radius",
                 "fillet_radius",
             ):
-                exprs = profile.get("_expressions")
-                raw_val = (exprs.get(key) if isinstance(exprs, dict) else None) or profile.get(
-                    key, 0.0
-                )
+                raw_val = get_expression(profile, key) or profile.get(key, 0.0)
                 self._set_property_expression(
                     self.section_properties_table,
                     key,
@@ -675,12 +662,7 @@ class SectionsSectionMixin:
             return
 
         def change() -> None:
-            if is_expr:
-                profile.setdefault("_expressions", {})[key] = val_str
-            elif isinstance(profile.get("_expressions"), dict):
-                profile["_expressions"].pop(key, None)
-                if not profile["_expressions"]:
-                    profile.pop("_expressions", None)
+            set_expression(profile, key, val_str if is_expr else None)
 
             if num_val is not None:
                 profile[key] = num_val
