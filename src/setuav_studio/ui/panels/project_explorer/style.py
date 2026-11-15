@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QLine, QModelIndex, QRect, QSize, Qt
+from PySide6.QtCore import QLine, QModelIndex, QPersistentModelIndex, QRect, QSize, Qt
 from PySide6.QtGui import QPainter, QPalette, QPen
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -24,7 +24,9 @@ class ProjectExplorerDelegate(QStyledItemDelegate):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
 
-    def initStyleOption(self, option: QStyleOptionViewItem, index: QModelIndex) -> None:
+    def initStyleOption(
+        self, option: QStyleOptionViewItem, index: QModelIndex | QPersistentModelIndex
+    ) -> None:
         super().initStyleOption(option, index)
         if option.features & QStyleOptionViewItem.ViewItemFeature.HasDecoration:
             target_size = _ProjectExplorerBranchStyle.ICON_SLOT_SIZE

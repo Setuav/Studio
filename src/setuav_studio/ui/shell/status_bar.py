@@ -149,7 +149,7 @@ class StudioStatusBar(QStatusBar):
         super().__init__(parent)
         self._manager = manager
 
-    def showMessage(self, message: str, timeout: int = 0) -> None:
+    def showMessage(self, message: str, timeout: int | None = 0) -> None:
         lower = message.lower()
         if "error" in lower or "failed" in lower:
             level = "error"
@@ -157,7 +157,7 @@ class StudioStatusBar(QStatusBar):
             level = "warning"
         else:
             level = "info"
-        self._manager.show_status_message(message, level=level, timeout_ms=timeout)
+        self._manager.show_status_message(message, level=level, timeout_ms=timeout or 0)
 
     def clearMessage(self) -> None:
         self._manager.clear_status_message()

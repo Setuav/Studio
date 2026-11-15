@@ -9,6 +9,7 @@ from PySide6.QtCore import (
     QAbstractItemModel,
     QAbstractTableModel,
     QModelIndex,
+    QPersistentModelIndex,
     QPoint,
     Qt,
     Signal,
@@ -106,12 +107,12 @@ class AnalysisTableModel(QAbstractTableModel):
         self._cache_data()
         self.endResetModel()
 
-    def rowCount(self, parent: QModelIndex = _EMPTY_INDEX) -> int:
+    def rowCount(self, parent: QModelIndex | QPersistentModelIndex = _EMPTY_INDEX) -> int:
         if parent.isValid():
             return 0
         return self._table.row_count() + 1
 
-    def columnCount(self, parent: QModelIndex = _EMPTY_INDEX) -> int:
+    def columnCount(self, parent: QModelIndex | QPersistentModelIndex = _EMPTY_INDEX) -> int:
         if parent.isValid():
             return 0
         return len(self._table.columns)
@@ -139,7 +140,9 @@ class AnalysisTableModel(QAbstractTableModel):
             return int(Qt.AlignmentFlag.AlignCenter)
         return None
 
-    def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
+    def data(
+        self, index: QModelIndex | QPersistentModelIndex, role: int = Qt.ItemDataRole.DisplayRole
+    ) -> Any:
         if not index.isValid():
             return None
 

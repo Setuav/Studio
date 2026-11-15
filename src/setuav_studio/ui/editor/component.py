@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QModelIndex, Qt, QTimer
+from PySide6.QtCore import QAbstractItemModel, QModelIndex, QPersistentModelIndex, Qt, QTimer
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -121,17 +121,11 @@ class TableExpressionDelegate(QStyledItemDelegate):
         self,
         parent: QWidget,
         option: Any,
-        index: QModelIndex,
-    ) -> QWidget | None:
-        if index.row() == 0 or index.column() == 0:
-            return None
-        col_idx = index.column() - 1
-        if not (0 <= col_idx < len(self._tf.columns)):
-            return None
-        col_field = self._tf.columns[col_idx]
-        if self._tf.readonly or col_field.readonly:
-            return None
-
+        index: QModelIndex | QPersistentModelIndex,
+    ) -> QWidget:
+        # Only editable value cells reach the delegate: the unit row, the index
+        # column and read-only columns are created without ItemIsEditable.
+        col_field = self._tf.columns[index.column() - 1]
         line_edit = FocusAwareLineEdit(parent, api=self._api)
         table_widget = parent if isinstance(parent, QTableWidget) else None
 
@@ -156,7 +150,7 @@ class TableExpressionDelegate(QStyledItemDelegate):
         )
         return line_edit
 
-    def setEditorData(self, editor: QWidget, index: QModelIndex) -> None:
+    def setEditorData(self, editor: QWidget, index: QModelIndex | QPersistentModelIndex) -> None:
         if isinstance(editor, QLineEdit):
             raw = index.data(Qt.ItemDataRole.UserRole)
             if raw is not None and ExpressionEvaluator.is_expression(str(raw)):
@@ -164,7 +158,12 @@ class TableExpressionDelegate(QStyledItemDelegate):
             else:
                 editor.setText(str(index.data(Qt.ItemDataRole.DisplayRole) or ""))
 
-    def setModelData(self, editor: QWidget, model: Any, index: QModelIndex) -> None:
+    def setModelData(
+        self,
+        editor: QWidget,
+        model: QAbstractItemModel,
+        index: QModelIndex | QPersistentModelIndex,
+    ) -> None:
         if isinstance(editor, QLineEdit):
             text = editor.text().strip()
             model.setData(index, text, Qt.ItemDataRole.EditRole)
