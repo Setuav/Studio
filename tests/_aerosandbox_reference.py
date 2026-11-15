@@ -153,7 +153,7 @@ def build_fixed_wing_reference(
         s_ref=0.28404326116446976,
         b_ref=1.5023809523809522,
         c_ref=0.18906207557698465,
-        # Keep the independent model's moment reference aligned with the
-        # fixture's current Weight-Balance CG.
-        xyz_ref=[0.3655632761679479, 0.0, 0.023518184506209343],
+        # Moment reference at the fixture's mass-balance CG. The aircraft is
+        # symmetric, so the CG lies on the centre plane.
+        xyz_ref=[0.376401, 0.0, 0.025554],
     )

@@ -1081,25 +1081,22 @@ class AeroSandboxEngineTests(unittest.TestCase):
         self.assertEqual(restored.method, AnalysisMethod.AERO_BUILDUP)
         self.assertEqual(len(restored.polar_points), 3)
 
-    def test_weight_balance_cg_is_used_as_reference(self) -> None:
+    def test_mass_balance_cg_is_used_as_reference(self) -> None:
         components = _sample_components()
         components[0]["mass"] = 1000.0
-        components[0]["extensions"] = {
-            "org.setuav.weight-balance": {
-                "local_cg_mm": {"x": 0.0, "y": 0.0, "z": 0.0},
-            }
-        }
+        components[0]["local_cg_mm"] = {"x": 0.0, "y": 0.0, "z": 0.0}
         components[1]["mass"] = 3000.0
-        components[1]["extensions"] = {
-            "org.setuav.weight-balance": {
-                "local_cg_mm": {"x": 0.0, "y": 0.0, "z": 0.0},
-            }
-        }
+        components[1]["local_cg_mm"] = {"x": 0.0, "y": 0.0, "z": 0.0}
         cg, source = AeroSandboxEngine._resolve_mass_cg(components)
-        self.assertEqual(source, "weight_balance")
+        self.assertEqual(source, "mass_balance")
         self.assertIsNotNone(cg)
         assert cg is not None
         self.assertAlmostEqual(cg[0], 0.15, places=6)
+
+    def test_massless_aircraft_uses_aerodynamic_reference(self) -> None:
+        cg, source = AeroSandboxEngine._resolve_mass_cg(_sample_components())
+        self.assertIsNone(cg)
+        self.assertEqual(source, "aerodynamic_reference")
 
     @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_lifting_line_direct_method(self) -> None:

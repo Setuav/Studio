@@ -7,6 +7,7 @@ from typing import Any, ClassVar
 
 from plugins.aerodynamics.engine.aerosandbox_engine import AeroSandboxEngine
 from plugins.aerodynamics.engine.base import (
+    CONTROL_CHANNELS,
     AeroResult,
     AnalysisMethod,
     FlightCondition,
@@ -683,13 +684,7 @@ class ControlDeflectionSolver(BaseAerodynamicsSolver):
             label="Control Channel",
             field_type=str,
             default="elevator",
-            options=(
-                ("Elevator", "elevator"),
-                ("Aileron", "aileron"),
-                ("Rudder", "rudder"),
-                ("Flap", "flap"),
-                ("Elevon", "elevon"),
-            ),
+            options=tuple((channel.capitalize(), channel) for channel in CONTROL_CHANNELS),
             tooltip="Control channel to deflect.",
         ),
         ParameterField(
@@ -918,38 +913,38 @@ class ControlDeflectionSolver(BaseAerodynamicsSolver):
 
         if res.control_analysis is not None:
             derivatives = res.control_analysis.derivatives_per_deg
-            if "cm" in derivatives:
+            if "Cm" in derivatives:
                 summary.append(
                     SummaryItem(
                         "cm_delta",
-                        round(derivatives["cm"], 5),
+                        round(derivatives["Cm"], 5),
                         "Cm_delta (Pitch Authority)",
                         unit="1/°",
                     )
                 )
-            if "cl" in derivatives:
+            if "CL" in derivatives:
                 summary.append(
                     SummaryItem(
                         "cl_delta",
-                        round(derivatives["cl"], 5),
+                        round(derivatives["CL"], 5),
                         "CL_delta (Lift Authority)",
                         unit="1/°",
                     )
                 )
-            if "cl_roll" in derivatives:
+            if "Cl" in derivatives:
                 summary.append(
                     SummaryItem(
                         "cl_roll_delta",
-                        round(derivatives["cl_roll"], 5),
+                        round(derivatives["Cl"], 5),
                         "Cl_delta (Roll Authority)",
                         unit="1/°",
                     )
                 )
-            if "cn" in derivatives:
+            if "Cn" in derivatives:
                 summary.append(
                     SummaryItem(
                         "cn_delta",
-                        round(derivatives["cn"], 5),
+                        round(derivatives["Cn"], 5),
                         "Cn_delta (Yaw Authority)",
                         unit="1/°",
                     )

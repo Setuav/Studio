@@ -98,7 +98,7 @@ class TestStabilityModels(unittest.TestCase):
         sd = StabilityDerivatives(
             trim_valid=False,
             trim_invalid_reasons=(
-                "CG is unavailable from Weight-Balance",
+                "CG is unavailable from the mass-balance model",
                 "elevator control authority is unavailable",
             ),
         )
@@ -118,14 +118,14 @@ class TestStabilityModels(unittest.TestCase):
             elevator=ControlEffectiveness(control_tag="elevator", c_m_delta=0.0),
         )
         self.assertIsNone(trim)
-        self.assertTrue(any("Weight-Balance" in reason for reason in reasons))
+        self.assertIn("CG is unavailable from the mass-balance model", reasons)
         self.assertTrue(any("non-finite" in reason for reason in reasons))
         self.assertTrue(any("Cm_alpha" in reason for reason in reasons))
         self.assertTrue(any("Cm_delta_e" in reason for reason in reasons))
 
     def test_trim_validation_rejects_unreachable_deflection(self) -> None:
         trim, reasons = StabilityAnalysisEngine._validated_elevator_trim(
-            cg_source="weight_balance",
+            cg_source="mass_balance",
             cg_xyz=(0.1, 0.0, 0.0),
             alpha_ref=2.0,
             cl_ref=0.4,
@@ -142,7 +142,7 @@ class TestStabilityModels(unittest.TestCase):
 
     def test_trim_validation_rejects_incomplete_mass_model(self) -> None:
         trim, reasons = StabilityAnalysisEngine._validated_elevator_trim(
-            cg_source="weight_balance_incomplete",
+            cg_source="mass_balance_incomplete",
             cg_xyz=(0.1, 0.0, 0.0),
             alpha_ref=2.0,
             cl_ref=0.4,
@@ -157,7 +157,7 @@ class TestStabilityModels(unittest.TestCase):
         self.assertIsNone(trim)
         self.assertEqual(
             reasons,
-            ("Weight-Balance CG excludes components with missing mass",),
+            ("mass-balance CG excludes components with missing mass",),
         )
 
 
@@ -290,11 +290,7 @@ class TestStabilityAnalysisEngine(unittest.TestCase):
         self.components[1]["mass"] = 100.0
         self.components[2]["mass"] = 100.0
         for component in self.components:
-            component["extensions"] = {
-                "org.setuav.weight-balance": {
-                    "local_cg_mm": {"x": 0.0, "y": 0.0, "z": 0.0},
-                }
-            }
+            component["local_cg_mm"] = {"x": 0.0, "y": 0.0, "z": 0.0}
 
     def test_stability_derivatives_computation(self) -> None:
         """Verify longitudinal and lateral-directional stability derivatives."""
@@ -338,7 +334,7 @@ class TestStabilityAnalysisEngine(unittest.TestCase):
         self.assertTrue(math.isfinite(sd.elevator_trim.delta_e_trim))
         self.assertTrue(math.isfinite(sd.elevator_trim.alpha_trim_neutral))
 
-    def test_trim_is_suppressed_without_weight_balance_cg(self) -> None:
+    def test_trim_is_suppressed_without_mass_balance_cg(self) -> None:
         cond = FlightCondition(velocity=20.0, alpha=2.0, beta=0.0)
         with patch.object(
             self.engine,
@@ -355,7 +351,7 @@ class TestStabilityAnalysisEngine(unittest.TestCase):
         self.assertIsNotNone(sd)
         self.assertIsNone(sd.elevator_trim)
         self.assertFalse(sd.trim_valid)
-        self.assertTrue(any("Weight-Balance" in reason for reason in sd.trim_invalid_reasons))
+        self.assertIn("CG is unavailable from the mass-balance model", sd.trim_invalid_reasons)
 
 
 if __name__ == "__main__":

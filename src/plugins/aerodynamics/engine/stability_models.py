@@ -5,8 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-MARGINAL_STATIC_MARGIN_PERCENT = 2.0
-
 
 @dataclass(frozen=True)
 class ControlEffectiveness:

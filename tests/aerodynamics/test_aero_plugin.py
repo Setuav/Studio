@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import json
 import unittest
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 from PySide6.QtCore import Qt
@@ -14,37 +14,102 @@ from PySide6.QtWidgets import QMenu, QMessageBox
 from plugins.aerodynamics.airfoil_analysis_tool import (
     AirfoilAnalysisToolWindow,
 )
-from plugins.aerodynamics.analysis_store import (
-    RESULTS_VERSION,
-    analysis_entries,
-    load_analysis_result,
-    migrate_analysis_extension,
+from plugins.aerodynamics.engine.aerosandbox_engine import (
+    HAS_AEROSANDBOX,
+    AeroSandboxEngine,
 )
 from plugins.aerodynamics.engine.base import (
+    CONTROL_CHANNELS,
+    AeroAnalysisError,
+    AeroForcesMoments,
     AeroResult,
     AnalysisMethod,
-    ControlChannelAnalysis,
     FlightCondition,
-    MultiDimensionalSweepResult,
     PolarPoint,
-    ReferenceValues,
-    SweepType,
-    SweepVariable,
+    control_channels_for_components,
 )
 from plugins.aerodynamics.engine.stability_models import (
     StabilityDerivatives,
 )
 from plugins.aerodynamics.plugin import AerodynamicsPlugin
-from plugins.aerodynamics.results_dock import AeroResultsDock
+from plugins.aerodynamics.solver import (
+    SOLVER_ID_ALPHA_SWEEP,
+    SOLVER_ID_BETA_SWEEP,
+    SOLVER_ID_CONTROL_DEFLECTION,
+    SOLVER_ID_OPERATING_POINT,
+    AlphaSweepSolver,
+    BaseAerodynamicsSolver,
+    BetaSweepSolver,
+    ControlDeflectionSolver,
+    OperatingPointSolver,
+)
 from setuav_studio.api import (
     ActionContribution,
-    PanelContribution,
     StudioAPI,
-    WorkspaceContribution,
+    ToolbarContribution,
+    ToolbarMenuItemContribution,
 )
 from setuav_studio.project import ProjectDocument
+from setuav_studio.solver import SolverConfig
+from setuav_studio.solver.base import SolverStatus
+from setuav_studio.solver.results import SolverResult
 from setuav_studio.ui.panels.project_explorer import ProjectExplorer
 from tests._common import get_qapp
+
+ANALYSIS_TOOLBAR_ID = "aerodynamics.add-analysis"
+SOLVER_CLASSES = {
+    SOLVER_ID_ALPHA_SWEEP: AlphaSweepSolver,
+    SOLVER_ID_BETA_SWEEP: BetaSweepSolver,
+    SOLVER_ID_CONTROL_DEFLECTION: ControlDeflectionSolver,
+    SOLVER_ID_OPERATING_POINT: OperatingPointSolver,
+}
+TOOL_TITLES = (
+    "Add Alpha Sweep (Polar) Analysis",
+    "Add Beta Sweep (Sideslip) Analysis",
+    "Add Control Deflection Analysis",
+    "Add Aero Operating Point Analysis",
+    "Airfoil Analysis…",
+)
+WING = {"id": "wing", "name": "Main Wing", "type": "org.setuav.core:lifting-surface"}
+
+
+def _control_surface(component_id: str, surface_type: str) -> dict[str, Any]:
+    return {
+        "id": component_id,
+        "name": component_id,
+        "type": "org.setuav.core:control-surface",
+        "parent": "wing",
+        "parameters": {"geometry": {"type": surface_type}},
+    }
+
+
+def _enabled(item: ToolbarMenuItemContribution) -> bool:
+    assert item.enabled_when is not None
+    return item.enabled_when()
+
+
+def _project(components: list[dict[str, Any]] | None = None) -> ProjectDocument:
+    return ProjectDocument(
+        path=Path("aero-analysis.json"),
+        kind="json",
+        data={"name": "Aero Analysis", "components": list(components or [])},
+    )
+
+
+def _point(alpha: float, **values: Any) -> PolarPoint:
+    cl = 0.1 * alpha + 0.2
+    cd = 0.02 + 0.001 * alpha**2
+    return PolarPoint(
+        alpha=alpha,
+        cl=cl,
+        cd=cd,
+        cm=-0.01 * alpha,
+        cl_over_cd=cl / cd,
+        cd_induced=0.5 * cd,
+        cd_profile=0.5 * cd,
+        forces_moments=AeroForcesMoments(lift=100.0 * cl, drag=100.0 * cd),
+        **values,
+    )
 
 
 class AerodynamicsPluginTests(unittest.TestCase):
@@ -54,24 +119,22 @@ class AerodynamicsPluginTests(unittest.TestCase):
 
     def setUp(self) -> None:
         self.api = StudioAPI()
-        self.panels: list[PanelContribution] = []
-        self.workspaces: list[WorkspaceContribution] = []
+        self.toolbar_items: list[ToolbarContribution] = []
+        self.removed_toolbar_items: list[str] = []
         self.actions: list[ActionContribution] = []
-        self.removed_panels: list[str] = []
-        self.removed_workspaces: list[str] = []
         self.removed_actions: list[tuple[str, str]] = []
+        self.statuses: list[tuple[str, str, int]] = []
 
-        self.api._host.bind_panel_handlers(
-            self.panels.append,
-            remove_handler=self.removed_panels.append,
-        )
-        self.api._host.bind_workspace_handlers(
-            self.workspaces.append,
-            remove_handler=self.removed_workspaces.append,
+        self.api._host.bind_toolbar_handlers(
+            self.toolbar_items.append,
+            unregister_handler=self.removed_toolbar_items.append,
         )
         self.api._host.bind_action_handlers(
             self.actions.append,
-            remove_handler=lambda menu, title: self.removed_actions.append((menu, title)),
+            unregister_handler=lambda menu, title: self.removed_actions.append((menu, title)),
+        )
+        self.api._host.bind_status_handler(
+            lambda message, level, timeout: self.statuses.append((message, level, timeout))
         )
 
         self.plugin = AerodynamicsPlugin()
@@ -79,205 +142,92 @@ class AerodynamicsPluginTests(unittest.TestCase):
     def tearDown(self) -> None:
         self._app.processEvents()
 
-    def test_activation_registers_workspace_and_panels(self) -> None:
+    def _analysis_toolbar(self) -> ToolbarContribution:
+        return next(item for item in self.toolbar_items if item.id == ANALYSIS_TOOLBAR_ID)
+
+    def _add_alpha_sweep_analysis(self) -> SolverConfig:
+        self._analysis_toolbar().menu_items[0].callback()
+        config = self.api.get_current_solver_config()
+        assert config is not None
+        return config
+
+    @staticmethod
+    def _run_solver(
+        solver_cls: type[BaseAerodynamicsSolver],
+        parameters: dict[str, Any],
+        aero_result: AeroResult,
+        components: list[dict[str, Any]] | None = None,
+    ) -> tuple[SolverResult, dict[str, Any]]:
+        config = SolverConfig(solver_id="aero-test", name="Aero Test", parameters=parameters)
+        solver = solver_cls(config)
+        solver.project = _project(components or [WING])
+        calls: list[dict[str, Any]] = []
+
+        def analyze(**kwargs: Any) -> AeroResult:
+            calls.append(kwargs)
+            return aero_result
+
+        with patch.object(solver.engine, "analyze", side_effect=analyze):
+            result = solver.run()
+        return result, calls[0]
+
+    def test_activation_registers_solvers_toolbar_and_tools(self) -> None:
         self.plugin.activate(self.api)
 
-        # Check Workspace
-        workspace_ids = [w.id for w in self.workspaces]
-        self.assertIn("studio.workspace.aerodynamics", workspace_ids)
+        for solver_id, solver_cls in SOLVER_CLASSES.items():
+            self.assertIs(self.api.solvers.get_solver_class(solver_id), solver_cls)
 
-        # Check Panels
-        panel_ids = [p.id for p in self.panels]
-        self.assertIn("aerodynamics.controls_dock", panel_ids)
-        self.assertIn("aerodynamics.results_dock", panel_ids)
-        self.assertIn("aerodynamics.charts_dock", panel_ids)
-        self.assertNotIn("aerodynamics.aero_3d", panel_ids)
-        self.assertTrue(
-            any(
-                action.menu == "Tools/Aerodynamics" and action.title == "Airfoil Analysis…"
-                for action in self.actions
+        self.assertEqual(
+            [item.title for item in self._analysis_toolbar().menu_items],
+            [
+                "Alpha Sweep (Polar) Analysis",
+                "Beta Sweep (Sideslip) Analysis",
+                "Control Deflection Analysis",
+                "Operating Point Analysis",
+            ],
+        )
+        self.assertEqual(
+            tuple(action.title for action in self.actions if action.menu == "Tools/Aerodynamics"),
+            TOOL_TITLES,
+        )
+
+    def test_add_analysis_menu_creates_default_solver_configs(self) -> None:
+        self.plugin.activate(self.api)
+        menu_items = self._analysis_toolbar().menu_items
+
+        self.assertFalse(any(_enabled(item) for item in menu_items))
+        menu_items[0].callback()
+        self.assertEqual(self.statuses[-1][1], "warning")
+
+        self.api._host.set_project(_project())
+        self.assertTrue(all(_enabled(item) for item in menu_items))
+        for item in menu_items:
+            item.callback()
+
+        configs = list(self.api.get_solver_configs().values())
+        self.assertEqual(
+            [config.solver_id for config in configs],
+            list(SOLVER_CLASSES),
+        )
+        self.assertEqual(self.api.current_solver_config_id, configs[-1].config_id)
+        for config in configs:
+            solver_cls = SOLVER_CLASSES[config.solver_id]
+            self.assertEqual(
+                config.parameters,
+                {field.key: field.default for field in solver_cls.PARAMETER_FIELDS},
             )
-        )
 
-    def test_legacy_result_schema_migrates_to_current_model(self) -> None:
-        legacy_point = PolarPoint(
-            alpha=2.0,
-            beta=3.0,
-            cl=0.4,
-            cd=0.03,
-            converged=True,
-        ).to_dict()
-        extension = {
-            "results_version": 1,
-            "results": [
-                {
-                    "id": "legacy",
-                    "result": {
-                        "method": "comprehensive",
-                        "engine_name": "AeroSandbox",
-                        "polar_points": [],
-                        "beta_polar_points": [legacy_point],
-                        "solver_results": {"vlm": [legacy_point]},
-                    },
-                }
-            ],
-        }
-
-        self.assertTrue(migrate_analysis_extension(extension))
-        self.assertEqual(extension["results_version"], RESULTS_VERSION)
-        payload = extension["results"][0]["result"]
-        self.assertEqual(payload["method"], "aero_buildup")
-        self.assertEqual(len(payload["polar_points"]), 1)
-        self.assertNotIn("beta_polar_points", payload)
-        self.assertNotIn("solver_results", payload)
-        restored = AeroResult.from_dict(payload)
-        self.assertEqual(restored.method, AnalysisMethod.AERO_BUILDUP)
-        self.assertEqual(restored.polar_points[0].beta, 3.0)
-
+    def test_deactivation_cleans_up(self) -> None:
         self.plugin.activate(self.api)
-        project = ProjectDocument(
-            path=Path("legacy-aero.json"),
-            kind="json",
-            data={
-                "extensions": {
-                    "org.setuav.studio.aerodynamics": {
-                        "results_version": 1,
-                        "results": [
-                            {
-                                "id": "legacy",
-                                "result": {
-                                    "method": "comprehensive",
-                                    "polar_points": [],
-                                    "beta_polar_points": [legacy_point],
-                                    "solver_results": {},
-                                },
-                            }
-                        ],
-                    }
-                }
-            },
+        self.plugin.deactivate(self.api)
+
+        for solver_id in SOLVER_CLASSES:
+            self.assertIsNone(self.api.solvers.get_solver_class(solver_id))
+        self.assertIn(ANALYSIS_TOOLBAR_ID, self.removed_toolbar_items)
+        self.assertEqual(
+            tuple(title for menu, title in self.removed_actions if menu == "Tools/Aerodynamics"),
+            TOOL_TITLES,
         )
-        self.api._host.set_project(project)
-        persisted = project.get_plugin_data("org.setuav.studio.aerodynamics")
-        self.assertEqual(persisted["results_version"], RESULTS_VERSION)
-        self.assertEqual(persisted["results"][0]["result"]["method"], "aero_buildup")
-
-    def test_result_without_converged_points_is_not_persisted(self) -> None:
-        statuses: list[tuple[str, str, int]] = []
-        self.api._host.bind_status_handler(
-            lambda message, level, timeout: statuses.append((message, level, timeout))
-        )
-        self.plugin.activate(self.api)
-        project = ProjectDocument(
-            path=Path("failed-aero.json"),
-            kind="json",
-            data={"name": "Failed Aero", "components": []},
-        )
-        self.api._host.set_project(project)
-        failed_result = AeroResult(
-            method=AnalysisMethod.AERO_BUILDUP,
-            engine_name="AeroSandbox",
-            polar_points=[
-                PolarPoint(
-                    alpha=2.0,
-                    cl=0.0,
-                    cd=0.0,
-                    converged=False,
-                    notes="solver exploded",
-                )
-            ],
-        )
-
-        self.plugin._handle_analysis_result(failed_result)
-
-        self.assertEqual(analysis_entries(project), ())
-        self.assertIsNone(self.plugin._latest_result)
-        self.assertEqual(statuses[-1][1], "error")
-
-    def test_pitch_status_marks_two_percent_margin_as_marginal(self) -> None:
-        result = AeroResult(
-            method=AnalysisMethod.AERO_BUILDUP,
-            engine_name="AeroSandbox",
-            stability_derivatives=StabilityDerivatives(
-                c_m_alpha_rad=-0.4,
-                c_m_alpha_deg=-0.007,
-                c_m_q=-1.0,
-                static_margin=1.5,
-                is_pitch_stable=True,
-                is_pitch_damped=True,
-            ),
-        )
-        metrics = AeroResultsDock._stability_metrics(result)
-        self.assertEqual(metrics["pitch_status"], "MARGINAL")
-
-    def test_aero_results_dock_unit_conversion(self) -> None:
-        from plugins.aerodynamics.engine.base import (
-            AeroForcesMoments,
-            FlightCondition,
-            PolarPoint,
-            ReferenceValues,
-        )
-        from setuav_studio.units import get_unit_manager
-
-        um = get_unit_manager()
-        um.set_display_unit("force", "N")
-        um.set_display_unit("velocity", "m/s")
-        um.units_changed.emit()
-
-        result = AeroResult(
-            method=AnalysisMethod.AERO_BUILDUP,
-            engine_name="AeroSandbox",
-            reference=ReferenceValues(
-                b_ref=1.2, s_ref=0.24, c_ref=0.2, x_cg=0.1, y_cg=0.0, z_cg=0.0
-            ),
-            condition=FlightCondition(velocity=20.0, altitude=100.0),
-            polar_points=[
-                PolarPoint(
-                    alpha=2.0,
-                    beta=0.0,
-                    cl=0.5,
-                    cd=0.025,
-                    cm=-0.04,
-                    forces_moments=AeroForcesMoments(lift=50.0, drag=2.5),
-                    converged=True,
-                )
-            ],
-            dynamic_pressure=245.0,
-        )
-
-        dock = AeroResultsDock(self.api)
-        dock.display_results(result)
-
-        # In SI: force is N, velocity is m/s, length is mm, area is dm2
-        lift_col = 14
-        drag_col = 15
-        self.assertEqual(dock.detail_table.horizontalHeaderItem(lift_col).text(), "Lift (N)")
-        self.assertEqual(dock.detail_table.horizontalHeaderItem(drag_col).text(), "Drag (N)")
-        self.assertEqual(dock.detail_table.item(0, lift_col).text(), "50.000")
-        self.assertEqual(dock.detail_table.item(0, drag_col).text(), "2.500")
-
-        from plugins.aerodynamics.results_dock import SUMMARY_ROWS
-
-        ref_span_row = next(r for r, (k, _) in enumerate(SUMMARY_ROWS) if k == "ref_span")
-        # In base mm: 1.2 m span is 1200 mm
-        self.assertIn("1200.000 mm", dock.summary_table.item(ref_span_row, 1).text())
-
-        # Change unit to lbf and m
-        um.set_display_unit("force", "lbf")
-        um.set_display_unit("length", "m")
-        um.units_changed.emit()
-
-        self.assertEqual(dock.detail_table.horizontalHeaderItem(lift_col).text(), "Lift (lbf)")
-        self.assertEqual(dock.detail_table.horizontalHeaderItem(drag_col).text(), "Drag (lbf)")
-        expected_lift = f"{um.to_display(50.0, 'force'):.3f}"
-        self.assertEqual(dock.detail_table.item(0, lift_col).text(), expected_lift)
-        self.assertIn("1.200 m", dock.summary_table.item(ref_span_row, 1).text())
-
-        # Restore default unit
-        um.set_display_unit("force", "N")
-        um.set_display_unit("length", "mm")
-        um.units_changed.emit()
-        dock.close()
 
     def test_airfoil_analysis_tool_is_standalone(self) -> None:
         tool = AirfoilAnalysisToolWindow(self.api)
@@ -300,503 +250,283 @@ class AerodynamicsPluginTests(unittest.TestCase):
             ]
         )
         self.assertEqual(tool.results_table.rowCount(), 1)
-        self.assertEqual(tool.results_table.item(0, 0).text(), "2")
+        first_cell = tool.results_table.item(0, 0)
+        assert first_cell is not None
+        self.assertEqual(first_cell.text(), "2")
         tool.close()
 
-    def test_alpha_beta_grid_uses_one_chart_series_per_beta(self) -> None:
-        self.plugin.activate(self.api)
-        panels_by_id = {panel.id: panel for panel in self.panels}
-        controls = panels_by_id["aerodynamics.controls_dock"].factory()
-        charts = panels_by_id["aerodynamics.charts_dock"].factory()
-        self.assertGreaterEqual(
-            controls.combo_mode.findData(SweepType.MULTI_GRID),
-            0,
+    def test_controls_offer_aircraft_channels_not_surface_names(self) -> None:
+        components = [
+            WING,
+            _control_surface("left-elevon", "elevon"),
+            _control_surface("right-ruddervator", "ruddervator"),
+        ]
+        self.assertEqual(
+            control_channels_for_components(components),
+            ("elevator", "aileron", "rudder"),
         )
 
-        alpha_values = [-4.0, 0.0, 4.0]
-        beta_values = [-5.0, 5.0]
+        channel_field = next(
+            field for field in ControlDeflectionSolver.PARAMETER_FIELDS if field.key == "channel"
+        )
+        assert channel_field.options is not None
+        offered = tuple(value for _label, value in channel_field.options)
+        self.assertEqual(offered, CONTROL_CHANNELS)
+        self.assertNotIn("elevon", offered)
+        self.assertNotIn("ruddervator", offered)
+
+    def test_alpha_sweep_solver_builds_polar_table_plots_and_summary(self) -> None:
+        aero_result = AeroResult(
+            method=AnalysisMethod.VLM,
+            engine_name="AeroSandbox",
+            polar_points=[
+                _point(-4.0),
+                _point(0.0),
+                _point(4.0, converged=False, notes="solver diverged"),
+                _point(8.0),
+            ],
+            cl_max=1.0,
+            cl_max_alpha=8.0,
+            cd_min=0.02,
+            ld_max=12.5,
+            ld_max_alpha=4.0,
+            oswald_efficiency=0.82,
+            stability_derivatives=StabilityDerivatives(x_np=0.31, static_margin=12.5),
+        )
+
+        result, call = self._run_solver(
+            AlphaSweepSolver,
+            {
+                "alpha_min": 8.0,
+                "alpha_max": -4.0,
+                "alpha_step": 4.0,
+                "velocity": 20.0,
+                "altitude": 100.0,
+                "beta": 1.5,
+                "method": "vlm",
+                "spanwise_resolution": 16.0,
+                "chordwise_resolution": 6.0,
+            },
+            aero_result,
+        )
+
+        condition: FlightCondition = call["condition"]
+        self.assertEqual(condition.sweep_variable, "alpha")
+        self.assertEqual((condition.sweep_min, condition.sweep_max), (-4.0, 8.0))
+        self.assertEqual(condition.sweep_steps, 4)
+        self.assertEqual(
+            (condition.velocity, condition.altitude, condition.beta), (20.0, 100.0, 1.5)
+        )
+        self.assertEqual(call["method"], AnalysisMethod.VLM)
+        self.assertEqual(call["settings"]["spanwise_resolution"], 16)
+        self.assertEqual(call["settings"]["chordwise_resolution"], 6)
+
+        self.assertEqual(result.status, SolverStatus.COMPLETED)
+        table = result.tables["alpha_polar"]
+        self.assertEqual(table.get_column("alpha"), [-4.0, 0.0, 8.0])
+        self.assertEqual(table.get_column("lift"), [100.0 * _point(a).cl for a in (-4, 0, 8)])
+        quantities = {column.key: column.quantity_id for column in table.columns}
+        self.assertEqual(quantities["alpha"], "angle")
+        self.assertEqual(quantities["lift"], "force")
+        self.assertEqual(quantities["drag"], "force")
+        self.assertEqual(
+            set(result.plots),
+            {"cl_alpha", "cd_alpha", "drag_polar", "cl_over_cd", "cm_alpha"},
+        )
+        self.assertTrue(all(plot.table_id == "alpha_polar" for plot in result.plots.values()))
+        self.assertEqual(result.summary["cl_max"].value, 1.0)
+        self.assertEqual(result.summary["ld_max_alpha"].value, 4.0)
+        self.assertEqual(result.summary["oswald_e"].value, 0.82)
+        self.assertEqual(result.summary["x_np"].value, 0.31)
+        self.assertEqual(result.summary["static_margin"].value, 12.5)
+
+    def test_beta_sweep_solver_builds_lateral_table_and_derivatives(self) -> None:
+        aero_result = AeroResult(
+            method=AnalysisMethod.AERO_BUILDUP,
+            engine_name="AeroSandbox",
+            polar_points=[
+                _point(3.0, beta=beta, cy=-0.01 * beta, cl_roll=-0.002 * beta, cn=0.003 * beta)
+                for beta in (-10.0, 0.0, 10.0)
+            ],
+            stability_derivatives=StabilityDerivatives(
+                c_Y_beta_deg=-0.01,
+                c_l_beta_deg=-0.002,
+                c_n_beta_deg=0.003,
+            ),
+        )
+
+        result, call = self._run_solver(
+            BetaSweepSolver,
+            {"beta_min": -10.0, "beta_max": 10.0, "beta_step": 10.0, "alpha": 3.0},
+            aero_result,
+        )
+
+        condition: FlightCondition = call["condition"]
+        self.assertEqual(condition.sweep_variable, "beta")
+        self.assertEqual((condition.sweep_min, condition.sweep_max), (-10.0, 10.0))
+        self.assertEqual(condition.sweep_steps, 3)
+        self.assertEqual(condition.alpha, 3.0)
+        self.assertEqual(call["method"], AnalysisMethod.AERO_BUILDUP)
+
+        table = result.tables["beta_polar"]
+        self.assertEqual(table.get_column("beta"), [-10.0, 0.0, 10.0])
+        self.assertEqual(table.get_column("cn"), [0.003 * beta for beta in (-10.0, 0.0, 10.0)])
+        self.assertEqual(set(result.plots), {"cy_beta", "cl_roll_beta", "cn_beta"})
+        self.assertEqual(result.summary["cy_beta"].value, -0.01)
+        self.assertEqual(result.summary["cl_beta"].value, -0.002)
+        self.assertEqual(result.summary["cn_beta"].value, 0.003)
+
+    def test_control_analysis_uses_dedicated_results(self) -> None:
         points = [
             PolarPoint(
-                alpha=alpha,
-                beta=beta,
-                cl=0.1 * alpha + 0.01 * beta,
-                cd=0.02 + 0.001 * alpha**2,
-                cm=-0.02 * alpha,
-                cy=0.02 * beta,
-                cl_roll=0.01 * beta,
-                cn=-0.015 * beta,
-                cl_over_cd=10.0 + alpha,
+                alpha=2.0,
+                cl=0.4 + deflection * 0.01,
+                cd=0.02 + abs(deflection) * 0.0002,
+                cm=-deflection * 0.015,
+                cl_roll=deflection * 0.002,
+                cn=-deflection * 0.0005,
+                control_deflections={"elevator": deflection},
             )
-            for beta in beta_values
-            for alpha in alpha_values
+            for deflection in (-10.0, 0.0, 10.0)
         ]
-        condition = FlightCondition(
-            sweep_type=SweepType.MULTI_GRID,
-            sweep_variable="alpha",
-            sweep_min=-4.0,
-            sweep_max=4.0,
-            sweep_steps=3,
-            secondary_variable="beta",
-            secondary_min=-5.0,
-            secondary_max=5.0,
-            secondary_steps=2,
-        )
-        result = AeroResult(
-            method=AnalysisMethod.AERO_BUILDUP,
+        aero_result = AeroResult(
+            method=AnalysisMethod.VLM,
             engine_name="AeroSandbox",
             polar_points=points,
-            condition=condition,
-            sweep_result=MultiDimensionalSweepResult(
-                variables=[
-                    SweepVariable("beta", beta_values, "deg"),
-                    SweepVariable("alpha", alpha_values, "deg"),
-                ],
-                points=points,
-                grid_shape=(2, 3),
-            ),
+            control_analysis=AeroSandboxEngine._fit_control_channel_analysis(points, "elevator"),
         )
 
-        charts.plot_results(result)
-
-        self.assertEqual(charts.combo_view_mode.currentData(), "alpha_beta_grid")
-        for chart in (
-            charts.chart_lift,
-            charts.chart_polar,
-            charts.chart_moment,
-            charts.chart_ld,
-        ):
-            self.assertEqual(len(chart.chart.series()), 2)
-            self.assertEqual(chart.chart.series()[0].count(), 3)
-        self.assertEqual(charts.chart_lift.chart.series()[0].name(), "β=-5°")
-        self.assertEqual(charts.chart_lift.chart.series()[1].name(), "β=+5°")
-
-        lateral_index = charts.combo_view_mode.findData("alpha_beta_lateral")
-        self.assertGreaterEqual(lateral_index, 0)
-        charts.combo_view_mode.setCurrentIndex(lateral_index)
-        self.assertEqual(charts.chart_lift.chart.title(), "Sideforce (CY vs α)")
-        self.assertEqual(charts.chart_polar.chart.title(), "Roll Moment (Cl vs α)")
-        self.assertEqual(charts.chart_moment.chart.title(), "Yaw Moment (Cn vs α)")
-        for chart in (
-            charts.chart_lift,
-            charts.chart_polar,
-            charts.chart_moment,
-        ):
-            self.assertEqual(len(chart.chart.series()), 2)
-
-        controls.close()
-        charts.close()
-
-    def test_panel_factories_create_widgets_and_handle_results(self) -> None:
-        self.plugin.activate(self.api)
-
-        panels_by_id = {p.id: p for p in self.panels}
-        controls_widget = panels_by_id["aerodynamics.controls_dock"].factory()
-        results_widget = panels_by_id["aerodynamics.results_dock"].factory()
-        charts_widget = panels_by_id["aerodynamics.charts_dock"].factory()
-
-        self.assertIsNotNone(controls_widget)
-        self.assertIsNotNone(results_widget)
-        self.assertIsNotNone(charts_widget)
-        project = ProjectDocument(
-            path=Path("aero-results.json"),
-            kind="json",
-            data={"name": "Aero Results", "components": []},
-        )
-        self.api._host.set_project(project)
-        sweep_modes = {
-            controls_widget.combo_mode.itemText(index)
-            for index in range(controls_widget.combo_mode.count())
-        }
-        self.assertNotIn("Airspeed Sweep", sweep_modes)
-        self.assertNotIn("Altitude Sweep", sweep_modes)
-        self.assertIn("Alpha x Beta (Grid)", sweep_modes)
-        self.assertIn("Control Channel Analysis", sweep_modes)
-        self.assertNotIn("Control Deflection Sweep", sweep_modes)
-        solver_methods = {
-            controls_widget.combo_solver.itemData(index)
-            for index in range(controls_widget.combo_solver.count())
-        }
-        self.assertEqual(
-            solver_methods,
+        result, call = self._run_solver(
+            ControlDeflectionSolver,
             {
-                AnalysisMethod.AERO_BUILDUP,
-                AnalysisMethod.VLM,
-                AnalysisMethod.LIFTING_LINE,
+                "channel": "elevator",
+                "deflection_min": -10.0,
+                "deflection_max": 10.0,
+                "deflection_step": 10.0,
+                "alpha": 2.0,
+                "method": "vlm",
             },
+            aero_result,
+            components=[WING, _control_surface("left-elevon", "elevon")],
         )
-        vlm_index = controls_widget.combo_solver.findData(AnalysisMethod.VLM)
-        controls_widget.combo_solver.setCurrentIndex(vlm_index)
-        self.assertTrue(controls_widget.combo_mode.isEnabled())
-        self.assertEqual(int(controls_widget.spin_span_res.maximum()), 50)
 
-        cond = FlightCondition(
-            sweep_type=SweepType.DUAL_ALPHA_BETA,
-            alpha=2.0,
-            beta=0.0,
-            alpha_steps=2,
-            beta_steps=2,
+        condition: FlightCondition = call["condition"]
+        self.assertEqual(condition.sweep_variable, "elevator")
+        self.assertEqual(condition.control_deflections, {"elevator": 0.0})
+        self.assertEqual(condition.sweep_steps, 3)
+
+        table = result.tables["control_polar"]
+        self.assertEqual(table.get_column("deflection"), [-10.0, 0.0, 10.0])
+        self.assertEqual(set(result.plots), {"cm_delta", "cl_delta", "roll_yaw_delta"})
+        self.assertEqual(result.summary["channel"].value, "Elevator")
+        self.assertEqual(result.summary["cm_delta"].value, -0.015)
+        self.assertEqual(result.summary["cl_delta"].value, 0.01)
+        self.assertEqual(result.summary["cl_roll_delta"].value, 0.002)
+        self.assertEqual(result.summary["cn_delta"].value, -0.0005)
+
+    def test_operating_point_solver_reports_single_state(self) -> None:
+        point = _point(
+            5.0,
+            beta=2.0,
+            cy=0.01,
+            dynamic_pressure=245.0,
+            mach=0.06,
+            reynolds=3.2e5,
         )
-        dummy_result = AeroResult(
-            method=AnalysisMethod.AERO_BUILDUP,
+        aero_result = AeroResult(
+            method=AnalysisMethod.LIFTING_LINE,
             engine_name="AeroSandbox",
-            polar_points=[
-                PolarPoint(
-                    alpha=-4.0,
-                    cl=-0.1,
-                    cd=0.012,
-                    cm=0.01,
-                    cy=0.0,
-                    cl_roll=0.0,
-                    cn=0.0,
-                    cl_over_cd=-8.3,
-                ),
-                PolarPoint(
-                    alpha=8.0,
-                    cl=1.1,
-                    cd=0.055,
-                    cm=-0.09,
-                    cy=0.0,
-                    cl_roll=0.0,
-                    cn=0.0,
-                    cl_over_cd=20.0,
-                ),
-                PolarPoint(
-                    alpha=2.0,
-                    beta=-6.0,
-                    cl=0.5,
-                    cd=0.02,
-                    cm=-0.04,
-                    cy=-0.15,
-                    cl_roll=-0.02,
-                    cn=0.03,
-                    cl_over_cd=25.0,
-                ),
-                PolarPoint(
-                    alpha=2.0,
-                    beta=6.0,
-                    cl=0.5,
-                    cd=0.02,
-                    cm=-0.04,
-                    cy=0.15,
-                    cl_roll=0.02,
-                    cn=-0.03,
-                    cl_over_cd=25.0,
-                ),
-            ],
-            cl_max=1.1,
-            cl_max_alpha=8.0,
-            cd_min=0.012,
-            ld_max=25.0,
-            ld_max_alpha=4.0,
-            reference=ReferenceValues(s_ref=0.6, b_ref=1.8, c_ref=0.33),
-            reynolds=450000.0,
-            oswald_efficiency=0.85,
-            condition=cond,
+            polar_points=[point],
         )
 
-        self.plugin._handle_analysis_result(dummy_result)
+        result, call = self._run_solver(
+            OperatingPointSolver,
+            {"alpha": 5.0, "beta": 2.0, "velocity": 20.0, "method": "lifting_line"},
+            aero_result,
+        )
 
-        # The result is persisted in the project and selected through the
-        # plugin-owned Project Tree contribution.
-        self.assertEqual(len(analysis_entries(project)), 1)
-        self.assertEqual(len(self.api.project_tree_nodes(project)), 1)
-        result_group = self.api.project_tree_nodes(project)[0]
-        self.assertEqual(result_group.title, "Aero Analyses")
-        result_nodes = result_group.children
-        self.assertEqual(len(result_nodes), 1)
-        self.assertEqual(result_nodes[0].title, "α–β Sweep")
-        self.assertEqual(self.api.current_selection, result_nodes[0].selection)
+        condition: FlightCondition = call["condition"]
+        self.assertEqual(condition.sweep_values(), [5.0])
+        self.assertEqual(condition.beta, 2.0)
+        self.assertEqual(call["method"], AnalysisMethod.LIFTING_LINE)
+
+        table = result.tables["operating_point_data"]
+        self.assertEqual(table.row_count(), 1)
+        self.assertEqual(table.get_column("cl"), [point.cl])
+        self.assertEqual(result.summary["lift"].value, round(100.0 * point.cl, 2))
+        self.assertEqual(result.summary["q_inf"].value, 245.0)
+        self.assertEqual(result.summary["reynolds"].value, "3.20e+05")
+
+    @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
+    def test_analysis_without_converged_points_fails(self) -> None:
+        wing = {
+            "id": "wing",
+            "name": "Main Wing",
+            "type": "org.setuav.core:lifting-surface",
+            "parameters": {
+                "geometry": {
+                    "mirror": True,
+                    "profiles": [
+                        {"position": {"x": 0.0, "y": 0.0, "z": 0.0}, "chord": 200.0},
+                        {"position": {"x": 20.0, "y": 600.0, "z": 0.0}, "chord": 150.0},
+                    ],
+                }
+            },
+        }
+        config = SolverConfig(
+            solver_id=SOLVER_ID_ALPHA_SWEEP,
+            name="Diverging Polar",
+            parameters={"alpha_min": 0.0, "alpha_max": 4.0, "alpha_step": 2.0},
+        )
+        solver = AlphaSweepSolver(config)
+        solver.project = _project([wing])
+
+        with (
+            patch.object(
+                AeroSandboxEngine,
+                "_run_solver",
+                side_effect=RuntimeError("solver exploded"),
+            ),
+            self.assertRaisesRegex(AeroAnalysisError, "solver exploded"),
+        ):
+            solver.run()
+
+    def test_project_tree_lists_analysis_and_deletes_it_with_results(self) -> None:
+        self.plugin.activate(self.api)
+        project = _project()
+        self.api._host.set_project(project)
+        config = self._add_alpha_sweep_analysis()
+        self.api.add_solver_result(
+            SolverResult(solver_id=config.solver_id, config=config, name=config.name)
+        )
+
         explorer = ProjectExplorer(self.api)
-        self.assertIn("aerodynamics.analysis-results", explorer._item_map)
-        self.assertIn(result_nodes[0].id, explorer._item_map)
-        explorer._item_map[result_nodes[0].id].setText(0, "Cruise Envelope")
-        self.assertEqual(analysis_entries(project)[0]["name"], "Cruise Envelope")
-        self.assertEqual(
-            self.api.project_tree_nodes(project)[0].children[0].title,
-            "Cruise Envelope",
-        )
-        self.assertEqual(results_widget.current_result.cl_max, dummy_result.cl_max)
-        self.assertEqual(results_widget.detail_table.rowCount(), 4)
-        self.assertEqual(results_widget.tab_widget.count(), 2)
+        config_item = explorer._item_map[config.config_id]
+        self.assertEqual(config_item.text(0), "Alpha Sweep Analysis")
+        analyses_group = config_item.parent()
+        assert analyses_group is not None
+        self.assertEqual(analyses_group.text(0), "Analyses")
 
-        # Verify charts populated
-        self.assertGreater(len(charts_widget.chart_lift.chart.series()), 0)
-        self.assertGreater(len(charts_widget.chart_polar.chart.series()), 0)
-        self.assertGreater(len(charts_widget.chart_moment.chart.series()), 0)
-        self.assertGreater(len(charts_widget.chart_ld.chart.series()), 0)
-
-        # Verify Dynamic Chart mode switching
-        charts_widget.combo_view_mode.setCurrentIndex(1)  # Longitudinal Stability
-        self.assertIn("Pitching Moment", charts_widget.chart_lift.chart.title())
-        charts_widget.combo_view_mode.setCurrentIndex(2)  # Lateral-Directional
-        self.assertIn("Sideforce", charts_widget.chart_lift.chart.title())
-        charts_widget.combo_view_mode.setCurrentIndex(3)  # Forces & Moments
-        self.assertIn("Lift Force", charts_widget.chart_lift.chart.title())
-
-        # A second result is appended and becomes active. Selecting the first
-        # Project Tree entry restores both tables and charts to that result.
-        second_result = AeroResult(
-            method=AnalysisMethod.VLM,
-            engine_name="AeroSandbox",
-            polar_points=[
-                PolarPoint(alpha=3.0, cl=0.4, cd=0.02, cm=-0.02, cl_over_cd=20.0),
-            ],
-            cl_max=0.4,
-            cl_max_alpha=3.0,
-            cd_min=0.02,
-            ld_max=20.0,
-            ld_max_alpha=3.0,
-            reference=ReferenceValues(s_ref=0.6, b_ref=1.8, c_ref=0.33),
-            condition=FlightCondition(alpha=3.0, alpha_steps=1, sweep_steps=1),
-        )
-        self.plugin._handle_analysis_result(second_result)
-        self.assertEqual(len(analysis_entries(project)), 2)
-        self.assertEqual(results_widget.current_result.cl_max, second_result.cl_max)
-        self.assertEqual(results_widget.detail_table.rowCount(), 1)
-
-        result_nodes = self.api.project_tree_nodes(project)[0].children
-        self.api.set_selection(result_nodes[0].selection)
-        self.assertEqual(results_widget.current_result.cl_max, dummy_result.cl_max)
-        self.assertEqual(results_widget.detail_table.rowCount(), 4)
-        self.assertEqual(charts_widget.chart_lift.chart.series()[0].count(), 2)
-
-        results_widget.delete_result_button.click()
-        self.assertEqual(len(analysis_entries(project)), 1)
-        self.assertIsNone(results_widget.current_result)
-
-        result_nodes = self.api.project_tree_nodes(project)[0].children
-        self.api.set_selection(result_nodes[0].selection)
-        self.assertEqual(results_widget.current_result.cl_max, second_result.cl_max)
-        self.assertEqual(results_widget.detail_table.rowCount(), 1)
-        self.assertEqual(charts_widget.chart_lift.chart.series()[0].count(), 1)
-
-        results_widget.delete_result_button.click()
-        self.assertEqual(len(analysis_entries(project)), 0)
-        self.assertEqual(self.api.project_tree_nodes(project), ())
-        self.assertIsNone(results_widget.current_result)
-        self.assertEqual(results_widget.detail_table.rowCount(), 0)
-        self.assertEqual(charts_widget.combo_view_mode.count(), 0)
-
-        # The stored representation remains JSON-safe and reconstructs the
-        # full result model after a project save/load boundary.
-        self.plugin._handle_analysis_result(dummy_result)
-        reloaded = ProjectDocument(
-            path=Path("reloaded.json"),
-            kind="json",
-            data=json.loads(json.dumps(project.data)),
-        )
-        stored_id = str(analysis_entries(reloaded)[0]["id"])
-        restored = load_analysis_result(reloaded, stored_id)
-        self.assertIsNotNone(restored)
-        self.assertEqual(len(restored.polar_points), 4)
-        self.assertEqual(restored.condition.sweep_type, SweepType.DUAL_ALPHA_BETA)
-
-    def test_deactivation_cleans_up(self) -> None:
-        self.plugin.activate(self.api)
-        self.plugin.deactivate(self.api)
-
-        self.assertIn("aerodynamics.controls_dock", self.removed_panels)
-        self.assertIn("aerodynamics.results_dock", self.removed_panels)
-        self.assertIn("aerodynamics.charts_dock", self.removed_panels)
-        self.assertNotIn("aerodynamics.aero_3d", self.removed_panels)
-        self.assertIn(
-            ("Tools/Aerodynamics", "AeroSandbox 3D Snapshot…"),
-            self.removed_actions,
-        )
-        self.assertIn(
-            ("Tools/Aerodynamics", "Airfoil Analysis…"),
-            self.removed_actions,
-        )
-        self.assertNotIn(
-            "aerodynamics.settings.airfoil_analysis",
-            {page.id for page in self.api._host.settings_pages()},
-        )
-        self.assertIn("studio.workspace.aerodynamics", self.removed_workspaces)
-
-    def test_controls_offer_aircraft_channels_not_surface_names(self) -> None:
-        self.plugin.activate(self.api)
-        controls = next(
-            panel.factory() for panel in self.panels if panel.id == "aerodynamics.controls_dock"
-        )
-        self.api._host.set_project(
-            ProjectDocument(
-                path=Path("controls.json"),
-                kind="json",
-                data={
-                    "components": [
-                        {
-                            "id": "left-elevon",
-                            "name": "left-elevon",
-                            "type": "org.setuav.core:control-surface",
-                            "parameters": {
-                                "geometry": {
-                                    "type": "elevon",
-                                }
-                            },
-                        },
-                        {
-                            "id": "right-ruddervator",
-                            "name": "right-ruddervator",
-                            "type": "org.setuav.core:control-surface",
-                            "parameters": {
-                                "geometry": {
-                                    "type": "ruddervator",
-                                }
-                            },
-                        },
-                    ]
-                },
-            )
-        )
-        channels = tuple(
-            controls.combo_ctrl.itemData(index) for index in range(controls.combo_ctrl.count())
-        )
-        self.assertEqual(channels, ("elevator", "aileron", "rudder"))
-        self.assertNotIn("left-elevon", channels)
-        self.assertNotIn("right-ruddervator", channels)
-
-    def test_control_analysis_uses_dedicated_results_and_charts(self) -> None:
-        self.plugin.activate(self.api)
-        panels = {panel.id: panel.factory() for panel in self.panels}
-        result = AeroResult(
-            method=AnalysisMethod.VLM,
-            engine_name="AeroSandbox",
-            polar_points=[
-                PolarPoint(
-                    alpha=2.0,
-                    cl=0.4 + deflection * 0.01,
-                    cd=0.02 + abs(deflection) * 0.0002,
-                    cm=-deflection * 0.015,
-                    control_deflections={"elevator": deflection},
+        explorer.setCurrentItem(config_item)
+        with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes):
+            explorer.keyPressEvent(
+                QKeyEvent(
+                    QKeyEvent.Type.KeyPress, Qt.Key.Key_Delete, Qt.KeyboardModifier.NoModifier
                 )
-                for deflection in (-10.0, 0.0, 10.0)
-            ],
-            condition=FlightCondition(
-                alpha=2.0,
-                sweep_variable="elevator",
-                sweep_min=-10.0,
-                sweep_max=10.0,
-                sweep_steps=3,
-            ),
-            control_analysis=ControlChannelAnalysis(
-                channel="elevator",
-                sample_count=3,
-                deflection_min_deg=-10.0,
-                deflection_max_deg=10.0,
-                derivatives_per_deg={
-                    "CL": 0.01,
-                    "CD": 0.0,
-                    "Cm": -0.015,
-                    "CY": 0.0,
-                    "Cl": 0.0,
-                    "Cn": 0.0,
-                },
-                linearity_r2={"Cm": 1.0},
-            ),
-        )
-        panels["aerodynamics.results_dock"].display_results(result)
-        charts = panels["aerodynamics.charts_dock"]
-        charts.plot_results(result)
-
-        self.assertEqual(charts.combo_view_mode.count(), 1)
-        self.assertEqual(charts.combo_view_mode.currentData(), "control_effectiveness")
-        self.assertIn("Elevator Effectiveness", charts.chart_lift.chart.title())
-        metrics = panels["aerodynamics.results_dock"]._control_analysis_metrics(result)
-        self.assertIn("dCm/dδ=-0.01500/deg", metrics["control_effectiveness"])
-
-    def test_project_tree_analysis_results_support_delete(self) -> None:
-        self.plugin.activate(self.api)
-        project = ProjectDocument(
-            path=Path("aero-results.json"),
-            kind="json",
-            data={"name": "Aero Results", "components": []},
-        )
-        self.api._host.set_project(project)
-        dummy_result = AeroResult(
-            method=AnalysisMethod.AERO_BUILDUP,
-            engine_name="AeroSandbox",
-            polar_points=[
-                PolarPoint(alpha=0.0, cl=0.2, cd=0.015, cm=0.0),
-            ],
-            reference=ReferenceValues(s_ref=0.6, b_ref=1.8, c_ref=0.33),
-            condition=FlightCondition(alpha=0.0, alpha_steps=1),
-        )
-        self.plugin._handle_analysis_result(dummy_result)
-        nodes = self.api.project_tree_nodes(project)
-        self.assertEqual(len(nodes), 1)
-        group_node = nodes[0]
-        self.assertIsNotNone(group_node.delete)
-        self.assertEqual(len(group_node.children), 1)
-        result_node = group_node.children[0]
-        self.assertIsNotNone(result_node.delete)
-
-        explorer = ProjectExplorer(self.api)
-        result_item = explorer._item_map[result_node.id]
-
-        # Test delete via Delete key press
-        explorer.setCurrentItem(result_item)
-        with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes):
-            event = QKeyEvent(
-                QKeyEvent.Type.KeyPress, Qt.Key.Key_Delete, Qt.KeyboardModifier.NoModifier
             )
-            explorer.keyPressEvent(event)
 
-        self.assertEqual(len(analysis_entries(project)), 0)
-        self.assertEqual(self.api.project_tree_nodes(project), ())
+        self.assertEqual(project.solver_configs, {})
+        self.assertEqual(project.solver_results, {})
+        self.assertNotIn(config.config_id, explorer._item_map)
 
-    def test_project_tree_delete_all_results_group(self) -> None:
+    def test_project_tree_context_menu_has_delete_for_analysis(self) -> None:
         self.plugin.activate(self.api)
-        project = ProjectDocument(
-            path=Path("aero-results.json"),
-            kind="json",
-            data={"name": "Aero Results", "components": []},
-        )
-        self.api._host.set_project(project)
-        dummy_result = AeroResult(
-            method=AnalysisMethod.AERO_BUILDUP,
-            engine_name="AeroSandbox",
-            polar_points=[
-                PolarPoint(alpha=0.0, cl=0.2, cd=0.015, cm=0.0),
-            ],
-            reference=ReferenceValues(s_ref=0.6, b_ref=1.8, c_ref=0.33),
-            condition=FlightCondition(alpha=0.0, alpha_steps=1),
-        )
-        self.plugin._handle_analysis_result(dummy_result)
-        explorer = ProjectExplorer(self.api)
-        group_item = explorer._item_map["aerodynamics.analysis-results"]
-
-        explorer.setCurrentItem(group_item)
-        with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes):
-            event = QKeyEvent(
-                QKeyEvent.Type.KeyPress, Qt.Key.Key_Delete, Qt.KeyboardModifier.NoModifier
-            )
-            explorer.keyPressEvent(event)
-
-        self.assertEqual(len(analysis_entries(project)), 0)
-        self.assertEqual(self.api.project_tree_nodes(project), ())
-
-    def test_project_tree_context_menu_has_delete_for_analysis_result(self) -> None:
-        self.plugin.activate(self.api)
-        project = ProjectDocument(
-            path=Path("aero-results.json"),
-            kind="json",
-            data={"name": "Aero Results", "components": []},
-        )
-        self.api._host.set_project(project)
-        dummy_result = AeroResult(
-            method=AnalysisMethod.AERO_BUILDUP,
-            engine_name="AeroSandbox",
-            polar_points=[
-                PolarPoint(alpha=0.0, cl=0.2, cd=0.015, cm=0.0),
-            ],
-            reference=ReferenceValues(s_ref=0.6, b_ref=1.8, c_ref=0.33),
-            condition=FlightCondition(alpha=0.0, alpha_steps=1),
-        )
-        self.plugin._handle_analysis_result(dummy_result)
+        self.api._host.set_project(_project())
+        config = self._add_alpha_sweep_analysis()
         explorer = ProjectExplorer(self.api)
         explorer.resize(400, 600)
-        result_node = self.api.project_tree_nodes(project)[0].children[0]
-        result_item = explorer._item_map[result_node.id]
+        explorer.expandAll()
+        config_item = explorer._item_map[config.config_id]
 
         menu_actions: list[str] = []
         real_qmenu = QMenu
@@ -811,8 +541,9 @@ class AerodynamicsPluginTests(unittest.TestCase):
                 return None
 
         with patch("setuav_studio.ui.panels.project_explorer.context_menu.QMenu", MockMenu):
-            explorer._open_context_menu(explorer.visualItemRect(result_item).center())
+            explorer._open_context_menu(explorer.visualItemRect(config_item).center())
 
+        self.assertIn("Run Analysis", menu_actions)
         self.assertIn("Rename", menu_actions)
         self.assertIn("Delete", menu_actions)
 
@@ -840,42 +571,18 @@ class AerodynamicsPluginTests(unittest.TestCase):
 
         self.assertEqual(len(project.data["components"]), 0)
 
-    def test_unsaved_analysis_result_is_marked_dirty_yellow(self) -> None:
+    def test_unsaved_analysis_is_marked_dirty_yellow(self) -> None:
         from setuav_studio.ui.style.theme import status_color
 
         self.plugin.activate(self.api)
-        project = ProjectDocument(
-            path=Path("aero-results.json"),
-            kind="json",
-            data={"name": "Aero Results", "components": []},
-        )
-        self.api._host.set_project(project)
+        self.api._host.set_project(_project())
         explorer = ProjectExplorer(self.api)
+        config = self._add_alpha_sweep_analysis()
 
-        # Run analysis (creates an unsaved result)
-        dummy_result = AeroResult(
-            method=AnalysisMethod.AERO_BUILDUP,
-            engine_name="AeroSandbox",
-            polar_points=[
-                PolarPoint(alpha=0.0, cl=0.2, cd=0.015, cm=0.0),
-            ],
-            reference=ReferenceValues(s_ref=0.6, b_ref=1.8, c_ref=0.33),
-            condition=FlightCondition(alpha=0.0, alpha_steps=1),
-        )
-        self.plugin._handle_analysis_result(dummy_result)
-        result_node = self.api.project_tree_nodes(project)[0].children[0]
-        result_item = explorer._item_map[result_node.id]
+        warning = status_color("warning").lower()
+        config_item = explorer._item_map[config.config_id]
+        self.assertEqual(config_item.foreground(0).color().name().lower(), warning)
 
-        # Should be colored warning (yellow)
-        self.assertEqual(
-            result_item.foreground(0).color().name().lower(),
-            status_color("warning").lower(),
-        )
-
-        # After mark_project_saved / clean, dirty color is cleared
         self.api._host.mark_project_saved()
-        result_item = explorer._item_map[result_node.id]
-        self.assertNotEqual(
-            result_item.foreground(0).color().name().lower(),
-            status_color("warning").lower(),
-        )
+        config_item = explorer._item_map[config.config_id]
+        self.assertNotEqual(config_item.foreground(0).color().name().lower(), warning)

@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+from setuav_studio.utilities.mass_balance import resolve_aircraft_mass_properties
+
 from .aerosandbox_results import AeroSandboxResultMixin
 from .base import (
     AeroResult,
@@ -445,15 +447,12 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
     def _resolve_mass_cg(
         components: list[dict[str, Any]],
     ) -> tuple[tuple[float, float, float] | None, str]:
-        """Resolve the aircraft CG from the core Mass-Balance model."""
-        try:
-            from setuav_studio.utilities.mass_balance import resolve_aircraft_mass_properties
+        """Resolve the aircraft CG from the core mass-balance model.
 
-            mass_props = resolve_aircraft_mass_properties(components)
-            if mass_props.mass_kg > 0.0:
-                cg_x, cg_y, cg_z = mass_props.cg_body_m
-                return (float(cg_x), float(cg_y), float(cg_z)), "weight_balance"
+        A massless aircraft has no CG, so the aerodynamic reference point is used instead.
+        """
+        mass_props = resolve_aircraft_mass_properties(components)
+        if mass_props.mass_kg <= 0.0:
             return None, "aerodynamic_reference"
-        except Exception as err:
-            logger.info("Weight-Balance CG unavailable; using aerodynamic reference: %s", err)
-            return None, "aerodynamic_reference"
+        cg_x, cg_y, cg_z = mass_props.cg_body_m
+        return (float(cg_x), float(cg_y), float(cg_z)), "mass_balance"

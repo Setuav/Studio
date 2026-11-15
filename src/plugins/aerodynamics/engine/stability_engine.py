@@ -288,10 +288,10 @@ class StabilityAnalysisEngine:
     ) -> tuple[ElevatorTrim | None, tuple[str, ...]]:
         """Return a linear elevator trim only when its inputs and authority are usable."""
         reasons: list[str] = []
-        if cg_source == "weight_balance_incomplete":
-            reasons.append("Weight-Balance CG excludes components with missing mass")
-        elif cg_source != "weight_balance":
-            reasons.append("CG is unavailable from Weight-Balance")
+        if cg_source == "mass_balance_incomplete":
+            reasons.append("mass-balance CG excludes components with missing mass")
+        elif cg_source != "mass_balance":
+            reasons.append("CG is unavailable from the mass-balance model")
         if not all(math.isfinite(value) for value in cg_xyz):
             reasons.append("CG contains non-finite coordinates")
         if (
