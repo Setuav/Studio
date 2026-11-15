@@ -28,10 +28,11 @@ from ...engine.lifting_surface_sections_engine import (
     split_section,
 )
 from .airfoil_dialog import AirfoilDialog
+from .host import LiftingSurfaceEditorHost
 from .planform_driver_table import DriverPlanformTable
 
 
-class SectionsSectionMixin:
+class SectionsSectionMixin(LiftingSurfaceEditorHost):
     """Parametric lifting surface sections, section-level driver sizing, and section properties."""
 
     # -------------------------------------------------------------------------
@@ -137,7 +138,7 @@ class SectionsSectionMixin:
     def _get_sections(self) -> list[dict[str, Any]]:
         profiles = self._profiles()
         geom = self._geometry()
-        sw_loc = float(geom.get("sweep_location", getattr(self, "_sweep_loc", 0.25)))
+        sw_loc = float(geom.get("sweep_location", self._sweep_loc))
         self._sweep_loc = sw_loc
         return profiles_to_sections(profiles, sw_loc)
 
@@ -228,7 +229,7 @@ class SectionsSectionMixin:
     def _handle_section_property_selection(self, row: int) -> None:
         comp_id = str(self._component.get("id") or "")
         key = self._property_key(self.section_properties_table, row)
-        idx = getattr(self, "_section_index", 0)
+        idx = self._section_index
         if key == "root_airfoil":
             # Highlight specifically the Root Airfoil Station (Station i)
             self._api.set_section_selection((comp_id, 0, idx))
@@ -276,7 +277,7 @@ class SectionsSectionMixin:
             self._set_property_combo(
                 self.section_properties_table,
                 "sweep_loc",
-                str(sec.get("sweep_loc", getattr(self, "_sweep_loc", 0.25))),
+                str(sec.get("sweep_loc", self._sweep_loc)),
                 [(str(val), label) for val, label in SWEEP_LOCATIONS],
                 self._on_section_sweep_loc_changed,
             )
@@ -317,11 +318,7 @@ class SectionsSectionMixin:
         layout.setContentsMargins(4, 1, 4, 1)
         layout.setSpacing(6)
 
-        label_str = (
-            self._format_airfoil_label(airfoil_data)
-            if hasattr(self, "_format_airfoil_label")
-            else str(airfoil_data)
-        )
+        label_str = self._format_airfoil_label(airfoil_data)
         lbl = QLabel(label_str)
         lbl.setToolTip(f"{'Root' if is_root else 'Tip'} Airfoil: {label_str}")
 
@@ -352,9 +349,9 @@ class SectionsSectionMixin:
 
     def _load_airfoil_shaping(self) -> None:
         geom = self._geometry()
-        shaping = (
-            geom.get("airfoil_shaping") if isinstance(geom.get("airfoil_shaping"), dict) else {}
-        )
+        shaping = geom.get("airfoil_shaping")
+        if not isinstance(shaping, dict):
+            shaping = {}
 
         self._set_property_combo(
             self.airfoil_shaping_table,
@@ -421,7 +418,7 @@ class SectionsSectionMixin:
         if not self._apply_section_cell(sections, row, column, val):
             return
 
-        sw_loc = getattr(self, "_sweep_loc", 0.25)
+        sw_loc = self._sweep_loc
         new_profiles = sections_to_profiles(sections, self._profiles()[0], sw_loc)
 
         def change() -> None:
@@ -457,7 +454,7 @@ class SectionsSectionMixin:
     def _on_section_planform_changed(self, new_metrics: dict[str, float]) -> None:
         if self._loading:
             return
-        idx = getattr(self, "_section_index", -1)
+        idx = self._section_index
         if idx < 0:
             return
         sections = self._get_sections()
@@ -474,7 +471,7 @@ class SectionsSectionMixin:
         if idx > 0:
             sections[idx - 1]["tip_chord"] = sec["root_chord"]
 
-        sw_loc = getattr(self, "_sweep_loc", 0.25)
+        sw_loc = self._sweep_loc
         new_profiles = sections_to_profiles(sections, self._profiles()[0], sw_loc)
 
         def change() -> None:
@@ -484,13 +481,12 @@ class SectionsSectionMixin:
         self._populate_sections()
         self.sections_table.selectRow(idx)
         self._refresh_planform_table()
-        if hasattr(self, "_sync_control_surfaces_with_surface"):
-            self._sync_control_surfaces_with_surface()
+        self._sync_control_surfaces_with_surface()
 
     def _on_section_angle_changed(self, key: str, value: float) -> None:
         if self._loading:
             return
-        idx = getattr(self, "_section_index", -1)
+        idx = self._section_index
         if idx < 0:
             return
         sections = self._get_sections()
@@ -498,7 +494,7 @@ class SectionsSectionMixin:
             return
 
         sections[idx][key] = value
-        sw_loc = getattr(self, "_sweep_loc", 0.25)
+        sw_loc = self._sweep_loc
         new_profiles = sections_to_profiles(sections, self._profiles()[0], sw_loc)
 
         def change() -> None:
@@ -512,7 +508,7 @@ class SectionsSectionMixin:
     def _on_section_sweep_loc_changed(self, val_str: str) -> None:
         if self._loading:
             return
-        idx = getattr(self, "_section_index", -1)
+        idx = self._section_index
         if idx < 0:
             return
         sections = self._get_sections()
@@ -524,7 +520,7 @@ class SectionsSectionMixin:
         except ValueError:
             sections[idx]["sweep_loc"] = 0.25
 
-        sw_loc = getattr(self, "_sweep_loc", 0.25)
+        sw_loc = self._sweep_loc
         new_profiles = sections_to_profiles(sections, self._profiles()[0], sw_loc)
 
         def change() -> None:
@@ -536,11 +532,11 @@ class SectionsSectionMixin:
         self._refresh_planform_table()
 
     def _split_section(self) -> None:
-        idx = getattr(self, "_section_index", -1)
+        idx = self._section_index
         if idx < 0:
             return
         profiles = self._profiles()
-        sw_loc = getattr(self, "_sweep_loc", 0.25)
+        sw_loc = self._sweep_loc
         new_profiles = split_section(profiles, idx, sw_loc)
 
         def change() -> None:
@@ -554,7 +550,7 @@ class SectionsSectionMixin:
 
     def _insert_section(self) -> None:
         profiles = self._profiles()
-        sw_loc = getattr(self, "_sweep_loc", 0.25)
+        sw_loc = self._sweep_loc
         new_profiles = insert_section(profiles, sw_loc)
         insert_idx = len(new_profiles) - 2
 
@@ -568,11 +564,11 @@ class SectionsSectionMixin:
         self._refresh_planform_table()
 
     def _delete_section(self) -> None:
-        idx = getattr(self, "_section_index", -1)
+        idx = self._section_index
         if idx < 0:
             return
         profiles = self._profiles()
-        sw_loc = getattr(self, "_sweep_loc", 0.25)
+        sw_loc = self._sweep_loc
         new_profiles = delete_section(profiles, idx, sw_loc)
         new_idx = max(0, min(idx, len(new_profiles) - 2))
 
@@ -586,7 +582,7 @@ class SectionsSectionMixin:
         self._refresh_planform_table()
 
     def _open_section_airfoil_dialog(self, is_root: bool) -> None:
-        idx = getattr(self, "_section_index", -1)
+        idx = self._section_index
         if idx < 0:
             return
         sections = self._get_sections()
@@ -614,7 +610,7 @@ class SectionsSectionMixin:
                 elif key == "root_airfoil" and idx > 0:
                     sections[idx - 1]["tip_airfoil"] = deepcopy(new_af)
 
-            sw_loc = getattr(self, "_sweep_loc", 0.25)
+            sw_loc = self._sweep_loc
             new_profiles = sections_to_profiles(sections, self._profiles()[0], sw_loc)
 
             def change() -> None:

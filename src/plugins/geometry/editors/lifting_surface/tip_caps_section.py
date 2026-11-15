@@ -7,9 +7,10 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QTableWidgetItem
 from shiboken6 import isValid
 
 from ...engine.lifting_surface_geometry import compute_winglet_projected_dimensions
+from .host import LiftingSurfaceEditorHost
 
 
-class TipCapsSectionMixin:
+class TipCapsSectionMixin(LiftingSurfaceEditorHost):
     """End caps / tip treatment configuration handling."""
 
     # -------------------------------------------------------------------------

@@ -35,12 +35,12 @@ from .tip_caps_section import TipCapsSectionMixin
 
 
 class LiftingSurfaceEditor(
-    PropertyTableMixin,
     GeneralSectionMixin,
     PlanformSectionMixin,
     SectionsSectionMixin,
     TipCapsSectionMixin,
     ControlSurfacesSectionMixin,
+    PropertyTableMixin,
     QWidget,
 ):
     """Component property editor for org.setuav.core:lifting-surface."""
@@ -91,14 +91,11 @@ class LiftingSurfaceEditor(
         self._load_component()
 
     def _on_units_changed(self) -> None:
-        if not hasattr(self, "sections_table"):
-            return
         self._populate_sections()
-        if hasattr(self, "_populate_control_surfaces"):
-            self._populate_control_surfaces()
-        if hasattr(self, "_control_surface_index") and self._control_surface_index >= 0:
+        self._populate_control_surfaces()
+        if self._control_surface_index >= 0:
             self._load_control_surface(self._control_surface_index)
-        if hasattr(self, "_section_index") and self._section_index >= 0:
+        if self._section_index >= 0:
             self._load_section(self._section_index)
 
     def closeEvent(self, event: QCloseEvent) -> None:

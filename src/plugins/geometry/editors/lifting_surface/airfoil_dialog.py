@@ -68,15 +68,12 @@ class AirfoilCanvasWidget(QWidget):
         self.update()
 
     def paintEvent(self, _event: Any) -> None:
-        from setuav_studio.ui.style.theme import is_light_theme, tokens
-
         tok = tokens()
-        is_light = is_light_theme()
-        bg_color = QColor(tok.get("elevated", "#ffffff" if is_light else "#1a1a1c"))
-        grid_color = QColor(tok.get("grid", "#e2e4e8" if is_light else "#2d2d35"))
-        chord_color = QColor(tok.get("border_strong", "#b0b4bc" if is_light else "#484852"))
-        text_color = QColor(tok.get("text", "#202020" if is_light else "#e0e0e0"))
-        dim_text = QColor(tok.get("text_dim", "#666666" if is_light else "#888888"))
+        bg_color = QColor(tok.get("elevated", "#1a1a1c"))
+        grid_color = QColor(tok.get("grid", "#2d2d35"))
+        chord_color = QColor(tok.get("border_strong", "#484852"))
+        text_color = QColor(tok.get("text", "#e0e0e0"))
+        dim_text = QColor(tok.get("text_dim", "#888888"))
 
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)

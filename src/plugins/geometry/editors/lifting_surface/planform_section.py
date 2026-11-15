@@ -20,10 +20,11 @@ from ...engine.lifting_surface_planform_engine import (
     set_global_twist,
     solve_planform,
 )
+from .host import LiftingSurfaceEditorHost
 from .planform_driver_table import DriverPlanformTable
 
 
-class PlanformSectionMixin:
+class PlanformSectionMixin(LiftingSurfaceEditorHost):
     """8-Variable 3-Driver Lifting Surface Planform Sizing and Angles/Alignment logic."""
 
     # -------------------------------------------------------------------------
@@ -40,7 +41,7 @@ class PlanformSectionMixin:
             default_drivers=init_drivers,
             on_values_changed=self._on_planform_driver_values_changed,
             on_drivers_changed=self._on_planform_drivers_changed,
-            api=getattr(self, "_api", None),
+            api=self._api,
         )
         layout.addWidget(self.planform_table)
 
@@ -138,7 +139,7 @@ class PlanformSectionMixin:
                 return
 
             geom = self._geometry()
-            sw_loc = float(geom.get("sweep_location", getattr(self, "_sweep_loc", 0.25)))
+            sw_loc = float(geom.get("sweep_location", self._sweep_loc))
             self._sweep_loc = sw_loc
 
             metrics = compute_planform_metrics(
@@ -242,7 +243,7 @@ class PlanformSectionMixin:
         if self._loading:
             return
         profiles = self._profiles()
-        sw_loc = getattr(self, "_sweep_loc", 0.25)
+        sw_loc = self._sweep_loc
         geom = self._geometry()
         metrics = compute_planform_metrics(
             profiles,
@@ -297,7 +298,7 @@ class PlanformSectionMixin:
         self._edit_component(f"Change {key}", change)
         self._populate_sections()
         self._refresh_planform_table()
-        if 0 <= getattr(self, "_section_index", -1) < len(self._get_sections()):
+        if 0 <= self._section_index < len(self._get_sections()):
             self._load_section(self._section_index)
 
     def _on_planform_driver_values_changed(self, new_metrics: dict[str, float]) -> None:
@@ -307,7 +308,7 @@ class PlanformSectionMixin:
         profiles = self._profiles()
         is_sym = self._is_symmetric()
         y_off = self._y_offset()
-        sw_loc = getattr(self, "_sweep_loc", 0.25)
+        sw_loc = self._sweep_loc
 
         metrics = compute_planform_metrics(
             profiles,
@@ -348,13 +349,12 @@ class PlanformSectionMixin:
 
         self._populate_sections()
         self._refresh_planform_table()
-        if 0 <= getattr(self, "_section_index", -1) < len(self._get_sections()):
+        if 0 <= self._section_index < len(self._get_sections()):
             self._load_section(self._section_index)
         elif self._get_sections():
             self._load_section(0)
 
-        if hasattr(self, "_sync_control_surfaces_with_surface"):
-            self._sync_control_surfaces_with_surface()
+        self._sync_control_surfaces_with_surface()
 
     def _on_planform_spinbox_changed(self, key: str, val_num: float) -> None:
         if self._loading:
@@ -406,13 +406,12 @@ class PlanformSectionMixin:
 
     def _update_sections_table_interactivity(self) -> None:
         """Ensure sections table is fully interactive."""
-        table = getattr(self, "sections_table", None)
-        if table is not None:
-            for r in range(table.rowCount()):
-                for c in range(1, table.columnCount()):
-                    try:
-                        item = table.item(r, c)
-                        if item:
-                            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
-                    except RuntimeError:
-                        pass
+        table = self.sections_table
+        for r in range(table.rowCount()):
+            for c in range(1, table.columnCount()):
+                try:
+                    item = table.item(r, c)
+                    if item:
+                        item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
+                except RuntimeError:
+                    pass

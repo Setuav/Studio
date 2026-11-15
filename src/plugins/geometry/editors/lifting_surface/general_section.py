@@ -2,39 +2,11 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    from PySide6.QtWidgets import QTableWidget, QVBoxLayout
-
-    from setuav_studio.api import StudioAPI
+from .host import LiftingSurfaceEditorHost
 
 
-class GeneralSectionMixin:
+class GeneralSectionMixin(LiftingSurfaceEditorHost):
     """General metadata, parent attachment, and bilateral symmetry logic."""
-
-    _api: StudioAPI
-    _component: dict[str, Any]
-    _loading: bool
-    general_table: QTableWidget
-
-    def _create_section(self, title: str, icon_name: str | None = None) -> QVBoxLayout: ...
-    def _property_table(self, rows: list[tuple[str, str]]) -> QTableWidget: ...
-    def _property_key(self, table: QTableWidget, row: int) -> str: ...
-    def _property_text(self, table: QTableWidget, row: int) -> str: ...
-    def _set_property_value(
-        self, table: QTableWidget, key: str, value: str, editable: bool = True
-    ) -> None: ...
-    def _set_property_combo(
-        self,
-        table: QTableWidget,
-        key: str,
-        current_value: str,
-        items: list[tuple[str, str]],
-        on_changed: Any,
-    ) -> None: ...
-    def _edit_component(self, description: str, change_fn: Any) -> None: ...
-    def _geometry(self) -> dict[str, Any]: ...
 
     def _create_general_section(self) -> None:
         layout = self._create_section("General", "fa6s.circle-info")
@@ -88,7 +60,7 @@ class GeneralSectionMixin:
         )
 
     def _update_general(self, row: int, column: int) -> None:
-        if getattr(self, "_loading", False) or column != 1:
+        if self._loading or column != 1:
             return
         key = self._property_key(self.general_table, row)
         val_str = self._property_text(self.general_table, row)
@@ -100,7 +72,7 @@ class GeneralSectionMixin:
         self._edit_component(f"Edit {key}", change)
 
     def _update_mirror(self, is_mirrored: bool) -> None:
-        if getattr(self, "_loading", False):
+        if self._loading:
             return
 
         def change() -> None:
@@ -110,11 +82,10 @@ class GeneralSectionMixin:
                 self._geometry().pop("mirror", None)
 
         self._edit_component("Toggle bilateral lifting surface mirror", change)
-        if hasattr(self, "_refresh_planform_table"):
-            self._refresh_planform_table()
+        self._refresh_planform_table()
 
     def _update_attach_to(self, target_id: str | None) -> None:
-        if getattr(self, "_loading", False):
+        if self._loading:
             return
 
         def change() -> None:

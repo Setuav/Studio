@@ -18,9 +18,10 @@ from setuav_studio.model.expression import get_expression, set_expression
 from setuav_studio.ui.widget.spinbox import evaluate_table_cell_input
 
 from ...engine.control_surface_geometry import sync_sizing_values
+from .host import LiftingSurfaceEditorHost
 
 
-class ControlSurfacesSectionMixin:
+class ControlSurfacesSectionMixin(LiftingSurfaceEditorHost):
     """Control surface listing, properties, and mutation handling."""
 
     CONTROL_SURFACE_TYPES = (
@@ -154,7 +155,7 @@ class ControlSurfacesSectionMixin:
             sync_sizing_values(self._cs_geom(cs), semi_span, root_chord)
 
         self._populate_control_surfaces()
-        if 0 <= getattr(self, "_control_surface_index", -1) < len(cs_list):
+        if 0 <= self._control_surface_index < len(cs_list):
             self._load_control_surface(self._control_surface_index)
 
     # -------------------------------------------------------------------------
@@ -165,29 +166,10 @@ class ControlSurfacesSectionMixin:
         was_loading = self._loading
         self._loading = True
         try:
-            from setuav_studio.units import get_unit_manager
-
-            um = get_unit_manager()
             cs_list = self._control_surfaces()
             self.control_surfaces_table.setRowCount(len(cs_list))
             for row, cs in enumerate(cs_list):
-                geom = self._cs_geom(cs)
-                defl = float(geom.get("deflection", 0.0))
-                disp_defl = um.to_display(defl, "angle")
-                angle_sym = um.get_unit_symbol("angle")
-                defl_str = (
-                    f"{disp_defl:+.1f} {angle_sym}" if abs(disp_defl) > 1e-4 else f"0.0 {angle_sym}"
-                )
-
-                name_label = str(cs.get("name") or cs.get("id") or f"CS_{row + 1}")
-                cs_type = str(geom.get("type") or "aileron").capitalize()
-
-                values = (
-                    name_label,
-                    cs_type,
-                    defl_str,
-                )
-                for column, value in enumerate(values):
+                for column, value in enumerate(self._cs_table_row_values(row, cs)):
                     item = QTableWidgetItem(value)
                     if column in (1, 2):
                         item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
@@ -203,6 +185,19 @@ class ControlSurfacesSectionMixin:
             self._update_cs_actions()
         finally:
             self._loading = was_loading
+
+    def _cs_table_row_values(self, row: int, cs: dict[str, Any]) -> tuple[str, str, str]:
+        """Return the (name, type, deflection) cell texts of a control surface list row."""
+        from setuav_studio.units import get_unit_manager
+
+        um = get_unit_manager()
+        geom = self._cs_geom(cs)
+        disp_defl = um.to_display(float(geom.get("deflection", 0.0)), "angle")
+        angle_sym = um.get_unit_symbol("angle")
+        defl_str = f"{disp_defl:+.1f} {angle_sym}" if abs(disp_defl) > 1e-4 else f"0.0 {angle_sym}"
+        name_label = str(cs.get("name") or cs.get("id") or f"CS_{row + 1}")
+        cs_type = str(geom.get("type") or "aileron").capitalize()
+        return name_label, cs_type, defl_str
 
     def _load_control_surface(self, row: int) -> None:
         cs_list = self._control_surfaces()
@@ -743,38 +738,14 @@ class ControlSurfacesSectionMixin:
         cs_list = self._control_surfaces()
         if not (0 <= row < len(cs_list)):
             return
-        cs = cs_list[row]
-        geom = self._cs_geom(cs)
-        semi_span, root_chord, *_ = self._surface_span_info()
-        s_start = float(geom.get("span_start", 0.0))
-        s_end = float(geom.get("span_end", 0.0))
-        eta_start = float(geom.get("eta_start", round(s_start / semi_span, 3)))
-        eta_end = float(geom.get("eta_end", round(s_end / semi_span, 3)))
-        chord = float(geom.get("chord", 40.0))
-        chord_frac = float(geom.get("chord_fraction", round(chord / root_chord, 2)))
-        defl = float(geom.get("deflection", 0.0))
+        values = self._cs_table_row_values(row, cs_list[row])
         was_loading = self._loading
         self._loading = True
         try:
-            if self.control_surfaces_table.item(row, 0):
-                name_label = str(cs.get("name") or cs.get("id") or f"CS_{row + 1}")
-                self.control_surfaces_table.item(row, 0).setText(name_label)
-            if self.control_surfaces_table.item(row, 1):
-                self.control_surfaces_table.item(row, 1).setText(
-                    str(geom.get("type") or "aileron").capitalize()
-                )
-            if self.control_surfaces_table.item(row, 2):
-                self.control_surfaces_table.item(row, 2).setText(f"{s_start:.1f} - {s_end:.1f}")
-            if self.control_surfaces_table.item(row, 3):
-                self.control_surfaces_table.item(row, 3).setText(f"{eta_start:.2f} - {eta_end:.2f}")
-            if self.control_surfaces_table.item(row, 4):
-                self.control_surfaces_table.item(row, 4).setText(
-                    f"{chord_frac * 100:.0f}% ({chord:.1f} mm)"
-                )
-            if self.control_surfaces_table.item(row, 5):
-                self.control_surfaces_table.item(row, 5).setText(
-                    f"{defl:+.1f}°" if defl != 0.0 else "0.0°"
-                )
+            for column, value in enumerate(values):
+                item = self.control_surfaces_table.item(row, column)
+                if item is not None:
+                    item.setText(value)
         finally:
             self._loading = was_loading
 
