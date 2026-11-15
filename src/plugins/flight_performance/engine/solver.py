@@ -8,12 +8,9 @@ from collections.abc import Callable, Sequence
 from typing import Any
 
 import numpy as np
-from pythrust.propellers.database import PropellerEntry
-from pythrust.propulsion.models.motor import MotorSpec
-from pythrust.propulsion.models.propeller import PropellerSpec
 from scipy.optimize import root_scalar
 
-from plugins.electrical_propulsion.engine.solver import PropulsionSolverEngine
+from plugins.electrical_propulsion.powertrain import Powertrain, PowertrainPoint
 
 from .analysis_pipeline import FlightPerformanceAnalysisPipeline
 from .models import FlightEnvelopeResult
@@ -204,15 +201,12 @@ class FlightPerformanceSolver:
     def solve_propulsion_for_thrust(
         cls,
         *,
-        motor_spec: MotorSpec,
-        prop_spec: PropellerSpec,
-        prop_entry: PropellerEntry,
-        total_voltage: float,
+        powertrain: Powertrain,
         rho: float,
         v_mps: float,
         thrust_req: float,
     ) -> tuple[float, float, float, bool]:
-        """Find throttle and electrical power needed to match thrust_req at v_mps."""
+        """Find throttle (%), battery power and current needed to match thrust_req at v_mps."""
         if thrust_req <= 0.0:
             return 0.0, 0.0, 0.0, True
 
@@ -220,104 +214,55 @@ class FlightPerformanceSolver:
         # requested thrust is achievable at a lower throttle. Find the
         # highest current-safe throttle first and solve only inside that
         # operating range.
-        safe_max_throttle = cls._safe_max_throttle(
-            motor_spec=motor_spec,
-            prop_spec=prop_spec,
-            prop_entry=prop_entry,
-            total_voltage=total_voltage,
-            rho=rho,
-            v_mps=v_mps,
-        )
+        safe_max_throttle = cls._safe_max_throttle(powertrain=powertrain, rho=rho, v_mps=v_mps)
         if safe_max_throttle <= 0.0:
             return 0.0, 0.0, 0.0, False
 
-        pt_limit = PropulsionSolverEngine.solve_point(
-            motor_spec=motor_spec,
-            prop_spec=prop_spec,
-            prop_entry=prop_entry,
-            total_voltage=total_voltage,
-            rho=rho,
-            v_mps=v_mps,
-            throttle_val=safe_max_throttle,
-            x_val=v_mps,
+        def point(throttle: float) -> PowertrainPoint:
+            return powertrain.solve(rho=rho, airspeed_mps=v_mps, throttle=throttle)
+
+        pt_limit = point(safe_max_throttle)
+        if pt_limit.thrust_n < thrust_req:
+            return (
+                safe_max_throttle * 100.0,
+                pt_limit.battery_power_w,
+                pt_limit.battery_current_a,
+                False,
+            )
+
+        if point(0.0).thrust_n >= thrust_req:
+            thr_solved = 0.0
+        else:
+            res_root = root_scalar(
+                lambda thr: point(thr).thrust_n - thrust_req,
+                bracket=[0.0, safe_max_throttle],
+                method="brentq",
+            )
+            thr_solved = float(res_root.root)
+        pt_solved = point(thr_solved)
+        feasible = pt_solved.battery_current_a <= powertrain.current_limit_a
+        return (
+            thr_solved * 100.0,
+            pt_solved.battery_power_w,
+            pt_solved.battery_current_a,
+            feasible,
         )
-        if pt_limit.thrust < thrust_req:
-            return safe_max_throttle * 100.0, pt_limit.power, pt_limit.current, False
-
-        def f_thr(thr: float) -> float:
-            pt = PropulsionSolverEngine.solve_point(
-                motor_spec=motor_spec,
-                prop_spec=prop_spec,
-                prop_entry=prop_entry,
-                total_voltage=total_voltage,
-                rho=rho,
-                v_mps=v_mps,
-                throttle_val=thr,
-                x_val=v_mps,
-            )
-            return pt.thrust - thrust_req
-
-        try:
-            low_throttle = 0.0
-            low_thrust = f_thr(low_throttle)
-            if low_thrust >= 0.0:
-                thr_solved = low_throttle
-            else:
-                res_root = root_scalar(
-                    f_thr,
-                    bracket=[low_throttle, safe_max_throttle],
-                    method="brentq",
-                )
-                thr_solved = float(res_root.root)
-            pt_solved = PropulsionSolverEngine.solve_point(
-                motor_spec=motor_spec,
-                prop_spec=prop_spec,
-                prop_entry=prop_entry,
-                total_voltage=total_voltage,
-                rho=rho,
-                v_mps=v_mps,
-                throttle_val=thr_solved,
-                x_val=v_mps,
-            )
-            feasible = pt_solved.current <= motor_spec.current_max_a
-            return thr_solved * 100.0, pt_solved.power, pt_solved.current, feasible
-        except Exception as exc:
-            logger.debug("Throttle root solving failed at v=%.1f m/s (%s)", v_mps, exc)
-            return safe_max_throttle * 100.0, pt_limit.power, pt_limit.current, False
 
     @staticmethod
-    def _safe_max_throttle(
-        *,
-        motor_spec: MotorSpec,
-        prop_spec: PropellerSpec,
-        prop_entry: PropellerEntry,
-        total_voltage: float,
-        rho: float,
-        v_mps: float,
-    ) -> float:
-        """Return the highest throttle that stays within the motor limit."""
-        current_limit = float(motor_spec.current_max_a)
-        if current_limit <= 0.0 or total_voltage <= 0.0:
+    def _safe_max_throttle(*, powertrain: Powertrain, rho: float, v_mps: float) -> float:
+        """Return the highest throttle that keeps every motor within its current limit."""
+        current_limit = powertrain.current_limit_a
+        if current_limit <= 0.0 or powertrain.battery.voltage_v <= 0.0:
             return 0.0
 
-        def point(throttle: float):
-            return PropulsionSolverEngine.solve_point(
-                motor_spec=motor_spec,
-                prop_spec=prop_spec,
-                prop_entry=prop_entry,
-                total_voltage=total_voltage,
-                rho=rho,
-                v_mps=v_mps,
-                throttle_val=throttle,
-                x_val=v_mps,
-            )
+        def current(throttle: float) -> float:
+            return powertrain.solve(
+                rho=rho, airspeed_mps=v_mps, throttle=throttle
+            ).battery_current_a
 
-        low_point = point(0.0)
-        if low_point.current > current_limit:
+        if current(0.0) > current_limit:
             return 0.0
-
-        high_point = point(1.0)
-        if high_point.current <= current_limit:
+        if current(1.0) <= current_limit:
             return 1.0
 
         # Current is monotonic with throttle for the motor model. A bounded
@@ -325,7 +270,7 @@ class FlightPerformanceSolver:
         low, high = 0.0, 1.0
         for _ in range(32):
             mid = (low + high) * 0.5
-            if point(mid).current <= current_limit:
+            if current(mid) <= current_limit:
                 low = mid
             else:
                 high = mid

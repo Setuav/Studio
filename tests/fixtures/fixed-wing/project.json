@@ -2652,9 +2652,10 @@
         "rotation_direction": "ccw"
       },
       "manufacturer": "APC",
-      "model": "12x6E",
+      "model": "12x6",
       "mass": 28.0,
-      "parent": "motor-cruise"
+      "parent": "motor-cruise",
+      "catalog_id": "APC_12x6"
     },
     {
       "kind": "component",

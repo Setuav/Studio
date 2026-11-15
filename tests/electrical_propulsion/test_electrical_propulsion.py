@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+from copy import deepcopy
 from typing import Any
 from unittest.mock import patch
 
@@ -456,40 +457,89 @@ class TestElectricalPropulsion(unittest.TestCase):
             if env is not None:
                 os.environ["PYTHRUST_DATA_DIR"] = env
 
-    def test_propulsion_solver_engine_calculation(self) -> None:
-        from pythrust.propulsion.models.motor import MotorSpec
-        from pythrust.propulsion.models.propeller import PropellerSpec
+    @staticmethod
+    def _fixture_components() -> list[dict[str, Any]]:
+        doc = open_project(TEST_PROJECT_PATH)
+        return [c for c in doc.data["components"] if isinstance(c, dict)]
 
-        from plugins.electrical_propulsion.engine import (
-            PropulsionPoint,
-            PropulsionSolverEngine,
+    def test_powertrain_solves_fixture_propulsion_system(self) -> None:
+        from plugins.electrical_propulsion.powertrain import (
+            build_powertrain,
+            find_propulsion_system,
         )
 
-        motor_spec = MotorSpec(
-            kv_rpm_per_v=900.0, resistance_ohm=0.035, no_load_current_a=1.2, current_max_a=45.0
-        )
-        prop_spec = PropellerSpec(diameter_m=0.3302, pitch_m=0.1651, blade_count=2)
-        prop_entry = PropulsionSolverEngine.synthetic_propeller(13.0, 6.5, 2)
-        self.assertEqual(prop_entry.metadata.manufacturer, "Synthetic")
-        self.assertEqual(prop_entry.metadata.blade_count, 2)
+        members = find_propulsion_system(self._fixture_components())
+        assert members is not None
+        powertrain = build_powertrain(members)
 
-        pt = PropulsionSolverEngine.solve_point(
-            motor_spec=motor_spec,
-            prop_spec=prop_spec,
-            prop_entry=prop_entry,
-            total_voltage=22.2,
-            rho=1.225,
-            v_mps=15.0,
-            throttle_val=1.0,
-            x_val=15.0,
+        self.assertEqual(powertrain.unit_count, 1)
+        self.assertEqual(powertrain.propeller_data.metadata.id, "APC_12x6")
+        point = powertrain.solve(rho=1.225, airspeed_mps=15.0, throttle=1.0)
+        self.assertGreater(point.rpm, 1000.0)
+        self.assertGreater(point.thrust_n, 0.0)
+        self.assertGreater(point.battery_current_a, 0.0)
+        self.assertTrue(0.0 <= point.system_efficiency <= 1.0)
+
+    def test_powertrain_scales_totals_with_identical_motor_units(self) -> None:
+        from plugins.electrical_propulsion.powertrain import (
+            build_powertrain,
+            find_propulsion_system,
         )
 
-        self.assertIsInstance(pt, PropulsionPoint)
-        self.assertGreater(pt.rpm, 1000.0)
-        self.assertGreater(pt.thrust, 0.0)
-        self.assertGreater(pt.power, 0.0)
-        self.assertGreater(pt.current, 0.0)
-        self.assertTrue(0.0 <= pt.eta_sys <= 1.0)
+        components = self._fixture_components()
+        single_members = find_propulsion_system(components)
+        assert single_members is not None
+        single = build_powertrain(single_members)
+
+        motor = next(c for c in components if c["id"] == "motor-cruise")
+        propeller = next(c for c in components if c["id"] == "propeller-cruise")
+        second_motor = {**deepcopy(motor), "id": "motor-2"}
+        second_propeller = {**deepcopy(propeller), "id": "propeller-2", "parent": "motor-2"}
+        twin_members = find_propulsion_system([*components, second_motor, second_propeller])
+        assert twin_members is not None
+        twin = build_powertrain(twin_members)
+
+        self.assertEqual(twin.unit_count, 2)
+        self.assertAlmostEqual(twin.current_limit_a, 2.0 * single.current_limit_a)
+        one = single.solve(rho=1.225, airspeed_mps=15.0, throttle=0.8)
+        two = twin.solve(rho=1.225, airspeed_mps=15.0, throttle=0.8)
+        self.assertAlmostEqual(two.rpm, one.rpm)
+        self.assertAlmostEqual(two.thrust_n, 2.0 * one.thrust_n)
+        self.assertAlmostEqual(two.battery_current_a, 2.0 * one.battery_current_a)
+        self.assertAlmostEqual(two.battery_power_w, 2.0 * one.battery_power_w)
+
+    def test_powertrain_rejects_unanalysable_systems(self) -> None:
+        from plugins.electrical_propulsion.powertrain import (
+            PowertrainError,
+            build_powertrain,
+            find_propulsion_system,
+        )
+
+        components = self._fixture_components()
+        propeller = next(c for c in components if c["id"] == "propeller-cruise")
+        motor = next(c for c in components if c["id"] == "motor-cruise")
+
+        unlinked = [c for c in components if c is not propeller]
+        unlinked.append({k: v for k, v in propeller.items() if k != "catalog_id"})
+        members = find_propulsion_system(unlinked)
+        assert members is not None
+        with self.assertRaisesRegex(PowertrainError, "not linked to catalog data"):
+            build_powertrain(members)
+
+        other_motor = deepcopy(motor)
+        other_motor["id"] = "motor-2"
+        other_motor["parameters"]["kv"] = 1200.0
+        other_propeller = {**deepcopy(propeller), "id": "propeller-2", "parent": "motor-2"}
+        members = find_propulsion_system([*components, other_motor, other_propeller])
+        assert members is not None
+        with self.assertRaisesRegex(PowertrainError, "identical motor and propeller units"):
+            build_powertrain(members)
+
+        bare_motor = {**deepcopy(motor), "id": "motor-2"}
+        members = find_propulsion_system([*components, bare_motor])
+        assert members is not None
+        with self.assertRaisesRegex(PowertrainError, "exactly one propeller"):
+            build_powertrain(members)
 
     def test_propulsion_results_convert_to_display_units(self) -> None:
         from plugins.electrical_propulsion.solver import (

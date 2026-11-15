@@ -12,11 +12,11 @@ from unittest.mock import patch
 
 import numpy as np
 from PySide6.QtCore import QThreadPool
-from pythrust.propulsion.models.motor import MotorSpec
-from pythrust.propulsion.models.propeller import PropellerSpec
+from pythrust.propulsion.models import BatterySpec, MotorSpec, PropellerSpec, SystemSpec
 
-from plugins.electrical_propulsion.engine.solver import PropulsionSolverEngine
+from plugins.electrical_propulsion.database import get_propeller_database
 from plugins.electrical_propulsion.plugin import ElectricalPropulsionPlugin
+from plugins.electrical_propulsion.powertrain import Powertrain
 from plugins.flight_performance.analysis_store import (
     get_stored_performance_result,
     store_performance_result,
@@ -34,6 +34,22 @@ from setuav_studio.api import StudioAPI, StudioEvents
 from setuav_studio.plugin import PluginManager
 from setuav_studio.project import open_project
 from tests._common import TEST_PROJECT_PATH, get_qapp
+
+
+def _powertrain(voltage_v: float, capacity_mah: float, unit_count: int = 1) -> Powertrain:
+    propeller_data = get_propeller_database().get("APC_13x6.5E")
+    assert propeller_data is not None
+    return Powertrain(
+        motor=MotorSpec(
+            kv_rpm_per_v=900.0, resistance_ohm=0.035, no_load_current_a=1.2, current_max_a=45.0
+        ),
+        propeller=PropellerSpec(diameter_m=0.3302, pitch_m=0.1651, blade_count=2),
+        propeller_data=propeller_data,
+        battery=BatterySpec(voltage_v=voltage_v, discharge_efficiency=0.98),
+        unit_system=SystemSpec(resistance_ohm=0.005),
+        capacity_mah=capacity_mah,
+        unit_count=unit_count,
+    )
 
 
 class TestFlightPerformance(unittest.TestCase):
@@ -183,12 +199,6 @@ class TestFlightPerformance(unittest.TestCase):
         self.assertAlmostEqual(speed, 16.67, places=2)
 
     def test_solver_full_analysis(self) -> None:
-        motor_spec = MotorSpec(
-            kv_rpm_per_v=900.0, resistance_ohm=0.035, no_load_current_a=1.2, current_max_a=45.0
-        )
-        prop_spec = PropellerSpec(diameter_m=0.3302, pitch_m=0.1651, blade_count=2)
-        prop_entry = PropulsionSolverEngine.synthetic_propeller(13.0, 6.5, 2)
-
         context = {
             "mass_kg": 2.5,
             "area_m2": 0.6,
@@ -199,11 +209,7 @@ class TestFlightPerformance(unittest.TestCase):
             "v_max": 30.0,
             "v_step": 1.0,
             "stall_margin": 1.15,
-            "motor_spec": motor_spec,
-            "prop_spec": prop_spec,
-            "prop_entry": prop_entry,
-            "battery_capacity_mah": 5000.0,
-            "battery_voltage": 22.2,
+            "powertrain": _powertrain(22.2, 5000.0),
             "usable_battery_ratio": 0.85,
         }
 
@@ -221,28 +227,28 @@ class TestFlightPerformance(unittest.TestCase):
 
     def test_solver_limits_throttle_by_motor_current(self) -> None:
         """A current-limited motor may still solve a lower-throttle thrust point."""
-        motor_spec = MotorSpec(
-            kv_rpm_per_v=900.0,
-            resistance_ohm=0.035,
-            no_load_current_a=1.2,
-            current_max_a=45.0,
-        )
-        prop_spec = PropellerSpec(diameter_m=0.3302, pitch_m=0.1651, blade_count=2)
-        prop_entry = PropulsionSolverEngine.synthetic_propeller(13.0, 6.5, 2)
-
+        powertrain = _powertrain(22.2, 5000.0)
         throttle, _power, current, feasible = FlightPerformanceSolver.solve_propulsion_for_thrust(
-            motor_spec=motor_spec,
-            prop_spec=prop_spec,
-            prop_entry=prop_entry,
-            total_voltage=22.2,
-            rho=1.225,
-            v_mps=10.0,
-            thrust_req=2.0,
+            powertrain=powertrain, rho=1.225, v_mps=10.0, thrust_req=2.0
         )
 
         self.assertTrue(feasible)
         self.assertLess(throttle, 100.0)
-        self.assertLessEqual(current, motor_spec.current_max_a)
+        self.assertLessEqual(current, powertrain.current_limit_a)
+
+    def test_twin_motor_needs_less_throttle_for_the_same_thrust(self) -> None:
+        single = _powertrain(22.2, 5000.0)
+        twin = _powertrain(22.2, 5000.0, unit_count=2)
+        thr_single, _, cur_single, _ = FlightPerformanceSolver.solve_propulsion_for_thrust(
+            powertrain=single, rho=1.225, v_mps=12.0, thrust_req=6.0
+        )
+        thr_twin, _, cur_twin, feasible = FlightPerformanceSolver.solve_propulsion_for_thrust(
+            powertrain=twin, rho=1.225, v_mps=12.0, thrust_req=6.0
+        )
+
+        self.assertTrue(feasible)
+        self.assertLess(thr_twin, thr_single)
+        self.assertLess(cur_twin, 2.0 * cur_single)
 
     def test_solver_without_propulsion_does_not_fabricate_values(self) -> None:
         result = FlightPerformanceSolver.run_analysis(
@@ -283,12 +289,6 @@ class TestFlightPerformance(unittest.TestCase):
     def test_controls_dock_runs_analysis_as_background_task(self) -> None:
         from plugins.flight_performance.controls_dock import PerformanceControlsDock
 
-        motor_spec = MotorSpec(
-            kv_rpm_per_v=900.0, resistance_ohm=0.035, no_load_current_a=1.2, current_max_a=45.0
-        )
-        prop_spec = PropellerSpec(diameter_m=0.3302, pitch_m=0.1651, blade_count=2)
-        prop_entry = PropulsionSolverEngine.synthetic_propeller(13.0, 6.5, 2)
-
         context = {
             "mass_kg": 2.0,
             "area_m2": 0.5,
@@ -298,11 +298,7 @@ class TestFlightPerformance(unittest.TestCase):
             "v_min": 8.0,
             "v_max": 25.0,
             "v_step": 1.0,
-            "motor_spec": motor_spec,
-            "prop_spec": prop_spec,
-            "prop_entry": prop_entry,
-            "battery_capacity_mah": 4000.0,
-            "battery_voltage": 14.8,
+            "powertrain": _powertrain(14.8, 4000.0),
         }
 
         api = StudioAPI()

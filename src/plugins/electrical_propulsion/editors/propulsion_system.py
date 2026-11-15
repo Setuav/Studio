@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from plugins.electrical_propulsion.powertrain import propulsion_system_members
 from setuav_studio.api import StudioAPI
 from setuav_studio.ui.style.icons import set_label_icon
 from setuav_studio.ui.widget.table import PropertyTableMixin
@@ -133,60 +134,17 @@ class PropulsionSystemEditor(PropertyTableMixin, QWidget):
                 else []
             )
 
-            # Check explicit members and parent-based children
-            members = (
-                self._component.get("members", {}) if isinstance(self._component, dict) else {}
-            )
-            prop_id = str(self._component.get("id") or "propulsion")
-
-            def get_comp_by_id_or_parent(
-                role_key: str, type_names: set[str]
-            ) -> list[dict[str, Any]]:
-                # 1. Check explicit member references if available
-                explicit_ids = members.get(role_key)
-                if explicit_ids:
-                    if isinstance(explicit_ids, str):
-                        explicit_ids = [explicit_ids]
-                    matched = [c for c in components if c.get("id") in explicit_ids]
-                    if matched:
-                        return matched
-                # 2. Check parent == propulsion
-                children = [
-                    c
-                    for c in components
-                    if c.get("type") in type_names
-                    and (c.get("parent") == prop_id or not c.get("parent"))
-                ]
-                if children:
-                    return children
-                # 3. Fallback: all matching types in project
-                return [c for c in components if c.get("type") in type_names]
-
-            batteries = get_comp_by_id_or_parent("battery", {"org.setuav.core:battery"})
-            escs = get_comp_by_id_or_parent("controllers", {"org.setuav.core:esc"})
-            motors = get_comp_by_id_or_parent("motors", {"org.setuav.core:motor"})
-            props = get_comp_by_id_or_parent(
-                "propulsors", {"org.setuav.core:propeller", "org.setuav.core:rotor"}
-            )
+            members = propulsion_system_members(self._component, components)
+            batteries = list(members.batteries)
+            escs = list(members.escs)
+            motors = list(members.motors)
+            props = list(members.propulsors)
 
             # Format structure rows
             bat_desc = ", ".join(str(b.get("name") or b.get("id")) for b in batteries) or "-"
             esc_desc = ", ".join(str(e.get("name") or e.get("id")) for e in escs) or "-"
             mot_desc = ", ".join(str(m.get("name") or m.get("id")) for m in motors) or "-"
             prp_desc = ", ".join(str(p.get("name") or p.get("id")) for p in props) or "-"
-
-            # When explicit single IDs are present in members or tests, use first id
-            if members.get("battery"):
-                bat_desc = str(members.get("battery"))
-            if members.get("controllers"):
-                ctrls = members.get("controllers")
-                esc_desc = str(ctrls[0] if isinstance(ctrls, list) and ctrls else ctrls)
-            if members.get("motors"):
-                mots = members.get("motors")
-                mot_desc = str(mots[0] if isinstance(mots, list) and mots else mots)
-            if members.get("propulsors"):
-                prps = members.get("propulsors")
-                prp_desc = str(prps[0] if isinstance(prps, list) and prps else prps)
 
             self._set_property_value(self.structure_table, "battery", bat_desc, editable=False)
             self._set_property_value(self.structure_table, "controller", esc_desc, editable=False)

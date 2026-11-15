@@ -9,16 +9,13 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
-from pythrust.propellers.database import PropellerEntry
-from pythrust.propulsion.models.motor import MotorSpec
-from pythrust.propulsion.models.propeller import PropellerSpec
 
 from plugins.aerodynamics.engine.aerosandbox_engine import (
     AeroSandboxEngine,
     AnalysisMethod,
     FlightCondition,
 )
-from plugins.electrical_propulsion.engine.solver import PropulsionSolverEngine
+from plugins.electrical_propulsion.powertrain import Powertrain
 
 from .analysis_results import FlightPerformanceResultBuilder
 from .models import FlightEnvelopeResult
@@ -44,9 +41,7 @@ class _AnalysisInputs:
     battery_capacity_ah: float | None
     battery_voltage: float | None
     usable_battery_ratio: float
-    motor_spec: MotorSpec | None
-    prop_spec: PropellerSpec | None
-    prop_entry: PropellerEntry | None
+    powertrain: Powertrain | None
     components: Any
     polar_cl: Any
     polar_cd: Any
@@ -125,8 +120,7 @@ class FlightPerformanceAnalysisPipeline:
 
     def _resolve_inputs(self) -> _AnalysisInputs:
         context = self.context
-        capacity_mah = context.get("battery_capacity_mah")
-        voltage = context.get("battery_voltage")
+        powertrain: Powertrain | None = context.get("powertrain")
         return _AnalysisInputs(
             context=context,
             mass_kg=self._resolve_mass(context),
@@ -139,14 +133,10 @@ class FlightPerformanceAnalysisPipeline:
             v_max=float(context.get("v_max", 35.0)),
             v_step=float(context.get("v_step", 0.25)),
             stall_margin=float(context.get("stall_margin", 1.15)),
-            battery_capacity_ah=(
-                float(capacity_mah) / 1000.0 if capacity_mah is not None else None
-            ),
-            battery_voltage=float(voltage) if voltage is not None else None,
+            battery_capacity_ah=powertrain.capacity_mah / 1000.0 if powertrain else None,
+            battery_voltage=powertrain.battery.voltage_v if powertrain else None,
             usable_battery_ratio=float(context.get("usable_battery_ratio", 0.85)),
-            motor_spec=context.get("motor_spec"),
-            prop_spec=context.get("prop_spec"),
-            prop_entry=context.get("prop_entry"),
+            powertrain=powertrain,
             components=context.get("components"),
             polar_cl=context.get("polar_cl"),
             polar_cd=context.get("polar_cd"),
@@ -390,21 +380,7 @@ class FlightPerformanceAnalysisPipeline:
 
     @staticmethod
     def _has_propulsion(inputs: _AnalysisInputs) -> bool:
-        motor = inputs.motor_spec
-        propeller = inputs.prop_spec
-        pitch = propeller.pitch_m if propeller else None
-        return bool(
-            motor is not None
-            and propeller is not None
-            and inputs.prop_entry is not None
-            and inputs.battery_voltage is not None
-            and inputs.battery_voltage > 0.0
-            and motor.kv_rpm_per_v > 0.0
-            and motor.current_max_a > 0.0
-            and propeller.diameter_m > 0.0
-            and pitch is not None
-            and pitch > 0.0
-        )
+        return inputs.powertrain is not None
 
     def _solve_propulsion_point(
         self,
@@ -419,39 +395,19 @@ class FlightPerformanceAnalysisPipeline:
         throttle: np.ndarray,
         feasible: np.ndarray,
     ) -> None:
-        motor = inputs.motor_spec
-        propeller = inputs.prop_spec
-        entry = inputs.prop_entry
-        voltage = inputs.battery_voltage
-        if motor is None or propeller is None or entry is None or voltage is None:
+        powertrain = inputs.powertrain
+        if powertrain is None:
             return
         safe_throttle = self.solver._safe_max_throttle(
-            motor_spec=motor,
-            prop_spec=propeller,
-            prop_entry=entry,
-            total_voltage=voltage,
-            rho=inputs.rho,
-            v_mps=velocity,
+            powertrain=powertrain, rho=inputs.rho, v_mps=velocity
         )
         if safe_throttle > 0.0:
-            maximum = PropulsionSolverEngine.solve_point(
-                motor_spec=motor,
-                prop_spec=propeller,
-                prop_entry=entry,
-                total_voltage=voltage,
-                rho=inputs.rho,
-                v_mps=velocity,
-                throttle_val=safe_throttle,
-                x_val=velocity,
-            )
-            thrust[index] = maximum.thrust
-            power[index] = maximum.thrust * velocity
+            maximum = powertrain.solve(rho=inputs.rho, airspeed_mps=velocity, throttle=safe_throttle)
+            thrust[index] = maximum.thrust_n
+            power[index] = maximum.thrust_n * velocity
         required_throttle, electric_power, amperage, point_feasible = (
             self.solver.solve_propulsion_for_thrust(
-                motor_spec=motor,
-                prop_spec=propeller,
-                prop_entry=entry,
-                total_voltage=voltage,
+                powertrain=powertrain,
                 rho=inputs.rho,
                 v_mps=velocity,
                 thrust_req=drag_required,
@@ -464,14 +420,16 @@ class FlightPerformanceAnalysisPipeline:
 
     @staticmethod
     def _propulsion_summary(inputs: _AnalysisInputs, available: bool) -> dict[str, Any]:
-        motor = inputs.motor_spec
-        propeller = inputs.prop_spec
-        pitch = propeller.pitch_m if propeller else None
+        powertrain = inputs.powertrain
+        if powertrain is None:
+            return {"has_propulsion": available}
+        pitch = powertrain.propeller.pitch_m
         return {
             "has_propulsion": available,
-            "motor_kv": motor.kv_rpm_per_v if motor else None,
-            "motor_max_current": motor.current_max_a if motor else None,
-            "prop_diameter_in": propeller.diameter_m / 0.0254 if propeller else None,
+            "motor_count": powertrain.unit_count,
+            "motor_kv": powertrain.motor.kv_rpm_per_v,
+            "motor_max_current": powertrain.motor.current_max_a,
+            "prop_diameter_in": powertrain.propeller.diameter_m / 0.0254,
             "prop_pitch_in": pitch / 0.0254 if pitch is not None else None,
             "battery_voltage": inputs.battery_voltage,
             "battery_capacity_ah": inputs.battery_capacity_ah,

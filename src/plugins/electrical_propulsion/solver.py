@@ -6,18 +6,13 @@ import logging
 import math
 from typing import Any, ClassVar
 
-from pythrust.propellers.database import PropellerEntry
-from pythrust.propulsion.models import (
-    BatterySpec,
-    MotorSpec,
-    OperatingPoint,
-    PropellerSpec,
-    SystemSpec,
+from plugins.electrical_propulsion.powertrain import (
+    Powertrain,
+    PowertrainError,
+    PowertrainPoint,
+    build_powertrain,
+    find_propulsion_system,
 )
-from pythrust.propulsion.solver import PropulsionSolver
-
-from plugins.electrical_propulsion.database import get_propeller_database
-from plugins.electrical_propulsion.engine import PropulsionSolverEngine
 from setuav_studio.api import ParameterField
 from setuav_studio.solver.base import AbstractSolver, SolverConfig, SolverStatus
 from setuav_studio.solver.results import (
@@ -54,128 +49,24 @@ class BasePropulsionSolver(AbstractSolver):
     def __init__(self, config: SolverConfig, project: Any | None = None) -> None:
         super().__init__(config, project)
 
-    def _resolve_powertrain(
-        self,
-    ) -> tuple[MotorSpec, PropellerSpec, PropellerEntry, BatterySpec, SystemSpec, float]:
+    def _powertrain(self) -> Powertrain:
         project = self.project
         if project is None and self.api is not None:
             project = self.api.project
-
         if project is None:
             raise RuntimeError("No active project available for propulsion analysis.")
-
-        components = project.data.get("components", [])
-        if not isinstance(components, list):
-            raise RuntimeError("Project components collection is invalid.")
-
-        motor_comp = next(
-            (
-                c
-                for c in components
-                if isinstance(c, dict) and c.get("type") == "org.setuav.core:motor"
-            ),
-            None,
-        )
-        prop_comp = next(
-            (
-                c
-                for c in components
-                if isinstance(c, dict)
-                and c.get("type") in ("org.setuav.core:propeller", "org.setuav.core:rotor")
-            ),
-            None,
-        )
-        battery_comp = next(
-            (
-                c
-                for c in components
-                if isinstance(c, dict) and c.get("type") == "org.setuav.core:battery"
-            ),
-            None,
-        )
-        esc_comp = next(
-            (
-                c
-                for c in components
-                if isinstance(c, dict) and c.get("type") == "org.setuav.core:esc"
-            ),
-            None,
-        )
-
-        missing: list[str] = []
-        if motor_comp is None:
-            missing.append("Electric Motor")
-        if prop_comp is None:
-            missing.append("Propeller")
-        if battery_comp is None:
-            missing.append("Battery")
-        if missing:
-            raise RuntimeError(f"Propulsion analysis requires: {', '.join(missing)}.")
-
-        assert motor_comp is not None
-        assert prop_comp is not None
-        assert battery_comp is not None
-
-        motor_params = motor_comp.get("parameters", {})
-        kv = float(motor_params.get("kv", 900.0))
-        rm = float(motor_params.get("resistance", 0.055))
-        i0 = float(motor_params.get("no_load_current", 1.1))
-        imax = float(motor_params.get("max_current", 40.0))
-        motor_spec = MotorSpec(
-            kv_rpm_per_v=kv,
-            resistance_ohm=rm,
-            no_load_current_a=i0,
-            current_max_a=imax,
-        )
-
-        prop_params = prop_comp.get("parameters", {})
-        diameter_mm = float(prop_params.get("diameter", 330.0))
-        pitch_mm = float(prop_params.get("pitch", 165.0))
-        blade_count = int(prop_params.get("blade_count", 2))
-        d_m = diameter_mm / 1000.0
-        p_m = pitch_mm / 1000.0
-        d_in = d_m / 0.0254
-        p_in = p_m / 0.0254
-        prop_spec = PropellerSpec(diameter_m=d_m, blade_count=blade_count, pitch_m=p_m)
-
-        prop_db = get_propeller_database()
-        prop_entry: PropellerEntry | None = None
-        model_id = str(prop_comp.get("model") or "")
-        if model_id:
-            prop_entry = prop_db.get(model_id)
-
-        if prop_entry is None:
-            prop_entry = prop_db.find_by_size(
-                diameter_in=d_in, pitch_in=p_in, blade_count=blade_count, tolerance=1.5
-            )
-
-        if prop_entry is None:
-            prop_entry = PropulsionSolverEngine.synthetic_propeller(d_in, p_in, blade_count)
-
-        battery_params = battery_comp.get("parameters", {})
-        cell_count = int(battery_params.get("cell_count", 6))
-        cell_v = float(battery_params.get("cell_voltage", 3.7))
-        v_nom = float(
-            battery_params.get(
-                "nominal_voltage", battery_params.get("voltage", cell_count * cell_v)
-            )
-        )
-        capacity_mah = float(battery_params.get("capacity", 5000.0))
-        battery_spec = BatterySpec(voltage_v=v_nom, discharge_efficiency=0.98)
-
-        esc_params = esc_comp.get("parameters", {}) if esc_comp is not None else {}
-        esc_r = float(esc_params.get("resistance", 0.005))
-        system_spec = SystemSpec(resistance_ohm=esc_r)
-
-        return motor_spec, prop_spec, prop_entry, battery_spec, system_spec, capacity_mah
+        components = [c for c in project.data.get("components", []) if isinstance(c, dict)]
+        members = find_propulsion_system(components)
+        if members is None:
+            raise PowertrainError("Propulsion analysis requires an electrical propulsion system.")
+        return build_powertrain(members)
 
     def _build_result(
         self,
         plot_x_col: str,
         plot_x_label: str,
-        points_data: list[tuple[float, OperatingPoint]],
-        v_nom: float,
-        capacity_mah: float,
+        points_data: list[tuple[float, PowertrainPoint]],
+        powertrain: Powertrain,
     ) -> SolverResult:
         x_vals = [p[0] for p in points_data]
         rpms = [round(p[1].rpm, 1) for p in points_data]
@@ -187,7 +78,7 @@ class BasePropulsionSolver(AbstractSolver):
         sys_effs = [round(p[1].system_efficiency, 4) for p in points_data]
         prop_effs = [round(p[1].propeller_efficiency, 4) for p in points_data]
         motor_effs = [round(p[1].motor_efficiency, 4) for p in points_data]
-        feasibles = [p[1].is_feasible for p in points_data]
+        feasibles = [p[1].feasible for p in points_data]
 
         table_columns = [
             TableColumn(
@@ -247,7 +138,7 @@ class BasePropulsionSolver(AbstractSolver):
                 y_label="Power (W) / Current (A)",
                 series=[
                     PlotSeriesDef(y_column="power", label="Battery Power (W)", color="#dc2626"),
-                    PlotSeriesDef(y_column="current", label="Motor Current (A)", color="#ea580c"),
+                    PlotSeriesDef(y_column="current", label="Battery Current (A)", color="#ea580c"),
                 ],
             ),
             "plot_rpm": PlotDefinition(
@@ -282,7 +173,7 @@ class BasePropulsionSolver(AbstractSolver):
 
         nominal_idx = min(len(x_vals) - 1, max(0, int(len(x_vals) * 0.5)))
         cruise_power = max(powers[nominal_idx] if powers else 0.0, 1.0)
-        battery_energy_wh = (v_nom * capacity_mah) / 1000.0
+        battery_energy_wh = (powertrain.battery.voltage_v * powertrain.capacity_mah) / 1000.0
         est_endurance_min = (battery_energy_wh * 0.8 / cruise_power) * 60.0
 
         summary: dict[str, SummaryItem] = {
@@ -425,9 +316,7 @@ class ThrottleSweepSolver(BasePropulsionSolver):
             self.status = SolverStatus.CANCELLED
             raise TaskCancelledError("Analysis cancelled before execution.")
 
-        motor_spec, prop_spec, prop_entry, battery_spec, system_spec, capacity_mah = (
-            self._resolve_powertrain()
-        )
+        powertrain = self._powertrain()
 
         altitude_m = float(self.config.parameters.get("altitude", 0.0))
         temperature_c = float(self.config.parameters.get("temperature", 15.0))
@@ -445,8 +334,7 @@ class ThrottleSweepSolver(BasePropulsionSolver):
             curr_t += t_step
 
         total_points = len(t_list)
-        points_data: list[tuple[float, OperatingPoint]] = []
-        pythrust_solver = PropulsionSolver()
+        points_data: list[tuple[float, PowertrainPoint]] = []
 
         for idx, t_val in enumerate(t_list):
             if self.is_cancel_requested or (self.token is not None and self.token.is_cancelled):
@@ -459,25 +347,14 @@ class ThrottleSweepSolver(BasePropulsionSolver):
                     idx + 1, total_points, f"Throttle Sweep {t_val:.0f}% ({pct}%)"
                 )
 
-            op = pythrust_solver.solve_operating_point(
-                motor=motor_spec,
-                battery=battery_spec,
-                system=system_spec,
-                propeller=prop_spec,
-                prop_entry=prop_entry,
-                rho=rho,
-                airspeed_mps=v_fixed,
-                throttle=t_val / 100.0,
-                battery_state=None,
-            )
+            op = powertrain.solve(rho=rho, airspeed_mps=v_fixed, throttle=t_val / 100.0)
             points_data.append((t_val, op))
 
         return self._build_result(
             plot_x_col="throttle",
             plot_x_label="Throttle",
             points_data=points_data,
-            v_nom=battery_spec.voltage_v,
-            capacity_mah=capacity_mah,
+            powertrain=powertrain,
         )
 
 
@@ -562,9 +439,7 @@ class AirspeedSweepSolver(BasePropulsionSolver):
             self.status = SolverStatus.CANCELLED
             raise TaskCancelledError("Analysis cancelled before execution.")
 
-        motor_spec, prop_spec, prop_entry, battery_spec, system_spec, capacity_mah = (
-            self._resolve_powertrain()
-        )
+        powertrain = self._powertrain()
 
         altitude_m = float(self.config.parameters.get("altitude", 0.0))
         temperature_c = float(self.config.parameters.get("temperature", 15.0))
@@ -583,8 +458,7 @@ class AirspeedSweepSolver(BasePropulsionSolver):
             curr_v += v_step
 
         total_points = len(v_list)
-        points_data: list[tuple[float, OperatingPoint]] = []
-        pythrust_solver = PropulsionSolver()
+        points_data: list[tuple[float, PowertrainPoint]] = []
 
         for idx, v_val in enumerate(v_list):
             if self.is_cancel_requested or (self.token is not None and self.token.is_cancelled):
@@ -597,25 +471,14 @@ class AirspeedSweepSolver(BasePropulsionSolver):
                     idx + 1, total_points, f"Airspeed Sweep {v_val:.1f} m/s ({pct}%)"
                 )
 
-            op = pythrust_solver.solve_operating_point(
-                motor=motor_spec,
-                battery=battery_spec,
-                system=system_spec,
-                propeller=prop_spec,
-                prop_entry=prop_entry,
-                rho=rho,
-                airspeed_mps=v_val,
-                throttle=throttle,
-                battery_state=None,
-            )
+            op = powertrain.solve(rho=rho, airspeed_mps=v_val, throttle=throttle)
             points_data.append((v_val, op))
 
         return self._build_result(
             plot_x_col="airspeed",
             plot_x_label="Airspeed",
             points_data=points_data,
-            v_nom=battery_spec.voltage_v,
-            capacity_mah=capacity_mah,
+            powertrain=powertrain,
         )
 
 
@@ -676,9 +539,7 @@ class OperatingPointSolver(BasePropulsionSolver):
             self.status = SolverStatus.CANCELLED
             raise TaskCancelledError("Analysis cancelled before execution.")
 
-        motor_spec, prop_spec, prop_entry, battery_spec, system_spec, capacity_mah = (
-            self._resolve_powertrain()
-        )
+        powertrain = self._powertrain()
 
         altitude_m = float(self.config.parameters.get("altitude", 0.0))
         temperature_c = float(self.config.parameters.get("temperature", 15.0))
@@ -690,23 +551,11 @@ class OperatingPointSolver(BasePropulsionSolver):
         if self.token is not None:
             self.token.report_progress(1, 1, f"Operating Point (V={v_val:.1f} m/s)")
 
-        pythrust_solver = PropulsionSolver()
-        op = pythrust_solver.solve_operating_point(
-            motor=motor_spec,
-            battery=battery_spec,
-            system=system_spec,
-            propeller=prop_spec,
-            prop_entry=prop_entry,
-            rho=rho,
-            airspeed_mps=v_val,
-            throttle=t_pct / 100.0,
-            battery_state=None,
-        )
+        op = powertrain.solve(rho=rho, airspeed_mps=v_val, throttle=t_pct / 100.0)
 
         return self._build_result(
             plot_x_col="airspeed",
             plot_x_label="Airspeed",
             points_data=[(v_val, op)],
-            v_nom=battery_spec.voltage_v,
-            capacity_mah=capacity_mah,
+            powertrain=powertrain,
         )

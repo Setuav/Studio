@@ -258,6 +258,7 @@ class PropulsionCreationController:
         mass = self._default_mass(component_kind)
         manufacturer = ""
         model = ""
+        catalog_id: str | None = None
 
         if selected_motor is not None:
             manufacturer = selected_motor.manufacturer or ""
@@ -272,6 +273,7 @@ class PropulsionCreationController:
         elif selected_propeller is not None:
             manufacturer = selected_propeller.metadata.manufacturer or ""
             model = selected_propeller.metadata.model or ""
+            catalog_id = selected_propeller.metadata.id
             params["diameter"] = round(selected_propeller.diameter_m * 1000.0, 1)
             params["pitch"] = round(selected_propeller.pitch_m * 1000.0, 1)
             params["blade_count"] = int(selected_propeller.metadata.blade_count)
@@ -292,6 +294,8 @@ class PropulsionCreationController:
             "envelope": self._default_envelope(component_kind),
             "parameters": params,
         }
+        if catalog_id is not None:
+            component["catalog_id"] = catalog_id
         return component
 
     @staticmethod

@@ -18,11 +18,13 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from pythrust.propulsion.models.motor import MotorSpec
-from pythrust.propulsion.models.propeller import PropellerSpec
 
-from plugins.electrical_propulsion.database import get_propeller_database
-from plugins.electrical_propulsion.engine.solver import PropulsionSolverEngine
+from plugins.electrical_propulsion.powertrain import (
+    Powertrain,
+    PowertrainError,
+    build_powertrain,
+    find_propulsion_system,
+)
 from setuav_studio.api import StudioAPI, StudioEvents
 from setuav_studio.ui.style.icons import set_label_icon
 from setuav_studio.ui.widget.button import refresh_button_role, set_button_role
@@ -36,6 +38,8 @@ from .analysis_store import (
     performance_selection,
 )
 from .engine.models import FlightEnvelopeResult
+
+_SOC_CELL_VOLTAGE = {"full": 4.20, "nominal": 3.70, "storage": 3.80}
 
 
 class PerformanceControlsDock(PropertyTableMixin, QWidget):
@@ -111,21 +115,14 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
     def _create_propulsion_section(self) -> None:
         layout = self._create_section("Propulsion System", "fa6s.bolt")
 
-        self.propulsion_table = self._property_table(
-            [
-                ("assembly", "Assembly"),
-                ("soc", "Battery State (SOC)"),
-            ]
-        )
+        self.propulsion_table = self._property_table([("soc", "Battery State (SOC)")])
 
-        self.combo_assembly = QComboBox()
         self.combo_soc = QComboBox()
         self.combo_soc.addItem("100% Full (4.20 V/cell)", "full")
         self.combo_soc.addItem("Nominal (3.70 V/cell)", "nominal")
         self.combo_soc.addItem("Storage (3.80 V/cell)", "storage")
 
-        self.propulsion_table.setCellWidget(0, 1, self.combo_assembly)
-        self.propulsion_table.setCellWidget(1, 1, self.combo_soc)
+        self.propulsion_table.setCellWidget(0, 1, self.combo_soc)
 
         layout.addWidget(self.propulsion_table)
 
@@ -312,31 +309,8 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
         self._refresh_sources()
 
     def _refresh_sources(self) -> None:
-        self._refresh_assemblies()
         self._refresh_mass()
         self._update_density_preview()
-
-    def _refresh_assemblies(self) -> None:
-        self.combo_assembly.blockSignals(True)
-        self.combo_assembly.clear()
-        proj = self._api.project if self._api else None
-        if proj:
-            assemblies = proj.data.get("assemblies", [])
-            for a in assemblies:
-                if (
-                    a.get("type")
-                    in {
-                        "org.setuav.core:electric-propulsion-system",
-                        "org.setuav.core:propulsion-system",
-                    }
-                    or "propulsion" in str(a.get("type", "")).lower()
-                ):
-                    self.combo_assembly.addItem(a.get("name", a.get("id")), a.get("id"))
-
-        if self.combo_assembly.count() == 0:
-            self.combo_assembly.addItem("Default / Isolated Components", "default")
-
-        self.combo_assembly.blockSignals(False)
 
     def _refresh_mass(self) -> None:
         proj = self._api.project if self._api else None
@@ -388,62 +362,11 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
         cd_min: float = 0.035
         ld_max: float = 12.0
 
-        # Propulsion components
-        assembly_id = self.combo_assembly.currentData()
-        assemblies = proj.data.get("assemblies", [])
-        motor_comp, prop_comp, bat_comp = self._propulsion_components(
-            components, assemblies, assembly_id
-        )
-
-        motor_spec: MotorSpec | None = None
-        if motor_comp:
-            m_params = motor_comp.get("parameters", {})
-            kv = float(m_params.get("kv", 900.0))
-            r_motor = float(m_params.get("resistance", 0.035))
-            i0 = float(m_params.get("no_load_current", 1.2))
-            i_max = float(m_params.get("max_current", 45.0))
-            motor_spec = MotorSpec(
-                kv_rpm_per_v=kv, resistance_ohm=r_motor, no_load_current_a=i0, current_max_a=i_max
-            )
-
-        prop_spec: PropellerSpec | None = None
-        prop_entry = None
-        if prop_comp:
-            p_params = prop_comp.get("parameters", {})
-            d_raw = float(p_params.get("diameter", 330.2))
-            p_raw = float(p_params.get("pitch", 165.1))
-            diameter_m = d_raw / 1000.0 if d_raw > 2.0 else d_raw
-            pitch_m = p_raw / 1000.0 if p_raw > 2.0 else p_raw
-            diameter_in = diameter_m / 0.0254
-            pitch_in = pitch_m / 0.0254
-            blades = int(p_params.get("blade_count", 2))
-
-            prop_spec = PropellerSpec(diameter_m=diameter_m, pitch_m=pitch_m, blade_count=blades)
-            prop_db = get_propeller_database()
-            prop_name = str(prop_comp.get("name", ""))
-            if prop_name:
-                prop_entry = prop_db.get(prop_name) or prop_db.get(prop_name.replace(" ", "_"))
-            if prop_entry is None:
-                prop_entry = (
-                    prop_db.get(f"APC_{diameter_in:.1f}x{pitch_in:.1f}E")
-                    or prop_db.get(f"APC_{int(diameter_in)}x{pitch_in:.1f}E")
-                    or prop_db.get(f"APC_{int(diameter_in)}x{int(pitch_in)}")
-                    or prop_db.find_by_size(diameter_in, pitch_in)
-                )
-            if prop_entry is None:
-                prop_entry = PropulsionSolverEngine.synthetic_propeller(
-                    diameter_in, pitch_in, blades
-                )
-
-        bat_capacity_mah: float | None = None
-        bat_voltage: float | None = None
-        if bat_comp:
-            b_params = bat_comp.get("parameters", {})
-            cells = int(b_params.get("cell_count", 4))
-            bat_capacity_mah = float(b_params.get("capacity", 5000.0))
-            soc_choice = self.combo_soc.currentData()
-            v_cell = 4.20 if soc_choice == "full" else (3.70 if soc_choice == "nominal" else 3.80)
-            bat_voltage = v_cell * cells
+        try:
+            powertrain = self._powertrain(components)
+        except PowertrainError as exc:
+            QMessageBox.warning(self, "Propulsion System Invalid", str(exc))
+            return None
 
         return {
             "project": proj,
@@ -462,48 +385,21 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
             "stall_margin": stall_margin,
             "polar_cl": polar_cl,
             "polar_cd": polar_cd,
-            "motor_spec": motor_spec,
-            "prop_spec": prop_spec,
-            "prop_entry": prop_entry,
-            "battery_capacity_mah": bat_capacity_mah,
-            "battery_voltage": bat_voltage,
+            "powertrain": powertrain,
             "usable_battery_ratio": 0.85,
         }
 
-    @staticmethod
-    def _propulsion_components(
-        components: list[dict[str, Any]], assemblies: list[Any], assembly_id: object
-    ) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None]:
-        assembly = next(
-            (
-                item
-                for item in assemblies
-                if isinstance(item, dict) and item.get("id") == assembly_id
-            ),
-            None,
-        )
-        if assembly is not None:
-            members = assembly.get("members")
-            members = members if isinstance(members, dict) else {}
-            by_id = {item.get("id"): item for item in components}
-            motors = members.get("motors") or []
-            propulsors = members.get("propulsors") or []
-            return (
-                by_id.get(motors[0]) if motors else None,
-                by_id.get(propulsors[0]) if propulsors else None,
-                by_id.get(members.get("battery")),
-            )
-
-        motor = propulsor = battery = None
-        for component in components:
-            component_type = str(component.get("type", ""))
-            if "motor" in component_type and motor is None:
-                motor = component
-            elif ("propeller" in component_type or "rotor" in component_type) and propulsor is None:
-                propulsor = component
-            elif "battery" in component_type and battery is None:
-                battery = component
-        return motor, propulsor, battery
+    def _powertrain(self, components: list[dict[str, Any]]) -> Powertrain | None:
+        """Return the project's powertrain at the selected battery state of charge."""
+        members = find_propulsion_system(components)
+        if members is None:
+            return None
+        powertrain = build_powertrain(members)
+        cells = members.batteries[0].get("parameters", {}).get("cell_count")
+        if not isinstance(cells, int) or cells <= 0:
+            raise PowertrainError("Battery has no cell count.")
+        cell_voltage = _SOC_CELL_VOLTAGE[str(self.combo_soc.currentData())]
+        return powertrain.with_battery_voltage(cell_voltage * cells)
 
     def _on_cancel_analysis(self) -> None:
         if hasattr(self, "_task_handle") and self._task_handle is not None:

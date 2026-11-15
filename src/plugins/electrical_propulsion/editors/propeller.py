@@ -65,6 +65,7 @@ class PropellerEditor(BaseComponentEditor):
                 self._component["name"] = f"APC {p.metadata.model}"
                 self._component["manufacturer"] = p.metadata.manufacturer
                 self._component["model"] = p.metadata.model
+                self._component["catalog_id"] = p.metadata.id
                 params = self._component.setdefault("parameters", {})
                 params["diameter"] = round(p.diameter_m * 1000.0, 1)
                 params["pitch"] = round(p.pitch_m * 1000.0, 1)
