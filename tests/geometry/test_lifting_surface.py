@@ -201,8 +201,10 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
         self.assertEqual(mirror_combo.currentText(), "Bilateral (Mirror XZ)")
         editor._update_mirror(False)
         self.assertNotIn("mirror", wing_comp["parameters"]["geometry"])
+        self.assertFalse(editor._is_symmetric())
         editor._update_mirror(True)
         self.assertTrue(wing_comp["parameters"]["geometry"]["mirror"])
+        self.assertTrue(editor._is_symmetric())
 
         # Edit tip_chord in section_planform_table
         sec_values = editor.section_planform_table.get_current_values()

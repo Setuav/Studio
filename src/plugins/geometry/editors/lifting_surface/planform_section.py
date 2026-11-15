@@ -117,7 +117,7 @@ class PlanformSectionMixin:
 
     def _is_symmetric(self) -> bool:
         geom = self._geometry()
-        return bool(geom.get("mirror", True))
+        return bool(geom.get("mirror", False))
 
     def _y_offset(self) -> float:
         tf = self._component.get("transform")
