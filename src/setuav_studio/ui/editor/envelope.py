@@ -22,6 +22,16 @@ from setuav_studio.api import StudioAPI
 from setuav_studio.ui.style.icons import set_label_icon
 from setuav_studio.ui.widget.spinbox import set_table_spinbox
 from setuav_studio.ui.widget.table import ExpressionPropertyCell, PropertyTableMixin
+from setuav_studio.utilities.envelope import (
+    is_geometry_envelope,
+    resolve_component_aggregate_envelope,
+    resolve_component_envelope,
+    resolve_envelope_definition,
+)
+
+# Shapes that a hand-defined envelope can take; geometry-derived envelopes keep
+# the shape they were integrated with.
+_DEFINED_SHAPES = (("box", "Box"), ("cylinder", "Cylinder"), ("sphere", "Sphere"))
 
 
 class EnvelopeEditor(PropertyTableMixin, QWidget):
@@ -140,12 +150,7 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
             self.definition_table,
             "shape",
             "box",
-            [
-                ("box", "Box"),
-                ("trapezoid", "Trapezoid"),
-                ("cylinder", "Cylinder"),
-                ("sphere", "Sphere"),
-            ],
+            list(_DEFINED_SHAPES),
             self._on_shape_changed,
         )
         self.shape_combo = self._find_combo(self.definition_table, "shape")
@@ -257,9 +262,17 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
             )
             envelope = self._envelope(component)
             shape = str(envelope.get("shape") or "box")
+            derived = is_geometry_envelope(envelope)
             if self.shape_combo is not None:
-                index = max(self.shape_combo.findData(shape), 0)
-                self.shape_combo.setCurrentIndex(index)
+                self.shape_combo.clear()
+                for value, label in _DEFINED_SHAPES:
+                    self.shape_combo.addItem(label, value)
+                if self.shape_combo.findData(shape) < 0:
+                    self.shape_combo.addItem(shape.capitalize(), shape)
+                self.shape_combo.setCurrentIndex(self.shape_combo.findData(shape))
+                self.shape_combo.setEnabled(not derived)
+            for spin in (*self.dimension_spins.values(), *self.offset_spins.values()):
+                spin.setEnabled(not derived)
             self._load_vector(
                 self.dimension_spins,
                 envelope.get("size_mm"),
@@ -320,24 +333,8 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
         component = self._component
 
         def change() -> None:
-            existing = component.get("envelope")
-            new_env = dict(existing) if isinstance(existing, dict) else {}
-            new_env.update(
-                {
-                    "shape": shape,
-                    "size_mm": size,
-                    "offset_mm": offset,
-                }
-            )
-            component["envelope"] = new_env
-            from setuav_studio.utilities.envelope import resolve_component_envelope
-
-            resolved = resolve_component_envelope(component)
-            new_env.update(
-                {
-                    "volume_mm3": resolved["volume_mm3"],
-                    "unit_inertia": resolved["unit_inertia"],
-                }
+            component["envelope"] = resolve_envelope_definition(
+                {"shape": shape, "size_mm": size, "offset_mm": offset}
             )
 
         self._api.edit_component(
@@ -363,37 +360,11 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
 
     def volume_value(self) -> float:
         """Return the current envelope volume in cubic millimetres."""
-        envelope = self._envelope(self._component) if self._component is not None else {}
-        geom_vol = envelope.get("volume_mm3")
-        size_mm = envelope.get("size_mm")
-        if (
-            isinstance(geom_vol, (int, float))
-            and geom_vol > 0.0
-            and isinstance(size_mm, dict)
-            and all(
-                abs(self.dimension_spins[axis].value() - _number(size_mm.get(axis))) < 1e-3
-                for axis in ("x", "y", "z")
-                if axis in self.dimension_spins
-            )
-        ):
-            return float(geom_vol)
-
-        volume_mm3 = 1.0
-        for spin in self.dimension_spins.values():
-            volume_mm3 *= spin.value()
-        shape = (
-            str(self.shape_combo.currentData() or "box") if self.shape_combo is not None else "box"
-        )
-        if shape == "cylinder":
-            return volume_mm3 * 0.7853981633974483
-        if shape == "sphere":
-            return volume_mm3 * 0.5235987755982988
-        if shape == "trapezoid":
-            return volume_mm3 * 0.6
-        return volume_mm3
+        if self._component is None:
+            return 0.0
+        return _number(self._envelope(self._component).get("volume_mm3"))
 
     def _envelope(self, component: dict[str, Any]) -> dict[str, Any]:
-        from setuav_studio.utilities.envelope import resolve_component_aggregate_envelope
         from setuav_studio.utilities.mass_balance import get_component_children
 
         proj = self._api.project
@@ -403,7 +374,7 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
             get_component_children(comp_id, proj, recursive=False)
         )
         if not has_children and isinstance(envelope, dict) and envelope.get("size_mm"):
-            return envelope
+            return resolve_component_envelope(component)
 
         if proj is not None:
             agg_env = resolve_component_aggregate_envelope(component, proj)

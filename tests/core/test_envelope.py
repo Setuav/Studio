@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import math
 
+import pytest
+
 from setuav_studio.utilities.envelope import (
     compute_box_envelope,
     compute_cylinder_envelope,
+    compute_ellipsoid_envelope,
     compute_loft_envelope,
     compute_mesh_mass_properties,
     resolve_component_envelope,
+    resolve_envelope_definition,
 )
 
 
@@ -101,23 +105,53 @@ def test_compute_box_envelope() -> None:
 
 def test_compute_cylinder_envelope() -> None:
     radius = 25.0
-    diameter = radius * 2.0
     length = 100.0
-    env = compute_cylinder_envelope(diameter_mm=diameter, length_mm=length, axis="x")
+    env = compute_cylinder_envelope(size_mm=(length, 2.0 * radius, 2.0 * radius))
 
     assert env.get("shape") == "cylinder"
-    expected_vol = math.pi * (radius**2) * length
-    assert math.isclose(env.get("volume_mm3", 0.0), expected_vol, rel_tol=1e-4)
+    assert math.isclose(env["volume_mm3"], math.pi * radius**2 * length, rel_tol=1e-4)
+    assert env["size_mm"] == {"x": length, "y": 2.0 * radius, "z": 2.0 * radius}
 
-    size = env.get("size_mm", {})
-    assert size.get("x") == length
-    assert size.get("y") == diameter
-    assert size.get("z") == diameter
+    # Axial unit inertia 0.5 r^2, transverse L^2 / 12 + r^2 / 4 (m^2 = mm^2 / 1e6)
+    u_i = env["unit_inertia"]
+    assert math.isclose(u_i["ixx"], 0.5 * radius**2 / 1.0e6, rel_tol=1e-4)
+    assert math.isclose(u_i["iyy"], (length**2 / 12.0 + radius**2 / 4.0) / 1.0e6, rel_tol=1e-4)
 
-    # Axial unit inertia: 0.5 * r^2 / 1e6
-    u_i = env.get("unit_inertia", {})
-    expected_axial = (0.5 * (radius**2)) / 1.0e6
-    assert math.isclose(u_i.get("ixx", 0.0), expected_axial, rel_tol=1e-4)
+
+def test_elliptic_cylinder_keeps_its_section() -> None:
+    env = compute_cylinder_envelope(size_mm=(100.0, 60.0, 40.0))
+    assert env["size_mm"] == {"x": 100.0, "y": 60.0, "z": 40.0}
+    assert math.isclose(env["volume_mm3"], math.pi * 30.0 * 20.0 * 100.0, rel_tol=1e-4)
+
+
+def test_compute_ellipsoid_envelope() -> None:
+    env = compute_ellipsoid_envelope(size_mm=(100.0, 60.0, 40.0))
+    assert env["shape"] == "sphere"
+    assert math.isclose(env["volume_mm3"], 4.0 / 3.0 * math.pi * 50.0 * 30.0 * 20.0, rel_tol=1e-4)
+    assert math.isclose(env["unit_inertia"]["ixx"], (30.0**2 + 20.0**2) / 5.0 / 1.0e6, rel_tol=1e-4)
+
+
+def test_geometry_envelope_is_returned_as_stored() -> None:
+    stored = {
+        "shape": "trapezoid",
+        "size_mm": {"x": 800.0, "y": 120.0, "z": 120.0},
+        "offset_mm": {"x": 360.0, "y": 0.0, "z": 0.0},
+        "volume_mm3": 5_000_000.0,
+        "unit_inertia": {
+            "ixx": 0.001,
+            "iyy": 0.05,
+            "izz": 0.05,
+            "ixy": 0.0,
+            "ixz": 0.0,
+            "iyz": 0.0,
+        },
+        "sections": [{"station_x_mm": 0.0, "width_mm": 80.0, "height_mm": 90.0}],
+    }
+    assert resolve_envelope_definition(stored) == stored
+    assert resolve_envelope_definition(stored) is not stored
+
+    with pytest.raises(ValueError, match="needs geometry sections"):
+        resolve_envelope_definition({**stored, "sections": []})
 
 
 def test_compute_loft_envelope() -> None:

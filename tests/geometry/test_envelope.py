@@ -276,7 +276,7 @@ class EnvelopeEditorUiTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls._app = get_qapp()
 
-    def test_envelope_editor_supports_trapezoid_and_volume(self) -> None:
+    def test_geometry_envelope_is_read_only_with_integrated_volume(self) -> None:
         from pathlib import Path
 
         from setuav_studio.api import StudioAPI
@@ -288,28 +288,46 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         doc = ProjectDocument(Path("test.uav"), "uav", {"components": [fuse]})
         api._host.set_project(doc)
 
-        editor = EnvelopeEditor(
-            api,
-            {"component_id": "test-fuse", "kind": "envelope"},
-        )
-        self.assertIsNotNone(editor.shape_combo)
-        # Trapezoid option exists and is selected for fuselage
+        editor = EnvelopeEditor(api, {"component_id": "test-fuse", "kind": "envelope"})
+        assert editor.shape_combo is not None
         self.assertEqual(editor.shape_combo.currentData(), "trapezoid")
-
-        # Check volume returns exact integrated volume when present
+        self.assertFalse(editor.shape_combo.isEnabled())
+        self.assertFalse(editor.dimension_spins["x"].isEnabled())
         self.assertAlmostEqual(editor.volume_value(), fuse["envelope"]["volume_mm3"], places=1)
 
-        # Invalidate volume_mm3 to test cylinder formula
-        fuse["envelope"].pop("volume_mm3", None)
-        idx = editor.shape_combo.findData("cylinder")
-        editor.shape_combo.setCurrentIndex(idx)
-        expected_box_vol = (
-            fuse["envelope"]["size_mm"]["x"]
-            * fuse["envelope"]["size_mm"]["y"]
-            * fuse["envelope"]["size_mm"]["z"]
-        )
-        expected_cyl_vol = expected_box_vol * 0.7853981633974483
-        self.assertAlmostEqual(editor.volume_value(), expected_cyl_vol, delta=100.0)
+    def test_defined_envelope_volume_follows_its_shape(self) -> None:
+        import math
+        from pathlib import Path
+
+        from setuav_studio.api import StudioAPI
+        from setuav_studio.project import ProjectDocument
+
+        api = StudioAPI()
+        battery = {
+            "id": "battery",
+            "type": "org.setuav.core:battery",
+            "envelope": {
+                "shape": "box",
+                "size_mm": {"x": 140.0, "y": 45.0, "z": 30.0},
+                "offset_mm": {"x": 70.0, "y": 0.0, "z": 0.0},
+            },
+        }
+        doc = ProjectDocument(Path("test.uav"), "uav", {"components": [battery]})
+        api._host.set_project(doc)
+
+        editor = EnvelopeEditor(api, {"component_id": "battery", "kind": "envelope"})
+        assert editor.shape_combo is not None
+        self.assertTrue(editor.shape_combo.isEnabled())
+        self.assertEqual(editor.shape_combo.findData("trapezoid"), -1)
+        box_volume = 140.0 * 45.0 * 30.0
+        self.assertAlmostEqual(editor.volume_value(), box_volume, places=1)
+
+        editor.shape_combo.setCurrentIndex(editor.shape_combo.findData("cylinder"))
+        self.assertEqual(battery["envelope"]["shape"], "cylinder")
+        self.assertAlmostEqual(editor.volume_value(), box_volume * math.pi / 4.0, delta=1.0)
+
+        editor.shape_combo.setCurrentIndex(editor.shape_combo.findData("sphere"))
+        self.assertAlmostEqual(editor.volume_value(), box_volume * math.pi / 6.0, delta=1.0)
 
     def test_envelope_editor_populates_sections_table(self) -> None:
         from pathlib import Path

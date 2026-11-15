@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
+from copy import deepcopy
 from typing import Any
 
 Point3D = tuple[float, float, float]
@@ -396,70 +397,83 @@ def compute_box_envelope(
 ) -> dict[str, Any]:
     """Compute physical envelope for a cuboid / box."""
     sx, sy, sz = _to_vec3(size_mm)
-    ox, oy, oz = _to_vec3(offset_mm)
-    vol = max(sx * sy * sz, 0.0)
-
-    # Unit inertia for solid cuboid in m^2 (mm^2 / 10^6)
     scale = 1.0e6
-    u_ixx = ((sy * sy + sz * sz) / 12.0) / scale
-    u_iyy = ((sx * sx + sz * sz) / 12.0) / scale
-    u_izz = ((sx * sx + sy * sy) / 12.0) / scale
-
-    return {
-        "shape": "box",
-        "size_mm": {"x": round(sx, 1), "y": round(sy, 1), "z": round(sz, 1)},
-        "offset_mm": {"x": round(ox, 1), "y": round(oy, 1), "z": round(oz, 1)},
-        "volume_mm3": round(vol, 1),
-        "unit_inertia": {
-            "ixx": round(u_ixx, 8),
-            "iyy": round(u_iyy, 8),
-            "izz": round(u_izz, 8),
-            "ixy": 0.0,
-            "ixz": 0.0,
-            "iyz": 0.0,
-        },
-        "sections": [],
-        "slices": [],
-    }
+    return _shape_envelope(
+        "box",
+        (sx, sy, sz),
+        offset_mm,
+        volume_mm3=max(sx * sy * sz, 0.0),
+        unit_inertia=(
+            (sy * sy + sz * sz) / 12.0 / scale,
+            (sx * sx + sz * sz) / 12.0 / scale,
+            (sx * sx + sy * sy) / 12.0 / scale,
+        ),
+    )
 
 
 def compute_cylinder_envelope(
-    diameter_mm: float,
-    length_mm: float,
-    axis: str = "x",
+    size_mm: Point3D | dict[str, float],
     offset_mm: Point3D | dict[str, float] = (0.0, 0.0, 0.0),
 ) -> dict[str, Any]:
-    """Compute physical envelope for a solid cylinder."""
-    r = max(diameter_mm * 0.5, 0.0)
-    l_val = max(length_mm, 0.0)
-    vol = math.pi * r * r * l_val
-    ox, oy, oz = _to_vec3(offset_mm)
-
+    """Compute physical envelope for a solid cylinder along X with an elliptic Y-Z section."""
+    length, width, height = _to_vec3(size_mm)
+    b = max(width * 0.5, 0.0)
+    c = max(height * 0.5, 0.0)
+    l_val = max(length, 0.0)
     scale = 1.0e6
-    # Axial moment: 1/2 r^2; Transverse: 1/12 L^2 + 1/4 r^2
-    axial = (0.5 * r * r) / scale
-    transverse = ((l_val * l_val / 12.0) + (0.25 * r * r)) / scale
+    return _shape_envelope(
+        "cylinder",
+        (l_val, width, height),
+        offset_mm,
+        volume_mm3=math.pi * b * c * l_val,
+        unit_inertia=(
+            (b * b + c * c) / 4.0 / scale,
+            (l_val * l_val / 12.0 + c * c / 4.0) / scale,
+            (l_val * l_val / 12.0 + b * b / 4.0) / scale,
+        ),
+    )
 
-    axis_lower = axis.lower()
-    if axis_lower == "x":
-        u_ixx, u_iyy, u_izz = axial, transverse, transverse
-        size = (l_val, diameter_mm, diameter_mm)
-    elif axis_lower == "y":
-        u_ixx, u_iyy, u_izz = transverse, axial, transverse
-        size = (diameter_mm, l_val, diameter_mm)
-    else:
-        u_ixx, u_iyy, u_izz = transverse, transverse, axial
-        size = (diameter_mm, diameter_mm, l_val)
 
+def compute_ellipsoid_envelope(
+    size_mm: Point3D | dict[str, float],
+    offset_mm: Point3D | dict[str, float] = (0.0, 0.0, 0.0),
+) -> dict[str, Any]:
+    """Compute physical envelope for a solid ellipsoid inscribed in the size box."""
+    sx, sy, sz = _to_vec3(size_mm)
+    a, b, c = max(sx * 0.5, 0.0), max(sy * 0.5, 0.0), max(sz * 0.5, 0.0)
+    scale = 1.0e6
+    return _shape_envelope(
+        "sphere",
+        (sx, sy, sz),
+        offset_mm,
+        volume_mm3=4.0 / 3.0 * math.pi * a * b * c,
+        unit_inertia=(
+            (b * b + c * c) / 5.0 / scale,
+            (a * a + c * c) / 5.0 / scale,
+            (a * a + b * b) / 5.0 / scale,
+        ),
+    )
+
+
+def _shape_envelope(
+    shape: str,
+    size: Point3D,
+    offset_mm: Point3D | dict[str, float],
+    *,
+    volume_mm3: float,
+    unit_inertia: Point3D,
+) -> dict[str, Any]:
+    ox, oy, oz = _to_vec3(offset_mm)
+    ixx, iyy, izz = unit_inertia
     return {
-        "shape": "cylinder",
+        "shape": shape,
         "size_mm": {"x": round(size[0], 1), "y": round(size[1], 1), "z": round(size[2], 1)},
         "offset_mm": {"x": round(ox, 1), "y": round(oy, 1), "z": round(oz, 1)},
-        "volume_mm3": round(vol, 1),
+        "volume_mm3": round(volume_mm3, 1),
         "unit_inertia": {
-            "ixx": round(u_ixx, 8),
-            "iyy": round(u_iyy, 8),
-            "izz": round(u_izz, 8),
+            "ixx": round(ixx, 8),
+            "iyy": round(iyy, 8),
+            "izz": round(izz, 8),
             "ixy": 0.0,
             "ixz": 0.0,
             "iyz": 0.0,
@@ -467,6 +481,32 @@ def compute_cylinder_envelope(
         "sections": [],
         "slices": [],
     }
+
+
+def is_geometry_envelope(envelope: dict[str, Any]) -> bool:
+    """Return whether the envelope was derived from component geometry.
+
+    Geometry envelopes carry the sections they were integrated from; their volume
+    and unit inertia are authoritative and are not recomputed from the shape.
+    """
+    sections = envelope.get("sections")
+    return isinstance(sections, list) and bool(sections)
+
+
+def resolve_envelope_definition(envelope: dict[str, Any]) -> dict[str, Any]:
+    """Return the physical envelope described by a stored envelope definition."""
+    if is_geometry_envelope(envelope):
+        return deepcopy(envelope)
+    shape = str(envelope.get("shape", "box")).lower()
+    size = envelope.get("size_mm", {})
+    offset = envelope.get("offset_mm", {})
+    if shape == "box":
+        return compute_box_envelope(size, offset_mm=offset)
+    if shape == "cylinder":
+        return compute_cylinder_envelope(size, offset_mm=offset)
+    if shape == "sphere":
+        return compute_ellipsoid_envelope(size, offset_mm=offset)
+    raise ValueError(f"Envelope shape '{shape}' needs geometry sections")
 
 
 def _envelope_from_lofts(
@@ -556,13 +596,7 @@ def resolve_component_envelope(
     # 2. Existing envelope defined on component
     existing = component.get("envelope")
     if isinstance(existing, dict) and "size_mm" in existing:
-        size = _to_vec3(existing.get("size_mm"))
-        offset = _to_vec3(existing.get("offset_mm"))
-        shape = str(existing.get("shape", "box")).lower()
-        if shape == "cylinder":
-            d = max(size[1], size[2])
-            return compute_cylinder_envelope(d, size[0], offset_mm=offset)
-        return compute_box_envelope(size, offset_mm=offset)
+        return resolve_envelope_definition(existing)
 
     # 3. Direct dimensions in parameters (e.g. length/width/height)
     params = component.get("parameters")

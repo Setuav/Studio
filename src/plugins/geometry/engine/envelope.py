@@ -1098,7 +1098,7 @@ def _fuselage_fallback(segments: list[Any]) -> dict[str, Any] | None:
     size_z = round(max(max_z - min_z, 1.0), 1)
 
     return {
-        "shape": "trapezoid",
+        "shape": "box",
         "size_mm": {"x": size_x, "y": size_y, "z": size_z},
         "offset_mm": {
             "x": round((max(xs) + min(xs)) / 2.0, 1),
