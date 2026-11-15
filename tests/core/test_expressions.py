@@ -625,3 +625,57 @@ def test_single_expression_detection_and_scientific_notation(tmp_path: Path) -> 
     assert val_cell._has_error
     assert math.isclose(proj.data["parameters"]["k"], 0.001)
     param_editor.deleteLater()
+
+
+def test_recompute_reports_component_expression_cycle(tmp_path: Path) -> None:
+    proj = ProjectDocument(
+        tmp_path / "cycle.json",
+        "json",
+        {
+            "parameters": {},
+            "components": [
+                {"id": "a", "type": "x", "mass": 1.0, "_expressions": {"mass": "= b.mass + 1"}},
+                {"id": "b", "type": "x", "mass": 1.0, "_expressions": {"mass": "= a.mass + 1"}},
+                {"id": "c", "type": "x", "mass": 0.0, "_expressions": {"mass": "= 2 * 3"}},
+            ],
+        },
+    )
+    diagnostics = recompute_project_expressions(proj)
+
+    cycle = {
+        (d["component_id"], d["path"]) for d in diagnostics if d["message"].startswith("Circular")
+    }
+    assert cycle == {("a", "mass"), ("b", "mass")}
+    assert [c["mass"] for c in proj.data["components"]] == [1.0, 1.0, 6.0]
+    assert proj.expression_diagnostics == diagnostics
+
+
+def test_recompute_settles_long_chain_within_one_component(tmp_path: Path) -> None:
+    proj = ProjectDocument(
+        tmp_path / "chain.json",
+        "json",
+        {
+            "parameters": {},
+            "components": [
+                {
+                    "id": "a",
+                    "type": "x",
+                    "mass": 0.0,
+                    "transform": {
+                        "position": {
+                            "x": 0.0,
+                            "y": 0.0,
+                            "z": 1.0,
+                            "_expressions": {
+                                "x": "= a.transform.position.y + 1",
+                                "y": "= a.transform.position.z + 1",
+                            },
+                        }
+                    },
+                }
+            ],
+        },
+    )
+    assert recompute_project_expressions(proj) == []
+    position = proj.data["components"][0]["transform"]["position"]
+    assert (position["x"], position["y"]) == (3.0, 2.0)
