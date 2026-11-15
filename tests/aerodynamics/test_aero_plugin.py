@@ -449,7 +449,6 @@ class AerodynamicsPluginTests(unittest.TestCase):
                     cl_roll=0.0,
                     cn=0.0,
                     cl_over_cd=-8.3,
-                    raw={"_sweep_group": "alpha"},
                 ),
                 PolarPoint(
                     alpha=8.0,
@@ -460,7 +459,6 @@ class AerodynamicsPluginTests(unittest.TestCase):
                     cl_roll=0.0,
                     cn=0.0,
                     cl_over_cd=20.0,
-                    raw={"_sweep_group": "alpha"},
                 ),
                 PolarPoint(
                     alpha=2.0,
@@ -472,7 +470,6 @@ class AerodynamicsPluginTests(unittest.TestCase):
                     cl_roll=-0.02,
                     cn=0.03,
                     cl_over_cd=25.0,
-                    raw={"_sweep_group": "beta"},
                 ),
                 PolarPoint(
                     alpha=2.0,
@@ -484,7 +481,6 @@ class AerodynamicsPluginTests(unittest.TestCase):
                     cl_roll=0.02,
                     cn=-0.03,
                     cl_over_cd=25.0,
-                    raw={"_sweep_group": "beta"},
                 ),
             ],
             cl_max=1.1,
@@ -677,7 +673,6 @@ class AerodynamicsPluginTests(unittest.TestCase):
             ],
             condition=FlightCondition(
                 alpha=2.0,
-                sweep_type=SweepType.CONTROL_DEFLECTION,
                 sweep_variable="elevator",
                 sweep_min=-10.0,
                 sweep_max=10.0,

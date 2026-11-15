@@ -57,7 +57,6 @@ class AeroSandboxResultMixin:
             for name in ("F_b", "F_w", "F_g", "M_b", "M_w", "M_g")
         }
         raw = self._serializable_solver_result(result)
-        raw["_sweep_group"] = str(eval_state.get("_sweep_group", ""))
         forces = self._forces_moments(result, vectors, coefficients, context["qs"], raw)
         cd_induced, cd_profile, cd_wave = self._drag_breakdown(result, context["qs"])
         cl = coefficients["cl"]
@@ -230,15 +229,15 @@ class AeroSandboxResultMixin:
     def _build_sweep_result(
         condition: FlightCondition,
         eval_states: list[dict[str, Any]],
-        primary_values: list[float],
+        sweep_vals: list[float],
         points: list[PolarPoint],
     ) -> MultiDimensionalSweepResult | None:
         if len(eval_states) <= 1:
             return None
         variables = [
-            SweepVariable(name=str(condition.sweep_variable), values=primary_values, unit="deg")
+            SweepVariable(name=str(condition.sweep_variable), values=sweep_vals, unit="deg")
         ]
-        shape = (len(primary_values),)
+        shape = (len(sweep_vals),)
         return MultiDimensionalSweepResult(
             variables=variables, points=list(points), grid_shape=shape
         )

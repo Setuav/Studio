@@ -8,7 +8,6 @@
     "altitude": 1000.0,
     "alpha": 4.0,
     "beta": 0.0,
-    "sweep_type": "alpha",
     "sweep_variable": "alpha",
     "sweep_min": -2.0,
     "sweep_max": 10.0,

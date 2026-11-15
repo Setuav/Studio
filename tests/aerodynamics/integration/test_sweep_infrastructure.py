@@ -21,51 +21,55 @@ class TestSweepConfiguration(unittest.TestCase):
 
     def test_flight_condition_sweep_values(self) -> None:
         cond = FlightCondition(
-            sweep_type=SweepType.ALPHA,
             sweep_variable="alpha",
             sweep_min=-4.0,
             sweep_max=16.0,
             sweep_steps=5,
         )
-        vals = cond.get_primary_sweep_values()
+        self.assertEqual(cond.sweep_type, SweepType.ALPHA)
+        vals = cond.sweep_values()
         self.assertEqual(len(vals), 5)
         self.assertAlmostEqual(vals[0], -4.0)
         self.assertAlmostEqual(vals[-1], 16.0)
 
         single = FlightCondition(
             alpha=3.5,
-            sweep_type=SweepType.ALPHA,
             sweep_variable="alpha",
             sweep_steps=1,
         )
-        self.assertEqual(single.get_primary_sweep_values(), [3.5])
+        self.assertEqual(single.sweep_values(), [3.5])
 
     def test_sweep_serialization(self) -> None:
         cond = FlightCondition(
-            sweep_type=SweepType.CONTROL_DEFLECTION,
             sweep_variable="elevator",
             sweep_min=-15.0,
             sweep_max=15.0,
             sweep_steps=7,
         )
         d = cond.to_dict()
-        self.assertEqual(d["sweep_type"], "control_deflection")
+        self.assertNotIn("sweep_type", d)
         self.assertEqual(d["sweep_variable"], "elevator")
 
         restored = FlightCondition.from_dict(d)
         self.assertEqual(restored.sweep_type, SweepType.CONTROL_DEFLECTION)
         self.assertEqual(restored.sweep_variable, "elevator")
         self.assertAlmostEqual(restored.sweep_min, -15.0)
+        self.assertEqual(FlightCondition(sweep_variable="alpha").sweep_type, SweepType.ALPHA)
+        self.assertEqual(FlightCondition(sweep_variable="beta").sweep_type, SweepType.BETA)
 
     def test_composite_surfaces_expose_canonical_control_channels(self) -> None:
         components = [
             {
+                "id": "left-elevon",
+                "name": "left-elevon",
                 "type": "org.setuav.core:control-surface",
-                "parameters": {"geometry": {"type": "elevon", "tag": "left-elevon"}},
+                "parameters": {"geometry": {"type": "elevon"}},
             },
             {
+                "id": "right-ruddervator",
+                "name": "right-ruddervator",
                 "type": "org.setuav.core:control-surface",
-                "parameters": {"geometry": {"type": "ruddervator", "tag": "right-ruddervator"}},
+                "parameters": {"geometry": {"type": "ruddervator"}},
             },
         ]
         self.assertEqual(
@@ -161,7 +165,6 @@ class TestParametricSweeps(unittest.TestCase):
                 "parent": "htail-1",
                 "parameters": {
                     "geometry": {
-                        "tag": "elevator",
                         "type": "elevator",
                         "eta_start": 0.0,
                         "eta_end": 1.0,
@@ -177,7 +180,6 @@ class TestParametricSweeps(unittest.TestCase):
                 "parent": "vfin-1",
                 "parameters": {
                     "geometry": {
-                        "tag": "rudder",
                         "type": "rudder",
                         "eta_start": 0.0,
                         "eta_end": 1.0,
@@ -193,7 +195,6 @@ class TestParametricSweeps(unittest.TestCase):
         cond = FlightCondition(
             velocity=20.0,
             alpha=2.0,
-            sweep_type=SweepType.BETA,
             sweep_variable="beta",
             sweep_min=-10.0,
             sweep_max=10.0,
@@ -221,7 +222,6 @@ class TestParametricSweeps(unittest.TestCase):
         cond = FlightCondition(
             velocity=20.0,
             alpha=2.0,
-            sweep_type=SweepType.CONTROL_DEFLECTION,
             sweep_variable="elevator",
             sweep_min=-10.0,
             sweep_max=10.0,
@@ -245,7 +245,6 @@ class TestParametricSweeps(unittest.TestCase):
         cond = FlightCondition(
             velocity=20.0,
             alpha=2.0,
-            sweep_type=SweepType.CONTROL_DEFLECTION,
             sweep_variable="left-elevator",
             sweep_min=-10.0,
             sweep_max=10.0,

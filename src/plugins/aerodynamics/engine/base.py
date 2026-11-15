@@ -129,11 +129,21 @@ class AnalysisType(enum.Enum):
 
 
 class SweepType(enum.Enum):
-    """Types of parametric sweeps available."""
+    """Types of parametric sweeps."""
 
     ALPHA = "alpha"  # Angle of attack sweep (AoA α)
     BETA = "beta"  # Sideslip angle sweep (Sideslip β)
-    CONTROL_DEFLECTION = "control_deflection"  # Persisted name for a control-channel analysis (δ)
+    CONTROL_DEFLECTION = "control_deflection"  # Control-channel deflection analysis (δ)
+
+    @classmethod
+    def from_variable(cls, variable: str) -> SweepType:
+        """Derive the sweep category from the canonical sweep variable name."""
+        normalized = str(variable or "alpha").strip().lower()
+        if normalized == "alpha":
+            return cls.ALPHA
+        if normalized == "beta":
+            return cls.BETA
+        return cls.CONTROL_DEFLECTION
 
 
 class ControlSurfaceType(enum.Enum):
@@ -207,13 +217,17 @@ class FlightCondition:
     r: float = 0.0  # rad/s (body yaw rate)
     control_deflections: dict[str, float] = field(default_factory=dict)  # deg per control surface
     # Sweep configuration
-    sweep_type: SweepType = SweepType.ALPHA
     sweep_variable: str = "alpha"  # Sweep variable name ('alpha', 'beta', or a control channel)
     sweep_min: float = -10.0  # Range start
     sweep_max: float = 18.0  # Range end
     sweep_steps: int = 29  # Number of evaluation points
 
-    def get_primary_sweep_values(self) -> list[float]:
+    @property
+    def sweep_type(self) -> SweepType:
+        """Derive the sweep type from sweep_variable."""
+        return SweepType.from_variable(self.sweep_variable)
+
+    def sweep_values(self) -> list[float]:
         """Compute the array of evaluated values for the sweep parameter."""
         import numpy as _np
 
@@ -236,7 +250,6 @@ class FlightCondition:
             "q": self.q,
             "r": self.r,
             "control_deflections": dict(self.control_deflections),
-            "sweep_type": self.sweep_type.value,
             "sweep_variable": self.sweep_variable,
             "sweep_min": self.sweep_min,
             "sweep_max": self.sweep_max,
@@ -245,12 +258,6 @@ class FlightCondition:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> FlightCondition:
-        st_val = data.get("sweep_type", "alpha")
-        try:
-            st = SweepType(st_val)
-        except ValueError:
-            st = SweepType.ALPHA
-
         return cls(
             velocity=float(data.get("velocity", 25.0)),
             alpha=float(data.get("alpha", 2.0)),
@@ -260,7 +267,6 @@ class FlightCondition:
             q=float(data.get("q", 0.0)),
             r=float(data.get("r", 0.0)),
             control_deflections=dict(data.get("control_deflections") or {}),
-            sweep_type=st,
             sweep_variable=str(data.get("sweep_variable", "alpha")),
             sweep_min=float(data.get("sweep_min", -10.0)),
             sweep_max=float(data.get("sweep_max", 18.0)),

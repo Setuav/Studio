@@ -78,7 +78,7 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
         solver_settings = self._solver_settings(method, settings or {})
         setup = self._prepare_analysis(components, condition, solver_settings["control_encoding"])
         self._validate_control_sweep(components, condition)
-        primary_vals, eval_states = self._build_evaluation_states(condition)
+        sweep_vals, eval_states = self._build_evaluation_states(condition)
         polar_points, oswald_values = self._evaluate_states(
             components,
             condition,
@@ -90,7 +90,7 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
         )
         converged_points = self._require_converged_points(polar_points, method)
         summary = self._polar_summary(converged_points, oswald_values)
-        sweep_result = self._build_sweep_result(condition, eval_states, primary_vals, polar_points)
+        sweep_result = self._build_sweep_result(condition, eval_states, sweep_vals, polar_points)
         control_analysis = self._control_analysis(condition, polar_points)
         stability, stability_error = self._compute_stability(
             components,
@@ -186,9 +186,9 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
     def _build_evaluation_states(
         self, condition: FlightCondition
     ) -> tuple[list[float], list[dict[str, Any]]]:
-        primary_values = condition.get_primary_sweep_values()
-        states = [self._evaluation_state(condition, primary) for primary in primary_values]
-        return primary_values, states
+        sweep_vals = condition.sweep_values()
+        states = [self._evaluation_state(condition, sweep_val) for sweep_val in sweep_vals]
+        return sweep_vals, states
 
     @staticmethod
     def _base_evaluation_state(condition: FlightCondition) -> dict[str, Any]:
@@ -203,14 +203,11 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
     def _evaluation_state(
         self,
         condition: FlightCondition,
-        primary: float,
+        sweep_val: float,
     ) -> dict[str, Any]:
         state = self._base_evaluation_state(condition)
-        state.update(
-            p_val=float(primary),
-            _sweep_group="primary",
-        )
-        self._apply_sweep_value(state, condition.sweep_variable, float(primary))
+        state["sweep_val"] = float(sweep_val)
+        self._apply_sweep_value(state, condition.sweep_variable, float(sweep_val))
         return state
 
     @staticmethod
@@ -379,7 +376,7 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
         if condition.sweep_type == SweepType.BETA:
             return f"β={context['beta']:.1f}°"
         if condition.sweep_type == SweepType.CONTROL_DEFLECTION:
-            return f"{condition.sweep_variable}={eval_state['p_val']:.1f}°"
+            return f"{condition.sweep_variable}={eval_state['sweep_val']:.1f}°"
         return f"Step {index}/{total_steps}"
 
     @staticmethod
