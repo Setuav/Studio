@@ -98,9 +98,9 @@ def test_execute_solver_cancellation() -> None:
     solver = CancelableSolver(config)
     token = DummyCancellationToken(cancelled=True)
 
-    result = execute_solver(solver, token)  # type: ignore[arg-type]
+    with pytest.raises(TaskCancelledError):
+        execute_solver(solver, token)  # type: ignore[arg-type]
 
-    assert result.status == SolverStatus.CANCELLED
     assert solver.status == SolverStatus.CANCELLED
 
 
@@ -109,11 +109,11 @@ def test_execute_solver_failure() -> None:
     solver = FailingSolver(config)
     token = DummyCancellationToken()
 
-    result = execute_solver(solver, token)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="Simulation diverged"):
+        execute_solver(solver, token)  # type: ignore[arg-type]
 
-    assert result.status == SolverStatus.FAILED
     assert solver.status == SolverStatus.FAILED
-    assert "Simulation diverged" in (result.error_message or "")
+    assert solver.error_message == "Simulation diverged"
 
 
 # ==============================================================================
@@ -162,3 +162,23 @@ def test_solver_runner_executes_and_adds_result_to_project() -> None:
 
     # Result was automatically added to current project
     assert res.id in project.solver_results
+
+
+def test_solver_runner_reports_failure_through_on_error() -> None:
+    studio_api = StudioAPI()
+    project = ProjectDocument(path=None, kind="json", data={"components": []})  # type: ignore[arg-type]
+    studio_api._host.set_project(project)
+
+    runner = SolverRunner(studio_api)
+    solver = FailingSolver(SolverConfig(solver_id="org.test:aero", name="Diverging Run"))
+    completed: list[SolverResult] = []
+    errors: list[Exception] = []
+
+    runner.run_solver(solver, on_complete=completed.append, on_error=errors.append)
+    assert studio_api.tasks.thread_pool.waitForDone(5000)
+    get_qapp().processEvents()
+
+    assert completed == []
+    assert [str(err) for err in errors] == ["Simulation diverged"]
+    assert project.solver_results == {}
+    assert solver.status == SolverStatus.FAILED

@@ -83,9 +83,8 @@ class AbstractSolver(ABC):
     def cancel(self) -> None:
         """Request cancellation of the solver run."""
         self._cancel_requested = True
-        cancel_fn = getattr(self.token, "cancel", None)
-        if callable(cancel_fn):
-            cancel_fn()
+        if self.token is not None:
+            self.token.cancel()
 
     @abstractmethod
     def run(self) -> SolverResult:

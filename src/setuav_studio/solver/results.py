@@ -377,7 +377,6 @@ class SolverResult:
         tables: dict[str, TableDefinition | list[dict[str, Any]] | Any] | None = None,
         plots: dict[str, PlotDefinition] | None = None,
         artifacts: dict[str, str] | None = None,
-        error_message: str | None = None,
         metrics: dict[str, float] | None = None,
     ) -> None:
         self.solver_id = solver_id
@@ -416,7 +415,6 @@ class SolverResult:
 
         # Artifacts & errors
         self.artifacts: dict[str, str] = dict(artifacts) if artifacts else {}
-        self.error_message: str | None = error_message
 
     def __repr__(self) -> str:
         return (
@@ -579,7 +577,6 @@ class SolverResult:
             "plots": {k: plot.to_dict() for k, plot in self.plots.items()},
             "initial_plots": {k: plot.to_dict() for k, plot in self._initial_plots.items()},
             "artifacts": self.artifacts,
-            "error_message": self.error_message,
         }
 
     @classmethod
@@ -623,7 +620,6 @@ class SolverResult:
             tables=tables,
             plots=plots,
             artifacts={str(k): str(v) for k, v in data.get("artifacts", {}).items()},
-            error_message=data.get("error_message"),
         )
 
         initial_plots = _parse_plots_from_dict(data.get("initial_plots"))

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
@@ -15,11 +14,13 @@ from .results import SolverResult
 if TYPE_CHECKING:
     from setuav_studio.api.api import StudioAPI
 
-logger = logging.getLogger(__name__)
-
 
 def execute_solver(solver: AbstractSolver, token: CancellationToken) -> SolverResult:
-    """Synchronous worker function that executes a solver and tracks timing/cancellation."""
+    """Run a solver synchronously and return its completed result.
+
+    Cancellation raises ``TaskCancelledError`` and solver failures propagate, so the
+    task manager reports them through its cancelled and error callbacks.
+    """
     start_time = time.perf_counter()
     solver.status = SolverStatus.RUNNING
     solver.token = token
@@ -28,45 +29,20 @@ def execute_solver(solver: AbstractSolver, token: CancellationToken) -> SolverRe
     try:
         token.check_cancelled()
         if solver.is_cancel_requested:
-            solver.status = SolverStatus.CANCELLED
-            token.report_progress(100, 100, "Solver run cancelled.")
-            return SolverResult(
-                solver_id=solver.config.solver_id,
-                config=solver.config,
-                name=solver.config.name,
-                status=SolverStatus.CANCELLED,
-            )
-
+            raise TaskCancelledError(f"Solver {solver.config.name} cancelled.")
         result = solver.run()
-        elapsed_ms = (time.perf_counter() - start_time) * 1000.0
-        result.execution_time_ms = elapsed_ms
-        solver.status = result.status
-        token.report_progress(100, 100, f"Completed {solver.config.name}.")
-        return result
     except TaskCancelledError:
-        elapsed_ms = (time.perf_counter() - start_time) * 1000.0
         solver.status = SolverStatus.CANCELLED
-        token.report_progress(100, 100, "Solver run cancelled.")
-        return SolverResult(
-            solver_id=solver.config.solver_id,
-            config=solver.config,
-            name=solver.config.name,
-            status=SolverStatus.CANCELLED,
-            execution_time_ms=elapsed_ms,
-        )
+        raise
     except Exception as exc:
-        elapsed_ms = (time.perf_counter() - start_time) * 1000.0
         solver.status = SolverStatus.FAILED
         solver.error_message = str(exc)
-        logger.error("Solver %s failed: %s", solver.config.name, exc, exc_info=True)
-        return SolverResult(
-            solver_id=solver.config.solver_id,
-            config=solver.config,
-            name=solver.config.name,
-            status=SolverStatus.FAILED,
-            execution_time_ms=elapsed_ms,
-            error_message=str(exc),
-        )
+        raise
+
+    result.execution_time_ms = (time.perf_counter() - start_time) * 1000.0
+    solver.status = result.status
+    token.report_progress(100, 100, f"Completed {solver.config.name}.")
+    return result
 
 
 class SolverRunner:
@@ -97,9 +73,9 @@ class SolverRunner:
         priority: TaskPriority = TaskPriority.NORMAL,
     ) -> Any:
         """Submit a solver instance to run asynchronously via TaskManager."""
-        if getattr(solver, "project", None) is None and self._api.project is not None:
+        if solver.project is None:
             solver.project = self._api.project
-        if getattr(solver, "api", None) is None:
+        if solver.api is None:
             solver.api = self._api
 
         name = f"Solver: {solver.config.name}"

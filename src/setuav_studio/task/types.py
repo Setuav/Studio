@@ -62,6 +62,10 @@ class CancellationToken(Protocol):
         """Report execution progress back to the manager."""
         ...
 
+    def cancel(self) -> None:
+        """Request cancellation of the task."""
+        ...
+
 
 class TaskCancelledError(Exception):
     """Raised when a background task execution is cancelled."""

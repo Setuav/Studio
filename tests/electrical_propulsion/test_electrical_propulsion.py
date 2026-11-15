@@ -50,6 +50,9 @@ class _RecordingToken:
     def report_progress(self, current: int, total: int, message: str = "") -> None:
         self.progress.append((current, total, message))
 
+    def cancel(self) -> None:
+        return None
+
 
 class TestElectricalPropulsion(unittest.TestCase):
     @classmethod
