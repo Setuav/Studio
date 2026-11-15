@@ -18,9 +18,6 @@ class ControlSurfaceModel(Component):
         super().__init__(data)
         self._parent_model = parent_model
 
-    def set_parent_model(self, parent_model: Any | None) -> None:
-        self._parent_model = parent_model
-
     def _get_parent_dimensions(self) -> tuple[float, float, float, float | None]:
         """Return (semi_span, root_chord, tip_chord, parent_area_dm2)."""
         if self._parent_model is not None:

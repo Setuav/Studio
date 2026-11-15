@@ -77,10 +77,8 @@ def build_universal_scope(  # noqa: C901
     config_id: str | None = None,
 ) -> dict[str, Any]:
     """Build the universal evaluation scope containing resolved parameters, models, and extensions."""
-    from copy import deepcopy
-
-    from setuav_studio.model.component import GenericComponent
     from setuav_studio.model.parameter import ParameterResolver
+    from setuav_studio.model.symbol import build_component_models
     from setuav_studio.project.document import ProjectDocument
 
     raw_data = project_data.data if isinstance(project_data, ProjectDocument) else project_data
@@ -102,57 +100,29 @@ def build_universal_scope(  # noqa: C901
             scope[clean_k] = v
 
     # 2. Materialized Components (reading stored evaluated values directly)
-    components = p_dict.get("components", [])
-    models_list: list[Any] = []
+    models_list = build_component_models(p_dict.get("components", []), api)
     total_mass = 0.0
+    for model in models_list:
+        raw_cid = model.id
+        if not raw_cid:
+            continue
+        clean_cid = raw_cid.replace("-", "_")
+        scope[clean_cid] = model
+        if raw_cid != clean_cid:
+            scope[raw_cid] = model
 
-    if isinstance(components, list):
-        for comp in components:
-            if not isinstance(comp, dict):
-                continue
-            comp_copy = deepcopy(comp)
-            model = (
-                api.create_component_model(comp_copy)
-                if api is not None
-                else GenericComponent(comp_copy)
-            )
-            models_list.append(model)
+        # Short child names (e.g. aileron -> main_wing.aileron)
+        for child_name, child_model in model.children.items():
+            child_clean = child_name.replace("-", "_")
+            if child_clean not in scope:
+                scope[child_clean] = child_model
 
-        # Link child models (e.g. control surfaces, attached motors) to their parent models
-        model_by_id = {getattr(m, "id", ""): m for m in models_list if getattr(m, "id", "")}
-        for model in models_list:
-            parent_id = model.parent
-            if parent_id and parent_id in model_by_id:
-                parent_model = model_by_id[parent_id]
-                if hasattr(model, "set_parent_model"):
-                    model.set_parent_model(parent_model)
-                if hasattr(parent_model, "add_child_model"):
-                    parent_model.add_child_model(model)
+        # Flat property names (e.g. main_wing_planform_area)
+        for prop_name, prop_val in model.get_exposed_properties().items():
+            if isinstance(prop_val, (int, float, bool, str)):
+                scope[f"{clean_cid}_{prop_name}"] = prop_val
 
-        # Register models directly into evaluation scope (No ScopeProxy wrapper!)
-        for model in models_list:
-            raw_cid = str(getattr(model, "id", "") or "")
-            if not raw_cid:
-                continue
-            clean_cid = raw_cid.replace("-", "_")
-            scope[clean_cid] = model
-            if raw_cid != clean_cid:
-                scope[raw_cid] = model
-
-            # Short child alias registration (e.g. aileron -> main_wing.aileron)
-            if hasattr(model, "children") and isinstance(model.children, dict):
-                for child_name, child_model in model.children.items():
-                    child_clean = child_name.replace("-", "_")
-                    if child_clean not in scope:
-                        scope[child_clean] = child_model
-
-            # Register flat property names (e.g. main_wing_planform_area)
-            if hasattr(model, "get_exposed_properties"):
-                for prop_name, prop_val in model.get_exposed_properties().items():
-                    if isinstance(prop_val, (int, float, bool, str)):
-                        scope[f"{clean_cid}_{prop_name}"] = prop_val
-
-            total_mass += getattr(model, "mass", 0.0)
+        total_mass += model.mass
 
     # 3. Generic Plugin Extensions (e.g. Manufacturing, Propulsion, Structures, etc.)
     extensions = p_dict.get("extensions", {})

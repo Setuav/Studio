@@ -6,6 +6,7 @@ for equations, expressions, and constraints evaluation.
 
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any
 
 from setuav_studio.model.component import Component, GenericComponent
@@ -19,6 +20,24 @@ def create_model_for_component(
     if api is not None:
         return api.create_component_model(component)
     return GenericComponent(component)
+
+
+def build_component_models(components: Any, api: Any | None = None) -> list[Component]:
+    """Instantiate a domain model for each component and link child models to their parents."""
+    if not isinstance(components, list):
+        return []
+    models = [
+        create_model_for_component(deepcopy(comp), api)
+        for comp in components
+        if isinstance(comp, dict)
+    ]
+    model_by_id = {model.id: model for model in models if model.id}
+    for model in models:
+        parent_model = model_by_id.get(model.parent or "")
+        if parent_model is not None:
+            model.set_parent_model(parent_model)
+            parent_model.add_child_model(model)
+    return models
 
 
 def build_evaluation_context(

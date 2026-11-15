@@ -225,38 +225,9 @@ class ProjectDocument:
         self, api: Any | None = None, config_id: str | None = None
     ) -> list[Any]:
         """Return the list of typed domain model instances for all project components."""
-        from copy import deepcopy
+        from setuav_studio.model.symbol import build_component_models
 
-        from setuav_studio.model import GenericComponent
-
-        components = self.data.get("components", []) if isinstance(self.data, dict) else []
-        models: list[Any] = []
-        if not isinstance(components, list):
-            return models
-
-        for comp in components:
-            if not isinstance(comp, dict):
-                continue
-            comp_copy = deepcopy(comp)
-            model = (
-                api.create_component_model(comp_copy)
-                if api is not None
-                else GenericComponent(comp_copy)
-            )
-            models.append(model)
-
-        # Link children (such as control surfaces) to their parent models
-        model_by_id = {getattr(m, "id", ""): m for m in models if getattr(m, "id", "")}
-        for model in models:
-            parent_id = model.parent
-            if parent_id and parent_id in model_by_id:
-                parent_model = model_by_id[parent_id]
-                if hasattr(model, "set_parent_model"):
-                    model.set_parent_model(parent_model)
-                if hasattr(parent_model, "add_child_model"):
-                    parent_model.add_child_model(model)
-
-        return models
+        return build_component_models(self.data.get("components", []), api)
 
     def get_scope(self, api: Any | None = None, config_id: str | None = None) -> dict[str, Any]:
         """Return the complete runtime evaluation scope containing resolved parameters and live component models."""

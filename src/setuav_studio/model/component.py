@@ -46,6 +46,7 @@ class Component:
         self._raw_data.setdefault("parameters", {})
         self._children: dict[str, Any] = {}
         self._child_list: list[Any] = []
+        self._parent_model: Component | None = None
 
         # 1. Class-level component type default
         class_type = getattr(self.__class__, "COMPONENT_TYPE", "")
@@ -368,6 +369,10 @@ class Component:
     def from_dict(cls, data: dict[str, Any]) -> Component:
         """Instantiate model from dictionary."""
         return cls(data)
+
+    def set_parent_model(self, parent_model: Component | None) -> None:
+        """Link the model of the component this one is parented to."""
+        self._parent_model = parent_model
 
     def add_child_model(self, child: Any) -> None:
         """Register a child component model attached to this component."""
