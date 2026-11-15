@@ -231,7 +231,7 @@ class FlightCondition:
     secondary_min: float = 0.0
     secondary_max: float = 0.0
     secondary_steps: int = 1
-    # Backward compatibility fields
+    # Dedicated alpha/beta sweep range fields
     alpha_min: float = -10.0  # deg
     alpha_max: float = 18.0  # deg
     alpha_steps: int = 29
@@ -312,7 +312,7 @@ class FlightCondition:
         except ValueError:
             st = SweepType.ALPHA
 
-        # Handle backward compatibility with alpha_min / alpha_max
+        # Resolve sweep limits with fallback to alpha range
         s_min = float(data.get("sweep_min", data.get("alpha_min", -4.0)))
         s_max = float(data.get("sweep_max", data.get("alpha_max", 16.0)))
         s_steps = int(data.get("sweep_steps", data.get("alpha_steps", 21)))
@@ -493,9 +493,9 @@ class AeroForcesMoments:
             fx_b=float(data.get("fx_b", 0.0)),
             fy_b=float(data.get("fy_b", 0.0)),
             fz_b=float(data.get("fz_b", 0.0)),
-            fx_w=float(data.get("fx_w", -float(data.get("drag", 0.0)))),
-            fy_w=float(data.get("fy_w", data.get("sideforce", 0.0))),
-            fz_w=float(data.get("fz_w", -float(data.get("lift", 0.0)))),
+            fx_w=float(data.get("fx_w", 0.0)),
+            fy_w=float(data.get("fy_w", 0.0)),
+            fz_w=float(data.get("fz_w", 0.0)),
             lift=float(data.get("lift", 0.0)),
             drag=float(data.get("drag", 0.0)),
             sideforce=float(data.get("sideforce", 0.0)),

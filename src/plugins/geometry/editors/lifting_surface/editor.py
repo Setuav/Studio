@@ -299,7 +299,7 @@ class LiftingSurfaceEditor(
             if value.get("type") == "coordinates":
                 return f"Custom ({len(value.get('points') or [])} pts)"
             if value.get("type") == "file":
-                return f"File: {Path(str(value.get('path') or value.get('file') or '')).name}"
+                return f"File: {Path(str(value.get('path') or '')).name}"
         return "NACA 2412"
 
     @staticmethod

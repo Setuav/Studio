@@ -424,10 +424,10 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
         motor_spec: MotorSpec | None = None
         if motor_comp:
             m_params = motor_comp.get("parameters", {})
-            kv = float(m_params.get("kv") or m_params.get("kv_rpm_per_v") or 900.0)
-            r_motor = float(m_params.get("resistance") or m_params.get("resistance_ohm") or 0.035)
-            i0 = float(m_params.get("no_load_current") or m_params.get("no_load_current_a") or 1.2)
-            i_max = float(m_params.get("max_current") or m_params.get("current_max_a") or 45.0)
+            kv = float(m_params.get("kv", 900.0))
+            r_motor = float(m_params.get("resistance", 0.035))
+            i0 = float(m_params.get("no_load_current", 1.2))
+            i_max = float(m_params.get("max_current", 45.0))
             motor_spec = MotorSpec(
                 kv_rpm_per_v=kv, resistance_ohm=r_motor, no_load_current_a=i0, current_max_a=i_max
             )
@@ -436,17 +436,17 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
         prop_entry = None
         if prop_comp:
             p_params = prop_comp.get("parameters", {})
-            d_raw = float(p_params.get("diameter_m") or p_params.get("diameter") or 0.3302)
-            p_raw = float(p_params.get("pitch_m") or p_params.get("pitch") or 0.1651)
+            d_raw = float(p_params.get("diameter", 330.2))
+            p_raw = float(p_params.get("pitch", 165.1))
             diameter_m = d_raw / 1000.0 if d_raw > 2.0 else d_raw
             pitch_m = p_raw / 1000.0 if p_raw > 2.0 else p_raw
             diameter_in = diameter_m / 0.0254
             pitch_in = pitch_m / 0.0254
-            blades = int(p_params.get("blades") or p_params.get("blade_count") or 2)
+            blades = int(p_params.get("blade_count", 2))
 
             prop_spec = PropellerSpec(diameter_m=diameter_m, pitch_m=pitch_m, blade_count=blades)
             prop_db = get_propeller_database()
-            prop_name = str(prop_comp.get("name") or prop_comp.get("model") or "")
+            prop_name = str(prop_comp.get("name", ""))
             if prop_name:
                 prop_entry = prop_db.get(prop_name) or prop_db.get(prop_name.replace(" ", "_"))
             if prop_entry is None:
@@ -465,9 +465,8 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
         bat_voltage: float | None = None
         if bat_comp:
             b_params = bat_comp.get("parameters", {})
-            pack = b_params.get("pack", {})
-            cells = int(pack.get("series_count") or b_params.get("cell_count") or 4)
-            bat_capacity_mah = float(pack.get("capacity") or b_params.get("capacity") or 5000.0)
+            cells = int(b_params.get("cell_count", 4))
+            bat_capacity_mah = float(b_params.get("capacity", 5000.0))
             soc_choice = self.combo_soc.currentData()
             v_cell = 4.20 if soc_choice == "full" else (3.70 if soc_choice == "nominal" else 3.80)
             bat_voltage = v_cell * cells

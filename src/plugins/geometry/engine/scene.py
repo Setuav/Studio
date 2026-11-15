@@ -232,7 +232,7 @@ def _is_bilateral(source: dict[str, Any]) -> bool:
     parameters = parameters if isinstance(parameters, dict) else {}
     geometry = parameters.get("geometry")
     geometry = geometry if isinstance(geometry, dict) else {}
-    return geometry.get("mirror") is True or source.get("mirror") is True
+    return geometry.get("mirror") is True
 
 
 def _append_mirrored_geometry(

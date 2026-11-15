@@ -532,7 +532,7 @@ class AeroSandboxGeometryMixin:
         geometry, profiles = self._lifting_surface_geometry(comp)
         if profiles is None:
             return None
-        mirror = bool(geometry.get("mirror", False) or comp.get("mirror", False))
+        mirror = bool(geometry.get("mirror", False))
         frames = self._lifting_surface_frames(comp, comp_by_id)
         station_raw = self._lifting_surface_stations(profiles, geometry, frames)
         if len(station_raw) < 2:

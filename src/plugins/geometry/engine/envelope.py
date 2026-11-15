@@ -570,7 +570,7 @@ def _compute_lifting_surface_trapezoidal_slices(
 
     valid_profiles.sort(key=lambda p: abs(_number((p.get("position") or {}).get("y"))))
 
-    mirror = bool(geometry.get("mirror", geometry.get("symmetric", False)))
+    mirror = bool(geometry.get("mirror", False))
 
     sections: list[dict[str, Any]] = []
     slices: list[dict[str, Any]] = []
@@ -887,7 +887,7 @@ def _compute_lifting_surface_envelope(component: dict[str, Any]) -> dict[str, An
         lofts = ()
 
     pts = [p for loft in lofts for sec in loft.sections for p in sec.points]
-    mirror = bool(geometry.get("mirror", geometry.get("symmetric", False)))
+    mirror = bool(geometry.get("mirror", False))
 
     if pts:
         xs = [p[0] for p in pts]
@@ -948,7 +948,7 @@ def _lifting_surface_fallback(geometry: dict[str, Any]) -> dict[str, Any] | None
     if not xs or not ys or not zs:
         return None
 
-    mirror = bool(geometry.get("mirror", geometry.get("symmetric", False)))
+    mirror = bool(geometry.get("mirror", False))
     if mirror:
         max_semi = max(abs(y) for y in ys)
         size_y = round(max(max_semi * 2.0, 1.0), 1)
@@ -980,17 +980,7 @@ def _compute_fuselage_envelope(component: dict[str, Any]) -> dict[str, Any] | No
     segments = geometry.get("segments")
 
     if not isinstance(segments, list) or not segments:
-        legacy_sections = geometry.get("sections")
-        if isinstance(legacy_sections, list) and legacy_sections:
-            segments = [
-                {
-                    "tag": "main",
-                    "loft": geometry.get("loft") if isinstance(geometry.get("loft"), dict) else {},
-                    "sections": legacy_sections,
-                }
-            ]
-        else:
-            length = _number(parameters.get("length"))
+        length = _number(parameters.get("length"))
         width = _number(parameters.get("width"))
         height = _number(parameters.get("height"))
         if length > 0.0:

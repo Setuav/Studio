@@ -55,7 +55,7 @@ class GeneralSectionMixin:
             self.general_table, "type", str(self._component.get("type") or ""), editable=False
         )
 
-        # Parent Selection Combo (fuselage and other lifting surfaces)
+        # Mounting Target Combo (attach_to fuselage or lifting surface)
         current_attach = str(self._component.get("attach_to") or "")
         parent_options = [("", "(None)")]
         project = getattr(self._api, "current_project", None) or getattr(self._api, "project", None)
@@ -113,11 +113,11 @@ class GeneralSectionMixin:
         if hasattr(self, "_refresh_planform_table"):
             self._refresh_planform_table()
 
-    def _update_attach_to(self, new_parent: str | None) -> None:
+    def _update_attach_to(self, target_id: str | None) -> None:
         if getattr(self, "_loading", False):
             return
 
         def change() -> None:
-            self._component["attach_to"] = new_parent
+            self._component["attach_to"] = target_id
 
         self._edit_component("Change component attach_to", change)

@@ -515,7 +515,7 @@ def _sample_airfoil_mapping(value: dict[str, Any]) -> tuple[tuple[float, float],
         digits = re.sub(r"[^\d]", "", str(value.get("code") or "0012"))
         return naca5(digits) if len(digits) == 5 else naca4(digits or "0012")
     if value_type == "file":
-        return _sample_airfoil_file(str(value.get("path") or value.get("file") or ""))
+        return _sample_airfoil_file(str(value.get("path") or ""))
     return None
 
 

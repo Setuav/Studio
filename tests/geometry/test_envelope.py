@@ -24,7 +24,6 @@ def _sample_wing(mirror: bool = True) -> dict[str, Any]:
         "parameters": {
             "geometry": {
                 "mirror": mirror,
-                "symmetric": mirror,
                 "profiles": [
                     {
                         "position": {"x": 0.0, "y": 0.0, "z": 0.0},

@@ -315,7 +315,6 @@ class AirframeCreationController:
             "parameters": {
                 "geometry": {
                     "mirror": mirrored,
-                    "symmetric": mirrored,
                     "profiles": [
                         self._wing_profile(0.0, root_chord, airfoil),
                         self._wing_profile(span, tip_chord, airfoil),

@@ -179,7 +179,7 @@ class AirframeEditor(PropertyTableMixin, QWidget):
                     ),
                     default=0.0,
                 )
-                if geom.get("mirror") or geom.get("symmetric"):
+                if geom.get("mirror"):
                     span_y *= 2.0
                 max_span = max(max_span, span_y)
 

@@ -133,7 +133,7 @@ class PropulsionSystemEditor(PropertyTableMixin, QWidget):
                 else []
             )
 
-            # Check both explicit members (legacy/fixture) and parent-based children
+            # Check explicit members and parent-based children
             members = (
                 self._component.get("members", {}) if isinstance(self._component, dict) else {}
             )

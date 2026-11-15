@@ -25,16 +25,6 @@ class AirfoilPolarPoint:
     cl_over_cd: float = 0.0
     converged: bool = True
 
-    @property
-    def top_separation(self) -> float | None:
-        """Backward-compatible alias; this field is transition X/c, not separation."""
-        return self.top_transition
-
-    @property
-    def bottom_separation(self) -> float | None:
-        """Backward-compatible alias; this field is transition X/c, not separation."""
-        return self.bottom_transition
-
     def to_dict(self) -> dict[str, Any]:
         return {
             "alpha": self.alpha,
@@ -64,22 +54,12 @@ class AirfoilPolarPoint:
                 float(data["cd_friction"]) if data.get("cd_friction") is not None else None
             ),
             top_transition=(
-                float(data["top_transition"])
-                if data.get("top_transition") is not None
-                else (
-                    float(data["top_separation"])
-                    if data.get("top_separation") is not None
-                    else None
-                )
+                float(data["top_transition"]) if data.get("top_transition") is not None else None
             ),
             bottom_transition=(
                 float(data["bottom_transition"])
                 if data.get("bottom_transition") is not None
-                else (
-                    float(data["bottom_separation"])
-                    if data.get("bottom_separation") is not None
-                    else None
-                )
+                else None
             ),
             analysis_confidence=(
                 float(data["analysis_confidence"])

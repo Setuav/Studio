@@ -735,21 +735,6 @@ class FuselageSectionDialog(QDialog):
 
         self._refresh_canvas_and_metrics()
 
-    def _on_transform_spinbox_changed(self) -> None:
-        """Legacy handler kept for backward compatibility — delegates to expression handler."""
-        if self._loading:
-            return
-        sec = self._current_section()
-        if not sec:
-            return
-        for col, axis in enumerate(("x", "y", "z")):
-            w_pos = self.trans_table.cellWidget(0, col)
-            if isinstance(w_pos, (QDoubleSpinBox, ExpressionPropertyCell)):
-                self._on_transform_expression_changed("position", axis, w_pos.value())
-            w_rot = self.trans_table.cellWidget(1, col)
-            if isinstance(w_rot, (QDoubleSpinBox, ExpressionPropertyCell)):
-                self._on_transform_expression_changed("rotation", axis, w_rot.value())
-
     def _update_metrics_labels(self) -> None:
         from setuav_studio.units import get_unit_manager
 

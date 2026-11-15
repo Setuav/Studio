@@ -83,12 +83,9 @@ def section_transform(
     position = section.get("position")
     position = position if isinstance(position, dict) else {}
 
-    roll_val = rotation.get("roll") if "roll" in rotation else rotation.get("x")
-    pitch_val = rotation.get("pitch") if "pitch" in rotation else rotation.get("y")
-    yaw_val = rotation.get("yaw") if "yaw" in rotation else rotation.get("z")
-    roll = radians(_number(roll_val))
-    pitch = radians(_number(pitch_val))
-    yaw = radians(_number(yaw_val))
+    roll = radians(_number(rotation.get("roll")))
+    pitch = radians(_number(rotation.get("pitch")))
+    yaw = radians(_number(rotation.get("yaw")))
     cr, sr = cos(roll), sin(roll)
     cp, sp = cos(pitch), sin(pitch)
     cy, sy = cos(yaw), sin(yaw)

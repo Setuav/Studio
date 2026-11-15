@@ -76,7 +76,7 @@ class LiftingSurfaceModel(Component):
     @property
     def profiles(self) -> list[dict[str, Any]]:
         geom = self.geometry
-        return geom.get("profiles") or geom.get("sections") or []
+        return geom.get("profiles") or []
 
     @property
     def sections(self) -> list[LiftingSurfaceSectionModel]:
@@ -99,11 +99,7 @@ class LiftingSurfaceModel(Component):
 
     @property
     def mirror(self) -> bool:
-        return bool(self.geometry.get("mirror", self.geometry.get("symmetric", False)))
-
-    @property
-    def symmetric(self) -> bool:
-        return self.mirror
+        return bool(self.geometry.get("mirror", False))
 
     @property
     def sweep_location(self) -> float:
@@ -119,7 +115,7 @@ class LiftingSurfaceModel(Component):
             return compute_planform_metrics(
                 profiles,
                 sweep_loc=self.sweep_location,
-                symmetric=self.symmetric,
+                symmetric=self.mirror,
                 y_offset=self.y,
             )
         except Exception:

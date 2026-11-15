@@ -282,33 +282,8 @@ class SegmentsSectionMixin:
         if not isinstance(segments, list) or not all(
             isinstance(segment, dict) for segment in segments
         ):
-            legacy_sections = geometry.pop("sections", None)
-            loft = geometry.get("loft")
-            loft_dict = (
-                loft
-                if isinstance(loft, dict)
-                else {
-                    "method": "smooth",
-                    "profile_correspondence": "cardinal_quadrants",
-                }
-            )
-            if isinstance(legacy_sections, list) and legacy_sections:
-                segments = [
-                    {
-                        "tag": "main",
-                        "loft": loft_dict,
-                        "sections": legacy_sections,
-                    }
-                ]
-            else:
-                segments = [create_default_segment("main", 0.0, 500.0)]
+            segments = [create_default_segment("main", 0.0, 500.0)]
             geometry["segments"] = segments
-
-        legacy_sections = geometry.pop("sections", None)
-        if isinstance(legacy_sections, list) and legacy_sections and segments:
-            first_seg = segments[0]
-            if not first_seg.get("sections"):
-                first_seg["sections"] = legacy_sections
 
         for seg in segments:
             if not isinstance(seg.get("sections"), list):
