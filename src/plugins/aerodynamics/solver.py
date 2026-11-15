@@ -8,6 +8,7 @@ from typing import Any, ClassVar
 from plugins.aerodynamics.engine.aerosandbox_engine import AeroSandboxEngine
 from plugins.aerodynamics.engine.base import (
     CONTROL_CHANNELS,
+    AeroAnalysisError,
     AeroResult,
     AnalysisMethod,
     FlightCondition,
@@ -73,14 +74,6 @@ class BaseAerodynamicsSolver(AbstractSolver):
                 self.token.report_progress(current, total, message)
 
         return progress_cb
-
-    def _resolve_method(self, method_str: str) -> AnalysisMethod:
-        clean = str(method_str).strip().lower()
-        if clean in ("vlm", "vortex_lattice"):
-            return AnalysisMethod.VLM
-        if clean in ("lifting_line", "llt"):
-            return AnalysisMethod.LIFTING_LINE
-        return AnalysisMethod.AERO_BUILDUP
 
 
 class AlphaSweepSolver(BaseAerodynamicsSolver):
@@ -210,7 +203,7 @@ class AlphaSweepSolver(BaseAerodynamicsSolver):
         velocity = max(1.0, float(self.config.parameters.get("velocity", 25.0)))
         altitude = float(self.config.parameters.get("altitude", 0.0))
         beta = float(self.config.parameters.get("beta", 0.0))
-        method = self._resolve_method(str(self.config.parameters.get("method", "aero_buildup")))
+        method = AnalysisMethod.from_value(self.config.parameters.get("method", "aero_buildup"))
 
         span_res = int(self.config.parameters.get("spanwise_resolution", 12))
         chord_res = int(self.config.parameters.get("chordwise_resolution", 8))
@@ -246,8 +239,6 @@ class AlphaSweepSolver(BaseAerodynamicsSolver):
 
     def _build_result(self, res: AeroResult) -> SolverResult:
         pts = [p for p in res.polar_points if p.converged]
-        if not pts:
-            pts = res.polar_points
 
         alpha_col = [p.alpha for p in pts]
         cl_col = [p.cl for p in pts]
@@ -365,16 +356,12 @@ class AlphaSweepSolver(BaseAerodynamicsSolver):
 
         stab = res.stability_derivatives
         if stab is not None:
-            x_np = getattr(stab, "x_np", None)
-            sm = getattr(stab, "static_margin", None)
-            if x_np is not None:
-                summary.append(
-                    SummaryItem("x_np", round(float(x_np), 4), "Neutral Point", unit="m")
-                )
-            if sm is not None:
-                summary.append(
-                    SummaryItem("static_margin", round(float(sm), 2), "Static Margin", unit="%")
-                )
+            x_np = stab.x_np
+            sm = stab.static_margin
+            summary.append(SummaryItem("x_np", round(float(x_np), 4), "Neutral Point", unit="m"))
+            summary.append(
+                SummaryItem("static_margin", round(float(sm), 2), "Static Margin", unit="%")
+            )
 
         return SolverResult(
             solver_id=self.config.solver_id,
@@ -514,7 +501,7 @@ class BetaSweepSolver(BaseAerodynamicsSolver):
         alpha = float(self.config.parameters.get("alpha", 2.0))
         velocity = max(1.0, float(self.config.parameters.get("velocity", 25.0)))
         altitude = float(self.config.parameters.get("altitude", 0.0))
-        method = self._resolve_method(str(self.config.parameters.get("method", "aero_buildup")))
+        method = AnalysisMethod.from_value(self.config.parameters.get("method", "aero_buildup"))
 
         span_res = int(self.config.parameters.get("spanwise_resolution", 12))
         chord_res = int(self.config.parameters.get("chordwise_resolution", 8))
@@ -550,8 +537,6 @@ class BetaSweepSolver(BaseAerodynamicsSolver):
 
     def _build_result(self, res: AeroResult) -> SolverResult:
         pts = [p for p in res.polar_points if p.converged]
-        if not pts:
-            pts = res.polar_points
 
         beta_col = [p.beta for p in pts]
         cy_col = [p.cy for p in pts]
@@ -611,30 +596,27 @@ class BetaSweepSolver(BaseAerodynamicsSolver):
         summary = []
         stab = res.stability_derivatives
         if stab is not None:
-            cyb = getattr(stab, "c_Y_beta_deg", None)
-            clb = getattr(stab, "c_l_beta_deg", None)
-            cnb = getattr(stab, "c_n_beta_deg", None)
-            if cyb is not None:
-                summary.append(
-                    SummaryItem(
-                        "cy_beta", round(float(cyb), 5), "CY_beta (Sideforce slope)", unit="1/°"
-                    )
+            cyb = stab.c_Y_beta_deg
+            clb = stab.c_l_beta_deg
+            cnb = stab.c_n_beta_deg
+            summary.append(
+                SummaryItem(
+                    "cy_beta", round(float(cyb), 5), "CY_beta (Sideforce slope)", unit="1/°"
                 )
-            if clb is not None:
-                summary.append(
-                    SummaryItem(
-                        "cl_beta", round(float(clb), 5), "Cl_beta (Dihedral Effect)", unit="1/°"
-                    )
+            )
+            summary.append(
+                SummaryItem(
+                    "cl_beta", round(float(clb), 5), "Cl_beta (Dihedral Effect)", unit="1/°"
                 )
-            if cnb is not None:
-                summary.append(
-                    SummaryItem(
-                        "cn_beta",
-                        round(float(cnb), 5),
-                        "Cn_beta (Directional Stability)",
-                        unit="1/°",
-                    )
+            )
+            summary.append(
+                SummaryItem(
+                    "cn_beta",
+                    round(float(cnb), 5),
+                    "Cn_beta (Directional Stability)",
+                    unit="1/°",
                 )
+            )
 
         if not summary and len(pts) >= 2:
             d_beta = pts[-1].beta - pts[0].beta
@@ -793,8 +775,11 @@ class ControlDeflectionSolver(BaseAerodynamicsSolver):
 
         channel = str(self.config.parameters.get("channel", "elevator")).strip().lower()
         available_channels = control_channels_for_components(components)
-        if available_channels and channel not in available_channels:
-            channel = available_channels[0]
+        if channel not in available_channels:
+            available = ", ".join(available_channels) or "none"
+            raise AeroAnalysisError(
+                f"Aircraft has no '{channel}' control channel (available: {available})."
+            )
 
         def_min = float(self.config.parameters.get("deflection_min", -20.0))
         def_max = float(self.config.parameters.get("deflection_max", 20.0))
@@ -807,7 +792,7 @@ class ControlDeflectionSolver(BaseAerodynamicsSolver):
         beta = float(self.config.parameters.get("beta", 0.0))
         velocity = max(1.0, float(self.config.parameters.get("velocity", 25.0)))
         altitude = float(self.config.parameters.get("altitude", 0.0))
-        method = self._resolve_method(str(self.config.parameters.get("method", "aero_buildup")))
+        method = AnalysisMethod.from_value(self.config.parameters.get("method", "aero_buildup"))
 
         condition = FlightCondition(
             velocity=velocity,
@@ -841,8 +826,6 @@ class ControlDeflectionSolver(BaseAerodynamicsSolver):
 
     def _build_result(self, res: AeroResult, channel: str) -> SolverResult:
         pts = [p for p in res.polar_points if p.converged]
-        if not pts:
-            pts = res.polar_points
 
         deflection_col = [p.control_deflections.get(channel, 0.0) for p in pts]
         cl_col = [p.cl for p in pts]
@@ -1077,7 +1060,7 @@ class OperatingPointSolver(BaseAerodynamicsSolver):
         beta = float(self.config.parameters.get("beta", 0.0))
         velocity = max(1.0, float(self.config.parameters.get("velocity", 25.0)))
         altitude = float(self.config.parameters.get("altitude", 0.0))
-        method = self._resolve_method(str(self.config.parameters.get("method", "aero_buildup")))
+        method = AnalysisMethod.from_value(self.config.parameters.get("method", "aero_buildup"))
 
         span_res = int(self.config.parameters.get("spanwise_resolution", 12))
         chord_res = int(self.config.parameters.get("chordwise_resolution", 8))
@@ -1191,16 +1174,12 @@ class OperatingPointSolver(BaseAerodynamicsSolver):
 
         stab = res.stability_derivatives
         if stab is not None:
-            x_np = getattr(stab, "x_np", None)
-            sm = getattr(stab, "static_margin", None)
-            if x_np is not None:
-                summary.append(
-                    SummaryItem("x_np", round(float(x_np), 4), "Neutral Point", unit="m")
-                )
-            if sm is not None:
-                summary.append(
-                    SummaryItem("static_margin", round(float(sm), 2), "Static Margin", unit="%")
-                )
+            x_np = stab.x_np
+            sm = stab.static_margin
+            summary.append(SummaryItem("x_np", round(float(x_np), 4), "Neutral Point", unit="m"))
+            summary.append(
+                SummaryItem("static_margin", round(float(sm), 2), "Static Margin", unit="%")
+            )
 
         return SolverResult(
             solver_id=self.config.solver_id,

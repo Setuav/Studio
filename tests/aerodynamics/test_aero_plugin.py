@@ -458,6 +458,16 @@ class AerodynamicsPluginTests(unittest.TestCase):
         self.assertEqual(result.summary["reynolds"].value, "3.20e+05")
 
     @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
+    def test_control_analysis_rejects_channel_missing_on_aircraft(self) -> None:
+        aero_result = AeroResult(method=AnalysisMethod.VLM, engine_name="AeroSandbox")
+        with self.assertRaisesRegex(AeroAnalysisError, "no 'aileron' control channel"):
+            self._run_solver(ControlDeflectionSolver, {"channel": "aileron"}, aero_result)
+
+    def test_unknown_solver_method_is_rejected(self) -> None:
+        aero_result = AeroResult(method=AnalysisMethod.VLM, engine_name="AeroSandbox")
+        with self.assertRaises(ValueError):
+            self._run_solver(AlphaSweepSolver, {"method": "llt"}, aero_result)
+
     def test_analysis_without_converged_points_fails(self) -> None:
         wing = {
             "id": "wing",
