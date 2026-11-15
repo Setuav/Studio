@@ -183,7 +183,7 @@ class MainWindow(QMainWindow):
         dock.setObjectName(contribution.id)
         dock.setWidget(self._wrap_panel(contribution.factory()))
         self.addDockWidget(contribution.area, dock)
-        if not getattr(contribution, "default_visible", True):
+        if not contribution.default_visible:
             dock.hide()
         self._panels[contribution.id] = (contribution, dock)
 
@@ -276,9 +276,7 @@ class MainWindow(QMainWindow):
         self._project_controller.update_window_title()
 
     def _recent_projects(self) -> list[str]:
-        if hasattr(self, "_project_controller"):
-            return self._project_controller.recent_projects()
-        return []
+        return self._project_controller.recent_projects()
 
     def _add_recent_project(self, path: Path) -> None:
         self._project_controller.add_recent_project(path)
@@ -410,8 +408,6 @@ class MainWindow(QMainWindow):
 
     def open_task_manager_window(self) -> None:
         self._status_manager.open_task_manager_window()
-
-    open_task_monitor_window = open_task_manager_window
 
     def open_command_palette(self) -> None:
         self._action_manager.open_command_palette()

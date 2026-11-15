@@ -256,8 +256,6 @@ class CommandPaletteDialog(QDialog):
         commands: list[CommandItem],
         seen_titles: set[str],
     ) -> None:
-        if not hasattr(self._window, "_toolbar_manager"):
-            return
         for group, tb in self._window._toolbar_manager.toolset_bars.items():
             group_title = group.replace("-", " ").title()
             for action in tb.actions():

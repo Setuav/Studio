@@ -48,7 +48,7 @@ def _on_open_expression_assistant(api: StudioAPI) -> None:
     from setuav_studio.ui.widget.table import ExpressionFocusTracker
 
     editor = ExpressionFocusTracker.get_active_editor()
-    if editor is not None and hasattr(editor, "open_assistant"):
+    if editor is not None:
         editor.open_assistant()
     else:
         from PySide6.QtWidgets import QApplication

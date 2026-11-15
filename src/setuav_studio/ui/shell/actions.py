@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 import shiboken6
 from PySide6.QtGui import QAction, QActionGroup, QKeySequence, QShortcut
-from PySide6.QtWidgets import QApplication, QDialog, QMainWindow, QMenu
+from PySide6.QtWidgets import QApplication, QDialog, QMenu
 
 from setuav_studio.api import ActionContribution
 from setuav_studio.ui.dialog.about import AboutDialog
@@ -17,6 +17,7 @@ from setuav_studio.ui.style.icons import get_icon
 if TYPE_CHECKING:
     from setuav_studio.api import StudioAPI
     from setuav_studio.plugin import PluginManager
+    from setuav_studio.ui.shell.window import MainWindow
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,7 @@ logger = logging.getLogger(__name__)
 class ActionManager:
     """Manages shell menus, standard actions, themes, and dynamic plugin actions."""
 
-    def __init__(self, window: QMainWindow, api: StudioAPI) -> None:
+    def __init__(self, window: MainWindow, api: StudioAPI) -> None:
         self._window = window
         self._api = api
         self._host = api._host
@@ -190,24 +191,18 @@ class ActionManager:
         app = QApplication.instance()
         if isinstance(app, QApplication):
             apply_theme(app, mode)
-            if hasattr(self._window, "_update_main_toolbar_style"):
-                self._window._update_main_toolbar_style()
+            self._window._update_main_toolbar_style()
             self.update_all_icons()
             self.native_theme_action.setChecked(mode == "native")
             self.blender_theme_action.setChecked(mode == "blender")
             self.github_theme_action.setChecked(mode == "github")
             self.monokai_theme_action.setChecked(mode == "monokai")
             self.nord_theme_action.setChecked(mode == "nord")
-            if hasattr(self._window, "_refresh_status_color"):
-                self._window._refresh_status_color()
+            self._window._refresh_status_color()
             for widget in app.allWidgets():
-                try:
-                    if hasattr(widget, "update_theme_style") and callable(
-                        widget.update_theme_style
-                    ):
-                        widget.update_theme_style()
-                except Exception:
-                    pass
+                update_theme_style = getattr(widget, "update_theme_style", None)
+                if callable(update_theme_style):
+                    update_theme_style()
 
             refresh_all_button_roles(app)
             self._window.repaint()
@@ -220,26 +215,19 @@ class ActionManager:
             self._window.update()
 
     def update_all_icons(self) -> None:
-        try:
-            self.new_project_action.setIcon(get_icon("file_new"))
-            self.open_action.setIcon(get_icon("folder_open"))
-            if hasattr(self, "open_directory_action"):
-                self.open_directory_action.setIcon(get_icon("project_folder"))
-            self.recent_menu.setIcon(get_icon("project_folder"))
-            self.save_action.setIcon(get_icon("save"))
-            self.save_as_action.setIcon(get_icon("save_as"))
-            self.exit_action.setIcon(get_icon("exit"))
-            self.undo_action.setIcon(get_icon("undo"))
-            self.redo_action.setIcon(get_icon("redo"))
-            self.settings_action.setIcon(get_icon("fa6s.gear"))
-            if hasattr(self._window, "_log_button"):
-                self._window._log_button.setIcon(get_icon("log"))
-            if hasattr(self._window, "_command_palette_button"):
-                self._window._command_palette_button.setIcon(get_icon("fa6s.terminal"))
-            if hasattr(self._window, "_update_toolbar_contribution_icons"):
-                self._window._update_toolbar_contribution_icons()
-        except Exception as exc:
-            logger.debug("Error refreshing icons: %s", exc)
+        self.new_project_action.setIcon(get_icon("file_new"))
+        self.open_action.setIcon(get_icon("folder_open"))
+        self.open_directory_action.setIcon(get_icon("project_folder"))
+        self.recent_menu.setIcon(get_icon("project_folder"))
+        self.save_action.setIcon(get_icon("save"))
+        self.save_as_action.setIcon(get_icon("save_as"))
+        self.exit_action.setIcon(get_icon("exit"))
+        self.undo_action.setIcon(get_icon("undo"))
+        self.redo_action.setIcon(get_icon("redo"))
+        self.settings_action.setIcon(get_icon("fa6s.gear"))
+        self._window._log_button.setIcon(get_icon("log"))
+        self._window._command_palette_button.setIcon(get_icon("fa6s.terminal"))
+        self._window._update_toolbar_contribution_icons()
 
     def populate_view_menu(self) -> None:
         self.view_menu.clear()
@@ -251,7 +239,7 @@ class ActionManager:
         theme_menu.addAction(self.nord_theme_action)
         self.view_menu.addSeparator()
 
-        panels = getattr(self._window, "_panels", {})
+        panels = self._window._panels
         for cid, (_panel_contrib, dock) in panels.items():
             action = self.panel_actions.get(cid)
             if action is not None:
@@ -274,44 +262,33 @@ class ActionManager:
             action.setIcon(get_icon("fa6s.square-check" if action.isChecked() else "fa6s.square"))
 
     def sync_panel_action(self, panel_id: str) -> None:
-        panels = getattr(self._window, "_panels", {})
-        entry = panels.get(panel_id)
+        entry = self._window._panels.get(panel_id)
         action = self.panel_actions.get(panel_id)
-        if entry is None or action is None:
+        if entry is None or action is None or not shiboken6.isValid(action):
             return
-        try:
-            import shiboken6
-
-            if not shiboken6.isValid(action):
-                return
-        except Exception:
-            pass
         _, dock = entry
         action.setChecked(dock.isVisible())
         self.update_panel_action_icon(panel_id)
 
     def update_actions(self) -> None:
-        has_project = getattr(self._window, "_project", None) is not None
+        has_project = self._window._project is not None
         self.save_action.setEnabled(has_project)
         self.save_as_action.setEnabled(has_project)
-        if hasattr(self._window, "_refresh_toolbar_action_states"):
-            self._window._refresh_toolbar_action_states()
+        self._window._refresh_toolbar_action_states()
 
     def set_undo_text(self, text: str) -> None:
-        if hasattr(self, "undo_action") and shiboken6.isValid(self.undo_action):
+        if shiboken6.isValid(self.undo_action):
             self.undo_action.setText(f"Undo {text}" if text else "Undo")
 
     def set_redo_text(self, text: str) -> None:
-        if hasattr(self, "redo_action") and shiboken6.isValid(self.redo_action):
+        if shiboken6.isValid(self.redo_action):
             self.redo_action.setText(f"Redo {text}" if text else "Redo")
 
     def update_recent_menu(self) -> None:
-        if not hasattr(self, "recent_menu") or not shiboken6.isValid(self.recent_menu):
+        if not shiboken6.isValid(self.recent_menu):
             return
         self.recent_menu.clear()
-        recent = (
-            self._window._recent_projects() if hasattr(self._window, "_recent_projects") else []
-        )
+        recent = self._window._recent_projects()
         if not recent:
             empty_action = self.recent_menu.addAction("No Recent Projects")
             empty_action.setEnabled(False)
@@ -337,16 +314,9 @@ class ActionManager:
         values.save()
         dialog.apply_plugin_pages()
         dialog.apply_units()
-        if hasattr(self._window, "_switch_theme"):
-            self._window._switch_theme(values.theme_mode)
-        else:
-            self.switch_theme(values.theme_mode)
-        if hasattr(self._window, "_trim_recent_projects"):
-            self._window._trim_recent_projects(values.recent_project_limit)
-        if hasattr(self._window, "_update_recent_menu"):
-            self._window._update_recent_menu()
-        else:
-            self.update_recent_menu()
+        self.switch_theme(values.theme_mode)
+        self._window._trim_recent_projects(values.recent_project_limit)
+        self.update_recent_menu()
 
     def open_command_palette(self) -> None:
         if self._command_palette_dialog is None:
@@ -357,20 +327,7 @@ class ActionManager:
         AboutDialog(self._window).exec()
 
     def open_task_manager(self) -> None:
-        if hasattr(self._window, "open_task_manager_window"):
-            self._window.open_task_manager_window()
-        elif hasattr(self._window, "open_task_monitor_window"):
-            self._window.open_task_monitor_window()
-        elif hasattr(self._window, "_status_bar_manager") and hasattr(
-            self._window._status_bar_manager, "open_task_manager_window"
-        ):
-            self._window._status_bar_manager.open_task_manager_window()
-        elif hasattr(self._window, "_status_bar_manager") and hasattr(
-            self._window._status_bar_manager, "open_task_monitor_window"
-        ):
-            self._window._status_bar_manager.open_task_monitor_window()
-
-    open_task_monitor = open_task_manager
+        self._window.open_task_manager_window()
 
     def open_constraints(self) -> None:
         from setuav_studio.ui.panels.project_explorer.dialog_actions import add_constraint_action

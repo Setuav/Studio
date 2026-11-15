@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QMainWindow, QMenu
+from PySide6.QtWidgets import QMenu
 
 from setuav_studio.api import (
     ToolbarContribution,
@@ -16,6 +16,7 @@ from setuav_studio.ui.style.icons import get_icon
 
 if TYPE_CHECKING:
     from setuav_studio.api import StudioAPI
+    from setuav_studio.ui.shell.window import MainWindow
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ logger = logging.getLogger(__name__)
 class ToolbarManager:
     """Manages standard and dynamic toolbars."""
 
-    def __init__(self, window: QMainWindow, api: StudioAPI) -> None:
+    def __init__(self, window: MainWindow, api: StudioAPI) -> None:
         self._window = window
         self._api = api
         self.toolbar_contributions: dict[str, ToolbarContribution] = {}
@@ -80,8 +81,7 @@ class ToolbarManager:
             self.toolbar_actions[contribution.id] = action
             self.owned_toolbar_actions.add(contribution.id)
         elif contribution.command is not None:
-            command_actions = getattr(self._window, "_command_actions", {})
-            action = command_actions.get(contribution.command or "")
+            action = self._window._command_actions.get(contribution.command or "")
             if action is not None:
                 self.toolbar_actions[contribution.id] = action
         else:
@@ -188,7 +188,7 @@ class ToolbarManager:
             self.toolbar_contributions.values(),
             key=lambda item: (item.order, item.group, item.title.casefold()),
         )
-        command_actions = getattr(self._window, "_command_actions", {})
+        command_actions = self._window._command_actions
 
         for contribution in contributions:
             action = self.toolbar_actions.get(contribution.id)

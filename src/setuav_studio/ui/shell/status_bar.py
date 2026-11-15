@@ -9,7 +9,6 @@ from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
-    QMainWindow,
     QProgressBar,
     QSizePolicy,
     QStatusBar,
@@ -26,6 +25,7 @@ from setuav_studio.ui.style.theme import status_color
 if TYPE_CHECKING:
     from setuav_studio.api import StudioAPI
     from setuav_studio.project import ProjectDocument
+    from setuav_studio.ui.shell.window import MainWindow
 
 
 class ProblemsBadge(QFrame):
@@ -166,13 +166,12 @@ class StudioStatusBar(QStatusBar):
 class StatusBarManager:
     """Manages status messages, progress indicator, logs button, task monitor, and problems badge."""
 
-    def __init__(self, window: QMainWindow, api: StudioAPI) -> None:
+    def __init__(self, window: MainWindow, api: StudioAPI) -> None:
         self._window = window
         self._api = api
         self._host = api._host
         self._log_window: QDialog | None = None
         self._task_manager_window: QDialog | None = None
-        self._task_monitor_window: QDialog | None = None
         self._problems_dialog: QDialog | None = None
         self._status_level = "info"
         self._problems: list[Problem] = []
@@ -394,9 +393,7 @@ class StatusBarManager:
         dialog.exec()
 
     def open_command_palette_window(self) -> None:
-        palette_fn = getattr(self._window, "open_command_palette", None)
-        if callable(palette_fn):
-            palette_fn()
+        self._window.open_command_palette()
 
     def open_log_window(self) -> None:
         if self._log_window is None:
@@ -412,12 +409,9 @@ class StatusBarManager:
             from setuav_studio.ui.dialog.task_manager import TaskManagerDialog
 
             self._task_manager_window = TaskManagerDialog(self._api, self._window)
-            self._task_monitor_window = self._task_manager_window
         self._task_manager_window.show()
         self._task_manager_window.raise_()
         self._task_manager_window.activateWindow()
-
-    open_task_monitor_window = open_task_manager_window
 
     def show_degraded_details(self, project: ProjectDocument | None = None) -> None:
         self.open_problems_window()

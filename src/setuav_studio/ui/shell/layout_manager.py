@@ -3,10 +3,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QSettings, Qt, QTimer
-from PySide6.QtWidgets import QDockWidget, QMainWindow
+from PySide6.QtWidgets import QDockWidget
 
 if TYPE_CHECKING:
     from setuav_studio.api import StudioAPI
+    from setuav_studio.ui.shell.window import MainWindow
 
 
 class LayoutManager:
@@ -15,7 +16,7 @@ class LayoutManager:
     LAYOUT_VERSION = 1
     LAYOUT_DEFAULTS_KEY = "workbench_layout_version"
 
-    def __init__(self, window: QMainWindow, api: StudioAPI) -> None:
+    def __init__(self, window: MainWindow, api: StudioAPI) -> None:
         self._window = window
         self._api = api
         self.restoring_layout = False
@@ -59,7 +60,7 @@ class LayoutManager:
 
     def apply_default_layout(self) -> None:
         """Arrange panels into standard unified CAE workbench positions."""
-        panels = getattr(self._window, "_panels", {})
+        panels = self._window._panels
 
         tree_dock = self.dock("studio:project-explorer")
         prop_dock = self.dock("studio:properties")
@@ -100,7 +101,7 @@ class LayoutManager:
         # Ensure all registered docks are shown unless explicitly configured hidden
         for _cid, (panel_contrib, dock) in panels.items():
             if dock not in (tree_dock, prop_dock, view_dock, result_dock):
-                if getattr(panel_contrib, "default_visible", True):
+                if panel_contrib.default_visible:
                     dock.show()
                 else:
                     dock.hide()

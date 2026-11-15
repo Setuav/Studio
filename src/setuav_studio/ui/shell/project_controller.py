@@ -45,7 +45,7 @@ class ProjectController:
 
     @property
     def project(self) -> ProjectDocument | None:
-        return getattr(self._window, "_project", None)
+        return self._window._project
 
     @project.setter
     def project(self, value: ProjectDocument | None) -> None:
@@ -142,10 +142,9 @@ class ProjectController:
         if not project.untitled:
             self._window._add_recent_project(project.location)
         self._window._update_window_title()
-        if hasattr(self._window, "_update_actions"):
-            self._window._update_actions()
+        self._window._update_actions()
 
-        status_mgr = getattr(self._window, "_status_manager", None)
+        status_mgr = self._window._status_manager
         if project.read_only:
             self._api.show_status(
                 f"Project opened read-only: {len(validation_issues)} validation issue(s)",
@@ -333,13 +332,11 @@ class ProjectController:
         recent.insert(0, path_text)
         limit = StudioSettings.load().recent_project_limit
         QSettings().setValue("recent_projects", recent[:limit])
-        if hasattr(self._window, "_update_recent_menu"):
-            self._window._update_recent_menu()
+        self._window._update_recent_menu()
 
     def clear_recent_projects(self) -> None:
         QSettings().remove("recent_projects")
-        if hasattr(self._window, "_update_recent_menu"):
-            self._window._update_recent_menu()
+        self._window._update_recent_menu()
 
     def trim_recent_projects(self, limit: int) -> None:
         QSettings().setValue("recent_projects", self._window._recent_projects()[:limit])

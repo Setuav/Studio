@@ -22,7 +22,7 @@ from __future__ import annotations
 import contextlib
 import weakref
 from collections.abc import Callable, Sequence
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Protocol
 
 from PySide6.QtCore import QEvent, QObject, Qt, QTimer, Signal
 from PySide6.QtGui import (
@@ -100,22 +100,28 @@ class ContentFitTableWidget(QTableWidget):
             self._fitting_columns = False
 
 
+class ExpressionAssistantEditor(Protocol):
+    """A focused formula-capable editor that can open the equation assistant."""
+
+    def open_assistant(self) -> None: ...
+
+
 class ExpressionFocusTracker:
     """Tracks the currently active/focused formula-capable editor across the studio."""
 
-    _active_editor: Any | None = None
+    _active_editor: ExpressionAssistantEditor | None = None
     _listeners: ClassVar[list[Callable[[], None]]] = []
 
     @classmethod
-    def set_active_editor(cls, editor: Any | None) -> None:
+    def set_active_editor(cls, editor: ExpressionAssistantEditor | None) -> None:
         if cls._active_editor is not editor:
             cls._active_editor = editor
             for cb in list(cls._listeners):
-                with contextlib.suppress(Exception):
+                with contextlib.suppress(RuntimeError):
                     cb()
 
     @classmethod
-    def get_active_editor(cls) -> Any | None:
+    def get_active_editor(cls) -> ExpressionAssistantEditor | None:
         return cls._active_editor
 
     @classmethod
