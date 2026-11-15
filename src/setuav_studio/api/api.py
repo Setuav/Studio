@@ -551,9 +551,6 @@ class StudioAPI:
 
         self.edit_component(comp, description, wrapper)
 
-    edit_project_plugin = edit_project_extension
-    edit_component_plugin = edit_component_extension
-
     @contextmanager
     def transaction(self, description: str) -> Generator[None, None, None]:
         """Context manager to group multiple edits into a single atomic Undo/Redo command."""

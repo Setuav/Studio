@@ -55,12 +55,7 @@ class ProjectDocument:
         extensions = self.data.get("extensions")
         if isinstance(extensions, dict) and namespace in extensions:
             return extensions[namespace]
-        plugins = self.data.get("plugins")
-        if isinstance(plugins, dict) and namespace in plugins:
-            return plugins[namespace]
         return default
-
-    get_extension_data = get_plugin_data
 
     def set_plugin_data(self, namespace: str, value: Any) -> None:
         """Set root-level extension data for a given namespace."""
@@ -69,20 +64,12 @@ class ProjectDocument:
         self.data["extensions"][namespace] = value
         self.modified = True
 
-    set_extension_data = set_plugin_data
-
     def remove_plugin_data(self, namespace: str) -> None:
         """Remove root-level extension data for a given namespace."""
         extensions = self.data.get("extensions")
         if isinstance(extensions, dict) and namespace in extensions:
             del extensions[namespace]
             self.modified = True
-        plugins = self.data.get("plugins")
-        if isinstance(plugins, dict) and namespace in plugins:
-            del plugins[namespace]
-            self.modified = True
-
-    remove_extension_data = remove_plugin_data
 
     @property
     def solver_results(self) -> dict[str, SolverResult]:
@@ -213,10 +200,6 @@ class ProjectDocument:
 
         return resolve_aircraft_mass_properties(self)
 
-    def get_mass_properties(self) -> Any:
-        """Return the current aggregate aircraft mass properties."""
-        return self.mass_properties
-
     def get_component_plugin_data(self, comp_id: str, namespace: str, default: Any = None) -> Any:
         """Retrieve component-level extension data for a given namespace."""
         comp = self.get_component(comp_id)
@@ -225,12 +208,7 @@ class ProjectDocument:
         extensions = comp.get("extensions")
         if isinstance(extensions, dict) and namespace in extensions:
             return extensions[namespace]
-        plugins = comp.get("plugins")
-        if isinstance(plugins, dict) and namespace in plugins:
-            return plugins[namespace]
         return default
-
-    get_component_extension_data = get_component_plugin_data
 
     def set_component_plugin_data(self, comp_id: str, namespace: str, value: Any) -> None:
         """Set component-level extension data for a given namespace."""
@@ -241,8 +219,6 @@ class ProjectDocument:
             comp["extensions"] = {}
         comp["extensions"][namespace] = value
         self.modified = True
-
-    set_component_extension_data = set_component_plugin_data
 
     def get_component_models(
         self, api: Any | None = None, config_id: str | None = None

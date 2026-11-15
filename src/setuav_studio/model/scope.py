@@ -145,7 +145,7 @@ def build_universal_scope(  # noqa: C901
                     if child_clean not in scope:
                         scope[child_clean] = child_model
 
-            # Flat property aliases for backward compatibility (e.g. main_wing_planform_area)
+            # Register flat property names (e.g. main_wing_planform_area)
             if hasattr(model, "get_exposed_properties"):
                 for prop_name, prop_val in model.get_exposed_properties().items():
                     if isinstance(prop_val, (int, float, bool, str)):

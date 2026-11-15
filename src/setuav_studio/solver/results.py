@@ -545,13 +545,9 @@ class SolverResult:
             return restored
         return None
 
-    # ------------------------------------------------------------------
-    # Backward Compatibility
-    # ------------------------------------------------------------------
-
     @property
     def metrics(self) -> dict[str, float]:
-        """Backward-compatible access to scalar numeric metrics."""
+        """Access scalar numeric metrics from summary."""
         res: dict[str, float] = {}
         for k, item in self.summary.items():
             if isinstance(item.value, (int, float)):

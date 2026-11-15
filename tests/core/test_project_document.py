@@ -226,4 +226,3 @@ def test_typed_component_and_mass_properties() -> None:
     mass_props = doc.mass_properties
     assert mass_props is not None
     assert math.isclose(mass_props.mass_kg, 2.5)
-    assert doc.get_mass_properties() == mass_props

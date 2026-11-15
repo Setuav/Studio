@@ -474,11 +474,7 @@ def _envelope_from_lofts(
     lofts: Sequence[Any],
 ) -> dict[str, Any] | None:
     combined_triangles: list[Triangle3D] = []
-    is_mirror = bool(
-        component.get("parameters", {}).get("geometry", {}).get("mirror")
-        or component.get("parameters", {}).get("geometry", {}).get("symmetric")
-        or component.get("mirror")
-    )
+    is_mirror = bool(component.get("parameters", {}).get("geometry", {}).get("mirror"))
     for loft in lofts:
         raw_sections = getattr(loft, "sections", ())
         sec_pts: list[list[Point3D]] = []
@@ -627,11 +623,7 @@ def resolve_component_aggregate_envelope(
         total_volume_mm3 += float(c_env.get("volume_mm3", 0.0) or 0.0)
 
         c_world_pos, c_world_rot = resolve_world_transform(c_id, project_or_components)
-        is_mirror = bool(
-            child.get("parameters", {}).get("geometry", {}).get("mirror")
-            or child.get("parameters", {}).get("geometry", {}).get("symmetric")
-            or child.get("mirror")
-        )
+        is_mirror = bool(child.get("parameters", {}).get("geometry", {}).get("mirror"))
 
         # 8 corners in child's local frame
         for dx in (-0.5 * c_size[0], 0.5 * c_size[0]):

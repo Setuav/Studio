@@ -199,11 +199,7 @@ class Component:
     @property
     def local_cg(self) -> dict[str, float]:
         """Local center of gravity offset in mm relative to component origin."""
-        val = self._raw_data.get("local_cg_mm") or self._raw_data.get("local_cg")
-        if not isinstance(val, dict):
-            ext = self.extensions.get("org.setuav.weight-balance", {})
-            if isinstance(ext, dict):
-                val = ext.get("local_cg_mm") or ext.get("local_cg")
+        val = self._raw_data.get("local_cg_mm")
         if not isinstance(val, dict):
             val = self._raw_data.setdefault("local_cg_mm", {"x": 0.0, "y": 0.0, "z": 0.0})
         return val
@@ -219,13 +215,7 @@ class Component:
     @property
     def inertia(self) -> dict[str, float]:
         """Local inertia tensor moments and products in kg·m²."""
-        val = self._raw_data.get("inertia_kg_m2") or self._raw_data.get("inertia")
-        if not isinstance(val, dict):
-            ext = self.extensions.get("org.setuav.weight-balance", {})
-            if isinstance(ext, dict):
-                val = ext.get("inertia_kg_m2") or ext.get("inertia")
-        if not isinstance(val, dict) and isinstance(self.parameters.get("inertia"), dict):
-            val = self.parameters["inertia"]
+        val = self._raw_data.get("inertia_kg_m2")
         if not isinstance(val, dict):
             val = self._raw_data.setdefault(
                 "inertia_kg_m2",
@@ -341,14 +331,7 @@ class Component:
         """Extension namespaced data storage for plugin contributions."""
         if "extensions" in self._raw_data and isinstance(self._raw_data["extensions"], dict):
             return self._raw_data["extensions"]
-        if "plugins" in self._raw_data and isinstance(self._raw_data["plugins"], dict):
-            return self._raw_data["plugins"]
         return self._raw_data.setdefault("extensions", {})
-
-    @property
-    def plugins(self) -> dict[str, Any]:
-        """Backward compatibility alias for extensions storage."""
-        return self.extensions
 
     def get_exposed_properties(self) -> dict[str, Any]:
         """Return a dictionary of all property names and their current values."""
@@ -438,12 +421,8 @@ class Component:
         """List of station profile dictionaries/models."""
         from setuav_studio.model.scope import to_dot_dict
 
-        profs = (
-            self.parameters.get("sections")
-            or self.parameters.get("geometry", {}).get("profiles")
-            or self.parameters.get("profiles")
-            or []
-        )
+        geom = self.parameters.get("geometry")
+        profs = geom.get("profiles", []) if isinstance(geom, dict) else []
         return [to_dot_dict(x) for x in profs] if isinstance(profs, list) else []
 
     def __getattr__(self, name: str) -> Any:

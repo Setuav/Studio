@@ -77,7 +77,7 @@ def resolve_component_local_cg(component: dict[str, Any]) -> tuple[float, float,
     or local_cg_mm is declared.
     """
     # 1. Direct explicit local CG declaration
-    declared_cg = component.get("local_cg_mm") or component.get("local_cg")
+    declared_cg = component.get("local_cg_mm")
     if isinstance(declared_cg, dict):
         return (
             _number(declared_cg.get("x")),
@@ -108,7 +108,7 @@ def resolve_component_local_inertia(
     Derives automatically from envelope unit_inertia * mass_kg unless explicitly declared.
     """
     # 1. Direct explicit inertia
-    declared = component.get("inertia_kg_m2") or component.get("inertia")
+    declared = component.get("inertia_kg_m2")
     if isinstance(declared, dict):
         return InertiaTensor.from_dict(declared)
 
@@ -223,11 +223,7 @@ def resolve_component_intrinsic_mass_properties(
     rx, ry, rz = rotate_vector(cg_local_mm, world_rot_deg)
     cg_body_mm = (world_pos_mm[0] + rx, world_pos_mm[1] + ry, world_pos_mm[2] + rz)
 
-    is_mirror = bool(
-        effective.get("parameters", {}).get("geometry", {}).get("mirror")
-        or effective.get("parameters", {}).get("geometry", {}).get("symmetric")
-        or effective.get("mirror")
-    )
+    is_mirror = bool(effective.get("parameters", {}).get("geometry", {}).get("mirror"))
     if is_mirror:
         cg_body_mm = (cg_body_mm[0], 0.0, cg_body_mm[2])
 

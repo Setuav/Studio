@@ -462,10 +462,6 @@ class TaskManager(QObject):
             pub = getattr(self._api, "publish", None)
             if callable(pub):
                 pub(str(topic), payload)
-            else:
-                pub_ev = getattr(self._api, "publish_event", None)
-                if callable(pub_ev):
-                    pub_ev(str(topic), payload)
 
 
 __all__ = [

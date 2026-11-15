@@ -190,22 +190,6 @@ def test_component_mass_and_inertia_properties() -> None:
     assert math.isclose(comp.raw_data["local_cg_mm"]["y"], 2.0)
 
 
-def test_component_legacy_extension_fallbacks() -> None:
-    comp = Component(
-        {
-            "id": "legacy_part",
-            "extensions": {
-                "org.setuav.weight-balance": {
-                    "local_cg_mm": {"x": 15.0, "y": 0.0, "z": 0.0},
-                    "inertia_kg_m2": {"ixx": 0.002},
-                }
-            },
-        }
-    )
-    assert math.isclose(comp.local_cg["x"], 15.0)
-    assert math.isclose(comp.inertia["ixx"], 0.002)
-
-
 def test_component_rejects_subscript_indexing() -> None:
     comp = Component(id="test_comp")
     with pytest.raises(TypeError):
@@ -252,10 +236,12 @@ def test_component_sections_and_profiles_routing() -> None:
         {
             "id": "wing",
             "parameters": {
-                "sections": [
-                    {"chord": 300.0, "airfoil": "NACA0012"},
-                    {"chord": 150.0, "airfoil": "NACA0010"},
-                ]
+                "geometry": {
+                    "profiles": [
+                        {"chord": 300.0, "airfoil": "NACA0012"},
+                        {"chord": 150.0, "airfoil": "NACA0010"},
+                    ]
+                }
             },
         }
     )
