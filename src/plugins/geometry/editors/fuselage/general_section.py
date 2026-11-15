@@ -2,22 +2,19 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from .editor import FuselageEditor
+from .host import FuselageEditorHost
 
 
-class GeneralSectionMixin:
+class GeneralSectionMixin(FuselageEditorHost):
     """Manages the General metadata table (name, type) for FuselageEditor."""
 
-    def _create_general_section(self: FuselageEditor) -> None:
+    def _create_general_section(self) -> None:
         layout = self._create_section("General", "fa6s.circle-info")
         self.general_table = self._property_table([("name", "Name"), ("type", "Type")])
         self.general_table.cellChanged.connect(self._update_general)
         layout.addWidget(self.general_table)
 
-    def _update_general(self: FuselageEditor, row: int, column: int) -> None:
+    def _update_general(self, row: int, column: int) -> None:
         if self._loading or column != 1:
             return
 

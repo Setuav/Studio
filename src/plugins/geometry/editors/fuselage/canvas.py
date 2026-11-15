@@ -503,12 +503,13 @@ class FuselageCanvasWidget(QWidget):
     def _draw_active_profile(self, painter: QPainter, world_to_screen: Any) -> None:
         if not self._active_points:
             return
+        accent = QColor(accent_color())
         self._draw_profile_outline(
             painter,
             self._active_points,
             world_to_screen,
-            stroke_color=QColor(accent_color()),
-            fill_color=QColor(*QColor(accent_color()).getRgb()[:3], 38),
+            stroke_color=QColor(accent),
+            fill_color=QColor(accent.red(), accent.green(), accent.blue(), 38),
             pen_style=Qt.PenStyle.SolidLine,
             line_width=2.2,
         )

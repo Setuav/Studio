@@ -7,7 +7,7 @@ from pathlib import Path
 def _configure_logging(verbose: bool = False) -> None:
     from PySide6.QtCore import QStandardPaths
 
-    log_dir = Path(QStandardPaths.writableLocation(QStandardPaths.AppDataLocation))
+    log_dir = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation))
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / "setuav-studio.log"
 

@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any
 from PySide6.QtCore import QLine, QModelIndex, QRect, QSize, Qt
 from PySide6.QtGui import QPainter, QPalette, QPen
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QProxyStyle,
     QStyle,
     QStyledItemDelegate,
@@ -27,8 +28,9 @@ class ProjectExplorerDelegate(QStyledItemDelegate):
         super().initStyleOption(option, index)
         if option.features & QStyleOptionViewItem.ViewItemFeature.HasDecoration:
             target_size = _ProjectExplorerBranchStyle.ICON_SLOT_SIZE
-            if option.widget is not None and hasattr(option.widget, "iconSize"):
-                isz = option.widget.iconSize()
+            view = option.widget
+            if isinstance(view, QAbstractItemView):
+                isz = view.iconSize()
                 if isz.isValid() and isz.width() > 0:
                     target_size = isz.width()
             option.decorationSize = QSize(target_size, target_size)
@@ -50,7 +52,7 @@ class _ProjectExplorerBranchStyle(QProxyStyle):
             w = option.decorationSize.width()
             if w > 0:
                 return w
-        if widget is not None and hasattr(widget, "iconSize"):
+        if isinstance(widget, QAbstractItemView):
             isz = widget.iconSize()
             if isz.isValid() and isz.width() > 0:
                 return isz.width()
@@ -62,8 +64,11 @@ class _ProjectExplorerBranchStyle(QProxyStyle):
         option: QStyleOption,
         widget: QWidget | None = None,
     ) -> QRect:
+        # QProxyStyle only forwards this query to its base style. Calling the base
+        # style directly also accepts the null widget Qt may pass in.
+        base = self.baseStyle()
         if element == QStyle.SubElement.SE_ItemViewItemDecoration:
-            r = super().subElementRect(element, option, widget)
+            r = base.subElementRect(element, option, widget)
             if not r.isEmpty():
                 slot_w = self._icon_slot_width(option, widget)
                 actual_w = r.width()
@@ -73,10 +78,10 @@ class _ProjectExplorerBranchStyle(QProxyStyle):
             return r
 
         if element == QStyle.SubElement.SE_ItemViewItemText:
-            base_dec = super().subElementRect(
+            base_dec = base.subElementRect(
                 QStyle.SubElement.SE_ItemViewItemDecoration, option, widget
             )
-            r = super().subElementRect(element, option, widget)
+            r = base.subElementRect(element, option, widget)
             if not base_dec.isEmpty():
                 slot_w = self._icon_slot_width(option, widget)
                 new_left = base_dec.x() + slot_w + self.TEXT_SPACING
@@ -84,10 +89,16 @@ class _ProjectExplorerBranchStyle(QProxyStyle):
                 return QRect(new_left, r.y(), avail_w, r.height())
             return r
 
-        return super().subElementRect(element, option, widget)
+        return base.subElementRect(element, option, widget)
 
-    def sizeFromContents(self, contents_type, option, size, widget=None) -> QSize:
-        result = super().sizeFromContents(contents_type, option, size, widget)
+    def sizeFromContents(
+        self,
+        contents_type: QStyle.ContentsType,
+        option: QStyleOption,
+        size: QSize,
+        widget: QWidget | None = None,
+    ) -> QSize:
+        result = self.baseStyle().sizeFromContents(contents_type, option, size, widget)
         if contents_type == QStyle.ContentsType.CT_ItemViewItem:
             result.setHeight(result.height() + 4)
         return result
@@ -174,8 +185,12 @@ def format_component_type(
         return f"Instance of {source_name}" if source_name else "Instance"
 
     ctype = str(component.get("type", ""))
-    params = component.get("parameters") if isinstance(component.get("parameters"), dict) else {}
-    geom = params.get("geometry") if isinstance(params.get("geometry"), dict) else {}
+    params = component.get("parameters")
+    if not isinstance(params, dict):
+        params = {}
+    geom = params.get("geometry")
+    if not isinstance(geom, dict):
+        geom = {}
 
     if ctype == "org.setuav.core:control-surface":
         cs_type = str(geom.get("type", "aileron")).capitalize()

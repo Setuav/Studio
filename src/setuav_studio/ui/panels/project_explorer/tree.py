@@ -3,7 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QPoint, QSize, Qt
+from PySide6.QtCore import QModelIndex, QPoint, QSize, Qt
 from PySide6.QtGui import QBrush, QColor, QKeyEvent, QMouseEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -122,10 +122,9 @@ class ProjectExplorer(QTreeWidget):
         self,
         project: ProjectDocument,
         project_item: QTreeWidgetItem,
-        selection_state: tuple[bool, str | None, ...] | tuple[bool, str | None],
+        selection_state: tuple[bool, str | None],
     ) -> dict[str, Any] | None:
-        project_selected = selection_state[0]
-        selection_id = selection_state[1] if len(selection_state) > 1 else None
+        project_selected, selection_id = selection_state
 
         if project_selected:
             project_item.setSelected(True)
@@ -146,7 +145,7 @@ class ProjectExplorer(QTreeWidget):
                     return elem
 
         self.clearSelection()
-        self.setCurrentItem(None)
+        self.setCurrentIndex(QModelIndex())
         return None
 
     def _capture_saved_state(self, project: ProjectDocument) -> None:
@@ -225,7 +224,8 @@ class ProjectExplorer(QTreeWidget):
         kind = element.get("kind")
         if kind == "parameter":
             key = element.get("key")
-            return self._saved_parameters.get(key) != element.get("value")
+            saved_value = self._saved_parameters.get(key) if isinstance(key, str) else None
+            return saved_value != element.get("value")
         if kind == "constraint":
             cid = str(element.get("id") or "")
             raw_c = {k: v for k, v in element.items() if k != "kind"}
@@ -291,6 +291,7 @@ class ProjectExplorer(QTreeWidget):
             child_matched = False
             for i in range(item.childCount()):
                 child = item.child(i)
+                assert child is not None
                 if apply_filter(child):
                     child_matched = True
 
@@ -301,7 +302,9 @@ class ProjectExplorer(QTreeWidget):
             return visible
 
         for i in range(self.topLevelItemCount()):
-            apply_filter(self.topLevelItem(i))
+            top_level = self.topLevelItem(i)
+            assert top_level is not None
+            apply_filter(top_level)
 
     def _on_item_clicked(self, item: QTreeWidgetItem, _column: int) -> None:
         self._publish_selection(item, None)
@@ -349,7 +352,7 @@ class ProjectExplorer(QTreeWidget):
             ):
                 return
             self.clearSelection()
-            self.setCurrentItem(None)
+            self.setCurrentIndex(QModelIndex())
             return
         project = self._api.project
         if project is not None and selection is project.data:
@@ -363,7 +366,7 @@ class ProjectExplorer(QTreeWidget):
         elem_id = selection.get("id") if isinstance(selection, dict) else None
         if not isinstance(elem_id, str):
             self.clearSelection()
-            self.setCurrentItem(None)
+            self.setCurrentIndex(QModelIndex())
             return
         item = self._item_map.get(elem_id)
         if item is None:

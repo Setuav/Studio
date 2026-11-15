@@ -71,7 +71,9 @@ class PropulsionSceneController:
             world_pos, world_rot = resolve_world_transform(comp, doc)
 
             # Extract diameter (defaults to 330.0 mm if not specified)
-            params = comp.get("parameters") if isinstance(comp.get("parameters"), dict) else {}
+            params = comp.get("parameters")
+            if not isinstance(params, dict):
+                params = {}
             try:
                 diameter = float(params.get("diameter", 330.0) or 330.0)
             except (ValueError, TypeError):

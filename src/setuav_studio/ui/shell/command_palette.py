@@ -276,8 +276,6 @@ class CommandPaletteDialog(QDialog):
                         )
                     )
 
-        return commands
-
     def _on_search_text_changed(self, text: str) -> None:
         self._filter_commands(text.strip().lower())
 

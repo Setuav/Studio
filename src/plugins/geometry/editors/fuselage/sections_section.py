@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import weakref
+from collections.abc import Callable
 from copy import deepcopy
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -26,20 +27,18 @@ from ...engine.fuselage_geometry import (
     create_default_section,
     get_default_profile,
 )
+from .host import FuselageEditorHost
 from .profile_editor import (
     PROFILE_FIELDS,
     format_profile_size,
 )
 from .section_dialog import FuselageSectionDialog
 
-if TYPE_CHECKING:
-    from .editor import FuselageEditor
 
-
-class SectionsSectionMixin:
+class SectionsSectionMixin(FuselageEditorHost):
     """Manages fuselage cross-section stations, transforms, and profiles."""
 
-    def _create_sections_section(self: FuselageEditor) -> None:
+    def _create_sections_section(self) -> None:
         layout = self._create_section("Sections", "mdi6.vector-polygon")
 
         self.sections_table = self._table(["#", "Profile", "X", "Size"])
@@ -125,7 +124,7 @@ class SectionsSectionMixin:
         self.vertices_table.setVisible(False)
         properties_layout.addWidget(self.vertices_table)
 
-    def _populate_sections(self: FuselageEditor) -> None:
+    def _populate_sections(self) -> None:
         from setuav_studio.units import get_unit_manager
 
         um = get_unit_manager()
@@ -156,7 +155,7 @@ class SectionsSectionMixin:
                 self.sections_table.setItem(row, column, QTableWidgetItem(value))
         self._fit_table_height(self.sections_table, len(sections))
 
-    def _load_section(self: FuselageEditor, index: int) -> None:
+    def _load_section(self, index: int) -> None:
         sections = self._sections()
         if not 0 <= index < len(sections):
             self._section_index = -1
@@ -178,7 +177,7 @@ class SectionsSectionMixin:
         self._populate_vertices(profile)
         self._loading = False
 
-    def _on_section_selected(self: FuselageEditor, row: int, _column: int, *_previous: int) -> None:
+    def _on_section_selected(self, row: int, _column: int, *_previous: int) -> None:
         if self._loading:
             return
         if row >= 0:
@@ -188,7 +187,7 @@ class SectionsSectionMixin:
         self._update_section_actions()
         self._publish_section_selection()
 
-    def _publish_section_selection(self: FuselageEditor) -> None:
+    def _publish_section_selection(self) -> None:
         component_id = self._component.get("id")
         if isinstance(component_id, str) and self._segment_index >= 0 and self._section_index >= 0:
             self._api.set_section_selection(
@@ -197,7 +196,7 @@ class SectionsSectionMixin:
         else:
             self._api.set_section_selection(None)
 
-    def _add_section(self: FuselageEditor) -> None:
+    def _add_section(self) -> None:
         segment = self._current_segment()
         if segment is None:
             self._add_segment()
@@ -216,7 +215,7 @@ class SectionsSectionMixin:
         self._reload_sections(insert_at)
         self._update_segment_sections_cell()
 
-    def _duplicate_section(self: FuselageEditor) -> None:
+    def _duplicate_section(self) -> None:
         sections = self._sections()
         index = self._section_index
         if not 0 <= index < len(sections):
@@ -230,13 +229,13 @@ class SectionsSectionMixin:
         self._reload_sections(insert_at)
         self._update_segment_sections_cell()
 
-    def _move_section_up(self: FuselageEditor) -> None:
+    def _move_section_up(self) -> None:
         self._move_section(-1)
 
-    def _move_section_down(self: FuselageEditor) -> None:
+    def _move_section_down(self) -> None:
         self._move_section(1)
 
-    def _move_section(self: FuselageEditor, offset: int) -> None:
+    def _move_section(self, offset: int) -> None:
         sections = self._sections()
         source = self._section_index
         target = source + offset
@@ -252,7 +251,7 @@ class SectionsSectionMixin:
         )
         self._reload_sections(target)
 
-    def _delete_section(self: FuselageEditor) -> None:
+    def _delete_section(self) -> None:
         sections = self._sections()
         index = self._section_index
         if len(sections) <= 2 or not 0 <= index < len(sections):
@@ -264,7 +263,7 @@ class SectionsSectionMixin:
         self._reload_sections(min(index, len(sections) - 1))
         self._update_segment_sections_cell()
 
-    def _reload_sections(self: FuselageEditor, selected_index: int) -> None:
+    def _reload_sections(self, selected_index: int) -> None:
         self._loading = True
         self._populate_sections()
         sections = self._sections()
@@ -281,7 +280,7 @@ class SectionsSectionMixin:
         self._update_section_actions()
         self._publish_section_selection()
 
-    def _update_section_actions(self: FuselageEditor) -> None:
+    def _update_section_actions(self) -> None:
         sections = self._sections()
         index = self._section_index
         has_segment = self._current_segment() is not None
@@ -294,10 +293,10 @@ class SectionsSectionMixin:
         self.move_section_down_button.setEnabled(has_section and index < len(sections) - 1)
         self.delete_section_button.setEnabled(has_section and len(sections) > 2)
 
-    def _on_section_double_clicked(self: FuselageEditor, _index: Any = None) -> None:
+    def _on_section_double_clicked(self, _index: Any = None) -> None:
         self._inspect_section()
 
-    def _inspect_section(self: FuselageEditor) -> None:
+    def _inspect_section(self) -> None:
         if self._segment_index < 0 or self._section_index < 0:
             return
         segs = self._segments()
@@ -354,7 +353,7 @@ class SectionsSectionMixin:
             return x_at(insert_at) - 100.0
         return 0.0
 
-    def _change_profile_type(self: FuselageEditor, profile_type: str) -> None:
+    def _change_profile_type(self, profile_type: str) -> None:
         section = self._current_section()
         if self._loading or section is None:
             return
@@ -367,7 +366,7 @@ class SectionsSectionMixin:
         self._populate_sections()
         self.sections_table.selectRow(self._section_index)
 
-    def _update_section(self: FuselageEditor, *_args: object) -> None:
+    def _update_section(self, *_args: object) -> None:
         section = self._current_section()
         if self._loading or section is None:
             return
@@ -391,9 +390,7 @@ class SectionsSectionMixin:
         self._edit_component("Edit section transform", change)
         self._refresh_section_row()
 
-    def _on_transform_expression_changed(
-        self: FuselageEditor, transform_type: str, axis: str, value: Any
-    ) -> None:
+    def _on_transform_expression_changed(self, transform_type: str, axis: str, value: Any) -> None:
         if self._loading:
             return
         section = self._current_section()
@@ -406,8 +403,8 @@ class SectionsSectionMixin:
         widget = self.transform_table.cellWidget(row, col)
         cell = widget if isinstance(widget, ExpressionPropertyCell) else None
         raw_input: Any = value
-        if (raw_input is None or raw_input == "") and hasattr(widget, "text"):
-            raw_input = widget.text().strip()
+        if (raw_input is None or raw_input == "") and cell is not None:
+            raw_input = cell.text().strip()
 
         parsed = evaluate_table_cell_input(
             raw_input,
@@ -426,7 +423,7 @@ class SectionsSectionMixin:
         self._edit_component(f"Change fuselage section {transform_type} {axis}", change)
         self._refresh_section_row()
 
-    def _update_section_property(self: FuselageEditor, row: int, column: int) -> None:
+    def _update_section_property(self, row: int, column: int) -> None:
         section = self._current_section()
         if self._loading or section is None or column != 1:
             return
@@ -460,7 +457,7 @@ class SectionsSectionMixin:
         )
         self._refresh_section_row()
 
-    def _update_section_choice(self: FuselageEditor, key: str, value: str) -> None:
+    def _update_section_choice(self, key: str, value: str) -> None:
         if self._loading:
             return
         if key == "type":
@@ -481,11 +478,20 @@ class SectionsSectionMixin:
         self._refresh_section_row()
 
     def _set_transform_values(
-        self: FuselageEditor,
+        self,
         position: dict[str, Any] | tuple[float, float, float],
         rotation: dict[str, Any] | tuple[float, float, float],
     ) -> None:
         self_ref = weakref.ref(self)
+
+        def transform_callback(transform_type: str, axis: str) -> Callable[[Any], None]:
+            def on_changed(value: Any) -> None:
+                editor = self_ref()
+                if editor is not None:
+                    editor._on_transform_expression_changed(transform_type, axis, value)
+
+            return on_changed
+
         pos_dict = (
             position
             if isinstance(position, dict)
@@ -512,11 +518,7 @@ class SectionsSectionMixin:
                 label=f"Position {axis.upper()}",
                 property_key=axis,
                 raw_callback=True,
-                on_changed=lambda _v, a=axis: (
-                    self_ref()._on_transform_expression_changed("position", a, _v)
-                    if self_ref() is not None
-                    else None
-                ),
+                on_changed=transform_callback("position", axis),
             )
         rot_aliases = {"x": "roll", "y": "pitch", "z": "yaw"}
         for column, axis in enumerate(axes):
@@ -541,15 +543,11 @@ class SectionsSectionMixin:
                 label=f"Rotation {axis.upper()}",
                 property_key=axis,
                 raw_callback=True,
-                on_changed=lambda _v, a=axis: (
-                    self_ref()._on_transform_expression_changed("rotation", a, _v)
-                    if self_ref() is not None
-                    else None
-                ),
+                on_changed=transform_callback("rotation", axis),
             )
 
     def _transform_values(
-        self: FuselageEditor,
+        self,
     ) -> tuple[tuple[float, float, float], tuple[float, float, float]] | None:
         rows: list[tuple[float, float, float]] = []
         for row in range(2):
@@ -570,7 +568,7 @@ class SectionsSectionMixin:
             return rows[0], rows[1]
         return None
 
-    def _update_vertices(self: FuselageEditor, row: int, column: int) -> None:
+    def _update_vertices(self, row: int, column: int) -> None:
         if self._loading:
             return
         section = self._current_section()
@@ -596,7 +594,7 @@ class SectionsSectionMixin:
                 lambda: vertices[row].__setitem__(key, value),
             )
 
-    def _populate_section_properties(self: FuselageEditor, profile: dict[str, Any]) -> None:
+    def _populate_section_properties(self, profile: dict[str, Any]) -> None:
         profile_type = str(profile.get("type") or "circle")
         definitions = [("type", "Profile"), *PROFILE_FIELDS.get(profile_type, [])]
         self._configure_property_table(self.section_properties_table, definitions)
@@ -656,7 +654,7 @@ class SectionsSectionMixin:
                 lambda value: self._update_section_choice("orientation", value),
             )
 
-    def _on_property_expression_changed(self: FuselageEditor, key: str, value: Any) -> None:
+    def _on_property_expression_changed(self, key: str, value: Any) -> None:
         if self._loading:
             return
         section = self._current_section()
@@ -687,7 +685,7 @@ class SectionsSectionMixin:
         self._refresh_section_row()
         self.vertices_table.setVisible(profile.get("type") == "polygon")
 
-    def _on_property_spin_changed(self: FuselageEditor, key: str, value: float) -> None:
+    def _on_property_spin_changed(self, key: str, value: float) -> None:
         if self._loading:
             return
         section = self._current_section()
@@ -700,13 +698,22 @@ class SectionsSectionMixin:
         )
         self._refresh_section_row()
 
-    def _populate_vertices(self: FuselageEditor, profile: dict[str, Any]) -> None:
+    def _populate_vertices(self, profile: dict[str, Any]) -> None:
         is_polygon = profile.get("type") == "polygon"
         self.vertices_table.setVisible(is_polygon)
         if not is_polygon:
             self.vertices_table.setRowCount(0)
             return
         self_ref = weakref.ref(self)
+
+        def vertex_callback(row: int, column: int) -> Callable[[Any], None]:
+            def on_changed(value: Any) -> None:
+                editor = self_ref()
+                if editor is not None:
+                    editor._on_vertex_spin_changed(row, column, value)
+
+            return on_changed
+
         vertices = profile.get("vertices")
         if not isinstance(vertices, list):
             vertices = []
@@ -722,11 +729,7 @@ class SectionsSectionMixin:
                 step=1.0,
                 decimals=2,
                 suffix="mm",
-                on_changed=lambda val, r=row: (
-                    self_ref()._on_vertex_spin_changed(r, 0, val)
-                    if self_ref() is not None
-                    else None
-                ),
+                on_changed=vertex_callback(row, 0),
             )
             set_table_spinbox(
                 self.vertices_table,
@@ -736,11 +739,7 @@ class SectionsSectionMixin:
                 step=1.0,
                 decimals=2,
                 suffix="mm",
-                on_changed=lambda val, r=row: (
-                    self_ref()._on_vertex_spin_changed(r, 1, val)
-                    if self_ref() is not None
-                    else None
-                ),
+                on_changed=vertex_callback(row, 1),
             )
             set_table_spinbox(
                 self.vertices_table,
@@ -751,15 +750,11 @@ class SectionsSectionMixin:
                 step=0.5,
                 decimals=2,
                 suffix="mm",
-                on_changed=lambda val, r=row: (
-                    self_ref()._on_vertex_spin_changed(r, 2, val)
-                    if self_ref() is not None
-                    else None
-                ),
+                on_changed=vertex_callback(row, 2),
             )
         self._fit_table_height(self.vertices_table, len(vertices))
 
-    def _on_vertex_spin_changed(self: FuselageEditor, row: int, column: int, value: float) -> None:
+    def _on_vertex_spin_changed(self, row: int, column: int, value: float) -> None:
         if self._loading:
             return
         section = self._current_section()
@@ -776,7 +771,7 @@ class SectionsSectionMixin:
                 lambda: vertices[row].__setitem__(key, float(value)),
             )
 
-    def _refresh_section_row(self: FuselageEditor) -> None:
+    def _refresh_section_row(self) -> None:
         section = self._current_section()
         if section is None:
             return
@@ -784,12 +779,12 @@ class SectionsSectionMixin:
 
         um = get_unit_manager()
         length_sym = um.get_unit_symbol("length")
-        position: dict[str, Any] = (
-            section.get("position") if isinstance(section.get("position"), dict) else {}
-        )
-        profile: dict[str, Any] = (
-            section.get("profile") if isinstance(section.get("profile"), dict) else {}
-        )
+        position = section.get("position")
+        if not isinstance(position, dict):
+            position = {}
+        profile = section.get("profile")
+        if not isinstance(profile, dict):
+            profile = {}
         row = self._section_index
         if not hasattr(self, "sections_table") or row < 0 or row >= self.sections_table.rowCount():
             return
@@ -810,7 +805,7 @@ class SectionsSectionMixin:
         if item3 is not None:
             item3.setText(self._profile_size(profile))
 
-    def _sections(self: FuselageEditor) -> list[dict[str, Any]]:
+    def _sections(self) -> list[dict[str, Any]]:
         segment = self._current_segment()
         if segment is None:
             return []
@@ -820,7 +815,7 @@ class SectionsSectionMixin:
             segment["sections"] = sections
         return sections
 
-    def _current_section(self: FuselageEditor) -> dict[str, Any] | None:
+    def _current_section(self) -> dict[str, Any] | None:
         sections = self._sections()
         if 0 <= self._section_index < len(sections):
             return sections[self._section_index]

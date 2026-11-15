@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from setuav_studio.project import ProjectDocument
 
-from .data import EnvelopeWireGeometry, GeometryData, LoftGeometry, Point3D, Section
+from .data import ColorRGB, EnvelopeWireGeometry, GeometryData, LoftGeometry, Point3D, Section
 from .palettes import segment_colors
 from .transforms import (
     Matrix4,
@@ -112,7 +112,8 @@ class _WorldMatrixResolver:
         local = transform_matrix(item.get("transform"))
         if item.get("kind") != "instance":
             return local
-        source = self.items.get(item.get("source"))
+        source_id = item.get("source")
+        source = self.items.get(source_id) if isinstance(source_id, str) else None
         source_transform = (
             transform_matrix(source.get("transform"))
             if isinstance(source, dict)
@@ -129,7 +130,8 @@ def _geometry_source(
     source = deepcopy(item)
     if item.get("kind") != "instance":
         return source
-    candidate = items.get(item.get("source"))
+    source_id = item.get("source")
+    candidate = items.get(source_id) if isinstance(source_id, str) else None
     if not isinstance(candidate, dict):
         return None
     source = deepcopy(candidate)
@@ -341,9 +343,9 @@ def _fuselage_items(items: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
-def _fuselage_stub_color() -> tuple[float, float, float, float]:
+def _fuselage_stub_color() -> ColorRGB:
     colors = segment_colors()
-    return colors[0] if colors else (0.8, 0.8, 0.8, 1.0)
+    return colors[0] if colors else (0.8, 0.8, 0.8)
 
 
 def _mirrored_root_matrix(
@@ -362,7 +364,7 @@ def _build_root_stub(
     fuselage_id: str,
     root_section: Section,
     matrix: Matrix4,
-    color: tuple[float, float, float, float],
+    color: ColorRGB,
 ) -> LoftGeometry | None:
     outer_points = tuple(transform_point(matrix, point) for point in root_section.points)
     inward = _inward_span_direction(matrix)
@@ -551,7 +553,8 @@ def _build_component_envelope_geometry(
 
     secs = envelope.get("sections") if isinstance(envelope, dict) else None
     if (
-        not secs
+        not isinstance(envelope, dict)
+        or not secs
         or not all(isinstance(s, dict) and "corners_3d" in s for s in secs)
         or (component_type == "org.setuav.core:control-surface" and "hinge_axis" not in envelope)
     ):

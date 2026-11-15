@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -14,15 +14,13 @@ from PySide6.QtWidgets import (
 )
 
 from ...engine.fuselage_geometry import create_default_segment
-
-if TYPE_CHECKING:
-    from .editor import FuselageEditor
+from .host import FuselageEditorHost
 
 
-class SegmentsSectionMixin:
+class SegmentsSectionMixin(FuselageEditorHost):
     """Manages fuselage longitudinal segments and method parameters."""
 
-    def _create_segments_section(self: FuselageEditor) -> None:
+    def _create_segments_section(self) -> None:
         layout = self._create_section("Segments", "fa6s.layer-group")
 
         self.segments_table = self._table(["Tag", "Sections", "Method"])
@@ -64,11 +62,13 @@ class SegmentsSectionMixin:
         segment_actions.addStretch()
         layout.addLayout(segment_actions)
 
-    def _populate_segments(self: FuselageEditor) -> None:
+    def _populate_segments(self) -> None:
         segments = self._segments()
         self.segments_table.setRowCount(len(segments))
         for row, segment in enumerate(segments):
-            loft = segment.get("loft") if isinstance(segment.get("loft"), dict) else {}
+            loft = segment.get("loft")
+            if not isinstance(loft, dict):
+                loft = {}
             values = (
                 str(segment.get("tag") or ""),
                 str(len(segment.get("sections") or [])),
@@ -91,7 +91,7 @@ class SegmentsSectionMixin:
             )
         self._fit_table_height(self.segments_table, len(segments))
 
-    def _load_segment(self: FuselageEditor, index: int) -> None:
+    def _load_segment(self, index: int) -> None:
         segments = self._segments()
         if not 0 <= index < len(segments):
             self._segment_index = -1
@@ -116,7 +116,7 @@ class SegmentsSectionMixin:
             self._publish_section_selection()
         self._update_segment_actions()
 
-    def _on_segment_selected(self: FuselageEditor, row: int, _column: int, *_previous: int) -> None:
+    def _on_segment_selected(self, row: int, _column: int, *_previous: int) -> None:
         if self._loading:
             return
         if row >= 0:
@@ -126,7 +126,7 @@ class SegmentsSectionMixin:
             self._publish_section_selection()
         self._update_segment_actions()
 
-    def _update_segment_cell(self: FuselageEditor, row: int, column: int) -> None:
+    def _update_segment_cell(self, row: int, column: int) -> None:
         segments = self._segments()
         if self._loading or column != 0 or not 0 <= row < len(segments):
             return
@@ -140,7 +140,7 @@ class SegmentsSectionMixin:
             lambda: segment.__setitem__("tag", value),
         )
 
-    def _update_segment_choice(self: FuselageEditor, index: int, key: str, value: str) -> None:
+    def _update_segment_choice(self, index: int, key: str, value: str) -> None:
         segments = self._segments()
         allowed = {
             "method": {"smooth", "ruled"},
@@ -156,14 +156,14 @@ class SegmentsSectionMixin:
 
         self._edit_component("Edit fuselage segment", change)
 
-    def _update_segment_sections_cell(self: FuselageEditor) -> None:
+    def _update_segment_sections_cell(self) -> None:
         if 0 <= self._segment_index < self.segments_table.rowCount():
             sections = self._sections()
             item = self.segments_table.item(self._segment_index, 1)
             if item is not None:
                 item.setText(str(len(sections)))
 
-    def _add_segment(self: FuselageEditor) -> None:
+    def _add_segment(self) -> None:
         segments = self._segments()
         insert_at = (
             self._segment_index + 1 if 0 <= self._segment_index < len(segments) else len(segments)
@@ -175,7 +175,7 @@ class SegmentsSectionMixin:
         )
         self._reload_segments(insert_at)
 
-    def _duplicate_segment(self: FuselageEditor) -> None:
+    def _duplicate_segment(self) -> None:
         segments = self._segments()
         index = self._segment_index
         if not 0 <= index < len(segments):
@@ -193,13 +193,13 @@ class SegmentsSectionMixin:
         )
         self._reload_segments(insert_at)
 
-    def _move_segment_up(self: FuselageEditor) -> None:
+    def _move_segment_up(self) -> None:
         self._move_segment(-1)
 
-    def _move_segment_down(self: FuselageEditor) -> None:
+    def _move_segment_down(self) -> None:
         self._move_segment(1)
 
-    def _move_segment(self: FuselageEditor, offset: int) -> None:
+    def _move_segment(self, offset: int) -> None:
         segments = self._segments()
         source = self._segment_index
         target = source + offset
@@ -215,7 +215,7 @@ class SegmentsSectionMixin:
         )
         self._reload_segments(target)
 
-    def _delete_segment(self: FuselageEditor) -> None:
+    def _delete_segment(self) -> None:
         segments = self._segments()
         index = self._segment_index
         if len(segments) <= 1 or not 0 <= index < len(segments):
@@ -226,7 +226,7 @@ class SegmentsSectionMixin:
         )
         self._reload_segments(min(index, len(segments) - 1))
 
-    def _reload_segments(self: FuselageEditor, selected_index: int) -> None:
+    def _reload_segments(self, selected_index: int) -> None:
         self._loading = True
         self._populate_segments()
         segments = self._segments()
@@ -244,7 +244,7 @@ class SegmentsSectionMixin:
             self._update_section_actions()
         self._update_segment_actions()
 
-    def _update_segment_actions(self: FuselageEditor) -> None:
+    def _update_segment_actions(self) -> None:
         segments = self._segments()
         index = self._segment_index
         has_segment = 0 <= index < len(segments)
@@ -272,7 +272,7 @@ class SegmentsSectionMixin:
             suffix += 1
         return f"{base}-{suffix}"
 
-    def _segments(self: FuselageEditor) -> list[dict[str, Any]]:
+    def _segments(self) -> list[dict[str, Any]]:
         parameters = self._parameters()
         geometry = parameters.get("geometry")
         if not isinstance(geometry, dict):
@@ -291,7 +291,7 @@ class SegmentsSectionMixin:
 
         return segments
 
-    def _current_segment(self: FuselageEditor) -> dict[str, Any] | None:
+    def _current_segment(self) -> dict[str, Any] | None:
         segments = self._segments()
         if 0 <= self._segment_index < len(segments):
             return segments[self._segment_index]

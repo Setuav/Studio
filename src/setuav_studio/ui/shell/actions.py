@@ -351,20 +351,19 @@ class ActionManager:
         if not parts:
             parts = ["Tools"]
 
-        path_key = ""
-        current_menu = None
-        for i, name in enumerate(parts):
-            path_key = f"{path_key}/{name.lower()}" if path_key else name.lower()
-            if path_key in self.menus and shiboken6.isValid(self.menus[path_key]):
-                current_menu = self.menus[path_key]
-            else:
-                if i == 0:
-                    current_menu = self._window.menuBar().addMenu(f"&{name}")
-                else:
-                    sub = QMenu(f"&{name}", current_menu)
-                    current_menu.addMenu(sub)
-                    current_menu = sub
-                self.menus[path_key] = current_menu
+        path_key = parts[0].lower()
+        current_menu = self._live_menu(path_key)
+        if current_menu is None:
+            current_menu = self._window.menuBar().addMenu(f"&{parts[0]}")
+            self.menus[path_key] = current_menu
+        for name in parts[1:]:
+            path_key = f"{path_key}/{name.lower()}"
+            menu = self._live_menu(path_key)
+            if menu is None:
+                menu = QMenu(f"&{name}", current_menu)
+                current_menu.addMenu(menu)
+                self.menus[path_key] = menu
+            current_menu = menu
 
         icon = get_icon(contribution.icon) if contribution.icon else None
         if icon is not None and not icon.isNull():
@@ -376,6 +375,10 @@ class ActionManager:
             action.setShortcut(QKeySequence(contribution.shortcut))
 
         action.triggered.connect(contribution.callback)
+
+    def _live_menu(self, path_key: str) -> QMenu | None:
+        menu = self.menus.get(path_key)
+        return menu if menu is not None and shiboken6.isValid(menu) else None
 
     def unregister_action(self, menu_path: str, title: str) -> None:
 

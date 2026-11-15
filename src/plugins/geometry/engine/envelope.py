@@ -110,6 +110,11 @@ def _number(value: Any, default: float = 0.0) -> float:
     return default
 
 
+def _dict_field(owner: dict[str, Any], key: str) -> dict[str, Any]:
+    value = owner.get(key)
+    return value if isinstance(value, dict) else {}
+
+
 def _polygon_cross_section_properties(
     vertices: list[tuple[float, float]] | tuple[tuple[float, float], ...],
 ) -> tuple[float, float, float, float, float, float]:
@@ -226,7 +231,7 @@ def _compute_fuselage_section_bbox(
     segment_tag: str = "main",
 ) -> dict[str, Any]:
     """Compute the 2D/3D bounding quadrilateral cross-section for a fuselage section."""
-    prof = section.get("profile") if isinstance(section.get("profile"), dict) else {}
+    prof = _dict_field(section, "profile")
     ptype = str(prof.get("type") or "").lower()
 
     if ptype == "circle":
@@ -407,9 +412,9 @@ def _compute_fuselage_trapezoidal_slices(
             bbox1 = seg_section_bboxes[i]
             bbox2 = seg_section_bboxes[i + 1]
 
-            pos1 = s1.get("position") if isinstance(s1.get("position"), dict) else {}
-            pos2 = s2.get("position") if isinstance(s2.get("position"), dict) else {}
-            prof1 = s1.get("profile") if isinstance(s1.get("profile"), dict) else {}
+            pos1 = _dict_field(s1, "position")
+            pos2 = _dict_field(s2, "position")
+            prof1 = _dict_field(s1, "profile")
 
             x1 = _number(pos1.get("x"))
             y1 = _number(pos1.get("y"))
@@ -420,7 +425,7 @@ def _compute_fuselage_trapezoidal_slices(
 
             # Section properties
             a1, w1, h1, cy1, cz1 = _compute_section_properties(prof1)
-            prof2 = s2.get("profile") if isinstance(s2.get("profile"), dict) else {}
+            prof2 = _dict_field(s2, "profile")
             a2, w2, h2, cy2, cz2 = _compute_section_properties(prof2)
 
             dx = x2 - x1
@@ -595,7 +600,7 @@ def _compute_lifting_surface_trapezoidal_slices(
     sec_align = str(geometry.get("section_align", "xz")).lower()
 
     for i, prof in enumerate(valid_profiles):
-        pos = prof.get("position") if isinstance(prof.get("position"), dict) else {}
+        pos = _dict_field(prof, "position")
         px = _number(pos.get("x"))
         py = _number(pos.get("y"))
         pz = _number(pos.get("z"))
@@ -676,8 +681,8 @@ def _compute_lifting_surface_trapezoidal_slices(
         p1 = valid_profiles[i]
         p2 = valid_profiles[i + 1]
 
-        pos1 = p1.get("position") if isinstance(p1.get("position"), dict) else {}
-        pos2 = p2.get("position") if isinstance(p2.get("position"), dict) else {}
+        pos1 = _dict_field(p1, "position")
+        pos2 = _dict_field(p2, "position")
 
         x1 = _number(pos1.get("x"))
         y1 = _number(pos1.get("y"))

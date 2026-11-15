@@ -9,7 +9,11 @@ from setuav_studio.ui.panels.project_explorer.style import (
 )
 
 if TYPE_CHECKING:
-    from setuav_studio.api import ProjectTreeNodeContribution, StudioAPI
+    from setuav_studio.api import (
+        ComponentTreeNodeContribution,
+        ProjectTreeNodeContribution,
+        StudioAPI,
+    )
     from setuav_studio.ui.panels.project_explorer.tree import ProjectExplorer
 
 
@@ -388,7 +392,7 @@ class ProjectExplorerOperations:
     def rename_contribution(
         self,
         item: QTreeWidgetItem,
-        contribution: ProjectTreeNodeContribution,
+        contribution: ProjectTreeNodeContribution | ComponentTreeNodeContribution,
     ) -> None:
         old_name = contribution.title
         new_name = item.text(0).strip()
@@ -426,20 +430,6 @@ class ProjectExplorerOperations:
         )
 
         add_constraint_action(self._api, self._tree, parent=parent)
-
-    def edit_parameter_fx(self, element: dict[str, Any], parent: QWidget | None = None) -> None:
-        from setuav_studio.ui.panels.project_explorer.dialog_actions import (
-            edit_parameter_fx,
-        )
-
-        edit_parameter_fx(self._api, self._tree, element, parent=parent)
-
-    def edit_constraint_fx(self, element: dict[str, Any], parent: QWidget | None = None) -> None:
-        from setuav_studio.ui.panels.project_explorer.dialog_actions import (
-            edit_constraint_fx,
-        )
-
-        edit_constraint_fx(self._api, self._tree, element, parent=parent)
 
     def toggle_constraint(self, element: dict[str, Any]) -> None:
         from setuav_studio.ui.panels.project_explorer.dialog_actions import (

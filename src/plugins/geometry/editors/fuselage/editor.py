@@ -28,10 +28,10 @@ from .segments_section import SegmentsSectionMixin
 
 
 class FuselageEditor(
-    PropertyTableMixin,
     GeneralSectionMixin,
     SegmentsSectionMixin,
     SectionsSectionMixin,
+    PropertyTableMixin,
     QWidget,
 ):
     """Component property editor for org.setuav.core:fuselage."""
