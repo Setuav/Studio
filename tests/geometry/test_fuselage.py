@@ -540,19 +540,19 @@ class FuselageGeometryTests(unittest.TestCase):
         # Change diameter via numeric input
         editor._on_property_expression_changed("diameter", "110.0")
         self.assertAlmostEqual(current_profile().get("diameter"), 110.0)
-        self.assertNotIn("diameter_expression", current_profile())
+        self.assertNotIn("_expressions", current_profile())
         self.assertIn("110", editor.sections_table.item(0, 3).text())
 
         # Change diameter via expression
         editor._on_property_expression_changed("diameter", "=50 + 75")
         self.assertAlmostEqual(current_profile().get("diameter"), 125.0)
-        self.assertEqual(current_profile().get("diameter_expression"), "=50 + 75")
+        self.assertEqual(current_profile().get("_expressions", {}).get("diameter"), "=50 + 75")
         self.assertIn("125", editor.sections_table.item(0, 3).text())
 
         # Verify undo works
         api.undo()
         self.assertAlmostEqual(current_profile().get("diameter"), 110.0)
-        self.assertNotIn("diameter_expression", current_profile())
+        self.assertNotIn("_expressions", current_profile())
 
     def test_fuselage_engine_helpers_and_metrics(self) -> None:
         """Verify fuselage engine calculation and data template helpers."""

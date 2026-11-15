@@ -221,8 +221,6 @@ def set_table_spinbox(
         exprs = target_data.get("_expressions")
         if isinstance(exprs, dict):
             active_expr = exprs.get(prop_k)
-        if not active_expr:
-            active_expr = target_data.get(f"{prop_k}_expression")
 
     on_changed_ref = (
         weakref.WeakMethod(on_changed)

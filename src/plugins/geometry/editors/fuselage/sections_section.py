@@ -414,9 +414,11 @@ class SectionsSectionMixin:
 
         def change() -> None:
             if is_expr:
-                target[f"{axis}_expression"] = raw_text
-            else:
-                target.pop(f"{axis}_expression", None)
+                target.setdefault("_expressions", {})[axis] = raw_text
+            elif isinstance(target.get("_expressions"), dict):
+                target["_expressions"].pop(axis, None)
+                if not target["_expressions"]:
+                    target.pop("_expressions", None)
             if num_val is not None:
                 target[axis] = num_val
 
@@ -493,9 +495,15 @@ class SectionsSectionMixin:
             if isinstance(rotation, dict)
             else {"x": rotation[0], "y": rotation[1], "z": rotation[2]}
         )
+        pos_exprs = (
+            pos_dict.get("_expressions") if isinstance(pos_dict.get("_expressions"), dict) else {}
+        )
+        rot_exprs = (
+            rot_dict.get("_expressions") if isinstance(rot_dict.get("_expressions"), dict) else {}
+        )
         axes = ("x", "y", "z")
         for column, axis in enumerate(axes):
-            raw_val = pos_dict.get(f"{axis}_expression") or pos_dict.get(axis, 0.0)
+            raw_val = pos_exprs.get(axis) or pos_dict.get(axis, 0.0)
             set_table_spinbox(
                 self.transform_table,
                 0,
@@ -518,8 +526,8 @@ class SectionsSectionMixin:
         for column, axis in enumerate(axes):
             alias = rot_aliases[axis]
             raw_val = (
-                rot_dict.get(f"{axis}_expression")
-                or rot_dict.get(f"{alias}_expression")
+                rot_exprs.get(axis)
+                or rot_exprs.get(alias)
                 or rot_dict.get(axis, rot_dict.get(alias, 0.0))
             )
             set_table_spinbox(
@@ -617,7 +625,10 @@ class SectionsSectionMixin:
                 "corner_radius",
                 "fillet_radius",
             ):
-                raw_val = profile.get(f"{key}_expression") or profile.get(key, 0.0)
+                exprs = profile.get("_expressions")
+                raw_val = (exprs.get(key) if isinstance(exprs, dict) else None) or profile.get(
+                    key, 0.0
+                )
                 self._set_property_expression(
                     self.section_properties_table,
                     key,
@@ -665,9 +676,11 @@ class SectionsSectionMixin:
 
         def change() -> None:
             if is_expr:
-                profile[f"{key}_expression"] = val_str
-            else:
-                profile.pop(f"{key}_expression", None)
+                profile.setdefault("_expressions", {})[key] = val_str
+            elif isinstance(profile.get("_expressions"), dict):
+                profile["_expressions"].pop(key, None)
+                if not profile["_expressions"]:
+                    profile.pop("_expressions", None)
 
             if num_val is not None:
                 profile[key] = num_val

@@ -403,9 +403,9 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
                 editable=False,
             )
             params = self._component.get("parameters", {})
-            mass_val = self._component.get("mass_expression") or self._component.get(
-                "mass", params.get("mass", 0.0)
-            )
+            comp_exprs = self._component.get("_expressions")
+            mass_expr = comp_exprs.get("mass") if isinstance(comp_exprs, dict) else None
+            mass_val = mass_expr or self._component.get("mass", params.get("mass", 0.0))
             self._set_property_expression(
                 self.general_table,
                 "mass",
@@ -732,9 +732,11 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
                 ):
                     self._component["parameters"]["mass"] = num_val
             if new_expr is not None:
-                self._component["mass_expression"] = new_expr
-            else:
-                self._component.pop("mass_expression", None)
+                self._component.setdefault("_expressions", {})["mass"] = new_expr
+            elif isinstance(self._component.get("_expressions"), dict):
+                self._component["_expressions"].pop("mass", None)
+                if not self._component["_expressions"]:
+                    self._component.pop("_expressions", None)
 
         self._api.edit_component(self._component, "Change component mass", change)
 

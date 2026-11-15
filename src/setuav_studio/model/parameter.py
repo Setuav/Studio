@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import copy
 from typing import Any
 
@@ -170,25 +171,22 @@ class ParameterResolver:
         return dependents
 
     def evaluate_component_value(self, value: Any, resolved_parameters: dict[str, Any]) -> Any:
-        """Evaluate an arbitrary component parameter value (scalar, formula, dict, or list)."""
-        if self.evaluator.is_expression(value):
-            try:
-                return self.evaluator.evaluate(str(value), resolved_parameters)
-            except ExpressionEvaluationError:
-                # Return raw value for broken / empty expressions (e.g. bare "=")
-                # instead of crashing the entire scope build.
-                return value
-
+        """Evaluate an arbitrary component parameter value (scalar, dict, or list)."""
         if isinstance(value, dict):
             res_dict = {
-                k: self.evaluate_component_value(v, resolved_parameters) for k, v in value.items()
+                k: (
+                    v
+                    if k == "_expressions"
+                    else self.evaluate_component_value(v, resolved_parameters)
+                )
+                for k, v in value.items()
             }
-            # When resolving a *_expression entry, also assign its evaluated value to the base key
-            for k, evaluated_val in list(res_dict.items()):
-                if k.endswith("_expression"):
-                    base_key = k[:-11]  # len("_expression") == 11
-                    if base_key:
-                        res_dict[base_key] = evaluated_val
+            exprs = value.get("_expressions")
+            if isinstance(exprs, dict):
+                for prop, expr in exprs.items():
+                    if self.evaluator.is_expression(expr):
+                        with contextlib.suppress(ExpressionEvaluationError):
+                            res_dict[prop] = self.evaluator.evaluate(str(expr), resolved_parameters)
             return res_dict
 
         if isinstance(value, list):

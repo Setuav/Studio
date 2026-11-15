@@ -165,11 +165,10 @@ class PlanformSectionMixin:
 
             # 2. Update Angles & Alignment Table
             if hasattr(self, "angles_table"):
-                sw_val = (
-                    geom.get("sweep_expression")
-                    or geom.get("sweep")
-                    or float(metrics.get("sweep", 0.0))
+                exprs = (
+                    geom.get("_expressions") if isinstance(geom.get("_expressions"), dict) else {}
                 )
+                sw_val = exprs.get("sweep") or geom.get("sweep") or float(metrics.get("sweep", 0.0))
                 self._set_property_expression(
                     self.angles_table,
                     "sweep",
@@ -185,9 +184,7 @@ class PlanformSectionMixin:
                     [(str(val), label) for val, label in SWEEP_LOCATIONS],
                     self._on_sweep_loc_changed,
                 )
-                sw_curv = geom.get("sweep_curvature_expression") or float(
-                    geom.get("sweep_curvature", 0.0)
-                )
+                sw_curv = exprs.get("sweep_curvature") or float(geom.get("sweep_curvature", 0.0))
                 self._set_property_expression(
                     self.angles_table,
                     "sweep_curvature",
@@ -196,7 +193,7 @@ class PlanformSectionMixin:
                     label="Sweep Curvature",
                     unit="mm",
                 )
-                di_val = geom.get("dihedral_expression") or float(metrics.get("dihedral", 0.0))
+                di_val = exprs.get("dihedral") or float(metrics.get("dihedral", 0.0))
                 self._set_property_expression(
                     self.angles_table,
                     "dihedral",
@@ -205,7 +202,7 @@ class PlanformSectionMixin:
                     label="Dihedral Angle",
                     unit="deg",
                 )
-                tw_val = geom.get("twist_expression") or float(metrics.get("washout", 0.0))
+                tw_val = exprs.get("twist") or float(metrics.get("washout", 0.0))
                 self._set_property_expression(
                     self.angles_table,
                     "twist",
@@ -235,13 +232,16 @@ class PlanformSectionMixin:
         # Check if plain numeric float
         try:
             num_val = float(val_str)
-            geom.pop(f"{key}_expression", None)
+            if isinstance(geom.get("_expressions"), dict):
+                geom["_expressions"].pop(key, None)
+                if not geom["_expressions"]:
+                    geom.pop("_expressions", None)
             return num_val
         except ValueError:
             pass
 
         # Otherwise treat as formula expression
-        geom[f"{key}_expression"] = val_str
+        geom.setdefault("_expressions", {})[key] = val_str
         api = getattr(self, "_api", None)
         if api is not None and getattr(api, "current_project", None) is not None:
             try:

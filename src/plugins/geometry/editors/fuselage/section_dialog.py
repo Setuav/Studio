@@ -488,7 +488,10 @@ class FuselageSectionDialog(QDialog):
 
         def _raw(key: str, default: float) -> Any:
             """Return the expression string if set, otherwise the numeric value."""
-            return profile.get(f"{key}_expression") or profile.get(key, default)
+            exprs = profile.get("_expressions")
+            if isinstance(exprs, dict) and exprs.get(key):
+                return exprs[key]
+            return profile.get(key, default)
 
         if prof_type == "circle":
             self._add_prop_row("Diameter", _raw("diameter", 100.0), "diameter", profile)
@@ -567,7 +570,8 @@ class FuselageSectionDialog(QDialog):
         if not isinstance(prof, dict):
             return
 
-        old_val = prof.get(f"{key}_expression") or prof.get(key)
+        exprs = prof.get("_expressions")
+        old_val = (exprs.get(key) if isinstance(exprs, dict) else None) or prof.get(key)
         if old_val == new_val:
             return
 
@@ -655,10 +659,12 @@ class FuselageSectionDialog(QDialog):
     def _populate_transform_table(self, section: dict[str, Any]) -> None:
         pos = section.get("position", {}) if isinstance(section.get("position"), dict) else {}
         rot = section.get("rotation", {}) if isinstance(section.get("rotation"), dict) else {}
+        pos_exprs = pos.get("_expressions") if isinstance(pos.get("_expressions"), dict) else {}
+        rot_exprs = rot.get("_expressions") if isinstance(rot.get("_expressions"), dict) else {}
 
         rotation_aliases = {"x": "roll", "y": "pitch", "z": "yaw"}
         for col, axis in enumerate(("x", "y", "z")):
-            raw_pos = pos.get(f"{axis}_expression") or pos.get(axis, 0.0)
+            raw_pos = pos_exprs.get(axis) or pos.get(axis, 0.0)
             set_table_spinbox(
                 self.trans_table,
                 0,
@@ -677,9 +683,7 @@ class FuselageSectionDialog(QDialog):
             )
             alias = rotation_aliases[axis]
             raw_rot = (
-                rot.get(f"{axis}_expression")
-                or rot.get(f"{alias}_expression")
-                or rot.get(axis, rot.get(alias, 0.0))
+                rot_exprs.get(axis) or rot_exprs.get(alias) or rot.get(axis, rot.get(alias, 0.0))
             )
             set_table_spinbox(
                 self.trans_table,
@@ -727,9 +731,11 @@ class FuselageSectionDialog(QDialog):
             num_val = float(value)
 
         if is_expr:
-            target[f"{axis}_expression"] = raw_text
-        else:
-            target.pop(f"{axis}_expression", None)
+            target.setdefault("_expressions", {})[axis] = raw_text
+        elif isinstance(target.get("_expressions"), dict):
+            target["_expressions"].pop(axis, None)
+            if not target["_expressions"]:
+                target.pop("_expressions", None)
         if num_val is not None:
             target[axis] = num_val
 
@@ -838,11 +844,14 @@ class FuselageSectionDialog(QDialog):
         val_str = str(value).strip() if value is not None else ""
         num_val, is_expr = evaluate_expression_or_number(val_str, self._api)
         if is_expr:
-            prof[f"{key}_expression"] = val_str
+            prof.setdefault("_expressions", {})[key] = val_str
             if num_val is not None:
                 prof[key] = num_val
         else:
-            prof.pop(f"{key}_expression", None)
+            if isinstance(prof.get("_expressions"), dict):
+                prof["_expressions"].pop(key, None)
+                if not prof["_expressions"]:
+                    prof.pop("_expressions", None)
             if num_val is not None:
                 prof[key] = num_val
             else:

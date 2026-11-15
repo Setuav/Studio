@@ -61,13 +61,21 @@ def _recompute_component(
     """Recompute expressions for a single component (mass, transform, parameters)."""
     changed = False
 
-    # 1. Component mass expression (top-level)
-    mass_expr = comp.get("mass_expression")
-    if isinstance(mass_expr, str) and mass_expr.strip():
-        val = _safe_eval(evaluator, mass_expr, scope)
-        if val is not None and comp.get("mass") != val:
-            comp["mass"] = val
-            changed = True
+    # 1. Component-level _expressions (e.g. mass)
+    comp_exprs = comp.get("_expressions")
+    if isinstance(comp_exprs, dict):
+        for k, expr in comp_exprs.items():
+            if isinstance(expr, str) and expr.strip():
+                val = _safe_eval(evaluator, expr, scope)
+                if val is not None and comp.get(k) != val:
+                    comp[k] = val
+                    if (
+                        k == "mass"
+                        and isinstance(comp.get("parameters"), dict)
+                        and "mass" in comp["parameters"]
+                    ):
+                        comp["parameters"]["mass"] = val
+                    changed = True
 
     # 2. Transform position and rotation expressions
     tf = comp.get("transform")
@@ -81,22 +89,10 @@ def _recompute_component(
 
     # 3. Parameters (and all nested structures under parameters)
     params = comp.get("parameters")
-    if isinstance(params, dict):
-        # Parameters-level mass_expression
-        param_mass_expr = params.get("mass_expression")
-        if isinstance(param_mass_expr, str) and param_mass_expr.strip():
-            val = _safe_eval(evaluator, param_mass_expr, scope)
-            if val is not None:
-                if comp.get("mass") != val:
-                    comp["mass"] = val
-                    changed = True
-                if params.get("mass") != val:
-                    params["mass"] = val
-                    changed = True
-
-        # Generic parameter expressions (handles _expressions dict, *_expression fields, nested dicts/lists)
-        if _recompute_generic_dict(params, evaluator, scope):
-            changed = True
+    if isinstance(params, dict) and _recompute_generic_dict(params, evaluator, scope):
+        if "mass" in params and comp.get("mass") != params["mass"]:
+            comp["mass"] = params["mass"]
+        changed = True
 
     return changed
 
@@ -112,7 +108,6 @@ def _recompute_transform_node(
         return False
 
     changed = False
-    # Check _expressions dictionary on transform node
     exprs = node.get("_expressions")
     if isinstance(exprs, dict):
         for axis in axes:
@@ -122,15 +117,6 @@ def _recompute_transform_node(
                 if val is not None and node.get(axis) != val:
                     node[axis] = val
                     changed = True
-
-    # Check {axis}_expression fields on transform node
-    for axis in axes:
-        expr = node.get(f"{axis}_expression")
-        if isinstance(expr, str) and expr.strip():
-            val = _safe_eval(evaluator, expr, scope)
-            if val is not None and node.get(axis) != val:
-                node[axis] = val
-                changed = True
 
     return changed
 
@@ -143,7 +129,6 @@ def _recompute_generic_dict(
     """Recursively recompute expressions in arbitrary nested dictionary or list structures."""
     changed = False
 
-    # 1. Evaluate _expressions mapping if present
     exprs = d.get("_expressions")
     if isinstance(exprs, dict):
         for k, expr in exprs.items():
@@ -153,18 +138,11 @@ def _recompute_generic_dict(
                     d[k] = val
                     changed = True
 
-    # 2. Evaluate {key}_expression fields and recurse into nested dicts / lists
     for k, v in list(d.items()):
         if k == "_expressions":
             continue
 
-        if k.endswith("_expression") and isinstance(v, str) and v.strip():
-            target_key = k[:-11]
-            val = _safe_eval(evaluator, v, scope)
-            if val is not None and d.get(target_key) != val:
-                d[target_key] = val
-                changed = True
-        elif isinstance(v, dict):
+        if isinstance(v, dict):
             if _recompute_generic_dict(v, evaluator, scope):
                 changed = True
         elif isinstance(v, list):

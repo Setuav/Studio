@@ -333,7 +333,11 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
 
         def change() -> None:
             component["mass"] = mass_g
-            component.pop("mass_expression", None)
+            comp_exprs = component.get("_expressions")
+            if isinstance(comp_exprs, dict):
+                comp_exprs.pop("mass", None)
+                if not comp_exprs:
+                    component.pop("_expressions", None)
             parameters = component.get("parameters")
             if isinstance(parameters, dict) and "mass" in parameters:
                 parameters["mass"] = mass_g

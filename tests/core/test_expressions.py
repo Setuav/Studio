@@ -160,9 +160,14 @@ def test_evaluate_component_parameters() -> None:
 
     component_params = {
         "geometry": {
-            "span": "= wing_span * 1000",
+            "span": 0.0,
+            "_expressions": {"span": "= wing_span * 1000"},
             "profiles": [
-                {"chord": "= wing_span / 4 * 1000", "position": 0.0},
+                {
+                    "chord": 0.0,
+                    "_expressions": {"chord": "= wing_span / 4 * 1000"},
+                    "position": 0.0,
+                },
                 {"chord": 200.0, "position": 1.0},
             ],
         },
