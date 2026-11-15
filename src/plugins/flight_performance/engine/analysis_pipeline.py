@@ -168,7 +168,7 @@ class FlightPerformanceAnalysisPipeline:
                 components = project.data.get("components", [])
                 mass_kg = (
                     sum(
-                        float(component.get("parameters", {}).get("mass", 0.0))
+                        float(component.get("mass", 0.0) or 0.0)
                         for component in components
                         if isinstance(component, dict)
                     )

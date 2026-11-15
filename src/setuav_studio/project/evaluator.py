@@ -88,13 +88,6 @@ def _recompute_component(
 ) -> bool:
     """Recompute expressions for a single component (mass, transform, parameters)."""
     changed = _recompute_node_expressions(comp, evaluator, scope)
-    if (
-        changed
-        and isinstance(comp.get("parameters"), dict)
-        and "mass" in comp["parameters"]
-        and "mass" in comp
-    ):
-        comp["parameters"]["mass"] = comp["mass"]
 
     # 2. Transform position and rotation expressions
     tf = comp.get("transform")
@@ -109,8 +102,6 @@ def _recompute_component(
     # 3. Parameters (and all nested structures under parameters)
     params = comp.get("parameters")
     if isinstance(params, dict) and _recompute_generic_dict(params, evaluator, scope):
-        if "mass" in params and comp.get("mass") != params["mass"]:
-            comp["mass"] = params["mass"]
         changed = True
 
     return changed

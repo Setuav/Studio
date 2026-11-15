@@ -403,9 +403,7 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
                 str(self._component.get("type") or ""),
                 editable=False,
             )
-            params = self._component.get("parameters", {})
-            mass_expr = get_expression(self._component, "mass")
-            mass_val = mass_expr or self._component.get("mass", params.get("mass", 0.0))
+            mass_val = get_expression(self._component, "mass") or self._component.get("mass", 0.0)
             self._set_property_expression(
                 self.general_table,
                 "mass",
@@ -416,6 +414,7 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
             )
 
             # Load Scalar Parameters
+            params = self._component.get("parameters", {})
             if hasattr(self, "parameters_table") and self._scalar_fields:
                 self.bind_parametric_properties(
                     self.parameters_table,
@@ -716,10 +715,6 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
         def change() -> None:
             if num_val is not None:
                 self._component["mass"] = num_val
-                if "parameters" in self._component and isinstance(
-                    self._component["parameters"], dict
-                ):
-                    self._component["parameters"]["mass"] = num_val
             set_expression(self._component, "mass", new_expr)
 
         self._api.edit_component(self._component, "Change component mass", change)
@@ -737,8 +732,6 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
             elif key == "mass":
                 num = self._parse_number(val_text) or 0.0
                 self._component["mass"] = num
-                if "parameters" in self._component and "mass" in self._component["parameters"]:
-                    self._component["parameters"]["mass"] = num
 
         self._api.edit_component(
             self._component,

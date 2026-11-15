@@ -370,9 +370,7 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
             pass
 
         comps = proj.data.get("components", [])
-        total_g = sum(
-            float(c.get("parameters", {}).get("mass", 0.0)) for c in comps if isinstance(c, dict)
-        )
+        total_g = sum(float(c.get("mass", 0.0) or 0.0) for c in comps if isinstance(c, dict))
         self._empty_mass_kg = total_g / 1000.0 if total_g > 0 else 0.0
         empty_g = self._empty_mass_kg * 1000.0
         self._set_property_value(self.mass_table, "empty_mass", f"{empty_g:.1f} g")

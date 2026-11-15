@@ -21,8 +21,8 @@ def _build_fuselage_component() -> dict[str, Any]:
         "id": "fuselage-1",
         "name": "Main Fuselage",
         "type": "org.setuav.core:fuselage",
+        "mass": 500.0,
         "parameters": {
-            "mass": 500.0,
             "geometry": {
                 "segments": [
                     {
@@ -209,8 +209,8 @@ class FuselageGeometryTests(unittest.TestCase):
             "id": "fuselage-1",
             "name": "Main Fuselage",
             "type": "org.setuav.core:fuselage",
+            "mass": 500.0,
             "parameters": {
-                "mass": 500.0,
                 "geometry": {
                     "segments": [
                         {

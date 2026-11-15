@@ -213,7 +213,6 @@ class BatteryEditor(PropertyTableMixin, QWidget):
             # Calculated Total Pack Mass = (S * P * cell_mass) + packaging_mass
             total_mass = (s * p * cell_mass) + packaging_mass
             self._component["mass"] = total_mass
-            params["mass"] = total_mass
 
             # General
             self._set_property_value(
@@ -459,7 +458,6 @@ class BatteryEditor(PropertyTableMixin, QWidget):
             total_m = (s * par * cell_m) + pkg_m
 
             self._component["mass"] = total_m
-            p["mass"] = total_m
 
             if key == "cell_count":
                 cell_v = float(p.get("cell_nominal_voltage", 3.7))
@@ -491,7 +489,6 @@ class BatteryEditor(PropertyTableMixin, QWidget):
             total_m = (s * par * cell_m) + pkg_m
 
             self._component["mass"] = total_m
-            p["mass"] = total_m
 
             if key == "cell_capacity":
                 p["capacity"] = par * float(num)
@@ -531,7 +528,6 @@ class BatteryEditor(PropertyTableMixin, QWidget):
 
             total_m = (s * par * defaults["cell_mass"]) + pkg_m
             self._component["mass"] = total_m
-            p["mass"] = total_m
 
         self._api.edit_component(self._component, f"Set battery chemistry '{new_chem}'", apply_chem)
         self._load_battery()

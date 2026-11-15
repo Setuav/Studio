@@ -222,8 +222,8 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
             "name": "Aileron",
             "type": "org.setuav.core:control-surface",
             "parent": "main-wing",
+            "mass": 25.0,
             "parameters": {
-                "mass": 25.0,
                 "geometry": {
                     "tag": "aileron",
                     "type": "aileron",

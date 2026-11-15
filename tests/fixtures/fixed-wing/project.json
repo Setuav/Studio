@@ -45,7 +45,6 @@
       "parent": "airframe",
       "transform": {},
       "parameters": {
-        "mass": 450.0,
         "geometry": {
           "segments": [
             {
@@ -1098,7 +1097,6 @@
         }
       },
       "parameters": {
-        "mass": 250.0,
         "geometry": {
           "mirror": true,
           "profiles": [
@@ -2346,7 +2344,6 @@
       "type": "org.setuav.core:control-surface",
       "parent": "main-wing",
       "parameters": {
-        "mass": 25,
         "geometry": {
           "tag": "Aileron",
           "type": "aileron",
@@ -2431,7 +2428,6 @@
         }
       },
       "parameters": {
-        "mass": 85.0,
         "geometry": {
           "mirror": true,
           "profiles": [
@@ -2584,7 +2580,6 @@
       "type": "org.setuav.core:control-surface",
       "parent": "v-tail",
       "parameters": {
-        "mass": 10,
         "geometry": {
           "tag": "Ruddervator",
           "type": "ruddervator",
@@ -2674,7 +2669,6 @@
         "no_load_current": 0.7,
         "max_current": 40.0,
         "max_power": 570.0,
-        "mass": 108.0,
         "mount": {
           "target_id": "fuselage/segment-01",
           "offset": {
@@ -2711,8 +2705,7 @@
         "pitch": 152.4,
         "blade_count": 2,
         "hub_diameter": 32,
-        "rotation_direction": "ccw",
-        "mass": 28
+        "rotation_direction": "ccw"
       },
       "manufacturer": "APC",
       "model": "12x6E",
@@ -2729,8 +2722,7 @@
         "max_current": 60,
         "continuous_current": 50,
         "max_voltage": 25.2,
-        "resistance": 0.004,
-        "mass": 40.0
+        "resistance": 0.004
       },
       "transform": {
         "position": {
@@ -2787,7 +2779,6 @@
         "capacity": 6000.0,
         "nominal_voltage": 11.100000000000001,
         "max_discharge": 35.0,
-        "mass": 580.0,
         "chemistry": "LiPo",
         "cell_nominal_voltage": 3.7,
         "cell_max_voltage": 4.2,
@@ -2831,7 +2822,6 @@
         }
       },
       "parameters": {
-        "mass": 150.0,
         "inertia": {
           "ixx": 0.0,
           "iyy": 0.0,

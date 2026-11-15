@@ -295,17 +295,7 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
                     spin.setValue(float(getattr(agg.inertia_local_kg_m2, key, 0.0) or 0.0))
             else:
                 source = self._source_component(component)
-                parameters = component.get("parameters")
-                parameters = parameters if isinstance(parameters, dict) else {}
-                source_parameters = source.get("parameters")
-                source_parameters = source_parameters if isinstance(source_parameters, dict) else {}
-                mass = component.get(
-                    "mass",
-                    parameters.get(
-                        "mass",
-                        source.get("mass", source_parameters.get("mass", 0.0)),
-                    ),
-                )
+                mass = component.get("mass", source.get("mass", 0.0))
                 self.mass_g.setValue(_number(mass))
 
                 # 1. CG resolution via core mass_balance
@@ -335,9 +325,6 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
         def change() -> None:
             component["mass"] = mass_g
             set_expression(component, "mass", None)
-            parameters = component.get("parameters")
-            if isinstance(parameters, dict) and "mass" in parameters:
-                parameters["mass"] = mass_g
 
             # Write native Core fields directly on component
             component["local_cg_mm"] = cg

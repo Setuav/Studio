@@ -299,8 +299,8 @@ def test_hierarchical_json_scope_access(tmp_path: Path) -> None:
             "id": "main-wing",
             "name": "Main Wing",
             "type": "org.setuav.core:lifting-surface",
+            "mass": 350.0,
             "parameters": {
-                "mass": 350.0,
                 "geometry": {
                     "span": 2000.0,
                 },
@@ -323,9 +323,7 @@ def test_hierarchical_json_scope_access(tmp_path: Path) -> None:
     assert math.isclose(evaluator.evaluate("=b_ref / 2", scope), 1000.0)
 
     # Access components via dotted path
-    assert math.isclose(
-        evaluator.evaluate("=main_wing.parameters.mass + battery.mass", scope), 850.0
-    )
+    assert math.isclose(evaluator.evaluate("=main_wing.mass + battery.mass", scope), 850.0)
 
     # Symbol metadata completion
     symbols = get_available_symbols_metadata(proj)
@@ -335,8 +333,6 @@ def test_hierarchical_json_scope_access(tmp_path: Path) -> None:
     assert "c_ref" in constant_keys
     assert "main_wing" in component_ids
     assert "battery" in component_ids
-
-
 
 
 def test_evaluate_component_parameters_propagates_errors() -> None:

@@ -180,7 +180,7 @@ def get_component_intrinsic_mass_g(component: dict[str, Any]) -> float:
     """Return component intrinsic mass in grams, ignoring child components."""
     if component.get("has_mass") is False:
         return 0.0
-    mass_g = _number(component.get("mass", component.get("parameters", {}).get("mass", 0.0)))
+    mass_g = _number(component.get("mass", 0.0))
     return max(0.0, mass_g)
 
 
