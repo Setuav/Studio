@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import logging
 
-from pythrust.propellers.database import PropellerEntry
+from pythrust.propellers.database import (
+    PropellerDataPoint,
+    PropellerEntry,
+    PropellerMetadata,
+)
 from pythrust.propulsion.models import BatterySpec, MotorSpec, PropellerSpec, SystemSpec
 from pythrust.propulsion.solver import PropulsionSolver
 
@@ -15,6 +19,31 @@ logger = logging.getLogger(__name__)
 
 class PropulsionSolverEngine:
     """Analytical engine delegating electrical propulsion equilibrium solving to PyThrust."""
+
+    @staticmethod
+    def synthetic_propeller(diameter_in: float, pitch_in: float, blades: int = 2) -> PropellerEntry:
+        """Construct a synthetic analytical propeller polar for sizes without catalog data."""
+        prop_meta = PropellerMetadata(
+            id=f"prop_{diameter_in:.1f}x{pitch_in:.1f}",
+            manufacturer="Synthetic",
+            model=f"{diameter_in:.1f}x{pitch_in:.1f}",
+            diameter_in=diameter_in,
+            pitch_in=pitch_in,
+            blade_count=blades,
+            data_csv="",
+        )
+        prop_data: dict[float, list[PropellerDataPoint]] = {}
+        p_d = pitch_in / max(diameter_in, 1e-3)
+        j_max = p_d * 1.15
+        for r in [2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 12000, 15000]:
+            pts: list[PropellerDataPoint] = []
+            for j_i in range(30):
+                j_val = j_i * (j_max / 29.0)
+                ct_val = max(0.12 - 0.10 * (j_val / max(p_d, 0.1)), 0.0)
+                cp_val = max(0.06 - 0.03 * (j_val / max(p_d, 0.1)), 0.005)
+                pts.append(PropellerDataPoint(j=j_val, ct=ct_val, cp=cp_val))
+            prop_data[float(r)] = pts
+        return PropellerEntry(metadata=prop_meta, data_by_rpm=prop_data)
 
     @classmethod
     def solve_point(

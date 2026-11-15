@@ -78,9 +78,6 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
         if self._api:
             self._api.on_project_changed(self._on_project_changed)
             self._api.on_project_content_changed(self._on_project_content_changed)
-            self._api.subscribe(
-                StudioEvents.WEIGHT_BALANCE_ANALYSIS_COMPLETED, self._on_wb_completed
-            )
 
         self._refresh_sources()
 
@@ -314,13 +311,6 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
     def _on_project_content_changed(self, project: Any) -> None:
         self._refresh_sources()
 
-    def _on_wb_completed(self, wb_result: Any) -> None:
-        if wb_result and hasattr(wb_result, "total") and hasattr(wb_result.total, "mass_kg"):
-            self._empty_mass_kg = float(wb_result.total.mass_kg)
-            empty_g = self._empty_mass_kg * 1000.0
-            self._set_property_value(self.mass_table, "empty_mass", f"{empty_g:.1f} g")
-            self._update_takeoff_mass()
-
     def _refresh_sources(self) -> None:
         self._refresh_assemblies()
         self._refresh_mass()
@@ -374,7 +364,7 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
                 self,
                 "Mass Properties Required",
                 "Flight performance analysis requires a valid aircraft mass. "
-                "Define component masses or run Weight Balance first.",
+                "Define component masses first.",
             )
             return None
         mass_g = (self._empty_mass_kg * 1000.0) + self.spin_payload.value()
@@ -441,7 +431,7 @@ class PerformanceControlsDock(PropertyTableMixin, QWidget):
                     or prop_db.find_by_size(diameter_in, pitch_in)
                 )
             if prop_entry is None:
-                prop_entry = PropulsionSolverEngine.fallback_propeller(
+                prop_entry = PropulsionSolverEngine.synthetic_propeller(
                     diameter_in, pitch_in, blades
                 )
 

@@ -6,11 +6,7 @@ import logging
 import math
 from typing import Any, ClassVar
 
-from pythrust.propellers.database import (
-    PropellerDataPoint,
-    PropellerEntry,
-    PropellerMetadata,
-)
+from pythrust.propellers.database import PropellerEntry
 from pythrust.propulsion.models import (
     BatterySpec,
     MotorSpec,
@@ -21,6 +17,7 @@ from pythrust.propulsion.models import (
 from pythrust.propulsion.solver import PropulsionSolver
 
 from plugins.electrical_propulsion.database import get_propeller_database
+from plugins.electrical_propulsion.engine import PropulsionSolverEngine
 from setuav_studio.api import ParameterField
 from setuav_studio.solver.base import AbstractSolver, SolverConfig, SolverStatus
 from setuav_studio.solver.results import (
@@ -38,33 +35,6 @@ logger = logging.getLogger(__name__)
 SOLVER_ID_THROTTLE_SWEEP = "org.setuav.propulsion.throttle_sweep"
 SOLVER_ID_AIRSPEED_SWEEP = "org.setuav.propulsion.airspeed_sweep"
 SOLVER_ID_OPERATING_POINT = "org.setuav.propulsion.operating_point"
-
-
-def _build_fallback_propeller(
-    diameter_in: float, pitch_in: float, blades: int = 2
-) -> PropellerEntry:
-    """Construct synthetic analytical propeller polar when no database match exists."""
-    prop_meta = PropellerMetadata(
-        id=f"prop_{diameter_in:.1f}x{pitch_in:.1f}",
-        manufacturer="Synthetic",
-        model=f"{diameter_in:.1f}x{pitch_in:.1f}",
-        diameter_in=diameter_in,
-        pitch_in=pitch_in,
-        blade_count=blades,
-        data_csv="",
-    )
-    prop_data: dict[float, list[PropellerDataPoint]] = {}
-    p_d = pitch_in / max(diameter_in, 1e-3)
-    j_max = p_d * 1.15
-    for r in [2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 12000, 15000]:
-        pts: list[PropellerDataPoint] = []
-        for j_i in range(30):
-            j_val = j_i * (j_max / 29.0)
-            ct_val = max(0.12 - 0.10 * (j_val / max(p_d, 0.1)), 0.0)
-            cp_val = max(0.06 - 0.03 * (j_val / max(p_d, 0.1)), 0.005)
-            pts.append(PropellerDataPoint(j=j_val, ct=ct_val, cp=cp_val))
-        prop_data[float(r)] = pts
-    return PropellerEntry(metadata=prop_meta, data_by_rpm=prop_data)
 
 
 def _compute_air_density(altitude_m: float, temperature_c: float) -> float:
@@ -180,7 +150,7 @@ class BasePropulsionSolver(AbstractSolver):
             )
 
         if prop_entry is None:
-            prop_entry = _build_fallback_propeller(d_in, p_in, blade_count)
+            prop_entry = PropulsionSolverEngine.synthetic_propeller(d_in, p_in, blade_count)
 
         battery_params = battery_comp.get("parameters", {})
         cell_count = int(battery_params.get("cell_count", 6))

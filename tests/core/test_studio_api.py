@@ -78,7 +78,6 @@ def test_studio_events_enum_contract() -> None:
     assert events.PROJECT_CLOSED == "project.closed"
     assert events.PROJECT_MODIFIED == "project.modified"
     assert events.AERODYNAMICS_ANALYSIS_COMPLETED == "aerodynamics.analysis_completed"
-    assert events.WEIGHT_BALANCE_ANALYSIS_COMPLETED == "weight_balance.analysis_completed"
     assert events.UNITS_CHANGED == "units.changed"
     assert events.TASK_STARTED == "task.started"
     assert events.TASK_FINISHED == "task.finished"

@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import numpy as np
 from PySide6.QtCore import QThreadPool
@@ -29,8 +30,8 @@ from plugins.flight_performance.engine.models import (
 )
 from plugins.flight_performance.engine.solver import FlightPerformanceSolver
 from plugins.flight_performance.plugin import FlightPerformancePlugin
-from plugins.flight_performance.worker import FlightPerformanceWorker
-from setuav_studio.api import PluginManager, StudioAPI
+from setuav_studio.api import StudioAPI, StudioEvents
+from setuav_studio.plugin import PluginManager
 from setuav_studio.project import open_project
 from tests._common import TEST_PROJECT_PATH, get_qapp
 
@@ -186,7 +187,7 @@ class TestFlightPerformance(unittest.TestCase):
             kv_rpm_per_v=900.0, resistance_ohm=0.035, no_load_current_a=1.2, current_max_a=45.0
         )
         prop_spec = PropellerSpec(diameter_m=0.3302, pitch_m=0.1651, blade_count=2)
-        prop_entry = PropulsionSolverEngine.fallback_propeller(13.0, 6.5, 2)
+        prop_entry = PropulsionSolverEngine.synthetic_propeller(13.0, 6.5, 2)
 
         context = {
             "mass_kg": 2.5,
@@ -227,7 +228,7 @@ class TestFlightPerformance(unittest.TestCase):
             current_max_a=45.0,
         )
         prop_spec = PropellerSpec(diameter_m=0.3302, pitch_m=0.1651, blade_count=2)
-        prop_entry = PropulsionSolverEngine.fallback_propeller(13.0, 6.5, 2)
+        prop_entry = PropulsionSolverEngine.synthetic_propeller(13.0, 6.5, 2)
 
         throttle, _power, current, feasible = FlightPerformanceSolver.solve_propulsion_for_thrust(
             motor_spec=motor_spec,
@@ -279,12 +280,14 @@ class TestFlightPerformance(unittest.TestCase):
                 }
             )
 
-    def test_flight_performance_worker_and_signals(self) -> None:
+    def test_controls_dock_runs_analysis_as_background_task(self) -> None:
+        from plugins.flight_performance.controls_dock import PerformanceControlsDock
+
         motor_spec = MotorSpec(
             kv_rpm_per_v=900.0, resistance_ohm=0.035, no_load_current_a=1.2, current_max_a=45.0
         )
         prop_spec = PropellerSpec(diameter_m=0.3302, pitch_m=0.1651, blade_count=2)
-        prop_entry = PropulsionSolverEngine.fallback_propeller(13.0, 6.5, 2)
+        prop_entry = PropulsionSolverEngine.synthetic_propeller(13.0, 6.5, 2)
 
         context = {
             "mass_kg": 2.0,
@@ -302,19 +305,62 @@ class TestFlightPerformance(unittest.TestCase):
             "battery_voltage": 14.8,
         }
 
-        received: list[FlightEnvelopeResult] = []
-        progress_calls: list[int] = []
+        api = StudioAPI()
+        progress: list[tuple[int, int, str]] = []
+        statuses: list[tuple[str, str]] = []
+        published: list[FlightEnvelopeResult] = []
+        api._host.bind_progress_handler(
+            lambda current, total, label: progress.append((current, total, label))
+        )
+        api._host.bind_status_handler(
+            lambda message, level, _timeout: statuses.append((message, level))
+        )
+        api.subscribe(StudioEvents.FLIGHT_PERFORMANCE_ANALYSIS_COMPLETED, published.append)
 
-        worker = FlightPerformanceWorker(context)
-        worker.signals.progress.connect(lambda c, t, m: progress_calls.append(c))
-        worker.signals.finished.connect(lambda res: received.append(res))
+        dock = PerformanceControlsDock(api)
+        self.addCleanup(dock.deleteLater)
+        with patch.object(dock, "_build_analysis_context", return_value=context):
+            dock.btn_run.click()
+            self.assertFalse(dock.btn_run.isEnabled())
+            self.assertTrue(dock.btn_cancel.isEnabled())
+            self._drain_events()
 
-        QThreadPool.globalInstance().start(worker)
-        self._drain_events()
+        self.assertEqual(len(published), 1)
+        self.assertTrue(published[0].feasible)
+        self.assertTrue(dock.btn_run.isEnabled())
+        self.assertFalse(dock.btn_cancel.isEnabled())
+        # Initial report from the dock, task progress from the solver, then clear on finish.
+        self.assertEqual(progress[0], (0, 100, "Performance"))
+        self.assertGreater(len(progress[1:-1]), 0)
+        self.assertEqual(progress[-1], (1, 1, ""))
+        self.assertEqual(statuses[-1][1], "success")
+        self.assertIn("Coupled Performance complete", statuses[-1][0])
 
-        self.assertEqual(len(received), 1)
-        self.assertTrue(received[0].feasible)
-        self.assertGreater(len(progress_calls), 0)
+    def test_controls_dock_refreshes_empty_mass_on_content_change(self) -> None:
+        from plugins.flight_performance.controls_dock import PerformanceControlsDock
+
+        api = StudioAPI()
+        doc = open_project(TEST_PROJECT_PATH)
+        api._host.set_project(doc)
+        dock = PerformanceControlsDock(api)
+        self.addCleanup(dock.deleteLater)
+
+        initial_g = doc.mass_properties.mass_kg * 1000.0
+        self.assertGreater(initial_g, 0.0)
+        self.assertEqual(dock._property_value(dock.mass_table, "empty_mass"), f"{initial_g:.1f} g")
+
+        esc = next(c for c in doc.data["components"] if c["id"] == "esc-cruise")
+        api.edit_component(
+            esc, "Change ESC mass", lambda: esc.update({"mass": esc["mass"] + 100.0})
+        )
+
+        updated_g = doc.mass_properties.mass_kg * 1000.0
+        self.assertAlmostEqual(updated_g, initial_g + 100.0, places=3)
+        self.assertEqual(dock._property_value(dock.mass_table, "empty_mass"), f"{updated_g:.1f} g")
+        self.assertEqual(
+            dock._property_value(dock.mass_table, "tow"),
+            f"{updated_g + dock.spin_payload.value():.1f} g",
+        )
 
     def test_flight_performance_plugin_and_ui(self) -> None:
         from setuav_studio.ui.shell import MainWindow
@@ -329,9 +375,6 @@ class TestFlightPerformance(unittest.TestCase):
 
         doc = open_project(self._temporary_project_copy())
         win.open_project(doc.location)
-
-        # Switch workspace
-        api.switch_workspace("studio.workspace.flight_performance")
         self._drain_events()
 
         controls = self._dock_content(win._panels["flight_performance.controls_dock"][1])
@@ -416,7 +459,6 @@ class TestFlightPerformance(unittest.TestCase):
     def test_project_tree_nodes(self) -> None:
         api = StudioAPI()
         api._host.bind_panel_handlers(lambda _panel: None)
-        api._host.bind_workspace_handlers(lambda _workspace: None)
         plugin = FlightPerformancePlugin()
         plugin.activate(api)
 
@@ -449,17 +491,11 @@ class TestFlightPerformance(unittest.TestCase):
         removed_actions: list[tuple[str, str]] = []
         panels: list[object] = []
         removed_panels: list[str] = []
-        workspaces: list[object] = []
-        removed_workspaces: list[str] = []
         api._host.bind_action_handlers(
             actions.append,
             lambda menu, title: removed_actions.append((menu, title)),
         )
         api._host.bind_panel_handlers(panels.append, removed_panels.append)
-        api._host.bind_workspace_handlers(
-            workspaces.append,
-            remove_handler=removed_workspaces.append,
-        )
 
         plugin = FlightPerformancePlugin()
         plugin.activate(api)
@@ -479,12 +515,10 @@ class TestFlightPerformance(unittest.TestCase):
                 "flight_performance.results_dock",
             ],
         )
-        self.assertEqual(removed_workspaces, ["studio.workspace.flight_performance"])
 
         plugin.activate(api)
         self.assertEqual(len(actions), 0)
         self.assertEqual(len(panels), 6)
-        self.assertEqual(len(workspaces), 2)
         self.assertEqual(
             sum(listener == plugin._on_selection_changed for listener in api._selection_listeners),
             1,

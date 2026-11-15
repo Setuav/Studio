@@ -3,6 +3,11 @@
 from __future__ import annotations
 
 import unittest
+from typing import Any
+from unittest.mock import patch
+
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QDialog
 
 from plugins.electrical_propulsion.editors import (
     BatteryEditor,
@@ -11,10 +16,39 @@ from plugins.electrical_propulsion.editors import (
     PropellerEditor,
     PropulsionSystemEditor,
 )
-from setuav_studio.api import StudioAPI
+from setuav_studio.api import ActionContribution, StudioAPI
 from setuav_studio.plugin import PluginManager
 from setuav_studio.project import open_project
 from tests._common import TEST_PROJECT_PATH, get_qapp
+
+
+class _MotorCatalogSelection:
+    """Catalog dialog stand-in that accepts a preselected motor entry."""
+
+    selected_motor: Any = None
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        pass
+
+    def exec(self) -> QDialog.DialogCode:
+        return QDialog.DialogCode.Accepted
+
+
+class _RecordingToken:
+    """Cancellation token stand-in that records solver progress reports."""
+
+    def __init__(self) -> None:
+        self.progress: list[tuple[int, int, str]] = []
+
+    @property
+    def is_cancelled(self) -> bool:
+        return False
+
+    def check_cancelled(self) -> None:
+        return None
+
+    def report_progress(self, current: int, total: int, message: str = "") -> None:
+        self.progress.append((current, total, message))
 
 
 class TestElectricalPropulsion(unittest.TestCase):
@@ -81,19 +115,39 @@ class TestElectricalPropulsion(unittest.TestCase):
             c for c in doc.data["components"] if c.get("type") == "org.setuav.core:motor"
         )
         editor = MotorEditor(api, motor_comp)
+        self.addCleanup(editor.deleteLater)
 
         self.assertEqual(editor._property_text(editor.general_table, 0), motor_comp.get("name"))
-        self.assertEqual(editor._property_text(editor.parameters_table, 0), "900")
+        # Motor specs come from the catalog and are shown read-only with their unit.
+        kv_item = editor.parameters_table.item(0, 1)
+        self.assertEqual(kv_item.text(), "900.0 RPM/V")
+        self.assertFalse(kv_item.flags() & Qt.ItemFlag.ItemIsEditable)
 
-        # Edit KV (row 0 in parameters_table)
-        editor.parameters_table.item(0, 1).setText("1050")
-        self.assertEqual(motor_comp["parameters"]["kv"], 1050.0)
+        from plugins.electrical_propulsion.database import get_motor_database
 
-        # Undo
+        motor_db = get_motor_database()
+        catalog_motor = next(
+            entry
+            for entry in (motor_db.get(name) for name in motor_db.list_motors())
+            if entry is not None and float(entry.kv) != 900.0
+        )
+        _MotorCatalogSelection.selected_motor = catalog_motor
+        with patch(
+            "plugins.electrical_propulsion.editors.motor.ComponentCatalogDialog",
+            _MotorCatalogSelection,
+        ):
+            editor._open_catalog()
+
+        self.assertEqual(motor_comp["parameters"]["kv"], float(catalog_motor.kv))
+        self.assertEqual(motor_comp["model"], catalog_motor.name)
+        self.assertEqual(
+            editor.parameters_table.item(0, 1).text(), f"{float(catalog_motor.kv)} RPM/V"
+        )
+
         api.undo()
         self.assertEqual(motor_comp["parameters"]["kv"], 900.0)
+        self.assertEqual(motor_comp["model"], "X2814 KV900 3-4S")
         editor.close()
-        editor.deleteLater()
 
     def test_battery_editor(self) -> None:
         api = StudioAPI()
@@ -145,11 +199,13 @@ class TestElectricalPropulsion(unittest.TestCase):
         )
         editor = PropellerEditor(api, prop_comp)
 
-        dia = str(prop_comp["parameters"]["diameter"])
-        pitch = str(prop_comp["parameters"]["pitch"])
-        self.assertEqual(editor._property_text(editor.parameters_table, 0), dia)
-        self.assertEqual(editor._property_text(editor.parameters_table, 1), pitch)
+        # Propeller specs come from the catalog and are shown read-only with their unit.
+        self.assertEqual(editor._property_text(editor.parameters_table, 0), "304.8 mm")
+        self.assertEqual(editor._property_text(editor.parameters_table, 1), "152.4 mm")
         self.assertEqual(editor._property_text(editor.parameters_table, 2), "2")
+        for row in range(3):
+            item = editor.parameters_table.item(row, 1)
+            self.assertFalse(item.flags() & Qt.ItemFlag.ItemIsEditable)
         editor.close()
         editor.deleteLater()
 
@@ -190,133 +246,162 @@ class TestElectricalPropulsion(unittest.TestCase):
         dialog.close()
         dialog.deleteLater()
 
-    def test_propulsion_controls_and_analysis_run(self) -> None:
+    def test_analysis_tools_add_solver_configs(self) -> None:
         from plugins.electrical_propulsion.plugin import ElectricalPropulsionPlugin
-        from setuav_studio.ui.shell import MainWindow
-
-        api = StudioAPI()
-        win = MainWindow(api)
-        pm = PluginManager(api)
-        pm.activate(ElectricalPropulsionPlugin())
-        pm.discover()
-        win.restore_window_layout()
-
-        doc = open_project(TEST_PROJECT_PATH)
-        win.open_project(doc.location)
-        api.switch_workspace("studio.workspace.propulsion")
-
-        controls = self._dock_content(win._panels["propulsion.controls_dock"][1])
-        results = self._dock_content(win._panels["propulsion.results_dock"][1])
-        charts = self._dock_content(win._panels["propulsion.charts_dock"][1])
-
-        # Run analysis (background worker via QThreadPool)
-        controls.run_button.click()
-        self._drain_events()
-
-        # Verify summary results are populated
-        config_str = results._property_value(results.summary_table, "config")
-        self.assertEqual(config_str, "Single Motor (1x)")
-        static_thrust_str = results._property_value(results.summary_table, "static_thrust")
-        self.assertTrue(any(unit in static_thrust_str for unit in ("N", "kgf", "lbf")))
-        self.assertNotEqual(static_thrust_str, "-")
-
-        # Verify charts are plotted
-        self.assertGreater(len(charts.chart_thrust_power.series()), 0)
-        self.assertGreater(len(charts.chart_electrical.series()), 0)
-        self.assertGreater(len(charts.chart_efficiency.series()), 0)
-        win.close()
-        win.deleteLater()
-
-    def test_analysis_posts_status_messages(self) -> None:
-        from plugins.electrical_propulsion.plugin import ElectricalPropulsionPlugin
-        from setuav_studio.ui.shell import MainWindow
-
-        api = StudioAPI()
-        win = MainWindow(api)
-        pm = PluginManager(api)
-        pm.activate(ElectricalPropulsionPlugin())
-        pm.discover()
-        win.restore_window_layout()
-
-        doc = open_project(TEST_PROJECT_PATH)
-        win.open_project(doc.location)
-        api.switch_workspace("studio.workspace.propulsion")
-
-        controls = self._dock_content(win._panels["propulsion.controls_dock"][1])
-        controls.run_button.click()
-        self._drain_events()
-        self.assertIn("Analysis complete", win._status_label.text())
-
-        assert api.project is not None
-        for comp in api.project.data["components"]:
-            if comp["id"] == "motor-cruise":
-                comp["parameters"]["max_current"] = 0.001
-        controls.run_button.click()
-        self._drain_events()
-        self.assertIn("Current limit exceeded", win._status_label.text())
-        win.close()
-        win.deleteLater()
-
-    def test_propulsion_worker_and_solver_modes(self) -> None:
-        from PySide6.QtCore import QThreadPool
-        from pythrust.propulsion.models.motor import MotorSpec
-        from pythrust.propulsion.models.propeller import PropellerSpec
-
-        from plugins.electrical_propulsion.engine import PropulsionSolverEngine
-        from plugins.electrical_propulsion.worker import PropulsionWorker
-
-        motor_spec = MotorSpec(
-            kv_rpm_per_v=900.0, resistance_ohm=0.035, no_load_current_a=1.2, current_max_a=45.0
+        from plugins.electrical_propulsion.solver import (
+            SOLVER_ID_AIRSPEED_SWEEP,
+            SOLVER_ID_OPERATING_POINT,
+            SOLVER_ID_THROTTLE_SWEEP,
+            AirspeedSweepSolver,
+            OperatingPointSolver,
+            ThrottleSweepSolver,
         )
-        prop_spec = PropellerSpec(diameter_m=0.3302, pitch_m=0.1651, blade_count=2)
-        prop_entry = PropulsionSolverEngine.fallback_propeller(13.0, 6.5, 2)
 
-        context = {
-            "mode": "airspeed_sweep",
-            "params": {"throttle": 100.0, "v_min": 0.0, "v_max": 20.0, "v_step": 5.0},
-            "motor_spec": motor_spec,
-            "motor_params": {"max_power": 1000.0},
-            "prop_spec": prop_spec,
-            "prop_entry": prop_entry,
-            "total_voltage": 22.2,
-            "capacity_mah": 5000.0,
-            "rho": 1.225,
-            "diameter_in": 13.0,
-            "pitch_in": 6.5,
+        api, actions, statuses = self._headless_api()
+        plugin = ElectricalPropulsionPlugin()
+        plugin.activate(api)
+        self.addCleanup(plugin.deactivate, api)
+        tools = {
+            action.title: action
+            for action in actions
+            if action.menu == "Tools/Electrical Propulsion"
         }
 
-        # Test solver engine directly
-        res_sweep = PropulsionSolverEngine.run_airspeed_sweep(context)
-        self.assertEqual(res_sweep["mode"], "airspeed_sweep")
-        self.assertGreater(len(res_sweep["x_values"]), 3)
+        tools["Add Airspeed Sweep Analysis"].callback()
+        self.assertEqual(api.get_solver_configs(), {})
+        self.assertEqual(statuses[-1][:2], ("Open or create a project first.", "warning"))
 
-        context["mode"] = "throttle_sweep"
-        context["params"] = {"airspeed": 15.0, "t_min": 20.0, "t_max": 100.0, "t_step": 20.0}
-        res_throttle = PropulsionSolverEngine.run_throttle_sweep(context)
-        self.assertEqual(res_throttle["mode"], "throttle_sweep")
-        self.assertGreater(len(res_throttle["x_values"]), 3)
+        api._host.set_project(open_project(TEST_PROJECT_PATH))
+        expected = [
+            ("Throttle Sweep Analysis", SOLVER_ID_THROTTLE_SWEEP, ThrottleSweepSolver),
+            ("Airspeed Sweep Analysis", SOLVER_ID_AIRSPEED_SWEEP, AirspeedSweepSolver),
+            ("Operating Point Analysis", SOLVER_ID_OPERATING_POINT, OperatingPointSolver),
+        ]
+        for name, solver_id, solver_cls in expected:
+            tools[f"Add {name}"].callback()
+            config = api.get_current_solver_config()
+            assert config is not None
+            self.assertEqual(config.solver_id, solver_id)
+            self.assertEqual(config.name, name)
+            self.assertIs(api.solvers.get_solver_class(solver_id), solver_cls)
+            self.assertEqual(statuses[-1][:2], (f"Added {name} configuration.", "success"))
+        self.assertEqual(len(api.get_solver_configs()), len(expected))
 
-        context["mode"] = "operating_point"
-        context["params"] = {"airspeed": 18.0, "throttle": 80.0}
-        res_point = PropulsionSolverEngine.run_operating_point(context)
-        self.assertEqual(res_point["mode"], "operating_point")
-        self.assertEqual(len(res_point["x_values"]), 1)
+    def test_analysis_runs_through_core_solver_runner(self) -> None:
+        from plugins.electrical_propulsion.plugin import ElectricalPropulsionPlugin
+        from setuav_studio.solver import SolverResult, SolverStatus
 
-        # Test PropulsionWorker execution in QThreadPool
-        received_results = []
-        progress_steps = []
+        api, actions, _statuses = self._headless_api()
+        plugin = ElectricalPropulsionPlugin()
+        plugin.activate(api)
+        self.addCleanup(plugin.deactivate, api)
+        api._host.set_project(open_project(TEST_PROJECT_PATH))
+        add_airspeed_sweep = next(
+            action for action in actions if action.title == "Add Airspeed Sweep Analysis"
+        )
+        add_airspeed_sweep.callback()
 
-        worker = PropulsionWorker(context)
-        worker.signals.finished.connect(received_results.append)
-        worker.signals.progress.connect(lambda c, t, m: progress_steps.append((c, t, m)))
+        config = api.get_current_solver_config()
+        assert config is not None
+        solver_cls = api.solvers.get_solver_class(config.solver_id)
+        assert solver_cls is not None
+        completed: list[SolverResult] = []
+        api.run_solver(solver_cls(config), on_complete=completed.append)
+        self._drain_events()
 
-        QThreadPool.globalInstance().start(worker)
-        QThreadPool.globalInstance().waitForDone()
-        self.app.processEvents()
+        self.assertEqual(len(completed), 1)
+        result = completed[0]
+        self.assertEqual(result.status, SolverStatus.COMPLETED)
+        self.assertIsNotNone(api.get_solver_result(result.id))
 
-        self.assertEqual(len(received_results), 1)
-        self.assertIn("static_thrust", received_results[0])
-        self.assertGreater(len(progress_steps), 0)
+        table = result.tables["propulsion_data"]
+        airspeeds = table.get_column("airspeed")
+        self.assertEqual(len(airspeeds), 36)
+        self.assertEqual((airspeeds[0], airspeeds[-1]), (0.0, 35.0))
+        static_thrust = result.summary["static_thrust"]
+        self.assertGreater(float(static_thrust.value), 0.0)
+        self.assertEqual(static_thrust.unit, "N")
+        self.assertEqual(
+            set(result.plots),
+            {"plot_thrust", "plot_power_current", "plot_rpm", "plot_efficiency"},
+        )
+        for plot in result.plots.values():
+            self.assertGreater(len(plot.series), 0)
+            for series in plot.series:
+                self.assertEqual(len(table.get_column(series.y_column)), len(airspeeds))
+
+    def test_sweep_solvers_report_progress_per_point(self) -> None:
+        from plugins.electrical_propulsion.solver import (
+            SOLVER_ID_AIRSPEED_SWEEP,
+            SOLVER_ID_OPERATING_POINT,
+            SOLVER_ID_THROTTLE_SWEEP,
+            AirspeedSweepSolver,
+            OperatingPointSolver,
+            ThrottleSweepSolver,
+        )
+        from setuav_studio.solver import SolverConfig, SolverStatus, execute_solver
+
+        doc = open_project(TEST_PROJECT_PATH)
+        cases = [
+            (
+                ThrottleSweepSolver,
+                SOLVER_ID_THROTTLE_SWEEP,
+                {"airspeed": 15.0, "t_min": 20.0, "t_max": 100.0, "t_step": 20.0},
+                "throttle",
+                [20.0, 40.0, 60.0, 80.0, 100.0],
+            ),
+            (
+                AirspeedSweepSolver,
+                SOLVER_ID_AIRSPEED_SWEEP,
+                {"v_min": 0.0, "v_max": 20.0, "v_step": 5.0, "throttle": 100.0},
+                "airspeed",
+                [0.0, 5.0, 10.0, 15.0, 20.0],
+            ),
+            (
+                OperatingPointSolver,
+                SOLVER_ID_OPERATING_POINT,
+                {"airspeed": 18.0, "throttle": 80.0},
+                "airspeed",
+                [18.0],
+            ),
+        ]
+        for solver_cls, solver_id, parameters, x_column, x_values in cases:
+            with self.subTest(solver=solver_cls.__name__):
+                config = SolverConfig(solver_id=solver_id, name="Propulsion", parameters=parameters)
+                token = _RecordingToken()
+                result = execute_solver(solver_cls(config, doc), token)
+
+                self.assertEqual(result.status, SolverStatus.COMPLETED)
+                table = result.tables["propulsion_data"]
+                self.assertEqual(table.get_column(x_column), x_values)
+                self.assertEqual(table.row_count(), len(x_values))
+                point_reports = [(current, total) for current, total, _ in token.progress[1:-1]]
+                self.assertEqual(
+                    point_reports,
+                    [(index + 1, len(x_values)) for index in range(len(x_values))],
+                )
+
+    def test_motor_current_limit_marks_operating_point_infeasible(self) -> None:
+        from plugins.electrical_propulsion.solver import (
+            SOLVER_ID_OPERATING_POINT,
+            OperatingPointSolver,
+        )
+        from setuav_studio.solver import SolverConfig
+
+        doc = open_project(TEST_PROJECT_PATH)
+        config = SolverConfig(
+            solver_id=SOLVER_ID_OPERATING_POINT,
+            name="Cruise Point",
+            parameters={"airspeed": 18.0, "throttle": 80.0},
+        )
+
+        within_limit = OperatingPointSolver(config, doc).run()
+        self.assertEqual(within_limit.tables["propulsion_data"].get_column("feasible"), [True])
+
+        motor = next(c for c in doc.data["components"] if c["id"] == "motor-cruise")
+        motor["parameters"]["max_current"] = 0.001
+        over_limit = OperatingPointSolver(config, doc).run()
+        self.assertEqual(over_limit.tables["propulsion_data"].get_column("feasible"), [False])
 
     def test_pythrust_data_dir_resolution(self) -> None:
         """5.17: hardcoded path is gone; resolution prefers env var, then QSettings, then relatives."""
@@ -381,7 +466,9 @@ class TestElectricalPropulsion(unittest.TestCase):
             kv_rpm_per_v=900.0, resistance_ohm=0.035, no_load_current_a=1.2, current_max_a=45.0
         )
         prop_spec = PropellerSpec(diameter_m=0.3302, pitch_m=0.1651, blade_count=2)
-        prop_entry = PropulsionSolverEngine.fallback_propeller(13.0, 6.5, 2)
+        prop_entry = PropulsionSolverEngine.synthetic_propeller(13.0, 6.5, 2)
+        self.assertEqual(prop_entry.metadata.manufacturer, "Synthetic")
+        self.assertEqual(prop_entry.metadata.blade_count, 2)
 
         pt = PropulsionSolverEngine.solve_point(
             motor_spec=motor_spec,
@@ -401,144 +488,59 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertGreater(pt.current, 0.0)
         self.assertTrue(0.0 <= pt.eta_sys <= 1.0)
 
-    def test_propulsion_results_dock_unit_conversion(self) -> None:
-        from plugins.electrical_propulsion.results_dock import PropulsionResultsDock
-        from setuav_studio.api import StudioAPI
+    def test_propulsion_results_convert_to_display_units(self) -> None:
+        from plugins.electrical_propulsion.solver import (
+            SOLVER_ID_AIRSPEED_SWEEP,
+            AirspeedSweepSolver,
+        )
+        from setuav_studio.solver import SolverConfig
         from setuav_studio.units import get_unit_manager
 
         um = get_unit_manager()
-        um.set_display_unit("force", "N")
-        um.set_display_unit("velocity", "m/s")
-        um.units_changed.emit()
-
-        api = StudioAPI()
-        dock = PropulsionResultsDock(api)
-        data = {
-            "static_thrust": 25.0,
-            "peak_power": 500.0,
-            "peak_current": 30.0,
-            "max_rpm": 8500.0,
-            "cruise_thrust": 15.0,
-            "cruise_efficiency": 0.72,
-            "endurance_min": 25.5,
-            "motor_max_current": 40.0,
-            "sweep_table": [
-                {
-                    "x_val": 15.0,
-                    "x_label": "Airspeed (m/s)",
-                    "rpm": 7200.0,
-                    "thrust": 18.5,
-                    "power": 320.0,
-                    "current": 21.0,
-                    "eta_sys": 0.68,
-                    "eta_p": 0.78,
-                    "eta_m": 0.87,
-                    "j": 0.55,
-                    "feasible": True,
-                }
-            ],
+        saved_units = {
+            quantity: um.get_display_unit(quantity) for quantity in ("velocity", "force")
         }
-        dock.set_results(data)
 
-        # In SI / engineering: speed is m/s, thrust is N, power is W, current is A
-        self.assertEqual(dock.detail_table.horizontalHeaderItem(0).text(), "Operating Pt (m/s)")
-        self.assertEqual(dock.detail_table.horizontalHeaderItem(2).text(), "Thrust (N)")
-        self.assertEqual(dock.detail_table.horizontalHeaderItem(3).text(), "Power (W)")
-        self.assertEqual(dock.detail_table.horizontalHeaderItem(4).text(), "Current (A)")
-        self.assertEqual(dock.detail_table.item(0, 0).text(), "15.0")
-        self.assertEqual(dock.detail_table.item(0, 2).text(), "18.50")
-        self.assertEqual(dock.detail_table.item(0, 3).text(), "320.0")
-        self.assertEqual(dock.detail_table.item(0, 4).text(), "21.0")
+        def restore_units() -> None:
+            for quantity, unit in saved_units.items():
+                um.set_display_unit(quantity, unit)
 
-        # Change unit to ft/s and lbf
+        self.addCleanup(restore_units)
+
+        config = SolverConfig(
+            solver_id=SOLVER_ID_AIRSPEED_SWEEP,
+            name="Airspeed Sweep",
+            parameters={"v_min": 0.0, "v_max": 20.0, "v_step": 5.0, "throttle": 100.0},
+        )
+        result = AirspeedSweepSolver(config, open_project(TEST_PROJECT_PATH)).run()
+        table = result.tables["propulsion_data"]
+        airspeed_column = table.get_column_def("airspeed")
+        thrust_column = table.get_column_def("thrust")
+        assert airspeed_column is not None
+        assert thrust_column is not None
+
+        um.set_display_unit("velocity", "m/s")
+        um.set_display_unit("force", "N")
+        self.assertEqual(airspeed_column.header_text(use_display_units=True), "Airspeed [m/s]")
+        self.assertEqual(thrust_column.header_text(use_display_units=True), "Thrust [N]")
+        self.assertEqual(table.get_column_display_values("thrust"), table.get_column("thrust"))
+
         um.set_display_unit("velocity", "ft/s")
         um.set_display_unit("force", "lbf")
-        um.units_changed.emit()
+        self.assertEqual(airspeed_column.header_text(use_display_units=True), "Airspeed [ft/s]")
+        self.assertEqual(thrust_column.header_text(use_display_units=True), "Thrust [lbf]")
+        for key, quantity in (("airspeed", "velocity"), ("thrust", "force")):
+            for shown, stored in zip(
+                table.get_column_display_values(key), table.get_column(key), strict=True
+            ):
+                self.assertAlmostEqual(shown, um.to_display(stored, quantity))
 
-        self.assertEqual(dock.detail_table.horizontalHeaderItem(0).text(), "Operating Pt (ft/s)")
-        self.assertEqual(dock.detail_table.horizontalHeaderItem(2).text(), "Thrust (lbf)")
-        expected_speed = f"{um.to_display(15.0, 'velocity'):.1f}"
-        expected_thrust = f"{um.to_display(18.5, 'force'):.2f}"
-        self.assertEqual(dock.detail_table.item(0, 0).text(), expected_speed)
-        self.assertEqual(dock.detail_table.item(0, 2).text(), expected_thrust)
-
-        # Restore default units
-        um.set_display_unit("velocity", "m/s")
-        um.set_display_unit("force", "N")
-        um.units_changed.emit()
-        dock.close()
-
-    def test_twin_motor_propulsion_analysis(self) -> None:
-        from pythrust.propulsion.models.motor import MotorSpec
-        from pythrust.propulsion.models.propeller import PropellerSpec
-
-        from plugins.electrical_propulsion.engine import PropulsionSolverEngine
-        from plugins.electrical_propulsion.results_dock import PropulsionResultsDock
-
-        motor_spec = MotorSpec(
-            kv_rpm_per_v=900.0, resistance_ohm=0.035, no_load_current_a=1.2, current_max_a=250.0
-        )
-        prop_spec = PropellerSpec(diameter_m=0.3302, pitch_m=0.1651, blade_count=2)
-        prop_entry = PropulsionSolverEngine.fallback_propeller(13.0, 6.5, 2)
-
-        single_ctx = {
-            "mode": "airspeed_sweep",
-            "params": {"throttle": 100.0, "v_min": 0.0, "v_max": 20.0, "v_step": 5.0},
-            "motor_spec": motor_spec,
-            "motor_params": {"max_power": 5000.0},
-            "prop_spec": prop_spec,
-            "prop_entry": prop_entry,
-            "total_voltage": 22.2,
-            "capacity_mah": 5000.0,
-            "rho": 1.225,
-            "diameter_in": 13.0,
-            "pitch_in": 6.5,
-            "motor_count": 1,
-        }
-
-        twin_ctx = dict(single_ctx)
-        twin_ctx["motor_count"] = 2
-
-        res_single = PropulsionSolverEngine.run_airspeed_sweep(single_ctx)
-        res_twin = PropulsionSolverEngine.run_airspeed_sweep(twin_ctx)
-
-        # Twin configuration produces 2x thrust, power, and current
-        self.assertEqual(res_twin["motor_count"], 2)
+        static_thrust = result.summary["static_thrust"]
+        shown_thrust, shown_unit = static_thrust.display_value_and_unit()
+        self.assertEqual(shown_unit, "lbf")
         self.assertAlmostEqual(
-            res_twin["static_thrust"], 2.0 * res_single["static_thrust"], places=2
+            float(shown_thrust), um.to_display(float(static_thrust.value), "force")
         )
-        self.assertAlmostEqual(res_twin["peak_power"], 2.0 * res_single["peak_power"], places=1)
-        self.assertAlmostEqual(res_twin["peak_current"], 2.0 * res_single["peak_current"], places=1)
-        # RPM and efficiencies should match single motor
-        self.assertAlmostEqual(res_twin["max_rpm"], res_single["max_rpm"], places=1)
-        self.assertAlmostEqual(
-            res_twin["cruise_efficiency"], res_single["cruise_efficiency"], places=3
-        )
-        # Endurance is halved due to 2x power draw
-        self.assertAlmostEqual(
-            res_twin["endurance_min"], res_single["endurance_min"] / 2.0, places=2
-        )
-
-        # Verify results dock UI displays configuration and per-motor overload safety correctly
-        api = StudioAPI()
-        dock = PropulsionResultsDock(api)
-        dock.set_results(res_twin)
-        self.assertEqual(
-            dock._property_value(dock.summary_table, "config"), "Twin Motor (2x - Bilateral)"
-        )
-        # Total current is ~373 A which exceeds 250 A, BUT per-motor current is ~186 A <= 250 A,
-        # so it must be evaluated as Safe!
-        self.assertGreater(res_twin["sweep_table"][0]["current"], 250.0)
-        self.assertLess(res_twin["sweep_table"][0]["per_motor_current"], 250.0)
-        self.assertEqual(dock.detail_table.rowCount(), len(res_twin["sweep_table"]))
-        self.assertIn("Safe", dock.detail_table.item(0, 9).text())
-
-        # When per-motor limit is reduced below per-motor current, it should flag Overload
-        overload_data = dict(res_twin)
-        overload_data["motor_max_current"] = 100.0
-        dock.set_results(overload_data)
-        self.assertIn("Overload", dock.detail_table.item(0, 9).text())
-        dock.close()
 
     def _drain_events(self, iterations: int = 15) -> None:
         from PySide6.QtCore import QThreadPool
@@ -548,11 +550,15 @@ class TestElectricalPropulsion(unittest.TestCase):
             self.app.processEvents()
 
     @staticmethod
-    def _dock_content(dock) -> object:
-        widget = dock.widget()
-        if widget.objectName() == "studioDockPanel":
-            return widget.layout().itemAt(0).widget()
-        return widget
+    def _headless_api() -> tuple[StudioAPI, list[ActionContribution], list[tuple[str, str, int]]]:
+        api = StudioAPI()
+        actions: list[ActionContribution] = []
+        statuses: list[tuple[str, str, int]] = []
+        api._host.bind_action_handlers(actions.append)
+        api._host.bind_status_handler(
+            lambda message, level, timeout_ms: statuses.append((message, level, timeout_ms))
+        )
+        return api, actions, statuses
 
 
 if __name__ == "__main__":
