@@ -78,7 +78,7 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
         solver_settings = self._solver_settings(method, settings or {})
         setup = self._prepare_analysis(components, condition, solver_settings["control_encoding"])
         self._validate_control_sweep(components, condition)
-        primary_vals, secondary_vals, eval_states = self._build_evaluation_states(condition)
+        primary_vals, eval_states = self._build_evaluation_states(condition)
         polar_points, oswald_values = self._evaluate_states(
             components,
             condition,
@@ -90,9 +90,7 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
         )
         converged_points = self._require_converged_points(polar_points, method)
         summary = self._polar_summary(converged_points, oswald_values)
-        sweep_result = self._build_sweep_result(
-            condition, eval_states, primary_vals, secondary_vals, polar_points
-        )
+        sweep_result = self._build_sweep_result(condition, eval_states, primary_vals, polar_points)
         control_analysis = self._control_analysis(condition, polar_points)
         stability, stability_error = self._compute_stability(
             components,
@@ -187,22 +185,10 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
 
     def _build_evaluation_states(
         self, condition: FlightCondition
-    ) -> tuple[list[float], list[float | None], list[dict[str, Any]]]:
+    ) -> tuple[list[float], list[dict[str, Any]]]:
         primary_values = condition.get_primary_sweep_values()
-        secondary_values: list[float | None]
-        if condition.secondary_variable:
-            secondary_values = [float(value) for value in condition.get_secondary_sweep_values()]
-        else:
-            secondary_values = [None]
-        if condition.sweep_type == SweepType.DUAL_ALPHA_BETA:
-            states = self._dual_sweep_states(condition)
-        else:
-            states = [
-                self._evaluation_state(condition, primary, secondary)
-                for secondary in secondary_values
-                for primary in primary_values
-            ]
-        return primary_values, secondary_values, states
+        states = [self._evaluation_state(condition, primary) for primary in primary_values]
+        return primary_values, states
 
     @staticmethod
     def _base_evaluation_state(condition: FlightCondition) -> dict[str, Any]:
@@ -214,49 +200,17 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
             "controls": dict(condition.control_deflections),
         }
 
-    def _dual_sweep_states(self, condition: FlightCondition) -> list[dict[str, Any]]:
-        states: list[dict[str, Any]] = []
-        alpha_values = np.linspace(
-            condition.alpha_min, condition.alpha_max, max(int(condition.alpha_steps), 2)
-        )
-        beta_values = np.linspace(
-            condition.beta_min, condition.beta_max, max(int(condition.beta_steps), 2)
-        )
-        for value in alpha_values:
-            state = self._base_evaluation_state(condition)
-            state.update(
-                alpha=float(value),
-                p_val=float(value),
-                s_val=float(condition.beta),
-                _sweep_group="alpha",
-            )
-            states.append(state)
-        for value in beta_values:
-            state = self._base_evaluation_state(condition)
-            state.update(
-                beta=float(value),
-                p_val=float(value),
-                s_val=float(condition.alpha),
-                _sweep_group="beta",
-            )
-            states.append(state)
-        return states
-
     def _evaluation_state(
         self,
         condition: FlightCondition,
         primary: float,
-        secondary: float | None,
     ) -> dict[str, Any]:
         state = self._base_evaluation_state(condition)
         state.update(
             p_val=float(primary),
-            s_val=float(secondary) if secondary is not None else None,
             _sweep_group="primary",
         )
         self._apply_sweep_value(state, condition.sweep_variable, float(primary))
-        if secondary is not None and condition.secondary_variable:
-            self._apply_sweep_value(state, condition.secondary_variable, float(secondary))
         return state
 
     @staticmethod

@@ -225,9 +225,6 @@ class AlphaSweepSolver(BaseAerodynamicsSolver):
             sweep_min=alpha_min,
             sweep_max=alpha_max,
             sweep_steps=num_steps,
-            alpha_min=alpha_min,
-            alpha_max=alpha_max,
-            alpha_steps=num_steps,
         )
 
         settings = {
@@ -533,9 +530,6 @@ class BetaSweepSolver(BaseAerodynamicsSolver):
             sweep_min=beta_min,
             sweep_max=beta_max,
             sweep_steps=num_steps,
-            beta_min=beta_min,
-            beta_max=beta_max,
-            beta_steps=num_steps,
         )
 
         settings = {
@@ -1107,9 +1101,6 @@ class OperatingPointSolver(BaseAerodynamicsSolver):
             sweep_min=alpha,
             sweep_max=alpha,
             sweep_steps=1,
-            alpha_min=alpha,
-            alpha_max=alpha,
-            alpha_steps=1,
         )
 
         settings = {

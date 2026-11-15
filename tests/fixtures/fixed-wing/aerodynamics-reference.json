@@ -12,10 +12,7 @@
     "sweep_variable": "alpha",
     "sweep_min": -2.0,
     "sweep_max": 10.0,
-    "sweep_steps": 5,
-    "alpha_min": -2.0,
-    "alpha_max": 10.0,
-    "alpha_steps": 5
+    "sweep_steps": 5
   },
   "settings": {
     "spanwise_resolution": 12,

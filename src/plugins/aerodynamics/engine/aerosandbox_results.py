@@ -231,28 +231,14 @@ class AeroSandboxResultMixin:
         condition: FlightCondition,
         eval_states: list[dict[str, Any]],
         primary_values: list[float],
-        secondary_values: list[float | None],
         points: list[PolarPoint],
     ) -> MultiDimensionalSweepResult | None:
-        if len(eval_states) <= 1 or condition.sweep_type == SweepType.DUAL_ALPHA_BETA:
+        if len(eval_states) <= 1:
             return None
-        if condition.secondary_variable and len(secondary_values) > 1:
-            variables = [
-                SweepVariable(
-                    name=str(condition.secondary_variable),
-                    values=[float(value) for value in secondary_values if value is not None],
-                    unit="deg",
-                ),
-                SweepVariable(
-                    name=str(condition.sweep_variable), values=primary_values, unit="deg"
-                ),
-            ]
-            shape = (len(secondary_values), len(primary_values))
-        else:
-            variables = [
-                SweepVariable(name=str(condition.sweep_variable), values=primary_values, unit="deg")
-            ]
-            shape = (len(primary_values),)
+        variables = [
+            SweepVariable(name=str(condition.sweep_variable), values=primary_values, unit="deg")
+        ]
+        shape = (len(primary_values),)
         return MultiDimensionalSweepResult(
             variables=variables, points=list(points), grid_shape=shape
         )

@@ -251,9 +251,6 @@ class FlightPerformanceAnalysisPipeline:
             condition = FlightCondition(
                 velocity=15.0,
                 altitude=float(inputs.context.get("altitude", 0.0)),
-                alpha_min=-8.0,
-                alpha_max=25.0,
-                alpha_steps=67,
                 sweep_min=-8.0,
                 sweep_max=25.0,
                 sweep_steps=67,

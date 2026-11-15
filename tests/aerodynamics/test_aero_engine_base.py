@@ -166,9 +166,10 @@ class AeroEngineBaseTests(unittest.TestCase):
         self.assertEqual(fc.q, 0.0)
         self.assertEqual(fc.r, 0.0)
         self.assertEqual(fc.control_deflections, {})
-        self.assertEqual(fc.alpha_min, -10.0)
-        self.assertEqual(fc.alpha_max, 18.0)
-        self.assertEqual(fc.alpha_steps, 29)
+        self.assertEqual(fc.sweep_variable, "alpha")
+        self.assertEqual(fc.sweep_min, -10.0)
+        self.assertEqual(fc.sweep_max, 18.0)
+        self.assertEqual(fc.sweep_steps, 29)
 
         # Serialization round-trip
         data = fc.to_dict()

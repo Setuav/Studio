@@ -32,36 +32,13 @@ class TestSweepConfiguration(unittest.TestCase):
         self.assertAlmostEqual(vals[0], -4.0)
         self.assertAlmostEqual(vals[-1], 16.0)
 
-        # Dual Alpha + Beta sweep values
-        dual_cond = FlightCondition(
-            sweep_type=SweepType.DUAL_ALPHA_BETA,
+        single = FlightCondition(
+            alpha=3.5,
+            sweep_type=SweepType.ALPHA,
             sweep_variable="alpha",
-            sweep_min=-4.0,
-            sweep_max=8.0,
-            sweep_steps=4,
-            secondary_variable="beta",
-            secondary_min=-10.0,
-            secondary_max=10.0,
-            secondary_steps=3,
+            sweep_steps=1,
         )
-        p_vals = dual_cond.get_primary_sweep_values()
-        s_vals = dual_cond.get_secondary_sweep_values()
-        self.assertEqual(len(p_vals), 4)
-        self.assertEqual(len(s_vals), 3)
-
-        grid_cond = FlightCondition(
-            sweep_type=SweepType.MULTI_GRID,
-            sweep_variable="alpha",
-            sweep_min=-4.0,
-            sweep_max=8.0,
-            sweep_steps=4,
-            secondary_variable="beta",
-            secondary_min=-10.0,
-            secondary_max=10.0,
-            secondary_steps=3,
-        )
-        self.assertEqual(len(grid_cond.get_primary_sweep_values()), 4)
-        self.assertEqual(len(grid_cond.get_secondary_sweep_values()), 3)
+        self.assertEqual(single.get_primary_sweep_values(), [3.5])
 
     def test_sweep_serialization(self) -> None:
         cond = FlightCondition(
@@ -134,7 +111,6 @@ class TestParametricSweeps(unittest.TestCase):
                 "name": "Horizontal Tail",
                 "type": "org.setuav.core:lifting-surface",
                 "parameters": {
-                    "tags": ["elevator"],
                     "geometry": {
                         "mirror": True,
                         "profiles": [
@@ -159,7 +135,6 @@ class TestParametricSweeps(unittest.TestCase):
                 "name": "Vertical Fin",
                 "type": "org.setuav.core:lifting-surface",
                 "parameters": {
-                    "tags": ["rudder"],
                     "geometry": {
                         "mirror": False,
                         "profiles": [
@@ -177,6 +152,38 @@ class TestParametricSweeps(unittest.TestCase):
                             },
                         ],
                     },
+                },
+            },
+            {
+                "id": "elevator-1",
+                "name": "Elevator",
+                "type": "org.setuav.core:control-surface",
+                "parent": "htail-1",
+                "parameters": {
+                    "geometry": {
+                        "tag": "elevator",
+                        "type": "elevator",
+                        "eta_start": 0.0,
+                        "eta_end": 1.0,
+                        "chord_fraction": 0.35,
+                        "symmetry_mode": "symmetric",
+                    }
+                },
+            },
+            {
+                "id": "rudder-1",
+                "name": "Rudder",
+                "type": "org.setuav.core:control-surface",
+                "parent": "vfin-1",
+                "parameters": {
+                    "geometry": {
+                        "tag": "rudder",
+                        "type": "rudder",
+                        "eta_start": 0.0,
+                        "eta_end": 1.0,
+                        "chord_fraction": 0.35,
+                        "symmetry_mode": "symmetric",
+                    }
                 },
             },
         ]
@@ -250,70 +257,6 @@ class TestParametricSweeps(unittest.TestCase):
                 cond,
                 method=AnalysisMethod.AERO_BUILDUP,
             )
-
-    def test_dual_alpha_beta_sweep(self) -> None:
-        """Verify dual alpha+beta sweep computes both alpha and beta datasets simultaneously."""
-        cond = FlightCondition(
-            sweep_type=SweepType.DUAL_ALPHA_BETA,
-            alpha=2.0,
-            beta=0.0,
-            alpha_min=-4.0,
-            alpha_max=8.0,
-            alpha_steps=3,
-            beta_min=-6.0,
-            beta_max=6.0,
-            beta_steps=3,
-        )
-        res = self.engine.analyze(self.components, cond, method=AnalysisMethod.AERO_BUILDUP)
-
-        self.assertEqual(len(res.polar_points), 6)  # 3 alpha points + 3 beta points
-
-        alpha_pts = res.polar_points[:3]
-        beta_pts = res.polar_points[3:]
-
-        self.assertEqual(len(alpha_pts), 3)
-        self.assertEqual(len(beta_pts), 3)
-
-        # Verify alpha points vary alpha with fixed beta
-        self.assertAlmostEqual(alpha_pts[0].alpha, -4.0)
-        self.assertAlmostEqual(alpha_pts[-1].alpha, 8.0)
-        self.assertAlmostEqual(alpha_pts[0].beta, 0.0)
-
-        # Verify beta points vary beta with fixed alpha
-        self.assertAlmostEqual(beta_pts[0].beta, -6.0)
-        self.assertAlmostEqual(beta_pts[-1].beta, 6.0)
-        self.assertAlmostEqual(beta_pts[0].alpha, 2.0)
-
-    def test_alpha_beta_grid_contract(self) -> None:
-        condition = FlightCondition(
-            velocity=20.0,
-            sweep_type=SweepType.MULTI_GRID,
-            sweep_variable="alpha",
-            sweep_min=-4.0,
-            sweep_max=4.0,
-            sweep_steps=3,
-            secondary_variable="beta",
-            secondary_min=-6.0,
-            secondary_max=6.0,
-            secondary_steps=3,
-        )
-
-        result = self.engine.analyze(
-            self.components,
-            condition,
-            method=AnalysisMethod.AERO_BUILDUP,
-        )
-
-        self.assertEqual(len(result.polar_points), 9)
-        self.assertIsNotNone(result.sweep_result)
-        sweep = result.sweep_result
-        assert sweep is not None
-        self.assertEqual(sweep.variable_names, ["beta", "alpha"])
-        self.assertEqual(sweep.grid_shape, (3, 3))
-        self.assertAlmostEqual(sweep.point_at_indices(0, 0).beta, -6.0)
-        self.assertAlmostEqual(sweep.point_at_indices(0, 0).alpha, -4.0)
-        self.assertAlmostEqual(sweep.point_at_indices(1, 2).beta, 0.0)
-        self.assertAlmostEqual(sweep.point_at_indices(1, 2).alpha, 4.0)
 
 
 if __name__ == "__main__":

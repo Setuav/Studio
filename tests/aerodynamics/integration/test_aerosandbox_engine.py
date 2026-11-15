@@ -94,7 +94,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
     @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_all_operating_point_failures_raise_analysis_error(self) -> None:
         engine = AeroSandboxEngine()
-        condition = FlightCondition(alpha=2.0, alpha_steps=1, sweep_steps=1)
+        condition = FlightCondition(alpha=2.0, sweep_steps=1)
 
         with (
             patch(
@@ -115,7 +115,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
     @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_stability_failure_is_explicit_on_usable_result(self) -> None:
         engine = AeroSandboxEngine()
-        condition = FlightCondition(alpha=2.0, alpha_steps=1, sweep_steps=1)
+        condition = FlightCondition(alpha=2.0, sweep_steps=1)
 
         with patch.object(
             StabilityAnalysisEngine,
@@ -173,9 +173,9 @@ class AeroSandboxEngineTests(unittest.TestCase):
         cond = FlightCondition(
             velocity=20.0,
             altitude=500.0,
-            alpha_min=-4.0,
-            alpha_max=8.0,
-            alpha_steps=7,
+            sweep_min=-4.0,
+            sweep_max=8.0,
+            sweep_steps=7,
         )
 
         result = engine.analyze(components, cond, method=AnalysisMethod.AERO_BUILDUP)
@@ -233,7 +233,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
             altitude=0.0,
             alpha=4.0,
             beta=1.0,
-            alpha_steps=1,
+            sweep_steps=1,
         )
 
         result = engine.analyze(components, cond, method=AnalysisMethod.VLM)
@@ -373,9 +373,9 @@ class AeroSandboxEngineTests(unittest.TestCase):
             altitude=1000.0,
             alpha=4.0,
             beta=0.0,
-            alpha_min=-2.0,
-            alpha_max=10.0,
-            alpha_steps=3,
+            sweep_min=-2.0,
+            sweep_max=10.0,
+            sweep_steps=3,
         )
         settings = {
             "spanwise_resolution": 12,
@@ -592,25 +592,31 @@ class AeroSandboxEngineTests(unittest.TestCase):
                                 "airfoil": "naca2412",
                             },
                         ],
-                        "control_surfaces": [
-                            {
-                                "tag": "aileron",
-                                "type": "aileron",
-                                "eta_start": 0.5,
-                                "eta_end": 0.95,
-                                "chord_fraction": 0.25,
-                                "deflection": 0.0,
-                                "symmetry_mode": "auto",
-                            }
-                        ],
                     }
                 },
-            }
+            },
+            {
+                "id": "aileron-1",
+                "name": "aileron",
+                "type": "org.setuav.core:control-surface",
+                "parent": "wing-1",
+                "parameters": {
+                    "geometry": {
+                        "tag": "aileron",
+                        "type": "aileron",
+                        "eta_start": 0.5,
+                        "eta_end": 0.95,
+                        "chord_fraction": 0.25,
+                        "deflection": 0.0,
+                        "symmetry_mode": "auto",
+                    }
+                },
+            },
         ]
 
         # 1. Neutral aileron (0 deg) -> zero roll moment
         cond_neutral = FlightCondition(
-            velocity=25.0, alpha=2.0, alpha_steps=1, control_deflections={"aileron": 0.0}
+            velocity=25.0, alpha=2.0, sweep_steps=1, control_deflections={"aileron": 0.0}
         )
         res_neutral = engine.analyze(components, cond_neutral, method=AnalysisMethod.VLM)
         self.assertAlmostEqual(res_neutral.polar_points[0].cl_roll, 0.0, places=3)
@@ -627,7 +633,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
 
         # 2. Deflected aileron (10 deg) -> significant roll moment
         cond_deflected = FlightCondition(
-            velocity=25.0, alpha=2.0, alpha_steps=1, control_deflections={"aileron": 10.0}
+            velocity=25.0, alpha=2.0, sweep_steps=1, control_deflections={"aileron": 10.0}
         )
         res_deflected = engine.analyze(components, cond_deflected, method=AnalysisMethod.VLM)
         cl_roll = res_deflected.polar_points[0].cl_roll
@@ -711,13 +717,13 @@ class AeroSandboxEngineTests(unittest.TestCase):
 
         # 1. Deflect down (+10 deg) -> increases tail lift, pitching nose down (more negative Cm)
         cond_down = FlightCondition(
-            velocity=25.0, alpha=0.0, alpha_steps=1, control_deflections={"elevator": 10.0}
+            velocity=25.0, alpha=0.0, sweep_steps=1, control_deflections={"elevator": 10.0}
         )
         res_down = engine.analyze(components, cond_down, method=AnalysisMethod.VLM)
 
         # 2. Deflect up (-10 deg) -> decreases tail lift, pitching nose up (more positive Cm)
         cond_up = FlightCondition(
-            velocity=25.0, alpha=0.0, alpha_steps=1, control_deflections={"elevator": -10.0}
+            velocity=25.0, alpha=0.0, sweep_steps=1, control_deflections={"elevator": -10.0}
         )
         res_up = engine.analyze(components, cond_up, method=AnalysisMethod.VLM)
 
@@ -748,27 +754,41 @@ class AeroSandboxEngineTests(unittest.TestCase):
                                 "airfoil": "naca0012",
                             },
                         ],
-                        "control_surfaces": [
-                            {
-                                "tag": "flap",
-                                "type": "flap",
-                                "eta_start": 0.10,
-                                "eta_end": 0.65,
-                                "chord_fraction": 0.30,
-                                "symmetry_mode": "auto",
-                            },
-                            {
-                                "tag": "aileron",
-                                "type": "aileron",
-                                "eta_start": 0.45,
-                                "eta_end": 0.90,
-                                "chord_fraction": 0.25,
-                                "symmetry_mode": "auto",
-                            },
-                        ],
                     }
                 },
-            }
+            },
+            {
+                "id": "flap-1",
+                "name": "flap",
+                "type": "org.setuav.core:control-surface",
+                "parent": "wing-1",
+                "parameters": {
+                    "geometry": {
+                        "tag": "flap",
+                        "type": "flap",
+                        "eta_start": 0.10,
+                        "eta_end": 0.65,
+                        "chord_fraction": 0.30,
+                        "symmetry_mode": "auto",
+                    }
+                },
+            },
+            {
+                "id": "aileron-1",
+                "name": "aileron",
+                "type": "org.setuav.core:control-surface",
+                "parent": "wing-1",
+                "parameters": {
+                    "geometry": {
+                        "tag": "aileron",
+                        "type": "aileron",
+                        "eta_start": 0.45,
+                        "eta_end": 0.90,
+                        "chord_fraction": 0.25,
+                        "symmetry_mode": "auto",
+                    }
+                },
+            },
         ]
         airplane = AeroSandboxEngine()._build_airplane(
             components,
@@ -834,19 +854,25 @@ class AeroSandboxEngineTests(unittest.TestCase):
                                     "airfoil": "naca0012",
                                 },
                             ],
-                            "control_surfaces": [
-                                {
-                                    "tag": surface_type,
-                                    "type": surface_type,
-                                    "eta_start": 0.2,
-                                    "eta_end": 0.9,
-                                    "chord_fraction": 0.3,
-                                    "symmetry_mode": symmetry_mode,
-                                }
-                            ],
                         }
                     },
-                }
+                },
+                {
+                    "id": f"cs-{surface_type}",
+                    "name": surface_type,
+                    "type": "org.setuav.core:control-surface",
+                    "parent": "wing-1",
+                    "parameters": {
+                        "geometry": {
+                            "tag": surface_type,
+                            "type": surface_type,
+                            "eta_start": 0.2,
+                            "eta_end": 0.9,
+                            "chord_fraction": 0.3,
+                            "symmetry_mode": symmetry_mode,
+                        }
+                    },
+                },
             ]
             airplane = AeroSandboxEngine()._build_airplane(
                 components,
@@ -880,45 +906,55 @@ class AeroSandboxEngineTests(unittest.TestCase):
     def test_composite_elevon_and_ruddervator_channel_mixing(self) -> None:
         """Composite controls mix symmetric pitch with differential lateral channels."""
 
-        def lifting_surface(component_id: str, name: str, surface_type: str, roll: float) -> dict:
-            return {
-                "id": component_id,
-                "name": name,
-                "type": "org.setuav.core:lifting-surface",
-                "transform": {"rotation": {"roll": roll}},
-                "parameters": {
-                    "geometry": {
-                        "mirror": True,
-                        "profiles": [
-                            {
-                                "position": {"x": 0, "y": 0, "z": 0},
-                                "chord": 200,
-                                "airfoil": "naca0012",
-                            },
-                            {
-                                "position": {"x": 0, "y": 500, "z": 0},
-                                "chord": 120,
-                                "airfoil": "naca0012",
-                            },
-                        ],
-                        "control_surfaces": [
-                            {
-                                "tag": surface_type,
-                                "type": surface_type,
-                                "eta_start": 0.2,
-                                "eta_end": 0.9,
-                                "chord_fraction": 0.3,
-                                "symmetry_mode": "auto",
-                            }
-                        ],
-                    }
+        def lifting_surface(
+            component_id: str, name: str, surface_type: str, roll: float
+        ) -> list[dict]:
+            return [
+                {
+                    "id": component_id,
+                    "name": name,
+                    "type": "org.setuav.core:lifting-surface",
+                    "transform": {"rotation": {"roll": roll}},
+                    "parameters": {
+                        "geometry": {
+                            "mirror": True,
+                            "profiles": [
+                                {
+                                    "position": {"x": 0, "y": 0, "z": 0},
+                                    "chord": 200,
+                                    "airfoil": "naca0012",
+                                },
+                                {
+                                    "position": {"x": 0, "y": 500, "z": 0},
+                                    "chord": 120,
+                                    "airfoil": "naca0012",
+                                },
+                            ],
+                        }
+                    },
                 },
-            }
+                {
+                    "id": f"{component_id}-cs",
+                    "name": surface_type,
+                    "type": "org.setuav.core:control-surface",
+                    "parent": component_id,
+                    "parameters": {
+                        "geometry": {
+                            "tag": surface_type,
+                            "type": surface_type,
+                            "eta_start": 0.2,
+                            "eta_end": 0.9,
+                            "chord_fraction": 0.3,
+                            "symmetry_mode": "auto",
+                        }
+                    },
+                },
+            ]
 
         airplane = AeroSandboxEngine()._build_airplane(
             [
-                lifting_surface("elevon-1", "Elevon Wing", "elevon", 0.0),
-                lifting_surface("vtail-1", "V-Tail", "ruddervator", 35.0),
+                *lifting_surface("elevon-1", "Elevon Wing", "elevon", 0.0),
+                *lifting_surface("vtail-1", "V-Tail", "ruddervator", 35.0),
             ],
             condition=FlightCondition(
                 control_deflections={"elevator": 4.0, "aileron": 3.0, "rudder": 2.0}
@@ -993,7 +1029,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
             },
         ]
 
-        cond = FlightCondition(velocity=20.0, alpha=2.0, alpha_steps=1)
+        cond = FlightCondition(velocity=20.0, alpha=2.0, sweep_steps=1)
         result = engine.analyze(components, cond, method=AnalysisMethod.AERO_BUILDUP)
 
         self.assertEqual(len(result.propulsion_points), 1)
@@ -1015,9 +1051,9 @@ class AeroSandboxEngineTests(unittest.TestCase):
         cond = FlightCondition(
             velocity=25.0,
             altitude=500.0,
-            alpha_min=-2.0,
-            alpha_max=8.0,
-            alpha_steps=3,
+            sweep_min=-2.0,
+            sweep_max=8.0,
+            sweep_steps=3,
         )
 
         settings = {
@@ -1076,7 +1112,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
         """Verify direct LiftingLine analysis execution."""
         engine = AeroSandboxEngine()
         components = _sample_components()
-        cond = FlightCondition(velocity=25.0, alpha=4.0, alpha_steps=1)
+        cond = FlightCondition(velocity=25.0, alpha=4.0, sweep_steps=1)
 
         result = engine.analyze(components, cond, method=AnalysisMethod.LIFTING_LINE)
         self.assertEqual(result.method, AnalysisMethod.LIFTING_LINE)
