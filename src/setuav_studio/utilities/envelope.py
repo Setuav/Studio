@@ -586,7 +586,11 @@ def resolve_component_aggregate_envelope(
     if not comp_id or project_or_components is None:
         return resolve_component_envelope(component)
 
-    from setuav_studio.utilities.mass_balance import get_component_children
+    from setuav_studio.utilities.mass_balance import (
+        get_all_components,
+        get_component_children,
+        is_mirrored_component,
+    )
     from setuav_studio.utilities.transform import (
         inverse_rotate_vector,
         resolve_world_transform,
@@ -596,6 +600,7 @@ def resolve_component_aggregate_envelope(
     children = get_component_children(comp_id, project_or_components, recursive=True)
     if not children:
         return resolve_component_envelope(component)
+    by_id = {str(c["id"]): c for c in get_all_components(project_or_components)}
 
     # 1. World transform of the parent component
     p_world_pos, p_world_rot = resolve_world_transform(comp_id, project_or_components)
@@ -623,7 +628,7 @@ def resolve_component_aggregate_envelope(
         total_volume_mm3 += float(c_env.get("volume_mm3", 0.0) or 0.0)
 
         c_world_pos, c_world_rot = resolve_world_transform(c_id, project_or_components)
-        is_mirror = bool(child.get("parameters", {}).get("geometry", {}).get("mirror"))
+        is_mirror = is_mirrored_component(child, by_id)
 
         # 8 corners in child's local frame
         for dx in (-0.5 * c_size[0], 0.5 * c_size[0]):

@@ -137,7 +137,7 @@ def _mat_vec_mul(matrix: Matrix3 | Matrix3x3, vec: Vector3) -> Vector3:
     )
 
 
-def _get_all_components(project_or_components: Any) -> list[dict[str, Any]]:
+def get_all_components(project_or_components: Any) -> list[dict[str, Any]]:
     from setuav_studio.project.document import ProjectDocument
 
     if isinstance(project_or_components, ProjectDocument):
@@ -159,7 +159,7 @@ def get_component_children(
     recursive: bool = True,
 ) -> list[dict[str, Any]]:
     """Return all direct or recursive child components belonging to comp_id in the hierarchy."""
-    all_comps = _get_all_components(project_or_components)
+    all_comps = get_all_components(project_or_components)
     direct_children = [c for c in all_comps if str(c.get("parent") or "") == comp_id]
     if not recursive:
         return direct_children
@@ -191,7 +191,7 @@ def resolve_component_intrinsic_mass_properties(
     project_or_components: Any,
 ) -> ComponentMassProperties:
     """Resolve intrinsic mass properties for a single component in local and body frames."""
-    all_comps = _get_all_components(project_or_components)
+    all_comps = get_all_components(project_or_components)
     by_id = {str(c["id"]): c for c in all_comps}
     comp = by_id.get(comp_or_id) if isinstance(comp_or_id, str) else comp_or_id
     comp_id = str(comp.get("id") or "") if isinstance(comp, dict) else ""
@@ -225,8 +225,7 @@ def resolve_component_intrinsic_mass_properties(
     rx, ry, rz = rotate_vector(cg_local_mm, world_rot_deg)
     cg_body_mm = (world_pos_mm[0] + rx, world_pos_mm[1] + ry, world_pos_mm[2] + rz)
 
-    is_mirror = bool(effective.get("parameters", {}).get("geometry", {}).get("mirror"))
-    if is_mirror:
+    if is_mirrored_component(effective, by_id):
         cg_body_mm = (cg_body_mm[0], 0.0, cg_body_mm[2])
 
     cg_body_m: Vector3 = (
@@ -253,7 +252,7 @@ def resolve_component_aggregate_mass_properties(
     project_or_components: Any,
 ) -> ComponentMassProperties:
     """Aggregate mass, center of gravity, and inertia tensor for comp_id and all its child components."""
-    all_comps = _get_all_components(project_or_components)
+    all_comps = get_all_components(project_or_components)
     by_id = {str(c["id"]): c for c in all_comps}
     root_comp = by_id.get(comp_id)
     if root_comp is None:
@@ -404,7 +403,7 @@ def resolve_aircraft_mass_properties(
     requiring hardcoded component type or ID exceptions. Result masses are in kg, CG in meters,
     and inertia in kg·m².
     """
-    components = _get_all_components(project_or_components)
+    components = get_all_components(project_or_components)
     by_id: dict[str, dict[str, Any]] = {str(c["id"]): c for c in components}
 
     result_items: list[ComponentMassProperties] = []
@@ -466,6 +465,29 @@ def resolve_aircraft_mass_properties(
         ),
         inertia_cg_kg_m2=InertiaTensor.from_matrix(total_inertia),
     )
+
+
+def is_mirrored_component(
+    component: dict[str, Any],
+    by_id: dict[str, dict[str, Any]],
+) -> bool:
+    """Return whether the component is mirrored across the body XZ plane.
+
+    A component is mirrored by its own geometry; a control surface follows the
+    lifting surface it is parented to.
+    """
+    if _geometry_mirror(component):
+        return True
+    if component.get("type") != "org.setuav.core:control-surface":
+        return False
+    parent = by_id.get(str(component.get("parent") or ""))
+    return parent is not None and _geometry_mirror(_effective_component(parent, by_id))
+
+
+def _geometry_mirror(component: dict[str, Any]) -> bool:
+    parameters = component.get("parameters")
+    geometry = parameters.get("geometry") if isinstance(parameters, dict) else None
+    return isinstance(geometry, dict) and bool(geometry.get("mirror"))
 
 
 def _effective_component(

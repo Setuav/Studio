@@ -24,9 +24,6 @@ from setuav_studio.ui.style.icons import set_label_icon
 from setuav_studio.ui.widget.spinbox import set_table_spinbox
 from setuav_studio.ui.widget.table import ExpressionPropertyCell, PropertyTableMixin
 
-WB_EXTENSION_ID = "org.setuav.weight-balance"
-EXTENSION_ID = WB_EXTENSION_ID
-
 
 class MassPropertiesEditor(PropertyTableMixin, QWidget):
     """Table-based mass editor styled like the other Setuav property docks."""

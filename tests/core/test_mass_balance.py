@@ -99,3 +99,29 @@ def test_resolve_aircraft_mass_properties_hierarchy() -> None:
     result = resolve_aircraft_mass_properties({"components": [motor, prop]})
     assert math.isclose(result.mass_kg, 2.0, rel_tol=1e-5)
     assert math.isclose(result.cg_body_m[0], 0.75, rel_tol=1e-5)
+
+
+def test_control_surface_on_mirrored_wing_is_symmetric() -> None:
+    def wing(mirror: bool) -> dict[str, object]:
+        return {
+            "id": "wing",
+            "type": "org.setuav.core:lifting-surface",
+            "mass": 200.0,
+            "transform": {"position": {"x": 100.0, "y": 0.0, "z": 0.0}},
+            "parameters": {"geometry": {"mirror": mirror}},
+        }
+
+    aileron = {
+        "id": "aileron",
+        "type": "org.setuav.core:control-surface",
+        "parent": "wing",
+        "mass": 20.0,
+        "transform": {"position": {"x": 50.0, "y": 400.0, "z": 0.0}},
+    }
+
+    mirrored = resolve_aircraft_mass_properties([wing(True), aileron])
+    assert math.isclose(mirrored.cg_body_m[1], 0.0, abs_tol=1e-12)
+    assert math.isclose(mirrored.cg_body_m[0], (200.0 * 0.1 + 20.0 * 0.15) / 220.0, abs_tol=1e-6)
+
+    one_sided = resolve_aircraft_mass_properties([wing(False), aileron])
+    assert math.isclose(one_sided.cg_body_m[1], 20.0 * 0.4 / 220.0, abs_tol=1e-6)
