@@ -372,10 +372,6 @@ class AnalysisTablePanel(QWidget):
         self._meta_label = QLabel()
         tb_layout.addWidget(self._meta_label)
 
-        # Hidden units toggle kept for programmatic/test compatibility
-        self._units_toggle_btn = QPushButton("Units: Display")
-        self._units_toggle_btn.hide()
-
         # Export CSV button
         self._export_csv_btn = QPushButton("Export CSV")
         self._export_csv_btn.setToolTip("Export entire table to RFC 4180 CSV format")
@@ -450,8 +446,6 @@ class AnalysisTablePanel(QWidget):
 
     def _toggle_units(self) -> None:
         self._use_display_units = not self._use_display_units
-        label_text = "Units: Display" if self._use_display_units else "Units: SI"
-        self._units_toggle_btn.setText(label_text)
         if self._model is not None:
             self._model.set_use_display_units(self._use_display_units)
 

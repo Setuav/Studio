@@ -70,8 +70,7 @@ class StudioViewport(QWidget):
 
     Provides the public ``add_*`` / ``remove`` / ``clear`` API that plugins use
     to populate the 3D scene.  Internally delegates all OpenGL rendering to the
-    existing ``OpenGLViewer`` from the geometry plugin (which will be migrated
-    to this package in a later step).
+    underlying viewer implementation.
 
     Layer visibility can be toggled independently so that, for example, a
     manufacturing overlay can be shown or hidden without affecting the main

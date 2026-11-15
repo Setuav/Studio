@@ -15,7 +15,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
-    QLineEdit,
     QScrollArea,
     QSizePolicy,
     QSpinBox,
@@ -126,8 +125,6 @@ class SettingsDialog(PropertyTableMixin, QDialog):
         )
         self.category_tree.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         content.addWidget(self.category_tree)
-        # Compatibility alias for callers that only need to inspect the navigation widget.
-        self.category_list = self.category_tree
 
         self.page_stack = QStackedWidget(self)
         self.page_stack.setObjectName("settingsPages")
@@ -486,22 +483,11 @@ class SettingsDialog(PropertyTableMixin, QDialog):
             contribution.group_icon,
         )
 
-    @property
-    def pythrust_dir_edit(self) -> QLineEdit:
-        if not hasattr(self, "_pythrust_dir_edit_compat"):
-            self._pythrust_dir_edit_compat = QLineEdit(
-                getattr(self._values, "pythrust_data_dir", "")
-            )
-        return self._pythrust_dir_edit_compat
-
     def values(self) -> StudioSettings:
-        pythrust = getattr(self._values, "pythrust_data_dir", "")
-        if hasattr(self, "_pythrust_dir_edit_compat"):
-            pythrust = self._pythrust_dir_edit_compat.text().strip()
         return StudioSettings(
             reopen_last_project=self.reopen_check.isChecked(),
             recent_project_limit=self.recent_limit_spin.value(),
-            pythrust_data_dir=pythrust.strip(),
+            pythrust_data_dir=getattr(self._values, "pythrust_data_dir", "").strip(),
             validation_strictness=str(self.validation_strictness_combo.currentData()),
             theme_mode=str(self.theme_combo.currentData()),
         )

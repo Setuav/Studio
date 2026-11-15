@@ -1,9 +1,8 @@
 """Shared property-table helpers for editors, docks and dialogs.
 
-`PropertyTableMixin` centralises the duplicate "Property / Value" table
-building blocks that previously lived in every component editor, dock and
-results panel. Subclasses tune behaviour via class attributes instead of
-copying the implementation:
+`PropertyTableMixin` provides shared "Property / Value" table building blocks
+for component editors, docks and results panels. Subclasses tune behaviour
+via class attributes instead of reimplementing table plumbing:
 
     table_headers                 column labels for _property_table
     table_edit_triggers           edit triggers enabled on the table
@@ -394,7 +393,7 @@ class FocusAwareLineEdit(QLineEdit):
         return items
 
     def _get_symbols(self) -> list[str]:
-        """Backward-compatible helper returning list of insertable symbols."""
+        """Return list of insertable symbols."""
         return [insert_text for insert_text, _ in self._build_completion_items()]
 
     def _ensure_completer(self) -> None:

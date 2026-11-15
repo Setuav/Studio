@@ -85,7 +85,7 @@ class PropertiesPanel(QWidget):
         new_id = str(selection.get("id") or "")
         kind = str(selection.get("kind") or "")
 
-        # Gracefully handle legacy virtual selections by focusing the parent component on that tab
+        # Handle virtual selections by focusing the parent component on the corresponding tab
         if kind in ("transform", "envelope", "mass-properties"):
             comp_id = str(selection.get("component_id") or selection.get("id") or "")
             if comp_id:

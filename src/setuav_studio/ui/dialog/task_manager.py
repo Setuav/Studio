@@ -256,7 +256,4 @@ class TaskManagerDialog(QDialog):
             self._history_table.setItem(row, 4, detail_item)
 
 
-# Backward compatibility alias
-TaskMonitorDialog = TaskManagerDialog
-
-__all__ = ["TaskManagerDialog", "TaskMonitorDialog"]
+__all__ = ["TaskManagerDialog"]

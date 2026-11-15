@@ -76,7 +76,7 @@ class ProblemsBadge(QFrame):
         self.warning_count_label.setText(str(warnings))
 
     def text(self) -> str:
-        """Return formatted badge text containing count substring for compatibility with test assertions."""
+        """Return formatted badge text containing error and warning counts."""
         return f"🔴 {self.error_count_label.text()}  ⚠️ {self.warning_count_label.text()}"
 
     def click(self) -> None:
@@ -259,11 +259,6 @@ class StatusBarManager:
         if hasattr(self._api, "tasks"):
             self._connect_task_manager()
 
-    @property
-    def degraded_badge(self) -> ProblemsBadge:
-        """Alias for backward compatibility pointing to problems_badge."""
-        return self.problems_badge
-
     def _connect_task_manager(self) -> None:
         try:
             tm = getattr(self._api, "tasks", None)
@@ -364,7 +359,7 @@ class StatusBarManager:
 
         if proj is not None:
             # 1. Evaluate project design rules & constraints
-            results = self._checker.evaluate_project(proj.data)
+            results = self._checker.check_all(proj.data)
             for r in results:
                 if not r.passed and r.enabled:
                     sev = "error" if r.severity == "error" else "warning"

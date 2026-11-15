@@ -182,7 +182,7 @@ def format_component_type(
                     break
         return f"Instance of {source_name}" if source_name else "Instance"
 
-    ctype = str(component.get("type") or component.get("kind") or "")
+    ctype = str(component.get("type", ""))
     params = component.get("parameters") if isinstance(component.get("parameters"), dict) else {}
     geom = params.get("geometry") if isinstance(params.get("geometry"), dict) else {}
 
@@ -190,7 +190,7 @@ def format_component_type(
         cs_type = str(geom.get("type", "aileron")).capitalize()
         return f"Control Surface ({cs_type})"
     if ctype == "org.setuav.core:lifting-surface":
-        is_mirrored = geom.get("mirror") is True or component.get("mirror") is True
+        is_mirrored = geom.get("mirror") is True
         return "Lifting Surface (Bilateral)" if is_mirrored else "Lifting Surface"
 
     if api is not None:

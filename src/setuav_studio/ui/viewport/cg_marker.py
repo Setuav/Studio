@@ -105,11 +105,7 @@ def build_component_cg_primitives(
     cross_len = max(18.0, min(40.0, char_len * 0.05)) if char_len > 0.0 else 24.0
 
     # 4. Handle mirror symmetry
-    is_mirror = bool(
-        comp.get("parameters", {}).get("geometry", {}).get("mirror")
-        or comp.get("parameters", {}).get("geometry", {}).get("symmetric")
-        or comp.get("mirror")
-    )
+    is_mirror = bool(comp.get("parameters", {}).get("geometry", {}).get("mirror"))
 
     primitives: list[VisualPrimitive] = []
 

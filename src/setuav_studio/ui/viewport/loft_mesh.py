@@ -297,7 +297,7 @@ def build_section_ring_vertices(
     if component_id is None or section_index is None:
         return []
 
-    # 1. Primary path: query modern SceneObjects
+    # 1. Query SceneObjects
     if scene_objects:
         from .primitives import LoftPrimitive
         from .scene_object import is_scene_object_matching
@@ -326,7 +326,7 @@ def build_section_ring_vertices(
         if vertices:
             return vertices
 
-    # 2. Fallback path: query legacy GeometryData (e.g. for offline unit tests)
+    # 2. Query GeometryData
     if data is not None and data.lofts:
         if segment_index == 1:
             control_lofts, _ = _control_surface_lofts(data, component_id)

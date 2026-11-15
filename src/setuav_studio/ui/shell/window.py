@@ -114,7 +114,6 @@ class MainWindow(QMainWindow):
         self._progress_bar = self._status_manager.progress_bar
         self._command_palette_button = self._status_manager.command_palette_button
         self._log_button = self._status_manager.log_button
-        self._degraded_badge = self._status_manager.degraded_badge
 
         # Host bridge bindings
         self._host.bind_panel_handlers(

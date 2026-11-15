@@ -241,9 +241,9 @@ class ProjectController:
         disk_data: dict[str, Any],
         curr_data: dict[str, Any],
     ) -> None:
-        """Inspect all plugin/extension namespaces for unsaved analytical entries."""
-        disk_plugins = disk_data.get("plugins") or disk_data.get("extensions") or {}
-        curr_plugins = curr_data.get("plugins") or curr_data.get("extensions") or {}
+        """Inspect all extension namespaces for unsaved analytical entries."""
+        disk_plugins = disk_data.get("extensions") or {}
+        curr_plugins = curr_data.get("extensions") or {}
         if not isinstance(disk_plugins, dict) or not isinstance(curr_plugins, dict):
             return
         for namespace, curr_val in curr_plugins.items():

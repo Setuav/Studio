@@ -128,7 +128,7 @@ include = [
     "src/setuav_studio/ui/widget/button.py",
     "src/setuav_studio/ui/widget/spinbox.py",
     "src/setuav_studio/ui/widget/table.py",
-    "src/setuav_studio/ui/icons.py",
+    "src/setuav_studio/ui/style/icons.py",
     "src/setuav_studio/ui/dialog/about.py",
     "src/setuav_studio/ui/dialog/expression_dialog.py",
     "src/setuav_studio/ui/dialog/log.py",
@@ -174,7 +174,7 @@ include = [
     "src/setuav_studio/project/__init__.py",
     "src/setuav_studio/project/document.py",
     "src/setuav_studio/project/validation.py",
-    "src/setuav_studio/ui/theme.py",
+    "src/setuav_studio/ui/style/theme.py",
 ]
 pythonVersion = "3.12"
 typeCheckingMode = "basic"

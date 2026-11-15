@@ -27,38 +27,6 @@ if TYPE_CHECKING:
     from setuav_studio.api import StudioAPI
 
 
-class _SplitterCompatProxy:
-    """Compatibility shim for legacy tests inspecting splitter properties."""
-
-    def __init__(self, panel: ResultPanel) -> None:
-        self._panel = panel
-        self._orientation = Qt.Orientation.Horizontal
-        self._sizes = [5000, 5000]
-
-    def count(self) -> int:
-        return len(self._panel._panes)
-
-    def orientation(self) -> Qt.Orientation:
-        return self._orientation
-
-    def setOrientation(self, orientation: Qt.Orientation) -> None:
-        self._orientation = orientation
-        if orientation == Qt.Orientation.Vertical:
-            self._panel.tile_vertically()
-        else:
-            self._panel.tile_horizontally()
-
-    def setSizes(self, sizes: list[int]) -> None:
-        self._sizes = list(sizes)
-
-    def sizes(self) -> list[int]:
-        count = len(self._panel._panes)
-        if count == 0:
-            return []
-        share = 10000 // count
-        return [share] * count
-
-
 class ResultDockWidget(QDockWidget):
     """Clean, native Qt dock widget for analysis charts and tables."""
 
@@ -141,24 +109,6 @@ class ResultPanel(QWidget):
     def open_pane_keys(self) -> tuple[str, ...]:
         """Return tuple of currently open pane identifier keys."""
         return tuple(self._panes.keys())
-
-    @property
-    def _splitter_container(self) -> QWidget:
-        return self._dock_container
-
-    @property
-    def _splitter(self) -> _SplitterCompatProxy:
-        if not hasattr(self, "_splitter_proxy"):
-            self._splitter_proxy = _SplitterCompatProxy(self)
-        return self._splitter_proxy
-
-    @property
-    def _orientation_btn(self) -> QPushButton:
-        return self._tile_h_btn
-
-    @property
-    def _equalize_btn(self) -> QPushButton:
-        return self._tile_h_btn
 
     def show_plot(
         self,
@@ -397,12 +347,6 @@ class ResultPanel(QWidget):
     def equalize_sizes(self) -> None:
         """Distribute available space equally between open panes."""
         self.tile_horizontally()
-
-    def _toggle_orientation(self) -> None:
-        if self._splitter.orientation() == Qt.Orientation.Horizontal:
-            self._splitter.setOrientation(Qt.Orientation.Vertical)
-        else:
-            self._splitter.setOrientation(Qt.Orientation.Horizontal)
 
     def get_chart_panel(self, result_id: str, plot_id: str) -> AnalysisChartPanel | None:
         """Return the active AnalysisChartPanel instance for a given plot if open."""

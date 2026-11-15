@@ -11,7 +11,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
-    QPushButton,
     QScrollArea,
     QSizePolicy,
     QTableWidget,
@@ -20,7 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.api import StudioAPI
-from setuav_studio.ui.style.icons import get_icon, set_label_icon
+from setuav_studio.ui.style.icons import set_label_icon
 from setuav_studio.ui.widget.spinbox import NumericSpinBox, set_table_spinbox
 from setuav_studio.ui.widget.table import PropertyTableMixin
 
@@ -76,13 +75,6 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
         self._create_cg_section()
         self._create_inertia_section()
         self._content_layout.addStretch(1)
-
-        # Compatibility handle for callers of the old explicit-Apply editor.
-        # It is intentionally not visible; edits are committed automatically.
-        self.apply_button = QPushButton(self)
-        self.apply_button.setIcon(get_icon("fa6s.check"))
-        self.apply_button.setVisible(False)
-        self.apply_button.clicked.connect(self._commit_pending)
 
         if self._component is not None:
             self._load_component(self._component)
