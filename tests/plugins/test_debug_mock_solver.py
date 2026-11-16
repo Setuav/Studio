@@ -75,20 +75,16 @@ class TestDebugMockSolver(unittest.TestCase):
         self.assertIn("columns_generated", result.summary)
         self.assertEqual(result.summary["columns_generated"].value, 6)
 
-    def test_mock_solver_minimum_four_columns_enforced(self) -> None:
-        """Verify solver enforces at least 4 columns even if fewer are requested."""
+    def test_mock_solver_rejects_out_of_range_parameters(self) -> None:
+        """Verify parameters outside their declared range are rejected."""
         config = SolverConfig(
             solver_id=SOLVER_ID_MOCK_GENERATOR,
             name="Min Cols Run",
             parameters={"duration": 0.0, "rows": 10, "columns": 2},
         )
         solver = MockGeneratorSolver(config)
-        result = solver.run()
-
-        self.assertEqual(result.status, SolverStatus.COMPLETED)
-        tbl = result.tables["mock_data"]
-        self.assertGreaterEqual(len(tbl.columns), 4)
-        self.assertEqual(len(result.plots), 2)
+        with self.assertRaisesRegex(ValueError, "'columns' = 2 is outside"):
+            solver.run()
 
     def test_mock_solver_odd_columns_pairwise_wrapping(self) -> None:
         """Verify odd number of columns pairs the remaining column with column 0."""

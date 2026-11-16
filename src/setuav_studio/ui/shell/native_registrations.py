@@ -334,10 +334,7 @@ def register_native_kind_editors(api: StudioAPI) -> None:
         "mass-properties": lambda selection: MassPropertiesEditor(api, selection),
         "parameter": lambda selection: ParameterPropertyEditor(api, selection),
         "constraint": lambda selection: ConstraintPropertyEditor(api, selection),
-        "solver_config": lambda selection: SolverConfigPropertyEditor(api, selection),
-        "solver_result": lambda selection: SolverConfigPropertyEditor(api, selection),
         "analysis_config": lambda selection: SolverConfigPropertyEditor(api, selection),
-        "analysis_result": lambda selection: SolverConfigPropertyEditor(api, selection),
         "analysis_plot": lambda selection: AnalysisPlotPropertyEditor(api, selection),
         "analysis_table": lambda selection: AnalysisTablePropertyEditor(api, selection),
     }

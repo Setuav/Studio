@@ -168,9 +168,9 @@ class ProjectExplorerOperations:
             self.delete_parameter_item(element)
         elif kind == "constraint":
             self.delete_constraint_item(element)
-        elif kind in ("analysis_config", "solver_config"):
+        elif kind == "analysis_config":
             self.delete_analysis_config_item(element)
-        elif kind in ("analysis_table", "solver_table", "analysis_plot", "solver_plot"):
+        elif kind in ("analysis_table", "analysis_plot"):
             return
         else:
             self.delete_component_item(element)
@@ -271,10 +271,8 @@ class ProjectExplorerOperations:
         self._api.show_status(f'Deleted "{element_name}"', "success", 3000)
 
     def delete_analysis_config_item(self, element: dict[str, Any]) -> None:
-        config_id = str(element.get("config_id") or element.get("id") or "")
+        config_id = str(element["config_id"])
         name = str(element.get("name") or "Analysis")
-        if not config_id:
-            return
 
         project = self._api.project
         if project is None:
@@ -302,7 +300,7 @@ class ProjectExplorerOperations:
         self._api.show_status(f"Deleted analysis '{name}'", "info", 3000)
 
     def rename_analysis_config_item(self, item: QTreeWidgetItem, element: dict[str, Any]) -> None:
-        config_id = str(element.get("config_id") or element.get("id") or "")
+        config_id = str(element["config_id"])
         old_name = str(element.get("name") or "Analysis").strip()
         new_name = item.text(0).strip()
         if not self.can_edit_project():
@@ -337,7 +335,7 @@ class ProjectExplorerOperations:
         if element is None:
             return
 
-        if element.get("kind") in ("analysis_config", "solver_config"):
+        if element.get("kind") == "analysis_config":
             self.rename_analysis_config_item(item, element)
             return
 

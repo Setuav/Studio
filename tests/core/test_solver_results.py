@@ -47,7 +47,6 @@ def test_solver_config_serialization_roundtrip() -> None:
         solver_id="org.setuav.vlm",
         name="VLM Run Alpha",
         parameters={"alpha": 3.5, "velocity": 22.0},
-        options={"mesh_density": "fine", "symmetry": True},
     )
     raw = config.to_dict()
     assert raw["solver_id"] == "org.setuav.vlm"
@@ -58,7 +57,6 @@ def test_solver_config_serialization_roundtrip() -> None:
     assert restored.solver_id == config.solver_id
     assert restored.name == "VLM Run Alpha"
     assert restored.parameters == {"alpha": 3.5, "velocity": 22.0}
-    assert restored.options == {"mesh_density": "fine", "symmetry": True}
 
 
 # ==============================================================================
@@ -266,8 +264,7 @@ def test_solver_config_property_editor(tmp_path: Path) -> None:
     studio_api.add_solver_config(config)
 
     selection = {
-        "kind": "solver_config",
-        "id": config.config_id,
+        "kind": "analysis_config",
         "config_id": config.config_id,
     }
     editor = SolverConfigPropertyEditor(studio_api, selection)

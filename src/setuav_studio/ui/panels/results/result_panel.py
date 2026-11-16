@@ -515,20 +515,20 @@ class ResultPanel(QWidget):
         if not result:
             return
 
-        if kind in ("analysis_plot", "solver_plot"):
+        if kind == "analysis_plot":
             plot_id = str(selection.get("plot_id", ""))
             if plot_id in result.plots:
                 plot = result.plots[plot_id]
                 table = result.tables.get(plot.table_id)
                 if table:
                     self.show_plot(result, plot, table, mode="replace")
-        elif kind in ("analysis_table", "solver_table"):
+        elif kind == "analysis_table":
             table_id = str(selection.get("table_id", ""))
             if table_id in result.tables:
                 self.show_table(result, result.tables[table_id], mode="replace")
-        elif kind in ("analysis_plots_group", "solver_plots_group"):
+        elif kind == "analysis_plots_group":
             self._open_plots_group(result, mode="replace")
-        elif kind in ("analysis_tables_group", "solver_tables_group"):
+        elif kind == "analysis_tables_group":
             self._open_tables_group(result, mode="replace")
 
     def _on_add_to_view(self, payload: Any) -> None:
@@ -540,20 +540,20 @@ class ResultPanel(QWidget):
         result = self._api.get_solver_result(res_id)
         if not result:
             return
-        if kind in ("analysis_plot", "solver_plot"):
+        if kind == "analysis_plot":
             plot_id = str(payload.get("plot_id", ""))
             if plot_id in result.plots:
                 plot = result.plots[plot_id]
                 table = result.tables.get(plot.table_id)
                 if table:
                     self.show_plot(result, plot, table, mode="add")
-        elif kind in ("analysis_table", "solver_table"):
+        elif kind == "analysis_table":
             table_id = str(payload.get("table_id", ""))
             if table_id in result.tables:
                 self.show_table(result, result.tables[table_id], mode="add")
-        elif kind in ("analysis_plots_group", "solver_plots_group"):
+        elif kind == "analysis_plots_group":
             self._open_plots_group(result, mode="add")
-        elif kind in ("analysis_tables_group", "solver_tables_group"):
+        elif kind == "analysis_tables_group":
             self._open_tables_group(result, mode="add")
 
     def _on_project_changed(self, _project: Any) -> None:

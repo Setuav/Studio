@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import math
 import time
-from typing import Any
+from typing import Any, ClassVar
 
+from setuav_studio.api import ParameterField
 from setuav_studio.solver.base import AbstractSolver, SolverConfig, SolverStatus
 from setuav_studio.solver.results import (
     PlotDefinition,
@@ -256,14 +257,56 @@ def resolve_channel_definitions(col_count: int) -> list[dict[str, Any]]:
 class MockGeneratorSolver(AbstractSolver):
     """Solver generating configurable multi-unit engineering data for testing and debug."""
 
+    PARAMETER_FIELDS: ClassVar[list[ParameterField]] = [
+        ParameterField(
+            key="duration",
+            label="Duration",
+            unit="s",
+            field_type=float,
+            default=3.0,
+            min_value=0.0,
+            max_value=600.0,
+            step=0.5,
+            decimals=1,
+        ),
+        ParameterField(
+            key="rows",
+            label="Rows",
+            field_type=int,
+            default=50,
+            min_value=1,
+            max_value=100000,
+        ),
+        ParameterField(
+            key="columns",
+            label="Columns",
+            field_type=int,
+            default=4,
+            min_value=4,
+            max_value=64,
+        ),
+    ]
+
     def __init__(self, config: SolverConfig) -> None:
         super().__init__(config)
 
+    def _check_parameter_ranges(self) -> None:
+        for field in self.PARAMETER_FIELDS:
+            value = self.config.parameters[field.key]
+            if (field.min_value is not None and value < field.min_value) or (
+                field.max_value is not None and value > field.max_value
+            ):
+                raise ValueError(
+                    f"Mock analysis parameter '{field.key}' = {value} is outside "
+                    f"[{field.min_value}, {field.max_value}]."
+                )
+
     def run(self) -> SolverResult:
         """Execute mock generation simulating long-running analysis and pairwise plotting."""
-        duration = max(0.0, float(self.config.parameters.get("duration", 3.0)))
-        rows = max(1, int(self.config.parameters.get("rows", 50)))
-        columns = max(4, int(self.config.parameters.get("columns", 4)))
+        self._check_parameter_ranges()
+        duration = float(self.config.parameters["duration"])
+        rows = int(self.config.parameters["rows"])
+        columns = int(self.config.parameters["columns"])
 
         # 1. Initial cancellation check
         if self.is_cancel_requested or (self.token is not None and self.token.is_cancelled):

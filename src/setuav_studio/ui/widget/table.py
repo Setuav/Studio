@@ -22,7 +22,7 @@ from __future__ import annotations
 import contextlib
 import weakref
 from collections.abc import Callable, Sequence
-from typing import Any, ClassVar, Protocol
+from typing import TYPE_CHECKING, Any, ClassVar, Protocol
 
 from PySide6.QtCore import QEvent, QObject, Qt, QTimer, Signal
 from PySide6.QtGui import (
@@ -47,6 +47,9 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
     QWidget,
 )
+
+if TYPE_CHECKING:
+    from setuav_studio.api import ParameterField
 
 
 class ContentFitTableWidget(QTableWidget):
@@ -1160,64 +1163,10 @@ class PropertyTableMixin:
             return cell
         return None
 
-    @staticmethod
-    def _normalize_parameter_fields(fields: Any) -> list[Any]:
-        from setuav_studio.api import ParameterField
-
-        normalized: list[ParameterField] = []
-        if isinstance(fields, dict):
-            for k, spec in fields.items():
-                if isinstance(spec, ParameterField):
-                    normalized.append(spec)
-                elif isinstance(spec, dict):
-                    normalized.append(
-                        ParameterField(
-                            key=k,
-                            label=spec.get("label", k.replace("_", " ").title()),
-                            unit=spec.get("unit", ""),
-                            quantity=spec.get("quantity"),
-                            field_type=spec.get("type", spec.get("field_type", float)),
-                            default=spec.get("default", 0.0),
-                            min_value=spec.get("min", spec.get("min_value")),
-                            max_value=spec.get("max", spec.get("max_value")),
-                            step=spec.get("step"),
-                            decimals=spec.get("decimals", 2),
-                            tooltip=spec.get("tooltip", spec.get("description", "")),
-                            options=spec.get("options", spec.get("choices")),
-                            allow_formula=spec.get("allow_formula", True),
-                            readonly=spec.get("readonly", False),
-                        )
-                    )
-        elif isinstance(fields, (list, tuple)):
-            for item in fields:
-                if isinstance(item, ParameterField):
-                    normalized.append(item)
-                elif isinstance(item, dict):
-                    k = item.get("key", "")
-                    normalized.append(
-                        ParameterField(
-                            key=k,
-                            label=item.get("label", k.replace("_", " ").title()),
-                            unit=item.get("unit", ""),
-                            quantity=item.get("quantity"),
-                            field_type=item.get("type", item.get("field_type", float)),
-                            default=item.get("default", 0.0),
-                            min_value=item.get("min", item.get("min_value")),
-                            max_value=item.get("max", item.get("max_value")),
-                            step=item.get("step"),
-                            decimals=item.get("decimals", 2),
-                            tooltip=item.get("tooltip", item.get("description", "")),
-                            options=item.get("options", item.get("choices")),
-                            allow_formula=item.get("allow_formula", True),
-                            readonly=item.get("readonly", False),
-                        )
-                    )
-        return normalized
-
     def _bind_single_parametric_field(
         self,
         table: QTableWidget,
-        f: Any,
+        f: ParameterField,
         target_data: dict[str, Any],
         on_changed: Callable[[str, Any], None] | None,
         resolved_api: Any,
@@ -1259,11 +1208,7 @@ class PropertyTableMixin:
             unit_str = f" {f.unit}" if f.unit else ""
             disp_str = f"{val}{unit_str}" if isinstance(val, (int, float, str)) else str(val)
             self._set_property_value(table, f.key, disp_str, editable=False)
-        elif (
-            getattr(f, "widget_type", None) == "color"
-            or getattr(f, "field_type", None) == "color"
-            or (f.key.lower().endswith("color") and not f.options)
-        ):
+        elif f.widget_type == "color":
             self._set_property_color(
                 table,
                 f.key,
@@ -1297,7 +1242,7 @@ class PropertyTableMixin:
         self,
         table: QTableWidget,
         target_data: dict[str, Any],
-        fields: Any,
+        fields: Sequence[ParameterField],
         *,
         on_changed: Callable[[str, Any], None] | None = None,
         api: Any | None = None,
@@ -1308,12 +1253,11 @@ class PropertyTableMixin:
         Handles UI generation, two-way numeric and formula data binding,
         units, and transparent '_expressions' persistence automatically.
         """
-        normalized = self._normalize_parameter_fields(fields)
-        if table.rowCount() != len(normalized):
-            self._configure_property_table(table, [(f.key, f.label) for f in normalized])
+        if table.rowCount() != len(fields):
+            self._configure_property_table(table, [(f.key, f.label) for f in fields])
 
         resolved_api = api or getattr(self, "_api", None)
-        for f in normalized:
+        for f in fields:
             self._bind_single_parametric_field(
                 table,
                 f,

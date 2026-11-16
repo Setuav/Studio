@@ -484,7 +484,7 @@ class AnalysisTablePanel(QWidget):
     def _on_selection_changed(self, selection: Any | None) -> None:
         if not isinstance(selection, dict):
             return
-        if selection.get("kind") in ("analysis_table", "solver_table"):
+        if selection.get("kind") == "analysis_table":
             res_id = str(selection.get("result_id", ""))
             table_id = str(selection.get("table_id", ""))
             result = self._api.get_solver_result(res_id)

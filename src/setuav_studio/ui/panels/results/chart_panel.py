@@ -351,7 +351,7 @@ class AnalysisChartPanel(QWidget):
     def _on_selection_changed(self, selection: Any | None) -> None:
         if not isinstance(selection, dict):
             return
-        if selection.get("kind") in ("analysis_plot", "solver_plot"):
+        if selection.get("kind") == "analysis_plot":
             res_id = str(selection.get("result_id", ""))
             plot_id = str(selection.get("plot_id", ""))
             result = self._api.get_solver_result(res_id)

@@ -73,15 +73,15 @@ class ProjectExplorerContextMenu:
             self.open_analysis_tables_group_menu(item, element, position)
             return
 
-        if element and element.get("kind") in ("analysis_config", "solver_config"):
+        if element and element.get("kind") == "analysis_config":
             self.open_analysis_config_menu(item, element, position, can_edit)
             return
 
-        if element and element.get("kind") in ("analysis_table", "solver_table"):
+        if element and element.get("kind") == "analysis_table":
             self.open_analysis_table_menu(item, element, position)
             return
 
-        if element and element.get("kind") in ("analysis_plot", "solver_plot"):
+        if element and element.get("kind") == "analysis_plot":
             self.open_analysis_plot_menu(item, element, position)
             return
 
