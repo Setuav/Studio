@@ -5,11 +5,10 @@ from .validation import (
     _items_by_id,
     apply_runtime_validation,
 )
-from .window import MainWindow, StudioShell
+from .window import MainWindow
 
 __all__ = [
     "MainWindow",
-    "StudioShell",
     "_append_entity_changes",
     "_items_by_id",
     "apply_runtime_validation",

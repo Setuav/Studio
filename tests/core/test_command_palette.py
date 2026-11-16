@@ -21,7 +21,7 @@ class TestCommandPalette(unittest.TestCase):
     def setUp(self) -> None:
         self.api = StudioAPI()
         self.window = MainWindow(self.api)
-        self.am = self.window._action_manager
+        self.am = self.window.action_manager
 
     def tearDown(self) -> None:
         self.window.close()

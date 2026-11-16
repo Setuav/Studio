@@ -106,7 +106,7 @@ class LayoutManager:
                 else:
                     dock.hide()
 
-    def schedule_layout_save(self) -> None:
+    def schedule_layout_save(self, *_signal_args: object) -> None:
         """Schedule saving the current dock layout to persistent settings."""
         if (
             not self.layout_persistence_enabled

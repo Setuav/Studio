@@ -367,10 +367,10 @@ class TestFlightPerformance(unittest.TestCase):
         pm = PluginManager(api)
         pm.activate(ElectricalPropulsionPlugin())
         pm.activate(FlightPerformancePlugin())
-        win.restore_window_layout()
+        win.layout_manager.restore_window_layout()
 
         doc = open_project(self._temporary_project_copy())
-        win.open_project(doc.location)
+        win.project_controller.open_project(doc.location)
         self._drain_events()
 
         controls = self._dock_content(win._panels["flight_performance.controls_dock"][1])
@@ -393,7 +393,7 @@ class TestFlightPerformance(unittest.TestCase):
         self.assertGreater(len(charts.chart_electrical.series()), 0)  # type: ignore
 
         # Check status label
-        self.assertIn("Performance complete", win._status_manager.status_label.text())
+        self.assertIn("Performance complete", win.status_manager.status_label.text())
 
         # Check project extension storage
         assert api.project is not None

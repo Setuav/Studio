@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -42,14 +41,7 @@ class ProjectController:
         self._window = window
         self._api = api
         self._host = api._host
-
-    @property
-    def project(self) -> ProjectDocument | None:
-        return self._window._project
-
-    @project.setter
-    def project(self, value: ProjectDocument | None) -> None:
-        self._window._project = value
+        self.project: ProjectDocument | None = None
 
     def new_project(self) -> bool:
         path, _ = QFileDialog.getSaveFileName(
@@ -58,7 +50,7 @@ class ProjectController:
             "untitled.suav",
             "Setuav Archive (*.suav)",
         )
-        if not path or not self._window._confirm_project_close():
+        if not path or not self.confirm_project_close():
             return False
         if not Path(path).suffix:
             path = f"{path}.suav"
@@ -69,7 +61,7 @@ class ProjectController:
         except ProjectSaveError as exc:
             QMessageBox.critical(self._window, "Cannot Create Project", str(exc))
             return False
-        return self._window._activate_project(doc, confirm_close=False)
+        return self.activate_project(doc, confirm_close=False)
 
     def open_project_dialog(self) -> None:
         file_filter = (
@@ -85,12 +77,12 @@ class ProjectController:
             file_filter,
         )
         if path:
-            self._window.open_project(path)
+            self.open_project(path)
 
     def open_project_folder(self) -> None:
         path = QFileDialog.getExistingDirectory(self._window, "Open Setuav Project Folder")
         if path:
-            self._window.open_project(path)
+            self.open_project(path)
 
     def open_project(self, path: str) -> bool:
         try:
@@ -98,7 +90,7 @@ class ProjectController:
         except ProjectOpenError as exc:
             QMessageBox.critical(self._window, "Cannot Open Project", str(exc))
             return False
-        return self._window._activate_project(doc)
+        return self.activate_project(doc)
 
     def new_untitled_project(self) -> bool:
         doc = create_project("untitled.suav")
@@ -108,9 +100,9 @@ class ProjectController:
         return self.activate_project(doc, confirm_close=False)
 
     def open_last_project(self) -> bool:
-        recent = self._window._recent_projects()
+        recent = self.recent_projects()
         if recent:
-            return bool(self._window.open_project(recent[0]))
+            return bool(self.open_project(recent[0]))
         return False
 
     def activate_project(self, project: ProjectDocument, *, confirm_close: bool = True) -> bool:
@@ -129,7 +121,7 @@ class ProjectController:
             if decision == "cancel":
                 return False
 
-        if confirm_close and not self._window._confirm_project_close():
+        if confirm_close and not self.confirm_project_close():
             return False
 
         old_project = self.project
@@ -140,11 +132,10 @@ class ProjectController:
         project.plugin_issues = self._host.check_project_requirements(project.data)
         self._host.set_project(project)
         if not project.untitled:
-            self._window._add_recent_project(project.location)
-        self._window._update_window_title()
-        self._window._update_actions()
+            self.add_recent_project(project.location)
+        self.update_window_title()
+        self._window.action_manager.update_actions()
 
-        status_mgr = self._window._status_manager
         if project.read_only:
             self._api.show_status(
                 f"Project opened read-only: {len(validation_issues)} validation issue(s)",
@@ -152,8 +143,7 @@ class ProjectController:
                 8000,
             )
         project_name = str(project.data.get("name") or project.location.name or project.path.name)
-        if status_mgr:
-            status_mgr.evaluate_problems(project)
+        self._window.status_manager.evaluate_problems(project)
         if self._api.expression_diagnostics:
             self._api._show_expression_diagnostics()
         elif project.degraded:
@@ -172,15 +162,15 @@ class ProjectController:
         if self.project is None:
             return False
         if self.project.untitled:
-            return self._window.save_project_as()
+            return self.save_project_as()
         try:
             save_project(self.project)
         except ProjectSaveError as exc:
             QMessageBox.critical(self._window, "Cannot Save Project", str(exc))
             return False
         self._host.mark_project_saved()
-        self._window._add_recent_project(self.project.location)
-        self._window._update_window_title()
+        self.add_recent_project(self.project.location)
+        self.update_window_title()
         self._api.show_status("Project saved", "success", 3000)
         return True
 
@@ -203,8 +193,8 @@ class ProjectController:
             return False
         self.project.untitled = False
         self._host.mark_project_saved()
-        self._window._add_recent_project(self.project.location)
-        self._window._update_window_title()
+        self.add_recent_project(self.project.location)
+        self.update_window_title()
         return True
 
     def collect_unsaved_changes(self) -> list[str]:
@@ -212,27 +202,23 @@ class ProjectController:
             return []
 
         changes: list[str] = []
-        try:
-            disk_doc = None
-            if self.project.location and self.project.location.exists():
-                with suppress(Exception):
-                    disk_doc = open_project(self.project.location)
+        disk_data: dict[str, Any] = {}
+        if self.project.location.exists():
+            try:
+                disk_data = open_project(self.project.location).data
+            except ProjectOpenError as exc:
+                logger.warning("Saved project could not be read for comparison: %s", exc)
+                return changes
 
-            disk_data = disk_doc.data if disk_doc else {}
-            curr_data = self.project.data
-
-            _append_entity_changes(
-                changes,
-                _items_by_id(disk_data, "components"),
-                _items_by_id(curr_data, "components"),
-                "Component",
-                include_deleted=True,
-            )
-            self.append_unsaved_plugin_entries(changes, disk_data, curr_data)
-
-        except Exception as exc:
-            logger.debug("Failed to collect detailed unsaved changes: %s", exc)
-
+        curr_data = self.project.data
+        _append_entity_changes(
+            changes,
+            _items_by_id(disk_data, "components"),
+            _items_by_id(curr_data, "components"),
+            "Component",
+            include_deleted=True,
+        )
+        self.append_unsaved_plugin_entries(changes, disk_data, curr_data)
         return changes
 
     @staticmethod
@@ -269,7 +255,7 @@ class ProjectController:
         if self.project is None or not self.project.modified:
             return True
 
-        unsaved_items = self._window._collect_unsaved_changes()
+        unsaved_items = self.collect_unsaved_changes()
         proj_name = str(
             self.project.data.get("name") or self.project.location.stem or "Current Project"
         )
@@ -299,15 +285,11 @@ class ProjectController:
 
         answer = msg_box.exec()
         if answer == QMessageBox.StandardButton.Save:
-            return self._window.save_project()
+            return self.save_project()
         return answer == QMessageBox.StandardButton.Discard
 
     def update_window_title(self) -> None:
-        try:
-            if not shiboken6.isValid(self._window):
-                return
-        except (RuntimeError, Exception) as exc:
-            logger.debug("Window title update skipped (widget invalid): %s", exc)
+        if not shiboken6.isValid(self._window):
             return
         if self.project is None:
             self._window.setWindowTitle("Setuav Studio")
@@ -328,18 +310,18 @@ class ProjectController:
 
     def add_recent_project(self, path: Path) -> None:
         path_text = str(path)
-        recent = [item for item in self._window._recent_projects() if item != path_text]
+        recent = [item for item in self.recent_projects() if item != path_text]
         recent.insert(0, path_text)
         limit = StudioSettings.load().recent_project_limit
         QSettings().setValue("recent_projects", recent[:limit])
-        self._window._update_recent_menu()
+        self._window.action_manager.update_recent_menu()
 
     def clear_recent_projects(self) -> None:
         QSettings().remove("recent_projects")
-        self._window._update_recent_menu()
+        self._window.action_manager.update_recent_menu()
 
     def trim_recent_projects(self, limit: int) -> None:
-        QSettings().setValue("recent_projects", self._window._recent_projects()[:limit])
+        QSettings().setValue("recent_projects", self.recent_projects()[:limit])
 
 
 __all__ = ["ProjectController"]

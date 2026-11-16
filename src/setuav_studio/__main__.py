@@ -139,7 +139,7 @@ def main() -> int:
     window = MainWindow(api)
 
     plugin_manager = PluginManager(api)
-    window.bind_plugin_manager(plugin_manager)
+    window.action_manager.bind_plugin_manager(plugin_manager)
     if arguments.debug:
         from plugins.debug import PLUGIN as debug_plugin
 
@@ -161,20 +161,20 @@ def main() -> int:
     # Restore the top-level geometry before showing, but defer dock layout
     # restoration until the platform has created and exposed the native
     # window. VTK and QOpenGLWidget surfaces are unreliable before that point.
-    window.restore_window_geometry()
+    window.layout_manager.restore_window_geometry()
     window.show()
 
     def finish_startup() -> None:
-        window.restore_layout()
+        window.layout_manager.restore_dock_layout()
         if arguments.smoke_test:
             QTimer.singleShot(100, app.quit)
         elif arguments.project:
-            window.open_project(arguments.project)
+            window.project_controller.open_project(arguments.project)
         elif settings.reopen_last_project:
-            window.open_last_project()
+            window.project_controller.open_last_project()
 
-        if not arguments.smoke_test and window.project is None:
-            window.new_untitled_project()
+        if not arguments.smoke_test and window.project_controller.project is None:
+            window.project_controller.new_untitled_project()
 
     QTimer.singleShot(0, finish_startup)
 

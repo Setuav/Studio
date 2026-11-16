@@ -81,7 +81,7 @@ class ToolbarManager:
             self.toolbar_actions[contribution.id] = action
             self.owned_toolbar_actions.add(contribution.id)
         elif contribution.command is not None:
-            action = self._window._action_manager.command_actions.get(contribution.command or "")
+            action = self._window.action_manager.command_actions.get(contribution.command or "")
             if action is not None:
                 self.toolbar_actions[contribution.id] = action
         else:
@@ -168,11 +168,13 @@ class ToolbarManager:
             action.setEnabled(enabled and menu_has_enabled_item)
             if contribution.checked_when is not None and action.isCheckable():
                 try:
-                    action.blockSignals(True)
-                    action.setChecked(bool(contribution.checked_when()))
-                    action.blockSignals(False)
+                    checked = bool(contribution.checked_when())
                 except Exception:
-                    pass
+                    logger.exception("Could not evaluate toolbar check state: %s", contribution_id)
+                    continue
+                action.blockSignals(True)
+                action.setChecked(checked)
+                action.blockSignals(False)
 
     def rebuild_toolbar_tools(self) -> None:
         grouped_actions, group_order = self._toolbar_actions_by_group()
@@ -188,7 +190,7 @@ class ToolbarManager:
             self.toolbar_contributions.values(),
             key=lambda item: (item.order, item.group, item.title.casefold()),
         )
-        command_actions = self._window._action_manager.command_actions
+        command_actions = self._window.action_manager.command_actions
 
         for contribution in contributions:
             action = self.toolbar_actions.get(contribution.id)

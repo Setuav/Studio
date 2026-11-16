@@ -93,7 +93,7 @@ class TestElectricalPropulsion(unittest.TestCase):
         manager.activate(plugin)
 
         self.assertIn("org.setuav.core:motor", api._component_editors)
-        self.assertIn("tools/electrical propulsion", window._action_manager.menus)
+        self.assertIn("tools/electrical propulsion", window.action_manager.menus)
         self.assertIn("studio:project-explorer", window._panels)
         self.assertIn("studio:properties", window._panels)
 
@@ -101,7 +101,7 @@ class TestElectricalPropulsion(unittest.TestCase):
 
         self.assertNotIn("org.setuav.core:motor", api._component_editors)
         self.assertNotIn("org.setuav.core:motor", api._component_icons)
-        self.assertNotIn("tools/electrical propulsion", window._action_manager.menus)
+        self.assertNotIn("tools/electrical propulsion", window.action_manager.menus)
         self.assertIn("studio:project-explorer", window._panels)
         self.assertIn("studio:properties", window._panels)
 

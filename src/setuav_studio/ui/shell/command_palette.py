@@ -256,7 +256,7 @@ class CommandPaletteDialog(QDialog):
         commands: list[CommandItem],
         seen_titles: set[str],
     ) -> None:
-        for group, tb in self._window._toolbar_manager.toolset_bars.items():
+        for group, tb in self._window.toolbar_manager.toolset_bars.items():
             group_title = group.replace("-", " ").title()
             for action in tb.actions():
                 if not action.isVisible() or not action.isEnabled():

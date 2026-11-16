@@ -49,26 +49,26 @@ class TestWorkbenchAndTools(unittest.TestCase):
         get_qapp().processEvents()
 
         api.show_status("analysis complete", "success", 0)
-        self.assertEqual(win._status_manager.status_label.text(), "analysis complete")
+        self.assertEqual(win.status_manager.status_label.text(), "analysis complete")
         self.assertEqual(
-            win._status_manager.status_label.palette().color(QPalette.ColorRole.WindowText).name(),
+            win.status_manager.status_label.palette().color(QPalette.ColorRole.WindowText).name(),
             status_color("success"),
         )
 
         api.show_status("invalid input", "error", 0)
-        self.assertEqual(win._status_manager.status_label.text(), "invalid input")
+        self.assertEqual(win.status_manager.status_label.text(), "invalid input")
         self.assertEqual(
-            win._status_manager.status_label.palette().color(QPalette.ColorRole.WindowText).name(),
+            win.status_manager.status_label.palette().color(QPalette.ColorRole.WindowText).name(),
             status_color("error"),
         )
 
         api.clear_status()
-        self.assertEqual(win._status_manager.status_label.text(), "")
+        self.assertEqual(win.status_manager.status_label.text(), "")
 
         api.show_status("will clear", "warning", 20)
         QTimer.singleShot(60, get_qapp().quit)
         get_qapp().exec()
-        self.assertEqual(win._status_manager.status_label.text(), "")
+        self.assertEqual(win.status_manager.status_label.text(), "")
 
     def test_progress_bar_shows_and_hides(self) -> None:
         from PySide6.QtWidgets import QProgressBar
@@ -77,7 +77,7 @@ class TestWorkbenchAndTools(unittest.TestCase):
         win = MainWindow(api)
         get_qapp().processEvents()
 
-        bar = win._status_manager.progress_bar
+        bar = win.status_manager.progress_bar
         self.assertIsInstance(bar, QProgressBar)
         self.assertTrue(bar.isHidden())
 

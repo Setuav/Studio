@@ -47,11 +47,11 @@ class ActionManager:
 
         self.new_project_action = self.file_menu.addAction(get_icon("file_new"), "New Project…")
         self.new_project_action.setShortcut(QKeySequence.StandardKey.New)
-        self.new_project_action.triggered.connect(self._window._new_project)
+        self.new_project_action.triggered.connect(self._window.project_controller.new_project)
 
         self.open_action = self.file_menu.addAction(get_icon("folder_open"), "Open Project…")
         self.open_action.setShortcut(QKeySequence.StandardKey.Open)
-        self.open_action.triggered.connect(self._window._open_project_dialog)
+        self.open_action.triggered.connect(self._window.project_controller.open_project_dialog)
 
         self.open_project_action = self.open_action
         self.open_folder_action = self.open_action
@@ -59,7 +59,9 @@ class ActionManager:
         self.open_directory_action = self.file_menu.addAction(
             get_icon("project_folder"), "Open Project Folder…"
         )
-        self.open_directory_action.triggered.connect(self._window._open_project_folder)
+        self.open_directory_action.triggered.connect(
+            self._window.project_controller.open_project_folder
+        )
 
         self.recent_menu = QMenu("Open Recent", self.file_menu)
         self.recent_menu.setIcon(get_icon("project_folder"))
@@ -69,11 +71,11 @@ class ActionManager:
 
         self.save_action = self.file_menu.addAction(get_icon("save"), "Save")
         self.save_action.setShortcut(QKeySequence.StandardKey.Save)
-        self.save_action.triggered.connect(self._window.save_project)
+        self.save_action.triggered.connect(self._window.project_controller.save_project)
 
         self.save_as_action = self.file_menu.addAction(get_icon("save_as"), "Save As…")
         self.save_as_action.setShortcut(QKeySequence.StandardKey.SaveAs)
-        self.save_as_action.triggered.connect(self._window.save_project_as)
+        self.save_as_action.triggered.connect(self._window.project_controller.save_project_as)
 
         self.file_menu.addSeparator()
         self.exit_action = self.file_menu.addAction(get_icon("exit"), "Exit")
@@ -191,14 +193,14 @@ class ActionManager:
         app = QApplication.instance()
         if isinstance(app, QApplication):
             apply_theme(app, mode)
-            self._window._update_main_toolbar_style()
+            self._window.toolbar_manager.update_main_toolbar_style()
             self.update_all_icons()
             self.native_theme_action.setChecked(mode == "native")
             self.blender_theme_action.setChecked(mode == "blender")
             self.github_theme_action.setChecked(mode == "github")
             self.monokai_theme_action.setChecked(mode == "monokai")
             self.nord_theme_action.setChecked(mode == "nord")
-            self._window._refresh_status_color()
+            self._window.status_manager.refresh_status_color()
             for widget in app.allWidgets():
                 update_theme_style = getattr(widget, "update_theme_style", None)
                 if callable(update_theme_style):
@@ -225,9 +227,9 @@ class ActionManager:
         self.undo_action.setIcon(get_icon("undo"))
         self.redo_action.setIcon(get_icon("redo"))
         self.settings_action.setIcon(get_icon("fa6s.gear"))
-        self._window._status_manager.log_button.setIcon(get_icon("log"))
-        self._window._status_manager.command_palette_button.setIcon(get_icon("fa6s.terminal"))
-        self._window._update_toolbar_contribution_icons()
+        self._window.status_manager.log_button.setIcon(get_icon("log"))
+        self._window.status_manager.command_palette_button.setIcon(get_icon("fa6s.terminal"))
+        self._window.toolbar_manager.update_toolbar_contribution_icons()
 
     def populate_view_menu(self) -> None:
         self.view_menu.clear()
@@ -250,7 +252,7 @@ class ActionManager:
         self.view_menu.addSeparator()
         reset_layout_action = QAction("Reset Layout", self._window)
         reset_layout_action.setIcon(get_icon("fa6s.arrow-rotate-left"))
-        reset_layout_action.triggered.connect(self._window.reset_layout)
+        reset_layout_action.triggered.connect(self._window.layout_manager.reset_layout)
         self.view_menu.addAction(reset_layout_action)
 
     def update_view_menu(self) -> None:
@@ -271,10 +273,10 @@ class ActionManager:
         self.update_panel_action_icon(panel_id)
 
     def update_actions(self) -> None:
-        has_project = self._window._project is not None
+        has_project = self._window.project_controller.project is not None
         self.save_action.setEnabled(has_project)
         self.save_as_action.setEnabled(has_project)
-        self._window._refresh_toolbar_action_states()
+        self._window.toolbar_manager.update_toolbar_states()
 
     def set_undo_text(self, text: str) -> None:
         if shiboken6.isValid(self.undo_action):
@@ -288,7 +290,7 @@ class ActionManager:
         if not shiboken6.isValid(self.recent_menu):
             return
         self.recent_menu.clear()
-        recent = self._window._recent_projects()
+        recent = self._window.project_controller.recent_projects()
         if not recent:
             empty_action = self.recent_menu.addAction("No Recent Projects")
             empty_action.setEnabled(False)
@@ -296,11 +298,11 @@ class ActionManager:
         for path in recent:
             action = self.recent_menu.addAction(path)
             action.triggered.connect(
-                lambda _checked=False, val=path: self._window.open_project(val)
+                lambda _checked=False, val=path: self._window.project_controller.open_project(val)
             )
         self.recent_menu.addSeparator()
         clear_action = self.recent_menu.addAction("Clear Recent Projects")
-        clear_action.triggered.connect(self._window._clear_recent_projects)
+        clear_action.triggered.connect(self._window.project_controller.clear_recent_projects)
 
     def open_settings(self) -> None:
         dialog = SettingsDialog(
@@ -315,7 +317,7 @@ class ActionManager:
         dialog.apply_plugin_pages()
         dialog.apply_units()
         self.switch_theme(values.theme_mode)
-        self._window._trim_recent_projects(values.recent_project_limit)
+        self._window.project_controller.trim_recent_projects(values.recent_project_limit)
         self.update_recent_menu()
 
     def open_command_palette(self) -> None:
@@ -327,7 +329,7 @@ class ActionManager:
         AboutDialog(self._window).exec()
 
     def open_task_manager(self) -> None:
-        self._window.open_task_manager_window()
+        self._window.status_manager.open_task_manager_window()
 
     def open_constraints(self) -> None:
         from setuav_studio.ui.panels.project_explorer.dialog_actions import add_constraint_action

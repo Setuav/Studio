@@ -393,7 +393,7 @@ class StatusBarManager:
         dialog.exec()
 
     def open_command_palette_window(self) -> None:
-        self._window.open_command_palette()
+        self._window.action_manager.open_command_palette()
 
     def open_log_window(self) -> None:
         if self._log_window is None:
