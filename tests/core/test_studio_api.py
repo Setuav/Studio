@@ -77,13 +77,15 @@ def test_studio_events_enum_contract() -> None:
     assert events.PROJECT_OPENED == "project.opened"
     assert events.PROJECT_CLOSED == "project.closed"
     assert events.PROJECT_MODIFIED == "project.modified"
-    assert events.AERODYNAMICS_ANALYSIS_COMPLETED == "aerodynamics.analysis_completed"
     assert events.UNITS_CHANGED == "units.changed"
     assert events.TASK_STARTED == "task.started"
     assert events.TASK_FINISHED == "task.finished"
 
     # Must be compatible with str
     assert isinstance(events.PROJECT_OPENED, str)
+    assert not any(
+        name.startswith(("AERODYNAMICS_", "FLIGHT_PERFORMANCE_")) for name in events.__members__
+    )
 
 
 def test_studio_api_exposes_units_service() -> None:

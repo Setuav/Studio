@@ -18,13 +18,6 @@ class StudioEvents(StrEnum):
     # Units
     UNITS_CHANGED = "units.changed"
 
-    # Aerodynamics
-    AERODYNAMICS_ANALYSIS_COMPLETED = "aerodynamics.analysis_completed"
-    AERODYNAMICS_RESULT_SELECTED = "aerodynamics.result_selected"
-
-    # Flight Performance
-    FLIGHT_PERFORMANCE_ANALYSIS_COMPLETED = "flight_performance.analysis_completed"
-
     # Geometry
     GEOMETRY_VIEWER_SETTINGS_CHANGED = "geometry.viewer.settings.changed"
 
