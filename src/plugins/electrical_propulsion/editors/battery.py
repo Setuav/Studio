@@ -80,7 +80,6 @@ class BatteryEditor(PropertyTableMixin, QWidget):
         self._create_configuration_section()
         self._create_cell_section()
         self._create_pack_section()
-        self._create_chemistry_section()
 
         self._content_layout.addStretch()
         self._load_battery()
@@ -156,19 +155,6 @@ class BatteryEditor(PropertyTableMixin, QWidget):
         self.pack_table = self._property_table([(key, label) for key, label, *_ in _PACK_VALUES])
         layout.addWidget(self.pack_table)
 
-    def _create_chemistry_section(self) -> None:
-        layout = self._create_section("Chemistry Data", "fa6s.flask")
-        self.chemistry_table = self._property_table(
-            [
-                ("charge_voltage_range", "Charge Voltage Range"),
-                ("specific_resistance", "Specific Resistance"),
-                ("default_c_rate", "Default C-Rate"),
-                ("mass_rule", "Pack Mass per Cell"),
-                ("source", "Data Source"),
-            ]
-        )
-        layout.addWidget(self.chemistry_table)
-
     @staticmethod
     def _label_item(table: QTableWidget, key: str) -> QTableWidgetItem:
         for row in range(table.rowCount()):
@@ -186,7 +172,6 @@ class BatteryEditor(PropertyTableMixin, QWidget):
             self._load_configuration(params, pack)
             self._load_cell_properties(params, pack)
             self._load_pack_values(pack)
-            self._load_chemistry(pack)
         finally:
             self._loading = False
 
@@ -291,27 +276,6 @@ class BatteryEditor(PropertyTableMixin, QWidget):
                 unit=unit,
                 read_only=True,
             )
-
-    def _load_chemistry(self, pack: BatteryPack) -> None:
-        profile = pack.profile
-        values = {
-            "charge_voltage_range": (
-                f"{profile.min_charge_voltage_v:g} V to {profile.max_charge_voltage_v:g} V "
-                f"(default {profile.charge_voltage_v:g} V)"
-            ),
-            "specific_resistance": f"{profile.resistance_mohm_ah:g} mΩ·Ah",
-            "default_c_rate": f"{profile.c_rate:g} C",
-            "mass_rule": (
-                f"{profile.mass_coefficient_g:g} g × (Q / 1 Ah)^{profile.mass_exponent:g}"
-            ),
-            "source": profile.source,
-        }
-        for key, text in values.items():
-            self._set_property_value(self.chemistry_table, key, text, editable=False)
-            row = self._label_item(self.chemistry_table, key).row()
-            item = self.chemistry_table.item(row, 1)
-            if item is not None:
-                item.setToolTip(text)
 
     def _update_general(self, row: int, column: int) -> None:
         if self._loading or column != 1:
