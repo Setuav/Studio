@@ -5,7 +5,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from setuav_studio.ui.viewport import RingPrimitive, SceneObject
-from setuav_studio.utilities.transform import resolve_world_transform, rotate_vector
+from setuav_studio.utilities.transform import (
+    components_by_id,
+    resolve_world_transform,
+    rotate_vector,
+)
 
 if TYPE_CHECKING:
     from setuav_studio.api import StudioAPI
@@ -43,10 +47,8 @@ class PropulsionSceneController:
             viewport.clear(layer=PROPULSION_LAYER)
             return
 
-        comps = doc.data.get("components", [])
-        if not isinstance(comps, list):
-            viewport.clear(layer=PROPULSION_LAYER)
-            return
+        comps = doc.data["components"]
+        comps_by_id = components_by_id(comps)
 
         active_ids: set[str] = set()
 
@@ -65,7 +67,7 @@ class PropulsionSceneController:
             comp_name = str(comp.get("name") or comp_id)
 
             # Resolve world position and rotation along the parent chain
-            world_pos, world_rot = resolve_world_transform(comp, doc)
+            world_pos, world_rot = resolve_world_transform(comp_id, comps_by_id)
 
             diameter = comp["parameters"]["diameter"]
             if isinstance(diameter, bool) or not isinstance(diameter, (int, float)):

@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-import math
 from pathlib import Path
+
+import pytest
 
 from setuav_studio.api.api import StudioAPI
 from setuav_studio.project.document import ProjectDocument
 from setuav_studio.utilities.transform import (
+    components_by_id,
     euler_to_matrix,
     inverse_rotate_vector,
     matrix_to_euler,
@@ -135,7 +137,6 @@ def test_resolve_world_transform_skips_non_spatial_containers() -> None:
 
 
 def test_resolve_world_transform_cycle_detection() -> None:
-    # A points to B, B points to A -> should break cycle gracefully
     comp_a = {
         "id": "a",
         "parent": "b",
@@ -147,9 +148,16 @@ def test_resolve_world_transform_cycle_detection() -> None:
         "transform": {"position": {"x": 20.0, "y": 0.0, "z": 0.0}},
     }
     comps = {"a": comp_a, "b": comp_b}
-    w_pos, _ = resolve_world_transform("a", comps)
-    # Should not raise RecursionError and return finite coordinates
-    assert math.isfinite(w_pos[0])
+    with pytest.raises(ValueError, match="parent cycle"):
+        resolve_world_transform("a", comps)
+
+
+def test_resolve_world_transform_rejects_unknown_components() -> None:
+    orphan = {"id": "orphan", "parent": "missing"}
+    with pytest.raises(ValueError, match="Parent 'missing' of 'orphan' is not in"):
+        resolve_world_transform("orphan", {"orphan": orphan})
+    with pytest.raises(ValueError, match="'unknown' is not in"):
+        resolve_world_transform("unknown", {"orphan": orphan})
 
 
 def test_reparent_preserves_world_transform() -> None:
@@ -214,13 +222,13 @@ def test_studio_api_reparent_undo_redo() -> None:
     proj = ProjectDocument(Path("test.json"), "json", {"components": [box, cyl]})
     api._host.set_project(proj)
 
-    w_pos_before, _ = resolve_world_transform("cyl_1", proj)
+    w_pos_before, _ = resolve_world_transform("cyl_1", components_by_id(proj))
 
     # Reparent via API
     api.reparent_component(cyl, "box_1", preserve_world_transform=True)
     assert cyl.get("parent") == "box_1"
 
-    w_pos_after, _ = resolve_world_transform("cyl_1", proj)
+    w_pos_after, _ = resolve_world_transform("cyl_1", components_by_id(proj))
     for i in range(3):
         assert abs(w_pos_before[i] - w_pos_after[i]) < 1e-3
 
@@ -228,11 +236,11 @@ def test_studio_api_reparent_undo_redo() -> None:
     api.undo()
     assert cyl.get("parent") is None
     assert cyl["transform"]["position"]["x"] == 150.0
-    w_pos_undo, _ = resolve_world_transform("cyl_1", proj)
+    w_pos_undo, _ = resolve_world_transform("cyl_1", components_by_id(proj))
     assert abs(w_pos_before[0] - w_pos_undo[0]) < 1e-3
 
     # Redo
     api.redo()
     assert cyl.get("parent") == "box_1"
-    w_pos_redo, _ = resolve_world_transform("cyl_1", proj)
+    w_pos_redo, _ = resolve_world_transform("cyl_1", components_by_id(proj))
     assert abs(w_pos_before[0] - w_pos_redo[0]) < 1e-3

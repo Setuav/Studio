@@ -55,13 +55,13 @@ class AeroSandboxGeometryMixin:
     @staticmethod
     def _parent_frame(
         comp: dict[str, Any],
-        comp_by_id: dict[str, dict[str, Any]] | None,
+        comp_by_id: dict[str, dict[str, Any]],
     ) -> tuple[Any, Any]:
         """Return the world frame of a component's parent (or the aircraft frame)."""
         parent_id = comp.get("parent")
         if not parent_id:
             return np.zeros(3), np.eye(3)
-        return metric_frame(*resolve_world_transform(str(parent_id), comp_by_id or {}))
+        return metric_frame(*resolve_world_transform(str(parent_id), comp_by_id))
 
     @staticmethod
     def _lifting_surface_geometry(
@@ -79,7 +79,7 @@ class AeroSandboxGeometryMixin:
     def _lifting_surface_frames(
         self,
         comp: dict[str, Any],
-        comp_by_id: dict[str, dict[str, Any]] | None,
+        comp_by_id: dict[str, dict[str, Any]],
     ) -> dict[str, Any]:
         parent_pos, parent_rot = self._parent_frame(comp, comp_by_id)
         local_pos, local_rot = metric_frame(*get_local_transform(comp))
@@ -153,10 +153,8 @@ class AeroSandboxGeometryMixin:
     def _collect_control_surfaces(
         self,
         comp: dict[str, Any],
-        comp_by_id: dict[str, dict[str, Any]] | None,
+        comp_by_id: dict[str, dict[str, Any]],
     ) -> list[dict[str, Any]]:
-        if not comp_by_id:
-            return []
         return self._child_control_surfaces(str(comp.get("id") or ""), comp_by_id)
 
     @staticmethod
@@ -484,7 +482,7 @@ class AeroSandboxGeometryMixin:
     def _convert_lifting_surface(
         self,
         comp: dict[str, Any],
-        comp_by_id: dict[str, dict[str, Any]] | None = None,
+        comp_by_id: dict[str, dict[str, Any]],
         condition: FlightCondition | None = None,
         control_encoding: str = "native",
     ) -> Any:

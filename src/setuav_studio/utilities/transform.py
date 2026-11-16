@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from typing import Any, cast
 
 from setuav_studio.model.expression import set_expression
@@ -112,46 +113,35 @@ def transpose_matrix(matrix: Matrix3) -> Matrix3:
     )
 
 
-def _get_comp_dict(item: Any) -> dict[str, Any] | None:
+def _get_comp_dict(item: Any) -> dict[str, Any]:
+    """Return the component dictionary of a component dictionary or model."""
     if isinstance(item, dict):
         return item
     raw = getattr(item, "raw_data", None)
     if isinstance(raw, dict):
         return raw
-    to_dict = getattr(item, "to_dict", None)
-    if callable(to_dict):
-        res = to_dict()
-        if isinstance(res, dict):
-            return res
-    return None
+    raise TypeError(f"{type(item).__name__} is not a component.")
 
 
-def _build_comps_map(comps_or_project: Any) -> dict[str, dict[str, Any]]:
+def components_by_id(source: Any) -> dict[str, dict[str, Any]]:
+    """Index components by id.
+
+    ``source`` is a project document, project data with a ``components`` list, a
+    component list, or a mapping of component id to component.
+    """
     from setuav_studio.project.document import ProjectDocument
 
-    if isinstance(comps_or_project, dict):
-        if "components" in comps_or_project and isinstance(comps_or_project["components"], list):
-            comps = comps_or_project["components"]
-        else:
-            return {
-                str(k): d
-                for k, v in comps_or_project.items()
-                for d in [_get_comp_dict(v)]
-                if d is not None
-            }
-    elif isinstance(comps_or_project, ProjectDocument):
-        comps = comps_or_project.data.get("components", [])
-    elif isinstance(comps_or_project, (list, tuple, set)):
-        comps = comps_or_project
+    if isinstance(source, ProjectDocument):
+        components = source.data["components"]
+    elif isinstance(source, dict) and isinstance(source.get("components"), list):
+        components = source["components"]
+    elif isinstance(source, dict):
+        return {str(key): _get_comp_dict(value) for key, value in source.items()}
+    elif isinstance(source, (list, tuple)):
+        components = source
     else:
-        return {}
-
-    result: dict[str, dict[str, Any]] = {}
-    for c in comps:
-        d = _get_comp_dict(c)
-        if d is not None and d.get("id"):
-            result[str(d["id"])] = d
-    return result
+        raise TypeError(f"Cannot index components of a {type(source).__name__}.")
+    return {str(comp["id"]): comp for comp in map(_get_comp_dict, components)}
 
 
 def get_local_transform(comp: dict[str, Any]) -> tuple[Point3D, Rotation3D]:
@@ -181,41 +171,38 @@ def get_local_transform(comp: dict[str, Any]) -> tuple[Point3D, Rotation3D]:
 
 
 def resolve_world_transform(
-    comp_or_id: str | dict[str, Any] | Any,
-    comps_or_project: Any,
-    resolving: frozenset[str] = frozenset(),
+    comp_id: str,
+    components: Mapping[str, dict[str, Any]],
 ) -> tuple[Point3D, Rotation3D]:
-    """Compute (world_position, world_rotation) by traversing the parent chain."""
-    comps_map = _build_comps_map(comps_or_project)
+    """Return the world (position, rotation) of ``comp_id`` along its parent chain.
 
-    if isinstance(comp_or_id, str):
-        comp_id = comp_or_id
-        comp = comps_map.get(comp_id)
-    else:
-        comp = _get_comp_dict(comp_or_id)
-        comp_id = str(comp.get("id") or "") if comp else ""
+    Raises ValueError for a component or parent missing from ``components`` and for a
+    parent cycle.
+    """
+    chain: list[dict[str, Any]] = []
+    current: str | None = comp_id
+    while current is not None:
+        if any(str(comp["id"]) == current for comp in chain):
+            raise ValueError(f"Component '{comp_id}' has a parent cycle through '{current}'.")
+        try:
+            comp = components[current]
+        except KeyError:
+            owner = f"Parent '{current}' of '{chain[-1]['id']}'" if chain else f"'{current}'"
+            raise ValueError(f"Component {owner} is not in the component set.") from None
+        chain.append(comp)
+        parent = comp.get("parent")
+        current = str(parent) if parent else None
 
-    if comp is None or not comp_id or comp_id in resolving:
-        return (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)
-
-    local_pos, local_rot = get_local_transform(comp)
-
-    parent_id = comp.get("parent")
-    if not parent_id or str(parent_id) not in comps_map:
-        return local_pos, local_rot
-
-    p_pos, p_rot = resolve_world_transform(str(parent_id), comps_map, resolving | {comp_id})
-
-    # R_parent * local_pos + p_pos
-    rx, ry, rz = rotate_vector(local_pos, p_rot)
-    world_pos = (p_pos[0] + rx, p_pos[1] + ry, p_pos[2] + rz)
-
-    # R_world = R_parent * R_local
-    R_p = euler_to_matrix(*p_rot)
-    R_l = euler_to_matrix(*local_rot)
-    R_world = multiply_rotations(R_p, R_l)
-    world_rot = matrix_to_euler(R_world)
-
+    world_pos, world_rot = get_local_transform(chain[-1])
+    for comp in reversed(chain[:-1]):
+        local_pos, local_rot = get_local_transform(comp)
+        # R_parent * local_pos + p_pos
+        rx, ry, rz = rotate_vector(local_pos, world_rot)
+        world_pos = (world_pos[0] + rx, world_pos[1] + ry, world_pos[2] + rz)
+        # R_world = R_parent * R_local
+        world_rot = matrix_to_euler(
+            multiply_rotations(euler_to_matrix(*world_rot), euler_to_matrix(*local_rot))
+        )
     return world_pos, world_rot
 
 
@@ -227,17 +214,16 @@ def compute_reparented_transform(
     """Calculate the new local position and rotation for a child attached to new_parent_id
     such that its absolute world position and orientation remain identical.
     """
-    comps_map = _build_comps_map(comps_or_project)
+    comps_map = components_by_id(comps_or_project)
     child_dict = _get_comp_dict(child)
-    if child_dict is None:
-        return (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)
+    comps_map.setdefault(str(child_dict["id"]), child_dict)
 
     # 1. Current world transform of the child
-    child_world_pos, child_world_rot = resolve_world_transform(child_dict, comps_map)
+    child_world_pos, child_world_rot = resolve_world_transform(str(child_dict["id"]), comps_map)
 
     # 2. Target parent's world transform
     clean_parent = (new_parent_id.strip() if isinstance(new_parent_id, str) else None) or None
-    if clean_parent is None or clean_parent not in comps_map:
+    if clean_parent is None:
         # Attaching to World: new local transform IS the world transform!
         return child_world_pos, child_world_rot
 
@@ -272,8 +258,6 @@ def reparent_component(
     local transform so its world coordinates and visual appearance do not change.
     """
     comp = _get_comp_dict(component)
-    if comp is None:
-        return
 
     clean_parent = (new_parent_id.strip() if isinstance(new_parent_id, str) else None) or None
 

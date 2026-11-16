@@ -627,7 +627,7 @@ def resolve_component_aggregate_envelope(
     by_id = {str(c["id"]): c for c in get_all_components(project_or_components)}
 
     # 1. World transform of the parent component
-    p_world_pos, p_world_rot = resolve_world_transform(comp_id, project_or_components)
+    p_world_pos, p_world_rot = resolve_world_transform(comp_id, by_id)
 
     corners_in_parent: list[Point3D] = []
     total_volume_mm3 = 0.0
@@ -651,7 +651,7 @@ def resolve_component_aggregate_envelope(
         c_offset = _to_vec3(c_env.get("offset_mm"))
         total_volume_mm3 += float(c_env.get("volume_mm3", 0.0) or 0.0)
 
-        c_world_pos, c_world_rot = resolve_world_transform(c_id, project_or_components)
+        c_world_pos, c_world_rot = resolve_world_transform(c_id, by_id)
         is_mirror = is_mirrored_component(child, by_id)
 
         # 8 corners in child's local frame

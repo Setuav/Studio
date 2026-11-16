@@ -167,7 +167,7 @@ class AeroSandboxEngine(AeroSandboxAnalysisMixin, AeroSandboxGeometryMixin, Aero
     def _convert_fuselage(
         self,
         comp: dict[str, Any],
-        comp_by_id: dict[str, dict[str, Any]] | None = None,
+        comp_by_id: dict[str, dict[str, Any]],
     ) -> Any:
         """Convert fuselage sections while preserving segment order and section orientation.
 
@@ -184,7 +184,7 @@ class AeroSandboxEngine(AeroSandboxAnalysisMixin, AeroSandboxGeometryMixin, Aero
         if not isinstance(segments, list) or not segments:
             return None
 
-        base_pos, base_rot = metric_frame(*resolve_world_transform(comp, comp_by_id or {}))
+        base_pos, base_rot = metric_frame(*resolve_world_transform(str(comp["id"]), comp_by_id))
 
         fuselages: list[Any] = []
         for segment_index, seg in enumerate(segments):

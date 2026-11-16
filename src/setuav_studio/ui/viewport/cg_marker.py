@@ -22,7 +22,11 @@ from setuav_studio.utilities.mass_balance import (
     resolve_component_aggregate_mass_properties,
     resolve_component_local_cg,
 )
-from setuav_studio.utilities.transform import resolve_world_transform, rotate_vector
+from setuav_studio.utilities.transform import (
+    components_by_id,
+    resolve_world_transform,
+    rotate_vector,
+)
 
 # Visual styles for clean CAD CG markers
 _X_AXIS_COLOR = (0.95, 0.25, 0.25, 1.0)  # Red - Longitudinal / Roll axis
@@ -84,7 +88,9 @@ def build_component_cg_primitives(
         )
     else:
         local_cg_mm = resolve_component_local_cg(comp)
-        world_pos_mm, world_rot_deg = resolve_world_transform(comp, project_or_components)
+        world_pos_mm, world_rot_deg = resolve_world_transform(
+            str(comp["id"]), components_by_id(project_or_components)
+        )
         rx, ry, rz = rotate_vector(local_cg_mm, world_rot_deg)
         cg_world = (world_pos_mm[0] + rx, world_pos_mm[1] + ry, world_pos_mm[2] + rz)
 
