@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from plugins.electrical_propulsion.models.propulsor import PROPULSOR_TYPE
 from setuav_studio.ui.viewport import RingPrimitive, SceneObject
 from setuav_studio.utilities.transform import (
     components_by_id,
@@ -17,17 +18,9 @@ if TYPE_CHECKING:
 PROPULSION_LAYER = "electrical_propulsion"
 PROPULSION_LAYER_NAME = "Electrical Propulsion"
 
-# Component types managed for 3D propeller disc visualization
-PROPULSOR_TYPES = frozenset(
-    {
-        "org.setuav.core:propeller",
-        "org.setuav.core:rotor",
-    }
-)
-
 
 class PropulsionSceneController:
-    """Manages 3D visualization of propellers and rotors in the central StudioViewport."""
+    """Draws every propulsor's propeller disk in the central StudioViewport."""
 
     def __init__(self, api: StudioAPI) -> None:
         self._api = api
@@ -56,7 +49,7 @@ class PropulsionSceneController:
             if not isinstance(comp, dict):
                 continue
             ctype = str(comp.get("type") or "")
-            if ctype not in PROPULSOR_TYPES:
+            if ctype != PROPULSOR_TYPE:
                 continue
 
             comp_id = str(comp.get("id") or "")
@@ -66,13 +59,8 @@ class PropulsionSceneController:
             active_ids.add(comp_id)
             comp_name = str(comp.get("name") or comp_id)
 
-            # Resolve world position and rotation along the parent chain
             world_pos, world_rot = resolve_world_transform(comp_id, comps_by_id)
-
-            diameter = comp["parameters"]["diameter"]
-            if isinstance(diameter, bool) or not isinstance(diameter, (int, float)):
-                raise ValueError(f"Propulsor '{comp_name}' has no numeric 'diameter' parameter.")
-            radius = float(diameter) / 2.0
+            radius = float(comp["parameters"]["propeller_diameter"]) / 2.0
 
             # Propeller disk normal vector: local axis (1.0, 0.0, 0.0) rotated by world rotation
             normal = rotate_vector((1.0, 0.0, 0.0), world_rot)

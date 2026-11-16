@@ -9,20 +9,8 @@ from plugins.electrical_propulsion.catalog_dialog import ComponentCatalogDialog
 from plugins.electrical_propulsion.creation import (
     PropulsionCreationController,
 )
-from plugins.electrical_propulsion.editors import (
-    BatteryEditor,
-    EscEditor,
-    MotorEditor,
-    PropellerEditor,
-    PropulsionSystemEditor,
-)
-from plugins.electrical_propulsion.models import (
-    BatteryModel,
-    ESCModel,
-    MotorModel,
-    PropellerModel,
-    PropulsionSystemModel,
-)
+from plugins.electrical_propulsion.editors import BatteryEditor, PropulsorEditor
+from plugins.electrical_propulsion.models import BatteryModel, PropulsorModel
 from plugins.electrical_propulsion.scene_controller import PropulsionSceneController
 from setuav_studio.api import (
     ComponentTypeContribution,
@@ -33,13 +21,13 @@ from setuav_studio.api import (
 
 
 class ElectricalPropulsionPlugin(StudioPlugin):
-    """Integrates electrical propulsion systems, motors, propellers, ESCs, and batteries."""
+    """Integrates propulsors (motor, propeller and speed controller) and battery packs."""
 
     id = "org.setuav.studio.electrical_propulsion"
     name = "Electrical Propulsion"
     version = "0.3.0"
     author = "Setuav Team"
-    description = "Electric motors, propellers, ESCs, batteries and fixed propulsion root system."
+    description = "Propulsors, battery packs and electrical propulsion analyses."
 
     def __init__(self) -> None:
         super().__init__()
@@ -58,43 +46,11 @@ class ElectricalPropulsionPlugin(StudioPlugin):
         # Register Component Types
         self._component_types = [
             ComponentTypeContribution(
-                id="org.setuav.core:propulsion-system",
-                name="Propulsion",
-                icon="component_propulsion_system",
-                model=PropulsionSystemModel,
-                editor=lambda comp: PropulsionSystemEditor(api, comp),
-                category="Propulsion",
-            ),
-            ComponentTypeContribution(
-                id="org.setuav.core:motor",
-                name="Electric Motor",
+                id="org.setuav.core:propulsor",
+                name="Propulsor",
                 icon="component",
-                model=MotorModel,
-                editor=lambda comp: MotorEditor(api, comp),
-                category="Propulsion",
-            ),
-            ComponentTypeContribution(
-                id="org.setuav.core:propeller",
-                name="Propeller",
-                icon="component",
-                model=PropellerModel,
-                editor=lambda comp: PropellerEditor(api, comp),
-                category="Propulsion",
-            ),
-            ComponentTypeContribution(
-                id="org.setuav.core:rotor",
-                name="Rotor",
-                icon="component",
-                model=PropellerModel,
-                editor=lambda comp: PropellerEditor(api, comp),
-                category="Propulsion",
-            ),
-            ComponentTypeContribution(
-                id="org.setuav.core:esc",
-                name="ESC (Speed Controller)",
-                icon="component",
-                model=ESCModel,
-                editor=lambda comp: EscEditor(api, comp),
+                model=PropulsorModel,
+                editor=lambda comp: PropulsorEditor(api, comp),
                 category="Propulsion",
             ),
             ComponentTypeContribution(
@@ -255,8 +211,7 @@ class ElectricalPropulsionPlugin(StudioPlugin):
 
         controller = getattr(self, "_creation_controller", None)
         if controller is not None:
-            for contribution_id in controller.toolbar_ids:
-                api.unregister_toolbar_item(contribution_id)
+            api.unregister_toolbar_item(controller.toolbar_id)
 
         if hasattr(self, "_analysis_toolbar_id"):
             api.unregister_toolbar_item(self._analysis_toolbar_id)

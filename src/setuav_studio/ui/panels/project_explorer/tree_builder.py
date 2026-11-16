@@ -317,9 +317,8 @@ class ProjectTreeBuilder:
             name = format_component_name(component)
             component_type = format_component_type(component, components, api=self._api)
             item = QTreeWidgetItem([name])
-            is_fixed_root = component_id in ("airframe", "propulsion") or component.get("type") in (
-                "org.setuav.core:airframe",
-                "org.setuav.core:propulsion-system",
+            is_fixed_root = (
+                component_id == "airframe" or component.get("type") == "org.setuav.core:airframe"
             )
             if not read_only and not is_fixed_root:
                 item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)

@@ -1,89 +1,57 @@
-"""Electrical powertrain resolved from a project's propulsion system components."""
+"""Electrical powertrain resolved from a vehicle's propulsors and battery packs."""
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
-from functools import cached_property
 from typing import Any
 
-from pythrust.battery import BatteryState, RateMapBattery
-from pythrust.propellers.database import PropellerEntry
-from pythrust.propulsion.models import MotorSpec, PropellerSpec, SystemSpec
-from pythrust.propulsion.solver import PropulsionSolver
+from pythrust.battery import BatteryNetwork, NetworkState
+from pythrust.propulsion import BusSolver, PropulsionUnit
+from pythrust.propulsion.models import MotorSpec, OperatingPoint, PropellerSpec, SystemSpec
 
 from plugins.electrical_propulsion.database import get_propeller_entry
 from plugins.electrical_propulsion.models.battery import battery_pack
+from plugins.electrical_propulsion.models.propulsor import PROPULSOR_TYPE
 
-PROPULSION_SYSTEM_TYPE = "org.setuav.core:propulsion-system"
-MOTOR_TYPE = "org.setuav.core:motor"
 BATTERY_TYPE = "org.setuav.core:battery"
-ESC_TYPE = "org.setuav.core:esc"
-PROPULSOR_TYPES = frozenset({"org.setuav.core:propeller", "org.setuav.core:rotor"})
 
 
 class PowertrainError(RuntimeError):
-    """Raised when the project's propulsion system cannot be analysed."""
+    """Raised when the vehicle's powertrain cannot be analysed."""
 
 
 @dataclass(frozen=True)
-class PropulsionSystemMembers:
-    """Components of one propulsion system.
+class PowertrainMembers:
+    """The vehicle's propulsors and the battery packs that feed them."""
 
-    Batteries, ESCs and motors are children of the system; propulsors are children
-    of a motor.
-    """
-
-    system: dict[str, Any]
-    batteries: tuple[dict[str, Any], ...]
-    escs: tuple[dict[str, Any], ...]
-    motors: tuple[dict[str, Any], ...]
     propulsors: tuple[dict[str, Any], ...]
+    batteries: tuple[dict[str, Any], ...]
 
 
-def propulsion_system_members(
-    system: dict[str, Any], components: list[dict[str, Any]]
-) -> PropulsionSystemMembers:
-    """Return the components that belong to ``system``."""
-    system_id = system.get("id")
-    children = [c for c in components if c.get("parent") == system_id]
-    motors = tuple(c for c in children if c.get("type") == MOTOR_TYPE)
-    motor_ids = {m.get("id") for m in motors}
-    return PropulsionSystemMembers(
-        system=system,
-        batteries=tuple(c for c in children if c.get("type") == BATTERY_TYPE),
-        escs=tuple(c for c in children if c.get("type") == ESC_TYPE),
-        motors=motors,
-        propulsors=tuple(
-            c
-            for c in components
-            if c.get("type") in PROPULSOR_TYPES and c.get("parent") in motor_ids
-        ),
-    )
-
-
-def find_propulsion_system(components: list[dict[str, Any]]) -> PropulsionSystemMembers | None:
-    """Return the project's propulsion system, or ``None`` when it has none."""
-    systems = [c for c in components if c.get("type") == PROPULSION_SYSTEM_TYPE]
-    if not systems:
+def find_powertrain_members(components: list[dict[str, Any]]) -> PowertrainMembers | None:
+    """Return the vehicle's propulsors and batteries, or ``None`` when it has neither."""
+    propulsors = tuple(c for c in components if c.get("type") == PROPULSOR_TYPE)
+    batteries = tuple(c for c in components if c.get("type") == BATTERY_TYPE)
+    if not propulsors and not batteries:
         return None
-    if len(systems) > 1:
-        raise PowertrainError("Project has more than one propulsion system.")
-    return propulsion_system_members(systems[0], components)
+    return PowertrainMembers(propulsors=propulsors, batteries=batteries)
 
 
 @dataclass(frozen=True)
 class PowertrainPoint:
-    """Operating point of the whole powertrain.
+    """Operating point of every propulsor and of the battery network feeding them.
 
-    Thrust, battery power and battery current are totals over all motor units;
-    RPM, advance ratio and efficiencies are those of each (identical) unit.
+    Thrust and the battery values are totals; RPM and advance ratio are the mean
+    over the propulsors, and the efficiencies are ratios of the summed powers.
     """
 
-    rpm: float
+    units: tuple[OperatingPoint, ...]
     thrust_n: float
     battery_power_w: float
     battery_current_a: float
     battery_voltage_v: float
+    rpm: float
     advance_ratio: float
     propeller_efficiency: float
     motor_efficiency: float
@@ -93,181 +61,138 @@ class PowertrainPoint:
 
 @dataclass(frozen=True)
 class Powertrain:
-    """Battery pack feeding ``unit_count`` identical ESC-motor-propeller units in parallel.
+    """Propulsors sharing one bus fed by battery packs connected in parallel.
 
-    The pack is a rate-map battery at ``battery_state``: its terminal voltage sags
-    with the total current of all units. Every unit draws the same current, so one
-    unit sees the pack with its resistance and current limit scaled by the unit
-    count, and the totals scale with the unit count.
+    Every propulsor runs at the same throttle. The bus voltage sags with the total
+    current, and each pack drains with its own share of it.
     """
 
-    motor: MotorSpec
-    propeller: PropellerSpec
-    propeller_data: PropellerEntry
-    battery: RateMapBattery
-    battery_state: BatteryState
-    unit_system: SystemSpec
-    unit_count: int
+    network: BatteryNetwork
+    network_state: NetworkState
+    units: tuple[PropulsionUnit, ...]
 
     @property
-    def current_limit_a(self) -> float:
-        """Total battery current allowed by the motors and the pack."""
-        return min(
-            self.motor.current_max_a * self.unit_count,
-            self.battery.max_current_a * self.battery.parallel,
-        )
+    def state_of_charge(self) -> float:
+        """State of charge of the emptiest pack."""
+        return min(pack.soc for pack in self.network_state.packs)
 
-    @cached_property
-    def _unit_battery(self) -> RateMapBattery:
-        n = self.unit_count
-        return replace(
-            self.battery,
-            resistance_factor=self.battery.resistance_factor * n,
-            max_current_a=self.battery.max_current_a / n,
-        )
+    @property
+    def open_circuit_voltage_v(self) -> float:
+        return self.network.thevenin(self.network_state)[0]
 
     def with_state_of_charge(self, soc: float) -> Powertrain:
-        return replace(self, battery_state=BatteryState(soc=soc))
+        return replace(self, network_state=NetworkState.uniform(len(self.network.packs), soc=soc))
 
     def discharge_time_s(self, *, power_w: float, final_soc: float) -> float:
-        """Time to discharge from ``battery_state`` to ``final_soc`` at constant pack power.
+        """Time to discharge to ``final_soc`` at constant bus power.
 
-        The discharge ends earlier when the pack reaches its cut-off voltage or current
-        limit.
+        The discharge ends when the first pack reaches ``final_soc``, or earlier when
+        a pack reaches its cut-off voltage or current limit.
         """
-        if final_soc >= self.battery_state.soc:
+        if final_soc >= self.state_of_charge:
             raise PowertrainError(
                 f"Final state of charge {final_soc:.0%} is not below the initial "
-                f"{self.battery_state.soc:.0%}."
+                f"{self.state_of_charge:.0%}."
             )
-        result = self.battery.integrate_power_to_dod(
-            state=self.battery_state,
-            power_w=power_w,
-            dod_final=1.0 - final_soc,
-            max_step_s=60.0,
+        result = self.network.integrate_power_to_soc(
+            self.network_state, power_w, final_soc, max_step_s=60.0
         )
         return result.time_s[-1]
 
     def solve(self, *, rho: float, airspeed_mps: float, throttle: float) -> PowertrainPoint:
-        op = PropulsionSolver().solve_operating_point(
-            motor=self.motor,
-            battery=self._unit_battery,
-            system=self.unit_system,
-            propeller=self.propeller,
-            prop_entry=self.propeller_data,
+        if not 0.0 <= throttle <= 1.0:
+            raise ValueError(f"Throttle {throttle:g} is outside 0 to 1.")
+        bus = BusSolver().solve(
+            self.network,
+            self.network_state,
+            self.units,
+            [throttle] * len(self.units),
             rho=rho,
             airspeed_mps=airspeed_mps,
-            throttle=min(max(throttle, 0.0), 1.0),
-            battery_state=self.battery_state,
         )
-        n = self.unit_count
+        units = bus.units
+        thrust_power_w = bus.thrust_n * airspeed_mps
+        shaft_power_w = sum(unit.shaft_power_w for unit in units)
+        motor_power_w = sum(unit.motor_power_w for unit in units)
         return PowertrainPoint(
-            rpm=op.rpm,
-            thrust_n=max(op.thrust_n, 0.0) * n,
-            battery_power_w=max(op.battery_power_w, 0.0) * n,
-            battery_current_a=max(op.battery_current_a, 0.0) * n,
-            battery_voltage_v=op.battery_voltage_v,
-            advance_ratio=max(op.advance_ratio, 0.0),
-            propeller_efficiency=min(max(op.propeller_efficiency, 0.0), 1.0),
-            motor_efficiency=min(max(op.motor_efficiency, 0.0), 1.0),
-            system_efficiency=min(max(op.system_efficiency, 0.0), 1.0),
-            feasible=op.is_feasible,
+            units=units,
+            thrust_n=bus.thrust_n,
+            battery_power_w=bus.power_w,
+            battery_current_a=bus.current_a,
+            battery_voltage_v=bus.voltage_v,
+            rpm=sum(unit.rpm for unit in units) / len(units),
+            advance_ratio=sum(unit.advance_ratio for unit in units) / len(units),
+            propeller_efficiency=thrust_power_w / shaft_power_w if shaft_power_w > 0.0 else 0.0,
+            motor_efficiency=shaft_power_w / motor_power_w if motor_power_w > 0.0 else 0.0,
+            system_efficiency=thrust_power_w / bus.power_w if bus.power_w > 0.0 else 0.0,
+            # Zero throttle draws nothing but is no operating point.
+            feasible=bus.is_feasible and throttle > 0.0,
         )
 
 
-def build_powertrain(members: PropulsionSystemMembers, *, state_of_charge: float) -> Powertrain:
-    """Build the analysable powertrain of a propulsion system at ``state_of_charge``."""
+def build_powertrain(members: PowertrainMembers, *, state_of_charge: float) -> Powertrain:
+    """Build the analysable powertrain of the vehicle at ``state_of_charge``."""
     missing = [
         label
-        for label, group in (("Battery", members.batteries), ("Electric Motor", members.motors))
+        for label, group in (("Battery", members.batteries), ("Propulsor", members.propulsors))
         if not group
     ]
     if missing:
         raise PowertrainError(f"Propulsion analysis requires: {', '.join(missing)}.")
-    if len(members.batteries) != 1:
-        raise PowertrainError("Propulsion analysis supports a single battery.")
-    (battery,) = members.batteries
-
-    units = [(motor, _motor_propulsor(motor, members.propulsors)) for motor in members.motors]
-    motor_specs = {_motor_spec(motor) for motor, _ in units}
-    propeller_ids = {_catalog_id(propulsor) for _, propulsor in units}
-    if len(motor_specs) > 1 or len(propeller_ids) > 1:
-        raise PowertrainError("Propulsion analysis requires identical motor and propeller units.")
-
-    esc_resistances = {_number(esc, "resistance", "ESC") for esc in members.escs}
-    if len(esc_resistances) > 1:
-        raise PowertrainError("Propulsion analysis requires identical ESCs.")
-
-    propulsor = units[0][1]
-    return Powertrain(
-        motor=motor_specs.pop(),
-        propeller=PropellerSpec(
-            diameter_m=_number(propulsor, "diameter", "Propeller") / 1000.0,
-            pitch_m=_number(propulsor, "pitch", "Propeller") / 1000.0,
-            blade_count=int(_number(propulsor, "blade_count", "Propeller")),
-        ),
-        propeller_data=_propeller_data(propulsor),
-        battery=battery_pack(battery["parameters"]).rate_map(),
-        battery_state=BatteryState(soc=state_of_charge),
-        unit_system=SystemSpec(resistance_ohm=esc_resistances.pop() if esc_resistances else 0.0),
-        unit_count=len(units),
-    )
-
-
-def _motor_propulsor(
-    motor: dict[str, Any], propulsors: tuple[dict[str, Any], ...]
-) -> dict[str, Any]:
-    mounted = [p for p in propulsors if p.get("parent") == motor.get("id")]
-    if len(mounted) != 1:
-        raise PowertrainError(f"Motor '{_label(motor)}' must carry exactly one propeller.")
-    return mounted[0]
-
-
-def _motor_spec(motor: dict[str, Any]) -> MotorSpec:
-    return MotorSpec(
-        kv_rpm_per_v=_number(motor, "kv", "Motor"),
-        resistance_ohm=_number(motor, "resistance", "Motor"),
-        no_load_current_a=_number(motor, "no_load_current", "Motor"),
-        current_max_a=_number(motor, "max_current", "Motor"),
-    )
-
-
-def _catalog_id(propulsor: dict[str, Any]) -> str:
-    catalog_id = str(propulsor.get("catalog_id") or "")
-    if not catalog_id:
-        raise PowertrainError(
-            f"Propeller '{_label(propulsor)}' is not linked to catalog data; "
-            "select it from the propeller catalog."
+    try:
+        network = BatteryNetwork.parallel(
+            *(battery_pack(battery["parameters"]).rate_map() for battery in members.batteries)
         )
-    return catalog_id
+    except ValueError as err:
+        raise PowertrainError(f"The battery packs cannot share one bus: {err}.") from err
+    return Powertrain(
+        network=network,
+        network_state=NetworkState.uniform(len(network.packs), soc=state_of_charge),
+        units=tuple(_unit(propulsor) for propulsor in members.propulsors),
+    )
 
 
-def _propeller_data(propulsor: dict[str, Any]) -> PropellerEntry:
-    catalog_id = _catalog_id(propulsor)
+def propulsion_unit(parameters: Mapping[str, Any], label: str) -> PropulsionUnit:
+    """Return the PyThrust unit of a propulsor's parameters."""
+    catalog_id = str(parameters["propeller_catalog_id"])
+    if not catalog_id:
+        raise PowertrainError(f"Propulsor '{label}' has no catalog propeller; select one.")
     entry = get_propeller_entry(catalog_id)
     if entry is None:
         raise PowertrainError(f"Propeller catalog has no data for '{catalog_id}'.")
-    return entry
+    esc_max_current = parameters["esc_max_current"]
+    return PropulsionUnit(
+        motor=MotorSpec(
+            kv_rpm_per_v=float(parameters["motor_kv"]),
+            resistance_ohm=float(parameters["motor_resistance"]),
+            no_load_current_a=float(parameters["motor_no_load_current"]),
+            current_max_a=float(parameters["motor_max_current"]),
+        ),
+        propeller=PropellerSpec(
+            diameter_m=float(parameters["propeller_diameter"]) / 1000.0,
+            pitch_m=float(parameters["propeller_pitch"]) / 1000.0,
+            blade_count=int(parameters["propeller_blade_count"]),
+        ),
+        prop_entry=entry,
+        system=SystemSpec(
+            resistance_ohm=float(parameters["esc_resistance"]),
+            max_current_a=None if esc_max_current is None else float(esc_max_current),
+        ),
+    )
 
 
-def _number(component: dict[str, Any], key: str, kind: str) -> float:
-    parameters = component.get("parameters")
-    value = parameters.get(key) if isinstance(parameters, dict) else None
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise PowertrainError(f"{kind} '{_label(component)}' has no numeric '{key}' parameter.")
-    return float(value)
-
-
-def _label(component: dict[str, Any]) -> str:
-    return str(component.get("name") or component.get("id") or "")
+def _unit(propulsor: dict[str, Any]) -> PropulsionUnit:
+    label = str(propulsor.get("name") or propulsor["id"])
+    return propulsion_unit(propulsor["parameters"], label)
 
 
 __all__ = [
+    "BATTERY_TYPE",
     "Powertrain",
     "PowertrainError",
+    "PowertrainMembers",
     "PowertrainPoint",
-    "PropulsionSystemMembers",
     "build_powertrain",
-    "find_propulsion_system",
-    "propulsion_system_members",
+    "find_powertrain_members",
+    "propulsion_unit",
 ]

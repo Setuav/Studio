@@ -9,7 +9,7 @@ import numpy as np
 from plugins.electrical_propulsion.powertrain import (
     Powertrain,
     build_powertrain,
-    find_propulsion_system,
+    find_powertrain_members,
 )
 from setuav_studio.api import ParameterField
 from setuav_studio.model.atmosphere import Atmosphere
@@ -251,7 +251,7 @@ class FlightPerformanceSolver(AbstractSolver):
         return self._result(mass_kg, rho, aero, powertrain, envelope)
 
     def _powertrain(self, components: list[dict[str, Any]]) -> Powertrain | None:
-        members = find_propulsion_system(components)
+        members = find_powertrain_members(components)
         if members is None:
             return None
         return build_powertrain(
@@ -333,11 +333,7 @@ class FlightPerformanceSolver(AbstractSolver):
         items = [
             SummaryItem(
                 "battery_voltage",
-                round(
-                    powertrain.battery.ocv(powertrain.battery_state.dod)
-                    * powertrain.battery.series,
-                    2,
-                ),
+                round(powertrain.open_circuit_voltage_v, 2),
                 "Battery Open-Circuit Voltage",
                 "V",
                 "voltage",

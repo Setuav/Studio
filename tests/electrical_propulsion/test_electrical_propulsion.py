@@ -10,23 +10,19 @@ from unittest.mock import patch
 
 from PySide6.QtWidgets import QComboBox, QDialog
 
-from plugins.electrical_propulsion.editors import (
-    BatteryEditor,
-    EscEditor,
-    MotorEditor,
-    PropellerEditor,
-    PropulsionSystemEditor,
-)
+from plugins.electrical_propulsion.editors import BatteryEditor, PropulsorEditor
+from plugins.electrical_propulsion.models.propulsor import PROPULSOR_TYPE, propulsor_mass
 from setuav_studio.api import ActionContribution, StudioAPI
 from setuav_studio.plugin import PluginManager
 from setuav_studio.project import open_project
 from tests._common import TEST_PROJECT_PATH, get_qapp
 
 
-class _MotorCatalogSelection:
-    """Catalog dialog stand-in that accepts a preselected motor entry."""
+class _CatalogSelection:
+    """Catalog dialog stand-in that accepts a preselected motor or propeller entry."""
 
     selected_motor: Any = None
+    selected_propeller: Any = None
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         pass
@@ -73,12 +69,8 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertEqual(len(propulsion_issues), 0)
         self.assertIn("org.setuav.studio.electrical_propulsion", pm._plugins)
 
-        # Check registered editors
-        self.assertIn("org.setuav.core:motor", api._component_editors)
-        self.assertIn("org.setuav.core:propeller", api._component_editors)
-        self.assertIn("org.setuav.core:esc", api._component_editors)
+        self.assertIn(PROPULSOR_TYPE, api._component_editors)
         self.assertIn("org.setuav.core:battery", api._component_editors)
-        self.assertIn("org.setuav.core:propulsion-system", api._component_editors)
         _win.close()
         _win.deleteLater()
 
@@ -92,81 +84,139 @@ class TestElectricalPropulsion(unittest.TestCase):
         plugin = ElectricalPropulsionPlugin()
         manager.activate(plugin)
 
-        self.assertIn("org.setuav.core:motor", api._component_editors)
+        self.assertIn(PROPULSOR_TYPE, api._component_editors)
         self.assertIn("tools/electrical propulsion", window.action_manager.menus)
         self.assertIn("studio:project-explorer", window._panels)
         self.assertIn("studio:properties", window._panels)
 
         manager.deactivate(plugin.id)
 
-        self.assertNotIn("org.setuav.core:motor", api._component_editors)
-        self.assertNotIn("org.setuav.core:motor", api._component_icons)
+        self.assertNotIn(PROPULSOR_TYPE, api._component_editors)
+        self.assertNotIn(PROPULSOR_TYPE, api._component_icons)
         self.assertNotIn("tools/electrical propulsion", window.action_manager.menus)
         self.assertIn("studio:project-explorer", window._panels)
         self.assertIn("studio:properties", window._panels)
 
         manager.activate_plugin(plugin.id)
-        self.assertIn("org.setuav.core:motor", api._component_editors)
+        self.assertIn(PROPULSOR_TYPE, api._component_editors)
         window.close()
         window.deleteLater()
 
-    def test_motor_editor(self) -> None:
+    def _propulsor_editor(self) -> tuple[StudioAPI, dict[str, Any], PropulsorEditor]:
         api = StudioAPI()
         doc = open_project(TEST_PROJECT_PATH)
         api._host.set_project(doc)
-
-        motor_comp = next(
-            c for c in doc.data["components"] if c.get("type") == "org.setuav.core:motor"
-        )
-        editor = MotorEditor(api, motor_comp)
+        propulsor = next(c for c in doc.data["components"] if c["type"] == PROPULSOR_TYPE)
+        editor = PropulsorEditor(api, propulsor)
         self.addCleanup(editor.deleteLater)
+        self.addCleanup(editor.close)
+        return api, propulsor, editor
 
-        self.assertEqual(editor._property_text(editor.general_table, 0), motor_comp.get("name"))
-        # Motor specs come from the catalog and are shown read-only with their unit.
-        kv_cell = editor._property_cell(editor.parameters_table, "kv")
-        assert kv_cell is not None
-        self.assertTrue(kv_cell.isReadOnly())
-        self.assertEqual(kv_cell.line_edit.text(), "900")
-        self.assertEqual(kv_cell.unit_label.text(), "RPM/V")
+    def test_propulsor_editor_shows_catalog_values_read_only(self) -> None:
+        _api, propulsor, editor = self._propulsor_editor()
 
-        from plugins.electrical_propulsion.database import get_motor_database
+        self.assertEqual(editor._property_value(editor.general_table, "name"), propulsor["name"])
+        self.assertEqual(editor._property_value(editor.general_table, "mass"), "176.0")
+        for table, key, text, unit in (
+            (editor.motor_table, "motor_kv", "900", "RPM/V"),
+            (editor.propeller_table, "propeller_diameter", "304.8", "mm"),
+            (editor.propeller_table, "propeller_pitch", "152.4", "mm"),
+            (editor.propeller_table, "propeller_blade_count", "2", ""),
+        ):
+            cell = editor._property_cell(table, key)
+            assert cell is not None
+            self.assertTrue(cell.isReadOnly(), key)
+            self.assertEqual(cell.line_edit.text(), text)
+            self.assertEqual(cell.unit_label.text(), unit)
+        self.assertEqual(
+            editor._property_value(editor.propeller_table, "propeller_catalog_id"), "APC_12x6"
+        )
+        for key in ("motor_mass", "propeller_mass", "esc_mass", "esc_resistance"):
+            table = {"m": editor.motor_table, "p": editor.propeller_table}.get(
+                key[0], editor.esc_table
+            )
+            cell = editor._property_cell(table, key)
+            assert cell is not None
+            self.assertFalse(cell.isReadOnly(), key)
 
+    def test_propulsor_editor_applies_catalog_entries_with_undo(self) -> None:
+        from plugins.electrical_propulsion.database import (
+            get_motor_database,
+            get_propeller_database,
+        )
+
+        api, propulsor, editor = self._propulsor_editor()
+        opened = deepcopy(propulsor)
         motor_db = get_motor_database()
-        catalog_motor = next(
+        _CatalogSelection.selected_motor = next(
             entry
             for entry in (motor_db.get(name) for name in motor_db.list_motors())
-            if entry is not None and float(entry.kv) != 900.0
+            if entry is not None and float(entry.kv) != 900.0 and entry.weight_g
         )
-        _MotorCatalogSelection.selected_motor = catalog_motor
+        _CatalogSelection.selected_propeller = get_propeller_database().get("APC_13x6.5E")
         with patch(
-            "plugins.electrical_propulsion.editors.motor.ComponentCatalogDialog",
-            _MotorCatalogSelection,
+            "plugins.electrical_propulsion.editors.propulsor.ComponentCatalogDialog",
+            _CatalogSelection,
         ):
-            editor._open_catalog()
+            editor._open_motor_catalog()
+            editor._open_propeller_catalog()
 
-        self.assertEqual(motor_comp["parameters"]["kv"], float(catalog_motor.kv))
-        self.assertEqual(motor_comp["model"], catalog_motor.name)
-        kv_cell = editor._property_cell(editor.parameters_table, "kv")
+        motor = _CatalogSelection.selected_motor
+        params = propulsor["parameters"]
+        self.assertEqual(params["motor_kv"], float(motor.kv))
+        self.assertEqual(params["motor_mass"], float(motor.weight_g))
+        self.assertEqual(propulsor["model"], motor.name)
+        self.assertEqual(propulsor["mass"], propulsor_mass(params))
+        self.assertEqual(params["propeller_catalog_id"], "APC_13x6.5E")
+        self.assertEqual(params["propeller_diameter"], 330.2)
+        kv_cell = editor._property_cell(editor.motor_table, "motor_kv")
         assert kv_cell is not None
-        self.assertEqual(kv_cell.line_edit.text(), str(round(float(catalog_motor.kv))))
+        self.assertEqual(kv_cell.line_edit.text(), str(round(float(motor.kv))))
 
         api.undo()
-        self.assertEqual(motor_comp["parameters"]["kv"], 900.0)
-        self.assertEqual(motor_comp["model"], "X2814 KV900 3-4S")
-        editor.close()
+        api.undo()
+        self.assertEqual(propulsor, opened)
+        kv_cell = editor._property_cell(editor.motor_table, "motor_kv")
+        assert kv_cell is not None
+        self.assertEqual(kv_cell.line_edit.text(), "900")
 
-    def test_motor_editor_edits_attach_to(self) -> None:
-        api = StudioAPI()
-        doc = open_project(TEST_PROJECT_PATH)
-        api._host.set_project(doc)
-        motor_comp = next(
-            c for c in doc.data["components"] if c.get("type") == "org.setuav.core:motor"
+    def test_propulsor_editor_masses_sum_into_the_component_mass(self) -> None:
+        api, propulsor, editor = self._propulsor_editor()
+        cell = editor._property_cell(editor.esc_table, "esc_mass")
+        assert cell is not None
+        cell.setValue(55.0)
+
+        self.assertEqual(propulsor["parameters"]["esc_mass"], 55.0)
+        self.assertEqual(propulsor["mass"], 108.0 + 28.0 + 55.0)
+        self.assertEqual(editor._property_value(editor.general_table, "mass"), "191.0")
+        api.undo()
+        self.assertEqual(propulsor["mass"], 176.0)
+
+    def test_propulsor_editor_toggles_the_speed_controller_limit(self) -> None:
+        from PySide6.QtCore import Qt
+
+        api, propulsor, editor = self._propulsor_editor()
+        limit = editor._label_item(editor.esc_table, "esc_max_current")
+        self.assertEqual(limit.checkState(), Qt.CheckState.Checked)
+
+        limit.setCheckState(Qt.CheckState.Unchecked)
+        self.assertIsNone(propulsor["parameters"]["esc_max_current"])
+        cell = editor._property_cell(editor.esc_table, "esc_max_current")
+        assert cell is not None
+        self.assertTrue(cell.isReadOnly())
+
+        api.undo()
+        self.assertEqual(propulsor["parameters"]["esc_max_current"], 50.0)
+        self.assertEqual(
+            editor._label_item(editor.esc_table, "esc_max_current").checkState(),
+            Qt.CheckState.Checked,
         )
-        opened = deepcopy(motor_comp)
-        editor = MotorEditor(api, motor_comp)
-        self.addCleanup(editor.deleteLater)
 
-        self.assertEqual(motor_comp, opened)
+    def test_propulsor_editor_edits_attach_to(self) -> None:
+        api, propulsor, editor = self._propulsor_editor()
+        opened = deepcopy(propulsor)
+
+        self.assertEqual(propulsor, opened)
         self.assertFalse(api.can_undo)
         self.assertEqual(editor._property_value(editor.general_table, "attach_to"), "fuselage")
 
@@ -178,12 +228,11 @@ class TestElectricalPropulsion(unittest.TestCase):
         combo = editor.general_table.cellWidget(row, 1)
         assert isinstance(combo, QComboBox)
         combo.setCurrentIndex(combo.findData("main-wing"))
-        self.assertEqual(motor_comp["attach_to"], "main-wing")
+        self.assertEqual(propulsor["attach_to"], "main-wing")
 
         api.undo()
-        self.assertEqual(motor_comp["attach_to"], "fuselage")
+        self.assertEqual(propulsor["attach_to"], "fuselage")
         self.assertEqual(editor._property_value(editor.general_table, "attach_to"), "fuselage")
-        editor.close()
 
     def _battery_editor(self) -> tuple[StudioAPI, dict[str, Any], BatteryEditor]:
         api = StudioAPI()
@@ -273,63 +322,6 @@ class TestElectricalPropulsion(unittest.TestCase):
         while api.can_undo:
             api.undo()
         self.assertEqual(battery_comp, opened)
-
-    def test_esc_editor(self) -> None:
-        api = StudioAPI()
-        doc = open_project(TEST_PROJECT_PATH)
-        api._host.set_project(doc)
-
-        esc_comp = next(c for c in doc.data["components"] if c.get("type") == "org.setuav.core:esc")
-        editor = EscEditor(api, esc_comp)
-
-        self.assertEqual(editor._property_text(editor.parameters_table, 0), "50.0")
-        editor.close()
-        editor.deleteLater()
-
-    def test_propeller_editor(self) -> None:
-        api = StudioAPI()
-        doc = open_project(TEST_PROJECT_PATH)
-        api._host.set_project(doc)
-
-        prop_comp = next(
-            c for c in doc.data["components"] if c.get("type") == "org.setuav.core:propeller"
-        )
-        editor = PropellerEditor(api, prop_comp)
-
-        # Propeller specs come from the catalog and are shown read-only with their unit.
-        for key, text, unit in (
-            ("diameter", "304.8", "mm"),
-            ("pitch", "152.4", "mm"),
-            ("blade_count", "2", ""),
-        ):
-            cell = editor._property_cell(editor.parameters_table, key)
-            assert cell is not None
-            self.assertTrue(cell.isReadOnly())
-            self.assertEqual(cell.line_edit.text(), text)
-            self.assertEqual(cell.unit_label.text(), unit)
-        editor.close()
-        editor.deleteLater()
-
-    def test_propulsion_system_editor(self) -> None:
-        api = StudioAPI()
-        doc = open_project(TEST_PROJECT_PATH)
-        api._host.set_project(doc)
-
-        propulsion = next(c for c in doc.data["components"] if c["id"] == "propulsion")
-        editor = PropulsionSystemEditor(api, propulsion)
-
-        self.assertEqual(editor._property_text(editor.general_table, 0), "Propulsion")
-        self.assertIn("battery", editor._property_text(editor.structure_table, 0).lower())
-        self.assertIn("sunnysky", editor._property_text(editor.structure_table, 2).lower())
-        self.assertIn("apc", editor._property_text(editor.structure_table, 3).lower())
-        self.assertEqual(
-            editor._property_value(editor.metrics_table, "operating_voltage"), "3S (11.1 V)"
-        )
-        self.assertEqual(
-            editor._property_value(editor.metrics_table, "energy_capacity"), "6000 mAh (69.2 Wh)"
-        )
-        editor.close()
-        editor.deleteLater()
 
     def test_battery_model_derives_the_pack_from_its_chemistry(self) -> None:
         from plugins.electrical_propulsion.models import BatteryModel
@@ -551,8 +543,8 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertEqual(within_limit.summary["endurance"].value, table.get_column("endurance")[0])
         self.assertNotIn("static_thrust", within_limit.summary)
 
-        motor = next(c for c in doc.data["components"] if c["id"] == "motor-cruise")
-        motor["parameters"]["max_current"] = 0.001
+        propulsor = next(c for c in doc.data["components"] if c["id"] == "propulsor-cruise")
+        propulsor["parameters"]["motor_max_current"] = 0.001
         over_limit = OperatingPointSolver(config, doc).run()
         self.assertEqual(over_limit.tables["propulsion_data"].get_column("feasible"), [False])
         self.assertEqual(over_limit.summary["feasible_points"].value, 0)
@@ -657,19 +649,26 @@ class TestElectricalPropulsion(unittest.TestCase):
         doc = open_project(TEST_PROJECT_PATH)
         return [c for c in doc.data["components"] if isinstance(c, dict)]
 
-    def test_powertrain_solves_fixture_propulsion_system(self) -> None:
+    @staticmethod
+    def _powertrain(components: list[dict[str, Any]]) -> Any:
         from plugins.electrical_propulsion.powertrain import (
             build_powertrain,
-            find_propulsion_system,
+            find_powertrain_members,
         )
 
-        members = find_propulsion_system(self._fixture_components())
+        members = find_powertrain_members(components)
         assert members is not None
-        powertrain = build_powertrain(members, state_of_charge=1.0)
+        return build_powertrain(members, state_of_charge=1.0)
 
-        self.assertEqual(powertrain.unit_count, 1)
-        self.assertEqual(powertrain.propeller_data.metadata.id, "APC_12x6")
-        self.assertEqual((powertrain.battery.series, powertrain.battery.parallel), (3, 1))
+    def test_powertrain_solves_fixture_propulsor(self) -> None:
+        powertrain = self._powertrain(self._fixture_components())
+
+        self.assertEqual(len(powertrain.units), 1)
+        (unit,) = powertrain.units
+        self.assertEqual(unit.prop_entry.metadata.id, "APC_12x6")
+        self.assertEqual(unit.system.max_current_a, 50.0)
+        (pack,) = powertrain.network.packs
+        self.assertEqual((pack.series, pack.parallel), (3, 1))
         point = powertrain.solve(rho=1.225, airspeed_mps=15.0, throttle=1.0)
         self.assertTrue(point.feasible)
         self.assertGreater(point.rpm, 1000.0)
@@ -677,7 +676,7 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertGreater(point.battery_current_a, 0.0)
         self.assertTrue(0.0 <= point.system_efficiency <= 1.0)
         # The pack voltage sags below its open-circuit value under load.
-        self.assertLess(point.battery_voltage_v, 12.6)
+        self.assertLess(point.battery_voltage_v, powertrain.open_circuit_voltage_v)
 
         half = powertrain.with_state_of_charge(0.5).solve(
             rho=1.225, airspeed_mps=15.0, throttle=1.0
@@ -685,22 +684,23 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertLess(half.battery_voltage_v, point.battery_voltage_v)
         self.assertLess(half.thrust_n, point.thrust_n)
 
-    def test_powertrain_discharge_time_at_constant_power(self) -> None:
-        from plugins.electrical_propulsion.powertrain import (
-            PowertrainError,
-            build_powertrain,
-            find_propulsion_system,
-        )
+    def test_powertrain_without_an_operating_point_is_infeasible(self) -> None:
+        powertrain = self._powertrain(self._fixture_components())
+        # At a small throttle and a high airspeed the propeller would windmill.
+        point = powertrain.solve(rho=1.225, airspeed_mps=30.0, throttle=0.05)
+        self.assertFalse(point.feasible)
+        self.assertEqual(point.units[0].infeasible_reason, "no_bracket")
 
-        members = find_propulsion_system(self._fixture_components())
-        assert members is not None
-        powertrain = build_powertrain(members, state_of_charge=1.0)
+    def test_powertrain_discharge_time_at_constant_power(self) -> None:
+        from plugins.electrical_propulsion.powertrain import PowertrainError
+
+        powertrain = self._powertrain(self._fixture_components())
 
         light = powertrain.discharge_time_s(power_w=30.0, final_soc=0.2)
         heavy = powertrain.discharge_time_s(power_w=300.0, final_soc=0.2)
         # At 30 W the resistive loss is small: the time approaches the open-circuit
         # energy between 100 % and 20 % state of charge divided by the power.
-        battery = powertrain.battery
+        (battery,) = powertrain.network.packs
         steps = 800
         ocv_energy_wh = (
             battery.capacity_ah
@@ -716,38 +716,21 @@ class TestElectricalPropulsion(unittest.TestCase):
         with self.assertRaisesRegex(PowertrainError, "not below"):
             powertrain.with_state_of_charge(0.2).discharge_time_s(power_w=30.0, final_soc=0.2)
 
-    def test_powertrain_scales_totals_with_identical_motor_units(self) -> None:
-        from plugins.electrical_propulsion.powertrain import (
-            build_powertrain,
-            find_propulsion_system,
-        )
-
+    def test_propulsors_share_one_bus(self) -> None:
         components = self._fixture_components()
-        single_members = find_propulsion_system(components)
-        assert single_members is not None
-        single = build_powertrain(single_members, state_of_charge=1.0)
+        single = self._powertrain(components)
+        propulsor = next(c for c in components if c["id"] == "propulsor-cruise")
+        twin = self._powertrain([*components, {**deepcopy(propulsor), "id": "propulsor-2"}])
 
-        motor = next(c for c in components if c["id"] == "motor-cruise")
-        propeller = next(c for c in components if c["id"] == "propeller-cruise")
-        second_motor = {**deepcopy(motor), "id": "motor-2"}
-        second_propeller = {**deepcopy(propeller), "id": "propeller-2", "parent": "motor-2"}
-        twin_members = find_propulsion_system([*components, second_motor, second_propeller])
-        assert twin_members is not None
-        twin = build_powertrain(twin_members, state_of_charge=1.0)
-
-        self.assertEqual(twin.unit_count, 2)
-        self.assertAlmostEqual(twin.current_limit_a, 2.0 * single.current_limit_a)
-        one = single.solve(rho=1.225, airspeed_mps=15.0, throttle=0.8)
-        two = twin.solve(rho=1.225, airspeed_mps=15.0, throttle=0.8)
+        self.assertEqual(len(twin.units), 2)
+        one = single.solve(rho=1.225, airspeed_mps=15.0, throttle=0.6)
+        two = twin.solve(rho=1.225, airspeed_mps=15.0, throttle=0.6)
         # Both units load the same pack: its voltage sags further, so each unit
         # turns slightly slower than a single unit would.
         self.assertLess(two.battery_voltage_v, one.battery_voltage_v)
         self.assertLess(two.rpm, one.rpm)
         self.assertLess(two.thrust_n, 2.0 * one.thrust_n)
-        # Both draws sag the one pack through its full-charge resistance.
-        battery = single.battery
-        ocv_v = battery.ocv(0.0) * battery.series
-        resistance_ohm = battery.resistance(0.0) * battery.series / battery.parallel
+        ocv_v, resistance_ohm = twin.network.thevenin(twin.network_state)
         for point in (one, two):
             self.assertAlmostEqual(
                 point.battery_voltage_v,
@@ -758,38 +741,57 @@ class TestElectricalPropulsion(unittest.TestCase):
             two.battery_power_w, two.battery_voltage_v * two.battery_current_a, delta=1e-6
         )
 
+    def test_batteries_feed_the_bus_in_parallel(self) -> None:
+        components = self._fixture_components()
+        single = self._powertrain(components)
+        battery = next(c for c in components if c["id"] == "battery-main")
+        double = self._powertrain([*components, {**deepcopy(battery), "id": "battery-2"}])
+
+        self.assertEqual(len(double.network.packs), 2)
+        # Two packs halve the source resistance and double the charge.
+        self.assertAlmostEqual(
+            double.network.thevenin(double.network_state)[1],
+            0.5 * single.network.thevenin(single.network_state)[1],
+        )
+        one = single.solve(rho=1.225, airspeed_mps=15.0, throttle=0.6)
+        two = double.solve(rho=1.225, airspeed_mps=15.0, throttle=0.6)
+        self.assertGreater(two.battery_voltage_v, one.battery_voltage_v)
+        # Each pack carries half the current, so the pair loses less than twice the
+        # single pack's resistive energy and lasts a little longer than twice as long.
+        single_s = single.discharge_time_s(power_w=30.0, final_soc=0.2)
+        double_s = double.discharge_time_s(power_w=30.0, final_soc=0.2)
+        self.assertGreater(double_s, 2.0 * single_s)
+        self.assertLess(double_s, 2.01 * single_s)
+
     def test_powertrain_rejects_unanalysable_systems(self) -> None:
         from plugins.electrical_propulsion.powertrain import (
             PowertrainError,
             build_powertrain,
-            find_propulsion_system,
+            find_powertrain_members,
         )
 
         components = self._fixture_components()
-        propeller = next(c for c in components if c["id"] == "propeller-cruise")
-        motor = next(c for c in components if c["id"] == "motor-cruise")
+        propulsor = next(c for c in components if c["id"] == "propulsor-cruise")
+        battery = next(c for c in components if c["id"] == "battery-main")
+        self.assertIsNone(find_powertrain_members([]))
 
-        unlinked = [c for c in components if c is not propeller]
-        unlinked.append({k: v for k, v in propeller.items() if k != "catalog_id"})
-        members = find_propulsion_system(unlinked)
-        assert members is not None
-        with self.assertRaisesRegex(PowertrainError, "not linked to catalog data"):
-            build_powertrain(members, state_of_charge=1.0)
-
-        other_motor = deepcopy(motor)
-        other_motor["id"] = "motor-2"
-        other_motor["parameters"]["kv"] = 1200.0
-        other_propeller = {**deepcopy(propeller), "id": "propeller-2", "parent": "motor-2"}
-        members = find_propulsion_system([*components, other_motor, other_propeller])
-        assert members is not None
-        with self.assertRaisesRegex(PowertrainError, "identical motor and propeller units"):
-            build_powertrain(members, state_of_charge=1.0)
-
-        bare_motor = {**deepcopy(motor), "id": "motor-2"}
-        members = find_propulsion_system([*components, bare_motor])
-        assert members is not None
-        with self.assertRaisesRegex(PowertrainError, "exactly one propeller"):
-            build_powertrain(members, state_of_charge=1.0)
+        cases = []
+        for catalog_id, message in (("", "has no catalog propeller"), ("APC_none", "no data")):
+            unlinked = deepcopy(propulsor)
+            unlinked["parameters"]["propeller_catalog_id"] = catalog_id
+            cases.append(([unlinked, battery], message))
+        cases.append(([propulsor], "requires: Battery"))
+        cases.append(([battery], "requires: Propulsor"))
+        four_cell = deepcopy(battery)
+        four_cell["id"] = "battery-4s"
+        four_cell["parameters"]["cell_count"] = 4
+        cases.append(([propulsor, battery, four_cell], "cannot share one bus"))
+        for members_components, message in cases:
+            with self.subTest(message=message):
+                members = find_powertrain_members(members_components)
+                assert members is not None
+                with self.assertRaisesRegex(PowertrainError, message):
+                    build_powertrain(members, state_of_charge=1.0)
 
     def test_propulsion_results_convert_to_display_units(self) -> None:
         from plugins.electrical_propulsion.solver import (

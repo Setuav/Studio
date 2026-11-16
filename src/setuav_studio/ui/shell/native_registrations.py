@@ -261,26 +261,8 @@ def register_native_component_types(api: StudioAPI) -> None:
             category="Structure",
         ),
         ComponentTypeContribution(
-            id="org.setuav.core:motor",
-            name="Electric Motor",
-            icon="component",
-            category="Propulsion",
-        ),
-        ComponentTypeContribution(
-            id="org.setuav.core:propeller",
-            name="Propeller",
-            icon="component",
-            category="Propulsion",
-        ),
-        ComponentTypeContribution(
-            id="org.setuav.core:rotor",
-            name="Rotor",
-            icon="component",
-            category="Propulsion",
-        ),
-        ComponentTypeContribution(
-            id="org.setuav.core:esc",
-            name="ESC (Speed Controller)",
+            id="org.setuav.core:propulsor",
+            name="Propulsor",
             icon="component",
             category="Propulsion",
         ),
@@ -289,12 +271,6 @@ def register_native_component_types(api: StudioAPI) -> None:
             name="Battery",
             icon="component",
             category="Electrical",
-        ),
-        ComponentTypeContribution(
-            id="org.setuav.core:propulsion-system",
-            name="Propulsion",
-            icon="component_propulsion_system",
-            category="Propulsion",
         ),
         ComponentTypeContribution(id="org.setuav.debug:box", name="Box", category="Debug"),
         ComponentTypeContribution(

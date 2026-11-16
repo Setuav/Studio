@@ -1,20 +1,19 @@
-"""Tests for electrical propulsion component creation commands and fixed root component."""
+"""Tests for the commands that add propulsors and battery packs."""
 
 from __future__ import annotations
 
 import unittest
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 from PySide6.QtWidgets import QDialog
 
-from plugins.electrical_propulsion.creation import (
-    _PROPULSION_ID,
-    PropulsionCreationController,
-)
+from plugins.electrical_propulsion.creation import PropulsionCreationController
 from plugins.electrical_propulsion.database import get_motor_database, get_propeller_database
-from plugins.electrical_propulsion.models import BatteryModel
+from plugins.electrical_propulsion.models import BatteryModel, PropulsorModel
 from plugins.electrical_propulsion.models.battery import BATTERY_OVERRIDES, battery_pack
+from plugins.electrical_propulsion.models.propulsor import PROPULSOR_TYPE, propulsor_mass
 from setuav_studio.api import StudioAPI, ToolbarContribution, ToolbarMenuItemContribution
 from setuav_studio.project import ProjectDocument
 from tests._common import get_qapp
@@ -25,12 +24,15 @@ def _enabled(contribution: ToolbarContribution | ToolbarMenuItemContribution) ->
     return contribution.enabled_when()
 
 
-class _AcceptingCatalogDialog:
-    """Catalog dialog stand-in that accepts the first catalog entry."""
+class _CatalogDialog:
+    """Catalog dialog stand-in that accepts the first entry unless told to cancel."""
+
+    cancel: str | None = None
 
     def __init__(self, component_type: str, *args: object, **kwargs: object) -> None:
-        self.selected_motor = None
-        self.selected_propeller = None
+        self.component_type = component_type
+        self.selected_motor: Any = None
+        self.selected_propeller: Any = None
         if component_type == "motor":
             db = get_motor_database()
             self.selected_motor = db.get(db.list_motors()[0])
@@ -39,6 +41,8 @@ class _AcceptingCatalogDialog:
             self.selected_propeller = db.get(db.list_propellers()[0])
 
     def exec(self) -> QDialog.DialogCode:
+        if self.component_type == self.cancel:
+            return QDialog.DialogCode.Rejected
         return QDialog.DialogCode.Accepted
 
 
@@ -60,225 +64,89 @@ class PropulsionCreationTests(unittest.TestCase):
         )
         self.api._host.set_project(self.project)
         self.controller = PropulsionCreationController(self.api)
+        _CatalogDialog.cancel = None
         dialog_patch = patch(
             "plugins.electrical_propulsion.catalog_dialog.ComponentCatalogDialog",
-            _AcceptingCatalogDialog,
+            _CatalogDialog,
         )
         dialog_patch.start()
         self.addCleanup(dialog_patch.stop)
 
-    def test_propulsion_root_inserted_after_airframe(self) -> None:
-        self.project.data["components"] = [{"id": "airframe", "type": "org.setuav.core:airframe"}]
-        self.controller.add_propulsion_system()
-        self.assertEqual(self.project.data["components"][0]["id"], "airframe")
-        propulsion = self.project.data["components"][1]
-        self.assertEqual(propulsion["id"], _PROPULSION_ID)
-        self.assertIsNone(propulsion["parent"])
-        self.assertFalse(propulsion["has_transform"])
-        self.assertFalse(propulsion["has_mass"])
-
-    def test_toolbar_contributions_dispatch_each_component_kind(self) -> None:
-        contributions = self.controller.contributions()
-        self.assertEqual(len(contributions), 2)
-        system_action = contributions[0]
-        component_action = contributions[1]
-
+    def test_toolbar_menu_adds_propulsors_and_batteries(self) -> None:
+        (contribution,) = self.controller.contributions()
+        self.assertEqual(contribution.id, PropulsionCreationController.toolbar_id)
         self.assertEqual(
-            (system_action.id, component_action.id),
-            PropulsionCreationController.toolbar_ids,
+            [item.title for item in contribution.menu_items], ["Add Propulsor", "Add Battery"]
         )
-        # Initially (no propulsion component):
-        self.assertTrue(_enabled(system_action))
-        self.assertFalse(_enabled(component_action))
-        for item in component_action.menu_items:
-            self.assertFalse(_enabled(item))
-
-        # Add propulsion system
-        self.controller.add_propulsion_system()
-        self.assertFalse(_enabled(system_action))
-        self.assertTrue(_enabled(component_action))
-        for item in component_action.menu_items:
+        self.assertTrue(_enabled(contribution))
+        for item in contribution.menu_items:
             self.assertTrue(_enabled(item))
-
-        with patch.object(self.controller, "add_component") as add_component:
-            for item in component_action.menu_items:
-                item.callback()
+            item.callback()
         self.assertEqual(
-            [call.args[0] for call in add_component.call_args_list],
-            ["battery", "esc", "motor", "propeller", "rotor"],
+            [c["type"] for c in self.project.data["components"]],
+            [PROPULSOR_TYPE, "org.setuav.core:battery"],
         )
 
-    def test_cannot_add_component_without_propulsion_system(self) -> None:
-        self.controller.add_component("motor")
-        self.assertEqual(len(self.project.data["components"]), 0)
-        self.assertIn("Please add Electrical Propulsion", self.statuses[-1][0])
+        self.project.read_only = True
+        self.assertFalse(_enabled(contribution))
 
-    def test_cannot_add_multiple_propulsion_systems(self) -> None:
-        self.controller.add_propulsion_system()
-        self.assertEqual(len(self.project.data["components"]), 1)
-        self.assertEqual(self.project.data["components"][0]["id"], _PROPULSION_ID)
+    def test_propulsor_takes_its_motor_and_propeller_from_the_catalogs(self) -> None:
+        self.controller.add_propulsor()
 
-        # Attempt to add second
-        self.controller.add_propulsion_system()
-        self.assertEqual(len(self.project.data["components"]), 1)
-        self.assertIn("Electrical Propulsion already exists", self.statuses[-1][0])
+        (propulsor,) = self.project.data["components"]
+        motor_db = get_motor_database()
+        motor = motor_db.get(motor_db.list_motors()[0])
+        propeller_db = get_propeller_database()
+        propeller = propeller_db.get(propeller_db.list_propellers()[0])
+        assert motor is not None and propeller is not None
+        params = propulsor["parameters"]
+        self.assertEqual(set(params), {f.key for f in PropulsorModel.get_scalar_fields()})
+        self.assertEqual(propulsor["type"], PROPULSOR_TYPE)
+        self.assertEqual(propulsor["model"], motor.name)
+        self.assertEqual(params["motor_kv"], float(motor.kv))
+        self.assertEqual(params["motor_resistance"], float(motor.resistance))
+        self.assertEqual(params["propeller_catalog_id"], propeller.metadata.id)
+        self.assertEqual(params["propeller_diameter"], round(propeller.diameter_m * 1000.0, 1))
+        self.assertIsNone(params["esc_max_current"])
+        self.assertEqual(propulsor["mass"], propulsor_mass(params))
+        self.assertIs(self.api.current_selection, propulsor)
+        self.assertEqual(self.statuses[-1][:2], (f"Added {propulsor['name']}", "success"))
 
-    def test_add_component_creates_valid_child_and_supports_undo(self) -> None:
-        self.controller.add_propulsion_system()
-        self.controller.add_component("motor")
-
-        components = self.project.data["components"]
-        self.assertEqual(len(components), 2)  # propulsion root + motor
-        self.assertEqual(components[0]["id"], _PROPULSION_ID)
-        motor = components[1]
-        self.assertEqual(motor["type"], "org.setuav.core:motor")
-        self.assertEqual(motor["parent"], _PROPULSION_ID)
-        self.assertIs(self.api.current_selection, motor)
-        self.assertIn(f"Added {motor['name']} to Propulsion", self.statuses[-1][0])
-
-        self.assertIn("mass", motor)
-        self.assertGreater(motor["mass"], 0.0)
-        self.assertIn("transform", motor)
-        self.assertIn("position", motor["transform"])
-        self.assertIn("envelope", motor)
-        self.assertIn("size_mm", motor["envelope"])
-
-        # Undo adding motor
         self.api.undo()
-        self.assertEqual(len(self.project.data["components"]), 1)
-        self.assertEqual(self.project.data["components"][0]["id"], _PROPULSION_ID)
-
-        # Redo adding motor
+        self.assertEqual(self.project.data["components"], [])
         self.api.redo()
-        self.assertEqual(len(self.project.data["components"]), 2)
+        self.assertEqual(len(self.project.data["components"]), 1)
 
-    def test_created_components_have_mass_transform_envelope_and_parent(self) -> None:
-        self.controller.add_propulsion_system()
-        for kind in ("battery", "esc", "motor", "propeller", "rotor"):
-            self.controller.add_component(kind)
+    def test_cancelling_either_catalog_adds_nothing(self) -> None:
+        for kind in ("motor", "propeller"):
+            with self.subTest(cancel=kind):
+                _CatalogDialog.cancel = kind
+                self.controller.add_propulsor()
+                self.assertEqual(self.project.data["components"], [])
 
-        propulsion_comps = [c for c in self.project.data["components"] if c["id"] != _PROPULSION_ID]
-        self.assertEqual(len(propulsion_comps), 5)
+    def test_added_components_get_unique_ids_and_names(self) -> None:
+        for _ in range(2):
+            self.controller.add_propulsor()
+            self.controller.add_battery()
 
-        motor_id = next(c["id"] for c in propulsion_comps if c["type"] == "org.setuav.core:motor")
-        for comp in propulsion_comps:
-            expected_parent = (
-                motor_id
-                if comp["type"]
-                in {
-                    "org.setuav.core:propeller",
-                    "org.setuav.core:rotor",
-                }
-                else _PROPULSION_ID
-            )
-            self.assertEqual(comp["parent"], expected_parent)
-            self.assertIn("mass", comp)
-            self.assertIsInstance(comp["mass"], (int, float))
-            self.assertGreater(comp["mass"], 0.0)
-
-            self.assertIn("transform", comp)
-            self.assertIsInstance(comp["transform"], dict)
-            self.assertIn("position", comp["transform"])
-            self.assertIn("rotation", comp["transform"])
-
-            self.assertIn("envelope", comp)
-            self.assertIsInstance(comp["envelope"], dict)
-            self.assertIn(comp["envelope"]["shape"], {"box", "cylinder"})
-            self.assertIn("size_mm", comp["envelope"])
-            self.assertIn("offset_mm", comp["envelope"])
-
-    def test_duplicate_component_gets_unique_ids_and_names(self) -> None:
-        self.controller.add_propulsion_system()
-        self.controller.add_component("motor")
-        self.controller.add_component("motor")
-
-        motors = [
-            c for c in self.project.data["components"] if c.get("type") == "org.setuav.core:motor"
-        ]
-        name = motors[0]["name"]
+        identities = [(c["id"], c["name"]) for c in self.project.data["components"]]
+        name = identities[0][1]
         self.assertEqual(
-            [(item["id"], item["name"]) for item in motors],
+            identities,
             [
-                ("motor", name),
-                ("motor-2", f"{name} 2"),
+                ("propulsor", name),
+                ("battery", "Battery"),
+                ("propulsor-2", f"{name} 2"),
+                ("battery-2", "Battery 2"),
             ],
         )
-
-    def test_propeller_is_child_of_its_motor(self) -> None:
-        self.controller.add_propulsion_system()
-        self.controller.add_component("motor")
-        self.controller.add_component("propeller")
-
-        propeller = self.controller._find_component("propeller")
-        assert propeller is not None
-        self.assertEqual(propeller["parent"], "motor")
-        self.assertNotIn("attach_to", propeller)
-
-    def test_propeller_requires_a_motor(self) -> None:
-        self.controller.add_propulsion_system()
-        self.controller.add_component("propeller")
-        self.assertIsNone(self.controller._find_component("propeller"))
-        self.assertIn("Add a motor", self.statuses[-1][0])
-
-    def test_propeller_uses_selected_motor_when_several_exist(self) -> None:
-        self.controller.add_propulsion_system()
-        self.controller.add_component("motor")
-        self.controller.add_component("motor")
-
-        self.api.set_selection(self.project.data["components"][0])
-        self.controller.add_component("propeller")
-        self.assertIsNone(self.controller._find_component("propeller"))
-        self.assertIn("Select the motor", self.statuses[-1][0])
-
-        self.api.set_selection(self.controller._find_component("motor"))
-        self.controller.add_component("propeller")
-        propeller = self.controller._find_component("propeller")
-        assert propeller is not None
-        self.assertEqual(propeller["parent"], "motor")
-
-    def test_editability_validation_reports_each_invalid_project_state(self) -> None:
-        self.api._project = None
-        self.assertFalse(self.controller._can_edit_project())
-        self.assertFalse(self.controller._require_editable_project())
-        self.assertIn("Open a project", self.statuses[-1][0])
-
-        self.api._host.set_project(self.project)
-        self.project.read_only = True
-        self.assertFalse(self.controller._can_edit_project())
-        self.assertFalse(self.controller._require_editable_project())
-        self.assertEqual(self.statuses[-1][0], "The project is read-only")
-
-        self.project.read_only = False
-        self.project.data["components"] = "invalid"
-        self.assertFalse(self.controller._require_editable_project())
-        self.assertEqual(self.statuses[-1][1], "error")
-
-    def test_defaults_identity_and_lookup_helpers(self) -> None:
-        defaults = {
-            kind: self.controller._new_component(kind, kind)
-            for kind in ("battery", "esc", "motor", "propeller", "rotor")
-        }
-        self.assertEqual(defaults["battery"]["parameters"]["cell_count"], 6)
-        self.assertEqual(defaults["esc"]["parameters"]["continuous_current"], 50.0)
-        self.assertEqual(defaults["motor"]["parameters"]["kv"], 900.0)
-        self.assertEqual(defaults["propeller"]["name"], "Propeller")
-
-        self.api._project = None
-        self.assertEqual(self.controller._unique_identity("id", "Name"), ("id", "Name"))
-        self.assertIsNone(self.controller._find_component("missing"))
-        self.api._host.set_project(self.project)
-        self.project.data = {
-            "components": ["invalid", {"id": "id"}, {"id": "id-2", "name": "Name 2"}],
-        }
-        self.assertEqual(self.controller._unique_identity("fresh", "Fresh"), ("fresh", "Fresh"))
-        self.assertEqual(self.controller._unique_identity("id", "Name"), ("id-3", "Name 3"))
-        self.assertIsNone(self.controller._find_component("missing"))
-        found = self.controller._find_component("id")
-        assert found is not None
-        self.assertEqual(found["id"], "id")
+        for component in self.project.data["components"]:
+            self.assertEqual(set(component["transform"]), {"position", "rotation"}, component["id"])
+            self.assertIn(component["envelope"]["shape"], {"box", "cylinder"})
 
     def test_new_battery_is_a_lipo_pack_with_derived_cell_properties(self) -> None:
-        battery = self.controller._new_component("battery", "battery")
+        self.controller.add_battery()
+        (battery,) = self.project.data["components"]
         params = battery["parameters"]
 
         self.assertEqual(set(params), {f.key for f in BatteryModel.get_fields()})
@@ -289,6 +157,18 @@ class PropulsionCreationTests(unittest.TestCase):
         self.assertEqual(
             pack.series * pack.parallel, params["cell_count"] * params["parallel_count"]
         )
+
+    def test_editability_validation_reports_each_invalid_project_state(self) -> None:
+        self.api._project = None
+        self.assertFalse(self.controller._can_edit_project())
+        self.controller.add_battery()
+        self.assertIn("Open a project", self.statuses[-1][0])
+
+        self.api._host.set_project(self.project)
+        self.project.read_only = True
+        self.controller.add_propulsor()
+        self.assertEqual(self.statuses[-1][0], "The project is read-only")
+        self.assertEqual(self.project.data["components"], [])
 
 
 if __name__ == "__main__":

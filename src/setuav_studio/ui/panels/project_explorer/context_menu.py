@@ -157,11 +157,8 @@ class ProjectExplorerContextMenu:
         if element:
             elem_id = str(element.get("id") or "")
             elem_type = str(element.get("type") or "")
-            cannot_rename = elem_id in ("airframe", "propulsion") or elem_type in (
-                "org.setuav.core:airframe",
-                "org.setuav.core:propulsion-system",
-            )
-            cannot_delete = elem_id == "airframe" or elem_type == "org.setuav.core:airframe"
+            cannot_rename = elem_id == "airframe" or elem_type == "org.setuav.core:airframe"
+            cannot_delete = cannot_rename
         menu = QMenu(self._tree)
         rename_action = menu.addAction(get_icon("edit"), "Rename")
         rename_action.setEnabled(can_edit and not cannot_rename)

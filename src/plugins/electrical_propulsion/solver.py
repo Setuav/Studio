@@ -10,7 +10,7 @@ from plugins.electrical_propulsion.powertrain import (
     PowertrainError,
     PowertrainPoint,
     build_powertrain,
-    find_propulsion_system,
+    find_powertrain_members,
 )
 from setuav_studio.api import ParameterField
 from setuav_studio.model.atmosphere import Atmosphere
@@ -47,9 +47,9 @@ class BasePropulsionSolver(AbstractSolver):
         if project is None:
             raise RuntimeError("No active project available for propulsion analysis.")
         components = [c for c in project.data["components"] if isinstance(c, dict)]
-        members = find_propulsion_system(components)
+        members = find_powertrain_members(components)
         if members is None:
-            raise PowertrainError("Propulsion analysis requires an electrical propulsion system.")
+            raise PowertrainError("Propulsion analysis requires propulsors and a battery.")
         return build_powertrain(
             members,
             state_of_charge=float(self.config.parameters["state_of_charge"]) / 100.0,
@@ -177,7 +177,7 @@ class BasePropulsionSolver(AbstractSolver):
         motor_effs = [round(p[1].motor_efficiency, 4) for p in points_data]
         feasibles = [p[1].feasible for p in points_data]
         feasible = [i for i, ok in enumerate(feasibles) if ok]
-        has_reserve = powertrain.battery_state.soc > _ENDURANCE_FINAL_SOC
+        has_reserve = powertrain.state_of_charge > _ENDURANCE_FINAL_SOC
         endurances = (
             [
                 round(

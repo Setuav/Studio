@@ -1,17 +1,11 @@
-"""Property editors for electrical propulsion components and root propulsion system."""
+"""Property editors for electrical propulsion components."""
 
 from __future__ import annotations
 
 from .battery import BatteryEditor
-from .esc import EscEditor
-from .motor import MotorEditor
-from .propeller import PropellerEditor
-from .propulsion_system import PropulsionSystemEditor
+from .propulsor import PropulsorEditor
 
 __all__ = [
     "BatteryEditor",
-    "EscEditor",
-    "MotorEditor",
-    "PropellerEditor",
-    "PropulsionSystemEditor",
+    "PropulsorEditor",
 ]

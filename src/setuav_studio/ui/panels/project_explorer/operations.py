@@ -347,17 +347,9 @@ class ProjectExplorerOperations:
             if kind == "project"
             else format_component_name(element)
         )
-        if element_id in ("airframe", "propulsion") or element.get("type") in (
-            "org.setuav.core:airframe",
-            "org.setuav.core:propulsion-system",
-        ):
+        if element_id == "airframe" or element.get("type") == "org.setuav.core:airframe":
             self.restore_item_text(item, old_label)
-            name = (
-                "Airframe"
-                if element_id == "airframe" or element.get("type") == "org.setuav.core:airframe"
-                else "Propulsion"
-            )
-            self._api.show_status(f"{name} component cannot be renamed", "warning", 3000)
+            self._api.show_status("Airframe component cannot be renamed", "warning", 3000)
             return
         new_name = item.text(0).strip()
         if not self.can_edit_project():

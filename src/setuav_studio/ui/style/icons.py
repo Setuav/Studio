@@ -93,7 +93,6 @@ _ICON_MAP = {
     "component_fuselage": "fa6s.shuttle-space",
     "component_lifting_surface": "fa6s.plane",
     "component_control_surface": "fa6s.sliders",
-    "component_propulsion_system": "fa6s.bolt",
     "component_structural_system": "fa6s.plane-up",
     "component_point_mass": "fa6s.weight-hanging",
     "point_mass": "fa6s.weight-hanging",

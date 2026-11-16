@@ -148,7 +148,7 @@ def get_local_transform(comp: dict[str, Any]) -> tuple[Point3D, Rotation3D]:
     """Extract local (position, rotation) from a component dictionary.
 
     Components with ``has_transform: False`` (non-spatial containers such as the
-    airframe or propulsion roots) contribute an identity transform.
+    airframe root) contribute an identity transform.
     """
     if comp.get("has_transform") is False:
         return (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)

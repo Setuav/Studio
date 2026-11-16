@@ -8,14 +8,12 @@ from typing import Any
 from unittest.mock import PropertyMock, patch
 
 import numpy as np
-from pythrust.battery import BatteryState
-from pythrust.propulsion.models import MotorSpec, PropellerSpec, SystemSpec
+from pythrust.battery import BatteryNetwork
 
 from plugins.aerodynamics.engine.base import AeroAnalysisError
 from plugins.electrical_propulsion.chemistry import chemistry_profile
-from plugins.electrical_propulsion.database import get_propeller_database
 from plugins.electrical_propulsion.models.battery import battery_pack
-from plugins.electrical_propulsion.powertrain import Powertrain
+from plugins.electrical_propulsion.powertrain import Powertrain, propulsion_unit
 from plugins.flight_performance.engine.performance import (
     AerodynamicModel,
     DragPolar,
@@ -38,26 +36,28 @@ from setuav_studio.project import ProjectDocument, open_project
 from setuav_studio.solver import SolverConfig
 from tests._common import TEST_PROJECT_PATH
 
-PROPULSION_TYPES = {
-    "org.setuav.core:propulsion-system",
-    "org.setuav.core:battery",
-    "org.setuav.core:esc",
-    "org.setuav.core:motor",
-    "org.setuav.core:propeller",
-}
+PROPULSION_TYPES = {"org.setuav.core:battery", "org.setuav.core:propulsor"}
 
 
 def _powertrain(unit_count: int = 1) -> Powertrain:
     """6S1P 6000 mAh LiPo pack driving 13x6.5 propeller units."""
-    propeller_data = get_propeller_database().get("APC_13x6.5E")
-    assert propeller_data is not None
-    return Powertrain(
-        motor=MotorSpec(
-            kv_rpm_per_v=900.0, resistance_ohm=0.035, no_load_current_a=1.2, current_max_a=45.0
-        ),
-        propeller=PropellerSpec(diameter_m=0.3302, pitch_m=0.1651, blade_count=2),
-        propeller_data=propeller_data,
-        battery=battery_pack(
+    unit = propulsion_unit(
+        {
+            "motor_kv": 900.0,
+            "motor_resistance": 0.035,
+            "motor_no_load_current": 1.2,
+            "motor_max_current": 45.0,
+            "propeller_catalog_id": "APC_13x6.5E",
+            "propeller_diameter": 330.2,
+            "propeller_pitch": 165.1,
+            "propeller_blade_count": 2,
+            "esc_resistance": 0.005,
+            "esc_max_current": None,
+        },
+        "test propulsor",
+    )
+    network = BatteryNetwork.single(
+        battery_pack(
             {
                 "chemistry": "LiPo",
                 "cell_count": 6,
@@ -68,10 +68,10 @@ def _powertrain(unit_count: int = 1) -> Powertrain:
                 "c_rate": None,
                 "pack_mass": None,
             }
-        ).rate_map(),
-        battery_state=BatteryState(soc=1.0),
-        unit_system=SystemSpec(resistance_ohm=0.005),
-        unit_count=unit_count,
+        ).rate_map()
+    )
+    return Powertrain(
+        network=network, network_state=network.full_state(), units=(unit,) * unit_count
     )
 
 
@@ -155,7 +155,7 @@ class LevelFlightComputationTests(unittest.TestCase):
         self.assertLess(high, 1.0)
         top = powertrain.solve(rho=1.225, airspeed_mps=10.0, throttle=high)
         self.assertTrue(top.feasible)
-        self.assertLessEqual(top.battery_current_a, powertrain.motor.current_max_a + 1e-6)
+        self.assertLessEqual(top.units[0].motor_current_a, powertrain.units[0].motor.current_max_a)
         self.assertFalse(
             powertrain.solve(rho=1.225, airspeed_mps=10.0, throttle=min(1.0, high + 0.01)).feasible
         )
@@ -207,7 +207,7 @@ class LevelFlightComputationTests(unittest.TestCase):
         # The open-circuit energy between full charge and the 20 % reserve, less the
         # losses of the voltage sag.
         dods = np.linspace(0.0, 0.8, 801)
-        battery = powertrain.battery
+        (battery,) = powertrain.network.packs
         ocv = np.array([battery.ocv(float(dod)) for dod in dods])
         reversible_wh = (
             float(np.trapezoid(ocv, dods)) * battery.capacity_ah * battery.series * battery.parallel
