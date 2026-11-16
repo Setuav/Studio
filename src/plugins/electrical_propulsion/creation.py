@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from plugins.electrical_propulsion.models.battery import BatteryModel, battery_pack_mass
 from setuav_studio.api import (
     StudioAPI,
     ToolbarContribution,
@@ -255,7 +256,7 @@ class PropulsionCreationController:
     ) -> dict[str, Any]:
         component_type, base_name, _icon = _COMPONENT_SPECS[component_kind]
         params = self._default_parameters(component_kind)
-        mass = self._default_mass(component_kind)
+        mass = self._default_mass(component_kind, params)
         manufacturer = ""
         model = ""
         catalog_id: str | None = None
@@ -299,15 +300,16 @@ class PropulsionCreationController:
         return component
 
     @staticmethod
-    def _default_mass(component_kind: str) -> float:
+    def _default_mass(component_kind: str, params: dict[str, Any]) -> float:
+        if component_kind == "battery":
+            return battery_pack_mass(params)
         masses = {
-            "battery": 500.0,
             "esc": 45.0,
             "motor": 120.0,
             "propeller": 25.0,
             "rotor": 30.0,
         }
-        return masses.get(component_kind, 50.0)
+        return masses[component_kind]
 
     @staticmethod
     def _default_envelope(component_kind: str) -> dict[str, Any]:
@@ -344,14 +346,7 @@ class PropulsionCreationController:
     @staticmethod
     def _default_parameters(component_kind: str) -> dict[str, Any]:
         if component_kind == "battery":
-            return {
-                "cell_count": 6,
-                "parallel_count": 1,
-                "capacity": 5000.0,
-                "nominal_voltage": 22.2,
-                "internal_resistance": 0.015,
-                "chemistry": "LiPo",
-            }
+            return BatteryModel.default_parameters()
         if component_kind == "esc":
             return {
                 "continuous_current": 50.0,

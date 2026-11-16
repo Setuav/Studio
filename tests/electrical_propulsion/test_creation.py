@@ -13,6 +13,7 @@ from plugins.electrical_propulsion.creation import (
     PropulsionCreationController,
 )
 from plugins.electrical_propulsion.database import get_motor_database, get_propeller_database
+from plugins.electrical_propulsion.models import BatteryModel
 from setuav_studio.api import StudioAPI
 from setuav_studio.project import ProjectDocument
 from tests._common import get_qapp
@@ -267,6 +268,17 @@ class PropulsionCreationTests(unittest.TestCase):
         self.assertEqual(self.controller._unique_identity("id", "Name"), ("id-3", "Name 3"))
         self.assertIsNone(self.controller._find_component("missing"))
         self.assertEqual(self.controller._find_component("id")["id"], "id")
+
+    def test_new_battery_has_complete_consistent_specs(self) -> None:
+        battery = self.controller._new_component("battery", "battery")
+        params = battery["parameters"]
+
+        self.assertEqual(set(params), {f.key for f in BatteryModel.get_fields()})
+        s, p = params["cell_count"], params["parallel_count"]
+        self.assertEqual(battery["mass"], s * p * params["cell_mass"] + params["packaging_mass"])
+        self.assertAlmostEqual(params["nominal_voltage"], s * params["cell_nominal_voltage"])
+        self.assertAlmostEqual(params["capacity"], p * params["cell_capacity"])
+        self.assertAlmostEqual(params["internal_resistance"], s / p * params["cell_resistance"])
 
 
 if __name__ == "__main__":

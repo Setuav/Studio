@@ -2595,6 +2595,7 @@
       "name": "SunnySky X2814",
       "type": "org.setuav.core:motor",
       "parent": "propulsion",
+      "attach_to": "fuselage",
       "transform": {
         "position": {
           "x": 850.0,
@@ -2612,21 +2613,7 @@
         "resistance": 0.052,
         "no_load_current": 0.7,
         "max_current": 40.0,
-        "max_power": 570.0,
-        "mount": {
-          "target_id": "fuselage/segment-01",
-          "offset": {
-            "x": 0.0,
-            "y": 0.0,
-            "z": 0.0
-          },
-          "orientation": {
-            "roll": 0.0,
-            "pitch": 0.0,
-            "yaw": 0.0
-          },
-          "position": "rear"
-        }
+        "max_power": 570.0
       },
       "manufacturer": "SunnySky",
       "model": "X2814 KV900 3-4S",

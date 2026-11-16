@@ -7,7 +7,7 @@ from copy import deepcopy
 from typing import Any
 from unittest.mock import patch
 
-from PySide6.QtWidgets import QDialog
+from PySide6.QtWidgets import QComboBox, QDialog
 
 from plugins.electrical_propulsion.editors import (
     BatteryEditor,
@@ -154,6 +154,36 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertEqual(motor_comp["model"], "X2814 KV900 3-4S")
         editor.close()
 
+    def test_motor_editor_edits_attach_to(self) -> None:
+        api = StudioAPI()
+        doc = open_project(TEST_PROJECT_PATH)
+        api._host.set_project(doc)
+        motor_comp = next(
+            c for c in doc.data["components"] if c.get("type") == "org.setuav.core:motor"
+        )
+        opened = deepcopy(motor_comp)
+        editor = MotorEditor(api, motor_comp)
+        self.addCleanup(editor.deleteLater)
+
+        self.assertEqual(motor_comp, opened)
+        self.assertFalse(api.can_undo)
+        self.assertEqual(editor._property_value(editor.general_table, "attach_to"), "fuselage")
+
+        row = next(
+            r
+            for r in range(editor.general_table.rowCount())
+            if editor._property_key(editor.general_table, r) == "attach_to"
+        )
+        combo = editor.general_table.cellWidget(row, 1)
+        assert isinstance(combo, QComboBox)
+        combo.setCurrentIndex(combo.findData("main-wing"))
+        self.assertEqual(motor_comp["attach_to"], "main-wing")
+
+        api.undo()
+        self.assertEqual(motor_comp["attach_to"], "fuselage")
+        self.assertEqual(editor._property_value(editor.general_table, "attach_to"), "fuselage")
+        editor.close()
+
     def test_battery_editor(self) -> None:
         api = StudioAPI()
         doc = open_project(TEST_PROJECT_PATH)
@@ -162,8 +192,12 @@ class TestElectricalPropulsion(unittest.TestCase):
         battery_comp = next(
             c for c in doc.data["components"] if c.get("type") == "org.setuav.core:battery"
         )
+        opened = deepcopy(battery_comp)
         editor = BatteryEditor(api, battery_comp)
 
+        # Opening the editor leaves the project untouched.
+        self.assertEqual(battery_comp, opened)
+        self.assertFalse(api.can_undo)
         self.assertEqual(editor._property_text(editor.cell_table, 0), "LiPo")
 
         # Change Series Count to 6S; the editor derives mass from the fixture's
@@ -187,18 +221,25 @@ class TestElectricalPropulsion(unittest.TestCase):
         api = StudioAPI()
         doc = open_project(TEST_PROJECT_PATH)
         api._host.set_project(doc)
-        battery_comp = next(
-            c for c in doc.data["components"] if c.get("type") == "org.setuav.core:battery"
-        )
-        battery_comp["parameters"] = PropulsionCreationController._default_parameters("battery")
+        battery_comp = PropulsionCreationController(api)._new_component("battery", "battery-new")
+        doc.data["components"].append(battery_comp)
+        created = deepcopy(battery_comp)
         editor = BatteryEditor(api, battery_comp)
         self.addCleanup(editor.deleteLater)
+        self.assertEqual(battery_comp, created)
 
-        # A new pack has no cell capacity yet: its cells share the pack capacity.
+        params = battery_comp["parameters"]
         parallel = editor._property_cell(editor.pack_table, "parallel_count")
         assert parallel is not None
         parallel.setValue(2)
-        self.assertEqual(battery_comp["parameters"]["capacity"], 10000.0)
+        self.assertEqual(params["capacity"], 2 * params["cell_capacity"])
+        self.assertEqual(
+            battery_comp["mass"],
+            params["cell_count"] * 2 * params["cell_mass"] + params["packaging_mass"],
+        )
+
+        api.undo()
+        self.assertEqual(battery_comp, created)
 
     def test_esc_editor(self) -> None:
         api = StudioAPI()

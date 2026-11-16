@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from plugins.electrical_propulsion.models.battery import BatteryModel
+from plugins.electrical_propulsion.models.battery import battery_pack_mass
 from setuav_studio.api import StudioAPI
 from setuav_studio.model.expression import set_expression
 from setuav_studio.ui.style.icons import set_label_icon
@@ -24,7 +24,7 @@ class BatteryEditor(PropertyTableMixin, QWidget):
     """Property editor separating battery cell specifications from pack configuration."""
 
     # Typical cell specifications per chemistry, keyed by battery parameter. They
-    # apply when the chemistry is chosen and stand in for specifications not set yet.
+    # apply when the chemistry is chosen.
     CHEMISTRY_DEFAULTS: ClassVar[dict[str, dict[str, float]]] = {
         "LiPo": {
             "cell_nominal_voltage": 3.7,
@@ -183,28 +183,6 @@ class BatteryEditor(PropertyTableMixin, QWidget):
         )
         layout.addWidget(self.cell_table)
 
-    @classmethod
-    def _cell_spec(cls, params: dict[str, Any], key: str) -> float:
-        """Return a stored cell specification, or the chemistry's typical value."""
-        return float(params.get(key, cls.CHEMISTRY_DEFAULTS[str(params["chemistry"])][key]))
-
-    @staticmethod
-    def _cell_capacity(params: dict[str, Any]) -> float:
-        """Return the stored cell capacity, or the pack capacity shared by the parallel cells."""
-        return float(
-            params.get("cell_capacity", float(params["capacity"]) / int(params["parallel_count"]))
-        )
-
-    @staticmethod
-    def _packaging_mass(params: dict[str, Any]) -> float:
-        return float(params.get("packaging_mass", BatteryModel.packaging_mass.default))
-
-    @classmethod
-    def _pack_mass(cls, params: dict[str, Any]) -> float:
-        """Total pack mass: S x P cells plus packaging."""
-        cells = int(params["cell_count"]) * int(params["parallel_count"])
-        return cells * cls._cell_spec(params, "cell_mass") + cls._packaging_mass(params)
-
     def _load_battery(self) -> None:
         self._loading = True
         try:
@@ -216,19 +194,17 @@ class BatteryEditor(PropertyTableMixin, QWidget):
             pack_cap = float(params["capacity"])
             v_nom = float(params["nominal_voltage"])
             r_pack = float(params["internal_resistance"])
-            packaging_mass = self._packaging_mass(params)
-            c_cont = self._cell_spec(params, "max_discharge")
-            c_burst = self._cell_spec(params, "burst_discharge")
+            packaging_mass = float(params["packaging_mass"])
+            c_cont = float(params["max_discharge"])
+            c_burst = float(params["burst_discharge"])
 
-            cell_cap = self._cell_capacity(params)
-            cell_v_nom = self._cell_spec(params, "cell_nominal_voltage")
-            cell_v_max = self._cell_spec(params, "cell_max_voltage")
-            cell_v_min = self._cell_spec(params, "cell_min_voltage")
-            cell_res = self._cell_spec(params, "cell_resistance")
-            cell_mass = self._cell_spec(params, "cell_mass")
-
-            total_mass = self._pack_mass(params)
-            self._component["mass"] = total_mass
+            cell_cap = float(params["cell_capacity"])
+            cell_v_nom = float(params["cell_nominal_voltage"])
+            cell_v_max = float(params["cell_max_voltage"])
+            cell_v_min = float(params["cell_min_voltage"])
+            cell_res = float(params["cell_resistance"])
+            cell_mass = float(params["cell_mass"])
+            total_mass = float(self._component["mass"])
 
             # General
             self._set_property_value(
@@ -463,19 +439,18 @@ class BatteryEditor(PropertyTableMixin, QWidget):
 
         def apply_edit() -> None:
             p = self._component["parameters"]
-            cell_capacity = self._cell_capacity(p)
             set_expression(p, key, expr_to_store)
             if key in {"cell_count", "parallel_count"}:
                 p[key] = max(1, int(num))
             else:
                 p[key] = float(num)
 
-            self._component["mass"] = self._pack_mass(p)
+            self._component["mass"] = battery_pack_mass(p)
 
             if key == "cell_count":
-                p["nominal_voltage"] = p["cell_count"] * self._cell_spec(p, "cell_nominal_voltage")
+                p["nominal_voltage"] = p["cell_count"] * float(p["cell_nominal_voltage"])
             elif key == "parallel_count":
-                p["capacity"] = p["parallel_count"] * cell_capacity
+                p["capacity"] = p["parallel_count"] * float(p["cell_capacity"])
 
         self._api.edit_component(self._component, f"Set {key}", apply_edit)
         self._load_battery()
@@ -495,7 +470,7 @@ class BatteryEditor(PropertyTableMixin, QWidget):
             set_expression(p, key, expr_to_store)
             p[key] = float(num)
 
-            self._component["mass"] = self._pack_mass(p)
+            self._component["mass"] = battery_pack_mass(p)
 
             s = int(p["cell_count"])
             par = int(p["parallel_count"])
@@ -526,7 +501,7 @@ class BatteryEditor(PropertyTableMixin, QWidget):
             p["capacity"] = par * preset["cell_capacity"]
             p["internal_resistance"] = (s / par) * preset["cell_resistance"]
 
-            self._component["mass"] = self._pack_mass(p)
+            self._component["mass"] = battery_pack_mass(p)
 
         self._api.edit_component(self._component, f"Set battery chemistry '{new_chem}'", apply_chem)
         self._load_battery()

@@ -2,17 +2,25 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from setuav_studio.api import ParameterField
 from setuav_studio.model import Component
 
 
+def battery_pack_mass(parameters: Mapping[str, Any]) -> float:
+    """Pack mass in grams: series x parallel cells plus packaging and wiring."""
+    cells = int(parameters["cell_count"]) * int(parameters["parallel_count"])
+    return cells * float(parameters["cell_mass"]) + float(parameters["packaging_mass"])
+
+
 class BatteryModel(Component):
     """Domain model for Battery (org.setuav.core:battery).
 
-    Pack values (capacity, nominal voltage, internal resistance) are stored next to
-    the cell specifications they are derived from, so analyses read them directly.
+    Pack values (capacity, nominal voltage, internal resistance) and the component
+    mass are stored next to the cell specifications they are derived from, so
+    analyses read them directly.
     """
 
     COMPONENT_TYPE = "org.setuav.core:battery"
@@ -179,10 +187,15 @@ class BatteryModel(Component):
         tooltip="Mass of a single raw cell in grams.",
     )
 
+    @classmethod
+    def default_parameters(cls) -> dict[str, Any]:
+        """Complete, mutually consistent parameter set of a new battery pack."""
+        return {field.key: field.default for field in cls.get_scalar_fields()}
+
     @property
     def derived_mass(self) -> float:
-        """Derived pack mass based on cell count and packaging."""
-        return float(self.cell_count * self.parallel_count * self.cell_mass + self.packaging_mass)
+        """Pack mass derived from the cell count, cell mass and packaging mass."""
+        return battery_pack_mass(self.parameters)
 
     @property
     def energy_wh(self) -> float:
