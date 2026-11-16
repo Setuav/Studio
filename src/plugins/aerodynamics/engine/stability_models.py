@@ -37,15 +37,15 @@ class ControlEffectiveness:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ControlEffectiveness:
         return cls(
-            control_tag=str(data.get("control_tag", "control")),
-            c_l_delta=float(data.get("c_l_delta", 0.0)),
-            c_m_delta=float(data.get("c_m_delta", 0.0)),
-            c_n_delta=float(data.get("c_n_delta", 0.0)),
-            c_y_delta=float(data.get("c_y_delta", 0.0)),
-            c_L_delta=float(data.get("c_L_delta", 0.0)),
-            c_D_delta=float(data.get("c_D_delta", 0.0)),
-            derivative_method=str(data.get("derivative_method", "finite_difference")),
-            perturbation_deg=float(data.get("perturbation_deg", 2.0)),
+            control_tag=str(data["control_tag"]),
+            c_l_delta=float(data["c_l_delta"]),
+            c_m_delta=float(data["c_m_delta"]),
+            c_n_delta=float(data["c_n_delta"]),
+            c_y_delta=float(data["c_y_delta"]),
+            c_L_delta=float(data["c_L_delta"]),
+            c_D_delta=float(data["c_D_delta"]),
+            derivative_method=str(data["derivative_method"]),
+            perturbation_deg=float(data["perturbation_deg"]),
         )
 
 
@@ -75,13 +75,13 @@ class ElevatorTrim:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ElevatorTrim:
         return cls(
-            alpha_ref=float(data.get("alpha_ref", 0.0)),
-            cm_0=float(data.get("cm_0", 0.0)),
-            cm_alpha=float(data.get("cm_alpha", 0.0)),
-            cm_delta_e=float(data.get("cm_delta_e", 0.0)),
-            delta_e_trim=float(data.get("delta_e_trim", 0.0)),
-            alpha_trim_neutral=float(data.get("alpha_trim_neutral", 0.0)),
-            cl_trim=float(data.get("cl_trim", 0.0)),
+            alpha_ref=float(data["alpha_ref"]),
+            cm_0=float(data["cm_0"]),
+            cm_alpha=float(data["cm_alpha"]),
+            cm_delta_e=float(data["cm_delta_e"]),
+            delta_e_trim=float(data["delta_e_trim"]),
+            alpha_trim_neutral=float(data["alpha_trim_neutral"]),
+            cl_trim=float(data["cl_trim"]),
         )
 
 
@@ -175,52 +175,45 @@ class StabilityDerivatives:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> StabilityDerivatives:
-        ctrls = {}
-        raw_ctrls = data.get("controls") or {}
-        if isinstance(raw_ctrls, dict):
-            for k, v in raw_ctrls.items():
-                if isinstance(v, dict):
-                    ctrls[k] = ControlEffectiveness.from_dict(v)
-
-        trim_data = data.get("elevator_trim")
-        trim_obj = ElevatorTrim.from_dict(trim_data) if isinstance(trim_data, dict) else None
+        ctrls = {
+            str(name): ControlEffectiveness.from_dict(control)
+            for name, control in data["controls"].items()
+        }
+        trim_data = data["elevator_trim"]
+        trim_obj = None if trim_data is None else ElevatorTrim.from_dict(trim_data)
 
         return cls(
-            c_L_alpha_rad=float(data.get("c_L_alpha_rad", 0.0)),
-            c_L_alpha_deg=float(data.get("c_L_alpha_deg", 0.0)),
-            c_D_alpha_rad=float(data.get("c_D_alpha_rad", 0.0)),
-            c_D_alpha_deg=float(data.get("c_D_alpha_deg", 0.0)),
-            c_m_alpha_rad=float(data.get("c_m_alpha_rad", 0.0)),
-            c_m_alpha_deg=float(data.get("c_m_alpha_deg", 0.0)),
-            c_L_q=float(data.get("c_L_q", 0.0)),
-            c_m_q=float(data.get("c_m_q", 0.0)),
-            c_Y_beta_rad=float(data.get("c_Y_beta_rad", 0.0)),
-            c_Y_beta_deg=float(data.get("c_Y_beta_deg", 0.0)),
-            c_l_beta_rad=float(data.get("c_l_beta_rad", 0.0)),
-            c_l_beta_deg=float(data.get("c_l_beta_deg", 0.0)),
-            c_n_beta_rad=float(data.get("c_n_beta_rad", 0.0)),
-            c_n_beta_deg=float(data.get("c_n_beta_deg", 0.0)),
-            c_l_p=float(data.get("c_l_p", 0.0)),
-            c_n_p=float(data.get("c_n_p", 0.0)),
-            c_l_r=float(data.get("c_l_r", 0.0)),
-            c_n_r=float(data.get("c_n_r", 0.0)),
-            x_cg=float(data.get("x_cg", 0.0)),
-            x_np=float(data.get("x_np", 0.0)),
-            static_margin=float(data.get("static_margin", 0.0)),
-            is_pitch_stable=bool(data.get("is_pitch_stable", True)),
-            is_pitch_damped=bool(data.get("is_pitch_damped", True)),
-            is_roll_stable=bool(data.get("is_roll_stable", True)),
-            is_roll_damped=bool(data.get("is_roll_damped", True)),
-            is_yaw_stable=bool(data.get("is_yaw_stable", True)),
-            is_yaw_damped=bool(data.get("is_yaw_damped", True)),
+            c_L_alpha_rad=float(data["c_L_alpha_rad"]),
+            c_L_alpha_deg=float(data["c_L_alpha_deg"]),
+            c_D_alpha_rad=float(data["c_D_alpha_rad"]),
+            c_D_alpha_deg=float(data["c_D_alpha_deg"]),
+            c_m_alpha_rad=float(data["c_m_alpha_rad"]),
+            c_m_alpha_deg=float(data["c_m_alpha_deg"]),
+            c_L_q=float(data["c_L_q"]),
+            c_m_q=float(data["c_m_q"]),
+            c_Y_beta_rad=float(data["c_Y_beta_rad"]),
+            c_Y_beta_deg=float(data["c_Y_beta_deg"]),
+            c_l_beta_rad=float(data["c_l_beta_rad"]),
+            c_l_beta_deg=float(data["c_l_beta_deg"]),
+            c_n_beta_rad=float(data["c_n_beta_rad"]),
+            c_n_beta_deg=float(data["c_n_beta_deg"]),
+            c_l_p=float(data["c_l_p"]),
+            c_n_p=float(data["c_n_p"]),
+            c_l_r=float(data["c_l_r"]),
+            c_n_r=float(data["c_n_r"]),
+            x_cg=float(data["x_cg"]),
+            x_np=float(data["x_np"]),
+            static_margin=float(data["static_margin"]),
+            is_pitch_stable=bool(data["is_pitch_stable"]),
+            is_pitch_damped=bool(data["is_pitch_damped"]),
+            is_roll_stable=bool(data["is_roll_stable"]),
+            is_roll_damped=bool(data["is_roll_damped"]),
+            is_yaw_stable=bool(data["is_yaw_stable"]),
+            is_yaw_damped=bool(data["is_yaw_damped"]),
             controls=ctrls,
             elevator_trim=trim_obj,
-            trim_valid=bool(data.get("trim_valid", trim_obj is not None)),
-            trim_invalid_reasons=tuple(
-                str(reason) for reason in (data.get("trim_invalid_reasons") or [])
-            ),
-            solver_method=str(data.get("solver_method", "unknown")),
-            rate_derivative_convention=str(
-                data.get("rate_derivative_convention", "normalized_body_rates")
-            ),
+            trim_valid=bool(data["trim_valid"]),
+            trim_invalid_reasons=tuple(str(reason) for reason in data["trim_invalid_reasons"]),
+            solver_method=str(data["solver_method"]),
+            rate_derivative_convention=str(data["rate_derivative_convention"]),
         )

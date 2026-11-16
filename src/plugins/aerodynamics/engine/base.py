@@ -10,6 +10,10 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
+def _optional_float(value: Any) -> float | None:
+    return None if value is None else float(value)
+
+
 class _Unserializable:
     pass
 
@@ -255,18 +259,18 @@ class FlightCondition:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> FlightCondition:
         return cls(
-            velocity=float(data.get("velocity", 25.0)),
-            alpha=float(data.get("alpha", 2.0)),
-            beta=float(data.get("beta", 0.0)),
-            altitude=float(data.get("altitude", 0.0)),
-            p=float(data.get("p", 0.0)),
-            q=float(data.get("q", 0.0)),
-            r=float(data.get("r", 0.0)),
-            control_deflections=dict(data.get("control_deflections") or {}),
-            sweep_variable=str(data.get("sweep_variable", "alpha")),
-            sweep_min=float(data.get("sweep_min", -10.0)),
-            sweep_max=float(data.get("sweep_max", 18.0)),
-            sweep_steps=int(data.get("sweep_steps", 29)),
+            velocity=float(data["velocity"]),
+            alpha=float(data["alpha"]),
+            beta=float(data["beta"]),
+            altitude=float(data["altitude"]),
+            p=float(data["p"]),
+            q=float(data["q"]),
+            r=float(data["r"]),
+            control_deflections=dict(data["control_deflections"]),
+            sweep_variable=str(data["sweep_variable"]),
+            sweep_min=float(data["sweep_min"]),
+            sweep_max=float(data["sweep_max"]),
+            sweep_steps=int(data["sweep_steps"]),
         )
 
 
@@ -298,12 +302,12 @@ class ReferenceValues:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ReferenceValues:
         return cls(
-            s_ref=float(data.get("s_ref", 0.0)),
-            b_ref=float(data.get("b_ref", 0.0)),
-            c_ref=float(data.get("c_ref", 0.0)),
-            x_cg=float(data.get("x_cg", 0.0)),
-            y_cg=float(data.get("y_cg", 0.0)),
-            z_cg=float(data.get("z_cg", 0.0)),
+            s_ref=float(data["s_ref"]),
+            b_ref=float(data["b_ref"]),
+            c_ref=float(data["c_ref"]),
+            x_cg=float(data["x_cg"]),
+            y_cg=float(data["y_cg"]),
+            z_cg=float(data["z_cg"]),
         )
 
 
@@ -416,28 +420,28 @@ class AeroForcesMoments:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> AeroForcesMoments:
         return cls(
-            fx_b=float(data.get("fx_b", 0.0)),
-            fy_b=float(data.get("fy_b", 0.0)),
-            fz_b=float(data.get("fz_b", 0.0)),
-            fx_w=float(data.get("fx_w", 0.0)),
-            fy_w=float(data.get("fy_w", 0.0)),
-            fz_w=float(data.get("fz_w", 0.0)),
-            lift=float(data.get("lift", 0.0)),
-            drag=float(data.get("drag", 0.0)),
-            sideforce=float(data.get("sideforce", 0.0)),
-            fx_g=float(data.get("fx_g", 0.0)),
-            fy_g=float(data.get("fy_g", 0.0)),
-            fz_g=float(data.get("fz_g", 0.0)),
-            mx_b=float(data.get("mx_b", 0.0)),
-            my_b=float(data.get("my_b", 0.0)),
-            mz_b=float(data.get("mz_b", 0.0)),
-            mx_w=float(data.get("mx_w", 0.0)),
-            my_w=float(data.get("my_w", 0.0)),
-            mz_w=float(data.get("mz_w", 0.0)),
-            mx_g=float(data.get("mx_g", 0.0)),
-            my_g=float(data.get("my_g", 0.0)),
-            mz_g=float(data.get("mz_g", 0.0)),
-            raw=_string_keyed_dict(data.get("raw")),
+            fx_b=float(data["fx_b"]),
+            fy_b=float(data["fy_b"]),
+            fz_b=float(data["fz_b"]),
+            fx_w=float(data["fx_w"]),
+            fy_w=float(data["fy_w"]),
+            fz_w=float(data["fz_w"]),
+            lift=float(data["lift"]),
+            drag=float(data["drag"]),
+            sideforce=float(data["sideforce"]),
+            fx_g=float(data["fx_g"]),
+            fy_g=float(data["fy_g"]),
+            fz_g=float(data["fz_g"]),
+            mx_b=float(data["mx_b"]),
+            my_b=float(data["my_b"]),
+            mz_b=float(data["mz_b"]),
+            mx_w=float(data["mx_w"]),
+            my_w=float(data["my_w"]),
+            mz_w=float(data["mz_w"]),
+            mx_g=float(data["mx_g"]),
+            my_g=float(data["my_g"]),
+            mz_g=float(data["mz_g"]),
+            raw=_string_keyed_dict(data["raw"]),
         )
 
 
@@ -475,17 +479,17 @@ class AeroState:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> AeroState:
         return cls(
-            alpha=float(data.get("alpha", 0.0)),
-            beta=float(data.get("beta", 0.0)),
-            p=float(data.get("p", 0.0)),
-            q=float(data.get("q", 0.0)),
-            r=float(data.get("r", 0.0)),
-            velocity=float(data.get("velocity", 0.0)),
-            altitude=float(data.get("altitude", 0.0)),
-            mach=float(data.get("mach", 0.0)),
-            reynolds=float(data.get("reynolds", 0.0)),
-            dynamic_pressure=float(data.get("dynamic_pressure", 0.0)),
-            control_deflections=dict(data.get("control_deflections") or {}),
+            alpha=float(data["alpha"]),
+            beta=float(data["beta"]),
+            p=float(data["p"]),
+            q=float(data["q"]),
+            r=float(data["r"]),
+            velocity=float(data["velocity"]),
+            altitude=float(data["altitude"]),
+            mach=float(data["mach"]),
+            reynolds=float(data["reynolds"]),
+            dynamic_pressure=float(data["dynamic_pressure"]),
+            control_deflections=dict(data["control_deflections"]),
         )
 
 
@@ -595,40 +599,40 @@ class PolarPoint:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> PolarPoint:
-        fm_data = data.get("forces_moments")
-        fm = AeroForcesMoments.from_dict(fm_data) if isinstance(fm_data, dict) else None
-        st_data = data.get("state")
-        st = AeroState.from_dict(st_data) if isinstance(st_data, dict) else None
+        fm_data = data["forces_moments"]
+        fm = None if fm_data is None else AeroForcesMoments.from_dict(fm_data)
+        st_data = data["state"]
+        st = None if st_data is None else AeroState.from_dict(st_data)
 
         return cls(
             alpha=float(data["alpha"]),
             cl=float(data["cl"]),
             cd=float(data["cd"]),
-            cm=float(data.get("cm", 0.0)),
-            cd_induced=(float(data["cd_induced"]) if data.get("cd_induced") is not None else None),
-            cd_profile=(float(data["cd_profile"]) if data.get("cd_profile") is not None else None),
-            cl_over_cd=float(data.get("cl_over_cd", 0.0)),
-            cx=float(data.get("cx", 0.0)),
-            cy=float(data.get("cy", 0.0)),
-            cz=float(data.get("cz", 0.0)),
-            cl_roll=float(data.get("cl_roll", 0.0)),
-            cn=float(data.get("cn", 0.0)),
-            cd_wave=(float(data["cd_wave"]) if data.get("cd_wave") is not None else None),
-            beta=float(data.get("beta", 0.0)),
-            p=float(data.get("p", 0.0)),
-            q=float(data.get("q", 0.0)),
-            r=float(data.get("r", 0.0)),
+            cm=float(data["cm"]),
+            cd_induced=_optional_float(data["cd_induced"]),
+            cd_profile=_optional_float(data["cd_profile"]),
+            cl_over_cd=float(data["cl_over_cd"]),
+            cx=float(data["cx"]),
+            cy=float(data["cy"]),
+            cz=float(data["cz"]),
+            cl_roll=float(data["cl_roll"]),
+            cn=float(data["cn"]),
+            cd_wave=_optional_float(data["cd_wave"]),
+            beta=float(data["beta"]),
+            p=float(data["p"]),
+            q=float(data["q"]),
+            r=float(data["r"]),
             forces_moments=fm,
             state=st,
-            velocity=float(data.get("velocity", 0.0)),
-            altitude=float(data.get("altitude", 0.0)),
-            mach=float(data.get("mach", 0.0)),
-            reynolds=float(data.get("reynolds", 0.0)),
-            dynamic_pressure=float(data.get("dynamic_pressure", 0.0)),
-            control_deflections=dict(data.get("control_deflections") or {}),
-            converged=bool(data.get("converged", True)),
-            notes=str(data.get("notes", "")),
-            raw=_string_keyed_dict(data.get("raw")),
+            velocity=float(data["velocity"]),
+            altitude=float(data["altitude"]),
+            mach=float(data["mach"]),
+            reynolds=float(data["reynolds"]),
+            dynamic_pressure=float(data["dynamic_pressure"]),
+            control_deflections=dict(data["control_deflections"]),
+            converged=bool(data["converged"]),
+            notes=str(data["notes"]),
+            raw=_string_keyed_dict(data["raw"]),
         )
 
 
@@ -654,9 +658,9 @@ class SweepVariable:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> SweepVariable:
         return cls(
-            name=str(data.get("name", "")),
-            values=[float(v) for v in data.get("values", [])],
-            unit=str(data.get("unit", "")),
+            name=str(data["name"]),
+            values=[float(v) for v in data["values"]],
+            unit=str(data["unit"]),
         )
 
 
@@ -748,15 +752,13 @@ class MultiDimensionalSweepResult:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> MultiDimensionalSweepResult:
-        point_order = data.get("point_order", "last_variable_fastest")
+        point_order = data["point_order"]
         if point_order != "last_variable_fastest":
             raise ValueError(f"Unsupported sweep point order: {point_order}")
-        vars_data = data.get("variables", [])
-        pts_data = data.get("points", [])
         return cls(
-            variables=[SweepVariable.from_dict(v) for v in vars_data if isinstance(v, dict)],
-            points=[PolarPoint.from_dict(p) for p in pts_data if isinstance(p, dict)],
-            grid_shape=tuple(data.get("grid_shape", ())),
+            variables=[SweepVariable.from_dict(v) for v in data["variables"]],
+            points=[PolarPoint.from_dict(p) for p in data["points"]],
+            grid_shape=tuple(data["grid_shape"]),
         )
 
 
@@ -786,18 +788,15 @@ class ControlChannelAnalysis:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ControlChannelAnalysis:
         return cls(
-            channel=str(data.get("channel", "")),
-            sample_count=int(data.get("sample_count", 0)),
-            deflection_min_deg=float(data.get("deflection_min_deg", 0.0)),
-            deflection_max_deg=float(data.get("deflection_max_deg", 0.0)),
+            channel=str(data["channel"]),
+            sample_count=int(data["sample_count"]),
+            deflection_min_deg=float(data["deflection_min_deg"]),
+            deflection_max_deg=float(data["deflection_max_deg"]),
             derivatives_per_deg={
-                str(key): float(value)
-                for key, value in (data.get("derivatives_per_deg") or {}).items()
+                str(key): float(value) for key, value in data["derivatives_per_deg"].items()
             },
-            linearity_r2={
-                str(key): float(value) for key, value in (data.get("linearity_r2") or {}).items()
-            },
-            method=str(data.get("method", "least_squares")),
+            linearity_r2={str(key): float(value) for key, value in data["linearity_r2"].items()},
+            method=str(data["method"]),
         )
 
 
@@ -890,54 +889,42 @@ class AeroResult:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> AeroResult:
         """Construct an AeroResult instance from a serialized dictionary."""
-        method = AnalysisMethod.from_value(data.get("method", "aero_buildup"))
+        method = AnalysisMethod.from_value(data["method"])
+        points = [PolarPoint.from_dict(p) for p in data["polar_points"]]
 
-        points = [
-            PolarPoint.from_dict(p) for p in data.get("polar_points", []) if isinstance(p, dict)
-        ]
+        ref = ReferenceValues.from_dict(data["reference"])
+        cond = FlightCondition.from_dict(data["condition"])
 
-        ref = ReferenceValues.from_dict(data.get("reference") or {})
-        cond = FlightCondition.from_dict(data.get("condition") or {})
+        from .stability_models import StabilityDerivatives
 
-        sweep_data = data.get("sweep_result")
-        sweep = (
-            MultiDimensionalSweepResult.from_dict(sweep_data)
-            if isinstance(sweep_data, dict)
-            else None
-        )
-        control_data = data.get("control_analysis")
+        sweep_data = data["sweep_result"]
+        sweep = None if sweep_data is None else MultiDimensionalSweepResult.from_dict(sweep_data)
+        control_data = data["control_analysis"]
         control_analysis = (
-            ControlChannelAnalysis.from_dict(control_data)
-            if isinstance(control_data, dict)
-            else None
+            None if control_data is None else ControlChannelAnalysis.from_dict(control_data)
         )
-
-        stab_raw = data.get("stability_derivatives")
-        stab_res = None
-        if isinstance(stab_raw, dict):
-            from .stability_models import StabilityDerivatives
-
-            stab_res = StabilityDerivatives.from_dict(stab_raw)
+        stab_raw = data["stability_derivatives"]
+        stab_res = None if stab_raw is None else StabilityDerivatives.from_dict(stab_raw)
 
         return cls(
             method=method,
-            engine_name=str(data.get("engine_name", "")),
+            engine_name=str(data["engine_name"]),
             polar_points=points,
-            cl_max=float(data.get("cl_max", 0.0)),
-            cl_max_alpha=float(data.get("cl_max_alpha", 0.0)),
-            cd_min=float(data.get("cd_min", 0.0)),
-            ld_max=float(data.get("ld_max", 0.0)),
-            ld_max_alpha=float(data.get("ld_max_alpha", 0.0)),
+            cl_max=float(data["cl_max"]),
+            cl_max_alpha=float(data["cl_max_alpha"]),
+            cd_min=float(data["cd_min"]),
+            ld_max=float(data["ld_max"]),
+            ld_max_alpha=float(data["ld_max_alpha"]),
             reference=ref,
-            reynolds=float(data.get("reynolds", 0.0)),
-            mach=float(data.get("mach", 0.0)),
-            dynamic_pressure=float(data.get("dynamic_pressure", 0.0)),
-            oswald_efficiency=data.get("oswald_efficiency"),
+            reynolds=float(data["reynolds"]),
+            mach=float(data["mach"]),
+            dynamic_pressure=float(data["dynamic_pressure"]),
+            oswald_efficiency=_optional_float(data["oswald_efficiency"]),
             stability_derivatives=stab_res,
             sweep_result=sweep,
             control_analysis=control_analysis,
             condition=cond,
-            raw=_string_keyed_dict(data.get("raw")),
+            raw=_string_keyed_dict(data["raw"]),
         )
 
 
