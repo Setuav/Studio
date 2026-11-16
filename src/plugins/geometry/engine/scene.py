@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import bisect
 import math
 from collections.abc import Callable
 from copy import deepcopy
@@ -309,6 +310,9 @@ def _build_lifting_surface_root_stubs(
         fuselage_id = fuselage.get("id")
         if not isinstance(fuselage_id, str):
             continue
+        sections = _fuselage_cross_sections(fuselage)
+        if not sections:
+            continue
         color = _fuselage_stub_color()
         for item_id, item in items.items():
             if item.get("attach_to") != fuselage_id:
@@ -321,7 +325,7 @@ def _build_lifting_surface_root_stubs(
             if _is_bilateral(source):
                 matrices.append(_mirrored_root_matrix(item, world_matrix_fn))
             for matrix in matrices:
-                stub = _build_root_stub(fuselage, fuselage_id, root_section, matrix, color)
+                stub = _build_root_stub(sections, fuselage_id, root_section, matrix, color)
                 if stub is not None:
                     stubs.append(stub)
     return stubs
@@ -364,7 +368,7 @@ def _mirrored_root_matrix(
 
 
 def _build_root_stub(
-    fuselage: dict[str, Any],
+    sections: list[FuselageCrossSection],
     fuselage_id: str,
     root_section: Section,
     matrix: Matrix4,
@@ -372,7 +376,7 @@ def _build_root_stub(
 ) -> LoftGeometry | None:
     outer_points = tuple(transform_point(matrix, point) for point in root_section.points)
     inward = _inward_span_direction(matrix)
-    inner_points, has_gap = _project_root_points(fuselage, outer_points, inward)
+    inner_points, has_gap = _project_root_points(sections, outer_points, inward)
     if not has_gap:
         return None
     return LoftGeometry(
@@ -398,7 +402,7 @@ def _inward_span_direction(matrix: Matrix4) -> tuple[float, float, float]:
 
 
 def _project_root_points(
-    fuselage: dict[str, Any],
+    sections: list[FuselageCrossSection],
     outer_points: tuple[tuple[float, float, float], ...],
     inward: tuple[float, float, float],
 ) -> tuple[tuple[tuple[float, float, float], ...], bool]:
@@ -406,7 +410,7 @@ def _project_root_points(
     has_gap = False
     for outer_point in outer_points:
         inner_point, point_has_gap = _project_point_to_fuselage(
-            fuselage,
+            sections,
             outer_point,
             inward,
         )
@@ -416,60 +420,47 @@ def _project_root_points(
     return tuple(inner_points), has_gap
 
 
+FuselageCrossSection = tuple[float, float, float, float, float]
+"""Section x, the outline's bounding-box centre y and z, and its half width and height."""
+
+
 def _get_fuselage_cross_section_at_x(
-    fuse_comp: dict[str, Any],
+    sections: list[FuselageCrossSection],
     x_target: float,
-) -> tuple[float, float, float, float, str]:
-    sections = _fuselage_cross_sections(fuse_comp)
-    sections.sort(key=lambda s: s[0])
-    if not sections:
-        return 0.0, 0.0, 50.0, 50.0, "circle"
-
+) -> tuple[float, float, float, float]:
+    """Interpolate the centre and half sizes of x-sorted ``sections`` at ``x_target``."""
     if x_target <= sections[0][0]:
-        sec = sections[0]
-        return sec[1], sec[2], sec[3], sec[4], sec[5]
-    elif x_target >= sections[-1][0]:
-        sec = sections[-1]
-        return sec[1], sec[2], sec[3], sec[4], sec[5]
-    else:
-        for i in range(len(sections) - 1):
-            if sections[i][0] <= x_target <= sections[i + 1][0]:
-                x0, y0, z0, a0, b0, p0 = sections[i]
-                x1, y1, z1, a1, b1, _p1 = sections[i + 1]
-                t = (x_target - x0) / max(x1 - x0, 1e-6)
-                return (
-                    y0 + t * (y1 - y0),
-                    z0 + t * (z1 - z0),
-                    a0 + t * (a1 - a0),
-                    b0 + t * (b1 - b0),
-                    p0,
-                )
-
-    return 0.0, 0.0, 50.0, 50.0, "circle"
+        return sections[0][1:]
+    if x_target >= sections[-1][0]:
+        return sections[-1][1:]
+    upper_index = bisect.bisect_right([section[0] for section in sections], x_target)
+    lower, upper = sections[upper_index - 1], sections[upper_index]
+    t = (x_target - lower[0]) / max(upper[0] - lower[0], 1e-6)
+    y, z, half_width, half_height = (
+        low + t * (high - low) for low, high in zip(lower[1:], upper[1:], strict=True)
+    )
+    return y, z, half_width, half_height
 
 
-def _fuselage_cross_sections(
-    component: dict[str, Any],
-) -> list[tuple[float, float, float, float, float, str]]:
+def _fuselage_cross_sections(component: dict[str, Any]) -> list[FuselageCrossSection]:
+    """Return the fuselage's section extents sorted by x."""
     parameters = component.get("parameters")
     parameters = parameters if isinstance(parameters, dict) else {}
     geometry = parameters.get("geometry")
     geometry = geometry if isinstance(geometry, dict) else {}
     segments = geometry.get("segments")
     segments = segments if isinstance(segments, list) else []
-    result: list[tuple[float, float, float, float, float, str]] = []
+    result: list[FuselageCrossSection] = []
     for segment in segments:
         if not isinstance(segment, dict):
             continue
         for section in segment.get("sections", []):
             if isinstance(section, dict):
                 result.append(_fuselage_cross_section(section))
-    return result
+    return sorted(result, key=lambda section: section[0])
 
 
-def _fuselage_cross_section(
-    section: dict[str, Any],
-) -> tuple[float, float, float, float, float, str]:
+def _fuselage_cross_section(section: dict[str, Any]) -> FuselageCrossSection:
     position = section.get("position")
     position = position if isinstance(position, dict) else {}
     profile = section.get("profile")
@@ -483,18 +474,17 @@ def _fuselage_cross_section(
         number_field(position, "z", 0.0) + (max(zs) + min(zs)) * 0.5,
         max((max(ys) - min(ys)) * 0.5, 1e-4),
         max((max(zs) - min(zs)) * 0.5, 1e-4),
-        str(profile["type"]),
     )
 
 
 def _project_point_to_fuselage(
-    fuse_comp: dict[str, Any],
+    sections: list[FuselageCrossSection],
     pt: tuple[float, float, float],
     d_in: tuple[float, float, float],
 ) -> tuple[tuple[float, float, float], bool]:
     gx, gy, gz = pt
     dx, dy, dz = d_in
-    y_c, z_c, r_y, r_z, _ = _get_fuselage_cross_section_at_x(fuse_comp, gx)
+    y_c, z_c, r_y, r_z = _get_fuselage_cross_section_at_x(sections, gx)
 
     u_0 = (gy - y_c) / r_y
     v_0 = (gz - z_c) / r_z

@@ -6,6 +6,7 @@ import math
 import unittest
 from copy import deepcopy
 from pathlib import Path
+from typing import Any
 
 from plugins.geometry.engine.data import GeometryData, LoftGeometry, Section
 from plugins.geometry.engine.fuselage_geometry import build_fuselage_geometry
@@ -561,6 +562,67 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
         self.assertTrue(_is_matching_component("main-wing:flap-1", "main-wing"))
         self.assertFalse(_is_matching_component("h-stab", "main-wing"))
         self.assertFalse(_is_matching_component("fuselage", "main-wing"))
+
+    def test_root_stub_reaches_only_fuselages_with_sections(self) -> None:
+        from plugins.geometry.engine.fuselage_geometry import build_fuselage_geometry
+        from plugins.geometry.engine.lifting_surface_geometry import (
+            build_lifting_surface_geometry,
+        )
+        from plugins.geometry.engine.scene import build_project_geometry
+
+        def project(fuselage_sections: list[dict[str, Any]]) -> ProjectDocument:
+            fuselage = {
+                "kind": "component",
+                "type": "org.setuav.core:fuselage",
+                "id": "fuse",
+                "parameters": {"geometry": {"segments": [{"sections": fuselage_sections}]}},
+            }
+            wing = {
+                "kind": "component",
+                "type": "org.setuav.core:lifting-surface",
+                "id": "wing",
+                "attach_to": "fuse",
+                # The wing root sits 100 mm out from the fuselage axis.
+                "transform": {"position": {"x": 200.0, "y": 100.0, "z": 0.0}},
+                "parameters": {
+                    "geometry": {
+                        "profiles": [
+                            {
+                                "position": {"x": 0, "y": 0, "z": 0},
+                                "chord": 150.0,
+                                "airfoil": "0012",
+                            },
+                            {
+                                "position": {"x": 0, "y": 300, "z": 0},
+                                "chord": 100.0,
+                                "airfoil": "0012",
+                            },
+                        ]
+                    }
+                },
+            }
+            return ProjectDocument(Path("mock.json"), "json", {"components": [fuselage, wing]})
+
+        providers = {
+            "org.setuav.core:fuselage": build_fuselage_geometry,
+            "org.setuav.core:lifting-surface": build_lifting_surface_geometry,
+        }
+        sections = [
+            {"position": {"x": x, "y": 0, "z": 0}, "profile": {"type": "circle", "diameter": 100}}
+            for x in (0.0, 500.0)
+        ]
+        with_body = build_project_geometry(project(sections), providers)
+        without_body = build_project_geometry(project([]), providers)
+
+        def stubs(geometry: Any) -> list[Any]:
+            return [
+                loft
+                for loft in geometry.lofts
+                if loft.component_id == "fuse" and not loft.closed_ends
+            ]
+
+        self.assertEqual(len(stubs(with_body)), 1)
+        self.assertEqual(stubs(without_body), [])
 
     def test_conformal_wing_root_stubs_angled_and_flat(self) -> None:
         """Verify that lifting surface and empennage lofts and root stubs are properly generated in scene."""
