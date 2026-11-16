@@ -3,8 +3,14 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from functools import cached_property
 from typing import Any
+
+import numpy as np
+
+LINEAR_LIFT_RANGE_DEG = (-4.0, 6.0)
+"""Angle-of-attack range the lift slope and zero-lift angle are fitted over."""
 
 
 @dataclass(frozen=True)
@@ -22,8 +28,11 @@ class AirfoilPolarPoint:
     analysis_confidence: float | None = None  # NeuralFoil confidence, when exposed
     mach_crit: float | None = None
     mach_dd: float | None = None
-    cl_over_cd: float = 0.0
     converged: bool = True
+
+    @property
+    def cl_over_cd(self) -> float:
+        return self.cl / self.cd
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -38,39 +47,93 @@ class AirfoilPolarPoint:
             "analysis_confidence": self.analysis_confidence,
             "mach_crit": self.mach_crit,
             "mach_dd": self.mach_dd,
-            "cl_over_cd": self.cl_over_cd,
             "converged": self.converged,
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> AirfoilPolarPoint:
+        def optional(key: str) -> float | None:
+            value = data[key]
+            return None if value is None else float(value)
+
         return cls(
-            alpha=float(data.get("alpha", 0.0)),
-            cl=float(data.get("cl", 0.0)),
-            cd=float(data.get("cd", 0.0)),
-            cm=float(data.get("cm", 0.0)),
-            cd_profile=(float(data["cd_profile"]) if data.get("cd_profile") is not None else None),
-            cd_friction=(
-                float(data["cd_friction"]) if data.get("cd_friction") is not None else None
-            ),
-            top_transition=(
-                float(data["top_transition"]) if data.get("top_transition") is not None else None
-            ),
-            bottom_transition=(
-                float(data["bottom_transition"])
-                if data.get("bottom_transition") is not None
-                else None
-            ),
-            analysis_confidence=(
-                float(data["analysis_confidence"])
-                if data.get("analysis_confidence") is not None
-                else None
-            ),
-            mach_crit=(float(data["mach_crit"]) if data.get("mach_crit") is not None else None),
-            mach_dd=(float(data["mach_dd"]) if data.get("mach_dd") is not None else None),
-            cl_over_cd=float(data.get("cl_over_cd", 0.0)),
-            converged=bool(data.get("converged", True)),
+            alpha=float(data["alpha"]),
+            cl=float(data["cl"]),
+            cd=float(data["cd"]),
+            cm=float(data["cm"]),
+            cd_profile=optional("cd_profile"),
+            cd_friction=optional("cd_friction"),
+            top_transition=optional("top_transition"),
+            bottom_transition=optional("bottom_transition"),
+            analysis_confidence=optional("analysis_confidence"),
+            mach_crit=optional("mach_crit"),
+            mach_dd=optional("mach_dd"),
+            converged=bool(data["converged"]),
         )
+
+
+@dataclass(frozen=True)
+class AirfoilPolarSummary:
+    """Key coefficients of a polar's converged points."""
+
+    cl_max: float
+    cl_max_alpha: float
+    cl_min: float
+    cl_min_alpha: float
+    cd_min: float
+    cl_at_cd_min: float
+    ld_max: float
+    ld_max_alpha: float
+    cl_alpha_slope: float | None
+    """Lift slope in 1/deg; None when the polar has fewer than two points in the
+    linear range."""
+    alpha_zero_lift: float | None
+    """Zero-lift angle in deg; None without a lift slope."""
+    cm_zero_lift: float | None
+    """Pitching moment at the zero-lift angle; None without that angle."""
+
+
+def summarize_polar(points: list[AirfoilPolarPoint]) -> AirfoilPolarSummary:
+    """Summarize the converged points of a polar."""
+    valid = [p for p in points if p.converged]
+    if not valid:
+        raise ValueError("Airfoil polar has no converged points to summarize.")
+    alphas = np.array([p.alpha for p in valid])
+    cls = np.array([p.cl for p in valid])
+    cds = np.array([p.cd for p in valid])
+    cms = np.array([p.cm for p in valid])
+    lds = cls / cds
+
+    cl_max_idx = int(np.argmax(cls))
+    cl_min_idx = int(np.argmin(cls))
+    cd_min_idx = int(np.argmin(cds))
+    ld_max_idx = int(np.argmax(lds))
+
+    slope: float | None = None
+    alpha_zero: float | None = None
+    cm_zero: float | None = None
+    low, high = LINEAR_LIFT_RANGE_DEG
+    linear = (alphas >= low) & (alphas <= high)
+    if np.sum(linear) >= 2:
+        fit_slope, fit_intercept = np.polyfit(alphas[linear], cls[linear], 1)
+        slope = float(fit_slope)
+        if abs(slope) > 1e-4:
+            alpha_zero = float(-fit_intercept / fit_slope)
+            cm_zero = float(np.interp(alpha_zero, alphas, cms))
+
+    return AirfoilPolarSummary(
+        cl_max=float(cls[cl_max_idx]),
+        cl_max_alpha=float(alphas[cl_max_idx]),
+        cl_min=float(cls[cl_min_idx]),
+        cl_min_alpha=float(alphas[cl_min_idx]),
+        cd_min=float(cds[cd_min_idx]),
+        cl_at_cd_min=float(cls[cd_min_idx]),
+        ld_max=float(lds[ld_max_idx]),
+        ld_max_alpha=float(alphas[ld_max_idx]),
+        cl_alpha_slope=slope,
+        alpha_zero_lift=alpha_zero,
+        cm_zero_lift=cm_zero,
+    )
 
 
 @dataclass
@@ -79,23 +142,15 @@ class AirfoilPolar:
 
     airfoil_name: str
     reynolds: float
-    mach: float = 0.0
-    n_crit: float = 9.0
-    model_size: str = "large"
-    points: list[AirfoilPolarPoint] = field(default_factory=list)
-    # Summary metrics
-    cl_max: float = 0.0
-    cl_max_alpha: float = 0.0
-    cl_min: float = 0.0
-    cl_min_alpha: float = 0.0
-    cd_min: float = 0.0
-    cl_at_cd_min: float = 0.0
-    ld_max: float = 0.0
-    ld_max_alpha: float = 0.0
-    cl_alpha_slope: float = 0.0  # dCl/d_alpha in 1/deg
-    alpha_zero_lift: float = 0.0  # Angle of attack where Cl = 0 in deg
-    cm_zero_lift: float = 0.0  # Pitching moment at zero lift
-    backend_used: str = "neuralfoil"
+    mach: float
+    n_crit: float
+    model_size: str
+    points: list[AirfoilPolarPoint]
+    backend_used: str
+
+    @cached_property
+    def summary(self) -> AirfoilPolarSummary:
+        return summarize_polar(self.points)
 
     def get_point(self, alpha: float, tolerance: float = 1e-3) -> AirfoilPolarPoint | None:
         """Find a polar point by alpha."""
@@ -105,27 +160,15 @@ class AirfoilPolar:
         return None
 
     def interpolate(self, alpha: float) -> tuple[float, float, float]:
-        """Interpolate (Cl, Cd, Cm) at an arbitrary angle of attack."""
+        """Interpolate (Cl, Cd, Cm) at ``alpha``, holding the end values outside the polar."""
         if not self.points:
-            return (0.0, 0.0, 0.0)
+            raise ValueError(f"Airfoil polar '{self.airfoil_name}' has no points.")
         alphas = [p.alpha for p in self.points]
-        if alpha <= alphas[0]:
-            p0 = self.points[0]
-            return (p0.cl, p0.cd, p0.cm)
-        if alpha >= alphas[-1]:
-            p_last = self.points[-1]
-            return (p_last.cl, p_last.cd, p_last.cm)
-
-        # Linear interpolation between adjacent points
-        for i in range(len(alphas) - 1):
-            if alphas[i] <= alpha <= alphas[i + 1]:
-                t = (alpha - alphas[i]) / (alphas[i + 1] - alphas[i])
-                p1, p2 = self.points[i], self.points[i + 1]
-                cl = (1 - t) * p1.cl + t * p2.cl
-                cd = (1 - t) * p1.cd + t * p2.cd
-                cm = (1 - t) * p1.cm + t * p2.cm
-                return (cl, cd, cm)
-        return (0.0, 0.0, 0.0)
+        return (
+            float(np.interp(alpha, alphas, [p.cl for p in self.points])),
+            float(np.interp(alpha, alphas, [p.cd for p in self.points])),
+            float(np.interp(alpha, alphas, [p.cm for p in self.points])),
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -135,42 +178,17 @@ class AirfoilPolar:
             "n_crit": self.n_crit,
             "model_size": self.model_size,
             "points": [p.to_dict() for p in self.points],
-            "cl_max": self.cl_max,
-            "cl_max_alpha": self.cl_max_alpha,
-            "cl_min": self.cl_min,
-            "cl_min_alpha": self.cl_min_alpha,
-            "cd_min": self.cd_min,
-            "cl_at_cd_min": self.cl_at_cd_min,
-            "ld_max": self.ld_max,
-            "ld_max_alpha": self.ld_max_alpha,
-            "cl_alpha_slope": self.cl_alpha_slope,
-            "alpha_zero_lift": self.alpha_zero_lift,
-            "cm_zero_lift": self.cm_zero_lift,
             "backend_used": self.backend_used,
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> AirfoilPolar:
-        pts = [
-            AirfoilPolarPoint.from_dict(p) for p in data.get("points", []) if isinstance(p, dict)
-        ]
         return cls(
-            airfoil_name=str(data.get("airfoil_name", "")),
-            reynolds=float(data.get("reynolds", 0.0)),
-            mach=float(data.get("mach", 0.0)),
-            n_crit=float(data.get("n_crit", 9.0)),
-            model_size=str(data.get("model_size", "large")),
-            points=pts,
-            cl_max=float(data.get("cl_max", 0.0)),
-            cl_max_alpha=float(data.get("cl_max_alpha", 0.0)),
-            cl_min=float(data.get("cl_min", 0.0)),
-            cl_min_alpha=float(data.get("cl_min_alpha", 0.0)),
-            cd_min=float(data.get("cd_min", 0.0)),
-            cl_at_cd_min=float(data.get("cl_at_cd_min", 0.0)),
-            ld_max=float(data.get("ld_max", 0.0)),
-            ld_max_alpha=float(data.get("ld_max_alpha", 0.0)),
-            cl_alpha_slope=float(data.get("cl_alpha_slope", 0.0)),
-            alpha_zero_lift=float(data.get("alpha_zero_lift", 0.0)),
-            cm_zero_lift=float(data.get("cm_zero_lift", 0.0)),
-            backend_used=str(data.get("backend_used", "neuralfoil")),
+            airfoil_name=str(data["airfoil_name"]),
+            reynolds=float(data["reynolds"]),
+            mach=float(data["mach"]),
+            n_crit=float(data["n_crit"]),
+            model_size=str(data["model_size"]),
+            points=[AirfoilPolarPoint.from_dict(p) for p in data["points"]],
+            backend_used=str(data["backend_used"]),
         )

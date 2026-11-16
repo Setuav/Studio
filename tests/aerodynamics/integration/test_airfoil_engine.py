@@ -19,26 +19,42 @@ from plugins.aerodynamics.engine.airfoil_models import (
 )
 
 
+def _polar(
+    name: str,
+    points: list[AirfoilPolarPoint],
+    *,
+    reynolds: float = 200000.0,
+    mach: float = 0.0,
+) -> AirfoilPolar:
+    return AirfoilPolar(
+        airfoil_name=name,
+        reynolds=reynolds,
+        mach=mach,
+        n_crit=9.0,
+        model_size="large",
+        points=points,
+        backend_used="neuralfoil (large)",
+    )
+
+
 class TestAirfoilModels(unittest.TestCase):
     """Test 2D airfoil data models and interpolation."""
 
     def test_airfoil_polar_interpolation_and_serialization(self) -> None:
         pts = [
-            AirfoilPolarPoint(alpha=0.0, cl=0.2, cd=0.008, cm=-0.05, cl_over_cd=25.0),
-            AirfoilPolarPoint(alpha=4.0, cl=0.6, cd=0.010, cm=-0.05, cl_over_cd=60.0),
-            AirfoilPolarPoint(alpha=8.0, cl=1.0, cd=0.016, cm=-0.05, cl_over_cd=62.5),
+            AirfoilPolarPoint(alpha=0.0, cl=0.2, cd=0.008, cm=-0.05),
+            AirfoilPolarPoint(alpha=4.0, cl=0.6, cd=0.010, cm=-0.05),
+            AirfoilPolarPoint(alpha=8.0, cl=1.0, cd=0.016, cm=-0.05),
         ]
-        polar = AirfoilPolar(
-            airfoil_name="naca2412",
-            reynolds=300000.0,
-            mach=0.08,
-            points=pts,
-            cl_max=1.0,
-            cl_max_alpha=8.0,
-            cd_min=0.008,
-            ld_max=62.5,
-            ld_max_alpha=8.0,
-        )
+        polar = _polar("naca2412", pts, reynolds=300000.0, mach=0.08)
+        summary = polar.summary
+        self.assertEqual((summary.cl_max, summary.cl_max_alpha), (1.0, 8.0))
+        self.assertEqual(summary.cd_min, 0.008)
+        self.assertAlmostEqual(summary.ld_max, 62.5)
+        # Two points lie in the linear range: slope 0.1 /deg through cl = 0.2 at 0 deg.
+        self.assertAlmostEqual(summary.cl_alpha_slope or 0.0, 0.1)
+        self.assertAlmostEqual(summary.alpha_zero_lift or 0.0, -2.0)
+        self.assertAlmostEqual(summary.cm_zero_lift or 0.0, -0.05)
 
         # Interpolate at alpha=2.0
         cl_interp, cd_interp, cm_interp = polar.interpolate(2.0)
@@ -52,7 +68,20 @@ class TestAirfoilModels(unittest.TestCase):
         self.assertEqual(restored.airfoil_name, "naca2412")
         self.assertEqual(len(restored.points), 3)
         self.assertAlmostEqual(restored.reynolds, 300000.0)
-        self.assertAlmostEqual(restored.cl_max, 1.0)
+        self.assertEqual(restored.points, polar.points)
+        self.assertAlmostEqual(restored.summary.cl_max, 1.0)
+
+    def test_polar_outside_the_linear_range_has_no_lift_slope(self) -> None:
+        pts = [
+            AirfoilPolarPoint(alpha=10.0, cl=1.1, cd=0.02, cm=-0.04),
+            AirfoilPolarPoint(alpha=14.0, cl=1.3, cd=0.04, cm=-0.03),
+        ]
+        summary = _polar("stall", pts).summary
+        self.assertIsNone(summary.cl_alpha_slope)
+        self.assertIsNone(summary.alpha_zero_lift)
+        self.assertIsNone(summary.cm_zero_lift)
+        with self.assertRaisesRegex(ValueError, "no converged points"):
+            _ = _polar("empty", []).summary
 
 
 class TestAirfoilCache(unittest.TestCase):
@@ -61,9 +90,9 @@ class TestAirfoilCache(unittest.TestCase):
     def test_cache_hits_and_eviction(self) -> None:
         cache = AirfoilPolarCache(max_entries=2)
         pts = [AirfoilPolarPoint(alpha=0.0, cl=0.1, cd=0.01, cm=0.0)]
-        polar1 = AirfoilPolar(airfoil_name="naca0012", reynolds=200000, points=pts)
-        polar2 = AirfoilPolar(airfoil_name="clarky", reynolds=200000, points=pts)
-        polar3 = AirfoilPolar(airfoil_name="naca2412", reynolds=200000, points=pts)
+        polar1 = _polar("naca0012", pts)
+        polar2 = _polar("clarky", pts)
+        polar3 = _polar("naca2412", pts)
 
         # Store polar1 and polar2
         cache.put(polar1, alphas=[0.0])
@@ -137,12 +166,13 @@ class TestAirfoilEngine(unittest.TestCase):
 
         self.assertEqual(polar.airfoil_name, "naca2412")
         self.assertEqual(len(polar.points), 6)
-        self.assertGreater(polar.cl_max, 1.1)
-        self.assertLess(polar.cd_min, 0.015)
-        self.assertGreater(polar.ld_max, 30.0)
+        summary = polar.summary
+        self.assertGreater(summary.cl_max, 1.1)
+        self.assertLess(summary.cd_min, 0.015)
+        self.assertGreater(summary.ld_max, 30.0)
         # Cambered airfoil has negative zero-lift pitching moment and negative alpha_0L
-        self.assertLess(polar.cm_zero_lift, 0.0)
-        self.assertLess(polar.alpha_zero_lift, 0.0)
+        self.assertLess(summary.cm_zero_lift or 0.0, 0.0)
+        self.assertLess(summary.alpha_zero_lift or 0.0, 0.0)
         self.assertIsNotNone(polar.points[0].top_transition)
         self.assertIsNotNone(polar.points[0].bottom_transition)
         self.assertEqual(polar.model_size, "large")
@@ -173,7 +203,7 @@ class TestAirfoilEngine(unittest.TestCase):
         )
 
         # Symmetric airfoil zero lift angle must be ~ 0 deg
-        self.assertAlmostEqual(polar.alpha_zero_lift, 0.0, places=1)
+        self.assertAlmostEqual(polar.summary.alpha_zero_lift or 1.0, 0.0, places=1)
         pt_0 = polar.get_point(0.0)
         self.assertIsNotNone(pt_0)
         self.assertAlmostEqual(pt_0.cl, 0.0, places=1)
@@ -189,7 +219,7 @@ class TestAirfoilEngine(unittest.TestCase):
         )
         self.assertIsNotNone(polar)
         self.assertEqual(len(polar.points), 5)
-        self.assertGreater(polar.cl_max, 0.8)
+        self.assertGreater(polar.summary.cl_max, 0.8)
 
 
 if __name__ == "__main__":

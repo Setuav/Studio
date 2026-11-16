@@ -144,17 +144,11 @@ class AirfoilAnalysisEngine:
 
         points: list[AirfoilPolarPoint] = []
         for i, a in enumerate(alphas):
-            cl_i = float(cls[i])
-            cd_i = max(float(cds[i]), 1e-5)
-            cm_i = float(cms[i])
-            ld_i = cl_i / cd_i if abs(cd_i) > 1e-7 else 0.0
-
             pt = AirfoilPolarPoint(
                 alpha=float(a),
-                cl=cl_i,
-                cd=cd_i,
-                cm=cm_i,
-                cl_over_cd=ld_i,
+                cl=float(cls[i]),
+                cd=float(cds[i]),
+                cm=float(cms[i]),
                 top_transition=native_value("Top_Xtr", i),
                 bottom_transition=native_value("Bot_Xtr", i),
                 analysis_confidence=native_value("analysis_confidence", i),
@@ -164,8 +158,6 @@ class AirfoilAnalysisEngine:
             )
             points.append(pt)
 
-        metrics = self._compute_summary_metrics(points)
-
         return AirfoilPolar(
             airfoil_name=str(airfoil.name),
             reynolds=re_val,
@@ -173,89 +165,5 @@ class AirfoilAnalysisEngine:
             n_crit=n_crit,
             model_size=model_size,
             points=points,
-            cl_max=metrics["cl_max"],
-            cl_max_alpha=metrics["cl_max_alpha"],
-            cl_min=metrics["cl_min"],
-            cl_min_alpha=metrics["cl_min_alpha"],
-            cd_min=metrics["cd_min"],
-            cl_at_cd_min=metrics["cl_at_cd_min"],
-            ld_max=metrics["ld_max"],
-            ld_max_alpha=metrics["ld_max_alpha"],
-            cl_alpha_slope=metrics["cl_alpha_slope"],
-            alpha_zero_lift=metrics["alpha_zero_lift"],
-            cm_zero_lift=metrics["cm_zero_lift"],
             backend_used=f"neuralfoil ({model_size})",
         )
-
-    def _compute_summary_metrics(self, points: list[AirfoilPolarPoint]) -> dict[str, float]:
-        """Compute key aerodynamic coefficients and stability derivatives from polar points."""
-        if not points:
-            return {
-                "cl_max": 0.0,
-                "cl_max_alpha": 0.0,
-                "cl_min": 0.0,
-                "cl_min_alpha": 0.0,
-                "cd_min": 0.0,
-                "cl_at_cd_min": 0.0,
-                "ld_max": 0.0,
-                "ld_max_alpha": 0.0,
-                "cl_alpha_slope": 0.1,
-                "alpha_zero_lift": 0.0,
-                "cm_zero_lift": 0.0,
-            }
-
-        valid_points = [p for p in points if p.converged]
-        if not valid_points:
-            return {
-                "cl_max": 0.0,
-                "cl_max_alpha": 0.0,
-                "cl_min": 0.0,
-                "cl_min_alpha": 0.0,
-                "cd_min": 0.0,
-                "cl_at_cd_min": 0.0,
-                "ld_max": 0.0,
-                "ld_max_alpha": 0.0,
-                "cl_alpha_slope": 0.0,
-                "alpha_zero_lift": 0.0,
-                "cm_zero_lift": 0.0,
-            }
-
-        alphas = np.array([p.alpha for p in valid_points])
-        cls = np.array([p.cl for p in valid_points])
-        cds = np.array([p.cd for p in valid_points])
-        cms = np.array([p.cm for p in valid_points])
-        lds = np.array([p.cl_over_cd for p in valid_points])
-
-        cl_max_idx = int(np.argmax(cls))
-        cl_min_idx = int(np.argmin(cls))
-        cd_min_idx = int(np.argmin(cds))
-        ld_max_idx = int(np.argmax(lds))
-
-        # Linear lift slope calculation in linear pre-stall region (e.g. -2 to 6 deg)
-        mask = (alphas >= -4.0) & (alphas <= 6.0)
-        if np.sum(mask) >= 2:
-            poly = np.polyfit(alphas[mask], cls[mask], 1)
-            cla_slope = float(poly[0])
-            a0l = float(-poly[1] / poly[0]) if abs(poly[0]) > 1e-4 else 0.0
-        else:
-            cla_slope = (
-                float((cls[-1] - cls[0]) / (alphas[-1] - alphas[0])) if len(alphas) > 1 else 0.1
-            )
-            a0l = 0.0
-
-        # Pitching moment at zero lift (interpolate Cm at alpha_zero_lift)
-        cm_zero = float(np.interp(a0l, alphas, cms))
-
-        return {
-            "cl_max": float(cls[cl_max_idx]),
-            "cl_max_alpha": float(alphas[cl_max_idx]),
-            "cl_min": float(cls[cl_min_idx]),
-            "cl_min_alpha": float(alphas[cl_min_idx]),
-            "cd_min": float(cds[cd_min_idx]),
-            "cl_at_cd_min": float(cls[cd_min_idx]),
-            "ld_max": float(lds[ld_max_idx]),
-            "ld_max_alpha": float(alphas[ld_max_idx]),
-            "cl_alpha_slope": cla_slope,
-            "alpha_zero_lift": a0l,
-            "cm_zero_lift": cm_zero,
-        }
