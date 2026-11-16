@@ -105,3 +105,13 @@ def test_to_environment_and_serialization() -> None:
     restored = Atmosphere.from_dict(d)
     assert math.isclose(restored.density_kg_m3, atm.density_kg_m3, rel_tol=1e-5)
     assert math.isclose(restored.temperature_k, atm.temperature_k, rel_tol=1e-4)
+
+
+def test_ambient_temperature_keeps_isa_pressure() -> None:
+    hot = Atmosphere.at_temperature(1000.0, 30.0)
+    standard = Atmosphere.isa(1000.0)
+    assert math.isclose(hot.temperature_c, 30.0, abs_tol=1e-9)
+    assert math.isclose(hot.pressure_pa, standard.pressure_pa, rel_tol=1e-12)
+    assert math.isclose(
+        hot.density_kg_m3, standard.pressure_pa / (287.05287 * 303.15), rel_tol=1e-9
+    )

@@ -148,14 +148,7 @@ class ElectricalPropulsionPlugin(StudioPlugin):
             config = SolverConfig(
                 solver_id=SOLVER_ID_THROTTLE_SWEEP,
                 name="Throttle Sweep Analysis",
-                parameters={
-                    "airspeed": 15.0,
-                    "t_min": 10.0,
-                    "t_max": 100.0,
-                    "t_step": 5.0,
-                    "altitude": 0.0,
-                    "temperature": 15.0,
-                },
+                parameters=ThrottleSweepSolver.default_parameters(),
             )
             api.add_solver_config(config)
             api.show_status("Added Throttle Sweep Analysis configuration.", "success", 3000)
@@ -167,14 +160,7 @@ class ElectricalPropulsionPlugin(StudioPlugin):
             config = SolverConfig(
                 solver_id=SOLVER_ID_AIRSPEED_SWEEP,
                 name="Airspeed Sweep Analysis",
-                parameters={
-                    "v_min": 0.0,
-                    "v_max": 35.0,
-                    "v_step": 1.0,
-                    "throttle": 100.0,
-                    "altitude": 0.0,
-                    "temperature": 15.0,
-                },
+                parameters=AirspeedSweepSolver.default_parameters(),
             )
             api.add_solver_config(config)
             api.show_status("Added Airspeed Sweep Analysis configuration.", "success", 3000)
@@ -186,12 +172,7 @@ class ElectricalPropulsionPlugin(StudioPlugin):
             config = SolverConfig(
                 solver_id=SOLVER_ID_OPERATING_POINT,
                 name="Operating Point Analysis",
-                parameters={
-                    "airspeed": 18.0,
-                    "throttle": 75.0,
-                    "altitude": 0.0,
-                    "temperature": 15.0,
-                },
+                parameters=OperatingPointSolver.default_parameters(),
             )
             api.add_solver_config(config)
             api.show_status("Added Operating Point Analysis configuration.", "success", 3000)

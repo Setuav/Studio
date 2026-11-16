@@ -389,11 +389,7 @@ class DebugPlugin:
         config = SolverConfig(
             solver_id=SOLVER_ID_MOCK_GENERATOR,
             name="Mock Analysis",
-            parameters={
-                "duration": 3.0,
-                "rows": 50,
-                "columns": 4,
-            },
+            parameters=MockGeneratorSolver.default_parameters(),
         )
         self._api.add_solver_config(config)
         self._api.show_status("Added Mock Analysis configuration.", "success", 3000)

@@ -55,17 +55,7 @@ class AerodynamicsPlugin:
             config = SolverConfig(
                 solver_id=SOLVER_ID_ALPHA_SWEEP,
                 name="Alpha Sweep Analysis",
-                parameters={
-                    "alpha_min": -5.0,
-                    "alpha_max": 15.0,
-                    "alpha_step": 1.0,
-                    "velocity": 25.0,
-                    "altitude": 0.0,
-                    "beta": 0.0,
-                    "method": "aero_buildup",
-                    "spanwise_resolution": 12.0,
-                    "chordwise_resolution": 8.0,
-                },
+                parameters=AlphaSweepSolver.default_parameters(),
             )
             api.add_solver_config(config)
             api.show_status("Added Alpha Sweep (Polar) configuration.", "success", 3000)
@@ -77,17 +67,7 @@ class AerodynamicsPlugin:
             config = SolverConfig(
                 solver_id=SOLVER_ID_BETA_SWEEP,
                 name="Beta Sweep Analysis",
-                parameters={
-                    "beta_min": -15.0,
-                    "beta_max": 15.0,
-                    "beta_step": 1.0,
-                    "alpha": 2.0,
-                    "velocity": 25.0,
-                    "altitude": 0.0,
-                    "method": "aero_buildup",
-                    "spanwise_resolution": 12.0,
-                    "chordwise_resolution": 8.0,
-                },
+                parameters=BetaSweepSolver.default_parameters(),
             )
             api.add_solver_config(config)
             api.show_status("Added Beta Sweep (Sideslip) configuration.", "success", 3000)
@@ -99,17 +79,7 @@ class AerodynamicsPlugin:
             config = SolverConfig(
                 solver_id=SOLVER_ID_CONTROL_DEFLECTION,
                 name="Control Deflection Analysis",
-                parameters={
-                    "channel": "elevator",
-                    "deflection_min": -20.0,
-                    "deflection_max": 20.0,
-                    "deflection_step": 2.0,
-                    "alpha": 2.0,
-                    "beta": 0.0,
-                    "velocity": 25.0,
-                    "altitude": 0.0,
-                    "method": "aero_buildup",
-                },
+                parameters=ControlDeflectionSolver.default_parameters(),
             )
             api.add_solver_config(config)
             api.show_status("Added Control Deflection configuration.", "success", 3000)
@@ -121,15 +91,7 @@ class AerodynamicsPlugin:
             config = SolverConfig(
                 solver_id=SOLVER_ID_OPERATING_POINT,
                 name="Operating Point Analysis",
-                parameters={
-                    "alpha": 2.0,
-                    "beta": 0.0,
-                    "velocity": 25.0,
-                    "altitude": 0.0,
-                    "method": "aero_buildup",
-                    "spanwise_resolution": 12.0,
-                    "chordwise_resolution": 8.0,
-                },
+                parameters=OperatingPointSolver.default_parameters(),
             )
             api.add_solver_config(config)
             api.show_status("Added Aerodynamic Operating Point configuration.", "success", 3000)

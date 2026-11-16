@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import math
 from typing import Any, ClassVar
 
 from plugins.electrical_propulsion.powertrain import (
@@ -14,6 +13,7 @@ from plugins.electrical_propulsion.powertrain import (
     find_propulsion_system,
 )
 from setuav_studio.api import ParameterField
+from setuav_studio.model.atmosphere import Atmosphere
 from setuav_studio.solver.base import AbstractSolver, SolverConfig, SolverStatus
 from setuav_studio.solver.results import (
     PlotDefinition,
@@ -30,17 +30,6 @@ logger = logging.getLogger(__name__)
 SOLVER_ID_THROTTLE_SWEEP = "org.setuav.propulsion.throttle_sweep"
 SOLVER_ID_AIRSPEED_SWEEP = "org.setuav.propulsion.airspeed_sweep"
 SOLVER_ID_OPERATING_POINT = "org.setuav.propulsion.operating_point"
-
-
-def _compute_air_density(altitude_m: float, temperature_c: float) -> float:
-    """Compute atmospheric air density using ISA model."""
-    t_kelvin = 273.15 + temperature_c
-    if altitude_m <= 11000.0:
-        p_pa = 101325.0 * (1.0 - 0.0065 * altitude_m / 288.15) ** 5.25588
-    else:
-        p_11k = 101325.0 * (1.0 - 0.0065 * 11000.0 / 288.15) ** 5.25588
-        p_pa = p_11k * math.exp(-9.80665 * 0.0289644 * (altitude_m - 11000.0) / (8.31432 * 216.65))
-    return p_pa / (287.058 * t_kelvin)
 
 
 class BasePropulsionSolver(AbstractSolver):
@@ -320,7 +309,7 @@ class ThrottleSweepSolver(BasePropulsionSolver):
 
         altitude_m = float(self.config.parameters.get("altitude", 0.0))
         temperature_c = float(self.config.parameters.get("temperature", 15.0))
-        rho = _compute_air_density(altitude_m, temperature_c)
+        rho = Atmosphere.at_temperature(altitude_m, temperature_c).density_kg_m3
 
         v_fixed = max(0.0, float(self.config.parameters.get("airspeed", 15.0)))
         t_min = max(1.0, float(self.config.parameters.get("t_min", 10.0)))
@@ -443,7 +432,7 @@ class AirspeedSweepSolver(BasePropulsionSolver):
 
         altitude_m = float(self.config.parameters.get("altitude", 0.0))
         temperature_c = float(self.config.parameters.get("temperature", 15.0))
-        rho = _compute_air_density(altitude_m, temperature_c)
+        rho = Atmosphere.at_temperature(altitude_m, temperature_c).density_kg_m3
 
         v_min = float(self.config.parameters.get("v_min", 0.0))
         v_max = float(self.config.parameters.get("v_max", 35.0))
@@ -543,7 +532,7 @@ class OperatingPointSolver(BasePropulsionSolver):
 
         altitude_m = float(self.config.parameters.get("altitude", 0.0))
         temperature_c = float(self.config.parameters.get("temperature", 15.0))
-        rho = _compute_air_density(altitude_m, temperature_c)
+        rho = Atmosphere.at_temperature(altitude_m, temperature_c).density_kg_m3
 
         v_val = max(0.0, float(self.config.parameters.get("airspeed", 18.0)))
         t_pct = max(1.0, min(100.0, float(self.config.parameters.get("throttle", 75.0))))

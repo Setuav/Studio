@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 from PySide6.QtWidgets import QApplication
@@ -323,3 +324,20 @@ def test_result_panel_and_child_views() -> None:
     chart_panel = AnalysisChartPanel(studio_api)
     chart_panel.load_plot(plt, tbl, result)
     assert chart_panel._current_plot == plt
+
+
+def test_solver_default_parameters_follow_the_schema() -> None:
+    from setuav_studio.api import ParameterField
+    from setuav_studio.solver.base import AbstractSolver
+
+    class _Solver(AbstractSolver):
+        PARAMETER_FIELDS: ClassVar[list[ParameterField]] = [
+            ParameterField(key="speed", default=12.0),
+            ParameterField(key="mode", field_type=str, default="fast"),
+        ]
+
+        def run(self) -> SolverResult:
+            raise NotImplementedError
+
+    assert _Solver.default_parameters() == {"speed": 12.0, "mode": "fast"}
+    assert AbstractSolver.default_parameters() == {}

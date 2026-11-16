@@ -66,6 +66,11 @@ class AbstractSolver(ABC):
 
     PARAMETER_FIELDS: ClassVar[list[ParameterField]] = []
 
+    @classmethod
+    def default_parameters(cls) -> dict[str, Any]:
+        """Return the default value of every declared parameter."""
+        return {field.key: field.default for field in cls.PARAMETER_FIELDS}
+
     def __init__(self, config: SolverConfig, project: Any | None = None) -> None:
         self.config = config
         self.project = project

@@ -121,6 +121,12 @@ class Atmosphere:
             gravity_mps2=G0,
         )
 
+    @classmethod
+    def at_temperature(cls, altitude_m: float, temperature_c: float) -> Atmosphere:
+        """ISA state at ``altitude_m`` with the ambient air temperature ``temperature_c``."""
+        standard = cls.isa(altitude_m)
+        return cls.isa(altitude_m, temperature_c + 273.15 - standard.temperature_k)
+
     # -------------------------------------------------------------------------
     # Dimensionless Ratios
     # -------------------------------------------------------------------------
