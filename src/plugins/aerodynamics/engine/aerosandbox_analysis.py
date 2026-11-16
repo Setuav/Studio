@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+import numpy as onp
+
 from setuav_studio.utilities.mass_balance import resolve_aircraft_mass_properties
 
 from .aerosandbox_results import AeroSandboxResultMixin
@@ -48,6 +50,17 @@ DEFAULT_SOLVER_SETTINGS: dict[str, Any] = {
 """Settings used when an analysis is given none."""
 
 _SPACINGS = ("cosine", "uniform")
+
+
+def _state_value(value: Any, index: int, count: int) -> Any:
+    """Return the ``index``-th state's part of a vectorized solver output."""
+    if isinstance(value, onp.ndarray) and value.shape == (count,):
+        return value[index]
+    if isinstance(value, tuple):
+        return tuple(_state_value(item, index, count) for item in value)
+    if isinstance(value, list) and all(isinstance(item, onp.ndarray) for item in value):
+        return [_state_value(item, index, count) for item in value]
+    return value
 
 
 class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
@@ -244,6 +257,12 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
         eval_states: list[dict[str, Any]],
         progress_callback: Any | None,
     ) -> tuple[list[PolarPoint], list[float]]:
+        if method == AnalysisMethod.AERO_BUILDUP and all(
+            dict(state["controls"]) == condition.control_deflections for state in eval_states
+        ):
+            return self._evaluate_aero_buildup_sweep(
+                components, condition, solver_settings, setup, eval_states, progress_callback
+            )
         points: list[PolarPoint] = []
         oswald_values: list[float] = []
         total_steps = len(eval_states) + 1
@@ -262,6 +281,59 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
             points.append(point)
             if oswald is not None:
                 oswald_values.append(oswald)
+        return points, oswald_values
+
+    def _evaluate_aero_buildup_sweep(
+        self,
+        components: list[dict[str, Any]],
+        condition: FlightCondition,
+        solver_settings: dict[str, Any],
+        setup: dict[str, Any],
+        eval_states: list[dict[str, Any]],
+        progress_callback: Any | None,
+    ) -> tuple[list[PolarPoint], list[float]]:
+        """Evaluate states that share one airplane in a single vectorized AeroBuildup run.
+
+        AeroBuildup evaluates every angle in closed form, so one run over arrays of
+        alpha and beta gives the same coefficients as one run per state.
+        """
+        contexts = [
+            self._point_context(components, condition, solver_settings, setup, state)
+            for state in eval_states
+        ]
+        count = len(contexts)
+        total_steps = count + 1
+        if progress_callback:
+            progress_callback(0, total_steps, f"AeroBuildup over {count} states")
+        first = contexts[0]
+        operating_point = asb.OperatingPoint(
+            atmosphere=first["op"].atmosphere,
+            velocity=first["velocity"],
+            alpha=onp.array([context["alpha"] for context in contexts]),
+            beta=onp.array([context["beta"] for context in contexts]),
+            p=float(condition.p),
+            q=float(condition.q),
+            r=float(condition.r),
+        )
+        try:
+            result = self._run_solver(
+                AnalysisMethod.AERO_BUILDUP, setup["airplane"], operating_point, solver_settings
+            )
+        except Exception as err:
+            logger.warning("AeroBuildup failed for the sweep: %s", err)
+            return [self._failed_polar_point(context, err) for context in contexts], []
+
+        wings = result.get("wing_aero_components", [])
+        points: list[PolarPoint] = []
+        oswald_values: list[float] = []
+        for index, (state, context) in enumerate(zip(eval_states, contexts, strict=True)):
+            state_result = {key: _state_value(value, index, count) for key, value in result.items()}
+            points.append(self._polar_point_from_result(state_result, condition, state, context))
+            if wings:
+                oswald = _state_value(onp.asarray(wings[0].oswalds_efficiency), index, count)
+                oswald_values.append(float(onp.ravel(oswald)[0]))
+        if progress_callback:
+            progress_callback(count, total_steps, "AeroBuildup")
         return points, oswald_values
 
     def _evaluate_state(

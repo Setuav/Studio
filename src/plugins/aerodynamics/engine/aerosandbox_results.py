@@ -104,7 +104,10 @@ class AeroSandboxResultMixin:
                 raw[key] = float(value)
             elif isinstance(value, np.ndarray):
                 raw[key] = value.tolist()
-            elif isinstance(value, (str, bool, list, dict)):
+            elif isinstance(value, (str, bool, dict)) or (
+                isinstance(value, list)
+                and all(isinstance(item, (int, float, np.number, np.ndarray)) for item in value)
+            ):
                 raw[key] = value
         return raw
 
