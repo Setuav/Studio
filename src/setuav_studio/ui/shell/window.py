@@ -81,7 +81,6 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("Setuav Studio")
         self.resize(1280, 720)
-        self.setCentralWidget(None)  # type: ignore[arg-type]
 
         self._api.on_modified_changed(self._on_modified_changed)
         self._api.on_project_content_changed(self._on_project_content_changed)

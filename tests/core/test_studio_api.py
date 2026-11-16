@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from PySide6.QtWidgets import QWidget
@@ -22,6 +22,12 @@ from setuav_studio.api import (
 )
 from setuav_studio.project import ProjectDocument
 from tests._common import get_qapp
+
+
+def _component(project: ProjectDocument, component_id: str) -> dict[str, Any]:
+    component = project.get_component(component_id)
+    assert component is not None, f"component {component_id!r} is missing"
+    return component
 
 
 @pytest.fixture(autouse=True)
@@ -266,15 +272,15 @@ def test_studio_api_project_edits_undo_redo() -> None:
         comp_c1.setdefault("parameters", {})["span"] = 3.5
 
     studio_api.edit_component(comp_c1, "Update wing span", _change_span)
-    assert project.get_component("c1")["parameters"]["span"] == 3.5  # type: ignore[index]
+    assert _component(project, "c1")["parameters"]["span"] == 3.5
 
     # Undo component edit
     studio_api.undo()
-    assert project.get_component("c1")["parameters"]["span"] == 2.0  # type: ignore[index]
+    assert _component(project, "c1")["parameters"]["span"] == 2.0
 
     # Redo component edit
     studio_api.redo()
-    assert project.get_component("c1")["parameters"]["span"] == 3.5  # type: ignore[index]
+    assert _component(project, "c1")["parameters"]["span"] == 3.5
 
 
 def test_studio_api_extension_edits_undo_redo() -> None:
@@ -341,15 +347,15 @@ def test_studio_api_reparent_component_undo_redo() -> None:
     wing_comp = project.get_component("wing")
     assert wing_comp is not None
     studio_api.reparent_component(wing_comp, "fuselage", description="Attach wing")
-    assert project.get_component("wing")["parent"] == "fuselage"  # type: ignore[index]
+    assert _component(project, "wing")["parent"] == "fuselage"
 
     # Undo reparent
     studio_api.undo()
-    assert "parent" not in project.get_component("wing")  # type: ignore[operator]
+    assert "parent" not in _component(project, "wing")
 
     # Redo reparent
     studio_api.redo()
-    assert project.get_component("wing")["parent"] == "fuselage"  # type: ignore[index]
+    assert _component(project, "wing")["parent"] == "fuselage"
 
 
 # ==============================================================================
@@ -421,4 +427,4 @@ def test_project_property_is_canonical_and_readonly() -> None:
     studio_api._host.set_project(project)
     assert studio_api.project is project
     with pytest.raises(AttributeError):
-        studio_api.project = project  # type: ignore[misc]
+        cast(Any, studio_api).project = project

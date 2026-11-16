@@ -91,7 +91,8 @@ def _extract_tar(archive_path: Path, dest_dir: Path) -> None:
 def _extract_rar(archive_path: Path, dest_dir: Path) -> None:
     # 1. Try python rarfile module if available
     try:
-        import rarfile  # type: ignore
+        # rarfile is an optional runtime module, not a project dependency.
+        import rarfile  # pyright: ignore[reportMissingImports]
 
         with rarfile.RarFile(archive_path, "r") as rf:
             for member in rf.infolist():

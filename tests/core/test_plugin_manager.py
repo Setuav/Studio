@@ -84,14 +84,14 @@ def test_plugin_activation_and_deactivation() -> None:
     plugin = DummyMockPlugin("org.test.dummy", priority=50)
 
     # 1. Activate
-    manager.activate(plugin)  # type: ignore[arg-type]
+    manager.activate(plugin)
     assert manager.is_active("org.test.dummy")
     assert plugin.activated
     assert plugin in manager.active_plugins
 
     # 2. Duplicate activation rejects
     with pytest.raises(ValueError, match="already active"):
-        manager.activate(plugin)  # type: ignore[arg-type]
+        manager.activate(plugin)
 
     # 3. Deactivate
     manager.deactivate("org.test.dummy")
@@ -111,7 +111,7 @@ def test_plugin_activation_failure_rollback() -> None:
     failing = FailingMockPlugin()
 
     with pytest.raises(RuntimeError, match="Crash on activation"):
-        manager.activate(failing)  # type: ignore[arg-type]
+        manager.activate(failing)
 
     assert not manager.is_active(failing.id)
     assert failing not in manager.active_plugins
@@ -125,9 +125,9 @@ def test_active_plugins_ordering_by_priority() -> None:
     p2 = DummyMockPlugin("org.test.high_priority", priority=10)
     p3 = DummyMockPlugin("org.test.medium_priority", priority=50)
 
-    manager.activate(p1)  # type: ignore[arg-type]
-    manager.activate(p2)  # type: ignore[arg-type]
-    manager.activate(p3)  # type: ignore[arg-type]
+    manager.activate(p1)
+    manager.activate(p2)
+    manager.activate(p3)
 
     active_ids = [p.id for p in manager.active_plugins]
     assert active_ids == [
@@ -147,7 +147,7 @@ def test_plugin_provides_and_requirement_checking() -> None:
     manager = PluginManager(api)
     plugin = DummyMockPlugin("org.test.aero", provides={"org.setuav.aero": "2.1.0"})
 
-    manager.activate(plugin)  # type: ignore[arg-type]
+    manager.activate(plugin)
 
     # Satisfied requirement
     project_data = {

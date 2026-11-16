@@ -72,7 +72,7 @@ class Environment:
             speed_of_sound_mps=float(data.get("speed_of_sound_mps", 340.29)),
             dynamic_viscosity=float(data.get("dynamic_viscosity", _MU0)),
             gravity_mps2=float(data.get("gravity_mps2", _G0)),
-            wind_vector_mps=tuple(wind) if isinstance(wind, (list, tuple)) else (0.0, 0.0, 0.0),  # type: ignore
+            wind_vector_mps=tuple(wind) if isinstance(wind, (list, tuple)) else (0.0, 0.0, 0.0),
             extra=dict(data.get("extra", {})),
         )
 

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Literal
 
 from PySide6.QtGui import QAction, QActionGroup
 from PySide6.QtWidgets import (
@@ -22,6 +23,8 @@ from setuav_studio.ui.viewport.constants import (
     FACE_MONOCHROME,
     WIRE_FEATURE,
     WIRE_FULL,
+    ViewPreset,
+    WireMode,
 )
 
 if TYPE_CHECKING:
@@ -157,7 +160,7 @@ class StudioViewportHUD(QFrame):
 
         # 8. Standard Camera Viewpoints
         self._cam_buttons: list[tuple[QToolButton, str]] = []
-        view_presets = (
+        view_presets: tuple[tuple[str, str, ViewPreset], ...] = (
             ("camera_top", "Top View", "top"),
             ("camera_bottom", "Bottom View", "bottom"),
             ("camera_front", "Front View", "front"),
@@ -170,9 +173,7 @@ class StudioViewportHUD(QFrame):
             btn.setToolTip(tooltip)
             btn.setFixedSize(24, 24)
             btn.setAutoRaise(True)
-            btn.clicked.connect(
-                lambda _checked=False, p=preset: self._viewport.set_view_preset(p)  # type: ignore[arg-type]
-            )
+            btn.clicked.connect(self._view_preset_handler(preset))
             self._cam_buttons.append((btn, icon))
             layout.addWidget(btn)
 
@@ -229,7 +230,7 @@ class StudioViewportHUD(QFrame):
         is_wire_on = self._viewport.is_show_wireframe()
         current_mode = self._viewport.wire_mode()
 
-        modes = (
+        modes: tuple[tuple[str, WireMode | Literal["off"], bool], ...] = (
             ("Off", "off", not is_wire_on),
             ("Feature Edges", WIRE_FEATURE, is_wire_on and current_mode == WIRE_FEATURE),
             ("Full Mesh", WIRE_FULL, is_wire_on and current_mode == WIRE_FULL),
@@ -238,19 +239,29 @@ class StudioViewportHUD(QFrame):
             action = QAction(label, self)
             action.setCheckable(True)
             action.setChecked(is_checked)
-            action.triggered.connect(
-                lambda _checked=False, m=mode_key: self._on_wire_mode_selected(m)
-            )
+            action.triggered.connect(self._wire_mode_handler(mode_key))
             group.addAction(action)
             self._wire_menu.addAction(action)
         self._update_wire_tooltip()
 
-    def _on_wire_mode_selected(self, mode: str) -> None:
+    def _view_preset_handler(self, preset: ViewPreset) -> Callable[[bool], None]:
+        def handler(_checked: bool = False) -> None:
+            self._viewport.set_view_preset(preset)
+
+        return handler
+
+    def _wire_mode_handler(self, mode: WireMode | Literal["off"]) -> Callable[[bool], None]:
+        def handler(_checked: bool = False) -> None:
+            self._on_wire_mode_selected(mode)
+
+        return handler
+
+    def _on_wire_mode_selected(self, mode: WireMode | Literal["off"]) -> None:
         if mode == "off":
             self._viewport.set_show_wireframe(False)
         else:
             self._viewport.set_show_wireframe(True)
-            self._viewport.set_wire_mode(mode)  # type: ignore[arg-type]
+            self._viewport.set_wire_mode(mode)
         self._build_wire_menu()
         self._update_wire_tooltip()
 

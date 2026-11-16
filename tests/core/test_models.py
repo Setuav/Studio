@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from typing import Any, cast
 
 import pytest
 
@@ -193,7 +194,7 @@ def test_component_mass_and_inertia_properties() -> None:
 def test_component_rejects_subscript_indexing() -> None:
     comp = Component(id="test_comp")
     with pytest.raises(TypeError):
-        _ = comp["id"]  # type: ignore[index]
+        _ = cast(Any, comp)["id"]
 
 
 # ==============================================================================

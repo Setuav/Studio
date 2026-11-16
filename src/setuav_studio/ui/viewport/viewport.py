@@ -22,6 +22,8 @@ from .constants import (
     VIEW_PRESETS,
     WIRE_FEATURE,
     WIRE_FULL,
+    ViewPreset,
+    WireMode,
 )
 from .hud import StudioViewportHUD
 from .layer import Layer
@@ -110,9 +112,7 @@ class StudioViewport(QWidget):
         self._show_solid: bool = _as_bool(settings.value(_SETTING_SOLID, True), True)
         self._show_wireframe: bool = _as_bool(settings.value(_SETTING_WIRE, True), True)
         raw_wire_mode = str(settings.value(_SETTING_WIRE_MODE, WIRE_FEATURE)).lower()
-        self._wire_mode: str = (
-            raw_wire_mode if raw_wire_mode in (WIRE_FEATURE, WIRE_FULL) else WIRE_FEATURE
-        )
+        self._wire_mode: WireMode = WIRE_FULL if raw_wire_mode == WIRE_FULL else WIRE_FEATURE
         self._show_grid: bool = _as_bool(settings.value(_SETTING_GRID, True), True)
         self._transparent: bool = False
         raw_face = str(settings.value(_SETTING_FACE_STYLE, FACE_COLORED)).lower()
@@ -439,7 +439,7 @@ class StudioViewport(QWidget):
         """Return the current camera (azimuth, elevation) angles."""
         return self._azimuth, self._elevation
 
-    def set_view_preset(self, preset: Literal["top", "bottom", "front", "side", "iso"]) -> None:
+    def set_view_preset(self, preset: ViewPreset) -> None:
         """Set camera to a standard viewpoint ('top', 'bottom', 'front', 'side', 'iso')."""
         if preset not in VIEW_PRESETS:
             raise ValueError(
@@ -487,7 +487,7 @@ class StudioViewport(QWidget):
         """Return whether wireframes are visible."""
         return self._show_wireframe
 
-    def set_wire_mode(self, mode: Literal["feature", "full"]) -> None:
+    def set_wire_mode(self, mode: WireMode) -> None:
         """Set wireframe display mode ('feature' or 'full')."""
         if mode not in (WIRE_FEATURE, WIRE_FULL):
             raise ValueError(f"Unknown wire mode: {mode}. Must be 'feature' or 'full'.")
@@ -498,7 +498,7 @@ class StudioViewport(QWidget):
             if callable(mode_fn):
                 mode_fn(mode)
 
-    def wire_mode(self) -> str:
+    def wire_mode(self) -> WireMode:
         """Return the current wireframe mode."""
         return self._wire_mode
 

@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
-WIRE_FEATURE = "feature"
-WIRE_FULL = "full"
+from typing import Literal
+
+WireMode = Literal["feature", "full"]
+ViewPreset = Literal["top", "bottom", "front", "side", "iso"]
+
+WIRE_FEATURE: WireMode = "feature"
+WIRE_FULL: WireMode = "full"
 FACE_COLORED = "colored"
 FACE_MONOCHROME = "monochrome"
 FACE_TRANSPARENT = "transparent"

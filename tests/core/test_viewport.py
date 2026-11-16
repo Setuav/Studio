@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import unittest
-from typing import Any
+from typing import Any, cast
 
 from PySide6.QtCore import QSettings, Signal
 from PySide6.QtGui import QImage
@@ -489,7 +489,7 @@ class TestStudioViewport(unittest.TestCase):
         self.assertEqual(self.viewport.view_angles(), (210.0, 20.0))
 
         with self.assertRaises(ValueError):
-            self.viewport.set_view_preset("invalid_preset")  # type: ignore[arg-type]
+            self.viewport.set_view_preset(cast(Any, "invalid_preset"))
 
         # orthographic projection
         self.assertTrue(self.viewport.is_orthographic())
@@ -517,7 +517,7 @@ class TestStudioViewport(unittest.TestCase):
         self.assertEqual(self.mock_renderer.wire_mode, "full")
 
         with self.assertRaises(ValueError):
-            self.viewport.set_wire_mode("invalid")  # type: ignore[arg-type]
+            self.viewport.set_wire_mode(cast(Any, "invalid"))
 
         # Grid
         self.assertTrue(self.viewport.is_show_grid())
@@ -538,7 +538,7 @@ class TestStudioViewport(unittest.TestCase):
         self.assertEqual(self.mock_renderer.face_style, "monochrome")
 
         with self.assertRaises(ValueError):
-            self.viewport.set_face_style("invalid")  # type: ignore[arg-type]
+            self.viewport.set_face_style(cast(Any, "invalid"))
 
     def test_capture_screenshot(self) -> None:
         image = self.viewport.capture_screenshot(800, 600, transparent_background=True)

@@ -271,7 +271,7 @@ def compute_mesh_mass_properties(
         abs_vol,
         centroid,
         size_box,
-        (unit_ixx, unit_iyy, unit_izz, unit_ixy, unit_ixz, unit_iyz),  # type: ignore[return-value]
+        (unit_ixx, unit_iyy, unit_izz, unit_ixy, unit_ixz, unit_iyz),
     )
 
 

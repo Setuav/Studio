@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, ClassVar
 
 import pytest
@@ -89,7 +90,7 @@ def test_execute_solver_success() -> None:
     solver = SuccessSolver(config)
     token = DummyCancellationToken()
 
-    result = execute_solver(solver, token)  # type: ignore[arg-type]
+    result = execute_solver(solver, token)
 
     assert result.status == SolverStatus.COMPLETED
     assert solver.status == SolverStatus.COMPLETED
@@ -118,7 +119,7 @@ def test_execute_solver_rejects_parameters_outside_their_range() -> None:
     solver = RangedSolver(config)
 
     with pytest.raises(ValueError, match=r"'speed' = 20 is outside \[1, 10\]"):
-        execute_solver(solver, DummyCancellationToken())  # type: ignore[arg-type]
+        execute_solver(solver, DummyCancellationToken())
     assert solver.status == SolverStatus.FAILED
     assert not RangedSolver.ran
 
@@ -129,7 +130,7 @@ def test_execute_solver_cancellation() -> None:
     token = DummyCancellationToken(cancelled=True)
 
     with pytest.raises(TaskCancelledError):
-        execute_solver(solver, token)  # type: ignore[arg-type]
+        execute_solver(solver, token)
 
     assert solver.status == SolverStatus.CANCELLED
 
@@ -140,7 +141,7 @@ def test_execute_solver_failure() -> None:
     token = DummyCancellationToken()
 
     with pytest.raises(ValueError, match="Simulation diverged"):
-        execute_solver(solver, token)  # type: ignore[arg-type]
+        execute_solver(solver, token)
 
     assert solver.status == SolverStatus.FAILED
     assert solver.error_message == "Simulation diverged"
@@ -165,7 +166,7 @@ def test_solver_runner_registry() -> None:
 
 def test_solver_runner_executes_and_adds_result_to_project() -> None:
     studio_api = StudioAPI()
-    project = ProjectDocument(path=None, kind="json", data={"components": []})  # type: ignore[arg-type]
+    project = ProjectDocument(path=Path("runner.json"), kind="json", data={"components": []})
     studio_api._host.set_project(project)
 
     runner = SolverRunner(studio_api)
@@ -196,7 +197,7 @@ def test_solver_runner_executes_and_adds_result_to_project() -> None:
 
 def test_solver_runner_reports_failure_through_on_error() -> None:
     studio_api = StudioAPI()
-    project = ProjectDocument(path=None, kind="json", data={"components": []})  # type: ignore[arg-type]
+    project = ProjectDocument(path=Path("runner.json"), kind="json", data={"components": []})
     studio_api._host.set_project(project)
 
     runner = SolverRunner(studio_api)

@@ -30,6 +30,14 @@ def _wait_for_task(handle: TaskHandleImpl, timeout_s: float = 3.0) -> None:
     QCoreApplication.processEvents()
 
 
+def _process_events(duration_s: float) -> None:
+    end = time.time() + duration_s
+    while time.time() < end:
+        QCoreApplication.processEvents()
+        time.sleep(0.005)
+    QCoreApplication.processEvents()
+
+
 class TestTaskManager(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -41,7 +49,7 @@ class TestTaskManager(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.tm.cancel_all()
-        _wait_for_task(TaskHandleImpl("dummy", "dummy", self.tm, None), timeout_s=0.05)  # type: ignore
+        _process_events(0.05)
 
     def test_task_success_execution(self) -> None:
         results = []
