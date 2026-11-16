@@ -216,7 +216,7 @@ class ProjectExplorerContextMenu:
         can_edit: bool,
     ) -> None:
         menu = QMenu(self._tree)
-        config_id = str(element.get("config_id") or element.get("id") or "")
+        config_id = str(element["config_id"])
 
         run_act = menu.addAction(get_icon("fa6s.play"), "Run Analysis")
         menu.addSeparator()
