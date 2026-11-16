@@ -2689,12 +2689,16 @@
         }
       },
       "parameters": {
-        "cell_id": "melasta_slpba842124hv",
+        "chemistry": "LiPo",
         "cell_count": 3,
         "parallel_count": 1,
-        "packaging_mass": 40.0
+        "cell_capacity": 6000.0,
+        "charge_voltage": null,
+        "cell_resistance": null,
+        "c_rate": null,
+        "pack_mass": null
       },
-      "mass": 403.0,
+      "mass": 402.10739536439473,
       "envelope": {
         "shape": "box",
         "size_mm": {

@@ -12,8 +12,9 @@ from pythrust.battery import BatteryState
 from pythrust.propulsion.models import MotorSpec, PropellerSpec, SystemSpec
 
 from plugins.aerodynamics.engine.base import AeroAnalysisError
-from plugins.electrical_propulsion.cells import cell_spec
+from plugins.electrical_propulsion.chemistry import chemistry_profile
 from plugins.electrical_propulsion.database import get_propeller_database
+from plugins.electrical_propulsion.models.battery import battery_pack
 from plugins.electrical_propulsion.powertrain import Powertrain
 from plugins.flight_performance.engine.performance import (
     AerodynamicModel,
@@ -47,7 +48,7 @@ PROPULSION_TYPES = {
 
 
 def _powertrain(unit_count: int = 1) -> Powertrain:
-    """6S1P pack of the default LiPo cell driving 13x6.5 propeller units."""
+    """6S1P 6000 mAh LiPo pack driving 13x6.5 propeller units."""
     propeller_data = get_propeller_database().get("APC_13x6.5E")
     assert propeller_data is not None
     return Powertrain(
@@ -56,7 +57,18 @@ def _powertrain(unit_count: int = 1) -> Powertrain:
         ),
         propeller=PropellerSpec(diameter_m=0.3302, pitch_m=0.1651, blade_count=2),
         propeller_data=propeller_data,
-        battery=cell_spec("melasta_slpba842124hv").rate_map(series=6, parallel=1),
+        battery=battery_pack(
+            {
+                "chemistry": "LiPo",
+                "cell_count": 6,
+                "parallel_count": 1,
+                "cell_capacity": 6000.0,
+                "charge_voltage": None,
+                "cell_resistance": None,
+                "c_rate": None,
+                "pack_mass": None,
+            }
+        ).rate_map(),
         battery_state=BatteryState(soc=1.0),
         unit_system=SystemSpec(resistance_ohm=0.005),
         unit_count=unit_count,
@@ -229,9 +241,9 @@ class FlightPerformanceSolverTests(unittest.TestCase):
         summary = {key: item.value for key, item in result.summary.items()}
         self.assertTrue(summary["feasible"])
         self.assertTrue(summary["max_speed_bounded"])
-        # Open-circuit voltage of the fixture's 3S pack at full charge.
-        cell = cell_spec("melasta_slpba842124hv").rate_map(series=1, parallel=1)
-        self.assertAlmostEqual(float(summary["battery_voltage"]), 3 * cell.ocv(0.0), delta=0.005)
+        # Open-circuit voltage of the fixture's 3S LiPo pack at full charge.
+        full_ocv_v = chemistry_profile("LiPo").usable_curves(4.2).ocv_v[0]
+        self.assertAlmostEqual(float(summary["battery_voltage"]), 3 * full_ocv_v, delta=0.005)
         self.assertGreater(float(summary["max_speed"]), float(summary["best_range_speed"]))
         self.assertGreater(float(summary["best_range_speed"]), float(summary["stall_speed"]))
         self.assertGreater(float(summary["max_range"]), 0.0)

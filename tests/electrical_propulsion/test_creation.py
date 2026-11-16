@@ -8,14 +8,13 @@ from unittest.mock import patch
 
 from PySide6.QtWidgets import QDialog
 
-from plugins.electrical_propulsion.cells import DEFAULT_CELLS
 from plugins.electrical_propulsion.creation import (
     _PROPULSION_ID,
     PropulsionCreationController,
 )
 from plugins.electrical_propulsion.database import get_motor_database, get_propeller_database
 from plugins.electrical_propulsion.models import BatteryModel
-from plugins.electrical_propulsion.models.battery import battery_pack
+from plugins.electrical_propulsion.models.battery import BATTERY_OVERRIDES, battery_pack
 from setuav_studio.api import StudioAPI
 from setuav_studio.project import ProjectDocument
 from tests._common import get_qapp
@@ -271,12 +270,13 @@ class PropulsionCreationTests(unittest.TestCase):
         self.assertIsNone(self.controller._find_component("missing"))
         self.assertEqual(self.controller._find_component("id")["id"], "id")
 
-    def test_new_battery_is_a_pack_of_the_default_lipo_cell(self) -> None:
+    def test_new_battery_is_a_lipo_pack_with_derived_cell_properties(self) -> None:
         battery = self.controller._new_component("battery", "battery")
         params = battery["parameters"]
 
         self.assertEqual(set(params), {f.key for f in BatteryModel.get_fields()})
-        self.assertEqual(params["cell_id"], DEFAULT_CELLS["LiPo"])
+        self.assertEqual(params["chemistry"], "LiPo")
+        self.assertTrue(all(params[key] is None for key in BATTERY_OVERRIDES))
         pack = battery_pack(params)
         self.assertEqual(battery["mass"], pack.mass_g)
         self.assertEqual(

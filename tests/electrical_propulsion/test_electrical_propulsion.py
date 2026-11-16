@@ -184,62 +184,93 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertEqual(editor._property_value(editor.general_table, "attach_to"), "fuselage")
         editor.close()
 
-    def test_battery_editor(self) -> None:
+    def _battery_editor(self) -> tuple[StudioAPI, dict[str, Any], BatteryEditor]:
         api = StudioAPI()
         doc = open_project(TEST_PROJECT_PATH)
         api._host.set_project(doc)
-
         battery_comp = next(
             c for c in doc.data["components"] if c.get("type") == "org.setuav.core:battery"
         )
-        opened = deepcopy(battery_comp)
         editor = BatteryEditor(api, battery_comp)
         self.addCleanup(editor.deleteLater)
+        return api, battery_comp, editor
 
-        # Opening the editor leaves the project untouched.
+    def test_battery_editor(self) -> None:
+        from PySide6.QtCore import Qt
+
+        from plugins.electrical_propulsion.models.battery import BATTERY_OVERRIDES, battery_pack
+
+        api, battery_comp, editor = self._battery_editor()
+        opened = deepcopy(battery_comp)
+        params = battery_comp["parameters"]
+
+        # Opening the editor leaves the project untouched; derived values are read-only.
         self.assertEqual(battery_comp, opened)
         self.assertFalse(api.can_undo)
-        self.assertEqual(editor._property_value(editor.cell_table, "chemistry"), "LiPo")
-        self.assertEqual(
-            editor._property_value(editor.cell_table, "cell_id"), "melasta_slpba842124hv"
-        )
+        self.assertEqual(editor._property_value(editor.config_table, "chemistry"), "LiPo")
+        for key in BATTERY_OVERRIDES:
+            label = editor._label_item(editor.cell_table, key)
+            self.assertEqual(label.checkState(), Qt.CheckState.Unchecked)
+            cell = editor._property_cell(editor.cell_table, key)
+            assert cell is not None
+            self.assertTrue(cell.isReadOnly())
 
-        # 6S of the fixture cell: the mass and pack values follow the cell data.
-        cell_count = editor._property_cell(editor.pack_table, "cell_count")
+        # 6S: the pack mass and values follow the chemistry's scaling rules.
+        cell_count = editor._property_cell(editor.config_table, "cell_count")
         assert cell_count is not None
         cell_count.setValue(6)
-        self.assertEqual(battery_comp["parameters"]["cell_count"], 6)
-        self.assertEqual(battery_comp["mass"], 6 * 121.0 + 40.0)
-        self.assertEqual(editor._property_text(editor.general_table, 2), "766.0")
+        self.assertEqual(params["cell_count"], 6)
+        derived_mass = battery_pack(params).mass_g
+        self.assertAlmostEqual(derived_mass, 2 * float(opened["mass"]))
+        self.assertEqual(battery_comp["mass"], derived_mass)
+        self.assertEqual(editor._property_text(editor.general_table, 2), f"{derived_mass:.1f}")
         nominal = editor._property_cell(editor.pack_table, "nominal_voltage")
         assert nominal is not None
         self.assertTrue(nominal.isReadOnly())
-        self.assertEqual(nominal.line_edit.text(), "22.8")
+        self.assertEqual(nominal.line_edit.text(), "22.2")
 
-        api.undo()
+        # Overriding the pack mass starts from the derived value and makes it editable.
+        editor._label_item(editor.cell_table, "pack_mass").setCheckState(Qt.CheckState.Checked)
+        self.assertEqual(params["pack_mass"], derived_mass)
+        pack_mass = editor._property_cell(editor.cell_table, "pack_mass")
+        assert pack_mass is not None
+        self.assertFalse(pack_mass.isReadOnly())
+        pack_mass.setValue(1200.0)
+        self.assertEqual(params["pack_mass"], 1200.0)
+        self.assertEqual(battery_comp["mass"], 1200.0)
+
+        # Clearing the override returns to the derived mass.
+        editor._label_item(editor.cell_table, "pack_mass").setCheckState(Qt.CheckState.Unchecked)
+        self.assertIsNone(params["pack_mass"])
+        self.assertEqual(battery_comp["mass"], derived_mass)
+
+        while api.can_undo:
+            api.undo()
         self.assertEqual(battery_comp, opened)
 
-    def test_battery_editor_chemistry_selects_its_default_cell(self) -> None:
-        from plugins.electrical_propulsion.cells import DEFAULT_CELLS, cell_spec
+    def test_battery_editor_chemistry_change_clears_overrides(self) -> None:
+        from PySide6.QtCore import Qt
 
-        api = StudioAPI()
-        doc = open_project(TEST_PROJECT_PATH)
-        api._host.set_project(doc)
-        battery_comp = next(
-            c for c in doc.data["components"] if c.get("type") == "org.setuav.core:battery"
-        )
+        from plugins.electrical_propulsion.chemistry import chemistry_profile
+
+        api, battery_comp, editor = self._battery_editor()
         opened = deepcopy(battery_comp)
-        editor = BatteryEditor(api, battery_comp)
-        self.addCleanup(editor.deleteLater)
-
-        editor._on_chemistry_changed("Li-Ion")
         params = battery_comp["parameters"]
-        cell = cell_spec(DEFAULT_CELLS["Li-Ion"])
-        self.assertEqual(params["cell_id"], cell.id)
-        self.assertEqual(battery_comp["mass"], 3 * cell.mass_g + 40.0)
-        self.assertEqual(editor._property_value(editor.cell_table, "chemistry"), "Li-Ion")
 
-        api.undo()
+        editor._label_item(editor.cell_table, "c_rate").setCheckState(Qt.CheckState.Checked)
+        self.assertEqual(params["c_rate"], chemistry_profile("LiPo").c_rate)
+        editor._on_chemistry_changed("Li-Ion")
+        li_ion = chemistry_profile("Li-Ion")
+        self.assertEqual(params["chemistry"], "Li-Ion")
+        self.assertIsNone(params["c_rate"])
+        self.assertAlmostEqual(battery_comp["mass"], 3 * li_ion.pack_mass_per_cell_g(6.0))
+        self.assertEqual(editor._property_value(editor.config_table, "chemistry"), "Li-Ion")
+        charge = editor._property_cell(editor.cell_table, "charge_voltage")
+        assert charge is not None
+        self.assertEqual(charge.line_edit.text(), "4.2")
+
+        while api.can_undo:
+            api.undo()
         self.assertEqual(battery_comp, opened)
 
     def test_esc_editor(self) -> None:
@@ -291,15 +322,15 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertIn("sunnysky", editor._property_text(editor.structure_table, 2).lower())
         self.assertIn("apc", editor._property_text(editor.structure_table, 3).lower())
         self.assertEqual(
-            editor._property_value(editor.metrics_table, "operating_voltage"), "3S (11.4 V)"
+            editor._property_value(editor.metrics_table, "operating_voltage"), "3S (11.1 V)"
         )
         self.assertEqual(
-            editor._property_value(editor.metrics_table, "energy_capacity"), "7279 mAh (83.0 Wh)"
+            editor._property_value(editor.metrics_table, "energy_capacity"), "6000 mAh (69.2 Wh)"
         )
         editor.close()
         editor.deleteLater()
 
-    def test_battery_model_derives_the_pack_from_its_cell(self) -> None:
+    def test_battery_model_derives_the_pack_from_its_chemistry(self) -> None:
         from plugins.electrical_propulsion.models import BatteryModel
 
         doc = open_project(TEST_PROJECT_PATH)
@@ -312,22 +343,26 @@ class TestElectricalPropulsion(unittest.TestCase):
 
         model = BatteryModel(deepcopy(battery_comp))
         pack = model.pack
-        cell = pack.cell
-        self.assertEqual(cell.id, "melasta_slpba842124hv")
-        self.assertAlmostEqual(pack.capacity_mah, cell.capacity_ah * 1000.0)
-        self.assertAlmostEqual(pack.nominal_voltage_v, 3 * 3.8)
-        self.assertAlmostEqual(pack.charge_voltage_v, 3 * 4.35)
-        self.assertAlmostEqual(pack.internal_resistance_ohm, 3 * cell.mid_discharge_resistance_ohm)
-        self.assertAlmostEqual(pack.energy_wh, cell.capacity_ah * 3 * 3.8)
-        self.assertEqual(pack.mass_g, 3 * 121.0 + 40.0)
+        profile = pack.profile
+        self.assertEqual(profile.chemistry, "LiPo")
+        self.assertAlmostEqual(pack.capacity_mah, 6000.0)
+        self.assertAlmostEqual(pack.nominal_voltage_v, 3 * 3.7)
+        self.assertAlmostEqual(pack.full_voltage_v, 3 * 4.2)
+        self.assertAlmostEqual(
+            pack.internal_resistance_ohm, 3 * profile.resistance_mohm_ah / 1000.0 / 6.0
+        )
+        self.assertAlmostEqual(pack.max_current_a, profile.c_rate * 6.0)
+        self.assertAlmostEqual(pack.energy_wh, pack.curves.mean_ocv_v * 6.0 * 3)
+        self.assertAlmostEqual(pack.mass_g, 3 * profile.pack_mass_per_cell_g(6.0))
         self.assertEqual(pack.mass_g, battery_comp["mass"])
         props = model.get_exposed_properties()
         self.assertEqual(props["chemistry"], "LiPo")
         self.assertAlmostEqual(props["capacity"], pack.capacity_mah)
+        self.assertAlmostEqual(props["pack_mass"], pack.mass_g)
 
         rate_map = pack.rate_map()
         self.assertEqual((rate_map.series, rate_map.parallel), (3, 1))
-        self.assertEqual(rate_map.capacity_ah, cell.capacity_ah)
+        self.assertEqual(rate_map.capacity_ah, 6.0)
 
     def test_catalog_database_and_dialog(self) -> None:
         from plugins.electrical_propulsion.catalog_dialog import (
