@@ -17,14 +17,11 @@ from pythrust.battery import RateMapBattery
 
 CELL_DATA_DIR = Path(__file__).resolve().parent / "data" / "cells"
 
-CHEMISTRIES = ("LiPo", "Li-Ion", "LiFePO4", "Solid-State", "NiMH")
+CHEMISTRIES = ("LiPo", "Li-Ion")
 
 DEFAULT_CELLS = {
     "LiPo": "lipo_6000",
     "Li-Ion": "molicel_p42a",
-    "LiFePO4": "lifepo4_26650_2500",
-    "Solid-State": "semi_solid_6500",
-    "NiMH": "nimh_subc_3000",
 }
 
 
