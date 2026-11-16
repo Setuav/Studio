@@ -5,6 +5,8 @@ from __future__ import annotations
 import unittest
 import warnings
 
+import numpy as np
+
 from plugins.aerodynamics.engine.airfoil_cache import (
     AirfoilPolarCache,
     _compute_cache_key,
@@ -130,8 +132,12 @@ class TestAirfoilEngine(unittest.TestCase):
 
     def test_custom_airfoil_cache_identifier_uses_coordinates(self) -> None:
         asb = self.asb
-        airfoil_a = asb.Airfoil(name="custom", coordinates=[(1.0, 0.0), (0.5, 0.1), (0.0, 0.0)])
-        airfoil_b = asb.Airfoil(name="custom", coordinates=[(1.0, 0.0), (0.5, 0.2), (0.0, 0.0)])
+        airfoil_a = asb.Airfoil(
+            name="custom", coordinates=np.array([(1.0, 0.0), (0.5, 0.1), (0.0, 0.0)])
+        )
+        airfoil_b = asb.Airfoil(
+            name="custom", coordinates=np.array([(1.0, 0.0), (0.5, 0.2), (0.0, 0.0)])
+        )
         af_a, ident_a = self.engine._resolve_airfoil(airfoil_a)
         af_b, ident_b = self.engine._resolve_airfoil(airfoil_b)
         self.assertIs(af_a, airfoil_a)
@@ -206,6 +212,7 @@ class TestAirfoilEngine(unittest.TestCase):
         self.assertAlmostEqual(polar.summary.alpha_zero_lift or 1.0, 0.0, places=1)
         pt_0 = polar.get_point(0.0)
         self.assertIsNotNone(pt_0)
+        assert pt_0 is not None
         self.assertAlmostEqual(pt_0.cl, 0.0, places=1)
 
     def test_2d_airfoil_analysis_on_surface_profile(self) -> None:

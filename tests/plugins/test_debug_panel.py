@@ -106,8 +106,12 @@ class TestDebugPanel(unittest.TestCase):
         # Trigger events and verify event stream
         panel._log_event("TEST_EVENT", {"id": "obj_123"})
         self.assertEqual(panel.events_table.rowCount(), 1)
-        self.assertEqual(panel.events_table.item(0, 1).text(), "TEST_EVENT")
-        self.assertIn("id=obj_123", panel.events_table.item(0, 2).text())
+        event_name = panel.events_table.item(0, 1)
+        event_details = panel.events_table.item(0, 2)
+        assert event_name is not None
+        assert event_details is not None
+        self.assertEqual(event_name.text(), "TEST_EVENT")
+        self.assertIn("id=obj_123", event_details.text())
 
         # Test clear button
         panel._clear_events()

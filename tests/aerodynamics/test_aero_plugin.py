@@ -577,7 +577,9 @@ class AerodynamicsPluginTests(unittest.TestCase):
                 menu_actions.append(action.text())
                 return action
 
-            def exec(self, *args, **kwargs):
+            # Qt returns no action when a menu is dismissed; the PySide6 stub
+            # declares QMenu.exec as always returning a QAction.
+            def exec(self, *args, **kwargs):  # pyright: ignore[reportIncompatibleMethodOverride]
                 return None
 
         with patch("setuav_studio.ui.panels.project_explorer.context_menu.QMenu", MockMenu):

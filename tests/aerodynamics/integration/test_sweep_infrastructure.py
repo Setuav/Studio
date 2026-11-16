@@ -236,6 +236,7 @@ class TestParametricSweeps(unittest.TestCase):
 
         self.assertEqual(len(res.polar_points), 5)
         self.assertIsNotNone(res.control_analysis)
+        assert res.control_analysis is not None
         self.assertEqual(res.control_analysis.channel, "elevator")
         self.assertEqual(res.control_analysis.sample_count, 5)
         self.assertLess(res.control_analysis.derivatives_per_deg["Cm"], 0.0)

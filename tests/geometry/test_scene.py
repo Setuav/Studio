@@ -13,7 +13,7 @@ from plugins.geometry.engine.data import GeometryData, LoftGeometry, Section
 from plugins.geometry.engine.lifting_surface_geometry import (
     build_lifting_surface_geometry,
 )
-from plugins.geometry.engine.scene import build_project_geometry
+from plugins.geometry.engine.scene import GeometryProvider, build_project_geometry
 from setuav_studio.project import open_project
 from setuav_studio.ui.viewport.mesh import build_loft_solid_vertices
 from tests._common import TEST_PROJECT_PATH, get_qapp
@@ -181,7 +181,9 @@ class GeometrySceneTests(unittest.TestCase):
         from setuav_studio.ui.viewport.mesh import build_section_ring_vertices
 
         doc = open_project(TEST_PROJECT_PATH)
-        providers = {"org.setuav.core:lifting-surface": build_lifting_surface_geometry}
+        providers: dict[str, GeometryProvider] = {
+            "org.setuav.core:lifting-surface": build_lifting_surface_geometry
+        }
         geom_data = build_project_geometry(doc, providers)
 
         # 1. Wing Section (Panel) Selection: highlights root station, tip station, and connecting rails

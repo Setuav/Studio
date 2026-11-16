@@ -6,13 +6,15 @@ import unittest
 from copy import deepcopy
 from pathlib import Path
 
+from PySide6.QtWidgets import QComboBox
+
 from plugins.geometry.engine.fuselage_geometry import build_fuselage_geometry
 from plugins.geometry.engine.lifting_surface_geometry import (
     build_lifting_surface_geometry,
 )
-from plugins.geometry.engine.scene import build_project_geometry
+from plugins.geometry.engine.scene import GeometryProvider, build_project_geometry
 from setuav_studio.project import ProjectDocument
-from tests._common import get_qapp
+from tests._common import cell_widget, get_qapp
 
 
 class ControlSurfaceGeometryTests(unittest.TestCase):
@@ -109,7 +111,9 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
             ]
         }
         doc = ProjectDocument(Path("/tmp/test.json"), "json", proj_data)
-        providers = {"org.setuav.core:lifting-surface": build_lifting_surface_geometry}
+        providers: dict[str, GeometryProvider] = {
+            "org.setuav.core:lifting-surface": build_lifting_surface_geometry
+        }
         scene_geom = build_project_geometry(doc, providers)
 
         cs_source = next(
@@ -163,6 +167,7 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
         self.assertEqual(len(lofts), 4)
         cs_loft = next((loft for loft in lofts if "elevator" in loft.component_id), None)
         self.assertIsNotNone(cs_loft)
+        assert cs_loft is not None
         self.assertEqual(len(cs_loft.sections), 2)
         for loft in lofts:
             for sec in loft.sections:
@@ -237,7 +242,7 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
 
         editor = ControlSurfaceEditor(api, cs_comp)
         self.assertEqual(editor._property_text(editor.general_table, 0), "Aileron")
-        type_widget = editor.properties_table.cellWidget(0, 1)
+        type_widget = cell_widget(editor.properties_table, 0, 1, QComboBox)
         self.assertEqual(type_widget.currentData(), "aileron")
 
         # Edit deflection
@@ -485,7 +490,7 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
             ]
         }
 
-        doc = ProjectDocument("/fake/path", {}, doc_data)
+        doc = ProjectDocument(Path("/fake/path"), "json", doc_data)
         api = StudioAPI()
         api._host.set_project(doc)
 

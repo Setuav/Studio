@@ -46,6 +46,8 @@ class DummyEngine(AeroEngine):
         method: AnalysisMethod = AnalysisMethod.AERO_BUILDUP,
         settings: dict | None = None,
         progress_callback=None,
+        *,
+        include_stability: bool = True,
     ) -> AeroResult:
         polar = [
             PolarPoint(
@@ -284,6 +286,8 @@ class AeroEngineBaseTests(unittest.TestCase):
         self.assertEqual(pt.alpha, restored.alpha)
         self.assertEqual(pt.cx, restored.cx)
         self.assertEqual(pt.cz, restored.cz)
+        assert pt.forces_moments is not None
+        assert restored.forces_moments is not None
         self.assertEqual(pt.forces_moments.fx_b, restored.forces_moments.fx_b)
 
     def test_multi_dimensional_sweep_dataset(self) -> None:
@@ -328,6 +332,7 @@ class AeroEngineBaseTests(unittest.TestCase):
         # Find exact point
         found = sweep.find_point(alpha=5.0, elevator=-5.0)
         self.assertIsNotNone(found)
+        assert found is not None
         self.assertEqual(found.cl, 0.85)
 
         # Serialization round-trip
@@ -361,6 +366,7 @@ class AeroEngineBaseTests(unittest.TestCase):
         )
         restored = AeroResult.from_dict(result.to_dict())
         self.assertIsNotNone(restored.control_analysis)
+        assert restored.control_analysis is not None
         self.assertEqual(restored.control_analysis.channel, "elevator")
         self.assertAlmostEqual(restored.control_analysis.derivatives_per_deg["Cm"], -0.02)
 
@@ -375,11 +381,13 @@ class AeroEngineBaseTests(unittest.TestCase):
         self.assertEqual(result.cl_max, 0.9)
         self.assertEqual(result.ld_max, 20.0)
         self.assertIsNotNone(result.sweep_result)
+        assert result.sweep_result is not None
         self.assertEqual(len(result.sweep_result.points), 3)
 
         # get_point
         pt = result.get_point(alpha=2.0)
         self.assertIsNotNone(pt)
+        assert pt is not None
         self.assertEqual(pt.cl, 0.5)
 
         # Serialization round-trip
@@ -389,7 +397,10 @@ class AeroEngineBaseTests(unittest.TestCase):
         self.assertEqual(restored.method, AnalysisMethod.AERO_BUILDUP)
         self.assertEqual(len(restored.polar_points), 3)
         self.assertEqual(restored.polar_points[0].cx, 0.01)
-        self.assertEqual(restored.polar_points[0].forces_moments.fx_b, 5.0)
+        restored_forces = restored.polar_points[0].forces_moments
+        assert restored_forces is not None
+        self.assertEqual(restored_forces.fx_b, 5.0)
+        assert restored.sweep_result is not None
         self.assertEqual(restored.sweep_result.grid_shape, (3,))
 
 

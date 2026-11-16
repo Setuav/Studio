@@ -282,6 +282,7 @@ class AirfoilTests(unittest.TestCase):
         dialog.preset_list.setCurrentRow(clark_row)
         selected = dialog._selected_airfoil_data
         self.assertIsInstance(selected, dict)
+        assert isinstance(selected, dict)
         self.assertEqual(selected["type"], "coordinates")
         self.assertEqual(selected["name"], "Clark-Y")
         self.assertGreater(len(selected["points"]), 0)
@@ -343,6 +344,7 @@ class AirfoilTests(unittest.TestCase):
             self.assertIn("custom.dat (5 points)", dialog.file_path_label.text())
             selected = dialog._selected_airfoil_data
             self.assertIsInstance(selected, dict)
+            assert isinstance(selected, dict)
             self.assertEqual(selected["type"], "coordinates")
             self.assertEqual(selected["name"], "My Custom Foil")
             self.assertEqual(len(selected["points"]), 5)

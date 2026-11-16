@@ -6,13 +6,16 @@ import math
 import unittest
 from typing import Any
 
+from PySide6.QtWidgets import QComboBox
+
 from plugins.geometry.engine.fuselage_geometry import (
     SECTION_SAMPLES,
     build_fuselage_geometry,
     sample_profile,
 )
 from setuav_studio.project import open_project
-from tests._common import TEST_PROJECT_PATH, get_qapp
+from setuav_studio.ui.widget.table import ExpressionPropertyCell
+from tests._common import TEST_PROJECT_PATH, cell_widget, get_qapp, table_item
 
 
 def _build_fuselage_component() -> dict[str, Any]:
@@ -308,7 +311,7 @@ class FuselageGeometryTests(unittest.TestCase):
 
         # Edit width property with undo
         w_spin = dlg.props_table.cellWidget(0, 1)
-        if w_spin:
+        if isinstance(w_spin, ExpressionPropertyCell):
             w_spin.setValue(140.0)
         else:
             dlg._on_prop_spin_changed("width", 140.0)
@@ -387,29 +390,38 @@ class FuselageGeometryTests(unittest.TestCase):
         editor = FuselageEditor(api, comp)
 
         # General section
-        self.assertEqual(editor.general_table.item(0, 1).text(), "Main Fuselage")
-        self.assertEqual(editor.general_table.item(1, 1).text(), "org.setuav.core:fuselage")
+        self.assertEqual(table_item(editor.general_table, 0, 1).text(), "Main Fuselage")
+        self.assertEqual(table_item(editor.general_table, 1, 1).text(), "org.setuav.core:fuselage")
 
         # Segments table: tags, method combos
         self.assertEqual(editor.segments_table.rowCount(), 2)
-        self.assertEqual(editor.segments_table.item(0, 0).text(), "nose")
-        self.assertEqual(editor.segments_table.item(0, 1).text(), "3")
-        self.assertEqual(editor.segments_table.cellWidget(0, 2).currentData(), "smooth")
-        self.assertEqual(editor.segments_table.cellWidget(1, 2).currentData(), "ruled")
+        self.assertEqual(table_item(editor.segments_table, 0, 0).text(), "nose")
+        self.assertEqual(table_item(editor.segments_table, 0, 1).text(), "3")
+        self.assertEqual(
+            cell_widget(editor.segments_table, 0, 2, QComboBox).currentData(), "smooth"
+        )
+        self.assertEqual(cell_widget(editor.segments_table, 1, 2, QComboBox).currentData(), "ruled")
 
         # First segment auto-loaded -> sections populated
         self.assertEqual(editor._segment_index, 0)
         self.assertEqual(editor.sections_table.rowCount(), 3)
-        self.assertEqual(editor.sections_table.item(0, 1).text(), "circle")
-        self.assertIn("0", editor.sections_table.item(0, 2).text())
+        self.assertEqual(table_item(editor.sections_table, 0, 1).text(), "circle")
+        self.assertIn("0", table_item(editor.sections_table, 0, 2).text())
 
         # Section properties for circle: type + diameter
         self.assertEqual(editor.section_properties_table.rowCount(), 2)
-        self.assertAlmostEqual(editor.section_properties_table.cellWidget(1, 1).value(), 80.0)
+        self.assertAlmostEqual(
+            cell_widget(editor.section_properties_table, 1, 1, ExpressionPropertyCell).value(),
+            80.0,
+        )
 
         # Transform spinboxes
-        self.assertAlmostEqual(editor.transform_table.cellWidget(0, 0).value(), 0.0)
-        self.assertAlmostEqual(editor.transform_table.cellWidget(1, 0).value(), 0.0)
+        self.assertAlmostEqual(
+            cell_widget(editor.transform_table, 0, 0, ExpressionPropertyCell).value(), 0.0
+        )
+        self.assertAlmostEqual(
+            cell_widget(editor.transform_table, 1, 0, ExpressionPropertyCell).value(), 0.0
+        )
 
         # Action states
         self.assertTrue(editor.add_segment_button.isEnabled())
@@ -511,11 +523,11 @@ class FuselageGeometryTests(unittest.TestCase):
         editor._on_property_spin_changed("width", 140.0)
         profile = comp["parameters"]["geometry"]["segments"][0]["sections"][0]["profile"]
         self.assertAlmostEqual(profile["width"], 140.0)
-        self.assertIn("140", editor.sections_table.item(0, 3).text())
-        self.assertIn("100", editor.sections_table.item(0, 3).text())
+        self.assertIn("140", table_item(editor.sections_table, 0, 3).text())
+        self.assertIn("100", table_item(editor.sections_table, 0, 3).text())
 
         # Transform edit through the spinbox -> position committed
-        editor.transform_table.cellWidget(0, 0).setValue(25.0)
+        cell_widget(editor.transform_table, 0, 0, ExpressionPropertyCell).setValue(25.0)
         self.assertAlmostEqual(
             comp["parameters"]["geometry"]["segments"][0]["sections"][0]["position"]["x"],
             25.0,
@@ -535,7 +547,9 @@ class FuselageGeometryTests(unittest.TestCase):
         # Polygon vertices
         editor.sections_table.selectRow(0)
         self.assertEqual(editor.vertices_table.rowCount(), 3)
-        self.assertAlmostEqual(editor.vertices_table.cellWidget(0, 0).value(), -50.0)
+        self.assertAlmostEqual(
+            cell_widget(editor.vertices_table, 0, 0, ExpressionPropertyCell).value(), -50.0
+        )
         editor._on_vertex_spin_changed(0, 0, 60.0)
         self.assertAlmostEqual(
             comp["parameters"]["geometry"]["segments"][1]["sections"][0]["profile"]["vertices"][0][
@@ -554,12 +568,12 @@ class FuselageGeometryTests(unittest.TestCase):
         editor = FuselageEditor(api, comp)
 
         # Name edit
-        editor.general_table.item(0, 1).setText("Renamed Body")
+        table_item(editor.general_table, 0, 1).setText("Renamed Body")
         editor._update_general(0, 1)
         self.assertEqual(comp["name"], "Renamed Body")
 
         # Segment tag inline edit
-        editor.segments_table.item(0, 0).setText("nose-renamed")
+        table_item(editor.segments_table, 0, 0).setText("nose-renamed")
         editor._update_segment_cell(0, 0)
         self.assertEqual(comp["parameters"]["geometry"]["segments"][0]["tag"], "nose-renamed")
 
@@ -588,23 +602,23 @@ class FuselageGeometryTests(unittest.TestCase):
             return comp["parameters"]["geometry"]["segments"][0]["sections"][0]["profile"]
 
         # Section 0 is a circle (diameter = 80.0)
-        self.assertAlmostEqual(current_profile().get("diameter"), 80.0)
+        self.assertAlmostEqual(current_profile()["diameter"], 80.0)
 
         # Change diameter via numeric input
         editor._on_property_expression_changed("diameter", "110.0")
-        self.assertAlmostEqual(current_profile().get("diameter"), 110.0)
+        self.assertAlmostEqual(current_profile()["diameter"], 110.0)
         self.assertNotIn("_expressions", current_profile())
-        self.assertIn("110", editor.sections_table.item(0, 3).text())
+        self.assertIn("110", table_item(editor.sections_table, 0, 3).text())
 
         # Change diameter via expression
         editor._on_property_expression_changed("diameter", "=50 + 75")
-        self.assertAlmostEqual(current_profile().get("diameter"), 125.0)
+        self.assertAlmostEqual(current_profile()["diameter"], 125.0)
         self.assertEqual(current_profile().get("_expressions", {}).get("diameter"), "=50 + 75")
-        self.assertIn("125", editor.sections_table.item(0, 3).text())
+        self.assertIn("125", table_item(editor.sections_table, 0, 3).text())
 
         # Verify undo works
         api.undo()
-        self.assertAlmostEqual(current_profile().get("diameter"), 110.0)
+        self.assertAlmostEqual(current_profile()["diameter"], 110.0)
         self.assertNotIn("_expressions", current_profile())
 
     def test_fuselage_engine_helpers_and_metrics(self) -> None:

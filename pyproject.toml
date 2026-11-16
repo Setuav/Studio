@@ -104,7 +104,7 @@ title = "Setuav Studio Coverage"
 
 [tool.pyright]
 extraPaths = ["src"]
-include = ["src"]
+include = ["src", "tests"]
 pythonVersion = "3.12"
 typeCheckingMode = "basic"
 reportIncompatibleMethodOverride = "error"

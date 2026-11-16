@@ -280,6 +280,7 @@ class TestStabilityAnalysisEngine(unittest.TestCase):
         self.assertIsNotNone(res.stability_derivatives)
         sd = res.stability_derivatives
         self.assertIsInstance(sd, StabilityDerivatives)
+        assert sd is not None
 
         # 1. Longitudinal derivatives
         self.assertGreater(sd.c_L_alpha_rad, 3.0)  # Realistic lift slope CLa ~ 4-5 /rad
@@ -309,6 +310,7 @@ class TestStabilityAnalysisEngine(unittest.TestCase):
 
         # 5. Elevator trim
         self.assertIsNotNone(sd.elevator_trim)
+        assert sd.elevator_trim is not None
         self.assertTrue(sd.trim_valid)
         self.assertEqual(sd.trim_invalid_reasons, ())
         self.assertTrue(math.isfinite(sd.elevator_trim.delta_e_trim))
@@ -329,6 +331,7 @@ class TestStabilityAnalysisEngine(unittest.TestCase):
 
         sd = result.stability_derivatives
         self.assertIsNotNone(sd)
+        assert sd is not None
         self.assertIsNone(sd.elevator_trim)
         self.assertFalse(sd.trim_valid)
         self.assertIn("CG is unavailable from the mass-balance model", sd.trim_invalid_reasons)

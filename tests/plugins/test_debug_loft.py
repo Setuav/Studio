@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QTableWidget, QTableWidgetItem
 
 from plugins.debug import DebugPlugin
 from plugins.debug.components.loft import (
@@ -18,6 +18,18 @@ from plugins.debug.components.loft import (
 from setuav_studio.api import StudioAPI, TableParameterField
 from setuav_studio.project import create_project
 from setuav_studio.ui.viewport import LoftPrimitive, StudioViewport
+
+
+def _item(table: QTableWidget, row: int, column: int) -> QTableWidgetItem:
+    item = table.item(row, column)
+    assert item is not None, f"no table item at ({row}, {column})"
+    return item
+
+
+def _header_text(table: QTableWidget, column: int) -> str:
+    header = table.horizontalHeaderItem(column)
+    assert header is not None, f"no header item for column {column}"
+    return header.text()
 
 
 class TestDebugLoft(unittest.TestCase):
@@ -71,17 +83,17 @@ class TestDebugLoft(unittest.TestCase):
         table = editor._table_widgets["sections"]
         self.assertEqual(table.rowCount(), 4)  # 1 unit row + 3 stations
         # Check column headers: #, Offset, Chord, Twist
-        self.assertIn("Offset", table.horizontalHeaderItem(1).text())
-        self.assertIn("Chord", table.horizontalHeaderItem(2).text())
-        self.assertIn("Twist", table.horizontalHeaderItem(3).text())
+        self.assertIn("Offset", _header_text(table, 1))
+        self.assertIn("Chord", _header_text(table, 2))
+        self.assertIn("Twist", _header_text(table, 3))
         # Check Row 0 is Unit row
-        self.assertEqual(table.item(0, 0).text(), "Unit")
-        self.assertEqual(table.item(0, 1).text(), "[mm]")
-        self.assertEqual(table.item(0, 2).text(), "[mm]")
-        self.assertEqual(table.item(0, 3).text(), "[°]")
+        self.assertEqual(_item(table, 0, 0).text(), "Unit")
+        self.assertEqual(_item(table, 0, 1).text(), "[mm]")
+        self.assertEqual(_item(table, 0, 2).text(), "[mm]")
+        self.assertEqual(_item(table, 0, 3).text(), "[°]")
 
         # Edit station 1 chord to 160.0 (table row 2)
-        table.item(2, 2).setText("160.0")
+        _item(table, 2, 2).setText("160.0")
         self.assertEqual(comp_dict["parameters"]["sections"][1]["chord"], 160.0)
 
         # Test Undo

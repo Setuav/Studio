@@ -16,7 +16,7 @@ from plugins.geometry.engine.envelope import (
 )
 from plugins.geometry.engine.fuselage_geometry import sample_profile
 from setuav_studio.ui.editor.envelope import EnvelopeEditor
-from tests._common import get_qapp
+from tests._common import get_qapp, table_item
 
 
 def _sample_wing(mirror: bool = True) -> dict[str, Any]:
@@ -381,7 +381,7 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         api = StudioAPI()
         fuse = _sample_fuselage()
         sync_component_envelope(fuse)
-        doc = ProjectDocument(Path("test.uav"), "uav", {"components": [fuse]})
+        doc = ProjectDocument(Path("test.json"), "json", {"components": [fuse]})
         api._host.set_project(doc)
 
         editor = EnvelopeEditor(api, {"component_id": "test-fuse", "kind": "envelope"})
@@ -408,7 +408,7 @@ class EnvelopeEditorUiTests(unittest.TestCase):
                 "offset_mm": {"x": 70.0, "y": 0.0, "z": 0.0},
             },
         }
-        doc = ProjectDocument(Path("test.uav"), "uav", {"components": [battery]})
+        doc = ProjectDocument(Path("test.json"), "json", {"components": [battery]})
         api._host.set_project(doc)
 
         editor = EnvelopeEditor(api, {"component_id": "battery", "kind": "envelope"})
@@ -436,7 +436,7 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         api = StudioAPI()
         fuse = _sample_fuselage()
         sync_component_envelope(fuse)
-        doc = ProjectDocument(Path("test.uav"), "uav", {"components": [fuse]})
+        doc = ProjectDocument(Path("test.json"), "json", {"components": [fuse]})
         api._host.set_project(doc)
 
         editor = EnvelopeEditor(
@@ -454,9 +454,9 @@ class EnvelopeEditorUiTests(unittest.TestCase):
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff,
         )
         self.assertEqual(editor.sections_table.height(), 23 + 3 * 23 + 2)
-        self.assertIn("0.0", editor.sections_table.item(0, 0).text())
-        self.assertIn("300.0", editor.sections_table.item(1, 0).text())
-        self.assertIn("800.0", editor.sections_table.item(2, 0).text())
+        self.assertIn("0.0", table_item(editor.sections_table, 0, 0).text())
+        self.assertIn("300.0", table_item(editor.sections_table, 1, 0).text())
+        self.assertIn("800.0", table_item(editor.sections_table, 2, 0).text())
 
     def test_envelope_editor_shows_aggregate_envelope_for_assembly(self) -> None:
         from pathlib import Path
@@ -481,7 +481,7 @@ class EnvelopeEditorUiTests(unittest.TestCase):
                 "offset_mm": {"x": 0.0, "y": 0.0, "z": 0.0},
             },
         }
-        doc = ProjectDocument(Path("test.uav"), "uav", {"components": [fuse, battery]})
+        doc = ProjectDocument(Path("test.json"), "json", {"components": [fuse, battery]})
         api._host.set_project(doc)
 
         editor = EnvelopeEditor(
@@ -510,7 +510,7 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         sync_component_envelope(fuse)
         sync_component_envelope(wing)
 
-        doc = ProjectDocument(Path("test.uav"), "uav", {"components": [fuse, wing]})
+        doc = ProjectDocument(Path("test.json"), "json", {"components": [fuse, wing]})
         providers = {
             "org.setuav.core:fuselage": build_fuselage_geometry,
             "org.setuav.core:lifting-surface": build_lifting_surface_geometry,
@@ -566,12 +566,13 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         api = StudioAPI()
         fuse = _sample_fuselage()
         sync_component_envelope(fuse)
-        doc = ProjectDocument(Path("test.uav"), "uav", {"components": [fuse]})
+        doc = ProjectDocument(Path("test.json"), "json", {"components": [fuse]})
         api._host.set_project(doc)
 
         viewport = StudioViewport(api=api)
         self.addCleanup(viewport.deleteLater)
         renderer = viewport.viewer
+        assert renderer is not None
         from plugins.geometry.engine.fuselage_geometry import build_fuselage_geometry
         from plugins.geometry.engine.scene import build_project_geometry
         from setuav_studio.ui.viewport import LoftPrimitive, SceneObject

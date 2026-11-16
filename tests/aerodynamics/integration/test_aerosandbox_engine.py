@@ -7,6 +7,8 @@ import math
 import unittest
 from unittest.mock import patch
 
+import numpy as np
+
 from plugins.aerodynamics.engine.aerosandbox_engine import (
     HAS_AEROSANDBOX,
     AeroSandboxEngine,
@@ -193,6 +195,8 @@ class AeroSandboxEngineTests(unittest.TestCase):
         for pt in result.polar_points:
             self.assertIsNotNone(pt.forces_moments)
             self.assertIsNotNone(pt.state)
+            assert pt.forces_moments is not None
+            assert pt.state is not None
             self.assertEqual(pt.state.velocity, 20.0)
             self.assertEqual(pt.state.altitude, 500.0)
             # Body coefficients
@@ -210,6 +214,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
 
         # Verify Sweep result
         self.assertIsNotNone(result.sweep_result)
+        assert result.sweep_result is not None
         self.assertEqual(len(result.sweep_result.points), 7)
         self.assertEqual(result.sweep_result.variable_names, ["alpha"])
 
@@ -219,10 +224,11 @@ class AeroSandboxEngineTests(unittest.TestCase):
         self.assertEqual(len(restored.polar_points), 7)
         self.assertAlmostEqual(restored.polar_points[0].cl, result.polar_points[0].cl, places=5)
         self.assertAlmostEqual(restored.polar_points[0].cx, result.polar_points[0].cx, places=5)
-        self.assertEqual(
-            restored.polar_points[0].forces_moments.force_wind,
-            result.polar_points[0].forces_moments.force_wind,
-        )
+        restored_forces = restored.polar_points[0].forces_moments
+        original_forces = result.polar_points[0].forces_moments
+        assert restored_forces is not None
+        assert original_forces is not None
+        self.assertEqual(restored_forces.force_wind, original_forces.force_wind)
 
     @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_analyze_vlm_single_point_with_6dof(self) -> None:
@@ -245,6 +251,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
         self.assertGreater(pt.cl, 0.0)
         self.assertGreater(pt.cd, 0.0)
         self.assertIsNotNone(pt.forces_moments)
+        assert pt.forces_moments is not None
         self.assertNotEqual(pt.forces_moments.lift, 0.0)
         self.assertNotEqual(pt.cz, 0.0)
 
@@ -429,13 +436,16 @@ class AeroSandboxEngineTests(unittest.TestCase):
                         include_wave_drag=True,
                     ).run()
                 else:
+                    # AeroSandbox annotates the spacing callbacks as returning np.ndarray,
+                    # while its own cosspace (also the VortexLatticeMethod default) is
+                    # annotated as returning the wider Array union.
                     native_result = asb.VortexLatticeMethod(
                         airplane=native_airplane,
                         op_point=op_point,
                         spanwise_resolution=12,
                         chordwise_resolution=8,
-                        spanwise_spacing_function=asb_np.cosspace,
-                        chordwise_spacing_function=asb_np.cosspace,
+                        spanwise_spacing_function=asb_np.cosspace,  # pyright: ignore[reportArgumentType]
+                        chordwise_spacing_function=asb_np.cosspace,  # pyright: ignore[reportArgumentType]
                     ).run()
 
                 for studio_field, native_field in coefficient_map.items():
@@ -462,6 +472,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
                 for studio_field, native_field in frame_vector_map.items():
                     actual_vector = getattr(forces_moments, studio_field)
                     expected_vector = asb_np.ravel(native_result[native_field])
+                    assert isinstance(expected_vector, np.ndarray)
                     self.assertEqual(len(actual_vector), 3)
                     self.assertEqual(len(expected_vector), 3)
                     for axis, (actual_value, expected_value) in enumerate(
@@ -732,6 +743,8 @@ class AeroSandboxEngineTests(unittest.TestCase):
     @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
     def test_control_surface_overlap_preserves_exact_span_intervals(self) -> None:
         """Flap/aileron overlap must remain two controls without spanwise bleeding."""
+        import aerosandbox as asb
+
         components = [
             {
                 "id": "wing-1",
@@ -796,7 +809,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
             [wing.name for wing in airplane.wings], ["Main Wing_Right", "Main Wing_Left"]
         )
 
-        def section_controls(wing: object) -> list[list[tuple[str, float]]]:
+        def section_controls(wing: asb.Wing) -> list[list[tuple[str, float]]]:
             return [
                 [(surface.name, float(surface.deflection)) for surface in xsec.control_surfaces]
                 for xsec in wing.xsecs[:-1]

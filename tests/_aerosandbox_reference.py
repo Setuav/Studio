@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import aerosandbox as asb
+import numpy as np
 
 
 def build_fixed_wing_reference(
@@ -34,7 +35,7 @@ def build_fixed_wing_reference(
         normalized_coordinates[leading_edge_index][1],
     )
 
-    clark_y = asb.Airfoil(name="Clark-Y", coordinates=normalized_coordinates)
+    clark_y = asb.Airfoil(name="Clark-Y", coordinates=np.array(normalized_coordinates))
     naca0012 = asb.Airfoil("naca0012")
 
     main_root = (0.280, 0.075, 0.040)

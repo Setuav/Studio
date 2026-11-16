@@ -15,9 +15,14 @@ from plugins.electrical_propulsion.creation import (
 from plugins.electrical_propulsion.database import get_motor_database, get_propeller_database
 from plugins.electrical_propulsion.models import BatteryModel
 from plugins.electrical_propulsion.models.battery import BATTERY_OVERRIDES, battery_pack
-from setuav_studio.api import StudioAPI
+from setuav_studio.api import StudioAPI, ToolbarContribution, ToolbarMenuItemContribution
 from setuav_studio.project import ProjectDocument
 from tests._common import get_qapp
+
+
+def _enabled(contribution: ToolbarContribution | ToolbarMenuItemContribution) -> bool:
+    assert contribution.enabled_when is not None
+    return contribution.enabled_when()
 
 
 class _AcceptingCatalogDialog:
@@ -83,17 +88,17 @@ class PropulsionCreationTests(unittest.TestCase):
             PropulsionCreationController.toolbar_ids,
         )
         # Initially (no propulsion component):
-        self.assertTrue(system_action.enabled_when())
-        self.assertFalse(component_action.enabled_when())
+        self.assertTrue(_enabled(system_action))
+        self.assertFalse(_enabled(component_action))
         for item in component_action.menu_items:
-            self.assertFalse(item.enabled_when())
+            self.assertFalse(_enabled(item))
 
         # Add propulsion system
         self.controller.add_propulsion_system()
-        self.assertFalse(system_action.enabled_when())
-        self.assertTrue(component_action.enabled_when())
+        self.assertFalse(_enabled(system_action))
+        self.assertTrue(_enabled(component_action))
         for item in component_action.menu_items:
-            self.assertTrue(item.enabled_when())
+            self.assertTrue(_enabled(item))
 
         with patch.object(self.controller, "add_component") as add_component:
             for item in component_action.menu_items:
@@ -268,7 +273,9 @@ class PropulsionCreationTests(unittest.TestCase):
         self.assertEqual(self.controller._unique_identity("fresh", "Fresh"), ("fresh", "Fresh"))
         self.assertEqual(self.controller._unique_identity("id", "Name"), ("id-3", "Name 3"))
         self.assertIsNone(self.controller._find_component("missing"))
-        self.assertEqual(self.controller._find_component("id")["id"], "id")
+        found = self.controller._find_component("id")
+        assert found is not None
+        self.assertEqual(found["id"], "id")
 
     def test_new_battery_is_a_lipo_pack_with_derived_cell_properties(self) -> None:
         battery = self.controller._new_component("battery", "battery")

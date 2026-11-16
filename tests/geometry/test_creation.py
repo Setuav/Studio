@@ -6,9 +6,14 @@ import unittest
 from pathlib import Path
 
 from plugins.geometry.creation import AirframeCreationController
-from setuav_studio.api import StudioAPI
+from setuav_studio.api import StudioAPI, ToolbarContribution, ToolbarMenuItemContribution
 from setuav_studio.project import ProjectDocument
-from tests._common import get_qapp
+from tests._common import get_qapp, table_item
+
+
+def _enabled(contribution: ToolbarContribution | ToolbarMenuItemContribution) -> bool:
+    assert contribution.enabled_when is not None
+    return contribution.enabled_when()
 
 
 class GeometryCreationTests(unittest.TestCase):
@@ -41,22 +46,22 @@ class GeometryCreationTests(unittest.TestCase):
         )
 
         # Before airframe:
-        self.assertTrue(airframe_act.enabled_when())
-        self.assertFalse(fuse_act.enabled_when())
-        self.assertFalse(wing_act.enabled_when())
-        self.assertFalse(cs_act.enabled_when())
+        self.assertTrue(_enabled(airframe_act))
+        self.assertFalse(_enabled(fuse_act))
+        self.assertFalse(_enabled(wing_act))
+        self.assertFalse(_enabled(cs_act))
         for item in wing_act.menu_items:
-            self.assertFalse(item.enabled_when())
+            self.assertFalse(_enabled(item))
 
         # Add airframe
         self.controller.add_airframe()
-        self.assertFalse(airframe_act.enabled_when())
-        self.assertTrue(fuse_act.enabled_when())
-        self.assertTrue(wing_act.enabled_when())
+        self.assertFalse(_enabled(airframe_act))
+        self.assertTrue(_enabled(fuse_act))
+        self.assertTrue(_enabled(wing_act))
         for item in wing_act.menu_items:
-            self.assertTrue(item.enabled_when())
+            self.assertTrue(_enabled(item))
         # Control surface still false until wing is selected
-        self.assertFalse(cs_act.enabled_when())
+        self.assertFalse(_enabled(cs_act))
 
     def test_cannot_add_geometry_without_airframe(self) -> None:
         self.controller.add_fuselage()
@@ -89,12 +94,12 @@ class GeometryCreationTests(unittest.TestCase):
         self.assertEqual(fuse["parent"], "airframe")
         editor = FuselageEditor(self.api, fuse)
         self.assertEqual(editor.sections_table.rowCount(), 3)
-        self.assertEqual(editor.segments_table.item(0, 1).text(), "3")
+        self.assertEqual(table_item(editor.segments_table, 0, 1).text(), "3")
 
         editor._add_section()
         self.assertEqual(editor.sections_table.rowCount(), 4)
         self.assertEqual(len(editor._sections()), 4)
-        self.assertEqual(editor.segments_table.item(0, 1).text(), "4")
+        self.assertEqual(table_item(editor.segments_table, 0, 1).text(), "4")
 
     def test_add_fuselage_populates_mass_transform_envelope(self) -> None:
         self.controller.add_airframe()

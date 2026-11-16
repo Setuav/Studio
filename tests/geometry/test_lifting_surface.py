@@ -8,6 +8,8 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
+from PySide6.QtWidgets import QComboBox
+
 from plugins.geometry.engine.data import GeometryData, LoftGeometry, Section
 from plugins.geometry.engine.fuselage_geometry import build_fuselage_geometry
 from plugins.geometry.engine.lifting_surface_geometry import (
@@ -16,7 +18,8 @@ from plugins.geometry.engine.lifting_surface_geometry import (
 from plugins.geometry.engine.scene import build_project_geometry
 from setuav_studio.project import ProjectDocument, open_project
 from setuav_studio.ui.viewport.mesh import build_loft_solid_vertices
-from tests._common import TEST_PROJECT_PATH, get_qapp
+from setuav_studio.ui.widget.table import ExpressionPropertyCell
+from tests._common import TEST_PROJECT_PATH, cell_widget, get_qapp, table_item
 
 
 class LiftingSurfaceGeometryTests(unittest.TestCase):
@@ -101,7 +104,7 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
         self.assertIn("span", editor.planform_table.get_current_values())
 
         # Check Attach to combo selection
-        parent_combo = editor.general_table.cellWidget(2, 1)
+        parent_combo = cell_widget(editor.general_table, 2, 1, QComboBox)
         self.assertIsNotNone(parent_combo)
         self.assertEqual(parent_combo.currentData(), "fuselage")
         self.assertGreaterEqual(parent_combo.count(), 2)
@@ -134,7 +137,7 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
         self.assertTrue(editor.split_section_button.isEnabled())
 
         # Test Wing Sections table direct cell editing
-        editor.sections_table.item(0, 1).setText("600.0")
+        table_item(editor.sections_table, 0, 1).setText("600.0")
         editor._update_sections_table_cell(0, 1)
         self.assertAlmostEqual(editor._get_sections()[0]["span"], 600.0)
 
@@ -166,37 +169,37 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
             return None
 
         spin_defl = _get_cs_spin("deflection")
-        if spin_defl:
+        if isinstance(spin_defl, ExpressionPropertyCell):
             spin_defl.setValue(18.5)
         else:
             editor._on_cs_prop_spinbox_changed("deflection", 18.5)
         self.assertEqual(editor._cs_geom(editor._control_surfaces()[cs_idx])["deflection"], 18.5)
 
         spin_chord = _get_cs_spin("chord")
-        if spin_chord:
+        if isinstance(spin_chord, ExpressionPropertyCell):
             spin_chord.setValue(55.0)
         else:
             editor._on_cs_prop_spinbox_changed("chord", 55.0)
         self.assertEqual(editor._cs_geom(editor._control_surfaces()[cs_idx])["chord"], 55.0)
 
         spin_sweep = _get_cs_spin("hinge_sweep")
-        if spin_sweep:
+        if isinstance(spin_sweep, ExpressionPropertyCell):
             spin_sweep.setValue(5.0)
         else:
             editor._on_cs_prop_spinbox_changed("hinge_sweep", 5.0)
         self.assertEqual(editor._cs_geom(editor._control_surfaces()[cs_idx])["hinge_sweep"], 5.0)
 
         # Edit name inline via control_surfaces_table
-        editor.control_surfaces_table.item(cs_idx, 0).setText("aileron_custom")
+        table_item(editor.control_surfaces_table, cs_idx, 0).setText("aileron_custom")
         self.assertEqual(editor._control_surfaces()[cs_idx]["name"], "aileron_custom")
-        self.assertEqual(editor.cs_properties_table.item(0, 1).text(), "aileron_custom")
+        self.assertEqual(table_item(editor.cs_properties_table, 0, 1).text(), "aileron_custom")
 
         # Section Selection in 3D Viewport
         editor._on_section_selected(0, 0)
         self.assertEqual(api.current_section_selection, ("main-wing", 0, 0))
 
         # Check Symmetry / Mirror in general_table
-        mirror_combo = editor.general_table.cellWidget(3, 1)
+        mirror_combo = cell_widget(editor.general_table, 3, 1, QComboBox)
         self.assertIsNotNone(mirror_combo)
         self.assertEqual(mirror_combo.currentData(), "true")
         self.assertEqual(mirror_combo.currentText(), "Bilateral (Mirror XZ)")
@@ -215,7 +218,7 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
 
         # Edit dihedral in section_angles_table
         editor._on_section_angle_changed("dihedral", 5.0)
-        self.assertIn("5.0", editor.sections_table.item(0, 3).text())
+        self.assertIn("5.0", table_item(editor.sections_table, 0, 3).text())
 
         # Split section
         init_secs = editor.sections_table.rowCount()
@@ -833,7 +836,7 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
         for r in range(editor.tip_caps_table.rowCount()):
             if editor._property_key(editor.tip_caps_table, r) == "tip_length":
                 spin = editor.tip_caps_table.cellWidget(r, 1)
-                if spin:
+                if isinstance(spin, ExpressionPropertyCell):
                     spin.setValue(35.0)
                 else:
                     editor._on_tip_cap_spinbox_changed("tip_length", 35.0)
@@ -858,6 +861,8 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
         # Check two-column single-row projected metrics live update widgets
         self.assertTrue(hasattr(editor, "metric_height_val"))
         self.assertTrue(hasattr(editor, "metric_span_val"))
+        assert editor.metric_height_val is not None
+        assert editor.metric_span_val is not None
         self.assertIn("mm", editor.metric_height_val.text())
         self.assertIn("mm", editor.metric_span_val.text())
         m_row = -1
@@ -895,6 +900,7 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
             n_stations=24,
         )
         self.assertIsNotNone(loft)
+        assert loft is not None
         self.assertEqual(loft.component_id, "wing:winglet")
         self.assertEqual(len(loft.sections), 24)
         # All sections should have the same number of points
@@ -939,6 +945,7 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
             n_stations=24,
         )
         self.assertIsNotNone(scimitar_loft)
+        assert scimitar_loft is not None
         self.assertEqual(len(scimitar_loft.sections), 24)
 
         # Blended cant check: root section should emerge in span direction (near Y=500)
