@@ -57,20 +57,20 @@ class AirfoilTests(unittest.TestCase):
         # NACA 4
         pts_4 = naca4("2412")
         m_4 = compute_airfoil_metrics(pts_4)
-        self.assertAlmostEqual(m_4["max_thickness"], 0.12, places=2)
-        self.assertAlmostEqual(m_4["max_camber"], 0.02, places=2)
+        self.assertAlmostEqual(m_4.max_thickness, 0.12, places=2)
+        self.assertAlmostEqual(m_4.max_camber, 0.02, places=2)
 
         # NACA 5
         pts_5 = naca5("23012")
         m_5 = compute_airfoil_metrics(pts_5)
-        self.assertAlmostEqual(m_5["max_thickness"], 0.12, places=2)
-        self.assertAlmostEqual(m_5["max_camber"], 0.018, places=2)
+        self.assertAlmostEqual(m_5.max_thickness, 0.12, places=2)
+        self.assertAlmostEqual(m_5.max_camber, 0.018, places=2)
 
         # Biconvex
         pts_bi = biconvex(0.08)
         m_bi = compute_airfoil_metrics(pts_bi)
-        self.assertAlmostEqual(m_bi["max_thickness"], 0.08, places=2)
-        self.assertEqual(m_bi["max_camber"], 0.0)
+        self.assertAlmostEqual(m_bi.max_thickness, 0.08, places=2)
+        self.assertEqual(m_bi.max_camber, 0.0)
 
         # DAT Parser
         dat_content = """CLARK Y
@@ -95,7 +95,7 @@ class AirfoilTests(unittest.TestCase):
         self.assertIn("Selig S1223", PRESET_AIRFOILS)
         pts_selig = sample_airfoil_points(preset_airfoil_spec("Selig S1223"))
         m_selig = compute_airfoil_metrics(pts_selig)
-        self.assertGreater(m_selig["max_camber"], 0.05)
+        self.assertGreater(m_selig.max_camber, 0.05)
 
         with self.assertRaisesRegex(ValueError, "at least 3 coordinate points, got 2"):
             compute_airfoil_metrics([(1.0, 0.0), (0.0, 0.0)])
@@ -103,7 +103,13 @@ class AirfoilTests(unittest.TestCase):
     def test_naca4_cambered_code_requires_camber_position(self) -> None:
         with self.assertRaisesRegex(ValueError, "'2012' has 2% camber but camber-position digit 0"):
             naca4("2012")
-        self.assertEqual(compute_airfoil_metrics(naca4("0012"))["max_camber"], 0.0)
+        symmetric = compute_airfoil_metrics(naca4("0012"))
+        self.assertEqual(symmetric.max_camber, 0.0)
+        self.assertIsNone(symmetric.camber_x)
+        self.assertAlmostEqual(symmetric.thickness_x, 0.30, delta=0.02)
+        self.assertAlmostEqual(
+            compute_airfoil_metrics(naca4("2412")).camber_x or 0.0, 0.4, delta=0.02
+        )
 
     def test_naca5_design_lift_digit_scales_mean_line(self) -> None:
         standard = _naca5_mean_line("23012")
@@ -120,8 +126,8 @@ class AirfoilTests(unittest.TestCase):
         self.assertAlmostEqual(_thin_airfoil_coefficients(standard)[0], 0.3, delta=0.001)
         self.assertAlmostEqual(_thin_airfoil_coefficients(doubled)[0], 0.6, delta=0.002)
 
-        camber_23012 = compute_airfoil_metrics(naca5("23012"))["max_camber"]
-        camber_43012 = compute_airfoil_metrics(naca5("43012"))["max_camber"]
+        camber_23012 = compute_airfoil_metrics(naca5("23012")).max_camber
+        camber_43012 = compute_airfoil_metrics(naca5("43012")).max_camber
         self.assertAlmostEqual(camber_43012, 2.0 * camber_23012, places=4)
 
     def test_naca5_reflexed_mean_line(self) -> None:
@@ -280,7 +286,7 @@ class AirfoilTests(unittest.TestCase):
         self.assertEqual(selected["name"], "Clark-Y")
         self.assertGreater(len(selected["points"]), 0)
         self.assertEqual(len(dialog.canvas._points), len(selected["points"]))
-        self.assertGreater(len(dialog.canvas._metrics), 0)
+        self.assertIsNotNone(dialog.canvas._metrics)
         self.assertIn("Points:", dialog.pts_count_label.text())
 
         # metrics reflect the new airfoil

@@ -44,6 +44,7 @@ from setuav_studio.ui.widget.button import set_button_role, set_native_button
 
 from ...engine.airfoil import (
     PRESET_AIRFOILS,
+    AirfoilMetrics,
     airfoil_label,
     compute_airfoil_metrics,
     naca4,
@@ -62,7 +63,7 @@ class AirfoilCanvasWidget(QWidget):
         self._tokens = tokens()
         self._points: tuple[tuple[float, float], ...] = ()
         self._airfoil_name: str = "NACA 2412"
-        self._metrics: dict[str, float] = {}
+        self._metrics: AirfoilMetrics | None = None
         self.setMinimumSize(320, 180)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
@@ -152,9 +153,9 @@ class AirfoilCanvasWidget(QWidget):
         painter.setFont(QFont("sans-serif", 10, QFont.Weight.Bold))
         painter.drawText(margin_x, margin_y - 12, self._airfoil_name)
 
-        if self._metrics:
-            tc = self._metrics.get("max_thickness", 0.12) * 100.0
-            yc = self._metrics.get("max_camber", 0.0) * 100.0
+        if self._metrics is not None:
+            tc = self._metrics.max_thickness * 100.0
+            yc = self._metrics.max_camber * 100.0
             stat_text = f"t/c: {tc:.1f}%   camber: {yc:.1f}%"
             painter.setFont(QFont("sans-serif", 8))
             painter.setPen(dim_text)
@@ -453,15 +454,15 @@ class AirfoilDialog(QDialog):
 
     def _update_metrics_display(self, points: tuple[tuple[float, float], ...]) -> None:
         metrics = compute_airfoil_metrics(points)
-        tc = metrics.get("max_thickness", 0.12) * 100.0
-        tc_x = metrics.get("thickness_x", 0.3) * 100.0
-        yc = metrics.get("max_camber", 0.0) * 100.0
-        yc_x = metrics.get("camber_x", 0.4) * 100.0
-        te = metrics.get("te_gap", 0.0) * 100.0
-
-        self.max_thick_label.setText(f"Max Thickness: {tc:.1f}% at {tc_x:.0f}% chord")
-        self.max_camber_label.setText(f"Max Camber: {yc:.1f}% at {yc_x:.0f}% chord")
-        self.te_gap_label.setText(f"Trailing Edge Gap: {te:.2f}%")
+        self.max_thick_label.setText(
+            f"Max Thickness: {metrics.max_thickness * 100.0:.1f}% "
+            f"at {metrics.thickness_x * 100.0:.0f}% chord"
+        )
+        camber_text = f"Max Camber: {metrics.max_camber * 100.0:.1f}%"
+        if metrics.camber_x is not None:
+            camber_text += f" at {metrics.camber_x * 100.0:.0f}% chord"
+        self.max_camber_label.setText(camber_text)
+        self.te_gap_label.setText(f"Trailing Edge Gap: {metrics.te_gap * 100.0:.2f}%")
         self.pts_count_label.setText(f"Points: {len(points)}")
 
     def _on_apply(self) -> None:

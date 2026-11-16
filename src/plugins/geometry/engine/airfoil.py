@@ -10,6 +10,7 @@ from __future__ import annotations
 import math
 import re
 from collections.abc import Callable
+from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 from typing import Any
@@ -262,10 +263,22 @@ def _coordinate_lines(lines: list[str]) -> list[tuple[float, float]]:
     return points
 
 
+@dataclass(frozen=True)
+class AirfoilMetrics:
+    """Geometric properties of a normalized airfoil, as fractions of the chord."""
+
+    max_thickness: float
+    thickness_x: float
+    max_camber: float
+    camber_x: float | None
+    """Chordwise station of the maximum camber; None for a symmetric airfoil."""
+    te_gap: float
+
+
 def compute_airfoil_metrics(
     points: tuple[tuple[float, float], ...] | list[tuple[float, float]],
-) -> dict[str, float]:
-    """Compute geometric properties: max thickness, max camber, TE gap."""
+) -> AirfoilMetrics:
+    """Compute max thickness and camber with their stations, and the TE gap."""
     if len(points) < _MIN_AIRFOIL_POINTS:
         raise ValueError(
             f"Airfoil metrics need at least {_MIN_AIRFOIL_POINTS} coordinate points, "
@@ -289,32 +302,25 @@ def compute_airfoil_metrics(
     else:
         upper, lower = seg2, seg1
 
-    max_thickness = 0.0
-    thickness_x = 0.3
-    max_camber = 0.0
-    camber_x = 0.4
-
-    for s in range(1, 50):
-        x_target = s / 50.0
+    stations = [s / 50.0 for s in range(1, 50)]
+    thickness: list[float] = []
+    camber: list[float] = []
+    for x_target in stations:
         u_z = _interpolate_z_at_x(upper, x_target)
         l_z = _interpolate_z_at_x(lower, x_target)
-        t = u_z - l_z
-        c = (u_z + l_z) / 2.0
-        if t > max_thickness:
-            max_thickness = t
-            thickness_x = x_target
-        if abs(c) > abs(max_camber):
-            max_camber = c
-            camber_x = x_target
+        thickness.append(u_z - l_z)
+        camber.append((u_z + l_z) / 2.0)
 
-    te_gap = math.dist(points[0], points[-1])
-    return {
-        "max_thickness": max_thickness,
-        "thickness_x": thickness_x,
-        "max_camber": max_camber,
-        "camber_x": camber_x,
-        "te_gap": te_gap,
-    }
+    thickest = max(range(len(stations)), key=lambda i: thickness[i])
+    most_cambered = max(range(len(stations)), key=lambda i: abs(camber[i]))
+    max_camber = camber[most_cambered]
+    return AirfoilMetrics(
+        max_thickness=thickness[thickest],
+        thickness_x=stations[thickest],
+        max_camber=max_camber,
+        camber_x=stations[most_cambered] if abs(max_camber) > 1e-9 else None,
+        te_gap=math.dist(points[0], points[-1]),
+    )
 
 
 def apply_airfoil_shaping(
