@@ -63,6 +63,8 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
         method: AnalysisMethod = AnalysisMethod.AERO_BUILDUP,
         settings: dict[str, Any] | None = None,
         progress_callback: Any | None = None,
+        *,
+        include_stability: bool = True,
     ) -> AeroResult:
         if not HAS_AEROSANDBOX:
             raise RuntimeError(
@@ -87,13 +89,17 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
         summary = self._polar_summary(converged_points, oswald_values)
         sweep_result = self._build_sweep_result(condition, eval_states, sweep_vals, polar_points)
         control_analysis = self._control_analysis(condition, polar_points)
-        stability, stability_error = self._compute_stability(
-            components,
-            condition,
-            method,
-            setup,
-            len(eval_states),
-            progress_callback,
+        stability, stability_error = (
+            self._compute_stability(
+                components,
+                condition,
+                method,
+                setup,
+                len(eval_states),
+                progress_callback,
+            )
+            if include_stability
+            else (None, None)
         )
         return self._build_aero_result(
             condition,

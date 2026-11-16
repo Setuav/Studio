@@ -8,7 +8,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QSettings
 from pythrust.motors.database import MotorDatabase
-from pythrust.propellers.database import PropellerDatabase
+from pythrust.propellers.database import PropellerDatabase, PropellerEntry
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +55,7 @@ def _resolve_pythrust_data_dir() -> Path | None:
 
 _MOTOR_DB: MotorDatabase | None = None
 _PROP_DB: PropellerDatabase | None = None
+_PROP_ENTRIES: dict[str, PropellerEntry] = {}
 
 
 def get_motor_database() -> MotorDatabase:
@@ -71,18 +72,47 @@ def get_motor_database() -> MotorDatabase:
     return _MOTOR_DB
 
 
+def _propeller_dir() -> Path | None:
+    data_dir = _resolve_pythrust_data_dir()
+    if data_dir is None:
+        return None
+    prop_dir = data_dir / "propellers"
+    apc_dir = prop_dir / "apc_202602"
+    if apc_dir.exists():
+        return apc_dir
+    if prop_dir.exists():
+        return prop_dir
+    logger.warning("PyThrust propellers subdirectory not found at %s", prop_dir)
+    return None
+
+
 def get_propeller_database() -> PropellerDatabase:
     global _PROP_DB
     if _PROP_DB is None:
         _PROP_DB = PropellerDatabase()
-        data_dir = _resolve_pythrust_data_dir()
-        if data_dir is not None:
-            prop_dir = data_dir / "propellers"
-            apc_dir = prop_dir / "apc_202602"
-            if apc_dir.exists():
-                _PROP_DB.load(apc_dir)
-            elif prop_dir.exists():
-                _PROP_DB.load(prop_dir)
-            else:
-                logger.warning("PyThrust propellers subdirectory not found at %s", prop_dir)
+        prop_dir = _propeller_dir()
+        if prop_dir is not None:
+            _PROP_DB.load(prop_dir)
     return _PROP_DB
+
+
+def get_propeller_entry(prop_id: str) -> PropellerEntry | None:
+    """Return one propeller's data, loading only its own files.
+
+    The dataset stores each propeller as ``<id>.json`` with its CSV; the whole
+    database is read only when it is already loaded for the catalog.
+    """
+    if _PROP_DB is not None:
+        return _PROP_DB.get(prop_id)
+    if prop_id not in _PROP_ENTRIES:
+        prop_dir = _propeller_dir()
+        json_path = prop_dir / f"{prop_id}.json" if prop_dir is not None else None
+        if json_path is None or not json_path.exists():
+            return None
+        entry = PropellerDatabase().load_entry(json_path, prop_dir)
+        if entry is None:
+            return None
+        if entry.metadata.id != prop_id:
+            raise ValueError(f"Propeller file {json_path.name} holds '{entry.metadata.id}'.")
+        _PROP_ENTRIES[prop_id] = entry
+    return _PROP_ENTRIES[prop_id]

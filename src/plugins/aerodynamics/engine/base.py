@@ -978,6 +978,8 @@ class AeroEngine(ABC):
         method: AnalysisMethod = AnalysisMethod.AERO_BUILDUP,
         settings: dict[str, Any] | None = None,
         progress_callback: Any | None = None,
+        *,
+        include_stability: bool = True,
     ) -> AeroResult:
         """Run aerodynamic analysis.
 
@@ -987,6 +989,7 @@ class AeroEngine(ABC):
             method: Selected solver method
             settings: Optional engine-specific configuration options
             progress_callback: Optional callback(completed, total, message)
+            include_stability: Whether to compute the stability derivatives
 
         Returns:
             AeroResult containing polar curve data, 6-DoF coefficients, and key aerodynamic metrics

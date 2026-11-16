@@ -590,6 +590,18 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertGreater(len(flying), 2)
         self.assertTrue(all(b < a for a, b in itertools.pairwise(flying)))
 
+    def test_powertrain_loads_only_its_own_propeller(self) -> None:
+        from plugins.electrical_propulsion import database
+
+        database._PROP_ENTRIES.clear()
+        with patch.object(database, "_PROP_DB", None):
+            entry = database.get_propeller_entry("APC_13x6.5E")
+            assert entry is not None
+            self.assertEqual(entry.metadata.id, "APC_13x6.5E")
+            self.assertIsNone(database._PROP_DB)
+            self.assertEqual(list(database._PROP_ENTRIES), ["APC_13x6.5E"])
+            self.assertIsNone(database.get_propeller_entry("APC_does_not_exist"))
+
     def test_pythrust_data_dir_resolution(self) -> None:
         """5.17: hardcoded path is gone; resolution prefers env var, then QSettings, then relatives."""
         import os

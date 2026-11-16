@@ -44,6 +44,7 @@ def aerobuildup_model(
         ),
         method=AnalysisMethod.AERO_BUILDUP,
         progress_callback=progress_callback,
+        include_stability=False,
     )
     area_m2 = result.reference.s_ref
     if area_m2 <= 0.0:

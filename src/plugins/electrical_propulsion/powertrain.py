@@ -11,7 +11,7 @@ from pythrust.propellers.database import PropellerEntry
 from pythrust.propulsion.models import MotorSpec, PropellerSpec, SystemSpec
 from pythrust.propulsion.solver import PropulsionSolver
 
-from plugins.electrical_propulsion.database import get_propeller_database
+from plugins.electrical_propulsion.database import get_propeller_entry
 from plugins.electrical_propulsion.models.battery import battery_pack
 
 PROPULSION_SYSTEM_TYPE = "org.setuav.core:propulsion-system"
@@ -244,7 +244,7 @@ def _catalog_id(propulsor: dict[str, Any]) -> str:
 
 def _propeller_data(propulsor: dict[str, Any]) -> PropellerEntry:
     catalog_id = _catalog_id(propulsor)
-    entry = get_propeller_database().get(catalog_id)
+    entry = get_propeller_entry(catalog_id)
     if entry is None:
         raise PowertrainError(f"Propeller catalog has no data for '{catalog_id}'.")
     return entry
