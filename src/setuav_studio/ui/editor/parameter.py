@@ -34,7 +34,7 @@ class ParameterPropertyEditor(PropertyTableMixin, QWidget):
     ) -> None:
         super().__init__(parent)
         self._api = api
-        self._param_key = str(param_item.get("key") or param_item.get("id") or "")
+        self._param_key = str(param_item["key"])
         self._resolver = ParameterResolver()
         self._loading = False
         self._current_quantity: str = ""

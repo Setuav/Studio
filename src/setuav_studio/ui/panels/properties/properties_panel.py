@@ -59,13 +59,7 @@ class PropertiesPanel(QWidget):
         self.set_selection(self._api.current_selection)
 
     def set_selection(self, selection: Any | None) -> None:
-        if (
-            selection is not None
-            and hasattr(selection, "raw_data")
-            and isinstance(selection.raw_data, dict)
-        ):
-            selection = selection.raw_data
-        elif not isinstance(selection, dict):
+        if selection is None:
             self._current_selection_key = None
             self._current_component = None
             self._active_component_id = None
@@ -75,21 +69,6 @@ class PropertiesPanel(QWidget):
 
         new_id = str(selection.get("id") or "")
         kind = str(selection.get("kind") or "")
-
-        # Handle virtual selections by focusing the parent component on the corresponding tab
-        if kind in ("transform", "envelope", "mass-properties"):
-            comp_id = str(selection.get("component_id") or selection.get("id") or "")
-            if comp_id:
-                live_comp = self._resolve_live_component(comp_id)
-                if live_comp:
-                    if kind == "transform":
-                        self._last_component_tab_index = 1
-                    elif kind == "envelope":
-                        self._last_component_tab_index = 2
-                    elif kind == "mass-properties":
-                        self._last_component_tab_index = 3
-                    self.set_selection(live_comp)
-                    return
 
         new_key = (kind, new_id)
 

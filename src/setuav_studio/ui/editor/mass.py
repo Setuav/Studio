@@ -34,13 +34,13 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
     def __init__(
         self,
         api: StudioAPI,
-        selection: dict[str, Any],
+        component: dict[str, Any],
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self.setObjectName("core.mass_properties_editor")
         self._api = api
-        component_id = str(selection.get("component_id") or selection.get("id") or "")
+        component_id = str(component["id"])
         self._component = (
             api.project.get_component(component_id)
             if api.project is not None and component_id

@@ -172,52 +172,27 @@ def build_envelope_wire_vertices(
     data: GeometryData | None,
     selected_envelope_component_id: str | Sequence[str] | None,
     color: Point3D = ENVELOPE_HIGHLIGHT,
-    selected_component_id: str | None = None,
     scene_objects: dict[str, Any] | None = None,
 ) -> list[float]:
     """Build vertices for the green wireframe envelope highlighting the selected component's bounding volume."""
-    target_cleans: set[str] = set()
-    if isinstance(selected_envelope_component_id, (list, tuple, set)):
-        target_cleans = {
-            str(x).lower().replace(":envelope", "") for x in selected_envelope_component_id if x
-        }
-    elif isinstance(selected_envelope_component_id, str) and selected_envelope_component_id:
-        target_cleans = {selected_envelope_component_id.lower().replace(":envelope", "")}
+    if isinstance(selected_envelope_component_id, str):
+        targets = {selected_envelope_component_id} if selected_envelope_component_id else set()
+    else:
+        targets = {str(x) for x in selected_envelope_component_id or () if x}
 
-    comp_clean = (
-        selected_component_id.lower().replace(":envelope", "") if selected_component_id else ""
-    )
+    def belongs(element_id: str, target: str) -> bool:
+        return element_id == target or element_id.startswith(f"{target}:")
+
     vertices: list[float] = []
-    if data is not None:
-        for env in getattr(data, "envelopes", ()):
-            env_clean = env.component_id.lower().replace(":envelope", "")
-            is_prop_clearance = ":propeller_clearance" in env_clean or ":clearance" in env_clean
+    if data is not None and targets:
+        for env in data.envelopes:
+            if any(belongs(env.component_id, target) for target in targets):
+                for start, end in env.lines:
+                    _add_line(vertices, start, end, color)
 
-            is_selected = False
-            if target_cleans:
-                is_selected = any(
-                    env_clean == tc or env_clean.startswith(f"{tc}:") for tc in target_cleans
-                )
-            if not is_selected and comp_clean and is_prop_clearance:
-                is_selected = env_clean == comp_clean or env_clean.startswith(f"{comp_clean}:")
-
-            if is_prop_clearance:
-                line_color = (1.0, 1.0, 1.0)
-            elif is_selected:
-                line_color = color
-            else:
-                continue
-
-            for start, end in env.lines:
-                _add_line(vertices, start, end, line_color)
-
-    if scene_objects and target_cleans:
+    if scene_objects and targets:
         for obj_id, obj in scene_objects.items():
-            clean_id = obj_id.lower().replace(":envelope", "")
-            if any(
-                clean_id == tc or clean_id.startswith(f"{tc}:") or tc.startswith(f"{clean_id}:")
-                for tc in target_cleans
-            ):
+            if any(belongs(obj_id, target) or belongs(target, obj_id) for target in targets):
                 _append_scene_object_envelope_wire(vertices, obj, color)
 
     return vertices

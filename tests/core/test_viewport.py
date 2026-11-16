@@ -964,7 +964,7 @@ class TestStudioViewport(unittest.TestCase):
         # 2. Select cyl-1 envelope (auto-envelope from cylinder primitive)
         env_cyl = build_envelope_wire_vertices(
             None,
-            selected_envelope_component_id="cyl-1:envelope",
+            selected_envelope_component_id="cyl-1",
             color=color,
             scene_objects=scene_objs,
         )

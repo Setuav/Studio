@@ -384,7 +384,7 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         doc = ProjectDocument(Path("test.json"), "json", {"components": [fuse]})
         api._host.set_project(doc)
 
-        editor = EnvelopeEditor(api, {"component_id": "test-fuse", "kind": "envelope"})
+        editor = EnvelopeEditor(api, fuse)
         assert editor.shape_combo is not None
         self.assertEqual(editor.shape_combo.currentData(), "trapezoid")
         self.assertFalse(editor.shape_combo.isEnabled())
@@ -411,7 +411,7 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         doc = ProjectDocument(Path("test.json"), "json", {"components": [battery]})
         api._host.set_project(doc)
 
-        editor = EnvelopeEditor(api, {"component_id": "battery", "kind": "envelope"})
+        editor = EnvelopeEditor(api, battery)
         assert editor.shape_combo is not None
         self.assertTrue(editor.shape_combo.isEnabled())
         self.assertEqual(editor.shape_combo.findData("trapezoid"), -1)
@@ -439,10 +439,7 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         doc = ProjectDocument(Path("test.json"), "json", {"components": [fuse]})
         api._host.set_project(doc)
 
-        editor = EnvelopeEditor(
-            api,
-            {"component_id": "test-fuse", "kind": "envelope"},
-        )
+        editor = EnvelopeEditor(api, fuse)
         self.assertFalse(editor._sections_container.isHidden())
         self.assertEqual(editor.sections_table.rowCount(), 3)
         self.assertEqual(
@@ -484,10 +481,7 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         doc = ProjectDocument(Path("test.json"), "json", {"components": [fuse, battery]})
         api._host.set_project(doc)
 
-        editor = EnvelopeEditor(
-            api,
-            {"component_id": "test-fuse", "kind": "envelope"},
-        )
+        editor = EnvelopeEditor(api, fuse)
         self.assertIsNotNone(editor.shape_combo)
         assert editor.shape_combo is not None
         self.assertEqual(editor.shape_combo.currentData(), "box")
@@ -544,10 +538,6 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         # Not selected -> empty
         self.assertEqual(build_envelope_wire_vertices(data, None), [])
         self.assertEqual(build_envelope_wire_vertices(data, "other"), [])
-        # Component selected directly with selected_component_id -> envelope remains empty (not selected)
-        self.assertEqual(
-            build_envelope_wire_vertices(data, None, selected_component_id="fuse-1"), []
-        )
 
         # Selected -> returns line vertices with bright green color
         verts = build_envelope_wire_vertices(data, "fuse-1")
@@ -595,15 +585,9 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         renderer._upload_meshes()
         self.assertEqual(renderer._envelope_count, 0)
 
-        # 1. Select Envelope node in tree -> envelope shown, owning component selected
-        api.set_selection(
-            {
-                "id": "test-fuse:envelope",
-                "name": "Envelope",
-                "kind": "envelope",
-                "component_id": "test-fuse",
-            }
-        )
+        # 1. Select the component and open its Envelope tab -> envelope shown
+        api.set_selection(fuse)
+        viewport.set_selected_envelope("test-fuse")
         self.assertEqual(renderer._selected_envelope_component_id, "test-fuse")
         self.assertEqual(renderer._selected_component_id, "test-fuse")
         renderer._upload_meshes()

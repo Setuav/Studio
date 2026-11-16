@@ -99,6 +99,7 @@ class StudioViewport(QWidget):
         self._selected_object_id: str | None = None
         self._selected_section: tuple[str, int, int] | None = None
         self._selected_cg_component_id: str | None = None
+        self._selected_envelope_component_id: str | None = None
         self._show_aircraft_cg: bool = False
 
         # Camera & Display state
@@ -1005,56 +1006,21 @@ class StudioViewport(QWidget):
         self.object_picked.emit(component_id)
 
     def _on_api_selection_changed(self, selection: Any | None) -> None:
-        """Respond to selection events from StudioAPI (e.g. ProjectExplorer tree click)."""
-        cg_component_id: str | None = None
-        envelope_id: str | None = None
-        component_id: str | None = None
-        if isinstance(selection, dict):
-            kind = selection.get("kind")
-            comp_id = selection.get("component_id") or selection.get("id")
-            comp_str = str(comp_id) if comp_id is not None else None
-            if kind == "envelope" or (comp_str and comp_str.endswith(":envelope")):
-                envelope_id = comp_str
-                component_id = comp_str.split(":")[0] if comp_str else None
-            elif kind == "mass-properties" or (comp_str and comp_str.endswith(":mass-properties")):
-                component_id = str(
-                    selection.get("component_id") or (comp_str.split(":")[0] if comp_str else "")
-                )
-                cg_component_id = component_id
-            else:
-                component_id = comp_str
-        elif isinstance(selection, str):
-            if selection.endswith(":envelope"):
-                envelope_id = selection
-                component_id = selection.split(":")[0]
-            elif selection.endswith(":mass-properties"):
-                component_id = selection.split(":")[0]
-                cg_component_id = component_id
-            else:
-                component_id = selection
-        else:
-            component_id = None
+        """Highlight the selected element; an active envelope or CG view follows it.
 
+        Selections are element payloads keyed by ``id``.
+        """
         if selection is None:
             self.set_selected(None)
             self.set_selected_cg(None)
             self.set_selected_envelope(None)
             return
-
+        component_id = str(selection["id"])
         self.set_selected(component_id)
-
-        if envelope_id is not None:
-            self.set_selected_envelope(envelope_id)
-            self.set_selected_cg(None)
-        elif cg_component_id is not None:
-            self.set_selected_cg(cg_component_id)
-            self.set_selected_envelope(None)
-        else:
-            # Component selection: if envelope or CG mode is currently active, update to the new component
-            if getattr(self, "_selected_envelope_component_id", None) and component_id:
-                self.set_selected_envelope(component_id)
-            elif getattr(self, "_selected_cg_component_id", None) and component_id:
-                self.set_selected_cg(component_id)
+        if self._selected_envelope_component_id:
+            self.set_selected_envelope(component_id)
+        elif self._selected_cg_component_id:
+            self.set_selected_cg(component_id)
 
     def _on_api_section_selection_changed(
         self,

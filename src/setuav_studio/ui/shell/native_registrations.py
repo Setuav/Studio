@@ -321,17 +321,11 @@ def register_native_kind_editors(api: StudioAPI) -> None:
         AnalysisPlotPropertyEditor,
         AnalysisTablePropertyEditor,
         ConstraintPropertyEditor,
-        EnvelopeEditor,
-        MassPropertiesEditor,
         ParameterPropertyEditor,
         SolverConfigPropertyEditor,
-        TransformEditor,
     )
 
     defaults = {
-        "transform": lambda selection: TransformEditor(api, selection),
-        "envelope": lambda selection: EnvelopeEditor(api, selection),
-        "mass-properties": lambda selection: MassPropertiesEditor(api, selection),
         "parameter": lambda selection: ParameterPropertyEditor(api, selection),
         "constraint": lambda selection: ConstraintPropertyEditor(api, selection),
         "analysis_config": lambda selection: SolverConfigPropertyEditor(api, selection),
