@@ -5,8 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import Any
 
+from pythrust.battery import FixedVoltageBattery
 from pythrust.propellers.database import PropellerEntry
-from pythrust.propulsion.models import BatterySpec, MotorSpec, PropellerSpec, SystemSpec
+from pythrust.propulsion.models import MotorSpec, PropellerSpec, SystemSpec
 from pythrust.propulsion.solver import PropulsionSolver
 
 from plugins.electrical_propulsion.database import get_propeller_database
@@ -101,7 +102,7 @@ class Powertrain:
     motor: MotorSpec
     propeller: PropellerSpec
     propeller_data: PropellerEntry
-    battery: BatterySpec
+    battery: FixedVoltageBattery
     unit_system: SystemSpec
     capacity_mah: float
     unit_count: int
@@ -173,7 +174,7 @@ def build_powertrain(members: PropulsionSystemMembers) -> Powertrain:
             blade_count=int(_number(propulsor, "blade_count", "Propeller")),
         ),
         propeller_data=_propeller_data(propulsor),
-        battery=BatterySpec(
+        battery=FixedVoltageBattery(
             voltage_v=_number(battery, "nominal_voltage", "Battery"),
             discharge_efficiency=BATTERY_DISCHARGE_EFFICIENCY,
         ),

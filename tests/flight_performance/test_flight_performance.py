@@ -8,7 +8,8 @@ from typing import Any
 from unittest.mock import PropertyMock, patch
 
 import numpy as np
-from pythrust.propulsion.models import BatterySpec, MotorSpec, PropellerSpec, SystemSpec
+from pythrust.battery import FixedVoltageBattery
+from pythrust.propulsion.models import MotorSpec, PropellerSpec, SystemSpec
 
 from plugins.aerodynamics.engine.base import AeroAnalysisError
 from plugins.electrical_propulsion.database import get_propeller_database
@@ -52,7 +53,7 @@ def _powertrain(voltage_v: float = 22.2, unit_count: int = 1) -> Powertrain:
         ),
         propeller=PropellerSpec(diameter_m=0.3302, pitch_m=0.1651, blade_count=2),
         propeller_data=propeller_data,
-        battery=BatterySpec(voltage_v=voltage_v, discharge_efficiency=0.98),
+        battery=FixedVoltageBattery(voltage_v=voltage_v, discharge_efficiency=0.98),
         unit_system=SystemSpec(resistance_ohm=0.005),
         capacity_mah=5000.0,
         unit_count=unit_count,
