@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from copy import deepcopy
 from typing import Any, cast
 
@@ -153,35 +154,31 @@ def get_all_components(project_or_components: Any) -> list[dict[str, Any]]:
     return [c for c in raw_components if isinstance(c, dict) and c.get("id")]
 
 
-def get_component_children(
+def get_component_subparts(
     comp_id: str,
     project_or_components: Any,
-    recursive: bool = True,
+    subpart_types: Collection[str],
 ) -> list[dict[str, Any]]:
-    """Return all direct or recursive child components belonging to comp_id in the hierarchy."""
+    """Return the subparts of ``comp_id``: components of ``subpart_types`` attached to it,
+    and their own subparts."""
     all_comps = get_all_components(project_or_components)
-    direct_children = [c for c in all_comps if str(c.get("parent") or "") == comp_id]
-    if not recursive:
-        return direct_children
-
     result: list[dict[str, Any]] = []
-    queue = list(direct_children)
-    visited = {comp_id}
-    while queue:
-        child = queue.pop(0)
-        c_id = str(child.get("id") or "")
-        if c_id and c_id not in visited:
-            visited.add(c_id)
-            result.append(child)
-            sub_children = [c for c in all_comps if str(c.get("parent") or "") == c_id]
-            queue.extend(sub_children)
+    owners = {comp_id}
+    while owners:
+        found = [
+            c
+            for c in all_comps
+            if c.get("type") in subpart_types
+            and str(c.get("attach_to") or "") in owners
+            and c not in result
+        ]
+        result.extend(found)
+        owners = {str(c["id"]) for c in found}
     return result
 
 
 def get_component_intrinsic_mass_g(component: dict[str, Any]) -> float:
-    """Return component intrinsic mass in grams, ignoring child components."""
-    if component.get("has_mass") is False:
-        return 0.0
+    """Return component intrinsic mass in grams, without its subparts."""
     mass_g = _number(component.get("mass", 0.0))
     return max(0.0, mass_g)
 
@@ -250,8 +247,9 @@ def resolve_component_intrinsic_mass_properties(
 def resolve_component_aggregate_mass_properties(
     comp_id: str,
     project_or_components: Any,
+    subpart_types: Collection[str],
 ) -> ComponentMassProperties:
-    """Aggregate mass, center of gravity, and inertia tensor for comp_id and all its child components."""
+    """Aggregate mass, center of gravity, and inertia tensor for comp_id and its subparts."""
     all_comps = get_all_components(project_or_components)
     by_id = {str(c["id"]): c for c in all_comps}
     root_comp = by_id.get(comp_id)
@@ -268,7 +266,7 @@ def resolve_component_aggregate_mass_properties(
             component_type="",
         )
 
-    descendants = get_component_children(comp_id, all_comps, recursive=True)
+    descendants = get_component_subparts(comp_id, all_comps, subpart_types)
     if not descendants:
         intrinsic = resolve_component_intrinsic_mass_properties(root_comp, all_comps)
         return ComponentMassProperties(
@@ -283,7 +281,7 @@ def resolve_component_aggregate_mass_properties(
             component_type=intrinsic.component_type,
         )
 
-    # Subtree includes root component itself plus all descendants
+    # The component itself and its subparts
     subtree = [root_comp, *descendants]
     items: list[ComponentMassProperties] = []
     for c in subtree:
@@ -409,9 +407,6 @@ def resolve_aircraft_mass_properties(
     result_items: list[ComponentMassProperties] = []
 
     for comp in components:
-        if comp.get("has_mass") is False:
-            continue
-
         item = resolve_component_intrinsic_mass_properties(comp, components)
         if item.mass_kg > 0.0:
             result_items.append(item)
@@ -474,14 +469,14 @@ def is_mirrored_component(
     """Return whether the component is mirrored across the body XZ plane.
 
     A component is mirrored by its own geometry; a control surface follows the
-    lifting surface it is parented to.
+    lifting surface it attaches to.
     """
     if _geometry_mirror(component):
         return True
     if component.get("type") != "org.setuav.core:control-surface":
         return False
-    parent = by_id.get(str(component.get("parent") or ""))
-    return parent is not None and _geometry_mirror(_effective_component(parent, by_id))
+    surface = by_id.get(str(component.get("attach_to") or ""))
+    return surface is not None and _geometry_mirror(_effective_component(surface, by_id))
 
 
 def _geometry_mirror(component: dict[str, Any]) -> bool:
@@ -501,7 +496,7 @@ def _effective_component(
     if source is None:
         return deepcopy(component)
     effective = deepcopy(source)
-    for key in ("id", "name", "kind", "source", "parent", "derivation"):
+    for key in ("id", "name", "kind", "source", "attach_to", "derivation"):
         if key in component:
             effective[key] = deepcopy(component[key])
     if "mass" in component:

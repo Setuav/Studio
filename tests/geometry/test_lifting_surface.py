@@ -103,12 +103,6 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
         self.assertEqual(editor.planform_table.rowCount(), 8)
         self.assertIn("span", editor.planform_table.get_current_values())
 
-        # Check Attach to combo selection
-        parent_combo = cell_widget(editor.general_table, 2, 1, QComboBox)
-        self.assertIsNotNone(parent_combo)
-        self.assertEqual(parent_combo.currentData(), "fuselage")
-        self.assertGreaterEqual(parent_combo.count(), 2)
-
         # Test Wing Planform Sizing driver resize
         editor._on_planform_spinbox_changed("span", 1200.0)
         # Profiles should scale such that total tip-to-tip wingspan = 2 * (y_offset + y_tip) = 1200.0 mm
@@ -199,7 +193,7 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
         self.assertEqual(api.current_section_selection, ("main-wing", 0, 0))
 
         # Check Symmetry / Mirror in general_table
-        mirror_combo = cell_widget(editor.general_table, 3, 1, QComboBox)
+        mirror_combo = cell_widget(editor.general_table, 2, 1, QComboBox)
         self.assertIsNotNone(mirror_combo)
         self.assertEqual(mirror_combo.currentData(), "true")
         self.assertEqual(mirror_combo.currentText(), "Bilateral (Mirror XZ)")

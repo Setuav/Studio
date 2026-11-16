@@ -78,7 +78,7 @@ def _control_surface(component_id: str, surface_type: str) -> dict[str, Any]:
         "id": component_id,
         "name": component_id,
         "type": "org.setuav.core:control-surface",
-        "parent": "wing",
+        "attach_to": "wing",
         "parameters": {"geometry": {"type": surface_type}},
     }
 

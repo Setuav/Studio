@@ -60,7 +60,7 @@ class TestDebugPanel(unittest.TestCase):
             "id": "box_test_1",
             "name": "Test Box",
             "type": "debug:box",
-            "parent": "fuselage_root",
+            "attach_to": "fuselage_root",
             "position": [1.5, 0.0, 0.5],
             "rotation": [0.0, 15.0, 0.0],
             "parameters": {"width": 2.0, "height": 1.0, "depth": 0.5},
@@ -76,7 +76,7 @@ class TestDebugPanel(unittest.TestCase):
         # Check component table
         self.assertEqual(panel._property_value(panel.component_table, "name"), "Test Box")
         self.assertEqual(panel._property_value(panel.component_table, "id"), "box_test_1")
-        self.assertEqual(panel._property_value(panel.component_table, "parent"), "fuselage_root")
+        self.assertEqual(panel._property_value(panel.component_table, "attach_to"), "fuselage_root")
         self.assertIn("1.500", panel._property_value(panel.component_table, "position"))
 
         # Check parameters table

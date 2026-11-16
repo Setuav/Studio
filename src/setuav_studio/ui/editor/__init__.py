@@ -11,6 +11,7 @@ from setuav_studio.ui.editor.mass import MassPropertiesEditor
 from setuav_studio.ui.editor.parameter import ParameterPropertyEditor
 from setuav_studio.ui.editor.solver_config import SolverConfigPropertyEditor
 from setuav_studio.ui.editor.transform import TransformEditor
+from setuav_studio.ui.editor.vehicle import VehicleSummaryEditor
 
 __all__ = [
     "AnalysisPlotPropertyEditor",
@@ -22,4 +23,5 @@ __all__ = [
     "ParameterPropertyEditor",
     "SolverConfigPropertyEditor",
     "TransformEditor",
+    "VehicleSummaryEditor",
 ]

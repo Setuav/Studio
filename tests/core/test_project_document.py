@@ -159,7 +159,7 @@ def test_component_lookup_helpers() -> None:
         {
             "components": [
                 {"id": "c1", "name": "Fuselage"},
-                {"id": "c2", "name": "Wing", "parent": "c1"},
+                {"id": "c2", "name": "Wing", "attach_to": "c1"},
             ]
         },
     )
@@ -193,10 +193,10 @@ def test_safe_json_serialization_numpy_and_paths(tmp_path: Path) -> None:
 
 def test_save_project_validation_prevents_corrupt_hierarchy(tmp_path: Path) -> None:
     project = create_project(tmp_path / "cyclic_test.suav")
-    # Circular parent dependency: A -> B -> A
+    # Attachment cycle: A -> B -> A
     project.data["components"] = [
-        {"id": "a", "name": "Comp A", "parent": "b"},
-        {"id": "b", "name": "Comp B", "parent": "a"},
+        {"id": "a", "name": "Comp A", "attach_to": "b"},
+        {"id": "b", "name": "Comp B", "attach_to": "a"},
     ]
     with pytest.raises(ProjectSaveError):
         save_project(project)

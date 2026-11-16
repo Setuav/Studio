@@ -1,19 +1,21 @@
-"""Unit tests for core spatial transform and reparenting utilities."""
+"""Unit tests for core spatial transform and attachment utilities."""
 
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from setuav_studio.api.api import StudioAPI
 from setuav_studio.project.document import ProjectDocument
 from setuav_studio.utilities.transform import (
+    attach_component,
+    attached_component_ids,
     components_by_id,
     euler_to_matrix,
     inverse_rotate_vector,
     matrix_to_euler,
-    reparent_component,
     resolve_world_transform,
     rotate_vector,
 )
@@ -47,7 +49,7 @@ def test_vector_rotation_inverse() -> None:
         assert abs(vec[i] - restored[i]) < 1e-6
 
 
-def test_resolve_world_transform_hierarchy() -> None:
+def test_resolve_world_transform_follows_attachments() -> None:
     comp_a = {
         "id": "a",
         "name": "Comp A",
@@ -56,12 +58,11 @@ def test_resolve_world_transform_hierarchy() -> None:
             "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 90.0},
         },
     }
-    # Comp B is 50 mm forward along X in A's local frame.
-    # Since A has yaw=90 deg, in world coordinates this is +50 mm along Y!
+    # B sits 50 mm along A's local X; A is yawed 90 deg, so that is +50 mm along Y.
     comp_b = {
         "id": "b",
         "name": "Comp B",
-        "parent": "a",
+        "attach_to": "a",
         "transform": {
             "position": {"x": 50.0, "y": 0.0, "z": 0.0},
             "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
@@ -76,171 +77,136 @@ def test_resolve_world_transform_hierarchy() -> None:
     assert abs(w_rot[2] - 90.0) < 1e-4
 
 
-def test_resolve_world_transform_child_follows_parent_frame() -> None:
-    propulsion = {
-        "id": "propulsion",
-        "name": "Propulsion",
-        "has_transform": False,
-    }
+def test_resolve_world_transform_chains_rotated_frames() -> None:
+    fuselage = {"id": "fuselage", "name": "Fuselage"}
     motor = {
         "id": "motor-1",
         "name": "Motor 1",
-        "parent": "propulsion",
+        "attach_to": "fuselage",
         "transform": {
             "position": {"x": 800.0, "y": 0.0, "z": 25.0},
             "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 180.0},
         },
     }
-    propeller = {
-        "id": "prop-1",
-        "name": "Propeller",
-        "parent": "motor-1",
+    spinner = {
+        "id": "spinner",
+        "name": "Spinner",
+        "attach_to": "motor-1",
         "transform": {
             "position": {"x": -35.0, "y": 0.0, "z": 0.0},
             "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
         },
     }
-    comps = {"propulsion": propulsion, "motor-1": motor, "prop-1": propeller}
-    w_pos, w_rot = resolve_world_transform("prop-1", comps)
+    comps = {"fuselage": fuselage, "motor-1": motor, "spinner": spinner}
+    w_pos, w_rot = resolve_world_transform("spinner", comps)
 
-    # Motor at x=800 with yaw=180 deg. Propeller at local -35 along X.
-    # In yaw=180 frame, local -X points in world +X direction: 800 - (-35) = 835.
+    # Motor at x=800 with yaw=180 deg; local -X points along vehicle +X: 800 + 35 = 835.
     assert abs(w_pos[0] - 835.0) < 1e-4
     assert abs(w_pos[1] - 0.0) < 1e-4
     assert abs(w_pos[2] - 25.0) < 1e-4
     assert abs(w_rot[2] - 180.0) < 1e-4
 
 
-def test_resolve_world_transform_skips_non_spatial_containers() -> None:
-    airframe = {
-        "id": "airframe",
-        "name": "Airframe",
-        "type": "org.setuav.core:airframe",
-        "has_transform": False,
-        "transform": {"position": {"x": 999.0, "y": 0.0, "z": 0.0}},
-    }
-    wing = {
-        "id": "wing-1",
-        "name": "Main Wing",
-        "parent": "airframe",
-        "transform": {
-            "position": {"x": 200.0, "y": 0.0, "z": 50.0},
-            "rotation": {"roll": 0.0, "pitch": 2.0, "yaw": 0.0},
-        },
-    }
-    comps = {"airframe": airframe, "wing-1": wing}
-    w_pos, w_rot = resolve_world_transform("wing-1", comps)
-
-    assert abs(w_pos[0] - 200.0) < 1e-4
-    assert abs(w_pos[2] - 50.0) < 1e-4
-    assert abs(w_rot[1] - 2.0) < 1e-4
-
-
 def test_resolve_world_transform_cycle_detection() -> None:
     comp_a = {
         "id": "a",
-        "parent": "b",
+        "attach_to": "b",
         "transform": {"position": {"x": 10.0, "y": 0.0, "z": 0.0}},
     }
     comp_b = {
         "id": "b",
-        "parent": "a",
+        "attach_to": "a",
         "transform": {"position": {"x": 20.0, "y": 0.0, "z": 0.0}},
     }
     comps = {"a": comp_a, "b": comp_b}
-    with pytest.raises(ValueError, match="parent cycle"):
+    with pytest.raises(ValueError, match="attachment cycle"):
         resolve_world_transform("a", comps)
 
 
 def test_resolve_world_transform_rejects_unknown_components() -> None:
-    orphan = {"id": "orphan", "parent": "missing"}
-    with pytest.raises(ValueError, match="Parent 'missing' of 'orphan' is not in"):
+    orphan = {"id": "orphan", "attach_to": "missing"}
+    with pytest.raises(ValueError, match="'missing', which 'orphan' attaches to, is not in"):
         resolve_world_transform("orphan", {"orphan": orphan})
     with pytest.raises(ValueError, match="'unknown' is not in"):
         resolve_world_transform("unknown", {"orphan": orphan})
 
 
-def test_reparent_preserves_world_transform() -> None:
-    parent_a = {
-        "id": "parent_a",
-        "name": "Parent A",
+def _placed(component_id: str, x: float, yaw: float, **extra: Any) -> dict[str, Any]:
+    return {
+        "id": component_id,
+        "name": component_id,
         "transform": {
-            "position": {"x": 100.0, "y": 50.0, "z": 20.0},
-            "rotation": {"roll": 10.0, "pitch": 20.0, "yaw": 30.0},
+            "position": {"x": x, "y": 20.0, "z": 10.0},
+            "rotation": {"roll": 5.0, "pitch": 10.0, "yaw": yaw},
         },
+        **extra,
     }
-    child = {
-        "id": "child",
-        "name": "Child",
-        "transform": {
-            "position": {"x": 150.0, "y": 70.0, "z": 40.0},
-            "rotation": {"roll": 15.0, "pitch": 25.0, "yaw": 35.0},
-        },
-    }
-    comps = {"parent_a": parent_a, "child": child}
-
-    w_pos_before, w_rot_before = resolve_world_transform("child", comps)
-
-    # Reparent child to parent_a
-    reparent_component(child, "parent_a", comps, preserve_world_transform=True)
-
-    assert child.get("parent") == "parent_a"
-    w_pos_after, w_rot_after = resolve_world_transform("child", comps)
-
-    for i in range(3):
-        assert abs(w_pos_before[i] - w_pos_after[i]) < 1e-3
-        assert abs(w_rot_before[i] - w_rot_after[i]) < 1e-3
-
-    # Detach back to World
-    reparent_component(child, None, comps, preserve_world_transform=True)
-    assert child.get("parent") is None
-    w_pos_detached, w_rot_detached = resolve_world_transform("child", comps)
-
-    for i in range(3):
-        assert abs(w_pos_before[i] - w_pos_detached[i]) < 1e-3
-        assert abs(w_rot_before[i] - w_rot_detached[i]) < 1e-3
 
 
-def test_studio_api_reparent_undo_redo() -> None:
+def test_attach_preserving_the_world_transform_keeps_the_component_in_place() -> None:
+    target = _placed("target", 100.0, 30.0)
+    child = _placed("child", 150.0, 35.0)
+    comps = {"target": target, "child": child}
+    before = resolve_world_transform("child", comps)
+
+    attach_component(child, "target", comps, preserve_world_transform=True)
+    assert child["attach_to"] == "target"
+    after = resolve_world_transform("child", comps)
+    for expected, actual in zip(before, after, strict=True):
+        assert actual == pytest.approx(expected, abs=1e-3)
+
+    attach_component(child, None, comps, preserve_world_transform=True)
+    assert "attach_to" not in child
+    detached = resolve_world_transform("child", comps)
+    for expected, actual in zip(before, detached, strict=True):
+        assert actual == pytest.approx(expected, abs=1e-3)
+
+
+def test_attach_keeping_the_local_transform_moves_with_the_target_frame() -> None:
+    target = {"id": "target", "transform": {"position": {"x": 100.0, "y": 0.0, "z": 0.0}}}
+    child = _placed("child", 50.0, 0.0)
+    comps = {"target": target, "child": child}
+
+    attach_component(child, "target", comps, preserve_world_transform=False)
+
+    assert child["transform"]["position"]["x"] == 50.0
+    world_pos, _ = resolve_world_transform("child", comps)
+    assert world_pos == pytest.approx((150.0, 20.0, 10.0), abs=1e-6)
+
+
+def test_attach_rejects_unknown_targets_and_cycles() -> None:
+    a = _placed("a", 0.0, 0.0)
+    b = _placed("b", 10.0, 0.0, attach_to="a")
+    c = _placed("c", 20.0, 0.0, attach_to="b")
+    comps = {"a": a, "b": b, "c": c}
+
+    assert attached_component_ids("a", comps) == {"b", "c"}
+    with pytest.raises(ValueError, match="'missing' is not in"):
+        attach_component(a, "missing", comps, preserve_world_transform=True)
+    for target in ("a", "c"):
+        with pytest.raises(ValueError, match="cycle"):
+            attach_component(a, target, comps, preserve_world_transform=True)
+    assert "attach_to" not in a
+
+
+def test_studio_api_attach_undo_redo() -> None:
     api = StudioAPI()
-    box = {
-        "id": "box_1",
-        "name": "Box 1",
-        "transform": {
-            "position": {"x": 100.0, "y": 50.0, "z": 20.0},
-            "rotation": {"roll": 10.0, "pitch": 20.0, "yaw": 30.0},
-        },
-    }
-    cyl = {
-        "id": "cyl_1",
-        "name": "Cyl 1",
-        "transform": {
-            "position": {"x": 150.0, "y": 70.0, "z": 40.0},
-            "rotation": {"roll": 15.0, "pitch": 25.0, "yaw": 35.0},
-        },
-    }
+    box = _placed("box_1", 100.0, 30.0)
+    cyl = _placed("cyl_1", 150.0, 35.0)
     proj = ProjectDocument(Path("test.json"), "json", {"components": [box, cyl]})
     api._host.set_project(proj)
-
     w_pos_before, _ = resolve_world_transform("cyl_1", components_by_id(proj))
 
-    # Reparent via API
-    api.reparent_component(cyl, "box_1", preserve_world_transform=True)
-    assert cyl.get("parent") == "box_1"
-
+    api.attach_component(cyl, "box_1", preserve_world_transform=True)
+    assert cyl["attach_to"] == "box_1"
     w_pos_after, _ = resolve_world_transform("cyl_1", components_by_id(proj))
-    for i in range(3):
-        assert abs(w_pos_before[i] - w_pos_after[i]) < 1e-3
+    assert w_pos_after == pytest.approx(w_pos_before, abs=1e-3)
 
-    # Undo
     api.undo()
-    assert cyl.get("parent") is None
+    assert "attach_to" not in cyl
     assert cyl["transform"]["position"]["x"] == 150.0
-    w_pos_undo, _ = resolve_world_transform("cyl_1", components_by_id(proj))
-    assert abs(w_pos_before[0] - w_pos_undo[0]) < 1e-3
 
-    # Redo
     api.redo()
-    assert cyl.get("parent") == "box_1"
+    assert cyl["attach_to"] == "box_1"
     w_pos_redo, _ = resolve_world_transform("cyl_1", components_by_id(proj))
-    assert abs(w_pos_before[0] - w_pos_redo[0]) < 1e-3
+    assert w_pos_redo == pytest.approx(w_pos_before, abs=1e-3)

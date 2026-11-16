@@ -6,7 +6,7 @@ from .host import LiftingSurfaceEditorHost
 
 
 class GeneralSectionMixin(LiftingSurfaceEditorHost):
-    """General metadata, parent attachment, and bilateral symmetry logic."""
+    """General metadata and bilateral symmetry logic."""
 
     def _create_general_section(self) -> None:
         layout = self._create_section("General", "fa6s.circle-info")
@@ -14,7 +14,6 @@ class GeneralSectionMixin(LiftingSurfaceEditorHost):
             [
                 ("name", "Name"),
                 ("type", "Type"),
-                ("attach_to", "Attach to"),
                 ("mirror", "Symmetry / Mirror"),
             ]
         )
@@ -25,28 +24,6 @@ class GeneralSectionMixin(LiftingSurfaceEditorHost):
         self._set_property_value(self.general_table, "name", str(self._component.get("name") or ""))
         self._set_property_value(
             self.general_table, "type", str(self._component.get("type") or ""), editable=False
-        )
-
-        # Mounting Target Combo (attach_to fuselage or lifting surface)
-        current_attach = str(self._component.get("attach_to") or "")
-        parent_options = [("", "(None)")]
-        project = self._api.project
-        if project and isinstance(project.data.get("components"), list):
-            for comp in project.data["components"]:
-                if isinstance(comp, dict) and comp.get("type") in (
-                    "org.setuav.core:fuselage",
-                    "org.setuav.core:lifting-surface",
-                ):
-                    cid = str(comp.get("id") or "")
-                    if cid and cid != self._component.get("id"):
-                        cname = str(comp.get("name") or cid)
-                        parent_options.append((cid, f"{cname} ({cid})"))
-        self._set_property_combo(
-            self.general_table,
-            "attach_to",
-            current_attach,
-            parent_options,
-            lambda val: self._update_attach_to(val if val else None),
         )
 
         # Symmetry / Mirror
@@ -83,12 +60,3 @@ class GeneralSectionMixin(LiftingSurfaceEditorHost):
 
         self._edit_component("Toggle bilateral lifting surface mirror", change)
         self._refresh_planform_table()
-
-    def _update_attach_to(self, target_id: str | None) -> None:
-        if self._loading:
-            return
-
-        def change() -> None:
-            self._component["attach_to"] = target_id
-
-        self._edit_component("Change component attach_to", change)

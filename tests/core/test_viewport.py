@@ -418,12 +418,12 @@ class TestStudioViewport(unittest.TestCase):
 
             # 5. Dedicated child control surface pick -> resolves to child component
             project.data["components"].append(
-                {"id": "aileron_1", "name": "Aileron 1", "parent": "wing_1"}
+                {"id": "aileron_1", "name": "Aileron 1", "attach_to": "wing_1"}
             )
             viewport.object_picked.emit("wing_1:mirror:aileron_1")
             self.assertEqual(
                 api.current_selection,
-                {"id": "aileron_1", "name": "Aileron 1", "parent": "wing_1"},
+                {"id": "aileron_1", "name": "Aileron 1", "attach_to": "wing_1"},
             )
 
     def test_scene_object_matching_hierarchy(self) -> None:

@@ -10,18 +10,10 @@ from setuav_studio.model import Component
 class ControlSurfaceModel(Component):
     """Domain model for ControlSurface (Flap / Aileron / Elevator / Rudder)."""
 
-    def __init__(
-        self,
-        data: dict[str, Any] | None = None,
-        parent_model: Any | None = None,
-    ) -> None:
-        super().__init__(data)
-        self._parent_model = parent_model
-
-    def _get_parent_dimensions(self) -> tuple[float, float, float, float | None]:
-        """Return (semi_span, root_chord, tip_chord, parent_area_dm2)."""
-        if self._parent_model is not None:
-            pm = self._parent_model
+    def _surface_dimensions(self) -> tuple[float, float, float, float | None]:
+        """Return (semi_span, root_chord, tip_chord, area_dm2) of the lifting surface."""
+        if self._attach_target_model is not None:
+            pm = self._attach_target_model
             root_sec = getattr(pm, "root_section", None)
             tip_sec = getattr(pm, "tip_section", None)
             root_chord = float(root_sec.chord) if root_sec is not None else 150.0
@@ -88,7 +80,7 @@ class ControlSurfaceModel(Component):
             compute_control_surface_metrics,
         )
 
-        semi_span, root_chord, tip_chord, parent_area = self._get_parent_dimensions()
+        semi_span, root_chord, tip_chord, parent_area = self._surface_dimensions()
         metrics = compute_control_surface_metrics(
             self.geometry,
             semi_span=semi_span,
@@ -105,7 +97,7 @@ class ControlSurfaceModel(Component):
             compute_control_surface_metrics,
         )
 
-        semi_span, root_chord, tip_chord, parent_area = self._get_parent_dimensions()
+        semi_span, root_chord, tip_chord, parent_area = self._surface_dimensions()
         metrics = compute_control_surface_metrics(
             self.geometry,
             semi_span=semi_span,

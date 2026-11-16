@@ -22,7 +22,7 @@ class Component:
         name: str = "",
         type: str = "",
         mass: float = 0.0,
-        parent: str | None = None,
+        attach_to: str | None = None,
         **kwargs: Any,
     ) -> None:
         if (
@@ -46,7 +46,7 @@ class Component:
         self._raw_data.setdefault("parameters", {})
         self._children: dict[str, Any] = {}
         self._child_list: list[Any] = []
-        self._parent_model: Component | None = None
+        self._attach_target_model: Component | None = None
 
         # 1. Class-level component type default
         class_type = getattr(self.__class__, "COMPONENT_TYPE", "")
@@ -73,8 +73,8 @@ class Component:
             self.type = type
         if mass:
             self.mass = mass
-        if parent:
-            self.parent_id = parent
+        if attach_to:
+            self.attach_to = attach_to
 
         for k, v in kwargs.items():
             if hasattr(self.__class__, k):
@@ -147,40 +147,31 @@ class Component:
         self._raw_data["type"] = value
 
     @property
-    def parent_id(self) -> str | None:
-        """ID of the parent component in the hierarchy."""
-        val = self._raw_data.get("parent")
+    def attach_to(self) -> str | None:
+        """ID of the component this one is mounted on and placed relative to."""
+        val = self._raw_data.get("attach_to")
         return str(val) if val else None
 
-    @parent_id.setter
-    def parent_id(self, value: str | None) -> None:
+    @attach_to.setter
+    def attach_to(self, value: str | None) -> None:
         if value is None:
-            self._raw_data.pop("parent", None)
+            self._raw_data.pop("attach_to", None)
         else:
-            self._raw_data["parent"] = value
+            self._raw_data["attach_to"] = value
 
-    @property
-    def parent(self) -> str | None:
-        """ID of the parent component in the hierarchy."""
-        return self.parent_id
-
-    @parent.setter
-    def parent(self, value: str | None) -> None:
-        self.parent_id = value
-
-    def reparent(
+    def attach(
         self,
-        new_parent_id: str | None,
-        comps_or_project: Any = None,
+        target_id: str | None,
+        comps_or_project: Any,
         *,
-        preserve_world_transform: bool = True,
+        preserve_world_transform: bool,
     ) -> None:
-        """Reparent this component, preserving its world coordinates and visual position."""
-        from setuav_studio.utilities.transform import reparent_component
+        """Attach this component to ``target_id``, or to the vehicle when it is None."""
+        from setuav_studio.utilities.transform import attach_component
 
-        reparent_component(
+        attach_component(
             self._raw_data,
-            new_parent_id,
+            target_id,
             comps_or_project,
             preserve_world_transform=preserve_world_transform,
         )
@@ -370,12 +361,12 @@ class Component:
         """Instantiate model from dictionary."""
         return cls(data)
 
-    def set_parent_model(self, parent_model: Component | None) -> None:
-        """Link the model of the component this one is parented to."""
-        self._parent_model = parent_model
+    def set_attach_target_model(self, target_model: Component | None) -> None:
+        """Link the model of the component this one attaches to."""
+        self._attach_target_model = target_model
 
     def add_child_model(self, child: Any) -> None:
-        """Register a child component model attached to this component."""
+        """Register the model of a component attached to this one."""
         if child not in self._child_list:
             self._child_list.append(child)
 
@@ -384,9 +375,9 @@ class Component:
             clean_id = child_id.replace("-", "_").lower()
             self._children[clean_id] = child
 
-            parent_clean = self.id.replace("-", "_").lower()
-            if clean_id.startswith(f"{parent_clean}_"):
-                short_name = clean_id[len(parent_clean) + 1 :]
+            own_clean = self.id.replace("-", "_").lower()
+            if clean_id.startswith(f"{own_clean}_"):
+                short_name = clean_id[len(own_clean) + 1 :]
                 if short_name:
                     self._children[short_name] = child
             elif "-" in child_id:
@@ -405,12 +396,12 @@ class Component:
 
     @property
     def children(self) -> dict[str, Any]:
-        """Dictionary of child component models indexed by identifier / tag."""
+        """Models of the components attached to this one, indexed by identifier and tag."""
         return self._children
 
     @property
     def child_components(self) -> list[Any]:
-        """Ordered list of unique child component models."""
+        """Ordered list of the models of the components attached to this one."""
         return list(self._child_list)
 
     def get_parameter(self, key: str, default: Any = None) -> Any:

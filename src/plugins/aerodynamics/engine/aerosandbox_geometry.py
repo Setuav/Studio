@@ -53,15 +53,15 @@ class AeroSandboxGeometryMixin:
         )
 
     @staticmethod
-    def _parent_frame(
+    def _attach_frame(
         comp: dict[str, Any],
         comp_by_id: dict[str, dict[str, Any]],
     ) -> tuple[Any, Any]:
-        """Return the world frame of a component's parent (or the aircraft frame)."""
-        parent_id = comp.get("parent")
-        if not parent_id:
+        """Return the world frame of the component ``comp`` attaches to (or the vehicle's)."""
+        target_id = comp.get("attach_to")
+        if not target_id:
             return np.zeros(3), np.eye(3)
-        return metric_frame(*resolve_world_transform(str(parent_id), comp_by_id))
+        return metric_frame(*resolve_world_transform(str(target_id), comp_by_id))
 
     @staticmethod
     def _lifting_surface_geometry(
@@ -81,14 +81,14 @@ class AeroSandboxGeometryMixin:
         comp: dict[str, Any],
         comp_by_id: dict[str, dict[str, Any]],
     ) -> dict[str, Any]:
-        parent_pos, parent_rot = self._parent_frame(comp, comp_by_id)
+        target_pos, target_rot = self._attach_frame(comp, comp_by_id)
         local_pos, local_rot = metric_frame(*get_local_transform(comp))
         mirror = np.diag([1.0, -1.0, 1.0])
         return {
-            "right_pos": parent_pos + parent_rot @ local_pos,
-            "right_rot": parent_rot @ local_rot,
-            "left_pos": parent_pos + parent_rot @ (mirror @ local_pos),
-            "left_rot": parent_rot @ mirror @ local_rot,
+            "right_pos": target_pos + target_rot @ local_pos,
+            "right_rot": target_rot @ local_rot,
+            "left_pos": target_pos + target_rot @ (mirror @ local_pos),
+            "left_rot": target_rot @ mirror @ local_rot,
         }
 
     def _lifting_surface_stations(
@@ -168,7 +168,7 @@ class AeroSandboxGeometryMixin:
                 or other.get("type") != "org.setuav.core:control-surface"
             ):
                 continue
-            if str(AeroSandboxGeometryMixin._component_parent_id(other)) != component_id:
+            if str(other.get("attach_to")) != component_id:
                 continue
             parameters = other.get("parameters")
             geometry = parameters.get("geometry", {}) if isinstance(parameters, dict) else {}
@@ -179,10 +179,6 @@ class AeroSandboxGeometryMixin:
                 control["name"] = other["name"]
             controls.append(control)
         return controls
-
-    @staticmethod
-    def _component_parent_id(component: dict[str, Any]) -> Any:
-        return component.get("parent")
 
     def _parse_control_surfaces(
         self,
@@ -520,7 +516,7 @@ class AeroSandboxGeometryMixin:
 
         if mirror:
             # Wing.symmetric mirrors in the *global* XZ plane.  It is only
-            # equivalent to Setuav's parent-frame mirror when the transformed
+            # equivalent to Setuav's attach-frame mirror when the transformed
             # left stations are exactly that global reflection (e.g. a normal
             # horizontal wing).  A rolled/rotated V-tail must remain two real
             # asymmetric AeroSandbox wings.

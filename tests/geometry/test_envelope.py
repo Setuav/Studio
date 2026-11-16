@@ -85,7 +85,7 @@ def _sample_control_surface(parent_id: str = "test-wing") -> dict[str, Any]:
         "id": "test-aileron",
         "name": "Test Aileron",
         "type": "org.setuav.core:control-surface",
-        "parent": parent_id,
+        "attach_to": parent_id,
         "parameters": {
             "geometry": {
                 "type": "aileron",
@@ -455,41 +455,49 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         self.assertIn("300.0", table_item(editor.sections_table, 1, 0).text())
         self.assertIn("800.0", table_item(editor.sections_table, 2, 0).text())
 
-    def test_envelope_editor_shows_aggregate_envelope_for_assembly(self) -> None:
+    def test_envelope_editor_unites_a_component_with_its_subparts(self) -> None:
         from pathlib import Path
 
-        from setuav_studio.api import StudioAPI
+        from setuav_studio.api import ComponentTypeContribution, StudioAPI
         from setuav_studio.project import ProjectDocument
 
         api = StudioAPI()
+        api.register_component_type(
+            ComponentTypeContribution(id="test:pod", name="Pod", subpart=True)
+        )
         fuse = _sample_fuselage()
         sync_component_envelope(fuse)
-        battery = {
-            "id": "battery-1",
-            "type": "org.setuav.core:battery",
-            "parent": "test-fuse",
-            "transform": {
-                "position": {"x": 1000.0, "y": 0.0, "z": 0.0},
-                "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
-            },
-            "envelope": {
-                "shape": "box",
-                "size_mm": {"x": 100.0, "y": 50.0, "z": 30.0},
-                "offset_mm": {"x": 0.0, "y": 0.0, "z": 0.0},
-            },
-        }
-        doc = ProjectDocument(Path("test.json"), "json", {"components": [fuse, battery]})
+
+        def box_at(component_id: str, component_type: str, x: float) -> dict[str, Any]:
+            return {
+                "id": component_id,
+                "type": component_type,
+                "attach_to": "test-fuse",
+                "transform": {
+                    "position": {"x": x, "y": 0.0, "z": 0.0},
+                    "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
+                },
+                "envelope": {
+                    "shape": "box",
+                    "size_mm": {"x": 100.0, "y": 50.0, "z": 30.0},
+                    "offset_mm": {"x": 0.0, "y": 0.0, "z": 0.0},
+                },
+            }
+
+        # A battery is only mounted on the fuselage; the pod is part of it.
+        battery = box_at("battery-1", "org.setuav.core:battery", 2000.0)
+        pod = box_at("pod-1", "test:pod", 1000.0)
+        doc = ProjectDocument(Path("test.json"), "json", {"components": [fuse, battery, pod]})
         api._host.set_project(doc)
 
         editor = EnvelopeEditor(api, fuse)
-        self.assertIsNotNone(editor.shape_combo)
         assert editor.shape_combo is not None
         self.assertEqual(editor.shape_combo.currentData(), "box")
         self.assertTrue(editor._sections_container.isHidden())
-        # Union spans the fuselage nose through the battery's aft face at x = 1050 mm
-        self.assertGreater(
-            editor.dimension_spins["x"].value(), fuse["envelope"]["size_mm"]["x"] + 200.0
-        )
+        # The union spans the fuselage nose through the pod's aft face at x = 1050 mm.
+        fuse_envelope = fuse["envelope"]
+        nose_x = fuse_envelope["offset_mm"]["x"] - fuse_envelope["size_mm"]["x"] / 2.0
+        self.assertAlmostEqual(editor.dimension_spins["x"].value(), 1050.0 - nose_x, places=3)
 
     def test_build_project_geometry_includes_envelopes(self) -> None:
         from pathlib import Path

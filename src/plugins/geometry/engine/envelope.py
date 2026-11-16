@@ -33,7 +33,7 @@ GEOMETRY_COMPONENT_TYPES = frozenset(
 
 def compute_geometry_envelope(
     component: dict[str, Any],
-    parent: dict[str, Any] | None = None,
+    surface: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     """Compute local 3D physical envelope (with trapezoidal slices) from CAD geometry."""
     ctype = str(component.get("type") or "")
@@ -42,19 +42,19 @@ def compute_geometry_envelope(
     if ctype == _FUSELAGE_TYPE:
         return _compute_fuselage_envelope(component)
     if ctype == _CONTROL_SURFACE_TYPE:
-        return _compute_control_surface_envelope(component, parent)
+        return _compute_control_surface_envelope(component, surface)
     return None
 
 
 def sync_component_envelope(
     component: dict[str, Any],
-    parent: dict[str, Any] | None = None,
+    surface: dict[str, Any] | None = None,
 ) -> bool:
     """Compute and update the envelope on the component if applicable.
 
     Returns True if the component envelope was changed.
     """
-    env = compute_geometry_envelope(component, parent)
+    env = compute_geometry_envelope(component, surface)
     if env is None:
         return False
     if component.get("envelope") == env:
@@ -92,9 +92,9 @@ def sync_project_geometry_envelopes(project: Any) -> int:
         ctype = str(comp.get("type") or "")
         if ctype not in GEOMETRY_COMPONENT_TYPES:
             continue
-        parent_id = comp.get("parent")
-        parent = by_id.get(str(parent_id)) if parent_id else None
-        if sync_component_envelope(comp, parent):
+        target_id = comp.get("attach_to")
+        surface = by_id.get(str(target_id)) if target_id else None
+        if sync_component_envelope(comp, surface):
             updated += 1
 
     return updated
@@ -921,14 +921,14 @@ def _compute_fuselage_envelope(component: dict[str, Any]) -> dict[str, Any] | No
 
 def _compute_control_surface_envelope(
     component: dict[str, Any],
-    parent: dict[str, Any] | None = None,
+    surface: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
-    """Envelope of a control surface cut from its parent lifting surface.
+    """Envelope of a control surface cut from the lifting surface it attaches to.
 
-    A control surface without a parent lifting surface, or whose span does not cut the
-    parent, has no geometry and so no envelope.
+    A control surface not attached to a lifting surface, or whose span does not cut it,
+    has no geometry and so no envelope.
     """
-    if parent is None or parent.get("type") != _LIFTING_SURFACE_TYPE:
+    if surface is None or surface.get("type") != _LIFTING_SURFACE_TYPE:
         return None
     parameters = component.get("parameters")
     parameters = parameters if isinstance(parameters, dict) else {}
@@ -941,7 +941,7 @@ def _compute_control_surface_envelope(
     ctrl_geom["deflection"] = 0.0
     set_expression(ctrl_geom, "deflection", None)
 
-    lofts = build_lifting_surface_geometry(parent, control_surfaces=[ctrl_geom])
+    lofts = build_lifting_surface_geometry(surface, control_surfaces=[ctrl_geom])
     control_loft = next(
         (loft for loft in lofts if loft.component_id.lower().endswith(f":{ctrl_id.lower()}")),
         None,

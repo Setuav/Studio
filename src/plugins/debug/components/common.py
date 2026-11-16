@@ -209,13 +209,10 @@ def update_component_in_viewport(
     if renderer is not None:
         renderer(viewport, comp_id, name, params, px, py, pz, world_rot, envelope)
 
-    # Re-render any child components attached to this component
+    # Re-render the components attached to this one, which move with it
     if comps_by_id:
         for other_id, other_comp in comps_by_id.items():
-            if other_id == comp_id:
-                continue
-            parent = other_comp.get("parent")
-            if parent and str(parent) == comp_id:
+            if other_id != comp_id and str(other_comp.get("attach_to") or "") == comp_id:
                 update_component_in_viewport(viewport, other_comp, project)
 
 
@@ -255,7 +252,7 @@ def sync_debug_components_to_viewport(viewport: ViewportProtocol, project: Any) 
 
 
 class BaseDebugComponentEditor(BaseComponentEditor):
-    """Base property editor for debug components with direct viewport updating and parent support."""
+    """Base property editor for debug components with direct viewport updating."""
 
     def __init__(
         self,
@@ -270,95 +267,6 @@ class BaseDebugComponentEditor(BaseComponentEditor):
             else component
         )
         super().__init__(api, raw_comp, parameter_fields=parameter_fields, parent=parent)
-
-    def _create_custom_sections(self) -> None:
-        layout = self._create_section("Parent", "fa6s.sitemap")
-        self.parent_table = self._property_table(
-            [
-                ("parent", "Parent"),
-            ]
-        )
-        layout.addWidget(self.parent_table)
-
-    def _load_custom_data(self) -> None:
-        table = getattr(self, "parent_table", None)
-        if table is None:
-            return
-        options = self._get_parent_options()
-        curr_parent = str(self._component.get("parent") or "")
-        self._set_property_combo(
-            table,
-            "parent",
-            curr_parent,
-            options,
-            self._on_parent_changed,
-        )
-
-    def _get_parent_options(self) -> list[tuple[str, str]]:
-        options: list[tuple[str, str]] = [("", "None (World)")]
-        project = self._api.project
-        if project is None:
-            return options
-
-        self_id = str(self._component.get("id") or "")
-        comps = project.data.get("components", [])
-        if not isinstance(comps, list):
-            return options
-
-        comps_by_id = {
-            str(d["id"]): d
-            for c in comps
-            for d in [_comp_as_dict(c)]
-            if d is not None and d.get("id")
-        }
-
-        for c in comps:
-            d = _comp_as_dict(c)
-            if d is None:
-                continue
-            cid = str(d.get("id") or "")
-            ctype = str(d.get("type") or "")
-            if not cid or cid == self_id:
-                continue
-            if not (ctype in _RENDERERS or ctype.startswith("org.setuav.debug:")):
-                continue
-
-            # Prevent cyclic hierarchy: check if self_id is an ancestor of cid
-            curr: str | None = cid
-            is_cyclic = False
-            visited: set[str] = set()
-            while curr:
-                if curr == self_id or curr in visited:
-                    is_cyclic = True
-                    break
-                visited.add(curr)
-                parent_comp = comps_by_id.get(curr)
-                if not parent_comp:
-                    break
-                p = parent_comp.get("parent")
-                curr = str(p) if p else None
-
-            if not is_cyclic:
-                cname = str(d.get("name") or cid)
-                options.append((cid, cname))
-
-        return options
-
-    def _on_parent_changed(self, new_parent: str) -> None:
-        if self._loading:
-            return
-        clean_parent = new_parent.strip() or None
-        old_parent = self._component.get("parent")
-        if old_parent == clean_parent:
-            return
-
-        self._api.reparent_component(
-            self._component,
-            clean_parent,
-            preserve_world_transform=True,
-        )
-        self._committed_parent = clean_parent or ""
-        self.update_viewport()
 
     def update_viewport(self) -> None:
         """Update this component's 3D representation directly in the viewport."""

@@ -565,7 +565,7 @@ class ControlSurfacesSectionMixin(LiftingSurfaceEditorHost):
                 "id": new_id,
                 "name": new_slug.replace("_", " ").title(),
                 "type": "org.setuav.core:control-surface",
-                "parent": wing_id,
+                "attach_to": wing_id,
                 "mass": 25.0,
                 "transform": {
                     "position": {"x": 0.0, "y": 0.0, "z": 0.0},

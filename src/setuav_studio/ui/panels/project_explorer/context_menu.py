@@ -85,7 +85,9 @@ class ProjectExplorerContextMenu:
             self.open_analysis_plot_menu(item, element, position)
             return
 
-        if element is None and item is not self._tree._project_root_item:
+        if (element is None or element.get("kind") == "vehicle") and (
+            item is not self._tree._project_root_item
+        ):
             return
 
         self.open_default_context_menu(item, position, can_edit)
@@ -151,23 +153,15 @@ class ProjectExplorerContextMenu:
         position: QPoint,
         can_edit: bool,
     ) -> None:
-        element = self._tree._element_map.get(item)
-        cannot_rename = False
-        cannot_delete = False
-        if element:
-            elem_id = str(element.get("id") or "")
-            elem_type = str(element.get("type") or "")
-            cannot_rename = elem_id == "airframe" or elem_type == "org.setuav.core:airframe"
-            cannot_delete = cannot_rename
         menu = QMenu(self._tree)
         rename_action = menu.addAction(get_icon("edit"), "Rename")
-        rename_action.setEnabled(can_edit and not cannot_rename)
+        rename_action.setEnabled(can_edit)
         delete_action = None
         add_const_act = None
         add_constr_act = None
         if item is not self._tree._project_root_item:
             delete_action = menu.addAction(get_icon("remove"), "Delete")
-            delete_action.setEnabled(can_edit and not cannot_delete)
+            delete_action.setEnabled(can_edit)
         else:
             menu.addSeparator()
             add_const_act = menu.addAction(get_icon("constant"), "Add Constant…")

@@ -249,7 +249,7 @@ class LiftingSurfaceEditor(
             for comp in project.data["components"]
             if isinstance(comp, dict)
             and comp.get("type") == "org.setuav.core:control-surface"
-            and comp.get("parent") == wing_id
+            and comp.get("attach_to") == wing_id
         ]
 
     @staticmethod

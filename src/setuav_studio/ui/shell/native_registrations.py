@@ -274,12 +274,6 @@ def register_native_component_types(api: StudioAPI) -> None:
     """Register built-in component types, labels and icons."""
     native_types = [
         ComponentTypeContribution(
-            id="org.setuav.core:airframe",
-            name="Airframe",
-            icon="component_structural_system",
-            category="Structure",
-        ),
-        ComponentTypeContribution(
             id="org.setuav.core:fuselage",
             name="Fuselage",
             icon="geometry_add_fuselage",
@@ -296,6 +290,7 @@ def register_native_component_types(api: StudioAPI) -> None:
             name="Control Surface",
             icon="geometry_add_control_surface",
             category="Aerodynamics",
+            subpart=True,
         ),
         ComponentTypeContribution(
             id=POINT_MASS_TYPE,
@@ -343,9 +338,11 @@ def register_native_kind_editors(api: StudioAPI) -> None:
         ConstraintPropertyEditor,
         ParameterPropertyEditor,
         SolverConfigPropertyEditor,
+        VehicleSummaryEditor,
     )
 
     defaults = {
+        "vehicle": lambda _selection: VehicleSummaryEditor(api),
         "parameter": lambda selection: ParameterPropertyEditor(api, selection),
         "constraint": lambda selection: ConstraintPropertyEditor(api, selection),
         "analysis_config": lambda selection: SolverConfigPropertyEditor(api, selection),

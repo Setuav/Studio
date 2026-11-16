@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from copy import deepcopy
 from typing import Any
 
@@ -586,22 +586,12 @@ def _envelope_from_lofts(
 def resolve_component_envelope(
     component: dict[str, Any],
     lofts: Sequence[Any] | None = None,
-    project_or_components: Any = None,
 ) -> dict[str, Any]:
     """Universal envelope resolver for any component.
 
-    Resolves high-precision envelope from 3D lofts when available; aggregates child
-    envelopes for parent assemblies; otherwise resolves the component's declared
-    envelope. A component without one has an empty envelope.
+    Resolves high-precision envelope from 3D lofts when available; otherwise resolves
+    the component's declared envelope. A component without one has an empty envelope.
     """
-    # 0. Check if this is an assembly with child components
-    if project_or_components is not None and not lofts:
-        from setuav_studio.utilities.mass_balance import get_component_children
-
-        comp_id = str(component.get("id") or "")
-        if comp_id and get_component_children(comp_id, project_or_components, recursive=False):
-            return resolve_component_aggregate_envelope(component, project_or_components)
-
     # 1. From provided 3D Lofts (e.g. from LoftGeometry or LoftPrimitive)
     if lofts:
         loft_env = _envelope_from_lofts(component, lofts)
@@ -618,16 +608,15 @@ def resolve_component_envelope(
 
 def resolve_component_aggregate_envelope(
     component: dict[str, Any],
-    project_or_components: Any = None,
+    project_or_components: Any,
+    subpart_types: Collection[str],
 ) -> dict[str, Any]:
-    """Resolve aggregate bounding envelope for a component, unioning all its children if any exist."""
-    comp_id = str(component.get("id") or "")
-    if not comp_id or project_or_components is None:
-        return resolve_component_envelope(component)
+    """Resolve the bounding envelope of a component and its subparts."""
+    comp_id = str(component["id"])
 
     from setuav_studio.utilities.mass_balance import (
         get_all_components,
-        get_component_children,
+        get_component_subparts,
         is_mirrored_component,
     )
     from setuav_studio.utilities.transform import (
@@ -636,40 +625,40 @@ def resolve_component_aggregate_envelope(
         rotate_vector,
     )
 
-    children = get_component_children(comp_id, project_or_components, recursive=True)
-    if not children:
+    subparts = get_component_subparts(comp_id, project_or_components, subpart_types)
+    if not subparts:
         return resolve_component_envelope(component)
     by_id = {str(c["id"]): c for c in get_all_components(project_or_components)}
 
-    # 1. World transform of the parent component
+    # 1. World transform of the component
     p_world_pos, p_world_rot = resolve_world_transform(comp_id, by_id)
 
-    corners_in_parent: list[Point3D] = []
+    corners_in_owner: list[Point3D] = []
     total_volume_mm3 = 0.0
 
-    # 2. Check parent's own intrinsic envelope
-    parent_env = resolve_component_envelope(component)
-    p_size = _to_vec3(parent_env.get("size_mm"))
+    # 2. The component's own envelope
+    owner_env = resolve_component_envelope(component)
+    p_size = _to_vec3(owner_env.get("size_mm"))
     if p_size[0] > 0.0 or p_size[1] > 0.0 or p_size[2] > 0.0:
-        p_offset = _to_vec3(parent_env.get("offset_mm"))
-        total_volume_mm3 += float(parent_env.get("volume_mm3", 0.0) or 0.0)
+        p_offset = _to_vec3(owner_env.get("offset_mm"))
+        total_volume_mm3 += float(owner_env.get("volume_mm3", 0.0) or 0.0)
         for dx in (-0.5 * p_size[0], 0.5 * p_size[0]):
             for dy in (-0.5 * p_size[1], 0.5 * p_size[1]):
                 for dz in (-0.5 * p_size[2], 0.5 * p_size[2]):
-                    corners_in_parent.append((p_offset[0] + dx, p_offset[1] + dy, p_offset[2] + dz))
+                    corners_in_owner.append((p_offset[0] + dx, p_offset[1] + dy, p_offset[2] + dz))
 
-    # 3. Add all child envelopes transformed into parent's coordinate frame
-    for child in children:
-        c_id = str(child.get("id") or "")
-        c_env = resolve_component_envelope(child)
+    # 3. Subpart envelopes transformed into the component's frame
+    for subpart in subparts:
+        c_id = str(subpart.get("id") or "")
+        c_env = resolve_component_envelope(subpart)
         c_size = _to_vec3(c_env.get("size_mm"))
         c_offset = _to_vec3(c_env.get("offset_mm"))
         total_volume_mm3 += float(c_env.get("volume_mm3", 0.0) or 0.0)
 
         c_world_pos, c_world_rot = resolve_world_transform(c_id, by_id)
-        is_mirror = is_mirrored_component(child, by_id)
+        is_mirror = is_mirrored_component(subpart, by_id)
 
-        # 8 corners in child's local frame
+        # 8 corners in the subpart's local frame
         for dx in (-0.5 * c_size[0], 0.5 * c_size[0]):
             for dy in (-0.5 * c_size[1], 0.5 * c_size[1]):
                 for dz in (-0.5 * c_size[2], 0.5 * c_size[2]):
@@ -677,14 +666,14 @@ def resolve_component_aggregate_envelope(
                     rx, ry, rz = rotate_vector(local_pt, c_world_rot)
                     world_pt = (c_world_pos[0] + rx, c_world_pos[1] + ry, c_world_pos[2] + rz)
 
-                    # Transform into parent's coordinate frame
+                    # Transform into the component's frame
                     delta = (
                         world_pt[0] - p_world_pos[0],
                         world_pt[1] - p_world_pos[1],
                         world_pt[2] - p_world_pos[2],
                     )
-                    parent_pt = inverse_rotate_vector(delta, p_world_rot)
-                    corners_in_parent.append(parent_pt)
+                    owner_pt = inverse_rotate_vector(delta, p_world_rot)
+                    corners_in_owner.append(owner_pt)
 
                     if is_mirror:
                         mirrored_world = (world_pt[0], -world_pt[1], world_pt[2])
@@ -693,18 +682,18 @@ def resolve_component_aggregate_envelope(
                             mirrored_world[1] - p_world_pos[1],
                             mirrored_world[2] - p_world_pos[2],
                         )
-                        parent_m_pt = inverse_rotate_vector(delta_m, p_world_rot)
-                        corners_in_parent.append(parent_m_pt)
+                        owner_m_pt = inverse_rotate_vector(delta_m, p_world_rot)
+                        corners_in_owner.append(owner_m_pt)
 
-    if not corners_in_parent:
+    if not corners_in_owner:
         return _empty_envelope()
 
-    min_x = min(pt[0] for pt in corners_in_parent)
-    max_x = max(pt[0] for pt in corners_in_parent)
-    min_y = min(pt[1] for pt in corners_in_parent)
-    max_y = max(pt[1] for pt in corners_in_parent)
-    min_z = min(pt[2] for pt in corners_in_parent)
-    max_z = max(pt[2] for pt in corners_in_parent)
+    min_x = min(pt[0] for pt in corners_in_owner)
+    max_x = max(pt[0] for pt in corners_in_owner)
+    min_y = min(pt[1] for pt in corners_in_owner)
+    max_y = max(pt[1] for pt in corners_in_owner)
+    min_z = min(pt[2] for pt in corners_in_owner)
+    max_z = max(pt[2] for pt in corners_in_owner)
 
     size_x = max(max_x - min_x, 1.0)
     size_y = max(max_y - min_y, 1.0)

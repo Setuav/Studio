@@ -123,17 +123,17 @@ class TestDebugEnvelopeSync(unittest.TestCase):
         self.api.undo()
         self.assertEqual(box["envelope"]["size_mm"], original)
 
-    def test_debug_assembly_aggregates_child_envelopes(self) -> None:
+    def test_debug_envelope_unites_a_component_with_its_subparts(self) -> None:
         box = self._add(create_box_component, "box", "Box")
         cyl = self._add(create_cylinder_component, "cylinder", "Cylinder")
 
         def change() -> None:
-            cyl["parent"] = box["id"]
+            cyl["attach_to"] = box["id"]
             cyl["transform"]["position"]["x"] = 1000.0
 
         self.api.edit_component(cyl, "Attach cylinder", change)
 
-        aggregate = resolve_component_aggregate_envelope(box, self.api.project)
+        aggregate = resolve_component_aggregate_envelope(box, self.api.project, {cyl["type"]})
         # The union reaches from the box's aft face to the cylinder 1 m away
         self.assertGreater(aggregate["size_mm"]["x"], 1000.0)
         self.assertAlmostEqual(

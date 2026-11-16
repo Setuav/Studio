@@ -271,19 +271,20 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
             comp_id = str(component.get("id") or "")
             proj = self._api.project
             from setuav_studio.utilities.mass_balance import (
-                get_component_children,
+                get_component_subparts,
                 resolve_component_aggregate_mass_properties,
                 resolve_component_local_cg,
                 resolve_component_local_inertia,
             )
 
-            has_children = bool(
+            subpart_types = self._api.subpart_types
+            has_subparts = bool(
                 comp_id
                 and proj is not None
-                and get_component_children(comp_id, proj, recursive=False)
+                and get_component_subparts(comp_id, proj, subpart_types)
             )
-            if has_children and proj is not None:
-                agg = resolve_component_aggregate_mass_properties(comp_id, proj)
+            if has_subparts and proj is not None:
+                agg = resolve_component_aggregate_mass_properties(comp_id, proj, subpart_types)
                 self.mass_g.setValue(round(agg.mass_kg * 1000.0, 3))
                 self.cg_spins["x"].setValue(round(agg.cg_local_m[0] * 1000.0, 3))
                 self.cg_spins["y"].setValue(round(agg.cg_local_m[1] * 1000.0, 3))

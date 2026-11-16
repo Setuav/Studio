@@ -6,7 +6,9 @@ import math
 
 from setuav_studio.utilities.mass_balance import (
     _parallel_axis,
+    get_component_subparts,
     resolve_aircraft_mass_properties,
+    resolve_component_aggregate_mass_properties,
     resolve_component_local_cg,
 )
 
@@ -81,9 +83,9 @@ def test_resolve_aircraft_mass_properties_two_masses_balance() -> None:
     assert math.isclose(result.cg_body_m[2], 0.0, abs_tol=1e-6)
 
 
-def test_resolve_aircraft_mass_properties_hierarchy() -> None:
-    # Parent motor at x = 500 mm (0.5 m), 1.0 kg
-    # Propeller attached to motor with local offset x = 500 mm (world x = 1000 mm = 1.0 m), 1.0 kg
+def test_resolve_aircraft_mass_properties_follows_attachments() -> None:
+    # Motor at x = 500 mm (0.5 m), 1.0 kg
+    # Propeller attached to the motor 500 mm further aft (vehicle x = 1.0 m), 1.0 kg
     # Combined CG_x = (1.0 * 0.5 + 1.0 * 1.0) / 2.0 = 0.75 m
     motor = {
         "id": "motor-1",
@@ -92,7 +94,7 @@ def test_resolve_aircraft_mass_properties_hierarchy() -> None:
     }
     prop = {
         "id": "prop-1",
-        "parent": "motor-1",
+        "attach_to": "motor-1",
         "mass": 1000.0,
         "transform": {"position": {"x": 500.0, "y": 0.0, "z": 0.0}},
     }
@@ -114,7 +116,7 @@ def test_control_surface_on_mirrored_wing_is_symmetric() -> None:
     aileron = {
         "id": "aileron",
         "type": "org.setuav.core:control-surface",
-        "parent": "wing",
+        "attach_to": "wing",
         "mass": 20.0,
         "transform": {"position": {"x": 50.0, "y": 400.0, "z": 0.0}},
     }
@@ -125,3 +127,33 @@ def test_control_surface_on_mirrored_wing_is_symmetric() -> None:
 
     one_sided = resolve_aircraft_mass_properties([wing(False), aileron])
     assert math.isclose(one_sided.cg_body_m[1], 20.0 * 0.4 / 220.0, abs_tol=1e-6)
+
+
+def test_aggregate_mass_includes_subparts_only() -> None:
+    fuselage = {"id": "fuselage", "type": "fuselage", "mass": 300.0}
+    wing = {
+        "id": "wing",
+        "type": "wing",
+        "attach_to": "fuselage",
+        "mass": 200.0,
+        "transform": {"position": {"x": 100.0, "y": 0.0, "z": 0.0}},
+    }
+    aileron = {
+        "id": "aileron",
+        "type": "control-surface",
+        "attach_to": "wing",
+        "mass": 20.0,
+        "transform": {"position": {"x": 50.0, "y": 0.0, "z": 0.0}},
+    }
+    components = [fuselage, wing, aileron]
+    subpart_types = {"control-surface"}
+
+    assert get_component_subparts("wing", components, subpart_types) == [aileron]
+    assert get_component_subparts("fuselage", components, subpart_types) == []
+    wing_total = resolve_component_aggregate_mass_properties("wing", components, subpart_types)
+    assert math.isclose(wing_total.mass_kg, 0.22)
+    assert math.isclose(wing_total.cg_body_m[0], (0.2 * 0.1 + 0.02 * 0.15) / 0.22, abs_tol=1e-6)
+    fuselage_total = resolve_component_aggregate_mass_properties(
+        "fuselage", components, subpart_types
+    )
+    assert math.isclose(fuselage_total.mass_kg, 0.3)

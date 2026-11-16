@@ -1,4 +1,4 @@
-"""Spatial transform calculations and reparenting utilities for Setuav Studio components."""
+"""Spatial transform calculations and attachment utilities for Setuav Studio components."""
 
 from __future__ import annotations
 
@@ -145,13 +145,7 @@ def components_by_id(source: Any) -> dict[str, dict[str, Any]]:
 
 
 def get_local_transform(comp: dict[str, Any]) -> tuple[Point3D, Rotation3D]:
-    """Extract local (position, rotation) from a component dictionary.
-
-    Components with ``has_transform: False`` (non-spatial containers such as the
-    airframe root) contribute an identity transform.
-    """
-    if comp.get("has_transform") is False:
-        return (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)
+    """Extract the (position, rotation) of a component relative to what it attaches to."""
     tf = comp.get("transform")
     tf_dict = tf if isinstance(tf, dict) else {}
     pos = tf_dict.get("position")
@@ -174,124 +168,121 @@ def resolve_world_transform(
     comp_id: str,
     components: Mapping[str, dict[str, Any]],
 ) -> tuple[Point3D, Rotation3D]:
-    """Return the world (position, rotation) of ``comp_id`` along its parent chain.
+    """Return the vehicle-frame (position, rotation) of ``comp_id``.
 
-    Raises ValueError for a component or parent missing from ``components`` and for a
-    parent cycle.
+    A component is placed relative to the component it attaches to, and an unattached
+    component relative to the vehicle. Raises ValueError for a component or attach
+    target missing from ``components`` and for an attachment cycle.
     """
     chain: list[dict[str, Any]] = []
     current: str | None = comp_id
     while current is not None:
         if any(str(comp["id"]) == current for comp in chain):
-            raise ValueError(f"Component '{comp_id}' has a parent cycle through '{current}'.")
+            raise ValueError(f"Component '{comp_id}' has an attachment cycle through '{current}'.")
         try:
             comp = components[current]
         except KeyError:
-            owner = f"Parent '{current}' of '{chain[-1]['id']}'" if chain else f"'{current}'"
+            owner = (
+                f"'{current}', which '{chain[-1]['id']}' attaches to," if chain else f"'{current}'"
+            )
             raise ValueError(f"Component {owner} is not in the component set.") from None
         chain.append(comp)
-        parent = comp.get("parent")
-        current = str(parent) if parent else None
+        target = comp.get("attach_to")
+        current = str(target) if target else None
 
     world_pos, world_rot = get_local_transform(chain[-1])
     for comp in reversed(chain[:-1]):
         local_pos, local_rot = get_local_transform(comp)
-        # R_parent * local_pos + p_pos
+        # R_target * local_pos + p_target
         rx, ry, rz = rotate_vector(local_pos, world_rot)
         world_pos = (world_pos[0] + rx, world_pos[1] + ry, world_pos[2] + rz)
-        # R_world = R_parent * R_local
+        # R_world = R_target * R_local
         world_rot = matrix_to_euler(
             multiply_rotations(euler_to_matrix(*world_rot), euler_to_matrix(*local_rot))
         )
     return world_pos, world_rot
 
 
-def compute_reparented_transform(
-    child: dict[str, Any] | Any,
-    new_parent_id: str | None,
+def attached_component_ids(comp_id: str, components: Mapping[str, dict[str, Any]]) -> set[str]:
+    """Return the ids of every component attached to ``comp_id``, directly or through others."""
+    attached: set[str] = set()
+    frontier = {comp_id}
+    while frontier:
+        frontier = {
+            other_id
+            for other_id, other in components.items()
+            if str(other.get("attach_to") or "") in frontier and other_id not in attached
+        }
+        attached |= frontier
+    return attached
+
+
+def compute_attached_transform(
+    component: dict[str, Any] | Any,
+    target_id: str | None,
     comps_or_project: Any,
 ) -> tuple[Point3D, Rotation3D]:
-    """Calculate the new local position and rotation for a child attached to new_parent_id
-    such that its absolute world position and orientation remain identical.
-    """
+    """Return the position and rotation that keep a component in place when it is
+    attached to ``target_id`` (None for the vehicle)."""
     comps_map = components_by_id(comps_or_project)
-    child_dict = _get_comp_dict(child)
-    comps_map.setdefault(str(child_dict["id"]), child_dict)
+    comp = _get_comp_dict(component)
+    comps_map.setdefault(str(comp["id"]), comp)
 
-    # 1. Current world transform of the child
-    child_world_pos, child_world_rot = resolve_world_transform(str(child_dict["id"]), comps_map)
+    world_pos, world_rot = resolve_world_transform(str(comp["id"]), comps_map)
+    if target_id is None:
+        return world_pos, world_rot
 
-    # 2. Target parent's world transform
-    clean_parent = (new_parent_id.strip() if isinstance(new_parent_id, str) else None) or None
-    if clean_parent is None:
-        # Attaching to World: new local transform IS the world transform!
-        return child_world_pos, child_world_rot
-
-    parent_world_pos, parent_world_rot = resolve_world_transform(clean_parent, comps_map)
-
-    # 3. New local position: R_parent^T * (child_world_pos - parent_world_pos)
+    target_pos, target_rot = resolve_world_transform(target_id, comps_map)
+    # Local position: R_target^T * (world_pos - target_pos)
     delta_pos = (
-        child_world_pos[0] - parent_world_pos[0],
-        child_world_pos[1] - parent_world_pos[1],
-        child_world_pos[2] - parent_world_pos[2],
+        world_pos[0] - target_pos[0],
+        world_pos[1] - target_pos[1],
+        world_pos[2] - target_pos[2],
     )
-    R_p = euler_to_matrix(*parent_world_rot)
-    R_p_inv = transpose_matrix(R_p)
-    new_local_pos = rotate_vector(delta_pos, R_p_inv)
-
-    # 4. New local rotation: R_parent^T * R_child_world
-    R_child = euler_to_matrix(*child_world_rot)
-    R_local = multiply_rotations(R_p_inv, R_child)
-    new_local_rot = matrix_to_euler(R_local)
-
-    return new_local_pos, new_local_rot
+    r_target_inv = transpose_matrix(euler_to_matrix(*target_rot))
+    local_pos = rotate_vector(delta_pos, r_target_inv)
+    # Local rotation: R_target^T * R_world
+    local_rot = matrix_to_euler(multiply_rotations(r_target_inv, euler_to_matrix(*world_rot)))
+    return local_pos, local_rot
 
 
-def reparent_component(
+def attach_component(
     component: dict[str, Any] | Any,
-    new_parent_id: str | None,
+    target_id: str | None,
     comps_or_project: Any,
     *,
-    preserve_world_transform: bool = True,
+    preserve_world_transform: bool,
 ) -> None:
-    """Reparent a component to new_parent_id (or None for World), recalculating its
-    local transform so its world coordinates and visual appearance do not change.
+    """Attach a component to ``target_id``, or to the vehicle when it is None.
+
+    With ``preserve_world_transform`` the component's position and rotation are
+    recomputed so it stays where it is; otherwise they are kept and the component
+    moves with the new frame. Raises ValueError for an unknown target or a target
+    that is attached to the component.
     """
     comp = _get_comp_dict(component)
-
-    clean_parent = (new_parent_id.strip() if isinstance(new_parent_id, str) else None) or None
+    comp_id = str(comp["id"])
+    if target_id is not None:
+        comps_map = components_by_id(comps_or_project)
+        if target_id not in comps_map:
+            raise ValueError(f"Attach target '{target_id}' is not in the component set.")
+        if target_id == comp_id or target_id in attached_component_ids(comp_id, comps_map):
+            raise ValueError(f"Component '{comp_id}' cannot attach to '{target_id}': cycle.")
 
     if preserve_world_transform:
-        new_pos, new_rot = compute_reparented_transform(comp, clean_parent, comps_or_project)
-
+        new_pos, new_rot = compute_attached_transform(comp, target_id, comps_or_project)
         tf = comp.setdefault("transform", {})
-        if not isinstance(tf, dict):
-            tf = {}
-            comp["transform"] = tf
         pos = tf.setdefault("position", {})
-        if not isinstance(pos, dict):
-            pos = {}
-            tf["position"] = pos
         rot = tf.setdefault("rotation", {})
-        if not isinstance(rot, dict):
-            rot = {}
-            tf["rotation"] = rot
-
-        pos["x"] = round(new_pos[0], 4)
-        pos["y"] = round(new_pos[1], 4)
-        pos["z"] = round(new_pos[2], 4)
-
-        rot["roll"] = round(new_rot[0], 4)
-        rot["pitch"] = round(new_rot[1], 4)
-        rot["yaw"] = round(new_rot[2], 4)
-
-        # Clear expressions on transform so they don't overwrite the recalculated local transform
+        pos.update(x=round(new_pos[0], 4), y=round(new_pos[1], 4), z=round(new_pos[2], 4))
+        rot.update(roll=round(new_rot[0], 4), pitch=round(new_rot[1], 4), yaw=round(new_rot[2], 4))
+        # The recomputed values replace any expression that defined them.
         for axis in ("x", "y", "z"):
             set_expression(pos, axis, None)
-        for axis in ("x", "y", "z", "roll", "pitch", "yaw"):
+        for axis in ("roll", "pitch", "yaw"):
             set_expression(rot, axis, None)
 
-    if clean_parent:
-        comp["parent"] = clean_parent
+    if target_id is None:
+        comp.pop("attach_to", None)
     else:
-        comp.pop("parent", None)
+        comp["attach_to"] = target_id

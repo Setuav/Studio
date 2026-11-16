@@ -318,7 +318,7 @@ def _build_fuselage_component() -> dict:
             "kind": "component",
             "id": "src-aileron",
             "type": "org.setuav.core:control-surface",
-            "parent": "wing-src",
+            "attach_to": "wing-src",
             "parameters": {
                 "geometry": {
                     "type": "aileron",

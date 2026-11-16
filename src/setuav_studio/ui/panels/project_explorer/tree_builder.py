@@ -14,6 +14,9 @@ from setuav_studio.ui.panels.project_explorer.style import (
 from setuav_studio.ui.style.icons import get_icon
 from setuav_studio.ui.style.theme import status_color
 
+# Selection of the vehicle node, which lists every component and shows their summary.
+VEHICLE_SELECTION: dict[str, str] = {"kind": "vehicle", "id": "project:vehicle", "name": "Vehicle"}
+
 if TYPE_CHECKING:
     from setuav_studio.api import (
         ProjectTreeNodeContribution,
@@ -37,12 +40,10 @@ class ProjectTreeBuilder:
         try:
             self.reset_project_tree()
             project_item = self.create_project_item(project)
+            vehicle_item = self.create_vehicle_item(project_item)
             components = self.project_elements(project)
             self.create_component_items(components, project.read_only)
-            self.attach_component_items(
-                project_item,
-                components,
-            )
+            self.attach_component_items(vehicle_item, components)
             self.create_parameters_group(project_item, project)
             self.create_constraints_group(project_item, project)
             self.create_analysis_configs_group(project_item, project)
@@ -70,6 +71,7 @@ class ProjectTreeBuilder:
         self._tree._item_map.clear()
         self._tree._element_map.clear()
         self._tree._project_root_item = None
+        self._tree._vehicle_item = None
         self._tree._parameters_group_item = None
         self._tree._constraints_group_item = None
         self._tree._analysis_group_item = None
@@ -86,6 +88,17 @@ class ProjectTreeBuilder:
         self._tree._element_map[item] = project.data
         self._tree._project_root_item = item
         self._tree.addTopLevelItem(item)
+        return item
+
+    def create_vehicle_item(self, project_item: QTreeWidgetItem) -> QTreeWidgetItem:
+        item = QTreeWidgetItem([VEHICLE_SELECTION["name"]])
+        item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+        item.setIcon(0, get_icon("vehicle"))
+        item.setToolTip(0, "Vehicle: every component of the project")
+        self._tree._element_map[item] = dict(VEHICLE_SELECTION)
+        self._tree._item_map[VEHICLE_SELECTION["id"]] = item
+        self._tree._vehicle_item = item
+        project_item.addChild(item)
         return item
 
     @staticmethod
@@ -317,10 +330,7 @@ class ProjectTreeBuilder:
             name = format_component_name(component)
             component_type = format_component_type(component, components, api=self._api)
             item = QTreeWidgetItem([name])
-            is_fixed_root = (
-                component_id == "airframe" or component.get("type") == "org.setuav.core:airframe"
-            )
-            if not read_only and not is_fixed_root:
+            if not read_only:
                 item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
             else:
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
@@ -359,32 +369,19 @@ class ProjectTreeBuilder:
 
     def attach_component_items(
         self,
-        project_item: QTreeWidgetItem,
+        vehicle_item: QTreeWidgetItem,
         components: list[dict[str, Any]],
     ) -> None:
+        """List the components under the vehicle, each subpart under its component."""
+        subpart_types = self._api.subpart_types
         for component in components:
-            component_id = str(component.get("id") or "")
-            item = self._tree._item_map.get(component_id)
-            if item is None:
-                continue
-            parent_id = str(component.get("parent") or "")
-            parent_item = self._tree._item_map.get(parent_id) if parent_id else None
-            target = self.component_tree_parent(
-                project_item,
-                item,
-                parent_item,
+            item = self._tree._item_map[str(component["id"])]
+            owner_item = (
+                self._tree._item_map.get(str(component.get("attach_to") or ""))
+                if component.get("type") in subpart_types
+                else None
             )
-            target.addChild(item)
-
-    @staticmethod
-    def component_tree_parent(
-        project_item: QTreeWidgetItem,
-        item: QTreeWidgetItem,
-        parent_item: QTreeWidgetItem | None,
-    ) -> QTreeWidgetItem:
-        if parent_item is not None and parent_item is not item:
-            return parent_item
-        return project_item
+            (owner_item or vehicle_item).addChild(item)
 
     def append_project_contribution(
         self,

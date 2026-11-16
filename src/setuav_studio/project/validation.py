@@ -99,9 +99,9 @@ def _validate_component_links(
     component_ids: set[str],
 ) -> list[Issue]:
     issues: list[Issue] = []
-    link_map, field_issues = _component_link_map(components, component_ids, "parent")
+    link_map, field_issues = _component_link_map(components, component_ids, "attach_to")
     issues.extend(field_issues)
-    issues.extend(_component_cycle_issues(component_ids, link_map, "Parent"))
+    issues.extend(_component_cycle_issues(component_ids, link_map, "Attachment"))
     return issues
 
 

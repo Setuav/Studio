@@ -381,19 +381,20 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
         return _number(self._envelope(self._component).get("volume_mm3"))
 
     def _envelope(self, component: dict[str, Any]) -> dict[str, Any]:
-        from setuav_studio.utilities.mass_balance import get_component_children
+        from setuav_studio.utilities.mass_balance import get_component_subparts
 
         proj = self._api.project
         comp_id = str(component.get("id") or "")
         envelope = component.get("envelope")
-        has_children = proj is not None and bool(
-            get_component_children(comp_id, proj, recursive=False)
+        subpart_types = self._api.subpart_types
+        has_subparts = proj is not None and bool(
+            get_component_subparts(comp_id, proj, subpart_types)
         )
-        if not has_children and isinstance(envelope, dict) and envelope.get("size_mm"):
+        if not has_subparts and isinstance(envelope, dict) and envelope.get("size_mm"):
             return resolve_component_envelope(component)
 
         if proj is not None:
-            agg_env = resolve_component_aggregate_envelope(component, proj)
+            agg_env = resolve_component_aggregate_envelope(component, proj, subpart_types)
             if agg_env and agg_env.get("size_mm") and any(agg_env["size_mm"].values()):
                 return agg_env
 

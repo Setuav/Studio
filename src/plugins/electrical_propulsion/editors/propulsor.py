@@ -50,7 +50,6 @@ _CATALOG_KEYS = frozenset(
     }
 )
 _FIELDS = {field.key: field for field in PropulsorModel.get_scalar_fields()}
-_ATTACH_TARGET_TYPES = ("org.setuav.core:fuselage", "org.setuav.core:lifting-surface")
 
 
 class PropulsorEditor(PropertyTableMixin, QWidget):
@@ -137,7 +136,6 @@ class PropulsorEditor(PropertyTableMixin, QWidget):
                 ("mass", "Mass [Motor + Propeller]"),
                 ("manufacturer", "Motor Manufacturer"),
                 ("model", "Motor Model"),
-                ("attach_to", "Attach to"),
             ]
         )
         self.general_table.cellChanged.connect(self._update_general)
@@ -176,7 +174,6 @@ class PropulsorEditor(PropertyTableMixin, QWidget):
                 self._set_property_value(
                     self.general_table, key, str(component.get(key) or ""), editable=False
                 )
-            self._load_attach_to()
             for table, keys in (
                 (self.motor_table, _MOTOR_KEYS),
                 (self.propeller_table, _PROPELLER_KEYS),
@@ -192,34 +189,6 @@ class PropulsorEditor(PropertyTableMixin, QWidget):
             )
         finally:
             self._loading = False
-
-    def _load_attach_to(self) -> None:
-        current = str(self._component.get("attach_to") or "")
-        options: list[tuple[str, str]] = [("", "(None)")]
-        project = self._api.project
-        if project is not None:
-            for comp in project.data["components"]:
-                if isinstance(comp, dict) and comp.get("type") in _ATTACH_TARGET_TYPES:
-                    comp_id = str(comp["id"])
-                    options.append((comp_id, f"{comp.get('name') or comp_id} ({comp_id})"))
-        if current and not any(value == current for value, _label in options):
-            options.insert(1, (current, f"⚠ {current} (Not Found)"))
-        self._set_property_combo(
-            self.general_table,
-            "attach_to",
-            current,
-            options,
-            lambda value: self._on_attach_to_changed(value or None),
-        )
-
-    def _on_attach_to_changed(self, target_id: str | None) -> None:
-        if self._loading or self._component.get("attach_to") == target_id:
-            return
-
-        def apply_edit() -> None:
-            self._component["attach_to"] = target_id
-
-        self._api.edit_component(self._component, "Change propulsor attach_to", apply_edit)
 
     def _load_number(self, table: QTableWidget, key: str, value: Any, *, read_only: bool) -> None:
         field: ParameterField = _FIELDS[key]

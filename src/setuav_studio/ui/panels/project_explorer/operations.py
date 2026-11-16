@@ -68,9 +68,10 @@ class ProjectExplorerOperations:
                 component_id = str(component.get("id") or "")
                 if not component_id or component_id in deleted_ids:
                     continue
-                structural_parent = str(component.get("parent") or "")
+                is_subpart = component.get("type") in self._api.subpart_types
+                target = str(component.get("attach_to") or "")
                 source = str(component.get("source") or "")
-                if structural_parent in deleted_ids or source in deleted_ids:
+                if (is_subpart and target in deleted_ids) or source in deleted_ids:
                     deleted_ids.add(component_id)
                     changed = True
         return deleted_ids
@@ -89,9 +90,7 @@ class ProjectExplorerOperations:
         details: list[str] = []
         dependent_count = max(0, len(component_ids) - 1)
         if dependent_count:
-            details.append(
-                f"{dependent_count} structurally dependent item(s) will also be deleted."
-            )
+            details.append(f"{dependent_count} subpart(s) and instance(s) will also be deleted.")
         return details
 
     def confirm_delete(
@@ -120,6 +119,7 @@ class ProjectExplorerOperations:
             return
         components = project.data.get("components")
         if isinstance(components, list) and component_ids:
+            self.detach_from_deleted(components, component_ids)
             components[:] = [
                 component
                 for component in components
@@ -127,20 +127,17 @@ class ProjectExplorerOperations:
                     isinstance(component, dict) and str(component.get("id") or "") in component_ids
                 )
             ]
-            self.clear_deleted_component_links(components, component_ids)
 
     @staticmethod
-    def clear_deleted_component_links(
-        components: list[Any],
-        component_ids: set[str],
-    ) -> None:
+    def detach_from_deleted(components: list[Any], component_ids: set[str]) -> None:
+        """Attach components mounted on deleted ones to the vehicle, keeping them in place."""
+        from setuav_studio.utilities.transform import attach_component
+
         for component in components:
-            if not isinstance(component, dict):
+            if not isinstance(component, dict) or str(component.get("id")) in component_ids:
                 continue
-            if str(component.get("parent") or "") in component_ids:
-                component["parent"] = (
-                    "airframe" if str(component.get("id") or "") != "airframe" else None
-                )
+            if str(component.get("attach_to") or "") in component_ids:
+                attach_component(component, None, components, preserve_world_transform=True)
 
     def delete_item(self, item: QTreeWidgetItem | None) -> None:
         if item is None:
@@ -150,6 +147,7 @@ class ProjectExplorerOperations:
             return
         if item in (
             self._tree._project_root_item,
+            self._tree._vehicle_item,
             self._tree._parameters_group_item,
             self._tree._constraints_group_item,
             self._tree._analysis_group_item,
@@ -232,9 +230,6 @@ class ProjectExplorerOperations:
     def delete_component_item(self, element: dict[str, Any]) -> None:
         element_id = str(element.get("id") or "")
         if not element_id:
-            return
-        if element_id == "airframe" or element.get("type") == "org.setuav.core:airframe":
-            self._api.show_status("Airframe component cannot be deleted", "warning", 3000)
             return
         element_name = str(element.get("name") or element_id)
         component_ids = self.deletion_scope(
@@ -347,10 +342,6 @@ class ProjectExplorerOperations:
             if kind == "project"
             else format_component_name(element)
         )
-        if element_id == "airframe" or element.get("type") == "org.setuav.core:airframe":
-            self.restore_item_text(item, old_label)
-            self._api.show_status("Airframe component cannot be renamed", "warning", 3000)
-            return
         new_name = item.text(0).strip()
         if not self.can_edit_project():
             self.restore_item_text(item, old_label)

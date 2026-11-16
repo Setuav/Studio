@@ -9,6 +9,7 @@ Implements clean, minimalist CAD-style CG markers (Option A):
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from typing import Any
 
 from setuav_studio.ui.viewport.primitives import (
@@ -39,6 +40,7 @@ _FAINT_GOLD_COLOR = (1.0, 0.82, 0.08, 0.30)  # Semi-transparent for mirror tie-l
 def build_component_cg_primitives(
     component_id: str,
     project_or_components: Any,
+    subpart_types: Collection[str],
 ) -> list[VisualPrimitive]:
     """Generate minimalist 3D visual primitives representing the Center of Gravity for a component.
 
@@ -78,8 +80,10 @@ def build_component_cg_primitives(
     if comp is None:
         return []
 
-    # 2. Local CG and world transform (aggregating children if this is an assembly)
-    agg = resolve_component_aggregate_mass_properties(component_id, project_or_components)
+    # 2. CG of the component and its subparts
+    agg = resolve_component_aggregate_mass_properties(
+        component_id, project_or_components, subpart_types
+    )
     if agg.mass_kg > 0.0:
         cg_world: Point3D = (
             agg.cg_body_m[0] * 1000.0,

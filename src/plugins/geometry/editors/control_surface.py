@@ -128,7 +128,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
             [
                 ("name", "Name"),
                 ("type", "Type"),
-                ("parent", "Parent"),
+                ("attach_to", "Lifting Surface"),
             ]
         )
         self.general_table.cellChanged.connect(self._update_general)
@@ -156,13 +156,13 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
         )
         layout.addWidget(self.properties_table)
 
-    def _parent_wing_info(self) -> tuple[float, float, float, float]:
-        """Return (semi_span, root_chord, tip_chord, parent_wing_area_dm2) for parent lifting surface."""
-        parent_id = str(self._component.get("parent") or "")
+    def _surface_info(self) -> tuple[float, float, float, float]:
+        """Return (semi_span, root_chord, tip_chord, area_dm2) of the lifting surface."""
+        surface_id = str(self._component.get("attach_to") or "")
         project = self._api.project
         if project and isinstance(project.data.get("components"), list):
             for c in project.data["components"]:
-                if isinstance(c, dict) and str(c.get("id") or "") == parent_id:
+                if isinstance(c, dict) and str(c.get("id") or "") == surface_id:
                     params = c.get("parameters", {})
                     geom = params.get("geometry", {})
                     profs = geom.get("profiles", [])
@@ -189,7 +189,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
     def _load_general(self) -> None:
         name = str(self._component.get("name") or self._component.get("id") or "")
         comp_type = str(self._component.get("type") or "org.setuav.core:control-surface")
-        parent = str(self._component.get("parent") or "")
+        surface_id = str(self._component.get("attach_to") or "")
 
         self._set_property_value(self.general_table, "name", name)
         self._set_property_value(self.general_table, "type", comp_type, editable=False)
@@ -205,10 +205,10 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
 
         self._set_property_combo(
             self.general_table,
-            "parent",
-            parent,
+            "attach_to",
+            surface_id,
             options,
-            self._update_parent,
+            self._update_surface,
         )
 
     def _load_properties(self) -> None:
@@ -218,7 +218,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
         self._loading = True
         try:
             geom = self._geometry()
-            semi_span, root_chord, tip_chord, wing_area = self._parent_wing_info()
+            semi_span, root_chord, tip_chord, wing_area = self._surface_info()
 
             metrics = compute_control_surface_metrics(
                 geom, semi_span, root_chord, tip_chord, wing_area
@@ -372,7 +372,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
         if self._loading or value is None:
             return
         geom = self._geometry()
-        semi_span, root_chord, tip_chord, _wing_area = self._parent_wing_info()
+        semi_span, root_chord, tip_chord, _wing_area = self._surface_info()
 
         cell = self._property_cell(self.properties_table, key)
         parsed = evaluate_table_cell_input(value, self._api, cell=cell, label=key)
@@ -537,20 +537,25 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
 
             self._edit_component("Rename control surface", change)
 
-    def _update_parent(self, new_parent: str | None) -> None:
+    def _update_surface(self, surface_id: str | None) -> None:
         if self._loading:
             return
 
         def change() -> None:
-            self._component["parent"] = new_parent if new_parent else None
+            # A control surface's frame is its lifting surface, so it keeps its own
+            # (identity) transform when it moves to another one.
+            if surface_id:
+                self._component["attach_to"] = surface_id
+            else:
+                self._component.pop("attach_to", None)
 
-        self._edit_component("Change control surface parent wing", change)
+        self._edit_component("Change control surface lifting surface", change)
 
-    def _parent_component(self) -> dict[str, Any] | None:
-        parent_id = str(self._component.get("parent") or "")
-        if self._api.project and parent_id:
+    def _surface_component(self) -> dict[str, Any] | None:
+        surface_id = str(self._component.get("attach_to") or "")
+        if self._api.project and surface_id:
             for c in self._api.project.data.get("components", []):
-                if isinstance(c, dict) and str(c.get("id") or "") == parent_id:
+                if isinstance(c, dict) and str(c.get("id") or "") == surface_id:
                     return c
         return None
 
@@ -559,7 +564,6 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
             mutation()
             from ..engine.envelope import sync_component_envelope
 
-            parent = self._parent_component()
-            sync_component_envelope(self._component, parent)
+            sync_component_envelope(self._component, self._surface_component())
 
         self._api.edit_component(self._component, action_name, wrapped)

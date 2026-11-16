@@ -8,7 +8,7 @@ from copy import deepcopy
 from typing import Any
 from unittest.mock import patch
 
-from PySide6.QtWidgets import QComboBox, QDialog
+from PySide6.QtWidgets import QDialog
 
 from plugins.electrical_propulsion.editors import BatteryEditor, PropulsorEditor
 from plugins.electrical_propulsion.models.propulsor import PROPULSOR_TYPE, propulsor_mass
@@ -191,28 +191,6 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertEqual(editor._property_value(editor.general_table, "mass"), "143.0")
         api.undo()
         self.assertEqual(propulsor["mass"], 136.0)
-
-    def test_propulsor_editor_edits_attach_to(self) -> None:
-        api, propulsor, editor = self._propulsor_editor()
-        opened = deepcopy(propulsor)
-
-        self.assertEqual(propulsor, opened)
-        self.assertFalse(api.can_undo)
-        self.assertEqual(editor._property_value(editor.general_table, "attach_to"), "fuselage")
-
-        row = next(
-            r
-            for r in range(editor.general_table.rowCount())
-            if editor._property_key(editor.general_table, r) == "attach_to"
-        )
-        combo = editor.general_table.cellWidget(row, 1)
-        assert isinstance(combo, QComboBox)
-        combo.setCurrentIndex(combo.findData("main-wing"))
-        self.assertEqual(propulsor["attach_to"], "main-wing")
-
-        api.undo()
-        self.assertEqual(propulsor["attach_to"], "fuselage")
-        self.assertEqual(editor._property_value(editor.general_table, "attach_to"), "fuselage")
 
     def _battery_editor(self) -> tuple[StudioAPI, dict[str, Any], BatteryEditor]:
         api = StudioAPI()

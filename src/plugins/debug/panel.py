@@ -196,7 +196,7 @@ class DebugPanel(PropertyTableMixin, QWidget):
                 ("name", "Name"),
                 ("id", "ID"),
                 ("type", "Type"),
-                ("parent", "Parent Frame"),
+                ("attach_to", "Attached to"),
                 ("position", "Position"),
                 ("rotation", "Rotation"),
             ]
@@ -448,7 +448,7 @@ class DebugPanel(PropertyTableMixin, QWidget):
             c_name = str(comp_dict.get("name") or comp_dict.get("id") or "-")
             c_id = str(comp_dict.get("id", "-"))
             c_type = str(comp_dict.get("type", "-"))
-            c_parent = str(comp_dict.get("parent") or "None (World Root)")
+            c_attach_to = str(comp_dict.get("attach_to") or "Vehicle")
 
             pos = comp_dict.get("position", [0.0, 0.0, 0.0])
             rot = comp_dict.get("rotation", [0.0, 0.0, 0.0])
@@ -460,7 +460,7 @@ class DebugPanel(PropertyTableMixin, QWidget):
             self._set_property_value(self.component_table, "name", c_name)
             self._set_property_value(self.component_table, "id", c_id)
             self._set_property_value(self.component_table, "type", c_type)
-            self._set_property_value(self.component_table, "parent", c_parent)
+            self._set_property_value(self.component_table, "attach_to", c_attach_to)
             self._set_property_value(self.component_table, "position", pos_str)
             self._set_property_value(self.component_table, "rotation", rot_str)
 
@@ -478,7 +478,7 @@ class DebugPanel(PropertyTableMixin, QWidget):
             self._set_property_value(self.component_table, "name", "-")
             self._set_property_value(self.component_table, "id", "-")
             self._set_property_value(self.component_table, "type", "-")
-            self._set_property_value(self.component_table, "parent", "-")
+            self._set_property_value(self.component_table, "attach_to", "-")
             self._set_property_value(self.component_table, "position", "-")
             self._set_property_value(self.component_table, "rotation", "-")
 

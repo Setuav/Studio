@@ -167,7 +167,7 @@ class TestParametricSweeps(unittest.TestCase):
                 "id": "elevator-1",
                 "name": "Elevator",
                 "type": "org.setuav.core:control-surface",
-                "parent": "htail-1",
+                "attach_to": "htail-1",
                 "parameters": {
                     "geometry": {
                         "type": "elevator",
@@ -182,7 +182,7 @@ class TestParametricSweeps(unittest.TestCase):
                 "id": "rudder-1",
                 "name": "Rudder",
                 "type": "org.setuav.core:control-surface",
-                "parent": "vfin-1",
+                "attach_to": "vfin-1",
                 "parameters": {
                     "geometry": {
                         "type": "rudder",

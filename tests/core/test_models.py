@@ -107,13 +107,12 @@ def test_inertia_tensor_roundtrip_conversions() -> None:
 
 
 def test_component_init_and_identity() -> None:
-    comp = Component(id="motor-1", name="Main Motor", type="org.setuav.core:motor")
+    comp = Component(id="motor-1", name="Main Motor", type="org.setuav.core:propulsor")
     assert comp.id == "motor-1"
     assert comp.name == "Main Motor"
-    assert comp.type == "org.setuav.core:motor"
-    assert comp.component_type == "org.setuav.core:motor"
-    assert comp.parent is None
-    assert comp.parent_id is None
+    assert comp.type == "org.setuav.core:propulsor"
+    assert comp.component_type == "org.setuav.core:propulsor"
+    assert comp.attach_to is None
 
     # Name falls back to ID if not specified
     comp2 = Component(id="servo-1")
@@ -125,20 +124,18 @@ def test_component_init_and_identity() -> None:
     assert comp2.raw_data["name"] == "Elevator Servo"
 
 
-def test_component_parent_hierarchy_properties() -> None:
-    comp = Component(id="wing", parent="fuselage")
-    assert comp.parent == "fuselage"
-    assert comp.parent_id == "fuselage"
-    assert comp.raw_data["parent"] == "fuselage"
+def test_component_attach_to_property() -> None:
+    comp = Component(id="wing", attach_to="fuselage")
+    assert comp.attach_to == "fuselage"
+    assert comp.raw_data["attach_to"] == "fuselage"
 
-    comp.parent = "center_box"
-    assert comp.parent == "center_box"
-    assert comp.parent_id == "center_box"
+    comp.attach_to = "center_box"
+    assert comp.attach_to == "center_box"
 
-    # Clearing parent
-    comp.parent = None
-    assert comp.parent is None
-    assert "parent" not in comp.raw_data
+    # Attaching to the vehicle clears the key
+    comp.attach_to = None
+    assert comp.attach_to is None
+    assert "attach_to" not in comp.raw_data
 
 
 def test_component_spatial_transform_and_coordinates() -> None:
@@ -299,13 +296,13 @@ def test_generic_component_fallback() -> None:
 
 
 # ==============================================================================
-# 6. Hierarchy Reparenting with Transform Preservation
+# 6. Attachment with Transform Preservation
 # ==============================================================================
 
 
-def test_component_reparenting() -> None:
+def test_component_attach_keeps_its_place() -> None:
     comp_a = {
-        "id": "parent_a",
+        "id": "target_a",
         "transform": {
             "position": {"x": 100.0, "y": 0.0, "z": 0.0},
             "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
@@ -313,7 +310,7 @@ def test_component_reparenting() -> None:
     }
     comp_b = {
         "id": "child_b",
-        "parent": "parent_a",
+        "attach_to": "target_a",
         "transform": {
             "position": {"x": 50.0, "y": 0.0, "z": 0.0},
             "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
@@ -322,8 +319,7 @@ def test_component_reparenting() -> None:
     project_data = {"components": [comp_a, comp_b]}
 
     model_b = Component(comp_b)
-    # Reparent from parent_a to World (None), preserving world transform
-    # World position was 100 + 50 = 150
-    model_b.reparent(None, project_data, preserve_world_transform=True)
-    assert model_b.parent is None
+    # Attach to the vehicle, keeping the vehicle-frame position 100 + 50 = 150
+    model_b.attach(None, project_data, preserve_world_transform=True)
+    assert model_b.attach_to is None
     assert math.isclose(model_b.x, 150.0, rel_tol=1e-5)

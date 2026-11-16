@@ -323,7 +323,7 @@ def test_studio_api_extension_edits_undo_redo() -> None:
     assert project.get_component_plugin_data("c1", "org.test.aero") is None
 
 
-def test_studio_api_reparent_component_undo_redo() -> None:
+def test_studio_api_attach_component_undo_redo() -> None:
     studio_api = StudioAPI()
     project = ProjectDocument(
         Path("test.json"),
@@ -343,19 +343,18 @@ def test_studio_api_reparent_component_undo_redo() -> None:
     )
     studio_api._host.set_project(project)
 
-    # Reparent wing to fuselage
     wing_comp = project.get_component("wing")
     assert wing_comp is not None
-    studio_api.reparent_component(wing_comp, "fuselage", description="Attach wing")
-    assert _component(project, "wing")["parent"] == "fuselage"
+    studio_api.attach_component(
+        wing_comp, "fuselage", preserve_world_transform=True, description="Attach wing"
+    )
+    assert _component(project, "wing")["attach_to"] == "fuselage"
 
-    # Undo reparent
     studio_api.undo()
-    assert "parent" not in _component(project, "wing")
+    assert "attach_to" not in _component(project, "wing")
 
-    # Redo reparent
     studio_api.redo()
-    assert _component(project, "wing")["parent"] == "fuselage"
+    assert _component(project, "wing")["attach_to"] == "fuselage"
 
 
 # ==============================================================================

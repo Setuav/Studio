@@ -166,7 +166,6 @@ def new_propulsor(component_id: str, name: str, *, motor: Any, propeller: Any) -
         "id": component_id,
         "name": name,
         "type": PROPULSOR_TYPE,
-        "parent": None,
         "manufacturer": motor.manufacturer or "",
         "model": motor.name or "",
         "mass": propulsor_mass(params),
@@ -189,7 +188,6 @@ def new_battery(component_id: str, name: str) -> dict[str, Any]:
         "id": component_id,
         "name": name,
         "type": _BATTERY_TYPE,
-        "parent": None,
         "mass": battery_pack(params).mass_g,
         "transform": _origin_transform(),
         "envelope": {

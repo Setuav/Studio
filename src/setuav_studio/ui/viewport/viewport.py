@@ -922,7 +922,7 @@ class StudioViewport(QWidget):
             return
         from .cg_marker import build_component_cg_primitives
 
-        prims = build_component_cg_primitives(component_id, project)
+        prims = build_component_cg_primitives(component_id, project, self._api.subpart_types)
         if prims:
             self.set_overlays("component_cg", prims)
         else:
@@ -934,7 +934,7 @@ class StudioViewport(QWidget):
             self.set_selected_cg(self._selected_cg_component_id)
 
     def set_selected_envelope(self, component_id: str | None) -> None:
-        """Update 3D envelope wireframe (volume lines) display for the selected component or assembly."""
+        """Show the envelope wireframe of the selected component and its subparts."""
         self._selected_envelope_component_id = component_id
         if component_id is None or self._api is None:
             if self._renderer is not None:
@@ -946,13 +946,10 @@ class StudioViewport(QWidget):
         target_ids = [component_id]
         project = self._api.project
         if project is not None:
-            from setuav_studio.utilities.mass_balance import get_component_children
+            from setuav_studio.utilities.mass_balance import get_component_subparts
 
-            children = get_component_children(component_id, project, recursive=True)
-            for ch in children:
-                ch_id = str(ch.get("id") or "")
-                if ch_id and ch_id not in target_ids:
-                    target_ids.append(ch_id)
+            for subpart in get_component_subparts(component_id, project, self._api.subpart_types):
+                target_ids.append(str(subpart["id"]))
 
         if self._renderer is not None:
             set_env = getattr(self._renderer, "set_selected_envelope", None)

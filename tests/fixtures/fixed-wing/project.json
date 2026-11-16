@@ -19,20 +19,9 @@
   "components": [
     {
       "kind": "component",
-      "id": "airframe",
-      "name": "Airframe",
-      "type": "org.setuav.core:airframe",
-      "parent": null,
-      "parameters": {},
-      "has_transform": false,
-      "has_mass": false
-    },
-    {
-      "kind": "component",
       "id": "fuselage",
       "name": "Fuselage",
       "type": "org.setuav.core:fuselage",
-      "parent": "airframe",
       "transform": {},
       "parameters": {
         "geometry": {
@@ -2288,15 +2277,13 @@
             }
           }
         ]
-      },
-      "parent": "airframe"
+      }
     },
     {
       "kind": "component",
       "id": "aileron",
       "name": "Aileron",
       "type": "org.setuav.core:control-surface",
-      "parent": "main-wing",
       "parameters": {
         "geometry": {
           "type": "aileron",
@@ -2450,7 +2437,8 @@
           }
         ]
       },
-      "mass": 25.0
+      "mass": 25.0,
+      "attach_to": "main-wing"
     },
     {
       "kind": "component",
@@ -2639,15 +2627,13 @@
             }
           }
         ]
-      },
-      "parent": "airframe"
+      }
     },
     {
       "kind": "component",
       "id": "ruddervator",
       "name": "Ruddervator",
       "type": "org.setuav.core:control-surface",
-      "parent": "v-tail",
       "parameters": {
         "geometry": {
           "type": "ruddervator",
@@ -2801,14 +2787,14 @@
           }
         ]
       },
-      "mass": 10.0
+      "mass": 10.0,
+      "attach_to": "v-tail"
     },
     {
       "kind": "component",
       "id": "propulsor-cruise",
       "name": "SunnySky X2814",
       "type": "org.setuav.core:propulsor",
-      "parent": null,
       "attach_to": "fuselage",
       "transform": {
         "position": {
@@ -2843,7 +2829,6 @@
       "id": "battery-main",
       "name": "LiPo Battery",
       "type": "org.setuav.core:battery",
-      "parent": null,
       "transform": {
         "position": {
           "x": 200.0,
@@ -2924,7 +2909,6 @@
       "id": "main-wing-flap",
       "name": "Flap",
       "type": "org.setuav.core:control-surface",
-      "parent": "main-wing",
       "parameters": {
         "geometry": {
           "type": "flap",
@@ -3081,7 +3065,8 @@
             "z": 8.27
           }
         ]
-      }
+      },
+      "attach_to": "main-wing"
     }
   ],
   "parameter_relations": [

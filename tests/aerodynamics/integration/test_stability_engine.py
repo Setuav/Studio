@@ -224,7 +224,7 @@ class TestStabilityAnalysisEngine(unittest.TestCase):
                 "id": "aileron-1",
                 "name": "Aileron",
                 "type": "org.setuav.core:control-surface",
-                "parent": "wing-1",
+                "attach_to": "wing-1",
                 "parameters": {
                     "geometry": {
                         "type": "aileron",
@@ -238,7 +238,7 @@ class TestStabilityAnalysisEngine(unittest.TestCase):
                 "id": "elevator-1",
                 "name": "Elevator",
                 "type": "org.setuav.core:control-surface",
-                "parent": "htail-1",
+                "attach_to": "htail-1",
                 "parameters": {
                     "geometry": {
                         "type": "elevator",
@@ -252,7 +252,7 @@ class TestStabilityAnalysisEngine(unittest.TestCase):
                 "id": "rudder-1",
                 "name": "Rudder",
                 "type": "org.setuav.core:control-surface",
-                "parent": "vfin-1",
+                "attach_to": "vfin-1",
                 "parameters": {
                     "geometry": {
                         "type": "rudder",

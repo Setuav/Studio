@@ -255,7 +255,7 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
         self._committed_mass: Any = self._component.get("mass")
         self._committed_mass_expr: str | None = get_expression(self._component, "mass")
         self._committed_name: str = str(self._component.get("name") or "")
-        self._committed_parent: str = str(self._component.get("parent") or "")
+        self._committed_attach_to: str = str(self._component.get("attach_to") or "")
         self._load_component()
         if self._api is not None:
             self._api.on_project_content_changed(self._on_external_content_changed)
@@ -437,7 +437,7 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
             self._committed_mass = self._component.get("mass")
             self._committed_mass_expr = get_expression(self._component, "mass")
             self._committed_name = str(self._component.get("name") or "")
-            self._committed_parent = str(self._component.get("parent") or "")
+            self._committed_attach_to = str(self._component.get("attach_to") or "")
         finally:
             self._loading = False
 
@@ -683,14 +683,14 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
         curr_mass = self._component.get("mass")
         curr_mass_expr = get_expression(self._component, "mass")
         curr_name = str(self._component.get("name") or "")
-        curr_parent = str(self._component.get("parent") or "")
+        curr_attach_to = str(self._component.get("attach_to") or "")
         if (
             curr_params != self._committed_params
             or curr_exprs != self._committed_expressions
             or curr_mass != self._committed_mass
             or curr_mass_expr != self._committed_mass_expr
             or curr_name != self._committed_name
-            or curr_parent != self._committed_parent
+            or curr_attach_to != self._committed_attach_to
         ):
             self._load_component()
             self.update_viewport()

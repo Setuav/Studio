@@ -22,10 +22,17 @@ from setuav_studio.model.expression import set_expression
 from setuav_studio.ui.style.icons import set_label_icon
 from setuav_studio.ui.widget.spinbox import evaluate_table_cell_input, set_table_spinbox
 from setuav_studio.ui.widget.table import ExpressionPropertyCell, PropertyTableMixin
+from setuav_studio.utilities.transform import attached_component_ids, components_by_id
+
+_VEHICLE_LABEL = "Vehicle"
 
 
 class TransformEditor(PropertyTableMixin, QWidget):
-    """Edit a component's parent-relative position and rotation."""
+    """Edit what a component is attached to and its position and rotation relative to it.
+
+    A subpart's frame is the component it is part of, which its own editor selects, so
+    for a subpart the attach target is shown but not edited here.
+    """
 
     table_edit_triggers = QAbstractItemView.EditTrigger.NoEditTriggers
     table_value_placeholder = "-"
@@ -111,7 +118,7 @@ class TransformEditor(PropertyTableMixin, QWidget):
         self.reference_table = self._property_table(
             [
                 ("component", "Component"),
-                ("parent", "Parent Frame"),
+                ("attach_to", "Attached to"),
             ]
         )
         layout.addWidget(self.reference_table)
@@ -232,12 +239,7 @@ class TransformEditor(PropertyTableMixin, QWidget):
                 str(component.get("name") or component.get("id") or ""),
                 editable=False,
             )
-            self._set_property_value(
-                self.reference_table,
-                "parent",
-                self._parent_frame_name(component),
-                editable=False,
-            )
+            self._load_attach_to(component)
 
             pos = self._position()
             rot = self._rotation()
@@ -305,15 +307,36 @@ class TransformEditor(PropertyTableMixin, QWidget):
             change,
         )
 
-    def _parent_frame_name(self, component: dict[str, Any]) -> str:
-        parent_id = component.get("parent")
-        if not parent_id:
-            return "SETUAV_BODY"
+    def _load_attach_to(self, component: dict[str, Any]) -> None:
         project = self._api.project
-        if project is None:
-            return str(parent_id)
-        parent = project.get_component(str(parent_id))
-        return str(parent.get("name") or parent_id) if parent else str(parent_id)
+        assert project is not None
+        components = components_by_id(project)
+        current = str(component.get("attach_to") or "")
+        if component.get("type") in self._api.subpart_types:
+            target = components.get(current)
+            name = str(target.get("name") or current) if target else _VEHICLE_LABEL
+            self._set_property_value(self.reference_table, "attach_to", name, editable=False)
+            return
+        component_id = str(component["id"])
+        excluded = {component_id} | attached_component_ids(component_id, components)
+        options = [("", _VEHICLE_LABEL)] + [
+            (other_id, str(other.get("name") or other_id))
+            for other_id, other in components.items()
+            if other_id not in excluded and other.get("type") not in self._api.subpart_types
+        ]
+        self._set_property_combo(
+            self.reference_table, "attach_to", current, options, self._on_attach_to_changed
+        )
+
+    def _on_attach_to_changed(self, target_id: str) -> None:
+        if self._loading or self._component is None:
+            return
+        if target_id == str(self._component.get("attach_to") or ""):
+            return
+        self._api.attach_component(
+            self._component, target_id or None, preserve_world_transform=True
+        )
+        self._load_component(self._component)
 
     def _set_enabled(self, enabled: bool) -> None:
         self.reference_table.setEnabled(enabled)

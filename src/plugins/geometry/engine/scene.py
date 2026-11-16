@@ -27,11 +27,11 @@ from .transforms import (
 GeometryProvider = Callable[[dict[str, Any], list[dict[str, Any]]], tuple[LoftGeometry, ...]]
 
 
-def _frame_parent(item: dict[str, Any]) -> str | None:
-    """Return the component whose frame this component's transform is relative to."""
-    parent = item.get("parent")
-    if isinstance(parent, str) and parent:
-        return parent
+def _attach_target(item: dict[str, Any]) -> str | None:
+    """Return the component this component's transform is relative to."""
+    target = item.get("attach_to")
+    if isinstance(target, str) and target:
+        return target
     return None
 
 
@@ -95,25 +95,23 @@ class _WorldMatrixResolver:
         if item_id in self.cache:
             return self.cache[item_id]
         if item_id in resolving:
-            raise ValueError(f"Component parent cycle at {item_id!r}")
+            raise ValueError(f"Component attachment cycle at {item_id!r}")
         item = self.items.get(item_id)
         if item is None:
             return identity_matrix()
 
-        parent_id = _frame_parent(item)
-        parent = (
-            self(parent_id, resolving | {item_id})
-            if isinstance(parent_id, str)
+        target_id = _attach_target(item)
+        target = (
+            self(target_id, resolving | {item_id})
+            if isinstance(target_id, str)
             else identity_matrix()
         )
         local = self._local_matrix(item)
-        result = multiply_matrix(parent, local)
+        result = multiply_matrix(target, local)
         self.cache[item_id] = result
         return result
 
     def _local_matrix(self, item: dict[str, Any]) -> Matrix4:
-        if item.get("has_transform") is False:
-            return identity_matrix()
         local = transform_matrix(item.get("transform"))
         if item.get("kind") != "instance":
             return local
@@ -188,11 +186,11 @@ def _child_control_surfaces(
 
 def _child_control_surface(
     child: dict[str, Any],
-    parent_id: str,
+    surface_id: str,
 ) -> dict[str, Any] | None:
     if (
         child.get("type") != "org.setuav.core:control-surface"
-        or (_frame_parent(child) or "") != parent_id
+        or (_attach_target(child) or "") != surface_id
     ):
         return None
     parameters = child.get("parameters")
@@ -251,12 +249,12 @@ def _append_mirrored_geometry(
     provider: GeometryProvider,
     world_matrix: Callable[[str], Matrix4],
 ) -> None:
-    parent_id = _frame_parent(item)
-    parent_matrix = world_matrix(parent_id) if isinstance(parent_id, str) else identity_matrix()
+    target_id = _attach_target(item)
+    target_matrix = world_matrix(target_id) if isinstance(target_id, str) else identity_matrix()
     local_matrix = transform_matrix(item.get("transform"))
     mirror = derivation_matrix({"type": "mirror", "plane": "XZ"})
     mirrored_matrix = multiply_matrix(
-        parent_matrix,
+        target_matrix,
         multiply_matrix(mirror, local_matrix),
     )
     mirrored_controls = deepcopy(controls)
@@ -360,11 +358,11 @@ def _mirrored_root_matrix(
     item: dict[str, Any],
     world_matrix_fn: Callable[[str], Matrix4],
 ) -> Matrix4:
-    parent_id = _frame_parent(item)
-    parent_matrix = world_matrix_fn(parent_id) if parent_id else identity_matrix()
+    target_id = _attach_target(item)
+    target_matrix = world_matrix_fn(target_id) if target_id else identity_matrix()
     local_matrix = transform_matrix(item.get("transform"))
     mirror = derivation_matrix({"type": "mirror", "plane": "XZ"})
-    return multiply_matrix(parent_matrix, multiply_matrix(mirror, local_matrix))
+    return multiply_matrix(target_matrix, multiply_matrix(mirror, local_matrix))
 
 
 def _build_root_stub(
@@ -537,9 +535,9 @@ def _build_component_envelope_geometry(
     if not isinstance(envelope, dict) or not envelope:
         return None
 
-    parent_id = _frame_parent(item)
-    parent_item = items.get(str(parent_id)) if parent_id else None
-    parent_source = _geometry_source(parent_item, items) if parent_item else None
+    target_id = _attach_target(item)
+    target_item = items.get(str(target_id)) if target_id else None
+    target_source = _geometry_source(target_item, items) if target_item else None
 
     matrix = world_matrix(item_id)
     lines: list[tuple[Point3D, Point3D]] = []
@@ -564,14 +562,14 @@ def _build_component_envelope_geometry(
         _append_lifting_surface_tip_envelope_lines(lines, source, matrix)
 
     if component_type == "org.setuav.core:lifting-surface" and _is_bilateral(source):
-        parent_id_frame = _frame_parent(item)
-        parent_matrix = (
-            world_matrix(parent_id_frame) if isinstance(parent_id_frame, str) else identity_matrix()
+        target_frame_id = _attach_target(item)
+        target_matrix = (
+            world_matrix(target_frame_id) if isinstance(target_frame_id, str) else identity_matrix()
         )
         local_matrix = transform_matrix(item.get("transform"))
         mirror = derivation_matrix({"type": "mirror", "plane": "XZ"})
         mirrored_matrix = multiply_matrix(
-            parent_matrix,
+            target_matrix,
             multiply_matrix(mirror, local_matrix),
         )
         _append_envelope_lines(lines, envelope, mirrored_matrix)
@@ -579,23 +577,21 @@ def _build_component_envelope_geometry(
 
     if (
         component_type == "org.setuav.core:control-surface"
-        and parent_source
-        and _is_bilateral(parent_source)
+        and target_source
+        and _is_bilateral(target_source)
     ):
-        parent_parent_id = _frame_parent(parent_item) if parent_item else None
+        outer_target_id = _attach_target(target_item) if target_item else None
         pp_matrix = (
-            world_matrix(parent_parent_id)
-            if isinstance(parent_parent_id, str)
-            else identity_matrix()
+            world_matrix(outer_target_id) if isinstance(outer_target_id, str) else identity_matrix()
         )
-        parent_local_matrix = (
-            transform_matrix(parent_item.get("transform")) if parent_item else identity_matrix()
+        target_local_matrix = (
+            transform_matrix(target_item.get("transform")) if target_item else identity_matrix()
         )
         cs_local_matrix = transform_matrix(item.get("transform"))
         mirror = derivation_matrix({"type": "mirror", "plane": "XZ"})
         mirrored_matrix = multiply_matrix(
             pp_matrix,
-            multiply_matrix(mirror, multiply_matrix(parent_local_matrix, cs_local_matrix)),
+            multiply_matrix(mirror, multiply_matrix(target_local_matrix, cs_local_matrix)),
         )
         mirrored_deflection = -cs_deflection if cs_type in ("aileron", "elevon") else cs_deflection
         mirrored_env = _rotate_control_surface_envelope(envelope, mirrored_deflection)

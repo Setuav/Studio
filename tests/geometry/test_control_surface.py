@@ -99,7 +99,7 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
                     "kind": "component",
                     "id": "aileron_1",
                     "type": "org.setuav.core:control-surface",
-                    "parent": "test-wing",
+                    "attach_to": "test-wing",
                     "parameters": {"geometry": cs_geom},
                 },
                 {
@@ -226,7 +226,7 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
             "id": "aileron",
             "name": "Aileron",
             "type": "org.setuav.core:control-surface",
-            "parent": "main-wing",
+            "attach_to": "main-wing",
             "mass": 25.0,
             "parameters": {
                 "geometry": {
@@ -290,7 +290,7 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
             "kind": "component",
             "id": "aileron_ratio",
             "type": "org.setuav.core:control-surface",
-            "parent": "main-wing",
+            "attach_to": "main-wing",
             "parameters": {
                 "geometry": {
                     "type": "aileron",
@@ -309,7 +309,7 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
             "kind": "component",
             "id": "flap_dim",
             "type": "org.setuav.core:control-surface",
-            "parent": "main-wing",
+            "attach_to": "main-wing",
             "parameters": {
                 "geometry": {
                     "type": "flap",
@@ -384,7 +384,7 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
             "kind": "component",
             "id": "aileron-1",
             "type": "org.setuav.core:control-surface",
-            "parent": "main-wing",
+            "attach_to": "main-wing",
             "parameters": {
                 "geometry": {
                     "type": "aileron",
@@ -475,7 +475,7 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
                     "id": "aileron-1",
                     "name": "Aileron 1",
                     "type": "org.setuav.core:control-surface",
-                    "parent": "wing",
+                    "attach_to": "wing",
                     "parameters": {
                         "geometry": {
                             "type": "aileron",

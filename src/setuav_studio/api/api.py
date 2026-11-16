@@ -434,44 +434,51 @@ class StudioAPI:
             )
         )
 
-    def reparent_component(
+    def attach_component(
         self,
         component: dict[str, Any] | Any,
-        new_parent_id: str | None,
+        target_id: str | None,
         *,
-        preserve_world_transform: bool = True,
+        preserve_world_transform: bool,
         description: str | None = None,
     ) -> None:
-        """Reparent or attach a component to a new parent or World with undo support.
+        """Attach a component to another component, or to the vehicle, with undo support.
 
-        @param component The component to reparent (dict or Component object).
-        @param new_parent_id Target parent component ID, or None/empty for World.
-        @param preserve_world_transform When True, recomputes the component's local
-            position and rotation relative to the new parent so its world transform
-            does not jump in 3D space.
+        @param component The component to attach (dict or Component object).
+        @param target_id The component to attach to, or None for the vehicle.
+        @param preserve_world_transform When True, recomputes the component's position
+            and rotation relative to the new target so it stays where it is; when False,
+            keeps them, so the component moves with the target's frame.
         @param description Custom undo description, or None for automatic description.
         """
-        from setuav_studio.utilities.transform import reparent_component
+        from setuav_studio.utilities.transform import attach_component
 
         raw_data = getattr(component, "raw_data", None)
         raw = raw_data if isinstance(raw_data, dict) else component
         if not isinstance(raw, dict):
-            return
+            raise TypeError(f"{type(component).__name__} is not a component.")
+        if self._project is None:
+            raise RuntimeError("No project is open.")
 
-        clean_parent = (new_parent_id.strip() if isinstance(new_parent_id, str) else None) or None
         comp_name = str(raw.get("name") or raw.get("id") or "component")
-        parent_name = clean_parent or "World"
-        cmd_desc = description or f"Attach {comp_name} to {parent_name}"
+        cmd_desc = description or f"Attach {comp_name} to {target_id or 'Vehicle'}"
 
         def change() -> None:
-            reparent_component(
+            attach_component(
                 raw,
-                clean_parent,
+                target_id,
                 self._project,
                 preserve_world_transform=preserve_world_transform,
             )
 
         self.edit_component(raw, cmd_desc, change)
+
+    @property
+    def subpart_types(self) -> frozenset[str]:
+        """Component types registered as parts of the component they attach to."""
+        return frozenset(
+            type_id for type_id, contrib in self._component_types.items() if contrib.subpart
+        )
 
     def edit_project(
         self,

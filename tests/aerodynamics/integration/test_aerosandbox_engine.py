@@ -610,7 +610,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
                 "id": "aileron-1",
                 "name": "aileron",
                 "type": "org.setuav.core:control-surface",
-                "parent": "wing-1",
+                "attach_to": "wing-1",
                 "parameters": {
                     "geometry": {
                         "type": "aileron",
@@ -710,7 +710,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
                 "id": "elev-1",
                 "name": "Elevator",
                 "type": "org.setuav.core:control-surface",
-                "parent": "htail-1",
+                "attach_to": "htail-1",
                 "parameters": {
                     "geometry": {
                         "type": "elevator",
@@ -772,7 +772,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
                 "id": "flap-1",
                 "name": "flap",
                 "type": "org.setuav.core:control-surface",
-                "parent": "wing-1",
+                "attach_to": "wing-1",
                 "parameters": {
                     "geometry": {
                         "type": "flap",
@@ -787,7 +787,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
                 "id": "aileron-1",
                 "name": "aileron",
                 "type": "org.setuav.core:control-surface",
-                "parent": "wing-1",
+                "attach_to": "wing-1",
                 "parameters": {
                     "geometry": {
                         "type": "aileron",
@@ -870,7 +870,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
                     "id": f"cs-{surface_type}",
                     "name": surface_type,
                     "type": "org.setuav.core:control-surface",
-                    "parent": "wing-1",
+                    "attach_to": "wing-1",
                     "parameters": {
                         "geometry": {
                             "type": surface_type,
@@ -945,7 +945,7 @@ class AeroSandboxEngineTests(unittest.TestCase):
                     "id": f"{component_id}-cs",
                     "name": surface_type,
                     "type": "org.setuav.core:control-surface",
-                    "parent": component_id,
+                    "attach_to": component_id,
                     "parameters": {
                         "geometry": {
                             "type": surface_type,

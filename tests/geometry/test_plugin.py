@@ -22,9 +22,8 @@ class AirframeDesignPluginLifecycleTests(unittest.TestCase):
         plugin.activate(api)
 
         # Check toolbar items registered (pending since no host bound yet)
-        self.assertEqual(len(api._pending_toolbar_items), 4)
+        self.assertEqual(len(api._pending_toolbar_items), 3)
         toolbar_ids = [item.id for item in api._pending_toolbar_items]
-        self.assertIn("airframe.create-airframe", toolbar_ids)
         self.assertIn("airframe.create-fuselage", toolbar_ids)
         self.assertIn("airframe.create-lifting-surface", toolbar_ids)
         self.assertIn("airframe.create-control-surface", toolbar_ids)
@@ -38,13 +37,12 @@ class AirframeDesignPluginLifecycleTests(unittest.TestCase):
         self.assertIn("org.setuav.core:lifting-surface", api._component_editors)
         self.assertIn("org.setuav.core:fuselage", api._component_editors)
         self.assertIn("org.setuav.core:control-surface", api._component_editors)
-        self.assertIn("org.setuav.core:airframe", api._component_editors)
+        self.assertEqual(api.subpart_types, {"org.setuav.core:control-surface"})
 
         # Check component icons registered
         self.assertIn("org.setuav.core:lifting-surface", api._component_icons)
         self.assertIn("org.setuav.core:fuselage", api._component_icons)
         self.assertIn("org.setuav.core:control-surface", api._component_icons)
-        self.assertIn("org.setuav.core:airframe", api._component_icons)
 
         # Check settings page registered
         self.assertIn("airframe_design.settings.editor", api._settings_pages)
@@ -61,12 +59,11 @@ class AirframeDesignPluginLifecycleTests(unittest.TestCase):
         self.assertNotIn("org.setuav.core:lifting-surface", api._component_editors)
         self.assertNotIn("org.setuav.core:fuselage", api._component_editors)
         self.assertNotIn("org.setuav.core:control-surface", api._component_editors)
-        self.assertNotIn("org.setuav.core:airframe", api._component_editors)
+        self.assertEqual(api.subpart_types, frozenset())
 
         self.assertNotIn("org.setuav.core:lifting-surface", api._component_icons)
         self.assertNotIn("org.setuav.core:fuselage", api._component_icons)
         self.assertNotIn("org.setuav.core:control-surface", api._component_icons)
-        self.assertNotIn("org.setuav.core:airframe", api._component_icons)
 
         self.assertNotIn("airframe_design.settings.editor", api._settings_pages)
 
@@ -85,7 +82,7 @@ class AirframeDesignPluginLifecycleTests(unittest.TestCase):
         manager.deactivate(plugin.id)
         self.assertFalse(manager.is_active(plugin.id))
 
-    def test_on_project_opened_does_not_insert_airframe_by_default(self) -> None:
+    def test_on_project_opened_leaves_the_project_unchanged(self) -> None:
         from pathlib import Path
 
         from setuav_studio.project import ProjectDocument
@@ -98,8 +95,7 @@ class AirframeDesignPluginLifecycleTests(unittest.TestCase):
         api._host.set_project(doc)
 
         plugin._on_project_opened()
-        # Verify airframe was NOT automatically inserted
-        self.assertFalse(any(c.get("id") == "airframe" for c in doc.data["components"]))
+        self.assertEqual(doc.data["components"], [])
 
         plugin.deactivate(api)
 

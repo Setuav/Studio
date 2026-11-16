@@ -46,6 +46,10 @@ class ComponentTypeContribution:
     @param model Optional domain model class or factory function.
     @param editor Optional editor widget factory function.
     @param category Optional category group name (e.g. ``Aerodynamics``, ``Propulsion``).
+    @param subpart Whether a component of this type is part of the component it attaches
+        to, such as a control surface of its lifting surface. Its frame is that
+        component's, the explorer nests it there, and that component's mass and envelope
+        include it.
     """
 
     id: str
@@ -54,6 +58,7 @@ class ComponentTypeContribution:
     model: Any = None
     editor: Callable[[dict[str, Any]], QWidget] | None = None
     category: str | None = None
+    subpart: bool = False
 
 
 @dataclass(frozen=True)

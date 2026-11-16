@@ -12,7 +12,6 @@ from setuav_studio.api import (
 from setuav_studio.ui.style.icons import register_plugin_icons
 
 from .creation import AirframeCreationController
-from .editors.airframe import AirframeEditor
 from .editors.control_surface import ControlSurfaceEditor
 from .editors.fuselage import FuselageEditor
 from .editors.lifting_surface import LiftingSurfaceEditor
@@ -83,14 +82,7 @@ class AirframeDesignPlugin:
                 model=ControlSurfaceModel,
                 editor=lambda component: ControlSurfaceEditor(api, component),
                 category="Airframe Design",
-            ),
-            ComponentTypeContribution(
-                id="org.setuav.core:airframe",
-                name="Airframe",
-                icon="component_structural_system",
-                model=None,
-                editor=lambda component: AirframeEditor(api, component),
-                category="Airframe Design",
+                subpart=True,
             ),
         ]
         for contrib in self._component_types:

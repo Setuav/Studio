@@ -64,6 +64,7 @@ class ProjectExplorer(QTreeWidget):
         self._item_map: dict[str, QTreeWidgetItem] = {}
         self._element_map: dict[QTreeWidgetItem, dict[str, Any]] = {}
         self._project_root_item: QTreeWidgetItem | None = None
+        self._vehicle_item: QTreeWidgetItem | None = None
         self._parameters_group_item: QTreeWidgetItem | None = None
         self._constraints_group_item: QTreeWidgetItem | None = None
         self._analysis_group_item: QTreeWidgetItem | None = None

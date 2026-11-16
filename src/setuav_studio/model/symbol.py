@@ -23,7 +23,7 @@ def create_model_for_component(
 
 
 def build_component_models(components: Any, api: Any | None = None) -> list[Component]:
-    """Instantiate a domain model for each component and link child models to their parents."""
+    """Instantiate a domain model for each component and link each to the one it attaches to."""
     if not isinstance(components, list):
         return []
     models = [
@@ -33,10 +33,10 @@ def build_component_models(components: Any, api: Any | None = None) -> list[Comp
     ]
     model_by_id = {model.id: model for model in models if model.id}
     for model in models:
-        parent_model = model_by_id.get(model.parent or "")
-        if parent_model is not None:
-            model.set_parent_model(parent_model)
-            parent_model.add_child_model(model)
+        target_model = model_by_id.get(model.attach_to or "")
+        if target_model is not None:
+            model.set_attach_target_model(target_model)
+            target_model.add_child_model(model)
     return models
 
 
@@ -91,8 +91,10 @@ def get_available_symbols_metadata(  # noqa: C901
             raw_id = str(comp.get("id") or "")
             cid = raw_id.replace("-", "_")
             cname = str(comp.get("name") or cid)
-            parent_raw = str(comp.get("parent") or "")
-            parent_id = parent_raw.replace("-", "_") if parent_raw else None
+            # Subparts are listed under the component they are part of.
+            target_raw = str(comp.get("attach_to") or "")
+            is_subpart = api is not None and comp.get("type") in api.subpart_types
+            parent_id = target_raw.replace("-", "_") if target_raw and is_subpart else None
             proxy_or_model = context.get(cid)
             model = getattr(proxy_or_model, "_target", proxy_or_model)
 
