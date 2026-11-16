@@ -200,19 +200,21 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertEqual(battery_comp, opened)
         self.assertFalse(api.can_undo)
         self.assertEqual(editor._property_value(editor.cell_table, "chemistry"), "LiPo")
-        self.assertEqual(editor._property_value(editor.cell_table, "cell_id"), "lipo_6000")
+        self.assertEqual(
+            editor._property_value(editor.cell_table, "cell_id"), "melasta_slpba842124hv"
+        )
 
         # 6S of the fixture cell: the mass and pack values follow the cell data.
         cell_count = editor._property_cell(editor.pack_table, "cell_count")
         assert cell_count is not None
         cell_count.setValue(6)
         self.assertEqual(battery_comp["parameters"]["cell_count"], 6)
-        self.assertEqual(battery_comp["mass"], 6 * 180.0 + 40.0)
-        self.assertEqual(editor._property_text(editor.general_table, 2), "1120.0")
+        self.assertEqual(battery_comp["mass"], 6 * 121.0 + 40.0)
+        self.assertEqual(editor._property_text(editor.general_table, 2), "766.0")
         nominal = editor._property_cell(editor.pack_table, "nominal_voltage")
         assert nominal is not None
         self.assertTrue(nominal.isReadOnly())
-        self.assertEqual(nominal.line_edit.text(), "22.2")
+        self.assertEqual(nominal.line_edit.text(), "22.8")
 
         api.undo()
         self.assertEqual(battery_comp, opened)
@@ -289,10 +291,10 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertIn("sunnysky", editor._property_text(editor.structure_table, 2).lower())
         self.assertIn("apc", editor._property_text(editor.structure_table, 3).lower())
         self.assertEqual(
-            editor._property_value(editor.metrics_table, "operating_voltage"), "3S (11.1 V)"
+            editor._property_value(editor.metrics_table, "operating_voltage"), "3S (11.4 V)"
         )
         self.assertEqual(
-            editor._property_value(editor.metrics_table, "energy_capacity"), "6000 mAh (66.6 Wh)"
+            editor._property_value(editor.metrics_table, "energy_capacity"), "7279 mAh (83.0 Wh)"
         )
         editor.close()
         editor.deleteLater()
@@ -310,20 +312,22 @@ class TestElectricalPropulsion(unittest.TestCase):
 
         model = BatteryModel(deepcopy(battery_comp))
         pack = model.pack
-        self.assertEqual(pack.cell.id, "lipo_6000")
-        self.assertAlmostEqual(pack.capacity_mah, 6000.0)
-        self.assertAlmostEqual(pack.nominal_voltage_v, 11.1)
-        self.assertAlmostEqual(pack.charge_voltage_v, 12.6)
-        self.assertAlmostEqual(pack.internal_resistance_ohm, 3 * 0.0025)
-        self.assertAlmostEqual(pack.energy_wh, 66.6)
+        cell = pack.cell
+        self.assertEqual(cell.id, "melasta_slpba842124hv")
+        self.assertAlmostEqual(pack.capacity_mah, cell.capacity_ah * 1000.0)
+        self.assertAlmostEqual(pack.nominal_voltage_v, 3 * 3.8)
+        self.assertAlmostEqual(pack.charge_voltage_v, 3 * 4.35)
+        self.assertAlmostEqual(pack.internal_resistance_ohm, 3 * cell.mid_discharge_resistance_ohm)
+        self.assertAlmostEqual(pack.energy_wh, cell.capacity_ah * 3 * 3.8)
+        self.assertEqual(pack.mass_g, 3 * 121.0 + 40.0)
         self.assertEqual(pack.mass_g, battery_comp["mass"])
         props = model.get_exposed_properties()
         self.assertEqual(props["chemistry"], "LiPo")
-        self.assertAlmostEqual(props["capacity"], 6000.0)
+        self.assertAlmostEqual(props["capacity"], pack.capacity_mah)
 
         rate_map = pack.rate_map()
         self.assertEqual((rate_map.series, rate_map.parallel), (3, 1))
-        self.assertAlmostEqual(rate_map.ocv(0.0) * 3, 12.6)
+        self.assertEqual(rate_map.capacity_ah, cell.capacity_ah)
 
     def test_catalog_database_and_dialog(self) -> None:
         from plugins.electrical_propulsion.catalog_dialog import (
@@ -608,8 +612,20 @@ class TestElectricalPropulsion(unittest.TestCase):
 
         light = powertrain.discharge_time_s(power_w=30.0, final_soc=0.2)
         heavy = powertrain.discharge_time_s(power_w=300.0, final_soc=0.2)
-        # 80 % of a 66.6 Wh pack at 30 W is a little under 1.8 h.
-        self.assertAlmostEqual(light / 3600.0, 0.8 * 66.6 / 30.0, delta=0.15)
+        # At 30 W the resistive loss is small: the time approaches the open-circuit
+        # energy between 100 % and 20 % state of charge divided by the power.
+        battery = powertrain.battery
+        steps = 800
+        ocv_energy_wh = (
+            battery.capacity_ah
+            * battery.series
+            * battery.parallel
+            * sum(battery.ocv(0.8 * (k + 0.5) / steps) for k in range(steps))
+            * 0.8
+            / steps
+        )
+        self.assertLess(light / 3600.0, ocv_energy_wh / 30.0)
+        self.assertGreater(light / 3600.0, 0.98 * ocv_energy_wh / 30.0)
         self.assertLess(heavy * 10.0, light)
         with self.assertRaisesRegex(PowertrainError, "not below"):
             powertrain.with_state_of_charge(0.2).discharge_time_s(power_w=30.0, final_soc=0.2)
@@ -642,7 +658,16 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertLess(two.battery_voltage_v, one.battery_voltage_v)
         self.assertLess(two.rpm, one.rpm)
         self.assertLess(two.thrust_n, 2.0 * one.thrust_n)
-        self.assertGreater(two.thrust_n, 1.9 * one.thrust_n)
+        # Both draws sag the one pack through its full-charge resistance.
+        battery = single.battery
+        ocv_v = battery.ocv(0.0) * battery.series
+        resistance_ohm = battery.resistance(0.0) * battery.series / battery.parallel
+        for point in (one, two):
+            self.assertAlmostEqual(
+                point.battery_voltage_v,
+                ocv_v - point.battery_current_a * resistance_ohm,
+                delta=1e-6,
+            )
         self.assertAlmostEqual(
             two.battery_power_w, two.battery_voltage_v * two.battery_current_a, delta=1e-6
         )

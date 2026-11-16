@@ -20,7 +20,7 @@ CELL_DATA_DIR = Path(__file__).resolve().parent / "data" / "cells"
 CHEMISTRIES = ("LiPo", "Li-Ion")
 
 DEFAULT_CELLS = {
-    "LiPo": "lipo_6000",
+    "LiPo": "melasta_slpba842124hv",
     "Li-Ion": "molicel_p42a",
 }
 

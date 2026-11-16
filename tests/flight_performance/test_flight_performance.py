@@ -56,7 +56,7 @@ def _powertrain(unit_count: int = 1) -> Powertrain:
         ),
         propeller=PropellerSpec(diameter_m=0.3302, pitch_m=0.1651, blade_count=2),
         propeller_data=propeller_data,
-        battery=cell_spec("lipo_6000").rate_map(series=6, parallel=1),
+        battery=cell_spec("melasta_slpba842124hv").rate_map(series=6, parallel=1),
         battery_state=BatteryState(soc=1.0),
         unit_system=SystemSpec(resistance_ohm=0.005),
         unit_count=unit_count,
@@ -195,8 +195,11 @@ class LevelFlightComputationTests(unittest.TestCase):
         # The open-circuit energy between full charge and the 20 % reserve, less the
         # losses of the voltage sag.
         dods = np.linspace(0.0, 0.8, 801)
-        ocv = np.array([powertrain.battery.ocv(float(dod)) for dod in dods])
-        reversible_wh = float(np.trapezoid(ocv, dods)) * 6.0 * 6
+        battery = powertrain.battery
+        ocv = np.array([battery.ocv(float(dod)) for dod in dods])
+        reversible_wh = (
+            float(np.trapezoid(ocv, dods)) * battery.capacity_ah * battery.series * battery.parallel
+        )
         ideal_min = reversible_wh / propulsion.electrical_power[best] * 60.0
         self.assertLess(envelope.endurance_min[best], ideal_min)
         self.assertGreater(envelope.endurance_min[best], 0.9 * ideal_min)
@@ -226,7 +229,9 @@ class FlightPerformanceSolverTests(unittest.TestCase):
         summary = {key: item.value for key, item in result.summary.items()}
         self.assertTrue(summary["feasible"])
         self.assertTrue(summary["max_speed_bounded"])
-        self.assertAlmostEqual(float(summary["battery_voltage"]), 12.6)
+        # Open-circuit voltage of the fixture's 3S pack at full charge.
+        cell = cell_spec("melasta_slpba842124hv").rate_map(series=1, parallel=1)
+        self.assertAlmostEqual(float(summary["battery_voltage"]), 3 * cell.ocv(0.0), delta=0.005)
         self.assertGreater(float(summary["max_speed"]), float(summary["best_range_speed"]))
         self.assertGreater(float(summary["best_range_speed"]), float(summary["stall_speed"]))
         self.assertGreater(float(summary["max_range"]), 0.0)

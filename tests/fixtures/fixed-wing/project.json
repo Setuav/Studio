@@ -2689,12 +2689,12 @@
         }
       },
       "parameters": {
-        "cell_id": "lipo_6000",
+        "cell_id": "melasta_slpba842124hv",
         "cell_count": 3,
         "parallel_count": 1,
         "packaging_mass": 40.0
       },
-      "mass": 580.0,
+      "mass": 403.0,
       "envelope": {
         "shape": "box",
         "size_mm": {
