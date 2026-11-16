@@ -46,7 +46,7 @@ class BasePropulsionSolver(AbstractSolver):
             project = self.api.project
         if project is None:
             raise RuntimeError("No active project available for propulsion analysis.")
-        components = [c for c in project.data.get("components", []) if isinstance(c, dict)]
+        components = [c for c in project.data["components"] if isinstance(c, dict)]
         members = find_propulsion_system(components)
         if members is None:
             raise PowertrainError("Propulsion analysis requires an electrical propulsion system.")
@@ -54,6 +54,35 @@ class BasePropulsionSolver(AbstractSolver):
             members,
             state_of_charge=float(self.config.parameters["state_of_charge"]) / 100.0,
         )
+
+    def _parameter(self, key: str) -> float:
+        return float(self.config.parameters[key])
+
+    def _air_density(self) -> float:
+        return Atmosphere.at_temperature(
+            self._parameter("altitude"), self._parameter("temperature")
+        ).density_kg_m3
+
+    def _airspeed(self, key: str) -> float:
+        airspeed = self._parameter(key)
+        if airspeed < 0.0:
+            raise ValueError(f"The airspeed ({airspeed:g} m/s) must not be negative.")
+        return airspeed
+
+    def _throttle_pct(self, key: str) -> float:
+        throttle = self._parameter(key)
+        if not 0.0 < throttle <= 100.0:
+            raise ValueError(f"The throttle ({throttle:g} %) must be above 0 % and at most 100 %.")
+        return throttle
+
+    def _sweep(self, low: float, high: float, step: float, name: str) -> list[float]:
+        """Return the points from ``low`` to ``high`` in ``step`` increments."""
+        if step <= 0.0:
+            raise ValueError(f"The {name} step must be positive.")
+        if high < low:
+            raise ValueError(f"The {name} maximum ({high:g}) is below its minimum ({low:g}).")
+        count = int((high - low) / step + 1e-6) + 1
+        return [round(low + k * step, 6) for k in range(count)]
 
     def _build_result(
         self,
@@ -326,20 +355,14 @@ class ThrottleSweepSolver(BasePropulsionSolver):
 
         powertrain = self._powertrain()
 
-        altitude_m = float(self.config.parameters.get("altitude", 0.0))
-        temperature_c = float(self.config.parameters.get("temperature", 15.0))
-        rho = Atmosphere.at_temperature(altitude_m, temperature_c).density_kg_m3
-
-        v_fixed = max(0.0, float(self.config.parameters.get("airspeed", 15.0)))
-        t_min = max(1.0, float(self.config.parameters.get("t_min", 10.0)))
-        t_max = min(100.0, float(self.config.parameters.get("t_max", 100.0)))
-        t_step = max(1.0, float(self.config.parameters.get("t_step", 5.0)))
-
-        t_list: list[float] = []
-        curr_t = t_min
-        while curr_t <= t_max + 1e-4:
-            t_list.append(round(curr_t, 1))
-            curr_t += t_step
+        rho = self._air_density()
+        v_fixed = self._airspeed("airspeed")
+        t_list = self._sweep(
+            self._throttle_pct("t_min"),
+            self._throttle_pct("t_max"),
+            self._parameter("t_step"),
+            "throttle",
+        )
 
         total_points = len(t_list)
         points_data: list[tuple[float, PowertrainPoint]] = []
@@ -460,21 +483,14 @@ class AirspeedSweepSolver(BasePropulsionSolver):
 
         powertrain = self._powertrain()
 
-        altitude_m = float(self.config.parameters.get("altitude", 0.0))
-        temperature_c = float(self.config.parameters.get("temperature", 15.0))
-        rho = Atmosphere.at_temperature(altitude_m, temperature_c).density_kg_m3
-
-        v_min = float(self.config.parameters.get("v_min", 0.0))
-        v_max = float(self.config.parameters.get("v_max", 35.0))
-        v_step = max(0.5, float(self.config.parameters.get("v_step", 1.0)))
-        throttle_pct = max(1.0, min(100.0, float(self.config.parameters.get("throttle", 100.0))))
-        throttle = throttle_pct / 100.0
-
-        v_list: list[float] = []
-        curr_v = v_min
-        while curr_v <= v_max + 1e-4:
-            v_list.append(round(curr_v, 2))
-            curr_v += v_step
+        rho = self._air_density()
+        throttle = self._throttle_pct("throttle") / 100.0
+        v_list = self._sweep(
+            self._airspeed("v_min"),
+            self._airspeed("v_max"),
+            self._parameter("v_step"),
+            "airspeed",
+        )
 
         total_points = len(v_list)
         points_data: list[tuple[float, PowertrainPoint]] = []
@@ -571,12 +587,9 @@ class OperatingPointSolver(BasePropulsionSolver):
 
         powertrain = self._powertrain()
 
-        altitude_m = float(self.config.parameters.get("altitude", 0.0))
-        temperature_c = float(self.config.parameters.get("temperature", 15.0))
-        rho = Atmosphere.at_temperature(altitude_m, temperature_c).density_kg_m3
-
-        v_val = max(0.0, float(self.config.parameters.get("airspeed", 18.0)))
-        t_pct = max(1.0, min(100.0, float(self.config.parameters.get("throttle", 75.0))))
+        rho = self._air_density()
+        v_val = self._airspeed("airspeed")
+        t_pct = self._throttle_pct("throttle")
 
         if self.token is not None:
             self.token.report_progress(1, 1, f"Operating Point (V={v_val:.1f} m/s)")

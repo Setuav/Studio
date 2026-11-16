@@ -158,7 +158,11 @@ class AerodynamicsPluginTests(unittest.TestCase):
         aero_result: AeroResult,
         components: list[dict[str, Any]] | None = None,
     ) -> tuple[SolverResult, dict[str, Any]]:
-        config = SolverConfig(solver_id="aero-test", name="Aero Test", parameters=parameters)
+        config = SolverConfig(
+            solver_id="aero-test",
+            name="Aero Test",
+            parameters={**solver_cls.default_parameters(), **parameters},
+        )
         solver = solver_cls(config)
         solver.project = _project(components or [WING])
         calls: list[dict[str, Any]] = []
@@ -275,6 +279,19 @@ class AerodynamicsPluginTests(unittest.TestCase):
         self.assertNotIn("elevon", offered)
         self.assertNotIn("ruddervator", offered)
 
+    def test_sweep_solver_rejects_reversed_bounds(self) -> None:
+        parameters = {
+            **AlphaSweepSolver.default_parameters(),
+            "alpha_min": 8.0,
+            "alpha_max": -4.0,
+        }
+        with self.assertRaisesRegex(ValueError, "alpha maximum .* must exceed its minimum"):
+            self._run_solver(
+                AlphaSweepSolver,
+                parameters,
+                AeroResult(method=AnalysisMethod.VLM, engine_name="AeroSandbox"),
+            )
+
     def test_alpha_sweep_solver_builds_polar_table_plots_and_summary(self) -> None:
         aero_result = AeroResult(
             method=AnalysisMethod.VLM,
@@ -297,8 +314,8 @@ class AerodynamicsPluginTests(unittest.TestCase):
         result, call = self._run_solver(
             AlphaSweepSolver,
             {
-                "alpha_min": 8.0,
-                "alpha_max": -4.0,
+                "alpha_min": -4.0,
+                "alpha_max": 8.0,
                 "alpha_step": 4.0,
                 "velocity": 20.0,
                 "altitude": 100.0,
@@ -494,7 +511,12 @@ class AerodynamicsPluginTests(unittest.TestCase):
         config = SolverConfig(
             solver_id=SOLVER_ID_ALPHA_SWEEP,
             name="Diverging Polar",
-            parameters={"alpha_min": 0.0, "alpha_max": 4.0, "alpha_step": 2.0},
+            parameters={
+                **AlphaSweepSolver.default_parameters(),
+                "alpha_min": 0.0,
+                "alpha_max": 4.0,
+                "alpha_step": 2.0,
+            },
         )
         solver = AlphaSweepSolver(config)
         solver.project = _project([wing])

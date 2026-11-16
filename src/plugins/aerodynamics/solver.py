@@ -49,7 +49,7 @@ class BaseAerodynamicsSolver(AbstractSolver):
         if project is None:
             raise RuntimeError("No active project available for aerodynamic analysis.")
 
-        components = project.data.get("components", [])
+        components = project.data["components"]
         if not isinstance(components, list):
             raise RuntimeError("Project components collection is invalid.")
 
@@ -64,6 +64,44 @@ class BaseAerodynamicsSolver(AbstractSolver):
             )
 
         return components
+
+    def _parameter(self, key: str) -> float:
+        return float(self.config.parameters[key])
+
+    def _sweep(self, name: str) -> tuple[float, float, int]:
+        """Return the bounds and point count of the ``name`` sweep parameters."""
+        low = self._parameter(f"{name}_min")
+        high = self._parameter(f"{name}_max")
+        step = self._parameter(f"{name}_step")
+        if step <= 0.0:
+            raise ValueError(f"The {name} step must be positive.")
+        if high <= low:
+            raise ValueError(f"The {name} maximum ({high:g}) must exceed its minimum ({low:g}).")
+        return low, high, round((high - low) / step) + 1
+
+    def _velocity(self) -> float:
+        velocity = self._parameter("velocity")
+        if velocity <= 0.0:
+            raise ValueError("The airspeed must be positive.")
+        return velocity
+
+    def _method(self) -> AnalysisMethod:
+        return AnalysisMethod.from_value(self.config.parameters["method"])
+
+    def _settings(self, spanwise_resolution: int, chordwise_resolution: int) -> dict[str, Any]:
+        return {
+            "spanwise_resolution": spanwise_resolution,
+            "chordwise_resolution": chordwise_resolution,
+            "spanwise_spacing": "cosine",
+            "chordwise_spacing": "cosine",
+            "include_wave_drag": True,
+        }
+
+    def _configured_settings(self) -> dict[str, Any]:
+        params = self.config.parameters
+        return self._settings(
+            int(params["spanwise_resolution"]), int(params["chordwise_resolution"])
+        )
 
     def _create_progress_callback(self):
         def progress_cb(current: int, total: int, message: str) -> None:
@@ -193,45 +231,23 @@ class AlphaSweepSolver(BaseAerodynamicsSolver):
 
         components = self._extract_components()
 
-        alpha_min = float(self.config.parameters.get("alpha_min", -5.0))
-        alpha_max = float(self.config.parameters.get("alpha_max", 15.0))
-        alpha_step = max(0.1, float(self.config.parameters.get("alpha_step", 1.0)))
-        if alpha_max < alpha_min:
-            alpha_min, alpha_max = alpha_max, alpha_min
-
-        num_steps = max(2, round((alpha_max - alpha_min) / alpha_step) + 1)
-        velocity = max(1.0, float(self.config.parameters.get("velocity", 25.0)))
-        altitude = float(self.config.parameters.get("altitude", 0.0))
-        beta = float(self.config.parameters.get("beta", 0.0))
-        method = AnalysisMethod.from_value(self.config.parameters.get("method", "aero_buildup"))
-
-        span_res = int(self.config.parameters.get("spanwise_resolution", 12))
-        chord_res = int(self.config.parameters.get("chordwise_resolution", 8))
-
+        alpha_min, alpha_max, num_steps = self._sweep("alpha")
         condition = FlightCondition(
-            velocity=velocity,
-            alpha=2.0,
-            beta=beta,
-            altitude=altitude,
+            velocity=self._velocity(),
+            alpha=alpha_min,
+            beta=self._parameter("beta"),
+            altitude=self._parameter("altitude"),
             sweep_variable="alpha",
             sweep_min=alpha_min,
             sweep_max=alpha_max,
             sweep_steps=num_steps,
         )
 
-        settings = {
-            "spanwise_resolution": span_res,
-            "chordwise_resolution": chord_res,
-            "spanwise_spacing": "cosine",
-            "chordwise_spacing": "cosine",
-            "include_wave_drag": True,
-        }
-
         aero_result = self.engine.analyze(
             components=components,
             condition=condition,
-            method=method,
-            settings=settings,
+            method=self._method(),
+            settings=self._configured_settings(),
             progress_callback=self._create_progress_callback(),
         )
 
@@ -491,45 +507,23 @@ class BetaSweepSolver(BaseAerodynamicsSolver):
 
         components = self._extract_components()
 
-        beta_min = float(self.config.parameters.get("beta_min", -15.0))
-        beta_max = float(self.config.parameters.get("beta_max", 15.0))
-        beta_step = max(0.1, float(self.config.parameters.get("beta_step", 1.0)))
-        if beta_max < beta_min:
-            beta_min, beta_max = beta_max, beta_min
-
-        num_steps = max(2, round((beta_max - beta_min) / beta_step) + 1)
-        alpha = float(self.config.parameters.get("alpha", 2.0))
-        velocity = max(1.0, float(self.config.parameters.get("velocity", 25.0)))
-        altitude = float(self.config.parameters.get("altitude", 0.0))
-        method = AnalysisMethod.from_value(self.config.parameters.get("method", "aero_buildup"))
-
-        span_res = int(self.config.parameters.get("spanwise_resolution", 12))
-        chord_res = int(self.config.parameters.get("chordwise_resolution", 8))
-
+        beta_min, beta_max, num_steps = self._sweep("beta")
         condition = FlightCondition(
-            velocity=velocity,
-            alpha=alpha,
-            beta=0.0,
-            altitude=altitude,
+            velocity=self._velocity(),
+            alpha=self._parameter("alpha"),
+            beta=beta_min,
+            altitude=self._parameter("altitude"),
             sweep_variable="beta",
             sweep_min=beta_min,
             sweep_max=beta_max,
             sweep_steps=num_steps,
         )
 
-        settings = {
-            "spanwise_resolution": span_res,
-            "chordwise_resolution": chord_res,
-            "spanwise_spacing": "cosine",
-            "chordwise_spacing": "cosine",
-            "include_wave_drag": True,
-        }
-
         aero_result = self.engine.analyze(
             components=components,
             condition=condition,
-            method=method,
-            settings=settings,
+            method=self._method(),
+            settings=self._configured_settings(),
             progress_callback=self._create_progress_callback(),
         )
 
@@ -773,7 +767,7 @@ class ControlDeflectionSolver(BaseAerodynamicsSolver):
 
         components = self._extract_components()
 
-        channel = str(self.config.parameters.get("channel", "elevator")).strip().lower()
+        channel = str(self.config.parameters["channel"])
         available_channels = control_channels_for_components(components)
         if channel not in available_channels:
             available = ", ".join(available_channels) or "none"
@@ -781,24 +775,12 @@ class ControlDeflectionSolver(BaseAerodynamicsSolver):
                 f"Aircraft has no '{channel}' control channel (available: {available})."
             )
 
-        def_min = float(self.config.parameters.get("deflection_min", -20.0))
-        def_max = float(self.config.parameters.get("deflection_max", 20.0))
-        def_step = max(0.5, float(self.config.parameters.get("deflection_step", 2.0)))
-        if def_max < def_min:
-            def_min, def_max = def_max, def_min
-
-        num_steps = max(2, round((def_max - def_min) / def_step) + 1)
-        alpha = float(self.config.parameters.get("alpha", 2.0))
-        beta = float(self.config.parameters.get("beta", 0.0))
-        velocity = max(1.0, float(self.config.parameters.get("velocity", 25.0)))
-        altitude = float(self.config.parameters.get("altitude", 0.0))
-        method = AnalysisMethod.from_value(self.config.parameters.get("method", "aero_buildup"))
-
+        def_min, def_max, num_steps = self._sweep("deflection")
         condition = FlightCondition(
-            velocity=velocity,
-            alpha=alpha,
-            beta=beta,
-            altitude=altitude,
+            velocity=self._velocity(),
+            alpha=self._parameter("alpha"),
+            beta=self._parameter("beta"),
+            altitude=self._parameter("altitude"),
             sweep_variable=channel,
             sweep_min=def_min,
             sweep_max=def_max,
@@ -806,19 +788,11 @@ class ControlDeflectionSolver(BaseAerodynamicsSolver):
             control_deflections={channel: 0.0},
         )
 
-        settings = {
-            "spanwise_resolution": 12,
-            "chordwise_resolution": 8,
-            "spanwise_spacing": "cosine",
-            "chordwise_spacing": "cosine",
-            "include_wave_drag": True,
-        }
-
         aero_result = self.engine.analyze(
             components=components,
             condition=condition,
-            method=method,
-            settings=settings,
+            method=self._method(),
+            settings=self._settings(12, 8),
             progress_callback=self._create_progress_callback(),
         )
 
@@ -1056,39 +1030,25 @@ class OperatingPointSolver(BaseAerodynamicsSolver):
 
         components = self._extract_components()
 
-        alpha = float(self.config.parameters.get("alpha", 2.0))
-        beta = float(self.config.parameters.get("beta", 0.0))
-        velocity = max(1.0, float(self.config.parameters.get("velocity", 25.0)))
-        altitude = float(self.config.parameters.get("altitude", 0.0))
-        method = AnalysisMethod.from_value(self.config.parameters.get("method", "aero_buildup"))
-
-        span_res = int(self.config.parameters.get("spanwise_resolution", 12))
-        chord_res = int(self.config.parameters.get("chordwise_resolution", 8))
-
+        alpha = self._parameter("alpha")
+        beta = self._parameter("beta")
+        velocity = self._velocity()
         condition = FlightCondition(
             velocity=velocity,
             alpha=alpha,
             beta=beta,
-            altitude=altitude,
+            altitude=self._parameter("altitude"),
             sweep_variable="alpha",
             sweep_min=alpha,
             sweep_max=alpha,
             sweep_steps=1,
         )
 
-        settings = {
-            "spanwise_resolution": span_res,
-            "chordwise_resolution": chord_res,
-            "spanwise_spacing": "cosine",
-            "chordwise_spacing": "cosine",
-            "include_wave_drag": True,
-        }
-
         aero_result = self.engine.analyze(
             components=components,
             condition=condition,
-            method=method,
-            settings=settings,
+            method=self._method(),
+            settings=self._configured_settings(),
             progress_callback=self._create_progress_callback(),
         )
 
