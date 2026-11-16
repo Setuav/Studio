@@ -561,11 +561,7 @@ def _compute_lifting_surface_trapezoidal_slices(
     sections: list[dict[str, Any]] = []
     slices: list[dict[str, Any]] = []
     semi_vol = 0.0
-    weighted_x = 0.0
-    weighted_y = 0.0
-    weighted_z = 0.0
-
-    panel_data: list[tuple[float, tuple[float, float, float], tuple[float, float, float]]] = []
+    panel_data: list[Panel] = []
 
     # Compute section bboxes for all profiles
     shaping = geometry.get("airfoil_shaping")
@@ -669,50 +665,26 @@ def _compute_lifting_surface_trapezoidal_slices(
         if span_len < 1e-4:
             continue
 
-        geom_mean = math.sqrt(max(a1 * a2, 0.0))
-        vol = (span_len / 3.0) * (a1 + a2 + geom_mean)
-        if vol <= 0.0:
-            continue
-
-        denom = 4.0 * (a1 + a2 + geom_mean)
-        t = (a1 + 2.0 * geom_mean + 3.0 * a2) / denom if denom > 1e-9 else 0.5
-
-        sec1_cg = (x1 + c1 * cx_norm1, y1, z1 + c1 * cz_norm1)
-        sec2_cg = (x2 + c2 * cx_norm2, y2, z2 + c2 * cz_norm2)
-
-        cg_panel = (
-            sec1_cg[0] + t * (sec2_cg[0] - sec1_cg[0]),
-            sec1_cg[1] + t * (sec2_cg[1] - sec1_cg[1]),
-            sec1_cg[2] + t * (sec2_cg[2] - sec1_cg[2]),
-        )
-
-        factor = (
-            (a1 + 3.0 * geom_mean + 6.0 * a2) / (10.0 * (a1 + a2 + geom_mean)) - t**2
-            if denom > 1e-9
-            else 1.0 / 12.0
-        )
-        j_span = vol * (span_len**2) * max(factor, 0.0)
-
         # Radii of gyration squared (normalized by chord^2) from Green's theorem,
         # averaged over the end sections that have cross-section area.
-        k_chord_sq = _mean_gyration_sq(((izz_norm1, a_norm1), (izz_norm2, a_norm2)))
-        k_thick_sq = _mean_gyration_sq(((ixx_norm1, a_norm1), (ixx_norm2, a_norm2)))
-
         c_avg = (c1 + c2) * 0.5
-
-        j_chord = vol * (c_avg**2) * k_chord_sq
-        j_thick = vol * (c_avg**2) * k_thick_sq
-
-        ixx_panel = j_span + j_thick
-        iyy_panel = j_chord + j_thick
-        izz_panel = j_span + j_chord
-
+        panel = _frustum_panel(
+            span_len,
+            (a1, a2),
+            (
+                (x1 + c1 * cx_norm1, y1, z1 + c1 * cz_norm1),
+                (x2 + c2 * cx_norm2, y2, z2 + c2 * cz_norm2),
+            ),
+            (
+                (c_avg**2) * _mean_gyration_sq(((izz_norm1, a_norm1), (izz_norm2, a_norm2))),
+                (c_avg**2) * _mean_gyration_sq(((ixx_norm1, a_norm1), (ixx_norm2, a_norm2))),
+            ),
+        )
+        if panel is None:
+            continue
+        vol, cg_panel, _ = panel
         semi_vol += vol
-        weighted_x += vol * cg_panel[0]
-        weighted_y += vol * cg_panel[1]
-        weighted_z += vol * cg_panel[2]
-
-        panel_data.append((vol, cg_panel, (ixx_panel, iyy_panel, izz_panel)))
+        panel_data.append(panel)
         slices.append(
             {
                 "index": i,
@@ -741,6 +713,65 @@ def _compute_lifting_surface_trapezoidal_slices(
             {"ixx": 0.0, "iyy": 0.0, "izz": 0.0, "ixy": 0.0, "ixz": 0.0, "iyz": 0.0},
         )
 
+    total_vol, cg_total, unit_inertia = _combine_panels(panel_data, mirror=mirror)
+    return sections, slices, total_vol, cg_total, unit_inertia
+
+
+Panel = tuple[float, tuple[float, float, float], tuple[float, float, float]]
+"""Volume, centroid and principal inertia about the centroid of one slice."""
+
+
+def _frustum_panel(
+    span_len: float,
+    areas: tuple[float, float],
+    centroids: tuple[tuple[float, float, float], tuple[float, float, float]],
+    gyration_sq: tuple[float, float],
+) -> Panel | None:
+    """Return the slice between two sections of ``areas`` and ``centroids``.
+
+    The slice is a prismatoid; ``gyration_sq`` holds its chordwise and thickness
+    radii of gyration squared.
+    """
+    a1, a2 = areas
+    geom_mean = math.sqrt(max(a1 * a2, 0.0))
+    vol = (span_len / 3.0) * (a1 + a2 + geom_mean)
+    if vol <= 0.0:
+        return None
+    denom = 4.0 * (a1 + a2 + geom_mean)
+    t = (a1 + 2.0 * geom_mean + 3.0 * a2) / denom if denom > 1e-9 else 0.5
+    first, second = centroids
+    centroid = (
+        first[0] + t * (second[0] - first[0]),
+        first[1] + t * (second[1] - first[1]),
+        first[2] + t * (second[2] - first[2]),
+    )
+    factor = (
+        (a1 + 3.0 * geom_mean + 6.0 * a2) / (10.0 * (a1 + a2 + geom_mean)) - t**2
+        if denom > 1e-9
+        else 1.0 / 12.0
+    )
+    j_span = vol * (span_len**2) * max(factor, 0.0)
+    j_chord = vol * gyration_sq[0]
+    j_thick = vol * gyration_sq[1]
+    return vol, centroid, (j_span + j_thick, j_chord + j_thick, j_span + j_chord)
+
+
+def _combine_panels(
+    panel_data: list[Panel], *, mirror: bool
+) -> tuple[float, tuple[float, float, float], dict[str, float]]:
+    """Return the volume, centroid and unit inertia of ``panel_data``.
+
+    ``mirror`` adds the panels' image in the XZ plane.
+    """
+    semi_vol = 0.0
+    weighted_x = 0.0
+    weighted_y = 0.0
+    weighted_z = 0.0
+    for vol, centroid, _inertia in panel_data:
+        semi_vol += vol
+        weighted_x += vol * centroid[0]
+        weighted_y += vol * centroid[1]
+        weighted_z += vol * centroid[2]
     cg_x = weighted_x / semi_vol
     cg_z = weighted_z / semi_vol
     cg_y = 0.0 if mirror else (weighted_y / semi_vol)
@@ -784,8 +815,7 @@ def _compute_lifting_surface_trapezoidal_slices(
         "ixz": round(ixz_total / scale, 8),
         "iyz": round(iyz_total / scale, 8),
     }
-
-    return sections, slices, total_vol, cg_total, unit_inertia
+    return total_vol, cg_total, unit_inertia
 
 
 # =============================================================================
@@ -933,10 +963,8 @@ def _compute_control_surface_envelope(
     offset_y = round((max(ys) + min(ys)) * 0.5, 1)
     offset_z = round((max(zs) + min(zs)) * 0.5, 1)
 
-    total_vol = 0.0
-    weighted_x = 0.0
-    weighted_y = 0.0
-    weighted_z = 0.0
+    # Area, centroid and chordwise / thickness second moments of each section.
+    section_properties: list[tuple[float, tuple[float, float, float], float, float]] = []
     slices: list[dict[str, Any]] = []
 
     for idx, sec in enumerate(control_loft.sections):
@@ -952,6 +980,10 @@ def _compute_control_surface_envelope(
         min_y = min(p[1] for p in pts)
         max_y = max(p[1] for p in pts)
         y_center = (min_y + max_y) * 0.5
+        area, cx, cz, izz_c, ixx_c, _ixz_c = _polygon_cross_section_properties(
+            [(p[0], p[2]) for p in pts]
+        )
+        section_properties.append((area, (cx, y_center, cz), izz_c, ixx_c))
 
         thick = round(top_z - bot_z, 2)
         c_sec = round(max_x - min_x, 2)
@@ -976,36 +1008,31 @@ def _compute_control_surface_envelope(
                 "thickness_mm": thick,
                 "x_bounds_mm": [round(min_x, 2), round(max_x, 2)],
                 "z_bounds_mm": [round(bot_z, 2), round(top_z, 2)],
-                "area_mm2": round(0.5 * c_sec * thick, 2),
+                "area_mm2": round(area, 2),
                 "shape": "wedge",
                 "corners_3d": corners,
             }
         )
 
+    panels: list[Panel] = []
     for i in range(len(sections) - 1):
-        s1 = sections[i]
-        s2 = sections[i + 1]
-        c1 = s1["chord_mm"]
-        c2 = s2["chord_mm"]
-
-        y1 = s1["span_y_mm"]
-        y2 = s2["span_y_mm"]
+        a1, cg1, izz1, ixx1 = section_properties[i]
+        a2, cg2, izz2, ixx2 = section_properties[i + 1]
+        y1, y2 = cg1[1], cg2[1]
         span_len = abs(y2 - y1)
-        a1 = s1["area_mm2"]
-        a2 = s2["area_mm2"]
-        geom_mean = math.sqrt(max(a1 * a2, 0.0))
-        vol = (span_len / 3.0) * (a1 + a2 + geom_mean)
-        total_vol += vol
-
-        cg_slice = (
-            (s1["position"]["x"] + s2["position"]["x"]) * 0.5 + (c1 + c2) * 0.2,
-            (y1 + y2) * 0.5,
-            (s1["position"]["z"] + s2["position"]["z"]) * 0.5,
+        panel = _frustum_panel(
+            span_len,
+            (a1, a2),
+            (cg1, cg2),
+            (
+                _mean_gyration_sq(((izz1, a1), (izz2, a2))),
+                _mean_gyration_sq(((ixx1, a1), (ixx2, a2))),
+            ),
         )
-        weighted_x += vol * cg_slice[0]
-        weighted_y += vol * cg_slice[1]
-        weighted_z += vol * cg_slice[2]
-
+        if panel is None:
+            continue
+        panels.append(panel)
+        vol, cg_slice, _ = panel
         slices.append(
             {
                 "index": i,
@@ -1014,8 +1041,8 @@ def _compute_control_surface_envelope(
                 "span_start_mm": round(y1, 2),
                 "span_end_mm": round(y2, 2),
                 "length_mm": round(span_len, 2),
-                "chord_start_mm": round(c1, 2),
-                "chord_end_mm": round(c2, 2),
+                "chord_start_mm": sections[i]["chord_mm"],
+                "chord_end_mm": sections[i + 1]["chord_mm"],
                 "volume_mm3": round(vol, 2),
                 "centroid_mm": {
                     "x": round(cg_slice[0], 2),
@@ -1025,19 +1052,13 @@ def _compute_control_surface_envelope(
             }
         )
 
+    total_vol = 0.0
     unit_inertia = {"ixx": 0.0, "iyy": 0.0, "izz": 0.0, "ixy": 0.0, "ixz": 0.0, "iyz": 0.0}
-    if total_vol > 0.0:
-        offset_x = round(weighted_x / total_vol, 1)
-        offset_y = round(weighted_y / total_vol, 1)
-        offset_z = round(weighted_z / total_vol, 1)
-
-        # Wedge radii of gyration squared, in m^2
-        k_span = (size_y**2) / 12.0 / 1e6
-        k_chord = (size_x**2) / 18.0 / 1e6
-        k_thick = (size_z**2) / 18.0 / 1e6
-        unit_inertia["ixx"] = round(k_span + k_thick, 8)
-        unit_inertia["iyy"] = round(k_chord + k_thick, 8)
-        unit_inertia["izz"] = round(k_span + k_chord, 8)
+    if panels:
+        total_vol, centroid, unit_inertia = _combine_panels(panels, mirror=False)
+        offset_x = round(centroid[0], 1)
+        offset_y = round(centroid[1], 1)
+        offset_z = round(centroid[2], 1)
 
     env_dict = {
         "shape": "box",

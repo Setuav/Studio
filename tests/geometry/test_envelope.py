@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import unittest
 from copy import deepcopy
 from typing import Any
@@ -224,9 +225,11 @@ class GeometryEnvelopeTests(unittest.TestCase):
         size = env["size_mm"]
         offset = env["offset_mm"]
 
-        # Span from 200 to 500 mm -> width 300 mm, offset_y = 350 mm
+        # Span from 200 to 500 mm -> width 300 mm. The wing tapers, so the section
+        # area at 500 mm is 0.49 of that at 200 mm and the volume centroid of the
+        # prismatoid sits 0.442 of the span out: y = 200 + 0.442 * 300.
         self.assertAlmostEqual(size["y"], 300.0, delta=1.0)
-        self.assertAlmostEqual(offset["y"], 350.0, delta=1.0)
+        self.assertAlmostEqual(offset["y"], 332.5, delta=0.5)
 
         # Size covers control surface chord plus sweep (from 125.7 to 183.3 mm -> ~57.7 mm)
         self.assertAlmostEqual(size["x"], 57.7, delta=1.0)
@@ -235,6 +238,41 @@ class GeometryEnvelopeTests(unittest.TestCase):
         self.assertIn("sections", env)
         self.assertEqual(len(env["sections"]), 2)
         self.assertIn("corners_3d", env["sections"][0])
+
+    def test_control_surface_mass_properties_follow_its_section(self) -> None:
+        wing = {
+            "id": "rect-wing",
+            "type": "org.setuav.core:lifting-surface",
+            "parameters": {
+                "geometry": {
+                    "mirror": False,
+                    "profiles": [
+                        {"position": {"x": 0, "y": y, "z": 0}, "chord": 200.0, "airfoil": "0012"}
+                        for y in (0.0, 600.0)
+                    ],
+                }
+            },
+        }
+        control = _sample_control_surface("rect-wing")
+        env = compute_geometry_envelope(control, wing)
+        assert env is not None
+        hinge = env["sections"][0]["x_bounds_mm"][0] / 200.0
+
+        # Aft NACA 0012 section from the hinge, integrated from the thickness formula.
+        def half_thickness(x: float) -> float:
+            return 0.6 * (
+                0.2969 * math.sqrt(x) - 0.1260 * x - 0.3516 * x**2 + 0.2843 * x**3 - 0.1036 * x**4
+            )
+
+        steps = 4000
+        stations = [hinge + (1.0 - hinge) * (k + 0.5) / steps for k in range(steps)]
+        width = (1.0 - hinge) / steps
+        area = sum(2.0 * half_thickness(x) for x in stations) * width * 200.0**2
+        centroid = sum(x * 2.0 * half_thickness(x) for x in stations) * width * 200.0**3 / area
+
+        self.assertAlmostEqual(env["volume_mm3"], area * 300.0, delta=0.03 * area * 300.0)
+        self.assertAlmostEqual(env["offset_mm"]["x"], centroid, delta=2.0)
+        self.assertAlmostEqual(env["offset_mm"]["y"], 350.0, delta=0.1)
 
     def test_polygon_section_bbox_is_measured_from_profile(self) -> None:
         fuse = _sample_fuselage()
