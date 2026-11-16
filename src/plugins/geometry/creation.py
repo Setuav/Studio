@@ -525,23 +525,15 @@ class AirframeCreationController:
 
     @staticmethod
     def _lifting_surface_size(component: dict[str, Any]) -> tuple[float, float]:
-        parameters = component.get("parameters")
-        parameters = parameters if isinstance(parameters, dict) else {}
-        geometry = parameters.get("geometry")
-        geometry = geometry if isinstance(geometry, dict) else {}
-        profiles = geometry.get("profiles")
-        profiles = profiles if isinstance(profiles, list) else []
-        positions: list[float] = []
-        chords: list[float] = []
-        for profile in profiles:
-            if not isinstance(profile, dict):
-                continue
-            position = profile.get("position")
-            if isinstance(position, dict):
-                positions.append(float(position.get("y") or 0.0))
-            chords.append(float(profile.get("chord") or 100.0))
-        semi_span = max(positions, default=500.0) - min(positions, default=0.0)
-        return max(abs(semi_span), 1.0), max(chords[0] if chords else 100.0, 1.0)
+        """Return the semi-span and root chord of a lifting surface's profile stations."""
+        profiles = component["parameters"]["geometry"]["profiles"]
+        if len(profiles) < 2:
+            raise ValueError(
+                f"Lifting surface '{component['id']}' needs two profile stations, "
+                f"got {len(profiles)}."
+            )
+        spans = [float(profile["position"]["y"]) for profile in profiles]
+        return max(spans) - min(spans), float(profiles[0]["chord"])
 
 
 __all__ = [
