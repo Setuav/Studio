@@ -1,3 +1,4 @@
+import itertools
 import math
 from typing import Any
 
@@ -134,7 +135,7 @@ def sample_profile(profile: dict[str, Any]) -> tuple[tuple[float, float], ...]:
         raise ValueError(f"Unknown fuselage profile type {profile_type!r}")
 
     outline = _rounded_outline(vertices)
-    return _radial_samples(outline)
+    return _perimeter_samples(outline)
 
 
 def _ellipse(radius_y: float, radius_z: float) -> tuple[tuple[float, float], ...]:
@@ -193,29 +194,80 @@ def _rounded_outline(
     return outline
 
 
-def _radial_samples(outline: list[tuple[float, float]]) -> tuple[tuple[float, float], ...]:
-    if not outline or max(math.hypot(y, z) for y, z in outline) < 1e-9:
-        return ((0.0, 0.0),) * SECTION_SAMPLES
+def _perimeter_samples(outline: list[tuple[float, float]]) -> tuple[tuple[float, float], ...]:
+    """Sample a counter-clockwise outline at equal arc lengths.
+
+    Sampling starts where the ray from the outline's centroid along +y meets the
+    outline, so every section type starts at the same side as the ellipse samples.
+    """
+    centre = _centroid(outline)
+    perimeter = sum(
+        math.dist(start, end) for start, end in zip(outline, outline[1:] + outline[:1], strict=True)
+    )
+    if perimeter < 1e-9:
+        return (centre,) * SECTION_SAMPLES
+
+    start_index, start_point = _ray_hit(outline, centre)
+    loop = [start_point, *outline[start_index + 1 :], *outline[: start_index + 1], start_point]
+    lengths = [0.0]
+    for first, second in itertools.pairwise(loop):
+        lengths.append(lengths[-1] + math.dist(first, second))
+
     result: list[tuple[float, float]] = []
+    segment = 0
     for index in range(SECTION_SAMPLES):
-        angle = 2.0 * math.pi * index / SECTION_SAMPLES
-        direction = (math.cos(angle), math.sin(angle))
-        nearest: float | None = None
-        for start, end in zip(outline, outline[1:] + outline[:1], strict=True):
-            segment = (end[0] - start[0], end[1] - start[1])
-            denominator = _cross2(direction, segment)
-            if abs(denominator) < 1e-10:
-                continue
-            distance = _cross2(start, segment) / denominator
-            fraction = _cross2(start, direction) / denominator
-            if (
-                distance >= -1e-8
-                and -1e-8 <= fraction <= 1.0 + 1e-8
-                and (nearest is None or distance < nearest)
-            ):
-                nearest = max(0.0, distance)
-        result.append((direction[0] * (nearest or 0.0), direction[1] * (nearest or 0.0)))
+        target = perimeter * index / SECTION_SAMPLES
+        while lengths[segment + 1] < target:
+            segment += 1
+        span = lengths[segment + 1] - lengths[segment]
+        fraction = 0.0 if span < 1e-12 else (target - lengths[segment]) / span
+        first, second = loop[segment], loop[segment + 1]
+        result.append(
+            (
+                first[0] + (second[0] - first[0]) * fraction,
+                first[1] + (second[1] - first[1]) * fraction,
+            )
+        )
     return tuple(result)
+
+
+def _centroid(outline: list[tuple[float, float]]) -> tuple[float, float]:
+    """Area centroid of a closed outline, or its vertex mean when it encloses no area."""
+    area = 0.0
+    sum_y = 0.0
+    sum_z = 0.0
+    for start, end in zip(outline, outline[1:] + outline[:1], strict=True):
+        cross = _cross2(start, end)
+        area += cross
+        sum_y += (start[0] + end[0]) * cross
+        sum_z += (start[1] + end[1]) * cross
+    if abs(area) < 1e-12:
+        count = len(outline)
+        return (sum(y for y, _ in outline) / count, sum(z for _, z in outline) / count)
+    return (sum_y / (3.0 * area), sum_z / (3.0 * area))
+
+
+def _ray_hit(
+    outline: list[tuple[float, float]], centre: tuple[float, float]
+) -> tuple[int, tuple[float, float]]:
+    """Return the edge index and point where the +y ray from ``centre`` leaves the outline."""
+    best: tuple[float, int, tuple[float, float]] | None = None
+    for index, (start, end) in enumerate(zip(outline, outline[1:] + outline[:1], strict=True)):
+        relative = (start[0] - centre[0], start[1] - centre[1])
+        segment = (end[0] - start[0], end[1] - start[1])
+        denominator = segment[1]
+        if abs(denominator) < 1e-12:
+            continue
+        fraction = -relative[1] / denominator
+        if not -1e-9 <= fraction <= 1.0 + 1e-9:
+            continue
+        distance = relative[0] + segment[0] * fraction
+        if distance >= -1e-9 and (best is None or distance < best[0]):
+            point = (start[0] + segment[0] * fraction, start[1] + segment[1] * fraction)
+            best = (distance, index, point)
+    if best is None:
+        return len(outline) - 1, outline[-1]
+    return best[1], best[2]
 
 
 def _signed_area(vertices: list[tuple[float, float, float]]) -> float:

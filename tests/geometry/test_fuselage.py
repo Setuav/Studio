@@ -121,6 +121,42 @@ class FuselageGeometryTests(unittest.TestCase):
                 self.assertEqual(len(points), SECTION_SAMPLES)
                 self.assertTrue(all(math.isfinite(value) for point in points for value in point))
 
+    def test_polygon_samples_cover_the_outline_wherever_the_origin_is(self) -> None:
+        from plugins.geometry.engine.fuselage_geometry import compute_section_metrics
+
+        def polygon(points: list[tuple[float, float]]) -> dict[str, Any]:
+            return {
+                "type": "polygon",
+                "vertices": [{"y": y, "z": z, "radius": 0.0} for y, z in points],
+            }
+
+        outlines = {
+            # The section origin lies outside this square.
+            "offset square": [(100.0, 50.0), (200.0, 50.0), (200.0, 150.0), (100.0, 150.0)],
+            # No point sees every edge of this L shape along a straight ray.
+            "concave L": [
+                (0.0, 0.0),
+                (100.0, 0.0),
+                (100.0, 30.0),
+                (30.0, 30.0),
+                (30.0, 100.0),
+                (0.0, 100.0),
+            ],
+        }
+        areas = {"offset square": 100.0 * 100.0, "concave L": 100.0 * 30.0 + 30.0 * 70.0}
+        for label, outline in outlines.items():
+            with self.subTest(label):
+                points = sample_profile(polygon(outline))
+                self.assertEqual(len(points), SECTION_SAMPLES)
+                ys = [y for y, _ in points]
+                zs = [z for _, z in points]
+                self.assertAlmostEqual(min(ys), min(y for y, _ in outline), delta=1.0)
+                self.assertAlmostEqual(max(ys), max(y for y, _ in outline), delta=1.0)
+                self.assertAlmostEqual(min(zs), min(z for _, z in outline), delta=1.0)
+                self.assertAlmostEqual(max(zs), max(z for _, z in outline), delta=1.0)
+                area = compute_section_metrics(points)["area"]
+                self.assertAlmostEqual(area, areas[label], delta=0.03 * areas[label])
+
     def test_invalid_profiles_raise(self) -> None:
         invalid = {
             "unknown type": {"type": "hexagon", "width": 100.0},
