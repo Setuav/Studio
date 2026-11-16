@@ -93,11 +93,8 @@ class ProjectDocument:
 
         # Deserialize new items into cache
         for res_id, res_data in raw_results.items():
-            if str(res_id) not in self._solver_results_cache and isinstance(res_data, dict):
-                try:
-                    self._solver_results_cache[str(res_id)] = SolverResult.from_dict(res_data)
-                except Exception as exc:
-                    logger.warning("Could not deserialize SolverResult %s: %s", res_id, exc)
+            if str(res_id) not in self._solver_results_cache:
+                self._solver_results_cache[str(res_id)] = SolverResult.from_dict(res_data)
         return self._solver_results_cache
 
     def add_solver_result(self, result: SolverResult) -> None:
@@ -142,14 +139,10 @@ class ProjectDocument:
         if not isinstance(raw_configs, dict):
             return {}
 
-        configs: dict[str, SolverConfig] = {}
-        for cfg_id, cfg_data in raw_configs.items():
-            if isinstance(cfg_data, dict):
-                try:
-                    configs[str(cfg_id)] = SolverConfig.from_dict(cfg_data)
-                except Exception as exc:
-                    logger.warning("Could not deserialize SolverConfig %s: %s", cfg_id, exc)
-        return configs
+        return {
+            str(cfg_id): SolverConfig.from_dict(cfg_data)
+            for cfg_id, cfg_data in raw_configs.items()
+        }
 
     def add_solver_config(self, config: SolverConfig) -> None:
         """Add or update a SolverConfig in the project data."""

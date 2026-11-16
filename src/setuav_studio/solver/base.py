@@ -50,10 +50,10 @@ class SolverConfig:
     def from_dict(cls, data: dict[str, Any]) -> SolverConfig:
         """Deserialize configuration from a dictionary."""
         return cls(
-            config_id=str(data.get("config_id", uuid.uuid4())),
-            solver_id=str(data.get("solver_id", "")),
-            name=str(data.get("name", "Analysis Config")),
-            parameters=dict(data.get("parameters", {})),
+            config_id=str(data["config_id"]),
+            solver_id=str(data["solver_id"]),
+            name=str(data["name"]),
+            parameters=dict(data["parameters"]),
         )
 
 

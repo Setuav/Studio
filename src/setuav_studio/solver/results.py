@@ -55,11 +55,11 @@ class SummaryItem:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> SummaryItem:
         return cls(
-            key=str(data.get("key", "")),
-            value=data.get("value", 0.0),
-            label=str(data.get("label", "")),
-            unit=str(data.get("unit", "")),
-            quantity_id=data.get("quantity_id"),
+            key=str(data["key"]),
+            value=data["value"],
+            label=str(data["label"]),
+            unit=str(data["unit"]),
+            quantity_id=data["quantity_id"],
         )
 
 
@@ -110,10 +110,10 @@ class TableColumn:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> TableColumn:
         return cls(
-            key=str(data.get("key", "")),
-            label=str(data.get("label", "")),
-            unit=str(data.get("unit", "")),
-            quantity_id=data.get("quantity_id"),
+            key=str(data["key"]),
+            label=str(data["label"]),
+            unit=str(data["unit"]),
+            quantity_id=data["quantity_id"],
         )
 
 
@@ -233,25 +233,12 @@ class TableDefinition:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> TableDefinition:
-        table_id = str(data.get("id", ""))
-        title = str(data.get("title", ""))
-        raw_cols = data.get("columns", [])
-        columns = [
-            TableColumn.from_dict(c) if isinstance(c, dict) else TableColumn(str(c))
-            for c in raw_cols
-        ]
-
-        raw_data = data.get("data", {})
-        # If data was stored as row-based list of dicts, convert to columnar
-        if isinstance(raw_data, list):
-            columnar_data: dict[str, list[Any]] = {}
-            for row in raw_data:
-                if isinstance(row, dict):
-                    for k, v in row.items():
-                        columnar_data.setdefault(k, []).append(v)
-            raw_data = columnar_data
-
-        return cls(id=table_id, title=title, columns=columns, data=raw_data)
+        return cls(
+            id=str(data["id"]),
+            title=str(data["title"]),
+            columns=[TableColumn.from_dict(column) for column in data["columns"]],
+            data={str(key): list(values) for key, values in data["data"].items()},
+        )
 
 
 @dataclass
@@ -272,14 +259,12 @@ class PlotSeriesDef:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any] | str) -> PlotSeriesDef:
-        if isinstance(data, str):
-            return cls(y_column=data)
+    def from_dict(cls, data: dict[str, Any]) -> PlotSeriesDef:
         return cls(
-            y_column=str(data.get("y_column", "")),
-            label=data.get("label"),
-            style=str(data.get("style", "solid")),
-            color=data.get("color"),
+            y_column=str(data["y_column"]),
+            label=data["label"],
+            style=str(data["style"]),
+            color=data["color"],
         )
 
 
@@ -319,42 +304,19 @@ class PlotDefinition:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> PlotDefinition:
-        raw_series = data.get("series", [])
-        series = [PlotSeriesDef.from_dict(s) for s in raw_series]
-        if not series and "y_columns" in data and isinstance(data["y_columns"], list):
-            series = [PlotSeriesDef(y_column=str(y)) for y in data["y_columns"]]
-
         return cls(
-            id=str(data.get("id", "")),
-            title=str(data.get("title", "")),
-            table_id=str(data.get("table_id", "")),
-            x_column=str(data.get("x_column", "")),
-            series=series,
-            x_label=data.get("x_label"),
-            y_label=data.get("y_label"),
+            id=str(data["id"]),
+            title=str(data["title"]),
+            table_id=str(data["table_id"]),
+            x_column=str(data["x_column"]),
+            series=[PlotSeriesDef.from_dict(series) for series in data["series"]],
+            x_label=data["x_label"],
+            y_label=data["y_label"],
         )
 
 
-def _parse_tables_from_dict(raw: Any) -> dict[str, TableDefinition]:
-    if not isinstance(raw, dict):
-        return {}
-    tables: dict[str, TableDefinition] = {}
-    for k, t_data in raw.items():
-        if isinstance(t_data, dict):
-            tables[str(k)] = TableDefinition.from_dict(t_data)
-        elif isinstance(t_data, list):
-            tables[str(k)] = TableDefinition.from_dict({"id": str(k), "data": t_data})
-    return tables
-
-
-def _parse_plots_from_dict(raw: Any) -> dict[str, PlotDefinition]:
-    if not isinstance(raw, dict):
-        return {}
-    plots: dict[str, PlotDefinition] = {}
-    for k, p_data in raw.items():
-        if isinstance(p_data, dict):
-            plots[str(k)] = PlotDefinition.from_dict(p_data)
-    return plots
+def _plots_from_dict(raw: dict[str, Any]) -> dict[str, PlotDefinition]:
+    return {str(key): PlotDefinition.from_dict(plot) for key, plot in raw.items()}
 
 
 class SolverResult:
@@ -374,10 +336,9 @@ class SolverResult:
         status: SolverStatus = SolverStatus.COMPLETED,
         execution_time_ms: float = 0.0,
         summary: dict[str, SummaryItem] | None = None,
-        tables: dict[str, TableDefinition | list[dict[str, Any]] | Any] | None = None,
+        tables: dict[str, TableDefinition] | None = None,
         plots: dict[str, PlotDefinition] | None = None,
         artifacts: dict[str, str] | None = None,
-        metrics: dict[str, float] | None = None,
     ) -> None:
         self.solver_id = solver_id
         self.config = config
@@ -389,23 +350,9 @@ class SolverResult:
 
         # Summary
         self.summary: dict[str, SummaryItem] = dict(summary) if summary else {}
-        if metrics:
-            for k, v in metrics.items():
-                if k not in self.summary:
-                    self.summary[k] = SummaryItem(key=k, value=float(v))
 
         # Tables (Single Source of Truth)
-        self.tables: dict[str, TableDefinition] = {}
-        if tables:
-            for k, v in tables.items():
-                if isinstance(v, TableDefinition):
-                    self.tables[k] = v
-                elif isinstance(v, list):
-                    self.tables[k] = TableDefinition.from_dict({"id": k, "data": v})
-                elif isinstance(v, dict) and "data" in v:
-                    self.tables[k] = TableDefinition.from_dict(v)
-                elif isinstance(v, dict):
-                    self.tables[k] = TableDefinition(id=k, data=v)
+        self.tables: dict[str, TableDefinition] = dict(tables) if tables else {}
 
         # Plots
         self.plots: dict[str, PlotDefinition] = dict(plots) if plots else {}
@@ -543,20 +490,6 @@ class SolverResult:
             return restored
         return None
 
-    @property
-    def metrics(self) -> dict[str, float]:
-        """Access scalar numeric metrics from summary."""
-        res: dict[str, float] = {}
-        for k, item in self.summary.items():
-            if isinstance(item.value, (int, float)):
-                res[k] = float(item.value)
-        return res
-
-    @metrics.setter
-    def metrics(self, values: dict[str, float]) -> None:
-        for k, v in values.items():
-            self.summary[k] = SummaryItem(key=k, value=float(v))
-
     # ------------------------------------------------------------------
     # Serialization & Exporting
     # ------------------------------------------------------------------
@@ -572,7 +505,6 @@ class SolverResult:
             "execution_time_ms": self.execution_time_ms,
             "config": self.config.to_dict(),
             "summary": {k: item.to_dict() for k, item in self.summary.items()},
-            "metrics": self.metrics,
             "tables": {k: table.to_dict() for k, table in self.tables.items()},
             "plots": {k: plot.to_dict() for k, plot in self.plots.items()},
             "initial_plots": {k: plot.to_dict() for k, plot in self._initial_plots.items()},
@@ -582,50 +514,24 @@ class SolverResult:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> SolverResult:
         """Deserialize result from a dictionary."""
-        raw_status = data.get("status", "completed")
-        try:
-            status = SolverStatus(raw_status)
-        except ValueError:
-            status = SolverStatus.COMPLETED
-
-        config_data = data.get("config", {})
-        config = (
-            SolverConfig.from_dict(config_data)
-            if isinstance(config_data, dict)
-            else SolverConfig(solver_id=str(data.get("solver_id", "")))
-        )
-
-        summary: dict[str, SummaryItem] = {}
-        if "summary" in data and isinstance(data["summary"], dict):
-            for k, s_data in data["summary"].items():
-                if isinstance(s_data, dict):
-                    summary[str(k)] = SummaryItem.from_dict(s_data)
-        if "metrics" in data and isinstance(data["metrics"], dict):
-            for k, v in data["metrics"].items():
-                if k not in summary and isinstance(v, (int, float)):
-                    summary[str(k)] = SummaryItem(key=str(k), value=float(v))
-
-        tables = _parse_tables_from_dict(data.get("tables"))
-        plots = _parse_plots_from_dict(data.get("plots"))
-
         res = cls(
-            id=str(data.get("id", uuid.uuid4())),
-            solver_id=str(data.get("solver_id", config.solver_id)),
-            name=str(data.get("name", "Analysis Result")),
-            timestamp=str(data.get("timestamp", datetime.datetime.now(datetime.UTC).isoformat())),
-            status=status,
-            execution_time_ms=float(data.get("execution_time_ms", 0.0)),
-            config=config,
-            summary=summary,
-            tables=tables,
-            plots=plots,
-            artifacts={str(k): str(v) for k, v in data.get("artifacts", {}).items()},
+            id=str(data["id"]),
+            solver_id=str(data["solver_id"]),
+            name=str(data["name"]),
+            timestamp=str(data["timestamp"]),
+            status=SolverStatus(data["status"]),
+            execution_time_ms=float(data["execution_time_ms"]),
+            config=SolverConfig.from_dict(data["config"]),
+            summary={
+                str(key): SummaryItem.from_dict(item) for key, item in data["summary"].items()
+            },
+            tables={
+                str(key): TableDefinition.from_dict(table) for key, table in data["tables"].items()
+            },
+            plots=_plots_from_dict(data["plots"]),
+            artifacts={str(k): str(v) for k, v in data["artifacts"].items()},
         )
-
-        initial_plots = _parse_plots_from_dict(data.get("initial_plots"))
-        if initial_plots:
-            res._initial_plots = initial_plots
-
+        res._initial_plots = _plots_from_dict(data["initial_plots"])
         return res
 
     # ------------------------------------------------------------------

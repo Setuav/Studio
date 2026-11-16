@@ -14,6 +14,7 @@ from setuav_studio.solver.base import SolverConfig, SolverStatus
 from setuav_studio.solver.results import (
     PlotSeriesDef,
     SolverResult,
+    SummaryItem,
     TableColumn,
 )
 from setuav_studio.ui.editor.solver_config import SolverConfigPropertyEditor
@@ -73,7 +74,10 @@ def test_solver_result_tables_plots_serialization() -> None:
         name="Polar Results",
         status=SolverStatus.COMPLETED,
         execution_time_ms=125.0,
-        metrics={"cl_max": 1.55, "cd0": 0.021},
+        summary={
+            "cl_max": SummaryItem(key="cl_max", value=1.55),
+            "cd0": SummaryItem(key="cd0", value=0.021),
+        },
     )
 
     # 1. Summary items
@@ -118,7 +122,7 @@ def test_solver_result_tables_plots_serialization() -> None:
     # Roundtrip serialization
     raw = result.to_dict()
     assert raw["status"] == "completed"
-    assert raw["metrics"]["cl_max"] == 1.55
+    assert raw["summary"]["cl_max"]["value"] == 1.55
 
     restored = SolverResult.from_dict(raw)
     assert restored.id == result.id
@@ -203,7 +207,7 @@ def test_project_solver_configs_and_results_lifecycle(tmp_path: Path) -> None:
         config=config1,
         name="Cruise VLM Result",
         status=SolverStatus.COMPLETED,
-        metrics={"cl": 0.42},
+        summary={"cl": SummaryItem(key="cl", value=0.42)},
     )
     project.add_solver_result(result)
     assert len(project.solver_results) == 1
@@ -222,7 +226,7 @@ def test_project_solver_configs_and_results_lifecycle(tmp_path: Path) -> None:
     res_reopened = reopened.get_solver_result(result.id)
     assert res_reopened is not None
     assert res_reopened.name == "Cruise VLM Result"
-    assert res_reopened.metrics["cl"] == 0.42
+    assert res_reopened.summary["cl"].value == 0.42
 
     # 4. Removal
     reopened.remove_solver_config(config1.config_id)
@@ -280,7 +284,7 @@ def test_result_panel_and_child_views() -> None:
         config=config,
         name="Result A",
         status=SolverStatus.COMPLETED,
-        metrics={"efficiency": 0.88},
+        summary={"efficiency": SummaryItem(key="efficiency", value=0.88)},
     )
     result.add_summary("efficiency", 0.88, label="Efficiency")
     result.add_table(

@@ -16,6 +16,7 @@ from setuav_studio.solver import (
     SolverStatus,
     execute_solver,
 )
+from setuav_studio.solver.results import SummaryItem
 from setuav_studio.task.types import TaskCancelledError
 from tests._common import get_qapp
 
@@ -52,7 +53,10 @@ class SuccessSolver(AbstractSolver):
             config=self.config,
             name=self.config.name,
             status=SolverStatus.COMPLETED,
-            metrics={"lift": 120.0, "drag": 15.0},
+            summary={
+                "lift": SummaryItem(key="lift", value=120.0),
+                "drag": SummaryItem(key="drag", value=15.0),
+            },
         )
 
 
@@ -89,7 +93,7 @@ def test_execute_solver_success() -> None:
 
     assert result.status == SolverStatus.COMPLETED
     assert solver.status == SolverStatus.COMPLETED
-    assert result.metrics["lift"] == 120.0
+    assert result.summary["lift"].value == 120.0
     assert result.execution_time_ms > 0.0
 
 
@@ -158,7 +162,7 @@ def test_solver_runner_executes_and_adds_result_to_project() -> None:
     assert len(completed_results) == 1
     res = completed_results[0]
     assert res.status == SolverStatus.COMPLETED
-    assert res.metrics["lift"] == 120.0
+    assert res.summary["lift"].value == 120.0
 
     # Result was automatically added to current project
     assert res.id in project.solver_results
