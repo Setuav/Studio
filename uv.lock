@@ -1789,15 +1789,15 @@ wheels = [
 
 [[package]]
 name = "setuav-pythrust"
-version = "0.3.1"
+version = "0.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy" },
     { name = "scipy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/1f/de/3c17c79e172a58031084f4ed2624873ce4a28958ff75d3314d87bfe3f26a/setuav_pythrust-0.3.1.tar.gz", hash = "sha256:7735c9098e3ccc8ad92201e8d14c1f9bca0407336e34eebccce67efd3283ba70", size = 12834910, upload-time = "2026-11-16T11:39:22.699Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/db/c4/8449871b6995707eca44850fcc39d4e4f6ce7f0504db75214cab1933e548/setuav_pythrust-0.4.0.tar.gz", hash = "sha256:5927598923faa8936197f116b7a3796200f3d9b81f94414c53faa212efbc32c9", size = 12841085, upload-time = "2026-11-16T22:12:39.693Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/de/30/aca534cde8aba5e2a045623c92a1a45d893bdd04159cd4e542046a98d848/setuav_pythrust-0.3.1-py3-none-any.whl", hash = "sha256:9e102410aa0137f8e6a52f2573d04d0f2828e121fa6aacbec31e8d248c3d5c46", size = 15634012, upload-time = "2026-11-16T11:39:19.545Z" },
+    { url = "https://files.pythonhosted.org/packages/e5/f7/5303669210676e50e451a9ece32176812032c16d11906aa35c330c545ec5/setuav_pythrust-0.4.0-py3-none-any.whl", hash = "sha256:128719af9d76f4f1cf27f0aa2219414610c22914ca8cc6b9527b8acdf9cede87", size = 15639874, upload-time = "2026-11-16T22:12:36.073Z" },
 ]
 
 [[package]]
@@ -1854,7 +1854,7 @@ requires-dist = [
     { name = "qt-themes", specifier = ">=0.4,<0.5" },
     { name = "qtawesome", specifier = ">=1.3,<2" },
     { name = "scipy", specifier = ">=1.11,<2" },
-    { name = "setuav-pythrust", specifier = ">=0.3.1,<0.4" },
+    { name = "setuav-pythrust", specifier = ">=0.4.0,<0.5" },
     { name = "shiboken6", specifier = ">=6.8,<7" },
 ]
 provides-extras = ["aerodynamics"]
