@@ -194,52 +194,51 @@ class TestElectricalPropulsion(unittest.TestCase):
         )
         opened = deepcopy(battery_comp)
         editor = BatteryEditor(api, battery_comp)
+        self.addCleanup(editor.deleteLater)
 
         # Opening the editor leaves the project untouched.
         self.assertEqual(battery_comp, opened)
         self.assertFalse(api.can_undo)
-        self.assertEqual(editor._property_text(editor.cell_table, 0), "LiPo")
+        self.assertEqual(editor._property_value(editor.cell_table, "chemistry"), "LiPo")
+        self.assertEqual(editor._property_value(editor.cell_table, "cell_id"), "lipo_6000")
 
-        # Change Series Count to 6S; the editor derives mass from the fixture's
-        # cell mass, parallel count, and packaging mass values.
+        # 6S of the fixture cell: the mass and pack values follow the cell data.
         cell_count = editor._property_cell(editor.pack_table, "cell_count")
         assert cell_count is not None
         cell_count.setValue(6)
-        params = battery_comp["parameters"]
-        expected_mass = (
-            6 * params["parallel_count"] * params["cell_mass"] + params["packaging_mass"]
-        )
-        self.assertEqual(battery_comp["mass"], expected_mass)
-        self.assertAlmostEqual(params["nominal_voltage"], 6 * params["cell_nominal_voltage"])
-        self.assertEqual(editor._property_text(editor.general_table, 2), f"{expected_mass:.1f}")
-        editor.close()
-        editor.deleteLater()
+        self.assertEqual(battery_comp["parameters"]["cell_count"], 6)
+        self.assertEqual(battery_comp["mass"], 6 * 180.0 + 40.0)
+        self.assertEqual(editor._property_text(editor.general_table, 2), "1120.0")
+        nominal = editor._property_cell(editor.pack_table, "nominal_voltage")
+        assert nominal is not None
+        self.assertTrue(nominal.isReadOnly())
+        self.assertEqual(nominal.line_edit.text(), "22.2")
 
-    def test_battery_editor_scales_new_pack_with_parallel_count(self) -> None:
-        from plugins.electrical_propulsion.creation import PropulsionCreationController
+        api.undo()
+        self.assertEqual(battery_comp, opened)
+
+    def test_battery_editor_chemistry_selects_its_default_cell(self) -> None:
+        from plugins.electrical_propulsion.cells import DEFAULT_CELLS, cell_spec
 
         api = StudioAPI()
         doc = open_project(TEST_PROJECT_PATH)
         api._host.set_project(doc)
-        battery_comp = PropulsionCreationController(api)._new_component("battery", "battery-new")
-        doc.data["components"].append(battery_comp)
-        created = deepcopy(battery_comp)
+        battery_comp = next(
+            c for c in doc.data["components"] if c.get("type") == "org.setuav.core:battery"
+        )
+        opened = deepcopy(battery_comp)
         editor = BatteryEditor(api, battery_comp)
         self.addCleanup(editor.deleteLater)
-        self.assertEqual(battery_comp, created)
 
+        editor._on_chemistry_changed("Li-Ion")
         params = battery_comp["parameters"]
-        parallel = editor._property_cell(editor.pack_table, "parallel_count")
-        assert parallel is not None
-        parallel.setValue(2)
-        self.assertEqual(params["capacity"], 2 * params["cell_capacity"])
-        self.assertEqual(
-            battery_comp["mass"],
-            params["cell_count"] * 2 * params["cell_mass"] + params["packaging_mass"],
-        )
+        cell = cell_spec(DEFAULT_CELLS["Li-Ion"])
+        self.assertEqual(params["cell_id"], cell.id)
+        self.assertEqual(battery_comp["mass"], 3 * cell.mass_g + 40.0)
+        self.assertEqual(editor._property_value(editor.cell_table, "chemistry"), "Li-Ion")
 
         api.undo()
-        self.assertEqual(battery_comp, created)
+        self.assertEqual(battery_comp, opened)
 
     def test_esc_editor(self) -> None:
         api = StudioAPI()
@@ -298,25 +297,33 @@ class TestElectricalPropulsion(unittest.TestCase):
         editor.close()
         editor.deleteLater()
 
-    def test_battery_model_reads_stored_battery_parameters(self) -> None:
+    def test_battery_model_derives_the_pack_from_its_cell(self) -> None:
         from plugins.electrical_propulsion.models import BatteryModel
 
         doc = open_project(TEST_PROJECT_PATH)
         battery_comp = next(
             c for c in doc.data["components"] if c.get("type") == "org.setuav.core:battery"
         )
-        params = battery_comp["parameters"]
-        self.assertEqual({f.key for f in BatteryModel.get_fields()}, set(params))
+        self.assertEqual(
+            {f.key for f in BatteryModel.get_fields()}, set(battery_comp["parameters"])
+        )
 
         model = BatteryModel(deepcopy(battery_comp))
-        self.assertEqual(model.chemistry, params["chemistry"])
-        self.assertEqual(model.cell_nominal_voltage, params["cell_nominal_voltage"])
-        self.assertEqual(model.internal_resistance, params["internal_resistance"])
-        self.assertEqual(model.cell_resistance, params["cell_resistance"])
-        self.assertAlmostEqual(
-            model.energy_wh, params["capacity"] * params["nominal_voltage"] / 1000
-        )
-        self.assertEqual(model.derived_mass, battery_comp["mass"])
+        pack = model.pack
+        self.assertEqual(pack.cell.id, "lipo_6000")
+        self.assertAlmostEqual(pack.capacity_mah, 6000.0)
+        self.assertAlmostEqual(pack.nominal_voltage_v, 11.1)
+        self.assertAlmostEqual(pack.charge_voltage_v, 12.6)
+        self.assertAlmostEqual(pack.internal_resistance_ohm, 3 * 0.0025)
+        self.assertAlmostEqual(pack.energy_wh, 66.6)
+        self.assertEqual(pack.mass_g, battery_comp["mass"])
+        props = model.get_exposed_properties()
+        self.assertEqual(props["chemistry"], "LiPo")
+        self.assertAlmostEqual(props["capacity"], 6000.0)
+
+        rate_map = pack.rate_map()
+        self.assertEqual((rate_map.series, rate_map.parallel), (3, 1))
+        self.assertAlmostEqual(rate_map.ocv(0.0) * 3, 12.6)
 
     def test_catalog_database_and_dialog(self) -> None:
         from plugins.electrical_propulsion.catalog_dialog import (
@@ -461,7 +468,11 @@ class TestElectricalPropulsion(unittest.TestCase):
         ]
         for solver_cls, solver_id, parameters, x_column, x_values in cases:
             with self.subTest(solver=solver_cls.__name__):
-                config = SolverConfig(solver_id=solver_id, name="Propulsion", parameters=parameters)
+                config = SolverConfig(
+                    solver_id=solver_id,
+                    name="Propulsion",
+                    parameters={**solver_cls.default_parameters(), **parameters},
+                )
                 token = _RecordingToken()
                 result = execute_solver(solver_cls(config, doc), token)
 
@@ -486,7 +497,11 @@ class TestElectricalPropulsion(unittest.TestCase):
         config = SolverConfig(
             solver_id=SOLVER_ID_OPERATING_POINT,
             name="Cruise Point",
-            parameters={"airspeed": 18.0, "throttle": 80.0},
+            parameters={
+                **OperatingPointSolver.default_parameters(),
+                "airspeed": 18.0,
+                "throttle": 80.0,
+            },
         )
 
         within_limit = OperatingPointSolver(config, doc).run()
@@ -560,15 +575,44 @@ class TestElectricalPropulsion(unittest.TestCase):
 
         members = find_propulsion_system(self._fixture_components())
         assert members is not None
-        powertrain = build_powertrain(members)
+        powertrain = build_powertrain(members, state_of_charge=1.0)
 
         self.assertEqual(powertrain.unit_count, 1)
         self.assertEqual(powertrain.propeller_data.metadata.id, "APC_12x6")
+        self.assertEqual((powertrain.battery.series, powertrain.battery.parallel), (3, 1))
         point = powertrain.solve(rho=1.225, airspeed_mps=15.0, throttle=1.0)
+        self.assertTrue(point.feasible)
         self.assertGreater(point.rpm, 1000.0)
         self.assertGreater(point.thrust_n, 0.0)
         self.assertGreater(point.battery_current_a, 0.0)
         self.assertTrue(0.0 <= point.system_efficiency <= 1.0)
+        # The pack voltage sags below its open-circuit value under load.
+        self.assertLess(point.battery_voltage_v, 12.6)
+
+        half = powertrain.with_state_of_charge(0.5).solve(
+            rho=1.225, airspeed_mps=15.0, throttle=1.0
+        )
+        self.assertLess(half.battery_voltage_v, point.battery_voltage_v)
+        self.assertLess(half.thrust_n, point.thrust_n)
+
+    def test_powertrain_discharge_time_at_constant_power(self) -> None:
+        from plugins.electrical_propulsion.powertrain import (
+            PowertrainError,
+            build_powertrain,
+            find_propulsion_system,
+        )
+
+        members = find_propulsion_system(self._fixture_components())
+        assert members is not None
+        powertrain = build_powertrain(members, state_of_charge=1.0)
+
+        light = powertrain.discharge_time_s(power_w=30.0, final_soc=0.2)
+        heavy = powertrain.discharge_time_s(power_w=300.0, final_soc=0.2)
+        # 80 % of a 66.6 Wh pack at 30 W is a little under 1.8 h.
+        self.assertAlmostEqual(light / 3600.0, 0.8 * 66.6 / 30.0, delta=0.15)
+        self.assertLess(heavy * 10.0, light)
+        with self.assertRaisesRegex(PowertrainError, "not below"):
+            powertrain.with_state_of_charge(0.2).discharge_time_s(power_w=30.0, final_soc=0.2)
 
     def test_powertrain_scales_totals_with_identical_motor_units(self) -> None:
         from plugins.electrical_propulsion.powertrain import (
@@ -579,7 +623,7 @@ class TestElectricalPropulsion(unittest.TestCase):
         components = self._fixture_components()
         single_members = find_propulsion_system(components)
         assert single_members is not None
-        single = build_powertrain(single_members)
+        single = build_powertrain(single_members, state_of_charge=1.0)
 
         motor = next(c for c in components if c["id"] == "motor-cruise")
         propeller = next(c for c in components if c["id"] == "propeller-cruise")
@@ -587,16 +631,21 @@ class TestElectricalPropulsion(unittest.TestCase):
         second_propeller = {**deepcopy(propeller), "id": "propeller-2", "parent": "motor-2"}
         twin_members = find_propulsion_system([*components, second_motor, second_propeller])
         assert twin_members is not None
-        twin = build_powertrain(twin_members)
+        twin = build_powertrain(twin_members, state_of_charge=1.0)
 
         self.assertEqual(twin.unit_count, 2)
         self.assertAlmostEqual(twin.current_limit_a, 2.0 * single.current_limit_a)
         one = single.solve(rho=1.225, airspeed_mps=15.0, throttle=0.8)
         two = twin.solve(rho=1.225, airspeed_mps=15.0, throttle=0.8)
-        self.assertAlmostEqual(two.rpm, one.rpm)
-        self.assertAlmostEqual(two.thrust_n, 2.0 * one.thrust_n)
-        self.assertAlmostEqual(two.battery_current_a, 2.0 * one.battery_current_a)
-        self.assertAlmostEqual(two.battery_power_w, 2.0 * one.battery_power_w)
+        # Both units load the same pack: its voltage sags further, so each unit
+        # turns slightly slower than a single unit would.
+        self.assertLess(two.battery_voltage_v, one.battery_voltage_v)
+        self.assertLess(two.rpm, one.rpm)
+        self.assertLess(two.thrust_n, 2.0 * one.thrust_n)
+        self.assertGreater(two.thrust_n, 1.9 * one.thrust_n)
+        self.assertAlmostEqual(
+            two.battery_power_w, two.battery_voltage_v * two.battery_current_a, delta=1e-6
+        )
 
     def test_powertrain_rejects_unanalysable_systems(self) -> None:
         from plugins.electrical_propulsion.powertrain import (
@@ -614,7 +663,7 @@ class TestElectricalPropulsion(unittest.TestCase):
         members = find_propulsion_system(unlinked)
         assert members is not None
         with self.assertRaisesRegex(PowertrainError, "not linked to catalog data"):
-            build_powertrain(members)
+            build_powertrain(members, state_of_charge=1.0)
 
         other_motor = deepcopy(motor)
         other_motor["id"] = "motor-2"
@@ -623,13 +672,13 @@ class TestElectricalPropulsion(unittest.TestCase):
         members = find_propulsion_system([*components, other_motor, other_propeller])
         assert members is not None
         with self.assertRaisesRegex(PowertrainError, "identical motor and propeller units"):
-            build_powertrain(members)
+            build_powertrain(members, state_of_charge=1.0)
 
         bare_motor = {**deepcopy(motor), "id": "motor-2"}
         members = find_propulsion_system([*components, bare_motor])
         assert members is not None
         with self.assertRaisesRegex(PowertrainError, "exactly one propeller"):
-            build_powertrain(members)
+            build_powertrain(members, state_of_charge=1.0)
 
     def test_propulsion_results_convert_to_display_units(self) -> None:
         from plugins.electrical_propulsion.solver import (
@@ -653,7 +702,13 @@ class TestElectricalPropulsion(unittest.TestCase):
         config = SolverConfig(
             solver_id=SOLVER_ID_AIRSPEED_SWEEP,
             name="Airspeed Sweep",
-            parameters={"v_min": 0.0, "v_max": 20.0, "v_step": 5.0, "throttle": 100.0},
+            parameters={
+                **AirspeedSweepSolver.default_parameters(),
+                "v_min": 0.0,
+                "v_max": 20.0,
+                "v_step": 5.0,
+                "throttle": 100.0,
+            },
         )
         result = AirspeedSweepSolver(config, open_project(TEST_PROJECT_PATH)).run()
         table = result.tables["propulsion_data"]

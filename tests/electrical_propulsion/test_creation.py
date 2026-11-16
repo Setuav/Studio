@@ -8,12 +8,14 @@ from unittest.mock import patch
 
 from PySide6.QtWidgets import QDialog
 
+from plugins.electrical_propulsion.cells import DEFAULT_CELLS
 from plugins.electrical_propulsion.creation import (
     _PROPULSION_ID,
     PropulsionCreationController,
 )
 from plugins.electrical_propulsion.database import get_motor_database, get_propeller_database
 from plugins.electrical_propulsion.models import BatteryModel
+from plugins.electrical_propulsion.models.battery import battery_pack
 from setuav_studio.api import StudioAPI
 from setuav_studio.project import ProjectDocument
 from tests._common import get_qapp
@@ -269,16 +271,17 @@ class PropulsionCreationTests(unittest.TestCase):
         self.assertIsNone(self.controller._find_component("missing"))
         self.assertEqual(self.controller._find_component("id")["id"], "id")
 
-    def test_new_battery_has_complete_consistent_specs(self) -> None:
+    def test_new_battery_is_a_pack_of_the_default_lipo_cell(self) -> None:
         battery = self.controller._new_component("battery", "battery")
         params = battery["parameters"]
 
         self.assertEqual(set(params), {f.key for f in BatteryModel.get_fields()})
-        s, p = params["cell_count"], params["parallel_count"]
-        self.assertEqual(battery["mass"], s * p * params["cell_mass"] + params["packaging_mass"])
-        self.assertAlmostEqual(params["nominal_voltage"], s * params["cell_nominal_voltage"])
-        self.assertAlmostEqual(params["capacity"], p * params["cell_capacity"])
-        self.assertAlmostEqual(params["internal_resistance"], s / p * params["cell_resistance"])
+        self.assertEqual(params["cell_id"], DEFAULT_CELLS["LiPo"])
+        pack = battery_pack(params)
+        self.assertEqual(battery["mass"], pack.mass_g)
+        self.assertEqual(
+            pack.series * pack.parallel, params["cell_count"] * params["parallel_count"]
+        )
 
 
 if __name__ == "__main__":

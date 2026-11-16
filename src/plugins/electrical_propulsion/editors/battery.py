@@ -1,8 +1,8 @@
-"""Battery pack and cell property editor styled after Fuselage/Wing standards."""
+"""Battery pack editor: catalogue cell selection and pack configuration."""
 
 from __future__ import annotations
 
-from typing import Any, ClassVar
+from typing import Any
 
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -13,70 +13,41 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from plugins.electrical_propulsion.models.battery import battery_pack_mass
+from plugins.electrical_propulsion.cells import (
+    CHEMISTRIES,
+    DEFAULT_CELLS,
+    cell_spec,
+    chemistry_cells,
+)
+from plugins.electrical_propulsion.models.battery import battery_pack
 from setuav_studio.api import StudioAPI
 from setuav_studio.model.expression import set_expression
 from setuav_studio.ui.style.icons import set_label_icon
 from setuav_studio.ui.widget.table import PropertyTableMixin
 
+# Read-only pack and cell values: (key, label, unit, quantity, decimals).
+_PACK_VALUES = (
+    ("capacity", "Pack Capacity", "mAh", "capacity", 0),
+    ("nominal_voltage", "Nominal Voltage", "V", "voltage", 1),
+    ("charge_voltage", "Charge Voltage", "V", "voltage", 2),
+    ("cutoff_voltage", "Cut-Off Voltage", "V", "voltage", 2),
+    ("internal_resistance", "Internal Resistance (50% DoD)", "Ω", "resistance", 4),
+    ("max_current", "Max Continuous Current", "A", "current", 1),
+    ("energy", "Nominal Energy", "Wh", "energy", 1),
+)
+_CELL_VALUES = (
+    ("cell_capacity", "Capacity", "mAh", "capacity", 0),
+    ("cell_nominal_voltage", "Nominal Voltage", "V", "voltage", 2),
+    ("cell_charge_voltage", "Charge Voltage", "V", "voltage", 2),
+    ("cell_cutoff_voltage", "Cut-Off Voltage", "V", "voltage", 2),
+    ("cell_resistance", "Resistance (50% DoD)", "Ω", "resistance", 4),
+    ("cell_max_current", "Max Continuous Current", "A", "current", 1),
+    ("cell_mass", "Mass", "g", "mass", 1),
+)
+
 
 class BatteryEditor(PropertyTableMixin, QWidget):
-    """Property editor separating battery cell specifications from pack configuration."""
-
-    # Typical cell specifications per chemistry, keyed by battery parameter. They
-    # apply when the chemistry is chosen.
-    CHEMISTRY_DEFAULTS: ClassVar[dict[str, dict[str, float]]] = {
-        "LiPo": {
-            "cell_nominal_voltage": 3.7,
-            "cell_max_voltage": 4.2,
-            "cell_min_voltage": 3.0,
-            "max_discharge": 35.0,
-            "burst_discharge": 70.0,
-            "cell_mass": 130.0,
-            "cell_capacity": 6000.0,
-            "cell_resistance": 0.0025,
-        },
-        "Li-Ion (18650/21700)": {
-            "cell_nominal_voltage": 3.6,
-            "cell_max_voltage": 4.2,
-            "cell_min_voltage": 2.5,
-            "max_discharge": 10.0,
-            "burst_discharge": 20.0,
-            "cell_mass": 70.0,
-            "cell_capacity": 4500.0,
-            "cell_resistance": 0.015,
-        },
-        "LiFePO4": {
-            "cell_nominal_voltage": 3.2,
-            "cell_max_voltage": 3.65,
-            "cell_min_voltage": 2.5,
-            "max_discharge": 25.0,
-            "burst_discharge": 50.0,
-            "cell_mass": 140.0,
-            "cell_capacity": 5000.0,
-            "cell_resistance": 0.004,
-        },
-        "Solid-State": {
-            "cell_nominal_voltage": 3.8,
-            "cell_max_voltage": 4.35,
-            "cell_min_voltage": 3.0,
-            "max_discharge": 15.0,
-            "burst_discharge": 30.0,
-            "cell_mass": 100.0,
-            "cell_capacity": 6500.0,
-            "cell_resistance": 0.002,
-        },
-        "NiMH": {
-            "cell_nominal_voltage": 1.2,
-            "cell_max_voltage": 1.45,
-            "cell_min_voltage": 1.0,
-            "max_discharge": 5.0,
-            "burst_discharge": 10.0,
-            "cell_mass": 55.0,
-            "cell_capacity": 2500.0,
-            "cell_resistance": 0.02,
-        },
-    }
+    """Property editor for a battery pack built from a catalogue cell."""
 
     def __init__(
         self,
@@ -158,27 +129,20 @@ class BatteryEditor(PropertyTableMixin, QWidget):
             [
                 ("cell_count", "Series Count (S)"),
                 ("parallel_count", "Parallel Count (P)"),
-                ("capacity", "Pack Capacity"),
-                ("nominal_voltage", "Pack Nominal Voltage"),
-                ("internal_resistance", "Pack Internal Resistance"),
                 ("packaging_mass", "Packaging & Wiring Mass"),
-                ("max_discharge", "Continuous Discharge (C)"),
-                ("burst_discharge", "Burst Discharge (C)"),
+                *((key, label) for key, label, *_ in _PACK_VALUES),
             ]
         )
         layout.addWidget(self.pack_table)
 
     def _create_cell_section(self) -> None:
-        layout = self._create_section("Cell Properties", "fa6s.microchip")
+        layout = self._create_section("Cell", "fa6s.microchip")
         self.cell_table = self._property_table(
             [
-                ("chemistry", "Cell Chemistry"),
-                ("cell_capacity", "Cell Capacity"),
-                ("cell_nominal_voltage", "Cell Nominal Voltage"),
-                ("cell_max_voltage", "Cell Max Voltage"),
-                ("cell_min_voltage", "Cell Cut-Off Voltage"),
-                ("cell_resistance", "Cell Resistance"),
-                ("cell_mass", "Cell Mass"),
+                ("chemistry", "Chemistry"),
+                ("cell_id", "Cell"),
+                *((key, label) for key, label, *_ in _CELL_VALUES),
+                ("cell_source", "Data Source"),
             ]
         )
         layout.addWidget(self.cell_table)
@@ -187,26 +151,9 @@ class BatteryEditor(PropertyTableMixin, QWidget):
         self._loading = True
         try:
             params = self._component["parameters"]
+            pack = battery_pack(params)
+            cell = pack.cell
 
-            s = int(params["cell_count"])
-            p = int(params["parallel_count"])
-            chem = str(params["chemistry"])
-            pack_cap = float(params["capacity"])
-            v_nom = float(params["nominal_voltage"])
-            r_pack = float(params["internal_resistance"])
-            packaging_mass = float(params["packaging_mass"])
-            c_cont = float(params["max_discharge"])
-            c_burst = float(params["burst_discharge"])
-
-            cell_cap = float(params["cell_capacity"])
-            cell_v_nom = float(params["cell_nominal_voltage"])
-            cell_v_max = float(params["cell_max_voltage"])
-            cell_v_min = float(params["cell_min_voltage"])
-            cell_res = float(params["cell_resistance"])
-            cell_mass = float(params["cell_mass"])
-            total_mass = float(self._component["mass"])
-
-            # General
             self._set_property_value(
                 self.general_table, "name", str(self._component.get("name") or "")
             )
@@ -214,7 +161,7 @@ class BatteryEditor(PropertyTableMixin, QWidget):
                 self.general_table, "type", str(self._component.get("type") or ""), editable=False
             )
             self._set_property_value(
-                self.general_table, "mass", f"{total_mass:.1f}", editable=False
+                self.general_table, "mass", f"{float(self._component['mass']):.1f}", editable=False
             )
             self._set_property_value(
                 self.general_table, "manufacturer", str(self._component.get("manufacturer") or "")
@@ -223,192 +170,94 @@ class BatteryEditor(PropertyTableMixin, QWidget):
                 self.general_table, "model", str(self._component.get("model") or "")
             )
 
-            # Pack table
-            self._set_property_spinbox(
-                self.pack_table,
-                "cell_count",
-                s,
-                min_val=1,
-                max_val=100,
-                step=1,
-                decimals=0,
-                target_data=params,
-                on_changed=lambda v: self._on_pack_param_changed("cell_count", v),
-            )
-            self._set_property_spinbox(
-                self.pack_table,
-                "parallel_count",
-                p,
-                min_val=1,
-                max_val=100,
-                step=1,
-                decimals=0,
-                target_data=params,
-                on_changed=lambda v: self._on_pack_param_changed("parallel_count", v),
-            )
-            self._set_property_spinbox(
-                self.pack_table,
-                "capacity",
-                pack_cap,
-                min_val=0,
-                max_val=1e6,
-                step=100,
-                decimals=0,
-                suffix="mAh",
-                target_data=params,
-                on_changed=lambda v: self._on_pack_param_changed("capacity", v),
-            )
-            self._set_property_spinbox(
-                self.pack_table,
-                "nominal_voltage",
-                v_nom,
-                min_val=0,
-                max_val=1000,
-                step=0.1,
-                decimals=1,
-                suffix="V",
-                target_data=params,
-                on_changed=lambda v: self._on_pack_param_changed("nominal_voltage", v),
-            )
-            self._set_property_spinbox(
-                self.pack_table,
-                "internal_resistance",
-                r_pack,
-                min_val=0,
-                max_val=100,
-                step=0.001,
-                decimals=4,
-                suffix="Ω",
-                target_data=params,
-                on_changed=lambda v: self._on_pack_param_changed("internal_resistance", v),
-            )
+            for key in ("cell_count", "parallel_count"):
+                self._set_property_spinbox(
+                    self.pack_table,
+                    key,
+                    int(params[key]),
+                    min_val=1,
+                    max_val=100,
+                    step=1,
+                    decimals=0,
+                    target_data=params,
+                    on_changed=lambda v, k=key: self._on_pack_param_changed(k, v),
+                )
             self._set_property_spinbox(
                 self.pack_table,
                 "packaging_mass",
-                packaging_mass,
+                float(params["packaging_mass"]),
                 min_val=0,
                 max_val=1e5,
                 step=1.0,
                 decimals=1,
-                suffix="g",
+                quantity="mass",
+                unit="g",
                 target_data=params,
                 on_changed=lambda v: self._on_pack_param_changed("packaging_mass", v),
             )
-            self._set_property_spinbox(
-                self.pack_table,
-                "max_discharge",
-                c_cont,
-                min_val=0,
-                max_val=500,
-                step=1,
-                decimals=0,
-                suffix="C",
-                target_data=params,
-                on_changed=lambda v: self._on_pack_param_changed("max_discharge", v),
-            )
-            self._set_property_spinbox(
-                self.pack_table,
-                "burst_discharge",
-                c_burst,
-                min_val=0,
-                max_val=500,
-                step=1,
-                decimals=0,
-                suffix="C",
-                target_data=params,
-                on_changed=lambda v: self._on_pack_param_changed("burst_discharge", v),
-            )
+            pack_values = {
+                "capacity": pack.capacity_mah,
+                "nominal_voltage": pack.nominal_voltage_v,
+                "charge_voltage": pack.charge_voltage_v,
+                "cutoff_voltage": pack.cutoff_voltage_v,
+                "internal_resistance": pack.internal_resistance_ohm,
+                "max_current": pack.max_current_a,
+                "energy": pack.energy_wh,
+            }
+            for key, _label, unit, quantity, decimals in _PACK_VALUES:
+                self._set_read_only_value(
+                    self.pack_table, key, pack_values[key], unit, quantity, decimals
+                )
 
-            # Cell table
-            chem_options = [
-                ("LiPo", "LiPo (3.7V)"),
-                ("Li-Ion (18650/21700)", "Li-Ion (3.6V)"),
-                ("LiFePO4", "LiFePO4 (3.2V)"),
-                ("Solid-State", "Solid-State (3.8V)"),
-                ("NiMH", "NiMH (1.2V)"),
-            ]
             self._set_property_combo(
                 self.cell_table,
                 "chemistry",
-                chem,
-                chem_options,
+                cell.chemistry,
+                list(CHEMISTRIES),
                 self._on_chemistry_changed,
             )
-            self._set_property_spinbox(
+            self._set_property_combo(
                 self.cell_table,
-                "cell_capacity",
-                cell_cap,
-                min_val=0,
-                max_val=1e6,
-                step=100,
-                decimals=0,
-                suffix="mAh",
-                target_data=params,
-                on_changed=lambda v: self._on_cell_param_changed("cell_capacity", v),
+                "cell_id",
+                cell.id,
+                [(spec.id, spec.name) for spec in chemistry_cells(cell.chemistry)],
+                self._on_cell_changed,
             )
-            self._set_property_spinbox(
-                self.cell_table,
-                "cell_nominal_voltage",
-                cell_v_nom,
-                min_val=0,
-                max_val=100,
-                step=0.05,
-                decimals=2,
-                suffix="V",
-                target_data=params,
-                on_changed=lambda v: self._on_cell_param_changed("cell_nominal_voltage", v),
-            )
-            self._set_property_spinbox(
-                self.cell_table,
-                "cell_max_voltage",
-                cell_v_max,
-                min_val=0,
-                max_val=100,
-                step=0.05,
-                decimals=2,
-                suffix="V",
-                target_data=params,
-                on_changed=lambda v: self._on_cell_param_changed("cell_max_voltage", v),
-            )
-            self._set_property_spinbox(
-                self.cell_table,
-                "cell_min_voltage",
-                cell_v_min,
-                min_val=0,
-                max_val=100,
-                step=0.05,
-                decimals=2,
-                suffix="V",
-                target_data=params,
-                on_changed=lambda v: self._on_cell_param_changed("cell_min_voltage", v),
-            )
-            self._set_property_spinbox(
-                self.cell_table,
-                "cell_resistance",
-                cell_res,
-                min_val=0,
-                max_val=10,
-                step=0.0005,
-                decimals=4,
-                suffix="Ω",
-                target_data=params,
-                on_changed=lambda v: self._on_cell_param_changed("cell_resistance", v),
-            )
-            self._set_property_spinbox(
-                self.cell_table,
-                "cell_mass",
-                cell_mass,
-                min_val=0,
-                max_val=10000,
-                step=1.0,
-                decimals=1,
-                suffix="g",
-                target_data=params,
-                on_changed=lambda v: self._on_cell_param_changed("cell_mass", v),
-            )
-
+            cell_values = {
+                "cell_capacity": cell.capacity_ah * 1000.0,
+                "cell_nominal_voltage": cell.nominal_voltage_v,
+                "cell_charge_voltage": cell.charge_voltage_v,
+                "cell_cutoff_voltage": cell.cutoff_voltage_v,
+                "cell_resistance": cell.mid_discharge_resistance_ohm,
+                "cell_max_current": cell.max_current_a,
+                "cell_mass": cell.mass_g,
+            }
+            for key, _label, unit, quantity, decimals in _CELL_VALUES:
+                self._set_read_only_value(
+                    self.cell_table, key, cell_values[key], unit, quantity, decimals
+                )
+            self._set_property_value(self.cell_table, "cell_source", cell.source, editable=False)
         finally:
             self._loading = False
+
+    def _set_read_only_value(
+        self,
+        table: Any,
+        key: str,
+        value: float,
+        unit: str,
+        quantity: str,
+        decimals: int,
+    ) -> None:
+        self._set_property_spinbox(
+            table,
+            key,
+            value,
+            decimals=decimals,
+            quantity=quantity,
+            unit=unit,
+            read_only=True,
+        )
 
     def _update_general(self, row: int, column: int) -> None:
         if self._loading or column != 1:
@@ -430,78 +279,33 @@ class BatteryEditor(PropertyTableMixin, QWidget):
     def _on_pack_param_changed(self, key: str, value: Any) -> None:
         if self._loading:
             return
-        try:
-            num = float(value)
-        except (ValueError, TypeError):
-            return
         cell = self._property_cell(self.pack_table, key)
         expr_to_store = cell.stored_expression() if cell is not None else None
 
         def apply_edit() -> None:
-            p = self._component["parameters"]
-            set_expression(p, key, expr_to_store)
-            if key in {"cell_count", "parallel_count"}:
-                p[key] = max(1, int(num))
-            else:
-                p[key] = float(num)
-
-            self._component["mass"] = battery_pack_mass(p)
-
-            if key == "cell_count":
-                p["nominal_voltage"] = p["cell_count"] * float(p["cell_nominal_voltage"])
-            elif key == "parallel_count":
-                p["capacity"] = p["parallel_count"] * float(p["cell_capacity"])
+            params = self._component["parameters"]
+            set_expression(params, key, expr_to_store)
+            params[key] = max(1, int(float(value))) if key != "packaging_mass" else float(value)
+            self._component["mass"] = battery_pack(params).mass_g
 
         self._api.edit_component(self._component, f"Set {key}", apply_edit)
         self._load_battery()
 
-    def _on_cell_param_changed(self, key: str, value: Any) -> None:
+    def _on_chemistry_changed(self, chemistry: str) -> None:
         if self._loading:
             return
-        try:
-            num = float(value)
-        except (ValueError, TypeError):
-            return
-        cell = self._property_cell(self.cell_table, key)
-        expr_to_store = cell.stored_expression() if cell is not None else None
+        self._set_cell(DEFAULT_CELLS[chemistry], f"Set battery chemistry '{chemistry}'")
 
+    def _on_cell_changed(self, cell_id: str) -> None:
+        if self._loading:
+            return
+        self._set_cell(cell_id, f"Set battery cell '{cell_spec(cell_id).name}'")
+
+    def _set_cell(self, cell_id: str, label: str) -> None:
         def apply_edit() -> None:
-            p = self._component["parameters"]
-            set_expression(p, key, expr_to_store)
-            p[key] = float(num)
+            params = self._component["parameters"]
+            params["cell_id"] = cell_id
+            self._component["mass"] = battery_pack(params).mass_g
 
-            self._component["mass"] = battery_pack_mass(p)
-
-            s = int(p["cell_count"])
-            par = int(p["parallel_count"])
-            if key == "cell_capacity":
-                p["capacity"] = par * float(num)
-            elif key == "cell_nominal_voltage":
-                p["nominal_voltage"] = s * float(num)
-            elif key == "cell_resistance":
-                p["internal_resistance"] = (s / par) * float(num)
-
-        self._api.edit_component(self._component, f"Set {key}", apply_edit)
-        self._load_battery()
-
-    def _on_chemistry_changed(self, new_chem: str) -> None:
-        if self._loading:
-            return
-
-        preset = self.CHEMISTRY_DEFAULTS[new_chem]
-
-        def apply_chem() -> None:
-            p = self._component["parameters"]
-            p["chemistry"] = new_chem
-            p.update(preset)
-
-            s = int(p["cell_count"])
-            par = int(p["parallel_count"])
-            p["nominal_voltage"] = s * preset["cell_nominal_voltage"]
-            p["capacity"] = par * preset["cell_capacity"]
-            p["internal_resistance"] = (s / par) * preset["cell_resistance"]
-
-            self._component["mass"] = battery_pack_mass(p)
-
-        self._api.edit_component(self._component, f"Set battery chemistry '{new_chem}'", apply_chem)
+        self._api.edit_component(self._component, label, apply_edit)
         self._load_battery()

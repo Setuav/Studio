@@ -8,7 +8,6 @@ import numpy as np
 
 from plugins.electrical_propulsion.powertrain import (
     Powertrain,
-    PowertrainError,
     build_powertrain,
     find_propulsion_system,
 )
@@ -37,8 +36,6 @@ from .engine.performance import (
 )
 
 SOLVER_ID_FLIGHT_PERFORMANCE = "org.setuav.flight_performance.level_flight"
-
-BATTERY_CELL_VOLTAGE = {"full": 4.20, "nominal": 3.70, "storage": 3.80}
 
 _TABLE_ID = "level_flight"
 
@@ -133,27 +130,26 @@ class FlightPerformanceSolver(AbstractSolver):
             tooltip="Lowest swept airspeed as a multiple of the stall speed.",
         ),
         ParameterField(
-            key="battery_state",
-            label="Battery State",
-            field_type=str,
-            default="full",
-            options=(
-                ("Full (4.20 V/cell)", "full"),
-                ("Nominal (3.70 V/cell)", "nominal"),
-                ("Storage (3.80 V/cell)", "storage"),
-            ),
-            tooltip="Cell voltage the battery is evaluated at.",
-        ),
-        ParameterField(
-            key="usable_capacity",
-            label="Usable Capacity",
+            key="state_of_charge",
+            label="Battery State of Charge",
             unit="%",
             field_type=float,
-            default=85.0,
-            min_value=10.0,
+            default=100.0,
+            min_value=1.0,
             max_value=100.0,
             decimals=0,
-            tooltip="Share of the battery capacity available for flight.",
+            tooltip="State of charge at the start of the flight.",
+        ),
+        ParameterField(
+            key="reserve_soc",
+            label="Landing Reserve",
+            unit="%",
+            field_type=float,
+            default=20.0,
+            min_value=0.0,
+            max_value=99.0,
+            decimals=0,
+            tooltip="State of charge left at the end of the endurance and range flights.",
         ),
         ParameterField(
             key="polar_velocity",
@@ -235,15 +231,6 @@ class FlightPerformanceSolver(AbstractSolver):
             ),
         )
         powertrain = self._powertrain(components)
-        usable_energy_wh = (
-            powertrain.battery.voltage_v
-            * powertrain.capacity_mah
-            / 1000.0
-            * float(params["usable_capacity"])
-            / 100.0
-            if powertrain is not None
-            else 0.0
-        )
         velocities = velocity_sweep(
             v_min=float(params["v_min"]),
             v_max=float(params["v_max"]),
@@ -257,7 +244,7 @@ class FlightPerformanceSolver(AbstractSolver):
             aero=aero,
             velocities=velocities,
             powertrain=powertrain,
-            usable_energy_wh=usable_energy_wh,
+            reserve_soc=float(params["reserve_soc"]) / 100.0,
             progress=lambda fraction: self._report(40 + int(55 * fraction), "Level flight"),
         )
         self._report(100, "Done")
@@ -267,12 +254,9 @@ class FlightPerformanceSolver(AbstractSolver):
         members = find_propulsion_system(components)
         if members is None:
             return None
-        powertrain = build_powertrain(members)
-        cells = members.batteries[0]["parameters"]["cell_count"]
-        if not isinstance(cells, int) or cells <= 0:
-            raise PowertrainError("Battery has no cell count.")
-        cell_voltage = BATTERY_CELL_VOLTAGE[str(self.config.parameters["battery_state"])]
-        return powertrain.with_battery_voltage(cell_voltage * cells)
+        return build_powertrain(
+            members, state_of_charge=float(self.config.parameters["state_of_charge"]) / 100.0
+        )
 
     def _check_cancelled(self) -> None:
         if self.is_cancel_requested or (self.token is not None and self.token.is_cancelled):
@@ -349,8 +333,12 @@ class FlightPerformanceSolver(AbstractSolver):
         items = [
             SummaryItem(
                 "battery_voltage",
-                round(powertrain.battery.voltage_v, 2),
-                "Battery Voltage",
+                round(
+                    powertrain.battery.ocv(powertrain.battery_state.dod)
+                    * powertrain.battery.series,
+                    2,
+                ),
+                "Battery Open-Circuit Voltage",
                 "V",
                 "voltage",
             ),
@@ -562,4 +550,4 @@ class FlightPerformanceSolver(AbstractSolver):
         return plots
 
 
-__all__ = ["BATTERY_CELL_VOLTAGE", "SOLVER_ID_FLIGHT_PERFORMANCE", "FlightPerformanceSolver"]
+__all__ = ["SOLVER_ID_FLIGHT_PERFORMANCE", "FlightPerformanceSolver"]

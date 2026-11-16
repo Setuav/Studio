@@ -176,27 +176,45 @@ def max_level_speed(
     return float(velocities[last] + fraction * (velocities[last + 1] - velocities[last])), True
 
 
-def current_limited_throttle(powertrain: Powertrain, *, rho: float, airspeed_mps: float) -> float:
-    """Return the highest throttle that keeps every motor within its current limit."""
-    limit = powertrain.current_limit_a
+_THROTTLE_SAMPLES = tuple(float(value) for value in np.linspace(0.05, 1.0, 20))
 
-    def current(throttle: float) -> float:
-        return powertrain.solve(
-            rho=rho, airspeed_mps=airspeed_mps, throttle=throttle
-        ).battery_current_a
 
-    if current(0.0) > limit:
-        return 0.0
-    if current(1.0) <= limit:
-        return 1.0
-    low, high = 0.0, 1.0
-    for _ in range(32):
-        mid = (low + high) * 0.5
-        if current(mid) <= limit:
-            low = mid
+def feasible_throttle_range(
+    powertrain: Powertrain, *, rho: float, airspeed_mps: float
+) -> tuple[float, float] | None:
+    """Return the throttle interval with valid operating points, or ``None``.
+
+    Below the interval the propeller runs outside its data at this airspeed; above
+    it a motor or the battery exceeds its current limit.
+    """
+
+    def feasible(throttle: float) -> bool:
+        return powertrain.solve(rho=rho, airspeed_mps=airspeed_mps, throttle=throttle).feasible
+
+    flags = [feasible(throttle) for throttle in _THROTTLE_SAMPLES]
+    indices = [index for index, flag in enumerate(flags) if flag]
+    if not indices:
+        return None
+    first, last = indices[0], indices[-1]
+    low = _THROTTLE_SAMPLES[first]
+    if first > 0:
+        low = _feasibility_edge(feasible, _THROTTLE_SAMPLES[first - 1], low)
+    high = _THROTTLE_SAMPLES[last]
+    if last < len(_THROTTLE_SAMPLES) - 1:
+        high = _feasibility_edge(feasible, high, _THROTTLE_SAMPLES[last + 1])
+    return low, high
+
+
+def _feasibility_edge(feasible: Callable[[float], bool], a: float, b: float) -> float:
+    """Return the feasible side of the feasibility boundary between ``a`` and ``b``."""
+    feasible_end, infeasible_end = (a, b) if feasible(a) else (b, a)
+    for _ in range(24):
+        mid = 0.5 * (feasible_end + infeasible_end)
+        if feasible(mid):
+            feasible_end = mid
         else:
-            high = mid
-    return low
+            infeasible_end = mid
+    return feasible_end
 
 
 def throttle_for_thrust(
@@ -205,28 +223,33 @@ def throttle_for_thrust(
     rho: float,
     airspeed_mps: float,
     thrust_n: float,
+    throttle_range: tuple[float, float] | None,
 ) -> tuple[float, PowertrainPoint | None]:
-    """Return (throttle, operating point) delivering ``thrust_n`` within the current limit.
+    """Return (throttle, operating point) delivering ``thrust_n`` inside ``throttle_range``.
 
-    The operating point is ``None`` when the current-limited powertrain cannot
-    deliver the thrust at this airspeed.
+    The operating point is ``None`` when no valid operating point delivers the thrust:
+    the powertrain is too weak, or the thrust lies below what it can model at this
+    airspeed.
     """
-    max_throttle = current_limited_throttle(powertrain, rho=rho, airspeed_mps=airspeed_mps)
+    if throttle_range is None:
+        return 0.0, None
+    low, high = throttle_range
 
     def point(throttle: float) -> PowertrainPoint:
         return powertrain.solve(rho=rho, airspeed_mps=airspeed_mps, throttle=throttle)
 
-    if max_throttle <= 0.0 or point(max_throttle).thrust_n < thrust_n:
-        return max_throttle, None
-    if point(0.0).thrust_n >= thrust_n:
-        return 0.0, point(0.0)
+    if point(high).thrust_n < thrust_n:
+        return high, None
+    if point(low).thrust_n > thrust_n:
+        return low, None
     root = root_scalar(
         lambda throttle: point(throttle).thrust_n - thrust_n,
-        bracket=[0.0, max_throttle],
+        bracket=[low, high],
         method="brentq",
     )
     throttle = float(root.root)
-    return throttle, point(throttle)
+    solved = point(throttle)
+    return throttle, solved if solved.feasible else None
 
 
 def velocity_sweep(
@@ -252,10 +275,14 @@ def level_flight_envelope(
     aero: AerodynamicModel,
     velocities: np.ndarray,
     powertrain: Powertrain | None,
-    usable_energy_wh: float,
+    reserve_soc: float,
     progress: Callable[[float], None] = lambda _fraction: None,
 ) -> PerformanceEnvelope:
-    """Solve steady level flight across ``velocities``."""
+    """Solve steady level flight across ``velocities``.
+
+    Endurance and range are the time and distance flown at constant battery power
+    from the powertrain's state of charge down to ``reserve_soc``.
+    """
     weight_n = mass_kg * G0
     dynamic_force = 0.5 * rho * velocities**2 * aero.area_m2
     cl = weight_n / dynamic_force
@@ -271,12 +298,14 @@ def level_flight_envelope(
         excess = np.maximum(0.0, propulsion.power_available - power_required)
         rate_of_climb = np.where(propulsion.feasible, excess / weight_n, 0.0)
         climb_angle = np.degrees(np.arcsin(np.clip(rate_of_climb / velocities, 0.0, 1.0)))
-        hours = np.divide(
-            usable_energy_wh,
-            propulsion.electrical_power,
-            out=np.zeros_like(velocities),
-            where=propulsion.feasible & (propulsion.electrical_power > 0.0),
-        )
+        hours = np.zeros_like(velocities)
+        for index in np.flatnonzero(propulsion.feasible & (propulsion.electrical_power > 0.0)):
+            hours[index] = (
+                powertrain.discharge_time_s(
+                    power_w=float(propulsion.electrical_power[index]), final_soc=reserve_soc
+                )
+                / 3600.0
+            )
         endurance = hours * 60.0
         range_km = velocities * 3.6 * hours
 
@@ -312,13 +341,17 @@ def _propulsion_sweep(
     for index, velocity in enumerate(velocities):
         progress(index / count)
         v = float(velocity)
-        max_throttle = current_limited_throttle(powertrain, rho=rho, airspeed_mps=v)
-        if max_throttle > 0.0:
+        throttle_range = feasible_throttle_range(powertrain, rho=rho, airspeed_mps=v)
+        if throttle_range is not None:
             thrust_available[index] = powertrain.solve(
-                rho=rho, airspeed_mps=v, throttle=max_throttle
+                rho=rho, airspeed_mps=v, throttle=throttle_range[1]
             ).thrust_n
         throttle, point = throttle_for_thrust(
-            powertrain, rho=rho, airspeed_mps=v, thrust_n=float(drag[index])
+            powertrain,
+            rho=rho,
+            airspeed_mps=v,
+            thrust_n=float(drag[index]),
+            throttle_range=throttle_range,
         )
         throttle_pct[index] = throttle * 100.0
         if point is not None:
@@ -341,7 +374,7 @@ __all__ = [
     "PerformanceEnvelope",
     "PropulsionSweep",
     "aerobuildup_cl_max",
-    "current_limited_throttle",
+    "feasible_throttle_range",
     "fit_drag_polar",
     "level_flight_envelope",
     "max_level_speed",

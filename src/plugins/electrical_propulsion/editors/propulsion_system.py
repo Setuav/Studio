@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from plugins.electrical_propulsion.models.battery import battery_pack
 from plugins.electrical_propulsion.powertrain import propulsion_system_members
 from setuav_studio.api import StudioAPI
 from setuav_studio.ui.style.icons import set_label_icon
@@ -165,13 +166,9 @@ class PropulsionSystemEditor(PropertyTableMixin, QWidget):
             volt_display = "-"
             energy_display = "-"
             if batteries:
-                bp = batteries[0]["parameters"]
-                s = int(bp["cell_count"])
-                cap = float(bp["capacity"])
-                v_nom = float(bp["nominal_voltage"])
-                wh = (cap * v_nom) / 1000.0
-                volt_display = f"{s}S ({v_nom:.1f} V)"
-                energy_display = f"{cap:.0f} mAh ({wh:.1f} Wh)"
+                pack = battery_pack(batteries[0]["parameters"])
+                volt_display = f"{pack.series}S ({pack.nominal_voltage_v:.1f} V)"
+                energy_display = f"{pack.capacity_mah:.0f} mAh ({pack.energy_wh:.1f} Wh)"
 
             self._set_property_value(
                 self.metrics_table, "operating_voltage", volt_display, editable=False

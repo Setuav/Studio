@@ -3,36 +3,89 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
 
+from pythrust.battery import RateMapBattery
+
+from plugins.electrical_propulsion.cells import DEFAULT_CELLS, CellSpec, cell_spec
 from setuav_studio.api import ParameterField
 from setuav_studio.model import Component
 
 
-def battery_pack_mass(parameters: Mapping[str, Any]) -> float:
-    """Pack mass in grams: series x parallel cells plus packaging and wiring."""
-    cells = int(parameters["cell_count"]) * int(parameters["parallel_count"])
-    return cells * float(parameters["cell_mass"]) + float(parameters["packaging_mass"])
+@dataclass(frozen=True)
+class BatteryPack:
+    """Battery pack of ``series`` x ``parallel`` catalogue cells."""
+
+    cell: CellSpec
+    series: int
+    parallel: int
+    packaging_mass_g: float
+
+    @property
+    def capacity_mah(self) -> float:
+        return self.cell.capacity_ah * 1000.0 * self.parallel
+
+    @property
+    def nominal_voltage_v(self) -> float:
+        return self.cell.nominal_voltage_v * self.series
+
+    @property
+    def charge_voltage_v(self) -> float:
+        return self.cell.charge_voltage_v * self.series
+
+    @property
+    def cutoff_voltage_v(self) -> float:
+        return self.cell.cutoff_voltage_v * self.series
+
+    @property
+    def internal_resistance_ohm(self) -> float:
+        """Pack resistance at half depth of discharge."""
+        return self.cell.mid_discharge_resistance_ohm * self.series / self.parallel
+
+    @property
+    def max_current_a(self) -> float:
+        return self.cell.max_current_a * self.parallel
+
+    @property
+    def energy_wh(self) -> float:
+        return self.capacity_mah / 1000.0 * self.nominal_voltage_v
+
+    @property
+    def mass_g(self) -> float:
+        """Cells plus packaging and wiring."""
+        return self.series * self.parallel * self.cell.mass_g + self.packaging_mass_g
+
+    def rate_map(self) -> RateMapBattery:
+        return self.cell.rate_map(series=self.series, parallel=self.parallel)
+
+
+def battery_pack(parameters: Mapping[str, Any]) -> BatteryPack:
+    """Return the pack described by a battery component's parameters."""
+    return BatteryPack(
+        cell=cell_spec(str(parameters["cell_id"])),
+        series=int(parameters["cell_count"]),
+        parallel=int(parameters["parallel_count"]),
+        packaging_mass_g=float(parameters["packaging_mass"]),
+    )
 
 
 class BatteryModel(Component):
     """Domain model for Battery (org.setuav.core:battery).
 
-    Pack values (capacity, nominal voltage, internal resistance) and the component
-    mass are stored next to the cell specifications they are derived from, so
-    analyses read them directly.
+    A battery is ``cell_count`` x ``parallel_count`` cells of one catalogue cell; the
+    pack values are derived from that cell. The component mass is stored and kept
+    equal to the pack mass.
     """
 
     COMPONENT_TYPE = "org.setuav.core:battery"
 
-    chemistry = ParameterField(
-        key="chemistry",
-        label="Cell Chemistry",
-        unit="",
+    cell_id = ParameterField(
+        key="cell_id",
+        label="Cell",
         field_type=str,
-        default="LiPo",
-        options=("LiPo", "Li-Ion (18650/21700)", "LiFePO4", "Solid-State", "NiMH"),
-        tooltip="Battery cell chemical composition.",
+        default=DEFAULT_CELLS["LiPo"],
+        tooltip="Catalogue cell the pack is built from.",
     )
     cell_count = ParameterField(
         key="cell_count",
@@ -54,39 +107,6 @@ class BatteryModel(Component):
         max_value=16,
         tooltip="Number of cells connected in parallel determining capacity.",
     )
-    capacity = ParameterField(
-        key="capacity",
-        label="Pack Capacity",
-        unit="mAh",
-        field_type=float,
-        default=5000.0,
-        min_value=50.0,
-        max_value=500000.0,
-        decimals=0,
-        tooltip="Total nominal energy storage capacity in milliampere-hours.",
-    )
-    nominal_voltage = ParameterField(
-        key="nominal_voltage",
-        label="Pack Nominal Voltage",
-        unit="V",
-        field_type=float,
-        default=22.2,
-        min_value=1.0,
-        max_value=1000.0,
-        decimals=1,
-        tooltip="Nominal pack voltage: series count times the cell nominal voltage.",
-    )
-    internal_resistance = ParameterField(
-        key="internal_resistance",
-        label="Pack Internal Resistance",
-        unit="Ω",
-        field_type=float,
-        default=0.015,
-        min_value=0.0001,
-        max_value=100.0,
-        decimals=4,
-        tooltip="Internal resistance of the whole pack.",
-    )
     packaging_mass = ParameterField(
         key="packaging_mass",
         label="Packaging & Lead Mass",
@@ -98,131 +118,34 @@ class BatteryModel(Component):
         decimals=1,
         tooltip="Wiring, heatshrink, casing, and connector overhead mass in grams.",
     )
-    max_discharge = ParameterField(
-        key="max_discharge",
-        label="Discharge Rating",
-        unit="C",
-        field_type=float,
-        default=35.0,
-        min_value=1.0,
-        max_value=150.0,
-        decimals=1,
-        tooltip="Continuous safe discharge rate in C-multiples of capacity.",
-    )
-    burst_discharge = ParameterField(
-        key="burst_discharge",
-        label="Burst Discharge Rating",
-        unit="C",
-        field_type=float,
-        default=70.0,
-        min_value=1.0,
-        max_value=300.0,
-        decimals=1,
-        tooltip="Short-duration burst discharge rate in C-multiples of capacity.",
-    )
-    cell_capacity = ParameterField(
-        key="cell_capacity",
-        label="Cell Capacity",
-        unit="mAh",
-        field_type=float,
-        default=5000.0,
-        min_value=50.0,
-        max_value=100000.0,
-        decimals=0,
-        tooltip="Capacity of a single cell in milliampere-hours.",
-    )
-    cell_nominal_voltage = ParameterField(
-        key="cell_nominal_voltage",
-        label="Cell Nominal Voltage",
-        unit="V",
-        field_type=float,
-        default=3.7,
-        min_value=1.0,
-        max_value=5.0,
-        decimals=2,
-        tooltip="Nominal cell working voltage.",
-    )
-    cell_max_voltage = ParameterField(
-        key="cell_max_voltage",
-        label="Cell Max Voltage",
-        unit="V",
-        field_type=float,
-        default=4.2,
-        min_value=1.0,
-        max_value=5.0,
-        decimals=2,
-        tooltip="Fully charged cell voltage.",
-    )
-    cell_min_voltage = ParameterField(
-        key="cell_min_voltage",
-        label="Cell Cut-Off Voltage",
-        unit="V",
-        field_type=float,
-        default=3.0,
-        min_value=0.5,
-        max_value=5.0,
-        decimals=2,
-        tooltip="Cell voltage at which discharge must stop.",
-    )
-    cell_resistance = ParameterField(
-        key="cell_resistance",
-        label="Cell Resistance",
-        unit="Ω",
-        field_type=float,
-        default=0.0025,
-        min_value=0.0001,
-        max_value=0.5,
-        decimals=4,
-        tooltip="Internal resistance per cell.",
-    )
-    cell_mass = ParameterField(
-        key="cell_mass",
-        label="Cell Mass",
-        unit="g",
-        field_type=float,
-        default=130.0,
-        min_value=1.0,
-        max_value=2000.0,
-        decimals=1,
-        tooltip="Mass of a single raw cell in grams.",
-    )
 
     @classmethod
     def default_parameters(cls) -> dict[str, Any]:
-        """Complete, mutually consistent parameter set of a new battery pack."""
+        """Parameter set of a new battery pack."""
         return {field.key: field.default for field in cls.get_scalar_fields()}
 
     @property
-    def derived_mass(self) -> float:
-        """Pack mass derived from the cell count, cell mass and packaging mass."""
-        return battery_pack_mass(self.parameters)
-
-    @property
-    def energy_wh(self) -> float:
-        """Calculated energy capacity in Watt-hours."""
-        return (self.capacity * self.nominal_voltage) / 1000.0
+    def pack(self) -> BatteryPack:
+        return battery_pack(self.parameters)
 
     def get_exposed_properties(self) -> dict[str, Any]:
         props = super().get_exposed_properties()
+        pack = self.pack
         props.update(
             {
-                "chemistry": self.chemistry,
+                "cell_id": self.cell_id,
+                "chemistry": pack.cell.chemistry,
                 "cell_count": self.cell_count,
                 "parallel_count": self.parallel_count,
-                "capacity": self.capacity,
-                "nominal_voltage": self.nominal_voltage,
-                "internal_resistance": self.internal_resistance,
                 "packaging_mass": self.packaging_mass,
-                "max_discharge": self.max_discharge,
-                "burst_discharge": self.burst_discharge,
-                "cell_capacity": self.cell_capacity,
-                "cell_nominal_voltage": self.cell_nominal_voltage,
-                "cell_max_voltage": self.cell_max_voltage,
-                "cell_min_voltage": self.cell_min_voltage,
-                "cell_resistance": self.cell_resistance,
-                "cell_mass": self.cell_mass,
-                "derived_mass": self.derived_mass,
-                "energy_wh": self.energy_wh,
+                "capacity": pack.capacity_mah,
+                "nominal_voltage": pack.nominal_voltage_v,
+                "charge_voltage": pack.charge_voltage_v,
+                "cutoff_voltage": pack.cutoff_voltage_v,
+                "internal_resistance": pack.internal_resistance_ohm,
+                "max_current": pack.max_current_a,
+                "energy_wh": pack.energy_wh,
+                "derived_mass": pack.mass_g,
             }
         )
         return props

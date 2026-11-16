@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from plugins.electrical_propulsion.models.battery import BatteryModel, battery_pack_mass
+from plugins.electrical_propulsion.models.battery import BatteryModel, battery_pack
 from setuav_studio.api import (
     StudioAPI,
     ToolbarContribution,
@@ -302,7 +302,7 @@ class PropulsionCreationController:
     @staticmethod
     def _default_mass(component_kind: str, params: dict[str, Any]) -> float:
         if component_kind == "battery":
-            return battery_pack_mass(params)
+            return battery_pack(params).mass_g
         masses = {
             "esc": 45.0,
             "motor": 120.0,

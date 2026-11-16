@@ -3,22 +3,22 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from functools import cached_property
 from typing import Any
 
-from pythrust.battery import FixedVoltageBattery
+from pythrust.battery import BatteryState, RateMapBattery
 from pythrust.propellers.database import PropellerEntry
 from pythrust.propulsion.models import MotorSpec, PropellerSpec, SystemSpec
 from pythrust.propulsion.solver import PropulsionSolver
 
 from plugins.electrical_propulsion.database import get_propeller_database
+from plugins.electrical_propulsion.models.battery import battery_pack
 
 PROPULSION_SYSTEM_TYPE = "org.setuav.core:propulsion-system"
 MOTOR_TYPE = "org.setuav.core:motor"
 BATTERY_TYPE = "org.setuav.core:battery"
 ESC_TYPE = "org.setuav.core:esc"
 PROPULSOR_TYPES = frozenset({"org.setuav.core:propeller", "org.setuav.core:rotor"})
-
-BATTERY_DISCHARGE_EFFICIENCY = 0.98
 
 
 class PowertrainError(RuntimeError):
@@ -93,39 +93,72 @@ class PowertrainPoint:
 
 @dataclass(frozen=True)
 class Powertrain:
-    """Battery feeding ``unit_count`` identical ESC-motor-propeller units in parallel.
+    """Battery pack feeding ``unit_count`` identical ESC-motor-propeller units in parallel.
 
-    The battery is an ideal voltage source, so every unit operates at the same
-    point and the totals scale with the unit count.
+    The pack is a rate-map battery at ``battery_state``: its terminal voltage sags
+    with the total current of all units. Every unit draws the same current, so one
+    unit sees the pack with its resistance and current limit scaled by the unit
+    count, and the totals scale with the unit count.
     """
 
     motor: MotorSpec
     propeller: PropellerSpec
     propeller_data: PropellerEntry
-    battery: FixedVoltageBattery
+    battery: RateMapBattery
+    battery_state: BatteryState
     unit_system: SystemSpec
-    capacity_mah: float
     unit_count: int
 
     @property
     def current_limit_a(self) -> float:
-        """Total battery current at which every motor reaches its current limit."""
-        return self.motor.current_max_a * self.unit_count
+        """Total battery current allowed by the motors and the pack."""
+        return min(
+            self.motor.current_max_a * self.unit_count,
+            self.battery.max_current_a * self.battery.parallel,
+        )
 
-    def with_battery_voltage(self, voltage_v: float) -> Powertrain:
-        return replace(self, battery=replace(self.battery, voltage_v=voltage_v))
+    @cached_property
+    def _unit_battery(self) -> RateMapBattery:
+        n = self.unit_count
+        return replace(
+            self.battery,
+            resistance_factor=self.battery.resistance_factor * n,
+            max_current_a=self.battery.max_current_a / n,
+        )
+
+    def with_state_of_charge(self, soc: float) -> Powertrain:
+        return replace(self, battery_state=BatteryState(soc=soc))
+
+    def discharge_time_s(self, *, power_w: float, final_soc: float) -> float:
+        """Time to discharge from ``battery_state`` to ``final_soc`` at constant pack power.
+
+        The discharge ends earlier when the pack reaches its cut-off voltage or current
+        limit.
+        """
+        if final_soc >= self.battery_state.soc:
+            raise PowertrainError(
+                f"Final state of charge {final_soc:.0%} is not below the initial "
+                f"{self.battery_state.soc:.0%}."
+            )
+        result = self.battery.integrate_power_to_dod(
+            state=self.battery_state,
+            power_w=power_w,
+            dod_final=1.0 - final_soc,
+            max_step_s=60.0,
+        )
+        return result.time_s[-1]
 
     def solve(self, *, rho: float, airspeed_mps: float, throttle: float) -> PowertrainPoint:
         op = PropulsionSolver().solve_operating_point(
             motor=self.motor,
-            battery=self.battery,
+            battery=self._unit_battery,
             system=self.unit_system,
             propeller=self.propeller,
             prop_entry=self.propeller_data,
             rho=rho,
             airspeed_mps=airspeed_mps,
             throttle=min(max(throttle, 0.0), 1.0),
-            battery_state=None,
+            battery_state=self.battery_state,
         )
         n = self.unit_count
         return PowertrainPoint(
@@ -142,8 +175,8 @@ class Powertrain:
         )
 
 
-def build_powertrain(members: PropulsionSystemMembers) -> Powertrain:
-    """Build the analysable powertrain of a propulsion system."""
+def build_powertrain(members: PropulsionSystemMembers, *, state_of_charge: float) -> Powertrain:
+    """Build the analysable powertrain of a propulsion system at ``state_of_charge``."""
     missing = [
         label
         for label, group in (("Battery", members.batteries), ("Electric Motor", members.motors))
@@ -174,12 +207,9 @@ def build_powertrain(members: PropulsionSystemMembers) -> Powertrain:
             blade_count=int(_number(propulsor, "blade_count", "Propeller")),
         ),
         propeller_data=_propeller_data(propulsor),
-        battery=FixedVoltageBattery(
-            voltage_v=_number(battery, "nominal_voltage", "Battery"),
-            discharge_efficiency=BATTERY_DISCHARGE_EFFICIENCY,
-        ),
+        battery=battery_pack(battery["parameters"]).rate_map(),
+        battery_state=BatteryState(soc=state_of_charge),
         unit_system=SystemSpec(resistance_ohm=esc_resistances.pop() if esc_resistances else 0.0),
-        capacity_mah=_number(battery, "capacity", "Battery"),
         unit_count=len(units),
     )
 

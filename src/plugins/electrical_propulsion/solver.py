@@ -31,6 +31,8 @@ SOLVER_ID_THROTTLE_SWEEP = "org.setuav.propulsion.throttle_sweep"
 SOLVER_ID_AIRSPEED_SWEEP = "org.setuav.propulsion.airspeed_sweep"
 SOLVER_ID_OPERATING_POINT = "org.setuav.propulsion.operating_point"
 
+_ENDURANCE_FINAL_SOC = 0.2
+
 
 class BasePropulsionSolver(AbstractSolver):
     """Base class for electrical propulsion solvers resolving project powertrain entities."""
@@ -48,7 +50,10 @@ class BasePropulsionSolver(AbstractSolver):
         members = find_propulsion_system(components)
         if members is None:
             raise PowertrainError("Propulsion analysis requires an electrical propulsion system.")
-        return build_powertrain(members)
+        return build_powertrain(
+            members,
+            state_of_charge=float(self.config.parameters["state_of_charge"]) / 100.0,
+        )
 
     def _build_result(
         self,
@@ -161,9 +166,12 @@ class BasePropulsionSolver(AbstractSolver):
         }
 
         nominal_idx = min(len(x_vals) - 1, max(0, int(len(x_vals) * 0.5)))
-        cruise_power = max(powers[nominal_idx] if powers else 0.0, 1.0)
-        battery_energy_wh = (powertrain.battery.voltage_v * powertrain.capacity_mah) / 1000.0
-        est_endurance_min = (battery_energy_wh * 0.8 / cruise_power) * 60.0
+        cruise_power = powers[nominal_idx] if powers else 0.0
+        endurance_min = (
+            powertrain.discharge_time_s(power_w=cruise_power, final_soc=_ENDURANCE_FINAL_SOC) / 60.0
+            if cruise_power > 0.0 and powertrain.battery_state.soc > _ENDURANCE_FINAL_SOC
+            else 0.0
+        )
 
         summary: dict[str, SummaryItem] = {
             "static_thrust": SummaryItem(
@@ -209,8 +217,8 @@ class BasePropulsionSolver(AbstractSolver):
             ),
             "estimated_endurance": SummaryItem(
                 key="estimated_endurance",
-                value=round(est_endurance_min, 1),
-                label="Estimated Endurance (80% DoD)",
+                value=round(endurance_min, 1),
+                label=f"Cruise Endurance to {_ENDURANCE_FINAL_SOC:.0%} SoC",
                 unit="min",
             ),
         }
@@ -297,6 +305,17 @@ class ThrottleSweepSolver(BasePropulsionSolver):
             max_value=60.0,
             decimals=1,
             tooltip="Ambient air temperature.",
+        ),
+        ParameterField(
+            key="state_of_charge",
+            label="Battery State of Charge",
+            unit="%",
+            field_type=float,
+            default=100.0,
+            min_value=1.0,
+            max_value=100.0,
+            decimals=0,
+            tooltip="Battery state of charge the pack is evaluated at.",
         ),
     ]
 
@@ -421,6 +440,17 @@ class AirspeedSweepSolver(BasePropulsionSolver):
             decimals=1,
             tooltip="Ambient air temperature.",
         ),
+        ParameterField(
+            key="state_of_charge",
+            label="Battery State of Charge",
+            unit="%",
+            field_type=float,
+            default=100.0,
+            min_value=1.0,
+            max_value=100.0,
+            decimals=0,
+            tooltip="Battery state of charge the pack is evaluated at.",
+        ),
     ]
 
     def run(self) -> SolverResult:
@@ -520,6 +550,17 @@ class OperatingPointSolver(BasePropulsionSolver):
             max_value=60.0,
             decimals=1,
             tooltip="Ambient air temperature.",
+        ),
+        ParameterField(
+            key="state_of_charge",
+            label="Battery State of Charge",
+            unit="%",
+            field_type=float,
+            default=100.0,
+            min_value=1.0,
+            max_value=100.0,
+            decimals=0,
+            tooltip="Battery state of charge the pack is evaluated at.",
         ),
     ]
 

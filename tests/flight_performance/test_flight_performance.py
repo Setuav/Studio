@@ -8,16 +8,18 @@ from typing import Any
 from unittest.mock import PropertyMock, patch
 
 import numpy as np
-from pythrust.battery import FixedVoltageBattery
+from pythrust.battery import BatteryState
 from pythrust.propulsion.models import MotorSpec, PropellerSpec, SystemSpec
 
 from plugins.aerodynamics.engine.base import AeroAnalysisError
+from plugins.electrical_propulsion.cells import cell_spec
 from plugins.electrical_propulsion.database import get_propeller_database
 from plugins.electrical_propulsion.powertrain import Powertrain
 from plugins.flight_performance.engine.performance import (
     AerodynamicModel,
     DragPolar,
     aerobuildup_cl_max,
+    feasible_throttle_range,
     fit_drag_polar,
     level_flight_envelope,
     max_level_speed,
@@ -44,7 +46,8 @@ PROPULSION_TYPES = {
 }
 
 
-def _powertrain(voltage_v: float = 22.2, unit_count: int = 1) -> Powertrain:
+def _powertrain(unit_count: int = 1) -> Powertrain:
+    """6S1P pack of the default LiPo cell driving 13x6.5 propeller units."""
     propeller_data = get_propeller_database().get("APC_13x6.5E")
     assert propeller_data is not None
     return Powertrain(
@@ -53,10 +56,20 @@ def _powertrain(voltage_v: float = 22.2, unit_count: int = 1) -> Powertrain:
         ),
         propeller=PropellerSpec(diameter_m=0.3302, pitch_m=0.1651, blade_count=2),
         propeller_data=propeller_data,
-        battery=FixedVoltageBattery(voltage_v=voltage_v, discharge_efficiency=0.98),
+        battery=cell_spec("lipo_6000").rate_map(series=6, parallel=1),
+        battery_state=BatteryState(soc=1.0),
         unit_system=SystemSpec(resistance_ohm=0.005),
-        capacity_mah=5000.0,
         unit_count=unit_count,
+    )
+
+
+def _throttle_for_thrust(powertrain: Powertrain, airspeed_mps: float, thrust_n: float):
+    return throttle_for_thrust(
+        powertrain,
+        rho=1.225,
+        airspeed_mps=airspeed_mps,
+        thrust_n=thrust_n,
+        throttle_range=feasible_throttle_range(powertrain, rho=1.225, airspeed_mps=airspeed_mps),
     )
 
 
@@ -124,23 +137,34 @@ class LevelFlightComputationTests(unittest.TestCase):
 
     def test_throttle_stays_within_motor_current(self) -> None:
         powertrain = _powertrain()
-        throttle, point = throttle_for_thrust(
-            powertrain, rho=1.225, airspeed_mps=10.0, thrust_n=2.0
+        throttle_range = feasible_throttle_range(powertrain, rho=1.225, airspeed_mps=10.0)
+        assert throttle_range is not None
+        low, high = throttle_range
+        self.assertLess(high, 1.0)
+        top = powertrain.solve(rho=1.225, airspeed_mps=10.0, throttle=high)
+        self.assertTrue(top.feasible)
+        self.assertLessEqual(top.battery_current_a, powertrain.motor.current_max_a + 1e-6)
+        self.assertFalse(
+            powertrain.solve(rho=1.225, airspeed_mps=10.0, throttle=min(1.0, high + 0.01)).feasible
         )
-        assert point is not None
-        self.assertLess(throttle, 1.0)
-        self.assertLessEqual(point.battery_current_a, powertrain.current_limit_a)
 
-        _, unreachable = throttle_for_thrust(
-            powertrain, rho=1.225, airspeed_mps=10.0, thrust_n=500.0
-        )
-        self.assertIsNone(unreachable)
+        throttle, point = _throttle_for_thrust(powertrain, 10.0, 2.0)
+        assert point is not None
+        self.assertTrue(low <= throttle <= high)
+        self.assertAlmostEqual(point.thrust_n, 2.0, places=4)
+        self.assertIsNone(_throttle_for_thrust(powertrain, 10.0, 500.0)[1])
+
+    def test_thrust_below_the_modelled_range_is_not_a_flight_point(self) -> None:
+        powertrain = _powertrain()
+        throttle_range = feasible_throttle_range(powertrain, rho=1.225, airspeed_mps=10.0)
+        assert throttle_range is not None
+        lowest = powertrain.solve(rho=1.225, airspeed_mps=10.0, throttle=throttle_range[0])
+        _, point = _throttle_for_thrust(powertrain, 10.0, 0.5 * lowest.thrust_n)
+        self.assertIsNone(point)
 
     def test_twin_motor_needs_less_throttle_for_the_same_thrust(self) -> None:
-        single, _ = throttle_for_thrust(_powertrain(), rho=1.225, airspeed_mps=12.0, thrust_n=6.0)
-        twin, point = throttle_for_thrust(
-            _powertrain(unit_count=2), rho=1.225, airspeed_mps=12.0, thrust_n=6.0
-        )
+        single, _ = _throttle_for_thrust(_powertrain(), 12.0, 6.0)
+        twin, point = _throttle_for_thrust(_powertrain(unit_count=2), 12.0, 6.0)
         self.assertIsNotNone(point)
         self.assertLess(twin, single)
 
@@ -153,22 +177,29 @@ class LevelFlightComputationTests(unittest.TestCase):
 
     def test_envelope_with_powertrain(self) -> None:
         velocities = np.arange(9.0, 30.0, 1.0)
+        powertrain = _powertrain()
         envelope = level_flight_envelope(
             mass_kg=2.5,
             rho=1.225,
             aero=_aero(),
             velocities=velocities,
-            powertrain=_powertrain(),
-            usable_energy_wh=80.0,
+            powertrain=powertrain,
+            reserve_soc=0.2,
         )
         propulsion = envelope.propulsion
         assert propulsion is not None
         self.assertTrue(np.all(propulsion.feasible))
         self.assertTrue(np.all(envelope.rate_of_climb > 0.0))
         best = int(np.argmin(propulsion.electrical_power))
-        self.assertAlmostEqual(
-            envelope.endurance_min[best], 80.0 / propulsion.electrical_power[best] * 60.0
-        )
+        self.assertEqual(int(np.argmax(envelope.endurance_min)), best)
+        # The open-circuit energy between full charge and the 20 % reserve, less the
+        # losses of the voltage sag.
+        dods = np.linspace(0.0, 0.8, 801)
+        ocv = np.array([powertrain.battery.ocv(float(dod)) for dod in dods])
+        reversible_wh = float(np.trapezoid(ocv, dods)) * 6.0 * 6
+        ideal_min = reversible_wh / propulsion.electrical_power[best] * 60.0
+        self.assertLess(envelope.endurance_min[best], ideal_min)
+        self.assertGreater(envelope.endurance_min[best], 0.9 * ideal_min)
         self.assertAlmostEqual(
             envelope.best_lift_to_drag_speed,
             float(np.sqrt(2.0 * 2.5 * 9.80665 / (1.225 * 0.6 * np.sqrt(0.03 / 0.045)))),
@@ -181,7 +212,7 @@ class LevelFlightComputationTests(unittest.TestCase):
             aero=_aero(),
             velocities=np.arange(9.0, 20.0, 1.0),
             powertrain=None,
-            usable_energy_wh=0.0,
+            reserve_soc=0.2,
         )
         self.assertIsNone(envelope.propulsion)
         self.assertEqual(len(envelope.range_km), 0)
