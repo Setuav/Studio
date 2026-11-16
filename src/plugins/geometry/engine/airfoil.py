@@ -9,34 +9,59 @@ from __future__ import annotations
 
 import math
 import re
+from collections.abc import Callable
+from functools import partial
 from pathlib import Path
 from typing import Any
 
 AIRFOIL_SAMPLES = 64
 AIRFOILS_DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "airfoils"
 
+# Smallest closed coordinate loop accepted as an airfoil: trailing edge, one surface point,
+# leading edge.
+_MIN_AIRFOIL_POINTS = 3
+
 _NACA_CODE = re.compile(r"[0-9]{4}|[0-9]{5}")
 _NACA4_CODE = re.compile(r"[0-9]{4}")
 _NACA5_CODE = re.compile(r"[0-9]{5}")
 
-# Mean-line constants (m, k1) of the NACA 5-digit series keyed by the camber-position digit.
-_NACA5_MEAN_LINES: dict[int, tuple[float, float]] = {
+# The NACA 5-digit mean-line constants are tabulated for this design lift coefficient.
+_NACA5_TABULATED_DESIGN_CL = 0.3
+# Standard mean-line constants (r, k1) keyed by the camber-position digit.
+_NACA5_STANDARD_MEAN_LINES: dict[int, tuple[float, float]] = {
     1: (0.0580, 361.4),
     2: (0.1260, 51.64),
-    3: (0.2025, 15.793),
-    4: (0.2900, 6.520),
-    5: (0.3910, 3.191),
+    3: (0.2025, 15.957),
+    4: (0.2900, 6.643),
+    5: (0.3910, 3.230),
 }
+# Reflexed mean-line constants (r, k1, k2/k1) keyed by the camber-position digit.
+_NACA5_REFLEXED_MEAN_LINES: dict[int, tuple[float, float, float]] = {
+    2: (0.1300, 51.99, 0.000764),
+    3: (0.2170, 15.793, 0.00677),
+    4: (0.3180, 6.520, 0.0303),
+    5: (0.4410, 3.191, 0.1355),
+}
+
+# A mean line maps a chordwise station x to its camber ordinate and slope (yc, dyc/dx).
+_MeanLine = Callable[[float], tuple[float, float]]
 
 
 def naca4(code: str, samples: int = AIRFOIL_SAMPLES) -> tuple[tuple[float, float], ...]:
     """Generate normalized (x, z) coordinates for NACA 4-digit airfoil."""
-    if _NACA4_CODE.fullmatch(code) is None:
-        raise ValueError(f"NACA 4-digit code must be exactly four digits, got {code!r}")
-    camber = int(code[0]) / 100.0
-    camber_position = int(code[1]) / 10.0
-    thickness = int(code[2:4]) / 100.0
+    mean_line = _naca4_mean_line(code)
+    return _naca_airfoil(mean_line, int(code[2:4]) / 100.0, samples)
 
+
+def naca5(code: str, samples: int = AIRFOIL_SAMPLES) -> tuple[tuple[float, float], ...]:
+    """Generate normalized coordinates for NACA 5-digit airfoil (e.g. 23012, 23112, 43012)."""
+    mean_line = _naca5_mean_line(code)
+    return _naca_airfoil(mean_line, int(code[3:5]) / 100.0, samples)
+
+
+def _naca_airfoil(
+    mean_line: _MeanLine, thickness: float, samples: int
+) -> tuple[tuple[float, float], ...]:
     upper: list[tuple[float, float]] = []
     lower: list[tuple[float, float]] = []
     for index in range(samples + 1):
@@ -52,20 +77,7 @@ def naca4(code: str, samples: int = AIRFOIL_SAMPLES) -> tuple[tuple[float, float
                 - 0.1015 * x**4
             )
         )
-        yc = 0.0
-        slope = 0.0
-        if camber_position > 0.0:
-            if x < camber_position:
-                yc = camber / camber_position**2 * (2 * camber_position * x - x**2)
-                slope = 2 * camber / camber_position**2 * (camber_position - x)
-            else:
-                remaining = 1.0 - camber_position
-                yc = (
-                    camber
-                    / remaining**2
-                    * (1 - 2 * camber_position + 2 * camber_position * x - x**2)
-                )
-                slope = 2 * camber / remaining**2 * (camber_position - x)
+        yc, slope = mean_line(x)
         angle = math.atan(slope)
         upper.append((x - yt * math.sin(angle), yc + yt * math.cos(angle)))
         if 0 < index < samples:
@@ -73,48 +85,86 @@ def naca4(code: str, samples: int = AIRFOIL_SAMPLES) -> tuple[tuple[float, float
     return tuple(upper + list(reversed(lower)))
 
 
-def naca5(code: str, samples: int = AIRFOIL_SAMPLES) -> tuple[tuple[float, float], ...]:
-    """Generate normalized coordinates for NACA 5-digit airfoil (e.g. 23012, 24012)."""
-    m, k1 = _naca5_mean_line(code)
-    thickness = int(code[3:5]) / 100.0
-
-    upper: list[tuple[float, float]] = []
-    lower: list[tuple[float, float]] = []
-    for i in range(samples + 1):
-        x = 0.5 * (1.0 - math.cos(math.pi * i / samples))
-        yt = (
-            5.0
-            * thickness
-            * (
-                0.2969 * math.sqrt(max(x, 1e-9))
-                - 0.1260 * x
-                - 0.3516 * x**2
-                + 0.2843 * x**3
-                - 0.1015 * x**4
-            )
+def _naca4_mean_line(code: str) -> _MeanLine:
+    if _NACA4_CODE.fullmatch(code) is None:
+        raise ValueError(f"NACA 4-digit code must be exactly four digits, got {code!r}")
+    camber = int(code[0]) / 100.0
+    camber_position = int(code[1]) / 10.0
+    if camber > 0.0 and camber_position == 0.0:
+        raise ValueError(
+            f"NACA 4-digit code {code!r} has {code[0]}% camber but camber-position digit 0; "
+            "a cambered section needs a camber position of 1-9, a symmetric one uses '00'"
         )
-        if x < m:
-            yc = (k1 / 6.0) * (x**3 - 3 * m * x**2 + m**2 * (3 - m) * x)
-            dycdx = (k1 / 6.0) * (3 * x**2 - 6 * m * x + m**2 * (3 - m))
-        else:
-            yc = (k1 * m**3 / 6.0) * (1 - x)
-            dycdx = -(k1 * m**3 / 6.0)
-        theta = math.atan(dycdx)
-        upper.append((x - yt * math.sin(theta), yc + yt * math.cos(theta)))
-        if 0 < i < samples:
-            lower.append((x + yt * math.sin(theta), yc - yt * math.cos(theta)))
-    return tuple(upper + list(reversed(lower)))
+    if camber == 0.0:
+        return _naca_symmetric_camber
+    return partial(_naca4_camber, camber=camber, position=camber_position)
 
 
-def _naca5_mean_line(code: str) -> tuple[float, float]:
+def _naca_symmetric_camber(_x: float) -> tuple[float, float]:
+    return 0.0, 0.0
+
+
+def _naca4_camber(x: float, *, camber: float, position: float) -> tuple[float, float]:
+    if x < position:
+        return (
+            camber / position**2 * (2 * position * x - x**2),
+            2 * camber / position**2 * (position - x),
+        )
+    remaining = 1.0 - position
+    return (
+        camber / remaining**2 * (1 - 2 * position + 2 * position * x - x**2),
+        2 * camber / remaining**2 * (position - x),
+    )
+
+
+def _naca5_mean_line(code: str) -> _MeanLine:
     if _NACA5_CODE.fullmatch(code) is None:
         raise ValueError(f"NACA 5-digit code must be exactly five digits, got {code!r}")
-    mean_line = _NACA5_MEAN_LINES.get(int(code[1]))
-    if mean_line is None:
-        raise ValueError(
-            f"NACA 5-digit code {code!r} has camber-position digit {code[1]}; expected 1-5"
+    design_cl = 0.15 * int(code[0])
+    scale = design_cl / _NACA5_TABULATED_DESIGN_CL
+    position_digit = int(code[1])
+    reflex_digit = int(code[2])
+    if reflex_digit == 0:
+        standard = _NACA5_STANDARD_MEAN_LINES.get(position_digit)
+        if standard is None:
+            raise ValueError(
+                f"NACA 5-digit code {code!r} has camber-position digit {code[1]}; expected 1-5"
+            )
+        r, k1 = standard
+        return partial(_naca5_standard_camber, r=r, k1=k1 * scale)
+    if reflex_digit == 1:
+        reflexed = _NACA5_REFLEXED_MEAN_LINES.get(position_digit)
+        if reflexed is None:
+            raise ValueError(
+                f"NACA 5-digit code {code!r} has camber-position digit {code[1]}; "
+                "reflexed mean lines expect 2-5"
+            )
+        r, k1, k2_over_k1 = reflexed
+        return partial(_naca5_reflexed_camber, r=r, k1=k1 * scale, k2_over_k1=k2_over_k1)
+    raise ValueError(
+        f"NACA 5-digit code {code!r} has reflex digit {code[2]}; "
+        "expected 0 (standard) or 1 (reflexed)"
+    )
+
+
+def _naca5_standard_camber(x: float, *, r: float, k1: float) -> tuple[float, float]:
+    if x < r:
+        return (
+            (k1 / 6.0) * (x**3 - 3 * r * x**2 + r**2 * (3 - r) * x),
+            (k1 / 6.0) * (3 * x**2 - 6 * r * x + r**2 * (3 - r)),
         )
-    return mean_line
+    return (k1 * r**3 / 6.0) * (1 - x), -(k1 * r**3 / 6.0)
+
+
+def _naca5_reflexed_camber(
+    x: float, *, r: float, k1: float, k2_over_k1: float
+) -> tuple[float, float]:
+    linear = k2_over_k1 * (1 - r) ** 3 + r**3
+    cubic = 1.0 if x < r else k2_over_k1
+    return (
+        (k1 / 6.0) * (cubic * (x - r) ** 3 - linear * x + r**3),
+        (k1 / 6.0) * (3 * cubic * (x - r) ** 2 - linear),
+    )
 
 
 def biconvex(
@@ -152,8 +202,10 @@ def parse_airfoil_dat(content: str) -> tuple[str, tuple[tuple[float, float], ...
     else:
         # Selig format: single continuous loop TE -> LE -> TE
         loop = _coordinate_lines(non_empty[1:])
-        if len(loop) < 3:
-            raise ValueError(f"Airfoil {name!r} has fewer than 3 coordinate points")
+        if len(loop) < _MIN_AIRFOIL_POINTS:
+            raise ValueError(
+                f"Airfoil {name!r} has fewer than {_MIN_AIRFOIL_POINTS} coordinate points"
+            )
         le_idx = min(range(len(loop)), key=lambda i: loop[i][0])
         upper = list(reversed(loop[: le_idx + 1]))  # LE -> TE
         lower = loop[le_idx:]  # LE -> TE
@@ -214,14 +266,11 @@ def compute_airfoil_metrics(
     points: tuple[tuple[float, float], ...] | list[tuple[float, float]],
 ) -> dict[str, float]:
     """Compute geometric properties: max thickness, max camber, TE gap."""
-    if len(points) < 4:
-        return {
-            "max_thickness": 0.12,
-            "max_camber": 0.0,
-            "te_gap": 0.0,
-            "thickness_x": 0.3,
-            "camber_x": 0.4,
-        }
+    if len(points) < _MIN_AIRFOIL_POINTS:
+        raise ValueError(
+            f"Airfoil metrics need at least {_MIN_AIRFOIL_POINTS} coordinate points, "
+            f"got {len(points)}"
+        )
 
     min_x_idx = min(range(len(points)), key=lambda i: points[i][0])
     max_x_idx = max(range(len(points)), key=lambda i: points[i][0])
@@ -537,6 +586,8 @@ def _naca_code(spec: str) -> str:
         )
     if len(spec) == 5:
         _naca5_mean_line(spec)
+    else:
+        _naca4_mean_line(spec)
     return spec
 
 
@@ -547,8 +598,10 @@ def _coordinate_spec(spec: object) -> tuple[str, list[tuple[float, float]]]:
     if not isinstance(name, str) or not name:
         raise ValueError("Coordinates airfoil spec requires a non-empty 'name'")
     raw_points = spec.get("points")
-    if not isinstance(raw_points, list) or len(raw_points) < 3:
-        raise ValueError(f"Coordinates airfoil {name!r} requires at least 3 [x, z] points")
+    if not isinstance(raw_points, list) or len(raw_points) < _MIN_AIRFOIL_POINTS:
+        raise ValueError(
+            f"Coordinates airfoil {name!r} requires at least {_MIN_AIRFOIL_POINTS} [x, z] points"
+        )
     points: list[tuple[float, float]] = []
     for point in raw_points:
         if not isinstance(point, (list, tuple)) or len(point) != 2:

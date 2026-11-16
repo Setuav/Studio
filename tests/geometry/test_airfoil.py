@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import math
 import tempfile
 import unittest
+from collections.abc import Callable
 from pathlib import Path
 from unittest import mock
 
@@ -12,7 +14,10 @@ from PySide6.QtCore import Qt
 from plugins.geometry.editors.lifting_surface import AirfoilDialog
 from plugins.geometry.engine.airfoil import (
     PRESET_AIRFOILS,
+    _naca5_mean_line,
     airfoil_label,
+    biconvex,
+    compute_airfoil_metrics,
     naca4,
     naca5,
     parse_airfoil_dat,
@@ -29,14 +34,26 @@ _CUSTOM_COORDINATES = {
 }
 
 
+def _thin_airfoil_coefficients(
+    mean_line: Callable[[float], tuple[float, float]], stations: int = 4000
+) -> tuple[float, float]:
+    """Return the thin-airfoil ideal lift coefficient and quarter-chord moment of a mean line."""
+    lift = moment = 0.0
+    step = math.pi / stations
+    for index in range(stations):
+        theta = (index + 0.5) * step
+        _, slope = mean_line(0.5 * (1.0 - math.cos(theta)))
+        lift += 2.0 * slope * math.cos(theta) * step
+        moment += 0.5 * slope * (math.cos(2.0 * theta) - math.cos(theta)) * step
+    return lift, moment
+
+
 class AirfoilTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.app = get_qapp()
 
     def test_airfoil_generators_and_dat_parser(self) -> None:
-        from plugins.geometry.engine.airfoil import biconvex, compute_airfoil_metrics
-
         # NACA 4
         pts_4 = naca4("2412")
         m_4 = compute_airfoil_metrics(pts_4)
@@ -80,6 +97,59 @@ class AirfoilTests(unittest.TestCase):
         m_selig = compute_airfoil_metrics(pts_selig)
         self.assertGreater(m_selig["max_camber"], 0.05)
 
+        with self.assertRaisesRegex(ValueError, "at least 3 coordinate points, got 2"):
+            compute_airfoil_metrics([(1.0, 0.0), (0.0, 0.0)])
+
+    def test_naca4_cambered_code_requires_camber_position(self) -> None:
+        with self.assertRaisesRegex(ValueError, "'2012' has 2% camber but camber-position digit 0"):
+            naca4("2012")
+        self.assertEqual(compute_airfoil_metrics(naca4("0012"))["max_camber"], 0.0)
+
+    def test_naca5_design_lift_digit_scales_mean_line(self) -> None:
+        standard = _naca5_mean_line("23012")
+        doubled = _naca5_mean_line("43012")
+        for x in (0.05, 0.15, 0.3, 0.6, 0.9):
+            yc, slope = standard(x)
+            doubled_yc, doubled_slope = doubled(x)
+            self.assertAlmostEqual(doubled_yc, 2.0 * yc, places=12)
+            self.assertAlmostEqual(doubled_slope, 2.0 * slope, places=12)
+
+        # 23012: design CL 0.3, maximum camber of 1.84% at 15% chord.
+        self.assertAlmostEqual(standard(0.15)[1], 0.0, places=3)
+        self.assertAlmostEqual(standard(0.15)[0], 0.0184, places=4)
+        self.assertAlmostEqual(_thin_airfoil_coefficients(standard)[0], 0.3, delta=0.001)
+        self.assertAlmostEqual(_thin_airfoil_coefficients(doubled)[0], 0.6, delta=0.002)
+
+        camber_23012 = compute_airfoil_metrics(naca5("23012"))["max_camber"]
+        camber_43012 = compute_airfoil_metrics(naca5("43012"))["max_camber"]
+        self.assertAlmostEqual(camber_43012, 2.0 * camber_23012, places=4)
+
+    def test_naca5_reflexed_mean_line(self) -> None:
+        reflexed = _naca5_mean_line("23112")
+        standard = _naca5_mean_line("23012")
+        self.assertAlmostEqual(reflexed(0.0)[0], 0.0, places=12)
+        self.assertAlmostEqual(reflexed(1.0)[0], 0.0, places=12)
+
+        # Aft of the camber peak the standard line is straight, the reflexed line curves up.
+        aft = (0.4, 0.6, 0.8, 0.9, 1.0)
+        reflexed_slopes = [reflexed(x)[1] for x in aft]
+        self.assertEqual(reflexed_slopes, sorted(set(reflexed_slopes)))
+        self.assertEqual(len({round(standard(x)[1], 12) for x in aft}), 1)
+        self.assertGreater(reflexed(1.0)[1], 0.5 * standard(1.0)[1])
+
+        # The reflex cancels the quarter-chord pitching moment at the same design CL.
+        reflexed_cl, reflexed_cm = _thin_airfoil_coefficients(reflexed)
+        _, standard_cm = _thin_airfoil_coefficients(standard)
+        self.assertAlmostEqual(reflexed_cl, 0.3, delta=0.005)
+        self.assertLess(abs(reflexed_cm), 0.002)
+        self.assertLess(standard_cm, -0.01)
+
+        self.assertNotEqual(naca5("23112"), naca5("23012"))
+        with self.assertRaisesRegex(ValueError, "reflex digit 2"):
+            naca5("23212")
+        with self.assertRaisesRegex(ValueError, "reflexed mean lines expect 2-5"):
+            naca5("21112")
+
     def test_canonical_airfoil_specs_sample_and_label(self) -> None:
         self.assertEqual(sample_airfoil_points("2412"), naca4("2412"))
         self.assertEqual(sample_airfoil_points("23012"), naca5("23012"))
@@ -114,6 +184,9 @@ class AirfoilTests(unittest.TestCase):
             "Clark-Y",
             "clarky.dat",
             "20012",
+            "2012",
+            "23212",
+            "21112",
             2412,
             None,
             {"type": "naca", "code": "2412"},

@@ -237,7 +237,7 @@ class AeroSandboxEngine(AeroSandboxAnalysisMixin, AeroSandboxGeometryMixin, Aero
 
             if xsecs:
                 segment_tag = str(seg.get("tag") or "").strip()
-                base_name = str(comp.get("name") or comp.get("id") or "Fuselage")
+                base_name = self._component_label(comp)
                 if len(segments) > 1:
                     segment_name = f"{base_name} - {segment_tag or f'Segment {segment_index + 1}'}"
                 else:
@@ -334,16 +334,18 @@ class AeroSandboxEngine(AeroSandboxAnalysisMixin, AeroSandboxGeometryMixin, Aero
     ) -> Any:
         """Resolve a canonical airfoil spec to an asb.Airfoil with standard Selig coordinates."""
         name = airfoil_label(spec)
-        # Preserve AeroSandbox's native NACA representation when no geometric
-        # shaping is requested. Re-sampling it through Studio's display mesh
-        # perturbs the lower trailing-edge endpoint and measurably changes the
-        # pitching moment relative to a direct AeroSandbox model.
+        # AeroSandbox generates NACA 4-digit sections analytically; keep that
+        # native representation when no geometric shaping is requested.
+        # Re-sampling it through Studio's display mesh perturbs the lower
+        # trailing-edge endpoint and measurably changes the pitching moment
+        # relative to a direct AeroSandbox model. NACA 5-digit sections use
+        # Studio's generator, the same coordinates the geometry is built from.
         shaping_is_active = isinstance(shaping, dict) and (
             abs(float(shaping.get("te_thickness", 0.0))) >= 1e-6
             or abs(float(shaping.get("thickness_scale", 1.0)) - 1.0) >= 1e-6
             or abs(float(shaping.get("camber_scale", 1.0)) - 1.0) >= 1e-6
         )
-        if isinstance(spec, str) and not shaping_is_active:
+        if isinstance(spec, str) and len(spec) == 4 and not shaping_is_active:
             return asb.Airfoil(f"naca{spec}")
 
         # 1. Sample 2D normalized coordinates of the spec
@@ -375,9 +377,13 @@ class AeroSandboxEngine(AeroSandboxAnalysisMixin, AeroSandboxGeometryMixin, Aero
             return coords
 
         min_x_idx = int(np.argmin(coords[:, 0]))
+        x_min = float(coords[min_x_idx, 0])
+        x_max = float(np.max(coords[:, 0]))
 
-        # If first point is at LE (x~0), it's LE -> Upper TE -> Lower LE
-        if min_x_idx == 0:
+        # A loop whose first point lies in the leading-edge half runs
+        # LE -> upper TE -> lower LE; the leading-edge point itself need not be
+        # the first one when the camber line slopes at the nose.
+        if float(coords[0, 0]) - x_min < 0.5 * (x_max - x_min):
             max_x_idx = int(np.argmax(coords[:, 0]))
             upper_part = coords[: max_x_idx + 1][::-1]  # Reverse to TE -> LE
             lower_part = coords[max_x_idx:]

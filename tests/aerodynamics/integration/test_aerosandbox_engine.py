@@ -1053,5 +1053,20 @@ class AeroSandboxEngineTests(unittest.TestCase):
         self.assertGreater(pt.cd, 0.0)
 
 
+class AirfoilResolutionTests(unittest.TestCase):
+    def test_naca_5_digit_sections_use_studio_coordinates_in_selig_order(self) -> None:
+        engine = AeroSandboxEngine()
+        for code in ("23012", "43012", "23112"):
+            with self.subTest(code=code):
+                airfoil = engine._resolve_airfoil(code)
+                self.assertAlmostEqual(float(airfoil.max_thickness()), 0.12, places=2)
+                self.assertGreater(float(airfoil.coordinates[0][0]), 0.99)
+                self.assertGreater(float(airfoil.coordinates[-1][0]), 0.99)
+
+    def test_shaped_naca_4_digit_section_keeps_its_thickness(self) -> None:
+        airfoil = AeroSandboxEngine()._resolve_airfoil("2412", {"thickness_scale": 1.1})
+        self.assertAlmostEqual(float(airfoil.max_thickness()), 0.132, places=2)
+
+
 if __name__ == "__main__":
     unittest.main()

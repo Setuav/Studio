@@ -73,16 +73,10 @@ def _json_safe_sequence(value: list[Any] | tuple[Any, ...]) -> Any:
 def _json_safe_native(value: Any) -> Any:
     tolist = getattr(value, "tolist", None)
     if callable(tolist):
-        try:
-            return _json_safe(tolist())
-        except Exception:
-            return _UNSERIALIZABLE
+        return _json_safe(tolist())
     item = getattr(value, "item", None)
     if callable(item):
-        try:
-            return _json_safe(item())
-        except Exception:
-            return _UNSERIALIZABLE
+        return _json_safe(item())
     return _UNSERIALIZABLE
 
 
@@ -921,12 +915,9 @@ class AeroResult:
         stab_raw = data.get("stability_derivatives")
         stab_res = None
         if isinstance(stab_raw, dict):
-            try:
-                from .stability_models import StabilityDerivatives
+            from .stability_models import StabilityDerivatives
 
-                stab_res = StabilityDerivatives.from_dict(stab_raw)
-            except Exception:
-                stab_res = stab_raw
+            stab_res = StabilityDerivatives.from_dict(stab_raw)
 
         return cls(
             method=method,

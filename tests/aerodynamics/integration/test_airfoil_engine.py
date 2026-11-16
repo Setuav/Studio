@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+import warnings
 
 from plugins.aerodynamics.engine.airfoil_cache import (
     AirfoilPolarCache,
@@ -93,20 +94,41 @@ class TestAirfoilEngine(unittest.TestCase):
     """Test 2D airfoil aerodynamic analysis with NeuralFoil and 3D solver integration."""
 
     def setUp(self) -> None:
+        import aerosandbox as asb
+
+        self.asb = asb
         self.engine = AirfoilAnalysisEngine()
 
     def test_custom_airfoil_cache_identifier_uses_coordinates(self) -> None:
-        af_a, ident_a = self.engine._resolve_airfoil([(1.0, 0.0), (0.5, 0.1), (0.0, 0.0)])
-        af_b, ident_b = self.engine._resolve_airfoil([(1.0, 0.0), (0.5, 0.2), (0.0, 0.0)])
+        asb = self.asb
+        airfoil_a = asb.Airfoil(name="custom", coordinates=[(1.0, 0.0), (0.5, 0.1), (0.0, 0.0)])
+        airfoil_b = asb.Airfoil(name="custom", coordinates=[(1.0, 0.0), (0.5, 0.2), (0.0, 0.0)])
+        af_a, ident_a = self.engine._resolve_airfoil(airfoil_a)
+        af_b, ident_b = self.engine._resolve_airfoil(airfoil_b)
+        self.assertIs(af_a, airfoil_a)
+        self.assertIs(af_b, airfoil_b)
         self.assertNotEqual(ident_a, ident_b)
-        self.assertEqual(af_a.name, "custom_airfoil")
-        self.assertEqual(af_b.name, "custom_airfoil")
+        self.assertEqual(ident_a, ((1.0, 0.0), (0.5, 0.1), (0.0, 0.0)))
+
+    def test_non_airfoil_input_raises(self) -> None:
+        for airfoil in ("naca2412", [(1.0, 0.0), (0.5, 0.1), (0.0, 0.0)], None):
+            with self.subTest(airfoil=airfoil), self.assertRaisesRegex(TypeError, "Airfoil"):
+                self.engine.analyze_airfoil(airfoil=airfoil, reynolds=350_000.0, alphas=[0.0])
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            unknown = self.asb.Airfoil("not-a-database-airfoil")
+        with self.assertRaisesRegex(ValueError, "has no coordinates"):
+            self.engine.analyze_airfoil(airfoil=unknown, reynolds=350_000.0, alphas=[0.0])
+        with self.assertRaisesRegex(ValueError, "at least one angle of attack"):
+            self.engine.analyze_airfoil(
+                airfoil=self.asb.Airfoil("naca0012"), reynolds=350_000.0, alphas=[]
+            )
 
     def test_neuralfoil_cambered_airfoil(self) -> None:
         """Verify NeuralFoil analysis on NACA 2412."""
         alphas = [-4.0, 0.0, 4.0, 8.0, 12.0, 16.0]
         polar = self.engine.analyze_airfoil(
-            airfoil="naca2412",
+            airfoil=self.asb.Airfoil("naca2412"),
             reynolds=350000.0,
             alphas=alphas,
             mach=0.08,
@@ -127,7 +149,7 @@ class TestAirfoilEngine(unittest.TestCase):
 
     def test_neuralfoil_configuration_is_preserved(self) -> None:
         polar = self.engine.analyze_airfoil(
-            airfoil="naca2412",
+            airfoil=self.asb.Airfoil("naca2412"),
             reynolds=350_000.0,
             alphas=[0.0, 4.0],
             mach=0.05,
@@ -143,7 +165,7 @@ class TestAirfoilEngine(unittest.TestCase):
         """Verify NeuralFoil analysis on symmetric NACA 0012."""
         alphas = [-4.0, 0.0, 4.0]
         polar = self.engine.analyze_airfoil(
-            airfoil="naca0012",
+            airfoil=self.asb.Airfoil("naca0012"),
             reynolds=500000.0,
             alphas=alphas,
             mach=0.0,
@@ -160,7 +182,7 @@ class TestAirfoilEngine(unittest.TestCase):
         """Verify AirfoilAnalysisEngine analyzes section airfoils on request."""
         engine_2d = AirfoilAnalysisEngine()
         polar = engine_2d.analyze_airfoil(
-            airfoil="naca2412",
+            airfoil=self.asb.Airfoil("naca2412"),
             reynolds=200_000,
             alphas=[-4.0, 0.0, 4.0, 8.0, 12.0],
             mach=0.07,

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 import math
 from typing import Any
 
@@ -16,6 +15,7 @@ except ImportError:
     HAS_AEROSANDBOX = False
 
 from .base import (
+    AeroAnalysisError,
     AnalysisMethod,
     FlightCondition,
     ReferenceValues,
@@ -26,8 +26,6 @@ from .stability_models import (
     ElevatorTrim,
     StabilityDerivatives,
 )
-
-logger = logging.getLogger(__name__)
 
 
 class StabilityAnalysisEngine:
@@ -152,54 +150,51 @@ class StabilityAnalysisEngine:
                     control_deflections=controls_m,
                 )
 
-                try:
-                    plane_p = builder_fn(components, cond_p)
-                    plane_m = builder_fn(components, cond_m)
-                    res_c_p = solver_cls(airplane=plane_p, op_point=op_base).run()
-                    res_c_m = solver_cls(airplane=plane_m, op_point=op_base).run()
+                plane_p = builder_fn(components, cond_p)
+                plane_m = builder_fn(components, cond_m)
+                res_c_p = solver_cls(airplane=plane_p, op_point=op_base).run()
+                res_c_m = solver_cls(airplane=plane_m, op_point=op_base).run()
 
-                    def delta(
-                        key: str,
-                        res_c_p: dict = res_c_p,
-                        res_c_m: dict = res_c_m,
-                        d_delta: float = d_delta,
-                    ) -> float:
-                        if key not in res_c_p or key not in res_c_m:
-                            raise RuntimeError(
-                                f"control perturbation did not return native field '{key}'"
-                            )
-                        value = float(np.ravel(res_c_p[key] - res_c_m[key])[0]) / (2.0 * d_delta)
-                        if not math.isfinite(value):
-                            raise RuntimeError(
-                                f"control perturbation returned non-finite field '{key}'"
-                            )
-                        return value
-
-                    cl_delta = delta("Cl")
-                    cm_delta = delta("Cm")
-                    cn_delta = delta("Cn")
-                    cy_delta = delta("CY")
-                    cL_delta = delta("CL")
-                    cD_delta = delta("CD")
-
-                    # Only register if the control channel produces a non-zero response
-                    if any(
-                        abs(v) > 1e-5 for v in (cl_delta, cm_delta, cn_delta, cy_delta, cL_delta)
-                    ):
-                        controls_map[ctrl_tag] = ControlEffectiveness(
-                            control_tag=ctrl_tag,
-                            c_l_delta=cl_delta,
-                            c_m_delta=cm_delta,
-                            c_n_delta=cn_delta,
-                            c_y_delta=cy_delta,
-                            c_L_delta=cL_delta,
-                            c_D_delta=cD_delta,
-                            derivative_method="finite_difference",
-                            perturbation_deg=d_delta,
+                def delta(
+                    key: str,
+                    res_c_p: dict = res_c_p,
+                    res_c_m: dict = res_c_m,
+                    d_delta: float = d_delta,
+                    ctrl_tag: str = ctrl_tag,
+                ) -> float:
+                    if key not in res_c_p or key not in res_c_m:
+                        raise AeroAnalysisError(
+                            f"{method.value} perturbation of control channel '{ctrl_tag}' "
+                            f"did not return native field '{key}'"
                         )
+                    value = float(np.ravel(res_c_p[key] - res_c_m[key])[0]) / (2.0 * d_delta)
+                    if not math.isfinite(value):
+                        raise AeroAnalysisError(
+                            f"{method.value} perturbation of control channel '{ctrl_tag}' "
+                            f"returned non-finite field '{key}'"
+                        )
+                    return value
 
-                except Exception as err:
-                    logger.debug("Control channel %s evaluation skipped: %s", ctrl_tag, err)
+                cl_delta = delta("Cl")
+                cm_delta = delta("Cm")
+                cn_delta = delta("Cn")
+                cy_delta = delta("CY")
+                cL_delta = delta("CL")
+                cD_delta = delta("CD")
+
+                # Only register if the control channel produces a non-zero response
+                if any(abs(v) > 1e-5 for v in (cl_delta, cm_delta, cn_delta, cy_delta, cL_delta)):
+                    controls_map[ctrl_tag] = ControlEffectiveness(
+                        control_tag=ctrl_tag,
+                        c_l_delta=cl_delta,
+                        c_m_delta=cm_delta,
+                        c_n_delta=cn_delta,
+                        c_y_delta=cy_delta,
+                        c_L_delta=cL_delta,
+                        c_D_delta=cD_delta,
+                        derivative_method="finite_difference",
+                        perturbation_deg=d_delta,
+                    )
 
         elevator_trim, trim_invalid_reasons = self._validated_elevator_trim(
             cg_source=cg_source,

@@ -27,7 +27,7 @@ class AirfoilAnalysisEngine:
 
     def analyze_airfoil(
         self,
-        airfoil: str | Sequence[Sequence[float]] | Any,
+        airfoil: Any,
         reynolds: float,
         alphas: Sequence[float] | np.ndarray,
         mach: float = 0.0,
@@ -38,7 +38,7 @@ class AirfoilAnalysisEngine:
         """Run 2D aerodynamic analysis on an airfoil across an angle of attack range.
 
         Args:
-            airfoil: Name of airfoil (e.g. 'naca2412', 'clarky'), coordinate array, or asb.Airfoil object.
+            airfoil: asb.Airfoil carrying the section coordinates.
             reynolds: Reynolds number based on section chord.
             alphas: Angles of attack in degrees.
             mach: Flight Mach number (default 0.0).
@@ -52,12 +52,11 @@ class AirfoilAnalysisEngine:
         if not HAS_AEROSANDBOX:
             raise RuntimeError("AeroSandbox is required for 2D airfoil analysis.")
 
-        # Resolve asb.Airfoil instance and identifier
         asb_airfoil, ident = self._resolve_airfoil(airfoil)
 
         alphas_list = [float(a) for a in alphas]
         if not alphas_list:
-            alphas_list = [0.0]
+            raise ValueError("2D airfoil analysis needs at least one angle of attack.")
         n_crit = float(n_crit)
         model_size = str(model_size).strip().lower()
         if model_size not in {"small", "medium", "large", "xlarge"}:
@@ -95,28 +94,17 @@ class AirfoilAnalysisEngine:
 
         return polar
 
-    def _resolve_airfoil(self, airfoil: Any) -> tuple[Any, str | Sequence[Sequence[float]]]:
-        """Convert input to an asb.Airfoil instance and a hashable identifier string."""
-        if hasattr(airfoil, "get_aero_from_neuralfoil"):
-            name = getattr(airfoil, "name", "custom_airfoil")
-            coordinates = getattr(airfoil, "coordinates", None)
-            if coordinates is not None:
-                return airfoil, tuple(
-                    tuple(float(v) for v in point) for point in np.asarray(coordinates).tolist()
-                )
-            return airfoil, str(name)
-
-        if isinstance(airfoil, str):
-            clean_name = airfoil.strip().lower()
-            return asb.Airfoil(clean_name), clean_name
-
-        if isinstance(airfoil, (list, tuple, np.ndarray)):
-            coords = np.asarray(airfoil, dtype=float)
-            af = asb.Airfoil(name="custom_airfoil", coordinates=coords)
-            ident = tuple(tuple(float(v) for v in point) for point in coords.tolist())
-            return af, ident
-
-        return asb.Airfoil("naca0012"), "naca0012"
+    def _resolve_airfoil(self, airfoil: Any) -> tuple[Any, tuple[tuple[float, ...], ...]]:
+        """Validate an asb.Airfoil and return it with its coordinate cache identifier."""
+        if not isinstance(airfoil, asb.Airfoil):
+            raise TypeError(
+                f"2D airfoil analysis expects an aerosandbox Airfoil, got {type(airfoil).__name__}"
+            )
+        if airfoil.coordinates is None:
+            raise ValueError(f"Airfoil {airfoil.name!r} has no coordinates to analyze.")
+        return airfoil, tuple(
+            tuple(float(v) for v in point) for point in np.asarray(airfoil.coordinates).tolist()
+        )
 
     def _analyze_neuralfoil(
         self,

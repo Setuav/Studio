@@ -15,7 +15,7 @@ from setuav_studio.utilities.transform import (
     resolve_world_transform,
 )
 
-from .base import ControlSurfaceType, FlightCondition
+from .base import AeroAnalysisError, ControlSurfaceType, FlightCondition
 
 if TYPE_CHECKING:
     asb: Any = None
@@ -40,6 +40,17 @@ class AeroSandboxGeometryMixin:
     if TYPE_CHECKING:
 
         def _resolve_airfoil(self, spec: object, shaping: Any = None) -> Any: ...
+
+    @staticmethod
+    def _component_label(component: dict[str, Any]) -> str:
+        """Return a component's display label: its name, or its id when it has no name."""
+        if "name" in component:
+            return str(component["name"])
+        if "id" in component:
+            return str(component["id"])
+        raise AeroAnalysisError(
+            f"Component of type {component.get('type')!r} has neither a name nor an id"
+        )
 
     @staticmethod
     def _parent_frame(
@@ -195,8 +206,8 @@ class AeroSandboxGeometryMixin:
         stations: list[dict[str, Any]],
     ) -> dict[str, Any]:
         control_type = ControlSurfaceType.from_str(control.get("type")) or ControlSurfaceType.FLAP
-        control_id = str(control.get("id") or control_type.value)
-        control_name = str(control.get("name") or control_id)
+        control_id = str(control["id"])
+        control_name = self._component_label(control)
         inputs = self._control_inputs(condition, control_name, control_id, control_type)
         symmetry_mode = str(control.get("symmetry_mode") or "auto").lower()
         delta_right, delta_left = self._surface_deflections(
@@ -507,7 +518,7 @@ class AeroSandboxGeometryMixin:
             for cs in parsed_cs
         )
 
-        name = str(comp.get("name") or comp.get("id") or "Wing")
+        name = self._component_label(comp)
 
         if mirror:
             # Wing.symmetric mirrors in the *global* XZ plane.  It is only
