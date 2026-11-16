@@ -8,7 +8,7 @@ from typing import Any
 
 from pythrust.battery import BatteryNetwork, NetworkState
 from pythrust.propulsion import BusSolver, PropulsionUnit
-from pythrust.propulsion.models import MotorSpec, OperatingPoint, PropellerSpec, SystemSpec
+from pythrust.propulsion.models import MotorSpec, OperatingPoint, PropellerSpec
 
 from plugins.electrical_propulsion.database import get_propeller_entry
 from plugins.electrical_propulsion.models.battery import battery_pack
@@ -160,7 +160,6 @@ def propulsion_unit(parameters: Mapping[str, Any], label: str) -> PropulsionUnit
     entry = get_propeller_entry(catalog_id)
     if entry is None:
         raise PowertrainError(f"Propeller catalog has no data for '{catalog_id}'.")
-    esc_max_current = parameters["esc_max_current"]
     return PropulsionUnit(
         motor=MotorSpec(
             kv_rpm_per_v=float(parameters["motor_kv"]),
@@ -174,10 +173,6 @@ def propulsion_unit(parameters: Mapping[str, Any], label: str) -> PropulsionUnit
             blade_count=int(parameters["propeller_blade_count"]),
         ),
         prop_entry=entry,
-        system=SystemSpec(
-            resistance_ohm=float(parameters["esc_resistance"]),
-            max_current_a=None if esc_max_current is None else float(esc_max_current),
-        ),
     )
 
 

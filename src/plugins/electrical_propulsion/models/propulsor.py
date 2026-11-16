@@ -1,4 +1,4 @@
-"""Propulsor domain entity model: an electric motor with its propeller and speed controller."""
+"""Propulsor domain entity model: an electric motor with the propeller on its shaft."""
 
 from __future__ import annotations
 
@@ -11,21 +11,20 @@ from setuav_studio.model import Component
 PROPULSOR_TYPE = "org.setuav.core:propulsor"
 
 # Masses summed into the propulsor's component mass.
-PROPULSOR_MASS_KEYS = ("motor_mass", "propeller_mass", "esc_mass")
+PROPULSOR_MASS_KEYS = ("motor_mass", "propeller_mass")
 
 
 def propulsor_mass(parameters: Mapping[str, Any]) -> float:
-    """Return the motor, propeller and speed-controller mass of a propulsor in grams."""
+    """Return the motor and propeller mass of a propulsor in grams."""
     return sum(float(parameters[key]) for key in PROPULSOR_MASS_KEYS)
 
 
 class PropulsorModel(Component):
     """Domain model for Propulsor (org.setuav.core:propulsor).
 
-    A propulsor is one electric motor, the propeller on its shaft and its speed
-    controller. The motor and propeller come from the PyThrust catalogs; the speed
-    controller is a series resistance with an optional current limit. The component
-    mass is stored and kept equal to the sum of the three masses.
+    A propulsor is one electric motor and the propeller on its shaft, both from the
+    PyThrust catalogs. The component mass is stored and kept equal to the motor and
+    propeller masses.
     """
 
     COMPONENT_TYPE = PROPULSOR_TYPE
@@ -133,41 +132,6 @@ class PropulsorModel(Component):
         quantity="mass",
         field_type=float,
         default=25.0,
-        min_value=0.0,
-        max_value=1e5,
-        decimals=1,
-    )
-    esc_resistance = ParameterField(
-        key="esc_resistance",
-        label="ESC Resistance",
-        unit="Ω",
-        quantity="resistance",
-        field_type=float,
-        default=0.0,
-        min_value=0.0,
-        max_value=10.0,
-        decimals=4,
-        tooltip="Speed controller and wiring resistance in series with the motor.",
-    )
-    esc_max_current = ParameterField(
-        key="esc_max_current",
-        label="ESC Max Current",
-        unit="A",
-        quantity="current",
-        field_type=float,
-        default=None,
-        min_value=0.1,
-        max_value=1000.0,
-        decimals=1,
-        tooltip="Continuous speed-controller current; empty for no controller limit.",
-    )
-    esc_mass = ParameterField(
-        key="esc_mass",
-        label="ESC Mass",
-        unit="g",
-        quantity="mass",
-        field_type=float,
-        default=0.0,
         min_value=0.0,
         max_value=1e5,
         decimals=1,

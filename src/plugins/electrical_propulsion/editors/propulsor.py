@@ -1,10 +1,9 @@
-"""Propulsor editor: motor and propeller from the catalogs, and the speed controller."""
+"""Propulsor editor: the motor and propeller from the catalogs."""
 
 from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog,
     QHBoxLayout,
@@ -13,7 +12,6 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSizePolicy,
     QTableWidget,
-    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -39,7 +37,6 @@ _PROPELLER_KEYS = (
     "propeller_blade_count",
     "propeller_mass",
 )
-_ESC_KEYS = ("esc_resistance", "esc_max_current", "esc_mass")
 # Values the catalogs define; the masses stay editable.
 _CATALOG_KEYS = frozenset(
     {
@@ -54,12 +51,10 @@ _CATALOG_KEYS = frozenset(
 )
 _FIELDS = {field.key: field for field in PropulsorModel.get_scalar_fields()}
 _ATTACH_TARGET_TYPES = ("org.setuav.core:fuselage", "org.setuav.core:lifting-surface")
-_ESC_LIMIT_TOOLTIP = "Check to limit the motor current to the speed controller's rating."
-_DEFAULT_ESC_LIMIT_A = 60.0
 
 
 class PropulsorEditor(PropertyTableMixin, QWidget):
-    """Property editor for a propulsor: motor, propeller and speed controller."""
+    """Property editor for a propulsor: its motor and propeller."""
 
     def __init__(
         self,
@@ -94,13 +89,6 @@ class PropulsorEditor(PropertyTableMixin, QWidget):
             ("propeller_catalog_id", *_PROPELLER_KEYS),
             self._open_propeller_catalog,
         )
-        self.esc_table = self._create_parameter_section(
-            "Speed Controller", "fa6s.microchip", _ESC_KEYS
-        )
-        limit = self._label_item(self.esc_table, "esc_max_current")
-        limit.setFlags(limit.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-        limit.setToolTip(_ESC_LIMIT_TOOLTIP)
-        self.esc_table.itemChanged.connect(self._on_esc_limit_toggled)
 
         self._content_layout.addStretch()
         self._load()
@@ -146,7 +134,7 @@ class PropulsorEditor(PropertyTableMixin, QWidget):
             [
                 ("name", "Name"),
                 ("type", "Type"),
-                ("mass", "Mass [Motor + Propeller + ESC]"),
+                ("mass", "Mass [Motor + Propeller]"),
                 ("manufacturer", "Motor Manufacturer"),
                 ("model", "Motor Model"),
                 ("attach_to", "Attach to"),
@@ -172,14 +160,6 @@ class PropulsorEditor(PropertyTableMixin, QWidget):
         layout.addWidget(table)
         return table
 
-    @staticmethod
-    def _label_item(table: QTableWidget, key: str) -> QTableWidgetItem:
-        for row in range(table.rowCount()):
-            item = table.item(row, 0)
-            if item is not None and item.data(Qt.ItemDataRole.UserRole) == key:
-                return item
-        raise KeyError(key)
-
     def _load(self) -> None:
         self._loading = True
         try:
@@ -200,7 +180,6 @@ class PropulsorEditor(PropertyTableMixin, QWidget):
             for table, keys in (
                 (self.motor_table, _MOTOR_KEYS),
                 (self.propeller_table, _PROPELLER_KEYS),
-                (self.esc_table, ("esc_resistance", "esc_mass")),
             ):
                 for key in keys:
                     self._load_number(table, key, params[key], read_only=key in _CATALOG_KEYS)
@@ -210,16 +189,6 @@ class PropulsorEditor(PropertyTableMixin, QWidget):
                 "propeller_catalog_id",
                 catalog_id or "(select from the catalog)",
                 editable=False,
-            )
-            limited = params["esc_max_current"] is not None
-            self._label_item(self.esc_table, "esc_max_current").setCheckState(
-                Qt.CheckState.Checked if limited else Qt.CheckState.Unchecked
-            )
-            self._load_number(
-                self.esc_table,
-                "esc_max_current",
-                params["esc_max_current"] if limited else _DEFAULT_ESC_LIMIT_A,
-                read_only=not limited,
             )
         finally:
             self._loading = False
@@ -283,24 +252,6 @@ class PropulsorEditor(PropertyTableMixin, QWidget):
             self._component["mass"] = propulsor_mass(params)
 
         self._api.edit_component(self._component, f"Set {key}", apply_edit)
-        self._load()
-
-    def _on_esc_limit_toggled(self, item: QTableWidgetItem) -> None:
-        if self._loading or item.column() != 0:
-            return
-        if item.data(Qt.ItemDataRole.UserRole) != "esc_max_current":
-            return
-        params = self._component["parameters"]
-        limited = item.checkState() == Qt.CheckState.Checked
-        if limited == (params["esc_max_current"] is not None):
-            return
-
-        def apply_edit() -> None:
-            set_expression(params, "esc_max_current", None)
-            params["esc_max_current"] = _DEFAULT_ESC_LIMIT_A if limited else None
-
-        label = "Limit" if limited else "Remove limit on"
-        self._api.edit_component(self._component, f"{label} speed controller current", apply_edit)
         self._load()
 
     def _update_general(self, row: int, column: int) -> None:

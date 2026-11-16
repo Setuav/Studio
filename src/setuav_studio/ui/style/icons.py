@@ -96,6 +96,7 @@ _ICON_MAP = {
     "component_structural_system": "fa6s.plane-up",
     "component_point_mass": "fa6s.weight-hanging",
     "point_mass": "fa6s.weight-hanging",
+    "add_point_mass": "fa6s.weight-scale",
 }
 
 _LABEL_ICON_SOURCE = "setuavThemeIconSource"

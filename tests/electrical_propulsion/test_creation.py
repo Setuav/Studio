@@ -107,7 +107,6 @@ class PropulsionCreationTests(unittest.TestCase):
         self.assertEqual(params["motor_resistance"], float(motor.resistance))
         self.assertEqual(params["propeller_catalog_id"], propeller.metadata.id)
         self.assertEqual(params["propeller_diameter"], round(propeller.diameter_m * 1000.0, 1))
-        self.assertIsNone(params["esc_max_current"])
         self.assertEqual(propulsor["mass"], propulsor_mass(params))
         self.assertIs(self.api.current_selection, propulsor)
         self.assertEqual(self.statuses[-1][:2], (f"Added {propulsor['name']}", "success"))

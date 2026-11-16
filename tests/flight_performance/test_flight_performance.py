@@ -51,8 +51,6 @@ def _powertrain(unit_count: int = 1) -> Powertrain:
             "propeller_diameter": 330.2,
             "propeller_pitch": 165.1,
             "propeller_blade_count": 2,
-            "esc_resistance": 0.005,
-            "esc_max_current": None,
         },
         "test propulsor",
     )

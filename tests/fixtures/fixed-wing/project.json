@@ -2832,14 +2832,11 @@
         "propeller_diameter": 304.8,
         "propeller_pitch": 152.4,
         "propeller_blade_count": 2,
-        "propeller_mass": 28.0,
-        "esc_resistance": 0.004,
-        "esc_max_current": 50.0,
-        "esc_mass": 40.0
+        "propeller_mass": 28.0
       },
       "manufacturer": "SunnySky",
       "model": "X2814 KV900 3-4S",
-      "mass": 176.0
+      "mass": 136.0
     },
     {
       "kind": "component",
@@ -2901,17 +2898,26 @@
           "yaw": 0.0
         }
       },
-      "parameters": {
-        "inertia": {
-          "ixx": 0.0,
-          "iyy": 0.0,
-          "izz": 0.0,
-          "ixy": 0.0,
-          "ixz": 0.0,
-          "iyz": 0.0
+      "mass": 150.0
+    },
+    {
+      "kind": "component",
+      "id": "esc-point-mass",
+      "name": "ESC",
+      "type": "org.setuav.core:point-mass",
+      "transform": {
+        "position": {
+          "x": 550.0,
+          "y": 0.0,
+          "z": 20.0
+        },
+        "rotation": {
+          "roll": 0.0,
+          "pitch": 0.0,
+          "yaw": 0.0
         }
       },
-      "mass": 150.0
+      "mass": 40.0
     },
     {
       "kind": "component",

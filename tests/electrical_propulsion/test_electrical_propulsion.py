@@ -116,7 +116,7 @@ class TestElectricalPropulsion(unittest.TestCase):
         _api, propulsor, editor = self._propulsor_editor()
 
         self.assertEqual(editor._property_value(editor.general_table, "name"), propulsor["name"])
-        self.assertEqual(editor._property_value(editor.general_table, "mass"), "176.0")
+        self.assertEqual(editor._property_value(editor.general_table, "mass"), "136.0")
         for table, key, text, unit in (
             (editor.motor_table, "motor_kv", "900", "RPM/V"),
             (editor.propeller_table, "propeller_diameter", "304.8", "mm"),
@@ -131,10 +131,10 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertEqual(
             editor._property_value(editor.propeller_table, "propeller_catalog_id"), "APC_12x6"
         )
-        for key in ("motor_mass", "propeller_mass", "esc_mass", "esc_resistance"):
-            table = {"m": editor.motor_table, "p": editor.propeller_table}.get(
-                key[0], editor.esc_table
-            )
+        for table, key in (
+            (editor.motor_table, "motor_mass"),
+            (editor.propeller_table, "propeller_mass"),
+        ):
             cell = editor._property_cell(table, key)
             assert cell is not None
             self.assertFalse(cell.isReadOnly(), key)
@@ -182,35 +182,15 @@ class TestElectricalPropulsion(unittest.TestCase):
 
     def test_propulsor_editor_masses_sum_into_the_component_mass(self) -> None:
         api, propulsor, editor = self._propulsor_editor()
-        cell = editor._property_cell(editor.esc_table, "esc_mass")
+        cell = editor._property_cell(editor.propeller_table, "propeller_mass")
         assert cell is not None
-        cell.setValue(55.0)
+        cell.setValue(35.0)
 
-        self.assertEqual(propulsor["parameters"]["esc_mass"], 55.0)
-        self.assertEqual(propulsor["mass"], 108.0 + 28.0 + 55.0)
-        self.assertEqual(editor._property_value(editor.general_table, "mass"), "191.0")
+        self.assertEqual(propulsor["parameters"]["propeller_mass"], 35.0)
+        self.assertEqual(propulsor["mass"], 108.0 + 35.0)
+        self.assertEqual(editor._property_value(editor.general_table, "mass"), "143.0")
         api.undo()
-        self.assertEqual(propulsor["mass"], 176.0)
-
-    def test_propulsor_editor_toggles_the_speed_controller_limit(self) -> None:
-        from PySide6.QtCore import Qt
-
-        api, propulsor, editor = self._propulsor_editor()
-        limit = editor._label_item(editor.esc_table, "esc_max_current")
-        self.assertEqual(limit.checkState(), Qt.CheckState.Checked)
-
-        limit.setCheckState(Qt.CheckState.Unchecked)
-        self.assertIsNone(propulsor["parameters"]["esc_max_current"])
-        cell = editor._property_cell(editor.esc_table, "esc_max_current")
-        assert cell is not None
-        self.assertTrue(cell.isReadOnly())
-
-        api.undo()
-        self.assertEqual(propulsor["parameters"]["esc_max_current"], 50.0)
-        self.assertEqual(
-            editor._label_item(editor.esc_table, "esc_max_current").checkState(),
-            Qt.CheckState.Checked,
-        )
+        self.assertEqual(propulsor["mass"], 136.0)
 
     def test_propulsor_editor_edits_attach_to(self) -> None:
         api, propulsor, editor = self._propulsor_editor()
@@ -666,7 +646,6 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertEqual(len(powertrain.units), 1)
         (unit,) = powertrain.units
         self.assertEqual(unit.prop_entry.metadata.id, "APC_12x6")
-        self.assertEqual(unit.system.max_current_a, 50.0)
         (pack,) = powertrain.network.packs
         self.assertEqual((pack.series, pack.parallel), (3, 1))
         point = powertrain.solve(rho=1.225, airspeed_mps=15.0, throttle=1.0)

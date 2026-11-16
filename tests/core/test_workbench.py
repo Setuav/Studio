@@ -38,6 +38,43 @@ class TestWorkbenchAndTools(unittest.TestCase):
         custom_dock = win._panels["custom.panel"][1]
         self.assertFalse(custom_dock.isHidden())
 
+    def test_add_point_mass_places_a_selected_mass_at_the_origin(self) -> None:
+        from pathlib import Path
+
+        from setuav_studio.project import ProjectDocument
+        from setuav_studio.ui.editor.component import BaseComponentEditor
+        from setuav_studio.ui.shell.native_registrations import (
+            POINT_MASS_TYPE,
+            _on_add_point_mass_triggered,
+            register_native_component_types,
+        )
+
+        api = StudioAPI()
+        register_native_component_types(api)
+        project = ProjectDocument(Path("point-mass.json"), "json", {"components": []})
+        api._host.set_project(project)
+
+        _on_add_point_mass_triggered(api)
+        _on_add_point_mass_triggered(api)
+
+        components = project.data["components"]
+        self.assertEqual(
+            [(c["id"], c["name"]) for c in components],
+            [("point-mass", "Point Mass"), ("point-mass-2", "Point Mass 2")],
+        )
+        self.assertEqual(components[0]["type"], POINT_MASS_TYPE)
+        self.assertEqual(components[0]["transform"]["position"], {"x": 0.0, "y": 0.0, "z": 0.0})
+        self.assertGreater(components[0]["mass"], 0.0)
+        self.assertIs(api.current_selection, components[1])
+        editor = api.create_component_editor(components[1])
+        self.assertIsInstance(editor, BaseComponentEditor)
+        assert editor is not None
+        editor.deleteLater()
+        api.undo()
+        self.assertEqual(len(project.data["components"]), 1)
+        api.redo()
+        self.assertEqual(len(project.data["components"]), 2)
+
     def test_status_bar_shows_colored_messages_and_auto_clears(self) -> None:
         from PySide6.QtCore import QTimer
         from PySide6.QtGui import QPalette

@@ -8,6 +8,7 @@ from setuav_studio.api import (
     ComponentTypeContribution,
     PanelContribution,
 )
+from setuav_studio.ui.editor.component import BaseComponentEditor
 from setuav_studio.ui.panels.project_explorer import ProjectExplorerPanel
 from setuav_studio.ui.panels.properties import PropertiesPanel
 
@@ -104,6 +105,37 @@ def _on_run_analysis_triggered(api: StudioAPI) -> None:
         api.show_status(f"Failed to launch analysis: {exc}", "error")
 
 
+POINT_MASS_TYPE = "org.setuav.core:point-mass"
+
+
+def _on_add_point_mass_triggered(api: StudioAPI) -> None:
+    """Add a point mass at the vehicle origin and select it."""
+    project = api.project
+    if project is None or project.read_only:
+        return
+    components = project.data["components"]
+    ids = {str(c.get("id") or "") for c in components if isinstance(c, dict)}
+    names = {str(c.get("name") or "") for c in components if isinstance(c, dict)}
+    component_id, name = "point-mass", "Point Mass"
+    suffix = 2
+    while component_id in ids or name in names:
+        component_id, name = f"point-mass-{suffix}", f"Point Mass {suffix}"
+        suffix += 1
+    component = {
+        "kind": "component",
+        "id": component_id,
+        "name": name,
+        "type": POINT_MASS_TYPE,
+        "transform": {
+            "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+            "rotation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
+        },
+        "mass": 50.0,
+    }
+    api.edit_project(f"Add {name}", lambda: project.data["components"].append(component))
+    api.set_selection(component)
+
+
 def _on_toggle_aircraft_cg(api: StudioAPI) -> None:
     """Toggle visibility of the aircraft aggregate Center of Gravity marker in the Viewport."""
     viewport = api.viewport
@@ -197,6 +229,17 @@ def register_native_contributions(api: StudioAPI) -> None:
     )
     api.register_toolbar_item(
         ToolbarContribution(
+            id="org.setuav.studio.toolbar.add_point_mass",
+            title="Add Point Mass",
+            callback=lambda: _on_add_point_mass_triggered(api),
+            icon="add_point_mass",
+            enabled_when=lambda: _can_edit_project(api),
+            group="mass",
+            order=30,
+        )
+    )
+    api.register_toolbar_item(
+        ToolbarContribution(
             id="org.setuav.studio.toolbar.run_analysis",
             title="Run Analysis",
             callback=lambda: _on_run_analysis_triggered(api),
@@ -255,9 +298,10 @@ def register_native_component_types(api: StudioAPI) -> None:
             category="Aerodynamics",
         ),
         ComponentTypeContribution(
-            id="org.setuav.core:point-mass",
+            id=POINT_MASS_TYPE,
             name="Point Mass",
             icon="component",
+            editor=lambda component: BaseComponentEditor(api, component),
             category="Structure",
         ),
         ComponentTypeContribution(
