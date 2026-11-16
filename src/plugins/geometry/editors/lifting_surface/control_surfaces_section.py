@@ -221,8 +221,6 @@ class ControlSurfacesSectionMixin(LiftingSurfaceEditorHost):
         try:
             from ...engine.control_surface_geometry import compute_control_surface_metrics
 
-            self._cs_spinboxes: dict[str, Any] = {}
-
             metrics = compute_control_surface_metrics(
                 geom, semi_span, root_chord, tip_chord, wing_area
             )
@@ -427,14 +425,6 @@ class ControlSurfacesSectionMixin(LiftingSurfaceEditorHost):
             geometry["chord_fraction"] = round(float(value) / root_chord, 3)
         elif key in {"hinge_sweep", "deflection"}:
             geometry[key] = float(value)
-
-    def _set_cs_spinbox_value(self, key: str, value: float) -> None:
-        spinbox = getattr(self, "_cs_spinboxes", {}).get(key)
-        if spinbox is None:
-            return
-        spinbox.blockSignals(True)
-        spinbox.setValue(value)
-        spinbox.blockSignals(False)
 
     # -------------------------------------------------------------------------
     # Control Surface Actions & Mutation

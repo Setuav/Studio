@@ -5,8 +5,6 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
-from PySide6.QtCore import Qt
-
 from setuav_studio.model.expression import get_expression, set_expression
 from setuav_studio.ui.widget.spinbox import evaluate_table_cell_input
 
@@ -64,15 +62,6 @@ class PlanformSectionMixin(LiftingSurfaceEditorHost):
     # -------------------------------------------------------------------------
     # Planform Sizing & Angles Logic
     # -------------------------------------------------------------------------
-
-    def _sync_driver_mode_from_project(self) -> None:
-        pass
-
-    def _load_driver_groups_table(self) -> None:
-        pass
-
-    def _on_driver_mode_changed(self, mode_val: str) -> None:
-        pass
 
     def _on_planform_drivers_changed(self, active_drivers: list[str]) -> None:
         if self._loading:
@@ -234,8 +223,6 @@ class PlanformSectionMixin(LiftingSurfaceEditorHost):
                     [(str(val), label) for val, label in TWIST_LOCATIONS],
                     self._on_twist_loc_changed,
                 )
-
-            self._update_sections_table_interactivity()
         finally:
             self._loading = was_loading
 
@@ -343,7 +330,6 @@ class PlanformSectionMixin(LiftingSurfaceEditorHost):
                 geom["driver_expressions"] = dict(driver_exprs)
             else:
                 geom.pop("driver_expressions", None)
-            self._sync_project_parameters(new_metrics, "planform")
 
         self._edit_component("Parametric wing resize", change)
 
@@ -362,56 +348,3 @@ class PlanformSectionMixin(LiftingSurfaceEditorHost):
         inputs = self.planform_table.get_current_values()
         inputs[key] = float(val_num)
         self._on_planform_driver_values_changed(inputs)
-
-    def _on_planform_parameter_edited(self, row: int, column: int) -> None:
-        pass
-
-    def _sync_project_parameters(self, inputs: dict[str, float], edited_key: str) -> None:
-        """Sync updated macro parameters to project.data['parameters'] if present."""
-        project = self._api.project
-        if not project or not isinstance(project.data.get("parameters"), dict):
-            return
-        params = project.data["parameters"]
-        comp_id = str(self._component.get("id") or "")
-        is_main_wing = comp_id in ("main-wing", "wing", "wing-1", "")
-
-        if is_main_wing:
-            if "wing_area" in params and isinstance(params["wing_area"], dict) and "area" in inputs:
-                params["wing_area"]["value"] = float(inputs["area"])
-            if (
-                "wing_aspect_ratio" in params
-                and isinstance(params["wing_aspect_ratio"], dict)
-                and "aspect_ratio" in inputs
-            ):
-                params["wing_aspect_ratio"]["value"] = float(inputs["aspect_ratio"])
-            if "span" in params and isinstance(params["span"], dict) and "span" in inputs:
-                params["span"]["value"] = float(inputs["span"])
-            elif "wingspan" in params and isinstance(params["wingspan"], dict) and "span" in inputs:
-                params["wingspan"]["value"] = float(inputs["span"])
-        else:
-            comp_area_key = f"{comp_id}_area"
-            if (
-                comp_area_key in params
-                and isinstance(params[comp_area_key], dict)
-                and "area" in inputs
-            ):
-                params[comp_area_key]["value"] = float(inputs["area"])
-            comp_span_key = f"{comp_id}_span"
-            if (
-                comp_span_key in params
-                and isinstance(params[comp_span_key], dict)
-                and "span" in inputs
-            ):
-                params[comp_span_key]["value"] = float(inputs["span"])
-
-    def _update_sections_table_interactivity(self) -> None:
-        """Ensure sections table is fully interactive."""
-        table = self.sections_table
-        for r in range(table.rowCount()):
-            for c in range(1, table.columnCount()):
-                try:
-                    item = table.item(r, c)
-                    if item:
-                        item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
-                except RuntimeError:
-                    pass

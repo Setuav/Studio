@@ -56,7 +56,6 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
         self._api = api
         self._component = component
         self._loading = False
-        self._cs_spinboxes: dict[str, Any] = {}
 
         scroll = QScrollArea(self)
         scroll.setWidgetResizable(True)
@@ -220,7 +219,6 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
         try:
             geom = self._geometry()
             semi_span, root_chord, tip_chord, wing_area = self._parent_wing_info()
-            self._cs_spinboxes = {}
 
             metrics = compute_control_surface_metrics(
                 geom, semi_span, root_chord, tip_chord, wing_area
@@ -504,14 +502,6 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
             val_item.setForeground(QColor(130, 130, 130))
             val_item.setFlags(val_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             val_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-
-    def _set_linked_spinbox_value(self, key: str, value: float) -> None:
-        spinbox = getattr(self, "_cs_spinboxes", {}).get(key)
-        if spinbox is None:
-            return
-        spinbox.blockSignals(True)
-        spinbox.setValue(value)
-        spinbox.blockSignals(False)
 
     def _on_prop_combo_changed(self, key: str, value: str) -> None:
         if self._loading:

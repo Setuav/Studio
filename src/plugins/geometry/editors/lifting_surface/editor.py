@@ -166,7 +166,6 @@ class LiftingSurfaceEditor(
         self._populate_sections()
 
         # Planform Sizing Initial Setup
-        self._sync_driver_mode_from_project()
         self._refresh_planform_table()
 
         # End Caps (Tip Treatment)
