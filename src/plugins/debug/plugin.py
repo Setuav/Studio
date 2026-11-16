@@ -55,6 +55,7 @@ from .components import (
     create_ring_component,
     create_triangle_component,
     sync_debug_components_to_viewport,
+    sync_debug_envelopes,
 )
 from .solver import SOLVER_ID_MOCK_GENERATOR, MockGeneratorSolver
 
@@ -202,9 +203,13 @@ class DebugPlugin:
     # ------------------------------------------------------------------
 
     def _on_project_changed(self, project: Any) -> None:
+        sync_debug_envelopes(project)
         self._sync_viewport(project)
 
     def _on_project_content_changed(self, project: Any) -> None:
+        # Envelopes are derived from primitive parameters; re-deriving them after every
+        # edit, undo and redo keeps them exact.
+        sync_debug_envelopes(project)
         self._sync_viewport(project)
 
     def _sync_viewport(self, project: Any) -> None:

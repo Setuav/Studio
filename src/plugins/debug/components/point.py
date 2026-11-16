@@ -13,7 +13,9 @@ from setuav_studio.ui.viewport import ViewportProtocol
 from .common import (
     DEBUG_LAYER,
     BaseDebugComponentEditor,
+    no_envelope,
     parse_color_rgba,
+    register_envelope,
     register_renderer,
     rotate_vector,
 )
@@ -122,3 +124,5 @@ def add_point_to_viewport(
 
 
 register_renderer(TYPE_DEBUG_POINT, add_point_to_viewport)
+# A point cloud has no volume, so it has no envelope.
+register_envelope(TYPE_DEBUG_POINT, no_envelope)

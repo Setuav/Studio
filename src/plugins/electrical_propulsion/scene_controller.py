@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING, Any
 
 from setuav_studio.ui.viewport import RingPrimitive, SceneObject
@@ -10,8 +9,6 @@ from setuav_studio.utilities.transform import resolve_world_transform, rotate_ve
 
 if TYPE_CHECKING:
     from setuav_studio.api import StudioAPI
-
-logger = logging.getLogger(__name__)
 
 PROPULSION_LAYER = "electrical_propulsion"
 PROPULSION_LAYER_NAME = "Electrical Propulsion"
@@ -70,16 +67,10 @@ class PropulsionSceneController:
             # Resolve world position and rotation along the parent chain
             world_pos, world_rot = resolve_world_transform(comp, doc)
 
-            # Extract diameter (defaults to 330.0 mm if not specified)
-            params = comp.get("parameters")
-            if not isinstance(params, dict):
-                params = {}
-            try:
-                diameter = float(params.get("diameter", 330.0) or 330.0)
-            except (ValueError, TypeError):
-                diameter = 330.0
-
-            radius = max(5.0, diameter / 2.0)
+            diameter = comp["parameters"]["diameter"]
+            if isinstance(diameter, bool) or not isinstance(diameter, (int, float)):
+                raise ValueError(f"Propulsor '{comp_name}' has no numeric 'diameter' parameter.")
+            radius = float(diameter) / 2.0
 
             # Propeller disk normal vector: local axis (1.0, 0.0, 0.0) rotated by world rotation
             normal = rotate_vector((1.0, 0.0, 0.0), world_rot)

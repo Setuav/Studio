@@ -81,8 +81,8 @@ def profiles_to_sections(
                 "sweep": sweep_deg,
                 "dihedral": dihedral_deg,
                 "twist": twist_deg,
-                "root_airfoil": deepcopy(p0.get("airfoil", "2412")),
-                "tip_airfoil": deepcopy(p1.get("airfoil", "2412")),
+                "root_airfoil": deepcopy(p0["airfoil"]),
+                "tip_airfoil": deepcopy(p1["airfoil"]),
                 "driver_mode": "span_root_tip",
             }
         )
@@ -173,13 +173,13 @@ def sections_to_profiles(
         p0.setdefault("position", {"x": 0.0, "y": 0.0, "z": 0.0})
         p0.setdefault("rotation", {"x": 0.0, "y": 0.0, "z": 0.0})
         p0["chord"] = float(sections[0].get("root_chord", 200.0))
-        p0["airfoil"] = deepcopy(sections[0].get("root_airfoil", p0.get("airfoil", "2412")))
+        p0["airfoil"] = deepcopy(sections[0]["root_airfoil"])
     else:
         p0 = {
             "position": {"x": 0.0, "y": 0.0, "z": 0.0},
             "chord": float(sections[0].get("root_chord", 200.0)),
             "rotation": {"x": 0.0, "y": 0.0, "z": 0.0},
-            "airfoil": deepcopy(sections[0].get("root_airfoil", "2412")),
+            "airfoil": deepcopy(sections[0]["root_airfoil"]),
         }
 
     profiles: list[dict[str, Any]] = [p0]
@@ -219,7 +219,7 @@ def sections_to_profiles(
                 "y": next_pitch,
                 "z": curr_yaw,
             },
-            "airfoil": deepcopy(sec.get("tip_airfoil", "2412")),
+            "airfoil": deepcopy(sec["tip_airfoil"]),
         }
         profiles.append(p_next)
 
@@ -279,33 +279,22 @@ def insert_section(
 ) -> list[dict[str, Any]]:
     """Append a new connected section at the wing tip."""
     sections = profiles_to_sections(profiles, sweep_loc)
-    last_sec = (
-        sections[-1]
-        if sections
-        else {
-            "span": 300.0,
-            "root_chord": 200.0,
-            "tip_chord": 100.0,
-            "sweep": 0.0,
-            "dihedral": 0.0,
-            "twist": 0.0,
-            "root_airfoil": "2412",
-            "tip_airfoil": "2412",
-        }
-    )
+    if not sections:
+        raise ValueError("Inserting a section needs a lifting surface with at least two profiles")
+    last_sec = sections[-1]
 
     new_sec = {
-        "span": max(float(last_sec.get("span", 300.0)) * 0.8, 50.0),
-        "root_chord": float(last_sec.get("tip_chord", 100.0)),
-        "tip_chord": max(float(last_sec.get("tip_chord", 100.0)) * 0.7, 30.0),
-        "sweep": float(last_sec.get("sweep", 0.0)),
-        "dihedral": float(last_sec.get("dihedral", 0.0)),
-        "twist": float(last_sec.get("twist", 0.0)),
-        "root_airfoil": deepcopy(last_sec.get("tip_airfoil", "2412")),
-        "tip_airfoil": deepcopy(last_sec.get("tip_airfoil", "2412")),
+        "span": max(last_sec["span"] * 0.8, 50.0),
+        "root_chord": last_sec["tip_chord"],
+        "tip_chord": max(last_sec["tip_chord"] * 0.7, 30.0),
+        "sweep": last_sec["sweep"],
+        "dihedral": last_sec["dihedral"],
+        "twist": last_sec["twist"],
+        "root_airfoil": deepcopy(last_sec["tip_airfoil"]),
+        "tip_airfoil": deepcopy(last_sec["tip_airfoil"]),
     }
     new_sections = [*sections, new_sec]
-    return sections_to_profiles(new_sections, profiles[0] if profiles else None, sweep_loc)
+    return sections_to_profiles(new_sections, profiles[0], sweep_loc)
 
 
 def delete_section(

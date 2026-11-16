@@ -12,7 +12,9 @@ from setuav_studio.ui.viewport import ViewportProtocol
 from .common import (
     DEBUG_LAYER,
     BaseDebugComponentEditor,
+    no_envelope,
     parse_color_rgba,
+    register_envelope,
     register_renderer,
     rotate_vector,
 )
@@ -105,3 +107,5 @@ def add_ring_to_viewport(
 
 
 register_renderer(TYPE_DEBUG_RING, add_ring_to_viewport)
+# A ring is a wireframe circle without volume, so it has no envelope.
+register_envelope(TYPE_DEBUG_RING, no_envelope)

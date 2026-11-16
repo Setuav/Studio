@@ -305,8 +305,8 @@ class SectionsSectionMixin(LiftingSurfaceEditorHost):
             )
 
             # Setup Root and Tip Airfoil rows with normal font size and inline choose button
-            self._setup_airfoil_cell(4, sec.get("root_airfoil", "2412"), is_root=True)
-            self._setup_airfoil_cell(5, sec.get("tip_airfoil", "2412"), is_root=False)
+            self._setup_airfoil_cell(4, sec["root_airfoil"], is_root=True)
+            self._setup_airfoil_cell(5, sec["tip_airfoil"], is_root=False)
 
         finally:
             self._loading = was_loading
@@ -594,7 +594,7 @@ class SectionsSectionMixin(LiftingSurfaceEditorHost):
         self._api.set_section_selection((comp_id, 0, station_idx))
 
         key = "root_airfoil" if is_root else "tip_airfoil"
-        curr_af = sections[idx].get(key, "2412")
+        curr_af = sections[idx][key]
 
         dialog = AirfoilDialog(curr_af, self)
         if dialog.exec() == AirfoilDialog.DialogCode.Accepted:

@@ -20,12 +20,17 @@ __all__ = [
     "BaseDebugComponentEditor",
     "add_debug_component",
     "clear_debug_components",
+    "compute_debug_envelope",
     "generate_unique_identity",
+    "no_envelope",
     "parse_color_rgba",
+    "register_envelope",
     "register_renderer",
     "resolve_world_transform",
     "rotate_vector",
     "sync_debug_components_to_viewport",
+    "sync_debug_envelope",
+    "sync_debug_envelopes",
     "update_component_in_viewport",
 ]
 
@@ -166,6 +171,69 @@ def register_renderer(
 ) -> None:
     """Register a renderer function for a specific debug component type."""
     _RENDERERS[component_type] = fn
+
+
+EnvelopeFunction = Callable[[dict[str, Any]], dict[str, Any] | None]
+
+_ENVELOPES: dict[str, EnvelopeFunction] = {}
+
+
+def register_envelope(component_type: str, fn: EnvelopeFunction) -> None:
+    """Register the function deriving a debug component's envelope from its parameters.
+
+    The envelope is expressed in the component's own frame.
+    """
+    _ENVELOPES[component_type] = fn
+
+
+def no_envelope(_params: dict[str, Any]) -> None:
+    """Envelope function of a primitive that has no volume, and therefore no envelope."""
+    return None
+
+
+def compute_debug_envelope(component: dict[str, Any]) -> dict[str, Any] | None:
+    """Return the exact envelope of a debug primitive, or None when it has no volume."""
+    ctype = str(component.get("type") or "")
+    fn = _ENVELOPES.get(ctype)
+    if fn is None:
+        raise ValueError(f"No envelope function registered for component type {ctype!r}")
+    params = component.get("parameters")
+    return fn(dict(params) if isinstance(params, dict) else {})
+
+
+def sync_debug_envelope(component: dict[str, Any]) -> bool:
+    """Store the exact envelope on a debug primitive.
+
+    Returns True if the stored envelope changed. A primitive without volume keeps
+    whatever envelope it has.
+    """
+    envelope = compute_debug_envelope(component)
+    if envelope is None or component.get("envelope") == envelope:
+        return False
+    component["envelope"] = envelope
+    return True
+
+
+def sync_debug_envelopes(project: Any) -> int:
+    """Store the exact envelope on every debug primitive of the project.
+
+    Returns the count of components whose envelope changed.
+    """
+    from setuav_studio.project.document import ProjectDocument
+
+    project_data = project.data if isinstance(project, ProjectDocument) else project
+    if not isinstance(project_data, dict):
+        return 0
+    comps = project_data.get("components")
+    if not isinstance(comps, list):
+        return 0
+    return sum(
+        1
+        for comp in comps
+        if isinstance(comp, dict)
+        and str(comp.get("type") or "") in _ENVELOPES
+        and sync_debug_envelope(comp)
+    )
 
 
 def update_component_in_viewport(
@@ -371,22 +439,6 @@ class BaseDebugComponentEditor(BaseComponentEditor):
         if vp is not None:
             update_component_in_viewport(vp, self._component, self._api.project)
 
-    def _on_param_changed(self, key: str, value: Any) -> None:
-        super()._on_param_changed(key, value)
-        if (
-            key in ("axis", "radius", "length", "width", "outer_radius", "height")
-            and "envelope" in self._component
-        ):
-            vp = self._api.viewport
-            if vp is not None:
-                comp_id = str(self._component.get("id") or "")
-                obj = vp.get_object(comp_id)
-                if obj is not None and hasattr(obj, "compute_envelope"):
-                    computed = obj.compute_envelope()
-                    if computed is not None:
-                        self._component["envelope"] = computed
-                        self.update_viewport()
-
 
 def generate_unique_identity(api: StudioAPI, base_id: str, base_name: str) -> tuple[str, str]:
     """Generate a collision-free ID and human-friendly display name."""
@@ -416,6 +468,7 @@ def add_debug_component(
     comp_id, name = generate_unique_identity(api, base_id, base_name)
     comp = factory_fn(comp_id, name)
     raw = comp.raw_data if hasattr(comp, "raw_data") and isinstance(comp.raw_data, dict) else comp
+    sync_debug_envelope(raw)
 
     def change() -> None:
         comps = project.data.setdefault("components", [])

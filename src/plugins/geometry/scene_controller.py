@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING, Any
 
 from setuav_studio.ui.viewport import (
@@ -15,8 +14,6 @@ if TYPE_CHECKING:
     from setuav_studio.api import StudioAPI
 
     from .engine.scene import GeometryProvider
-
-logger = logging.getLogger(__name__)
 
 AIRFRAME_LAYER = "airframe"
 AIRFRAME_LAYER_NAME = "Airframe Design"
@@ -87,8 +84,11 @@ class AirframeSceneController:
 
         try:
             geom = build_project_geometry(doc, self._providers)
-        except Exception as exc:
-            logger.warning("Failed to build geometry for viewport: %s", exc)
+        except ValueError as exc:
+            # Invalid geometry data in the project: drop the stale airframe and tell
+            # the user why it is not drawn.
+            viewport.clear(layer=AIRFRAME_LAYER)
+            self._api.show_status(f"Airframe geometry error: {exc}", "error", 6000)
             return
 
         comp_names = _extract_component_names(doc.data.get("components"))

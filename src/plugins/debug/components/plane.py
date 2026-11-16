@@ -12,7 +12,9 @@ from setuav_studio.ui.viewport import ViewportProtocol
 from .common import (
     DEBUG_LAYER,
     BaseDebugComponentEditor,
+    no_envelope,
     parse_color_rgba,
+    register_envelope,
     register_renderer,
     rotate_vector,
 )
@@ -123,3 +125,5 @@ def add_plane_to_viewport(
 
 
 register_renderer(TYPE_DEBUG_PLANE, add_plane_to_viewport)
+# A plane is a zero-thickness surface without volume, so it has no envelope.
+register_envelope(TYPE_DEBUG_PLANE, no_envelope)

@@ -16,7 +16,7 @@ from setuav_studio.model.expression import set_expression
 from .airfoil import apply_airfoil_shaping, sample_airfoil_points
 from .fuselage_geometry import build_fuselage_geometry, sample_profile
 from .lifting_surface_geometry import _build_profile_section, build_lifting_surface_geometry
-from .transforms import section_transform, transform_point
+from .transforms import number_field, section_transform, transform_point
 
 _LIFTING_SURFACE_TYPE = "org.setuav.core:lifting-surface"
 _FUSELAGE_TYPE = "org.setuav.core:fuselage"
@@ -105,20 +105,17 @@ def sync_project_geometry_envelopes(project: Any) -> int:
 # =============================================================================
 
 
-def _number(value: Any, default: float = 0.0) -> float:
-    if isinstance(value, (int, float)):
-        return float(value)
-    if isinstance(value, str):
-        try:
-            return float(value)
-        except ValueError:
-            return default
-    return default
-
-
 def _dict_field(owner: dict[str, Any], key: str) -> dict[str, Any]:
     value = owner.get(key)
     return value if isinstance(value, dict) else {}
+
+
+def _position(position: dict[str, Any]) -> tuple[float, float, float]:
+    return (
+        number_field(position, "x", 0.0),
+        number_field(position, "y", 0.0),
+        number_field(position, "z", 0.0),
+    )
 
 
 def _polygon_cross_section_properties(
@@ -170,6 +167,21 @@ def _polygon_cross_section_properties(
     return area, cx, cz, izz_c, ixx_c, ixz_c
 
 
+def _profile_chord(profile: dict[str, Any]) -> float:
+    chord = number_field(profile, "chord")
+    if chord <= 0.0:
+        raise ValueError(f"Lifting surface profile chord must be positive, got {chord}")
+    return chord
+
+
+def _mean_gyration_sq(moments: tuple[tuple[float, float], ...]) -> float:
+    """Average ``moment / area`` over the sections with a non-zero area."""
+    values = [moment / area for moment, area in moments if area > 0.0]
+    if not values:
+        raise ValueError("Radius of gyration needs at least one section with area")
+    return sum(values) / len(values)
+
+
 def _polygon_area_and_centroid(
     vertices: list[tuple[float, float]] | tuple[tuple[float, float], ...],
 ) -> tuple[float, float, float]:
@@ -182,33 +194,33 @@ def _compute_section_properties(
     profile: dict[str, Any],
 ) -> tuple[float, float, float, float, float]:
     """Compute (area, width, height, cy_rel, cz_rel) for a fuselage profile."""
-    profile_type = str(profile.get("type") or "").lower()
+    profile_type = profile.get("type")
 
     if profile_type == "circle":
-        d = _number(profile.get("diameter"))
+        d = number_field(profile, "diameter")
         r = d * 0.5
         return math.pi * r * r, d, d, 0.0, 0.0
     if profile_type == "ellipse":
-        w = _number(profile.get("width"))
-        h = _number(profile.get("height"))
+        w = number_field(profile, "width")
+        h = number_field(profile, "height")
         return math.pi * 0.25 * w * h, w, h, 0.0, 0.0
     if profile_type == "rectangle":
-        w = _number(profile.get("width"))
-        h = _number(profile.get("height"))
-        cr = _number(profile.get("corner_radius"))
+        w = number_field(profile, "width")
+        h = number_field(profile, "height")
+        cr = number_field(profile, "corner_radius")
         area = w * h - (4.0 - math.pi) * (cr**2)
         return max(area, 0.0), w, h, 0.0, 0.0
     if profile_type == "trapezoid":
-        top = _number(profile.get("top_width"))
-        bot = _number(profile.get("bottom_width"))
-        h = _number(profile.get("height"))
+        top = number_field(profile, "top_width")
+        bot = number_field(profile, "bottom_width")
+        h = number_field(profile, "height")
         area = 0.5 * (top + bot) * h
         w = max(top, bot)
         cz = (h / 6.0) * (top - bot) / ((top + bot) * 0.5) if (top + bot) > 0.0 else 0.0
         return max(area, 0.0), w, h, 0.0, cz
     if profile_type == "triangle":
-        bw = _number(profile.get("base_width"))
-        h = _number(profile.get("height"))
+        bw = number_field(profile, "base_width")
+        h = number_field(profile, "height")
         area = 0.5 * bw * h
         cz = -h / 6.0 if profile.get("orientation") == "down" else h / 6.0
         return max(area, 0.0), bw, h, 0.0, cz
@@ -227,47 +239,54 @@ def _compute_fuselage_section_bbox(
 ) -> dict[str, Any]:
     """Compute the 2D/3D bounding quadrilateral cross-section for a fuselage section."""
     prof = _dict_field(section, "profile")
-    ptype = str(prof.get("type") or "").lower()
+    ptype = prof.get("type")
+    y_center = 0.0
+    z_center = 0.0
 
     if ptype == "circle":
-        d = _number(prof.get("diameter"), 10.0)
-        w, h = d, d
+        d = number_field(prof, "diameter")
+        h = d
         top_w, bot_w = d, d
         shape = "rectangle"
         area = d * d
-    elif ptype == "ellipse":
-        w = _number(prof.get("width"), 10.0)
-        h = _number(prof.get("height"), 10.0)
+    elif ptype in ("ellipse", "rectangle"):
+        w = number_field(prof, "width")
+        h = number_field(prof, "height")
         top_w, bot_w = w, w
         shape = "rectangle"
         area = w * h
     elif ptype == "trapezoid":
-        top_w = _number(prof.get("top_width"), 10.0)
-        bot_w = _number(prof.get("bottom_width"), 10.0)
-        h = _number(prof.get("height"), 10.0)
-        w = max(top_w, bot_w)
+        top_w = number_field(prof, "top_width")
+        bot_w = number_field(prof, "bottom_width")
+        h = number_field(prof, "height")
         shape = "trapezoid"
         area = 0.5 * (top_w + bot_w) * h
     elif ptype == "triangle":
-        bw = _number(prof.get("base_width"), 10.0)
-        h = _number(prof.get("height"), 10.0)
+        bw = number_field(prof, "base_width")
+        h = number_field(prof, "height")
         shape = "triangle"
         top_w = 0.0 if prof.get("orientation") != "down" else bw
         bot_w = bw if prof.get("orientation") != "down" else 0.0
-        w = bw
         area = 0.5 * bw * h
     else:
-        w = _number(prof.get("width", prof.get("diameter", 10.0)))
-        h = _number(prof.get("height", prof.get("diameter", 10.0)))
+        outline = sample_profile(prof)
+        outline_ys = [p[0] for p in outline]
+        outline_zs = [p[1] for p in outline]
+        w = max(outline_ys) - min(outline_ys)
+        h = max(outline_zs) - min(outline_zs)
+        y_center = (max(outline_ys) + min(outline_ys)) * 0.5
+        z_center = (max(outline_zs) + min(outline_zs)) * 0.5
         top_w, bot_w = w, w
         shape = "rectangle"
         area = w * h
 
+    z_top = z_center + h * 0.5
+    z_bottom = z_center - h * 0.5
     local_corners = (
-        (0.0, -top_w * 0.5, h * 0.5),  # top-left
-        (0.0, top_w * 0.5, h * 0.5),  # top-right
-        (0.0, bot_w * 0.5, -h * 0.5),  # bottom-right
-        (0.0, -bot_w * 0.5, -h * 0.5),  # bottom-left
+        (0.0, y_center - top_w * 0.5, z_top),  # top-left
+        (0.0, y_center + top_w * 0.5, z_top),  # top-right
+        (0.0, y_center + bot_w * 0.5, z_bottom),  # bottom-right
+        (0.0, y_center - bot_w * 0.5, z_bottom),  # bottom-left
     )
     matrix = section_transform(section)
     world_corners = [transform_point(matrix, p) for p in local_corners]
@@ -357,7 +376,7 @@ def _compute_fuselage_trapezoidal_slices(
 
         valid_sections: list[dict[str, Any]] = [s for s in raw_sections if isinstance(s, dict)]
         # Sort along X
-        valid_sections.sort(key=lambda s: _number((s.get("position") or {}).get("x")))
+        valid_sections.sort(key=lambda s: number_field(_dict_field(s, "position"), "x", 0.0))
 
         # Compute BBox cross-sections for all sections in this segment
         seg_section_bboxes = [
@@ -377,12 +396,8 @@ def _compute_fuselage_trapezoidal_slices(
             pos2 = _dict_field(s2, "position")
             prof1 = _dict_field(s1, "profile")
 
-            x1 = _number(pos1.get("x"))
-            y1 = _number(pos1.get("y"))
-            z1 = _number(pos1.get("z"))
-            x2 = _number(pos2.get("x"))
-            y2 = _number(pos2.get("y"))
-            z2 = _number(pos2.get("z"))
+            x1, y1, z1 = _position(pos1)
+            x2, y2, z2 = _position(pos2)
 
             # Section properties
             a1, w1, h1, cy1, cz1 = _compute_section_properties(prof1)
@@ -422,7 +437,7 @@ def _compute_fuselage_trapezoidal_slices(
             # Transverse cross-section distribution
             w_avg = (w1 + w2) * 0.5
             h_avg = (h1 + h2) * 0.5
-            p_type = str(prof1.get("type") or "").lower()
+            p_type = prof1.get("type")
             div = 16.0 if p_type in ("circle", "ellipse") else 12.0
             jy = vol * (h_avg**2) / div
             jz = vol * (w_avg**2) / div
@@ -538,7 +553,8 @@ def _compute_lifting_surface_trapezoidal_slices(
             {"ixx": 0.0, "iyy": 0.0, "izz": 0.0, "ixy": 0.0, "ixz": 0.0, "iyz": 0.0},
         )
 
-    valid_profiles.sort(key=lambda p: abs(_number((p.get("position") or {}).get("y"))))
+    valid_profiles.sort(key=lambda p: abs(number_field(_dict_field(p, "position"), "y", 0.0)))
+    chords = [_profile_chord(p) for p in valid_profiles]
 
     mirror = bool(geometry.get("mirror", False))
 
@@ -554,18 +570,14 @@ def _compute_lifting_surface_trapezoidal_slices(
     # Compute section bboxes for all profiles
     shaping = geometry.get("airfoil_shaping")
     shaping = shaping if isinstance(shaping, dict) else {}
-    twist_loc = _number(geometry.get("twist_location", 0.25))
-    te_th = float(shaping.get("te_thickness", 0.0))
-    th_scale = float(shaping.get("thickness_scale", 1.0))
-    cb_scale = float(shaping.get("camber_scale", 1.0))
+    twist_loc = number_field(geometry, "twist_location", 0.25)
+    te_th = number_field(shaping, "te_thickness", 0.0)
+    th_scale = number_field(shaping, "thickness_scale", 1.0)
+    cb_scale = number_field(shaping, "camber_scale", 1.0)
     sec_align = str(geometry.get("section_align", "xz")).lower()
 
-    for i, prof in enumerate(valid_profiles):
-        pos = _dict_field(prof, "position")
-        px = _number(pos.get("x"))
-        py = _number(pos.get("y"))
-        pz = _number(pos.get("z"))
-        chord = max(_number(prof.get("chord")), 1.0)
+    for i, (prof, chord) in enumerate(zip(valid_profiles, chords, strict=True)):
+        px, py, pz = _position(_dict_field(prof, "position"))
         (
             a_norm,
             _,
@@ -584,38 +596,28 @@ def _compute_lifting_surface_trapezoidal_slices(
             section_align=sec_align,
         )
 
-        if sec_geo is not None:
-            pts = sec_geo.points
-            le = min(pts, key=lambda p: p[0])
-            te = max(pts, key=lambda p: p[0])
-            bot_z = min(p[2] for p in pts)
-            top_z = max(p[2] for p in pts)
-            min_x = min(p[0] for p in pts)
-            max_x = max(p[0] for p in pts)
-            min_y = min(p[1] for p in pts)
-            max_y = max(p[1] for p in pts)
-            y_center = (min_y + max_y) * 0.5
+        if sec_geo is None:
+            raise ValueError(f"Lifting surface profile {prof!r} has no section geometry")
+        pts = sec_geo.points
+        le = min(pts, key=lambda p: p[0])
+        te = max(pts, key=lambda p: p[0])
+        bot_z = min(p[2] for p in pts)
+        top_z = max(p[2] for p in pts)
+        min_x = min(p[0] for p in pts)
+        max_x = max(p[0] for p in pts)
+        min_y = min(p[1] for p in pts)
+        max_y = max(p[1] for p in pts)
+        y_center = (min_y + max_y) * 0.5
 
-            thick = round(top_z - bot_z, 2)
-            x_bounds = [round(min_x, 2), round(max_x, 2)]
-            z_bounds = [round(bot_z, 2), round(top_z, 2)]
-            corners = [
-                {"x": round(le[0], 2), "y": round(le[1], 2), "z": round(bot_z, 2)},
-                {"x": round(te[0], 2), "y": round(te[1], 2), "z": round(bot_z, 2)},
-                {"x": round(te[0], 2), "y": round(te[1], 2), "z": round(top_z, 2)},
-                {"x": round(le[0], 2), "y": round(le[1], 2), "z": round(top_z, 2)},
-            ]
-        else:
-            thick = round(chord * 0.12, 2)
-            x_bounds = [round(px, 2), round(px + chord, 2)]
-            z_bounds = [round(pz - thick * 0.5, 2), round(pz + thick * 0.5, 2)]
-            corners = [
-                {"x": x_bounds[0], "y": round(py, 2), "z": z_bounds[0]},
-                {"x": x_bounds[1], "y": round(py, 2), "z": z_bounds[0]},
-                {"x": x_bounds[1], "y": round(py, 2), "z": z_bounds[1]},
-                {"x": x_bounds[0], "y": round(py, 2), "z": z_bounds[1]},
-            ]
-            y_center = py
+        thick = round(top_z - bot_z, 2)
+        x_bounds = [round(min_x, 2), round(max_x, 2)]
+        z_bounds = [round(bot_z, 2), round(top_z, 2)]
+        corners = [
+            {"x": round(le[0], 2), "y": round(le[1], 2), "z": round(bot_z, 2)},
+            {"x": round(te[0], 2), "y": round(te[1], 2), "z": round(bot_z, 2)},
+            {"x": round(te[0], 2), "y": round(te[1], 2), "z": round(top_z, 2)},
+            {"x": round(le[0], 2), "y": round(le[1], 2), "z": round(top_z, 2)},
+        ]
 
         sections.append(
             {
@@ -636,18 +638,10 @@ def _compute_lifting_surface_trapezoidal_slices(
         p1 = valid_profiles[i]
         p2 = valid_profiles[i + 1]
 
-        pos1 = _dict_field(p1, "position")
-        pos2 = _dict_field(p2, "position")
-
-        x1 = _number(pos1.get("x"))
-        y1 = _number(pos1.get("y"))
-        z1 = _number(pos1.get("z"))
-        x2 = _number(pos2.get("x"))
-        y2 = _number(pos2.get("y"))
-        z2 = _number(pos2.get("z"))
-
-        c1 = max(_number(p1.get("chord")), 1.0)
-        c2 = max(_number(p2.get("chord")), 1.0)
+        x1, y1, z1 = _position(_dict_field(p1, "position"))
+        x2, y2, z2 = _position(_dict_field(p2, "position"))
+        c1 = chords[i]
+        c2 = chords[i + 1]
 
         (
             a_norm1,
@@ -699,15 +693,12 @@ def _compute_lifting_surface_trapezoidal_slices(
         )
         j_span = vol * (span_len**2) * max(factor, 0.0)
 
-        # Radii of gyration squared (normalized by chord^2) from Green's theorem:
-        k_chord1_sq = izz_norm1 / a_norm1 if a_norm1 > 1e-9 else 0.055
-        k_chord2_sq = izz_norm2 / a_norm2 if a_norm2 > 1e-9 else 0.055
-        k_thick1_sq = ixx_norm1 / a_norm1 if a_norm1 > 1e-9 else 0.0008
-        k_thick2_sq = ixx_norm2 / a_norm2 if a_norm2 > 1e-9 else 0.0008
+        # Radii of gyration squared (normalized by chord^2) from Green's theorem,
+        # averaged over the end sections that have cross-section area.
+        k_chord_sq = _mean_gyration_sq(((izz_norm1, a_norm1), (izz_norm2, a_norm2)))
+        k_thick_sq = _mean_gyration_sq(((ixx_norm1, a_norm1), (ixx_norm2, a_norm2)))
 
         c_avg = (c1 + c2) * 0.5
-        k_chord_sq = (k_chord1_sq + k_chord2_sq) * 0.5
-        k_thick_sq = (k_thick1_sq + k_thick2_sq) * 0.5
 
         j_chord = vol * (c_avg**2) * k_chord_sq
         j_thick = vol * (c_avg**2) * k_thick_sq
@@ -808,33 +799,7 @@ def _compute_lifting_surface_envelope(component: dict[str, Any]) -> dict[str, An
     geometry = parameters.get("geometry")
     geometry = geometry if isinstance(geometry, dict) else {}
     profiles = geometry.get("profiles")
-
     if not isinstance(profiles, list) or len(profiles) < 2:
-        span = _number(geometry.get("wingspan", parameters.get("wingspan")))
-        chord = _number(geometry.get("root_chord", parameters.get("root_chord")))
-        if span > 0.0 and chord > 0.0:
-            thickness = max(chord * 0.12, 5.0)
-            vol = span * chord * thickness * 0.68
-            return {
-                "shape": "box",
-                "size_mm": {
-                    "x": round(chord, 1),
-                    "y": round(span, 1),
-                    "z": round(thickness, 1),
-                },
-                "offset_mm": {"x": round(chord * 0.40, 1), "y": 0.0, "z": 0.0},
-                "volume_mm3": round(vol, 1),
-                "unit_inertia": {
-                    "ixx": round((span / 1000.0) ** 2 / 12.0, 8),
-                    "iyy": round((chord / 1000.0) ** 2 / 16.0, 8),
-                    "izz": round(((span / 1000.0) ** 2 + (chord / 1000.0) ** 2) / 12.0, 8),
-                    "ixy": 0.0,
-                    "ixz": 0.0,
-                    "iyz": 0.0,
-                },
-                "sections": [],
-                "slices": [],
-            }
         return None
 
     # Compute exact trapezoidal panel slices and centroid
@@ -842,91 +807,39 @@ def _compute_lifting_surface_envelope(component: dict[str, Any]) -> dict[str, An
         geometry, profiles
     )
 
-    # Compute outer bounding dimensions from 3D loft mesh if available
+    # Outer bounding dimensions from the 3D loft mesh
     lofts = build_lifting_surface_geometry(component)
     pts = [p for loft in lofts for sec in loft.sections for p in sec.points]
+    if not pts:
+        return None
     mirror = bool(geometry.get("mirror", False))
 
-    if pts:
-        xs = [p[0] for p in pts]
-        ys = [p[1] for p in pts]
-        zs = [p[2] for p in pts]
-        if mirror:
-            max_semi = max(abs(y) for y in ys)
-            size_y = round(max(max_semi * 2.0, 1.0), 1)
-        else:
-            size_y = round(max(max(ys) - min(ys), 1.0), 1)
-
-        size_x = round(max(max(xs) - min(xs), 1.0), 1)
-        size_z = round(max(max(zs) - min(zs), 1.0), 1)
+    xs = [p[0] for p in pts]
+    ys = [p[1] for p in pts]
+    zs = [p[2] for p in pts]
+    if mirror:
+        size_y = round(max(abs(y) for y in ys) * 2.0, 1)
+        center_y = 0.0
     else:
-        fb = _lifting_surface_fallback(geometry)
-        if fb is None:
-            return None
-        size_x = fb["size_mm"]["x"]
-        size_y = fb["size_mm"]["y"]
-        size_z = fb["size_mm"]["z"]
-
-    offset_x = round(cg[0], 1) if total_vol > 0.0 else round(size_x * 0.40, 1)
-    offset_y = round(cg[1], 1) if total_vol > 0.0 else (0.0 if mirror else round(size_y / 2.0, 1))
-    offset_z = round(cg[2], 1) if total_vol > 0.0 else 0.0
+        size_y = round(max(ys) - min(ys), 1)
+        center_y = (max(ys) + min(ys)) * 0.5
+    size_x = round(max(xs) - min(xs), 1)
+    size_z = round(max(zs) - min(zs), 1)
+    center = ((max(xs) + min(xs)) * 0.5, center_y, (max(zs) + min(zs)) * 0.5)
+    offset = cg if total_vol > 0.0 else center
 
     return {
         "shape": "box",
         "size_mm": {"x": size_x, "y": size_y, "z": size_z},
-        "offset_mm": {"x": offset_x, "y": offset_y, "z": offset_z},
+        "offset_mm": {
+            "x": round(offset[0], 1),
+            "y": round(offset[1], 1),
+            "z": round(offset[2], 1),
+        },
         "volume_mm3": round(total_vol, 1),
         "unit_inertia": unit_inertia,
         "sections": sections,
         "slices": slices,
-    }
-
-
-def _lifting_surface_fallback(geometry: dict[str, Any]) -> dict[str, Any] | None:
-    profiles = geometry.get("profiles")
-    if not isinstance(profiles, list) or not profiles:
-        return None
-    xs: list[float] = []
-    ys: list[float] = []
-    zs: list[float] = []
-    for prof in profiles:
-        if not isinstance(prof, dict):
-            continue
-        pos = prof.get("position")
-        pos = pos if isinstance(pos, dict) else {}
-        px = _number(pos.get("x"))
-        py = _number(pos.get("y"))
-        pz = _number(pos.get("z"))
-        chord = _number(prof.get("chord"))
-        xs.extend([px, px + chord])
-        ys.append(py)
-        thickness = chord * 0.12
-        zs.extend([pz - thickness / 2.0, pz + thickness / 2.0])
-
-    if not xs or not ys or not zs:
-        return None
-
-    mirror = bool(geometry.get("mirror", False))
-    if mirror:
-        max_semi = max(abs(y) for y in ys)
-        size_y = round(max(max_semi * 2.0, 1.0), 1)
-        offset_y = 0.0
-    else:
-        size_y = round(max(max(ys) - min(ys), 1.0), 1)
-        offset_y = round((max(ys) + min(ys)) / 2.0, 1)
-
-    return {
-        "shape": "box",
-        "size_mm": {
-            "x": round(max(max(xs) - min(xs), 1.0), 1),
-            "y": size_y,
-            "z": round(max(max(zs) - min(zs), 1.0), 1),
-        },
-        "offset_mm": {
-            "x": round((max(xs) + min(xs)) / 2.0, 1),
-            "y": offset_y,
-            "z": round((max(zs) + min(zs)) / 2.0, 1),
-        },
     }
 
 
@@ -936,66 +849,39 @@ def _compute_fuselage_envelope(component: dict[str, Any]) -> dict[str, Any] | No
     geometry = parameters.get("geometry")
     geometry = geometry if isinstance(geometry, dict) else {}
     segments = geometry.get("segments")
-
     if not isinstance(segments, list) or not segments:
-        length = _number(parameters.get("length"))
-        width = _number(parameters.get("width"))
-        height = _number(parameters.get("height"))
-        if length > 0.0:
-            w = max(width, 10.0)
-            h = max(height, 10.0)
-            vol = length * math.pi * 0.25 * w * h
-            return {
-                "shape": "cylinder",
-                "size_mm": {
-                    "x": round(length, 1),
-                    "y": round(w, 1),
-                    "z": round(h, 1),
-                },
-                "offset_mm": {"x": round(length / 2.0, 1), "y": 0.0, "z": 0.0},
-                "volume_mm3": round(vol, 1),
-                "unit_inertia": {
-                    "ixx": round(((w / 1000.0) ** 2 + (h / 1000.0) ** 2) / 16.0, 8),
-                    "iyy": round((length / 1000.0) ** 2 / 12.0 + (h / 1000.0) ** 2 / 16.0, 8),
-                    "izz": round((length / 1000.0) ** 2 / 12.0 + (w / 1000.0) ** 2 / 16.0, 8),
-                    "ixy": 0.0,
-                    "ixz": 0.0,
-                    "iyz": 0.0,
-                },
-                "sections": [],
-                "slices": [],
-            }
         return None
 
     # Compute exact frustum slices, section bboxes, volume, centroid, and inertia
     sections, slices, total_vol, cg, unit_inertia = _compute_fuselage_trapezoidal_slices(segments)
 
-    # Compute outer bounding dimensions from 3D loft mesh if available
+    # Outer bounding dimensions from the 3D loft mesh
     lofts = build_fuselage_geometry(component)
     pts = [p for loft in lofts for sec in loft.sections for p in sec.points]
-    if pts:
-        xs = [p[0] for p in pts]
-        ys = [p[1] for p in pts]
-        zs = [p[2] for p in pts]
-        size_x = round(max(max(xs) - min(xs), 1.0), 1)
-        size_y = round(max(max(ys) - min(ys), 1.0), 1)
-        size_z = round(max(max(zs) - min(zs), 1.0), 1)
-    else:
-        fb = _fuselage_fallback(segments)
-        if fb is None:
-            return None
-        size_x = fb["size_mm"]["x"]
-        size_y = fb["size_mm"]["y"]
-        size_z = fb["size_mm"]["z"]
-
-    offset_x = round(cg[0], 1) if total_vol > 0.0 else round(size_x / 2.0, 1)
-    offset_y = round(cg[1], 1) if total_vol > 0.0 else 0.0
-    offset_z = round(cg[2], 1) if total_vol > 0.0 else 0.0
+    if not pts:
+        return None
+    xs = [p[0] for p in pts]
+    ys = [p[1] for p in pts]
+    zs = [p[2] for p in pts]
+    center = (
+        (max(xs) + min(xs)) * 0.5,
+        (max(ys) + min(ys)) * 0.5,
+        (max(zs) + min(zs)) * 0.5,
+    )
+    offset = cg if total_vol > 0.0 else center
 
     return {
         "shape": "trapezoid",
-        "size_mm": {"x": size_x, "y": size_y, "z": size_z},
-        "offset_mm": {"x": offset_x, "y": offset_y, "z": offset_z},
+        "size_mm": {
+            "x": round(max(xs) - min(xs), 1),
+            "y": round(max(ys) - min(ys), 1),
+            "z": round(max(zs) - min(zs), 1),
+        },
+        "offset_mm": {
+            "x": round(offset[0], 1),
+            "y": round(offset[1], 1),
+            "z": round(offset[2], 1),
+        },
         "volume_mm3": round(total_vol, 1),
         "unit_inertia": unit_inertia,
         "sections": sections,
@@ -1003,322 +889,179 @@ def _compute_fuselage_envelope(component: dict[str, Any]) -> dict[str, Any] | No
     }
 
 
-def _fuselage_fallback(segments: list[Any]) -> dict[str, Any] | None:
-    points: list[tuple[float, float, float, float, float]] = []
-    for segment in segments:
-        if not isinstance(segment, dict):
-            continue
-        for section in segment.get("sections", []):
-            if not isinstance(section, dict):
-                continue
-            pos = section.get("position")
-            pos = pos if isinstance(pos, dict) else {}
-            prof = section.get("profile")
-            prof = prof if isinstance(prof, dict) else {}
-            w = _number(prof.get("width", prof.get("diameter")))
-            h = _number(prof.get("height", prof.get("diameter")))
-            points.append(
-                (
-                    _number(pos.get("x")),
-                    _number(pos.get("y")),
-                    _number(pos.get("z")),
-                    w,
-                    h,
-                )
-            )
-
-    if not points:
-        return None
-
-    xs = [p[0] for p in points]
-    min_y = min(y - w * 0.5 for _, y, _, w, _ in points)
-    max_y = max(y + w * 0.5 for _, y, _, w, _ in points)
-    min_z = min(z - h * 0.5 for _, _, z, _, h in points)
-    max_z = max(z + h * 0.5 for _, _, z, _, h in points)
-
-    size_x = round(max(max(xs) - min(xs), 1.0), 1)
-    size_y = round(max(max_y - min_y, 1.0), 1)
-    size_z = round(max(max_z - min_z, 1.0), 1)
-
-    return {
-        "shape": "box",
-        "size_mm": {"x": size_x, "y": size_y, "z": size_z},
-        "offset_mm": {
-            "x": round((max(xs) + min(xs)) / 2.0, 1),
-            "y": round((max_y + min_y) / 2.0, 1),
-            "z": round((max_z + min_z) / 2.0, 1),
-        },
-    }
-
-
 def _compute_control_surface_envelope(
     component: dict[str, Any],
     parent: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
+    """Envelope of a control surface cut from its parent lifting surface.
+
+    A control surface without a parent lifting surface, or whose span does not cut the
+    parent, has no geometry and so no envelope.
+    """
+    if parent is None or parent.get("type") != _LIFTING_SURFACE_TYPE:
+        return None
     parameters = component.get("parameters")
     parameters = parameters if isinstance(parameters, dict) else {}
     geometry = parameters.get("geometry")
     geometry = geometry if isinstance(geometry, dict) else {}
 
-    span_start = geometry.get("span_start")
-    span_end = geometry.get("span_end")
-    chord = geometry.get("chord")
-    chord_fraction = _number(geometry.get("chord_fraction", 0.25))
-
     ctrl_id = str(component.get("id") or "CS")
-    control_loft = None
+    ctrl_geom = deepcopy(geometry)
+    ctrl_geom["id"] = ctrl_id
+    ctrl_geom["deflection"] = 0.0
+    set_expression(ctrl_geom, "deflection", None)
 
-    if parent is not None and parent.get("type") == _LIFTING_SURFACE_TYPE:
-        ctrl_geom = deepcopy(geometry)
-        ctrl_geom["id"] = ctrl_id
-        ctrl_geom["deflection"] = 0.0
-        set_expression(ctrl_geom, "deflection", None)
+    lofts = build_lifting_surface_geometry(parent, control_surfaces=[ctrl_geom])
+    control_loft = next(
+        (loft for loft in lofts if loft.component_id.lower().endswith(f":{ctrl_id.lower()}")),
+        None,
+    )
+    if control_loft is None or len(control_loft.sections) < 2:
+        return None
 
-        lofts = build_lifting_surface_geometry(parent, control_surfaces=[ctrl_geom])
-        control_loft = next(
-            (loft for loft in lofts if loft.component_id.lower().endswith(f":{ctrl_id.lower()}")),
-            None,
+    sections: list[dict[str, Any]] = []
+    all_pts = [p for sec in control_loft.sections for p in sec.points]
+    xs = [p[0] for p in all_pts]
+    ys = [p[1] for p in all_pts]
+    zs = [p[2] for p in all_pts]
+
+    size_x = round(max(xs) - min(xs), 1)
+    size_y = round(max(ys) - min(ys), 1)
+    size_z = round(max(zs) - min(zs), 1)
+
+    offset_x = round((max(xs) + min(xs)) * 0.5, 1)
+    offset_y = round((max(ys) + min(ys)) * 0.5, 1)
+    offset_z = round((max(zs) + min(zs)) * 0.5, 1)
+
+    total_vol = 0.0
+    weighted_x = 0.0
+    weighted_y = 0.0
+    weighted_z = 0.0
+    slices: list[dict[str, Any]] = []
+
+    for idx, sec in enumerate(control_loft.sections):
+        pts = sec.points
+        if not pts:
+            continue
+        le = min(pts, key=lambda p: p[0])
+        te = max(pts, key=lambda p: p[0])
+        bot_z = min(p[2] for p in pts)
+        top_z = max(p[2] for p in pts)
+        min_x = min(p[0] for p in pts)
+        max_x = max(p[0] for p in pts)
+        min_y = min(p[1] for p in pts)
+        max_y = max(p[1] for p in pts)
+        y_center = (min_y + max_y) * 0.5
+
+        thick = round(top_z - bot_z, 2)
+        c_sec = round(max_x - min_x, 2)
+
+        corners = [
+            {"x": round(le[0], 2), "y": round(le[1], 2), "z": round(bot_z, 2)},
+            {"x": round(te[0], 2), "y": round(te[1], 2), "z": round(bot_z, 2)},
+            {"x": round(te[0], 2), "y": round(te[1], 2), "z": round(top_z, 2)},
+            {"x": round(le[0], 2), "y": round(le[1], 2), "z": round(top_z, 2)},
+        ]
+
+        sections.append(
+            {
+                "index": idx,
+                "span_y_mm": round(y_center, 2),
+                "position": {
+                    "x": round(min_x, 2),
+                    "y": round(y_center, 2),
+                    "z": round((bot_z + top_z) * 0.5, 2),
+                },
+                "chord_mm": c_sec,
+                "thickness_mm": thick,
+                "x_bounds_mm": [round(min_x, 2), round(max_x, 2)],
+                "z_bounds_mm": [round(bot_z, 2), round(top_z, 2)],
+                "area_mm2": round(0.5 * c_sec * thick, 2),
+                "shape": "wedge",
+                "corners_3d": corners,
+            }
         )
 
-    if control_loft is not None and len(control_loft.sections) >= 2:
-        sections: list[dict[str, Any]] = []
-        all_pts = [p for sec in control_loft.sections for p in sec.points]
-        xs = [p[0] for p in all_pts]
-        ys = [p[1] for p in all_pts]
-        zs = [p[2] for p in all_pts]
+    for i in range(len(sections) - 1):
+        s1 = sections[i]
+        s2 = sections[i + 1]
+        c1 = s1["chord_mm"]
+        c2 = s2["chord_mm"]
 
-        size_x = round(max(max(xs) - min(xs), 1.0), 1)
-        size_y = round(max(max(ys) - min(ys), 1.0), 1)
-        size_z = round(max(max(zs) - min(zs), 1.0), 1)
+        y1 = s1["span_y_mm"]
+        y2 = s2["span_y_mm"]
+        span_len = abs(y2 - y1)
+        a1 = s1["area_mm2"]
+        a2 = s2["area_mm2"]
+        geom_mean = math.sqrt(max(a1 * a2, 0.0))
+        vol = (span_len / 3.0) * (a1 + a2 + geom_mean)
+        total_vol += vol
 
-        offset_x = round((max(xs) + min(xs)) * 0.5, 1)
-        offset_y = round((max(ys) + min(ys)) * 0.5, 1)
-        offset_z = round((max(zs) + min(zs)) * 0.5, 1)
+        cg_slice = (
+            (s1["position"]["x"] + s2["position"]["x"]) * 0.5 + (c1 + c2) * 0.2,
+            (y1 + y2) * 0.5,
+            (s1["position"]["z"] + s2["position"]["z"]) * 0.5,
+        )
+        weighted_x += vol * cg_slice[0]
+        weighted_y += vol * cg_slice[1]
+        weighted_z += vol * cg_slice[2]
 
-        total_vol = 0.0
-        weighted_x = 0.0
-        weighted_y = 0.0
-        weighted_z = 0.0
-        slices: list[dict[str, Any]] = []
-
-        for idx, sec in enumerate(control_loft.sections):
-            pts = sec.points
-            if not pts:
-                continue
-            le = min(pts, key=lambda p: p[0])
-            te = max(pts, key=lambda p: p[0])
-            bot_z = min(p[2] for p in pts)
-            top_z = max(p[2] for p in pts)
-            min_x = min(p[0] for p in pts)
-            max_x = max(p[0] for p in pts)
-            min_y = min(p[1] for p in pts)
-            max_y = max(p[1] for p in pts)
-            y_center = (min_y + max_y) * 0.5
-
-            thick = round(top_z - bot_z, 2)
-            c_sec = round(max_x - min_x, 2)
-
-            corners = [
-                {"x": round(le[0], 2), "y": round(le[1], 2), "z": round(bot_z, 2)},
-                {"x": round(te[0], 2), "y": round(te[1], 2), "z": round(bot_z, 2)},
-                {"x": round(te[0], 2), "y": round(te[1], 2), "z": round(top_z, 2)},
-                {"x": round(le[0], 2), "y": round(le[1], 2), "z": round(top_z, 2)},
-            ]
-
-            sections.append(
-                {
-                    "index": idx,
-                    "span_y_mm": round(y_center, 2),
-                    "position": {
-                        "x": round(min_x, 2),
-                        "y": round(y_center, 2),
-                        "z": round((bot_z + top_z) * 0.5, 2),
-                    },
-                    "chord_mm": c_sec,
-                    "thickness_mm": thick,
-                    "x_bounds_mm": [round(min_x, 2), round(max_x, 2)],
-                    "z_bounds_mm": [round(bot_z, 2), round(top_z, 2)],
-                    "area_mm2": round(0.5 * c_sec * thick, 2),
-                    "shape": "wedge",
-                    "corners_3d": corners,
-                }
-            )
-
-        for i in range(len(sections) - 1):
-            s1 = sections[i]
-            s2 = sections[i + 1]
-            c1 = s1["chord_mm"]
-            c2 = s2["chord_mm"]
-
-            y1 = s1["span_y_mm"]
-            y2 = s2["span_y_mm"]
-            span_len = abs(y2 - y1)
-            a1 = s1["area_mm2"]
-            a2 = s2["area_mm2"]
-            geom_mean = math.sqrt(max(a1 * a2, 0.0))
-            vol = (span_len / 3.0) * (a1 + a2 + geom_mean)
-            total_vol += vol
-
-            cg_slice = (
-                (s1["position"]["x"] + s2["position"]["x"]) * 0.5 + (c1 + c2) * 0.2,
-                (y1 + y2) * 0.5,
-                (s1["position"]["z"] + s2["position"]["z"]) * 0.5,
-            )
-            weighted_x += vol * cg_slice[0]
-            weighted_y += vol * cg_slice[1]
-            weighted_z += vol * cg_slice[2]
-
-            slices.append(
-                {
-                    "index": i,
-                    "start_section_index": i,
-                    "end_section_index": i + 1,
-                    "span_start_mm": round(y1, 2),
-                    "span_end_mm": round(y2, 2),
-                    "length_mm": round(span_len, 2),
-                    "chord_start_mm": round(c1, 2),
-                    "chord_end_mm": round(c2, 2),
-                    "volume_mm3": round(vol, 2),
-                    "centroid_mm": {
-                        "x": round(cg_slice[0], 2),
-                        "y": round(cg_slice[1], 2),
-                        "z": round(cg_slice[2], 2),
-                    },
-                }
-            )
-
-        if total_vol > 0.0:
-            offset_x = round(weighted_x / total_vol, 1)
-            offset_y = round(weighted_y / total_vol, 1)
-            offset_z = round(weighted_z / total_vol, 1)
-
-        scale = max(total_vol, 1.0) * 1e6
-        j_span = total_vol * (size_y**2) / 12.0
-        j_chord = total_vol * (size_x**2) / 18.0
-        j_thick = total_vol * (size_z**2) / 18.0
-
-        unit_inertia = {
-            "ixx": round((j_span + j_thick) / scale, 8),
-            "iyy": round((j_chord + j_thick) / scale, 8),
-            "izz": round((j_span + j_chord) / scale, 8),
-            "ixy": 0.0,
-            "ixz": 0.0,
-            "iyz": 0.0,
-        }
-
-        env_dict = {
-            "shape": "box",
-            "size_mm": {"x": size_x, "y": size_y, "z": size_z},
-            "offset_mm": {"x": offset_x, "y": offset_y, "z": offset_z},
-            "volume_mm3": round(total_vol, 1),
-            "unit_inertia": unit_inertia,
-            "sections": sections,
-            "slices": slices,
-        }
-        if control_loft.hinge_points and len(control_loft.hinge_points) >= 2:
-            env_dict["hinge_axis"] = [
-                {
-                    "x": round(control_loft.hinge_points[0][0], 2),
-                    "y": round(control_loft.hinge_points[0][1], 2),
-                    "z": round(control_loft.hinge_points[0][2], 2),
+        slices.append(
+            {
+                "index": i,
+                "start_section_index": i,
+                "end_section_index": i + 1,
+                "span_start_mm": round(y1, 2),
+                "span_end_mm": round(y2, 2),
+                "length_mm": round(span_len, 2),
+                "chord_start_mm": round(c1, 2),
+                "chord_end_mm": round(c2, 2),
+                "volume_mm3": round(vol, 2),
+                "centroid_mm": {
+                    "x": round(cg_slice[0], 2),
+                    "y": round(cg_slice[1], 2),
+                    "z": round(cg_slice[2], 2),
                 },
-                {
-                    "x": round(control_loft.hinge_points[-1][0], 2),
-                    "y": round(control_loft.hinge_points[-1][1], 2),
-                    "z": round(control_loft.hinge_points[-1][2], 2),
-                },
-            ]
-        return env_dict
+            }
+        )
 
-    parent_root_chord = 200.0
-    parent_semi_span = 500.0
-    if parent is not None:
-        p_params = parent.get("parameters")
-        p_params = p_params if isinstance(p_params, dict) else {}
-        p_geom = p_params.get("geometry")
-        p_geom = p_geom if isinstance(p_geom, dict) else {}
-        p_profs = p_geom.get("profiles")
-        if isinstance(p_profs, list) and p_profs:
-            p_first = p_profs[0]
-            if isinstance(p_first, dict):
-                parent_root_chord = _number(p_first.get("chord", parent_root_chord))
-            p_last = p_profs[-1]
-            if isinstance(p_last, dict) and isinstance(p_last.get("position"), dict):
-                parent_semi_span = abs(_number(p_last["position"].get("y", parent_semi_span)))
+    unit_inertia = {"ixx": 0.0, "iyy": 0.0, "izz": 0.0, "ixy": 0.0, "ixz": 0.0, "iyz": 0.0}
+    if total_vol > 0.0:
+        offset_x = round(weighted_x / total_vol, 1)
+        offset_y = round(weighted_y / total_vol, 1)
+        offset_z = round(weighted_z / total_vol, 1)
 
-    if span_start is not None and span_end is not None:
-        s_start = _number(span_start)
-        s_end = _number(span_end)
-        width = abs(s_end - s_start)
-        offset_y = (s_start + s_end) / 2.0
-    else:
-        eta_s = _number(geometry.get("eta_start", 0.0))
-        eta_e = _number(geometry.get("eta_end", 1.0))
-        s_start = parent_semi_span * eta_s
-        s_end = parent_semi_span * eta_e
-        width = max(parent_semi_span * abs(eta_e - eta_s), 20.0)
-        offset_y = (s_start + s_end) / 2.0
+        # Wedge radii of gyration squared, in m^2
+        k_span = (size_y**2) / 12.0 / 1e6
+        k_chord = (size_x**2) / 18.0 / 1e6
+        k_thick = (size_z**2) / 18.0 / 1e6
+        unit_inertia["ixx"] = round(k_span + k_thick, 8)
+        unit_inertia["iyy"] = round(k_chord + k_thick, 8)
+        unit_inertia["izz"] = round(k_span + k_chord, 8)
 
-    c_val = _number(chord) if chord is not None else max(parent_root_chord * chord_fraction, 10.0)
-    size_x = round(max(c_val, 5.0), 1)
-    offset_x = round(parent_root_chord * (1.0 - chord_fraction / 3.0), 1)
-    size_y = round(max(width, 10.0), 1)
-    offset_y = round(offset_y, 1)
-    thickness = round(max(size_x * 0.10, 5.0), 1)
-    size_z = thickness
-    offset_z = 0.0
-
-    # Triangular wedge volume: V = span * 0.5 * chord * thickness
-    vol = size_y * 0.5 * size_x * size_z
-    scale = vol * 1e6
-    j_span = vol * (size_y**2) / 12.0
-    j_chord = vol * (size_x**2) / 18.0
-    j_thick = vol * (size_z**2) / 18.0
-
-    unit_inertia = {
-        "ixx": round((j_span + j_thick) / scale, 8),
-        "iyy": round((j_chord + j_thick) / scale, 8),
-        "izz": round((j_span + j_chord) / scale, 8),
-        "ixy": 0.0,
-        "ixz": 0.0,
-        "iyz": 0.0,
-    }
-
-    sections = [
-        {
-            "index": 0,
-            "span_start_mm": round(s_start, 2),
-            "span_end_mm": round(s_end, 2),
-            "chord_mm": round(size_x, 2),
-            "thickness_mm": round(thickness, 2),
-            "shape": "wedge",
-        }
-    ]
-
-    slices = [
-        {
-            "index": 0,
-            "start_section_index": 0,
-            "end_section_index": 0,
-            "span_start_mm": round(s_start, 2),
-            "span_end_mm": round(s_end, 2),
-            "length_mm": round(size_y, 2),
-            "chord_start_mm": round(size_x, 2),
-            "chord_end_mm": round(size_x, 2),
-            "volume_mm3": round(vol, 2),
-            "centroid_mm": {"x": offset_x, "y": offset_y, "z": offset_z},
-        }
-    ]
-
-    return {
+    env_dict = {
         "shape": "box",
         "size_mm": {"x": size_x, "y": size_y, "z": size_z},
         "offset_mm": {"x": offset_x, "y": offset_y, "z": offset_z},
-        "volume_mm3": round(vol, 1),
+        "volume_mm3": round(total_vol, 1),
         "unit_inertia": unit_inertia,
         "sections": sections,
         "slices": slices,
     }
+    if control_loft.hinge_points and len(control_loft.hinge_points) >= 2:
+        env_dict["hinge_axis"] = [
+            {
+                "x": round(control_loft.hinge_points[0][0], 2),
+                "y": round(control_loft.hinge_points[0][1], 2),
+                "z": round(control_loft.hinge_points[0][2], 2),
+            },
+            {
+                "x": round(control_loft.hinge_points[-1][0], 2),
+                "y": round(control_loft.hinge_points[-1][1], 2),
+                "z": round(control_loft.hinge_points[-1][2], 2),
+            },
+        ]
+    return env_dict
 
 
 __all__ = [

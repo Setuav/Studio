@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 
 from .data import ColorRGB, EnvelopeWireGeometry, GeometryData, LoftGeometry, Point3D, Section
 from .envelope import GEOMETRY_COMPONENT_TYPES
+from .fuselage_geometry import sample_profile
 from .lifting_surface_geometry import build_lifting_surface_geometry
 from .palettes import segment_colors
 from .transforms import (
@@ -17,6 +18,7 @@ from .transforms import (
     derivation_matrix,
     identity_matrix,
     multiply_matrix,
+    number_field,
     transform_matrix,
     transform_point,
 )
@@ -472,22 +474,16 @@ def _fuselage_cross_section(
     position = position if isinstance(position, dict) else {}
     profile = section.get("profile")
     profile = profile if isinstance(profile, dict) else {}
-    profile_type = str(profile.get("type", "circle"))
-    if profile_type == "circle":
-        width = height = float(profile.get("diameter", 0.0))
-    elif profile_type in {"ellipse", "rectangle"}:
-        width = float(profile.get("width", 0.0))
-        height = float(profile.get("height", 0.0))
-    else:
-        width = float(profile.get("width", profile.get("diameter", 100.0)))
-        height = float(profile.get("height", profile.get("diameter", 100.0)))
+    outline = sample_profile(profile)
+    ys = [point[0] for point in outline]
+    zs = [point[1] for point in outline]
     return (
-        float(position.get("x", 0.0)),
-        float(position.get("y", 0.0)),
-        float(position.get("z", 0.0)),
-        max(width * 0.5, 1e-4),
-        max(height * 0.5, 1e-4),
-        profile_type,
+        number_field(position, "x", 0.0),
+        number_field(position, "y", 0.0) + (max(ys) + min(ys)) * 0.5,
+        number_field(position, "z", 0.0) + (max(zs) + min(zs)) * 0.5,
+        max((max(ys) - min(ys)) * 0.5, 1e-4),
+        max((max(zs) - min(zs)) * 0.5, 1e-4),
+        str(profile["type"]),
     )
 
 

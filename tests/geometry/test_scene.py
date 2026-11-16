@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import unittest
+from types import SimpleNamespace
+from typing import Any, cast
 from unittest import mock
 
 from PySide6.QtCore import Qt
@@ -354,6 +356,114 @@ def _build_fuselage_component() -> dict:
             None,
         )
         self.assertIsNotNone(inst_aileron_loft)
+
+
+class _FakeViewport:
+    def __init__(self) -> None:
+        self.layers: set[str] = set()
+        self.objects: dict[str, Any] = {}
+        self.cleared: list[str | None] = []
+
+    def has_layer(self, layer: str) -> bool:
+        return layer in self.layers
+
+    def add_layer(self, layer: str, name: str = "", visible: bool = True) -> None:
+        self.layers.add(layer)
+
+    def clear(self, layer: str | None = None) -> None:
+        self.cleared.append(layer)
+        self.objects.clear()
+
+    def object_ids(self, layer: str | None = None) -> list[str]:
+        return list(self.objects)
+
+    def remove(self, object_id: str) -> None:
+        self.objects.pop(object_id, None)
+
+    def add_object(self, obj: Any) -> None:
+        self.objects[obj.object_id] = obj
+
+
+class _FakeApi:
+    def __init__(self, project: Any) -> None:
+        self.viewport = _FakeViewport()
+        self.project = project
+        self.statuses: list[tuple[str, str]] = []
+
+    def show_status(self, message: str, level: str = "info", timeout_ms: int = 5000) -> None:
+        self.statuses.append((message, level))
+
+
+def _fuselage_project(profile: dict[str, Any]) -> SimpleNamespace:
+    sections = [
+        {"position": {"x": x, "y": 0.0, "z": 0.0}, "profile": dict(profile)} for x in (0.0, 300.0)
+    ]
+    return SimpleNamespace(
+        data={
+            "components": [
+                {
+                    "id": "body",
+                    "type": "org.setuav.core:fuselage",
+                    "parameters": {"geometry": {"segments": [{"sections": sections}]}},
+                }
+            ]
+        }
+    )
+
+
+class AirframeSceneControllerTests(unittest.TestCase):
+    def _controller(self, project: Any) -> tuple[Any, _FakeApi]:
+        from plugins.geometry.engine.fuselage_geometry import build_fuselage_geometry
+        from plugins.geometry.scene_controller import AirframeSceneController
+
+        api = _FakeApi(project)
+        controller = AirframeSceneController(
+            cast(Any, api), {"org.setuav.core:fuselage": build_fuselage_geometry}
+        )
+        return controller, api
+
+    def test_valid_geometry_is_drawn(self) -> None:
+        controller, api = self._controller(_fuselage_project({"type": "circle", "diameter": 80.0}))
+        controller.sync()
+        self.assertIn("body", api.viewport.objects)
+        self.assertEqual(api.statuses, [])
+
+    def test_invalid_geometry_clears_airframe_and_reports_error(self) -> None:
+        controller, api = self._controller(_fuselage_project({"type": "circle", "diameter": 80.0}))
+        controller.sync()
+        self.assertIn("body", api.viewport.objects)
+
+        api.project = _fuselage_project({"type": "hexagon"})
+        controller.sync()
+
+        self.assertEqual(api.viewport.objects, {})
+        self.assertEqual(len(api.statuses), 1)
+        message, level = api.statuses[0]
+        self.assertEqual(level, "error")
+        self.assertIn("hexagon", message)
+
+
+class NumberFieldTests(unittest.TestCase):
+    def test_missing_key_uses_caller_default(self) -> None:
+        from plugins.geometry.engine.transforms import number_field
+
+        self.assertEqual(number_field({}, "x", 0.0), 0.0)
+        self.assertEqual(number_field({"x": 3}, "x", 0.0), 3.0)
+
+    def test_missing_key_without_default_raises(self) -> None:
+        from plugins.geometry.engine.transforms import number_field
+
+        with self.assertRaises(ValueError):
+            number_field({}, "chord")
+
+    def test_non_numeric_value_raises(self) -> None:
+        from plugins.geometry.engine.transforms import number_field, transform_matrix
+
+        for value in ("12", None, True, [1.0]):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                number_field({"x": value}, "x", 0.0)
+        with self.assertRaises(ValueError):
+            transform_matrix({"position": {"x": "left"}})
 
 
 if __name__ == "__main__":

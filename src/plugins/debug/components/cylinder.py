@@ -8,11 +8,13 @@ from PySide6.QtWidgets import QWidget
 
 from setuav_studio.api import Component, ParameterField
 from setuav_studio.ui.viewport import ViewportProtocol
+from setuav_studio.utilities.envelope import compute_cylinder_envelope
 
 from .common import (
     DEBUG_LAYER,
     BaseDebugComponentEditor,
     parse_color_rgba,
+    register_envelope,
     register_renderer,
     rotate_vector,
 )
@@ -130,4 +132,37 @@ def add_cylinder_to_viewport(
     )
 
 
+# Component-frame axis of each axis of the X-aligned cylinder envelope, per cylinder axis.
+_CYLINDER_FRAME_AXES: dict[str, tuple[str, str, str]] = {
+    "X": ("x", "y", "z"),
+    "Y": ("y", "x", "z"),
+    "Z": ("z", "y", "x"),
+}
+
+
+def cylinder_envelope(params: dict[str, Any]) -> dict[str, Any]:
+    """Exact envelope of the solid cylinder, centred on the component origin.
+
+    The envelope helper integrates a cylinder along X; its size and principal unit
+    inertia are mapped onto the cylinder's alignment axis.
+    """
+    cyl = CylinderComponent(params)
+    axis = str(cyl.axis).upper()
+    frame_axes = _CYLINDER_FRAME_AXES.get(axis)
+    if frame_axes is None:
+        raise ValueError(f"Cylinder alignment axis must be X, Y or Z, got {axis!r}")
+    diameter = 2.0 * float(cyl.radius)
+    envelope = compute_cylinder_envelope((float(cyl.length), diameter, diameter))
+    source_of = {target: source for source, target in zip("xyz", frame_axes, strict=True)}
+    size = envelope["size_mm"]
+    inertia = envelope["unit_inertia"]
+    envelope["size_mm"] = {axis: size[source_of[axis]] for axis in "xyz"}
+    envelope["unit_inertia"] = {
+        **inertia,
+        **{f"i{axis}{axis}": inertia[f"i{source_of[axis]}{source_of[axis]}"] for axis in "xyz"},
+    }
+    return envelope
+
+
 register_renderer(TYPE_DEBUG_CYLINDER, add_cylinder_to_viewport)
+register_envelope(TYPE_DEBUG_CYLINDER, cylinder_envelope)

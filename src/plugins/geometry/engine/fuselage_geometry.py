@@ -3,7 +3,7 @@ from typing import Any
 
 from .data import LoftGeometry, Section
 from .palettes import segment_colors
-from .transforms import section_transform, transform_point
+from .transforms import number_field, section_transform, transform_point
 
 SECTION_SAMPLES = 128
 
@@ -61,21 +61,26 @@ def _build_section(value: object) -> Section | None:
 
 
 def sample_profile(profile: dict[str, Any]) -> tuple[tuple[float, float], ...]:
+    """Sample a fuselage profile outline in the section's (y, z) plane.
+
+    Raises ``ValueError`` for an unknown profile type or a polygon with fewer than
+    three vertices.
+    """
     profile_type = profile.get("type")
     if profile_type == "circle":
-        radius = _number(profile.get("diameter")) * 0.5
+        radius = number_field(profile, "diameter") * 0.5
         return _ellipse(radius, radius)
     if profile_type == "ellipse":
         return _ellipse(
-            _number(profile.get("width")) * 0.5,
-            _number(profile.get("height")) * 0.5,
+            number_field(profile, "width") * 0.5,
+            number_field(profile, "height") * 0.5,
         )
 
     vertices: list[tuple[float, float, float]]
     if profile_type == "rectangle":
-        half_width = _number(profile.get("width")) * 0.5
-        half_height = _number(profile.get("height")) * 0.5
-        radius = _number(profile.get("corner_radius"))
+        half_width = number_field(profile, "width") * 0.5
+        half_height = number_field(profile, "height") * 0.5
+        radius = number_field(profile, "corner_radius")
         vertices = [
             (half_width, -half_height, radius),
             (half_width, half_height, radius),
@@ -83,10 +88,10 @@ def sample_profile(profile: dict[str, Any]) -> tuple[tuple[float, float], ...]:
             (-half_width, -half_height, radius),
         ]
     elif profile_type == "trapezoid":
-        top = _number(profile.get("top_width")) * 0.5
-        bottom = _number(profile.get("bottom_width")) * 0.5
-        half_height = _number(profile.get("height")) * 0.5
-        radius = _number(profile.get("corner_radius"))
+        top = number_field(profile, "top_width") * 0.5
+        bottom = number_field(profile, "bottom_width") * 0.5
+        half_height = number_field(profile, "height") * 0.5
+        radius = number_field(profile, "corner_radius")
         vertices = [
             (bottom, -half_height, radius),
             (top, half_height, radius),
@@ -94,9 +99,9 @@ def sample_profile(profile: dict[str, Any]) -> tuple[tuple[float, float], ...]:
             (-bottom, -half_height, radius),
         ]
     elif profile_type == "triangle":
-        half_width = _number(profile.get("base_width")) * 0.5
-        half_height = _number(profile.get("height")) * 0.5
-        radius = _number(profile.get("corner_radius"))
+        half_width = number_field(profile, "base_width") * 0.5
+        half_height = number_field(profile, "height") * 0.5
+        radius = number_field(profile, "corner_radius")
         if profile.get("orientation") == "down":
             vertices = [
                 (half_width, half_height, radius),
@@ -111,22 +116,23 @@ def sample_profile(profile: dict[str, Any]) -> tuple[tuple[float, float], ...]:
             ]
     elif profile_type == "polygon":
         raw_vertices = profile.get("vertices")
-        if not isinstance(raw_vertices, list):
-            return _ellipse(0.0, 0.0)
+        if not isinstance(raw_vertices, list) or not all(
+            isinstance(vertex, dict) for vertex in raw_vertices
+        ):
+            raise ValueError("Polygon profile 'vertices' must be a list of vertex objects")
+        if len(raw_vertices) < 3:
+            raise ValueError(f"Polygon profile needs at least 3 vertices, got {len(raw_vertices)}")
         vertices = [
             (
-                _number(vertex.get("y")),
-                _number(vertex.get("z")),
-                max(0.0, _number(vertex.get("radius"))),
+                number_field(vertex, "y"),
+                number_field(vertex, "z"),
+                max(0.0, number_field(vertex, "radius")),
             )
             for vertex in raw_vertices
-            if isinstance(vertex, dict)
         ]
     else:
-        return _ellipse(0.0, 0.0)
+        raise ValueError(f"Unknown fuselage profile type {profile_type!r}")
 
-    if len(vertices) < 3:
-        return _ellipse(0.0, 0.0)
     outline = _rounded_outline(vertices)
     return _radial_samples(outline)
 
@@ -226,13 +232,6 @@ def _unit(y: float, z: float) -> tuple[float, float]:
 
 def _cross2(left: tuple[float, float], right: tuple[float, float]) -> float:
     return left[0] * right[1] - left[1] * right[0]
-
-
-def _number(value: Any) -> float:
-    try:
-        return float(value or 0.0)
-    except (TypeError, ValueError):
-        return 0.0
 
 
 FUSELAGE_PROFILE_TYPES: tuple[str, ...] = (

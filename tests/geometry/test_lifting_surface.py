@@ -362,6 +362,34 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
         del_profs = delete_section(split_profs, 1, sweep_loc=0.25)
         self.assertEqual(len(del_profs), 2)
 
+    def test_wing_sections_engine_airfoils(self) -> None:
+        from plugins.geometry.engine.lifting_surface_sections_engine import (
+            insert_section,
+            profiles_to_sections,
+            split_section,
+        )
+
+        profiles = [
+            {"position": {"x": 0.0, "y": 0.0, "z": 0.0}, "chord": 240.0, "airfoil": "2412"},
+            {"position": {"x": 0.0, "y": 500.0, "z": 0.0}, "chord": 120.0, "airfoil": "0012"},
+        ]
+
+        # A split station takes the root airfoil of the section it divides
+        split_profs = split_section(profiles, 0, sweep_loc=0.25)
+        self.assertEqual([p["airfoil"] for p in split_profs], ["2412", "2412", "0012"])
+
+        # A section added at the tip copies the tip airfoil
+        inserted = insert_section(profiles, sweep_loc=0.25)
+        self.assertEqual([p["airfoil"] for p in inserted], ["2412", "0012", "0012"])
+
+        with self.assertRaises(ValueError):
+            insert_section(profiles[:1], sweep_loc=0.25)
+
+        without_airfoil = deepcopy(profiles)
+        del without_airfoil[1]["airfoil"]
+        with self.assertRaises(KeyError):
+            profiles_to_sections(without_airfoil)
+
     def test_fuselage_wing_root_stub_geometry(self) -> None:
         from plugins.geometry.engine.fuselage_geometry import build_fuselage_geometry
         from plugins.geometry.engine.lifting_surface_geometry import (

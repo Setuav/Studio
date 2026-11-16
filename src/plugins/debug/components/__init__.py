@@ -26,6 +26,8 @@ from .common import (
     resolve_world_transform,
     rotate_vector,
     sync_debug_components_to_viewport,
+    sync_debug_envelope,
+    sync_debug_envelopes,
     update_component_in_viewport,
 )
 from .cylinder import (
@@ -148,5 +150,7 @@ __all__ = [
     "resolve_world_transform",
     "rotate_vector",
     "sync_debug_components_to_viewport",
+    "sync_debug_envelope",
+    "sync_debug_envelopes",
     "update_component_in_viewport",
 ]

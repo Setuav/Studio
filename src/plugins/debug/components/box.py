@@ -8,11 +8,13 @@ from PySide6.QtWidgets import QWidget
 
 from setuav_studio.api import Component, ParameterField
 from setuav_studio.ui.viewport import ViewportProtocol
+from setuav_studio.utilities.envelope import compute_box_envelope
 
 from .common import (
     DEBUG_LAYER,
     BaseDebugComponentEditor,
     parse_color_rgba,
+    register_envelope,
     register_renderer,
 )
 
@@ -105,4 +107,11 @@ def add_box_to_viewport(
     )
 
 
+def box_envelope(params: dict[str, Any]) -> dict[str, Any]:
+    """Exact envelope of the solid box, centred on the component origin."""
+    box = BoxComponent(params)
+    return compute_box_envelope((float(box.length), float(box.width), float(box.height)))
+
+
 register_renderer(TYPE_DEBUG_BOX, add_box_to_viewport)
+register_envelope(TYPE_DEBUG_BOX, box_envelope)

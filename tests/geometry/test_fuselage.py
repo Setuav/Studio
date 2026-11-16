@@ -121,6 +121,23 @@ class FuselageGeometryTests(unittest.TestCase):
                 self.assertEqual(len(points), SECTION_SAMPLES)
                 self.assertTrue(all(math.isfinite(value) for point in points for value in point))
 
+    def test_invalid_profiles_raise(self) -> None:
+        invalid = {
+            "unknown type": {"type": "hexagon", "width": 100.0},
+            "two vertices": {
+                "type": "polygon",
+                "vertices": [
+                    {"y": 0.0, "z": 0.0, "radius": 0.0},
+                    {"y": 1.0, "z": 0.0, "radius": 0},
+                ],
+            },
+            "missing dimension": {"type": "circle"},
+            "non-numeric dimension": {"type": "ellipse", "width": "wide", "height": 80.0},
+        }
+        for label, profile in invalid.items():
+            with self.subTest(label), self.assertRaises(ValueError):
+                sample_profile(profile)
+
     def test_fuselage_component_builds_one_loft_per_segment(self) -> None:
         component = {
             "id": "body",

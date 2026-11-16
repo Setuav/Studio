@@ -13,6 +13,7 @@ from plugins.geometry.engine.envelope import (
     sync_component_envelope,
     sync_project_geometry_envelopes,
 )
+from plugins.geometry.engine.fuselage_geometry import sample_profile
 from setuav_studio.ui.editor.envelope import EnvelopeEditor
 from tests._common import get_qapp
 
@@ -234,6 +235,56 @@ class GeometryEnvelopeTests(unittest.TestCase):
         self.assertIn("sections", env)
         self.assertEqual(len(env["sections"]), 2)
         self.assertIn("corners_3d", env["sections"][0])
+
+    def test_polygon_section_bbox_is_measured_from_profile(self) -> None:
+        fuse = _sample_fuselage()
+        sections = fuse["parameters"]["geometry"]["segments"][0]["sections"]
+        profile = {
+            "type": "polygon",
+            "vertices": [
+                {"y": -30.0, "z": -20.0, "radius": 0.0},
+                {"y": 50.0, "z": -20.0, "radius": 0.0},
+                {"y": 10.0, "z": 80.0, "radius": 0.0},
+            ],
+        }
+        sections[1]["profile"] = profile
+        env = compute_geometry_envelope(fuse)
+        assert env is not None
+        bbox = env["sections"][1]
+
+        # Bounds are those of the lofted outline, which is off-centre in both axes
+        outline = sample_profile(profile)
+        ys = [p[0] for p in outline]
+        zs = [p[1] for p in outline]
+        self.assertAlmostEqual(min(ys), -30.0, delta=2.0)
+        self.assertAlmostEqual(max(zs), 80.0, delta=5.0)
+        self.assertEqual(bbox["y_bounds_mm"], [round(min(ys), 2), round(max(ys), 2)])
+        self.assertEqual(bbox["z_bounds_mm"], [round(min(zs), 2), round(max(zs), 2)])
+
+    def test_invalid_fuselage_profile_raises(self) -> None:
+        fuse = _sample_fuselage()
+        sections = fuse["parameters"]["geometry"]["segments"][0]["sections"]
+        sections[1]["profile"] = {"type": "hexagon", "width": 120.0}
+        with self.assertRaises(ValueError):
+            compute_geometry_envelope(fuse)
+
+    def test_non_positive_chord_raises(self) -> None:
+        wing = _sample_wing()
+        wing["parameters"]["geometry"]["profiles"][1]["chord"] = 0.0
+        with self.assertRaisesRegex(ValueError, "chord must be positive"):
+            compute_geometry_envelope(wing)
+
+    def test_lifting_surface_without_two_profiles_has_no_envelope(self) -> None:
+        wing = _sample_wing()
+        wing["parameters"]["geometry"]["profiles"] = wing["parameters"]["geometry"]["profiles"][:1]
+        self.assertIsNone(compute_geometry_envelope(wing))
+
+    def test_control_surface_without_parent_surface_has_no_envelope(self) -> None:
+        cs = _sample_control_surface()
+        self.assertIsNone(compute_geometry_envelope(cs))
+        self.assertIsNone(compute_geometry_envelope(cs, _sample_fuselage()))
+        self.assertFalse(sync_component_envelope(cs))
+        self.assertNotIn("envelope", cs)
 
     def test_unsupported_component_returns_none(self) -> None:
         motor = {"id": "motor-1", "type": "org.setuav.core:motor"}

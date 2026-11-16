@@ -9,11 +9,13 @@ from PySide6.QtWidgets import QWidget
 
 from setuav_studio.api import Component, ParameterField, TableParameterField
 from setuav_studio.ui.viewport import ViewportProtocol
+from setuav_studio.utilities.envelope import compute_loft_envelope
 
 from .common import (
     DEBUG_LAYER,
     BaseDebugComponentEditor,
     parse_color_rgba,
+    register_envelope,
     register_renderer,
     rotate_vector,
 )
@@ -22,6 +24,8 @@ if TYPE_CHECKING:
     from setuav_studio.api import StudioAPI
 
 TYPE_DEBUG_LOFT = "org.setuav.debug:loft"
+
+Point3D = tuple[float, float, float]
 
 
 def naca_airfoil_loop(
@@ -160,6 +164,33 @@ def create_loft_component(comp_id: str, name: str) -> LoftComponent:
     return LoftComponent(id=comp_id, name=name, mass=150.0)
 
 
+def loft_section_loops(loft: LoftComponent) -> list[tuple[Point3D, ...]]:
+    """Return the airfoil loops of the loft stations in the component frame."""
+    sweep_rad = math.radians(float(loft.sweep))
+    dih_rad = math.radians(float(loft.dihedral))
+    loops: list[tuple[Point3D, ...]] = []
+    for station in loft.stations:
+        offset = float(station["offset"])
+        chord = float(station["chord"])
+        twist = float(station["twist"])
+        st_x = offset * math.sin(sweep_rad)
+        st_y = offset * math.cos(dih_rad)
+        st_z = offset * math.sin(dih_rad)
+        loop = naca_airfoil_loop(chord=chord, origin_x=st_x, y=st_y, origin_z=st_z)
+        if abs(twist) > 1e-6:
+            t_rad = math.radians(twist)
+            loop = tuple(
+                (
+                    st_x + (lx - st_x) * math.cos(t_rad) + (lz - st_z) * math.sin(t_rad),
+                    ly,
+                    st_z - (lx - st_x) * math.sin(t_rad) + (lz - st_z) * math.cos(t_rad),
+                )
+                for lx, ly, lz in loop
+            )
+        loops.append(loop)
+    return loops
+
+
 def add_loft_to_viewport(
     viewport: ViewportProtocol,
     comp_id: str,
@@ -169,81 +200,39 @@ def add_loft_to_viewport(
     py: float,
     pz: float,
     rotation: tuple[float, float, float] = (0.0, 0.0, 0.0),
-    envelope: dict[str, Any] | None = None,
+    _envelope: dict[str, Any] | None = None,
 ) -> None:
-    """Add or update a loft primitive in the 3D viewport."""
+    """Add or update a loft primitive in the 3D viewport.
+
+    The viewport derives the loft's display envelope from its world-space sections.
+    """
     loft = params if isinstance(params, LoftComponent) else LoftComponent(params)
-    color = parse_color_rgba(loft.color)
-    sweep_deg = float(loft.sweep)
-    dihedral_deg = float(loft.dihedral)
-    sweep_rad = math.radians(sweep_deg)
-    dih_rad = math.radians(dihedral_deg)
-
-    stations_data = loft.stations
-    if stations_data and isinstance(stations_data, list):
-        sec_loops: list[tuple[tuple[float, float, float], ...]] = []
-        for st in stations_data:
-            st_dict = (
-                st
-                if isinstance(st, dict)
-                else (st.to_dict() if hasattr(st, "to_dict") else vars(st))
-            )
-            offset = float(st_dict.get("offset", 0.0))
-            chord = float(st_dict.get("chord", 100.0))
-            twist = float(st_dict.get("twist", 0.0))
-            st_x = px + offset * math.sin(sweep_rad)
-            st_y = py + offset * math.cos(dih_rad)
-            st_z = pz + offset * math.sin(dih_rad)
-            loop = naca_airfoil_loop(chord=chord, origin_x=st_x, y=st_y, origin_z=st_z)
-            if abs(twist) > 1e-6:
-                t_rad = math.radians(twist)
-                loop = tuple(
-                    (
-                        st_x + (lx - st_x) * math.cos(t_rad) + (lz - st_z) * math.sin(t_rad),
-                        ly,
-                        st_z - (lx - st_x) * math.sin(t_rad) + (lz - st_z) * math.cos(t_rad),
-                    )
-                    for lx, ly, lz in loop
-                )
-            sec_loops.append(loop)
-    else:
-        span = float(getattr(loft, "span", 400.0))
-        rc = float(getattr(loft, "root_chord", 180.0))
-        tc = float(getattr(loft, "tip_chord", 90.0))
-        tip_x = px + span * math.sin(sweep_rad)
-        tip_y = py + span * math.cos(dih_rad)
-        tip_z = pz + span * math.sin(dih_rad)
-        mid_x = (px + tip_x) / 2.0
-        mid_y = (py + tip_y) / 2.0
-        mid_z = (pz + tip_z) / 2.0
-        mid_chord = (rc + tc) / 2.0
-        sec_loops = [
-            naca_airfoil_loop(chord=rc, origin_x=px, y=py, origin_z=pz),
-            naca_airfoil_loop(chord=mid_chord, origin_x=mid_x, y=mid_y, origin_z=mid_z),
-            naca_airfoil_loop(chord=tc, origin_x=tip_x, y=tip_y, origin_z=tip_z),
-        ]
-
-    if abs(rotation[0]) > 1e-6 or abs(rotation[1]) > 1e-6 or abs(rotation[2]) > 1e-6:
-
-        def rot_loop(
-            loop: tuple[tuple[float, float, float], ...],
-        ) -> tuple[tuple[float, float, float], ...]:
-            res: list[tuple[float, float, float]] = []
-            for x, y, z in loop:
-                rx, ry, rz = rotate_vector((x - px, y - py, z - pz), rotation)
-                res.append((px + rx, py + ry, pz + rz))
-            return tuple(res)
-
-        sec_loops = [rot_loop(loop) for loop in sec_loops]
-
+    sec_loops = [
+        tuple(
+            (px + rx, py + ry, pz + rz)
+            for rx, ry, rz in (rotate_vector(point, rotation) for point in loop)
+        )
+        for loop in loft_section_loops(loft)
+    ]
     viewport.add_loft(
         comp_id,
         sections=sec_loops,
         name=name,
         layer=DEBUG_LAYER,
-        color=color,
-        envelope=envelope,
+        color=parse_color_rgba(loft.color),
     )
 
 
+def loft_envelope(params: dict[str, Any]) -> dict[str, Any] | None:
+    """Exact envelope of the closed loft through the station airfoils.
+
+    A loft with fewer than two stations has no volume and so no envelope.
+    """
+    loops = loft_section_loops(LoftComponent(params))
+    if len(loops) < 2:
+        return None
+    return compute_loft_envelope(loops)
+
+
 register_renderer(TYPE_DEBUG_LOFT, add_loft_to_viewport)
+register_envelope(TYPE_DEBUG_LOFT, loft_envelope)
