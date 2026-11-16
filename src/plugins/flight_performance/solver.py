@@ -478,6 +478,8 @@ class FlightPerformanceSolver(AbstractSolver):
     @staticmethod
     def _plots(envelope: PerformanceEnvelope) -> list[PlotDefinition]:
         with_propulsion = envelope.propulsion is not None
+        # Speeds the powertrain cannot hold in level flight are shaded.
+        valid_column = "feasible" if with_propulsion else None
         plots = [
             PlotDefinition(
                 id="power_curves",
@@ -493,6 +495,7 @@ class FlightPerformanceSolver(AbstractSolver):
                     ),
                 ],
                 y_label="Power",
+                valid_column=valid_column,
             ),
             PlotDefinition(
                 id="thrust_curves",
@@ -508,6 +511,7 @@ class FlightPerformanceSolver(AbstractSolver):
                     ),
                 ],
                 y_label="Force",
+                valid_column=valid_column,
             ),
         ]
         if with_propulsion:
@@ -520,6 +524,7 @@ class FlightPerformanceSolver(AbstractSolver):
                         x_column="velocity",
                         series=[PlotSeriesDef("rate_of_climb", "Rate of Climb", color="#8b5cf6")],
                         y_label="Rate of Climb",
+                        valid_column=valid_column,
                     ),
                     PlotDefinition(
                         id="endurance",
@@ -528,6 +533,7 @@ class FlightPerformanceSolver(AbstractSolver):
                         x_column="velocity",
                         series=[PlotSeriesDef("endurance", "Endurance", color="#f59e0b")],
                         y_label="Endurance",
+                        valid_column=valid_column,
                     ),
                     PlotDefinition(
                         id="range",
@@ -536,14 +542,24 @@ class FlightPerformanceSolver(AbstractSolver):
                         x_column="velocity",
                         series=[PlotSeriesDef("range", "Range", color="#06b6d4")],
                         y_label="Range",
+                        valid_column=valid_column,
                     ),
                     PlotDefinition(
                         id="battery_load",
-                        title="Battery Current",
+                        title="Battery Current & Throttle",
                         table_id=_TABLE_ID,
                         x_column="velocity",
-                        series=[PlotSeriesDef("current", "Current", color="#f97316")],
-                        y_label="Current",
+                        series=[
+                            PlotSeriesDef("current", "Current", color="#f97316"),
+                            PlotSeriesDef(
+                                "throttle",
+                                "Throttle",
+                                style="dashed",
+                                color="#64748b",
+                                axis="right",
+                            ),
+                        ],
+                        valid_column=valid_column,
                     ),
                 ]
             )

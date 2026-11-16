@@ -252,6 +252,7 @@ class BasePropulsionSolver(AbstractSolver):
                 x_label=plot_x_label,
                 y_label="Thrust (N)",
                 series=[PlotSeriesDef(y_column="thrust", label="Thrust Force", color="#2563eb")],
+                valid_column="feasible",
             ),
             "plot_power_current": PlotDefinition(
                 id="plot_power_current",
@@ -259,11 +260,17 @@ class BasePropulsionSolver(AbstractSolver):
                 table_id="propulsion_data",
                 x_column=plot_x_col,
                 x_label=plot_x_label,
-                y_label="Power (W) / Current (A)",
                 series=[
-                    PlotSeriesDef(y_column="power", label="Battery Power (W)", color="#dc2626"),
-                    PlotSeriesDef(y_column="current", label="Battery Current (A)", color="#ea580c"),
+                    PlotSeriesDef(y_column="power", label="Battery Power", color="#dc2626"),
+                    PlotSeriesDef(
+                        y_column="current",
+                        label="Battery Current",
+                        style="dashed",
+                        color="#ea580c",
+                        axis="right",
+                    ),
                 ],
+                valid_column="feasible",
             ),
             "plot_rpm": PlotDefinition(
                 id="plot_rpm",
@@ -273,6 +280,7 @@ class BasePropulsionSolver(AbstractSolver):
                 x_label=plot_x_label,
                 y_label="Motor RPM",
                 series=[PlotSeriesDef(y_column="rpm", label="Equilibrium RPM", color="#16a34a")],
+                valid_column="feasible",
             ),
             "plot_efficiency": PlotDefinition(
                 id="plot_efficiency",
@@ -292,6 +300,7 @@ class BasePropulsionSolver(AbstractSolver):
                         y_column="motor_efficiency", label="Motor Efficiency", color="#f59e0b"
                     ),
                 ],
+                valid_column="feasible",
             ),
         }
 

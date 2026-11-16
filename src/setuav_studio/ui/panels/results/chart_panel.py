@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from PySide6.QtCharts import QLineSeries
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
@@ -279,65 +280,107 @@ class AnalysisChartPanel(QWidget):
         x_title = x_col_def.header_text(use_display_units=True) if x_col_def else x_col
         axis_x = self._chart_widget.create_axis(title=x_title)
 
-        # Setup Y Axis
-        col_def = table.get_column_def(plot.series[0].y_column) if plot.series else None
-        y_label = plot.y_label or (
-            col_def.header_text(use_display_units=True) if col_def is not None else "Value"
-        )
-        axis_y = self._chart_widget.create_axis(title=y_label)
+        palette = ["#2196F3", "#4CAF50", "#FF9800", "#E91E63", "#9C27B0", "#00BCD4"]
+        curves: list[tuple[Any, str, QPen, list[tuple[float, float]]]] = []
+        for i, s_def in enumerate(plot.series):
+            y_col_def = table.get_column_def(s_def.y_column)
+            points = [
+                (float(x), float(y))
+                for x, y in zip(
+                    x_vals, table.get_column_display_values(s_def.y_column), strict=True
+                )
+                if isinstance(x, (int, float)) and isinstance(y, (int, float))
+            ]
+            line_style = {
+                "dashed": Qt.PenStyle.DashLine,
+                "dotted": Qt.PenStyle.DotLine,
+            }.get(s_def.style, Qt.PenStyle.SolidLine)
+            pen = QPen(QColor(s_def.color or palette[i % len(palette)]), 2.0, line_style)
+            name = s_def.label or (y_col_def.label if y_col_def else s_def.y_column)
+            curves.append((s_def, name, pen, points))
 
+        axis_y = self._chart_widget.create_axis(title=self._axis_title(plot, table, "left"))
         self._chart_widget.chart.addAxis(axis_x, Qt.AlignmentFlag.AlignBottom)
         self._chart_widget.chart.addAxis(axis_y, Qt.AlignmentFlag.AlignLeft)
+        y_axes = {"left": axis_y}
+        if any(s_def.axis == "right" for s_def, *_ in curves):
+            axis_y2 = self._chart_widget.create_axis(
+                title=self._axis_title(plot, table, "right"), show_grid=False
+            )
+            self._chart_widget.chart.addAxis(axis_y2, Qt.AlignmentFlag.AlignRight)
+            y_axes["right"] = axis_y2
 
         min_x, max_x = min(x_numeric), max(x_numeric)
-        all_y_numeric: list[float] = []
-
-        # Color roles / palettes
-        palette = ["#2196F3", "#4CAF50", "#FF9800", "#E91E63", "#9C27B0", "#00BCD4"]
-
-        for i, s_def in enumerate(plot.series):
-            y_col = s_def.y_column
-            y_vals = table.get_column_display_values(y_col)
-            if not y_vals:
-                continue
-
-            y_col_def = table.get_column_def(y_col)
-            series_name = s_def.label or (y_col_def.label if y_col_def else y_col)
-
-            color = s_def.color or palette[i % len(palette)]
-            line_style = Qt.PenStyle.SolidLine
-            if s_def.style == "dashed":
-                line_style = Qt.PenStyle.DashLine
-            elif s_def.style == "dotted":
-                line_style = Qt.PenStyle.DotLine
-
-            line_series = self._chart_widget.create_line_series(
-                name=series_name,
-                width=2.0,
-                style=line_style,
-            )
-
-            for x, y in zip(x_vals, y_vals, strict=False):
-                if isinstance(x, (int, float)) and isinstance(y, (int, float)):
-                    line_series.append(float(x), float(y))
-                    all_y_numeric.append(float(y))
-
-            self._chart_widget.add_line_series(line_series, axis_x, axis_y)
-
-            # Apply custom pen AFTER add_line_series so QChart doesn't overwrite it
-            pen = QPen(QColor(color), 2.0, line_style)
-            line_series.setPen(pen)
-
-        # Set range with 5% margin
         dx = max(abs(max_x - min_x) * 0.05, 0.1)
         axis_x.setRange(min_x - dx, max_x + dx)
+        for side, axis in y_axes.items():
+            values = [y for s_def, _, _, pts in curves if s_def.axis == side for _, y in pts]
+            if values:
+                min_y, max_y = min(values), max(values)
+                dy = max(abs(max_y - min_y) * 0.05, 0.1)
+                axis.setRange(min_y - dy, max_y + dy)
 
-        if all_y_numeric:
-            min_y, max_y = min(all_y_numeric), max(all_y_numeric)
-            dy = max(abs(max_y - min_y) * 0.05, 0.1)
-            axis_y.setRange(min_y - dy, max_y + dy)
+        if plot.valid_column is not None:
+            self._shade_invalid_ranges(table, plot.valid_column, x_vals, axis_x, axis_y)
+
+        for s_def, name, pen, points in curves:
+            line_series = self._chart_widget.create_line_series(name=name, width=2.0)
+            for x, y in points:
+                line_series.append(x, y)
+            self._chart_widget.add_line_series(line_series, axis_x, y_axes[s_def.axis])
+            # Apply custom pen AFTER add_line_series so QChart doesn't overwrite it
+            line_series.setPen(pen)
 
         self._chart_widget.update_theme_style()
+
+    @staticmethod
+    def _axis_title(plot: PlotDefinition, table: TableDefinition, side: str) -> str:
+        explicit = plot.y_label if side == "left" else plot.y2_label
+        if explicit:
+            return explicit
+        series = next((s for s in plot.series if s.axis == side), None)
+        col_def = table.get_column_def(series.y_column) if series is not None else None
+        return col_def.header_text(use_display_units=True) if col_def is not None else "Value"
+
+    def _shade_invalid_ranges(
+        self,
+        table: TableDefinition,
+        valid_column: str,
+        x_vals: list[Any],
+        axis_x: Any,
+        axis_y: Any,
+    ) -> None:
+        """Shade the x ranges whose ``valid_column`` value is false."""
+        points = sorted(
+            (float(x), bool(valid))
+            for x, valid in zip(x_vals, table.get_column(valid_column), strict=True)
+            if isinstance(x, (int, float))
+        )
+        low_x, high_x = axis_x.min(), axis_x.max()
+        low_y, high_y = axis_y.min(), axis_y.max()
+        shade = QColor(128, 128, 128, 45)
+        index = 0
+        while index < len(points):
+            if points[index][1]:
+                index += 1
+                continue
+            first = index
+            while index < len(points) and not points[index][1]:
+                index += 1
+            last = index - 1
+            # The shade reaches halfway to the neighbouring valid points.
+            left = (points[first - 1][0] + points[first][0]) * 0.5 if first > 0 else low_x
+            right = (points[last][0] + points[last + 1][0]) * 0.5 if index < len(points) else high_x
+            upper = QLineSeries()
+            upper.append(left, high_y)
+            upper.append(right, high_y)
+            lower = QLineSeries()
+            lower.append(left, low_y)
+            lower.append(right, low_y)
+            area = self._chart_widget.add_area_series(upper, lower, shade, axis_x, axis_y)
+            area.setName("Infeasible")
+            for marker in self._chart_widget.chart.legend().markers(area):
+                marker.setVisible(False)
 
     def _reset_view(self) -> None:
         self.reset_view()

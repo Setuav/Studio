@@ -241,6 +241,9 @@ class TableDefinition:
         )
 
 
+PLOT_AXES = ("left", "right")
+
+
 @dataclass
 class PlotSeriesDef:
     """A series / curve definition pointing to a column in a table."""
@@ -249,6 +252,12 @@ class PlotSeriesDef:
     label: str | None = None
     style: str = "solid"  # "solid", "dashed", "dotted"
     color: str | None = None
+    axis: str = "left"
+    """Y axis the series is drawn against: "left" or "right"."""
+
+    def __post_init__(self) -> None:
+        if self.axis not in PLOT_AXES:
+            raise ValueError(f"Plot series axis must be 'left' or 'right', got {self.axis!r}.")
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -256,6 +265,7 @@ class PlotSeriesDef:
             "label": self.label,
             "style": self.style,
             "color": self.color,
+            "axis": self.axis,
         }
 
     @classmethod
@@ -265,6 +275,7 @@ class PlotSeriesDef:
             label=data["label"],
             style=str(data["style"]),
             color=data["color"],
+            axis=str(data["axis"]),
         )
 
 
@@ -279,6 +290,10 @@ class PlotDefinition:
     series: list[PlotSeriesDef] = field(default_factory=list)
     x_label: str | None = None
     y_label: str | None = None
+    y2_label: str | None = None
+    """Title of the right axis, for series drawn against it."""
+    valid_column: str | None = None
+    """Boolean table column; the x ranges where it is false are shaded."""
 
     def __post_init__(self) -> None:
         if not self.title:
@@ -300,6 +315,8 @@ class PlotDefinition:
             "series": [s.to_dict() for s in self.series],
             "x_label": self.x_label,
             "y_label": self.y_label,
+            "y2_label": self.y2_label,
+            "valid_column": self.valid_column,
         }
 
     @classmethod
@@ -312,6 +329,8 @@ class PlotDefinition:
             series=[PlotSeriesDef.from_dict(series) for series in data["series"]],
             x_label=data["x_label"],
             y_label=data["y_label"],
+            y2_label=data["y2_label"],
+            valid_column=data["valid_column"],
         )
 
 
@@ -485,6 +504,8 @@ class SolverResult:
                 target.series = [PlotSeriesDef.from_dict(s.to_dict()) for s in restored.series]
                 target.x_label = restored.x_label
                 target.y_label = restored.y_label
+                target.y2_label = restored.y2_label
+                target.valid_column = restored.valid_column
                 return target
             self.plots[plot_id] = restored
             return restored

@@ -12,6 +12,7 @@ from setuav_studio.api import StudioAPI
 from setuav_studio.project import ProjectDocument, create_project, open_project, save_project
 from setuav_studio.solver.base import SolverConfig, SolverStatus
 from setuav_studio.solver.results import (
+    PlotDefinition,
     PlotSeriesDef,
     SolverResult,
     SummaryItem,
@@ -345,3 +346,73 @@ def test_solver_default_parameters_follow_the_schema() -> None:
 
     assert _Solver.default_parameters() == {"speed": 12.0, "mode": "fast"}
     assert AbstractSolver.default_parameters() == {}
+
+
+def test_chart_draws_right_axis_series_and_shades_invalid_ranges() -> None:
+    from PySide6.QtCharts import QAreaSeries, QLineSeries
+    from PySide6.QtCore import Qt
+
+    get_qapp()
+    config = SolverConfig(solver_id="org.setuav.propulsion", name="Sweep")
+    result = SolverResult(solver_id=config.solver_id, config=config)
+    table = result.add_table(
+        table_id="sweep",
+        columns=[
+            TableColumn(key="speed", label="Speed", unit="m/s"),
+            TableColumn(key="power", label="Power", unit="W"),
+            TableColumn(key="current", label="Current", unit="A"),
+            TableColumn(key="ok", label="Feasible"),
+        ],
+        data=[
+            {"speed": 0.0, "power": 10.0, "current": 1.0, "ok": False},
+            {"speed": 1.0, "power": 20.0, "current": 2.0, "ok": True},
+            {"speed": 2.0, "power": 30.0, "current": 3.0, "ok": True},
+            {"speed": 3.0, "power": 40.0, "current": 4.0, "ok": False},
+            {"speed": 4.0, "power": 50.0, "current": 5.0, "ok": False},
+        ],
+    )
+    plot = PlotDefinition(
+        id="power_current",
+        table_id="sweep",
+        x_column="speed",
+        series=[
+            PlotSeriesDef(y_column="power"),
+            PlotSeriesDef(y_column="current", axis="right"),
+        ],
+        valid_column="ok",
+    )
+    restored = PlotDefinition.from_dict(plot.to_dict())
+    assert restored == plot
+    with pytest.raises(ValueError, match="'left' or 'right'"):
+        PlotSeriesDef(y_column="power", axis="top")
+
+    panel = AnalysisChartPanel(StudioAPI())
+    panel.load_plot(plot, table, result)
+    chart = panel._chart_widget.chart
+
+    vertical_axes = chart.axes(Qt.Orientation.Vertical)
+    assert {axis.titleText() for axis in vertical_axes} == {"Power [W]", "Current [A]"}
+    lines = {s.name(): s for s in chart.series() if isinstance(s, QLineSeries)}
+    sides = {
+        name: {
+            axis.alignment()
+            for axis in line.attachedAxes()
+            if axis.orientation() == Qt.Orientation.Vertical
+        }
+        for name, line in lines.items()
+    }
+    assert sides == {
+        "Power": {Qt.AlignmentFlag.AlignLeft},
+        "Current": {Qt.AlignmentFlag.AlignRight},
+    }
+
+    # Two runs are infeasible: 0 m/s, and 3 to 4 m/s; the shades meet the
+    # feasible points halfway.
+    shades = [s for s in chart.series() if isinstance(s, QAreaSeries)]
+    assert len(shades) == 2
+    spans = sorted((s.upperSeries().at(0).x(), s.upperSeries().at(1).x()) for s in shades)
+    assert spans[0][1] == 0.5
+    assert spans[1][0] == 2.5
+    assert all(
+        not marker.isVisible() for shade in shades for marker in chart.legend().markers(shade)
+    )
