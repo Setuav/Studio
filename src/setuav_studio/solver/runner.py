@@ -30,6 +30,7 @@ def execute_solver(solver: AbstractSolver, token: CancellationToken) -> SolverRe
         token.check_cancelled()
         if solver.is_cancel_requested:
             raise TaskCancelledError(f"Solver {solver.config.name} cancelled.")
+        solver.check_parameter_ranges()
         result = solver.run()
     except TaskCancelledError:
         solver.status = SolverStatus.CANCELLED

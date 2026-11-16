@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -70,6 +71,19 @@ class AbstractSolver(ABC):
     def default_parameters(cls) -> dict[str, Any]:
         """Return the default value of every declared parameter."""
         return {field.key: field.default for field in cls.PARAMETER_FIELDS}
+
+    def check_parameter_ranges(self) -> None:
+        """Raise ValueError for a numeric parameter outside its declared range."""
+        for spec in self.PARAMETER_FIELDS:
+            value = self.config.parameters[spec.key]
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                continue
+            low = -math.inf if spec.min_value is None else spec.min_value
+            high = math.inf if spec.max_value is None else spec.max_value
+            if not low <= value <= high:
+                raise ValueError(
+                    f"Parameter '{spec.key}' = {value:g} is outside [{low:g}, {high:g}]."
+                )
 
     def __init__(self, config: SolverConfig, project: Any | None = None) -> None:
         self.config = config

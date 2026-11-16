@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 
-from setuav_studio.api import StudioAPI
+from setuav_studio.api import ParameterField, StudioAPI
 from setuav_studio.project import ProjectDocument
 from setuav_studio.solver import (
     AbstractSolver,
@@ -95,6 +95,32 @@ def test_execute_solver_success() -> None:
     assert solver.status == SolverStatus.COMPLETED
     assert result.summary["lift"].value == 120.0
     assert result.execution_time_ms > 0.0
+
+
+class RangedSolver(SuccessSolver):
+    PARAMETER_FIELDS: ClassVar[list[ParameterField]] = [
+        ParameterField(key="speed", default=5.0, min_value=1.0, max_value=10.0),
+        ParameterField(key="method", field_type=str, default="vlm"),
+    ]
+    ran = False
+
+    def run(self) -> SolverResult:
+        RangedSolver.ran = True
+        return super().run()
+
+
+def test_execute_solver_rejects_parameters_outside_their_range() -> None:
+    config = SolverConfig(
+        solver_id="org.test:aero",
+        name="Out Of Range",
+        parameters={**RangedSolver.default_parameters(), "speed": 20.0},
+    )
+    solver = RangedSolver(config)
+
+    with pytest.raises(ValueError, match=r"'speed' = 20 is outside \[1, 10\]"):
+        execute_solver(solver, DummyCancellationToken())  # type: ignore[arg-type]
+    assert solver.status == SolverStatus.FAILED
+    assert not RangedSolver.ran
 
 
 def test_execute_solver_cancellation() -> None:

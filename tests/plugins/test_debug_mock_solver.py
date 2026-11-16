@@ -83,8 +83,8 @@ class TestDebugMockSolver(unittest.TestCase):
             parameters={"duration": 0.0, "rows": 10, "columns": 2},
         )
         solver = MockGeneratorSolver(config)
-        with self.assertRaisesRegex(ValueError, "'columns' = 2 is outside"):
-            solver.run()
+        with self.assertRaisesRegex(ValueError, r"'columns' = 2 is outside \[4, 64\]"):
+            solver.check_parameter_ranges()
 
     def test_mock_solver_odd_columns_pairwise_wrapping(self) -> None:
         """Verify odd number of columns pairs the remaining column with column 0."""

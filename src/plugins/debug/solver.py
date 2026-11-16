@@ -290,20 +290,8 @@ class MockGeneratorSolver(AbstractSolver):
     def __init__(self, config: SolverConfig) -> None:
         super().__init__(config)
 
-    def _check_parameter_ranges(self) -> None:
-        for field in self.PARAMETER_FIELDS:
-            value = self.config.parameters[field.key]
-            if (field.min_value is not None and value < field.min_value) or (
-                field.max_value is not None and value > field.max_value
-            ):
-                raise ValueError(
-                    f"Mock analysis parameter '{field.key}' = {value} is outside "
-                    f"[{field.min_value}, {field.max_value}]."
-                )
-
     def run(self) -> SolverResult:
         """Execute mock generation simulating long-running analysis and pairwise plotting."""
-        self._check_parameter_ranges()
         duration = float(self.config.parameters["duration"])
         rows = int(self.config.parameters["rows"])
         columns = int(self.config.parameters["columns"])
