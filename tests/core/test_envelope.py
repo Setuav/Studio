@@ -106,7 +106,7 @@ def test_compute_box_envelope() -> None:
 def test_compute_cylinder_envelope() -> None:
     radius = 25.0
     length = 100.0
-    env = compute_cylinder_envelope(size_mm=(length, 2.0 * radius, 2.0 * radius))
+    env = compute_cylinder_envelope(size_mm=(length, 2.0 * radius, 2.0 * radius), axis="x")
 
     assert env.get("shape") == "cylinder"
     assert math.isclose(env["volume_mm3"], math.pi * radius**2 * length, rel_tol=1e-4)
@@ -119,9 +119,26 @@ def test_compute_cylinder_envelope() -> None:
 
 
 def test_elliptic_cylinder_keeps_its_section() -> None:
-    env = compute_cylinder_envelope(size_mm=(100.0, 60.0, 40.0))
+    env = compute_cylinder_envelope(size_mm=(100.0, 60.0, 40.0), axis="x")
     assert env["size_mm"] == {"x": 100.0, "y": 60.0, "z": 40.0}
     assert math.isclose(env["volume_mm3"], math.pi * 30.0 * 20.0 * 100.0, rel_tol=1e-4)
+
+
+def test_cylinder_inertia_follows_its_axis_through_the_stored_definition() -> None:
+    size = {"x": 60.0, "y": 100.0, "z": 40.0}
+    env = compute_cylinder_envelope(size, axis="y")
+    u_i = env["unit_inertia"]
+    assert env["axis"] == "y"
+    assert math.isclose(u_i["iyy"], (30.0**2 + 20.0**2) / 4.0 / 1.0e6, rel_tol=1e-4)
+    assert math.isclose(u_i["ixx"], (100.0**2 / 12.0 + 20.0**2 / 4.0) / 1.0e6, rel_tol=1e-4)
+    assert math.isclose(u_i["izz"], (100.0**2 / 12.0 + 30.0**2 / 4.0) / 1.0e6, rel_tol=1e-4)
+
+    resolved = resolve_envelope_definition(
+        {"shape": "cylinder", "axis": "y", "size_mm": size, "offset_mm": {}}
+    )
+    assert resolved["unit_inertia"] == u_i
+    with pytest.raises(ValueError, match="Cylinder axis"):
+        compute_cylinder_envelope(size, axis="w")
 
 
 def test_compute_ellipsoid_envelope() -> None:

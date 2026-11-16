@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
@@ -37,85 +38,16 @@ __all__ = [
 DEBUG_LAYER = "debug"
 
 
-def _parse_sequence_rgba(nums: list[float]) -> tuple[float, float, float, float]:
-    if any(v > 1.0 for v in nums[:3]):
-        r = min(1.0, max(0.0, nums[0] / 255.0))
-        g = min(1.0, max(0.0, nums[1] / 255.0))
-        b = min(1.0, max(0.0, nums[2] / 255.0))
-        a = min(1.0, max(0.0, nums[3] / 255.0)) if len(nums) >= 4 else 1.0
-    else:
-        r = min(1.0, max(0.0, nums[0]))
-        g = min(1.0, max(0.0, nums[1]))
-        b = min(1.0, max(0.0, nums[2]))
-        a = min(1.0, max(0.0, nums[3])) if len(nums) >= 4 else 1.0
-    return (r, g, b, a)
-
-
-def _parse_hex_rgba(text: str) -> tuple[float, float, float, float] | None:
-    try:
-        if len(text) == 7:
-            return (
-                int(text[1:3], 16) / 255.0,
-                int(text[3:5], 16) / 255.0,
-                int(text[5:7], 16) / 255.0,
-                1.0,
-            )
-        if len(text) == 4:
-            return (
-                int(text[1] * 2, 16) / 255.0,
-                int(text[2] * 2, 16) / 255.0,
-                int(text[3] * 2, 16) / 255.0,
-                1.0,
-            )
-        if len(text) == 9:
-            return (
-                int(text[1:3], 16) / 255.0,
-                int(text[3:5], 16) / 255.0,
-                int(text[5:7], 16) / 255.0,
-                int(text[7:9], 16) / 255.0,
-            )
-    except ValueError:
-        pass
-    return None
-
-
-def parse_color_rgba(
-    val: Any, default: tuple[float, float, float, float] = (0.3, 0.6, 0.9, 1.0)
-) -> tuple[float, float, float, float]:
-    """Parse color value into an (r, g, b, a) tuple in 0.0 - 1.0 range."""
-    if isinstance(val, (tuple, list)) and len(val) >= 3:
-        try:
-            return _parse_sequence_rgba([float(v) for v in val[:4]])
-        except (ValueError, TypeError):
-            return default
-
-    if isinstance(val, str):
-        text = val.strip()
-        if not text:
-            return default
-
-        if text.startswith("#"):
-            parsed_hex = _parse_hex_rgba(text)
-            if parsed_hex is not None:
-                return parsed_hex
-
-        if text.lower().startswith("rgb"):
-            left_paren = text.find("(")
-            right_paren = text.rfind(")")
-            if left_paren != -1 and right_paren != -1:
-                text = text[left_paren + 1 : right_paren]
-
-        clean = text.strip("()[]")
-        parts = [p.strip() for p in clean.replace(";", ",").split(",") if p.strip()]
-        if len(parts) < 3:
-            parts = [p.strip() for p in clean.split() if p.strip()]
-        if len(parts) >= 3:
-            try:
-                return _parse_sequence_rgba([float(p) for p in parts[:4]])
-            except ValueError:
-                pass
-
-    return default
+def parse_color_rgba(text: str) -> tuple[float, float, float, float]:
+    """Parse a ``#RRGGBB`` color into an opaque (r, g, b, a) tuple in the 0-1 range."""
+    if not re.fullmatch(r"#[0-9A-Fa-f]{6}", text):
+        raise ValueError(f"Color {text!r} is not a #RRGGBB hex color.")
+    return (
+        int(text[1:3], 16) / 255.0,
+        int(text[3:5], 16) / 255.0,
+        int(text[5:7], 16) / 255.0,
+        1.0,
+    )
 
 
 def _comp_as_dict(item: Any) -> dict[str, Any] | None:
@@ -308,7 +240,6 @@ def sync_debug_components_to_viewport(viewport: ViewportProtocol, project: Any) 
         d = _comp_as_dict(c)
         if d is not None and (
             str(d.get("type", "")).startswith("org.setuav.debug:")
-            or str(d.get("type", "")).startswith("debug.")
             or str(d.get("type", "")) in _RENDERERS
         ):
             debug_components.append(d)
@@ -389,11 +320,7 @@ class BaseDebugComponentEditor(BaseComponentEditor):
             ctype = str(d.get("type") or "")
             if not cid or cid == self_id:
                 continue
-            if not (
-                ctype in _RENDERERS
-                or ctype.startswith("org.setuav.debug:")
-                or ctype.startswith("debug.")
-            ):
+            if not (ctype in _RENDERERS or ctype.startswith("org.setuav.debug:")):
                 continue
 
             # Prevent cyclic hierarchy: check if self_id is an ancestor of cid

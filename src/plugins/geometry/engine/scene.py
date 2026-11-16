@@ -781,22 +781,11 @@ def _append_envelope_lines(  # noqa: C901
             if sx > 0.0 and sy > 0.0 and sz > 0.0:
                 hx, hy, hz = sx * 0.5, sy * 0.5, sz * 0.5
                 if shape == "cylinder":
-                    segments = 24
-                    for x_pos in (ox - hx, ox + hx):
-                        pts = [
-                            (
-                                x_pos,
-                                oy + hy * math.cos(2.0 * math.pi * k / segments),
-                                oz + hz * math.sin(2.0 * math.pi * k / segments),
-                            )
-                            for k in range(segments)
-                        ]
-                        for k in range(segments):
-                            local_lines.append((pts[k], pts[(k + 1) % segments]))
-                    for angle in (0.0, math.pi * 0.5, math.pi, math.pi * 1.5):
-                        p_start = (ox - hx, oy + hy * math.cos(angle), oz + hz * math.sin(angle))
-                        p_end = (ox + hx, oy + hy * math.cos(angle), oz + hz * math.sin(angle))
-                        local_lines.append((p_start, p_end))
+                    local_lines.extend(
+                        _cylinder_wire_lines(
+                            (ox, oy, oz), (hx, hy, hz), "xyz".index(str(envelope["axis"]))
+                        )
+                    )
                 elif shape == "sphere":
                     segments = 24
                     for k in range(segments):
@@ -958,3 +947,28 @@ def _append_lifting_surface_tip_envelope_lines(  # noqa: C901
                         transform_point(matrix, end),
                     )
                 )
+
+
+def _cylinder_wire_lines(
+    center: tuple[float, float, float],
+    half_size: tuple[float, float, float],
+    axis: int,
+    segments: int = 24,
+) -> list[tuple[tuple[float, float, float], tuple[float, float, float]]]:
+    """Return the end rings and four rails of a cylinder along ``axis`` (0, 1 or 2)."""
+    first, second = (i for i in range(3) if i != axis)
+
+    def point(along: float, angle: float) -> tuple[float, float, float]:
+        coords = list(center)
+        coords[axis] += along
+        coords[first] += half_size[first] * math.cos(angle)
+        coords[second] += half_size[second] * math.sin(angle)
+        return (coords[0], coords[1], coords[2])
+
+    lines = []
+    for along in (-half_size[axis], half_size[axis]):
+        ring = [point(along, 2.0 * math.pi * k / segments) for k in range(segments)]
+        lines.extend((ring[k], ring[(k + 1) % segments]) for k in range(segments))
+    for angle in (0.0, math.pi * 0.5, math.pi, math.pi * 1.5):
+        lines.append((point(-half_size[axis], angle), point(half_size[axis], angle)))
+    return lines

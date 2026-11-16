@@ -328,12 +328,14 @@ class PropulsionCreationController:
         if component_kind == "motor":
             return {
                 "shape": "cylinder",
+                "axis": "x",
                 "size_mm": {"x": 40.0, "y": 35.0, "z": 35.0},
                 "offset_mm": {"x": 20.0, "y": 0.0, "z": 0.0},
             }
         if component_kind in {"propeller", "rotor"}:
             return {
                 "shape": "cylinder",
+                "axis": "x",
                 "size_mm": {"x": 20.0, "y": 330.0, "z": 330.0},
                 "offset_mm": {"x": 0.0, "y": 0.0, "z": 0.0},
             }

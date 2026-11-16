@@ -108,13 +108,7 @@ def add_cylinder_to_viewport(
     axis = str(cyl.axis).upper()
     segments = int(cyl.segments)
     color = parse_color_rgba(cyl.color)
-    base_axis: tuple[float, float, float]
-    if axis == "X":
-        base_axis = (1.0, 0.0, 0.0)
-    elif axis == "Y":
-        base_axis = (0.0, 1.0, 0.0)
-    else:
-        base_axis = (0.0, 0.0, 1.0)
+    base_axis = {"X": (1.0, 0.0, 0.0), "Y": (0.0, 1.0, 0.0), "Z": (0.0, 0.0, 1.0)}[axis]
     dir_axis = rotate_vector(base_axis, rotation)
     half = length * 0.5
     start = (px - half * dir_axis[0], py - half * dir_axis[1], pz - half * dir_axis[2])
@@ -133,35 +127,13 @@ def add_cylinder_to_viewport(
 
 
 # Component-frame axis of each axis of the X-aligned cylinder envelope, per cylinder axis.
-_CYLINDER_FRAME_AXES: dict[str, tuple[str, str, str]] = {
-    "X": ("x", "y", "z"),
-    "Y": ("y", "x", "z"),
-    "Z": ("z", "y", "x"),
-}
-
-
 def cylinder_envelope(params: dict[str, Any]) -> dict[str, Any]:
-    """Exact envelope of the solid cylinder, centred on the component origin.
-
-    The envelope helper integrates a cylinder along X; its size and principal unit
-    inertia are mapped onto the cylinder's alignment axis.
-    """
+    """Exact envelope of the solid cylinder, centred on the component origin."""
     cyl = CylinderComponent(params)
-    axis = str(cyl.axis).upper()
-    frame_axes = _CYLINDER_FRAME_AXES.get(axis)
-    if frame_axes is None:
-        raise ValueError(f"Cylinder alignment axis must be X, Y or Z, got {axis!r}")
+    axis = str(cyl.axis).lower()
     diameter = 2.0 * float(cyl.radius)
-    envelope = compute_cylinder_envelope((float(cyl.length), diameter, diameter))
-    source_of = {target: source for source, target in zip("xyz", frame_axes, strict=True)}
-    size = envelope["size_mm"]
-    inertia = envelope["unit_inertia"]
-    envelope["size_mm"] = {axis: size[source_of[axis]] for axis in "xyz"}
-    envelope["unit_inertia"] = {
-        **inertia,
-        **{f"i{axis}{axis}": inertia[f"i{source_of[axis]}{source_of[axis]}"] for axis in "xyz"},
-    }
-    return envelope
+    size = {key: float(cyl.length) if key == axis else diameter for key in "xyz"}
+    return compute_cylinder_envelope(size, axis=axis)
 
 
 register_renderer(TYPE_DEBUG_CYLINDER, add_cylinder_to_viewport)

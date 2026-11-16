@@ -27,6 +27,7 @@ def _cylinder_envelope(prim: CylinderPrimitive) -> dict[str, Any]:
     diam = 2.0 * prim.radius
     if length < 1e-6:
         size = {"x": diam, "y": diam, "z": diam}
+        axis = "x"
     else:
         ax = dx / length
         ay = dy / length
@@ -35,8 +36,11 @@ def _cylinder_envelope(prim: CylinderPrimitive) -> dict[str, Any]:
         sy = length * abs(ay) + diam * math.sqrt(max(0.0, 1.0 - ay * ay))
         sz = length * abs(az) + diam * math.sqrt(max(0.0, 1.0 - az * az))
         size = {"x": round(sx, 3), "y": round(sy, 3), "z": round(sz, 3)}
+        # The envelope is axis-aligned; it follows the dominant axis direction.
+        axis = max(zip((abs(ax), abs(ay), abs(az)), "xyz", strict=True))[1]
     return {
         "shape": "cylinder",
+        "axis": axis,
         "size_mm": size,
         "offset_mm": {"x": 0.0, "y": 0.0, "z": 0.0},
     }

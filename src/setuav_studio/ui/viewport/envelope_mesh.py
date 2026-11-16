@@ -130,18 +130,15 @@ def _append_scene_object_envelope_wire(
                 cyl_len = max(sz, 10.0)
                 cyl_radius = max(sx, sy, sz) * 0.5
             else:
-                if sx >= sy and sx >= sz:
-                    base_axis: Point3D = (1.0, 0.0, 0.0)
-                    cyl_len = sx
-                    cyl_radius = max(sy, sz) * 0.5
-                elif sy >= sx and sy >= sz:
-                    base_axis = (0.0, 1.0, 0.0)
-                    cyl_len = sy
-                    cyl_radius = max(sx, sz) * 0.5
-                else:
-                    base_axis = (0.0, 0.0, 1.0)
-                    cyl_len = sz
-                    cyl_radius = max(sx, sy) * 0.5
+                axis_index = "xyz".index(str(env["axis"]))
+                sizes = (sx, sy, sz)
+                base_axis: Point3D = (
+                    float(axis_index == 0),
+                    float(axis_index == 1),
+                    float(axis_index == 2),
+                )
+                cyl_len = sizes[axis_index]
+                cyl_radius = max(v for i, v in enumerate(sizes) if i != axis_index) * 0.5
                 cyl_axis = (
                     rotate_vector(base_axis, rotation) if rotation != (0.0, 0.0, 0.0) else base_axis
                 )

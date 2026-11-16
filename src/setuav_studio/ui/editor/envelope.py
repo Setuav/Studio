@@ -32,6 +32,7 @@ from setuav_studio.utilities.envelope import (
 # Shapes that a hand-defined envelope can take; geometry-derived envelopes keep
 # the shape they were integrated with.
 _DEFINED_SHAPES = (("box", "Box"), ("cylinder", "Cylinder"), ("sphere", "Sphere"))
+_CYLINDER_AXES = (("x", "X"), ("y", "Y"), ("z", "Z"))
 
 
 class EnvelopeEditor(PropertyTableMixin, QWidget):
@@ -142,6 +143,7 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
             [
                 ("component", "Component"),
                 ("shape", "Shape"),
+                ("axis", "Cylinder Axis"),
                 ("volume", "Volume"),
             ]
         )
@@ -154,6 +156,14 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
             self._on_shape_changed,
         )
         self.shape_combo = self._find_combo(self.definition_table, "shape")
+        self._set_property_combo(
+            self.definition_table,
+            "axis",
+            "x",
+            list(_CYLINDER_AXES),
+            self._on_shape_changed,
+        )
+        self.axis_combo = self._find_combo(self.definition_table, "axis")
 
     def _create_dimensions_section(self) -> None:
         layout = self._create_section("Dimensions", "fa6s.arrows-left-right")
@@ -271,6 +281,11 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
                     self.shape_combo.addItem(shape.capitalize(), shape)
                 self.shape_combo.setCurrentIndex(self.shape_combo.findData(shape))
                 self.shape_combo.setEnabled(not derived)
+            if self.axis_combo is not None:
+                cylinder = shape == "cylinder"
+                axis = str(envelope["axis"]) if cylinder else "x"
+                self.axis_combo.setCurrentIndex(self.axis_combo.findData(axis))
+                self.axis_combo.setEnabled(cylinder and not derived)
             for spin in (*self.dimension_spins.values(), *self.offset_spins.values()):
                 spin.setEnabled(not derived)
             self._load_vector(
@@ -330,12 +345,13 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
         )
         size = {axis: spin.value() for axis, spin in self.dimension_spins.items()}
         offset = {axis: spin.value() for axis, spin in self.offset_spins.items()}
+        definition: dict[str, Any] = {"shape": shape, "size_mm": size, "offset_mm": offset}
+        if shape == "cylinder" and self.axis_combo is not None:
+            definition["axis"] = str(self.axis_combo.currentData())
         component = self._component
 
         def change() -> None:
-            component["envelope"] = resolve_envelope_definition(
-                {"shape": shape, "size_mm": size, "offset_mm": offset}
-            )
+            component["envelope"] = resolve_envelope_definition(definition)
 
         self._api.edit_component(
             component,

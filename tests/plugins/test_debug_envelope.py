@@ -23,7 +23,7 @@ from plugins.debug.components import (
     create_cylinder_component,
     create_loft_component,
 )
-from plugins.debug.components.common import compute_debug_envelope
+from plugins.debug.components.common import compute_debug_envelope, parse_color_rgba
 from setuav_studio.api import StudioAPI
 from setuav_studio.project import create_project
 from setuav_studio.utilities.envelope import (
@@ -57,6 +57,12 @@ class TestDebugPrimitiveEnvelopes(unittest.TestCase):
         self.assertAlmostEqual(env["unit_inertia"]["izz"], axial)
         self.assertAlmostEqual(env["unit_inertia"]["ixx"], transverse)
         self.assertAlmostEqual(env["unit_inertia"]["iyy"], transverse)
+
+    def test_colors_are_hex_strings(self) -> None:
+        self.assertEqual(parse_color_rgba("#FF0080"), (1.0, 0.0, 128 / 255.0, 1.0))
+        for invalid in ("", "rgb(255, 0, 0)", "#F08", "#GG0000"):
+            with self.assertRaisesRegex(ValueError, "not a #RRGGBB hex color"):
+                parse_color_rgba(invalid)
 
     def test_loft_envelope_is_integrated_from_its_stations(self) -> None:
         loft = create_loft_component("loft-1", "Loft").raw_data

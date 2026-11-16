@@ -12,6 +12,9 @@ Triangle3D = tuple[Point3D, Point3D, Point3D]
 UnitInertia6D = tuple[float, float, float, float, float, float]
 
 
+CYLINDER_AXES: tuple[str, ...] = ("x", "y", "z")
+
+
 def _to_vec3(val: Any, default: Point3D = (0.0, 0.0, 0.0)) -> Point3D:
     if isinstance(val, dict):
         return (
@@ -414,24 +417,36 @@ def compute_box_envelope(
 def compute_cylinder_envelope(
     size_mm: Point3D | dict[str, float],
     offset_mm: Point3D | dict[str, float] = (0.0, 0.0, 0.0),
+    *,
+    axis: str,
 ) -> dict[str, Any]:
-    """Compute physical envelope for a solid cylinder along X with an elliptic Y-Z section."""
-    length, width, height = _to_vec3(size_mm)
-    b = max(width * 0.5, 0.0)
-    c = max(height * 0.5, 0.0)
-    l_val = max(length, 0.0)
+    """Compute physical envelope for a solid cylinder along ``axis`` (``x``, ``y`` or ``z``).
+
+    The size along ``axis`` is the length; the other two sizes are the diameters of
+    the elliptic section.
+    """
+    if axis not in CYLINDER_AXES:
+        raise ValueError(f"Cylinder axis must be one of {', '.join(CYLINDER_AXES)}, got {axis!r}.")
+    size = dict(zip(CYLINDER_AXES, _to_vec3(size_mm), strict=True))
+    first, second = (a for a in CYLINDER_AXES if a != axis)
+    length = max(size[axis], 0.0)
+    b = max(size[first] * 0.5, 0.0)
+    c = max(size[second] * 0.5, 0.0)
     scale = 1.0e6
-    return _shape_envelope(
+    inertia = {
+        axis: (b * b + c * c) / 4.0 / scale,
+        first: (length * length / 12.0 + c * c / 4.0) / scale,
+        second: (length * length / 12.0 + b * b / 4.0) / scale,
+    }
+    envelope = _shape_envelope(
         "cylinder",
-        (l_val, width, height),
+        (size["x"], size["y"], size["z"]),
         offset_mm,
-        volume_mm3=math.pi * b * c * l_val,
-        unit_inertia=(
-            (b * b + c * c) / 4.0 / scale,
-            (l_val * l_val / 12.0 + c * c / 4.0) / scale,
-            (l_val * l_val / 12.0 + b * b / 4.0) / scale,
-        ),
+        volume_mm3=math.pi * b * c * length,
+        unit_inertia=(inertia["x"], inertia["y"], inertia["z"]),
     )
+    envelope["axis"] = axis
+    return envelope
 
 
 def compute_ellipsoid_envelope(
@@ -503,7 +518,7 @@ def resolve_envelope_definition(envelope: dict[str, Any]) -> dict[str, Any]:
     if shape == "box":
         return compute_box_envelope(size, offset_mm=offset)
     if shape == "cylinder":
-        return compute_cylinder_envelope(size, offset_mm=offset)
+        return compute_cylinder_envelope(size, offset_mm=offset, axis=str(envelope["axis"]))
     if shape == "sphere":
         return compute_ellipsoid_envelope(size, offset_mm=offset)
     raise ValueError(f"Envelope shape '{shape}' needs geometry sections")
