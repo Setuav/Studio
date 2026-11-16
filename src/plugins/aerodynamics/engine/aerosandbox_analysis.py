@@ -38,6 +38,18 @@ else:
         np = None
 
 
+DEFAULT_SOLVER_SETTINGS: dict[str, Any] = {
+    "spanwise_resolution": 12,
+    "chordwise_resolution": 8,
+    "spanwise_spacing": "cosine",
+    "chordwise_spacing": "cosine",
+    "include_wave_drag": True,
+}
+"""Settings used when an analysis is given none."""
+
+_SPACINGS = ("cosine", "uniform")
+
+
 class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
     """Analysis workflow shared by the AeroSandbox engine."""
 
@@ -72,7 +84,9 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
             )
 
         method = method if isinstance(method, AnalysisMethod) else AnalysisMethod.from_value(method)
-        solver_settings = self._solver_settings(method, settings or {})
+        solver_settings = self._solver_settings(
+            method, DEFAULT_SOLVER_SETTINGS if settings is None else settings
+        )
         setup = self._prepare_analysis(components, condition, solver_settings["control_encoding"])
         self._validate_control_sweep(components, condition)
         sweep_vals, eval_states = self._build_evaluation_states(condition)
@@ -116,14 +130,24 @@ class AeroSandboxAnalysisMixin(AeroSandboxResultMixin):
 
     @staticmethod
     def _solver_settings(method: AnalysisMethod, settings: dict[str, Any]) -> dict[str, Any]:
-        span_spacing = str(settings.get("spanwise_spacing", "cosine")).lower()
-        chord_spacing = str(settings.get("chordwise_spacing", "cosine")).lower()
+        unknown = set(settings) - set(DEFAULT_SOLVER_SETTINGS)
+        if unknown:
+            raise ValueError(f"Unknown solver settings: {', '.join(sorted(unknown))}.")
+
+        def spacing(key: str) -> Any:
+            value = settings[key]
+            if value not in _SPACINGS:
+                raise ValueError(
+                    f"Solver setting '{key}' must be one of {', '.join(_SPACINGS)}, got {value!r}."
+                )
+            return np.cosspace if value == "cosine" else np.linspace
+
         return {
-            "span_res": int(settings.get("spanwise_resolution", 12)),
-            "chord_res": int(settings.get("chordwise_resolution", 8)),
-            "span_spacing": np.cosspace if "cos" in span_spacing else np.linspace,
-            "chord_spacing": np.cosspace if "cos" in chord_spacing else np.linspace,
-            "include_wave": bool(settings.get("include_wave_drag", True)),
+            "span_res": int(settings["spanwise_resolution"]),
+            "chord_res": int(settings["chordwise_resolution"]),
+            "span_spacing": spacing("spanwise_spacing"),
+            "chord_spacing": spacing("chordwise_spacing"),
+            "include_wave": bool(settings["include_wave_drag"]),
             "control_encoding": "airfoil" if method == AnalysisMethod.VLM else "native",
         }
 

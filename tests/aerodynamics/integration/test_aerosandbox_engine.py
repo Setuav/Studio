@@ -1007,9 +1007,17 @@ class AeroSandboxEngineTests(unittest.TestCase):
             "spanwise_resolution": 10,
             "chordwise_resolution": 6,
             "spanwise_spacing": "cosine",
+            "chordwise_spacing": "cosine",
             "include_wave_drag": True,
-            "compressibility_correction": True,
         }
+        for invalid, message in (
+            ({**settings, "compressibility_correction": True}, "Unknown solver settings"),
+            ({**settings, "spanwise_spacing": "cos"}, "must be one of cosine, uniform"),
+        ):
+            with self.assertRaisesRegex(ValueError, message):
+                engine.analyze(
+                    components, cond, method=AnalysisMethod.AERO_BUILDUP, settings=invalid
+                )
 
         result = engine.analyze(
             components,

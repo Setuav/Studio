@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any, ClassVar
 
+from plugins.aerodynamics.engine.aerosandbox_analysis import DEFAULT_SOLVER_SETTINGS
 from plugins.aerodynamics.engine.aerosandbox_engine import AeroSandboxEngine
 from plugins.aerodynamics.engine.base import (
     CONTROL_CHANNELS,
@@ -90,11 +91,9 @@ class BaseAerodynamicsSolver(AbstractSolver):
 
     def _settings(self, spanwise_resolution: int, chordwise_resolution: int) -> dict[str, Any]:
         return {
+            **DEFAULT_SOLVER_SETTINGS,
             "spanwise_resolution": spanwise_resolution,
             "chordwise_resolution": chordwise_resolution,
-            "spanwise_spacing": "cosine",
-            "chordwise_spacing": "cosine",
-            "include_wave_drag": True,
         }
 
     def _configured_settings(self) -> dict[str, Any]:
