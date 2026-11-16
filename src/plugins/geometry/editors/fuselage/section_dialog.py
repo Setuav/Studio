@@ -700,7 +700,6 @@ class FuselageSectionDialog(QDialog):
         pos = section.get("position", {}) if isinstance(section.get("position"), dict) else {}
         rot = section.get("rotation", {}) if isinstance(section.get("rotation"), dict) else {}
 
-        rotation_aliases = {"x": "roll", "y": "pitch", "z": "yaw"}
         for col, axis in enumerate(("x", "y", "z")):
             raw_pos = get_expression(pos, axis) or pos.get(axis, 0.0)
             set_table_spinbox(
@@ -721,12 +720,7 @@ class FuselageSectionDialog(QDialog):
                     "position", a, _v
                 ),
             )
-            alias = rotation_aliases[axis]
-            raw_rot = (
-                get_expression(rot, axis)
-                or get_expression(rot, alias)
-                or rot.get(axis, rot.get(alias, 0.0))
-            )
+            raw_rot = get_expression(rot, axis) or rot.get(axis, 0.0)
             set_table_spinbox(
                 self.trans_table,
                 1,

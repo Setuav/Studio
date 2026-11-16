@@ -352,8 +352,8 @@ def compute_planform_metrics(
     rot_tip = (
         profiles[-1].get("rotation", {}) if isinstance(profiles[-1].get("rotation"), dict) else {}
     )
-    root_pitch = float(rot_root.get("y", rot_root.get("pitch", 0.0)))
-    tip_pitch = float(rot_tip.get("y", rot_tip.get("pitch", 0.0)))
+    root_pitch = float(rot_root.get("y", 0.0))
+    tip_pitch = float(rot_tip.get("y", 0.0))
     washout_deg = tip_pitch - root_pitch
 
     return {
@@ -437,7 +437,7 @@ def set_global_twist(
     span_panel = max(abs(yt - y0), 1e-4)
 
     rot0 = new_profs[0].setdefault("rotation", {})
-    root_pitch = float(rot0.get("y", rot0.get("pitch", 0.0)))
+    root_pitch = float(rot0.get("y", 0.0))
 
     for p in new_profs:
         pos = p.setdefault("position", {})

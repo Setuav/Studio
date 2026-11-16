@@ -26,17 +26,15 @@ def multiply_matrix(left: Matrix4, right: Matrix4) -> Matrix4:
 
 
 def transform_matrix(value: object) -> Matrix4:
+    """Return the matrix of a component transform (rotation keyed by roll/pitch/yaw)."""
     transform = value if isinstance(value, dict) else {}
     position = transform.get("position")
     position = position if isinstance(position, dict) else {}
     rotation = transform.get("rotation")
     rotation = rotation if isinstance(rotation, dict) else {}
-    roll_val = rotation.get("roll") if "roll" in rotation else rotation.get("x")
-    pitch_val = rotation.get("pitch") if "pitch" in rotation else rotation.get("y")
-    yaw_val = rotation.get("yaw") if "yaw" in rotation else rotation.get("z")
-    roll = radians(_number(roll_val))
-    pitch = radians(_number(pitch_val))
-    yaw = radians(_number(yaw_val))
+    roll = radians(_number(rotation.get("roll")))
+    pitch = radians(_number(rotation.get("pitch")))
+    yaw = radians(_number(rotation.get("yaw")))
     cr, sr = cos(roll), sin(roll)
     cp, sp = cos(pitch), sin(pitch)
     cy, sy = cos(yaw), sin(yaw)
@@ -77,15 +75,19 @@ def section_transform(
     chord: float = 0.0,
     twist_location: float = 0.0,
 ) -> Matrix4:
+    """Return the matrix of a section frame (rotation keyed by x/y/z axes).
+
+    The rotation pivots about the chord point at ``twist_location * chord``.
+    """
     section = value if isinstance(value, dict) else {}
     rotation = section.get("rotation")
     rotation = rotation if isinstance(rotation, dict) else {}
     position = section.get("position")
     position = position if isinstance(position, dict) else {}
 
-    roll = radians(_number(rotation.get("roll")))
-    pitch = radians(_number(rotation.get("pitch")))
-    yaw = radians(_number(rotation.get("yaw")))
+    roll = radians(_number(rotation.get("x")))
+    pitch = radians(_number(rotation.get("y")))
+    yaw = radians(_number(rotation.get("z")))
     cr, sr = cos(roll), sin(roll)
     cp, sp = cos(pitch), sin(pitch)
     cy, sy = cos(yaw), sin(yaw)

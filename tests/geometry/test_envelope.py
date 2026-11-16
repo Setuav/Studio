@@ -6,6 +6,7 @@ import unittest
 from copy import deepcopy
 from typing import Any
 
+from plugins.geometry.engine.airfoil import AIRFOILS_DATA_DIR, parse_airfoil_dat
 from plugins.geometry.engine.envelope import (
     GEOMETRY_COMPONENT_TYPES,
     compute_geometry_envelope,
@@ -28,17 +29,22 @@ def _sample_wing(mirror: bool = True) -> dict[str, Any]:
                     {
                         "position": {"x": 0.0, "y": 0.0, "z": 0.0},
                         "chord": 200.0,
-                        "airfoil": "naca2412",
+                        "airfoil": "2412",
                     },
                     {
                         "position": {"x": 50.0, "y": 600.0, "z": 30.0},
                         "chord": 100.0,
-                        "airfoil": "naca2412",
+                        "airfoil": "2412",
                     },
                 ],
             }
         },
     }
+
+
+def _clark_y_airfoil() -> dict[str, Any]:
+    _, points = parse_airfoil_dat((AIRFOILS_DATA_DIR / "clarky.dat").read_text(encoding="utf-8"))
+    return {"type": "coordinates", "name": "Clark-Y", "points": [[x, z] for x, z in points]}
 
 
 def _sample_fuselage() -> dict[str, Any]:
@@ -146,6 +152,7 @@ class GeometryEnvelopeTests(unittest.TestCase):
         self.assertGreater(sec0["thickness_mm"], 20.0)
 
     def test_lifting_surface_clark_y_bounds(self) -> None:
+        clark_y = _clark_y_airfoil()
         wing = {
             "id": "clark-wing",
             "type": "org.setuav.core:lifting-surface",
@@ -155,12 +162,12 @@ class GeometryEnvelopeTests(unittest.TestCase):
                         {
                             "position": {"x": 0.0, "y": 0.0, "z": 0.0},
                             "chord": 300.0,
-                            "airfoil": "clark-y",
+                            "airfoil": clark_y,
                         },
                         {
                             "position": {"x": 0.0, "y": 500.0, "z": 0.0},
                             "chord": 300.0,
-                            "airfoil": "clark-y",
+                            "airfoil": clark_y,
                         },
                     ],
                 }
@@ -640,11 +647,11 @@ class EnvelopeEditorUiTests(unittest.TestCase):
 
         # Baseline NACA 0012
         a_base, _, _, izz_base, ixx_base, _ = _compute_airfoil_properties(
-            "naca0012", thickness_scale=1.0
+            "0012", thickness_scale=1.0
         )
         # Halved thickness: thickness_scale = 0.5
         a_half, _, _, izz_half, ixx_half, _ = _compute_airfoil_properties(
-            "naca0012", thickness_scale=0.5
+            "0012", thickness_scale=0.5
         )
 
         # Area scales linearly with thickness scale

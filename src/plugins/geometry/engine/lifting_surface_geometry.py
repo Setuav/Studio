@@ -294,7 +294,7 @@ def _build_profile_section(
     coords = sample_airfoil_points(profile.get("airfoil"))
     coords = _apply_shaping(coords, te_thickness, thickness_scale, camber_scale)
     rot = mapping(profile.get("rotation"))
-    dihedral_rad = math.radians(number(rot.get("x", rot.get("roll", 0.0))))
+    dihedral_rad = math.radians(number(rot.get("x", 0.0)))
     matrix = section_transform(profile, chord=chord, twist_location=twist_location)
     main_2d, _ = sample_structured_airfoil_round(coords, x_h=1.0, is_flap=False)
     return _section_with_align(matrix, chord, main_2d, dihedral_rad, section_align)

@@ -271,7 +271,7 @@ def build_uncut_segment(
             camber_scale,
         )
         rotation = mapping(profile.get("rotation"))
-        dihedral = math.radians(number(rotation.get("x", rotation.get("roll", 0.0))))
+        dihedral = math.radians(number(rotation.get("x", 0.0)))
         matrix = section_transform(profile, chord=chord, twist_location=twist_location)
         main_2d, _ = sample_structured_airfoil_round(
             coordinates,
@@ -412,7 +412,7 @@ def control_station_sections(
         camber_scale,
     )
     rotation = mapping(profile.get("rotation"))
-    dihedral = math.radians(number(rotation.get("x", rotation.get("roll", 0.0))))
+    dihedral = math.radians(number(rotation.get("x", 0.0)))
     matrix = section_transform(profile, chord=chord, twist_location=twist_location)
     position = mapping(profile.get("position"))
     hinge_frac = hinge_fraction(

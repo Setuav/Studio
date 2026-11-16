@@ -9,6 +9,8 @@ if TYPE_CHECKING:
     from setuav_studio.project import ProjectDocument
 
 from .data import ColorRGB, EnvelopeWireGeometry, GeometryData, LoftGeometry, Point3D, Section
+from .envelope import GEOMETRY_COMPONENT_TYPES
+from .lifting_surface_geometry import build_lifting_surface_geometry
 from .palettes import segment_colors
 from .transforms import (
     Matrix4,
@@ -537,39 +539,21 @@ def _build_component_envelope_geometry(
     world_matrix: Callable[[str], Matrix4],
     items: dict[str, dict[str, Any]],
 ) -> EnvelopeWireGeometry | None:
-    envelope = item.get("envelope") or source.get("envelope")
+    """Build the wireframe of the envelope stored on the component's geometry source.
+
+    Geometry envelopes are kept on the component by ``sync_component_envelope``;
+    the wireframe draws exactly the envelope that mass properties are derived from.
+    """
     component_type = source.get("type")
+    if component_type not in GEOMETRY_COMPONENT_TYPES:
+        return None
+    envelope = source.get("envelope")
+    if not isinstance(envelope, dict) or not envelope:
+        return None
 
     parent_id = _frame_parent(item)
     parent_item = items.get(str(parent_id)) if parent_id else None
     parent_source = _geometry_source(parent_item, items) if parent_item else None
-
-    if component_type not in (
-        "org.setuav.core:lifting-surface",
-        "org.setuav.core:fuselage",
-        "org.setuav.core:control-surface",
-    ):
-        return None
-
-    secs = envelope.get("sections") if isinstance(envelope, dict) else None
-    if (
-        not isinstance(envelope, dict)
-        or not secs
-        or not all(isinstance(s, dict) and "corners_3d" in s for s in secs)
-        or (component_type == "org.setuav.core:control-surface" and "hinge_axis" not in envelope)
-    ):
-        try:
-            from .envelope import compute_geometry_envelope
-
-            fresh = compute_geometry_envelope(source or item, parent_source)
-            if isinstance(fresh, dict) and fresh:
-                envelope = fresh
-                if isinstance(source, dict):
-                    source["envelope"] = fresh
-        except Exception:
-            pass
-    if not isinstance(envelope, dict) or not envelope:
-        return None
 
     matrix = world_matrix(item_id)
     lines: list[tuple[Point3D, Point3D]] = []
@@ -868,13 +852,7 @@ def _append_lifting_surface_tip_envelope_lines(  # noqa: C901
     source: dict[str, Any],
     matrix: Matrix4,
 ) -> None:
-    try:
-        from .lifting_surface_geometry import build_lifting_surface_geometry
-
-        lofts = build_lifting_surface_geometry(source)
-    except Exception:
-        return
-
+    lofts = build_lifting_surface_geometry(source)
     comp_id = str(source.get("id") or "")
     tip_lofts = [
         loft

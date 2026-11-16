@@ -8,9 +8,15 @@ slice breakdowns, 3D inertia tensors, total volume, and cross-section bboxes.
 from __future__ import annotations
 
 import math
+from copy import deepcopy
 from typing import Any
 
 from setuav_studio.model.expression import set_expression
+
+from .airfoil import apply_airfoil_shaping, sample_airfoil_points
+from .fuselage_geometry import build_fuselage_geometry, sample_profile
+from .lifting_surface_geometry import _build_profile_section, build_lifting_surface_geometry
+from .transforms import section_transform, transform_point
 
 _LIFTING_SURFACE_TYPE = "org.setuav.core:lifting-surface"
 _FUSELAGE_TYPE = "org.setuav.core:fuselage"
@@ -207,22 +213,11 @@ def _compute_section_properties(
         cz = -h / 6.0 if profile.get("orientation") == "down" else h / 6.0
         return max(area, 0.0), bw, h, 0.0, cz
 
-    # Fallback to polygon / sample_profile
-    try:
-        from .fuselage_geometry import sample_profile
-
-        pts = sample_profile(profile)
-        if len(pts) >= 3:
-            area, cy, cz = _polygon_area_and_centroid(pts)
-            w = max(p[0] for p in pts) - min(p[0] for p in pts)
-            h = max(p[1] for p in pts) - min(p[1] for p in pts)
-            return area, w, h, cy, cz
-    except Exception:
-        pass
-
-    w = _number(profile.get("width", profile.get("diameter", 10.0)))
-    h = _number(profile.get("height", profile.get("diameter", 10.0)))
-    return w * h, w, h, 0.0, 0.0
+    pts = sample_profile(profile)
+    area, cy, cz = _polygon_area_and_centroid(pts)
+    w = max(p[0] for p in pts) - min(p[0] for p in pts)
+    h = max(p[1] for p in pts) - min(p[1] for p in pts)
+    return area, w, h, cy, cz
 
 
 def _compute_fuselage_section_bbox(
@@ -274,8 +269,6 @@ def _compute_fuselage_section_bbox(
         (0.0, bot_w * 0.5, -h * 0.5),  # bottom-right
         (0.0, -bot_w * 0.5, -h * 0.5),  # bottom-left
     )
-    from .transforms import section_transform, transform_point
-
     matrix = section_transform(section)
     world_corners = [transform_point(matrix, p) for p in local_corners]
     world_center = transform_point(matrix, (0.0, 0.0, 0.0))
@@ -313,45 +306,13 @@ def _compute_airfoil_properties(
     camber_scale: float = 1.0,
 ) -> tuple[float, float, float, float, float, float]:
     """Compute normalized (area, cx, cz, izz_c, ixx_c, ixz_c) for an airfoil in [0, 1] coordinates."""
-    pts: tuple[tuple[float, float], ...] | list[tuple[float, float]] = ()
-    if isinstance(airfoil, dict):
-        raw_pts = airfoil.get("points")
-        if isinstance(raw_pts, list) and len(raw_pts) >= 3:
-            pts = [(float(p[0]), float(p[1])) for p in raw_pts if len(p) >= 2]
-        elif isinstance(airfoil.get("name"), str):
-            try:
-                from .airfoil import sample_airfoil_points
-
-                pts = sample_airfoil_points(str(airfoil["name"]))
-            except Exception:
-                pts = ()
-    elif isinstance(airfoil, str) and airfoil.strip():
-        try:
-            from .airfoil import sample_airfoil_points
-
-            pts = sample_airfoil_points(airfoil.strip())
-        except Exception:
-            pts = ()
-
-    if len(pts) >= 3:
-        try:
-            from .airfoil import apply_airfoil_shaping
-
-            pts = apply_airfoil_shaping(
-                tuple(pts),
-                te_thickness=te_thickness,
-                thickness_scale=thickness_scale,
-                camber_scale=camber_scale,
-            )
-        except Exception:
-            pass
-
-        area, cx, cz, izz_c, ixx_c, ixz_c = _polygon_cross_section_properties(pts)
-        if area > 1e-6:
-            return area, cx, cz, izz_c, ixx_c, ixz_c
-
-    # Standard 12% symmetric profile baseline (NACA 0012)
-    return 0.0822, 0.4205, 0.0, 0.004537, 0.0000684, 0.0
+    pts = apply_airfoil_shaping(
+        sample_airfoil_points(airfoil),
+        te_thickness=te_thickness,
+        thickness_scale=thickness_scale,
+        camber_scale=camber_scale,
+    )
+    return _polygon_cross_section_properties(pts)
 
 
 # =============================================================================
@@ -591,7 +552,7 @@ def _compute_lifting_surface_trapezoidal_slices(
     panel_data: list[tuple[float, tuple[float, float, float], tuple[float, float, float]]] = []
 
     # Compute section bboxes for all profiles
-    shaping = geometry.get("shaping")
+    shaping = geometry.get("airfoil_shaping")
     shaping = shaping if isinstance(shaping, dict) else {}
     twist_loc = _number(geometry.get("twist_location", 0.25))
     te_th = float(shaping.get("te_thickness", 0.0))
@@ -614,22 +575,16 @@ def _compute_lifting_surface_trapezoidal_slices(
             _,
         ) = _compute_airfoil_properties(prof.get("airfoil"), te_th, th_scale, cb_scale)
 
-        sec_geo = None
-        try:
-            from .lifting_surface_geometry import _build_profile_section
+        sec_geo = _build_profile_section(
+            prof,
+            twist_location=twist_loc,
+            te_thickness=te_th,
+            thickness_scale=th_scale,
+            camber_scale=cb_scale,
+            section_align=sec_align,
+        )
 
-            sec_geo = _build_profile_section(
-                prof,
-                twist_location=twist_loc,
-                te_thickness=te_th,
-                thickness_scale=th_scale,
-                camber_scale=cb_scale,
-                section_align=sec_align,
-            )
-        except Exception:
-            sec_geo = None
-
-        if sec_geo is not None and sec_geo.points:
+        if sec_geo is not None:
             pts = sec_geo.points
             le = min(pts, key=lambda p: p[0])
             te = max(pts, key=lambda p: p[0])
@@ -888,13 +843,7 @@ def _compute_lifting_surface_envelope(component: dict[str, Any]) -> dict[str, An
     )
 
     # Compute outer bounding dimensions from 3D loft mesh if available
-    try:
-        from .lifting_surface_geometry import build_lifting_surface_geometry
-
-        lofts = build_lifting_surface_geometry(component)
-    except Exception:
-        lofts = ()
-
+    lofts = build_lifting_surface_geometry(component)
     pts = [p for loft in lofts for sec in loft.sections for p in sec.points]
     mirror = bool(geometry.get("mirror", False))
 
@@ -1022,13 +971,7 @@ def _compute_fuselage_envelope(component: dict[str, Any]) -> dict[str, Any] | No
     sections, slices, total_vol, cg, unit_inertia = _compute_fuselage_trapezoidal_slices(segments)
 
     # Compute outer bounding dimensions from 3D loft mesh if available
-    try:
-        from .fuselage_geometry import build_fuselage_geometry
-
-        lofts = build_fuselage_geometry(component)
-    except Exception:
-        lofts = ()
-
+    lofts = build_fuselage_geometry(component)
     pts = [p for loft in lofts for sec in loft.sections for p in sec.points]
     if pts:
         xs = [p[0] for p in pts]
@@ -1125,28 +1068,17 @@ def _compute_control_surface_envelope(
     ctrl_id = str(component.get("id") or "CS")
     control_loft = None
 
-    if parent is not None and parent.get("type") == "org.setuav.core:lifting-surface":
-        try:
-            from copy import deepcopy
+    if parent is not None and parent.get("type") == _LIFTING_SURFACE_TYPE:
+        ctrl_geom = deepcopy(geometry)
+        ctrl_geom["id"] = ctrl_id
+        ctrl_geom["deflection"] = 0.0
+        set_expression(ctrl_geom, "deflection", None)
 
-            from .lifting_surface_geometry import build_lifting_surface_geometry
-
-            ctrl_geom = deepcopy(geometry)
-            ctrl_geom["id"] = ctrl_id
-            ctrl_geom["deflection"] = 0.0
-            set_expression(ctrl_geom, "deflection", None)
-
-            lofts = build_lifting_surface_geometry(parent, control_surfaces=[ctrl_geom])
-            control_loft = next(
-                (
-                    loft
-                    for loft in lofts
-                    if loft.component_id.lower().endswith(f":{ctrl_id.lower()}")
-                ),
-                None,
-            )
-        except Exception:
-            control_loft = None
+        lofts = build_lifting_surface_geometry(parent, control_surfaces=[ctrl_geom])
+        control_loft = next(
+            (loft for loft in lofts if loft.component_id.lower().endswith(f":{ctrl_id.lower()}")),
+            None,
+        )
 
     if control_loft is not None and len(control_loft.sections) >= 2:
         sections: list[dict[str, Any]] = []

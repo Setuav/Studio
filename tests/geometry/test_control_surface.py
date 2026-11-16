@@ -267,8 +267,16 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
             "parameters": {
                 "geometry": {
                     "profiles": [
-                        {"chord": 200.0, "position": {"x": 0.0, "y": 0.0, "z": 0.0}},
-                        {"chord": 100.0, "position": {"x": 50.0, "y": 1000.0, "z": 0.0}},
+                        {
+                            "chord": 200.0,
+                            "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+                            "airfoil": "2412",
+                        },
+                        {
+                            "chord": 100.0,
+                            "position": {"x": 50.0, "y": 1000.0, "z": 0.0},
+                            "airfoil": "2412",
+                        },
                     ],
                 }
             },
@@ -353,8 +361,16 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
             "parameters": {
                 "geometry": {
                     "profiles": [
-                        {"chord": 200.0, "position": {"x": 0.0, "y": 0.0, "z": 0.0}},
-                        {"chord": 100.0, "position": {"x": 50.0, "y": 1000.0, "z": 0.0}},
+                        {
+                            "chord": 200.0,
+                            "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+                            "airfoil": "2412",
+                        },
+                        {
+                            "chord": 100.0,
+                            "position": {"x": 50.0, "y": 1000.0, "z": 0.0},
+                            "airfoil": "2412",
+                        },
                     ],
                 }
             },

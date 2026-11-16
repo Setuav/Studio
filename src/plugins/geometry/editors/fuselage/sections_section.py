@@ -520,14 +520,8 @@ class SectionsSectionMixin(FuselageEditorHost):
                 raw_callback=True,
                 on_changed=transform_callback("position", axis),
             )
-        rot_aliases = {"x": "roll", "y": "pitch", "z": "yaw"}
         for column, axis in enumerate(axes):
-            alias = rot_aliases[axis]
-            raw_val = (
-                get_expression(rot_dict, axis)
-                or get_expression(rot_dict, alias)
-                or rot_dict.get(axis, rot_dict.get(alias, 0.0))
-            )
+            raw_val = get_expression(rot_dict, axis) or rot_dict.get(axis, 0.0)
             set_table_spinbox(
                 self.transform_table,
                 1,
