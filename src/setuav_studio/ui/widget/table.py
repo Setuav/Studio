@@ -527,6 +527,7 @@ class ExpressionPropertyCell(QWidget):
         self._raw_expression = str(initial_value)
         self._is_focused = False
         self._has_error = False
+        self._read_only = False
 
         from setuav_studio.units import get_quantity_for_unit, get_unit_manager
 
@@ -705,7 +706,7 @@ class ExpressionPropertyCell(QWidget):
             self.line_edit.blockSignals(False)
 
     def _on_focus_in(self) -> None:
-        if self._is_focused:
+        if self._is_focused or self._read_only:
             return
         self._is_focused = True
         ExpressionFocusTracker.set_active_editor(self)
@@ -740,7 +741,7 @@ class ExpressionPropertyCell(QWidget):
             return text
 
     def _call_on_changed(self, text: str) -> None:
-        if self._on_changed is None:
+        if self._on_changed is None or self._read_only:
             return
         if isinstance(self._on_changed, weakref.WeakMethod):
             cb = self._on_changed()
@@ -750,7 +751,7 @@ class ExpressionPropertyCell(QWidget):
             self._on_changed(text)
 
     def _commit_line_edit(self, force: bool = False) -> None:
-        if not self._is_focused and not force:
+        if self._read_only or (not self._is_focused and not force):
             return
         new_text = self.line_edit.text().strip()
         if not new_text:
@@ -807,6 +808,17 @@ class ExpressionPropertyCell(QWidget):
     def setDecimals(self, dec: int) -> None:
         self._decimals = dec
         self._refresh_display()
+
+    def setReadOnly(self, read_only: bool) -> None:
+        """Display the value in the active unit without accepting edits or formulas."""
+        self._read_only = read_only
+        self.line_edit.setReadOnly(read_only)
+        self.line_edit.setFocusPolicy(
+            Qt.FocusPolicy.NoFocus if read_only else Qt.FocusPolicy.StrongFocus
+        )
+
+    def isReadOnly(self) -> bool:
+        return self._read_only
 
     def _handle_button_clicked(self) -> None:
         if self._on_open_assistant:
@@ -1083,6 +1095,7 @@ class PropertyTableMixin:
         raw_callback: bool = False,
         api: Any | None = None,
         label: str = "",
+        read_only: bool = False,
     ) -> Any:
         if target_data is None:
             resolved: Any = None
@@ -1121,7 +1134,7 @@ class PropertyTableMixin:
                 col0_item = table.item(row, 0)
                 resolved_label = col0_item.text() if col0_item else key
 
-            return set_table_spinbox(
+            cell = set_table_spinbox(
                 table,
                 row,
                 1,
@@ -1142,6 +1155,9 @@ class PropertyTableMixin:
                 api=api or getattr(self, "_api", None),
                 label=resolved_label,
             )
+            if read_only:
+                cell.setReadOnly(True)
+            return cell
         return None
 
     @staticmethod
@@ -1215,7 +1231,31 @@ class PropertyTableMixin:
                 target_data[k] = new_v
 
         val = target_data.get(f.key, f.default)
-        if getattr(f, "readonly", False):
+        numeric = f.field_type in (float, int)
+
+        def _bind_numeric(*, read_only: bool) -> None:
+            self._set_property_spinbox(
+                table,
+                f.key,
+                val,
+                min_val=f.min_value if f.min_value is not None else -1e6,
+                max_val=f.max_value if f.max_value is not None else 1e6,
+                step=f.step if f.step is not None else 1.0,
+                decimals=0 if f.field_type is int else f.decimals,
+                suffix=f.unit,
+                quantity=f.quantity,
+                unit=f.unit,
+                target_data=target_data,
+                on_changed=None if read_only else lambda new_v, k=f.key: _update_field(k, new_v),
+                raw_callback=raw_callback,
+                api=resolved_api,
+                label=f.label,
+                read_only=read_only,
+            )
+
+        if f.readonly and numeric:
+            _bind_numeric(read_only=True)
+        elif f.readonly:
             unit_str = f" {f.unit}" if f.unit else ""
             disp_str = f"{val}{unit_str}" if isinstance(val, (int, float, str)) else str(val)
             self._set_property_value(table, f.key, disp_str, editable=False)
@@ -1248,30 +1288,10 @@ class PropertyTableMixin:
                 bool_opts,
                 lambda new_v, k=f.key: _update_field(k, new_v == "true"),
             )
-        elif f.field_type in (float, int):
-            min_v = f.min_value if f.min_value is not None else -1e6
-            max_v = f.max_value if f.max_value is not None else 1e6
-            step_v = f.step if f.step is not None else 1.0
-            dec = 0 if f.field_type is int else f.decimals
-            self._set_property_spinbox(
-                table,
-                f.key,
-                val,
-                min_val=min_v,
-                max_val=max_v,
-                step=step_v,
-                decimals=dec,
-                suffix=f.unit,
-                quantity=f.quantity,
-                unit=f.unit,
-                target_data=target_data,
-                on_changed=lambda new_v, k=f.key: _update_field(k, new_v),
-                raw_callback=raw_callback,
-                api=resolved_api,
-                label=f.label,
-            )
+        elif numeric:
+            _bind_numeric(read_only=False)
         else:
-            self._set_property_value(table, f.key, val, editable=not f.readonly)
+            self._set_property_value(table, f.key, val, editable=True)
 
     def bind_parametric_properties(
         self,

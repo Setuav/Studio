@@ -165,12 +165,10 @@ class PropulsionSystemEditor(PropertyTableMixin, QWidget):
             volt_display = "-"
             energy_display = "-"
             if batteries:
-                b = batteries[0]
-                bp = b.get("parameters", {})
-                s = int(bp.get("cell_count", 6))
-                cap = float(bp.get("capacity", 5000.0))
-                cell_v = float(bp.get("cell_voltage", bp.get("cell_nominal_voltage", 3.7)))
-                v_nom = float(bp.get("nominal_voltage", s * cell_v))
+                bp = batteries[0]["parameters"]
+                s = int(bp["cell_count"])
+                cap = float(bp["capacity"])
+                v_nom = float(bp["nominal_voltage"])
                 wh = (cap * v_nom) / 1000.0
                 volt_display = f"{s}S ({v_nom:.1f} V)"
                 energy_display = f"{cap:.0f} mAh ({wh:.1f} Wh)"

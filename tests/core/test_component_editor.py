@@ -5,6 +5,8 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
+from PySide6.QtCore import Qt
+
 from setuav_studio.api import (
     ParameterField,
     StudioAPI,
@@ -68,10 +70,11 @@ class TestComponentEditor(unittest.TestCase):
         item_gen.setText("Updated Motor Name")
         self.assertEqual(comp["name"], "Updated Motor Name")
 
-        # Edit a parameter in parameters table (row 0 = kv)
-        item_param = editor.parameters_table.item(0, 1)
-        assert item_param is not None
-        item_param.setText("450.0")
+        # Edit a parameter through its cell editor (row 0 = kv)
+        kv_cell = editor._property_cell(editor.parameters_table, "kv")
+        assert kv_cell is not None
+        kv_cell.line_edit.setText("450.0")
+        kv_cell._on_return_pressed()
         self.assertEqual(comp["parameters"]["kv"], 450.0)
 
         # Test Undo
@@ -277,6 +280,73 @@ class TestComponentEditor(unittest.TestCase):
         cell.line_edit.setText("300.0")
         cell._on_return_pressed()
         self.assertEqual(comp["parameters"]["length"], 300.0)
+
+    def test_read_only_parameters_display_formatted_and_are_never_written_back(self) -> None:
+        from setuav_studio.units import get_unit_manager
+
+        api = StudioAPI()
+        doc = ProjectDocument(
+            path=Path("/tmp/test-readonly.json"),
+            kind="json",
+            data={
+                "components": [
+                    {
+                        "id": "pack-1",
+                        "type": "test:pack",
+                        "name": "Pack",
+                        "mass": 500.0,
+                        "parameters": {
+                            "voltage": 11.100000000000001,
+                            "length": 152.4,
+                            "series": "3S1P",
+                        },
+                    }
+                ]
+            },
+        )
+        api._host.set_project(doc)
+        comp = doc.data["components"][0]
+        fields = [
+            ParameterField(key="voltage", label="Voltage", unit="V", decimals=1, readonly=True),
+            ParameterField(key="length", label="Length", unit="mm", decimals=1, readonly=True),
+            ParameterField(key="series", label="Series", field_type=str, readonly=True),
+        ]
+        editor = BaseComponentEditor(api, comp, parameter_fields=fields)
+        self.addCleanup(editor.deleteLater)
+
+        # Numeric read-only values use the field decimals and the active display unit.
+        voltage_cell = editor._property_cell(editor.parameters_table, "voltage")
+        length_cell = editor._property_cell(editor.parameters_table, "length")
+        assert voltage_cell is not None and length_cell is not None
+        self.assertEqual(voltage_cell.line_edit.text(), "11.1")
+        self.assertEqual(voltage_cell.unit_label.text(), "V")
+        self.assertEqual(length_cell.line_edit.text(), "152.4")
+        self.assertEqual(length_cell.unit_label.text(), "mm")
+        self.assertTrue(voltage_cell.isReadOnly())
+        self.assertTrue(voltage_cell.line_edit.isReadOnly())
+
+        units = get_unit_manager()
+        units.set_display_unit("length", "in")
+        units.units_changed.emit()
+        self.assertEqual(length_cell.line_edit.text(), "6.0")
+        self.assertEqual(length_cell.unit_label.text(), "in")
+
+        # Non-numeric read-only values stay plain, non-editable text.
+        series_item = editor.parameters_table.item(2, 1)
+        assert series_item is not None
+        self.assertEqual(series_item.text(), "3S1P")
+        self.assertFalse(series_item.flags() & Qt.ItemFlag.ItemIsEditable)
+
+        # Neither cell commits nor display updates write anything back.
+        voltage_cell.setValue("12.6")
+        voltage_cell.line_edit.setText("12.6")
+        voltage_cell._commit_line_edit(force=True)
+        editor._set_property_value(editor.parameters_table, "series", "4S1P", editable=False)
+        series_item.setText("6S1P")
+
+        self.assertEqual(comp["parameters"]["voltage"], 11.100000000000001)
+        self.assertEqual(comp["parameters"]["series"], "3S1P")
+        self.assertFalse(api._host.undo_stack.canUndo())
 
     def test_table_parameter_field_in_editor(self) -> None:
         api = StudioAPI()

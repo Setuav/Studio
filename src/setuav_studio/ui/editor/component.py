@@ -37,7 +37,6 @@ from setuav_studio.ui.widget.spinbox import evaluate_table_cell_input
 from setuav_studio.ui.widget.table import (
     ContentFitTableWidget,
     ExpressionFocusTracker,
-    ExpressionPropertyCell,
     FocusAwareLineEdit,
     PropertyTableMixin,
 )
@@ -749,19 +748,20 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
         )
 
     def _update_parameter_cell(self, row: int, column: int) -> None:
-        if self._loading or column != 1:
-            return
+        """Commit a user edit of a plain-text parameter item.
 
-        item = self.parameters_table.item(row, column)
-        if item is None or not item.text():
+        Numeric, choice and color parameters commit through their cell widget;
+        read-only parameters are displayed only and never written back.
+        """
+        if (
+            self._loading
+            or column != 1
+            or self.parameters_table.cellWidget(row, column) is not None
+        ):
             return
-        cell_widget = self.parameters_table.cellWidget(row, column)
-        if isinstance(cell_widget, ExpressionPropertyCell):
-            cell_widget.setValue(item.text())
-        elif cell_widget is not None:
-            set_text = getattr(cell_widget, "setText", None)
-            if callable(set_text):
-                set_text(item.text())
-        else:
-            key = self._property_key(self.parameters_table, row)
-            self._on_param_changed(key, item.text())
+        key = self._property_key(self.parameters_table, row)
+        field = next((f for f in self._scalar_fields if f.key == key), None)
+        item = self.parameters_table.item(row, column)
+        if field is None or field.readonly or item is None or not item.text():
+            return
+        self._on_param_changed(key, item.text())

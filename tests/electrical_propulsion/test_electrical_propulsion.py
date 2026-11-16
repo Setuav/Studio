@@ -7,7 +7,6 @@ from copy import deepcopy
 from typing import Any
 from unittest.mock import patch
 
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog
 
 from plugins.electrical_propulsion.editors import (
@@ -123,9 +122,11 @@ class TestElectricalPropulsion(unittest.TestCase):
 
         self.assertEqual(editor._property_text(editor.general_table, 0), motor_comp.get("name"))
         # Motor specs come from the catalog and are shown read-only with their unit.
-        kv_item = editor.parameters_table.item(0, 1)
-        self.assertEqual(kv_item.text(), "900.0 RPM/V")
-        self.assertFalse(kv_item.flags() & Qt.ItemFlag.ItemIsEditable)
+        kv_cell = editor._property_cell(editor.parameters_table, "kv")
+        assert kv_cell is not None
+        self.assertTrue(kv_cell.isReadOnly())
+        self.assertEqual(kv_cell.line_edit.text(), "900")
+        self.assertEqual(kv_cell.unit_label.text(), "RPM/V")
 
         from plugins.electrical_propulsion.database import get_motor_database
 
@@ -144,9 +145,9 @@ class TestElectricalPropulsion(unittest.TestCase):
 
         self.assertEqual(motor_comp["parameters"]["kv"], float(catalog_motor.kv))
         self.assertEqual(motor_comp["model"], catalog_motor.name)
-        self.assertEqual(
-            editor.parameters_table.item(0, 1).text(), f"{float(catalog_motor.kv)} RPM/V"
-        )
+        kv_cell = editor._property_cell(editor.parameters_table, "kv")
+        assert kv_cell is not None
+        self.assertEqual(kv_cell.line_edit.text(), str(round(float(catalog_motor.kv))))
 
         api.undo()
         self.assertEqual(motor_comp["parameters"]["kv"], 900.0)
@@ -167,19 +168,37 @@ class TestElectricalPropulsion(unittest.TestCase):
 
         # Change Series Count to 6S; the editor derives mass from the fixture's
         # cell mass, parallel count, and packaging mass values.
-        cell_widget = editor.pack_table.cellWidget(0, 1)
-        if cell_widget is not None and hasattr(cell_widget, "setValue"):
-            cell_widget.setValue(6)
-        else:
-            editor.pack_table.item(0, 1).setText("6")
+        cell_count = editor._property_cell(editor.pack_table, "cell_count")
+        assert cell_count is not None
+        cell_count.setValue(6)
         params = battery_comp["parameters"]
-        expected_mass = 6 * int(params.get("parallel_count", 1)) * float(
-            params["cell_mass"]
-        ) + float(params.get("packaging_mass", 40.0))
+        expected_mass = (
+            6 * params["parallel_count"] * params["cell_mass"] + params["packaging_mass"]
+        )
         self.assertEqual(battery_comp["mass"], expected_mass)
+        self.assertAlmostEqual(params["nominal_voltage"], 6 * params["cell_nominal_voltage"])
         self.assertEqual(editor._property_text(editor.general_table, 2), f"{expected_mass:.1f}")
         editor.close()
         editor.deleteLater()
+
+    def test_battery_editor_scales_new_pack_with_parallel_count(self) -> None:
+        from plugins.electrical_propulsion.creation import PropulsionCreationController
+
+        api = StudioAPI()
+        doc = open_project(TEST_PROJECT_PATH)
+        api._host.set_project(doc)
+        battery_comp = next(
+            c for c in doc.data["components"] if c.get("type") == "org.setuav.core:battery"
+        )
+        battery_comp["parameters"] = PropulsionCreationController._default_parameters("battery")
+        editor = BatteryEditor(api, battery_comp)
+        self.addCleanup(editor.deleteLater)
+
+        # A new pack has no cell capacity yet: its cells share the pack capacity.
+        parallel = editor._property_cell(editor.pack_table, "parallel_count")
+        assert parallel is not None
+        parallel.setValue(2)
+        self.assertEqual(battery_comp["parameters"]["capacity"], 10000.0)
 
     def test_esc_editor(self) -> None:
         api = StudioAPI()
@@ -204,12 +223,16 @@ class TestElectricalPropulsion(unittest.TestCase):
         editor = PropellerEditor(api, prop_comp)
 
         # Propeller specs come from the catalog and are shown read-only with their unit.
-        self.assertEqual(editor._property_text(editor.parameters_table, 0), "304.8 mm")
-        self.assertEqual(editor._property_text(editor.parameters_table, 1), "152.4 mm")
-        self.assertEqual(editor._property_text(editor.parameters_table, 2), "2")
-        for row in range(3):
-            item = editor.parameters_table.item(row, 1)
-            self.assertFalse(item.flags() & Qt.ItemFlag.ItemIsEditable)
+        for key, text, unit in (
+            ("diameter", "304.8", "mm"),
+            ("pitch", "152.4", "mm"),
+            ("blade_count", "2", ""),
+        ):
+            cell = editor._property_cell(editor.parameters_table, key)
+            assert cell is not None
+            self.assertTrue(cell.isReadOnly())
+            self.assertEqual(cell.line_edit.text(), text)
+            self.assertEqual(cell.unit_label.text(), unit)
         editor.close()
         editor.deleteLater()
 
@@ -225,8 +248,34 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertIn("battery", editor._property_text(editor.structure_table, 0).lower())
         self.assertIn("sunnysky", editor._property_text(editor.structure_table, 2).lower())
         self.assertIn("apc", editor._property_text(editor.structure_table, 3).lower())
+        self.assertEqual(
+            editor._property_value(editor.metrics_table, "operating_voltage"), "3S (11.1 V)"
+        )
+        self.assertEqual(
+            editor._property_value(editor.metrics_table, "energy_capacity"), "6000 mAh (66.6 Wh)"
+        )
         editor.close()
         editor.deleteLater()
+
+    def test_battery_model_reads_stored_battery_parameters(self) -> None:
+        from plugins.electrical_propulsion.models import BatteryModel
+
+        doc = open_project(TEST_PROJECT_PATH)
+        battery_comp = next(
+            c for c in doc.data["components"] if c.get("type") == "org.setuav.core:battery"
+        )
+        params = battery_comp["parameters"]
+        self.assertEqual({f.key for f in BatteryModel.get_fields()}, set(params))
+
+        model = BatteryModel(deepcopy(battery_comp))
+        self.assertEqual(model.chemistry, params["chemistry"])
+        self.assertEqual(model.cell_nominal_voltage, params["cell_nominal_voltage"])
+        self.assertEqual(model.internal_resistance, params["internal_resistance"])
+        self.assertEqual(model.cell_resistance, params["cell_resistance"])
+        self.assertAlmostEqual(
+            model.energy_wh, params["capacity"] * params["nominal_voltage"] / 1000
+        )
+        self.assertEqual(model.derived_mass, battery_comp["mass"])
 
     def test_catalog_database_and_dialog(self) -> None:
         from plugins.electrical_propulsion.catalog_dialog import (

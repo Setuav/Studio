@@ -576,8 +576,8 @@ def resolve_component_envelope(
     """Universal envelope resolver for any component.
 
     Resolves high-precision envelope from 3D lofts when available; aggregates child
-    envelopes for parent assemblies; or falls back to explicit component parameters
-    or existing declared envelope.
+    envelopes for parent assemblies; otherwise resolves the component's declared
+    envelope. A component without one has an empty envelope.
     """
     # 0. Check if this is an assembly with child components
     if project_or_components is not None and not lofts:
@@ -597,16 +597,6 @@ def resolve_component_envelope(
     existing = component.get("envelope")
     if isinstance(existing, dict) and "size_mm" in existing:
         return resolve_envelope_definition(existing)
-
-    # 3. Direct dimensions in parameters (e.g. length/width/height)
-    params = component.get("parameters")
-    if isinstance(params, dict):
-        lx = float(params.get("length", params.get("x", 0.0)) or 0.0)
-        ly = float(params.get("width", params.get("wingspan", params.get("span", 0.0))) or 0.0)
-        lz = float(params.get("height", params.get("thickness", 0.0)) or 0.0)
-        if lx > 0.0 or ly > 0.0 or lz > 0.0:
-            size_vec = (max(lx, 1.0), max(ly, 1.0), max(lz, 1.0))
-            return compute_box_envelope(size_vec, offset_mm=(lx * 0.5, 0.0, 0.0))
 
     return _empty_envelope()
 

@@ -75,13 +75,11 @@ class PropellerModel(Component):
 
     @property
     def diameter_m(self) -> float:
-        d = float(self.parameters.get("diameter_m") or self.diameter or 0.3302)
-        return d / 1000.0 if d > 2.0 else d
+        return float(self.diameter) / 1000.0
 
     @property
     def pitch_m(self) -> float:
-        p = float(self.parameters.get("pitch_m") or self.pitch or 0.1651)
-        return p / 1000.0 if p > 2.0 else p
+        return float(self.pitch) / 1000.0
 
     @property
     def diameter_in(self) -> float:

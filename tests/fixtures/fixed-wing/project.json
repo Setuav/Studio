@@ -2703,6 +2703,7 @@
       },
       "parameters": {
         "cell_count": 3,
+        "parallel_count": 1,
         "capacity": 6000.0,
         "nominal_voltage": 11.100000000000001,
         "max_discharge": 35.0,
@@ -2711,6 +2712,7 @@
         "cell_max_voltage": 4.2,
         "cell_min_voltage": 3.0,
         "cell_mass": 180.0,
+        "packaging_mass": 40.0,
         "cell_capacity": 6000.0,
         "cell_resistance": 0.0025,
         "burst_discharge": 70.0,
