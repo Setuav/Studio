@@ -583,13 +583,13 @@ class AeroSandboxEngineTests(unittest.TestCase):
                                 "position": {"x": 0, "y": 0, "z": 0},
                                 "chord": 200,
                                 "twist": 0,
-                                "airfoil": "naca2412",
+                                "airfoil": "2412",
                             },
                             {
                                 "position": {"x": 50, "y": 800, "z": 0},
                                 "chord": 120,
                                 "twist": 0,
-                                "airfoil": "naca2412",
+                                "airfoil": "2412",
                             },
                         ],
                     }
@@ -658,13 +658,13 @@ class AeroSandboxEngineTests(unittest.TestCase):
                                 "position": {"x": 0, "y": 0, "z": 0},
                                 "chord": 250,
                                 "twist": 0,
-                                "airfoil": "naca0012",
+                                "airfoil": "0012",
                             },
                             {
                                 "position": {"x": 30, "y": 700, "z": 0},
                                 "chord": 150,
                                 "twist": 0,
-                                "airfoil": "naca0012",
+                                "airfoil": "0012",
                             },
                         ],
                     }
@@ -683,13 +683,13 @@ class AeroSandboxEngineTests(unittest.TestCase):
                                 "position": {"x": 0, "y": 0, "z": 0},
                                 "chord": 150,
                                 "twist": 0,
-                                "airfoil": "naca0012",
+                                "airfoil": "0012",
                             },
                             {
                                 "position": {"x": 0, "y": 300, "z": 0},
                                 "chord": 100,
                                 "twist": 0,
-                                "airfoil": "naca0012",
+                                "airfoil": "0012",
                             },
                         ],
                     }
@@ -744,12 +744,12 @@ class AeroSandboxEngineTests(unittest.TestCase):
                             {
                                 "position": {"x": 0, "y": 0, "z": 0},
                                 "chord": 200,
-                                "airfoil": "naca0012",
+                                "airfoil": "0012",
                             },
                             {
                                 "position": {"x": 30, "y": 1000, "z": 0},
                                 "chord": 100,
-                                "airfoil": "naca0012",
+                                "airfoil": "0012",
                             },
                         ],
                     }
@@ -842,12 +842,12 @@ class AeroSandboxEngineTests(unittest.TestCase):
                                 {
                                     "position": {"x": 0, "y": 0, "z": 0},
                                     "chord": 200,
-                                    "airfoil": "naca0012",
+                                    "airfoil": "0012",
                                 },
                                 {
                                     "position": {"x": 0, "y": 500, "z": 0},
                                     "chord": 120,
-                                    "airfoil": "naca0012",
+                                    "airfoil": "0012",
                                 },
                             ],
                         }
@@ -917,12 +917,12 @@ class AeroSandboxEngineTests(unittest.TestCase):
                                 {
                                     "position": {"x": 0, "y": 0, "z": 0},
                                     "chord": 200,
-                                    "airfoil": "naca0012",
+                                    "airfoil": "0012",
                                 },
                                 {
                                     "position": {"x": 0, "y": 500, "z": 0},
                                     "chord": 120,
-                                    "airfoil": "naca0012",
+                                    "airfoil": "0012",
                                 },
                             ],
                         }

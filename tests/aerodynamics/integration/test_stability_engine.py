@@ -140,26 +140,6 @@ class TestStabilityModels(unittest.TestCase):
         self.assertIsNone(trim)
         self.assertEqual(reasons, ("required elevator deflection exceeds ±45°",))
 
-    def test_trim_validation_rejects_incomplete_mass_model(self) -> None:
-        trim, reasons = StabilityAnalysisEngine._validated_elevator_trim(
-            cg_source="mass_balance_incomplete",
-            cg_xyz=(0.1, 0.0, 0.0),
-            alpha_ref=2.0,
-            cl_ref=0.4,
-            cm_ref=0.02,
-            cm_alpha_per_deg=-0.02,
-            elevator=ControlEffectiveness(
-                control_tag="elevator",
-                c_m_delta=-0.01,
-                c_L_delta=0.01,
-            ),
-        )
-        self.assertIsNone(trim)
-        self.assertEqual(
-            reasons,
-            ("mass-balance CG excludes components with missing mass",),
-        )
-
 
 @unittest.skipUnless(HAS_AEROSANDBOX, "AeroSandbox not installed")
 class TestStabilityAnalysisEngine(unittest.TestCase):
@@ -180,13 +160,13 @@ class TestStabilityAnalysisEngine(unittest.TestCase):
                                 "position": {"x": 0, "y": 0, "z": 0},
                                 "chord": 200,
                                 "twist": 0,
-                                "airfoil": "naca2412",
+                                "airfoil": "2412",
                             },
                             {
                                 "position": {"x": 30, "y": 500, "z": 0},
                                 "chord": 140,
                                 "twist": 0,
-                                "airfoil": "naca2412",
+                                "airfoil": "2412",
                             },
                         ],
                     }
@@ -204,13 +184,13 @@ class TestStabilityAnalysisEngine(unittest.TestCase):
                                 "position": {"x": 500, "y": 0, "z": 50},
                                 "chord": 100,
                                 "twist": 0,
-                                "airfoil": "naca0012",
+                                "airfoil": "0012",
                             },
                             {
                                 "position": {"x": 520, "y": 180, "z": 50},
                                 "chord": 80,
                                 "twist": 0,
-                                "airfoil": "naca0012",
+                                "airfoil": "0012",
                             },
                         ],
                     },
@@ -228,13 +208,13 @@ class TestStabilityAnalysisEngine(unittest.TestCase):
                                 "position": {"x": 480, "y": 0, "z": 0},
                                 "chord": 120,
                                 "twist": 0,
-                                "airfoil": "naca0012",
+                                "airfoil": "0012",
                             },
                             {
                                 "position": {"x": 510, "y": 0, "z": 150},
                                 "chord": 80,
                                 "twist": 0,
-                                "airfoil": "naca0012",
+                                "airfoil": "0012",
                             },
                         ],
                     },

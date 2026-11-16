@@ -6,6 +6,7 @@ from typing import Any
 
 from setuav_studio.model import Component
 
+from ..engine.airfoil import airfoil_label
 from ..engine.lifting_surface_planform_engine import compute_planform_metrics
 
 
@@ -38,17 +39,12 @@ class LiftingSurfaceSectionModel:
 
     @property
     def twist(self) -> float:
-        rot = self._data.get("rotation", {})
-        if isinstance(rot, dict):
-            return float(rot.get("x", self._data.get("twist", 0.0)))
-        return float(self._data.get("twist", 0.0))
+        rotation = self._data.get("rotation")
+        return float(rotation.get("y", 0.0)) if isinstance(rotation, dict) else 0.0
 
     @property
     def airfoil(self) -> str:
-        af = self._data.get("airfoil")
-        if isinstance(af, dict):
-            return str(af.get("code") or af.get("name") or "naca0012")
-        return str(af or "naca0012")
+        return airfoil_label(self._data.get("airfoil"))
 
     def get_exposed_properties(self) -> dict[str, Any]:
         return {

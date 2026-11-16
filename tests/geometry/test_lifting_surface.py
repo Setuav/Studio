@@ -29,11 +29,11 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
             "parameters": {
                 "geometry": {
                     "profiles": [
-                        {"position": {"x": 0, "y": 0}, "chord": 250, "airfoil": "naca4412"},
+                        {"position": {"x": 0, "y": 0}, "chord": 250, "airfoil": "4412"},
                         {
                             "position": {"x": 40, "y": -700},
                             "chord": 130,
-                            "airfoil": {"type": "naca", "code": "0012"},
+                            "airfoil": "0012",
                         },
                     ]
                 }
@@ -494,12 +494,12 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
                             {
                                 "chord": 200.0,
                                 "position": {"x": 0, "y": 0, "z": 0},
-                                "airfoil": {"spec": "0012"},
+                                "airfoil": "0012",
                             },
                             {
                                 "chord": 100.0,
                                 "position": {"x": 50, "y": 500, "z": 0},
-                                "airfoil": {"spec": "0012"},
+                                "airfoil": "0012",
                             },
                         ],
                         "tip_treatment": {
@@ -786,7 +786,7 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
 
         tip_profile = {
             "chord": 100.0,
-            "airfoil": "NACA 0012",
+            "airfoil": "0012",
             "position": {"x": 0.0, "y": 500.0, "z": 0.0},
             "rotation": {"x": 0.0, "y": 0.0, "z": 0.0},
         }

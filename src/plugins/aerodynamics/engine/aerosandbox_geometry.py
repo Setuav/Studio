@@ -7,6 +7,14 @@ from copy import deepcopy
 from itertools import pairwise
 from typing import TYPE_CHECKING, Any
 
+from setuav_studio.utilities.transform import (
+    Point3D,
+    Rotation3D,
+    euler_to_matrix,
+    get_local_transform,
+    resolve_world_transform,
+)
+
 from .base import ControlSurfaceType, FlightCondition
 
 if TYPE_CHECKING:
@@ -21,31 +29,28 @@ else:
         np = None
 
 
+def metric_frame(position_mm: Point3D, rotation_deg: Rotation3D) -> tuple[Any, Any]:
+    """Convert a core transform (mm, roll/pitch/yaw degrees) to a metre position and 3x3 matrix."""
+    return np.array(position_mm) / 1000.0, np.array(euler_to_matrix(*rotation_deg))
+
+
 class AeroSandboxGeometryMixin:
     """Translate Setuav lifting surfaces into AeroSandbox geometry."""
 
     if TYPE_CHECKING:
 
-        def _resolve_world_transform(
-            self,
-            comp: dict[str, Any],
-            comp_by_id: dict[str, dict[str, Any]],
-        ) -> tuple[Any, Any]: ...
+        def _resolve_airfoil(self, spec: object, shaping: Any = None) -> Any: ...
 
-        def _local_transform(self, comp: dict[str, Any]) -> tuple[Any, Any]: ...
-
-        def _resolve_airfoil(self, spec: Any, shaping: Any = None) -> Any: ...
-
-    def _resolve_parent_transform(
-        self,
+    @staticmethod
+    def _parent_frame(
         comp: dict[str, Any],
-        comp_by_id: dict[str, dict[str, Any]],
+        comp_by_id: dict[str, dict[str, Any]] | None,
     ) -> tuple[Any, Any]:
         """Return the world frame of a component's parent (or the aircraft frame)."""
         parent_id = comp.get("parent")
-        if parent_id and str(parent_id) in comp_by_id:
-            return self._resolve_world_transform(comp_by_id[str(parent_id)], comp_by_id)
-        return np.zeros(3), np.eye(3)
+        if not parent_id:
+            return np.zeros(3), np.eye(3)
+        return metric_frame(*resolve_world_transform(str(parent_id), comp_by_id or {}))
 
     @staticmethod
     def _lifting_surface_geometry(
@@ -65,11 +70,8 @@ class AeroSandboxGeometryMixin:
         comp: dict[str, Any],
         comp_by_id: dict[str, dict[str, Any]] | None,
     ) -> dict[str, Any]:
-        if comp_by_id:
-            parent_pos, parent_rot = self._resolve_parent_transform(comp, comp_by_id)
-        else:
-            parent_pos, parent_rot = np.zeros(3), np.eye(3)
-        local_pos, local_rot = self._local_transform(comp)
+        parent_pos, parent_rot = self._parent_frame(comp, comp_by_id)
+        local_pos, local_rot = metric_frame(*get_local_transform(comp))
         mirror = np.diag([1.0, -1.0, 1.0])
         return {
             "right_pos": parent_pos + parent_rot @ local_pos,
@@ -107,7 +109,7 @@ class AeroSandboxGeometryMixin:
                 float(profile_position.get("z", 0.0)) / 1000.0,
             ]
         )
-        profile_pitch = self._profile_pitch(profile, profile_rotation)
+        profile_pitch = float(profile_rotation.get("y", 0.0))
         attach_pitch = np.degrees(np.arcsin(-np.clip(frames["right_rot"][2, 0], -1.0, 1.0)))
         return {
             "local_y": float(profile_position.get("y", 0.0)),
@@ -119,14 +121,6 @@ class AeroSandboxGeometryMixin:
                 profile.get("airfoil"), shaping=geometry.get("airfoil_shaping")
             ),
         }
-
-    @staticmethod
-    def _profile_pitch(profile: dict[str, Any], rotation: dict[str, Any]) -> float:
-        if "twist" in profile:
-            return float(profile.get("twist") or 0.0)
-        if "pitch" in rotation:
-            return float(rotation.get("pitch") or 0.0)
-        return float(rotation.get("y") or 0.0)
 
     @staticmethod
     def _assign_span_coordinates(stations: list[dict[str, Any]]) -> float:

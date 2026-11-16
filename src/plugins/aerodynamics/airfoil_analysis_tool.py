@@ -36,7 +36,9 @@ from PySide6.QtWidgets import (
 
 from plugins.geometry.engine.airfoil import (
     PRESET_AIRFOILS,
+    airfoil_label,
     parse_airfoil_dat,
+    preset_airfoil_spec,
 )
 from setuav_studio.api import StudioAPI
 from setuav_studio.ui.style.theme import chart_color
@@ -202,7 +204,7 @@ class AirfoilAnalysisWorker(QObject):
 
         return {
             "engine": engine_name,
-            "airfoil": str(getattr(airfoil, "name", "Airfoil")),
+            "airfoil": airfoil_label(request.airfoil_spec),
             "cache_hit": cache_hit,
             "rows": rows,
         }
@@ -351,21 +353,9 @@ class AirfoilAnalysisToolWindow(QDialog):
 
     def _populate_airfoils(self) -> None:
         preferred = ("NACA 2412", "NACA 0012", "NACA 4412")
-        for name in preferred:
-            self.airfoil_combo.addItem(name, name)
-        for name, preset in PRESET_AIRFOILS.items():
-            if name in preferred:
-                continue
-            if preset.get("type") == "naca":
-                spec: object = str(preset.get("code") or name)
-            else:
-                points = preset["generator"]()
-                spec = {
-                    "type": "coordinates",
-                    "name": name,
-                    "points": [list(point) for point in points],
-                }
-            self.airfoil_combo.addItem(name, spec)
+        others = (name for name in PRESET_AIRFOILS if name not in preferred)
+        for name in (*preferred, *others):
+            self.airfoil_combo.addItem(name, preset_airfoil_spec(name))
         self.airfoil_combo.setCurrentText("NACA 2412")
 
     def _import_airfoil(self) -> None:
@@ -396,7 +386,7 @@ class AirfoilAnalysisToolWindow(QDialog):
         data = self.airfoil_combo.currentData()
         if self.airfoil_combo.currentIndex() >= 0 and data is not None:
             return deepcopy(data)
-        return self.airfoil_combo.currentText().strip() or "NACA 2412"
+        return self.airfoil_combo.currentText().strip()
 
     def _run_analysis(self) -> None:
         if self._thread is not None:

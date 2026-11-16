@@ -477,8 +477,16 @@ class AerodynamicsPluginTests(unittest.TestCase):
                 "geometry": {
                     "mirror": True,
                     "profiles": [
-                        {"position": {"x": 0.0, "y": 0.0, "z": 0.0}, "chord": 200.0},
-                        {"position": {"x": 20.0, "y": 600.0, "z": 0.0}, "chord": 150.0},
+                        {
+                            "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+                            "chord": 200.0,
+                            "airfoil": "2412",
+                        },
+                        {
+                            "position": {"x": 20.0, "y": 600.0, "z": 0.0},
+                            "chord": 150.0,
+                            "airfoil": "2412",
+                        },
                     ],
                 }
             },

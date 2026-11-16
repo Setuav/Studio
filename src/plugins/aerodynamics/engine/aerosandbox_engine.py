@@ -2,19 +2,19 @@
 
 from __future__ import annotations
 
-import logging
 import math
-import re
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any
 
 from plugins.geometry.engine.airfoil import (
+    airfoil_label,
     apply_airfoil_shaping,
     sample_airfoil_points,
 )
+from setuav_studio.utilities.transform import euler_to_matrix, resolve_world_transform
 
 from .aerosandbox_analysis import AeroSandboxAnalysisMixin
-from .aerosandbox_geometry import AeroSandboxGeometryMixin
+from .aerosandbox_geometry import AeroSandboxGeometryMixin, metric_frame
 from .base import (
     AeroEngine,
     AnalysisMethod,
@@ -22,8 +22,6 @@ from .base import (
     EngineCapabilities,
     FlightCondition,
 )
-
-logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     asb: Any = None
@@ -139,71 +137,6 @@ class AeroSandboxEngine(AeroSandboxAnalysisMixin, AeroSandboxGeometryMixin, Aero
             xyz_ref=reference_xyz,
         )
 
-    def _resolve_world_transform(
-        self,
-        comp: dict[str, Any],
-        comp_by_id: dict[str, dict[str, Any]],
-        visited: set[str] | None = None,
-    ) -> tuple[Any, Any]:
-        """Compute accumulated world translation (meters) and 3x3 rotation matrix for a component."""
-        if visited is None:
-            visited = set()
-
-        cid = str(comp.get("id") or "")
-        if cid in visited:
-            return np.zeros(3), np.eye(3)
-        visited.add(cid)
-
-        local_pos, local_rot = self._local_transform(comp)
-
-        parent_id = comp.get("parent")
-        if parent_id and str(parent_id) in comp_by_id:
-            parent_comp = comp_by_id[str(parent_id)]
-            parent_pos, parent_rot = self._resolve_world_transform(parent_comp, comp_by_id, visited)
-            world_pos = parent_pos + parent_rot @ local_pos
-            world_rot = parent_rot @ local_rot
-            return world_pos, world_rot
-
-        return local_pos, local_rot
-
-    def _local_transform(self, comp: dict[str, Any]) -> tuple[Any, Any]:
-        """Read a component transform in metres and return its local rotation matrix."""
-        transform = comp.get("transform")
-        transform = transform if isinstance(transform, dict) else {}
-        pos = transform.get("position")
-        pos = pos if isinstance(pos, dict) else {}
-        rot = transform.get("rotation")
-        rot = rot if isinstance(rot, dict) else {}
-
-        local_pos = np.array(
-            [
-                float(pos.get("x", 0.0)) / 1000.0,
-                float(pos.get("y", 0.0)) / 1000.0,
-                float(pos.get("z", 0.0)) / 1000.0,
-            ]
-        )
-        roll_deg = float((rot.get("roll") if "roll" in rot else rot.get("x")) or 0.0)
-        pitch_deg = float((rot.get("pitch") if "pitch" in rot else rot.get("y")) or 0.0)
-        yaw_deg = float((rot.get("yaw") if "yaw" in rot else rot.get("z")) or 0.0)
-        return local_pos, self._rotation_matrix_xyz(roll_deg, pitch_deg, yaw_deg)
-
-    @staticmethod
-    def _rotation_matrix_xyz(rx_deg: float, ry_deg: float, rz_deg: float) -> Any:
-        """Standard 3D Tait-Bryan XYZ rotation matrix."""
-        rx = np.radians(rx_deg)
-        ry = np.radians(ry_deg)
-        rz = np.radians(rz_deg)
-
-        cx, sx = np.cos(rx), np.sin(rx)
-        cy, sy = np.cos(ry), np.sin(ry)
-        cz, sz = np.cos(rz), np.sin(rz)
-
-        rx_m = np.array([[1, 0, 0], [0, cx, -sx], [0, sx, cx]])
-        ry_m = np.array([[cy, 0, sy], [0, 1, 0], [-sy, 0, cy]])
-        rz_m = np.array([[cz, -sz, 0], [sz, cz, 0], [0, 0, 1]])
-
-        return rz_m @ ry_m @ rx_m
-
     def _compute_wing_area(self, wing: Any) -> float:
         area = 0.0
         for i in range(len(wing.xsecs) - 1):
@@ -251,11 +184,7 @@ class AeroSandboxEngine(AeroSandboxAnalysisMixin, AeroSandboxGeometryMixin, Aero
         if not isinstance(segments, list) or not segments:
             return None
 
-        if comp_by_id:
-            base_pos, base_rot = self._resolve_world_transform(comp, comp_by_id)
-        else:
-            local_pos, local_rot = self._local_transform(comp)
-            base_pos, base_rot = local_pos, local_rot
+        base_pos, base_rot = metric_frame(*resolve_world_transform(comp, comp_by_id or {}))
 
         fuselages: list[Any] = []
         for segment_index, seg in enumerate(segments):
@@ -322,10 +251,13 @@ class AeroSandboxEngine(AeroSandboxAnalysisMixin, AeroSandboxGeometryMixin, Aero
     def _fuselage_section_normal(self, section: dict[str, Any], base_rotation: Any) -> Any:
         rotation = section.get("rotation")
         rotation = rotation if isinstance(rotation, dict) else {}
-        roll = float(rotation.get("roll", rotation.get("x", 0.0)) or 0.0)
-        pitch = float(rotation.get("pitch", rotation.get("y", 0.0)) or 0.0)
-        yaw = float(rotation.get("yaw", rotation.get("z", 0.0)) or 0.0)
-        local_rotation = self._rotation_matrix_xyz(roll, pitch, yaw)
+        local_rotation = np.array(
+            euler_to_matrix(
+                float(rotation.get("x", 0.0)),
+                float(rotation.get("y", 0.0)),
+                float(rotation.get("z", 0.0)),
+            )
+        )
         normal = base_rotation @ local_rotation @ np.array([1.0, 0.0, 0.0])
         length = float(np.linalg.norm(normal))
         return normal / length if length > 1e-9 else normal
@@ -397,45 +329,27 @@ class AeroSandboxEngine(AeroSandboxAnalysisMixin, AeroSandboxGeometryMixin, Aero
 
     def _resolve_airfoil(
         self,
-        spec: Any,
+        spec: object,
         shaping: dict[str, Any] | None = None,
     ) -> Any:
-        """Resolve any airfoil specification to a fully-populated asb.Airfoil with standard Selig coordinates."""
+        """Resolve a canonical airfoil spec to an asb.Airfoil with standard Selig coordinates."""
+        name = airfoil_label(spec)
         # Preserve AeroSandbox's native NACA representation when no geometric
         # shaping is requested. Re-sampling it through Studio's display mesh
-        # used to corrupt the lower trailing-edge endpoint and measurably
-        # changed pitching moment relative to a direct AeroSandbox model.
+        # perturbs the lower trailing-edge endpoint and measurably changes the
+        # pitching moment relative to a direct AeroSandbox model.
         shaping_is_active = isinstance(shaping, dict) and (
             abs(float(shaping.get("te_thickness", 0.0))) >= 1e-6
             or abs(float(shaping.get("thickness_scale", 1.0)) - 1.0) >= 1e-6
             or abs(float(shaping.get("camber_scale", 1.0)) - 1.0) >= 1e-6
         )
-        naca_code: str | None = None
-        if isinstance(spec, str):
-            match = re.fullmatch(r"\s*(?:naca[\s_-]*)?(\d{4,5})\s*", spec, re.IGNORECASE)
-            if match:
-                naca_code = match.group(1)
-        elif isinstance(spec, dict):
-            spec_type = str(spec.get("type") or "").strip().lower()
-            code_value = str(spec.get("code") or spec.get("name") or "")
-            match = re.fullmatch(r"\s*(?:naca[\s_-]*)?(\d{4,5})\s*", code_value, re.IGNORECASE)
-            if spec_type == "naca" and match:
-                naca_code = match.group(1)
+        if isinstance(spec, str) and not shaping_is_active:
+            return asb.Airfoil(f"naca{spec}")
 
-        if naca_code and not shaping_is_active:
-            return asb.Airfoil(f"naca{naca_code}")
-
-        # 1. Extract name label
-        name = "airfoil"
-        if isinstance(spec, str):
-            name = spec
-        elif isinstance(spec, dict):
-            name = str(spec.get("name") or spec.get("code") or spec.get("file") or "airfoil")
-
-        # 2. Sample 2D normalized coordinates via Studio's robust built-in parser
+        # 1. Sample 2D normalized coordinates of the spec
         raw_coords = sample_airfoil_points(spec)
 
-        # 3. Apply airfoil shaping (TE blunting, thickness scale, camber scale) if present
+        # 2. Apply airfoil shaping (TE blunting, thickness scale, camber scale) if present
         if isinstance(shaping, dict):
             te_thickness = float(shaping.get("te_thickness", 0.0))
             thickness_scale = float(shaping.get("thickness_scale", 1.0))
@@ -447,18 +361,12 @@ class AeroSandboxEngine(AeroSandboxAnalysisMixin, AeroSandboxGeometryMixin, Aero
                 camber_scale=camber_scale,
             )
 
-        # 4. Normalize to Selig format (Upper TE [x~1, y>=0] -> LE [x=min] -> Lower TE [x~1, y<=0])
+        # 3. Normalize to Selig format (Upper TE [x~1, y>=0] -> LE [x=min] -> Lower TE [x~1, y<=0])
         coords_arr = np.array([[float(p[0]), float(p[1])] for p in raw_coords], dtype=float)
         coords_arr = self._to_selig_format(coords_arr)
 
-        # 5. Construct asb.Airfoil directly from 2D coordinates array
-        try:
-            return asb.Airfoil(name=name, coordinates=coords_arr)
-        except Exception as exc:
-            logger.warning(
-                "Could not construct custom coordinate asb.Airfoil for '%s': %s", name, exc
-            )
-            return asb.Airfoil("naca0012")
+        # 4. Construct asb.Airfoil directly from 2D coordinates array
+        return asb.Airfoil(name=name, coordinates=coords_arr)
 
     @staticmethod
     def _to_selig_format(coords: Any) -> Any:

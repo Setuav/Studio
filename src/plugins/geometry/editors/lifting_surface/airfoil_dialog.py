@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +27,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QListWidgetItem,
+    QMessageBox,
     QPushButton,
     QRadioButton,
     QSizePolicy,
@@ -42,10 +44,13 @@ from setuav_studio.ui.widget.button import set_button_role, set_native_button
 
 from ...engine.airfoil import (
     PRESET_AIRFOILS,
+    airfoil_label,
     compute_airfoil_metrics,
     naca4,
     naca5,
     parse_airfoil_dat,
+    preset_airfoil_spec,
+    sample_airfoil_points,
 )
 
 
@@ -161,7 +166,7 @@ class AirfoilDialog(QDialog):
 
     def __init__(
         self,
-        current_airfoil: object,
+        current_airfoil: str | dict[str, Any],
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -353,47 +358,34 @@ class AirfoilDialog(QDialog):
         if self.preset_list.count() > 0:
             self.preset_list.setCurrentRow(0)
 
-    def _set_initial_selection(self, current: object) -> None:
-        name_str = "2412"
-        if isinstance(current, str):
-            name_str = current
-        elif isinstance(current, dict):
-            name_str = str(current.get("code") or current.get("name") or "2412")
-
-        # Try finding in presets
+    def _set_initial_selection(self, current: str | dict[str, Any]) -> None:
+        label = airfoil_label(current)
         for i in range(self.preset_list.count()):
-            item = self.preset_list.item(i)
-            preset_name = str(item.data(Qt.ItemDataRole.UserRole))
-            if (
-                preset_name.lower() == name_str.lower()
-                or preset_name.replace(" ", "").lower() == name_str.replace(" ", "").lower()
-            ):
+            if self.preset_list.item(i).data(Qt.ItemDataRole.UserRole) == label:
                 self.preset_list.setCurrentRow(i)
                 return
 
-        # Default to NACA tab if code
-        self.tabs.setCurrentIndex(1)
-        self.naca_code_input.setText(name_str)
+        if isinstance(current, str):
+            self.tabs.setCurrentIndex(1)
+            if len(current) == 5:
+                self.naca5_radio.setChecked(True)
+            self.naca_code_input.setText(current)
+            return
+
+        self.tabs.setCurrentIndex(2)
+        spec = deepcopy(current)
+        self._show_coordinates(spec)
+        self.file_path_label.setText(f"{label} ({len(spec['points'])} points)")
 
     def _on_preset_selected(self, current: QListWidgetItem | None, _prev: Any = None) -> None:
         if not current:
             return
         name = str(current.data(Qt.ItemDataRole.UserRole))
-        preset = PRESET_AIRFOILS.get(name)
-        if not preset:
-            return
-        pts = preset["generator"]()
+        spec = preset_airfoil_spec(name)
+        pts = sample_airfoil_points(spec)
         self.canvas.set_airfoil(name, pts)
         self._update_metrics_display(pts)
-
-        if preset["type"] == "naca":
-            self._selected_airfoil_data = preset["code"]
-        else:
-            self._selected_airfoil_data = {
-                "type": "coordinates",
-                "name": name,
-                "points": [list(p) for p in pts],
-            }
+        self._selected_airfoil_data = spec
 
     def _on_naca_radio_toggled(self) -> None:
         if self.naca4_radio.isChecked():
@@ -406,24 +398,21 @@ class AirfoilDialog(QDialog):
 
     def _on_naca_code_changed(self, text: str) -> None:
         code = text.strip()
-        if self.naca5_radio.isChecked():
-            if len(code) >= 5:
-                pts = naca5(code)
-                name = f"NACA {code}"
-                self.canvas.set_airfoil(name, pts)
-                self._update_metrics_display(pts)
-                self._selected_airfoil_data = code
-                self.naca_desc_label.setText(f"NACA 5-digit: {code} low pitching moment airfoil.")
+        five_digit = self.naca5_radio.isChecked()
+        try:
+            pts = naca5(code) if five_digit else naca4(code)
+        except ValueError as error:
+            self.naca_desc_label.setText(str(error))
+            return
+        self.canvas.set_airfoil(airfoil_label(code), pts)
+        self._update_metrics_display(pts)
+        self._selected_airfoil_data = code
+        if five_digit:
+            self.naca_desc_label.setText(f"NACA 5-digit: {code} low pitching moment airfoil.")
         else:
-            if len(code) >= 4:
-                pts = naca4(code)
-                name = f"NACA {code}"
-                self.canvas.set_airfoil(name, pts)
-                self._update_metrics_display(pts)
-                self._selected_airfoil_data = code
-                self.naca_desc_label.setText(
-                    f"NACA 4-digit: {code[0]}% camber at {int(code[1]) * 10}% chord, {code[2:4]}% thickness."
-                )
+            self.naca_desc_label.setText(
+                f"NACA 4-digit: {code[0]}% camber at {int(code[1]) * 10}% chord, {code[2:4]}% thickness."
+            )
 
     def _browse_dat_file(self) -> None:
         file_path, _ = QFileDialog.getOpenFileName(
@@ -435,24 +424,32 @@ class AirfoilDialog(QDialog):
         if not file_path:
             return
         path = Path(file_path)
-        content = path.read_text(encoding="utf-8", errors="replace")
-        name, pts = parse_airfoil_dat(content)
+        try:
+            name, pts = parse_airfoil_dat(path.read_text(encoding="utf-8", errors="replace"))
+        except (OSError, ValueError) as error:
+            QMessageBox.critical(self, "Airfoil Import", str(error))
+            return
 
+        self._show_coordinates(
+            {
+                "type": "coordinates",
+                "name": name or path.stem,
+                "points": [list(p) for p in pts],
+            }
+        )
         self.file_path_label.setText(f"{path.name} ({len(pts)} points)")
-        self.canvas.set_airfoil(name or path.stem, pts)
+
+    def _show_coordinates(self, spec: dict[str, Any]) -> None:
+        pts = sample_airfoil_points(spec)
+        self.canvas.set_airfoil(airfoil_label(spec), pts)
         self._update_metrics_display(pts)
 
-        # Populate coordinates table
         self.coord_table.setRowCount(len(pts))
         for r, (x, z) in enumerate(pts):
             self.coord_table.setItem(r, 0, QTableWidgetItem(f"{x:.6f}"))
             self.coord_table.setItem(r, 1, QTableWidgetItem(f"{z:.6f}"))
 
-        self._selected_airfoil_data = {
-            "type": "coordinates",
-            "name": name or path.stem,
-            "points": [list(p) for p in pts],
-        }
+        self._selected_airfoil_data = spec
 
     def _update_metrics_display(self, points: tuple[tuple[float, float], ...]) -> None:
         metrics = compute_airfoil_metrics(points)

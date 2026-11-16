@@ -1,28 +1,41 @@
-"""Airfoil geometry generators, UIUC DAT parser, and authentic preset library."""
+"""Airfoil geometry generators, UIUC DAT parser, and authentic preset library.
+
+A canonical airfoil spec is either a NACA 4- or 5-digit code string (``"2412"``,
+``"23012"``) or a ``{"type": "coordinates", "name": str, "points": [[x, z], ...]}``
+mapping.
+"""
 
 from __future__ import annotations
 
-import logging
 import math
 import re
 from pathlib import Path
 from typing import Any
 
-logger = logging.getLogger(__name__)
-
-
 AIRFOIL_SAMPLES = 64
 AIRFOILS_DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "airfoils"
+
+_NACA_CODE = re.compile(r"[0-9]{4}|[0-9]{5}")
+_NACA4_CODE = re.compile(r"[0-9]{4}")
+_NACA5_CODE = re.compile(r"[0-9]{5}")
+
+# Mean-line constants (m, k1) of the NACA 5-digit series keyed by the camber-position digit.
+_NACA5_MEAN_LINES: dict[int, tuple[float, float]] = {
+    1: (0.0580, 361.4),
+    2: (0.1260, 51.64),
+    3: (0.2025, 15.793),
+    4: (0.2900, 6.520),
+    5: (0.3910, 3.191),
+}
 
 
 def naca4(code: str, samples: int = AIRFOIL_SAMPLES) -> tuple[tuple[float, float], ...]:
     """Generate normalized (x, z) coordinates for NACA 4-digit airfoil."""
-    clean = re.sub(r"[^\d]", "", code)
-    if len(clean) < 4:
-        clean = "0012"
-    camber = int(clean[0]) / 100.0
-    camber_position = int(clean[1]) / 10.0
-    thickness = int(clean[2:4]) / 100.0
+    if _NACA4_CODE.fullmatch(code) is None:
+        raise ValueError(f"NACA 4-digit code must be exactly four digits, got {code!r}")
+    camber = int(code[0]) / 100.0
+    camber_position = int(code[1]) / 10.0
+    thickness = int(code[2:4]) / 100.0
 
     upper: list[tuple[float, float]] = []
     lower: list[tuple[float, float]] = []
@@ -62,22 +75,8 @@ def naca4(code: str, samples: int = AIRFOIL_SAMPLES) -> tuple[tuple[float, float
 
 def naca5(code: str, samples: int = AIRFOIL_SAMPLES) -> tuple[tuple[float, float], ...]:
     """Generate normalized coordinates for NACA 5-digit airfoil (e.g. 23012, 24012)."""
-    clean = re.sub(r"[^\d]", "", code)
-    if len(clean) < 5:
-        return naca4("0012", samples)
-    _ = int(clean[0])
-    P = int(clean[1])
-    thickness = int(clean[3:5]) / 100.0
-    p = P * 0.05
-
-    table = {
-        0.05: (0.0580, 361.4),
-        0.10: (0.1260, 51.64),
-        0.15: (0.2025, 15.793),
-        0.20: (0.2900, 6.520),
-        0.25: (0.3910, 3.191),
-    }
-    m, k1 = table.get(round(p, 2), (0.2025, 15.793))
+    m, k1 = _naca5_mean_line(code)
+    thickness = int(code[3:5]) / 100.0
 
     upper: list[tuple[float, float]] = []
     lower: list[tuple[float, float]] = []
@@ -107,6 +106,17 @@ def naca5(code: str, samples: int = AIRFOIL_SAMPLES) -> tuple[tuple[float, float
     return tuple(upper + list(reversed(lower)))
 
 
+def _naca5_mean_line(code: str) -> tuple[float, float]:
+    if _NACA5_CODE.fullmatch(code) is None:
+        raise ValueError(f"NACA 5-digit code must be exactly five digits, got {code!r}")
+    mean_line = _NACA5_MEAN_LINES.get(int(code[1]))
+    if mean_line is None:
+        raise ValueError(
+            f"NACA 5-digit code {code!r} has camber-position digit {code[1]}; expected 1-5"
+        )
+    return mean_line
+
+
 def biconvex(
     thickness: float = 0.10, samples: int = AIRFOIL_SAMPLES
 ) -> tuple[tuple[float, float], ...]:
@@ -122,14 +132,12 @@ def biconvex(
     return tuple(upper + list(reversed(lower)))
 
 
-def parse_airfoil_dat(
-    content: str, samples: int = AIRFOIL_SAMPLES * 2
-) -> tuple[str, tuple[tuple[float, float], ...]]:
+def parse_airfoil_dat(content: str) -> tuple[str, tuple[tuple[float, float], ...]]:
     """Parse standard Selig/UIUC or Lednicer .dat coordinate format and normalize to [0, 1]."""
     raw_lines = [line.strip() for line in content.splitlines()]
     non_empty = [line for line in raw_lines if line]
     if not non_empty:
-        return "Custom", naca4("0012", samples // 2)
+        raise ValueError("Airfoil file is empty")
 
     name = non_empty[0].strip()
 
@@ -145,13 +153,13 @@ def parse_airfoil_dat(
         # Selig format: single continuous loop TE -> LE -> TE
         loop = _coordinate_lines(non_empty[1:])
         if len(loop) < 3:
-            return name, naca4("0012", samples // 2)
+            raise ValueError(f"Airfoil {name!r} has fewer than 3 coordinate points")
         le_idx = min(range(len(loop)), key=lambda i: loop[i][0])
         upper = list(reversed(loop[: le_idx + 1]))  # LE -> TE
         lower = loop[le_idx:]  # LE -> TE
 
     if not upper or not lower:
-        return name, naca4("0012", samples // 2)
+        raise ValueError(f"Airfoil {name!r} is missing upper or lower surface coordinates")
 
     # Normalize to [0, 1] range preserving exact leading edge (0, z_LE)
     all_pts = upper + lower
@@ -347,11 +355,8 @@ def _interpolate_z_at_x(
 
 
 def _load_uiuc_file(filename: str) -> tuple[tuple[float, float], ...]:
-    path = AIRFOILS_DATA_DIR / filename
-    if path.is_file():
-        _, pts = parse_airfoil_dat(path.read_text(encoding="utf-8"))
-        return pts
-    return naca4("0012")
+    _, pts = parse_airfoil_dat((AIRFOILS_DATA_DIR / filename).read_text(encoding="utf-8"))
+    return pts
 
 
 # =============================================================================
@@ -492,72 +497,87 @@ PRESET_AIRFOILS: dict[str, dict[str, Any]] = {
 }
 
 
-def sample_airfoil_points(value: object) -> tuple[tuple[float, float], ...]:
-    """Sample coordinates for any airfoil representation (string, code, dict, file)."""
-    if isinstance(value, dict):
-        points = _sample_airfoil_mapping(value)
-        if points is not None:
-            return points
-
-    if isinstance(value, str):
-        points = _sample_airfoil_string(value.strip())
-        if points is not None:
-            return points
-
-    return naca4("0012")
+def sample_airfoil_points(spec: object) -> tuple[tuple[float, float], ...]:
+    """Sample normalized (x, z) coordinates for a canonical airfoil spec."""
+    if isinstance(spec, str):
+        code = _naca_code(spec)
+        return naca5(code) if len(code) == 5 else naca4(code)
+    _, points = _coordinate_spec(spec)
+    return _normalized_coordinates(points)
 
 
-def _sample_airfoil_mapping(value: dict[str, Any]) -> tuple[tuple[float, float], ...] | None:
-    value_type = value.get("type")
-    if value_type == "coordinates":
-        return _normalized_coordinates(value.get("points"))
-    if value_type == "naca":
-        digits = re.sub(r"[^\d]", "", str(value.get("code") or "0012"))
-        return naca5(digits) if len(digits) == 5 else naca4(digits or "0012")
-    if value_type == "file":
-        return _sample_airfoil_file(str(value.get("path") or ""))
-    return None
+def airfoil_label(spec: object) -> str:
+    """Return the display label of a canonical airfoil spec."""
+    if isinstance(spec, str):
+        code = _naca_code(spec)
+        for name, preset in PRESET_AIRFOILS.items():
+            if preset["type"] == "naca" and preset["code"] == code:
+                return name
+        return f"NACA {code}"
+    name, _ = _coordinate_spec(spec)
+    return name
 
 
-def _normalized_coordinates(value: object) -> tuple[tuple[float, float], ...] | None:
-    if not isinstance(value, list):
-        return None
-    parsed = [
-        (float(point[0]), float(point[1]))
-        for point in value
-        if isinstance(point, (list, tuple)) and len(point) >= 2
-    ]
-    if len(parsed) < 3:
-        return None
-    min_x = min(point[0] for point in parsed)
-    chord = max(max(point[0] for point in parsed) - min_x, 1e-6)
-    normalized = [((x - min_x) / chord, z / chord) for x, z in parsed]
+def preset_airfoil_spec(name: str) -> str | dict[str, Any]:
+    """Return the canonical airfoil spec of a built-in preset."""
+    preset = PRESET_AIRFOILS[name]
+    if preset["type"] == "naca":
+        return str(preset["code"])
+    return {
+        "type": "coordinates",
+        "name": name,
+        "points": [list(point) for point in preset["generator"]()],
+    }
+
+
+def _naca_code(spec: str) -> str:
+    if _NACA_CODE.fullmatch(spec) is None:
+        raise ValueError(
+            f"Airfoil spec {spec!r} is not a NACA 4- or 5-digit code such as '2412' or '23012'"
+        )
+    if len(spec) == 5:
+        _naca5_mean_line(spec)
+    return spec
+
+
+def _coordinate_spec(spec: object) -> tuple[str, list[tuple[float, float]]]:
+    if not isinstance(spec, dict) or spec.get("type") != "coordinates":
+        raise _unsupported_spec(spec)
+    name = spec.get("name")
+    if not isinstance(name, str) or not name:
+        raise ValueError("Coordinates airfoil spec requires a non-empty 'name'")
+    raw_points = spec.get("points")
+    if not isinstance(raw_points, list) or len(raw_points) < 3:
+        raise ValueError(f"Coordinates airfoil {name!r} requires at least 3 [x, z] points")
+    points: list[tuple[float, float]] = []
+    for point in raw_points:
+        if not isinstance(point, (list, tuple)) or len(point) != 2:
+            raise ValueError(
+                f"Coordinates airfoil {name!r} has a point that is not [x, z]: {point!r}"
+            )
+        points.append((float(point[0]), float(point[1])))
+    return name, points
+
+
+def _unsupported_spec(spec: object) -> ValueError:
+    if spec is None:
+        subject = "Missing airfoil spec"
+    elif isinstance(spec, dict):
+        subject = f"Unsupported airfoil spec mapping with type {spec.get('type')!r}"
+    else:
+        subject = f"Unsupported airfoil spec of type {type(spec).__name__}"
+    return ValueError(
+        f"{subject}: expected a NACA 4- or 5-digit code string such as '2412' or a "
+        "{'type': 'coordinates', 'name': str, 'points': [[x, z], ...]} mapping"
+    )
+
+
+def _normalized_coordinates(
+    points: list[tuple[float, float]],
+) -> tuple[tuple[float, float], ...]:
+    min_x = min(point[0] for point in points)
+    chord = max(max(point[0] for point in points) - min_x, 1e-6)
+    normalized = [((x - min_x) / chord, z / chord) for x, z in points]
     leading_edge = min(range(len(normalized)), key=lambda index: normalized[index][0])
     normalized[leading_edge] = (0.0, normalized[leading_edge][1])
     return tuple(normalized)
-
-
-def _sample_airfoil_string(value: str) -> tuple[tuple[float, float], ...] | None:
-    normalized_name = value.replace(" ", "").lower()
-    for name, preset in PRESET_AIRFOILS.items():
-        if name.replace(" ", "").lower() == normalized_name:
-            return preset["generator"]()
-    match = re.search(r"(?:naca\s*)?(\d{5}|\d{4})", value, re.IGNORECASE)
-    if match:
-        digits = match.group(1)
-        return naca5(digits) if len(digits) == 5 else naca4(digits)
-    return _sample_airfoil_file(value)
-
-
-def _sample_airfoil_file(path_value: str) -> tuple[tuple[float, float], ...] | None:
-    path = Path(path_value)
-    if not path.is_file():
-        path = AIRFOILS_DATA_DIR / path_value
-    if not path.is_file():
-        return None
-    try:
-        _, points = parse_airfoil_dat(path.read_text(encoding="utf-8"))
-        return points
-    except (ValueError, OSError, IndexError) as exc:
-        logger.warning("Failed to parse airfoil file %s: %s", path, exc)
-        return None

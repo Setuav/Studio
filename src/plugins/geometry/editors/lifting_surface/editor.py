@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any
 
 from PySide6.QtGui import QCloseEvent, QHideEvent
@@ -26,7 +25,7 @@ from setuav_studio.ui.widget.spinbox import (
 )
 from setuav_studio.ui.widget.table import PropertyTableMixin
 
-from ...engine.airfoil import PRESET_AIRFOILS
+from ...engine.airfoil import airfoil_label
 from .control_surfaces_section import ControlSurfacesSectionMixin
 from .general_section import GeneralSectionMixin
 from .planform_section import PlanformSectionMixin
@@ -255,20 +254,7 @@ class LiftingSurfaceEditor(
 
     @staticmethod
     def _format_airfoil_label(value: object) -> str:
-        if isinstance(value, str):
-            for name, preset in PRESET_AIRFOILS.items():
-                if name.lower() == value.lower() or preset.get("code") == value:
-                    return name
-            return value
-        if isinstance(value, dict):
-            name = str(value.get("name") or value.get("code") or "")
-            if name:
-                return name
-            if value.get("type") == "coordinates":
-                return f"Custom ({len(value.get('points') or [])} pts)"
-            if value.get("type") == "file":
-                return f"File: {Path(str(value.get('path') or '')).name}"
-        return "NACA 2412"
+        return airfoil_label(value)
 
     @staticmethod
     def _clear_property_values(table: QTableWidget) -> None:
