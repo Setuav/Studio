@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import itertools
 import unittest
 from copy import deepcopy
 from typing import Any
@@ -544,12 +545,50 @@ class TestElectricalPropulsion(unittest.TestCase):
         )
 
         within_limit = OperatingPointSolver(config, doc).run()
-        self.assertEqual(within_limit.tables["propulsion_data"].get_column("feasible"), [True])
+        table = within_limit.tables["propulsion_data"]
+        self.assertEqual(table.get_column("feasible"), [True])
+        self.assertEqual(within_limit.summary["feasible_points"].value, 1)
+        self.assertEqual(within_limit.summary["endurance"].value, table.get_column("endurance")[0])
+        self.assertNotIn("static_thrust", within_limit.summary)
 
         motor = next(c for c in doc.data["components"] if c["id"] == "motor-cruise")
         motor["parameters"]["max_current"] = 0.001
         over_limit = OperatingPointSolver(config, doc).run()
         self.assertEqual(over_limit.tables["propulsion_data"].get_column("feasible"), [False])
+        self.assertEqual(over_limit.summary["feasible_points"].value, 0)
+        self.assertNotIn("max_thrust", over_limit.summary)
+
+    def test_throttle_sweep_summary_reports_its_own_points(self) -> None:
+        from plugins.electrical_propulsion.solver import (
+            SOLVER_ID_THROTTLE_SWEEP,
+            ThrottleSweepSolver,
+        )
+        from setuav_studio.solver import SolverConfig
+
+        config = SolverConfig(
+            solver_id=SOLVER_ID_THROTTLE_SWEEP,
+            name="Throttle Sweep",
+            parameters={**ThrottleSweepSolver.default_parameters(), "airspeed": 15.0},
+        )
+        result = ThrottleSweepSolver(config, open_project(TEST_PROJECT_PATH)).run()
+        table = result.tables["propulsion_data"]
+        thrust = table.get_column("thrust")
+        endurance = table.get_column("endurance")
+        feasible = table.get_column("feasible")
+
+        # A sweep in flight has no static point and no cruise of its own.
+        self.assertNotIn("static_thrust", result.summary)
+        self.assertNotIn("endurance", result.summary)
+        self.assertEqual(
+            result.summary["max_thrust"].value,
+            max(t for t, ok in zip(thrust, feasible, strict=True) if ok),
+        )
+        self.assertTrue(0.0 < float(result.summary["best_efficiency"].value) < 1.0)
+        self.assertIn(result.summary["best_efficiency_at"].value, table.get_column("throttle"))
+        # More throttle draws more power and so empties the pack sooner.
+        flying = [e for e, ok in zip(endurance, feasible, strict=True) if ok]
+        self.assertGreater(len(flying), 2)
+        self.assertTrue(all(b < a for a, b in itertools.pairwise(flying)))
 
     def test_pythrust_data_dir_resolution(self) -> None:
         """5.17: hardcoded path is gone; resolution prefers env var, then QSettings, then relatives."""

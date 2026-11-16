@@ -84,6 +84,80 @@ class BasePropulsionSolver(AbstractSolver):
         count = int((high - low) / step + 1e-6) + 1
         return [round(low + k * step, 6) for k in range(count)]
 
+    @staticmethod
+    def _feasible_summary(
+        feasible: list[int],
+        points_data: list[tuple[float, PowertrainPoint]],
+        *,
+        plot_x_col: str,
+        plot_x_label: str,
+        endurances: list[float],
+    ) -> dict[str, SummaryItem]:
+        """Summary metrics over the points within the current limits."""
+        points = [point for _, point in points_data]
+        strongest = max(feasible, key=lambda i: points[i].thrust_n)
+        most_efficient = max(feasible, key=lambda i: points[i].system_efficiency)
+        summary = {
+            "max_thrust": SummaryItem(
+                key="max_thrust",
+                value=round(points[strongest].thrust_n, 3),
+                label="Max Thrust",
+                unit="N",
+                quantity_id="force",
+            ),
+            "peak_power": SummaryItem(
+                key="peak_power",
+                value=round(max(points[i].battery_power_w for i in feasible), 2),
+                label="Peak Power",
+                unit="W",
+                quantity_id="power",
+            ),
+            "peak_current": SummaryItem(
+                key="peak_current",
+                value=round(max(points[i].battery_current_a for i in feasible), 2),
+                label="Peak Current",
+                unit="A",
+                quantity_id="current",
+            ),
+            "max_rpm": SummaryItem(
+                key="max_rpm",
+                value=round(max(points[i].rpm for i in feasible), 1),
+                label="Max RPM",
+                unit="RPM",
+                quantity_id="frequency",
+            ),
+            "best_efficiency": SummaryItem(
+                key="best_efficiency",
+                value=round(points[most_efficient].system_efficiency, 4),
+                label="Best System Efficiency",
+                unit="",
+            ),
+            "best_efficiency_at": SummaryItem(
+                key="best_efficiency_at",
+                value=points_data[most_efficient][0],
+                label=f"Best Efficiency {plot_x_label}",
+                unit="%" if plot_x_col == "throttle" else "m/s",
+                quantity_id=None if plot_x_col == "throttle" else "velocity",
+            ),
+        }
+        static = [i for i in feasible if points[i].advance_ratio == 0.0]
+        if static:
+            summary["static_thrust"] = SummaryItem(
+                key="static_thrust",
+                value=round(max(points[i].thrust_n for i in static), 3),
+                label="Static Thrust",
+                unit="N",
+                quantity_id="force",
+            )
+        if endurances and len(points) == 1:
+            summary["endurance"] = SummaryItem(
+                key="endurance",
+                value=endurances[0],
+                label=f"Endurance to {_ENDURANCE_FINAL_SOC:.0%} SoC",
+                unit="min",
+            )
+        return summary
+
     def _build_result(
         self,
         plot_x_col: str,
@@ -102,6 +176,22 @@ class BasePropulsionSolver(AbstractSolver):
         prop_effs = [round(p[1].propeller_efficiency, 4) for p in points_data]
         motor_effs = [round(p[1].motor_efficiency, 4) for p in points_data]
         feasibles = [p[1].feasible for p in points_data]
+        feasible = [i for i, ok in enumerate(feasibles) if ok]
+        has_reserve = powertrain.battery_state.soc > _ENDURANCE_FINAL_SOC
+        endurances = (
+            [
+                round(
+                    powertrain.discharge_time_s(
+                        power_w=point.battery_power_w, final_soc=_ENDURANCE_FINAL_SOC
+                    )
+                    / 60.0,
+                    2,
+                )
+                for _, point in points_data
+            ]
+            if has_reserve
+            else []
+        )
 
         table_columns = [
             TableColumn(
@@ -121,6 +211,15 @@ class BasePropulsionSolver(AbstractSolver):
             TableColumn(key="motor_efficiency", label="Motor Efficiency", unit=""),
             TableColumn(key="feasible", label="Feasible", unit=""),
         ]
+        if has_reserve:
+            table_columns.append(
+                TableColumn(
+                    key="endurance",
+                    label=f"Endurance to {_ENDURANCE_FINAL_SOC:.0%} SoC",
+                    unit="min",
+                    quantity_id=None,
+                )
+            )
 
         table_data: dict[str, list[Any]] = {
             plot_x_col: x_vals,
@@ -135,6 +234,8 @@ class BasePropulsionSolver(AbstractSolver):
             "motor_efficiency": motor_effs,
             "feasible": feasibles,
         }
+        if has_reserve:
+            table_data["endurance"] = endurances
         dataset_table = TableDefinition(
             id="propulsion_data",
             title="Propulsion Performance Data",
@@ -194,63 +295,24 @@ class BasePropulsionSolver(AbstractSolver):
             ),
         }
 
-        nominal_idx = min(len(x_vals) - 1, max(0, int(len(x_vals) * 0.5)))
-        cruise_power = powers[nominal_idx] if powers else 0.0
-        endurance_min = (
-            powertrain.discharge_time_s(power_w=cruise_power, final_soc=_ENDURANCE_FINAL_SOC) / 60.0
-            if cruise_power > 0.0 and powertrain.battery_state.soc > _ENDURANCE_FINAL_SOC
-            else 0.0
-        )
-
         summary: dict[str, SummaryItem] = {
-            "static_thrust": SummaryItem(
-                key="static_thrust",
-                value=thrusts[0] if thrusts else 0.0,
-                label="Static Thrust",
-                unit="N",
-                quantity_id="force",
-            ),
-            "peak_power": SummaryItem(
-                key="peak_power",
-                value=max(powers) if powers else 0.0,
-                label="Peak Power",
-                unit="W",
-                quantity_id="power",
-            ),
-            "peak_current": SummaryItem(
-                key="peak_current",
-                value=max(currents) if currents else 0.0,
-                label="Peak Current",
-                unit="A",
-                quantity_id="current",
-            ),
-            "max_rpm": SummaryItem(
-                key="max_rpm",
-                value=max(rpms) if rpms else 0.0,
-                label="Max RPM",
-                unit="RPM",
-                quantity_id="frequency",
-            ),
-            "cruise_thrust": SummaryItem(
-                key="cruise_thrust",
-                value=thrusts[nominal_idx] if thrusts else 0.0,
-                label="Cruise Thrust",
-                unit="N",
-                quantity_id="force",
-            ),
-            "cruise_efficiency": SummaryItem(
-                key="cruise_efficiency",
-                value=sys_effs[nominal_idx] if sys_effs else 0.0,
-                label="Cruise Efficiency",
+            "feasible_points": SummaryItem(
+                key="feasible_points",
+                value=len(feasible),
+                label=f"Feasible Points (of {len(points_data)})",
                 unit="",
             ),
-            "estimated_endurance": SummaryItem(
-                key="estimated_endurance",
-                value=round(endurance_min, 1),
-                label=f"Cruise Endurance to {_ENDURANCE_FINAL_SOC:.0%} SoC",
-                unit="min",
-            ),
         }
+        if feasible:
+            summary.update(
+                self._feasible_summary(
+                    feasible,
+                    points_data,
+                    plot_x_col=plot_x_col,
+                    plot_x_label=plot_x_label,
+                    endurances=endurances,
+                )
+            )
 
         return SolverResult(
             solver_id=self.config.solver_id,
