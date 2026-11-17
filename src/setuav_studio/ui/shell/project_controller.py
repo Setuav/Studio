@@ -47,7 +47,7 @@ class ProjectController:
         path, _ = QFileDialog.getSaveFileName(
             self._window,
             "New Setuav Project",
-            "untitled.suav",
+            "Untitled.suav",
             "Setuav Archive (*.suav)",
         )
         if not path or not self.confirm_project_close():
@@ -93,9 +93,8 @@ class ProjectController:
         return self.activate_project(doc)
 
     def new_untitled_project(self) -> bool:
-        doc = create_project("untitled.suav")
+        doc = create_project("Untitled.suav")
         doc.modified = False
-        doc.data["name"] = "Untitled Project"
         doc.untitled = True
         return self.activate_project(doc, confirm_close=False)
 
@@ -142,7 +141,6 @@ class ProjectController:
                 "warning",
                 8000,
             )
-        project_name = str(project.data.get("name") or project.location.name or project.path.name)
         self._window.status_manager.evaluate_problems(project)
         if self._api.expression_diagnostics:
             self._api._show_expression_diagnostics()
@@ -155,7 +153,7 @@ class ProjectController:
         elif project.untitled:
             self._api.show_status("New project ready", "info", 4000)
         elif not project.read_only:
-            self._api.show_status(f"Project opened: {project_name}", "info", 4000)
+            self._api.show_status(f"Project opened: {project.name}", "info", 4000)
         return True
 
     def save_project(self) -> bool:
@@ -256,9 +254,7 @@ class ProjectController:
             return True
 
         unsaved_items = self.collect_unsaved_changes()
-        proj_name = str(
-            self.project.data.get("name") or self.project.location.stem or "Current Project"
-        )
+        proj_name = self.project.name
 
         msg_box = QMessageBox(self._window)
         msg_box.setWindowTitle("Unsaved Changes")
@@ -294,9 +290,7 @@ class ProjectController:
         if self.project is None:
             self._window.setWindowTitle("Setuav Studio")
             return
-        name = self.project.data.get("name")
-        if not isinstance(name, str) or not name.strip():
-            name = self.project.location.stem
+        name = self.project.name
         modified = "*" if self.project.modified else ""
         self._window.setWindowTitle(f"{name}{modified} — Setuav Studio")
 

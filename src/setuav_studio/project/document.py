@@ -49,6 +49,13 @@ class ProjectDocument:
         return self.path
 
     @property
+    def name(self) -> str:
+        """The project's name: its archive's file name, or the name of its folder."""
+        if self.kind == "archive":
+            return self.path.stem
+        return self.path.parent.name
+
+    @property
     def degraded(self) -> bool:
         return bool(self.plugin_issues)
 
@@ -244,17 +251,10 @@ def create_project(path: str | Path) -> ProjectDocument:
     else:
         raise ProjectSaveError("Expected a project.json or a .suav file")
 
-    project_name = selected_path.stem
-    if selected_path.name == "project.json":
-        project_name = selected_path.parent.name or "Untitled Project"
-    if not project_name:
-        project_name = "Untitled Project"
-
     return ProjectDocument(
         path=selected_path,
         kind=kind,
         data={
-            "name": project_name,
             "plugins": [],
             "components": [],
             "parameters": {},

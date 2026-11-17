@@ -27,10 +27,6 @@ def validate_project(
     issues: list[Issue] = []
 
     # 1. Root fields validation
-    name = project.get("name")
-    if not name or not isinstance(name, str) or not name.strip():
-        issues.append(Issue("error", "Project name is required and must be non-empty", "$.name"))
-
     units = project.get("units")
     if units is not None and not isinstance(units, dict):
         issues.append(Issue("error", "Project units must be an object", "$.units"))

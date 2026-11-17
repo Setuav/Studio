@@ -26,7 +26,8 @@ def test_create_project_builds_valid_archive(tmp_path: Path) -> None:
 
     assert project.kind == "archive"
     assert project.modified
-    assert project.data["name"] == "airplane"
+    assert project.name == "airplane"
+    assert "name" not in project.data
     assert project.data["components"] == []
     assert project.data["plugins"] == []
 
@@ -42,33 +43,33 @@ def test_create_project_builds_valid_archive(tmp_path: Path) -> None:
 
 def test_open_project_json(tmp_path: Path) -> None:
     json_path = tmp_path / "project.json"
-    data = {"spec_version": "2.0.0", "name": "JSON Plane", "components": []}
+    data = {"spec_version": "2.0.0", "components": []}
     json_path.write_text(json.dumps(data), encoding="utf-8")
 
     project = open_project(json_path)
     assert project.kind == "json"
-    assert project.data["name"] == "JSON Plane"
+    assert project.name == tmp_path.name
     assert not project.modified
 
 
 def test_open_project_folder(tmp_path: Path) -> None:
-    data = {"spec_version": "2.0.0", "name": "Folder Plane", "components": []}
+    data = {"spec_version": "2.0.0", "components": []}
     (tmp_path / "project.json").write_text(json.dumps(data), encoding="utf-8")
 
     project = open_project(tmp_path)
     assert project.kind == "folder"
-    assert project.data["name"] == "Folder Plane"
+    assert project.name == tmp_path.name
 
 
 def test_open_project_suav_archive(tmp_path: Path) -> None:
     archive_path = tmp_path / "archive.suav"
-    data = {"spec_version": "2.0.0", "name": "Archived Plane", "components": []}
+    data = {"spec_version": "2.0.0", "components": []}
     with ZipFile(archive_path, "w") as zf:
         zf.writestr("project.json", json.dumps(data))
 
     project = open_project(archive_path)
     assert project.kind == "archive"
-    assert project.data["name"] == "Archived Plane"
+    assert project.name == "archive"
 
 
 def test_open_project_errors(tmp_path: Path) -> None:
@@ -103,7 +104,7 @@ def test_save_rejects_read_only_project(tmp_path: Path) -> None:
 def test_save_folder_as_archive_with_assets(tmp_path: Path) -> None:
     folder = tmp_path / "uav_folder"
     folder.mkdir()
-    (folder / "project.json").write_text(json.dumps({"name": "Asset Plane"}), encoding="utf-8")
+    (folder / "project.json").write_text(json.dumps({"components": []}), encoding="utf-8")
     assets_dir = folder / "assets"
     assets_dir.mkdir()
     (assets_dir / "airfoil.dat").write_text("airfoil data", encoding="utf-8")
@@ -114,7 +115,7 @@ def test_save_folder_as_archive_with_assets(tmp_path: Path) -> None:
 
     assert target_archive.exists()
     with ZipFile(target_archive, "r") as zf:
-        assert json.loads(zf.read("project.json"))["name"] == "Asset Plane"
+        assert json.loads(zf.read("project.json")) == {"components": []}
         assert zf.read("assets/airfoil.dat") == b"airfoil data"
 
 

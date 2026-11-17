@@ -230,7 +230,6 @@ def test_studio_api_project_edits_undo_redo() -> None:
         Path("test.json"),
         "json",
         {
-            "name": "Original Name",
             "components": [
                 {
                     "id": "c1",
@@ -244,25 +243,25 @@ def test_studio_api_project_edits_undo_redo() -> None:
     )
     studio_api._host.set_project(project)
 
-    # 1. Edit project name
-    def _change_name() -> None:
-        project.data["name"] = "Renamed Project"
+    # 1. Edit project units
+    def _change_units() -> None:
+        project.data["units"] = {"length": "in"}
 
-    studio_api.edit_project("Change project name", _change_name)
-    assert project.data["name"] == "Renamed Project"
+    studio_api.edit_project("Change project units", _change_units)
+    assert project.data["units"] == {"length": "in"}
     assert studio_api.can_undo
     assert studio_api.undo_count == 1
-    assert studio_api.undo_text == "Change project name"
+    assert studio_api.undo_text == "Change project units"
 
     # Undo project edit
     studio_api.undo()
-    assert project.data["name"] == "Original Name"
+    assert "units" not in project.data
     assert studio_api.can_redo
-    assert studio_api.redo_text == "Change project name"
+    assert studio_api.redo_text == "Change project units"
 
     # Redo project edit
     studio_api.redo()
-    assert project.data["name"] == "Renamed Project"
+    assert project.data["units"] == {"length": "in"}
 
     # 2. Edit component parameter
     comp_c1 = project.get_component("c1")
@@ -289,7 +288,6 @@ def test_studio_api_extension_edits_undo_redo() -> None:
         Path("test.json"),
         "json",
         {
-            "name": "Ext Test",
             "components": [{"id": "c1", "name": "Part", "extensions": {}}],
             "extensions": {},
         },

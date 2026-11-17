@@ -488,7 +488,7 @@ class DebugPanel(PropertyTableMixin, QWidget):
         # 3. Project Summary Table
         if project is not None:
             p_data = project.data
-            p_name = p_data.get("name", "Untitled Project")
+            p_name = project.name
             p_path = project.path
             p_file = str(p_path) if p_path else "(Unsaved)"
             status_text = "Modified (Unsaved)" if project.modified else "Clean / Saved"

@@ -598,7 +598,7 @@ class AerodynamicsPluginTests(unittest.TestCase):
         project = ProjectDocument(
             path=Path("test_comp.json"),
             kind="json",
-            data={"name": "Test Project", "components": [component]},
+            data={"components": [component]},
         )
         self.api._host.set_project(project)
         explorer = ProjectExplorer(self.api)
