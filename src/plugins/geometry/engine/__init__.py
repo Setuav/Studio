@@ -41,10 +41,7 @@ from .fuselage_geometry import (
     sample_profile,
 )
 from .lifting_surface_driver_solver import compute_all_8_parameters
-from .lifting_surface_geometry import (
-    build_lifting_surface_geometry,
-    compute_winglet_projected_dimensions,
-)
+from .lifting_surface_geometry import build_lifting_surface_geometry
 from .lifting_surface_planform_engine import (
     SWEEP_LOCATIONS,
     TWIST_LOCATIONS,
@@ -62,6 +59,7 @@ from .lifting_surface_sections_engine import (
     sections_to_profiles,
     split_section,
 )
+from .lifting_surface_tips import compute_winglet_projected_dimensions
 from .palettes import (
     DEFAULT_PALETTE,
     active_palette,

@@ -16,7 +16,9 @@ from .lifting_surface_math import (
 from .lifting_surface_tips import (
     build_tip_cap_loft,
     build_winglet_loft,
-    compute_winglet_projected_dimensions,
+    tip_cap_parameters,
+    tip_treatment_type,
+    winglet_parameters,
 )
 from .palettes import lifting_surface_color
 from .transforms import Matrix4, section_transform, transform_point
@@ -49,11 +51,7 @@ def build_lifting_surface_geometry(
     # Section alignment: "xz" (default) | "normal" (perpendicular to span)
     section_align = str(geometry.get("section_align", "xz")).lower()
 
-    tip_treatment = geometry.get("tip_treatment")
-    tip_treatment = tip_treatment if isinstance(tip_treatment, dict) else {}
-    tip_type = str(tip_treatment.get("type", "flat")).lower()
-    tip_length = float(tip_treatment.get("length", 20.0))
-    tip_offset_x = float(tip_treatment.get("offset_x", 0.0))
+    tip_type = tip_treatment_type(geometry)
 
     if not isinstance(control_surfaces, list) or not control_surfaces:
         # Simple continuous lifting surface without control surfaces
@@ -101,7 +99,7 @@ def build_lifting_surface_geometry(
         )
 
     # Attach dedicated G1-continuous aerodynamic tip cap mesh if round or sharp
-    if tip_type in ("round", "sharp") and tip_length > 0.0:
+    if tip_type in ("round", "sharp"):
         y0 = (
             float(profiles[0].get("position", {}).get("y", 0.0))
             if isinstance(profiles[0].get("position"), dict)
@@ -130,13 +128,11 @@ def build_lifting_surface_geometry(
             le_sweep_slope = 0.0
             te_sweep_slope = 0.0
 
-        tip_profile = profiles[-1]
         tip_cap = build_tip_cap_loft(
             comp_id=comp_id,
-            tip_profile=tip_profile,
+            tip_profile=profiles[-1],
             tip_type=tip_type,
-            tip_length=tip_length,
-            offset_x=tip_offset_x,
+            cap=tip_cap_parameters(geometry),
             span_dir=span_dir,
             le_sweep_slope=le_sweep_slope,
             te_sweep_slope=te_sweep_slope,
@@ -174,61 +170,13 @@ def build_lifting_surface_geometry(
             incoming_le_sweep_deg = 0.0
             incoming_te_sweep_deg = 0.0
 
-        match_tangent = bool(tip_treatment.get("match_wing_tangent", True))
-        winglet_height = float(tip_treatment.get("winglet_height", 130.0))
-        cant_angle = float(tip_treatment.get("cant_angle", 80.0))
-        cant_root = float(tip_treatment.get("cant_root", 0.0))
-        cant_tip = tip_treatment.get("cant_tip")
-        blend_radius = float(
-            tip_treatment.get("blend_radius", 45.0 if "blend_radius" in tip_treatment else 0.0)
-        )
-
-        sweep_default = float(tip_treatment.get("winglet_sweep", 20.0))
-        le_sweep_root = tip_treatment.get("le_sweep_root", tip_treatment.get("sweep_root"))
-        le_sweep_tip = tip_treatment.get("le_sweep_tip", tip_treatment.get("sweep_tip", 48.0))
-        le_curvature = float(
-            tip_treatment.get("le_curvature", tip_treatment.get("scimitar_offset", 0.0))
-        )
-
-        te_sweep_root = tip_treatment.get("te_sweep_root")
-        te_sweep_tip = tip_treatment.get("te_sweep_tip")
-        te_curvature = float(tip_treatment.get("te_curvature", 0.0))
-
-        toe_angle = float(tip_treatment.get("toe_angle", 0.0))
-        toe_root = tip_treatment.get("toe_root")
-        toe_tip = tip_treatment.get("toe_tip", -1.5 if "toe_tip" not in tip_treatment else 0.0)
-
-        root_chord_scale = float(tip_treatment.get("root_chord_scale", 1.0))
-        tip_chord_scale = float(tip_treatment.get("tip_chord_scale", 0.45))
-        tip_thickness_scale = float(tip_treatment.get("tip_thickness_scale", 0.7))
-        taper_curve = float(tip_treatment.get("taper_curve", 1.0))
-
         winglet_loft = build_winglet_loft(
             comp_id=comp_id,
             tip_profile=profiles[-1],
+            winglet=winglet_parameters(geometry),
             span_dir=span_dir,
-            winglet_height=winglet_height,
-            cant_angle_deg=cant_angle,
-            cant_root_deg=float(cant_root) if cant_root is not None else None,
-            cant_tip_deg=float(cant_tip) if cant_tip is not None else None,
-            blend_radius=blend_radius,
-            match_wing_tangent=match_tangent,
             incoming_le_sweep_deg=incoming_le_sweep_deg,
             incoming_te_sweep_deg=incoming_te_sweep_deg,
-            sweep_deg=sweep_default,
-            le_sweep_root_deg=float(le_sweep_root) if le_sweep_root is not None else None,
-            le_sweep_tip_deg=float(le_sweep_tip) if le_sweep_tip is not None else None,
-            le_curvature=le_curvature,
-            te_sweep_root_deg=float(te_sweep_root) if te_sweep_root is not None else None,
-            te_sweep_tip_deg=float(te_sweep_tip) if te_sweep_tip is not None else None,
-            te_curvature=te_curvature,
-            toe_angle_deg=toe_angle,
-            toe_root_deg=float(toe_root) if toe_root is not None else None,
-            toe_tip_deg=float(toe_tip) if toe_tip is not None else None,
-            root_chord_scale=root_chord_scale,
-            tip_chord_scale=tip_chord_scale,
-            tip_thickness_scale=tip_thickness_scale,
-            taper_curve=taper_curve,
             twist_location=twist_location,
             te_thickness=te_thickness,
             thickness_scale=thickness_scale,
@@ -439,5 +387,4 @@ def _interpolate_station_props(
 
 __all__ = [
     "build_lifting_surface_geometry",
-    "compute_winglet_projected_dimensions",
 ]

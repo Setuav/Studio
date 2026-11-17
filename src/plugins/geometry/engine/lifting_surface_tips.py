@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import math
-from typing import Any
+from collections.abc import Mapping
+from dataclasses import asdict, dataclass, fields
+from typing import Any, Final
 
 from .airfoil import apply_airfoil_shaping, sample_airfoil_points
 from .data import LoftGeometry, Point3D, Section
@@ -16,20 +18,189 @@ from .palettes import lifting_surface_color
 from .transforms import section_transform, transform_point
 
 
+@dataclass(frozen=True, slots=True)
+class TipCapParameters:
+    """Parameters of a round or sharp tip cap, keyed as stored in ``tip_treatment``."""
+
+    length: float
+    offset_x: float
+
+
+@dataclass(frozen=True, slots=True)
+class WingletParameters:
+    """Parameters of a winglet tip, keyed as stored in ``tip_treatment``.
+
+    With ``match_wing_tangent`` the winglet root continues the wing's leading and trailing
+    edge sweep, and ``le_sweep_root`` and ``te_sweep_root`` are not used.
+    """
+
+    winglet_height: float
+    match_wing_tangent: bool
+    cant_root: float
+    cant_tip: float
+    blend_radius: float
+    le_sweep_root: float
+    le_sweep_tip: float
+    le_curvature: float
+    te_sweep_root: float
+    te_sweep_tip: float
+    te_curvature: float
+    toe_root: float
+    toe_tip: float
+    root_chord_scale: float
+    tip_chord_scale: float
+    tip_thickness_scale: float
+
+
+TIP_CAP_DEFAULTS: Final = TipCapParameters(length=20.0, offset_x=0.0)
+
+WINGLET_DEFAULTS: Final = WingletParameters(
+    winglet_height=130.0,
+    match_wing_tangent=True,
+    cant_root=0.0,
+    cant_tip=80.0,
+    blend_radius=0.0,
+    le_sweep_root=20.0,
+    le_sweep_tip=48.0,
+    le_curvature=0.0,
+    te_sweep_root=14.0,
+    te_sweep_tip=24.0,
+    te_curvature=0.0,
+    toe_root=0.0,
+    toe_tip=-1.5,
+    root_chord_scale=1.0,
+    tip_chord_scale=0.45,
+    tip_thickness_scale=0.7,
+)
+
+TIP_TREATMENT_TYPES: Final = ("flat", "round", "sharp", "winglet")
+
+_TIP_TREATMENT_DEFAULTS: Final[dict[str, TipCapParameters | WingletParameters | None]] = {
+    "flat": None,
+    "round": TIP_CAP_DEFAULTS,
+    "sharp": TIP_CAP_DEFAULTS,
+    "winglet": WINGLET_DEFAULTS,
+}
+
+
+def new_tip_treatment(tip_type: str, current: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    """Return a complete ``tip_treatment`` of ``tip_type`` with every parameter explicit.
+
+    Switching between tip types that share their parameters (round and sharp) keeps the
+    values of ``current``; any other switch writes the new type's defaults.
+    """
+    defaults = _type_defaults(tip_type)
+    if defaults is None:
+        return {"type": tip_type}
+    if current is not None and _type_defaults(current["type"]) is defaults:
+        return {"type": tip_type, **{key: current[key] for key in asdict(defaults)}}
+    return {"type": tip_type, **asdict(defaults)}
+
+
+def tip_treatment_type(geometry: Mapping[str, Any]) -> str:
+    """Return the validated tip type of a lifting surface geometry.
+
+    A geometry without ``tip_treatment`` has a flat tip. A present ``tip_treatment`` must
+    hold exactly the parameters of its type.
+    """
+    tip_treatment = geometry.get("tip_treatment")
+    if tip_treatment is None:
+        return "flat"
+    if not isinstance(tip_treatment, Mapping):
+        raise ValueError(f"Tip treatment must be an object, got {tip_treatment!r}")
+    if "type" not in tip_treatment:
+        raise ValueError("Tip treatment is missing 'type'")
+    tip_type = tip_treatment["type"]
+    defaults = _type_defaults(tip_type)
+    expected = set(asdict(defaults)) if defaults is not None else set()
+    present = _parameter_keys(tip_treatment)
+    missing = sorted(expected - present)
+    if missing:
+        raise ValueError(f"{tip_type.capitalize()} tip treatment is missing {_key_list(missing)}")
+    unknown = sorted(present - expected)
+    if unknown:
+        raise ValueError(f"{tip_type.capitalize()} tip treatment has unknown {_key_list(unknown)}")
+    if defaults is not None:
+        for field in fields(defaults):
+            _check_value_type(tip_type, field.name, tip_treatment[field.name], defaults)
+    return tip_type
+
+
+def tip_cap_parameters(geometry: Mapping[str, Any]) -> TipCapParameters:
+    """Return the tip cap parameters of a lifting surface with a round or sharp tip."""
+    tip_type = tip_treatment_type(geometry)
+    if tip_type not in ("round", "sharp"):
+        raise ValueError(f"Tip treatment {tip_type!r} is not a round or sharp tip cap")
+    tip_treatment = geometry["tip_treatment"]
+    return TipCapParameters(
+        **{field.name: float(tip_treatment[field.name]) for field in fields(TipCapParameters)}
+    )
+
+
+def winglet_parameters(geometry: Mapping[str, Any]) -> WingletParameters:
+    """Return the winglet parameters of a lifting surface with a winglet tip."""
+    tip_type = tip_treatment_type(geometry)
+    if tip_type != "winglet":
+        raise ValueError(f"Tip treatment {tip_type!r} is not a winglet")
+    tip_treatment = geometry["tip_treatment"]
+    values: dict[str, Any] = {}
+    for field in fields(WingletParameters):
+        value = tip_treatment[field.name]
+        values[field.name] = value if isinstance(value, bool) else float(value)
+    return WingletParameters(**values)
+
+
+def _type_defaults(tip_type: object) -> TipCapParameters | WingletParameters | None:
+    if not isinstance(tip_type, str) or tip_type not in _TIP_TREATMENT_DEFAULTS:
+        raise ValueError(
+            f"Unknown tip treatment type {tip_type!r}; expected one of {TIP_TREATMENT_TYPES}"
+        )
+    return _TIP_TREATMENT_DEFAULTS[tip_type]
+
+
+def _parameter_keys(tip_treatment: Mapping[str, Any]) -> set[str]:
+    return {str(key) for key in tip_treatment if key != "type"}
+
+
+def _key_list(keys: list[str]) -> str:
+    noun = "key" if len(keys) == 1 else "keys"
+    return f"{noun} " + ", ".join(repr(key) for key in keys)
+
+
+def _check_value_type(
+    tip_type: str,
+    key: str,
+    value: object,
+    defaults: TipCapParameters | WingletParameters,
+) -> None:
+    if isinstance(getattr(defaults, key), bool):
+        if not isinstance(value, bool):
+            raise ValueError(
+                f"{tip_type.capitalize()} tip treatment {key!r} must be true or false, "
+                f"got {value!r}"
+            )
+    elif isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(
+            f"{tip_type.capitalize()} tip treatment {key!r} must be a number, got {value!r}"
+        )
+
+
 def build_tip_cap_loft(
     comp_id: str,
     tip_profile: dict[str, Any],
-    tip_type: str = "round",
-    tip_length: float = 20.0,
-    offset_x: float = 0.0,
-    span_dir: float = 1.0,
-    le_sweep_slope: float = 0.0,
-    te_sweep_slope: float = 0.0,
-    twist_location: float = 0.25,
+    *,
+    tip_type: str,
+    cap: TipCapParameters,
+    span_dir: float,
+    le_sweep_slope: float,
+    te_sweep_slope: float,
+    twist_location: float,
 ) -> LoftGeometry | None:
     """Generate a smooth, aerodynamic G1-conformal bullnose or beveled edge cap mesh."""
-    if tip_type not in ("round", "sharp") or tip_length <= 0.0:
+    if tip_type not in ("round", "sharp") or cap.length <= 0.0:
         return None
+    tip_length = cap.length
+    offset_x = cap.offset_x
 
     chord = number(tip_profile.get("chord"))
     if chord <= 0:
@@ -85,10 +256,7 @@ def build_tip_cap_loft(
 
 
 def compute_winglet_projected_dimensions(
-    winglet_height: float,
-    cant_root_deg: float,
-    cant_tip_deg: float,
-    blend_radius: float,
+    winglet: WingletParameters,
     n_pts: int = 50,
 ) -> tuple[float, float]:
     """Compute projected vertical height (delta Z) and span extension (delta Y) in mm.
@@ -96,12 +264,13 @@ def compute_winglet_projected_dimensions(
     Returns:
         tuple[float, float]: (delta_z_height_mm, delta_y_span_mm)
     """
+    winglet_height = winglet.winglet_height
     if winglet_height <= 0.0:
         return 0.0, 0.0
 
     u_vals = [0.5 * (1.0 - math.cos(math.pi * i / (n_pts - 1))) for i in range(n_pts)]
     cant_angles_rad = winglet_cant_angles(
-        u_vals, cant_root_deg, cant_tip_deg, blend_radius, winglet_height
+        u_vals, winglet.cant_root, winglet.cant_tip, winglet.blend_radius, winglet_height
     )
 
     delta_y = 0.0
@@ -120,39 +289,19 @@ def compute_winglet_projected_dimensions(
 def build_winglet_loft(
     comp_id: str,
     tip_profile: dict[str, Any],
-    span_dir: float = 1.0,
-    winglet_height: float = 130.0,
-    cant_angle_deg: float = 80.0,
-    cant_root_deg: float | None = 0.0,
-    cant_tip_deg: float | None = None,
-    blend_radius: float = 45.0,
-    match_wing_tangent: bool = True,
-    incoming_le_sweep_deg: float = 0.0,
-    incoming_te_sweep_deg: float = 0.0,
-    sweep_deg: float = 20.0,
-    sweep_root_deg: float | None = None,
-    sweep_tip_deg: float | None = None,
-    le_sweep_root_deg: float | None = None,
-    le_sweep_tip_deg: float | None = None,
-    le_curvature: float = 0.0,
-    te_sweep_root_deg: float | None = None,
-    te_sweep_tip_deg: float | None = None,
-    te_curvature: float = 0.0,
-    scimitar_offset: float = 0.0,
-    toe_angle_deg: float = 0.0,
-    toe_root_deg: float | None = None,
-    toe_tip_deg: float | None = None,
-    root_chord_scale: float = 1.0,
-    tip_chord_scale: float = 0.45,
-    tip_thickness_scale: float = 0.7,
-    taper_curve: float = 1.0,
-    twist_location: float = 0.25,
-    te_thickness: float = 0.0,
-    thickness_scale: float = 1.0,
-    camber_scale: float = 1.0,
+    winglet: WingletParameters,
+    *,
+    span_dir: float,
+    incoming_le_sweep_deg: float,
+    incoming_te_sweep_deg: float,
+    twist_location: float,
+    te_thickness: float,
+    thickness_scale: float,
+    camber_scale: float,
     n_stations: int = 24,
 ) -> LoftGeometry | None:
     """Generate a parametric curved winglet loft with G1 tangency and independent LE/TE curves."""
+    winglet_height = winglet.winglet_height
     if winglet_height <= 0.0:
         return None
 
@@ -170,31 +319,23 @@ def build_winglet_loft(
     )
     upper_b, lower_b = split_airfoil_upper_lower(coords)
 
-    c_tip = cant_tip_deg if cant_tip_deg is not None else cant_angle_deg
-    c_root = cant_root_deg if cant_root_deg is not None else 0.0
-
     le_s_root, le_s_tip, te_s_root, te_s_tip = winglet_sweep_angles(
-        sweep_deg,
-        sweep_root_deg,
-        sweep_tip_deg,
-        le_sweep_root_deg,
-        le_sweep_tip_deg,
-        te_sweep_root_deg,
-        te_sweep_tip_deg,
-        match_wing_tangent,
-        incoming_le_sweep_deg,
-        incoming_te_sweep_deg,
+        winglet, incoming_le_sweep_deg, incoming_te_sweep_deg
     )
 
-    le_curv_val = le_curvature + scimitar_offset
-    te_curv_val = te_curvature + (scimitar_offset * 0.4)
-
-    t_root = toe_root_deg if toe_root_deg is not None else toe_angle_deg
-    t_tip = toe_tip_deg if toe_tip_deg is not None else toe_angle_deg
+    le_curv_val = winglet.le_curvature
+    te_curv_val = winglet.te_curvature
+    t_root = winglet.toe_root
+    t_tip = winglet.toe_tip
+    root_chord_scale = winglet.root_chord_scale
+    tip_chord_scale = winglet.tip_chord_scale
+    tip_thickness_scale = winglet.tip_thickness_scale
 
     n_pts = max(n_stations, 20)
     u_vals = [0.5 * (1.0 - math.cos(math.pi * i / (n_pts - 1))) for i in range(n_pts)]
-    cant_angles_rad = winglet_cant_angles(u_vals, c_root, c_tip, blend_radius, winglet_height)
+    cant_angles_rad = winglet_cant_angles(
+        u_vals, winglet.cant_root, winglet.cant_tip, winglet.blend_radius, winglet_height
+    )
 
     y_offsets: list[float] = [0.0]
     z_offsets: list[float] = [0.0]
@@ -326,35 +467,19 @@ def build_winglet_loft(
 
 
 def winglet_sweep_angles(
-    sweep: float,
-    sweep_root: float | None,
-    sweep_tip: float | None,
-    leading_root: float | None,
-    leading_tip: float | None,
-    trailing_root: float | None,
-    trailing_tip: float | None,
-    match_tangent: bool,
+    winglet: WingletParameters,
     incoming_leading: float,
     incoming_trailing: float,
 ) -> tuple[float, float, float, float]:
-    leading_tip_value = leading_tip if leading_tip is not None else sweep_tip
-    if leading_tip_value is None:
-        leading_tip_value = sweep
+    """Return the winglet's (LE root, LE tip, TE root, TE tip) sweep angles in degrees.
 
-    leading_root_value = leading_root
-    if leading_root_value is None:
-        if match_tangent:
-            leading_root_value = incoming_leading
-        elif sweep_root is not None:
-            leading_root_value = sweep_root
-        else:
-            leading_root_value = sweep
-
-    trailing_root_value = trailing_root
-    if trailing_root_value is None:
-        trailing_root_value = incoming_trailing if match_tangent else leading_root_value * 0.7
-    trailing_tip_value = trailing_tip if trailing_tip is not None else leading_tip_value * 0.5
-    return leading_root_value, leading_tip_value, trailing_root_value, trailing_tip_value
+    A winglet matching the wing tangent continues the incoming wing edge sweeps at its root.
+    """
+    if winglet.match_wing_tangent:
+        leading_root, trailing_root = incoming_leading, incoming_trailing
+    else:
+        leading_root, trailing_root = winglet.le_sweep_root, winglet.te_sweep_root
+    return leading_root, winglet.le_sweep_tip, trailing_root, winglet.te_sweep_tip
 
 
 def winglet_cant_angles(
@@ -383,9 +508,18 @@ def winglet_cant_angles(
 
 
 __all__ = [
+    "TIP_CAP_DEFAULTS",
+    "TIP_TREATMENT_TYPES",
+    "WINGLET_DEFAULTS",
+    "TipCapParameters",
+    "WingletParameters",
     "build_tip_cap_loft",
     "build_winglet_loft",
     "compute_winglet_projected_dimensions",
+    "new_tip_treatment",
+    "tip_cap_parameters",
+    "tip_treatment_type",
     "winglet_cant_angles",
+    "winglet_parameters",
     "winglet_sweep_angles",
 ]

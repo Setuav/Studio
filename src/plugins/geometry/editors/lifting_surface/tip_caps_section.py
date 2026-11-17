@@ -2,12 +2,66 @@
 
 from __future__ import annotations
 
+from dataclasses import asdict
+from typing import NamedTuple
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QTableWidgetItem
 from shiboken6 import isValid
 
-from ...engine.lifting_surface_geometry import compute_winglet_projected_dimensions
+from ...engine.lifting_surface_tips import (
+    WingletParameters,
+    compute_winglet_projected_dimensions,
+    new_tip_treatment,
+    tip_cap_parameters,
+    tip_treatment_type,
+    winglet_parameters,
+)
 from .host import LiftingSurfaceEditorHost
+
+
+class _SpinField(NamedTuple):
+    key: str
+    label: str
+    min_val: float
+    max_val: float
+    step: float
+    decimals: int
+    suffix: str
+
+
+_TIP_CAP_FIELDS = (
+    _SpinField("length", "Tip Length", 0.0, 1e6, 2.0, 1, "mm"),
+    _SpinField("offset_x", "Tip Sweep Offset", -1e6, 1e6, 2.0, 1, "mm"),
+)
+
+_WINGLET_FIELDS = (
+    _SpinField("winglet_height", "Arc Span", 0.0, 5000.0, 10.0, 1, "mm"),
+    _SpinField("cant_root", "Cant Root", -90.0, 90.0, 5.0, 1, "°"),
+    _SpinField("cant_tip", "Cant Tip", -90.0, 90.0, 5.0, 1, "°"),
+    _SpinField("blend_radius", "Blend Radius", 0.0, 1000.0, 5.0, 1, "mm"),
+    _SpinField("le_sweep_root", "LE Sweep Root", -85.0, 85.0, 5.0, 1, "°"),
+    _SpinField("le_sweep_tip", "LE Sweep Tip", -85.0, 85.0, 5.0, 1, "°"),
+    _SpinField("le_curvature", "LE Curvature", -500.0, 500.0, 5.0, 1, "mm"),
+    _SpinField("te_sweep_root", "TE Sweep Root", -85.0, 85.0, 5.0, 1, "°"),
+    _SpinField("te_sweep_tip", "TE Sweep Tip", -85.0, 85.0, 5.0, 1, "°"),
+    _SpinField("te_curvature", "TE Curvature", -500.0, 500.0, 5.0, 1, "mm"),
+    _SpinField("toe_root", "Toe Root", -45.0, 45.0, 0.5, 1, "°"),
+    _SpinField("toe_tip", "Toe Tip", -45.0, 45.0, 0.5, 1, "°"),
+    _SpinField("root_chord_scale", "Root Chord Scale", 0.01, 5.0, 0.05, 2, "x"),
+    _SpinField("tip_chord_scale", "Tip Chord Scale", 0.01, 5.0, 0.05, 2, "x"),
+    _SpinField("tip_thickness_scale", "Tip Thickness Scale", 0.01, 5.0, 0.05, 2, "x"),
+)
+
+# Root sweeps a winglet takes from the wing edges while it matches the wing tangent.
+_TANGENT_ROOT_SWEEPS = frozenset({"le_sweep_root", "te_sweep_root"})
+
+_TIP_TYPE_OPTIONS = [
+    ("flat", "Flat"),
+    ("round", "Round (Dome)"),
+    ("sharp", "Sharp (Bevel)"),
+    ("winglet", "Winglet"),
+]
 
 
 class TipCapsSectionMixin(LiftingSurfaceEditorHost):
@@ -35,83 +89,30 @@ class TipCapsSectionMixin(LiftingSurfaceEditorHost):
         self.metric_height_val = None
         self.metric_span_val = None
         geom = self._geometry()
-        tip_treatment = geom.get("tip_treatment")
-        tip_treatment = tip_treatment if isinstance(tip_treatment, dict) else {}
-        tip_type = str(tip_treatment.get("type", "flat")).lower()
-        tip_length = float(tip_treatment.get("length", 20.0))
-        tip_offset_x = float(tip_treatment.get("offset_x", 0.0))
-        match_tangent = bool(tip_treatment.get("match_wing_tangent", True))
-        winglet_height = float(tip_treatment.get("winglet_height", 130.0))
+        tip_type = tip_treatment_type(geom)
 
-        # Cant
-        cant_tip_default = float(tip_treatment.get("cant_angle", 80.0))
-        cant_root = float(tip_treatment.get("cant_root", 0.0))
-        cant_tip = float(tip_treatment.get("cant_tip", cant_tip_default))
-        blend_radius = float(
-            tip_treatment.get("blend_radius", 45.0 if "blend_radius" in tip_treatment else 0.0)
-        )
+        winglet: WingletParameters | None = None
+        values: dict[str, float] = {}
+        spin_fields: tuple[_SpinField, ...] = ()
+        if tip_type in ("round", "sharp"):
+            values = asdict(tip_cap_parameters(geom))
+            spin_fields = _TIP_CAP_FIELDS
+        elif tip_type == "winglet":
+            winglet = winglet_parameters(geom)
+            values = asdict(winglet)
+            spin_fields = tuple(
+                field
+                for field in _WINGLET_FIELDS
+                if not (winglet.match_wing_tangent and field.key in _TANGENT_ROOT_SWEEPS)
+            )
 
-        # LE Sweep & Curvature
-        sweep_default = float(tip_treatment.get("winglet_sweep", 20.0))
-        le_sweep_root = float(
-            tip_treatment.get("le_sweep_root", tip_treatment.get("sweep_root", sweep_default))
-        )
-        le_sweep_tip = float(
-            tip_treatment.get("le_sweep_tip", tip_treatment.get("sweep_tip", 48.0))
-        )
-        le_curvature = float(
-            tip_treatment.get("le_curvature", tip_treatment.get("scimitar_offset", 0.0))
-        )
-
-        # TE Sweep & Curvature
-        te_sweep_root = float(tip_treatment.get("te_sweep_root", 15.0))
-        te_sweep_tip = float(tip_treatment.get("te_sweep_tip", 25.0))
-        te_curvature = float(tip_treatment.get("te_curvature", 0.0))
-
-        # Toe
-        toe_default = float(tip_treatment.get("toe_angle", 0.0))
-        toe_root = float(tip_treatment.get("toe_root", toe_default))
-        toe_tip = float(
-            tip_treatment.get("toe_tip", -1.5 if "toe_tip" not in tip_treatment else toe_default)
-        )
-
-        # Chords, Thickness & Taper
-        root_chord_scale = float(tip_treatment.get("root_chord_scale", 1.0))
-        tip_chord_scale = float(tip_treatment.get("tip_chord_scale", 0.45))
-        tip_thickness_scale = float(tip_treatment.get("tip_thickness_scale", 0.7))
-        taper_curve = float(tip_treatment.get("taper_curve", 1.0))
-
-        # Determine table rows based on tip_type
-        if tip_type == "flat":
-            definitions = [("tip_type", "Tip Cap Type")]
-        elif tip_type in ("round", "sharp"):
-            definitions = [
-                ("tip_type", "Tip Cap Type"),
-                ("tip_length", "Tip Length"),
-                ("tip_offset_x", "Tip Sweep Offset"),
-            ]
-        else:  # winglet
-            definitions = [
-                ("tip_type", "Tip Cap Type"),
-                ("match_wing_tangent", "Match Tangent"),
-                ("winglet_height", "Arc Span"),
-                ("winglet_projected_metrics", ""),
-                ("cant_root", "Cant Root"),
-                ("cant_tip", "Cant Tip"),
-                ("blend_radius", "Blend Radius"),
-                ("le_sweep_root", "LE Sweep Root"),
-                ("le_sweep_tip", "LE Sweep Tip"),
-                ("le_curvature", "LE Curvature"),
-                ("te_sweep_root", "TE Sweep Root"),
-                ("te_sweep_tip", "TE Sweep Tip"),
-                ("te_curvature", "TE Curvature"),
-                ("toe_root", "Toe Root"),
-                ("toe_tip", "Toe Tip"),
-                ("root_chord_scale", "Root Chord Scale"),
-                ("tip_chord_scale", "Tip Chord Scale"),
-                ("tip_thickness_scale", "Tip Thickness Scale"),
-                ("taper_curve", "Taper Exponent"),
-            ]
+        definitions = [("tip_type", "Tip Cap Type")]
+        if winglet is not None:
+            definitions.append(("match_wing_tangent", "Match Tangent"))
+        for field in spin_fields:
+            definitions.append((field.key, field.label))
+            if field.key == "winglet_height":
+                definitions.append(("winglet_projected_metrics", ""))
 
         # Re-initialize property table rows
         was_loading = self._loading
@@ -128,272 +129,83 @@ class TipCapsSectionMixin(LiftingSurfaceEditorHost):
                 self.tip_caps_table,
                 "tip_type",
                 tip_type,
-                [
-                    ("flat", "Flat"),
-                    ("round", "Round (Dome)"),
-                    ("sharp", "Sharp (Bevel)"),
-                    ("winglet", "Winglet"),
-                ],
+                _TIP_TYPE_OPTIONS,
                 self._on_tip_cap_type_changed,
             )
 
-            if tip_type in ("round", "sharp"):
+            for field in spin_fields:
                 self._set_property_spinbox(
                     self.tip_caps_table,
-                    "tip_length",
-                    tip_length,
-                    min_val=0.0,
-                    step=2.0,
-                    decimals=1,
-                    suffix="mm",
-                    on_changed=lambda val: self._on_tip_cap_spinbox_changed("tip_length", val),
-                )
-                self._set_property_spinbox(
-                    self.tip_caps_table,
-                    "tip_offset_x",
-                    tip_offset_x,
-                    step=2.0,
-                    decimals=1,
-                    suffix="mm",
-                    on_changed=lambda val: self._on_tip_cap_spinbox_changed("tip_offset_x", val),
+                    field.key,
+                    values[field.key],
+                    min_val=field.min_val,
+                    max_val=field.max_val,
+                    step=field.step,
+                    decimals=field.decimals,
+                    suffix=field.suffix,
+                    on_changed=lambda val, key=field.key: self._on_tip_cap_spinbox_changed(
+                        key, val
+                    ),
                 )
 
-            if tip_type == "winglet":
+            if winglet is not None:
                 self._set_property_combo(
                     self.tip_caps_table,
                     "match_wing_tangent",
-                    "true" if match_tangent else "false",
+                    "true" if winglet.match_wing_tangent else "false",
                     [
                         ("true", "Yes (Continuous Tangent)"),
                         ("false", "No (Manual Angle)"),
                     ],
                     self._on_match_wing_tangent_changed,
                 )
-                self._set_property_spinbox(
-                    self.tip_caps_table,
-                    "winglet_height",
-                    winglet_height,
-                    min_val=0.0,
-                    max_val=5000.0,
-                    step=10.0,
-                    decimals=1,
-                    suffix="mm",
-                    on_changed=lambda val: self._on_tip_cap_spinbox_changed("winglet_height", val),
-                )
-                self._set_property_spinbox(
-                    self.tip_caps_table,
-                    "cant_root",
-                    cant_root,
-                    min_val=-90.0,
-                    max_val=90.0,
-                    step=5.0,
-                    decimals=1,
-                    suffix="°",
-                    on_changed=lambda val: self._on_tip_cap_spinbox_changed("cant_root", val),
-                )
-                self._set_property_spinbox(
-                    self.tip_caps_table,
-                    "cant_tip",
-                    cant_tip,
-                    min_val=-90.0,
-                    max_val=90.0,
-                    step=5.0,
-                    decimals=1,
-                    suffix="°",
-                    on_changed=lambda val: self._on_tip_cap_spinbox_changed("cant_tip", val),
-                )
-                self._set_property_spinbox(
-                    self.tip_caps_table,
-                    "blend_radius",
-                    blend_radius,
-                    min_val=0.0,
-                    max_val=1000.0,
-                    step=5.0,
-                    decimals=1,
-                    suffix="mm",
-                    on_changed=lambda val: self._on_tip_cap_spinbox_changed("blend_radius", val),
-                )
-                self._set_property_spinbox(
-                    self.tip_caps_table,
-                    "le_sweep_root",
-                    le_sweep_root,
-                    min_val=-85.0,
-                    max_val=85.0,
-                    step=5.0,
-                    decimals=1,
-                    suffix="°",
-                    on_changed=lambda val: self._on_tip_cap_spinbox_changed("le_sweep_root", val),
-                )
-                self._set_property_spinbox(
-                    self.tip_caps_table,
-                    "le_sweep_tip",
-                    le_sweep_tip,
-                    min_val=-85.0,
-                    max_val=85.0,
-                    step=5.0,
-                    decimals=1,
-                    suffix="°",
-                    on_changed=lambda val: self._on_tip_cap_spinbox_changed("le_sweep_tip", val),
-                )
-                self._set_property_spinbox(
-                    self.tip_caps_table,
-                    "le_curvature",
-                    le_curvature,
-                    min_val=-500.0,
-                    max_val=500.0,
-                    step=5.0,
-                    decimals=1,
-                    suffix="mm",
-                    on_changed=lambda val: self._on_tip_cap_spinbox_changed("le_curvature", val),
-                )
-                self._set_property_spinbox(
-                    self.tip_caps_table,
-                    "te_sweep_root",
-                    te_sweep_root,
-                    min_val=-85.0,
-                    max_val=85.0,
-                    step=5.0,
-                    decimals=1,
-                    suffix="°",
-                    on_changed=lambda val: self._on_tip_cap_spinbox_changed("te_sweep_root", val),
-                )
-                self._set_property_spinbox(
-                    self.tip_caps_table,
-                    "te_sweep_tip",
-                    te_sweep_tip,
-                    min_val=-85.0,
-                    max_val=85.0,
-                    step=5.0,
-                    decimals=1,
-                    suffix="°",
-                    on_changed=lambda val: self._on_tip_cap_spinbox_changed("te_sweep_tip", val),
-                )
-                self._set_property_spinbox(
-                    self.tip_caps_table,
-                    "te_curvature",
-                    te_curvature,
-                    min_val=-500.0,
-                    max_val=500.0,
-                    step=5.0,
-                    decimals=1,
-                    suffix="mm",
-                    on_changed=lambda val: self._on_tip_cap_spinbox_changed("te_curvature", val),
-                )
-                self._set_property_spinbox(
-                    self.tip_caps_table,
-                    "toe_root",
-                    toe_root,
-                    min_val=-45.0,
-                    max_val=45.0,
-                    step=0.5,
-                    decimals=1,
-                    suffix="°",
-                    on_changed=lambda val: self._on_tip_cap_spinbox_changed("toe_root", val),
-                )
-                self._set_property_spinbox(
-                    self.tip_caps_table,
-                    "toe_tip",
-                    toe_tip,
-                    min_val=-45.0,
-                    max_val=45.0,
-                    step=0.5,
-                    decimals=1,
-                    suffix="°",
-                    on_changed=lambda val: self._on_tip_cap_spinbox_changed("toe_tip", val),
-                )
-                self._set_property_spinbox(
-                    self.tip_caps_table,
-                    "root_chord_scale",
-                    root_chord_scale,
-                    min_val=0.01,
-                    max_val=5.0,
-                    step=0.05,
-                    decimals=2,
-                    suffix="x",
-                    on_changed=lambda val: self._on_tip_cap_spinbox_changed(
-                        "root_chord_scale", val
-                    ),
-                )
-                self._set_property_spinbox(
-                    self.tip_caps_table,
-                    "tip_chord_scale",
-                    tip_chord_scale,
-                    min_val=0.01,
-                    max_val=5.0,
-                    step=0.05,
-                    decimals=2,
-                    suffix="x",
-                    on_changed=lambda val: self._on_tip_cap_spinbox_changed("tip_chord_scale", val),
-                )
-                self._set_property_spinbox(
-                    self.tip_caps_table,
-                    "tip_thickness_scale",
-                    tip_thickness_scale,
-                    min_val=0.01,
-                    max_val=5.0,
-                    step=0.05,
-                    decimals=2,
-                    suffix="x",
-                    on_changed=lambda val: self._on_tip_cap_spinbox_changed(
-                        "tip_thickness_scale", val
-                    ),
-                )
-                self._set_property_spinbox(
-                    self.tip_caps_table,
-                    "taper_curve",
-                    taper_curve,
-                    min_val=0.1,
-                    max_val=10.0,
-                    step=0.1,
-                    decimals=2,
-                    suffix="x",
-                    on_changed=lambda val: self._on_tip_cap_spinbox_changed("taper_curve", val),
-                )
-
-                # Two-column single-row live metric widgets: | Height: h_val | Span: s_val |
-                metrics_row = -1
-                for r in range(self.tip_caps_table.rowCount()):
-                    if self._property_key(self.tip_caps_table, r) == "winglet_projected_metrics":
-                        metrics_row = r
-                        break
-
-                if metrics_row >= 0:
-                    self.metric_height_widget = QFrame()
-                    h_layout = QHBoxLayout(self.metric_height_widget)
-                    h_layout.setContentsMargins(6, 0, 6, 0)
-                    h_layout.setSpacing(6)
-
-                    self.lbl_metric_h_tag = QLabel("Height:")
-                    self.metric_height_val = QLabel("0.0 mm")
-                    h_layout.addWidget(self.lbl_metric_h_tag)
-                    h_layout.addWidget(self.metric_height_val)
-                    h_layout.addStretch()
-
-                    self.metric_span_widget = QFrame()
-                    s_layout = QHBoxLayout(self.metric_span_widget)
-                    s_layout.setContentsMargins(6, 0, 6, 0)
-                    s_layout.setSpacing(6)
-
-                    self.lbl_metric_span_tag = QLabel("Span:")
-                    self.metric_span_val = QLabel("0.0 mm")
-                    s_layout.addWidget(self.lbl_metric_span_tag)
-                    s_layout.addWidget(self.metric_span_val)
-                    s_layout.addStretch()
-
-                    val_item = QTableWidgetItem("")
-                    val_item.setFlags(val_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                    self.tip_caps_table.setItem(metrics_row, 1, val_item)
-
-                    self.tip_caps_table.setCellWidget(metrics_row, 0, self.metric_height_widget)
-                    self.tip_caps_table.setCellWidget(metrics_row, 1, self.metric_span_widget)
-
-                self._update_winglet_projected_display(tip_treatment)
+                self._create_winglet_metrics_row()
+                self._update_winglet_projected_display(winglet)
 
             self._fit_table_height(self.tip_caps_table, len(definitions))
         finally:
             self._loading = was_loading
 
-    def _update_winglet_projected_display(self, tip_treatment: dict) -> None:
+    def _create_winglet_metrics_row(self) -> None:
+        """Place the two-column live metric widgets: | Height: h_val | Span: s_val |."""
+        metrics_row = -1
+        for r in range(self.tip_caps_table.rowCount()):
+            if self._property_key(self.tip_caps_table, r) == "winglet_projected_metrics":
+                metrics_row = r
+                break
+        if metrics_row < 0:
+            return
+
+        self.metric_height_widget = QFrame()
+        h_layout = QHBoxLayout(self.metric_height_widget)
+        h_layout.setContentsMargins(6, 0, 6, 0)
+        h_layout.setSpacing(6)
+
+        self.lbl_metric_h_tag = QLabel("Height:")
+        self.metric_height_val = QLabel("0.0 mm")
+        h_layout.addWidget(self.lbl_metric_h_tag)
+        h_layout.addWidget(self.metric_height_val)
+        h_layout.addStretch()
+
+        self.metric_span_widget = QFrame()
+        s_layout = QHBoxLayout(self.metric_span_widget)
+        s_layout.setContentsMargins(6, 0, 6, 0)
+        s_layout.setSpacing(6)
+
+        self.lbl_metric_span_tag = QLabel("Span:")
+        self.metric_span_val = QLabel("0.0 mm")
+        s_layout.addWidget(self.lbl_metric_span_tag)
+        s_layout.addWidget(self.metric_span_val)
+        s_layout.addStretch()
+
+        val_item = QTableWidgetItem("")
+        val_item.setFlags(val_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+        self.tip_caps_table.setItem(metrics_row, 1, val_item)
+
+        self.tip_caps_table.setCellWidget(metrics_row, 0, self.metric_height_widget)
+        self.tip_caps_table.setCellWidget(metrics_row, 1, self.metric_span_widget)
+
+    def _update_winglet_projected_display(self, winglet: WingletParameters) -> None:
         height_label = getattr(self, "metric_height_val", None)
         span_label = getattr(self, "metric_span_val", None)
         if (
@@ -403,16 +215,7 @@ class TipCapsSectionMixin(LiftingSurfaceEditorHost):
             or not isValid(span_label)
         ):
             return
-        winglet_height = float(tip_treatment.get("winglet_height", 130.0))
-        cant_tip_default = float(tip_treatment.get("cant_angle", 80.0))
-        cant_root = float(tip_treatment.get("cant_root", 0.0))
-        cant_tip = float(tip_treatment.get("cant_tip", cant_tip_default))
-        blend_radius = float(
-            tip_treatment.get("blend_radius", 45.0 if "blend_radius" in tip_treatment else 0.0)
-        )
-        h_proj, s_proj = compute_winglet_projected_dimensions(
-            winglet_height, cant_root, cant_tip, blend_radius
-        )
+        h_proj, s_proj = compute_winglet_projected_dimensions(winglet)
         height_label.setText(f"{h_proj:.1f} mm")
         span_label.setText(f"{s_proj:.1f} mm")
 
@@ -420,10 +223,10 @@ class TipCapsSectionMixin(LiftingSurfaceEditorHost):
         if self._loading:
             return
         geom = self._geometry()
-        tip_treatment = geom.setdefault("tip_treatment", {})
+        current = geom.get("tip_treatment")
 
         def change() -> None:
-            tip_treatment["type"] = new_type
+            geom["tip_treatment"] = new_tip_treatment(new_type, current)
 
         self._edit_component(f"Set tip cap to {new_type}", change)
         self._load_tip_caps()
@@ -431,8 +234,7 @@ class TipCapsSectionMixin(LiftingSurfaceEditorHost):
     def _on_match_wing_tangent_changed(self, val_str: str) -> None:
         if self._loading:
             return
-        geom = self._geometry()
-        tip_treatment = geom.setdefault("tip_treatment", {})
+        tip_treatment = self._geometry()["tip_treatment"]
         val_bool = val_str.lower() == "true"
 
         def change() -> None:
@@ -445,16 +247,14 @@ class TipCapsSectionMixin(LiftingSurfaceEditorHost):
         if self._loading:
             return
         geom = self._geometry()
-        tip_treatment = geom.setdefault("tip_treatment", {})
-        dict_key = (
-            "length" if key == "tip_length" else ("offset_x" if key == "tip_offset_x" else key)
-        )
+        tip_treatment = geom["tip_treatment"]
 
         def change() -> None:
-            tip_treatment[dict_key] = value
+            tip_treatment[key] = value
 
-        self._edit_component(f"Change tip cap {dict_key}", change)
-        self._update_winglet_projected_display(tip_treatment)
+        self._edit_component(f"Change tip cap {key}", change)
+        if tip_treatment_type(geom) == "winglet":
+            self._update_winglet_projected_display(winglet_parameters(geom))
 
     def _on_tip_cap_cell_edited(self, row: int, column: int) -> None:
         pass

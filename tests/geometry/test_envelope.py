@@ -671,14 +671,15 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         self.assertAlmostEqual(max(ys_sharp), 620.0, delta=1.0)
 
     def test_lifting_surface_winglet_envelope_lines(self) -> None:
+        from plugins.geometry.engine.lifting_surface_tips import new_tip_treatment
         from plugins.geometry.engine.scene import _append_lifting_surface_tip_envelope_lines
         from plugins.geometry.engine.transforms import identity_matrix
 
         wing_wl = _sample_wing(mirror=False)
         wing_wl["parameters"]["geometry"]["tip_treatment"] = {
-            "type": "winglet",
+            **new_tip_treatment("winglet"),
             "winglet_height": 80.0,
-            "cant_angle": 60.0,
+            "cant_tip": 60.0,
         }
         lines: list[tuple[Any, Any]] = []
         _append_lifting_surface_tip_envelope_lines(lines, wing_wl, identity_matrix())

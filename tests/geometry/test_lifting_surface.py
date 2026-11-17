@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 import unittest
 from copy import deepcopy
+from dataclasses import asdict, fields, replace
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +15,14 @@ from plugins.geometry.engine.data import GeometryData, LoftGeometry, Section
 from plugins.geometry.engine.fuselage_geometry import build_fuselage_geometry
 from plugins.geometry.engine.lifting_surface_geometry import (
     build_lifting_surface_geometry,
+)
+from plugins.geometry.engine.lifting_surface_tips import (
+    TIP_CAP_DEFAULTS,
+    WINGLET_DEFAULTS,
+    WingletParameters,
+    build_winglet_loft,
+    winglet_parameters,
+    winglet_sweep_angles,
 )
 from plugins.geometry.engine.scene import build_project_geometry
 from setuav_studio.project import ProjectDocument, open_project
@@ -531,6 +540,7 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
                         "tip_treatment": {
                             "type": tip_t,
                             "length": 30.0,
+                            "offset_x": 0.0,
                         },
                     }
                 },
@@ -815,30 +825,36 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
         api._host.set_project(doc)
 
         editor = LiftingSurfaceEditor(api, wing_comp)
-        # Default tip cap is flat — table has 1 row: tip_type
+        # A wing without tip treatment has a flat tip — table has 1 row: tip_type
         self.assertEqual(editor.tip_caps_table.rowCount(), 1)
-        self.assertEqual(
-            wing_comp["parameters"]["geometry"].get("tip_treatment", {}).get("type", "flat"), "flat"
-        )
+        self.assertNotIn("tip_treatment", wing_comp["parameters"]["geometry"])
 
-        # Change tip cap type to round via UI (expands to 3 rows)
+        # Change tip cap type to round via UI (expands to 3 rows, writes every cap parameter)
         editor._on_tip_cap_type_changed("round")
         self.assertEqual(editor.tip_caps_table.rowCount(), 3)
-        self.assertEqual(wing_comp["parameters"]["geometry"]["tip_treatment"]["type"], "round")
+        self.assertEqual(
+            wing_comp["parameters"]["geometry"]["tip_treatment"],
+            {"type": "round", **asdict(TIP_CAP_DEFAULTS)},
+        )
 
         # Edit tip length
-        for r in range(editor.tip_caps_table.rowCount()):
-            if editor._property_key(editor.tip_caps_table, r) == "tip_length":
-                spin = editor.tip_caps_table.cellWidget(r, 1)
-                if isinstance(spin, ExpressionPropertyCell):
-                    spin.setValue(35.0)
-                else:
-                    editor._on_tip_cap_spinbox_changed("tip_length", 35.0)
-                break
+        length_row = self._tip_caps_rows(editor)["length"]
+        cell_widget(editor.tip_caps_table, length_row, 1, ExpressionPropertyCell).setValue(35.0)
         self.assertAlmostEqual(wing_comp["parameters"]["geometry"]["tip_treatment"]["length"], 35.0)
+
+        # Round and sharp share their parameters, so switching keeps the edited length
+        editor._on_tip_cap_type_changed("sharp")
+        self.assertEqual(
+            wing_comp["parameters"]["geometry"]["tip_treatment"],
+            {"type": "sharp", "length": 35.0, "offset_x": 0.0},
+        )
 
         # Switch to winglet and edit winglet parameters directly via UI
         editor._on_tip_cap_type_changed("winglet")
+        self.assertEqual(
+            wing_comp["parameters"]["geometry"]["tip_treatment"],
+            {"type": "winglet", **asdict(WINGLET_DEFAULTS)},
+        )
         editor._on_tip_cap_spinbox_changed("le_sweep_root", 25.0)
         editor._on_tip_cap_spinbox_changed("le_sweep_tip", 55.0)
         editor._on_tip_cap_spinbox_changed("le_curvature", 10.0)
@@ -869,10 +885,58 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
         self.assertIsNotNone(editor.tip_caps_table.cellWidget(m_row, 0))
         self.assertIsNotNone(editor.tip_caps_table.cellWidget(m_row, 1))
 
+    @staticmethod
+    def _tip_caps_rows(editor: Any) -> dict[str, int]:
+        table = editor.tip_caps_table
+        return {editor._property_key(table, row): row for row in range(table.rowCount())}
+
+    @staticmethod
+    def _winglet_wing(tip_treatment: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "id": "main-wing",
+            "name": "Main Wing",
+            "type": "org.setuav.core:lifting-surface",
+            "parameters": {
+                "geometry": {
+                    "profiles": [
+                        {
+                            "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+                            "chord": 200.0,
+                            "airfoil": "0012",
+                        },
+                        {
+                            "position": {"x": 60.0, "y": 500.0, "z": 0.0},
+                            "chord": 120.0,
+                            "airfoil": "0012",
+                        },
+                    ],
+                    "tip_treatment": tip_treatment,
+                }
+            },
+        }
+
+    @staticmethod
+    def _winglet_loft(
+        tip_profile: dict[str, Any],
+        winglet: WingletParameters,
+        incoming_le_sweep_deg: float = 0.0,
+        incoming_te_sweep_deg: float = 0.0,
+    ) -> LoftGeometry | None:
+        return build_winglet_loft(
+            comp_id="wing",
+            tip_profile=tip_profile,
+            winglet=winglet,
+            span_dir=1.0,
+            incoming_le_sweep_deg=incoming_le_sweep_deg,
+            incoming_te_sweep_deg=incoming_te_sweep_deg,
+            twist_location=0.25,
+            te_thickness=0.0,
+            thickness_scale=1.0,
+            camber_scale=1.0,
+        )
+
     def test_winglet_geometry(self) -> None:
         """Verify build_winglet_loft generates correct curved/scimitar geometry."""
-        from plugins.geometry.engine.lifting_surface_tips import build_winglet_loft
-
         tip_profile = {
             "chord": 100.0,
             "airfoil": "0012",
@@ -880,18 +944,22 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
             "rotation": {"x": 0.0, "y": 0.0, "z": 0.0},
         }
 
-        # Basic vertical winglet (cant=90°)
-        loft = build_winglet_loft(
-            comp_id="wing",
-            tip_profile=tip_profile,
-            span_dir=1.0,
-            winglet_height=100.0,
-            cant_angle_deg=90.0,
-            sweep_deg=30.0,
-            toe_angle_deg=0.0,
-            root_chord_scale=1.0,
-            tip_chord_scale=0.5,
-            n_stations=24,
+        # Winglet canting from the wing plane to vertical (cant tip 90°)
+        loft = self._winglet_loft(
+            tip_profile,
+            replace(
+                WINGLET_DEFAULTS,
+                winglet_height=100.0,
+                cant_root=0.0,
+                cant_tip=90.0,
+                blend_radius=45.0,
+                le_sweep_tip=30.0,
+                te_sweep_tip=15.0,
+                toe_root=0.0,
+                toe_tip=0.0,
+                root_chord_scale=1.0,
+                tip_chord_scale=0.5,
+            ),
         )
         self.assertIsNotNone(loft)
         assert loft is not None
@@ -914,29 +982,29 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
         self.assertGreater(max(tip_zs), max(root_zs))
 
         # Zero winglet_height → None
-        none_loft = build_winglet_loft(comp_id="wing", tip_profile=tip_profile, winglet_height=0.0)
+        none_loft = self._winglet_loft(tip_profile, replace(WINGLET_DEFAULTS, winglet_height=0.0))
         self.assertIsNone(none_loft)
 
         # Curved scimitar winglet with independent LE/TE curves and thickness taper
-        scimitar_loft = build_winglet_loft(
-            comp_id="wing",
-            tip_profile=tip_profile,
-            winglet_height=140.0,
-            cant_root_deg=0.0,
-            cant_tip_deg=85.0,
-            blend_radius=50.0,
-            match_wing_tangent=True,
+        scimitar_loft = self._winglet_loft(
+            tip_profile,
+            replace(
+                WINGLET_DEFAULTS,
+                winglet_height=140.0,
+                cant_root=0.0,
+                cant_tip=85.0,
+                blend_radius=50.0,
+                match_wing_tangent=True,
+                le_sweep_tip=55.0,
+                le_curvature=10.0,
+                te_sweep_tip=-15.0,
+                te_curvature=-8.0,
+                toe_root=0.0,
+                toe_tip=-2.0,
+                tip_thickness_scale=0.6,
+            ),
             incoming_le_sweep_deg=10.0,
             incoming_te_sweep_deg=5.0,
-            le_sweep_tip_deg=55.0,
-            le_curvature=10.0,
-            te_sweep_tip_deg=-15.0,
-            te_curvature=-8.0,
-            toe_root_deg=0.0,
-            toe_tip_deg=-2.0,
-            tip_thickness_scale=0.6,
-            taper_curve=0.85,
-            n_stations=24,
         )
         self.assertIsNotNone(scimitar_loft)
         assert scimitar_loft is not None
@@ -954,6 +1022,165 @@ class LiftingSurfaceGeometryTests(unittest.TestCase):
             p[2] for p in scimitar_loft.sections[0].points
         )
         self.assertGreater(root_thickness_z, 5.0)
+
+    def test_winglet_editor_shows_the_values_the_preview_draws(self) -> None:
+        """Every winglet value the editor displays is the one the preview builds from."""
+        from plugins.geometry.editors.lifting_surface import LiftingSurfaceEditor
+        from setuav_studio.api import StudioAPI
+
+        winglet = WingletParameters(
+            winglet_height=110.0,
+            match_wing_tangent=False,
+            cant_root=10.0,
+            cant_tip=70.0,
+            blend_radius=35.0,
+            le_sweep_root=25.0,
+            le_sweep_tip=50.0,
+            le_curvature=4.0,
+            te_sweep_root=12.0,
+            te_sweep_tip=18.0,
+            te_curvature=-3.0,
+            toe_root=1.0,
+            toe_tip=-2.5,
+            root_chord_scale=0.9,
+            tip_chord_scale=0.4,
+            tip_thickness_scale=0.65,
+        )
+        wing_comp = self._winglet_wing({"type": "winglet", **asdict(winglet)})
+        api = StudioAPI()
+        doc = ProjectDocument(Path("/tmp/test_winglet.json"), "json", {"components": [wing_comp]})
+        api._host.set_project(doc)
+        editor = LiftingSurfaceEditor(api, wing_comp)
+        table = editor.tip_caps_table
+
+        rows = self._tip_caps_rows(editor)
+        winglet_keys = {field.name for field in fields(WingletParameters)}
+        self.assertEqual(
+            set(rows) - {"tip_type", "winglet_projected_metrics"},
+            winglet_keys,
+        )
+        displayed: dict[str, Any] = {
+            key: cell_widget(table, row, 1, ExpressionPropertyCell).value()
+            for key, row in rows.items()
+            if key in winglet_keys - {"match_wing_tangent"}
+        }
+        displayed["match_wing_tangent"] = (
+            cell_widget(table, rows["match_wing_tangent"], 1, QComboBox).currentData() == "true"
+        )
+        shown = WingletParameters(**displayed)
+        self.assertEqual(shown, winglet_parameters(wing_comp["parameters"]["geometry"]))
+
+        # The preview loft is exactly the winglet built from the displayed values
+        preview = build_lifting_surface_geometry(wing_comp)[-1]
+        tip_profile = wing_comp["parameters"]["geometry"]["profiles"][-1]
+        from_editor = self._winglet_loft(tip_profile, shown)
+        assert from_editor is not None
+        self.assertEqual(preview.component_id, "main-wing:winglet")
+        self.assertEqual(preview.sections, from_editor.sections)
+
+    def test_switching_to_winglet_writes_every_parameter_in_one_undo_step(self) -> None:
+        from plugins.geometry.editors.lifting_surface import LiftingSurfaceEditor
+        from setuav_studio.api import StudioAPI
+
+        wing_comp = self._winglet_wing({"type": "round", "length": 30.0, "offset_x": 2.0})
+        api = StudioAPI()
+        doc = ProjectDocument(Path("/tmp/test_winglet.json"), "json", {"components": [wing_comp]})
+        api._host.set_project(doc)
+        editor = LiftingSurfaceEditor(api, wing_comp)
+        geometry = wing_comp["parameters"]["geometry"]
+
+        editor._on_tip_cap_type_changed("winglet")
+        tip_treatment = geometry["tip_treatment"]
+        self.assertEqual(
+            set(tip_treatment), {"type"} | {field.name for field in fields(WingletParameters)}
+        )
+        self.assertEqual(tip_treatment, {"type": "winglet", **asdict(WINGLET_DEFAULTS)})
+
+        api.undo()
+        self.assertEqual(
+            geometry["tip_treatment"], {"type": "round", "length": 30.0, "offset_x": 2.0}
+        )
+        api.redo()
+        self.assertEqual(geometry["tip_treatment"], {"type": "winglet", **asdict(WINGLET_DEFAULTS)})
+
+    def test_winglet_match_wing_tangent(self) -> None:
+        """Matched winglets continue the wing edges; unmatched ones use their root sweeps."""
+        from plugins.geometry.editors.lifting_surface import LiftingSurfaceEditor
+        from setuav_studio.api import StudioAPI
+
+        winglet = replace(
+            WINGLET_DEFAULTS,
+            le_sweep_root=30.0,
+            le_sweep_tip=50.0,
+            te_sweep_root=-10.0,
+            te_sweep_tip=20.0,
+        )
+        self.assertEqual(
+            winglet_sweep_angles(replace(winglet, match_wing_tangent=True), 7.0, 3.0),
+            (7.0, 50.0, 3.0, 20.0),
+        )
+        self.assertEqual(
+            winglet_sweep_angles(replace(winglet, match_wing_tangent=False), 7.0, 3.0),
+            (30.0, 50.0, -10.0, 20.0),
+        )
+
+        def winglet_sections(match: bool, le_root: float, te_root: float) -> Any:
+            tip_treatment = {
+                "type": "winglet",
+                **asdict(winglet),
+                "match_wing_tangent": match,
+                "le_sweep_root": le_root,
+                "te_sweep_root": te_root,
+            }
+            return build_lifting_surface_geometry(self._winglet_wing(tip_treatment))[-1].sections
+
+        # Matched: the root sweeps are not used
+        self.assertEqual(winglet_sections(True, 30.0, -10.0), winglet_sections(True, 0.0, 15.0))
+        # Unmatched: the root sweeps shape the winglet
+        self.assertNotEqual(
+            winglet_sections(False, 30.0, -10.0), winglet_sections(False, 0.0, 15.0)
+        )
+
+        # The editor hides the root sweeps while the winglet matches the wing tangent
+        wing_comp = self._winglet_wing({"type": "winglet", **asdict(winglet)})
+        api = StudioAPI()
+        doc = ProjectDocument(Path("/tmp/test_winglet.json"), "json", {"components": [wing_comp]})
+        api._host.set_project(doc)
+        editor = LiftingSurfaceEditor(api, wing_comp)
+        self.assertNotIn("le_sweep_root", self._tip_caps_rows(editor))
+        self.assertNotIn("te_sweep_root", self._tip_caps_rows(editor))
+
+        editor._on_match_wing_tangent_changed("false")
+        self.assertFalse(wing_comp["parameters"]["geometry"]["tip_treatment"]["match_wing_tangent"])
+        rows = self._tip_caps_rows(editor)
+        table = editor.tip_caps_table
+        self.assertEqual(
+            cell_widget(table, rows["le_sweep_root"], 1, ExpressionPropertyCell).value(), 30.0
+        )
+        self.assertEqual(
+            cell_widget(table, rows["te_sweep_root"], 1, ExpressionPropertyCell).value(), -10.0
+        )
+
+    def test_tip_treatment_must_hold_exactly_its_parameters(self) -> None:
+        winglet = {"type": "winglet", **asdict(WINGLET_DEFAULTS)}
+
+        missing = {key: value for key, value in winglet.items() if key != "toe_tip"}
+        with self.assertRaisesRegex(ValueError, "Winglet tip treatment is missing key 'toe_tip'"):
+            build_lifting_surface_geometry(self._winglet_wing(missing))
+
+        with self.assertRaisesRegex(
+            ValueError, "Winglet tip treatment has unknown key 'cant_angle'"
+        ):
+            build_lifting_surface_geometry(self._winglet_wing({**winglet, "cant_angle": 50.0}))
+
+        with self.assertRaisesRegex(ValueError, "'match_wing_tangent' must be true or false"):
+            winglet_parameters({"tip_treatment": {**winglet, "match_wing_tangent": 1}})
+
+        with self.assertRaisesRegex(ValueError, "Round tip treatment is missing key 'offset_x'"):
+            build_lifting_surface_geometry(self._winglet_wing({"type": "round", "length": 20.0}))
+
+        with self.assertRaisesRegex(ValueError, "Unknown tip treatment type 'bevel'"):
+            build_lifting_surface_geometry(self._winglet_wing({"type": "bevel"}))
 
 
 if __name__ == "__main__":
