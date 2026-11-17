@@ -83,6 +83,11 @@ class BatteryEditor(PropertyTableMixin, QWidget):
 
         self._content_layout.addStretch()
         self._load_battery()
+        api.on_project_content_changed(self._on_project_content_changed)
+
+    def _on_project_content_changed(self, _project: Any = None) -> None:
+        if not self._loading:
+            self._load_battery()
 
     def _create_section(self, title: str, icon_name: str | None = None) -> QVBoxLayout:
         section = QWidget()

@@ -77,8 +77,13 @@ class TransformEditor(PropertyTableMixin, QWidget):
 
         if self._component is not None:
             self._load_component(self._component)
+            api.on_project_content_changed(self._on_project_content_changed)
         else:
             self._set_enabled(False)
+
+    def _on_project_content_changed(self, _project: Any = None) -> None:
+        if not self._loading and self._component is not None:
+            self._load_component(self._component)
 
     def update_theme_style(self) -> None:
         for label, icon_name in self._section_icons:

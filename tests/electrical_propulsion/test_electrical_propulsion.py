@@ -318,6 +318,18 @@ class TestElectricalPropulsion(unittest.TestCase):
             api.undo()
         self.assertEqual(battery_comp, opened)
 
+    def test_battery_editor_follows_undo(self) -> None:
+        api, battery_comp, editor = self._battery_editor()
+        cell = editor._property_cell(editor.config_table, "cell_count")
+        assert cell is not None
+        cell.setValue(6)
+        self.assertEqual(battery_comp["parameters"]["cell_count"], 6)
+
+        api.undo()
+        cell = editor._property_cell(editor.config_table, "cell_count")
+        assert cell is not None
+        self.assertEqual(cell.line_edit.text(), "3")
+
     def test_battery_editor_chemistry_change_clears_overrides(self) -> None:
         from PySide6.QtCore import Qt
 

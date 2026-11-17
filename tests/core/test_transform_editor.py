@@ -61,6 +61,15 @@ class TransformEditorTests(unittest.TestCase):
         self.assertEqual(propulsor["attach_to"], "fuselage")
         self.assertEqual(propulsor["transform"]["position"]["x"], 850.0)
 
+    def test_editor_follows_undo(self) -> None:
+        propulsor, editor = self._editor("propulsor-cruise")
+        editor.position_spins["x"].setValue(900.0)
+        self.assertEqual(propulsor["transform"]["position"]["x"], 900.0)
+
+        self.api.undo()
+        self.assertEqual(propulsor["transform"]["position"]["x"], 850.0)
+        self.assertEqual(editor.position_spins["x"].line_edit.text(), "850.0")
+
     def test_targets_exclude_the_component_its_dependents_and_subparts(self) -> None:
         _wing, editor = self._editor("main-wing")
         combo = self._attach_combo(editor)
