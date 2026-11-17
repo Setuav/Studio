@@ -82,23 +82,6 @@ class AirframeDesignPluginLifecycleTests(unittest.TestCase):
         manager.deactivate(plugin.id)
         self.assertFalse(manager.is_active(plugin.id))
 
-    def test_on_project_opened_leaves_the_project_unchanged(self) -> None:
-        from pathlib import Path
-
-        from setuav_studio.project import ProjectDocument
-
-        api = StudioAPI()
-        plugin = AirframeDesignPlugin()
-        plugin.activate(api)
-
-        doc = ProjectDocument(Path("/tmp/test_proj.json"), "json", {"components": []})
-        api._host.set_project(doc)
-
-        plugin._on_project_opened()
-        self.assertEqual(doc.data["components"], [])
-
-        plugin.deactivate(api)
-
     def test_activate_after_native_registrations(self) -> None:
         from setuav_studio.ui.shell.native_registrations import register_native_contributions
 

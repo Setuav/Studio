@@ -1165,9 +1165,6 @@ class FuselageSectionDialog(QDialog):
 
         def apply_change() -> None:
             self._component.update(after_data)
-            from ...engine.envelope import sync_component_envelope
-
-            sync_component_envelope(self._component)
 
         self._api.edit_component(
             self._component,
@@ -1184,9 +1181,6 @@ class FuselageSectionDialog(QDialog):
 
         def ok_change() -> None:
             self._component.update(after_data)
-            from ...engine.envelope import sync_component_envelope
-
-            sync_component_envelope(self._component)
 
         self._api.edit_component(
             self._component,
@@ -1203,9 +1197,6 @@ class FuselageSectionDialog(QDialog):
             def cancel_change() -> None:
                 self._component.clear()
                 self._component.update(orig)
-                from ...engine.envelope import sync_component_envelope
-
-                sync_component_envelope(self._component)
 
             self._api.edit_component(
                 self._component,

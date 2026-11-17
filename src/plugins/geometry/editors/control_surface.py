@@ -560,10 +560,4 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
         return None
 
     def _edit_component(self, action_name: str, mutation: Callable[[], None]) -> None:
-        def wrapped() -> None:
-            mutation()
-            from ..engine.envelope import sync_component_envelope
-
-            sync_component_envelope(self._component, self._surface_component())
-
-        self._api.edit_component(self._component, action_name, wrapped)
+        self._api.edit_component(self._component, action_name, mutation)

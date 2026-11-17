@@ -17,6 +17,7 @@ from setuav_studio.ui.style.icons import get_icon
 
 from .contributions import (
     ActionContribution,
+    ComponentDeriver,
     ComponentTreeNodeContribution,
     ComponentTreeProvider,
     ComponentTypeContribution,
@@ -124,6 +125,7 @@ class StudioAPI:
         self._kind_icons: dict[str, str | Path | QIcon] = {}
         self._component_models: dict[str, Any] = {}
         self._component_tree_providers: dict[str, ComponentTreeProvider] = {}
+        self._component_derivers: dict[str, ComponentDeriver] = {}
         self._project_tree_providers: dict[str, ProjectTreeProvider] = {}
         self._project_requirement_checker: Callable[[dict[str, Any]], list[str]] | None = None
         self._event_subscribers: dict[str, list[Callable[[Any], None]]] = {}
@@ -780,6 +782,7 @@ class StudioAPI:
 
                 recompute_project_expressions(self._project, api=self)
                 self._show_expression_diagnostics()
+                self.derive_components()
             finally:
                 self._is_recomputing_expressions = False
 
@@ -1044,6 +1047,32 @@ class StudioAPI:
         if factory is not None:
             return factory(component)
         return GenericComponent(component)
+
+    def register_component_deriver(self, type_id: str, deriver: ComponentDeriver) -> None:
+        """Register how components of ``type_id`` derive data from their parameters.
+
+        Studio runs the deriver on every such component when a project opens and after
+        every change, undo and redo once formulas are evaluated, so derived data such as
+        envelopes follows parameters however they change.
+        """
+        if type_id in self._component_derivers:
+            raise ValueError(f"A component deriver is already registered for: {type_id}")
+        self._component_derivers[type_id] = deriver
+
+    def unregister_component_deriver(self, type_id: str) -> None:
+        """Unregister the deriver of a component type."""
+        self._component_derivers.pop(type_id, None)
+
+    def derive_components(self) -> None:
+        """Run the registered derivers on the components of the current project."""
+        if self._project is None or not self._component_derivers:
+            return
+        components = [c for c in self._project.data["components"] if isinstance(c, dict)]
+        by_id = {str(c["id"]): c for c in components}
+        for component in components:
+            deriver = self._component_derivers.get(str(component.get("type")))
+            if deriver is not None:
+                deriver(component, by_id)
 
     def register_component_tree_provider(
         self,

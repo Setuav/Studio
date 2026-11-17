@@ -27,7 +27,6 @@ from .envelope import (
     GEOMETRY_COMPONENT_TYPES,
     compute_geometry_envelope,
     sync_component_envelope,
-    sync_project_geometry_envelopes,
 )
 from .fuselage_geometry import (
     DEFAULT_PROFILES,
@@ -149,7 +148,6 @@ __all__ = [
     "solve_planform",
     "split_section",
     "sync_component_envelope",
-    "sync_project_geometry_envelopes",
     "sync_sizing_values",
     "transform_matrix",
     "transform_point",

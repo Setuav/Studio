@@ -12,7 +12,6 @@ from plugins.geometry.engine.envelope import (
     GEOMETRY_COMPONENT_TYPES,
     compute_geometry_envelope,
     sync_component_envelope,
-    sync_project_geometry_envelopes,
 )
 from plugins.geometry.engine.fuselage_geometry import sample_profile
 from setuav_studio.ui.editor.envelope import EnvelopeEditor
@@ -342,29 +341,37 @@ class GeometryEnvelopeTests(unittest.TestCase):
         changed_again = sync_component_envelope(wing)
         self.assertFalse(changed_again)
 
-    def test_sync_project_geometry_envelopes(self) -> None:
-        wing = _sample_wing()
-        fuse = _sample_fuselage()
-        cs = _sample_control_surface()
-        battery = {
-            "id": "battery-1",
-            "type": "org.setuav.core:battery",
-            "envelope": {"shape": "box", "size_mm": {"x": 100, "y": 50, "z": 30}},
-        }
-        project_data = {
-            "components": [fuse, wing, cs, battery],
-        }
+    def test_geometry_envelopes_follow_every_change(self) -> None:
+        from pathlib import Path
 
-        count = sync_project_geometry_envelopes(project_data)
-        self.assertEqual(count, 3)  # fuse, wing, cs updated; battery untouched
-        self.assertIn("envelope", fuse)
+        from plugins.geometry.plugin import AirframeDesignPlugin
+        from setuav_studio.api import StudioAPI
+        from setuav_studio.project import ProjectDocument
+
+        api = StudioAPI()
+        wing = _sample_wing()
+        cs = _sample_control_surface()
+        api._host.set_project(ProjectDocument(Path("t.json"), "json", {"components": [wing, cs]}))
+        plugin = AirframeDesignPlugin()
+        plugin.activate(api)
+        self.addCleanup(plugin.deactivate, api)
         self.assertIn("envelope", wing)
         self.assertIn("envelope", cs)
+        wing_size = dict(wing["envelope"]["size_mm"])
+        cs_size = dict(cs["envelope"]["size_mm"])
 
-    def test_empty_or_none_project_handled_safely(self) -> None:
-        self.assertEqual(sync_project_geometry_envelopes(None), 0)
-        self.assertEqual(sync_project_geometry_envelopes({}), 0)
-        self.assertEqual(sync_project_geometry_envelopes({"components": "not-a-list"}), 0)
+        def scale_chords() -> None:
+            for profile in wing["parameters"]["geometry"]["profiles"]:
+                profile["chord"] = 2.0 * float(profile["chord"])
+
+        # Editing the wing re-derives the wing and the control surface cut from it.
+        api.edit_component(wing, "Scale chords", scale_chords)
+        self.assertGreater(wing["envelope"]["size_mm"]["x"], wing_size["x"])
+        self.assertGreater(cs["envelope"]["size_mm"]["x"], cs_size["x"])
+
+        api.undo()
+        self.assertEqual(wing["envelope"]["size_mm"], wing_size)
+        self.assertEqual(cs["envelope"]["size_mm"], cs_size)
 
 
 class EnvelopeEditorUiTests(unittest.TestCase):

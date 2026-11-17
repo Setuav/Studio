@@ -145,13 +145,7 @@ class FuselageEditor(
         self._update_segment_actions()
 
     def _edit_component(self, description: str, change_fn: Callable[[], Any]) -> None:
-        def wrapped() -> None:
-            change_fn()
-            from ...engine.envelope import sync_component_envelope
-
-            sync_component_envelope(self._component)
-
-        self._api.edit_component(self._component, description, wrapped)
+        self._api.edit_component(self._component, description, change_fn)
 
     def _parameters(self) -> dict[str, Any]:
         return self._object(self._component, "parameters")

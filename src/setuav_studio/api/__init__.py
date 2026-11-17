@@ -8,6 +8,7 @@ from setuav_studio.plugin.plugin import StudioPlugin
 from .api import StudioAPI, UnsubscribeCallable
 from .contributions import (
     ActionContribution,
+    ComponentDeriver,
     ComponentTreeNodeContribution,
     ComponentTreeProvider,
     ComponentTypeContribution,
@@ -29,6 +30,7 @@ from .undo import _ComponentEditCommand, _ProjectEditCommand
 __all__ = [
     "ActionContribution",
     "Component",
+    "ComponentDeriver",
     "ComponentTreeNodeContribution",
     "ComponentTreeProvider",
     "ComponentTypeContribution",

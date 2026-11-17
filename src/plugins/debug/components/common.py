@@ -22,6 +22,7 @@ __all__ = [
     "add_debug_component",
     "clear_debug_components",
     "compute_debug_envelope",
+    "debug_envelope_types",
     "generate_unique_identity",
     "no_envelope",
     "parse_color_rgba",
@@ -31,7 +32,6 @@ __all__ = [
     "rotate_vector",
     "sync_debug_components_to_viewport",
     "sync_debug_envelope",
-    "sync_debug_envelopes",
     "update_component_in_viewport",
 ]
 
@@ -146,26 +146,9 @@ def sync_debug_envelope(component: dict[str, Any]) -> bool:
     return True
 
 
-def sync_debug_envelopes(project: Any) -> int:
-    """Store the exact envelope on every debug primitive of the project.
-
-    Returns the count of components whose envelope changed.
-    """
-    from setuav_studio.project.document import ProjectDocument
-
-    project_data = project.data if isinstance(project, ProjectDocument) else project
-    if not isinstance(project_data, dict):
-        return 0
-    comps = project_data.get("components")
-    if not isinstance(comps, list):
-        return 0
-    return sum(
-        1
-        for comp in comps
-        if isinstance(comp, dict)
-        and str(comp.get("type") or "") in _ENVELOPES
-        and sync_debug_envelope(comp)
-    )
+def debug_envelope_types() -> tuple[str, ...]:
+    """Component types whose envelope derives from their parameters."""
+    return tuple(_ENVELOPES)
 
 
 def update_component_in_viewport(

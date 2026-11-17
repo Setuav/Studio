@@ -197,22 +197,10 @@ class LiftingSurfaceEditor(
     def _edit_control_surface_item(
         self, cs: dict[str, Any], description: str, change_fn: Callable[[], None]
     ) -> None:
-        def wrapped_cs_change() -> None:
-            change_fn()
-            from ...engine.envelope import sync_component_envelope
-
-            sync_component_envelope(cs, self._component)
-
-        self._api.edit_component(cs, description, wrapped_cs_change)
+        self._api.edit_component(cs, description, change_fn)
 
     def _edit_component(self, description: str, change_fn: Callable[[], None]) -> None:
-        def wrapped_change() -> None:
-            change_fn()
-            from ...engine.envelope import sync_component_envelope
-
-            sync_component_envelope(self._component)
-
-        self._api.edit_component(self._component, description, wrapped_change)
+        self._api.edit_component(self._component, description, change_fn)
 
     def _parameters(self) -> dict[str, Any]:
         params = self._component.get("parameters")

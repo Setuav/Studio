@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from typing import Any
 
 from setuav_studio.api import (
@@ -54,8 +55,9 @@ from .components import (
     create_point_component,
     create_ring_component,
     create_triangle_component,
+    debug_envelope_types,
     sync_debug_components_to_viewport,
-    sync_debug_envelopes,
+    sync_debug_envelope,
 )
 from .solver import SOLVER_ID_MOCK_GENERATOR, MockGeneratorSolver
 
@@ -86,6 +88,9 @@ class DebugPlugin:
         self._register_toolbar_tools(api)
         self._register_solvers(api)
 
+        for type_id in debug_envelope_types():
+            api.register_component_deriver(type_id, _derive_envelope)
+        api.derive_components()
         api.on_project_changed(self._on_project_changed)
         api.on_project_content_changed(self._on_project_content_changed)
 
@@ -104,6 +109,8 @@ class DebugPlugin:
         self._unregister_solvers(api)
         api.remove_project_listener(self._on_project_changed)
         api.remove_project_content_listener(self._on_project_content_changed)
+        for type_id in debug_envelope_types():
+            api.unregister_component_deriver(type_id)
         self._unregister_component_types(api)
         self._unregister_panel(api)
 
@@ -203,13 +210,9 @@ class DebugPlugin:
     # ------------------------------------------------------------------
 
     def _on_project_changed(self, project: Any) -> None:
-        sync_debug_envelopes(project)
         self._sync_viewport(project)
 
     def _on_project_content_changed(self, project: Any) -> None:
-        # Envelopes are derived from primitive parameters; re-deriving them after every
-        # edit, undo and redo keeps them exact.
-        sync_debug_envelopes(project)
         self._sync_viewport(project)
 
     def _sync_viewport(self, project: Any) -> None:
@@ -393,3 +396,7 @@ class DebugPlugin:
         )
         self._api.add_solver_config(config)
         self._api.show_status("Added Mock Analysis configuration.", "success", 3000)
+
+
+def _derive_envelope(component: dict[str, Any], _components: Mapping[str, dict[str, Any]]) -> None:
+    sync_debug_envelope(component)

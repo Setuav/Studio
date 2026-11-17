@@ -21,13 +21,13 @@ from .common import (
     BaseDebugComponentEditor,
     add_debug_component,
     clear_debug_components,
+    debug_envelope_types,
     generate_unique_identity,
     parse_color_rgba,
     resolve_world_transform,
     rotate_vector,
     sync_debug_components_to_viewport,
     sync_debug_envelope,
-    sync_debug_envelopes,
     update_component_in_viewport,
 )
 from .cylinder import (
@@ -144,6 +144,7 @@ __all__ = [
     "create_point_component",
     "create_ring_component",
     "create_triangle_component",
+    "debug_envelope_types",
     "generate_unique_identity",
     "naca_airfoil_loop",
     "parse_color_rgba",
@@ -151,6 +152,5 @@ __all__ = [
     "rotate_vector",
     "sync_debug_components_to_viewport",
     "sync_debug_envelope",
-    "sync_debug_envelopes",
     "update_component_in_viewport",
 ]

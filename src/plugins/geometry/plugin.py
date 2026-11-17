@@ -1,5 +1,5 @@
 import contextlib
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -7,7 +7,6 @@ from setuav_studio.api import (
     ComponentTypeContribution,
     SettingsPageContribution,
     StudioAPI,
-    StudioEvents,
 )
 from setuav_studio.ui.style.icons import register_plugin_icons
 
@@ -108,10 +107,10 @@ class AirframeDesignPlugin:
         if api.project is not None:
             self._scene_controller.sync(api.project)
 
-        # 7. Auto-sync physical envelopes from geometry
-        api.subscribe(StudioEvents.PROJECT_OPENED, self._on_project_opened)
-        if api.project is not None:
-            self._on_project_opened()
+        # 7. Envelopes derived from each geometry component's parameters
+        for type_id in _GEOMETRY_TYPES:
+            api.register_component_deriver(type_id, _derive_envelope)
+        api.derive_components()
 
     def get_geometry(self, project: Any = None) -> Any:
         """Build and return geometry data for the given project.
@@ -154,15 +153,18 @@ class AirframeDesignPlugin:
         self._unsubscribers = []
         self._api = None
         api.unregister_settings_page("airframe_design.settings.editor")
-        api.unsubscribe(StudioEvents.PROJECT_OPENED, self._on_project_opened)
+        for type_id in _GEOMETRY_TYPES:
+            api.unregister_component_deriver(type_id)
 
-    def _on_project_opened(self, *args: Any) -> None:
-        if self._api is not None and self._api.project is not None:
-            project = self._api.project
 
-            def _sync() -> None:
-                from .engine.envelope import sync_project_geometry_envelopes
+_GEOMETRY_TYPES = (
+    "org.setuav.core:fuselage",
+    "org.setuav.core:lifting-surface",
+    "org.setuav.core:control-surface",
+)
 
-                sync_project_geometry_envelopes(project)
 
-            self._api.edit_project("Sync geometry envelopes", _sync)
+def _derive_envelope(component: dict[str, Any], components: Mapping[str, dict[str, Any]]) -> None:
+    from .engine.envelope import sync_component_envelope
+
+    sync_component_envelope(component, components.get(str(component.get("attach_to"))))

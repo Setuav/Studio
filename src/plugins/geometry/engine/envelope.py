@@ -63,48 +63,6 @@ def sync_component_envelope(
     return True
 
 
-def sync_project_geometry_envelopes(project: Any) -> int:
-    """Ensure all geometry components in the project document have up-to-date envelopes.
-
-    Returns the count of components whose envelope was updated.
-    """
-    if project is None:
-        return 0
-    from setuav_studio.project.document import ProjectDocument
-
-    data = project.data if isinstance(project, ProjectDocument) else project
-    if not isinstance(data, dict):
-        return 0
-    components = data.get("components")
-    if not isinstance(components, list):
-        return 0
-
-    all_components = list(components)
-
-    by_id: dict[str, dict[str, Any]] = {
-        str(c.get("id")): c for c in all_components if isinstance(c, dict) and c.get("id")
-    }
-
-    updated = 0
-    for comp in all_components:
-        if not isinstance(comp, dict):
-            continue
-        ctype = str(comp.get("type") or "")
-        if ctype not in GEOMETRY_COMPONENT_TYPES:
-            continue
-        target_id = comp.get("attach_to")
-        surface = by_id.get(str(target_id)) if target_id else None
-        if sync_component_envelope(comp, surface):
-            updated += 1
-
-    return updated
-
-
-# =============================================================================
-# Mathematical Helpers
-# =============================================================================
-
-
 def _dict_field(owner: dict[str, Any], key: str) -> dict[str, Any]:
     value = owner.get(key)
     return value if isinstance(value, dict) else {}
@@ -1089,5 +1047,4 @@ __all__ = [
     "GEOMETRY_COMPONENT_TYPES",
     "compute_geometry_envelope",
     "sync_component_envelope",
-    "sync_project_geometry_envelopes",
 ]

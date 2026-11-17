@@ -83,6 +83,7 @@ class _StudioHost:
     def set_project(self, project: ProjectDocument) -> None:
         api = self._api
         api._project = project
+        api.derive_components()
         api._undo_stack.clear()
         api._undo_stack.setClean()
         project.modified = False

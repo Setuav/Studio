@@ -4,7 +4,7 @@
 @brief Immutable descriptors registered by a plugin during activation.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "ActionContribution",
+    "ComponentDeriver",
     "ComponentTreeNodeContribution",
     "ComponentTreeProvider",
     "ComponentTypeContribution",
@@ -189,6 +190,10 @@ class ProjectTreeNodeContribution:
     rename: Callable[[str], None] | None = None
     delete: Callable[[], None] | None = None
 
+
+#: Callback that updates the data a component derives from its parameters, such as its
+#: envelope, given the component and every component of the project by id.
+ComponentDeriver = Callable[[dict[str, Any], Mapping[str, dict[str, Any]]], None]
 
 #: Callback that contributes virtual nodes beneath a component.
 ComponentTreeProvider = Callable[
