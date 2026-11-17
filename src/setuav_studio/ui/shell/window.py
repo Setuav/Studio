@@ -47,9 +47,12 @@ class MainWindow(QMainWindow):
         register_native_contributions(api)
 
         self.setDockNestingEnabled(True)
+        # Every panel is a dock widget. The central widget stays hidden so the docks
+        # share the whole window instead of leaving an empty gap between them.
         central_anchor = QWidget(self)
         central_anchor.setObjectName("studio.central-anchor")
         self.setCentralWidget(central_anchor)
+        central_anchor.hide()
 
         # Initialize sub-managers
         self.project_controller = ProjectController(self, api)

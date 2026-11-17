@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import itertools
 import unittest
 
 from PySide6.QtWidgets import QLabel, QMenu
@@ -74,6 +75,28 @@ class TestWorkbenchAndTools(unittest.TestCase):
         self.assertEqual(len(project.data["components"]), 1)
         api.redo()
         self.assertEqual(len(project.data["components"]), 2)
+
+    def test_default_layout_fills_the_window_without_gaps(self) -> None:
+        win = MainWindow(StudioAPI())
+        self.addCleanup(win.close)
+        win.layout_manager.apply_default_layout()
+        docks = [
+            win.layout_manager.dock(panel_id)
+            for panel_id in ("studio:project-explorer", "studio:viewer-3d", "studio:properties")
+        ]
+        win.resize(1400, 900)
+        win.show()
+        for width in (1400, 1900):
+            win.resize(width, 900)
+            for _ in range(30):
+                get_qapp().processEvents()
+            spans = [(d.geometry().left(), d.geometry().right()) for d in docks if d is not None]
+            self.assertEqual(len(spans), 3)
+            self.assertEqual(spans[0][0], 0)
+            # Neighbouring docks are separated only by the splitter handle.
+            for (_, right), (left, _) in itertools.pairwise(spans):
+                self.assertLessEqual(left - right, 8)
+            self.assertGreaterEqual(spans[-1][1], win.width() - 1)
 
     def test_status_bar_shows_colored_messages_and_auto_clears(self) -> None:
         from PySide6.QtCore import QTimer

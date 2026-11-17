@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 class LayoutManager:
     """Manages unified workbench dock layout and window geometry."""
 
-    LAYOUT_VERSION = 1
+    LAYOUT_VERSION = 2
     LAYOUT_DEFAULTS_KEY = "workbench_layout_version"
 
     def __init__(self, window: MainWindow, api: StudioAPI) -> None:
@@ -67,22 +67,19 @@ class LayoutManager:
         view_dock = self.dock("studio:viewer-3d")
         result_dock = self.dock("studio:result")
 
-        # 1. Project Explorer on Left
-        if tree_dock is not None:
-            self._window.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, tree_dock)
-            tree_dock.show()
-
-        # 2. 3D Viewer in Center, Properties on Right
-        if view_dock is not None:
-            self._window.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, view_dock)
-            view_dock.show()
-
-        if prop_dock is not None:
-            if view_dock is not None:
-                self._window.splitDockWidget(view_dock, prop_dock, Qt.Orientation.Horizontal)
+        # Explorer, 3D viewer and properties side by side in one dock area, so a wider
+        # window widens all three in proportion.
+        area = Qt.DockWidgetArea.LeftDockWidgetArea
+        previous: QDockWidget | None = None
+        for dock in (tree_dock, view_dock, prop_dock):
+            if dock is None:
+                continue
+            if previous is None:
+                self._window.addDockWidget(area, dock)
             else:
-                self._window.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, prop_dock)
-            prop_dock.show()
+                self._window.splitDockWidget(previous, dock, Qt.Orientation.Horizontal)
+            dock.show()
+            previous = dock
 
         # 3. Tabify Result with 3D Viewer in Center
         if view_dock is not None and result_dock is not None:
