@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
 
 from setuav_studio.api import ParameterField, TableParameterField
 from setuav_studio.model.expression import (
+    ExpressionEvaluationError,
     ExpressionEvaluator,
     get_expression,
     normalize_equation_input,
@@ -168,6 +169,10 @@ class TableExpressionDelegate(QStyledItemDelegate):
             model.setData(index, text, Qt.ItemDataRole.EditRole)
 
 
+def _is_number(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
 def _format_table_cell_value(
     val: Any, col_field: ParameterField, api: StudioAPI | None
 ) -> tuple[str, str]:
@@ -180,7 +185,7 @@ def _format_table_cell_value(
                 evaluator = ExpressionEvaluator()
                 scope = api.project.get_scope(api=api)
                 eval_val = evaluator.evaluate(val.lstrip("=").strip(), scope)
-            except Exception as exc:
+            except ExpressionEvaluationError as exc:
                 eval_err = str(exc)
 
         if eval_val is not None:
@@ -521,13 +526,12 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
             return
 
         new_row = {col.key: col.default for col in tf.columns}
-        if rows and "offset" in new_row and "offset" in rows[-1]:
-            try:
-                prev_offset = float(rows[-1]["offset"])
-                delta = prev_offset - float(rows[-2]["offset"]) if len(rows) >= 2 else 100.0
-                new_row["offset"] = prev_offset + max(delta, 10.0)
-            except Exception:
-                pass
+        # Continue the spacing of numeric offsets; an expression offset leaves the default.
+        offsets = [row.get("offset") for row in rows[-2:]]
+        if "offset" in new_row and offsets and all(_is_number(o) for o in offsets):
+            prev_offset = float(offsets[-1])
+            delta = prev_offset - float(offsets[0]) if len(offsets) == 2 else 100.0
+            new_row["offset"] = prev_offset + max(delta, 10.0)
         new_rows = deepcopy(rows)
         new_rows.append(new_row)
         self._commit_table_param(key, new_rows)

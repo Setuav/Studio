@@ -107,15 +107,12 @@ class LiftingSurfaceModel(Component):
         profiles = self.profiles
         if not isinstance(profiles, list) or len(profiles) < 2:
             return {}
-        try:
-            return compute_planform_metrics(
-                profiles,
-                sweep_loc=self.sweep_location,
-                symmetric=self.mirror,
-                y_offset=self.y,
-            )
-        except Exception:
-            return {}
+        return compute_planform_metrics(
+            profiles,
+            sweep_loc=self.sweep_location,
+            symmetric=self.mirror,
+            y_offset=self.y,
+        )
 
     @property
     def planform_area(self) -> float:

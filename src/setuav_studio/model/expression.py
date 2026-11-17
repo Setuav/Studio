@@ -192,9 +192,9 @@ def rename_symbol_in_expression(
         clean = new_expr.lstrip("=").strip()
         try:
             ast.parse(clean, mode="eval")
-            return new_expr, True
-        except Exception:
+        except SyntaxError:
             return expression, False
+        return new_expr, True
     return expression, False
 
 
@@ -309,10 +309,7 @@ def find_symbol_usages_in_project(
     usages: list[tuple[str, str]] = []
 
     def _inspect(expr: str, loc: str) -> str | None:
-        try:
-            symbols = evaluator.extract_symbols(expr)
-        except Exception:
-            symbols = set()
+        symbols = evaluator.extract_symbols(expr)
 
         is_used = False
         for s in symbols:

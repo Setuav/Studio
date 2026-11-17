@@ -621,9 +621,12 @@ class ExpressionPropertyCell(QWidget):
 
     def _evaluate_expression(self, expr_text: str) -> tuple[bool, Any, str | None]:
         """Evaluate expression against current project scope (or math fallback)."""
-        try:
-            from setuav_studio.model.expression import ExpressionEvaluator
+        from setuav_studio.model.expression import (
+            ExpressionEvaluationError,
+            ExpressionEvaluator,
+        )
 
+        try:
             evaluator = ExpressionEvaluator()
             scope = {}
             if self._api is not None and self._api.project is not None:
@@ -631,7 +634,7 @@ class ExpressionPropertyCell(QWidget):
             expr = expr_text.lstrip("=").strip()
             val = evaluator.evaluate(expr, scope)
             return True, val, None
-        except Exception as exc:
+        except ExpressionEvaluationError as exc:
             return False, None, str(exc)
 
     def _display_number(self, base_val: float) -> tuple[str, str]:

@@ -39,33 +39,30 @@ if TYPE_CHECKING:
 _START_TIME = time.monotonic()
 
 
-def _get_process_memory_mb() -> tuple[float, float]:
-    """Return current process memory (RSS MB, VMS MB)."""
+def _get_process_memory_mb() -> tuple[float, float] | None:
+    """Return current process memory (RSS MB, VMS MB), or None where it cannot be read."""
     try:
         psutil = importlib.import_module("psutil")
-        proc = psutil.Process()
-        mem = proc.memory_info()
+    except ImportError:
+        pass
+    else:
+        mem = psutil.Process().memory_info()
         return mem.rss / 1048576.0, mem.vms / 1048576.0
-    except Exception:
-        pass
     try:
-        rss_kb, vms_kb = 0.0, 0.0
         with open("/proc/self/status", encoding="utf-8") as f:
-            for line in f:
-                if line.startswith("VmRSS:"):
-                    rss_kb = float(line.split()[1])
-                elif line.startswith("VmSize:"):
-                    vms_kb = float(line.split()[1])
-        return rss_kb / 1024.0, vms_kb / 1024.0
-    except Exception:
+            fields = dict(line.split(":", 1) for line in f if ":" in line)
+    except OSError:
         pass
+    else:
+        return float(fields["VmRSS"].split()[0]) / 1024.0, float(
+            fields["VmSize"].split()[0]
+        ) / 1024.0
     try:
         import resource
-
-        rss_kb = float(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
-        return rss_kb / 1024.0, rss_kb / 1024.0
-    except Exception:
-        return 0.0, 0.0
+    except ImportError:
+        return None
+    rss_kb = float(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
+    return rss_kb / 1024.0, rss_kb / 1024.0
 
 
 def _format_duration(seconds: float) -> str:
@@ -533,7 +530,7 @@ class DebugPanel(PropertyTableMixin, QWidget):
 
     def _refresh_status(self) -> None:
         """Update system metrics: RAM, uptime, runtime environment, tasks."""
-        rss_mb, vms_mb = _get_process_memory_mb()
+        memory = _get_process_memory_mb()
         uptime_str = _format_duration(time.monotonic() - _START_TIME)
 
         undo_count = self._api.undo_count
@@ -548,8 +545,9 @@ class DebugPanel(PropertyTableMixin, QWidget):
         os_info = f"{platform.system()} {platform.release()} ({platform.machine()})"
 
         self._set_property_value(self.system_table, "uptime", uptime_str)
-        self._set_property_value(self.system_table, "ram_rss", f"{rss_mb:.1f} MB")
-        self._set_property_value(self.system_table, "ram_vms", f"{vms_mb:.1f} MB")
+        rss_text, vms_text = (f"{mb:.1f} MB" for mb in memory) if memory else ("n/a", "n/a")
+        self._set_property_value(self.system_table, "ram_rss", rss_text)
+        self._set_property_value(self.system_table, "ram_vms", vms_text)
         self._set_property_value(self.system_table, "python", py_ver)
         self._set_property_value(self.system_table, "qt", "PySide6")
         self._set_property_value(self.system_table, "platform", os_info)

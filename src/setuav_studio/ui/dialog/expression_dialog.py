@@ -27,7 +27,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.model.constraint import ConstraintChecker
-from setuav_studio.model.expression import ExpressionEvaluator
+from setuav_studio.model.expression import ExpressionEvaluationError, ExpressionEvaluator
 from setuav_studio.model.symbol import (
     get_available_symbols_metadata,
 )
@@ -595,7 +595,7 @@ class AdvancedExpressionDialog(QDialog):
                 self.preview_label.setText(
                     f"<b>Result:</b> <span style='color: {status_color('success')}; font-weight: bold;'>{val_str}</span>"
                 )
-        except Exception as exc:
+        except ExpressionEvaluationError as exc:
             self.preview_label.setText(
                 f"<span style='color: {status_color('error')}; font-weight: bold;'>❌ Syntax Error: {exc}</span>"
             )

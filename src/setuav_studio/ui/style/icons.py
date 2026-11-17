@@ -246,20 +246,15 @@ class _ThemeIconEngine(QIconEngine):
             QPalette.ColorGroup.Active,
             QPalette.ColorRole.HighlightedText,
         ).name()
-        try:
-            icon = qta.icon(
-                self._specifier,
-                color=normal,
-                color_active=normal,
-                color_disabled=disabled,
-                color_selected=selected,
-                **self._options,
-            )
-            return icon.pixmap(size, mode, state)
-        except Exception:
-            pixmap = QPixmap(size)
-            pixmap.fill(Qt.GlobalColor.transparent)
-            return pixmap
+        icon = qta.icon(
+            self._specifier,
+            color=normal,
+            color_active=normal,
+            color_disabled=disabled,
+            color_selected=selected,
+            **self._options,
+        )
+        return icon.pixmap(size, mode, state)
 
     def paint(
         self,
@@ -297,20 +292,22 @@ def get_icon(
             return asset_icon
         specifier = _ICON_MAP.get(icon_source, icon_source)
         try:
-            # A custom icon engine avoids storing the current theme color in the
-            # QIcon. Existing actions and buttons therefore repaint correctly
-            # after an application palette change without rebuilding each icon.
-            return QIcon(
-                _ThemeIconEngine(
-                    specifier,
-                    color=color,
-                    color_disabled=color_disabled,
-                    options=kwargs,
-                )
-            )
+            # QtAwesome reports an unknown glyph with a bare Exception.
+            qta.icon(specifier, **kwargs)
         except Exception as exc:
-            logger.warning("Failed to load icon %r: %s", specifier, exc)
+            logger.warning("Unknown icon %r: %s", specifier, exc)
             return QIcon()
+        # A custom icon engine avoids storing the current theme color in the
+        # QIcon. Existing actions and buttons therefore repaint correctly
+        # after an application palette change without rebuilding each icon.
+        return QIcon(
+            _ThemeIconEngine(
+                specifier,
+                color=color,
+                color_disabled=color_disabled,
+                options=kwargs,
+            )
+        )
 
     return QIcon()
 
@@ -334,7 +331,6 @@ def refresh_label_icon(label: QLabel) -> None:
 
 def create_color_badge_icon(color_hex: str, size: int = 16) -> QIcon:
     """Create a crisp circular color dot icon for configurations and tags."""
-    from PySide6.QtCore import Qt
     from PySide6.QtGui import QColor, QPainter, QPixmap
 
     pixmap = QPixmap(size, size)

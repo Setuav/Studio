@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from setuav_studio.model.expression import ExpressionEvaluator
+from setuav_studio.model.expression import ExpressionEvaluationError, ExpressionEvaluator
 
 
 def parse_path_segments(path: str) -> list[str | int]:
@@ -163,7 +163,7 @@ class ConstraintChecker:
                 enabled=True,
                 resolved_values=resolved_values,
             )
-        except Exception as exc:
+        except ExpressionEvaluationError as exc:
             return ConstraintResult(
                 id=cid,
                 name=name,
