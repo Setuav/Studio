@@ -19,6 +19,9 @@ if TYPE_CHECKING:
 __all__ = [
     "ActionContribution",
     "ComponentDeriver",
+    "ComponentMenuItemContribution",
+    "ComponentMenuProvider",
+    "ComponentRemovalHandler",
     "ComponentTreeNodeContribution",
     "ComponentTreeProvider",
     "ComponentTypeContribution",
@@ -191,6 +194,38 @@ class ProjectTreeNodeContribution:
     delete: Callable[[], None] | None = None
 
 
+@dataclass(frozen=True)
+class ComponentMenuItemContribution:
+    """Command shown in the project explorer's context menu of a component.
+
+    Supply exactly one of ``callback`` or ``children``. An item with children is a
+    submenu; its children are commands and cannot have children of their own.
+
+    @ingroup contributions
+    @param title User-visible command label.
+    @param callback Function invoked when the command is chosen.
+    @param children Commands of a submenu.
+    @param icon Optional icon name, file path, or ``QIcon``.
+    @param enabled Whether the command can be chosen.
+    @param tooltip Optional explanatory text.
+    @exception ValueError If both or neither of ``callback`` and ``children`` are
+        supplied, or a child has children.
+    """
+
+    title: str
+    callback: Callable[[], None] | None = None
+    children: tuple["ComponentMenuItemContribution", ...] = ()
+    icon: IconSource = None
+    enabled: bool = True
+    tooltip: str | None = None
+
+    def __post_init__(self) -> None:
+        if (self.callback is None) == (not self.children):
+            raise ValueError("Component menu items require exactly one of callback or children")
+        if any(child.children for child in self.children):
+            raise ValueError("Component menu submenus cannot contain submenus")
+
+
 #: Callback that updates the data a component derives from its parameters, such as its
 #: envelope, given the component and every component of the project by id.
 ComponentDeriver = Callable[[dict[str, Any], Mapping[str, dict[str, Any]]], None]
@@ -200,6 +235,17 @@ ComponentTreeProvider = Callable[
     [dict[str, Any]],
     tuple[ComponentTreeNodeContribution, ...],
 ]
+
+#: Callback that contributes context-menu commands for a component.
+ComponentMenuProvider = Callable[
+    [dict[str, Any]],
+    tuple[ComponentMenuItemContribution, ...],
+]
+
+#: Callback that removes the data referring to deleted components, given the project
+#: data and the ids of every deleted component. It runs inside the undoable edit that
+#: deletes the components and changes the project data in place.
+ComponentRemovalHandler = Callable[[dict[str, Any], frozenset[str]], None]
 
 #: Callback that contributes plugin-owned nodes beneath the project root.
 ProjectTreeProvider = Callable[

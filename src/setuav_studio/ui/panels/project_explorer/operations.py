@@ -32,44 +32,8 @@ class ProjectExplorerOperations:
         project = self._api.project
         return project.get_component(component_id) if project is not None else None
 
-    def dependent_component_ids(self, root_id: str) -> set[str]:
-        return self.dependent_component_ids_from({root_id})
-
-    def dependent_component_ids_from(self, root_ids: set[str]) -> set[str]:
-        project = self._api.project
-        components = project.data.get("components") if project is not None else None
-        if not isinstance(components, list):
-            return set(root_ids)
-
-        deleted_ids = set(root_ids)
-        changed = True
-        while changed:
-            changed = False
-            for component in components:
-                if not isinstance(component, dict):
-                    continue
-                component_id = str(component.get("id") or "")
-                if not component_id or component_id in deleted_ids:
-                    continue
-                is_subpart = component.get("type") in self._api.subpart_types
-                target = str(component.get("attach_to") or "")
-                source = str(component.get("source") or "")
-                if (is_subpart and target in deleted_ids) or source in deleted_ids:
-                    deleted_ids.add(component_id)
-                    changed = True
-        return deleted_ids
-
-    def deletion_scope(
-        self,
-        element: dict[str, Any],
-        element_id: str,
-    ) -> set[str]:
-        return self.dependent_component_ids(element_id)
-
     @staticmethod
-    def deletion_details(
-        component_ids: set[str],
-    ) -> list[str]:
+    def deletion_details(component_ids: frozenset[str]) -> list[str]:
         details: list[str] = []
         dependent_count = max(0, len(component_ids) - 1)
         if dependent_count:
@@ -92,35 +56,6 @@ class ProjectExplorerOperations:
             QMessageBox.StandardButton.Cancel,
         )
         return answer == QMessageBox.StandardButton.Yes
-
-    def apply_deletion(
-        self,
-        component_ids: set[str],
-    ) -> None:
-        project = self._api.project
-        if project is None:
-            return
-        components = project.data.get("components")
-        if isinstance(components, list) and component_ids:
-            self.detach_from_deleted(components, component_ids)
-            components[:] = [
-                component
-                for component in components
-                if not (
-                    isinstance(component, dict) and str(component.get("id") or "") in component_ids
-                )
-            ]
-
-    @staticmethod
-    def detach_from_deleted(components: list[Any], component_ids: set[str]) -> None:
-        """Attach components mounted on deleted ones to the vehicle, keeping them in place."""
-        from setuav_studio.utilities.transform import attach_component
-
-        for component in components:
-            if not isinstance(component, dict) or str(component.get("id")) in component_ids:
-                continue
-            if str(component.get("attach_to") or "") in component_ids:
-                attach_component(component, None, components, preserve_world_transform=True)
 
     def delete_item(self, item: QTreeWidgetItem | None) -> None:
         if item is None:
@@ -214,13 +149,8 @@ class ProjectExplorerOperations:
         if not element_id:
             return
         element_name = str(element.get("name") or element_id)
-        component_ids = self.deletion_scope(
-            element,
-            element_id,
-        )
-        details = self.deletion_details(
-            component_ids,
-        )
+        component_ids = self._api.component_deletion_scope({element_id})
+        details = self.deletion_details(component_ids)
 
         pdata = self._api.project.data if self._api.project else {}
         from setuav_studio.model.expression import find_symbol_usages_in_project
@@ -240,11 +170,8 @@ class ProjectExplorerOperations:
         if not self.confirm_delete(element_name, details):
             return
 
-        def change() -> None:
-            self.apply_deletion(component_ids)
-
         self._api.set_selection(None)
-        self._api.edit_project(f"Delete {element_name}", change)
+        self._api.delete_components(component_ids, f"Delete {element_name}")
         self._api.show_status(f'Deleted "{element_name}"', "success", 3000)
 
     def delete_analysis_config_item(self, element: dict[str, Any]) -> None:

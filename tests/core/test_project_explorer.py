@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import unittest
+from typing import Any
 
-from PySide6.QtWidgets import QTreeWidgetItem
+from PySide6.QtWidgets import QMenu, QTreeWidgetItem
 
-from setuav_studio.api import StudioAPI
+from setuav_studio.api import ComponentMenuItemContribution, StudioAPI
 from setuav_studio.project import open_project
 from setuav_studio.ui.panels.project_explorer import ProjectExplorer
 from setuav_studio.ui.panels.project_explorer.tree_builder import VEHICLE_SELECTION
@@ -66,6 +67,81 @@ class ProjectExplorerLayoutTests(unittest.TestCase):
         assert isinstance(editor, VehicleSummaryEditor)
         self.addCleanup(editor.deleteLater)
         self.assertEqual(editor._property_value(editor.summary_table, "components"), "10")
+
+
+class ProjectExplorerComponentMenuTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = get_qapp()
+
+    def setUp(self) -> None:
+        self.api = StudioAPI()
+        register_native_component_types(self.api)
+        self.api._host.set_project(open_project(TEST_PROJECT_PATH))
+        self.explorer = ProjectExplorer(self.api)
+        self.addCleanup(self.explorer.deleteLater)
+        self.chosen: list[str] = []
+        self.api.register_component_menu_provider("org.test.menu", self._menu_items)
+
+    def _menu_items(self, component: dict[str, Any]) -> tuple[ComponentMenuItemContribution, ...]:
+        if component["id"] != "main-wing":
+            return ()
+        return (
+            ComponentMenuItemContribution(
+                title="Add Feature",
+                children=(
+                    ComponentMenuItemContribution(
+                        title="Spar", callback=lambda: self.chosen.append("spar")
+                    ),
+                    ComponentMenuItemContribution(
+                        title="Joint", callback=lambda: None, enabled=False
+                    ),
+                ),
+            ),
+        )
+
+    def _menu(self, component_id: str) -> QMenu:
+        item = self.explorer._item_map[component_id]
+        menu = self.explorer._context_menu.default_context_menu(item, can_edit=True)
+        self.addCleanup(menu.deleteLater)
+        return menu
+
+    def test_contributed_commands_precede_rename_and_delete(self) -> None:
+        menu = self._menu("main-wing")
+        actions = menu.actions()
+        self.assertEqual(
+            [action.text() for action in actions], ["Add Feature", "", "Rename", "Delete"]
+        )
+        submenu = actions[0].menu()
+        assert isinstance(submenu, QMenu)
+        spar, joint = submenu.actions()
+        self.assertEqual((spar.text(), joint.text()), ("Spar", "Joint"))
+        self.assertTrue(spar.isEnabled())
+        self.assertFalse(joint.isEnabled())
+        spar.trigger()
+        self.assertEqual(self.chosen, ["spar"])
+
+    def test_components_without_contributions_show_only_rename_and_delete(self) -> None:
+        menu = self._menu("fuselage")
+        self.assertEqual([action.text() for action in menu.actions()], ["Rename", "Delete"])
+
+    def test_delete_removes_the_component_with_its_subparts_in_one_edit(self) -> None:
+        removed: list[frozenset[str]] = []
+        self.api.register_component_removal_handler(
+            "org.test.removal", lambda _data, ids: removed.append(ids)
+        )
+        self.explorer._ops.confirm_delete = lambda *_args, **_kwargs: True
+        delete = self._menu("main-wing").actions()[-1]
+        delete.trigger()
+
+        self.assertEqual(removed, [frozenset({"main-wing", "aileron", "main-wing-flap"})])
+        project = self.api.project
+        assert project is not None
+        self.assertIsNone(project.get_component("main-wing"))
+        self.assertEqual(self.api.undo_count, 1)
+        self.api.undo()
+        self.assertIsNotNone(project.get_component("main-wing"))
+        self.assertIsNotNone(project.get_component("aileron"))
 
 
 if __name__ == "__main__":

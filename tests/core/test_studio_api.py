@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QWidget
 from setuav_studio import api
 from setuav_studio.api import (
     ActionContribution,
+    ComponentMenuItemContribution,
     ComponentTypeContribution,
     PanelContribution,
     SettingsPageContribution,
@@ -49,6 +50,7 @@ def test_public_api_exports_essential_contracts() -> None:
         "ToolContribution",
         "ToolbarContribution",
         "ComponentTypeContribution",
+        "ComponentMenuItemContribution",
         "SettingsPageContribution",
         "StudioEvents",
         "ParameterField",
@@ -353,6 +355,130 @@ def test_studio_api_attach_component_undo_redo() -> None:
 
     studio_api.redo()
     assert _component(project, "wing")["attach_to"] == "fuselage"
+
+
+def _deletion_project(studio_api: StudioAPI) -> ProjectDocument:
+    studio_api.register_component_type(
+        ComponentTypeContribution(id="org.test:flap", name="Flap", subpart=True)
+    )
+    project = ProjectDocument(
+        Path("test.json"),
+        "json",
+        {
+            "components": [
+                {"id": "wing", "transform": {"position": {"x": 500.0, "y": 0.0, "z": 50.0}}},
+                {"id": "flap", "type": "org.test:flap", "attach_to": "wing"},
+                {"id": "copy", "kind": "instance", "source": "wing"},
+                {
+                    "id": "pod",
+                    "attach_to": "wing",
+                    "transform": {"position": {"x": 100.0, "y": 0.0, "z": 0.0}},
+                },
+                {"id": "tail"},
+            ],
+            "extensions": {"org.test.notes": {"wing": "spar", "tail": "boom"}},
+        },
+    )
+    studio_api._host.set_project(project)
+    return project
+
+
+def test_component_deletion_scope_includes_subparts_and_instances() -> None:
+    studio_api = StudioAPI()
+    _deletion_project(studio_api)
+    assert studio_api.component_deletion_scope(["wing"]) == {"wing", "flap", "copy"}
+    assert studio_api.component_deletion_scope(["tail"]) == {"tail"}
+
+
+def test_delete_components_is_one_undoable_edit_with_removal_handlers() -> None:
+    studio_api = StudioAPI()
+    project = _deletion_project(studio_api)
+    calls: list[frozenset[str]] = []
+
+    def remove_notes(data: dict[str, Any], removed: frozenset[str]) -> None:
+        calls.append(removed)
+        notes = data["extensions"]["org.test.notes"]
+        for component_id in removed:
+            notes.pop(component_id, None)
+
+    studio_api.register_component_removal_handler("org.test.notes", remove_notes)
+    with pytest.raises(ValueError):
+        studio_api.register_component_removal_handler("org.test.notes", remove_notes)
+
+    studio_api.delete_components(["wing"], "Delete wing")
+
+    assert calls == [frozenset({"wing", "flap", "copy"})]
+    assert [c["id"] for c in project.data["components"]] == ["pod", "tail"]
+    pod = _component(project, "pod")
+    assert "attach_to" not in pod, "a component mounted on a deleted one moves to the vehicle"
+    assert pod["transform"]["position"]["x"] == pytest.approx(600.0)
+    assert project.data["extensions"]["org.test.notes"] == {"tail": "boom"}
+    assert studio_api.undo_count == 1
+    assert studio_api.undo_text == "Delete wing"
+
+    studio_api.undo()
+    assert [c["id"] for c in project.data["components"]] == [
+        "wing",
+        "flap",
+        "copy",
+        "pod",
+        "tail",
+    ]
+    assert _component(project, "pod")["attach_to"] == "wing"
+    assert project.data["extensions"]["org.test.notes"] == {"wing": "spar", "tail": "boom"}
+
+    studio_api.redo()
+    assert [c["id"] for c in project.data["components"]] == ["pod", "tail"]
+
+    studio_api.unregister_component_removal_handler("org.test.notes")
+    studio_api.delete_components(["tail"], "Delete tail")
+    assert len(calls) == 1
+
+
+def test_delete_components_needs_a_project() -> None:
+    with pytest.raises(RuntimeError):
+        StudioAPI().delete_components(["wing"], "Delete wing")
+
+
+def test_component_menu_providers() -> None:
+    studio_api = StudioAPI()
+    chosen: list[str] = []
+    add = ComponentMenuItemContribution(
+        title="Add",
+        children=(
+            ComponentMenuItemContribution(title="Spar", callback=lambda: chosen.append("spar")),
+            ComponentMenuItemContribution(title="Joint", callback=lambda: None, enabled=False),
+        ),
+    )
+
+    def provider(component: dict[str, Any]) -> tuple[ComponentMenuItemContribution, ...]:
+        return (add,) if component.get("type") == "org.test:wing" else ()
+
+    studio_api.register_component_menu_provider("org.test.menu", provider)
+    with pytest.raises(ValueError):
+        studio_api.register_component_menu_provider("org.test.menu", provider)
+
+    assert studio_api.component_menu_items({"id": "w", "type": "org.test:wing"}) == (add,)
+    assert studio_api.component_menu_items({"id": "b", "type": "org.test:battery"}) == ()
+    studio_api.unregister_component_menu_provider("org.test.menu")
+    assert studio_api.component_menu_items({"id": "w", "type": "org.test:wing"}) == ()
+
+
+def test_component_menu_items_take_a_callback_or_children() -> None:
+    with pytest.raises(ValueError):
+        ComponentMenuItemContribution(title="Nothing")
+    with pytest.raises(ValueError):
+        ComponentMenuItemContribution(
+            title="Both",
+            callback=lambda: None,
+            children=(ComponentMenuItemContribution(title="Child", callback=lambda: None),),
+        )
+    nested = ComponentMenuItemContribution(
+        title="Submenu",
+        children=(ComponentMenuItemContribution(title="Child", callback=lambda: None),),
+    )
+    with pytest.raises(ValueError):
+        ComponentMenuItemContribution(title="Too deep", children=(nested,))
 
 
 # ==============================================================================

@@ -3,13 +3,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import QPoint
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QMenu, QTreeWidgetItem
 
 from setuav_studio.api.events import StudioEvents
 from setuav_studio.ui.style.icons import get_icon
 
 if TYPE_CHECKING:
-    from setuav_studio.api import StudioAPI
+    from setuav_studio.api import ComponentMenuItemContribution, StudioAPI
     from setuav_studio.ui.panels.project_explorer.operations import (
         ProjectExplorerOperations,
     )
@@ -151,17 +152,54 @@ class ProjectExplorerContextMenu:
         position: QPoint,
         can_edit: bool,
     ) -> None:
+        menu = self.default_context_menu(item, can_edit)
+        menu.exec(self._tree.viewport().mapToGlobal(position))
+        menu.deleteLater()
+
+    def default_context_menu(self, item: QTreeWidgetItem, can_edit: bool) -> QMenu:
+        """Menu of a component item: contributed commands, then Rename and Delete."""
         menu = QMenu(self._tree)
+        menu.setToolTipsVisible(True)
+        element = self._tree._element_map.get(item)
+        component = (
+            self._ops.find_component(str(element.get("id") or ""))
+            if isinstance(element, dict)
+            else None
+        )
+        if component is not None:
+            contributions = self._api.component_menu_items(component)
+            for contribution in contributions:
+                self._add_contributed_item(menu, contribution)
+            if contributions:
+                menu.addSeparator()
+
         rename_action = menu.addAction(get_icon("edit"), "Rename")
         rename_action.setEnabled(can_edit)
+        rename_action.triggered.connect(lambda _checked=False: self._tree.editItem(item, 0))
         delete_action = menu.addAction(get_icon("remove"), "Delete")
         delete_action.setEnabled(can_edit)
+        delete_action.triggered.connect(lambda _checked=False: self._ops.delete_item(item))
+        return menu
 
-        chosen_action = menu.exec(self._tree.viewport().mapToGlobal(position))
-        if chosen_action is rename_action:
-            self._tree.editItem(item, 0)
-        elif chosen_action is delete_action:
-            self._ops.delete_item(item)
+    @staticmethod
+    def _add_contributed_item(menu: QMenu, contribution: ComponentMenuItemContribution) -> None:
+        icon = get_icon(contribution.icon) if contribution.icon is not None else QIcon()
+        if contribution.children:
+            submenu = menu.addMenu(icon, contribution.title)
+            submenu.setEnabled(contribution.enabled)
+            submenu.setToolTipsVisible(True)
+            if contribution.tooltip:
+                submenu.menuAction().setToolTip(contribution.tooltip)
+            for child in contribution.children:
+                ProjectExplorerContextMenu._add_contributed_item(submenu, child)
+            return
+        action = menu.addAction(icon, contribution.title)
+        action.setEnabled(contribution.enabled)
+        if contribution.tooltip:
+            action.setToolTip(contribution.tooltip)
+        callback = contribution.callback
+        if callback is not None:
+            action.triggered.connect(lambda _checked=False: callback())
 
     def open_virtual_context_menu(self, item: QTreeWidgetItem, position: QPoint) -> None:
         contribution = self._tree._project_contributions.get(

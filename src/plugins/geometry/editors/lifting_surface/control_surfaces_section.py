@@ -693,18 +693,7 @@ class ControlSurfacesSectionMixin(LiftingSurfaceEditorHost):
         if not (0 <= idx < len(cs_list)):
             return
 
-        target_item = cs_list[idx]
-        project = self._api.project
-
-        def change() -> None:
-            if (
-                project
-                and isinstance(project.data.get("components"), list)
-                and target_item in project.data["components"]
-            ):
-                project.data["components"].remove(target_item)
-
-        self._api.edit_project("Delete control surface", change)
+        self._api.delete_components([str(cs_list[idx]["id"])], "Delete control surface")
 
         self._populate_control_surfaces()
         new_idx = min(idx, len(self._control_surfaces()) - 1)

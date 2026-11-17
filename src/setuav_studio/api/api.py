@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Generator, Iterable
 from contextlib import contextmanager, suppress
 from copy import deepcopy
 from pathlib import Path
@@ -18,6 +18,9 @@ from setuav_studio.ui.style.icons import get_icon
 from .contributions import (
     ActionContribution,
     ComponentDeriver,
+    ComponentMenuItemContribution,
+    ComponentMenuProvider,
+    ComponentRemovalHandler,
     ComponentTreeNodeContribution,
     ComponentTreeProvider,
     ComponentTypeContribution,
@@ -125,6 +128,8 @@ class StudioAPI:
         self._kind_icons: dict[str, str | Path | QIcon] = {}
         self._component_models: dict[str, Any] = {}
         self._component_tree_providers: dict[str, ComponentTreeProvider] = {}
+        self._component_menu_providers: dict[str, ComponentMenuProvider] = {}
+        self._component_removal_handlers: dict[str, ComponentRemovalHandler] = {}
         self._component_derivers: dict[str, ComponentDeriver] = {}
         self._project_tree_providers: dict[str, ProjectTreeProvider] = {}
         self._project_requirement_checker: Callable[[dict[str, Any]], list[str]] | None = None
@@ -1096,6 +1101,105 @@ class StudioAPI:
         for provider in self._component_tree_providers.values():
             nodes.extend(provider(component))
         return tuple(nodes)
+
+    def register_component_menu_provider(
+        self,
+        provider_id: str,
+        provider: ComponentMenuProvider,
+    ) -> None:
+        """Register a provider of commands for the context menu of a component."""
+        if provider_id in self._component_menu_providers:
+            raise ValueError(f"A component menu provider is already registered for: {provider_id}")
+        self._component_menu_providers[provider_id] = provider
+
+    def unregister_component_menu_provider(self, provider_id: str) -> None:
+        """Unregister a component menu provider by ID."""
+        self._component_menu_providers.pop(provider_id, None)
+
+    def component_menu_items(
+        self,
+        component: dict[str, Any],
+    ) -> tuple[ComponentMenuItemContribution, ...]:
+        """Context-menu commands the registered providers offer for ``component``."""
+        items: list[ComponentMenuItemContribution] = []
+        for provider in self._component_menu_providers.values():
+            items.extend(provider(component))
+        return tuple(items)
+
+    def register_component_removal_handler(
+        self,
+        handler_id: str,
+        handler: ComponentRemovalHandler,
+    ) -> None:
+        """Register a handler that removes data referring to deleted components.
+
+        :meth:`delete_components` calls every handler inside its undoable edit, so the
+        handler's changes are undone and redone together with the deletion.
+        """
+        if handler_id in self._component_removal_handlers:
+            raise ValueError(f"A component removal handler is already registered for: {handler_id}")
+        self._component_removal_handlers[handler_id] = handler
+
+    def unregister_component_removal_handler(self, handler_id: str) -> None:
+        """Unregister a component removal handler by ID."""
+        self._component_removal_handlers.pop(handler_id, None)
+
+    def component_deletion_scope(self, component_ids: Iterable[str]) -> frozenset[str]:
+        """``component_ids`` with the components deleted along with them.
+
+        A subpart goes with the component it attaches to, and an instance with its
+        source.
+        """
+        deleted = {str(component_id) for component_id in component_ids}
+        if self._project is None:
+            return frozenset(deleted)
+        components = [c for c in self._project.data.get("components", []) if isinstance(c, dict)]
+        subpart_types = self.subpart_types
+        changed = True
+        while changed:
+            changed = False
+            for component in components:
+                component_id = str(component.get("id") or "")
+                if not component_id or component_id in deleted:
+                    continue
+                owner = str(component.get("attach_to") or "")
+                source = str(component.get("source") or "")
+                if (component.get("type") in subpart_types and owner in deleted) or (
+                    source in deleted
+                ):
+                    deleted.add(component_id)
+                    changed = True
+        return frozenset(deleted)
+
+    def delete_components(self, component_ids: Iterable[str], description: str) -> None:
+        """Delete components in one undoable edit.
+
+        The edit deletes the components of :meth:`component_deletion_scope`, attaches
+        the components mounted on them to the vehicle where they are, and runs the
+        registered component removal handlers.
+
+        @param component_ids Ids of the components to delete.
+        @param description Human-readable undo command text.
+        """
+        from setuav_studio.utilities.transform import attach_component
+
+        project = self._project
+        if project is None:
+            raise RuntimeError("No project is open.")
+        deleted = self.component_deletion_scope(component_ids)
+
+        def change() -> None:
+            components = project.data["components"]
+            for component in components:
+                if str(component.get("id")) in deleted:
+                    continue
+                if str(component.get("attach_to") or "") in deleted:
+                    attach_component(component, None, components, preserve_world_transform=True)
+            components[:] = [c for c in components if str(c.get("id")) not in deleted]
+            for handler in self._component_removal_handlers.values():
+                handler(project.data, deleted)
+
+        self.edit_project(description, change)
 
     def register_project_tree_provider(
         self,

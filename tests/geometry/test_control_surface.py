@@ -524,11 +524,17 @@ class ControlSurfaceGeometryTests(unittest.TestCase):
         self.assertEqual(len(doc.data["components"]), 5)
         self.assertEqual(editor.control_surfaces_table.rowCount(), 3)
 
-        # 5. Delete one control surface
+        # 5. Delete one control surface; plugins remove the data that refers to it
+        removed: list[frozenset[str]] = []
+        api.register_component_removal_handler(
+            "org.test.removal", lambda _data, ids: removed.append(ids)
+        )
+        deleted_id = doc.data["components"][4]["id"]
         editor._control_surface_index = 2
         editor.delete_cs_button.click()
         self.assertEqual(editor.control_surfaces_table.rowCount(), 2)
         self.assertEqual(len(doc.data["components"]), 4)
+        self.assertEqual(removed, [frozenset({deleted_id})])
 
 
 if __name__ == "__main__":
