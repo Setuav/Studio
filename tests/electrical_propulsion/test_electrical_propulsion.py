@@ -11,6 +11,10 @@ from unittest.mock import patch
 from PySide6.QtWidgets import QDialog
 
 from plugins.electrical_propulsion.editors import BatteryEditor, PropulsorEditor
+from plugins.electrical_propulsion.editors.propulsor import (
+    PropulsorMotorEditor,
+    PropulsorPropellerEditor,
+)
 from plugins.electrical_propulsion.models.propulsor import PROPULSOR_TYPE, propulsor_mass
 from setuav_studio.api import ActionContribution, StudioAPI
 from setuav_studio.plugin import PluginManager
@@ -102,95 +106,153 @@ class TestElectricalPropulsion(unittest.TestCase):
         window.close()
         window.deleteLater()
 
-    def _propulsor_editor(self) -> tuple[StudioAPI, dict[str, Any], PropulsorEditor]:
+    def _propulsor(self) -> tuple[StudioAPI, dict[str, Any]]:
         api = StudioAPI()
         doc = open_project(TEST_PROJECT_PATH)
         api._host.set_project(doc)
         propulsor = next(c for c in doc.data["components"] if c["type"] == PROPULSOR_TYPE)
-        editor = PropulsorEditor(api, propulsor)
-        self.addCleanup(editor.deleteLater)
-        self.addCleanup(editor.close)
-        return api, propulsor, editor
+        return api, propulsor
 
-    def test_propulsor_editor_shows_catalog_values_read_only(self) -> None:
-        _api, propulsor, editor = self._propulsor_editor()
+    def _page(self, page: Any) -> Any:
+        self.addCleanup(page.deleteLater)
+        return page
+
+    def test_propulsor_page_sums_up_its_motor_and_propeller(self) -> None:
+        api, propulsor = self._propulsor()
+        editor = self._page(PropulsorEditor(api, propulsor))
 
         self.assertEqual(editor._property_value(editor.general_table, "name"), propulsor["name"])
         self.assertEqual(editor._property_value(editor.general_table, "mass"), "136.0")
+        self.assertEqual(editor._property_value(editor.general_table, "motor"), "X2814 KV900 3-4S")
+        self.assertEqual(editor._property_value(editor.general_table, "propeller"), "APC_12x6")
+
+    def test_motor_and_propeller_pages_show_catalog_values_read_only(self) -> None:
+        api, propulsor = self._propulsor()
+        motor = self._page(PropulsorMotorEditor(api, propulsor))
+        propeller = self._page(PropulsorPropellerEditor(api, propulsor))
+
+        self.assertEqual(motor._property_value(motor.motor_table, "motor_manufacturer"), "SunnySky")
         for table, key, text, unit in (
-            (editor.motor_table, "motor_kv", "900", "RPM/V"),
-            (editor.propeller_table, "propeller_diameter", "304.8", "mm"),
-            (editor.propeller_table, "propeller_pitch", "152.4", "mm"),
-            (editor.propeller_table, "propeller_blade_count", "2", ""),
+            (motor.motor_table, "motor_kv", "900", "RPM/V"),
+            (propeller.propeller_table, "propeller_diameter", "304.8", "mm"),
+            (propeller.propeller_table, "propeller_pitch", "152.4", "mm"),
+            (propeller.propeller_table, "propeller_blade_count", "2", ""),
         ):
-            cell = editor._property_cell(table, key)
+            cell = motor._property_cell(table, key)
             assert cell is not None
             self.assertTrue(cell.isReadOnly(), key)
             self.assertEqual(cell.line_edit.text(), text)
             self.assertEqual(cell.unit_label.text(), unit)
-        self.assertEqual(
-            editor._property_value(editor.propeller_table, "propeller_catalog_id"), "APC_12x6"
-        )
-        for table, key in (
-            (editor.motor_table, "motor_mass"),
-            (editor.propeller_table, "propeller_mass"),
+        for page, table, key in (
+            (motor, motor.motor_table, "motor_mass"),
+            (propeller, propeller.propeller_table, "propeller_mass"),
         ):
-            cell = editor._property_cell(table, key)
+            cell = page._property_cell(table, key)
             assert cell is not None
             self.assertFalse(cell.isReadOnly(), key)
 
-    def test_propulsor_editor_applies_catalog_entries_with_undo(self) -> None:
+    def test_new_propulsor_pages_wait_for_catalog_picks(self) -> None:
+        from plugins.electrical_propulsion.creation import new_propulsor
+
+        api, _propulsor = self._propulsor()
+        empty = new_propulsor("propulsor-2", "Propulsor 2")
+        assert api.project is not None
+        api.project.data["components"].append(empty)
+        motor = self._page(PropulsorMotorEditor(api, empty))
+        propeller = self._page(PropulsorPropellerEditor(api, empty))
+
+        self.assertIn("Not selected", motor._property_value(motor.motor_table, "motor_model"))
+        self.assertIn(
+            "Not selected",
+            propeller._property_value(propeller.propeller_table, "propeller_catalog_id"),
+        )
+        for page, table, key in (
+            (motor, motor.motor_table, "motor_kv"),
+            (motor, motor.motor_table, "motor_mass"),
+            (propeller, propeller.propeller_table, "propeller_mass"),
+        ):
+            cell = page._property_cell(table, key)
+            assert cell is not None
+            self.assertTrue(cell.isReadOnly(), key)
+            self.assertEqual(cell.line_edit.text(), "")
+        self.assertEqual(empty["mass"], 0.0)
+
+    def test_catalog_picks_fill_the_pages_with_undo(self) -> None:
         from plugins.electrical_propulsion.database import (
             get_motor_database,
             get_propeller_database,
         )
 
-        api, propulsor, editor = self._propulsor_editor()
+        api, propulsor = self._propulsor()
         opened = deepcopy(propulsor)
+        motor_page = self._page(PropulsorMotorEditor(api, propulsor))
+        propeller_page = self._page(PropulsorPropellerEditor(api, propulsor))
         motor_db = get_motor_database()
         _CatalogSelection.selected_motor = next(
             entry
             for entry in (motor_db.get(name) for name in motor_db.list_motors())
-            if entry is not None and float(entry.kv) != 900.0 and entry.weight_g
+            if entry is not None and float(entry.kv) != 900.0
         )
         _CatalogSelection.selected_propeller = get_propeller_database().get("APC_13x6.5E")
         with patch(
             "plugins.electrical_propulsion.editors.propulsor.ComponentCatalogDialog",
             _CatalogSelection,
         ):
-            editor._open_motor_catalog()
-            editor._open_propeller_catalog()
+            motor_page._open_catalog()
+            propeller_page._open_catalog()
 
         motor = _CatalogSelection.selected_motor
         params = propulsor["parameters"]
         self.assertEqual(params["motor_kv"], float(motor.kv))
+        self.assertEqual(params["motor_model"], motor.name)
         self.assertEqual(params["motor_mass"], float(motor.weight_g))
-        self.assertEqual(propulsor["model"], motor.name)
         self.assertEqual(propulsor["mass"], propulsor_mass(params))
         self.assertEqual(params["propeller_catalog_id"], "APC_13x6.5E")
         self.assertEqual(params["propeller_diameter"], 330.2)
-        kv_cell = editor._property_cell(editor.motor_table, "motor_kv")
+        # The propeller mass is the user's and stays as entered.
+        self.assertEqual(params["propeller_mass"], 28.0)
+        kv_cell = motor_page._property_cell(motor_page.motor_table, "motor_kv")
         assert kv_cell is not None
         self.assertEqual(kv_cell.line_edit.text(), str(round(float(motor.kv))))
 
         api.undo()
         api.undo()
         self.assertEqual(propulsor, opened)
-        kv_cell = editor._property_cell(editor.motor_table, "motor_kv")
+        kv_cell = motor_page._property_cell(motor_page.motor_table, "motor_kv")
         assert kv_cell is not None
         self.assertEqual(kv_cell.line_edit.text(), "900")
 
-    def test_propulsor_editor_masses_sum_into_the_component_mass(self) -> None:
-        api, propulsor, editor = self._propulsor_editor()
-        cell = editor._property_cell(editor.propeller_table, "propeller_mass")
+    def test_propeller_mass_sums_into_the_component_mass(self) -> None:
+        api, propulsor = self._propulsor()
+        page = self._page(PropulsorPropellerEditor(api, propulsor))
+        cell = page._property_cell(page.propeller_table, "propeller_mass")
         assert cell is not None
         cell.setValue(35.0)
 
         self.assertEqual(propulsor["parameters"]["propeller_mass"], 35.0)
         self.assertEqual(propulsor["mass"], 108.0 + 35.0)
-        self.assertEqual(editor._property_value(editor.general_table, "mass"), "143.0")
         api.undo()
         self.assertEqual(propulsor["mass"], 136.0)
+
+    def test_explorer_lists_the_motor_and_propeller_under_their_propulsor(self) -> None:
+        from plugins.electrical_propulsion.plugin import ElectricalPropulsionPlugin
+        from setuav_studio.ui.panels.project_explorer.tree import ProjectExplorer
+
+        api, _propulsor = self._propulsor()
+        plugin = ElectricalPropulsionPlugin()
+        plugin.activate(api)
+        self.addCleanup(plugin.deactivate, api)
+        explorer = self._page(ProjectExplorer(api))
+        explorer.set_project(api.project)
+
+        item = explorer._item_map["propulsor-cruise"]
+        children = [item.child(index).text(0) for index in range(item.childCount())]
+        self.assertEqual(children, ["Motor: X2814 KV900 3-4S", "Propeller: APC_12x6"])
+        motor_item = explorer._item_map["propulsor-cruise:motor"]
+        editor = api.create_component_editor(explorer._element_map[motor_item])
+        self.assertIsInstance(editor, PropulsorMotorEditor)
+        assert editor is not None
+        editor.deleteLater()
 
     def _battery_editor(self) -> tuple[StudioAPI, dict[str, Any], BatteryEditor]:
         api = StudioAPI()
@@ -733,10 +795,13 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertIsNone(find_powertrain_members([]))
 
         cases = []
-        for catalog_id, message in (("", "has no catalog propeller"), ("APC_none", "no data")):
+        for catalog_id, message in ((None, "has no propeller"), ("APC_none", "no data")):
             unlinked = deepcopy(propulsor)
             unlinked["parameters"]["propeller_catalog_id"] = catalog_id
             cases.append(([unlinked, battery], message))
+        motorless = deepcopy(propulsor)
+        motorless["parameters"]["motor_model"] = None
+        cases.append(([motorless, battery], "has no motor"))
         cases.append(([propulsor], "requires: Battery"))
         cases.append(([battery], "requires: Propulsor"))
         four_cell = deepcopy(battery)

@@ -54,32 +54,11 @@ class PropulsionCreationController:
         )
 
     def add_propulsor(self) -> None:
-        """Add a propulsor built from a catalog motor and a catalog propeller."""
+        """Add a propulsor; its motor and propeller are picked on their own pages."""
         if not self._require_editable_project():
             return
-        from PySide6.QtWidgets import QDialog
-
-        from plugins.electrical_propulsion.catalog_dialog import ComponentCatalogDialog
-
-        motor_dialog = ComponentCatalogDialog(component_type="motor")
-        if motor_dialog.exec() != QDialog.DialogCode.Accepted or not motor_dialog.selected_motor:
-            return
-        propeller_dialog = ComponentCatalogDialog(component_type="propeller")
-        if (
-            propeller_dialog.exec() != QDialog.DialogCode.Accepted
-            or not propeller_dialog.selected_propeller
-        ):
-            return
-        component_id, name = self._unique_identity(
-            "propulsor", motor_dialog.selected_motor.name or "Propulsor"
-        )
-        component = new_propulsor(
-            component_id,
-            name,
-            motor=motor_dialog.selected_motor,
-            propeller=propeller_dialog.selected_propeller,
-        )
-        self._add(component)
+        component_id, name = self._unique_identity("propulsor", "Propulsor")
+        self._add(new_propulsor(component_id, name))
 
     def add_battery(self) -> None:
         """Add a battery pack with the default chemistry and cell."""
@@ -144,38 +123,16 @@ class PropulsionCreationController:
         )
 
 
-def new_propulsor(component_id: str, name: str, *, motor: Any, propeller: Any) -> dict[str, Any]:
-    """Return a propulsor component of a catalog motor and a catalog propeller."""
+def new_propulsor(component_id: str, name: str) -> dict[str, Any]:
+    """Return a propulsor with no motor or propeller picked yet."""
     params = PropulsorModel.default_parameters()
-    params.update(
-        {
-            "motor_kv": float(motor.kv),
-            "motor_resistance": float(motor.resistance),
-            "motor_no_load_current": float(motor.io or 0.0),
-            "motor_max_current": float(motor.max_current),
-            "propeller_catalog_id": propeller.metadata.id,
-            "propeller_diameter": round(propeller.diameter_m * 1000.0, 1),
-            "propeller_pitch": round(propeller.pitch_m * 1000.0, 1),
-            "propeller_blade_count": int(propeller.metadata.blade_count),
-        }
-    )
-    if motor.weight_g:
-        params["motor_mass"] = float(motor.weight_g)
     return {
         "kind": "component",
         "id": component_id,
         "name": name,
         "type": PROPULSOR_TYPE,
-        "manufacturer": motor.manufacturer or "",
-        "model": motor.name or "",
         "mass": propulsor_mass(params),
         "transform": _origin_transform(),
-        "envelope": {
-            "shape": "cylinder",
-            "axis": "x",
-            "size_mm": {"x": 40.0, "y": 35.0, "z": 35.0},
-            "offset_mm": {"x": 20.0, "y": 0.0, "z": 0.0},
-        },
         "parameters": params,
     }
 

@@ -2809,6 +2809,8 @@
         }
       },
       "parameters": {
+        "motor_manufacturer": "SunnySky",
+        "motor_model": "X2814 KV900 3-4S",
         "motor_kv": 900.0,
         "motor_resistance": 0.052,
         "motor_no_load_current": 0.7,
@@ -2820,8 +2822,6 @@
         "propeller_blade_count": 2,
         "propeller_mass": 28.0
       },
-      "manufacturer": "SunnySky",
-      "model": "X2814 KV900 3-4S",
       "mass": 136.0
     },
     {

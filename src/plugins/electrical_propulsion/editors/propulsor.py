@@ -1,4 +1,4 @@
-"""Propulsor editor: the motor and propeller from the catalogs."""
+"""Propulsor editors: the propulsor itself, and its motor and propeller picked from the catalogs."""
 
 from __future__ import annotations
 
@@ -17,51 +17,30 @@ from PySide6.QtWidgets import (
 )
 
 from plugins.electrical_propulsion.catalog_dialog import ComponentCatalogDialog
-from plugins.electrical_propulsion.models.propulsor import PropulsorModel, propulsor_mass
+from plugins.electrical_propulsion.models.propulsor import (
+    PropulsorModel,
+    has_motor,
+    has_propeller,
+    propulsor_mass,
+)
 from setuav_studio.api import ParameterField, StudioAPI
 from setuav_studio.model.expression import set_expression
 from setuav_studio.ui.style.icons import set_label_icon
 from setuav_studio.ui.widget.button import set_native_button
 from setuav_studio.ui.widget.table import PropertyTableMixin
 
-_MOTOR_KEYS = (
-    "motor_kv",
-    "motor_resistance",
-    "motor_no_load_current",
-    "motor_max_current",
-    "motor_mass",
-)
-_PROPELLER_KEYS = (
-    "propeller_diameter",
-    "propeller_pitch",
-    "propeller_blade_count",
-    "propeller_mass",
-)
-# Values the catalogs define; the masses stay editable.
-_CATALOG_KEYS = frozenset(
-    {
-        "motor_kv",
-        "motor_resistance",
-        "motor_no_load_current",
-        "motor_max_current",
-        "propeller_diameter",
-        "propeller_pitch",
-        "propeller_blade_count",
-    }
-)
+MOTOR_SELECTION_KIND = "propulsor-motor"
+PROPELLER_SELECTION_KIND = "propulsor-propeller"
+
 _FIELDS = {field.key: field for field in PropulsorModel.get_scalar_fields()}
+_NOT_SELECTED = "Not selected: pick one from the catalog"
 
 
-class PropulsorEditor(PropertyTableMixin, QWidget):
-    """Property editor for a propulsor: its motor and propeller."""
+class _PropulsorPage(PropertyTableMixin, QWidget):
+    """Scrollable page of property sections that edit one propulsor."""
 
-    def __init__(
-        self,
-        api: StudioAPI,
-        component: dict[str, Any],
-        parent: QWidget | None = None,
-    ) -> None:
-        super().__init__(parent)
+    def __init__(self, api: StudioAPI, component: dict[str, Any]) -> None:
+        super().__init__()
         self._api = api
         self._component = component
         self._loading = False
@@ -78,32 +57,25 @@ class PropulsorEditor(PropertyTableMixin, QWidget):
         scroll.setWidget(content)
         layout.addWidget(scroll)
 
-        self._create_general_section()
-        self.motor_table = self._create_parameter_section(
-            "Motor", "fa6s.gear", _MOTOR_KEYS, self._open_motor_catalog
-        )
-        self.propeller_table = self._create_parameter_section(
-            "Propeller",
-            "fa6s.fan",
-            ("propeller_catalog_id", *_PROPELLER_KEYS),
-            self._open_propeller_catalog,
-        )
-
+    def _finish(self) -> None:
         self._content_layout.addStretch()
         self._load()
-        api.on_project_content_changed(self._on_project_content_changed)
-
-    def closeEvent(self, event: Any) -> None:
-        self._api.remove_project_content_listener(self._on_project_content_changed)
-        super().closeEvent(event)
+        self._api.on_project_content_changed(self._on_project_content_changed)
 
     def _on_project_content_changed(self, _project: Any = None) -> None:
         if not self._loading:
             self._load()
 
+    def _load(self) -> None:
+        raise NotImplementedError
+
     def _create_section(
-        self, title: str, icon_name: str, action: QWidget | None = None
-    ) -> QVBoxLayout:
+        self,
+        title: str,
+        icon_name: str,
+        rows: list[tuple[str, str]],
+        on_catalog: Any | None = None,
+    ) -> QTableWidget:
         section = QWidget()
         section.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
         layout = QVBoxLayout(section)
@@ -121,81 +93,24 @@ class PropulsorEditor(PropertyTableMixin, QWidget):
         header_layout.addWidget(icon_label)
         header_layout.addWidget(QLabel(title))
         header_layout.addStretch()
-        if action is not None:
-            header_layout.addWidget(action)
-        layout.addWidget(header)
-        self._content_layout.addWidget(section)
-        return layout
-
-    def _create_general_section(self) -> None:
-        layout = self._create_section("General", "fa6s.circle-info")
-        self.general_table = self._property_table(
-            [
-                ("name", "Name"),
-                ("type", "Type"),
-                ("mass", "Mass [Motor + Propeller]"),
-                ("manufacturer", "Motor Manufacturer"),
-                ("model", "Motor Model"),
-            ]
-        )
-        self.general_table.cellChanged.connect(self._update_general)
-        layout.addWidget(self.general_table)
-
-    def _create_parameter_section(
-        self,
-        title: str,
-        icon_name: str,
-        keys: tuple[str, ...],
-        on_catalog: Any | None = None,
-    ) -> QTableWidget:
-        action = None
         if on_catalog is not None:
-            action = QPushButton("Catalog…", self)
-            set_native_button(action, "fa6s.database")
-            action.clicked.connect(on_catalog)
-        layout = self._create_section(title, icon_name, action)
-        table = self._property_table([(key, _FIELDS[key].label) for key in keys])
+            button = QPushButton("Catalog…", self)
+            set_native_button(button, "fa6s.database")
+            button.clicked.connect(on_catalog)
+            header_layout.addWidget(button)
+        layout.addWidget(header)
+        table = self._property_table(rows)
         layout.addWidget(table)
+        self._content_layout.addWidget(section)
         return table
 
-    def _load(self) -> None:
-        self._loading = True
-        try:
-            component = self._component
-            params = component["parameters"]
-            self._set_property_value(self.general_table, "name", str(component.get("name") or ""))
-            self._set_property_value(
-                self.general_table, "type", str(component.get("type") or ""), editable=False
-            )
-            self._set_property_value(
-                self.general_table, "mass", f"{float(component['mass']):.1f}", editable=False
-            )
-            for key in ("manufacturer", "model"):
-                self._set_property_value(
-                    self.general_table, key, str(component.get(key) or ""), editable=False
-                )
-            for table, keys in (
-                (self.motor_table, _MOTOR_KEYS),
-                (self.propeller_table, _PROPELLER_KEYS),
-            ):
-                for key in keys:
-                    self._load_number(table, key, params[key], read_only=key in _CATALOG_KEYS)
-            catalog_id = str(params["propeller_catalog_id"])
-            self._set_property_value(
-                self.propeller_table,
-                "propeller_catalog_id",
-                catalog_id or "(select from the catalog)",
-                editable=False,
-            )
-        finally:
-            self._loading = False
-
-    def _load_number(self, table: QTableWidget, key: str, value: Any, *, read_only: bool) -> None:
+    def _load_number(self, table: QTableWidget, key: str, *, editable: bool) -> None:
         field: ParameterField = _FIELDS[key]
+        value = self._component["parameters"][key]
         self._set_property_spinbox(
             table,
             key,
-            value,
+            "" if value is None else value,
             min_val=field.min_value if field.min_value is not None else -1e6,
             max_val=field.max_value if field.max_value is not None else 1e6,
             step=1.0 if field.field_type is int else 0.1,
@@ -204,7 +119,7 @@ class PropulsorEditor(PropertyTableMixin, QWidget):
             unit=field.unit,
             target_data=self._component["parameters"],
             on_changed=lambda v, k=key, t=table: self._on_param_changed(t, k, v),
-            read_only=read_only,
+            read_only=not editable,
         )
 
     def _on_param_changed(self, table: QTableWidget, key: str, value: Any) -> None:
@@ -221,9 +136,49 @@ class PropulsorEditor(PropertyTableMixin, QWidget):
             self._component["mass"] = propulsor_mass(params)
 
         self._api.edit_component(self._component, f"Set {key}", apply_edit)
-        self._load()
 
-    def _update_general(self, row: int, column: int) -> None:
+
+class PropulsorEditor(_PropulsorPage):
+    """Name and mass of a propulsor; its motor and propeller have pages of their own."""
+
+    def __init__(self, api: StudioAPI, component: dict[str, Any]) -> None:
+        super().__init__(api, component)
+        self.general_table = self._create_section(
+            "General",
+            "fa6s.circle-info",
+            [
+                ("name", "Name"),
+                ("type", "Type"),
+                ("mass", "Mass [Motor + Propeller]"),
+                ("motor", "Motor"),
+                ("propeller", "Propeller"),
+            ],
+        )
+        self.general_table.cellChanged.connect(self._update_name)
+        self._finish()
+
+    def _load(self) -> None:
+        self._loading = True
+        try:
+            component = self._component
+            params = component["parameters"]
+            self._set_property_value(self.general_table, "name", str(component.get("name") or ""))
+            self._set_property_value(
+                self.general_table, "type", str(component["type"]), editable=False
+            )
+            self._set_property_value(
+                self.general_table, "mass", f"{float(component['mass']):.1f}", editable=False
+            )
+            motor = str(params["motor_model"]) if has_motor(params) else "Not selected"
+            propeller = (
+                str(params["propeller_catalog_id"]) if has_propeller(params) else "Not selected"
+            )
+            self._set_property_value(self.general_table, "motor", motor, editable=False)
+            self._set_property_value(self.general_table, "propeller", propeller, editable=False)
+        finally:
+            self._loading = False
+
+    def _update_name(self, row: int, column: int) -> None:
         if self._loading or column != 1:
             return
         if self._property_key(self.general_table, row) != "name":
@@ -235,7 +190,53 @@ class PropulsorEditor(PropertyTableMixin, QWidget):
 
         self._api.edit_component(self._component, "Edit name", apply_edit)
 
-    def _open_motor_catalog(self) -> None:
+
+class PropulsorMotorEditor(_PropulsorPage):
+    """The propulsor's motor: picked from the catalog, with an editable mass."""
+
+    _KEYS = (
+        "motor_manufacturer",
+        "motor_model",
+        "motor_kv",
+        "motor_resistance",
+        "motor_no_load_current",
+        "motor_max_current",
+        "motor_mass",
+    )
+
+    def __init__(self, api: StudioAPI, component: dict[str, Any]) -> None:
+        super().__init__(api, component)
+        self.motor_table = self._create_section(
+            "Motor",
+            "fa6s.gear",
+            [(key, _FIELDS[key].label) for key in self._KEYS],
+            self._open_catalog,
+        )
+        self._finish()
+
+    def _load(self) -> None:
+        self._loading = True
+        try:
+            params = self._component["parameters"]
+            picked = has_motor(params)
+            self._set_property_value(
+                self.motor_table,
+                "motor_manufacturer",
+                str(params["motor_manufacturer"] or "") if picked else "",
+                editable=False,
+            )
+            self._set_property_value(
+                self.motor_table,
+                "motor_model",
+                str(params["motor_model"]) if picked else _NOT_SELECTED,
+                editable=False,
+            )
+            for key in self._KEYS[2:]:
+                self._load_number(self.motor_table, key, editable=picked and key == "motor_mass")
+        finally:
+            self._loading = False
+
+    def _open_catalog(self) -> None:
         dialog = ComponentCatalogDialog(component_type="motor", parent=self.window())
         if dialog.exec() != QDialog.DialogCode.Accepted or not dialog.selected_motor:
             return
@@ -243,20 +244,62 @@ class PropulsorEditor(PropertyTableMixin, QWidget):
 
         def apply_edit() -> None:
             params = self._component["parameters"]
-            self._component["manufacturer"] = motor.manufacturer or ""
-            self._component["model"] = motor.name or ""
-            params["motor_kv"] = float(motor.kv)
-            params["motor_resistance"] = float(motor.resistance)
-            params["motor_no_load_current"] = float(motor.io or 0.0)
-            params["motor_max_current"] = float(motor.max_current)
-            if motor.weight_g:
-                params["motor_mass"] = float(motor.weight_g)
+            for key in self._KEYS:
+                set_expression(params, key, None)
+            params.update(
+                motor_manufacturer=motor.manufacturer or None,
+                motor_model=motor.name,
+                motor_kv=float(motor.kv),
+                motor_resistance=float(motor.resistance),
+                motor_no_load_current=float(motor.io),
+                motor_max_current=float(motor.max_current),
+                motor_mass=float(motor.weight_g),
+            )
             self._component["mass"] = propulsor_mass(params)
 
-        self._api.edit_component(self._component, f"Apply catalog motor '{motor.name}'", apply_edit)
-        self._load()
+        self._api.edit_component(self._component, f"Pick motor '{motor.name}'", apply_edit)
 
-    def _open_propeller_catalog(self) -> None:
+
+class PropulsorPropellerEditor(_PropulsorPage):
+    """The propulsor's propeller: picked from the catalog, with a mass entered by hand."""
+
+    _KEYS = (
+        "propeller_catalog_id",
+        "propeller_diameter",
+        "propeller_pitch",
+        "propeller_blade_count",
+        "propeller_mass",
+    )
+
+    def __init__(self, api: StudioAPI, component: dict[str, Any]) -> None:
+        super().__init__(api, component)
+        self.propeller_table = self._create_section(
+            "Propeller",
+            "fa6s.fan",
+            [(key, _FIELDS[key].label) for key in self._KEYS],
+            self._open_catalog,
+        )
+        self._finish()
+
+    def _load(self) -> None:
+        self._loading = True
+        try:
+            params = self._component["parameters"]
+            picked = has_propeller(params)
+            self._set_property_value(
+                self.propeller_table,
+                "propeller_catalog_id",
+                str(params["propeller_catalog_id"]) if picked else _NOT_SELECTED,
+                editable=False,
+            )
+            for key in self._KEYS[1:]:
+                self._load_number(
+                    self.propeller_table, key, editable=picked and key == "propeller_mass"
+                )
+        finally:
+            self._loading = False
+
+    def _open_catalog(self) -> None:
         dialog = ComponentCatalogDialog(component_type="propeller", parent=self.window())
         if dialog.exec() != QDialog.DialogCode.Accepted or not dialog.selected_propeller:
             return
@@ -264,12 +307,49 @@ class PropulsorEditor(PropertyTableMixin, QWidget):
 
         def apply_edit() -> None:
             params = self._component["parameters"]
-            params["propeller_catalog_id"] = propeller.metadata.id
-            params["propeller_diameter"] = round(propeller.diameter_m * 1000.0, 1)
-            params["propeller_pitch"] = round(propeller.pitch_m * 1000.0, 1)
-            params["propeller_blade_count"] = int(propeller.metadata.blade_count)
+            for key in self._KEYS[:-1]:
+                set_expression(params, key, None)
+            params.update(
+                propeller_catalog_id=propeller.metadata.id,
+                propeller_diameter=round(propeller.diameter_m * 1000.0, 1),
+                propeller_pitch=round(propeller.pitch_m * 1000.0, 1),
+                propeller_blade_count=int(propeller.metadata.blade_count),
+            )
 
         self._api.edit_component(
-            self._component, f"Apply catalog propeller '{propeller.metadata.id}'", apply_edit
+            self._component, f"Pick propeller '{propeller.metadata.id}'", apply_edit
         )
-        self._load()
+
+
+def propulsor_part_nodes(component: dict[str, Any]) -> tuple[dict[str, str], ...]:
+    """Selections of a propulsor's motor and propeller nodes in the project tree."""
+    params = component["parameters"]
+    component_id = str(component["id"])
+    motor = f"Motor: {params['motor_model']}" if has_motor(params) else "Motor"
+    propeller = (
+        f"Propeller: {params['propeller_catalog_id']}" if has_propeller(params) else "Propeller"
+    )
+    return (
+        {
+            "kind": MOTOR_SELECTION_KIND,
+            "id": f"{component_id}:motor",
+            "component_id": component_id,
+            "name": motor,
+        },
+        {
+            "kind": PROPELLER_SELECTION_KIND,
+            "id": f"{component_id}:propeller",
+            "component_id": component_id,
+            "name": propeller,
+        },
+    )
+
+
+__all__ = [
+    "MOTOR_SELECTION_KIND",
+    "PROPELLER_SELECTION_KIND",
+    "PropulsorEditor",
+    "PropulsorMotorEditor",
+    "PropulsorPropellerEditor",
+    "propulsor_part_nodes",
+]

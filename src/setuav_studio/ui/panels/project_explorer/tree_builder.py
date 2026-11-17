@@ -34,33 +34,28 @@ class ProjectTreeBuilder:
         self._api = api
 
     def rebuild_project(self, project: ProjectDocument) -> None:
-        selection_state = self._tree._tree_selection_state(project)
+        selection_id = self._tree._selected_id()
         fresh_selection: dict[str, Any] | None = None
         self._tree.blockSignals(True)
         try:
             self.reset_project_tree()
-            project_item = self.create_project_item(project)
-            vehicle_item = self.create_vehicle_item(project_item)
+            top_level = self._tree.invisibleRootItem()
+            vehicle_item = self.create_vehicle_item(top_level)
             components = self.project_elements(project)
             self.create_component_items(components, project.read_only)
             self.attach_component_items(vehicle_item, components)
-            self.create_parameters_group(project_item, project)
-            self.create_constraints_group(project_item, project)
-            self.create_analysis_configs_group(project_item, project)
+            self.create_parameters_group(top_level, project)
+            self.create_constraints_group(top_level, project)
+            self.create_analysis_configs_group(top_level, project)
             for contribution in self._api.project_tree_nodes(project):
-                self.append_project_contribution(project_item, contribution)
+                self.append_project_contribution(top_level, contribution)
             self._tree.expandAll()
-            fresh_selection = self._tree._restore_tree_selection(
-                project,
-                project_item,
-                selection_state,
-            )
+            fresh_selection = self._tree._restore_tree_selection(selection_id)
         finally:
             self._tree.blockSignals(False)
 
-        has_prior_selection = selection_state[0] or bool(selection_state[1])
         if (
-            has_prior_selection
+            selection_id
             and fresh_selection is not None
             and self._api.current_selection is not fresh_selection
         ):
@@ -70,7 +65,6 @@ class ProjectTreeBuilder:
         self._tree.clear()
         self._tree._item_map.clear()
         self._tree._element_map.clear()
-        self._tree._project_root_item = None
         self._tree._vehicle_item = None
         self._tree._parameters_group_item = None
         self._tree._constraints_group_item = None
@@ -79,18 +73,7 @@ class ProjectTreeBuilder:
         self._tree._project_contributions.clear()
         self._tree._component_contributions.clear()
 
-    def create_project_item(self, project: ProjectDocument) -> QTreeWidgetItem:
-        project_name = str(project.data.get("name") or project.location.name or "Unnamed Project")
-        item = QTreeWidgetItem([project_name])
-        if not project.read_only:
-            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
-        item.setToolTip(0, f"Project: {project_name}")
-        self._tree._element_map[item] = project.data
-        self._tree._project_root_item = item
-        self._tree.addTopLevelItem(item)
-        return item
-
-    def create_vehicle_item(self, project_item: QTreeWidgetItem) -> QTreeWidgetItem:
+    def create_vehicle_item(self, top_level: QTreeWidgetItem) -> QTreeWidgetItem:
         item = QTreeWidgetItem([VEHICLE_SELECTION["name"]])
         item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
         item.setIcon(0, get_icon("vehicle"))
@@ -98,7 +81,7 @@ class ProjectTreeBuilder:
         self._tree._element_map[item] = dict(VEHICLE_SELECTION)
         self._tree._item_map[VEHICLE_SELECTION["id"]] = item
         self._tree._vehicle_item = item
-        project_item.addChild(item)
+        top_level.addChild(item)
         return item
 
     @staticmethod
@@ -110,7 +93,7 @@ class ProjectTreeBuilder:
 
     def create_parameters_group(
         self,
-        project_item: QTreeWidgetItem,
+        top_level: QTreeWidgetItem,
         project: ProjectDocument,
     ) -> None:
         raw_params = project.data.get("parameters", {})
@@ -130,7 +113,7 @@ class ProjectTreeBuilder:
             const_group.setIcon(0, get_icon("constant"))
             const_group.setToolTip(0, "Constants")
             self._tree._parameters_group_item = const_group
-            project_item.addChild(const_group)
+            top_level.addChild(const_group)
 
             for k, v in constants.items():
                 item = QTreeWidgetItem([str(k)])
@@ -153,7 +136,7 @@ class ProjectTreeBuilder:
             eq_group = QTreeWidgetItem(["Equations"])
             eq_group.setIcon(0, get_icon("equation"))
             eq_group.setToolTip(0, "Project Formulas & Equations")
-            project_item.addChild(eq_group)
+            top_level.addChild(eq_group)
 
             for k, v in equations.items():
                 item = QTreeWidgetItem([str(k)])
@@ -169,7 +152,7 @@ class ProjectTreeBuilder:
 
     def create_constraints_group(
         self,
-        project_item: QTreeWidgetItem,
+        top_level: QTreeWidgetItem,
         project: ProjectDocument,
     ) -> None:
         constraints = project.data.get("constraints", [])
@@ -184,7 +167,7 @@ class ProjectTreeBuilder:
         constraint_group.setIcon(0, get_icon("constraint"))
         constraint_group.setToolTip(0, "Constraints")
         self._tree._constraints_group_item = constraint_group
-        project_item.addChild(constraint_group)
+        top_level.addChild(constraint_group)
 
         for c in valid_constraints:
             cid = c.get("id", "")
@@ -206,7 +189,7 @@ class ProjectTreeBuilder:
 
     def create_analysis_configs_group(
         self,
-        project_item: QTreeWidgetItem,
+        top_level: QTreeWidgetItem,
         project: ProjectDocument,
     ) -> None:
         configs = project.solver_configs
@@ -217,7 +200,7 @@ class ProjectTreeBuilder:
         analysis_group.setIcon(0, get_icon("fa6s.gears"))
         analysis_group.setToolTip(0, "Analysis Configurations")
         self._tree._analysis_group_item = analysis_group
-        project_item.addChild(analysis_group)
+        top_level.addChild(analysis_group)
 
         for cid, config in configs.items():
             name = config.name or "New Analysis"

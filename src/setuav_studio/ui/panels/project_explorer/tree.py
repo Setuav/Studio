@@ -63,7 +63,6 @@ class ProjectExplorer(QTreeWidget):
         self._api = api
         self._item_map: dict[str, QTreeWidgetItem] = {}
         self._element_map: dict[QTreeWidgetItem, dict[str, Any]] = {}
-        self._project_root_item: QTreeWidgetItem | None = None
         self._vehicle_item: QTreeWidgetItem | None = None
         self._parameters_group_item: QTreeWidgetItem | None = None
         self._constraints_group_item: QTreeWidgetItem | None = None
@@ -109,29 +108,11 @@ class ProjectExplorer(QTreeWidget):
     def _rebuild_project(self, project: ProjectDocument) -> None:
         self._builder.rebuild_project(project)
 
-    def _tree_selection_state(
-        self,
-        project: ProjectDocument,
-    ) -> tuple[bool, str | None]:
+    def _selected_id(self) -> str | None:
         current_selection = self._api.current_selection
-        return (
-            current_selection is project.data,
-            (current_selection.get("id") if isinstance(current_selection, dict) else None),
-        )
+        return current_selection.get("id") if isinstance(current_selection, dict) else None
 
-    def _restore_tree_selection(
-        self,
-        project: ProjectDocument,
-        project_item: QTreeWidgetItem,
-        selection_state: tuple[bool, str | None],
-    ) -> dict[str, Any] | None:
-        project_selected, selection_id = selection_state
-
-        if project_selected:
-            project_item.setSelected(True)
-            self.setCurrentItem(project_item)
-            return project.data
-
+    def _restore_tree_selection(self, selection_id: str | None) -> dict[str, Any] | None:
         if selection_id:
             if selection_id in self._item_map:
                 selected_item = self._item_map[selection_id]
@@ -347,15 +328,6 @@ class ProjectExplorer(QTreeWidget):
             self.clearSelection()
             self.setCurrentIndex(QModelIndex())
             return
-        project = self._api.project
-        if project is not None and selection is project.data:
-            if (
-                self._project_root_item is not None
-                and self.currentItem() is not self._project_root_item
-            ):
-                self.setCurrentItem(self._project_root_item)
-            return
-
         elem_id = selection.get("id") if isinstance(selection, dict) else None
         if not isinstance(elem_id, str):
             self.clearSelection()

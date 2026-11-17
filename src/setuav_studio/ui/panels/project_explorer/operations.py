@@ -28,26 +28,9 @@ class ProjectExplorerOperations:
         project = self._api.project
         return project is not None and not project.read_only
 
-    def element_kind(self, element_id: str) -> str:
-        return "component"
-
-    def find_element(self, element_id: str, kind: str) -> dict[str, Any] | None:
+    def find_component(self, component_id: str) -> dict[str, Any] | None:
         project = self._api.project
-        if project is None:
-            return None
-        if kind == "project":
-            return project.data
-        collection = project.data.get("components")
-        if not isinstance(collection, list):
-            return None
-        return next(
-            (
-                element
-                for element in collection
-                if isinstance(element, dict) and str(element.get("id") or "") == element_id
-            ),
-            None,
-        )
+        return project.get_component(component_id) if project is not None else None
 
     def dependent_component_ids(self, root_id: str) -> set[str]:
         return self.dependent_component_ids_from({root_id})
@@ -146,7 +129,6 @@ class ProjectExplorerOperations:
             self.delete_virtual_item(item)
             return
         if item in (
-            self._tree._project_root_item,
             self._tree._vehicle_item,
             self._tree._parameters_group_item,
             self._tree._constraints_group_item,
@@ -335,13 +317,8 @@ class ProjectExplorerOperations:
             return
 
         element_id = str(element.get("id") or "")
-        kind = "project" if item is self._tree._project_root_item else self.element_kind(element_id)
         old_name = str(element.get("name") or "").strip()
-        old_label = (
-            str(element.get("name") or element_id or "Unnamed Project")
-            if kind == "project"
-            else format_component_name(element)
-        )
+        old_label = format_component_name(element)
         new_name = item.text(0).strip()
         if not self.can_edit_project():
             self.restore_item_text(item, old_label)
@@ -355,17 +332,12 @@ class ProjectExplorerOperations:
             return
 
         def change() -> None:
-            fresh_element = self.find_element(element_id, kind)
+            fresh_element = self.find_component(element_id)
             if fresh_element is not None:
                 fresh_element["name"] = new_name
 
-        description = (
-            f"Rename project to {new_name}"
-            if kind == "project"
-            else f"Rename {old_label} to {new_name}"
-        )
-        self._api.edit_project(description, change)
-        fresh_element = self.find_element(element_id, kind)
+        self._api.edit_project(f"Rename {old_label} to {new_name}", change)
+        fresh_element = self.find_component(element_id)
         if fresh_element is not None:
             self._api.set_selection(fresh_element)
         self._api.show_status(f'Renamed "{old_label}" to "{new_name}"', "success", 3000)

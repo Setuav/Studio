@@ -15,26 +15,41 @@ PROPULSOR_MASS_KEYS = ("motor_mass", "propeller_mass")
 
 
 def propulsor_mass(parameters: Mapping[str, Any]) -> float:
-    """Return the motor and propeller mass of a propulsor in grams."""
-    return sum(float(parameters[key]) for key in PROPULSOR_MASS_KEYS)
+    """Return the mass in grams of the propulsor's motor and propeller entered so far."""
+    return sum(float(parameters[key]) for key in PROPULSOR_MASS_KEYS if parameters[key] is not None)
+
+
+def has_motor(parameters: Mapping[str, Any]) -> bool:
+    """Whether a motor has been picked from the catalog."""
+    return parameters["motor_model"] is not None
+
+
+def has_propeller(parameters: Mapping[str, Any]) -> bool:
+    """Whether a propeller has been picked from the catalog."""
+    return parameters["propeller_catalog_id"] is not None
 
 
 class PropulsorModel(Component):
     """Domain model for Propulsor (org.setuav.core:propulsor).
 
-    A propulsor is one electric motor and the propeller on its shaft, both from the
-    PyThrust catalogs. The component mass is stored and kept equal to the motor and
-    propeller masses.
+    A propulsor is one electric motor and the propeller on its shaft, each picked
+    from the PyThrust catalogs. A new propulsor has neither; until they are picked
+    their parameters are empty. The component mass is stored and kept equal to the
+    motor and propeller masses.
     """
 
     COMPONENT_TYPE = PROPULSOR_TYPE
 
+    motor_manufacturer = ParameterField(
+        key="motor_manufacturer", label="Manufacturer", field_type=str, default=None
+    )
+    motor_model = ParameterField(key="motor_model", label="Model", field_type=str, default=None)
     motor_kv = ParameterField(
         key="motor_kv",
         label="Velocity Constant (KV)",
         unit="RPM/V",
         field_type=float,
-        default=900.0,
+        default=None,
         min_value=10.0,
         max_value=20000.0,
         decimals=0,
@@ -46,7 +61,7 @@ class PropulsorModel(Component):
         unit="Ω",
         quantity="resistance",
         field_type=float,
-        default=0.055,
+        default=None,
         min_value=0.0001,
         max_value=10.0,
         decimals=4,
@@ -58,7 +73,7 @@ class PropulsorModel(Component):
         unit="A",
         quantity="current",
         field_type=float,
-        default=1.1,
+        default=None,
         min_value=0.0,
         max_value=50.0,
         decimals=2,
@@ -70,7 +85,7 @@ class PropulsorModel(Component):
         unit="A",
         quantity="current",
         field_type=float,
-        default=40.0,
+        default=None,
         min_value=0.1,
         max_value=1000.0,
         decimals=1,
@@ -78,20 +93,20 @@ class PropulsorModel(Component):
     )
     motor_mass = ParameterField(
         key="motor_mass",
-        label="Motor Mass",
+        label="Mass",
         unit="g",
         quantity="mass",
         field_type=float,
-        default=120.0,
+        default=None,
         min_value=0.0,
         max_value=1e5,
         decimals=1,
     )
     propeller_catalog_id = ParameterField(
         key="propeller_catalog_id",
-        label="Propeller",
+        label="Catalog Entry",
         field_type=str,
-        default="",
+        default=None,
         tooltip="PyThrust catalog entry of the propeller's thrust and power data.",
     )
     propeller_diameter = ParameterField(
@@ -100,7 +115,7 @@ class PropulsorModel(Component):
         unit="mm",
         quantity="length",
         field_type=float,
-        default=254.0,
+        default=None,
         min_value=1.0,
         max_value=1e4,
         decimals=1,
@@ -111,7 +126,7 @@ class PropulsorModel(Component):
         unit="mm",
         quantity="length",
         field_type=float,
-        default=114.3,
+        default=None,
         min_value=0.0,
         max_value=1e4,
         decimals=1,
@@ -120,24 +135,25 @@ class PropulsorModel(Component):
         key="propeller_blade_count",
         label="Blades",
         field_type=int,
-        default=2,
+        default=None,
         min_value=1,
         max_value=12,
         decimals=0,
     )
     propeller_mass = ParameterField(
         key="propeller_mass",
-        label="Propeller Mass",
+        label="Mass",
         unit="g",
         quantity="mass",
         field_type=float,
-        default=25.0,
+        default=None,
         min_value=0.0,
         max_value=1e5,
         decimals=1,
+        tooltip="The catalog has no propeller masses; enter the propeller's own.",
     )
 
     @classmethod
     def default_parameters(cls) -> dict[str, Any]:
-        """Parameter set of a new propulsor."""
+        """Parameter set of a new propulsor, with no motor or propeller picked."""
         return {field.key: field.default for field in cls.get_scalar_fields()}

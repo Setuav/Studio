@@ -85,9 +85,7 @@ class ProjectExplorerContextMenu:
             self.open_analysis_plot_menu(item, element, position)
             return
 
-        if (element is None or element.get("kind") == "vehicle") and (
-            item is not self._tree._project_root_item
-        ):
+        if element is None or element.get("kind") == "vehicle":
             return
 
         self.open_default_context_menu(item, position, can_edit)
@@ -156,28 +154,14 @@ class ProjectExplorerContextMenu:
         menu = QMenu(self._tree)
         rename_action = menu.addAction(get_icon("edit"), "Rename")
         rename_action.setEnabled(can_edit)
-        delete_action = None
-        add_const_act = None
-        add_constr_act = None
-        if item is not self._tree._project_root_item:
-            delete_action = menu.addAction(get_icon("remove"), "Delete")
-            delete_action.setEnabled(can_edit)
-        else:
-            menu.addSeparator()
-            add_const_act = menu.addAction(get_icon("constant"), "Add Constant…")
-            add_const_act.setEnabled(can_edit)
-            add_constr_act = menu.addAction(get_icon("constraint"), "Add Constraint…")
-            add_constr_act.setEnabled(can_edit)
+        delete_action = menu.addAction(get_icon("remove"), "Delete")
+        delete_action.setEnabled(can_edit)
 
         chosen_action = menu.exec(self._tree.viewport().mapToGlobal(position))
         if chosen_action is rename_action:
             self._tree.editItem(item, 0)
-        elif delete_action is not None and chosen_action is delete_action:
+        elif chosen_action is delete_action:
             self._ops.delete_item(item)
-        elif add_const_act is not None and chosen_action is add_const_act:
-            self._ops.add_parameter_action(is_constant=True)
-        elif add_constr_act is not None and chosen_action is add_constr_act:
-            self._ops.add_constraint_action()
 
     def open_virtual_context_menu(self, item: QTreeWidgetItem, position: QPoint) -> None:
         contribution = self._tree._project_contributions.get(

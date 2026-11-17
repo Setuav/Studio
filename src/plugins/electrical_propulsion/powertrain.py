@@ -12,7 +12,11 @@ from pythrust.propulsion.models import MotorSpec, OperatingPoint, PropellerSpec
 
 from plugins.electrical_propulsion.database import get_propeller_entry
 from plugins.electrical_propulsion.models.battery import battery_pack
-from plugins.electrical_propulsion.models.propulsor import PROPULSOR_TYPE
+from plugins.electrical_propulsion.models.propulsor import (
+    PROPULSOR_TYPE,
+    has_motor,
+    has_propeller,
+)
 
 BATTERY_TYPE = "org.setuav.core:battery"
 
@@ -154,9 +158,11 @@ def build_powertrain(members: PowertrainMembers, *, state_of_charge: float) -> P
 
 def propulsion_unit(parameters: Mapping[str, Any], label: str) -> PropulsionUnit:
     """Return the PyThrust unit of a propulsor's parameters."""
+    if not has_motor(parameters):
+        raise PowertrainError(f"Propulsor '{label}' has no motor; pick one from the catalog.")
+    if not has_propeller(parameters):
+        raise PowertrainError(f"Propulsor '{label}' has no propeller; pick one from the catalog.")
     catalog_id = str(parameters["propeller_catalog_id"])
-    if not catalog_id:
-        raise PowertrainError(f"Propulsor '{label}' has no catalog propeller; select one.")
     entry = get_propeller_entry(catalog_id)
     if entry is None:
         raise PowertrainError(f"Propeller catalog has no data for '{catalog_id}'.")

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from plugins.electrical_propulsion.models.propulsor import PROPULSOR_TYPE
+from plugins.electrical_propulsion.models.propulsor import PROPULSOR_TYPE, has_propeller
 from setuav_studio.ui.viewport import RingPrimitive, SceneObject
 from setuav_studio.utilities.transform import (
     components_by_id,
@@ -49,7 +49,8 @@ class PropulsionSceneController:
             if not isinstance(comp, dict):
                 continue
             ctype = str(comp.get("type") or "")
-            if ctype != PROPULSOR_TYPE:
+            # A propulsor without a propeller yet has no disk to draw.
+            if ctype != PROPULSOR_TYPE or not has_propeller(comp["parameters"]):
                 continue
 
             comp_id = str(comp.get("id") or "")

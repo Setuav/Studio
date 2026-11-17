@@ -43,6 +43,7 @@ def _powertrain(unit_count: int = 1) -> Powertrain:
     """6S1P 6000 mAh LiPo pack driving 13x6.5 propeller units."""
     unit = propulsion_unit(
         {
+            "motor_model": "test motor",
             "motor_kv": 900.0,
             "motor_resistance": 0.035,
             "motor_no_load_current": 1.2,

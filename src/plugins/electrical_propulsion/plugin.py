@@ -4,24 +4,37 @@ from __future__ import annotations
 
 import contextlib
 from collections.abc import Callable
+from typing import Any
 
 from plugins.electrical_propulsion.catalog_dialog import ComponentCatalogDialog
 from plugins.electrical_propulsion.creation import (
     PropulsionCreationController,
 )
 from plugins.electrical_propulsion.editors import BatteryEditor, PropulsorEditor
+from plugins.electrical_propulsion.editors.propulsor import (
+    MOTOR_SELECTION_KIND,
+    PROPELLER_SELECTION_KIND,
+    PropulsorMotorEditor,
+    PropulsorPropellerEditor,
+    propulsor_part_nodes,
+)
 from plugins.electrical_propulsion.models import BatteryModel, PropulsorModel
+from plugins.electrical_propulsion.models.propulsor import PROPULSOR_TYPE
 from plugins.electrical_propulsion.scene_controller import PropulsionSceneController
 from setuav_studio.api import (
+    ComponentTreeNodeContribution,
     ComponentTypeContribution,
     StudioAPI,
     StudioPlugin,
     ToolContribution,
 )
 
+_TREE_PROVIDER_ID = "org.setuav.studio.electrical_propulsion.propulsor-parts"
+_PART_ICONS = {MOTOR_SELECTION_KIND: "fa6s.gear", PROPELLER_SELECTION_KIND: "fa6s.fan"}
+
 
 class ElectricalPropulsionPlugin(StudioPlugin):
-    """Integrates propulsors (motor, propeller and speed controller) and battery packs."""
+    """Integrates propulsors (a motor and its propeller) and battery packs."""
 
     id = "org.setuav.studio.electrical_propulsion"
     name = "Electrical Propulsion"
@@ -46,7 +59,7 @@ class ElectricalPropulsionPlugin(StudioPlugin):
         # Register Component Types
         self._component_types = [
             ComponentTypeContribution(
-                id="org.setuav.core:propulsor",
+                id=PROPULSOR_TYPE,
                 name="Propulsor",
                 icon="component",
                 model=PropulsorModel,
@@ -64,6 +77,17 @@ class ElectricalPropulsionPlugin(StudioPlugin):
         ]
         for ct in self._component_types:
             api.register_component_type(ct)
+
+        # A propulsor's motor and propeller are nodes beneath it with pages of their own.
+        api.register_component_tree_provider(_TREE_PROVIDER_ID, _propulsor_part_tree_nodes)
+        api.register_kind_editor(
+            MOTOR_SELECTION_KIND,
+            lambda selection: PropulsorMotorEditor(api, _selected_propulsor(api, selection)),
+        )
+        api.register_kind_editor(
+            PROPELLER_SELECTION_KIND,
+            lambda selection: PropulsorPropellerEditor(api, _selected_propulsor(api, selection)),
+        )
 
         # Register Component Database Tool
         def open_component_database() -> None:
@@ -218,6 +242,9 @@ class ElectricalPropulsionPlugin(StudioPlugin):
 
         for ct in getattr(self, "_component_types", ()):
             api.unregister_component_type(ct.id)
+        api.unregister_component_tree_provider(_TREE_PROVIDER_ID)
+        api.unregister_kind_editor(MOTOR_SELECTION_KIND)
+        api.unregister_kind_editor(PROPELLER_SELECTION_KIND)
 
         if getattr(self, "_tool_contribution", None) is not None:
             api.unregister_tool(self._tool_contribution)
@@ -234,3 +261,27 @@ class ElectricalPropulsionPlugin(StudioPlugin):
         api.unregister_solver(SOLVER_ID_THROTTLE_SWEEP)
         api.unregister_solver(SOLVER_ID_AIRSPEED_SWEEP)
         api.unregister_solver(SOLVER_ID_OPERATING_POINT)
+
+
+def _propulsor_part_tree_nodes(
+    component: dict[str, Any],
+) -> tuple[ComponentTreeNodeContribution, ...]:
+    if component.get("type") != PROPULSOR_TYPE:
+        return ()
+    return tuple(
+        ComponentTreeNodeContribution(
+            id=selection["id"],
+            title=selection["name"],
+            selection=selection,
+            icon=_PART_ICONS[selection["kind"]],
+        )
+        for selection in propulsor_part_nodes(component)
+    )
+
+
+def _selected_propulsor(api: StudioAPI, selection: dict[str, Any]) -> dict[str, Any]:
+    project = api.project
+    component = project.get_component(selection["component_id"]) if project is not None else None
+    if component is None:
+        raise LookupError(f"Propulsor '{selection['component_id']}' is not in the project.")
+    return component
