@@ -635,7 +635,6 @@ class TestElectricalPropulsion(unittest.TestCase):
         from PySide6.QtCore import QSettings
 
         from plugins.electrical_propulsion import database as db_module
-        from setuav_studio.ui.settings.settings_pages import StudioSettings
 
         # 1. Hardcoded user-home absolute path is gone.
         source = Path(db_module.__file__).read_text(encoding="utf-8")
@@ -643,36 +642,21 @@ class TestElectricalPropulsion(unittest.TestCase):
         self.assertIn("PYTHRUST_DATA_DIR", source)
         self.assertIn("pythrust_data_dir", source)
 
-        # 2. StudioSettings round-trips the field through QSettings.
         get_qapp()
-        original = StudioSettings.load()
+        env = os.environ.pop("PYTHRUST_DATA_DIR", None)
         try:
-            StudioSettings(
-                reopen_last_project=original.reopen_last_project,
-                recent_project_limit=original.recent_project_limit,
-                pythrust_data_dir="/nonexistent/path",
-            ).save()
-            reloaded = StudioSettings.load()
-            self.assertEqual(reloaded.pythrust_data_dir, "/nonexistent/path")
-
-            # 3. When env is unset and QSettings points at a real tempdir, resolution follows it.
-            env = os.environ.pop("PYTHRUST_DATA_DIR", None)
+            # 2. When env is unset and QSettings points at a real tempdir, resolution follows it.
             with tempfile.TemporaryDirectory() as tmp:
                 QSettings().setValue("propulsion/pythrust_data_dir", tmp)
                 resolved = db_module._resolve_pythrust_data_dir()
                 self.assertIsNotNone(resolved)
                 self.assertEqual(resolved, Path(tmp))
-            # 4. When env + setting are both unset/invalid, resolution may still find a sibling
+            # 3. When env + setting are both unset/invalid, resolution may still find a sibling
             #    PyThrust checkout in this dev environment, but never raises.
             QSettings().remove("propulsion/pythrust_data_dir")
             resolved = db_module._resolve_pythrust_data_dir()
             self.assertTrue(resolved is None or isinstance(resolved, Path))
         finally:
-            StudioSettings(
-                reopen_last_project=original.reopen_last_project,
-                recent_project_limit=original.recent_project_limit,
-                pythrust_data_dir=original.pythrust_data_dir,
-            ).save()
             if env is not None:
                 os.environ["PYTHRUST_DATA_DIR"] = env
 

@@ -36,7 +36,6 @@ class CoreSettingsTests(unittest.TestCase):
         _FakeSettings.values = {
             "general/reopen_last_project": "yes",
             "general/recent_project_limit": "14",
-            "propulsion/pythrust_data_dir": "/data",
             "general/validation_strictness": "warn",
             "appearance/theme_mode": "NORD",
         }
@@ -46,7 +45,7 @@ class CoreSettingsTests(unittest.TestCase):
 
         self.assertEqual(
             values,
-            StudioSettings(True, 14, "/data", "warn", "nord"),
+            StudioSettings(True, 14, "warn", "nord"),
         )
         self.assertEqual(_FakeSettings.values["appearance/theme_mode"], "nord")
         self.assertTrue(_as_bool(True))
@@ -65,7 +64,7 @@ class CoreSettingsTests(unittest.TestCase):
         self.assertEqual(values.theme_mode, "native")
 
     def test_dialog_round_trips_built_in_values(self) -> None:
-        dialog = SettingsDialog(StudioSettings(True, 12, " /pythrust ", "off", "github"))
+        dialog = SettingsDialog(StudioSettings(True, 12, "off", "github"))
         self.addCleanup(dialog.deleteLater)
 
         self.assertEqual(dialog.category_tree.topLevelItemCount(), 1)
@@ -77,7 +76,7 @@ class CoreSettingsTests(unittest.TestCase):
         self.assertEqual(dialog.page_stack.currentIndex(), 0)
         self.assertEqual(
             dialog.values(),
-            StudioSettings(True, 12, "/pythrust", "off", "github"),
+            StudioSettings(True, 12, "off", "github"),
         )
 
         invalid_values = StudioSettings(validation_strictness="invalid", theme_mode="invalid")

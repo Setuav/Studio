@@ -50,7 +50,6 @@ THEME_MODES: tuple[str, ...] = (
 class StudioSettings:
     reopen_last_project: bool = False
     recent_project_limit: int = 10
-    pythrust_data_dir: str = ""
     validation_strictness: str = "strict"
     theme_mode: str = "native"
 
@@ -68,7 +67,6 @@ class StudioSettings:
         return cls(
             reopen_last_project=_as_bool(settings.value("general/reopen_last_project", False)),
             recent_project_limit=int(str(settings.value("general/recent_project_limit", 10))),
-            pythrust_data_dir=str(settings.value("propulsion/pythrust_data_dir", "")),
             validation_strictness=strictness,
             theme_mode=theme,
         )
@@ -79,7 +77,6 @@ class StudioSettings:
         settings = QSettings()
         settings.setValue("general/reopen_last_project", self.reopen_last_project)
         settings.setValue("general/recent_project_limit", self.recent_project_limit)
-        settings.setValue("propulsion/pythrust_data_dir", self.pythrust_data_dir)
         settings.setValue("general/validation_strictness", self.validation_strictness)
         settings.setValue("appearance/theme_mode", self.theme_mode)
 
@@ -487,7 +484,6 @@ class SettingsDialog(PropertyTableMixin, QDialog):
         return StudioSettings(
             reopen_last_project=self.reopen_check.isChecked(),
             recent_project_limit=self.recent_limit_spin.value(),
-            pythrust_data_dir=getattr(self._values, "pythrust_data_dir", "").strip(),
             validation_strictness=str(self.validation_strictness_combo.currentData()),
             theme_mode=str(self.theme_combo.currentData()),
         )
