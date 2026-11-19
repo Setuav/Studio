@@ -697,23 +697,29 @@ class StudioAPI:
         return self._project.get_solver_config(config_id)
 
     def add_solver_config(self, config: SolverConfig) -> None:
-        """Add a SolverConfig to the current project and set it as active."""
-        if self._project is None:
+        """Add or update a SolverConfig in the current project, as one undoable
+        edit, and make it the active one."""
+        project = self._project
+        if project is None:
             return
-        self._project.add_solver_config(config)
+        self.edit_project(
+            f"Set analysis '{config.name}'", lambda: project.add_solver_config(config)
+        )
         self.set_current_solver_config(config.config_id)
-        self._notify_project_content_changed()
 
     def remove_solver_config(self, config_id: str) -> bool:
-        """Remove a SolverConfig by ID from the current project."""
-        if self._project is None:
+        """Remove a SolverConfig by ID from the current project as one undoable edit."""
+        project = self._project
+        if project is None or project.get_solver_config(config_id) is None:
             return False
-        removed = self._project.remove_solver_config(config_id)
-        if removed:
-            if self.current_solver_config_id == config_id:
-                self.set_current_solver_config(None)
-            self._notify_project_content_changed()
-        return removed
+
+        def change() -> None:
+            project.remove_solver_config(config_id)
+
+        self.edit_project("Remove analysis", change)
+        if self.current_solver_config_id == config_id:
+            self.set_current_solver_config(None)
+        return True
 
     def get_aircraft_mass_properties(self) -> Any:
         """Calculate and return aggregate aircraft mass, center of gravity, and inertia tensor."""

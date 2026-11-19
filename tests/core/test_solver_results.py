@@ -419,3 +419,21 @@ def test_results_belong_to_their_own_configuration() -> None:
         first.config_id
     ]
     assert project.results_of_config(second.config_id) == []
+
+
+def test_solver_config_edits_are_undoable() -> None:
+    api = StudioAPI()
+    project = ProjectDocument(Path("configs.json"), "json", {"components": []})
+    api._host.set_project(project)
+    config = SolverConfig(solver_id="org.setuav.aero", name="Cruise")
+
+    api.add_solver_config(config)
+    assert project.get_solver_config(config.config_id) is not None
+    api.undo()
+    assert project.get_solver_config(config.config_id) is None
+    api.redo()
+
+    assert api.remove_solver_config(config.config_id)
+    assert project.get_solver_config(config.config_id) is None
+    api.undo()
+    assert project.get_solver_config(config.config_id) is not None
