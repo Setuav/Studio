@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import logging
 from collections.abc import Callable, Generator, Iterable
-from contextlib import contextmanager, suppress
+from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeAlias, cast
@@ -47,8 +46,6 @@ from .undo import (
     compute_dict_diff,
 )
 
-logger = logging.getLogger(__name__)
-
 UnsubscribeCallable: TypeAlias = Callable[[], None]
 
 
@@ -56,21 +53,28 @@ def _bind_qobject_destroyed(callback: Any, cleanup: Callable[[], None]) -> None:
     """If callback is a bound method on a QObject, automatically invoke cleanup on destruction."""
     owner = getattr(callback, "__self__", None)
     if isinstance(owner, QObject):
-        with suppress(RuntimeError):
-            owner.destroyed.connect(lambda *_: cleanup())
+        owner.destroyed.connect(lambda *_: cleanup())
+
+
+def _is_deleted_qobject_error(exc: RuntimeError) -> bool:
+    """Whether ``exc`` is shiboken refusing a call on a destroyed Qt object."""
+    return "already deleted" in str(exc)
 
 
 def _dispatch_listeners(listeners: list[Any], arg: Any) -> None:
-    """Safely invoke listeners and clean up dead Qt object references."""
-    dead: list[Any] = []
+    """Invoke ``listeners`` with ``arg``.
+
+    A listener whose Qt object was destroyed (a lambda capturing a deleted
+    widget) is dropped; any other error propagates to the caller.
+    """
     for listener in list(listeners):
         try:
             listener(arg)
-        except RuntimeError:
-            dead.append(listener)
-    for d in dead:
-        if d in listeners:
-            listeners.remove(d)
+        except RuntimeError as exc:
+            if not _is_deleted_qobject_error(exc):
+                raise
+            if listener in listeners:
+                listeners.remove(listener)
 
 
 class StudioAPI:
@@ -242,34 +246,13 @@ class StudioAPI:
 
     def unsubscribe(self, event_name: str, handler: Callable[[Any], None]) -> None:
         """Unsubscribe a callback handler from a named studio event."""
-        if event_name in self._event_subscribers:
-            with suppress(ValueError):
-                self._event_subscribers[event_name].remove(handler)
+        subscribers = self._event_subscribers.get(event_name, [])
+        if handler in subscribers:
+            subscribers.remove(handler)
 
     def publish(self, event_name: str, payload: Any = None) -> None:
-        """Publish an event to all subscribed listeners."""
-        handlers = list(self._event_subscribers.get(event_name, []))
-        for handler in handlers:
-            try:
-                handler(payload)
-            except RuntimeError as exc:
-                if "already deleted" in str(exc):
-                    # QObject destruction can race with queued events. Drop
-                    # the stale callback and keep the event bus healthy.
-                    self.unsubscribe(event_name, handler)
-                    logger.debug(
-                        "Removed stale subscriber for event '%s': %s",
-                        event_name,
-                        exc,
-                    )
-                    continue
-                logger.error(
-                    "Error executing subscriber for event '%s': %s", event_name, exc, exc_info=True
-                )
-            except Exception as exc:
-                logger.error(
-                    "Error executing subscriber for event '%s': %s", event_name, exc, exc_info=True
-                )
+        """Publish an event to all subscribed listeners; a subscriber's error propagates."""
+        _dispatch_listeners(self._event_subscribers.get(event_name, []), payload)
 
     def register_toolbar_item(self, contribution: ToolbarContribution) -> None:
         """Register an action to the main toolbar."""
@@ -349,8 +332,7 @@ class StudioAPI:
             self._project_listeners.append(listener)
             _bind_qobject_destroyed(listener, lambda: self.remove_project_listener(listener))
         if self._project is not None:
-            with suppress(RuntimeError):
-                listener(self._project)
+            listener(self._project)
         return lambda: self.remove_project_listener(listener)
 
     def on_project_content_changed(
@@ -384,8 +366,7 @@ class StudioAPI:
         if listener not in self._modified_listeners:
             self._modified_listeners.append(listener)
             _bind_qobject_destroyed(listener, lambda: self.remove_modified_listener(listener))
-        with suppress(RuntimeError):
-            listener(bool(self._project and self._project.modified))
+        listener(bool(self._project and self._project.modified))
         return lambda: self.remove_modified_listener(listener)
 
     def remove_modified_listener(self, listener: Callable[[bool], None]) -> None:
@@ -802,8 +783,7 @@ class StudioAPI:
         if listener not in self._selection_listeners:
             self._selection_listeners.append(listener)
             _bind_qobject_destroyed(listener, lambda: self.remove_selection_listener(listener))
-        with suppress(RuntimeError):
-            listener(self.current_selection)
+        listener(self.current_selection)
         return lambda: self.remove_selection_listener(listener)
 
     def set_selection(self, selection: Any | None) -> None:
@@ -825,8 +805,7 @@ class StudioAPI:
             _bind_qobject_destroyed(
                 listener, lambda: self.remove_section_selection_listener(listener)
             )
-        with suppress(RuntimeError):
-            listener(self.current_section_selection)
+        listener(self.current_section_selection)
         return lambda: self.remove_section_selection_listener(listener)
 
     def remove_section_selection_listener(

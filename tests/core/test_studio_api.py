@@ -204,6 +204,32 @@ def test_event_publish_subscribe_and_unsubscribe() -> None:
     assert len(received_payloads) == 2
 
 
+def test_listener_errors_propagate_and_deleted_objects_are_dropped() -> None:
+    studio_api = StudioAPI()
+
+    def failing(_payload: Any) -> None:
+        raise RuntimeError("listener bug")
+
+    def deleted(_payload: Any) -> None:
+        raise RuntimeError("Internal C++ object (QLabel) already deleted.")
+
+    studio_api.subscribe("test.failing", failing)
+    with pytest.raises(RuntimeError, match="listener bug"):
+        studio_api.publish("test.failing")
+    with pytest.raises(RuntimeError, match="listener bug"):
+        studio_api.publish("test.failing")
+
+    studio_api.subscribe("test.deleted", deleted)
+    studio_api.publish("test.deleted")
+    assert studio_api._event_subscribers["test.deleted"] == []
+
+    # A selection listener receives the current selection when it subscribes.
+    with pytest.raises(RuntimeError, match="listener bug"):
+        studio_api.on_selection_changed(failing)
+    with pytest.raises(RuntimeError, match="listener bug"):
+        studio_api.set_selection({"id": "wing"})
+
+
 def test_selection_changed_dispatch() -> None:
     studio_api = StudioAPI()
     selections: list[Any] = []
