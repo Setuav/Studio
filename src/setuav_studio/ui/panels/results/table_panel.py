@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from contextlib import suppress
 from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import (
@@ -243,8 +242,7 @@ class FrozenUnitTableView(QTableView):
     def setModel(self, model: QAbstractItemModel | None) -> None:
         old_model = self.model()
         if old_model is not None:
-            with suppress(Exception):
-                old_model.modelReset.disconnect(self._sync_frozen_rows)
+            old_model.modelReset.disconnect(self._sync_frozen_rows)
         super().setModel(model)
         self.frozen_view.setModel(model)
         if model is not None:

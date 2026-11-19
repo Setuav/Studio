@@ -19,7 +19,6 @@ via class attributes instead of reimplementing table plumbing:
 
 from __future__ import annotations
 
-import contextlib
 import weakref
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any, ClassVar, Protocol
@@ -49,6 +48,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.ui.widget.spinbox import evaluate_table_cell_input
+from setuav_studio.utilities.listeners import dispatch_listeners
 
 if TYPE_CHECKING:
     from setuav_studio.api import ParameterField
@@ -121,9 +121,7 @@ class ExpressionFocusTracker:
     def set_active_editor(cls, editor: ExpressionAssistantEditor | None) -> None:
         if cls._active_editor is not editor:
             cls._active_editor = editor
-            for cb in list(cls._listeners):
-                with contextlib.suppress(RuntimeError):
-                    cb()
+            dispatch_listeners(cls._listeners)
 
     @classmethod
     def get_active_editor(cls) -> ExpressionAssistantEditor | None:
@@ -140,7 +138,7 @@ class ExpressionFocusTracker:
 
     @classmethod
     def remove_listener(cls, cb: Callable[[], None]) -> None:
-        with contextlib.suppress(ValueError):
+        if cb in cls._listeners:
             cls._listeners.remove(cb)
 
 

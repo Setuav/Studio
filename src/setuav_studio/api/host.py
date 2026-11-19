@@ -90,9 +90,9 @@ class _StudioHost:
         api._show_expression_diagnostics()
         api.set_selection(None)
         api.set_section_selection(None)
-        from .api import _dispatch_listeners
+        from setuav_studio.utilities.listeners import dispatch_listeners
 
-        _dispatch_listeners(api._project_listeners, project)
+        dispatch_listeners(api._project_listeners, project)
         api.publish(StudioEvents.PROJECT_OPENED, project)
 
     def mark_project_saved(self) -> None:
@@ -104,9 +104,9 @@ class _StudioHost:
         api = self._api
         api._viewport = viewport
         if api._project is not None:
-            from .api import _dispatch_listeners
+            from setuav_studio.utilities.listeners import dispatch_listeners
 
-            _dispatch_listeners(api._project_listeners, api._project)
+            dispatch_listeners(api._project_listeners, api._project)
 
     def bind_project_requirement_checker(
         self,

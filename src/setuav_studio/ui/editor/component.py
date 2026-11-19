@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import contextlib
 from collections.abc import Sequence
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any
@@ -24,6 +23,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from shiboken6 import isValid
 
 from setuav_studio.api import ParameterField, TableParameterField
 from setuav_studio.model.expression import (
@@ -65,18 +65,19 @@ class _TableCellAssistantAdapter:
         self._col = col
 
     def get_expression(self) -> str:
-        try:
+        # The delegate deletes its line edit when editing ends; the table item
+        # then holds the committed text.
+        if isValid(self._edit):
             return self._edit.text().strip()
-        except RuntimeError:
-            if self._table is not None:
-                item = self._table.item(self._row, self._col)
-                if item is not None:
-                    user_val = item.data(Qt.ItemDataRole.UserRole)
-                    return str(user_val if user_val is not None else item.text()).strip()
-            return ""
+        if self._table is not None:
+            item = self._table.item(self._row, self._col)
+            if item is not None:
+                user_val = item.data(Qt.ItemDataRole.UserRole)
+                return str(user_val if user_val is not None else item.text()).strip()
+        return ""
 
     def set_expression(self, expr: str) -> None:
-        with contextlib.suppress(RuntimeError):
+        if isValid(self._edit):
             self._edit.setText(expr)
         if self._table is not None:
             item = self._table.item(self._row, self._col)
@@ -237,8 +238,7 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
 
     def closeEvent(self, event: Any) -> None:
         if self._api is not None:
-            with contextlib.suppress(Exception):
-                self._api.remove_project_content_listener(self._on_external_content_changed)
+            self._api.remove_project_content_listener(self._on_external_content_changed)
         super().closeEvent(event)
 
     def _create_section(

@@ -12,6 +12,7 @@ from PySide6.QtWidgets import QWidget
 
 from setuav_studio.project import ProjectDocument
 from setuav_studio.ui.style.icons import get_icon
+from setuav_studio.utilities.listeners import dispatch_listeners
 
 from .contributions import (
     ActionContribution,
@@ -54,27 +55,6 @@ def _bind_qobject_destroyed(callback: Any, cleanup: Callable[[], None]) -> None:
     owner = getattr(callback, "__self__", None)
     if isinstance(owner, QObject):
         owner.destroyed.connect(lambda *_: cleanup())
-
-
-def _is_deleted_qobject_error(exc: RuntimeError) -> bool:
-    """Whether ``exc`` is shiboken refusing a call on a destroyed Qt object."""
-    return "already deleted" in str(exc)
-
-
-def _dispatch_listeners(listeners: list[Any], arg: Any) -> None:
-    """Invoke ``listeners`` with ``arg``.
-
-    A listener whose Qt object was destroyed (a lambda capturing a deleted
-    widget) is dropped; any other error propagates to the caller.
-    """
-    for listener in list(listeners):
-        try:
-            listener(arg)
-        except RuntimeError as exc:
-            if not _is_deleted_qobject_error(exc):
-                raise
-            if listener in listeners:
-                listeners.remove(listener)
 
 
 class StudioAPI:
@@ -252,7 +232,7 @@ class StudioAPI:
 
     def publish(self, event_name: str, payload: Any = None) -> None:
         """Publish an event to all subscribed listeners; a subscriber's error propagates."""
-        _dispatch_listeners(self._event_subscribers.get(event_name, []), payload)
+        dispatch_listeners(self._event_subscribers.get(event_name, []), payload)
 
     def register_toolbar_item(self, contribution: ToolbarContribution) -> None:
         """Register an action to the main toolbar."""
@@ -700,7 +680,7 @@ class StudioAPI:
         """Set the active solver config selection by ID and notify listeners."""
         self.current_solver_config_id = config_id
         active_config = self.get_current_solver_config()
-        _dispatch_listeners(self._solver_config_selection_listeners, active_config)
+        dispatch_listeners(self._solver_config_selection_listeners, active_config)
 
     def get_current_solver_config(self) -> SolverConfig | None:
         """Return the currently selected SolverConfig, or None."""
@@ -766,13 +746,13 @@ class StudioAPI:
             finally:
                 self._is_recomputing_expressions = False
 
-        _dispatch_listeners(self._project_content_listeners, self._project)
+        dispatch_listeners(self._project_content_listeners, self._project)
 
     def _on_clean_changed(self, clean: bool) -> None:
         modified = not clean
         if self._project is not None:
             self._project.modified = modified
-        _dispatch_listeners(self._modified_listeners, modified)
+        dispatch_listeners(self._modified_listeners, modified)
         self.publish(StudioEvents.PROJECT_MODIFIED, modified)
 
     def on_selection_changed(self, listener: Callable[[Any | None], None]) -> UnsubscribeCallable:
@@ -789,7 +769,7 @@ class StudioAPI:
     def set_selection(self, selection: Any | None) -> None:
         """Set the application selection and notify listeners."""
         self.current_selection = selection
-        _dispatch_listeners(self._selection_listeners, selection)
+        dispatch_listeners(self._selection_listeners, selection)
         self.publish(StudioEvents.SELECTION_CHANGED, selection)
 
     def on_section_selection_changed(
@@ -822,7 +802,7 @@ class StudioAPI:
     ) -> None:
         """Set the selected component, section, and side tuple."""
         self.current_section_selection = selection
-        _dispatch_listeners(self._section_selection_listeners, selection)
+        dispatch_listeners(self._section_selection_listeners, selection)
         self.publish(StudioEvents.SECTION_SELECTION_CHANGED, selection)
 
     def register_component_type(
