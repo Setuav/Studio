@@ -75,11 +75,11 @@ class AirfoilCanvasWidget(QWidget):
 
     def paintEvent(self, _event: Any) -> None:
         tok = tokens()
-        bg_color = QColor(tok.get("elevated", "#1a1a1c"))
-        grid_color = QColor(tok.get("grid", "#2d2d35"))
-        chord_color = QColor(tok.get("border_strong", "#484852"))
-        text_color = QColor(tok.get("text", "#e0e0e0"))
-        dim_text = QColor(tok.get("text_dim", "#888888"))
+        bg_color = QColor(tok["elevated"])
+        grid_color = QColor(tok["grid"])
+        chord_color = QColor(tok["border_strong"])
+        text_color = QColor(tok["text"])
+        dim_text = QColor(tok["text_dim"])
 
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)

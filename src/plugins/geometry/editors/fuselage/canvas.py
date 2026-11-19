@@ -23,9 +23,16 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from setuav_studio.ui.style.theme import accent_color, tokens
+from setuav_studio.ui.style.theme import accent_color, chart_color, tokens
 
 from ...engine.fuselage_geometry import compute_section_metrics, sample_profile
+
+
+def _with_alpha(color: str, alpha: int) -> QColor:
+    """``color`` with the opacity ``alpha`` (0–255)."""
+    result = QColor(color)
+    result.setAlpha(alpha)
+    return result
 
 
 class FuselageCanvasWidget(QWidget):
@@ -435,7 +442,7 @@ class FuselageCanvasWidget(QWidget):
         from setuav_studio.ui.style.theme import tokens
 
         tok = tokens()
-        bg_color = QColor(tok.get("elevated", "#1a1a1c"))
+        bg_color = QColor(tok["elevated"])
         painter.fillRect(0, 0, width, height, bg_color)
 
         ox = width / 2.0 + self._pan_offset.x()
@@ -457,8 +464,8 @@ class FuselageCanvasWidget(QWidget):
                 painter,
                 self._prev_points,
                 world_to_screen,
-                stroke_color=QColor(51, 127, 229, 160),
-                fill_color=QColor(51, 127, 229, 15),
+                stroke_color=_with_alpha(chart_color("blue"), 160),
+                fill_color=_with_alpha(chart_color("blue"), 15),
                 pen_style=Qt.PenStyle.DashLine,
                 line_width=1.5,
             )
@@ -468,8 +475,8 @@ class FuselageCanvasWidget(QWidget):
                 painter,
                 self._next_points,
                 world_to_screen,
-                stroke_color=QColor(230, 126, 34, 160),
-                fill_color=QColor(230, 126, 34, 15),
+                stroke_color=_with_alpha(chart_color("orange"), 160),
+                fill_color=_with_alpha(chart_color("orange"), 15),
                 pen_style=Qt.PenStyle.DashLine,
                 line_width=1.5,
             )
@@ -482,14 +489,14 @@ class FuselageCanvasWidget(QWidget):
             cg_z = self._metrics["z_cg"]
             cg_pt = world_to_screen(cg_y, cg_z)
 
-            painter.setPen(QPen(QColor("#f39c12"), 1.5, Qt.PenStyle.SolidLine))
+            painter.setPen(QPen(QColor(chart_color("orange")), 1.5, Qt.PenStyle.SolidLine))
             painter.drawLine(int(cg_pt.x() - 6), int(cg_pt.y()), int(cg_pt.x() + 6), int(cg_pt.y()))
             painter.drawLine(int(cg_pt.x()), int(cg_pt.y() - 6), int(cg_pt.x()), int(cg_pt.y() + 6))
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawEllipse(cg_pt, 4.0, 4.0)
 
             painter.setFont(QFont("sans-serif", 7))
-            painter.setPen(QColor("#f39c12"))
+            painter.setPen(QColor(chart_color("orange")))
             painter.drawText(
                 int(cg_pt.x()) + 7, int(cg_pt.y()) + 11, f"CG ({cg_y:.1f}, {cg_z:.1f})"
             )
@@ -520,10 +527,10 @@ class FuselageCanvasWidget(QWidget):
                 painter.drawEllipse(world_to_screen(y, z), 1.8, 1.8)
         if self._hovered_edge is not None:
             _, screen_point, (world_y, world_z) = self._hovered_edge
-            painter.setPen(QPen(QColor("#2ecc71"), 1.5, Qt.PenStyle.DashLine))
-            painter.setBrush(QColor(46, 204, 113, 80))
+            painter.setPen(QPen(QColor(chart_color("green")), 1.5, Qt.PenStyle.DashLine))
+            painter.setBrush(_with_alpha(chart_color("green"), 80))
             painter.drawEllipse(screen_point, 6.0, 6.0)
-            painter.setPen(QColor("#2ecc71"))
+            painter.setPen(QColor(chart_color("green")))
             painter.setFont(QFont("sans-serif", 8, QFont.Weight.Bold))
             painter.drawText(
                 int(screen_point.x()) + 8,
@@ -561,7 +568,7 @@ class FuselageCanvasWidget(QWidget):
             if is_selected:
                 # Outer glow ring
                 painter.setPen(QPen(surface_color, 2.0))
-                painter.setBrush(QColor("#f39c12"))
+                painter.setBrush(QColor(chart_color("orange")))
                 painter.drawEllipse(pt, 6.5, 6.5)
 
                 # Coordinate badge for selected vertex
@@ -575,13 +582,13 @@ class FuselageCanvasWidget(QWidget):
 
             elif is_hovered:
                 painter.setPen(QPen(QColor(accent_color()), 2.0))
-                painter.setBrush(QColor("#e67e22"))
+                painter.setBrush(QColor(chart_color("orange")).darker(120))
                 painter.drawEllipse(pt, 5.5, 5.5)
                 painter.setPen(text_color)
                 painter.drawText(int(pt.x()) + 8, int(pt.y()) - 4, f"P{idx + 1}")
             else:
                 painter.setPen(QPen(border_color, 1.2))
-                painter.setBrush(QColor("#f39c12"))
+                painter.setBrush(QColor(chart_color("orange")))
                 painter.drawEllipse(pt, 4.0, 4.0)
                 painter.setPen(text_color)
                 painter.drawText(int(pt.x()) + 6, int(pt.y()) - 4, f"P{idx + 1}")
@@ -623,8 +630,8 @@ class FuselageCanvasWidget(QWidget):
         from setuav_studio.ui.style.theme import tokens
 
         tok = tokens()
-        grid_color = QColor(tok.get("grid", "#262626"))
-        dim_text = QColor(tok.get("text_dim", "#555555"))
+        grid_color = QColor(tok["grid"])
+        dim_text = QColor(tok["text_dim"])
 
         raw_step = 60.0 / max(self._scale, 1e-4)
         magnitude = 10.0 ** math.floor(math.log10(max(raw_step, 1.0)))
@@ -669,8 +676,8 @@ class FuselageCanvasWidget(QWidget):
         from setuav_studio.ui.style.theme import tokens
 
         tok = tokens()
-        axis_color = QColor(tok.get("border_strong", "#404040"))
-        dim_text = QColor(tok.get("text_dim", "#777777"))
+        axis_color = QColor(tok["border_strong"])
+        dim_text = QColor(tok["text_dim"])
 
         axis_pen = QPen(axis_color, 1.2, Qt.PenStyle.SolidLine)
         painter.setPen(axis_pen)

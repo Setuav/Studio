@@ -363,40 +363,29 @@ class MockGeneratorSolver(AbstractSolver):
         )
 
         # 5. Construct pairwise consecutive PlotDefinitions
-        palette = ["#2196F3", "#4CAF50", "#FF9800", "#E91E63", "#9C27B0", "#00BCD4"]
         plots: dict[str, PlotDefinition] = {}
-        plot_idx = 0
         for i in range(0, len(channels) - 1, 2):
             x_ch = channels[i]
             y_ch = channels[i + 1]
             plot_id = f"plot_{x_ch['key']}_{y_ch['key']}"
-            series_color = palette[plot_idx % len(palette)]
             plots[plot_id] = PlotDefinition(
                 id=plot_id,
                 title=f"{y_ch['label']} vs {x_ch['label']}",
                 table_id="mock_data",
                 x_column=x_ch["key"],
-                series=[
-                    PlotSeriesDef(y_column=y_ch["key"], label=y_ch["label"], color=series_color)
-                ],
+                series=[PlotSeriesDef(y_column=y_ch["key"], label=y_ch["label"])],
             )
-            plot_idx += 1
 
         if len(channels) % 2 != 0:
             first_ch = channels[0]
             last_ch = channels[-1]
             plot_id = f"plot_{first_ch['key']}_{last_ch['key']}"
-            series_color = palette[plot_idx % len(palette)]
             plots[plot_id] = PlotDefinition(
                 id=plot_id,
                 title=f"{last_ch['label']} vs {first_ch['label']}",
                 table_id="mock_data",
                 x_column=first_ch["key"],
-                series=[
-                    PlotSeriesDef(
-                        y_column=last_ch["key"], label=last_ch["label"], color=series_color
-                    )
-                ],
+                series=[PlotSeriesDef(y_column=last_ch["key"], label=last_ch["label"])],
             )
 
         # 6. Summary metrics

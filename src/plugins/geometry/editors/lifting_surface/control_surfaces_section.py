@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from setuav_studio.model.expression import get_expression, set_expression
+from setuav_studio.ui.style.theme import tokens
 from setuav_studio.ui.widget.spinbox import evaluate_table_cell_input
 
 from ...engine.control_surface_geometry import sync_sizing_values
@@ -473,7 +474,7 @@ class ControlSurfacesSectionMixin(LiftingSurfaceEditorHost):
             if is_driver:
                 label_item.setForeground(QApplication.palette().text())
             else:
-                label_item.setForeground(QColor(130, 130, 130))
+                label_item.setForeground(QColor(tokens()["text_dim"]))
 
         if is_driver:
             val_to_pass = raw_expr if raw_expr else current_val
@@ -514,7 +515,7 @@ class ControlSurfacesSectionMixin(LiftingSurfaceEditorHost):
                 self.cs_properties_table.setItem(target_row, 1, val_item)
             else:
                 val_item.setText(val_str)
-            val_item.setForeground(QColor(130, 130, 130))
+            val_item.setForeground(QColor(tokens()["text_dim"]))
             val_item.setFlags(val_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             val_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 

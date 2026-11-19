@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 from setuav_studio.api import StudioAPI
 from setuav_studio.model.expression import get_expression, set_expression
 from setuav_studio.ui.style.icons import set_label_icon
+from setuav_studio.ui.style.theme import tokens
 from setuav_studio.ui.widget.spinbox import evaluate_table_cell_input
 from setuav_studio.ui.widget.table import PropertyTableMixin
 
@@ -460,7 +461,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
             if is_driver:
                 label_item.setForeground(QApplication.palette().text())
             else:
-                label_item.setForeground(QColor(130, 130, 130))
+                label_item.setForeground(QColor(tokens()["text_dim"]))
 
         if is_driver:
             self._set_property_spinbox(
@@ -499,7 +500,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
                 self.properties_table.setItem(target_row, 1, val_item)
             else:
                 val_item.setText(val_str)
-            val_item.setForeground(QColor(130, 130, 130))
+            val_item.setForeground(QColor(tokens()["text_dim"]))
             val_item.setFlags(val_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             val_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
