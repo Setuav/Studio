@@ -11,7 +11,7 @@ from setuav_studio.ui.viewport.constants import (
     WIRE_FULL,
 )
 from setuav_studio.ui.viewport.hud import StudioViewportHUD
-from setuav_studio.ui.viewport.layer import Layer
+from setuav_studio.ui.viewport.layer import DEFAULT_LAYER, MASS_LAYER, Layer
 from setuav_studio.ui.viewport.primitives import (
     BoxPrimitive,
     ColorRGB,
@@ -35,7 +35,7 @@ from setuav_studio.ui.viewport.types import (
     LoftGeometry,
     Section,
 )
-from setuav_studio.ui.viewport.viewport import DEFAULT_LAYER, MASS_LAYER, StudioViewport
+from setuav_studio.ui.viewport.viewport import StudioViewport
 from setuav_studio.ui.viewport.widget import OpenGLViewer
 
 __all__ = [

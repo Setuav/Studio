@@ -6,6 +6,7 @@ import math
 from dataclasses import dataclass, field
 from typing import Any
 
+from .layer import DEFAULT_LAYER
 from .primitives import (
     BoxPrimitive,
     CylinderPrimitive,
@@ -99,7 +100,7 @@ class SceneObject:
     """
 
     object_id: str
-    layer: str = "default"
+    layer: str = DEFAULT_LAYER
     name: str = ""
     visible: bool = True
     primitives: list[VisualPrimitive] = field(default_factory=list)

@@ -26,7 +26,7 @@ from .constants import (
     WireMode,
 )
 from .hud import StudioViewportHUD
-from .layer import Layer
+from .layer import DEFAULT_LAYER, MASS_LAYER, Layer
 from .primitives import (
     BoxPrimitive,
     ColorRGBA,
@@ -40,13 +40,11 @@ from .primitives import (
     VisualPrimitive,
 )
 from .scene_object import SceneObject, is_scene_object_matching
+from .types import EnvelopeWireGeometry
 from .widget import OpenGLViewer
 
 logger = logging.getLogger(__name__)
 
-# Layers the viewport itself provides: objects without a layer, and the CG markers.
-DEFAULT_LAYER = "default"
-MASS_LAYER = "mass"
 
 _SETTING_PREFIX = "studio_viewport"
 _SETTING_ORTHO = f"{_SETTING_PREFIX}_orthographic"
@@ -568,7 +566,7 @@ class StudioViewport(QWidget):
         closed_ends: bool = True,
         wireframe: bool = True,
         solid: bool = True,
-        envelope: Any = None,
+        envelope: EnvelopeWireGeometry | dict[str, Any] | None = None,
     ) -> SceneObject:
         """Add a lofted surface defined by ordered section loops."""
         # Normalise nested lists to tuples for the frozen dataclass
@@ -600,12 +598,12 @@ class StudioViewport(QWidget):
         size: Point3D,
         *,
         name: str = "",
-        layer: str = "default",
+        layer: str = DEFAULT_LAYER,
         color: ColorRGBA = (0.2, 0.6, 1.0, 0.4),
         rotation: Point3D = (0.0, 0.0, 0.0),
         wireframe: bool = True,
         solid: bool = True,
-        envelope: Any = None,
+        envelope: EnvelopeWireGeometry | dict[str, Any] | None = None,
     ) -> SceneObject:
         """Add an axis-aligned (or oriented) box."""
         prim = BoxPrimitive(
@@ -633,12 +631,12 @@ class StudioViewport(QWidget):
         radius: float,
         *,
         name: str = "",
-        layer: str = "default",
+        layer: str = DEFAULT_LAYER,
         color: ColorRGBA = (0.2, 0.2, 0.2, 0.9),
         wireframe: bool = True,
         solid: bool = True,
         segments: int = 24,
-        envelope: Any = None,
+        envelope: EnvelopeWireGeometry | dict[str, Any] | None = None,
     ) -> SceneObject:
         """Add a cylinder between two endpoints."""
         prim = CylinderPrimitive(
@@ -665,12 +663,12 @@ class StudioViewport(QWidget):
         center: Point3D,
         *,
         name: str = "",
-        layer: str = "default",
+        layer: str = DEFAULT_LAYER,
         normal: Point3D = (1.0, 0.0, 0.0),
         radius: float = 50.0,
         color: ColorRGBA = (1.0, 0.5, 0.0, 1.0),
         segments: int = 36,
-        envelope: Any = None,
+        envelope: EnvelopeWireGeometry | dict[str, Any] | None = None,
     ) -> SceneObject:
         """Add a circular ring (wire loop)."""
         prim = RingPrimitive(
@@ -695,14 +693,14 @@ class StudioViewport(QWidget):
         center: Point3D,
         *,
         name: str = "",
-        layer: str = "default",
+        layer: str = DEFAULT_LAYER,
         normal: Point3D = (1.0, 0.0, 0.0),
         width: float = 200.0,
         height: float = 200.0,
         color: ColorRGBA = (1.0, 0.5, 0.0, 0.4),
         wireframe: bool = True,
         solid: bool = True,
-        envelope: Any = None,
+        envelope: EnvelopeWireGeometry | dict[str, Any] | None = None,
     ) -> SceneObject:
         """Add a bounded flat plane."""
         prim = PlanePrimitive(
@@ -729,9 +727,9 @@ class StudioViewport(QWidget):
         lines: Sequence[tuple[Point3D, Point3D]],
         *,
         name: str = "",
-        layer: str = "default",
+        layer: str = DEFAULT_LAYER,
         color: ColorRGBA = (1.0, 1.0, 1.0, 1.0),
-        envelope: Any = None,
+        envelope: EnvelopeWireGeometry | dict[str, Any] | None = None,
     ) -> SceneObject:
         """Add a set of line segments."""
         prim = LineSegmentsPrimitive(
@@ -753,10 +751,10 @@ class StudioViewport(QWidget):
         triangles: Sequence[tuple[Point3D, Point3D, Point3D]],
         *,
         name: str = "",
-        layer: str = "default",
+        layer: str = DEFAULT_LAYER,
         color: ColorRGBA = (0.7, 0.75, 0.8, 0.7),
         solid: bool = True,
-        envelope: Any = None,
+        envelope: EnvelopeWireGeometry | dict[str, Any] | None = None,
     ) -> SceneObject:
         """Add arbitrary triangles forming a solid surface."""
         prim = TrianglesPrimitive(
@@ -779,10 +777,10 @@ class StudioViewport(QWidget):
         points: Sequence[Point3D],
         *,
         name: str = "",
-        layer: str = "default",
+        layer: str = DEFAULT_LAYER,
         color: ColorRGBA = (1.0, 0.3, 0.1, 1.0),
         size: float = 4.0,
-        envelope: Any = None,
+        envelope: EnvelopeWireGeometry | dict[str, Any] | None = None,
     ) -> SceneObject:
         """Add a point cloud visualised as small crosses.
 
@@ -811,9 +809,9 @@ class StudioViewport(QWidget):
         arrows: Sequence[tuple[Point3D, Point3D]],
         *,
         name: str = "",
-        layer: str = "default",
+        layer: str = DEFAULT_LAYER,
         color: ColorRGBA = (0.2, 0.8, 0.2, 1.0),
-        envelope: Any = None,
+        envelope: EnvelopeWireGeometry | dict[str, Any] | None = None,
     ) -> SceneObject:
         """Add directional arrows (line from start to end).
 
@@ -836,8 +834,8 @@ class StudioViewport(QWidget):
         primitive: VisualPrimitive,
         *,
         name: str = "",
-        layer: str = "default",
-        envelope: Any = None,
+        layer: str = DEFAULT_LAYER,
+        envelope: EnvelopeWireGeometry | dict[str, Any] | None = None,
     ) -> SceneObject:
         """Add a raw SDK visual primitive directly."""
         obj = SceneObject(

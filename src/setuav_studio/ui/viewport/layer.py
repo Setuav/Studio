@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+# Layers the viewport itself provides: objects without a layer, and the CG markers.
+DEFAULT_LAYER = "default"
+MASS_LAYER = "mass"
+
 
 @dataclass
 class Layer:
