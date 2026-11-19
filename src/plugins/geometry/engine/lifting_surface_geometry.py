@@ -75,6 +75,7 @@ def build_lifting_surface_geometry(
         lofts_list = [
             LoftGeometry(
                 component_id=comp_id,
+                owner_id=comp_id,
                 sections=sections,
                 color=lifting_surface_color(),
                 interpolation=interpolation,
@@ -302,6 +303,7 @@ def _plain_lifting_surface(
     return (
         LoftGeometry(
             component_id=comp_id,
+            owner_id=comp_id,
             sections=sections,
             color=lifting_surface_color(),
             interpolation=interpolation,

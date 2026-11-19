@@ -8,6 +8,7 @@ from typing import Literal
 
 from .primitives import (
     ColorRGB,
+    FeatureWire,
     Point3D,
     VisualPrimitive,
 )
@@ -23,10 +24,18 @@ class Section:
 
 @dataclass(frozen=True, slots=True)
 class LoftGeometry:
-    """Ordered section loops forming one lofted display object."""
+    """Ordered section loops forming one lofted display object.
+
+    ``component_id`` names the loft; ``owner_id`` is the project component it
+    draws (empty for a loft drawn for a bare primitive). ``feature_wire`` is how
+    the feature wireframe outlines it: every section ring, only the end rings, or
+    the chord lines of a tip cap.
+    """
 
     component_id: str
     sections: tuple[Section, ...]
+    owner_id: str = ""
+    feature_wire: FeatureWire = "sections"
     color: ColorRGB = (0.50, 0.77, 0.82)
     interpolation: Literal["linear", "smooth"] = "smooth"
     station_spacing: float = 10.0

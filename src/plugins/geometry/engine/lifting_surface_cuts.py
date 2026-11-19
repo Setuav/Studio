@@ -290,6 +290,7 @@ def build_uncut_segment(
         )
     return LoftGeometry(
         component_id=comp_id,
+        owner_id=comp_id,
         sections=tuple(sections),
         color=lifting_surface_color(),
         interpolation=interpolation,
@@ -351,6 +352,7 @@ def build_control_segment(
     return (
         LoftGeometry(
             component_id=comp_id,
+            owner_id=comp_id,
             sections=tuple(main_sections),
             color=lifting_surface_color(),
             interpolation=interpolation,
@@ -359,6 +361,7 @@ def build_control_segment(
         ),
         LoftGeometry(
             component_id=f"{comp_id}:{control['id']}",
+            owner_id=control["id"],
             sections=tuple(flap_sections),
             color=control_surface_color(),
             interpolation=interpolation,

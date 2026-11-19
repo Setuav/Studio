@@ -247,6 +247,8 @@ def build_tip_cap_loft(
 
     return LoftGeometry(
         component_id=f"{comp_id}:tip-cap",
+        owner_id=comp_id,
+        feature_wire="chords",
         sections=tuple(cap_sections),
         color=lifting_surface_color(),
         interpolation="linear",
@@ -458,6 +460,8 @@ def build_winglet_loft(
 
     return LoftGeometry(
         component_id=f"{comp_id}:winglet",
+        owner_id=comp_id,
+        feature_wire="ends",
         sections=tuple(sections),
         color=lifting_surface_color(),
         interpolation="smooth" if len(sections) > 2 else "linear",

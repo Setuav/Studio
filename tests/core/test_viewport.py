@@ -12,7 +12,6 @@ from setuav_studio.api import StudioAPI
 from setuav_studio.ui.viewport import (
     SceneObject,
     StudioViewport,
-    is_scene_object_matching,
 )
 from setuav_studio.ui.viewport.primitives import (
     BoxPrimitive,
@@ -156,6 +155,7 @@ class TestStudioViewport(unittest.TestCase):
             size=(100.0, 50.0, 20.0),
             name="Test Box",
             layer="geometry",
+            component_id=None,
         )
         self.assertIsInstance(obj, SceneObject)
         self.assertEqual(obj.object_id, "box-1")
@@ -175,6 +175,7 @@ class TestStudioViewport(unittest.TestCase):
             end=(0.0, 100.0, 0.0),
             radius=15.0,
             layer="propulsion",
+            component_id=None,
         )
         self.assertEqual(obj.object_id, "cyl-1")
         self.assertIsInstance(obj.primitives[0], CylinderPrimitive)
@@ -185,6 +186,7 @@ class TestStudioViewport(unittest.TestCase):
             object_id="ring-1",
             center=(10.0, 20.0, 30.0),
             radius=25.0,
+            component_id=None,
         )
         self.assertEqual(obj.object_id, "ring-1")
         self.assertIsInstance(obj.primitives[0], RingPrimitive)
@@ -195,6 +197,7 @@ class TestStudioViewport(unittest.TestCase):
             center=(0.0, 0.0, 0.0),
             width=50.0,
             height=50.0,
+            component_id=None,
         )
         self.assertEqual(obj.object_id, "plane-1")
         self.assertIsInstance(obj.primitives[0], PlanePrimitive)
@@ -203,6 +206,7 @@ class TestStudioViewport(unittest.TestCase):
         obj = self.viewport.add_lines(
             object_id="lines-1",
             lines=[((0.0, 0.0, 0.0), (1.0, 1.0, 1.0))],
+            component_id=None,
         )
         self.assertEqual(obj.object_id, "lines-1")
         self.assertIsInstance(obj.primitives[0], LineSegmentsPrimitive)
@@ -211,6 +215,7 @@ class TestStudioViewport(unittest.TestCase):
         obj = self.viewport.add_triangles(
             object_id="tri-1",
             triangles=[((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0))],
+            component_id=None,
         )
         self.assertEqual(obj.object_id, "tri-1")
         self.assertIsInstance(obj.primitives[0], TrianglesPrimitive)
@@ -219,6 +224,7 @@ class TestStudioViewport(unittest.TestCase):
         obj = self.viewport.add_points(
             object_id="points-1",
             points=[(10.0, 20.0, 30.0), (40.0, 50.0, 60.0)],
+            component_id=None,
         )
         self.assertEqual(obj.object_id, "points-1")
         prim = obj.primitives[0]
@@ -231,6 +237,7 @@ class TestStudioViewport(unittest.TestCase):
         obj = self.viewport.add_arrows(
             object_id="arrow-1",
             arrows=[((0.0, 0.0, 0.0), (0.0, 0.0, 50.0))],
+            component_id=None,
         )
         self.assertEqual(obj.object_id, "arrow-1")
         self.assertIsInstance(obj.primitives[0], LineSegmentsPrimitive)
@@ -244,6 +251,7 @@ class TestStudioViewport(unittest.TestCase):
             sections=[section1, section2],
             name="Main Wing Loft",
             layer="geometry",
+            component_id=None,
         )
         self.assertEqual(obj.object_id, "wing-loft")
         self.assertEqual(obj.name, "Main Wing Loft")
@@ -255,8 +263,12 @@ class TestStudioViewport(unittest.TestCase):
     def test_layer_visibility(self) -> None:
         self.viewport.add_layer("geometry")
         self.viewport.add_layer("manufacturing")
-        self.viewport.add_box("box-geom", (0, 0, 0), (10, 10, 10), layer="geometry")
-        self.viewport.add_box("box-mfg", (10, 0, 0), (10, 10, 10), layer="manufacturing")
+        self.viewport.add_box(
+            "box-geom", (0, 0, 0), (10, 10, 10), layer="geometry", component_id=None
+        )
+        self.viewport.add_box(
+            "box-mfg", (10, 0, 0), (10, 10, 10), layer="manufacturing", component_id=None
+        )
 
         # Both visible by default
         self.assertEqual(len(self.mock_renderer.scene_objects), 2)
@@ -273,7 +285,7 @@ class TestStudioViewport(unittest.TestCase):
 
     def test_unregistered_layers_are_rejected(self) -> None:
         with self.assertRaisesRegex(ValueError, "'nowhere' is not registered"):
-            self.viewport.add_box("b", (0, 0, 0), (1, 1, 1), layer="nowhere")
+            self.viewport.add_box("b", (0, 0, 0), (1, 1, 1), layer="nowhere", component_id=None)
         with self.assertRaisesRegex(ValueError, "'nowhere' is not registered"):
             self.viewport.set_layer_visible("nowhere", False)
         with self.assertRaisesRegex(ValueError, "'nowhere' is not registered"):
@@ -285,9 +297,9 @@ class TestStudioViewport(unittest.TestCase):
     def test_remove_and_clear(self) -> None:
         self.viewport.add_layer("l1")
         self.viewport.add_layer("l2")
-        self.viewport.add_box("b1", (0, 0, 0), (5, 5, 5), layer="l1")
-        self.viewport.add_box("b2", (10, 0, 0), (5, 5, 5), layer="l1")
-        self.viewport.add_box("b3", (20, 0, 0), (5, 5, 5), layer="l2")
+        self.viewport.add_box("b1", (0, 0, 0), (5, 5, 5), layer="l1", component_id=None)
+        self.viewport.add_box("b2", (10, 0, 0), (5, 5, 5), layer="l1", component_id=None)
+        self.viewport.add_box("b3", (20, 0, 0), (5, 5, 5), layer="l2", component_id=None)
 
         self.assertEqual(len(self.viewport.object_ids()), 3)
 
@@ -335,8 +347,8 @@ class TestStudioViewport(unittest.TestCase):
         self.assertIn("analysis", self.viewport.layers())
 
         # Add objects into this layer
-        self.viewport.add_box("box-a1", (0, 0, 0), (1, 1, 1), layer="analysis")
-        self.viewport.add_box("box-a2", (2, 0, 0), (1, 1, 1), layer="analysis")
+        self.viewport.add_box("box-a1", (0, 0, 0), (1, 1, 1), layer="analysis", component_id=None)
+        self.viewport.add_box("box-a2", (2, 0, 0), (1, 1, 1), layer="analysis", component_id=None)
         self.assertEqual(self.viewport.object_ids(layer="analysis"), ["box-a1", "box-a2"])
 
         # Remove layer (and all its objects)
@@ -353,15 +365,15 @@ class TestStudioViewport(unittest.TestCase):
         changed_events: list[object] = []
         self.viewport.selection_changed.connect(changed_events.append)
 
-        self.assertIsNone(self.viewport.selected_object_id())
+        self.assertIsNone(self.viewport.selected_component_id())
         self.viewport.set_selected("box-1")
-        self.assertEqual(self.viewport.selected_object_id(), "box-1")
+        self.assertEqual(self.viewport.selected_component_id(), "box-1")
         self.assertEqual(self.mock_renderer.selected_component, "box-1")
         self.assertEqual(changed_events, ["box-1"])
 
         # Deselect
         self.viewport.set_selected(None)
-        self.assertIsNone(self.viewport.selected_object_id())
+        self.assertIsNone(self.viewport.selected_component_id())
         self.assertIsNone(self.mock_renderer.selected_component)
         self.assertEqual(changed_events, ["box-1", None])
 
@@ -387,7 +399,9 @@ class TestStudioViewport(unittest.TestCase):
 
         prim = LoftPrimitive(sections=(loop0, loop1, loop2))
         scene_objs = {
-            "main-wing": SceneObject(object_id="main-wing", primitives=[prim]),
+            "main-wing": SceneObject(
+                object_id="main-wing", component_id="main-wing", primitives=[prim]
+            ),
         }
 
         cyan_color = (0.0, 0.85, 1.0)
@@ -410,15 +424,15 @@ class TestStudioViewport(unittest.TestCase):
 
     def test_renderer_pick_signal_forwards_to_viewport(self) -> None:
         picked_events: list[str] = []
-        self.viewport.object_picked.connect(picked_events.append)
+        self.viewport.component_picked.connect(picked_events.append)
 
         self.mock_renderer.componentPicked.emit("fuselage")
-        self.assertEqual(self.viewport.selected_object_id(), "fuselage")
+        self.assertEqual(self.viewport.selected_component_id(), "fuselage")
         self.assertEqual(picked_events, ["fuselage"])
 
         # Emitting non-string or empty deselects
         self.mock_renderer.componentPicked.emit(None)
-        self.assertIsNone(self.viewport.selected_object_id())
+        self.assertIsNone(self.viewport.selected_component_id())
         self.assertEqual(picked_events, ["fuselage", ""])
 
     def test_bi_directional_sync_with_studio_api(self) -> None:
@@ -440,76 +454,43 @@ class TestStudioViewport(unittest.TestCase):
             viewport = StudioViewport(api=api)
             self.assertIs(api.viewport, viewport)
 
-            # 1. API selection (e.g. Tree clicked) -> Viewport selects
+            # API selection (e.g. Tree clicked) -> Viewport selects
             api.set_selection({"id": "wing_1", "name": "Main Wing"})
-            self.assertEqual(viewport.selected_object_id(), "wing_1")
+            self.assertEqual(viewport.selected_component_id(), "wing_1")
 
-            # 2. Viewport pick (e.g. 3D clicked) -> API selection updates
-            viewport.object_picked.emit("fuse_1")
+            # Viewport pick (e.g. 3D clicked) -> API selection updates
+            viewport.component_picked.emit("fuse_1")
             self.assertEqual(api.current_selection, {"id": "fuse_1", "name": "Fuselage"})
 
-            # 3. Sub-part tag fallback when no child component exists (e.g. "wing_1:control_1") -> selects "wing_1"
-            viewport.object_picked.emit("wing_1:control_1")
-            self.assertEqual(api.current_selection, {"id": "wing_1", "name": "Main Wing"})
+            # A pick of a component the project lacks is an out-of-sync scene
+            with self.assertRaisesRegex(ValueError, "missing"):
+                viewport._on_component_picked_to_api("missing")
 
-            # 4. Mirrored tip-cap pick -> resolves to base wing
-            viewport.object_picked.emit("wing_1:mirror:tip-cap")
-            self.assertEqual(api.current_selection, {"id": "wing_1", "name": "Main Wing"})
+    def test_objects_follow_the_component_they_draw(self) -> None:
+        """Selection, hover picking and envelopes follow ``SceneObject.component_id``."""
+        from setuav_studio.ui.viewport.mesh import build_envelope_wire_vertices, hit_test_scene
 
-            # 5. Dedicated child control surface pick -> resolves to child component
-            project.data["components"].append(
-                {"id": "aileron_1", "name": "Aileron 1", "attach_to": "wing_1"}
-            )
-            viewport.object_picked.emit("wing_1:mirror:aileron_1")
-            self.assertEqual(
-                api.current_selection,
-                {"id": "aileron_1", "name": "Aileron 1", "attach_to": "wing_1"},
-            )
-
-    def test_scene_object_matching_hierarchy(self) -> None:
-        """Verify scene object hierarchy matching for wings, mirrors, tip-caps, and control surfaces."""
-        # 1. Wing selection matches main wing, bilateral mirror, and tip caps
-        self.assertTrue(is_scene_object_matching("wing", "wing"))
-        self.assertTrue(is_scene_object_matching("wing:mirror", "wing"))
-        self.assertTrue(is_scene_object_matching("wing:tip-cap", "wing"))
-        self.assertTrue(is_scene_object_matching("wing:mirror:tip-cap", "wing"))
-
-        # 2. Wing selection does NOT match child control surfaces
-        self.assertFalse(is_scene_object_matching("wing:aileron-1", "wing"))
-        self.assertFalse(is_scene_object_matching("wing:mirror:aileron-1", "wing"))
-
-        # 3. Control surface selection matches only control surface lofts
-        self.assertTrue(is_scene_object_matching("wing:aileron-1", "aileron-1"))
-        self.assertTrue(is_scene_object_matching("wing:mirror:aileron-1", "aileron-1"))
-        self.assertFalse(is_scene_object_matching("wing", "aileron-1"))
-        self.assertFalse(is_scene_object_matching("wing:mirror", "aileron-1"))
-        self.assertFalse(is_scene_object_matching("wing:tip-cap", "aileron-1"))
-        self.assertFalse(is_scene_object_matching("wing:mirror:tip-cap", "aileron-1"))
-        self.assertFalse(is_scene_object_matching("wing:flap-1", "aileron-1"))
-
-        # 4. Fuselage selection matches fuselage, mirror, and root stubs
-        self.assertTrue(is_scene_object_matching("fuselage", "fuselage"))
-        self.assertTrue(is_scene_object_matching("fuselage:mirror", "fuselage"))
-        self.assertTrue(is_scene_object_matching("fuselage:stub:wing", "fuselage"))
-        self.assertFalse(is_scene_object_matching("wing", "fuselage"))
-
-        # 5. None or invalid
-        self.assertFalse(is_scene_object_matching("wing", None))
-
-        # 6. StudioViewport.is_selected core integration
-        self.viewport.set_selected("wing")
-        self.assertTrue(self.viewport.is_selected("wing"))
-        self.assertTrue(self.viewport.is_selected("wing:mirror"))
-        self.assertTrue(self.viewport.is_selected("wing:tip-cap"))
-        self.assertTrue(self.viewport.is_selected("wing:mirror:tip-cap"))
-        self.assertFalse(self.viewport.is_selected("wing:aileron-1"))
-        self.assertFalse(self.viewport.is_selected("fuselage"))
-
-        self.viewport.set_selected("aileron-1")
-        self.assertTrue(self.viewport.is_selected("wing:aileron-1"))
-        self.assertTrue(self.viewport.is_selected("wing:mirror:aileron-1"))
-        self.assertFalse(self.viewport.is_selected("wing"))
-        self.assertFalse(self.viewport.is_selected("wing:tip-cap"))
+        box = BoxPrimitive(center=(0.0, 0.0, 0.0), size=(10.0, 10.0, 10.0))
+        objects = {
+            "wing:mirror": SceneObject(
+                object_id="wing:mirror", component_id="wing", primitives=[box]
+            ),
+            "wing:aileron-1": SceneObject(
+                object_id="wing:aileron-1", component_id="aileron-1", primitives=[box]
+            ),
+            "marker": SceneObject(object_id="marker", component_id=None, primitives=[box]),
+        }
+        hit = hit_test_scene({"wing:mirror": objects["wing:mirror"]}, (0, 0, 50), (0, 0, -1))
+        self.assertEqual(hit, "wing")
+        self.assertIsNone(hit_test_scene({"marker": objects["marker"]}, (0, 0, 50), (0, 0, -1)))
+        self.assertTrue(build_envelope_wire_vertices(objects, "aileron-1"))
+        self.assertEqual(
+            build_envelope_wire_vertices(objects, "aileron-1"),
+            build_envelope_wire_vertices(
+                {"wing:aileron-1": objects["wing:aileron-1"]}, "aileron-1"
+            ),
+        )
+        self.assertEqual(build_envelope_wire_vertices(objects, "fuselage"), [])
 
     def test_camera_controls(self) -> None:
         # fit_view
@@ -794,6 +775,7 @@ class TestStudioViewport(unittest.TestCase):
         viewer = OpenGLViewer()
         box_obj = SceneObject(
             object_id="test.box",
+            component_id="test.box",
             layer="debug",
             name="Test Box",
             primitives=[
@@ -894,10 +876,12 @@ class TestStudioViewport(unittest.TestCase):
 
         box_near = SceneObject(
             object_id="box.near",
+            component_id="box.near",
             primitives=[BoxPrimitive(center=(0.0, 0.0, 40.0), size=(20.0, 20.0, 20.0))],
         )
         box_far = SceneObject(
             object_id="box.far",
+            component_id="box.far",
             primitives=[BoxPrimitive(center=(0.0, 0.0, 0.0), size=(20.0, 20.0, 20.0))],
         )
         scene_objs = {"box.near": box_near, "box.far": box_far}
@@ -930,6 +914,7 @@ class TestStudioViewport(unittest.TestCase):
         viewer._target = QVector3D(0.0, 0.0, 0.0)
         box_obj = SceneObject(
             object_id="comp:debug_box",
+            component_id="comp:debug_box",
             primitives=[
                 BoxPrimitive(
                     center=(0.0, 0.0, 0.0),
@@ -967,6 +952,7 @@ class TestStudioViewport(unittest.TestCase):
 
         box_obj = SceneObject(
             object_id="box-1",
+            component_id="box-1",
             primitives=[
                 BoxPrimitive(
                     center=(0.0, 0.0, 0.0),
@@ -981,6 +967,7 @@ class TestStudioViewport(unittest.TestCase):
         )
         cyl_obj = SceneObject(
             object_id="cyl-1",
+            component_id="cyl-1",
             primitives=[
                 CylinderPrimitive(
                     start=(0.0, 0.0, 0.0),

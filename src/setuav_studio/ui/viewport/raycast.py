@@ -273,15 +273,16 @@ def hit_test_scene(
     origin: Point3D,
     direction: Point3D,
 ) -> str | None:
-    """Find the nearest visible scene object ID intersecting the ray."""
+    """The component of the nearest visible scene object the ray hits; objects
+    that draw no component are not picked."""
     best_distance: float | None = None
     best_id: str | None = None
-    for obj_id, obj in scene_objects.items():
-        if not obj.visible:
+    for obj in scene_objects.values():
+        if not obj.visible or obj.component_id is None:
             continue
         for prim in obj.primitives:
             distance = _ray_primitive_intersection(origin, direction, prim)
             if distance is not None and (best_distance is None or distance < best_distance):
                 best_distance = distance
-                best_id = obj_id
+                best_id = obj.component_id
     return best_id

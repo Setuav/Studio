@@ -183,9 +183,12 @@ class GeometrySceneTests(unittest.TestCase):
             "org.setuav.core:lifting-surface": build_lifting_surface_geometry
         }
         geom_data = build_project_geometry(doc, providers)
+        primitives, owners = _collect_primitives(geom_data.lofts)
         scene_objects = {
-            object_id: SceneObject(object_id=object_id, primitives=primitives)
-            for object_id, primitives in _collect_primitives(geom_data.lofts).items()
+            object_id: SceneObject(
+                object_id=object_id, component_id=owners[object_id], primitives=prims
+            )
+            for object_id, prims in primitives.items()
         }
 
         ring = build_section_ring_vertices(scene_objects, "main-wing", 0, 0)

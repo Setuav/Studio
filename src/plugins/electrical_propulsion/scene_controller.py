@@ -76,6 +76,7 @@ class PropulsionSceneController:
 
             obj = SceneObject(
                 object_id=comp_id,
+                component_id=comp_id,
                 layer=PROPULSION_LAYER,
                 name=comp_name,
                 primitives=[ring],

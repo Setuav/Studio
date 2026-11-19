@@ -96,10 +96,13 @@ class SceneObject:
 
     Each object has a unique ``object_id``, belongs to a ``layer``, carries an
     optional human-readable ``name``, and holds one or more SDK visual
-    primitives that the renderer will draw.
+    primitives that the renderer will draw. ``component_id`` is the project
+    component the object draws, which selection, hover, picking and envelopes
+    follow; None for an object that draws no component.
     """
 
     object_id: str
+    component_id: str | None
     layer: str = DEFAULT_LAYER
     name: str = ""
     visible: bool = True
@@ -197,64 +200,3 @@ class SceneObject:
             }
 
         return None
-
-
-def is_scene_object_matching(object_id: str, target_id: str | None) -> bool:
-    """Determine whether a SceneObject's object_id matches an active selected/hovered component ID.
-
-    Hierarchy & matching rules:
-    1. Exact or case-insensitive match: object_id == target_id.
-    2. Mirrored counterparts: "wing:mirror" matches "wing".
-    3. Attached tip caps belong to the parent lifting surface:
-       "wing:tip-cap" and "wing:mirror:tip-cap" match target "wing".
-       Tip caps never match if target_id is a child control surface.
-    4. Control surfaces are dedicated child components:
-       "wing:aileron-1" and "wing:mirror:aileron-1" match target "aileron-1".
-       When target_id is "wing" (parent surface), child control surfaces are
-       EXCLUDED from the wing body selection so they remain distinct.
-    5. Procedural components (fuselage root-stubs):
-       "fuselage:stub:..." matches target "fuselage".
-    """
-    if target_id is None:
-        return False
-    if object_id == target_id:
-        return True
-
-    obj_lower = object_id.lower()
-    tgt_lower = target_id.lower()
-    if obj_lower == tgt_lower:
-        return True
-
-    parts = [p.strip() for p in obj_lower.split(":") if p.strip()]
-    if not parts:
-        return False
-
-    base_id = parts[0]
-    subparts = [p for p in parts[1:] if p not in ("mirror", "stations")]
-
-    tgt_clean = tgt_lower.replace(":mirror", "").strip()
-
-    # Rule A: Check if the target is selecting a control surface subpart
-    # (e.g. "aileron-1", "wing:aileron-1", "wing_aileron-1")
-    for sub in subparts:
-        if sub in ("tip-cap", "stub", "root-stub", "winglet"):
-            continue
-        if (
-            tgt_clean == sub
-            or tgt_lower == sub
-            or tgt_clean in (f"{base_id}:{sub}", f"{base_id}-{sub}", f"{base_id}_{sub}")
-            or tgt_clean.endswith(f":{sub}")
-            or tgt_clean.endswith(f"-{sub}")
-            or tgt_clean.endswith(f"_{sub}")
-        ):
-            return True
-
-    # If this scene object is a child control surface (and not a procedural
-    # subpart like a tip-cap or root-stub) but target did not match it,
-    # do NOT fall back to matching the base component (wing).
-    is_procedural = any(sub in ("tip-cap", "stub", "root-stub", "winglet") for sub in subparts)
-    if not is_procedural and len(subparts) > 0:
-        return False
-
-    # Rule B: Target matches the base component (wing, fuselage, etc.)
-    return base_id in (tgt_clean, tgt_lower)

@@ -41,7 +41,7 @@ from tests._common import TEST_PROJECT_PATH, cell_widget, get_qapp, table_item
 def _scene_solid(lofts: Any) -> list[float]:
     """Solid mesh of ``lofts`` as the geometry plugin hands them to the viewport."""
     vertices: list[float] = []
-    for primitives in _collect_primitives(lofts).values():
+    for primitives in _collect_primitives(lofts)[0].values():
         vertices += build_primitive_solid_vertices(primitives)
     return vertices
 
@@ -49,7 +49,7 @@ def _scene_solid(lofts: Any) -> list[float]:
 def _scene_wire(lofts: Any, wire_mode: str) -> list[float]:
     """Wireframe of ``lofts`` as the geometry plugin hands them to the viewport."""
     vertices: list[float] = []
-    for object_id, primitives in _collect_primitives(lofts).items():
+    for object_id, primitives in _collect_primitives(lofts)[0].items():
         vertices += build_primitive_wire_vertices(
             primitives, wire_mode=wire_mode, object_id=object_id
         )

@@ -114,6 +114,7 @@ def add_point_to_viewport(
         pts.append((px + rx, py + ry, pz + rz))
     viewport.add_points(
         comp_id,
+        component_id=comp_id,
         points=pts,
         size=pt_size,
         name=name,

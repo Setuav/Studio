@@ -101,6 +101,7 @@ def add_line_to_viewport(
     )
     viewport.add_lines(
         comp_id,
+        component_id=comp_id,
         lines=[line_pts],
         name=name,
         layer=DEBUG_LAYER,

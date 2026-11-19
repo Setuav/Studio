@@ -97,6 +97,7 @@ def add_box_to_viewport(
     box = params if isinstance(params, BoxComponent) else BoxComponent(params)
     viewport.add_box(
         comp_id,
+        component_id=comp_id,
         center=(px, py, pz),
         size=(box.length, box.width, box.height),
         rotation=rotation,

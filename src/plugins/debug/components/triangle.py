@@ -100,6 +100,7 @@ def add_triangle_to_viewport(
     tris = [(p0, p1, p2), (p0, p2, p1)]
     viewport.add_triangles(
         comp_id,
+        component_id=comp_id,
         triangles=tris,
         name=name,
         layer=DEBUG_LAYER,

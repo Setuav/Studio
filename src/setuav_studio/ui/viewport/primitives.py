@@ -8,6 +8,9 @@ from typing import Literal
 Point3D = tuple[float, float, float]
 ColorRGB = tuple[float, float, float]
 ColorRGBA = tuple[float, float, float, float] | tuple[float, float, float]
+# How the feature wireframe outlines a loft: every section ring, the end rings,
+# or the chord lines of a tip cap.
+FeatureWire = Literal["sections", "ends", "chords"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,6 +90,7 @@ class LoftPrimitive:
     closed_ends: bool = True
     wireframe: bool = True
     solid: bool = True
+    feature_wire: FeatureWire = "sections"
 
 
 VisualPrimitive = (

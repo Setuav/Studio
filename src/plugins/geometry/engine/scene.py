@@ -219,7 +219,10 @@ def _append_component_geometry(
         return
     matrix = world_matrix(item_id)
     source_lofts = provider(source, controls)
-    lofts.extend(_transform_loft(loft, matrix, item_id) for loft in source_lofts)
+    source_id = str(source["id"])
+    lofts.extend(
+        _transform_loft(loft, matrix, item_id, source_id, item_id) for loft in source_lofts
+    )
     if component_type == "org.setuav.core:lifting-surface" and _is_bilateral(source):
         _append_mirrored_geometry(
             lofts,
@@ -261,11 +264,17 @@ def _append_mirrored_geometry(
     _invert_differential_controls(mirrored_controls)
     mirrored_lofts = provider(source, mirrored_controls)
     lofts.extend(
-        _transform_loft(loft, mirrored_matrix, f"{item_id}:mirror") for loft in mirrored_lofts
+        _transform_loft(loft, mirrored_matrix, f"{item_id}:mirror", str(source["id"]), item_id)
+        for loft in mirrored_lofts
     )
 
 
-def _transform_loft(loft: LoftGeometry, matrix: Matrix4, component_id: str) -> LoftGeometry:
+def _transform_loft(
+    loft: LoftGeometry, matrix: Matrix4, component_id: str, source_id: str, item_id: str
+) -> LoftGeometry:
+    # The source's own lofts draw the placed item; a control surface's loft keeps
+    # its own component.
+    owner_id = item_id if loft.owner_id == source_id else loft.owner_id
     target_id = component_id
     if ":" in loft.component_id:
         sub_tag = loft.component_id.split(":", 1)[1]
@@ -283,6 +292,8 @@ def _transform_loft(loft: LoftGeometry, matrix: Matrix4, component_id: str) -> L
         interpolation=loft.interpolation,
         station_spacing=loft.station_spacing,
         closed_ends=loft.closed_ends,
+        owner_id=owner_id,
+        feature_wire=loft.feature_wire,
     )
 
 
@@ -379,6 +390,8 @@ def _build_root_stub(
         return None
     return LoftGeometry(
         component_id=fuselage_id,
+        owner_id=fuselage_id,
+        feature_wire="ends",
         sections=(Section(inner_points), Section(outer_points)),
         color=color,
         interpolation="linear",

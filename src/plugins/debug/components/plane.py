@@ -113,6 +113,7 @@ def add_plane_to_viewport(
     normal = rotate_vector(base_normal, rotation)
     viewport.add_plane(
         comp_id,
+        component_id=comp_id,
         center=(px, py, pz),
         normal=normal,
         width=w,

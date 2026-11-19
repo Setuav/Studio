@@ -115,6 +115,7 @@ def add_cylinder_to_viewport(
     end = (px + half * dir_axis[0], py + half * dir_axis[1], pz + half * dir_axis[2])
     viewport.add_cylinder(
         comp_id,
+        component_id=comp_id,
         start=start,
         end=end,
         radius=radius,

@@ -44,7 +44,7 @@ from .mesh import (
     hit_test_scene,
 )
 from .primitives import Point3D, VisualPrimitive
-from .scene_object import SceneObject, is_scene_object_matching
+from .scene_object import SceneObject
 
 logger = logging.getLogger(__name__)
 
@@ -529,10 +529,6 @@ class OpenGLViewer(QOpenGLWidget):
         self._selected_component_id = component_id
         self._update_gpu_meshes()
 
-    def is_selected(self, object_id: str) -> bool:
-        """Return True if the object matches the active selected component in core."""
-        return is_scene_object_matching(object_id, self._selected_component_id)
-
     def set_selected_envelope(self, component_id: str | Sequence[str] | None) -> None:
         if self._selected_envelope_component_id == component_id:
             return
@@ -840,7 +836,7 @@ class OpenGLViewer(QOpenGLWidget):
         if self._selected_component_id and self._scene_objects:
             sel_color = _color_rgb(chart_color("orange"))
             for obj_id, obj in self._scene_objects.items():
-                if is_scene_object_matching(obj_id, self._selected_component_id):
+                if obj.component_id == self._selected_component_id:
                     highlight_values.extend(
                         build_primitive_highlight_vertices(
                             obj.primitives,
@@ -858,7 +854,7 @@ class OpenGLViewer(QOpenGLWidget):
         if hovered and self._scene_objects:
             hov_color = _color_rgb(tok["text"])
             for obj_id, obj in self._scene_objects.items():
-                if is_scene_object_matching(obj_id, hovered):
+                if obj.component_id == hovered:
                     highlight_values.extend(
                         build_primitive_highlight_vertices(
                             obj.primitives,
@@ -924,11 +920,10 @@ class OpenGLViewer(QOpenGLWidget):
                 if not prims:
                     continue
 
-                is_sel = has_selection and is_scene_object_matching(
-                    obj_id, self._selected_component_id
-                )
-                is_hov = bool(self._hovered_component_id) and is_scene_object_matching(
-                    obj_id, self._hovered_component_id
+                is_sel = has_selection and obj.component_id == self._selected_component_id
+                is_hov = (
+                    bool(self._hovered_component_id)
+                    and obj.component_id == self._hovered_component_id
                 )
                 primitive_solid_values.extend(
                     build_primitive_solid_vertices(

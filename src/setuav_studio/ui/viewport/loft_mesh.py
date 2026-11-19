@@ -63,14 +63,13 @@ def _append_loft_feature_wire(
     if not loops:
         return
 
-    if ":tip-cap" in loft.component_id:
+    if loft.feature_wire == "chords":
         _append_tip_cap_feature_wire(vertices, loops, color)
         return
 
     point_count = len(loops[0])
-    is_procedural = any(tag in loft.component_id for tag in (":winglet", ":root-stub", ":stations"))
 
-    if is_procedural:
+    if loft.feature_wire == "ends":
         if len(loops) >= 2:
             _append_ring(vertices, loops[0], color)
             _append_ring(vertices, loops[-1], color)
@@ -128,11 +127,10 @@ def build_section_ring_vertices(
         return []
 
     from .primitives import LoftPrimitive
-    from .scene_object import is_scene_object_matching
 
     vertices: list[float] = []
-    for obj_id, obj in scene_objects.items():
-        if not is_scene_object_matching(obj_id, component_id):
+    for obj in scene_objects.values():
+        if obj.component_id != component_id:
             continue
         prims = [p for p in obj.primitives if isinstance(p, LoftPrimitive) and p.sections]
         if not prims:

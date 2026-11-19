@@ -216,6 +216,7 @@ def add_loft_to_viewport(
     ]
     viewport.add_loft(
         comp_id,
+        component_id=comp_id,
         sections=sec_loops,
         name=name,
         layer=DEBUG_LAYER,

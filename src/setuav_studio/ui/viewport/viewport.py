@@ -39,7 +39,7 @@ from .primitives import (
     TrianglesPrimitive,
     VisualPrimitive,
 )
-from .scene_object import SceneObject, is_scene_object_matching
+from .scene_object import SceneObject
 from .types import EnvelopeWireGeometry
 from .widget import OpenGLViewer
 
@@ -118,7 +118,7 @@ class StudioViewport(QWidget):
     geometry layer.
     """
 
-    object_picked = Signal(str)
+    component_picked = Signal(str)
     selection_changed = Signal(object)
     layer_visibility_changed = Signal(str, bool)
     layers_changed = Signal()
@@ -137,7 +137,7 @@ class StudioViewport(QWidget):
         self._api: Any | None = None
 
         # Selection state
-        self._selected_object_id: str | None = None
+        self._selected_component_id: str | None = None
         self._selected_section: tuple[str, int, int] | None = None
         self._selected_cg_component_id: str | None = None
         self._selected_envelope_component_id: str | None = None
@@ -259,7 +259,7 @@ class StudioViewport(QWidget):
         api._host.bind_viewport(self)
         api.on_selection_changed(self._on_api_selection_changed)
         api.on_section_selection_changed(self._on_api_section_selection_changed)
-        self.object_picked.connect(self._on_object_picked_to_api)
+        self.component_picked.connect(self._on_component_picked_to_api)
         self.layer_visibility_changed.connect(lambda _layer, _visible: api.refresh_toolbar_states())
         api.on_project_content_changed(lambda _doc: self._on_project_content_changed())
 
@@ -395,21 +395,17 @@ class StudioViewport(QWidget):
     # Selection management
     # ------------------------------------------------------------------
 
-    def set_selected(self, object_id: str | None) -> None:
-        """Set the active selected object ID and update viewport highlighting."""
-        if self._selected_object_id == object_id:
+    def set_selected(self, component_id: str | None) -> None:
+        """Highlight the objects that draw the component ``component_id``."""
+        if self._selected_component_id == component_id:
             return
-        self._selected_object_id = object_id
-        self._renderer.set_selected_component(object_id)
-        self.selection_changed.emit(object_id)
+        self._selected_component_id = component_id
+        self._renderer.set_selected_component(component_id)
+        self.selection_changed.emit(component_id)
 
-    def selected_object_id(self) -> str | None:
-        """Return the currently selected object ID, or None."""
-        return self._selected_object_id
-
-    def is_selected(self, object_id: str) -> bool:
-        """Return True if the given object_id matches the active viewport selection in core."""
-        return is_scene_object_matching(object_id, self._selected_object_id)
+    def selected_component_id(self) -> str | None:
+        """Return the selected component id, or None."""
+        return self._selected_component_id
 
     def set_selected_section(
         self,
@@ -558,6 +554,7 @@ class StudioViewport(QWidget):
         object_id: str,
         sections: Sequence[Sequence[Point3D]],
         *,
+        component_id: str | None,
         name: str = "",
         layer: str = "geometry",
         color: ColorRGBA = (1.0, 0.82, 0.10, 1.0),
@@ -584,6 +581,7 @@ class StudioViewport(QWidget):
         )
         obj = SceneObject(
             object_id=object_id,
+            component_id=component_id,
             layer=layer,
             name=name or object_id,
             primitives=[prim],
@@ -597,6 +595,7 @@ class StudioViewport(QWidget):
         center: Point3D,
         size: Point3D,
         *,
+        component_id: str | None,
         name: str = "",
         layer: str = DEFAULT_LAYER,
         color: ColorRGBA = (0.2, 0.6, 1.0, 0.4),
@@ -616,6 +615,7 @@ class StudioViewport(QWidget):
         )
         obj = SceneObject(
             object_id=object_id,
+            component_id=component_id,
             layer=layer,
             name=name or object_id,
             primitives=[prim],
@@ -630,6 +630,7 @@ class StudioViewport(QWidget):
         end: Point3D,
         radius: float,
         *,
+        component_id: str | None,
         name: str = "",
         layer: str = DEFAULT_LAYER,
         color: ColorRGBA = (0.2, 0.2, 0.2, 0.9),
@@ -650,6 +651,7 @@ class StudioViewport(QWidget):
         )
         obj = SceneObject(
             object_id=object_id,
+            component_id=component_id,
             layer=layer,
             name=name or object_id,
             primitives=[prim],
@@ -662,6 +664,7 @@ class StudioViewport(QWidget):
         object_id: str,
         center: Point3D,
         *,
+        component_id: str | None,
         name: str = "",
         layer: str = DEFAULT_LAYER,
         normal: Point3D = (1.0, 0.0, 0.0),
@@ -680,6 +683,7 @@ class StudioViewport(QWidget):
         )
         obj = SceneObject(
             object_id=object_id,
+            component_id=component_id,
             layer=layer,
             name=name or object_id,
             primitives=[prim],
@@ -692,6 +696,7 @@ class StudioViewport(QWidget):
         object_id: str,
         center: Point3D,
         *,
+        component_id: str | None,
         name: str = "",
         layer: str = DEFAULT_LAYER,
         normal: Point3D = (1.0, 0.0, 0.0),
@@ -714,6 +719,7 @@ class StudioViewport(QWidget):
         )
         obj = SceneObject(
             object_id=object_id,
+            component_id=component_id,
             layer=layer,
             name=name or object_id,
             primitives=[prim],
@@ -726,6 +732,7 @@ class StudioViewport(QWidget):
         object_id: str,
         lines: Sequence[tuple[Point3D, Point3D]],
         *,
+        component_id: str | None,
         name: str = "",
         layer: str = DEFAULT_LAYER,
         color: ColorRGBA = (1.0, 1.0, 1.0, 1.0),
@@ -738,6 +745,7 @@ class StudioViewport(QWidget):
         )
         obj = SceneObject(
             object_id=object_id,
+            component_id=component_id,
             layer=layer,
             name=name or object_id,
             primitives=[prim],
@@ -750,6 +758,7 @@ class StudioViewport(QWidget):
         object_id: str,
         triangles: Sequence[tuple[Point3D, Point3D, Point3D]],
         *,
+        component_id: str | None,
         name: str = "",
         layer: str = DEFAULT_LAYER,
         color: ColorRGBA = (0.7, 0.75, 0.8, 0.7),
@@ -764,6 +773,7 @@ class StudioViewport(QWidget):
         )
         obj = SceneObject(
             object_id=object_id,
+            component_id=component_id,
             layer=layer,
             name=name or object_id,
             primitives=[prim],
@@ -776,6 +786,7 @@ class StudioViewport(QWidget):
         object_id: str,
         points: Sequence[Point3D],
         *,
+        component_id: str | None,
         name: str = "",
         layer: str = DEFAULT_LAYER,
         color: ColorRGBA = (1.0, 0.3, 0.1, 1.0),
@@ -796,6 +807,7 @@ class StudioViewport(QWidget):
         prim = LineSegmentsPrimitive(lines=tuple(segments), color=color)
         obj = SceneObject(
             object_id=object_id,
+            component_id=component_id,
             layer=layer,
             name=name or object_id,
             primitives=[prim],
@@ -808,6 +820,7 @@ class StudioViewport(QWidget):
         object_id: str,
         arrows: Sequence[tuple[Point3D, Point3D]],
         *,
+        component_id: str | None,
         name: str = "",
         layer: str = DEFAULT_LAYER,
         color: ColorRGBA = (0.2, 0.8, 0.2, 1.0),
@@ -821,6 +834,7 @@ class StudioViewport(QWidget):
         prim = LineSegmentsPrimitive(lines=tuple(arrows), color=color)
         obj = SceneObject(
             object_id=object_id,
+            component_id=component_id,
             layer=layer,
             name=name or object_id,
             primitives=[prim],
@@ -833,6 +847,7 @@ class StudioViewport(QWidget):
         object_id: str,
         primitive: VisualPrimitive,
         *,
+        component_id: str | None,
         name: str = "",
         layer: str = DEFAULT_LAYER,
         envelope: EnvelopeWireGeometry | dict[str, Any] | None = None,
@@ -840,6 +855,7 @@ class StudioViewport(QWidget):
         """Add a raw SDK visual primitive directly."""
         obj = SceneObject(
             object_id=object_id,
+            component_id=component_id,
             layer=layer,
             name=name or object_id,
             primitives=[primitive],
@@ -950,10 +966,10 @@ class StudioViewport(QWidget):
         """Handle pick event emitted by the low-level OpenGL widget."""
         if not isinstance(component_id, str) or not component_id:
             self.set_selected(None)
-            self.object_picked.emit("")
+            self.component_picked.emit("")
             return
         self.set_selected(component_id)
-        self.object_picked.emit(component_id)
+        self.component_picked.emit(component_id)
 
     def _on_api_selection_changed(self, selection: Any | None) -> None:
         """Highlight the selected element; an active envelope or CG view follows it.
@@ -987,57 +1003,19 @@ class StudioViewport(QWidget):
             comp_id, seg_idx, sec_idx = selection
             self.set_selected_section(comp_id, seg_idx, sec_idx)
 
-    def _on_object_picked_to_api(self, object_id: str) -> None:
-        """Bridge a 3D click event to StudioAPI so the Tree and Properties panel update."""
+    def _on_component_picked_to_api(self, component_id: str) -> None:
+        """Select the picked component in StudioAPI so the tree and properties follow."""
         if self._api is None:
             return
-        if not object_id:
+        if not component_id:
             self._api.set_selection(None)
             return
         project = self._api.project
         if project is None:
             return
-        components = project.data.get("components", [])
-        raw_components = [c for c in components if isinstance(c, dict)]
-
-        # 1. Direct match with component ID
-        for component in raw_components:
-            if str(component.get("id") or "") == object_id:
-                self._api.set_selection(component)
-                return
-
-        parts = [p.strip() for p in object_id.split(":") if p.strip()]
-        if not parts:
-            return
-        base_id = parts[0]
-
-        # 2. Match control surface sub-id or child component (e.g. "main-wing:control_1", "main-wing:mirror:aileron-1")
-        sub_candidates = [
-            p
-            for p in parts[1:]
-            if p.lower() not in ("mirror", "tip-cap", "stub", "root-stub", "stations", "winglet")
-        ]
-        if sub_candidates:
-            sub_id = sub_candidates[-1]
-            for component in raw_components:
-                cid = str(component.get("id") or "")
-                cname = str(component.get("name") or "")
-                if (
-                    cid
-                    in (
-                        sub_id,
-                        f"{base_id}-{sub_id}",
-                        f"{base_id}_{sub_id}",
-                        f"{base_id}:{sub_id}",
-                    )
-                    or cname == sub_id
-                    or (cid and (sub_id.endswith(cid) or cid.endswith(sub_id)))
-                ):
-                    self._api.set_selection(component)
-                    return
-
-        # 3. Match base component if mirrored or sub-tagged (e.g. "main-wing:mirror" -> "main-wing", "main-wing:tip-cap" -> "main-wing")
-        for component in raw_components:
-            if str(component.get("id") or "") == base_id:
-                self._api.set_selection(component)
-                return
+        component = project.get_component(component_id)
+        if component is None:
+            raise ValueError(
+                f"The viewport draws component {component_id!r}, which the project lacks"
+            )
+        self._api.set_selection(component)

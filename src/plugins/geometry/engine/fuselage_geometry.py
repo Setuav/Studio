@@ -40,6 +40,7 @@ def build_fuselage_geometry(
         lofts.append(
             LoftGeometry(
                 component_id=component_id,
+                owner_id=component_id,
                 sections=sections,
                 color=colors[index % len(colors)],
                 interpolation="linear" if loft.get("method") == "ruled" else "smooth",

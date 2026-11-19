@@ -265,6 +265,7 @@ def build_primitive_wire_vertices(  # noqa: C901
                 interpolation=prim.interpolation,
                 station_spacing=prim.station_spacing,
                 closed_ends=prim.closed_ends,
+                feature_wire=prim.feature_wire,
             )
             loops = tessellated_loops(loft)
             if loops:
@@ -431,6 +432,7 @@ def build_primitive_highlight_vertices(  # noqa: C901
                 interpolation=prim.interpolation,
                 station_spacing=prim.station_spacing,
                 closed_ends=prim.closed_ends,
+                feature_wire=prim.feature_wire,
             )
             loops = tessellated_loops(loft)
             if loops:

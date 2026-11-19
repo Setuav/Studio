@@ -96,6 +96,7 @@ def add_ring_to_viewport(
     color = parse_color_rgba(ring.color)
     viewport.add_ring(
         comp_id,
+        component_id=comp_id,
         center=(px, py, pz),
         normal=normal,
         radius=outer_r,

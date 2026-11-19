@@ -549,7 +549,9 @@ class EnvelopeEditorUiTests(unittest.TestCase):
                 ((100.0, 0.0, 0.0), (100.0, 50.0, 0.0)),
             ),
         )
-        scene_objects = {"fuse-1": SceneObject(object_id="fuse-1", envelope=env)}
+        scene_objects = {
+            "fuse-1": SceneObject(object_id="fuse-1", component_id="fuse-1", envelope=env)
+        }
 
         # Not selected -> empty
         self.assertEqual(build_envelope_wire_vertices(scene_objects, None), [])
@@ -590,6 +592,7 @@ class EnvelopeEditorUiTests(unittest.TestCase):
         viewport.add_layer("airframe")
         obj = SceneObject(
             object_id="test-fuse",
+            component_id="test-fuse",
             layer="airframe",
             name="Fuselage",
             primitives=[LoftPrimitive(sections=sections_pts, color=loft.color)],

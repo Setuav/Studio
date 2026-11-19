@@ -110,6 +110,7 @@ def add_arrow_to_viewport(
 
     viewport.add_arrows(
         comp_id,
+        component_id=comp_id,
         arrows=arrows,
         name=name,
         layer=DEBUG_LAYER,

@@ -154,11 +154,8 @@ def build_envelope_wire_vertices(
     else:
         targets = {str(x) for x in selected_envelope_component_id or () if x}
 
-    def belongs(element_id: str, target: str) -> bool:
-        return element_id == target or element_id.startswith(f"{target}:")
-
     vertices: list[float] = []
-    for obj_id, obj in scene_objects.items():
-        if any(belongs(obj_id, target) or belongs(target, obj_id) for target in targets):
+    for obj in scene_objects.values():
+        if obj.component_id in targets:
             _append_scene_object_envelope_wire(vertices, obj, color)
     return vertices
