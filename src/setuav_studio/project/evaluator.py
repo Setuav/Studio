@@ -1,7 +1,8 @@
 """Project-wide Parametric Expression Evaluator for Setuav Studio.
 
-Re-evaluates mathematical expressions across project components, transforms,
-and extension data whenever global parameters or configurations change.
+Re-evaluates mathematical expressions across project components (their
+transforms, parameters and extension data), project extension data and solver
+configuration parameters whenever global parameters or configurations change.
 """
 
 from __future__ import annotations
@@ -27,7 +28,7 @@ _MISSING = object()
 def recompute_project_expressions(
     project: ProjectDocument | None, api: Any | None = None
 ) -> list[dict[str, str]]:
-    """Re-evaluate all mathematical formulas across project components and extensions.
+    """Re-evaluate all mathematical formulas stored in the project.
 
     Evaluates against the project's current parameter and component scope and
     stores the results in the value fields. Fields whose expression fails keep
@@ -114,6 +115,13 @@ class _Pass:
                 if isinstance(ext_val, dict):
                     self.visit_tree(ext_val, "", f"extensions.{ext_name}")
 
+        solver_configs = data.get("solver_configs", {})
+        if isinstance(solver_configs, dict):
+            for config_id, config in solver_configs.items():
+                parameters = config.get("parameters") if isinstance(config, dict) else None
+                if isinstance(parameters, dict):
+                    self.visit_tree(parameters, "", f"solver_configs.{config_id}.parameters")
+
     def visit_component(self, comp: dict[str, Any]) -> None:
         component_id = str(comp.get("id") or "")
         self.visit_node(comp, component_id, "")
@@ -128,6 +136,12 @@ class _Pass:
         params = comp.get("parameters")
         if isinstance(params, dict):
             self.visit_tree(params, component_id, "parameters")
+
+        extensions = comp.get("extensions")
+        if isinstance(extensions, dict):
+            for ext_name, ext_val in extensions.items():
+                if isinstance(ext_val, dict):
+                    self.visit_tree(ext_val, component_id, f"extensions.{ext_name}")
 
     def visit_tree(self, node: dict[str, Any], component_id: str, path_prefix: str) -> None:
         self.visit_node(node, component_id, path_prefix)

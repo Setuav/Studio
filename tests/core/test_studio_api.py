@@ -322,6 +322,9 @@ def test_studio_api_extension_edits_undo_redo() -> None:
     studio_api.undo()
     assert "org.test.aero" not in project.data["components"][0]["extensions"]
 
+    with pytest.raises(ValueError, match="No component 'missing'"):
+        studio_api.edit_component_extension("missing", "org.test.aero", "Set", lambda ext: None)
+
 
 def test_studio_api_attach_component_undo_redo() -> None:
     studio_api = StudioAPI()

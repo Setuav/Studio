@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from setuav_studio.model.expression import set_expression
 from setuav_studio.ui.style.icons import get_icon, set_label_icon
 from setuav_studio.ui.widget.table import PropertyTableMixin
 
@@ -288,13 +289,14 @@ class SolverConfigPropertyEditor(PropertyTableMixin, QWidget):
         field = next((f for f in self._parameter_fields(config) if f.key == key), None)
         if field is None or field.readonly:
             return
-        self._on_schema_parameter_changed(key, item.text())
+        self._on_schema_parameter_changed(key, item.text(), None)
 
-    def _on_schema_parameter_changed(self, key: str, new_val: Any) -> None:
+    def _on_schema_parameter_changed(self, key: str, new_val: Any, expression: str | None) -> None:
         if self._loading:
             return
         config = self._get_config()
         if config is None:
             return
         config.parameters[key] = new_val
+        set_expression(config.parameters, key, expression)
         self._api.add_solver_config(config)

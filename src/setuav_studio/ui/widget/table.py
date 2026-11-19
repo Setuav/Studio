@@ -48,8 +48,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from setuav_studio.ui.widget.spinbox import evaluate_table_cell_input
+
 if TYPE_CHECKING:
     from setuav_studio.api import ParameterField
+
+# Receives a bound field's key, its new value and the formula it came from.
+ParameterChanged = Callable[[str, Any, "str | None"], None]
 
 
 class ContentFitTableWidget(QTableWidget):
@@ -1161,19 +1166,28 @@ class PropertyTableMixin:
         table: QTableWidget,
         f: ParameterField,
         target_data: dict[str, Any],
-        on_changed: Callable[[str, Any], None] | None,
+        on_changed: ParameterChanged,
         resolved_api: Any,
-        *,
-        raw_callback: bool = False,
     ) -> None:
-        def _update_field(k: str, new_v: Any) -> None:
-            if on_changed:
-                on_changed(k, new_v)
-            else:
-                target_data[k] = new_v
-
         val = target_data.get(f.key, f.default)
         numeric = f.field_type in (float, int)
+
+        def number_changed(text: str) -> None:
+            if not text.strip() and f.optional:
+                on_changed(f.key, None, None)
+                return
+            parsed = evaluate_table_cell_input(
+                text,
+                resolved_api,
+                cell=self._property_cell(table, f.key),
+                label=f.label,
+                min_val=f.min_value,
+                max_val=f.max_value,
+            )
+            if parsed is None:
+                return
+            number, expression = parsed
+            on_changed(f.key, round(number) if f.field_type is int else number, expression)
 
         def _bind_numeric(*, read_only: bool) -> None:
             self._set_property_spinbox(
@@ -1188,8 +1202,8 @@ class PropertyTableMixin:
                 quantity=f.quantity,
                 unit=f.unit,
                 target_data=target_data,
-                on_changed=None if read_only else lambda new_v, k=f.key: _update_field(k, new_v),
-                raw_callback=raw_callback,
+                on_changed=None if read_only else number_changed,
+                raw_callback=True,
                 api=resolved_api,
                 label=f.label,
                 read_only=read_only,
@@ -1206,7 +1220,7 @@ class PropertyTableMixin:
                 table,
                 f.key,
                 val,
-                lambda new_v, k=f.key: _update_field(k, new_v),
+                lambda new_v, k=f.key: on_changed(k, new_v, None),
                 label=f.label,
             )
         elif f.options:
@@ -1215,7 +1229,7 @@ class PropertyTableMixin:
                 f.key,
                 str(val),
                 list(f.options),
-                lambda new_v, k=f.key: _update_field(k, new_v),
+                lambda new_v, k=f.key: on_changed(k, new_v, None),
             )
         elif f.field_type is bool:
             bool_opts = [("true", "True"), ("false", "False")]
@@ -1224,7 +1238,7 @@ class PropertyTableMixin:
                 f.key,
                 "true" if val else "false",
                 bool_opts,
-                lambda new_v, k=f.key: _update_field(k, new_v == "true"),
+                lambda new_v, k=f.key: on_changed(k, new_v == "true", None),
             )
         elif numeric:
             _bind_numeric(read_only=False)
@@ -1237,28 +1251,24 @@ class PropertyTableMixin:
         target_data: dict[str, Any],
         fields: Sequence[ParameterField],
         *,
-        on_changed: Callable[[str, Any], None] | None = None,
+        on_changed: ParameterChanged,
         api: Any | None = None,
-        raw_callback: bool = False,
     ) -> None:
-        """Declaratively bind a schema of parameter fields to a property table.
+        """Bind parameter fields to the rows of a property table.
 
-        Handles UI generation, two-way numeric and formula data binding,
-        units, and transparent '_expressions' persistence automatically.
+        A numeric cell accepts a number or an '=' formula. It is evaluated here,
+        and ``on_changed(key, value, expression)`` receives the number and the
+        formula (None for a plain number or a non-numeric field); the caller
+        stores both, the formula with ``set_expression``. An emptied optional
+        field gives ``(key, None, None)``. The cells show the formulas stored in
+        ``target_data['_expressions']``.
         """
         if table.rowCount() != len(fields):
             self._configure_property_table(table, [(f.key, f.label) for f in fields])
 
         resolved_api = api or getattr(self, "_api", None)
         for f in fields:
-            self._bind_single_parametric_field(
-                table,
-                f,
-                target_data,
-                on_changed,
-                resolved_api,
-                raw_callback=raw_callback,
-            )
+            self._bind_single_parametric_field(table, f, target_data, on_changed, resolved_api)
 
     def _set_property_expression(
         self,

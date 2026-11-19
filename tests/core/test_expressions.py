@@ -212,6 +212,36 @@ def test_evaluate_component_parameters(tmp_path: Path) -> None:
     assert geom["profiles"][1]["chord"] == 200.0
 
 
+def test_evaluate_component_extensions_and_solver_configs(tmp_path: Path) -> None:
+    proj = ProjectDocument(
+        tmp_path / "test.json",
+        "json",
+        {
+            "parameters": {"rod": 8.0, "cruise": 18.0},
+            "components": [
+                {
+                    "id": "fuselage",
+                    "type": "org.setuav.core:fuselage",
+                    "parameters": {},
+                    "extensions": {
+                        "com.example.plugin": {
+                            "spar": {"diameter": 0.0, "_expressions": {"diameter": "=rod + 2"}}
+                        }
+                    },
+                }
+            ],
+            "solver_configs": {
+                "cfg": {"parameters": {"airspeed": 0.0, "_expressions": {"airspeed": "=cruise"}}}
+            },
+        },
+    )
+
+    assert recompute_project_expressions(proj) == []
+    extension = proj.data["components"][0]["extensions"]["com.example.plugin"]
+    assert extension["spar"]["diameter"] == 10.0
+    assert proj.data["solver_configs"]["cfg"]["parameters"]["airspeed"] == 18.0
+
+
 # ==============================================================================
 # 3. Design Constraints Checker Tests
 # ==============================================================================

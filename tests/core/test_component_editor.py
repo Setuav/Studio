@@ -6,16 +6,24 @@ import unittest
 from pathlib import Path
 
 from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QTableWidget
 
 from setuav_studio.api import (
     ParameterField,
     StudioAPI,
     TableParameterField,
 )
+from setuav_studio.model.expression import get_expression
 from setuav_studio.project import ProjectDocument
 from setuav_studio.ui.editor import BaseComponentEditor
 from setuav_studio.ui.widget.table import ExpressionPropertyCell
 from tests._common import get_qapp
+
+
+def _cell(table: QTableWidget, key: str) -> ExpressionPropertyCell:
+    cell = BaseComponentEditor._property_cell(table, key)
+    assert cell is not None
+    return cell
 
 
 class TestComponentEditor(unittest.TestCase):
@@ -205,15 +213,13 @@ class TestComponentEditor(unittest.TestCase):
         self.addCleanup(editor.deleteLater)
 
         # Passing float or int should not raise AttributeError
-        editor._on_expression_cell_changed("length", 250.0)
+        _cell(editor.parameters_table, "length").setValue(250.0)
         self.assertEqual(comp["parameters"]["length"], 250.0)
 
         editor._on_mass_changed(120.0)
         self.assertEqual(comp["mass"], 120.0)
 
     def test_expression_write_order_and_atomic_undo(self) -> None:
-        from setuav_studio.model.expression import get_expression
-
         statuses: list[tuple[str, str, int]] = []
         api = StudioAPI()
         api._host.bind_status_handler(lambda msg, lvl, ms: statuses.append((msg, lvl, ms)))
@@ -241,7 +247,7 @@ class TestComponentEditor(unittest.TestCase):
 
         # Invalid expressions mark cells erroneous and persist nothing.
         editor._on_mass_changed("=missing_var")
-        editor._on_expression_cell_changed("length", "=missing_var")
+        _cell(editor.parameters_table, "length").setValue("=missing_var")
 
         mass_cell = editor._property_cell(editor.general_table, "mass")
         len_cell = editor._property_cell(editor.parameters_table, "length")
@@ -258,7 +264,7 @@ class TestComponentEditor(unittest.TestCase):
 
         # Valid expressions store value + formula together and undo atomically.
         editor._on_mass_changed("=base_mass * 3")
-        editor._on_expression_cell_changed("length", "=base_len * 2.5")
+        _cell(editor.parameters_table, "length").setValue("=base_len * 2.5")
         self.assertEqual(comp["mass"], 150.0)
         self.assertEqual(get_expression(comp, "mass"), "=base_mass * 3")
         self.assertEqual(comp["parameters"]["length"], 250.0)
@@ -370,6 +376,7 @@ class TestComponentEditor(unittest.TestCase):
                 ]
             },
         )
+        doc.data["parameters"] = {"SPAN": 800.0}
         api._host.set_project(doc)
         comp = doc.data["components"][0]
 
@@ -431,7 +438,22 @@ class TestComponentEditor(unittest.TestCase):
         it_formula = table.item(2, 2)
         assert it_formula is not None
         it_formula.setText("=SPAN / 2")
-        self.assertEqual(comp["parameters"]["sections"][1]["chord"], "=SPAN / 2")
+        station = comp["parameters"]["sections"][1]
+        self.assertEqual(station["chord"], 400.0)
+        self.assertEqual(get_expression(station, "chord"), "=SPAN / 2")
+        it_formula = table.item(2, 2)
+        assert it_formula is not None
+        self.assertEqual(it_formula.text(), "400.00")
+        self.assertEqual(it_formula.data(Qt.ItemDataRole.UserRole), "=SPAN / 2")
+
+        # An invalid entry is not stored and the cell shows the stored value again
+        it_bad = table.item(2, 3)
+        assert it_bad is not None
+        it_bad.setText("steep")
+        self.assertEqual(comp["parameters"]["sections"][1]["twist"], 2.0)
+        it_bad = table.item(2, 3)
+        assert it_bad is not None
+        self.assertEqual(it_bad.text(), "2.00")
 
         # Test Add Row
         editor._on_add_table_row("sections")

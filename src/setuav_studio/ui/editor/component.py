@@ -27,7 +27,6 @@ from PySide6.QtWidgets import (
 
 from setuav_studio.api import ParameterField, TableParameterField
 from setuav_studio.model.expression import (
-    ExpressionEvaluationError,
     ExpressionEvaluator,
     get_expression,
     normalize_equation_input,
@@ -173,42 +172,13 @@ def _is_number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
-def _format_table_cell_value(
-    val: Any, col_field: ParameterField, api: StudioAPI | None
-) -> tuple[str, str]:
-    """Return formatted display text and tooltip for a table cell."""
-    if ExpressionEvaluator.is_expression(val):
-        eval_val = None
-        eval_err = None
-        if api and api.project:
-            try:
-                evaluator = ExpressionEvaluator()
-                scope = api.project.get_scope(api=api)
-                eval_val = evaluator.evaluate(val.lstrip("=").strip(), scope)
-            except ExpressionEvaluationError as exc:
-                eval_err = str(exc)
-
-        if eval_val is not None:
-            if col_field.field_type is float:
-                txt = f"{float(eval_val):.{col_field.decimals}f}"
-            elif col_field.field_type is int:
-                txt = str(int(eval_val))
-            else:
-                txt = str(eval_val)
-            return txt, f"Formula: {val}\nCalculated: {txt}"
-        return str(val), f"Formula Error: {eval_err}" if eval_err else ""
-
-    if col_field.field_type is float:
-        try:
-            return f"{float(val):.{col_field.decimals}f}", ""
-        except (ValueError, TypeError):
-            return str(val or ""), ""
-    elif col_field.field_type is int:
-        try:
-            return str(int(val)), ""
-        except (ValueError, TypeError):
-            return str(val if val is not None else ""), ""
-    return str(val if val is not None else ""), ""
+def _format_table_cell_value(val: Any, col_field: ParameterField) -> str:
+    """Display text of a stored table cell value."""
+    if col_field.field_type is float and _is_number(val):
+        return f"{float(val):.{col_field.decimals}f}"
+    if col_field.field_type is int and _is_number(val):
+        return str(int(val))
+    return str(val if val is not None else "")
 
 
 class BaseComponentEditor(PropertyTableMixin, QWidget):
@@ -422,7 +392,6 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
                     self._scalar_fields,
                     on_changed=self._on_param_changed,
                     api=self._api,
-                    raw_callback=True,
                 )
 
             # Load Table Parameters
@@ -489,12 +458,14 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
 
                 for c_idx, col_field in enumerate(tf.columns):
                     val = row_data.get(col_field.key, col_field.default)
-                    display_text, tooltip = _format_table_cell_value(val, col_field, self._api)
+                    display_text = _format_table_cell_value(val, col_field)
+                    formula = get_expression(row_data, col_field.key)
 
                     cell_item = QTableWidgetItem(display_text)
-                    cell_item.setData(Qt.ItemDataRole.UserRole, val)
-                    if tooltip:
-                        cell_item.setToolTip(tooltip)
+                    # The delegate edits the formula when the cell has one.
+                    cell_item.setData(Qt.ItemDataRole.UserRole, formula or val)
+                    if formula:
+                        cell_item.setToolTip(f"Formula: {formula}\nCalculated: {display_text}")
                     if col_field.field_type in (float, int):
                         cell_item.setTextAlignment(
                             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
@@ -573,30 +544,38 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
             return
         raw_text = item.text().strip()
 
-        parsed_val: Any = raw_text
-        if ExpressionEvaluator.is_expression(raw_text):
-            parsed_val = raw_text
-        elif col_field.field_type is float:
-            try:
-                parsed_val = float(raw_text)
-            except ValueError:
-                parsed_val = col_field.default
-        elif col_field.field_type is int:
-            try:
-                parsed_val = int(raw_text)
-            except ValueError:
-                parsed_val = col_field.default
-
         params = self._component.setdefault("parameters", {})
         rows = params.get(key)
         data_row = row - 1
         if not isinstance(rows, list) or not (0 <= data_row < len(rows)):
             return
-        if rows[data_row].get(col_field.key) == parsed_val:
+        row_data = rows[data_row]
+
+        value: Any = raw_text
+        expression: str | None = None
+        if col_field.field_type in (float, int):
+            parsed = evaluate_table_cell_input(
+                raw_text,
+                self._api,
+                label=f"{tf.label} {col_field.label}",
+                min_val=col_field.min_value,
+                max_val=col_field.max_value,
+            )
+            if parsed is None:
+                # Put the stored value back; the status bar names the error.
+                self._populate_table_widget(tf, rows)
+                return
+            value, expression = parsed
+            if col_field.field_type is int:
+                value = round(value)
+        if row_data.get(col_field.key) == value and (
+            get_expression(row_data, col_field.key) == expression
+        ):
             return
 
         new_rows = deepcopy(rows)
-        new_rows[data_row][col_field.key] = parsed_val
+        new_rows[data_row][col_field.key] = value
+        set_expression(new_rows[data_row], col_field.key, expression)
         self._commit_table_param(key, new_rows)
 
     def _commit_table_param(self, key: str, new_rows: list[dict[str, Any]]) -> None:
@@ -622,34 +601,9 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
         """Hook for subclasses to populate data in custom sections."""
         pass
 
-    def _on_param_changed(self, key: str, value: Any) -> None:
+    def _on_param_changed(self, key: str, final_val: Any, new_expr: str | None) -> None:
         if self._loading:
             return
-
-        field = next((f for f in self._scalar_fields if f.key == key), None)
-        new_expr: str | None = None
-        if field is not None and field.field_type not in (int, float):
-            final_val: Any = value
-        else:
-            cell = (
-                self._property_cell(self.parameters_table, key)
-                if hasattr(self, "parameters_table")
-                else None
-            )
-            parsed = evaluate_table_cell_input(
-                value,
-                self._api,
-                cell=cell,
-                label=field.label if field is not None else key,
-                min_val=field.min_value if field is not None else None,
-                max_val=field.max_value if field is not None else None,
-            )
-            if parsed is None:
-                return
-            num_val, new_expr = parsed
-            final_val = (
-                round(num_val) if (field is not None and field.field_type is int) else num_val
-            )
 
         old_val = self._committed_params.get(key)
         old_expr = self._committed_expressions.get(key)
@@ -700,9 +654,6 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
             self.update_viewport()
         else:
             self._load_custom_data()
-
-    def _on_expression_cell_changed(self, key: str, val_text: Any) -> None:
-        self._on_param_changed(key, val_text)
 
     def _on_mass_changed(self, val_text: Any) -> None:
         if self._loading:
@@ -768,4 +719,4 @@ class BaseComponentEditor(PropertyTableMixin, QWidget):
         item = self.parameters_table.item(row, column)
         if field is None or field.readonly or item is None or not item.text():
             return
-        self._on_param_changed(key, item.text())
+        self._on_param_changed(key, item.text(), None)

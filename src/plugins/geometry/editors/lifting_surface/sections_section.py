@@ -445,9 +445,7 @@ class SectionsSectionMixin(LiftingSurfaceEditorHost):
         }.get(column)
         if field is None:
             return False
-        raw_val = (
-            um.from_display(value, "length") if column == 1 else um.from_display(value, "angle")
-        )
+        raw_val = um.to_base(value, "length") if column == 1 else um.to_base(value, "angle")
         section[field] = max(raw_val, 1.0) if column == 1 else float(raw_val)
         return True
 

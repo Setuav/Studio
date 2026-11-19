@@ -84,6 +84,8 @@ class ParameterField:
     allow_formula: bool = True
     readonly: bool = False
     widget_type: str | None = None
+    # An emptied cell clears the value instead of being invalid.
+    optional: bool = False
 
     def __set_name__(self, owner: type, name: str) -> None:
         if not self.key:

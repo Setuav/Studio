@@ -271,8 +271,6 @@ class StudioAPI:
                     "Error executing subscriber for event '%s': %s", event_name, exc, exc_info=True
                 )
 
-    emit = publish
-
     def register_toolbar_item(self, contribution: ToolbarContribution) -> None:
         """Register an action to the main toolbar."""
         if self._register_toolbar_item is not None:
@@ -531,12 +529,15 @@ class StudioAPI:
         description: str,
         change: Callable[[dict[str, Any]], None],
     ) -> None:
-        """Edit component-level extension data for a given namespace with full Undo/Redo tracking."""
+        """Edit component-level extension data for a given namespace with full Undo/Redo tracking.
+
+        Raises ValueError when the project has no component ``component_id``.
+        """
         if self._project is None:
             return
         comp = self._project.get_component(component_id)
         if comp is None:
-            return
+            raise ValueError(f"No component {component_id!r} in the project")
 
         def wrapper() -> None:
             if "extensions" not in comp or not isinstance(comp["extensions"], dict):
