@@ -134,18 +134,6 @@ class NumericSpinBox(QDoubleSpinBox):
         event.accept()
 
 
-def _resolve_table_api(table: QTableWidget, explicit_api: Any | None) -> Any | None:
-    if explicit_api is not None:
-        return explicit_api
-    parent = table.parent()
-    while parent is not None:
-        api = getattr(parent, "_api", None)
-        if api is not None:
-            return api
-        parent = parent.parent()
-    return None
-
-
 def evaluate_table_cell_input(
     value: Any,
     api: Any | None,
@@ -201,7 +189,7 @@ def set_table_spinbox(
     on_changed: Callable[[Any], None] | None = None,
     on_open_assistant: Callable[[str], None] | None = None,
     raw_callback: bool = False,
-    api: Any | None = None,
+    api: Any | None,
     label: str = "",
 ) -> ExpressionPropertyCell:
     """Helper to cleanly place an ExpressionPropertyCell with fx assistant into a QTableWidget cell."""
@@ -220,8 +208,6 @@ def set_table_spinbox(
     if not prop_k:
         item0 = table.item(row, 0)
         prop_k = str(item0.data(Qt.ItemDataRole.UserRole) or "") if item0 else ""
-
-    resolved_api = _resolve_table_api(table, api)
 
     active_expr = expression
     if active_expr is None and prop_k:
@@ -244,7 +230,7 @@ def set_table_spinbox(
 
         parsed = evaluate_table_cell_input(
             clean,
-            resolved_api,
+            api,
             cell=cell,
             label=label or prop_k,
             min_val=min_val,
@@ -267,7 +253,7 @@ def set_table_spinbox(
         initial_value=init_str,
         on_changed=handle_cell_changed if on_changed else None,
         on_open_assistant=on_open_assistant,
-        api=resolved_api,
+        api=api,
         label=label,
         decimals=decimals,
         quantity=quantity,

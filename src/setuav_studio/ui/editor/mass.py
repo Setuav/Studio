@@ -173,6 +173,7 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
                 quantity="length",
                 suffix="mm",
                 on_changed=self._on_field_changed,
+                api=self._api,
             )
             for column, axis in enumerate(("x", "y", "z"))
         }
@@ -209,6 +210,7 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
                         quantity="inertia",
                         suffix="kg·m²",
                         on_changed=self._on_field_changed,
+                        api=self._api,
                     )
                     for column, key in enumerate(keys)
                 }
@@ -262,6 +264,7 @@ class MassPropertiesEditor(PropertyTableMixin, QWidget):
                     quantity=quantity,
                     suffix=suffix,
                     on_changed=on_changed,
+                    api=self._api,
                 )
         raise KeyError(f"Unknown mass-properties field: {key}")
 

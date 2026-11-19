@@ -711,6 +711,7 @@ class SectionsSectionMixin(FuselageEditorHost):
                 decimals=2,
                 suffix="mm",
                 on_changed=vertex_callback(row, 0),
+                api=self._api,
             )
             set_table_spinbox(
                 self.vertices_table,
@@ -721,6 +722,7 @@ class SectionsSectionMixin(FuselageEditorHost):
                 decimals=2,
                 suffix="mm",
                 on_changed=vertex_callback(row, 1),
+                api=self._api,
             )
             set_table_spinbox(
                 self.vertices_table,
@@ -732,6 +734,7 @@ class SectionsSectionMixin(FuselageEditorHost):
                 decimals=2,
                 suffix="mm",
                 on_changed=vertex_callback(row, 2),
+                api=self._api,
             )
         self._fit_table_height(self.vertices_table, len(vertices))
 

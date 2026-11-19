@@ -119,6 +119,7 @@ class GeometrySceneTests(unittest.TestCase):
             decimals=1,
             suffix="mm",
             on_changed=lambda v: changed_vals.append(v),
+            api=None,
         )
         self.assertIsNotNone(sb)
         self.assertEqual(table.cellWidget(0, 1), sb)

@@ -642,6 +642,7 @@ class FuselageSectionDialog(QDialog):
                 on_changed=lambda val, row_idx=row: self._on_vertex_cell_spin_changed(
                     row_idx, "y", val
                 ),
+                api=self._api,
             )
             set_table_spinbox(
                 self.vertices_table,
@@ -655,6 +656,7 @@ class FuselageSectionDialog(QDialog):
                 on_changed=lambda val, row_idx=row: self._on_vertex_cell_spin_changed(
                     row_idx, "z", val
                 ),
+                api=self._api,
             )
             set_table_spinbox(
                 self.vertices_table,
@@ -669,6 +671,7 @@ class FuselageSectionDialog(QDialog):
                 on_changed=lambda val, row_idx=row: self._on_vertex_cell_spin_changed(
                     row_idx, "radius", val
                 ),
+                api=self._api,
             )
 
         # Restore row selection if any

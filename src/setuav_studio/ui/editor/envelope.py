@@ -259,6 +259,7 @@ class EnvelopeEditor(PropertyTableMixin, QWidget):
             decimals=3,
             suffix="mm",
             on_changed=lambda _value: self._update_envelope(),
+            api=self._api,
         )
 
     def _load_component(self, component: dict[str, Any]) -> None:
