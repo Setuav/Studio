@@ -186,18 +186,7 @@ def format_component_type(
         return f"Instance of {source_name}" if source_name else "Instance"
 
     ctype = str(component.get("type", ""))
-    params = component.get("parameters")
-    if not isinstance(params, dict):
-        params = {}
-    geom = params.get("geometry")
-    if not isinstance(geom, dict):
-        geom = {}
-
-    if ctype == "org.setuav.core:control-surface":
-        cs_type = str(geom.get("type", "aileron")).capitalize()
-        return f"Control Surface ({cs_type})"
-    if ctype == "org.setuav.core:lifting-surface":
-        is_mirrored = geom.get("mirror") is True
-        return "Lifting Surface (Bilateral)" if is_mirrored else "Lifting Surface"
-
+    contribution = api.get_component_type(ctype)
+    if contribution is not None and contribution.describe is not None:
+        return contribution.describe(component)
     return api.get_component_type_label(ctype)

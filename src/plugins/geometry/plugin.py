@@ -73,6 +73,7 @@ class AirframeDesignPlugin:
                 model=LiftingSurfaceModel,
                 editor=lambda component: LiftingSurfaceEditor(api, component),
                 category="Airframe Design",
+                describe=_describe_lifting_surface,
             ),
             ComponentTypeContribution(
                 id="org.setuav.core:control-surface",
@@ -82,6 +83,7 @@ class AirframeDesignPlugin:
                 editor=lambda component: ControlSurfaceEditor(api, component),
                 category="Airframe Design",
                 subpart=True,
+                describe=_describe_control_surface,
             ),
         ]
         for contrib in self._component_types:
@@ -131,6 +133,16 @@ class AirframeDesignPlugin:
         api.unregister_settings_page("airframe_design.settings.editor")
         for type_id in _GEOMETRY_TYPES:
             api.unregister_component_deriver(type_id)
+
+
+def _describe_lifting_surface(component: dict[str, Any]) -> str:
+    bilateral = component["parameters"]["geometry"].get("mirror") is True
+    return "Lifting Surface (Bilateral)" if bilateral else "Lifting Surface"
+
+
+def _describe_control_surface(component: dict[str, Any]) -> str:
+    kind = str(component["parameters"]["geometry"]["type"])
+    return f"Control Surface ({kind.capitalize()})"
 
 
 _GEOMETRY_TYPES = (

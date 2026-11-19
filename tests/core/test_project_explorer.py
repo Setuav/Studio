@@ -145,3 +145,23 @@ class ProjectExplorerComponentMenuTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_component_type_label_comes_from_the_type_contribution() -> None:
+    from setuav_studio.api import ComponentTypeContribution
+    from setuav_studio.ui.panels.project_explorer.style import format_component_type
+
+    api = StudioAPI()
+    api.register_component_type(
+        ComponentTypeContribution(
+            id="org.test:surface",
+            name="Surface",
+            describe=lambda component: f"Surface ({component['parameters']['kind']})",
+        )
+    )
+    api.register_component_type(ComponentTypeContribution(id="org.test:box", name="Box"))
+    surface = {"id": "s", "type": "org.test:surface", "parameters": {"kind": "flap"}}
+    box = {"id": "b", "type": "org.test:box", "parameters": {}}
+
+    assert format_component_type(surface, [surface, box], api) == "Surface (flap)"
+    assert format_component_type(box, [surface, box], api) == "Box"

@@ -63,6 +63,9 @@ class ComponentTypeContribution:
     editor: Callable[[dict[str, Any]], QWidget] | None = None
     category: str | None = None
     subpart: bool = False
+    # The type label of one component when it depends on its data, e.g. a
+    # control surface's kind; without it every component shows ``name``.
+    describe: Callable[[dict[str, Any]], str] | None = None
 
 
 @dataclass(frozen=True)
