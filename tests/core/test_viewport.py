@@ -33,7 +33,7 @@ class MockRenderer(QWidget):
     def __init__(self) -> None:
         super().__init__()
         self.overlays: dict[str, list] = {}
-        self.scene_objects: dict[str, Any] = {}
+        self.scene_objects: dict[str, SceneObject] = {}
         self.selected_component: str | None = None
         self.selected_section: tuple[str, int, int] | None = None
         self.selected_envelope: str | Sequence[str] | None = None
@@ -50,7 +50,7 @@ class MockRenderer(QWidget):
     def update_theme_style(self) -> None:
         pass
 
-    def set_scene_objects(self, objects: dict[str, Any]) -> None:
+    def set_scene_objects(self, objects: dict[str, SceneObject]) -> None:
         self.scene_objects = dict(objects)
 
     def set_overlays(self, overlay_id: str, primitives: list | tuple) -> None:

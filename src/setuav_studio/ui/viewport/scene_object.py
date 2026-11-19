@@ -16,6 +16,7 @@ from .primitives import (
     TrianglesPrimitive,
     VisualPrimitive,
 )
+from .types import EnvelopeWireGeometry
 
 
 def _cylinder_envelope(prim: CylinderPrimitive) -> dict[str, Any]:
@@ -102,15 +103,14 @@ class SceneObject:
     name: str = ""
     visible: bool = True
     primitives: list[VisualPrimitive] = field(default_factory=list)
-    envelope: Any = None
+    # The component's envelope: wire lines in world coordinates, or an envelope
+    # definition (shape, size_mm, offset_mm). Without one it follows the primitives.
+    envelope: EnvelopeWireGeometry | dict[str, Any] | None = None
 
-    def get_envelope(self) -> dict[str, Any] | Any | None:
-        """Return explicit envelope if set, or automatically compute it from visual primitives."""
+    def get_envelope(self) -> EnvelopeWireGeometry | dict[str, Any] | None:
+        """Return the explicit envelope, or the one computed from the visual primitives."""
         if self.envelope is not None:
-            if isinstance(self.envelope, dict) and "size_mm" in self.envelope:
-                return self.envelope
-            if hasattr(self.envelope, "lines"):
-                return self.envelope
+            return self.envelope
         return self.compute_envelope()
 
     def compute_envelope(self) -> dict[str, Any] | None:

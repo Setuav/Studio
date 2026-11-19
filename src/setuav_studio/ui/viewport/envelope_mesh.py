@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
-from typing import Any
 
 from setuav_studio.utilities.transform import rotate_vector
 
 from .loft_mesh import _add_line, _append_ring
-from .primitives import BoxPrimitive, CylinderPrimitive, Point3D
+from .primitives import BoxPrimitive, CylinderPrimitive, PlanePrimitive, Point3D, RingPrimitive
 from .raycast import _box_corners, _ortho_basis
+from .scene_object import SceneObject
+from .types import EnvelopeWireGeometry
 
 ENVELOPE_HIGHLIGHT: Point3D = (0.15, 1.0, 0.25)
 
@@ -49,126 +50,101 @@ def _append_cylinder_wire(
 
 def _append_scene_object_envelope_wire(
     vertices: list[float],
-    obj: Any,
+    obj: SceneObject,
     color: Point3D,
 ) -> None:
-    env = obj.get_envelope() if hasattr(obj, "get_envelope") else getattr(obj, "envelope", None)
+    env = obj.get_envelope()
     if env is None:
         return
 
-    # 1. EnvelopeWireGeometry (or any object with .lines)
-    if hasattr(env, "lines"):
+    if isinstance(env, EnvelopeWireGeometry):
         for start, end in env.lines:
             _add_line(vertices, start, end, color)
         return
 
-    # 2. Dictionary with envelope definition
-    if isinstance(env, dict) and "size_mm" in env:
-        shape = str(env.get("shape", "box")).lower()
-        raw_size = env.get("size_mm", {})
-        raw_offset = env.get("offset_mm", {})
-        sx = float(raw_size.get("x", 0.0)) if isinstance(raw_size, dict) else float(raw_size[0])
-        sy = float(raw_size.get("y", 0.0)) if isinstance(raw_size, dict) else float(raw_size[1])
-        sz = float(raw_size.get("z", 0.0)) if isinstance(raw_size, dict) else float(raw_size[2])
-        ox = (
-            float(raw_offset.get("x", 0.0))
-            if isinstance(raw_offset, dict)
-            else (float(raw_offset[0]) if raw_offset else 0.0)
-        )
-        oy = (
-            float(raw_offset.get("y", 0.0))
-            if isinstance(raw_offset, dict)
-            else (float(raw_offset[1]) if raw_offset else 0.0)
-        )
-        oz = (
-            float(raw_offset.get("z", 0.0))
-            if isinstance(raw_offset, dict)
-            else (float(raw_offset[2]) if raw_offset else 0.0)
-        )
+    shape = str(env["shape"]).lower()
+    size = env["size_mm"]
+    offset = env["offset_mm"]
+    sx, sy, sz = float(size["x"]), float(size["y"]), float(size["z"])
+    ox, oy, oz = float(offset["x"]), float(offset["y"]), float(offset["z"])
 
-        primitives = getattr(obj, "primitives", ())
-        prim0 = primitives[0] if primitives else None
-        base_center: Point3D = (0.0, 0.0, 0.0)
-        rotation: Point3D = (0.0, 0.0, 0.0)
-        if prim0 is not None:
-            if isinstance(prim0, CylinderPrimitive):
-                base_center = (
-                    (prim0.start[0] + prim0.end[0]) * 0.5,
-                    (prim0.start[1] + prim0.end[1]) * 0.5,
-                    (prim0.start[2] + prim0.end[2]) * 0.5,
-                )
+    prim0 = obj.primitives[0] if obj.primitives else None
+    base_center: Point3D = (0.0, 0.0, 0.0)
+    rotation: Point3D = (0.0, 0.0, 0.0)
+    if isinstance(prim0, CylinderPrimitive):
+        base_center = (
+            (prim0.start[0] + prim0.end[0]) * 0.5,
+            (prim0.start[1] + prim0.end[1]) * 0.5,
+            (prim0.start[2] + prim0.end[2]) * 0.5,
+        )
+    elif isinstance(prim0, (BoxPrimitive, PlanePrimitive, RingPrimitive)):
+        base_center = prim0.center
+    if isinstance(prim0, BoxPrimitive):
+        rotation = prim0.rotation
+
+    center = (base_center[0] + ox, base_center[1] + oy, base_center[2] + oz)
+    if shape == "cylinder":
+        cyl_axis: Point3D
+        cyl_len: float
+        cyl_radius: float
+        if isinstance(prim0, CylinderPrimitive):
+            dx = prim0.end[0] - prim0.start[0]
+            dy = prim0.end[1] - prim0.start[1]
+            dz = prim0.end[2] - prim0.start[2]
+            axis_len = math.sqrt(dx * dx + dy * dy + dz * dz)
+            if axis_len > 1e-6:
+                cyl_axis = (dx / axis_len, dy / axis_len, dz / axis_len)
+                cyl_len = axis_len
             else:
-                base_center = getattr(prim0, "center", (0.0, 0.0, 0.0))
-            rotation = getattr(prim0, "rotation", (0.0, 0.0, 0.0))
-
-        center = (base_center[0] + ox, base_center[1] + oy, base_center[2] + oz)
-        if shape == "cylinder":
-            cyl_axis: Point3D
-            cyl_len: float
-            cyl_radius: float
-            if isinstance(prim0, CylinderPrimitive):
-                dx = prim0.end[0] - prim0.start[0]
-                dy = prim0.end[1] - prim0.start[1]
-                dz = prim0.end[2] - prim0.start[2]
-                axis_len = math.sqrt(dx * dx + dy * dy + dz * dz)
-                if axis_len > 1e-6:
-                    cyl_axis = (dx / axis_len, dy / axis_len, dz / axis_len)
-                    cyl_len = axis_len
-                else:
-                    cyl_axis = (0.0, 0.0, 1.0)
-                    cyl_len = max(sz, 10.0)
-                cyl_radius = prim0.radius
-            elif prim0 is not None and hasattr(prim0, "normal"):
-                norm = prim0.normal
-                norm_len = math.sqrt(norm[0] ** 2 + norm[1] ** 2 + norm[2] ** 2)
-                cyl_axis = (
-                    (norm[0] / norm_len, norm[1] / norm_len, norm[2] / norm_len)
-                    if norm_len > 1e-6
-                    else (0.0, 0.0, 1.0)
-                )
+                cyl_axis = (0.0, 0.0, 1.0)
                 cyl_len = max(sz, 10.0)
-                cyl_radius = max(sx, sy, sz) * 0.5
-            else:
-                axis_index = "xyz".index(str(env["axis"]))
-                sizes = (sx, sy, sz)
-                base_axis: Point3D = (
-                    float(axis_index == 0),
-                    float(axis_index == 1),
-                    float(axis_index == 2),
-                )
-                cyl_len = sizes[axis_index]
-                cyl_radius = max(v for i, v in enumerate(sizes) if i != axis_index) * 0.5
-                cyl_axis = (
-                    rotate_vector(base_axis, rotation) if rotation != (0.0, 0.0, 0.0) else base_axis
-                )
-            _append_cylinder_wire(vertices, center, cyl_radius, cyl_len, color, axis=cyl_axis)
+            cyl_radius = prim0.radius
+        elif isinstance(prim0, (PlanePrimitive, RingPrimitive)):
+            norm = prim0.normal
+            norm_len = math.sqrt(norm[0] ** 2 + norm[1] ** 2 + norm[2] ** 2)
+            cyl_axis = (
+                (norm[0] / norm_len, norm[1] / norm_len, norm[2] / norm_len)
+                if norm_len > 1e-6
+                else (0.0, 0.0, 1.0)
+            )
+            cyl_len = max(sz, 10.0)
+            cyl_radius = max(sx, sy, sz) * 0.5
         else:
-            box_rot = (
-                getattr(prim0, "rotation", (0.0, 0.0, 0.0))
-                if isinstance(prim0, BoxPrimitive)
-                else (0.0, 0.0, 0.0)
+            axis_index = "xyz".index(str(env["axis"]))
+            sizes = (sx, sy, sz)
+            base_axis: Point3D = (
+                float(axis_index == 0),
+                float(axis_index == 1),
+                float(axis_index == 2),
             )
-            c = _box_corners(center, (sx, sy, sz), box_rot)
-            edges = (
-                (0, 1),
-                (1, 2),
-                (2, 3),
-                (3, 0),
-                (4, 5),
-                (5, 6),
-                (6, 7),
-                (7, 4),
-                (0, 4),
-                (1, 5),
-                (2, 6),
-                (3, 7),
+            cyl_len = sizes[axis_index]
+            cyl_radius = max(v for i, v in enumerate(sizes) if i != axis_index) * 0.5
+            cyl_axis = (
+                rotate_vector(base_axis, rotation) if rotation != (0.0, 0.0, 0.0) else base_axis
             )
-            for i1, i2 in edges:
-                _add_line(vertices, c[i1], c[i2], color)
+        _append_cylinder_wire(vertices, center, cyl_radius, cyl_len, color, axis=cyl_axis)
+    else:
+        c = _box_corners(center, (sx, sy, sz), rotation)
+        edges = (
+            (0, 1),
+            (1, 2),
+            (2, 3),
+            (3, 0),
+            (4, 5),
+            (5, 6),
+            (6, 7),
+            (7, 4),
+            (0, 4),
+            (1, 5),
+            (2, 6),
+            (3, 7),
+        )
+        for i1, i2 in edges:
+            _add_line(vertices, c[i1], c[i2], color)
 
 
 def build_envelope_wire_vertices(
-    scene_objects: dict[str, Any],
+    scene_objects: dict[str, SceneObject],
     selected_envelope_component_id: str | Sequence[str] | None,
     color: Point3D = ENVELOPE_HIGHLIGHT,
 ) -> list[float]:

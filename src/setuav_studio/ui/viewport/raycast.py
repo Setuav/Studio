@@ -155,7 +155,7 @@ def _ray_primitive_intersection(  # noqa: C901
     best: float | None = None
 
     if isinstance(prim, BoxPrimitive):
-        c = _box_corners(prim.center, prim.size, getattr(prim, "rotation", (0.0, 0.0, 0.0)))
+        c = _box_corners(prim.center, prim.size, prim.rotation)
         faces = (
             (c[0], c[1], c[2], c[3]),
             (c[4], c[7], c[6], c[5]),
@@ -177,7 +177,7 @@ def _ray_primitive_intersection(  # noqa: C901
         if axis_len > 1e-6:
             u, v = _ortho_basis(axis)
             r = prim.radius
-            segs = getattr(prim, "segments", 24)
+            segs = prim.segments
             ring1: list[Point3D] = []
             ring2: list[Point3D] = []
             for i in range(segs):
@@ -246,9 +246,9 @@ def _ray_primitive_intersection(  # noqa: C901
                 component_id="primitive:loft",
                 sections=tuple(Section(pts) for pts in prim.sections),
                 color=(1.0, 1.0, 1.0),
-                interpolation=getattr(prim, "interpolation", "smooth"),
-                station_spacing=getattr(prim, "station_spacing", 10.0),
-                closed_ends=getattr(prim, "closed_ends", True),
+                interpolation=prim.interpolation,
+                station_spacing=prim.station_spacing,
+                closed_ends=prim.closed_ends,
             )
             loops = tessellated_loops(loft)
             if loops:

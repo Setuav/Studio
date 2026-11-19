@@ -5,7 +5,6 @@ import math
 from array import array
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
 
 from PySide6.QtCore import QPoint, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import (
@@ -45,7 +44,7 @@ from .mesh import (
     hit_test_scene,
 )
 from .primitives import Point3D, VisualPrimitive
-from .scene_object import is_scene_object_matching
+from .scene_object import SceneObject, is_scene_object_matching
 
 logger = logging.getLogger(__name__)
 
@@ -270,7 +269,7 @@ class OpenGLViewer(QOpenGLWidget):
         self._primitive_wire_count = 0
         self._primitive_annotation_count = 0
         self._overlays: dict[str, list[VisualPrimitive]] = {}
-        self._scene_objects: dict[str, Any] = {}
+        self._scene_objects: dict[str, SceneObject] = {}
         self._show_solid = True
         self._show_wireframe = True
         self._wire_mode = WIRE_FEATURE
@@ -647,7 +646,7 @@ class OpenGLViewer(QOpenGLWidget):
             from .raycast import _box_corners
 
             for obj in self._scene_objects.values():
-                for prim in getattr(obj, "primitives", ()):
+                for prim in obj.primitives:
                     if isinstance(prim, LoftPrimitive):
                         for sec in prim.sections:
                             points.extend(sec)
@@ -656,7 +655,7 @@ class OpenGLViewer(QOpenGLWidget):
                             _box_corners(
                                 prim.center,
                                 prim.size,
-                                getattr(prim, "rotation", (0.0, 0.0, 0.0)),
+                                prim.rotation,
                             )
                         )
                     elif isinstance(prim, CylinderPrimitive):
@@ -844,7 +843,7 @@ class OpenGLViewer(QOpenGLWidget):
                 if is_scene_object_matching(obj_id, self._selected_component_id):
                     highlight_values.extend(
                         build_primitive_highlight_vertices(
-                            getattr(obj, "primitives", ()),
+                            obj.primitives,
                             sel_color,
                             wire_mode=self._wire_mode,
                             object_id=obj_id,
@@ -862,7 +861,7 @@ class OpenGLViewer(QOpenGLWidget):
                 if is_scene_object_matching(obj_id, hovered):
                     highlight_values.extend(
                         build_primitive_highlight_vertices(
-                            getattr(obj, "primitives", ()),
+                            obj.primitives,
                             hov_color,
                             wire_mode=self._wire_mode,
                             object_id=obj_id,
@@ -919,9 +918,9 @@ class OpenGLViewer(QOpenGLWidget):
 
         if self._scene_objects:
             for obj_id, obj in self._scene_objects.items():
-                if not getattr(obj, "visible", True):
+                if not obj.visible:
                     continue
-                prims = getattr(obj, "primitives", ())
+                prims = obj.primitives
                 if not prims:
                     continue
 
@@ -1236,7 +1235,7 @@ class OpenGLViewer(QOpenGLWidget):
         self._mesh_dirty = True
         self.update()
 
-    def set_scene_objects(self, objects: dict[str, Any]) -> None:
+    def set_scene_objects(self, objects: dict[str, SceneObject]) -> None:
         """Set active scene objects mapped by object_id for rendering, picking and highlighting."""
         had_objects = bool(self._scene_objects)
         self._scene_objects = dict(objects)

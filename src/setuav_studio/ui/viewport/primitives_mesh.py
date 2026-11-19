@@ -47,13 +47,14 @@ def build_primitive_solid_vertices(  # noqa: C901
 ) -> list[float]:
     vertices: list[float] = []
     for prim in primitives:
-        if not getattr(prim, "solid", True):
+        # Rings and line segments have no surface.
+        if isinstance(prim, (RingPrimitive, LineSegmentsPrimitive)) or not prim.solid:
             continue
         raw_color = prim.color
         color = raw_color[:3] if face_style in (FACE_COLORED, FACE_TRANSPARENT) else _SOLID_GREY
 
         if isinstance(prim, BoxPrimitive):
-            c = _box_corners(prim.center, prim.size, getattr(prim, "rotation", (0.0, 0.0, 0.0)))
+            c = _box_corners(prim.center, prim.size, prim.rotation)
             faces = (
                 (c[0], c[1], c[2], c[3]),
                 (c[4], c[7], c[6], c[5]),
@@ -74,7 +75,7 @@ def build_primitive_solid_vertices(  # noqa: C901
                 continue
             u, v = _ortho_basis(axis)
             r = prim.radius
-            segs = getattr(prim, "segments", 24)
+            segs = prim.segments
 
             ring1: list[Point3D] = []
             ring2: list[Point3D] = []
@@ -124,21 +125,19 @@ def build_primitive_solid_vertices(  # noqa: C901
             _add_triangle(vertices, p0, p3, p2, color)
 
         elif isinstance(prim, TrianglesPrimitive):
-            if not getattr(prim, "solid", True):
-                continue
             for p0, p1, p2 in prim.triangles:
                 _add_triangle(vertices, p0, p1, p2, color)
 
         elif isinstance(prim, LoftPrimitive):
-            if not getattr(prim, "solid", True) or not prim.sections or len(prim.sections) < 2:
+            if len(prim.sections) < 2:
                 continue
             loft = LoftGeometry(
                 component_id="primitive:loft",
                 sections=tuple(Section(pts) for pts in prim.sections),
                 color=color,
-                interpolation=getattr(prim, "interpolation", "smooth"),
-                station_spacing=getattr(prim, "station_spacing", 10.0),
-                closed_ends=getattr(prim, "closed_ends", True),
+                interpolation=prim.interpolation,
+                station_spacing=prim.station_spacing,
+                closed_ends=prim.closed_ends,
             )
             loops = tessellated_loops(loft)
             if len(loops) >= 2:
@@ -162,9 +161,9 @@ def build_primitive_wire_vertices(  # noqa: C901
         color = FEATURE_EDGE_COLOR if face_style in (FACE_COLORED, FACE_TRANSPARENT) else _WIRE_GREY
 
         if isinstance(prim, BoxPrimitive):
-            if not getattr(prim, "wireframe", True):
+            if not prim.wireframe:
                 continue
-            c = _box_corners(prim.center, prim.size, getattr(prim, "rotation", (0.0, 0.0, 0.0)))
+            c = _box_corners(prim.center, prim.size, prim.rotation)
             edges = (
                 (0, 1),
                 (1, 2),
@@ -186,7 +185,7 @@ def build_primitive_wire_vertices(  # noqa: C901
                     _add_line(vertices, c[i1], c[i2], color)
 
         elif isinstance(prim, CylinderPrimitive):
-            if not getattr(prim, "wireframe", True):
+            if not prim.wireframe:
                 continue
             p1, p2 = prim.start, prim.end
             axis = (p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2])
@@ -195,7 +194,7 @@ def build_primitive_wire_vertices(  # noqa: C901
                 continue
             u, v = _ortho_basis(axis)
             r = prim.radius
-            segs = getattr(prim, "segments", 24)
+            segs = prim.segments
 
             ring1: list[Point3D] = []
             ring2: list[Point3D] = []
@@ -220,7 +219,7 @@ def build_primitive_wire_vertices(  # noqa: C901
                     _add_line(vertices, ring1[idx], ring2[idx], color)
 
         elif isinstance(prim, PlanePrimitive):
-            if not getattr(prim, "wireframe", True):
+            if not prim.wireframe:
                 continue
             cx, cy, cz = prim.center
             u, v = _ortho_basis(prim.normal)
@@ -257,15 +256,15 @@ def build_primitive_wire_vertices(  # noqa: C901
                 _add_line(vertices, p2, p0, color)
 
         elif isinstance(prim, LoftPrimitive):
-            if not getattr(prim, "wireframe", True) or not prim.sections or len(prim.sections) < 2:
+            if not prim.wireframe or not prim.sections or len(prim.sections) < 2:
                 continue
             loft = LoftGeometry(
-                component_id=object_id or getattr(prim, "tag", "primitive:loft"),
+                component_id=object_id or "primitive:loft",
                 sections=tuple(Section(pts) for pts in prim.sections),
                 color=color,
-                interpolation=getattr(prim, "interpolation", "smooth"),
-                station_spacing=getattr(prim, "station_spacing", 10.0),
-                closed_ends=getattr(prim, "closed_ends", True),
+                interpolation=prim.interpolation,
+                station_spacing=prim.station_spacing,
+                closed_ends=prim.closed_ends,
             )
             loops = tessellated_loops(loft)
             if loops:
@@ -291,7 +290,7 @@ def build_primitive_annotation_vertices(
             cx, cy, cz = prim.center
             u, v = _ortho_basis(prim.normal)
             r = prim.radius
-            segs = getattr(prim, "segments", 36)
+            segs = prim.segments
             ring: list[Point3D] = []
             for i in range(segs):
                 angle = 2.0 * math.pi * i / segs
@@ -322,7 +321,7 @@ def build_primitive_highlight_vertices(  # noqa: C901
     vertices: list[float] = []
     for prim in primitives:
         if isinstance(prim, BoxPrimitive):
-            c = _box_corners(prim.center, prim.size, getattr(prim, "rotation", (0.0, 0.0, 0.0)))
+            c = _box_corners(prim.center, prim.size, prim.rotation)
             edges = (
                 (0, 1),
                 (1, 2),
@@ -348,7 +347,7 @@ def build_primitive_highlight_vertices(  # noqa: C901
                 continue
             u, v = _ortho_basis(axis)
             r = prim.radius
-            segs = getattr(prim, "segments", 24)
+            segs = prim.segments
 
             ring1: list[Point3D] = []
             ring2: list[Point3D] = []
@@ -398,7 +397,7 @@ def build_primitive_highlight_vertices(  # noqa: C901
             cx, cy, cz = prim.center
             u, v = _ortho_basis(prim.normal)
             r = prim.radius
-            segs = getattr(prim, "segments", 36)
+            segs = prim.segments
             ring: list[Point3D] = []
             for i in range(segs):
                 angle = 2.0 * math.pi * i / segs
@@ -426,12 +425,12 @@ def build_primitive_highlight_vertices(  # noqa: C901
             if not prim.sections or len(prim.sections) < 2:
                 continue
             loft = LoftGeometry(
-                component_id=object_id or getattr(prim, "tag", "primitive:loft"),
+                component_id=object_id or "primitive:loft",
                 sections=tuple(Section(pts) for pts in prim.sections),
                 color=color,
-                interpolation=getattr(prim, "interpolation", "smooth"),
-                station_spacing=getattr(prim, "station_spacing", 10.0),
-                closed_ends=getattr(prim, "closed_ends", True),
+                interpolation=prim.interpolation,
+                station_spacing=prim.station_spacing,
+                closed_ends=prim.closed_ends,
             )
             loops = tessellated_loops(loft)
             if loops:
