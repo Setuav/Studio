@@ -81,10 +81,7 @@ class PlanformSectionMixin(LiftingSurfaceEditorHost):
     def _on_sweep_loc_changed(self, loc_val_str: str) -> None:
         if self._loading:
             return
-        try:
-            sw_loc = float(loc_val_str)
-        except ValueError:
-            sw_loc = 0.25
+        sw_loc = float(loc_val_str)
         self._sweep_loc = sw_loc
 
         def change() -> None:
@@ -96,10 +93,7 @@ class PlanformSectionMixin(LiftingSurfaceEditorHost):
     def _on_twist_loc_changed(self, twist_val_str: str) -> None:
         if self._loading:
             return
-        try:
-            twist_loc = float(twist_val_str)
-        except ValueError:
-            twist_loc = 0.25
+        twist_loc = float(twist_val_str)
 
         def change() -> None:
             self._geometry()["twist_location"] = twist_loc

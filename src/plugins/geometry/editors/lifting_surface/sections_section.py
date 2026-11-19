@@ -516,10 +516,7 @@ class SectionsSectionMixin(LiftingSurfaceEditorHost):
         if not (0 <= idx < len(sections)):
             return
 
-        try:
-            sections[idx]["sweep_loc"] = float(val_str)
-        except ValueError:
-            sections[idx]["sweep_loc"] = 0.25
+        sections[idx]["sweep_loc"] = float(val_str)
 
         sw_loc = self._sweep_loc
         new_profiles = sections_to_profiles(sections, self._profiles()[0], sw_loc)
