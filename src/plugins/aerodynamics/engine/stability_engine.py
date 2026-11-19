@@ -119,7 +119,6 @@ class StabilityAnalysisEngine:
         # Neutral Point & Static Margin
         x_np, static_margin_pct = self._neutral_point(res, x_cg, c_ref, cla_rad, cma_rad)
 
-        # 7. Control Effectiveness & Elevator Trim
         # 7. 3-Axis Aerodynamic Control Effectiveness (Elevator, Aileron, Rudder)
         controls_map: dict[str, ControlEffectiveness] = {}
         elevator_trim: ElevatorTrim | None = None

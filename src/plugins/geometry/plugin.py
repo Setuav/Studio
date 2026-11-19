@@ -42,7 +42,7 @@ class AirframeDesignPlugin:
         for contribution in self._creation_controller.contributions():
             api.register_toolbar_item(contribution)
 
-        # 1. Settings
+        # Settings
         api.register_settings_page(
             SettingsPageContribution(
                 id="airframe_design.settings.editor",
@@ -54,7 +54,7 @@ class AirframeDesignPlugin:
             )
         )
 
-        # 2. Component Types (models, editors, icons)
+        # Component Types (models, editors, icons)
         from .models import ControlSurfaceModel, FuselageModel, LiftingSurfaceModel
 
         self._component_types = [
@@ -89,7 +89,7 @@ class AirframeDesignPlugin:
         for contrib in self._component_types:
             api.register_component_type(contrib)
 
-        # 5. Geometry Providers (internal — not exposed through StudioAPI)
+        # Geometry providers
         from .engine.fuselage_geometry import build_fuselage_geometry
         from .engine.lifting_surface_geometry import build_lifting_surface_geometry
 
@@ -98,7 +98,7 @@ class AirframeDesignPlugin:
             "org.setuav.core:lifting-surface": build_lifting_surface_geometry,
         }
 
-        # 6. Central Viewport Synchronization
+        # Central Viewport Synchronization
         self._scene_controller = AirframeSceneController(api, self._providers)
         self._unsubscribers.append(
             api.on_project_changed(self._scene_controller.on_project_changed)
@@ -109,7 +109,7 @@ class AirframeDesignPlugin:
         if api.project is not None:
             self._scene_controller.sync(api.project)
 
-        # 7. Envelopes derived from each geometry component's parameters
+        # Envelopes derived from each geometry component's parameters
         for type_id in _GEOMETRY_TYPES:
             api.register_component_deriver(type_id, _derive_envelope)
         api.derive_components()

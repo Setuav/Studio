@@ -451,14 +451,14 @@ class FuselageCanvasWidget(QWidget):
         def world_to_screen(y_mm: float, z_mm: float) -> QPointF:
             return QPointF(ox + y_mm * self._scale, oy - z_mm * self._scale)
 
-        # 1. Grid & Axes
+        # Grid & Axes
         if self.show_grid:
             self._draw_grid(painter, width, height, ox, oy)
 
         if self.show_axes:
             self._draw_axes(painter, width, height, ox, oy)
 
-        # 2. Ghost Overlays
+        # Ghost Overlays
         if self.show_previous and self._prev_points:
             self._draw_profile_outline(
                 painter,
@@ -483,7 +483,7 @@ class FuselageCanvasWidget(QWidget):
 
         self._draw_active_profile(painter, world_to_screen)
 
-        # 4. Centroid & Dimensions
+        # Centroid & Dimensions
         if self.show_centroid and self._metrics and self._metrics["area"] > 0:
             cg_y = self._metrics["y_cg"]
             cg_z = self._metrics["z_cg"]
@@ -504,7 +504,7 @@ class FuselageCanvasWidget(QWidget):
         if self.show_dimensions and self._active_points:
             self._draw_dimension_lines(painter, self._active_points, world_to_screen)
 
-        # 5. HUD Header & Legend
+        # HUD Header & Legend
         self._draw_hud(painter, width, height)
 
     def _draw_active_profile(self, painter: QPainter, world_to_screen: Any) -> None:
