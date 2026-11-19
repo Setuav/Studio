@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import tempfile
-import time
 import unittest
+from collections.abc import Callable
 from pathlib import Path
 
+from PySide6.QtCore import QDeadlineTimer
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 from plugins.debug import DebugPlugin
@@ -15,6 +17,18 @@ from setuav_studio.api import StudioAPI
 from setuav_studio.project import create_project
 from setuav_studio.solver.base import SolverConfig, SolverStatus
 from setuav_studio.task.types import TaskCancelledError
+
+_WAIT_MS = 5000
+
+
+def _wait_until(predicate: Callable[[], bool]) -> bool:
+    """Process events until ``predicate`` holds; False after ``_WAIT_MS``."""
+    deadline = QDeadlineTimer(_WAIT_MS)
+    while not predicate():
+        if deadline.hasExpired():
+            return False
+        QTest.qWait(10)
+    return True
 
 
 class TestDebugMockSolver(unittest.TestCase):
@@ -136,12 +150,7 @@ class TestDebugMockSolver(unittest.TestCase):
         completed_results = []
         self.api.run_solver(solver, on_complete=lambda res: completed_results.append(res))
 
-        for _ in range(50):
-            QApplication.processEvents()
-            if completed_results:
-                break
-            time.sleep(0.01)
-
+        self.assertTrue(_wait_until(lambda: bool(completed_results)))
         self.assertEqual(len(completed_results), 1)
         res = completed_results[0]
         self.assertEqual(res.status, SolverStatus.COMPLETED)
@@ -168,21 +177,12 @@ class TestDebugMockSolver(unittest.TestCase):
             on_cancelled=lambda: cancelled_called.append(True),
         )
 
-        # Allow task to start running
-        for _ in range(5):
-            QApplication.processEvents()
-            time.sleep(0.01)
+        self.assertTrue(_wait_until(lambda: solver.progress > 0))
 
         # Cancel task
         self.api.tasks.cancel(handle.id)
 
-        for _ in range(50):
-            QApplication.processEvents()
-            if cancelled_called:
-                break
-            time.sleep(0.01)
-
-        self.assertTrue(len(cancelled_called) > 0)
+        self.assertTrue(_wait_until(lambda: bool(cancelled_called)))
         self.assertEqual(solver.status, SolverStatus.CANCELLED)
 
     def test_debug_plugin_lifecycle_and_actions(self) -> None:
