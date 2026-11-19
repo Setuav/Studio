@@ -10,7 +10,6 @@ from .data import LoftGeometry, Section
 from .lifting_surface_cuts import build_lifting_surface_with_control_surfaces
 from .lifting_surface_math import (
     mapping,
-    number,
     sample_structured_airfoil_round,
 )
 from .lifting_surface_tips import (
@@ -120,8 +119,8 @@ def build_lifting_surface_geometry(
         dy = float(tip_pos.get("y", 0.0)) - float(prev_pos.get("y", 0.0))
         if abs(dy) > 1e-4:
             dx_le = float(tip_pos.get("x", 0.0)) - float(prev_pos.get("x", 0.0))
-            dx_te = (float(tip_pos.get("x", 0.0)) + number(p_tip.get("chord"))) - (
-                float(prev_pos.get("x", 0.0)) + number(p_prev.get("chord"))
+            dx_te = (float(tip_pos.get("x", 0.0)) + float(p_tip["chord"])) - (
+                float(prev_pos.get("x", 0.0)) + float(p_prev["chord"])
             )
             le_sweep_slope = dx_le / dy
             te_sweep_slope = dx_te / dy
@@ -162,8 +161,8 @@ def build_lifting_surface_geometry(
         dy = float(tip_pos.get("y", 0.0)) - float(prev_pos.get("y", 0.0))
         if abs(dy) > 1e-4:
             dx_le = float(tip_pos.get("x", 0.0)) - float(prev_pos.get("x", 0.0))
-            dx_te = (float(tip_pos.get("x", 0.0)) + number(p_tip.get("chord"))) - (
-                float(prev_pos.get("x", 0.0)) + number(p_prev.get("chord"))
+            dx_te = (float(tip_pos.get("x", 0.0)) + float(p_tip["chord"])) - (
+                float(prev_pos.get("x", 0.0)) + float(p_prev["chord"])
             )
             incoming_le_sweep_deg = math.degrees(math.atan2(dx_le, abs(dy)))
             incoming_te_sweep_deg = math.degrees(math.atan2(dx_te, abs(dy)))
@@ -237,13 +236,13 @@ def _build_profile_section(
     profile = value if isinstance(value, dict) else None
     if profile is None:
         return None
-    chord = number(profile.get("chord"))
+    chord = float(profile["chord"])
     if chord <= 0:
         return None
     coords = sample_airfoil_points(profile.get("airfoil"))
     coords = _apply_shaping(coords, te_thickness, thickness_scale, camber_scale)
     rot = mapping(profile.get("rotation"))
-    dihedral_rad = math.radians(number(rot.get("x", 0.0)))
+    dihedral_rad = math.radians(float(rot.get("x", 0.0)))
     matrix = section_transform(profile, chord=chord, twist_location=twist_location)
     main_2d, _ = sample_structured_airfoil_round(coords, x_h=1.0, is_flap=False)
     return _section_with_align(matrix, chord, main_2d, dihedral_rad, section_align)
@@ -333,12 +332,12 @@ def _interpolate_station_props(
 
     if y <= y_coords[0]:
         p = sorted_profs[0]
-        chord = number(p.get("chord"))
+        chord = float(p["chord"])
         coords = sample_airfoil_points(p.get("airfoil"))
         return chord, p, coords
     if y >= y_coords[-1]:
         p = sorted_profs[-1]
-        chord = number(p.get("chord"))
+        chord = float(p["chord"])
         coords = sample_airfoil_points(p.get("airfoil"))
         return chord, p, coords
 
@@ -350,8 +349,8 @@ def _interpolate_station_props(
     y0, y1 = y_coords[idx], y_coords[idx + 1]
     t = (y - y0) / max(y1 - y0, 1e-6)
 
-    c0 = number(p0.get("chord"))
-    c1 = number(p1.get("chord"))
+    c0 = float(p0["chord"])
+    c1 = float(p1["chord"])
     chord_interp = c0 + (c1 - c0) * t
 
     pos0 = p0.get("position", {}) if isinstance(p0.get("position"), dict) else {}

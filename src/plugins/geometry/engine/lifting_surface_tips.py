@@ -11,7 +11,6 @@ from .airfoil import apply_airfoil_shaping, sample_airfoil_points
 from .data import LoftGeometry, Point3D, Section
 from .lifting_surface_math import (
     interp_branch_z,
-    number,
     split_airfoil_upper_lower,
 )
 from .palettes import lifting_surface_color
@@ -202,7 +201,7 @@ def build_tip_cap_loft(
     tip_length = cap.length
     offset_x = cap.offset_x
 
-    chord = number(tip_profile.get("chord"))
+    chord = float(tip_profile["chord"])
     if chord <= 0:
         return None
 
@@ -307,7 +306,7 @@ def build_winglet_loft(
     if winglet_height <= 0.0:
         return None
 
-    tip_chord = number(tip_profile.get("chord"))
+    tip_chord = float(tip_profile["chord"])
     if tip_chord <= 0.0:
         return None
 

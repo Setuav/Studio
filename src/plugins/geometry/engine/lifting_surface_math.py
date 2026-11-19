@@ -13,14 +13,6 @@ def mapping(value: object) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-def number(value: Any) -> float:
-    """Safe float conversion."""
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return 0.0
-
-
 def split_airfoil_upper_lower(
     coords: tuple[tuple[float, float], ...],
 ) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
@@ -173,7 +165,6 @@ def rotate_section_around_axis(
 __all__ = [
     "interp_branch_z",
     "mapping",
-    "number",
     "rotate_section_around_axis",
     "sample_structured_airfoil_round",
     "split_airfoil_upper_lower",

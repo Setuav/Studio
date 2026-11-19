@@ -10,7 +10,6 @@ from typing import Any, Literal
 from .data import LoftGeometry, Point3D, Section
 from .lifting_surface_math import (
     mapping,
-    number,
     rotate_section_around_axis,
     sample_structured_airfoil_round,
 )
@@ -108,7 +107,7 @@ def build_lifting_surface_with_control_surfaces(
 def profile_span_context(
     profiles: list[dict[str, Any]],
 ) -> tuple[list[float], float, float, float]:
-    values = [number(mapping(profile.get("position")).get("y")) for profile in profiles]
+    values = [float(profile["position"]["y"]) for profile in profiles]
     root = values[0]
     tip = values[-1]
     return values, root, max(abs(tip - root), 1.0), 1.0 if tip >= root else -1.0
@@ -189,11 +188,11 @@ def normalized_control_surface(
         "eta_start": round(span_start / semi_span, 4),
         "eta_end": round(span_end / semi_span, 4),
         "chord_fraction": control_chord_fraction(control),
-        "chord": max(number(control.get("chord", 40.0)), 1.0),
+        "chord": max(float(control.get("chord", 40.0)), 1.0),
         "hinge_sweep": (
-            number(control.get("hinge_sweep")) if control.get("hinge_sweep") is not None else None
+            float(control["hinge_sweep"]) if control.get("hinge_sweep") is not None else None
         ),
-        "deflection": number(control.get("deflection", 0.0)),
+        "deflection": float(control.get("deflection", 0.0)),
     }
 
 
@@ -271,7 +270,7 @@ def build_uncut_segment(
             camber_scale,
         )
         rotation = mapping(profile.get("rotation"))
-        dihedral = math.radians(number(rotation.get("x", 0.0)))
+        dihedral = math.radians(float(rotation.get("x", 0.0)))
         matrix = section_transform(profile, chord=chord, twist_location=twist_location)
         main_2d, _ = sample_structured_airfoil_round(
             coordinates,
@@ -415,14 +414,14 @@ def control_station_sections(
         camber_scale,
     )
     rotation = mapping(profile.get("rotation"))
-    dihedral = math.radians(number(rotation.get("x", 0.0)))
+    dihedral = math.radians(float(rotation.get("x", 0.0)))
     matrix = section_transform(profile, chord=chord, twist_location=twist_location)
     position = mapping(profile.get("position"))
     hinge_frac = hinge_fraction(
         control,
         hinge_orig,
         abs(station - root),
-        number(position.get("x")),
+        float(position["x"]),
         chord,
     )
     main_2d, hinge = sample_structured_airfoil_round(
