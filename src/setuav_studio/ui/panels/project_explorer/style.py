@@ -173,17 +173,16 @@ def format_component_name(component: dict[str, Any]) -> str:
 
 def format_component_type(
     component: dict[str, Any],
-    components: list[dict[str, Any]] | None = None,
-    api: StudioAPI | None = None,
+    components: list[dict[str, Any]],
+    api: StudioAPI,
 ) -> str:
     if component.get("kind") == "instance":
         source_id = str(component.get("source") or "")
         source_name = source_id
-        if components:
-            for candidate in components:
-                if str(candidate.get("id") or "") == source_id:
-                    source_name = str(candidate.get("name") or source_id)
-                    break
+        for candidate in components:
+            if str(candidate.get("id") or "") == source_id:
+                source_name = str(candidate.get("name") or source_id)
+                break
         return f"Instance of {source_name}" if source_name else "Instance"
 
     ctype = str(component.get("type", ""))
@@ -201,8 +200,4 @@ def format_component_type(
         is_mirrored = geom.get("mirror") is True
         return "Lifting Surface (Bilateral)" if is_mirrored else "Lifting Surface"
 
-    if api is not None:
-        return api.get_component_type_label(ctype)
-
-    clean = ctype.split(":")[-1] if ":" in ctype else ctype
-    return clean.replace("-", " ").replace("_", " ").title()
+    return api.get_component_type_label(ctype)
