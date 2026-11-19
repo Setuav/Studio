@@ -405,7 +405,7 @@ def _deletion_project(studio_api: StudioAPI) -> ProjectDocument:
                 },
                 {"id": "tail"},
             ],
-            "extensions": {"org.test.notes": {"wing": "spar", "tail": "boom"}},
+            "extensions": {},
         },
     )
     studio_api._host.set_project(project)
@@ -419,29 +419,16 @@ def test_component_deletion_scope_includes_subparts_and_instances() -> None:
     assert studio_api.component_deletion_scope(["tail"]) == {"tail"}
 
 
-def test_delete_components_is_one_undoable_edit_with_removal_handlers() -> None:
+def test_delete_components_is_one_undoable_edit() -> None:
     studio_api = StudioAPI()
     project = _deletion_project(studio_api)
-    calls: list[frozenset[str]] = []
-
-    def remove_notes(data: dict[str, Any], removed: frozenset[str]) -> None:
-        calls.append(removed)
-        notes = data["extensions"]["org.test.notes"]
-        for component_id in removed:
-            notes.pop(component_id, None)
-
-    studio_api.register_component_removal_handler("org.test.notes", remove_notes)
-    with pytest.raises(ValueError):
-        studio_api.register_component_removal_handler("org.test.notes", remove_notes)
 
     studio_api.delete_components(["wing"], "Delete wing")
 
-    assert calls == [frozenset({"wing", "flap", "copy"})]
     assert [c["id"] for c in project.data["components"]] == ["pod", "tail"]
     pod = _component(project, "pod")
     assert "attach_to" not in pod, "a component mounted on a deleted one moves to the vehicle"
     assert pod["transform"]["position"]["x"] == pytest.approx(600.0)
-    assert project.data["extensions"]["org.test.notes"] == {"tail": "boom"}
     assert studio_api.undo_count == 1
     assert studio_api.undo_text == "Delete wing"
 
@@ -454,14 +441,9 @@ def test_delete_components_is_one_undoable_edit_with_removal_handlers() -> None:
         "tail",
     ]
     assert _component(project, "pod")["attach_to"] == "wing"
-    assert project.data["extensions"]["org.test.notes"] == {"wing": "spar", "tail": "boom"}
 
     studio_api.redo()
     assert [c["id"] for c in project.data["components"]] == ["pod", "tail"]
-
-    studio_api.unregister_component_removal_handler("org.test.notes")
-    studio_api.delete_components(["tail"], "Delete tail")
-    assert len(calls) == 1
 
 
 def test_delete_components_needs_a_project() -> None:

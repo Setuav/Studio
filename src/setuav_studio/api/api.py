@@ -19,7 +19,6 @@ from .contributions import (
     ComponentDeriver,
     ComponentMenuItemContribution,
     ComponentMenuProvider,
-    ComponentRemovalHandler,
     ComponentTreeNodeContribution,
     ComponentTreeProvider,
     ComponentTypeContribution,
@@ -112,7 +111,6 @@ class StudioAPI:
         self._component_models: dict[str, Any] = {}
         self._component_tree_providers: dict[str, ComponentTreeProvider] = {}
         self._component_menu_providers: dict[str, ComponentMenuProvider] = {}
-        self._component_removal_handlers: dict[str, ComponentRemovalHandler] = {}
         self._component_derivers: dict[str, ComponentDeriver] = {}
         self._project_tree_providers: dict[str, ProjectTreeProvider] = {}
         self._project_requirement_checker: Callable[[dict[str, Any]], list[str]] | None = None
@@ -1073,24 +1071,6 @@ class StudioAPI:
             items.extend(provider(component))
         return tuple(items)
 
-    def register_component_removal_handler(
-        self,
-        handler_id: str,
-        handler: ComponentRemovalHandler,
-    ) -> None:
-        """Register a handler that removes data referring to deleted components.
-
-        :meth:`delete_components` calls every handler inside its undoable edit, so the
-        handler's changes are undone and redone together with the deletion.
-        """
-        if handler_id in self._component_removal_handlers:
-            raise ValueError(f"A component removal handler is already registered for: {handler_id}")
-        self._component_removal_handlers[handler_id] = handler
-
-    def unregister_component_removal_handler(self, handler_id: str) -> None:
-        """Unregister a component removal handler by ID."""
-        self._component_removal_handlers.pop(handler_id, None)
-
     def component_deletion_scope(self, component_ids: Iterable[str]) -> frozenset[str]:
         """``component_ids`` with the components deleted along with them.
 
@@ -1121,9 +1101,8 @@ class StudioAPI:
     def delete_components(self, component_ids: Iterable[str], description: str) -> None:
         """Delete components in one undoable edit.
 
-        The edit deletes the components of :meth:`component_deletion_scope`, attaches
-        the components mounted on them to the vehicle where they are, and runs the
-        registered component removal handlers.
+        The edit deletes the components of :meth:`component_deletion_scope` and
+        attaches the components mounted on them to the vehicle where they are.
 
         @param component_ids Ids of the components to delete.
         @param description Human-readable undo command text.
@@ -1143,8 +1122,6 @@ class StudioAPI:
                 if str(component.get("attach_to") or "") in deleted:
                     attach_component(component, None, components, preserve_world_transform=True)
             components[:] = [c for c in components if str(c.get("id")) not in deleted]
-            for handler in self._component_removal_handlers.values():
-                handler(project.data, deleted)
 
         self.edit_project(description, change)
 

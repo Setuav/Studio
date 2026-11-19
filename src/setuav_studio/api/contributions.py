@@ -21,7 +21,6 @@ __all__ = [
     "ComponentDeriver",
     "ComponentMenuItemContribution",
     "ComponentMenuProvider",
-    "ComponentRemovalHandler",
     "ComponentTreeNodeContribution",
     "ComponentTreeProvider",
     "ComponentTypeContribution",
@@ -247,10 +246,6 @@ ComponentMenuProvider = Callable[
     tuple[ComponentMenuItemContribution, ...],
 ]
 
-#: Callback that removes the data referring to deleted components, given the project
-#: data and the ids of every deleted component. It runs inside the undoable edit that
-#: deletes the components and changes the project data in place.
-ComponentRemovalHandler = Callable[[dict[str, Any], frozenset[str]], None]
 
 #: Callback that contributes plugin-owned nodes beneath the project root.
 ProjectTreeProvider = Callable[

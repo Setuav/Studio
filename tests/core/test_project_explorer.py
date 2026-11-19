@@ -125,18 +125,14 @@ class ProjectExplorerComponentMenuTests(unittest.TestCase):
         self.assertEqual([action.text() for action in menu.actions()], ["Rename", "Delete"])
 
     def test_delete_removes_the_component_with_its_subparts_in_one_edit(self) -> None:
-        removed: list[frozenset[str]] = []
-        self.api.register_component_removal_handler(
-            "org.test.removal", lambda _data, ids: removed.append(ids)
-        )
         self.explorer._ops.confirm_delete = lambda *_args, **_kwargs: True
         delete = self._menu("main-wing").actions()[-1]
         delete.trigger()
 
-        self.assertEqual(removed, [frozenset({"main-wing", "aileron", "main-wing-flap"})])
         project = self.api.project
         assert project is not None
-        self.assertIsNone(project.get_component("main-wing"))
+        for component_id in ("main-wing", "aileron", "main-wing-flap"):
+            self.assertIsNone(project.get_component(component_id))
         self.assertEqual(self.api.undo_count, 1)
         self.api.undo()
         self.assertIsNotNone(project.get_component("main-wing"))
