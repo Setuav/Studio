@@ -257,35 +257,26 @@ class PluginManager:
         return None
 
     def _load_from_pyproject(self, plugin_dir: Path, pyproject_file: Path) -> object | None:
-        try:
-            import tomllib
+        import tomllib
 
-            data = tomllib.loads(pyproject_file.read_text("utf-8"))
-            ep_group = (
-                data.get("project", {}).get("entry-points", {}).get("setuav_studio.plugins", {})
-            )
-            if not isinstance(ep_group, dict) or not ep_group:
-                return None
+        data = tomllib.loads(pyproject_file.read_text("utf-8"))
+        ep_group = data.get("project", {}).get("entry-points", {}).get("setuav_studio.plugins", {})
+        if not isinstance(ep_group, dict) or not ep_group:
+            return None
 
-            src_dir = plugin_dir / "src"
-            if src_dir.is_dir() and str(src_dir) not in sys.path:
-                sys.path.insert(0, str(src_dir))
-            if str(plugin_dir) not in sys.path:
-                sys.path.insert(0, str(plugin_dir))
+        src_dir = plugin_dir / "src"
+        if src_dir.is_dir() and str(src_dir) not in sys.path:
+            sys.path.insert(0, str(src_dir))
+        if str(plugin_dir) not in sys.path:
+            sys.path.insert(0, str(plugin_dir))
 
-            for ep_str in ep_group.values():
-                if isinstance(ep_str, str) and ":" in ep_str:
-                    mod_name, attr_name = ep_str.split(":", 1)
-                    mod = import_module(mod_name.strip())
-                    candidate = getattr(mod, attr_name.strip(), None)
-                    if candidate is not None:
-                        return candidate
-        except Exception as exc:
-            logger.warning(
-                "Could not load entry-points from pyproject.toml in %s: %s",
-                plugin_dir.name,
-                exc,
-            )
+        for ep_str in ep_group.values():
+            if isinstance(ep_str, str) and ":" in ep_str:
+                mod_name, attr_name = ep_str.split(":", 1)
+                mod = import_module(mod_name.strip())
+                candidate = getattr(mod, attr_name.strip(), None)
+                if candidate is not None:
+                    return candidate
         return None
 
     def _load_plugin_from_file(
@@ -337,12 +328,12 @@ class PluginManager:
         issues: list[PluginLoadIssue],
     ) -> None:
         candidates.sort(key=lambda item: (item[0], item[1]))
-        for _, _, candidate in candidates:
+        for _, plugin_id, candidate in candidates:
             try:
                 self._activate_candidate(candidate)
             except Exception as exc:
-                logger.warning("Failed to activate plugin: %s", exc)
-                issues.append(PluginLoadIssue("plugin", str(exc)))
+                logger.warning("Failed to activate plugin %s: %s", plugin_id, exc)
+                issues.append(PluginLoadIssue(plugin_id, str(exc)))
 
     def _activate_candidate(self, candidate: object) -> None:
         plugin: Any = candidate() if isinstance(candidate, type) else candidate
@@ -407,11 +398,13 @@ class PluginManager:
             # 1. Check if custom_dir itself is a plugin directory
             try:
                 candidate = self._load_plugin_from_dir(custom_dir)
-                if candidate is not None:
-                    candidates.append(_candidate_sort_key(candidate, custom_dir.name))
-                    continue
             except Exception as exc:
                 logger.warning("Failed to load plugin directly from %s: %s", custom_dir, exc)
+                issues.append(PluginLoadIssue(str(custom_dir), str(exc)))
+                continue
+            if candidate is not None:
+                candidates.append(_candidate_sort_key(candidate, custom_dir.name))
+                continue
 
             # 2. Check subdirectories and .py files inside custom_dir
             for item in sorted(custom_dir.iterdir()):

@@ -171,6 +171,24 @@ def test_custom_plugin_folders(tmp_path: Path) -> None:
     assert not manager.remove_custom_folder(folder1)
 
 
+def test_a_broken_plugin_entry_point_is_reported(tmp_path: Path) -> None:
+    manager = PluginManager(StudioAPI())
+    folder = tmp_path / "broken_plugin"
+    folder.mkdir()
+    (folder / "pyproject.toml").write_text(
+        '[project.entry-points."setuav_studio.plugins"]\n'
+        'broken = "setuav_missing_module_xyz:PLUGIN"\n',
+        "utf-8",
+    )
+    manager.add_custom_folder(folder)
+
+    issues, candidates = manager._collect_custom_directory_candidates()
+
+    assert candidates == []
+    assert [issue.source for issue in issues] == [str(folder.resolve())]
+    assert "setuav_missing_module_xyz" in issues[0].message
+
+
 # ==============================================================================
 # 4. Plugin Archive Installer
 # ==============================================================================
