@@ -259,6 +259,52 @@ class AerodynamicsPluginTests(unittest.TestCase):
         self.assertEqual(first_cell.text(), "2")
         tool.close()
 
+    def test_airfoil_analysis_runs_as_a_studio_task(self) -> None:
+        from unittest import mock
+
+        from PySide6.QtCore import QDeadlineTimer
+        from PySide6.QtTest import QTest
+
+        row = {
+            "alpha": 2.0,
+            "cl": 0.5,
+            "cd": 0.025,
+            "cm": -0.04,
+            "ld": 20.0,
+            "top_xtr": 0.4,
+            "bot_xtr": 0.6,
+        }
+        tool = AirfoilAnalysisToolWindow(self.api)
+
+        def run(result: object) -> None:
+            with mock.patch(
+                "plugins.aerodynamics.airfoil_analysis_tool.analyze_airfoil_request",
+                side_effect=[result],
+            ):
+                tool._run_analysis()
+                self.assertFalse(tool.run_button.isEnabled())
+                deadline = QDeadlineTimer(5000)
+                while not tool.run_button.isEnabled() and not deadline.hasExpired():
+                    QTest.qWait(10)
+            self.assertTrue(tool.run_button.isEnabled())
+
+        if not HAS_AEROSANDBOX:
+            self.skipTest("AeroSandbox not installed")
+        run(
+            {
+                "engine": "NeuralFoil (large)",
+                "airfoil": "NACA 2412",
+                "cache_hit": False,
+                "rows": [row],
+            }
+        )
+        self.assertEqual(tool.results_table.rowCount(), 1)
+
+        with mock.patch("plugins.aerodynamics.airfoil_analysis_tool.QMessageBox.critical"):
+            run(RuntimeError("no converged points"))
+        self.assertIn("no converged points", tool.status_label.text())
+        tool.close()
+
     def test_controls_offer_aircraft_channels_not_surface_names(self) -> None:
         components = [
             WING,

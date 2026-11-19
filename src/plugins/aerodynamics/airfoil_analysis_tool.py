@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from PySide6.QtCharts import QLineSeries, QValueAxis
-from PySide6.QtCore import QObject, QPointF, Qt, QThread, Signal, Slot
+from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QCloseEvent, QColor, QPen
 from PySide6.QtWidgets import (
     QComboBox,
@@ -131,83 +131,64 @@ class AirfoilAnalysisRequest:
     model_size: str
 
 
-class AirfoilAnalysisWorker(QObject):
-    completed = Signal(object)
-    failed = Signal(str)
+def analyze_airfoil_request(request: AirfoilAnalysisRequest) -> dict[str, Any]:
+    """The polar rows of ``request``; runs in a Studio background task."""
+    if not HAS_AEROSANDBOX:
+        raise RuntimeError("AeroSandbox is not installed. Install the aerodynamics extra first.")
 
-    def __init__(self, request: AirfoilAnalysisRequest) -> None:
-        super().__init__()
-        self._request = request
+    import numpy as native_np
 
-    @Slot()
-    def run(self) -> None:
-        try:
-            self.completed.emit(self._analyze())
-        except Exception as error:
-            self.failed.emit(str(error))
+    alphas = native_np.linspace(
+        request.alpha_min,
+        request.alpha_max,
+        request.alpha_steps,
+    )
+    airfoil = AeroSandboxEngine()._resolve_airfoil(request.airfoil_spec)
 
-    def _analyze(self) -> dict[str, Any]:
-        if not HAS_AEROSANDBOX:
-            raise RuntimeError(
-                "AeroSandbox is not installed. Install the aerodynamics extra first."
-            )
+    engine = AirfoilAnalysisEngine()
+    cache_hits_before = engine.cache.stats()["hits"]
+    polar = engine.analyze_airfoil(
+        airfoil=airfoil,
+        reynolds=request.reynolds,
+        alphas=alphas,
+        mach=request.mach,
+        n_crit=request.n_crit,
+        model_size=request.model_size,
+    )
+    cache_hit = engine.cache.stats()["hits"] > cache_hits_before
+    engine_name = f"NeuralFoil ({polar.model_size})"
 
-        import numpy as native_np
-
-        request = self._request
-        alphas = native_np.linspace(
-            request.alpha_min,
-            request.alpha_max,
-            request.alpha_steps,
+    rows: list[dict[str, float]] = []
+    for point in polar.points:
+        alpha = point.alpha
+        cl = point.cl
+        cd = point.cd
+        cm = point.cm
+        if not all(math.isfinite(value) for value in (alpha, cl, cd)):
+            continue
+        rows.append(
+            {
+                "alpha": alpha,
+                "cl": cl,
+                "cd": cd,
+                "cm": cm,
+                "ld": cl / cd if abs(cd) > 1e-12 else math.nan,
+                "top_xtr": point.top_transition if point.top_transition is not None else math.nan,
+                "bot_xtr": point.bottom_transition
+                if point.bottom_transition is not None
+                else math.nan,
+            }
         )
-        airfoil = AeroSandboxEngine()._resolve_airfoil(request.airfoil_spec)
 
-        engine = AirfoilAnalysisEngine()
-        cache_hits_before = engine.cache.stats()["hits"]
-        polar = engine.analyze_airfoil(
-            airfoil=airfoil,
-            reynolds=request.reynolds,
-            alphas=alphas,
-            mach=request.mach,
-            n_crit=request.n_crit,
-            model_size=request.model_size,
-        )
-        cache_hit = engine.cache.stats()["hits"] > cache_hits_before
-        engine_name = f"NeuralFoil ({polar.model_size})"
+    if not rows:
+        raise RuntimeError(f"{engine_name} did not return any converged points.")
 
-        rows: list[dict[str, float]] = []
-        for point in polar.points:
-            alpha = point.alpha
-            cl = point.cl
-            cd = point.cd
-            cm = point.cm
-            if not all(math.isfinite(value) for value in (alpha, cl, cd)):
-                continue
-            rows.append(
-                {
-                    "alpha": alpha,
-                    "cl": cl,
-                    "cd": cd,
-                    "cm": cm,
-                    "ld": cl / cd if abs(cd) > 1e-12 else math.nan,
-                    "top_xtr": point.top_transition
-                    if point.top_transition is not None
-                    else math.nan,
-                    "bot_xtr": point.bottom_transition
-                    if point.bottom_transition is not None
-                    else math.nan,
-                }
-            )
-
-        if not rows:
-            raise RuntimeError(f"{engine_name} did not return any converged points.")
-
-        return {
-            "engine": engine_name,
-            "airfoil": airfoil_label(request.airfoil_spec),
-            "cache_hit": cache_hit,
-            "rows": rows,
-        }
+    return {
+        "engine": engine_name,
+        "airfoil": airfoil_label(request.airfoil_spec),
+        "cache_hit": cache_hit,
+        "rows": rows,
+    }
 
 
 class AirfoilAnalysisToolWindow(QDialog):
@@ -224,8 +205,7 @@ class AirfoilAnalysisToolWindow(QDialog):
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.resize(1080, 720)
         self._api = api
-        self._thread: QThread | None = None
-        self._worker: AirfoilAnalysisWorker | None = None
+        self._running = False
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -389,7 +369,7 @@ class AirfoilAnalysisToolWindow(QDialog):
         return self.airfoil_combo.currentText().strip()
 
     def _run_analysis(self) -> None:
-        if self._thread is not None:
+        if self._running:
             return
         if not HAS_AEROSANDBOX:
             QMessageBox.warning(
@@ -422,30 +402,17 @@ class AirfoilAnalysisToolWindow(QDialog):
         self.progress.setVisible(True)
         self.status_label.setText("Analysis running…")
 
-        thread = QThread(self)
-        worker = AirfoilAnalysisWorker(request)
-        worker.moveToThread(thread)
-        thread.started.connect(worker.run)
-        worker.completed.connect(self._analysis_completed)
-        worker.failed.connect(self._analysis_failed)
-        worker.completed.connect(thread.quit)
-        worker.failed.connect(thread.quit)
-        worker.completed.connect(worker.deleteLater)
-        worker.failed.connect(worker.deleteLater)
-        thread.finished.connect(self._thread_finished)
-        self._thread = thread
-        self._worker = worker
-        thread.start()
+        self._running = True
+        self._api.tasks.submit(
+            "Airfoil analysis",
+            lambda _token: analyze_airfoil_request(request),
+            on_finished=self._analysis_completed,
+            on_error=self._analysis_failed,
+        )
 
-    @Slot(object)
-    def _analysis_completed(self, result: object) -> None:
-        if not isinstance(result, dict):
-            self._analysis_failed("Invalid airfoil analysis result")
-            return
-        rows = result.get("rows")
-        if not isinstance(rows, list):
-            self._analysis_failed("Airfoil analysis returned no data")
-            return
+    def _analysis_completed(self, result: dict[str, Any]) -> None:
+        self._analysis_finished()
+        rows = result["rows"]
         self._populate_results(rows)
         self.status_label.setText(
             f"{result.get('airfoil', 'Airfoil')} · {result.get('engine', '')} · "
@@ -454,16 +421,15 @@ class AirfoilAnalysisToolWindow(QDialog):
         )
         self._api.show_status("Airfoil analysis complete", "success", 3000)
 
-    @Slot(str)
-    def _analysis_failed(self, message: str) -> None:
+    def _analysis_failed(self, error: Exception) -> None:
+        self._analysis_finished()
+        message = str(error)
         self.status_label.setText(f"Analysis failed: {message}")
         self._api.show_status(f"Airfoil analysis failed: {message}", "error", 5000)
         QMessageBox.critical(self, "Airfoil Analysis", message)
 
-    @Slot()
-    def _thread_finished(self) -> None:
-        self._thread = None
-        self._worker = None
+    def _analysis_finished(self) -> None:
+        self._running = False
         self.run_button.setEnabled(True)
         self.progress.setVisible(False)
 
@@ -498,7 +464,7 @@ class AirfoilAnalysisToolWindow(QDialog):
                 )
 
     def closeEvent(self, event: QCloseEvent) -> None:
-        if self._thread is not None:
+        if self._running:
             self.status_label.setText("Wait for the running analysis to finish.")
             event.ignore()
             return
