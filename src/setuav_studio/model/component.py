@@ -48,16 +48,17 @@ class Component:
         self._attach_target_model: Component | None = None
 
         # 1. Class-level component type default
-        class_type = getattr(self.__class__, "COMPONENT_TYPE", "")
-        if class_type and not self._raw_data.get("type"):
-            self._raw_data["type"] = class_type
+        if self.COMPONENT_TYPE and not self._raw_data.get("type"):
+            self._raw_data["type"] = self.COMPONENT_TYPE
 
         # 2. Populate parameter defaults from class field descriptors
+        from setuav_studio.api.contributions import TableParameterField
+
         fields = self.get_fields()
         params = self._raw_data.setdefault("parameters", {})
         for f in fields:
             if f.key and f.key not in params:
-                if hasattr(f, "columns"):
+                if isinstance(f, TableParameterField):
                     params[f.key] = [
                         dict(r) if isinstance(r, dict) else r for r in (f.default or ())
                     ]
@@ -122,17 +123,8 @@ class Component:
         self._raw_data["name"] = value
 
     @property
-    def component_type(self) -> str:
-        return str(self._raw_data.get("type", ""))
-
-    @component_type.setter
-    def component_type(self, value: str) -> None:
-        self._raw_data["type"] = value
-
-    # Compatibility property for comp.type
-    @property
     def type(self) -> str:
-        return str(self._raw_data.get("type") or getattr(self.__class__, "COMPONENT_TYPE", ""))
+        return str(self._raw_data.get("type") or self.COMPONENT_TYPE)
 
     @type.setter
     def type(self, value: str) -> None:
@@ -357,9 +349,9 @@ class Component:
         """Link the model of the component this one attaches to."""
         self._attach_target_model = target_model
 
-    def add_child_model(self, child: Any) -> None:
+    def add_child_model(self, child: Component) -> None:
         """Register the model of a component attached to this one."""
-        child_id = getattr(child, "id", "")
+        child_id = child.id
         if child_id:
             clean_id = child_id.replace("-", "_").lower()
             self._children[clean_id] = child
@@ -374,14 +366,13 @@ class Component:
                 if short_name:
                     self._children[short_name] = child
 
-        raw = getattr(child, "raw_data", {})
-        if isinstance(raw, dict):
-            ctype = str(raw.get("type") or "").replace("-", "_").lower()
-            if ctype:
-                self._children[ctype] = child
-            c_name = str(raw.get("name") or "").replace("-", "_").replace(" ", "_").lower()
-            if c_name:
-                self._children[c_name] = child
+        raw = child.raw_data
+        ctype = str(raw.get("type") or "").replace("-", "_").lower()
+        if ctype:
+            self._children[ctype] = child
+        c_name = str(raw.get("name") or "").replace("-", "_").replace(" ", "_").lower()
+        if c_name:
+            self._children[c_name] = child
 
     @property
     def children(self) -> dict[str, Any]:

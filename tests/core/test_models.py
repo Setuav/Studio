@@ -111,7 +111,6 @@ def test_component_init_and_identity() -> None:
     assert comp.id == "motor-1"
     assert comp.name == "Main Motor"
     assert comp.type == "org.setuav.core:propulsor"
-    assert comp.component_type == "org.setuav.core:propulsor"
     assert comp.attach_to is None
 
     # Name falls back to ID if not specified
