@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import contextlib
 from collections.abc import Callable
 from typing import Any
 
@@ -29,6 +28,7 @@ from setuav_studio.api import (
     ToolContribution,
 )
 
+_ANALYSIS_TOOLBAR_ID = "propulsion.add-analysis"
 _TREE_PROVIDER_ID = "org.setuav.studio.electrical_propulsion.propulsor-parts"
 _PART_ICONS = {MOTOR_SELECTION_KIND: "fa6s.gear", PROPELLER_SELECTION_KIND: "fa6s.fan"}
 
@@ -47,6 +47,10 @@ class ElectricalPropulsionPlugin(StudioPlugin):
         self._api: StudioAPI | None = None
         self._scene_controller: PropulsionSceneController | None = None
         self._unsubscribers: list[Callable[[], None]] = []
+        self._creation_controller: PropulsionCreationController | None = None
+        self._component_types: list[ComponentTypeContribution] = []
+        self._tool_contribution: ToolContribution | None = None
+        self._analysis_tools: list[ToolContribution] = []
 
     def activate(self, api: StudioAPI) -> None:
         self._api = api
@@ -157,10 +161,9 @@ class ElectricalPropulsionPlugin(StudioPlugin):
             api.add_solver_config(config)
             api.show_status("Added Operating Point Analysis configuration.", "success", 3000)
 
-        self._analysis_toolbar_id = "propulsion.add-analysis"
         api.register_toolbar_item(
             ToolbarContribution(
-                id=self._analysis_toolbar_id,
+                id=_ANALYSIS_TOOLBAR_ID,
                 title="Add Propulsion Analysis",
                 icon="fa6s.chart-line",
                 menu_items=(
@@ -228,29 +231,29 @@ class ElectricalPropulsionPlugin(StudioPlugin):
             self._scene_controller.dispose()
             self._scene_controller = None
 
-        for unsub in getattr(self, "_unsubscribers", []):
-            with contextlib.suppress(Exception):
-                unsub()
+        for unsub in self._unsubscribers:
+            unsub()
         self._unsubscribers = []
 
-        controller = getattr(self, "_creation_controller", None)
-        if controller is not None:
-            api.unregister_toolbar_item(controller.toolbar_id)
+        if self._creation_controller is not None:
+            api.unregister_toolbar_item(self._creation_controller.toolbar_id)
+            self._creation_controller = None
+        api.unregister_toolbar_item(_ANALYSIS_TOOLBAR_ID)
 
-        if hasattr(self, "_analysis_toolbar_id"):
-            api.unregister_toolbar_item(self._analysis_toolbar_id)
-
-        for ct in getattr(self, "_component_types", ()):
+        for ct in self._component_types:
             api.unregister_component_type(ct.id)
+        self._component_types = []
         api.unregister_component_tree_provider(_TREE_PROVIDER_ID)
         api.unregister_kind_editor(MOTOR_SELECTION_KIND)
         api.unregister_kind_editor(PROPELLER_SELECTION_KIND)
 
-        if getattr(self, "_tool_contribution", None) is not None:
+        if self._tool_contribution is not None:
             api.unregister_tool(self._tool_contribution)
+            self._tool_contribution = None
 
-        for tool in getattr(self, "_analysis_tools", ()):
+        for tool in self._analysis_tools:
             api.unregister_tool(tool)
+        self._analysis_tools = []
 
         from plugins.electrical_propulsion.solver import (
             SOLVER_ID_AIRSPEED_SWEEP,

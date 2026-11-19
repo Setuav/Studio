@@ -8,7 +8,6 @@ import platform
 import sys
 import time
 from collections.abc import Callable
-from contextlib import suppress
 from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import Qt, QTimer
@@ -573,7 +572,6 @@ class DebugPanel(PropertyTableMixin, QWidget):
     def closeEvent(self, event: Any) -> None:
         self._timer.stop()
         for unsub in self._unsubscribes:
-            with suppress(Exception):
-                unsub()
+            unsub()
         self._unsubscribes.clear()
         super().closeEvent(event)

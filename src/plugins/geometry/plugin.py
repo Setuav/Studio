@@ -1,4 +1,3 @@
-import contextlib
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any, ClassVar
@@ -32,6 +31,7 @@ class AirframeDesignPlugin:
         self._scene_controller: AirframeSceneController | None = None
         self._unsubscribers: list[Callable[[], None]] = []
         self._component_types: list[ComponentTypeContribution] = []
+        self._creation_controller: AirframeCreationController | None = None
 
     def activate(self, api: StudioAPI) -> None:
         register_plugin_icons(
@@ -112,44 +112,20 @@ class AirframeDesignPlugin:
             api.register_component_deriver(type_id, _derive_envelope)
         api.derive_components()
 
-    def get_geometry(self, project: Any = None) -> Any:
-        """Build and return geometry data for the given project.
-
-        Returns an empty GeometryData when no project is available.
-        """
-        from .engine.data import GeometryData
-        from .engine.scene import build_project_geometry
-
-        api = getattr(self, "_api", None)
-        doc = project if project is not None else (api.project if api is not None else None)
-        if doc is None:
-            return GeometryData()
-        providers = getattr(self, "_providers", {})
-        if not providers:
-            from .engine.fuselage_geometry import build_fuselage_geometry
-            from .engine.lifting_surface_geometry import build_lifting_surface_geometry
-
-            providers = {
-                "org.setuav.core:fuselage": build_fuselage_geometry,
-                "org.setuav.core:lifting-surface": build_lifting_surface_geometry,
-            }
-        return build_project_geometry(doc, providers)
-
     def deactivate(self, api: StudioAPI) -> None:
-        controller = getattr(self, "_creation_controller", None)
-        if controller is not None:
-            for contribution_id in controller.toolbar_ids:
+        if self._creation_controller is not None:
+            for contribution_id in self._creation_controller.toolbar_ids:
                 api.unregister_toolbar_item(contribution_id)
-        for contrib in getattr(self, "_component_types", []):
+            self._creation_controller = None
+        for contrib in self._component_types:
             api.unregister_component_type(contrib.id)
         self._component_types = []
         self._providers = {}
         if self._scene_controller is not None:
             self._scene_controller.dispose()
             self._scene_controller = None
-        for unsub in getattr(self, "_unsubscribers", []):
-            with contextlib.suppress(Exception):
-                unsub()
+        for unsub in self._unsubscribers:
+            unsub()
         self._unsubscribers = []
         self._api = None
         api.unregister_settings_page("airframe_design.settings.editor")
