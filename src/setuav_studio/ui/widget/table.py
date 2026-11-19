@@ -1096,33 +1096,11 @@ class PropertyTableMixin:
         label: str = "",
         read_only: bool = False,
     ) -> Any:
-        if target_data is None:
-            resolved: Any = None
-            _get_target = getattr(self, "_get_property_target_data", None)
-            _target = getattr(self, "_target_data", None)
-            _get = getattr(self, "_get_data", None)
-            _geom = getattr(self, "_geometry", None)
-            _params = getattr(self, "_parameters", None)
-            _comp = getattr(self, "_component", None)
+        """Put a numeric cell for *key* into *table*.
 
-            if callable(_get_target):
-                resolved = _get_target()
-            elif isinstance(_target, dict):
-                resolved = _target
-            elif callable(_get):
-                resolved = _get()
-            elif callable(_geom):
-                resolved = _geom()
-            elif callable(_params):
-                resolved = _params()
-            elif isinstance(_params, dict):
-                resolved = _params
-            elif isinstance(_comp, dict):
-                resolved = _comp.get("parameters")
-
-            if isinstance(resolved, dict):
-                target_data = resolved
-
+        *target_data* is the object whose ``_expressions`` hold the stored formula
+        the cell shows; without it the cell shows the value.
+        """
         for row in range(table.rowCount()):
             if self._property_key(table, row) != key:
                 continue
