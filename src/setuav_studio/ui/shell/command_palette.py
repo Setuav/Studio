@@ -63,7 +63,7 @@ class _CommandItemWidget(QWidget):
             cat_label = QLabel(f"[{command.category}]", self)
             cat_label.setFont(QFont("Inter", 8, QFont.Weight.Bold))
             tok = tokens()
-            cat_color = tok.get("accent", "#c5a9eb")
+            cat_color = tok["accent"]
             cat_label.setStyleSheet(f"color: {cat_color}; background: transparent;")
             layout.addWidget(cat_label)
 
@@ -78,8 +78,8 @@ class _CommandItemWidget(QWidget):
             shortcut_label = QLabel(command.shortcut, self)
             shortcut_label.setFont(QFont("Inter", 8))
             tok = tokens()
-            border_color = tok.get("border", "#3d3d3d")
-            text_color = tok.get("text_muted", "#888888")
+            border_color = tok["border"]
+            text_color = tok["text_muted"]
             shortcut_label.setStyleSheet(
                 f"color: {text_color}; border: 1px solid {border_color}; "
                 f"border-radius: 4px; padding: 2px 6px; background: rgba(255, 255, 255, 0.05);"
@@ -111,8 +111,8 @@ class CommandPaletteDialog(QDialog):
 
     def _setup_ui(self) -> None:
         tok = tokens()
-        bg_color = tok.get("surface", "#1e1e1e")
-        border_color = tok.get("border", "#3d3d3d")
+        bg_color = tok["surface"]
+        border_color = tok["border"]
 
         self.setStyleSheet(
             f"QDialog {{ background-color: {bg_color}; border: 1px solid {border_color}; border-radius: 8px; }}"
@@ -155,7 +155,7 @@ class CommandPaletteDialog(QDialog):
         self.list_widget.setStyleSheet(
             f"QListWidget {{ border: none; background: transparent; }} "
             f"QListWidget::item {{ border-radius: 4px; padding: 0px; }} "
-            f"QListWidget::item:selected {{ background-color: {tok.get('surface_alt', '#2d2d2d')}; }}"
+            f"QListWidget::item:selected {{ background-color: {tok['surface_alt']}; }}"
         )
         self.list_widget.itemActivated.connect(self._on_item_activated)
         layout.addWidget(self.list_widget, 1)

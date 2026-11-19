@@ -90,12 +90,12 @@ class StudioChartWidget(QWidget):
         from setuav_studio.ui.style.theme import chart_color, tokens
 
         tok = tokens()
-        text_col = QColor(tok.get("text", "#e0e0e0"))
-        dim_col = QColor(tok.get("text_dim", "#888888"))
-        bg_col = QColor(tok.get("surface", "#1e1e1e"))
-        plot_bg_col = QColor(tok.get("plot", "#141414"))
-        grid_col = QColor(tok.get("grid", "#333333"))
-        border_col = QColor(tok.get("border", "#282828"))
+        text_col = QColor(tok["text"])
+        dim_col = QColor(tok["text_dim"])
+        bg_col = QColor(tok["surface"])
+        plot_bg_col = QColor(tok["plot"])
+        grid_col = QColor(tok["grid"])
+        border_col = QColor(tok["border"])
 
         self.chart.setTitleBrush(text_col)
         self.chart.setBackgroundBrush(bg_col)
@@ -130,8 +130,8 @@ class StudioChartWidget(QWidget):
         from setuav_studio.ui.style.theme import tokens
 
         tok = tokens()
-        dim_col = QColor(tok.get("text_dim", "#888888"))
-        grid_col = QColor(tok.get("grid", "#2d2d35"))
+        dim_col = QColor(tok["text_dim"])
+        grid_col = QColor(tok["grid"])
         return grid_col, dim_col
 
     def create_axis(

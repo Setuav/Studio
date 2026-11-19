@@ -392,7 +392,7 @@ class OpenGLViewer(QOpenGLWidget):
         from setuav_studio.ui.style.theme import tokens
 
         tok = tokens()
-        bg_hex = tok.get("plot", "#141414")
+        bg_hex = tok["plot"]
         from PySide6.QtGui import QColor
 
         qbg = QColor(bg_hex)
@@ -1155,7 +1155,7 @@ class OpenGLViewer(QOpenGLWidget):
                 from setuav_studio.ui.style.theme import tokens
 
                 tok = tokens()
-                bg_hex = tok.get("plot", "#141414")
+                bg_hex = tok["plot"]
                 qbg = QColor(bg_hex)
                 gl.functions.glClearColor(qbg.redF(), qbg.greenF(), qbg.blueF(), 1.0)
             gl.functions.glClear(_GL_COLOR_BUFFER_BIT | _GL_DEPTH_BUFFER_BIT)
