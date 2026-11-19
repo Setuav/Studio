@@ -86,7 +86,7 @@ class PropulsionCreationController:
         if project is None:
             return base_id, base_name
         components = [c for c in project.data["components"] if isinstance(c, dict)]
-        ids = {str(item.get("id") or "") for item in components}
+        ids = {str(item["id"]) for item in components}
         names = {str(item.get("name") or "") for item in components}
         if base_id not in ids and base_name not in names:
             return base_id, base_name

@@ -837,7 +837,7 @@ def _append_lifting_surface_tip_envelope_lines(  # noqa: C901
     matrix: Matrix4,
 ) -> None:
     lofts = build_lifting_surface_geometry(source)
-    comp_id = str(source.get("id") or "")
+    comp_id = str(source["id"])
     tip_lofts = [
         loft
         for loft in lofts

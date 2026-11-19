@@ -155,7 +155,7 @@ class AeroSandboxGeometryMixin:
         comp: dict[str, Any],
         comp_by_id: dict[str, dict[str, Any]],
     ) -> list[dict[str, Any]]:
-        return self._child_control_surfaces(str(comp.get("id") or ""), comp_by_id)
+        return self._child_control_surfaces(str(comp["id"]), comp_by_id)
 
     @staticmethod
     def _child_control_surfaces(

@@ -163,7 +163,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
         project = self._api.project
         if project and isinstance(project.data.get("components"), list):
             for c in project.data["components"]:
-                if isinstance(c, dict) and str(c.get("id") or "") == surface_id:
+                if isinstance(c, dict) and str(c["id"]) == surface_id:
                     params = c.get("parameters", {})
                     geom = params.get("geometry", {})
                     profs = geom.get("profiles", [])
@@ -200,7 +200,7 @@ class ControlSurfaceEditor(PropertyTableMixin, QWidget):
         if project and isinstance(project.data.get("components"), list):
             for c in project.data["components"]:
                 if isinstance(c, dict) and c.get("type") == "org.setuav.core:lifting-surface":
-                    cid = str(c.get("id") or "")
+                    cid = str(c["id"])
                     cname = str(c.get("name") or cid)
                     options.append((cid, cname))
 

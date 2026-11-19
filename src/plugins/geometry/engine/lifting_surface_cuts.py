@@ -180,7 +180,7 @@ def normalized_control_surface(
     span_start = min(start, end)
     span_end = max(start, end)
     return {
-        "id": str(control.get("id") or f"CS_{index + 1}"),
+        "id": str(control["id"]),
         "type": str(control.get("type") or "aileron"),
         "y_min": y_min,
         "y_max": y_max,

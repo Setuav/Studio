@@ -214,7 +214,7 @@ class ControlSurfacesSectionMixin(LiftingSurfaceEditorHost):
         geom = self._cs_geom(cs)
         semi_span, root_chord, tip_chord, wing_area = self._surface_span_info()
 
-        comp_id = str(self._component.get("id") or "")
+        comp_id = str(self._component["id"])
         self._api.set_section_selection((comp_id, 1, row))
 
         was_loading = self._loading
@@ -548,7 +548,7 @@ class ControlSurfacesSectionMixin(LiftingSurfaceEditorHost):
 
     def _add_control_surface(self) -> None:
         cs_list = self._control_surfaces()
-        wing_id = str(self._component.get("id") or "wing")
+        wing_id = str(self._component["id"])
         new_slug = f"control_{len(cs_list) + 1}"
         new_id = f"{wing_id}-{new_slug}"
         project = self._api.project
@@ -623,7 +623,7 @@ class ControlSurfacesSectionMixin(LiftingSurfaceEditorHost):
         project = self._api.project
 
         if project and isinstance(project.data.get("components"), list):
-            base_id = str(target.get("id") or "cs")
+            base_id = str(target["id"])
             target["id"] = f"{base_id}-copy"
             target["name"] = f"{target.get('name', base_id)} (Copy)"
 

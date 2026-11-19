@@ -53,7 +53,7 @@ class PropulsionSceneController:
             if ctype != PROPULSOR_TYPE or not has_propeller(comp["parameters"]):
                 continue
 
-            comp_id = str(comp.get("id") or "")
+            comp_id = str(comp["id"])
             if not comp_id:
                 continue
 

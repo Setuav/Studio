@@ -160,7 +160,7 @@ def update_component_in_viewport(
     comp_dict = _comp_as_dict(component)
     if comp_dict is None or viewport is None:
         return
-    comp_id = str(comp_dict.get("id") or "")
+    comp_id = str(comp_dict["id"])
     if not comp_id:
         return
     name = str(comp_dict.get("name") or comp_id)

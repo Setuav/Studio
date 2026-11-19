@@ -366,7 +366,7 @@ class AirframeCreationController:
         base_name: str,
     ) -> tuple[str, str]:
         elements = self._components()
-        ids = {str(item.get("id") or "") for item in elements}
+        ids = {str(item["id"]) for item in elements}
         names = {str(item.get("name") or "") for item in elements}
         if base_id not in ids and base_name not in names:
             return base_id, base_name

@@ -212,7 +212,7 @@ class SectionsSectionMixin(LiftingSurfaceEditorHost):
         self._section_index = row
         self._load_section(row)
         # Notify 3D renderer about section selection
-        comp_id = str(self._component.get("id") or "")
+        comp_id = str(self._component["id"])
         self._api.set_section_selection((comp_id, 0, row))
 
     def _on_section_property_cell_clicked(self, row: int, _col: int) -> None:
@@ -234,7 +234,7 @@ class SectionsSectionMixin(LiftingSurfaceEditorHost):
         self._handle_section_property_selection(row)
 
     def _handle_section_property_selection(self, row: int) -> None:
-        comp_id = str(self._component.get("id") or "")
+        comp_id = str(self._component["id"])
         key = self._property_key(self.section_properties_table, row)
         idx = self._section_index
         if key == "root_airfoil":
@@ -587,7 +587,7 @@ class SectionsSectionMixin(LiftingSurfaceEditorHost):
         if not (0 <= idx < len(sections)):
             return
 
-        comp_id = str(self._component.get("id") or "")
+        comp_id = str(self._component["id"])
         station_idx = idx if is_root else idx + 1
         self._api.set_section_selection((comp_id, 0, station_idx))
 

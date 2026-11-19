@@ -893,7 +893,7 @@ def _compute_control_surface_envelope(
     geometry = parameters.get("geometry")
     geometry = geometry if isinstance(geometry, dict) else {}
 
-    ctrl_id = str(component.get("id") or "CS")
+    ctrl_id = str(component["id"])
     ctrl_geom = deepcopy(geometry)
     ctrl_geom["id"] = ctrl_id
     ctrl_geom["deflection"] = 0.0

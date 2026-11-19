@@ -37,7 +37,7 @@ def build_lifting_surface_geometry(
     if not isinstance(profiles, list) or len(profiles) < 2:
         return ()
 
-    comp_id = str(component.get("id") or "lifting-surface")
+    comp_id = str(component["id"])
     interpolation = "smooth" if len(profiles) > 2 else "linear"
 
     twist_location = float(geometry.get("twist_location", 0.25))

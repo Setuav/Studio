@@ -21,7 +21,7 @@ def build_fuselage_geometry(
     if not isinstance(segments, list) or not segments:
         return ()
 
-    component_id = str(component.get("id") or "fuselage")
+    component_id = str(component["id"])
     colors = segment_colors()
     lofts: list[LoftGeometry] = []
     for index, segment in enumerate(segments):
